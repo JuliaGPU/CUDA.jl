@@ -20,3 +20,13 @@ end
 
 initialize()
 
+
+# Get driver version
+
+function driver_version()
+	a = Cint[0]
+	@cucall(:cuDriverGetVersion, (Ptr{Cint},), a)
+	return int(a[1])
+end
+
+
