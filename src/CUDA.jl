@@ -4,4 +4,5 @@ module CUDA
 	include("errors.jl")
 
 	include("base.jl")
+	include("devices.jl")
 end
