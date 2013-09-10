@@ -12,11 +12,11 @@ module CUDA
 	@cucall, driver_version, 
 
 	# devices
-	Device, Capability, dev_count, name, totalmem, attribute, capability,
+	CuDevice, CuCapability, dev_count, name, totalmem, attribute, capability,
 	list_devices,
 
 	# context
-	Context, create_context, destroy, push, pop,
+	CuContext, create_context, destroy, push, pop,
 
 	# module
 	CuModule, CuFunction, unload,
@@ -28,7 +28,7 @@ module CUDA
 	launch,
 
 	# arrays
-	GVector, GMatrix, free, to_host
+	CuPtr, CuVector, CuMatrix, free, to_host
 
 
 	include("errors.jl")

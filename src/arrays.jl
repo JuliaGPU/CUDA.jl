@@ -2,51 +2,51 @@
 
 typealias CUdeviceptr Cuint
 
-immutable GPtr
+immutable CuPtr
 	p::CUdeviceptr
 
-	GPtr() = new(convert(CUdeviceptr, 0))
-	GPtr(p::CUdeviceptr) = new(p)
+	CuPtr() = new(convert(CUdeviceptr, 0))
+	CuPtr(p::CUdeviceptr) = new(p)
 end
 
-function free(p::GPtr)
+function free(p::CuPtr)
 	@cucall(:cuMemFree, (CUdeviceptr,), p.p)
 end
 
-isnull(p::GPtr) = (p.p == 0)
+isnull(p::CuPtr) = (p.p == 0)
 
 
 #################################################
 #
-#  GVector: 1D array on GPU
+#  CuVector: 1D array on GPU
 #
 #################################################
 
-type GVector{T}
-	ptr::GPtr
+type CuVector{T}
+	ptr::CuPtr
 	len::Int
 
-	function GVector(len::Integer)
+	function CuVector(len::Integer)
 		a = CUdeviceptr[0]
 		nbytes = int(len) * sizeof(T)
 		@cucall(:cuMemAlloc, (Ptr{CUdeviceptr}, Csize_t), a, nbytes)
-		p = GPtr(a[1])
+		p = CuPtr(a[1])
 		new(p, int(len))
 	end
 end
 
-length(g::GVector) = g.len
-size(g::GVector) = (g.len,)
-size(g::GVector, d::Integer) = d == 1 ? g.len : d > 1 ? 1 : error("Invalid dim")
+length(g::CuVector) = g.len
+size(g::CuVector) = (g.len,)
+size(g::CuVector, d::Integer) = d == 1 ? g.len : d > 1 ? 1 : error("Invalid dim")
 
-function free(g::GVector)
+function free(g::CuVector)
 	if !isnull(g.ptr)
 		free(g.ptr)
-		g.ptr = GPtr()
+		g.ptr = CuPtr()
 	end
 end
 
-function copy!{T}(dst::Array{T}, src::GVector{T})
+function copy!{T}(dst::Array{T}, src::CuVector{T})
 	if length(dst) != length(src)
 		throw(ArgumentError("Inconsistent array length."))
 	end
@@ -55,7 +55,7 @@ function copy!{T}(dst::Array{T}, src::GVector{T})
 	return dst
 end
 
-function copy!{T}(dst::GVector{T}, src::Array{T})
+function copy!{T}(dst::CuVector{T}, src::Array{T})
 	if length(dst) != length(src)
 		throw(ArgumentError("Inconsistent array length."))
 	end
@@ -64,24 +64,24 @@ function copy!{T}(dst::GVector{T}, src::Array{T})
 	return dst
 end
 
-GVector{T}(a::Array{T}) = copy!(GVector{T}(length(a)), a)
-to_gpu{T}(a::Vector{T}) = GVector{T}(a)
-to_host{T}(g::GVector{T}) = copy!(Array(T, length(g)), g)
+CuVector{T}(a::Array{T}) = copy!(CuVector{T}(length(a)), a)
+to_gpu{T}(a::Vector{T}) = CuVector{T}(a)
+to_host{T}(g::CuVector{T}) = copy!(Array(T, length(g)), g)
 
 
 #################################################
 #
-#  GMatrix: 2D array on GPU
+#  CuMatrix: 2D array on GPU
 #
 #################################################
 
-type GMatrix{T}  # like Arrays in Julia, GMatrix is column-major
-	ptr::GPtr
+type CuMatrix{T}  # like Arrays in Julia, CuMatrix is column-major
+	ptr::CuPtr
 	nrows::Int  # number of rows (i.e. length of each column)
 	ncols::Int  # number of columns
 	pitch::Int  # number of bytes per column
 
-	function GMatrix(m::Integer, n::Integer)
+	function CuMatrix(m::Integer, n::Integer)
 		aptr = CUdeviceptr[0]
 		apitch = Csize_t[0]
 		wbytes = int(m) * sizeof(T)
@@ -93,19 +93,19 @@ type GMatrix{T}  # like Arrays in Julia, GMatrix is column-major
 	end
 end
 
-length(g::GMatrix) = g.nrows * g.ncols
-size(g::GMatrix) = (g.nrows, g.ncols)
+length(g::CuMatrix) = g.nrows * g.ncols
+size(g::CuMatrix) = (g.nrows, g.ncols)
 
-function size(g::GMatrix, dim::Integer)
+function size(g::CuMatrix, dim::Integer)
 	d == 1 ? g.nrows : 
 	d == 2 ? g.ncols : 
 	d > 2 ? 1 : error("Invalid dim")
 end
 
-function free(g::GMatrix)
+function free(g::CuMatrix)
 	if !isnull(g.ptr)
 		free(g.ptr)
-		g.ptr = GPtr()
+		g.ptr = CuPtr()
 	end
 end
 
