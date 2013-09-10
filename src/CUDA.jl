@@ -21,6 +21,12 @@ module CUDA
 	# module
 	CuModule, CuFunction, unload,
 
+	# stream
+	CuStream, synchronize,
+
+	# execution
+	launch,
+
 	# arrays
 	GVector, GMatrix, free, to_host
 
@@ -31,5 +37,8 @@ module CUDA
 	include("devices.jl")
 	include("context.jl")
 	include("module.jl")
+	include("stream.jl")
+	include("execution.jl")
+
 	include("arrays.jl")
 end
