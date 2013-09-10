@@ -8,7 +8,7 @@ macro cucall(f, argtypes, args...)
 	quote
 		_curet = ccall(dlsym(libcuda, $f), Cint, $argtypes, $(args...))
 		if _curet != 0
-			throw(DriverError(int(_curet)))
+			throw(CuDriverError(int(_curet)))
 		end
 	end
 end

@@ -55,8 +55,8 @@ const driver_error_descriptions = (Int=>ASCIIString)[
 ]
 
 
-immutable DriverError
+immutable CuDriverError
 	code::Int
 end
 
-description(err::DriverError) = driver_error_descriptions[err.code]
+description(err::CuDriverError) = driver_error_descriptions[err.code]
