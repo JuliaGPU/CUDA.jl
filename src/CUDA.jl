@@ -1,5 +1,8 @@
 module CUDA
 
+	import Base.length, Base.size
+	import Base.copy!
+
 	export
 
 	# base
@@ -10,7 +13,10 @@ module CUDA
 	list_devices,
 
 	# context
-	Context, create_context, destroy, push, pop
+	Context, create_context, destroy, push, pop,
+
+	# arrays
+	GVector, GMatrix, free, to_host
 
 
 	include("errors.jl")
@@ -18,4 +24,5 @@ module CUDA
 	include("base.jl")
 	include("devices.jl")
 	include("context.jl")
+	include("arrays.jl")
 end
