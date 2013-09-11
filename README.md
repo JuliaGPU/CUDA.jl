@@ -24,7 +24,6 @@ extern "C"   // ensure function name to be exactly "vadd"
 		int i = threadIdx.x + blockIdx.x * blockDim.x;
 		c[i] = a[i] + b[i];
 	}
-
 } 
 
 ```
@@ -69,7 +68,7 @@ gc = CuArray(Float32, (3, 4))
 launch(vadd, 12, 1, (ga, gb, gc))
 
 # download the results from GPU
-c = to_host(gc)
+c = to_host(gc)   # c is a Julia array on CPU (host)
 
 # release GPU memory
 free(ga)
