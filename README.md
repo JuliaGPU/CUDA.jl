@@ -4,6 +4,20 @@ Julia Programming interface for CUDA.
 
 This package wraps key functions in CUDA Driver API for Julia. While this remains work in progress, simple use is ready.
 
+### Setup
+
+1. Install CUDA driver, and make sure ``libcuda`` is in your library loading path.
+
+2. Checkout this package in Julia:
+
+```julia
+Pkg.add("CUDA")
+```
+
+3. Test whether it works by running the example script in ``examples/ex1.jl``.
+
+4. Enjoy.
+
 
 ### Example
 
@@ -41,6 +55,8 @@ This command would generate a PTX file named ``vadd.ptx``.
 The following script demonstrates how one can load the kernel and run it in Julia.
 
 ```julia
+using CUDA
+
 # select a CUDA device
 dev = CuDevice(0)
 
