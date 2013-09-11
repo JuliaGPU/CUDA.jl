@@ -4,17 +4,10 @@ immutable CuStream
 	handle::Ptr{Void}
 	blocking::Bool
 	priority::Int
+end
 
-	function CuStream()  # the null stream
-		new(convert(Ptr{Void}, 0), true, 0)
-	end
-
-	function CuStream(;block::Bool=true)
-		a = Array(Ptr{Void}, 1)
-		flag = block ? 0 : 1
-		@cucall(:cuStreamCreate, (Ptr{Ptr{Void}}, Cuint), a, flag)
-		new(a[0], block, 0)
-	end
+function null_stream()
+	CuStream(convert(Ptr{Void}, 0), true, 0)
 end
 
 function destroy(s::CuStream)

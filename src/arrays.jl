@@ -9,6 +9,8 @@ immutable CuPtr
 	CuPtr(p::CUdeviceptr) = new(p)
 end
 
+cubox(p::CuPtr) = cubox(p.p)
+
 function cualloc(T::Type, len::Integer)
 	a = CUdeviceptr[0]
 	nbytes = int(len) * sizeof(T)
@@ -21,6 +23,7 @@ function free(p::CuPtr)
 end
 
 isnull(p::CuPtr) = (p.p == 0)
+
 
 
 #################################################
@@ -46,6 +49,8 @@ function CuArray{N}(T::Type, shape::NTuple{N,Int})
 	p = cualloc(T, n)
 	CuArray{T,N}(p, shape, n)
 end
+
+cubox(a::CuArray) = cubox(a.ptr)
 
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape
@@ -83,4 +88,5 @@ end
 
 CuArray{T,N}(a::Array{T,N}) = copy!(CuArray(T, size(a)), a)
 to_host{T}(g::CuArray{T}) = copy!(Array(T, size(g)), g)
+
 

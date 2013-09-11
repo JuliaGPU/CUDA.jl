@@ -18,15 +18,37 @@ try
 	println("get function vadd")
 	f = CuFunction(md, "vadd")
 
-	a = rand(3, 4)
-	g = CuArray(a)
-	a2 = to_host(g)
+	siz = (3, 4)
+	len = prod(siz)
 
-	println("a = $a")
-	println("a2 = $a2")
-	println("a == a2 ? $(a == a2)")
+	println("load array a to GPU")
+	a = round(rand(Float32, siz) * 100)
+	ga = CuArray(a)
 
-	free(g)
+	println("load array b to GPU")
+	b = round(rand(Float32, siz) * 100)
+	gb = CuArray(b)
+
+	println("create array c on GPU")
+	gc = CuArray(Float32, siz)
+
+	println("launch kernel")
+	launch(f, len, 1, (ga, gb, gc))
+
+	println("fetch results from GPU")
+	c = to_host(gc)
+
+	println("free GPU memory")
+	free(ga)
+	free(gb)
+	free(gc)
+
+	println("Results:")
+	println("a = \n$a")
+	println("b = \n$b")
+	println("c = \n$c")
+
+	println("c == (a + b) ? $(c == (a + b))")
 
 	println("unload module")
 	unload(md)

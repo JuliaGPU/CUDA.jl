@@ -16,7 +16,7 @@ typealias CuDim Union(Int, (Int, Int), (Int, Int, Int))
 
 # Stream management
 
-function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple; shmem_bytes::Int=0, stream::CuStream=CuStream())
+function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple; shmem_bytes::Int=4, stream::CuStream=null_stream())
 	gx = get_dim_x(grid)
 	gy = get_dim_y(grid)
 	gz = get_dim_z(grid)
@@ -25,10 +25,7 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple; shmem_byt
 	ty = get_dim_y(block)
 	tz = get_dim_z(block)
 
-	nargs = length(args)
-	kernel_args = Array(Ptr{Void}, nargs)
-
-	# TODO: fill kernel_args
+	kernel_args = [cubox(arg) for arg in args]
 
 	@cucall(:cuLaunchKernel, (
 		Ptr{Void},  # function
@@ -42,6 +39,6 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple; shmem_byt
 		Ptr{Void}, # stream 
 		Ptr{Ptr{Void}}, # kernel parameters, 
 		Ptr{Ptr{Void}}), # extra parameters
-		f.handle, gx, gy, gz, tx, ty, tz, stream.handle, kernel_args, 0)
+		f.handle, gx, gy, gz, tx, ty, tz, shmem_bytes, stream.handle, kernel_args, 0)
 end
 
