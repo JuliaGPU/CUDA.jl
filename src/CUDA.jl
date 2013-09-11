@@ -28,7 +28,7 @@ module CUDA
 	launch,
 
 	# arrays
-	CuPtr, CuVector, CuMatrix, free, to_host
+	CuPtr, CuArray, free, to_host
 
 
 	include("errors.jl")

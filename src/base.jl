@@ -30,3 +30,7 @@ function driver_version()
 end
 
 
+# box a variable into array
+
+cubox{T}(x::T) = T[x]
+

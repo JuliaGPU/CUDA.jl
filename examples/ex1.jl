@@ -18,8 +18,8 @@ try
 	println("get function vadd")
 	f = CuFunction(md, "vadd")
 
-	a = rand(12)
-	g = CuVector(a)
+	a = rand(3, 4)
+	g = CuArray(a)
 	a2 = to_host(g)
 
 	println("a = $a")
