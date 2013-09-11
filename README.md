@@ -10,9 +10,9 @@ This package wraps key functions in CUDA Driver API for Julia. While this remain
 
 2. Checkout this package in Julia:
 
-```julia
-Pkg.add("CUDA")
-```
+	```julia
+	Pkg.add("CUDA")
+	```
 
 3. Test whether it works by running the example script in ``examples/ex1.jl``.
 
