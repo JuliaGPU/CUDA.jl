@@ -25,7 +25,7 @@ extern "C"   // ensure function name to be exactly "vadd"
 		c[i] = a[i] + b[i];
 	}
 
-} // extern "C"
+} 
 
 ```
 
@@ -66,7 +66,7 @@ gc = CuArray(Float32, (3, 4))
 # run the kernel vadd
 # syntax: launch(kernel, grid_size, block_size, arguments)
 # here, grid_size and block_size can be an integer or a tuple of integers
-launch(vadd, len, 1, (ga, gb, gc))
+launch(vadd, 12, 1, (ga, gb, gc))
 
 # download the results from GPU
 c = to_host(gc)
