@@ -25,10 +25,10 @@ module CUDA
 	CuStream, synchronize,
 
 	# execution
-	launch,
+	launch, CuDim,
 
 	# arrays
-	CuPtr, CuArray, free, to_host
+	CuPtr, CuArray, free, to_host, ndims, eltype, length, size, cubox
 
 
 	include("errors.jl")
