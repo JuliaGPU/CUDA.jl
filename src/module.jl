@@ -3,9 +3,10 @@
 immutable CuModule
 	handle::Ptr{Void}
 
-	function CuModule(filename::ASCIIString)
+	function CuModule(filename::ASCIIString, is_filename::Bool)
 		a = Array(Ptr{Void}, 1)
-		@cucall(:cuModuleLoad, (Ptr{Ptr{Void}}, Ptr{Cchar}), a, filename)
+		call = is_filename ? :cuModuleLoad : :cuModuleLoadData
+		@cucall(call, (Ptr{Ptr{Void}}, Ptr{Cchar}), a, filename)
 		new(a[1])
 	end
 end
