@@ -1,6 +1,6 @@
 module CUDA
 
-	import Base.length, Base.size
+	import Base.length, Base.size, Base.eltype, Base.ndims
 	import Base.copy!
 
 	export
@@ -28,7 +28,10 @@ module CUDA
 	launch, CuDim,
 
 	# arrays
-	CuPtr, CuArray, free, to_host, ndims, eltype, length, size, cubox
+	CuPtr, CuArray, free, to_host, ndims,
+
+	# native
+	threadId_x, threadId_y, threadId_z, In, Out, InOut
 
 
 	include("errors.jl")
@@ -41,4 +44,6 @@ module CUDA
 	include("execution.jl")
 
 	include("arrays.jl")
+
+	include("native.jl")
 end

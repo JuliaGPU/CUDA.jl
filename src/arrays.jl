@@ -57,7 +57,7 @@ size(g::CuArray) = g.shape
 ndims{T,N}(g::CuArray{T,N}) = N
 eltype{T,N}(g::CuArray{T,N}) = T
 
-function size{T,N}(g::CuArray{T,N}, d::Integer) 
+function size{T,N}(g::CuArray{T,N}, d::Integer)
 	d >= 1 ? (d <= N ? g.shape[d] : 1) : error("Invalid index of dimension.")
 end
 

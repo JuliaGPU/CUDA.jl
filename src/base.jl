@@ -1,4 +1,3 @@
-
 # Load & initialize CUDA driver
 
 const libcuda = dlopen("libcuda")
@@ -63,7 +62,7 @@ initialize(5050)
 # macro for native julia - cuda processing
 
 macro cuda(config, call::Expr)
-# Module and thread/block config
+	# Module and thread/block config
 	@gensym md
 	@gensym grid
 	@gensym block
@@ -81,6 +80,7 @@ macro cuda(config, call::Expr)
 	exprs = :($exprs; $expr_func)
 
 	# Arguments
+	args = call.args[2:end]
 	@gensym args_jl_ty
 	@gensym args_cu
 	expr_init = quote
@@ -90,15 +90,25 @@ macro cuda(config, call::Expr)
 	exprs = :($exprs; $expr_init)
 
 	# Generate expressions to process the arguments
-	args = call.args[2:end]
 	for arg = args
+		@gensym embedded_arg
 		exprs_arg = quote
-			if isa($(esc(arg)), CuArray)
-				$args_cu = [$args_cu, $(esc(arg))]
-				$args_jl_ty = [$args_jl_ty, Array{CUDA.eltype($(esc(arg))), CUDA.ndims($(esc(arg)))}]
-			elseif isa($(esc(arg)), Array)
-				$args_jl_ty = [$args_jl_ty, typeof($(esc(arg)))]
-				$args_cu = [$args_cu, CuArray($(esc(arg)))]
+			# if isa($(esc(arg)), In)
+			# 	println("Input argument")
+			# elseif isa($(esc(arg)), Out)
+			# 	println("Output argument")
+			# elseif isa($(esc(arg)), InOut)
+			# 	println("In- and output argument")
+			# else
+			# 	error("Datatype not supported: ", typeof($(esc(arg))))
+			# end
+			$embedded_arg = $(esc(arg)).data
+			if isa($(embedded_arg), CuArray)
+				$args_cu = [$args_cu, $(embedded_arg)]
+				$args_jl_ty = [$args_jl_ty, Array{eltype($(embedded_arg)), ndims($(embedded_arg))}]
+			elseif isa($(embedded_arg), Array)
+				$args_jl_ty = [$args_jl_ty, typeof($(embedded_arg))]
+				$args_cu = [$args_cu, CuArray($(embedded_arg))]
 			end
 		end
 		exprs = :($exprs; $exprs_arg)
@@ -106,28 +116,24 @@ macro cuda(config, call::Expr)
 
 	# Generate expression for retrieving native function name
 	@gensym native_name
+	@gensym cu_func
 	expr_name = quote
 		$native_name = function_name_llvm($func, tuple($args_jl_ty...))
+		$cu_func = CuFunction($md, $native_name)
+		launch($cu_func, $grid, $block, tuple($args_cu...))
 	end
 	exprs = :($exprs; $expr_name)
 
-	@gensym cu_func
-	expr_cu_func = quote
-		$cu_func = CuFunction($md, $native_name)
+	idx = 0
+	for arg in args
+		idx = idx + 1
+		if arg.args[1] == :Out || arg.args[1] == :InOut
+			expr_to_host = quote
+				$(esc(arg.args[2])) = to_host($args_cu[$idx])
+			end
+			exprs = :($exprs; $expr_to_host)
+		end
 	end
-	exprs = :($exprs; $expr_cu_func)
-
-	expr_launch = quote
-		launch($cu_func, $grid, $block, tuple($args_cu...))
-	end
-	exprs = :($exprs; $expr_launch)
-
-	@gensym host_c
-	expr_to_host = quote
-		$host_c = to_host($args_cu[end])
-		$(esc(args[end])) = $host_c
-	end
-	exprs = :($exprs; $expr_to_host)
 
 	:($exprs)
 end
