@@ -5,11 +5,11 @@
 # intrinsics
 #
 threadId_x() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone nounwind
-                				ret i32 %1""", Int32, ()) + 1
+								ret i32 %1""", Int32, ()) + 1
 threadId_y() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.y() readnone nounwind
-                				ret i32 %1""", Int32, ()) + 1
+								ret i32 %1""", Int32, ()) + 1
 threadId_z() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.z() readnone nounwind
-                				ret i32 %1""", Int32, ()) + 1
+								ret i32 %1""", Int32, ()) + 1
 
 
 #
@@ -38,9 +38,76 @@ eltype{T}(io::InOut{T}) = T
 
 
 #
-# macros for native julia - cuda processing
+# macros/functions for native julia-cuda processing
 #
-macro __cuda(config, call::Expr, arg_types::Tuple)
+macro cuda(config, call::Expr)
+	exprs = ()
+
+	# Generate expressions to process the arguments
+	@gensym args
+	# TODO: fixed-size array
+	exprs = :($exprs; $args = Array(Any, 0))
+	for arg = call.args[2:end]
+		exprs_arg = quote
+			push!($args, $(esc(arg)))
+		end
+		exprs = :($exprs; $exprs_arg)
+	end
+
+	# Now execute the function and return all the expressions
+	:($exprs; $:(__cuda_exec($(esc(config)), $(esc(call.args[1])), $args...)))
+end
+
+function __cuda_exec(config::(CuModule, CuDim, CuDim), func::Function, args...)
+	md::CuModule = config[1]
+	grid::CuDim  = config[2]
+	block::CuDim = config[3]
+
+	# Process arguments
+	args_jl_ty = Array(Type, 0)
+	args_cu = Array(CuArray, 0)
+	for arg in args
+		# TODO: Error if not In/Out/InOut type
+		arg_el = arg.data
+		arg_el_type = eltype(arg)
+		if arg_el_type <: Array
+			# println("Array")
+			push!(args_jl_ty, arg_el_type)
+			push!(args_cu, CuArray(arg_el))
+		elseif arg_el_type <: CuArray
+			# println("CuArray")
+			push!(args_jl_ty, Array{eltype(arg_el), ndims(arg_el)})
+			push!(args_cu, arg_el)
+		else
+			# Other type
+		end
+	end
+
+	# Get internal function name
+	internal_name = function_name_llvm(func, tuple(args_jl_ty...))
+	# Get cuda function object
+	cuda_func = CuFunction(md, internal_name)
+	# Launch cuda object
+	launch(cuda_func, grid, block, tuple(args_cu...))
+
+	# Get results
+	index = 1
+	for arg in args
+		if isa(arg, Out) || isa(arg, InOut)
+			host = to_host(args_cu[index])
+			if isa(arg.data, Array)
+				copy!(arg.data, host)
+			elseif isa(arg.data, CuArray)
+				println("Copy to CuArray")
+			end
+		end
+		index = index + 1
+	end
+end
+
+
+# Not used currently
+macro __cuda(config, call::Expr)
 	# Module and thread/block config
 	@gensym md
 	@gensym grid

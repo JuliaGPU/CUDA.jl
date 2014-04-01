@@ -9,7 +9,7 @@ module CUDA
 	CuDriverError, description,
 
 	# base
-	@cucall, driver_version, @cuda,
+	@cucall, driver_version,
 
 	# devices
 	CuDevice, CuCapability, dev_count, name, totalmem, attribute, capability,
@@ -31,7 +31,9 @@ module CUDA
 	CuPtr, CuArray, free, to_host, ndims,
 
 	# native
-	threadId_x, threadId_y, threadId_z, In, Out, InOut
+	threadId_x, threadId_y, threadId_z,
+	In, Out, InOut,
+	@cuda
 
 
 	include("errors.jl")
