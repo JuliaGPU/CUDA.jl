@@ -31,7 +31,7 @@ module CUDA
 	CuPtr, CuArray, free, to_host, ndims,
 
 	# native
-	threadId_x, threadId_y, threadId_z,
+	threadId_x, threadId_y, threadId_z, sync_threads,
 	CuIn, CuOut, CuInOut,
 	@cuda
 

@@ -11,6 +11,9 @@ threadId_y() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.
 threadId_z() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.z() readnone nounwind
 								ret i32 %1""", Int32, ()) + 1
 
+sync_threads() = Base.llvmcall("""call void @llvm.nvvm.barrier0()
+									ret void""", Void, ())
+
 
 #
 # transfer datatypes
