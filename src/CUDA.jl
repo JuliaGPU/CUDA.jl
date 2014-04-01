@@ -32,7 +32,7 @@ module CUDA
 
 	# native
 	threadId_x, threadId_y, threadId_z,
-	In, Out, InOut,
+	CuIn, CuOut, CuInOut,
 	@cuda
 
 

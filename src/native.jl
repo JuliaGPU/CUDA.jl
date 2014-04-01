@@ -15,26 +15,26 @@ threadId_z() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.
 #
 # transfer datatypes
 #
-type In{T}
+type CuIn{T<:Array}
 	data::T
 end
-length(i::In) = length(i.data)
-size(i::In) = size(i.data)
-eltype{T}(i::In{T}) = T
+length(i::CuIn) = length(i.data)
+size(i::CuIn) = size(i.data)
+eltype{T}(i::CuIn{T}) = T
 
-type Out{T}
+type CuOut{T<:Array}
 	data::T
 end
-length(o::Out) = length(o.data)
-size(o::Out) = size(o.data)
-eltype{T}(o::Out{T}) = T
+length(o::CuOut) = length(o.data)
+size(o::CuOut) = size(o.data)
+eltype{T}(o::CuOut{T}) = T
 
-type InOut{T}
+type CuInOut{T<:Array}
 	data::T
 end
-length(io::InOut) = length(io.data)
-size(io::InOut) = size(io.data)
-eltype{T}(io::InOut{T}) = T
+length(io::CuInOut) = length(io.data)
+size(io::CuInOut) = size(io.data)
+eltype{T}(io::CuInOut{T}) = T
 
 
 #
@@ -67,7 +67,7 @@ function __cuda_exec(config::(CuModule, CuDim, CuDim), func::Function, args...)
 	args_jl_ty = Array(Type, 0)
 	args_cu = Array(CuArray, 0)
 	for arg in args
-		# TODO: Error if not In/Out/InOut type
+		# TODO: Error if not CuIn/CuOut/CuInOut type
 		arg_el = arg.data
 		arg_el_type = eltype(arg)
 		if arg_el_type <: Array
@@ -93,7 +93,7 @@ function __cuda_exec(config::(CuModule, CuDim, CuDim), func::Function, args...)
 	# Get results
 	index = 1
 	for arg in args
-		if isa(arg, Out) || isa(arg, InOut)
+		if isa(arg, CuOut) || isa(arg, CuInOut)
 			host = to_host(args_cu[index])
 			if isa(arg.data, Array)
 				copy!(arg.data, host)
@@ -139,11 +139,11 @@ macro __cuda(config, call::Expr)
 	for arg = args
 		@gensym embedded_arg
 		exprs_arg = quote
-			# if isa($(esc(arg)), In)
+			# if isa($(esc(arg)), CuIn)
 			# 	println("Input argument")
-			# elseif isa($(esc(arg)), Out)
+			# elseif isa($(esc(arg)), CuOut)
 			# 	println("Output argument")
-			# elseif isa($(esc(arg)), InOut)
+			# elseif isa($(esc(arg)), CuInOut)
 			# 	println("In- and output argument")
 			# else
 			# 	error("Datatype not supported: ", typeof($(esc(arg))))
@@ -173,7 +173,7 @@ macro __cuda(config, call::Expr)
 	idx = 0
 	for arg in args
 		idx = idx + 1
-		if arg.args[1] == :Out || arg.args[1] == :InOut
+		if arg.args[1] == :CuOut || arg.args[1] == :CuInOut
 			expr_to_host = quote
 				$(esc(arg.args[2])) = to_host($args_cu[$idx])
 			end
