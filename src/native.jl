@@ -4,15 +4,40 @@
 #
 # intrinsics
 #
-threadId_x() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone nounwind
-								ret i32 %1""", Int32, ()) + 1
-threadId_y() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.y() readnone nounwind
-								ret i32 %1""", Int32, ()) + 1
-threadId_z() = Base.llvmcall("""%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.z() readnone nounwind
-								ret i32 %1""", Int32, ()) + 1
-
-sync_threads() = Base.llvmcall("""call void @llvm.nvvm.barrier0()
-									ret void""", Void, ())
+# Thread ID
+threadId_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone nounwind
+									   ret i32 %1""", Int32, ()) + 1 # ::Int32 # This gives error
+threadId_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.y() readnone nounwind
+									   ret i32 %1""", Int32, ()) + 1 # ::Int32 # This gives error
+threadId_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.z() readnone nounwind
+									   ret i32 %1""", Int32, ()) + 1
+# Block Dim (num threads per block)
+numThreads_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone nounwind
+										ret i32 %1""", Int32, ())
+numThreads_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.y() readnone nounwind
+										ret i32 %1""", Int32, ())
+numThreads_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.z() readnone nounwind
+										ret i32 %1""", Int32, ())
+# Block ID
+blockId_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone nounwind
+									  ret i32 %1""", Int32, ()) + 1
+blockId_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y() readnone nounwind
+									  ret i32 %1""", Int32, ()) + 1
+blockId_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.z() readnone nounwind
+									  ret i32 %1""", Int32, ()) + 1
+# Grid Dim (num blocks per grid)
+numBlocks_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.x() readnone nounwind
+										ret i32 %1""", Int32, ())
+numBlocks_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.y() readnone nounwind
+										ret i32 %1""", Int32, ())
+numBlocks_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.z() readnone nounwind
+										ret i32 %1""", Int32, ())
+# Warpsize
+warpsize() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.warpsize() readnone nounwind
+									 ret i32 %1""", Int32, ())
+# Barrier
+sync_threads() = Base.llvmcall(false, """call void @llvm.nvvm.barrier0()
+										 ret void""", Void, ())
 
 
 #
@@ -41,6 +66,25 @@ eltype{T}(io::CuInOut{T}) = T
 
 
 #
+# shared memory
+#
+cuSharedMem() = Base.llvmcall(true, """@i = external addrspace(3) global [0 x i32]""", Ptr{Int32}, ())
+setCuSharedMem(shmem, index, value) = Base.llvmcall(false,
+	"""%4 = tail call i32 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i32.p0i32( i32* %0 )
+	   %5 = getelementptr inbounds i32 addrspace(3)* %4, i64 %1
+	   %6 = trunc i64 %2 to i32
+	   store i32 %6, i32 addrspace(3)* %5
+	   ret void""",
+	Void, (Ptr{Int32}, Int64, Int64), shmem, index-1, value)
+getCuSharedMem(shmem, index) = Base.llvmcall(false,
+	"""%3 = tail call i32 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i32.p0i32( i32* %0 )
+	   %4 = getelementptr inbounds i32 addrspace(3)* %3, i64 %1
+	   %5 = load i32 addrspace(3)* %4
+	   ret i32 %5""",
+	Int32, (Ptr{Int32}, Int,), shmem, index-1)
+
+
+#
 # macros/functions for native julia-cuda processing
 #
 macro cuda(config, call::Expr)
@@ -61,28 +105,33 @@ macro cuda(config, call::Expr)
 	:($exprs; $:(__cuda_exec($(esc(config)), $(esc(call.args[1])), $args...)))
 end
 
-function __cuda_exec(config::(CuModule, CuDim, CuDim), func::Function, args...)
+function __cuda_exec(config, func::Function, args...)
 	md::CuModule = config[1]
 	grid::CuDim  = config[2]
 	block::CuDim = config[3]
+	shared_bytes::Int = length(config) > 3 ? config[4] : 0
 
 	# Process arguments
 	args_jl_ty = Array(Type, 0)
 	args_cu = Array(CuArray, 0)
 	for arg in args
-		# TODO: Error if not CuIn/CuOut/CuInOut type
-		arg_el = arg.data
-		arg_el_type = eltype(arg)
-		if arg_el_type <: Array
-			# println("Array")
-			push!(args_jl_ty, arg_el_type)
-			push!(args_cu, CuArray(arg_el))
-		elseif arg_el_type <: CuArray
-			# println("CuArray")
-			push!(args_jl_ty, Array{eltype(arg_el), ndims(arg_el)})
-			push!(args_cu, arg_el)
+		if isa(arg, CuIn) || isa(arg, CuOut) || isa(arg, CuInOut)
+			arg_el = arg.data
+			arg_el_type = eltype(arg)
+			if arg_el_type <: Array
+				# println("Array")
+				push!(args_jl_ty, arg_el_type)
+				push!(args_cu, CuArray(arg_el))
+			elseif arg_el_type <: CuArray
+				# println("CuArray")
+				push!(args_jl_ty, Array{eltype(arg_el), ndims(arg_el)})
+				push!(args_cu, arg_el)
+			else
+				# Other element type
+			end
 		else
 			# Other type
+			# should not be allowed?
 		end
 	end
 
@@ -91,7 +140,7 @@ function __cuda_exec(config::(CuModule, CuDim, CuDim), func::Function, args...)
 	# Get cuda function object
 	cuda_func = CuFunction(md, internal_name)
 	# Launch cuda object
-	launch(cuda_func, grid, block, tuple(args_cu...))
+	launch(cuda_func, grid, block, tuple(args_cu...), shmem_bytes=shared_bytes)
 
 	# Get results
 	index = 1

@@ -31,8 +31,13 @@ module CUDA
 	CuPtr, CuArray, free, to_host, ndims,
 
 	# native
-	threadId_x, threadId_y, threadId_z, sync_threads,
+	threadId_x, threadId_y, threadId_z,
+	numThreads_x, numThreads_y, numThreads_z,
+	blockId_x, blockId_y, blockId_z,
+	numBlocks_x, numBlocks_y, numBlocks_z,
+	warpsize, sync_threads,
 	CuIn, CuOut, CuInOut,
+	cuSharedMem, setCuSharedMem, getCuSharedMem,
 	@cuda
 
 
