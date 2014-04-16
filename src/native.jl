@@ -113,7 +113,7 @@ function __cuda_exec(config, func::Function, args...)
 
 	# Process arguments
 	args_jl_ty = Array(Type, 0)
-	args_cu = Array(CuArray, 0)
+	args_cu = Array(Any, 0)
 	for arg in args
 		if isa(arg, CuIn) || isa(arg, CuOut) || isa(arg, CuInOut)
 			arg_el = arg.data
@@ -132,6 +132,8 @@ function __cuda_exec(config, func::Function, args...)
 		else
 			# Other type
 			# should not be allowed?
+			push!(args_jl_ty, typeof(arg))
+			push!(args_cu, arg)
 		end
 	end
 
