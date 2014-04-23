@@ -157,6 +157,15 @@ function __cuda_exec(config, func::Function, args...)
 		end
 		index = index + 1
 	end
+
+	# Free memory
+	index = 1
+	for arg in args
+		if eltype(arg) <: Array
+			free(args_cu[index])
+		end
+		index = index + 1
+	end
 end
 
 
