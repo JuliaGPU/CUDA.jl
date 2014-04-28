@@ -68,7 +68,7 @@ eltype{T}(io::CuInOut{T}) = T
 #
 # shared memory
 #
-cuSharedMem() = Base.llvmcall(true, """@i = external addrspace(3) global [0 x i32]""", Ptr{Int32}, ())
+cuSharedMem() = Base.llvmcall(true, """@shmem = external addrspace(3) global [0 x i32]""", Ptr{Int32}, ())
 setCuSharedMem(shmem, index, value) = Base.llvmcall(false,
 	"""%4 = tail call i32 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i32.p0i32( i32* %0 )
 	   %5 = getelementptr inbounds i32 addrspace(3)* %4, i64 %1
@@ -106,7 +106,7 @@ macro cuda(config, call::Expr)
 end
 
 function __cuda_exec(config, func::Function, args...)
-	md::CuModule = config[1]
+	jl_m::Module = config[1]
 	grid::CuDim  = config[2]
 	block::CuDim = config[3]
 	shared_bytes::Int = length(config) > 3 ? config[4] : 0
@@ -137,10 +137,19 @@ function __cuda_exec(config, func::Function, args...)
 		end
 	end
 
+	# trigger function compilation
+    code_llvm(func, tuple(args_jl_ty...))
+
+    # trigger module compilation
+    moduleString = code_native_module("cuda")
+
+    # create cuda module
+    cu_m = CuModule(moduleString, false)
+
 	# Get internal function name
-	internal_name = function_name_llvm(func, tuple(args_jl_ty...))
+	internal_name = function_name_llvm(jl_m, func, tuple(args_jl_ty...))
 	# Get cuda function object
-	cuda_func = CuFunction(md, internal_name)
+	cuda_func = CuFunction(cu_m, internal_name)
 	# Launch cuda object
 	launch(cuda_func, grid, block, tuple(args_cu...), shmem_bytes=shared_bytes)
 
