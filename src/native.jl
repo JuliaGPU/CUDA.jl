@@ -141,7 +141,6 @@ function __cuda_exec(config, func::Function, args...)
 
 	# conditional compilation of function
 	if haskey(func_dict, (func, tuple(args_jl_ty...)))
-		println("retrieve cached version")
 		cuda_func = func_dict[func, tuple(args_jl_ty...)]
 	else
 		# trigger function compilation
