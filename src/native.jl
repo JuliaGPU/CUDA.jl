@@ -87,6 +87,8 @@ getCuSharedMem(shmem, index) = Base.llvmcall(false,
 #
 # macros/functions for native julia-cuda processing
 #
+func_dict = Dict{(Function, Tuple), CuFunction}()
+
 macro cuda(config, call::Expr)
 	exprs = ()
 
@@ -137,19 +139,30 @@ function __cuda_exec(config, func::Function, args...)
 		end
 	end
 
-	# trigger function compilation
-    code_llvm(func, tuple(args_jl_ty...))
+	# conditional compilation of function
+	if haskey(func_dict, (func, tuple(args_jl_ty...)))
+		println("retrieve cached version")
+		cuda_func = func_dict[func, tuple(args_jl_ty...)]
+	else
+		# trigger function compilation
+		code_llvm(func, tuple(args_jl_ty...))
 
-    # trigger module compilation
-    moduleString = code_native_module("cuda")
+		# trigger module compilation
+		moduleString = code_native_module("cuda")
+		#println(moduleString)
 
-    # create cuda module
-    cu_m = CuModule(moduleString, false)
+		# create cuda module
+		cu_m = CuModule(moduleString, false)
 
-	# Get internal function name
-	internal_name = function_name_llvm(jl_m, func, tuple(args_jl_ty...))
-	# Get cuda function object
-	cuda_func = CuFunction(cu_m, internal_name)
+		# Get internal function name
+		internal_name = function_name_llvm(jl_m, func, tuple(args_jl_ty...))
+		# Get cuda function object
+		cuda_func = CuFunction(cu_m, internal_name)
+
+		# Cache result to avoid unnecessary compilation
+		func_dict[(func, tuple(args_jl_ty...))] = cuda_func
+	end
+
 	# Launch cuda object
 	launch(cuda_func, grid, block, tuple(args_cu...), shmem_bytes=shared_bytes)
 
