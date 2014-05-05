@@ -208,7 +208,7 @@ function rotate(data, angle::Float64)
     block_size = (rows,1,1) # threads per block
     shmem = rows*sizeof(eltype(data)) # shared memory
 
-    @cuda (MyCudaModule, grid_size, block_size, shmem) cuda_rotate(CuIn(data), angle, CuOut(result))
+    @cuda (__ptx__Abstractions, grid_size, block_size, shmem) cuda_rotate(CuIn(data), angle, CuOut(result))
 
     return result
 end
@@ -220,7 +220,7 @@ end
 # Testing
 using Abstractions
 
-image = ones(Int64, (7,7))
+image = ones(Int64, (10,10))
 results1 = scan(image, COLS, SUM)
 results2 = map(results1, SQUARE)
 results3 = reduce(results2, COLS, SUM)
@@ -233,19 +233,19 @@ println(results2)
 println("results 3 (reduce):")
 println(transpose(results3))
 
-# image = float64([0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0;
-#                  0 0 0 0 1 1 1 0 0 0 0])
-# result = rotate(image, pi/2)
-# println("image:")
-# println(image)
-# println("result:")
-# println(result)
+image = float64([0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0;
+                 0 0 0 0 1 1 1 0 0 0 0])
+result = rotate(image, pi/2)
+println("image:")
+println(image)
+println("result:")
+println(result)
