@@ -195,7 +195,6 @@ function reduce(data, dimension, operation)
     @cuda (__ptx__Abstractions, grid_size, block_size, shmem) cuda_reduce(CuIn(data), rows, cols, CuOut(results), operation)
 
     return results
-    return nothing
 end
 
 # Dit is in principe geen abstractie, mss hierbuiten definieren?
@@ -220,7 +219,7 @@ end
 # Testing
 using Abstractions
 
-image = ones(Int64, (10,10))
+image = ones(Float64, (10,10))
 results1 = scan(image, COLS, SUM)
 results2 = map(results1, SQUARE)
 results3 = reduce(results2, COLS, SUM)

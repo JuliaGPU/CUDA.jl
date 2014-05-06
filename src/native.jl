@@ -68,20 +68,19 @@ eltype{T}(io::CuInOut{T}) = T
 #
 # shared memory
 #
-cuSharedMem() = Base.llvmcall(true, """@shmem = external addrspace(3) global [0 x i32]""", Ptr{Int32}, ())
+cuSharedMem() = Base.llvmcall(true, """@shmem = external addrspace(3) global [0 x double]""", Ptr{Float64}, ())
 setCuSharedMem(shmem, index, value) = Base.llvmcall(false,
-	"""%4 = tail call i32 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i32.p0i32( i32* %0 )
-	   %5 = getelementptr inbounds i32 addrspace(3)* %4, i64 %1
-	   %6 = trunc i64 %2 to i32
-	   store i32 %6, i32 addrspace(3)* %5
+	"""%4 = tail call double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64( double* %0 )
+	   %5 = getelementptr inbounds double addrspace(3)* %4, i64 %1
+	   store double %2, double addrspace(3)* %5
 	   ret void""",
-	Void, (Ptr{Int32}, Int64, Int64), shmem, index-1, value)
+	Void, (Ptr{Float64}, Int64, Float64), shmem, index-1, value)
 getCuSharedMem(shmem, index) = Base.llvmcall(false,
-	"""%3 = tail call i32 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i32.p0i32( i32* %0 )
-	   %4 = getelementptr inbounds i32 addrspace(3)* %3, i64 %1
-	   %5 = load i32 addrspace(3)* %4
-	   ret i32 %5""",
-	Int32, (Ptr{Int32}, Int,), shmem, index-1)
+	"""%3 = tail call double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64( double* %0 )
+	   %4 = getelementptr inbounds double addrspace(3)* %3, i64 %1
+	   %5 = load double addrspace(3)* %4
+	   ret double %5""",
+	Float64, (Ptr{Float64}, Int64), shmem, index-1)
 
 
 #
