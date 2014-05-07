@@ -40,6 +40,7 @@ function cuda_scan(data, num_rows, num_cols, results, operation)
     end
     x = getCuSharedMem(temp, pout * num_rows + row)
     setCuSharedMem(temp, pin * num_rows + row, x+0)
+    sync_threads()
 
     # write back results
     results[row + (col-1)*num_rows] = getCuSharedMem(temp, num_rows + row)
@@ -48,19 +49,12 @@ function cuda_scan(data, num_rows, num_cols, results, operation)
 end
 
 function cuda_map(data, num_rows, num_cols, results, operation)
-    temp = cuSharedMem()
     row = threadId_x()
     col = blockId_x()
-    setCuSharedMem(temp, row, data[row + (col-1)*num_rows])
-    sync_threads()
 
-    c = getCuSharedMem(temp, row)
     if operation == 0
-        setCuSharedMem(temp, row, 2*c)
+        results[row + (col-1)*num_rows] = 2*data[row + (col-1)*num_rows]
     end
-
-    sync_threads()
-    results[row + (col-1)*num_rows] = getCuSharedMem(temp, row)
 
     return nothing
 end
@@ -73,18 +67,27 @@ function cuda_reduce(data, num_rows, num_cols, results, operation)
     sync_threads()
 
     # calculate scan
+    pin, pout = 1, 0
     offset = 1
     while offset < num_rows
+        pout = 1 - pout
+        pin = 1 - pin
         if row > offset
-            a = getCuSharedMem(temp, row)
-            b = getCuSharedMem(temp, row - offset)
+            a = getCuSharedMem(temp, pin * num_rows + row)
+            b = getCuSharedMem(temp, pin * num_rows + row - offset)
             if operation == 0
-                setCuSharedMem(temp, row, a+b)
+                setCuSharedMem(temp, pout * num_rows + row, a+b)
             end
+        else
+            c = getCuSharedMem(temp, pin * num_rows + row)
+            setCuSharedMem(temp, pout * num_rows + row, c+0)
         end
         sync_threads()
         offset = offset * 2
     end
+    x = getCuSharedMem(temp, pout * num_rows + row)
+    setCuSharedMem(temp, pin * num_rows + row, x+0)
+    sync_threads()
 
     # write back results
     if row == num_rows
@@ -161,7 +164,8 @@ ctx = create_context(dev)
 
 function scan(data, dimension, operation)
     rows, cols = size(data)
-    results = Array(eltype(data),size(data))
+    results = CuArray(eltype(data),size(data))
+
     grid_size = (dimension == ROWS) ? (rows,1,1) : (cols,1,1) # blocks per grid
     block_size = (dimension == ROWS) ? (cols,1,1): (rows,1,1) # threads per block
     shmem = (dimension == ROWS) ? cols*sizeof(eltype(data)) : rows*sizeof(eltype(data)) # shared memory
@@ -173,7 +177,7 @@ end
 
 function map(data, operation)
     rows, cols = size(data)
-    results = Array(eltype(data),size(data))
+    results = CuArray(eltype(data),size(data))
 
     grid_size = (cols,1,1) # blocks per grid
     block_size = (rows,1,1) # threads per block
@@ -186,30 +190,29 @@ end
 
 function reduce(data, dimension, operation)
     rows, cols = size(data)
-    results = Array(eltype(data),size(data, dimension))
+    results = CuArray(eltype(data),size(data, dimension))
 
     grid_size = (dimension == ROWS) ? (rows,1,1) : (cols,1,1) # blocks per grid
     block_size = (dimension == ROWS) ? (cols,1,1): (rows,1,1) # threads per block
     shmem = (dimension == ROWS) ? cols*sizeof(eltype(data)) : rows*sizeof(eltype(data)) # shared memory
 
-    @cuda (__ptx__Abstractions, grid_size, block_size, shmem) cuda_reduce(CuIn(data), rows, cols, CuOut(results), operation)
+    @cuda (__ptx__Abstractions, grid_size, block_size, 2*shmem) cuda_reduce(CuIn(data), rows, cols, CuOut(results), operation)
 
     return results
 end
 
-# Dit is in principe geen abstractie, mss hierbuiten definieren?
 # angle in radialen
 function rotate(data, angle::Float64)
     rows, cols = size(data)
-    result = Array(eltype(data),size(data))
+    results = CuArray(eltype(data),size(data))
 
     grid_size = (cols,1,1) # blocks per grid
     block_size = (rows,1,1) # threads per block
     shmem = rows*sizeof(eltype(data)) # shared memory
 
-    @cuda (__ptx__Abstractions, grid_size, block_size, shmem) cuda_rotate(CuIn(data), angle, CuOut(result))
+    @cuda (__ptx__Abstractions, grid_size, block_size, shmem) cuda_rotate(CuIn(data), angle, CuOut(results))
 
-    return result
+    return results
 end
 
 end
@@ -218,19 +221,20 @@ end
 
 # Testing
 using Abstractions
+using CUDA
 
 image = ones(Float64, (10,10))
-results1 = scan(image, COLS, SUM)
+results1 = scan(CuArray(image), COLS, SUM)
 results2 = map(results1, SQUARE)
 results3 = reduce(results2, COLS, SUM)
 println("image:")
 println(image)
-println("results 1 (scan):")
-println(results1)
-println("results 2 (map):")
-println(results2)
+# println("results 1 (scan):")
+# println(results1)
+# println("results 2 (map):")
+# println(results2)
 println("results 3 (reduce):")
-println(transpose(results3))
+println(transpose(to_host(results3)))
 
 image = float64([0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
@@ -243,8 +247,8 @@ image = float64([0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0])
-result = rotate(image, pi/2)
+result = rotate(CuArray(image), 0.5)
 println("image:")
 println(image)
 println("result:")
-println(result)
+println(to_host(result))

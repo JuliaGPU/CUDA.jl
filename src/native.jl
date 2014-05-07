@@ -43,21 +43,21 @@ sync_threads() = Base.llvmcall(false, """call void @llvm.nvvm.barrier0()
 #
 # transfer datatypes
 #
-type CuIn{T<:Array}
+type CuIn{T}
 	data::T
 end
 length(i::CuIn) = length(i.data)
 size(i::CuIn) = size(i.data)
 eltype{T}(i::CuIn{T}) = T
 
-type CuOut{T<:Array}
+type CuOut{T}
 	data::T
 end
 length(o::CuOut) = length(o.data)
 size(o::CuOut) = size(o.data)
 eltype{T}(o::CuOut{T}) = T
 
-type CuInOut{T<:Array}
+type CuInOut{T}
 	data::T
 end
 length(io::CuInOut) = length(io.data)
@@ -143,11 +143,10 @@ function __cuda_exec(config, func::Function, args...)
 		cuda_func = func_dict[func, tuple(args_jl_ty...)]
 	else
 		# trigger function compilation
-		code_llvm(func, tuple(args_jl_ty...))
+		precompile(func, tuple(args_jl_ty...))
 
 		# trigger module compilation
 		moduleString = code_native_module("cuda")
-		#println(moduleString)
 
 		# create cuda module
 		cu_m = CuModule(moduleString, false)
@@ -168,11 +167,11 @@ function __cuda_exec(config, func::Function, args...)
 	index = 1
 	for arg in args
 		if isa(arg, CuOut) || isa(arg, CuInOut)
-			host = to_host(args_cu[index])
 			if isa(arg.data, Array)
+				host = to_host(args_cu[index])
 				copy!(arg.data, host)
 			elseif isa(arg.data, CuArray)
-				println("Copy to CuArray")
+				#println("Copy to CuArray")
 			end
 		end
 		index = index + 1

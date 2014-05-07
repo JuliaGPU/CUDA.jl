@@ -38,7 +38,6 @@ module CUDA
 	warpsize, sync_threads,
 	CuIn, CuOut, CuInOut,
 	cuSharedMem, setCuSharedMem, getCuSharedMem,
-	#SharedMem,
 	@cuda,
 
 	# math
