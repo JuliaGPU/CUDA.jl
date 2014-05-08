@@ -47,6 +47,7 @@ function populate_api_dict(api_version::Int)
 		api_dict[:cuMemcpyHtoD]     = :cuMemcpyHtoD_v2
 		api_dict[:cuMemcpyDtoH]     = :cuMemcpyDtoH_v2
 		api_dict[:cuMemFree]        = :cuMemFree_v2
+		api_dict[:cuMemsetD32]		= :cuMemsetD32_v2
 	end
 	if api_version >= 4000
 		api_dict[:cuCtxDestroy]     = :cuCtxDestroy_v2

@@ -18,6 +18,10 @@ function cualloc(T::Type, len::Integer)
 	return CuPtr(a[1])
 end
 
+function cumemset(p::CUdeviceptr, value::Cuint, len::Integer)
+	@cucall(:cuMemsetD32, (CUdeviceptr, Cuint, Csize_t), p, value, len)
+end
+
 function free(p::CuPtr)
 	@cucall(:cuMemFree, (CUdeviceptr,), p.p)
 end
@@ -44,9 +48,23 @@ function CuArray(T::Type, len::Integer)
 	CuArray{T,1}(p, (n,), n)
 end
 
+function CuArray(T::Type, len::Integer, value::Cuint)
+	n = int(len)
+	p = cualloc(T, n)
+	cumemset(p.p, value, n)
+	CuArray{T,1}(p, (n,), n)
+end
+
 function CuArray{N}(T::Type, shape::NTuple{N,Int})
 	n = prod(shape)
 	p = cualloc(T, n)
+	CuArray{T,N}(p, shape, n)
+end
+
+function CuArray{N}(T::Type, shape::NTuple{N,Int}, value::Cuint)
+	n = prod(shape)
+	p = cualloc(T, n)
+	cumemset(p.p, value, n)
 	CuArray{T,N}(p, shape, n)
 end
 
