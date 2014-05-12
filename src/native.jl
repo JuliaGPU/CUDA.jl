@@ -68,19 +68,19 @@ eltype{T}(io::CuInOut{T}) = T
 #
 # shared memory
 #
-cuSharedMem() = Base.llvmcall(true, """@shmem = external addrspace(3) global [0 x double]""", Ptr{Float64}, ())
+cuSharedMem() = Base.llvmcall(true, """@shmem = external addrspace(3) global [0 x float]""", Ptr{Float32}, ())
 setCuSharedMem(shmem, index, value) = Base.llvmcall(false,
-	"""%4 = tail call double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64( double* %0 )
-	   %5 = getelementptr inbounds double addrspace(3)* %4, i64 %1
-	   store double %2, double addrspace(3)* %5
+	"""%4 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
+	   %5 = getelementptr inbounds float addrspace(3)* %4, i64 %1
+	   store float %2, float addrspace(3)* %5
 	   ret void""",
-	Void, (Ptr{Float64}, Int64, Float64), shmem, index-1, value)
+	Void, (Ptr{Float32}, Int64, Float32), shmem, index-1, value)
 getCuSharedMem(shmem, index) = Base.llvmcall(false,
-	"""%3 = tail call double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64( double* %0 )
-	   %4 = getelementptr inbounds double addrspace(3)* %3, i64 %1
-	   %5 = load double addrspace(3)* %4
-	   ret double %5""",
-	Float64, (Ptr{Float64}, Int64), shmem, index-1)
+	"""%3 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
+	   %4 = getelementptr inbounds float addrspace(3)* %3, i64 %1
+	   %5 = load float addrspace(3)* %4
+	   ret float %5""",
+	Float32, (Ptr{Float32}, Int64), shmem, index-1)
 
 
 #
@@ -116,13 +116,27 @@ function __cuda_exec(config, func::Function, args...)
 	args_jl_ty = Array(Type, 0)
 	args_cu = Array(Any, 0)
 	for arg in args
-		if isa(arg, CuIn) || isa(arg, CuOut) || isa(arg, CuInOut)
+		if isa(arg, CuIn) || isa(arg, CuInOut)
 			arg_el = arg.data
 			arg_el_type = eltype(arg)
 			if arg_el_type <: Array
 				# println("Array")
 				push!(args_jl_ty, arg_el_type)
 				push!(args_cu, CuArray(arg_el))
+			elseif arg_el_type <: CuArray
+				# println("CuArray")
+				push!(args_jl_ty, Array{eltype(arg_el), ndims(arg_el)})
+				push!(args_cu, arg_el)
+			else
+				# Other element type
+			end
+		elseif isa(arg, CuOut)
+			arg_el = arg.data
+			arg_el_type = eltype(arg)
+			if arg_el_type <: Array
+				# println("Array")
+				push!(args_jl_ty, arg_el_type)
+				push!(args_cu, CuArray(eltype(arg_el), size(arg_el)))
 			elseif arg_el_type <: CuArray
 				# println("CuArray")
 				push!(args_jl_ty, Array{eltype(arg_el), ndims(arg_el)})

@@ -202,15 +202,15 @@ function reduce(data, dimension, operation)
 end
 
 # angle in radialen
-function rotate(data, angle::Float64)
+function rotate(data, angle)
     rows, cols = size(data)
     results = CuArray(eltype(data),size(data))
 
     grid_size = (cols,1,1) # blocks per grid
     block_size = (rows,1,1) # threads per block
-    shmem = rows*sizeof(eltype(data)) # shared memory
+    #shmem = rows*sizeof(eltype(data)) # shared memory
 
-    @cuda (__ptx__Abstractions, grid_size, block_size, shmem) cuda_rotate(CuIn(data), angle, CuOut(results))
+    @cuda (__ptx__Abstractions, grid_size, block_size) cuda_rotate(CuIn(data), angle, CuOut(results))
 
     return results
 end
@@ -223,20 +223,20 @@ end
 using Abstractions
 using CUDA
 
-image = ones(Float64, (10,10))
-results1 = scan(CuArray(image), COLS, SUM)
-results2 = map(results1, SQUARE)
-results3 = reduce(results2, COLS, SUM)
-println("image:")
-println(image)
-# println("results 1 (scan):")
-# println(results1)
-# println("results 2 (map):")
-# println(results2)
-println("results 3 (reduce):")
-println(transpose(to_host(results3)))
+# image = ones(Float32, (10,10))
+# results1 = scan(CuArray(image), COLS, SUM)
+# results2 = map(results1, SQUARE)
+# results3 = reduce(results2, COLS, SUM)
+# println("image:")
+# println(image)
+# # println("results 1 (scan):")
+# # println(results1)
+# # println("results 2 (map):")
+# # println(results2)
+# println("results 3 (reduce):")
+# println(transpose(to_host(results3)))
 
-image = float64([0 0 0 0 1 1 1 0 0 0 0;
+image = float32([0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
@@ -247,7 +247,7 @@ image = float64([0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0;
                  0 0 0 0 1 1 1 0 0 0 0])
-result = rotate(CuArray(image), 0.5)
+result = rotate(CuArray(image), float32(0.5))
 println("image:")
 println(image)
 println("result:")
