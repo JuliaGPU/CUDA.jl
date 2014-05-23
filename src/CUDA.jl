@@ -57,4 +57,5 @@ module CUDA
 
 	include("native.jl")
 	include("math.jl")
+	include("profile.jl")
 end
