@@ -49,6 +49,7 @@ const driver_error_descriptions = (Int=>ASCIIString)[
 	711 => "Too many peers",
 	712 => "Host memory already registered",
 	713 => "Host memory not registered",
+	715 => "Illegal instruction",
 	800 => "Operation not permitted",
 	801 => "Operation not supported",
 	999 => "Unknown error"

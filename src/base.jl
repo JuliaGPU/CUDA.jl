@@ -21,6 +21,9 @@ function initialize(api_version::Int)
 	println("CUDA Driver Initialized")
 end
 
+# Emulate device synchronization by synchronizing stream 0
+synchronize() = @cucall("cuStreamSynchronize", (Ptr{Void},), 0)
+
 
 # Get driver version
 
