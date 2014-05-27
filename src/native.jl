@@ -163,7 +163,7 @@ function __cuda_exec(config, func::Function, args...)
 		moduleString = code_native_module("cuda")
 
 		# create cuda module
-		cu_m = CuModule(moduleString, false)
+		cu_m = CuModule(moduleString)
 
 		# Get internal function name
 		internal_name = function_name_llvm(jl_m, func, tuple(args_jl_ty...))

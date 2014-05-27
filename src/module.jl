@@ -3,10 +3,16 @@
 immutable CuModule
 	handle::Ptr{Void}
 
-	function CuModule(filename::ASCIIString, is_filename::Bool)
+	function CuModule(mod::ASCIIString)
 		a = Array(Ptr{Void}, 1)
-		call = is_filename ? :cuModuleLoad : :cuModuleLoadData
-		@cucall(call, (Ptr{Ptr{Void}}, Ptr{Cchar}), a, filename)
+		is_data = true
+		try
+		  is_data = !ispath(mod)
+		catch
+		  is_data = true
+		end
+		call = is_data ? (:cuModuleLoadData) : (:cuModuleLoad)
+		@cucall(call, (Ptr{Ptr{Void}}, Ptr{Cchar}), a, mod)
 		new(a[1])
 	end
 end
