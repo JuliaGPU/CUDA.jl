@@ -45,7 +45,12 @@ function attribute(dev::CuDevice, attrcode::Integer)
 	return int(a[1])
 end
 
-capability(dev::CuDevice) = CuCapability(attribute(dev, 75), attribute(dev, 76))
+function capability(dev::CuDevice)
+	major = Cint[0]
+	minor = Cint[0]
+	@cucall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint), major, minor, dev.handle)
+	return CuCapability(major[1], minor[1])
+end
 
 function list_devices()
 	cnt = devcount()
