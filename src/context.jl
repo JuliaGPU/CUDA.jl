@@ -10,13 +10,19 @@ const CTX_LMEM_RESIZE_TO_MAX    = 0x10
 immutable CuContext
 	handle::Ptr{Void}
 
-        function CuContext(dev::CuDevice, flags::Integer)
-                a = Ptr{Void}[0]
-                @cucall(:cuCtxCreate, (Ptr{Ptr{Void}}, Cuint, Cint), a, flags, dev.handle)
-                new(a[1])
-        end
+    function CuContext(dev::CuDevice, flags::Integer)
+            a = Ptr{Void}[0]
+            @cucall(:cuCtxCreate, (Ptr{Ptr{Void}}, Cuint, Cint), a, flags, dev.handle)
+            new(a[1])
+    end
 
-        CuContext(dev::CuDevice) = CuContext(dev, 0)
+    CuContext(dev::CuDevice) = CuContext(dev, 0)
+
+    function CuContext()
+            a = Ptr{Void}[0]
+            @cucall(:cuCtxGetCurrent, (Ptr{Ptr{Void}},), a)
+            new(a[1])
+    end
 end
 
 function destroy(ctx::CuContext)
@@ -31,4 +37,12 @@ function pop(ctx::CuContext)
 	a = Ptr{Void}[0]
 	@cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), a)
 	return CuContext(a[1])
+end
+
+function device(ctx::CuContext)
+    # TODO: cuCtxGetDevice returns the device ordinal, but as a CUDevice*?
+    #       This can't be right...
+    a = Cint[0]
+    @cucall(:cuCtxGetDevice, (Ptr{Cint},), a)
+    return CuDevice(a[1])
 end

@@ -12,7 +12,7 @@ immutable CuDevice
 	ordinal::Cint
 	handle::Cint
 
-	function CuDevice(i::Int)
+	function CuDevice(i::Integer)
 		ordinal = convert(Cint, i)
 		a = Cint[0]
 		@cucall(:cuDeviceGet, (Ptr{Cint}, Cint), a, ordinal)
