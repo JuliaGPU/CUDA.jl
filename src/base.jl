@@ -9,7 +9,7 @@ macro cucall(f, argtypes, args...)
 		if _curet != 0
 			err = CuDriverError(int(_curet))
 			message = description(err)
-			throw("CUDA driver error ($(err.code)) : $message")
+			throw(err)
 		end
 	end
 end

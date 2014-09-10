@@ -48,6 +48,7 @@ getCuSharedMem(shmem, index) = Base.llvmcall(false,
 # macros/functions for native julia-cuda processing
 #
 func_dict = Dict{(Function, Tuple), CuFunction}()
+kernel_status = Nothing
 
 macro cuda(config, call::Expr)
 	exprs = ()
@@ -134,12 +135,33 @@ function __cuda_exec(config, func::Function, args...)
 		# Get cuda function object
 		cuda_func = CuFunction(cu_m, internal_name)
 
+		# Save the kernel status global, if this is the first kernel called
+		global kernel_status
+		if kernel_status == Nothing
+			kernel_status = CuGlobal{Int32}(cu_m, "cu_status")
+		end
+
 		# Cache result to avoid unnecessary compilation
 		func_dict[(func, tuple(args_jl_ty...))] = cuda_func
 	end
 
+	# Reset the state
+	# TODO: make conditional, as this hurts performance
+	global kernel_status
+	set(kernel_status, int32(0))
+
 	# Launch cuda object
 	launch(cuda_func, grid, block, tuple(args_cu...), shmem_bytes=shared_bytes)
+
+	# If requested, verify the launch
+	# TODO: make conditional, as this hurts performance
+	synchronize()
+	state = get(kernel_status)
+	if (state == 1)
+		throw(BoundsError())
+	elseif (state == 2)
+		throw(OverflowError())
+	end
 
 	# Get results
 	index = 1
