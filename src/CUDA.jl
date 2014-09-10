@@ -20,6 +20,7 @@ module CUDA
 
 	# module
 	CuModule, CuFunction, unload,
+	CuGlobal, get, set,
 
 	# stream
 	CuStream, synchronize,
