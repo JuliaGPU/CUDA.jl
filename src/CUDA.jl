@@ -48,15 +48,19 @@ module CUDA
 	include("errors.jl")
 
 	include("base.jl")
+	include("types.jl")
 	include("devices.jl")
 	include("context.jl")
 	include("module.jl")
 	include("stream.jl")
 	include("execution.jl")
 
+	include("memory.jl")
 	include("arrays.jl")
 
+
 	include("native.jl")
-	include("math.jl")
+	include("intrinsics.jl")
+
 	include("profile.jl")
 end

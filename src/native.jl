@@ -2,45 +2,6 @@
 
 
 #
-# intrinsics
-#
-# Thread ID
-threadId_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone nounwind
-									   ret i32 %1""", Int32, ()) + 1 # ::Int32 # This gives error
-threadId_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.y() readnone nounwind
-									   ret i32 %1""", Int32, ()) + 1 # ::Int32 # This gives error
-threadId_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.z() readnone nounwind
-									   ret i32 %1""", Int32, ()) + 1
-# Block Dim (num threads per block)
-numThreads_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone nounwind
-										ret i32 %1""", Int32, ())
-numThreads_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.y() readnone nounwind
-										ret i32 %1""", Int32, ())
-numThreads_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.z() readnone nounwind
-										ret i32 %1""", Int32, ())
-# Block ID
-blockId_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone nounwind
-									  ret i32 %1""", Int32, ()) + 1
-blockId_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y() readnone nounwind
-									  ret i32 %1""", Int32, ()) + 1
-blockId_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.z() readnone nounwind
-									  ret i32 %1""", Int32, ()) + 1
-# Grid Dim (num blocks per grid)
-numBlocks_x() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.x() readnone nounwind
-										ret i32 %1""", Int32, ())
-numBlocks_y() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.y() readnone nounwind
-										ret i32 %1""", Int32, ())
-numBlocks_z() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.z() readnone nounwind
-										ret i32 %1""", Int32, ())
-# Warpsize
-warpsize() = Base.llvmcall(false, """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.warpsize() readnone nounwind
-									 ret i32 %1""", Int32, ())
-# Barrier
-sync_threads() = Base.llvmcall(false, """call void @llvm.nvvm.barrier0()
-										 ret void""", Void, ())
-
-
-#
 # transfer datatypes
 #
 type CuIn{T}
@@ -125,7 +86,8 @@ function __cuda_exec(config, func::Function, args...)
 				push!(args_cu, CuArray(arg_el))
 			elseif arg_el_type <: CuArray
 				# println("CuArray")
-				push!(args_jl_ty, Array{eltype(arg_el), ndims(arg_el)})
+				push!(args_jl_ty, Array{eltype(arg_el),
+				      ndims(arg_el)})
 				push!(args_cu, arg_el)
 			else
 				# Other element type
@@ -136,10 +98,12 @@ function __cuda_exec(config, func::Function, args...)
 			if arg_el_type <: Array
 				# println("Array")
 				push!(args_jl_ty, arg_el_type)
-				push!(args_cu, CuArray(eltype(arg_el), size(arg_el)))
+				push!(args_cu, CuArray(eltype(arg_el),
+				      size(arg_el)))
 			elseif arg_el_type <: CuArray
 				# println("CuArray")
-				push!(args_jl_ty, Array{eltype(arg_el), ndims(arg_el)})
+				push!(args_jl_ty, Array{eltype(arg_el),
+				      ndims(arg_el)})
 				push!(args_cu, arg_el)
 			else
 				# Other element type

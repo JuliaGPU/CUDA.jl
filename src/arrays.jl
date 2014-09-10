@@ -1,35 +1,3 @@
-# Arrays on GPU
-
-typealias CUdeviceptr Ptr{Void}
-
-immutable CuPtr
-	p::CUdeviceptr
-
-	CuPtr() = new(convert(CUdeviceptr, 0))
-	CuPtr(p::CUdeviceptr) = new(p)
-end
-
-cubox(p::CuPtr) = cubox(p.p)
-
-function cualloc(T::Type, len::Integer)
-	a = CUdeviceptr[0]
-	nbytes = int(len) * sizeof(T)
-	@cucall(:cuMemAlloc, (Ptr{CUdeviceptr}, Csize_t), a, nbytes)
-	return CuPtr(a[1])
-end
-
-function cumemset(p::CUdeviceptr, value::Cuint, len::Integer)
-	@cucall(:cuMemsetD32, (CUdeviceptr, Cuint, Csize_t), p, value, len)
-end
-
-function free(p::CuPtr)
-	@cucall(:cuMemFree, (CUdeviceptr,), p.p)
-end
-
-isnull(p::CuPtr) = (p.p == 0)
-
-
-
 #################################################
 #
 #  CuArray: contiguous array on GPU
@@ -106,5 +74,3 @@ end
 
 CuArray{T,N}(a::Array{T,N}) = copy!(CuArray(T, size(a)), a)
 to_host{T}(g::CuArray{T}) = copy!(Array(T, size(g)), g)
-
-

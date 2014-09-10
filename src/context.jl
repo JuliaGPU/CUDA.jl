@@ -28,8 +28,7 @@ function push(ctx::CuContext)
 end
 
 function pop(ctx::CuContext)
-	a = Array(Ptr{Void}, 1)
+	a = Ptr{Void}[0]
 	@cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), a)
 	return CuContext(a[1])
 end
-

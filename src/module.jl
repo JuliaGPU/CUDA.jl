@@ -4,7 +4,7 @@ immutable CuModule
 	handle::Ptr{Void}
 
 	function CuModule(mod::ASCIIString)
-		a = Array(Ptr{Void}, 1)
+		a = Ptr{Void}[0]
 		is_data = true
 		try
 		  is_data = !ispath(mod)
@@ -26,7 +26,7 @@ immutable CuFunction
 	handle::Ptr{Void}
 
 	function CuFunction(md::CuModule, name::ASCIIString)
-		a = Array(Ptr{Void}, 1)
+		a = Ptr{Void}[0]
 		@cucall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}), 
 			a, md.handle, name)
 		new(a[1])
