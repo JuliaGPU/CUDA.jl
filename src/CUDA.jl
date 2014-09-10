@@ -16,7 +16,7 @@ module CUDA
 	list_devices,
 
 	# context
-	CuContext, create_context, destroy, push, pop,
+	CuContext, destroy, push, pop,
 
 	# module
 	CuModule, CuFunction, unload,
