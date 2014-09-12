@@ -161,10 +161,26 @@ function __cuda_exec(config, func::Function, args...)
 	# TODO: make conditional, as this hurts performance
 	synchronize()
 	state = get(kernel_status)
-	if (state == 1)
-		throw(BoundsError())
-	elseif (state == 2)
-		throw(OverflowError())
+	if state != 0
+		file_ptr = get(CuGlobal{Ptr{Void}}(cu_m, "cu_file"))
+		file_len = get(CuGlobal{Int32}(cu_m, "cu_file_len"))
+		file_dev = CuArray{Int8, 1}(CuPtr(file_ptr), (file_len,), file_len)
+		file = join(char(to_host(file_dev)))
+
+		lineno = get(CuGlobal{Int32}(cu_m, "cu_lineno"))
+
+		func_ptr = get(CuGlobal{Ptr{Void}}(cu_m, "cu_function"))
+		func_len = get(CuGlobal{Int32}(cu_m, "cu_function_len"))
+		func_dev = CuArray{Int8, 1}(CuPtr(func_ptr), (func_len,), func_len)
+		func = join(char(to_host(func_dev)))
+
+		warn("Exception occurred in $func, $file line $lineno")
+
+		if (state == 1)
+			throw(BoundsError())
+		elseif (state == 2)
+			throw(OverflowError())
+		end
 	end
 
 	# Get results
