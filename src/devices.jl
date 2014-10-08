@@ -55,7 +55,7 @@ end
 function list_devices()
 	cnt = devcount()
 	if cnt == 0
-		println("No CUDA-capable CuDevice found.")
+		println("No CUDA-capable device found.")
 		return
 	end
 

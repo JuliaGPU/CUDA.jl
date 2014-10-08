@@ -17,7 +17,6 @@ end
 function initialize(api_version::Int)
 	populate_api_dict(api_version)
 	@cucall(:cuInit, (Cint,), 0)
-	println("CUDA Driver Initialized")
 end
 
 # Emulate device synchronization by synchronizing stream 0
@@ -40,7 +39,7 @@ cubox{T}(x::T) = T[x]
 
 # create dict for ambiguous api calls
 
-global api_dict = (Symbol => Symbol)[]
+global api_dict = Dict{Symbol,Symbol}()
 function populate_api_dict(api_version::Int)
 	if api_version >= 3020
 		api_dict[:cuDeviceTotalMem]   = :cuDeviceTotalMem_v2
