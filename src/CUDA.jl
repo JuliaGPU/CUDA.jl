@@ -13,7 +13,7 @@ module CUDA
 
 	# devices
 	CuDevice, CuCapability, dev_count, name, totalmem, attribute, capability,
-	list_devices,
+	devcount, list_devices,
 
 	# context
 	CuContext, destroy, push, pop,

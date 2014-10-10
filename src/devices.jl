@@ -1,13 +1,5 @@
 # CUDA CuDevice management
 
-function devcount()
-	# Get the number of CUDA-capable CuDevices
-	a = Cint[0]
-	@cucall(:cuDeviceGetCount, (Ptr{Cint},), a)
-	return int(a[1])
-end
-
-
 immutable CuDevice
 	ordinal::Cint
 	handle::Cint
@@ -50,6 +42,13 @@ function capability(dev::CuDevice)
 	minor = Cint[0]
 	@cucall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint), major, minor, dev.handle)
 	return CuCapability(major[1], minor[1])
+end
+
+function devcount()
+	# Get the number of CUDA-capable CuDevices
+	a = Cint[0]
+	@cucall(:cuDeviceGetCount, (Ptr{Cint},), a)
+	return int(a[1])
 end
 
 function list_devices()
