@@ -39,7 +39,7 @@ module CUDA
 	warpsize, sync_threads,
 	CuIn, CuOut, CuInOut,
 	cuSharedMem, setCuSharedMem, getCuSharedMem,
-	@cuda,
+	@cuda, @cumodule,
 
 	# math
 	sin, cos, floor

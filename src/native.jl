@@ -28,28 +28,27 @@ eltype{T}(io::CuInOut{T}) = T
 
 
 #
-# shared memory
-#
-
-setCuSharedMem(shmem, index, value) = Base.llvmcall(
-	("""@shmem = external addrspace(3) global [0 x float]""",
-	 """%4 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
-	    %5 = getelementptr inbounds float addrspace(3)* %4, i64 %1
-	    store float %2, float addrspace(3)* %5
-	    ret void"""),
-	Void, (Ptr{Float32}, Int64, Float32), shmem, index-1, value)
-getCuSharedMem(shmem, index) = Base.llvmcall(
-	("""@shmem = external addrspace(3) global [0 x float]""",
-	 """%3 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
-	   %4 = getelementptr inbounds float addrspace(3)* %3, i64 %1
-	   %5 = load float addrspace(3)* %4
-	   ret float %5"""),
-	Float32, (Ptr{Float32}, Int64), shmem, index-1)
-
-
-#
 # macros/functions for native julia-cuda processing
 #
+
+# Module definition and usage helper
+#
+# This just prepends __ptx__ to the module name, a magic string we use to
+# identify the module from within the compiler
+macro cumodule(e::Expr)
+    if e.head == :module
+        name_index = 2
+    elseif e.head == :using
+        name_index = 1
+    else
+        error("@cumodule can only be used before 'module' or 'using' keywords")
+    end
+
+    modname = e.args[name_index]
+    e.args[name_index] = symbol("__ptx__" * string(modname))
+
+    esc(Expr(:toplevel, e))
+end
 
 func_dict = Dict{(Function, Tuple), CuFunction}()
 
