@@ -24,4 +24,4 @@ free(a_dev)
 free(b_dev)
 free(c_dev)
 
-@test c == (a + b)
+@test_approx_eq (a + b) c
