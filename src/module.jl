@@ -11,8 +11,8 @@ immutable CuModule
 		catch
 		  is_data = true
 		end
-		call = is_data ? (:cuModuleLoadData) : (:cuModuleLoad)
-		@cucall(call, (Ptr{Ptr{Void}}, Ptr{Cchar}), a, mod)
+		fname = is_data ? (:cuModuleLoadData) : (:cuModuleLoad)
+		@cucall(fname, (Ptr{Ptr{Void}}, Ptr{Cchar}), a, mod)
 		new(a[1])
 	end
 end
