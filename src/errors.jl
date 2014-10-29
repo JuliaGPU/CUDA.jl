@@ -61,3 +61,5 @@ immutable CuDriverError
 end
 
 description(err::CuDriverError) = driver_error_descriptions[err.code]
+
+Base.showerror(io::IO, err::CuDriverError) = print(io, description(err), " (#$(err.code))")
