@@ -130,7 +130,26 @@ function __cuda_exec(config, func::Function, args...)
 		moduleString = code_native_module("cuda")
 
 		# create cuda module
-		cu_m = CuModule(moduleString)
+		try
+			cu_m = CuModule(module_ptx)
+		catch err
+			if isa(err, CuDriverError) && err.code == 209
+				# CUDA_ERROR_NO_BINARY_FOR_GPU (#209) usually indicates the PTX
+				# code was invalid, so try to assembly using "ptxas" manually in
+				# order to get some more information
+				try
+					readall(`ptxas`)
+					(path, io) = mktemp()
+					print(io, module_ptx)
+					close(io)
+					# TODO: don't hardcode sm_20
+					output = readall(`ptxas --gpu-name=sm_20 $path`)
+					warn(output)
+					rm(path)
+				end
+			end
+			throw(err)
+		end
 
 		# Get internal function name
 		internal_name = function_name_llvm(jl_m, func, tuple(args_jl_ty...))
