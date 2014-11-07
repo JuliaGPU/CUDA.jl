@@ -139,8 +139,8 @@ function __cuda_exec(config, func::Function, args...)
 		moduleString = code_native_module("cuda")
 
 		# create cuda module
-		try
-			cu_m = CuModule(module_ptx)
+		cu_m = try
+			CuModule(module_ptx)
 		catch err
 			if isa(err, CuDriverError) && err.code == 209
 				# CUDA_ERROR_NO_BINARY_FOR_GPU (#209) usually indicates the PTX
