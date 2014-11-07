@@ -19,7 +19,7 @@ end
 function CuArray(T::Type, len::Integer, value::Cuint)
 	n = int(len)
 	p = cualloc(T, n)
-	cumemset(p.p, value, n)
+	cumemset(p, value, n)
 	CuArray{T,1}(p, (n,), n)
 end
 
@@ -32,7 +32,7 @@ end
 function CuArray{N}(T::Type, shape::NTuple{N,Int}, value::Cuint)
 	n = prod(shape)
 	p = cualloc(T, n)
-	cumemset(p.p, value, n)
+	cumemset(p, value, n)
 	CuArray{T,N}(p, shape, n)
 end
 
@@ -59,7 +59,7 @@ function copy!{T}(dst::Array{T}, src::CuArray{T})
 		throw(ArgumentError("Inconsistent array length."))
 	end
 	nbytes = length(src) * sizeof(T)
-	@cucall(:cuMemcpyDtoH, (Ptr{Void}, CUdeviceptr, Csize_t), pointer(dst), src.ptr.p, nbytes)
+	@cucall(:cuMemcpyDtoH, (Ptr{Void}, CuPtr, Csize_t), pointer(dst), src.ptr, nbytes)
 	return dst
 end
 
@@ -68,7 +68,7 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
 		throw(ArgumentError("Inconsistent array length."))
 	end
 	nbytes = length(src) * sizeof(T)
-	@cucall(:cuMemcpyHtoD, (CUdeviceptr, Ptr{Void}, Csize_t), dst.ptr.p, pointer(src), nbytes)
+	@cucall(:cuMemcpyHtoD, (CuPtr, Ptr{Void}, Csize_t), dst.ptr, pointer(src), nbytes)
 	return dst
 end
 

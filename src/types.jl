@@ -1,14 +1,7 @@
 # CUDA related types
 
-typealias CUdeviceptr Ptr{Void}
+typealias CuPtr Ptr{Void}
 
-immutable CuPtr
-        p::CUdeviceptr
+CuPtr() = Ptr{Void}(0)
 
-        CuPtr() = new(convert(CUdeviceptr, 0))
-        CuPtr(p::CUdeviceptr) = new(p)
-end
-
-cubox(p::CuPtr) = cubox(p.p)
-
-isnull(p::CuPtr) = (p.p == 0)
+isnull(p::CuPtr) = (p == 0)

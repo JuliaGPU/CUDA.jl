@@ -36,13 +36,13 @@ end
 
 # TODO: parametric type given knowledge about device type?
 immutable CuGlobal{T}
-	pointer::CUdeviceptr
+	pointer::CuPtr
 	nbytes::Cssize_t
 
 	function CuGlobal(md::CuModule, name::ASCIIString)
-		a = CUdeviceptr[0]
+		a = CuPtr[0]
 		b = Cssize_t[0]
-		@cucall(:cuModuleGetGlobal, (Ptr{CUdeviceptr}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
+		@cucall(:cuModuleGetGlobal, (Ptr{CuPtr}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
 			a, b, md.handle, name)
 		@assert b[1] == sizeof(T)
 		new(a[1], b[1])
@@ -53,12 +53,12 @@ eltype{T}(var::CuGlobal{T}) = T
 
 function get{T}(var::CuGlobal{T})
 	a = T[0]
-	@cucall(:cuMemcpyDtoH, (Ptr{Void}, CUdeviceptr, Csize_t), a, var.pointer, var.nbytes)
+	@cucall(:cuMemcpyDtoH, (Ptr{Void}, CuPtr, Csize_t), a, var.pointer, var.nbytes)
 	return a[1]
 end
 
 function set{T}(var::CuGlobal{T}, val::T)
 	a = T[0]
 	a[1] = val
-	@cucall(:cuMemcpyHtoD, (CUdeviceptr, Ptr{Void}, Csize_t), var.pointer, a, var.nbytes)
+	@cucall(:cuMemcpyHtoD, (CuPtr, Ptr{Void}, Csize_t), var.pointer, a, var.nbytes)
 end
