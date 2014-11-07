@@ -85,7 +85,7 @@ function __cuda_exec(config, func::Function, args...)
 			arg_el_type = eltype(arg)
 			if arg_el_type <: Array
 				# println("Array")
-				push!(args_jl_ty, arg_el_type)
+				push!(args_jl_ty, Ptr{eltype(arg_el_type)})
 				push!(args_cu, CuArray(arg_el))
 			elseif arg_el_type <: CuArray
 				# println("CuArray")
@@ -100,7 +100,7 @@ function __cuda_exec(config, func::Function, args...)
 			arg_el_type = eltype(arg)
 			if arg_el_type <: Array
 				# println("Array")
-				push!(args_jl_ty, arg_el_type)
+				push!(args_jl_ty, Ptr{eltype(arg_el_type)})
 				push!(args_cu, CuArray(eltype(arg_el),
 				      size(arg_el)))
 			elseif arg_el_type <: CuArray
