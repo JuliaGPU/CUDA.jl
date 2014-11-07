@@ -100,8 +100,7 @@ function exec(config, func::Function, args::Array{Any})
 					print(io, module_ptx)
 					close(io)
 					# TODO: don't hardcode sm_20
-					output = readall(`ptxas --gpu-name=sm_20 $path`)
-					warn(output)
+					run(`ptxas --gpu-name=sm_20 $path`)
 					rm(path)
 				end
 			end
