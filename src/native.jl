@@ -46,45 +46,46 @@ function exec(config, func::Function, args...)
 	shared_bytes::Int = length(config) > 3 ? config[4] : 0
 
 	# Process arguments
-	args_jl_ty = Array(Type, 0)
-	args_cu = Array(Any, 0)
-	for arg in args
+	args_jl_ty = Array(Type, length(args))	# types to codegen the kernel for
+	args_cu = Array(Any, length(args))		# values to pass to that kernel
+	for it in enumerate(args)
+		i = it[1]
+		arg = it[2]
+
+		# TODO: no CuIn, only Out or InOut meaning the data has to be read back.
+		#       then unconditionally copy inputs when arrays
 		if isa(arg, CuIn) || isa(arg, CuInOut)
 			arg_el = arg.data
 			arg_el_type = eltype(arg)
 			if arg_el_type <: Array
-				# println("Array")
-				push!(args_jl_ty, Ptr{eltype(arg_el_type)})
-				push!(args_cu, CuArray(arg_el))
+				args_jl_ty[i] = Ptr{eltype(arg_el_type)}
+				args_cu[i] = CuArray(arg_el)
 			elseif arg_el_type <: CuArray
-				# println("CuArray")
-				push!(args_jl_ty, Array{eltype(arg_el),
-				      ndims(arg_el)})
-				push!(args_cu, arg_el)
+				args_jl_ty[i] = Array{eltype(arg_el), ndims(arg_el)}
+				args_cu[i] = arg_el
 			else
-				# Other element type
+				error("No support for $arg_el_type input values")
 			end
 		elseif isa(arg, CuOut)
 			arg_el = arg.data
 			arg_el_type = eltype(arg)
 			if arg_el_type <: Array
 				# println("Array")
-				push!(args_jl_ty, Ptr{eltype(arg_el_type)})
-				push!(args_cu, CuArray(eltype(arg_el),
-				      size(arg_el)))
+				args_jl_ty[i] = Ptr{eltype(arg_el_type)}
+				args_cu[i] = CuArray(eltype(arg_el), size(arg_el))
 			elseif arg_el_type <: CuArray
 				# println("CuArray")
-				push!(args_jl_ty, Array{eltype(arg_el),
-				      ndims(arg_el)})
-				push!(args_cu, arg_el)
+				args_jl_ty[i] = Array{eltype(arg_el), ndims(arg_el)}
+				args_cu[i] = arg_el
 			else
-				# Other element type
+				error("No support for $arg_el_type output values")
 			end
 		else
 			# Other type
-			# should not be allowed?
-			push!(args_jl_ty, typeof(arg))
-			push!(args_cu, arg)
+			# TODO: can we check here already if the type will require boxing?
+			warn("No explicit support for $(typeof(arg)) input values; passing as-is")
+			args_jl_ty[i] = typeof(arg)
+			args_cu[i] = arg
 		end
 	end
 
@@ -142,25 +143,26 @@ function exec(config, func::Function, args...)
 	launch(cuda_func, grid, block, tuple(args_cu...), shmem_bytes=shared_bytes)
 
 	# Get results
-	index = 1
-	for arg in args
+	for it in enumerate(args)
+		i = it[1]
+		arg = it[2]
 		if isa(arg, CuOut) || isa(arg, CuInOut)
 			if isa(arg.data, Array)
-				host = to_host(args_cu[index])
+				host = to_host(args_cu[i])
 				copy!(arg.data, host)
 			elseif isa(arg.data, CuArray)
 				#println("Copy to CuArray")
 			end
 		end
-		index = index + 1
 	end
 
 	# Free memory
-	index = 1
-	for arg in args
+	# TODO: merge with previous
+	for it in enumerate(args)
+		i = it[1]
+		arg = it[2]
 		if eltype(arg) <: Array
-			free(args_cu[index])
+			free(args_cu[i])
 		end
-		index = index + 1
 	end
 end
