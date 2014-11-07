@@ -124,7 +124,16 @@ function __cuda_exec(config, func::Function, args...)
 		cuda_func = func_dict[func, tuple(args_jl_ty...)]
 	else
 		# trigger function compilation
-		precompile(func, tuple(args_jl_ty...))
+		try
+			precompile(func, tuple(args_jl_ty...))
+		catch err
+			print("\n\n\n*** Compilation failed ***\n\n")
+			# this is most likely caused by some boxing issue, so dump the ASTs
+			# to help identifying the boxed variable
+			print("-- lowered AST --\n\n", code_lowered(func, tuple(args_jl_ty...)), "\n\n")
+			print("-- typed AST --\n\n", code_typed(func, tuple(args_jl_ty...)), "\n\n")
+			throw(err)
+		end
 
 		# trigger module compilation
 		moduleString = code_native_module("cuda")
