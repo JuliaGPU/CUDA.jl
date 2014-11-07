@@ -17,6 +17,9 @@ end
 using CUDA, Base.Test
 using GPUModule
 
+
+# set-up
+
 @test devcount() > 0
 
 dev = CuDevice(0)
@@ -24,15 +27,12 @@ ctx = CuContext(dev)
 
 siz = (3, 4)
 len = prod(siz)
+
+
+# test 1: manually managed data
+
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
-c = Array(Float32, siz)
-
-@cuda (GPUModule, len, 1) vadd(a, b, c)
-@test_approx_eq (a + b) c
-
-@cuda (GPUModule, len, 1) vadd(CuIn(a), CuIn(b), CuOut(c))
-@test_approx_eq (a + b) c
 
 ga = CuArray(a)
 gb = CuArray(b)
@@ -45,3 +45,21 @@ c = to_host(gc)
 free(ga)
 free(gb)
 free(gc)
+
+
+# test 2: auto-managed host data
+
+a = round(rand(Float32, siz) * 100)
+b = round(rand(Float32, siz) * 100)
+
+@cuda (GPUModule, len, 1) vadd(CuIn(a), CuIn(b), CuOut(c))
+@test_approx_eq (a + b) c
+
+
+# test 3: auto-managed host data, without specifying type
+
+a = round(rand(Float32, siz) * 100)
+b = round(rand(Float32, siz) * 100)
+
+@cuda (GPUModule, len, 1) vadd(a, b, c)
+@test_approx_eq (a + b) c
