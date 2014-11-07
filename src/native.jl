@@ -2,94 +2,72 @@
 
 
 #
-# transfer datatypes
-#
-
-type CuIn{T}
-	data::T
-end
-length(i::CuIn) = length(i.data)
-size(i::CuIn) = size(i.data)
-eltype{T}(i::CuIn{T}) = T
-
-type CuOut{T}
-	data::T
-end
-length(o::CuOut) = length(o.data)
-size(o::CuOut) = size(o.data)
-eltype{T}(o::CuOut{T}) = T
-
-type CuInOut{T}
-	data::T
-end
-length(io::CuInOut) = length(io.data)
-size(io::CuInOut) = size(io.data)
-eltype{T}(io::CuInOut{T}) = T
-
-
-#
-# macros/functions for native julia-cuda processing
+# macros/functions for native Julia-CUDA processing
 #
 
 func_dict = Dict{(Function, Tuple), CuFunction}()
 
 # User-friendly macro wrapper
-# @cuda (dims...) kernel(args...) -> CUDA.exec((dims...), kernel, args...)
+# @cuda (dims...) kernel(args...) -> CUDA.exec((dims...), kernel, [args...])
 macro cuda(config, callexpr::Expr)
-	esc(Expr(:call, CUDA.exec, config, callexpr.args...))
+	esc(Expr(:call, CUDA.exec, config, callexpr.args[1], Expr(:cell1d, callexpr.args[2:end]...)))
 end
 
-function exec(config, func::Function, args...)
+function exec(config, func::Function, args::Array{Any})
 	jl_m::Module = config[1]
 	grid::CuDim  = config[2]
 	block::CuDim = config[3]
 	shared_bytes::Int = length(config) > 3 ? config[4] : 0
 
-	# Process arguments
+	# Check argument type (should be either managed or on-device already)
+	for it in enumerate(args)
+		i = it[1]
+		arg = it[2]
+
+		# TODO: create a CuAddressable hierarchy rather than checking for each
+		#       type (currently only CuArray) individually?
+		#       Maybe based on can_convert_to(CuPtr)?
+		if !isa(arg, CuManaged) && !isa(arg, CuPtr)&& !isa(arg, CuArray)
+			warn("You specified an unmanaged host argument -- assuming input/output")
+			args[i] = CuInOut(arg)
+		end
+	end
+
+	# Prepare arguments (allocate memory and upload inputs, if necessary)
 	args_jl_ty = Array(Type, length(args))	# types to codegen the kernel for
 	args_cu = Array(Any, length(args))		# values to pass to that kernel
 	for it in enumerate(args)
 		i = it[1]
 		arg = it[2]
 
-		# TODO: no CuIn, only Out or InOut meaning the data has to be read back.
-		#       then unconditionally copy inputs when arrays
-		if isa(arg, CuIn) || isa(arg, CuInOut)
-			arg_el = arg.data
-			arg_el_type = eltype(arg)
-			if arg_el_type <: Array
-				args_jl_ty[i] = Ptr{eltype(arg_el_type)}
-				args_cu[i] = CuArray(arg_el)
-			elseif arg_el_type <: CuArray
-				args_jl_ty[i] = Array{eltype(arg_el), ndims(arg_el)}
-				args_cu[i] = arg_el
+		if isa(arg, CuManaged)
+			input = isa(arg, CuIn) || isa(arg, CuInOut)
+
+			if isa(arg.data, Array)
+				args_jl_ty[i] = Ptr{eltype(arg.data)}
+				if input
+					args_cu[i] = CuArray(arg.data)
+				else
+					# create without initializing
+					args_cu[i] = CuArray(eltype(arg.data), size(arg.data))
+				end
 			else
-				error("No support for $arg_el_type input values")
+				warn("No explicit support for $(typeof(arg)) input values; passing as-is")
+				args_jl_ty[i] = typeof(arg.data)
+				args_cu[i] = arg.data
 			end
-		elseif isa(arg, CuOut)
-			arg_el = arg.data
-			arg_el_type = eltype(arg)
-			if arg_el_type <: Array
-				# println("Array")
-				args_jl_ty[i] = Ptr{eltype(arg_el_type)}
-				args_cu[i] = CuArray(eltype(arg_el), size(arg_el))
-			elseif arg_el_type <: CuArray
-				# println("CuArray")
-				args_jl_ty[i] = Array{eltype(arg_el), ndims(arg_el)}
-				args_cu[i] = arg_el
-			else
-				error("No support for $arg_el_type output values")
-			end
-		else
-			# Other type
-			# TODO: can we check here already if the type will require boxing?
-			warn("No explicit support for $(typeof(arg)) input values; passing as-is")
+		elseif isa(arg, CuArray)
+			args_jl_ty[i] = Ptr{eltype(arg)}
+			args_cu[i] = arg
+		elseif isa(arg, CuPtr)
 			args_jl_ty[i] = typeof(arg)
 			args_cu[i] = arg
+		else
+			error("Cannot handle arguments of type $(typeof(arg))")
 		end
 	end
 
-	# conditional compilation of function
+	# Cached kernel compilation
 	if haskey(func_dict, (func, tuple(args_jl_ty...)))
 		cuda_func = func_dict[func, tuple(args_jl_ty...)]
 	else
@@ -139,30 +117,25 @@ function exec(config, func::Function, args...)
 		func_dict[(func, tuple(args_jl_ty...))] = cuda_func
 	end
 
-	# Launch cuda object
+	# Launch the kernel
 	launch(cuda_func, grid, block, tuple(args_cu...), shmem_bytes=shared_bytes)
 
-	# Get results
+	# Finish up (fetch results and free memory, if necessary)
 	for it in enumerate(args)
 		i = it[1]
 		arg = it[2]
-		if isa(arg, CuOut) || isa(arg, CuInOut)
-			if isa(arg.data, Array)
-				host = to_host(args_cu[i])
-				copy!(arg.data, host)
-			elseif isa(arg.data, CuArray)
-				#println("Copy to CuArray")
-			end
-		end
-	end
 
-	# Free memory
-	# TODO: merge with previous
-	for it in enumerate(args)
-		i = it[1]
-		arg = it[2]
-		if eltype(arg) <: Array
-			free(args_cu[i])
+		if isa(arg, CuManaged)
+			output = isa(arg, CuOut) || isa(arg, CuInOut)
+
+			if isa(arg.data, Array)
+				if output
+					host = to_host(args_cu[i])
+					copy!(arg.data, host)
+				end
+
+				free(args_cu[i])
+			end
 		end
 	end
 end
