@@ -5,7 +5,7 @@
 # macros/functions for native Julia-CUDA processing
 #
 
-func_dict = Dict{(Function, Tuple), CuFunction}()
+func_cache = Dict{(Function, Tuple), CuFunction}()
 
 # User-friendly macro wrapper
 # @cuda (dims...) kernel(args...) -> CUDA.exec((dims...), kernel, [args...])
@@ -68,8 +68,8 @@ function exec(config, func::Function, args::Array{Any})
 	end
 
 	# Cached kernel compilation
-	if haskey(func_dict, (func, tuple(args_jl_ty...)))
-		cuda_func = func_dict[func, tuple(args_jl_ty...)]
+	if haskey(func_cache, (func, tuple(args_jl_ty...)))
+		cuda_func = func_cache[func, tuple(args_jl_ty...)]
 	else
 		# trigger function compilation
 		try
@@ -114,7 +114,7 @@ function exec(config, func::Function, args::Array{Any})
 		cuda_func = CuFunction(cu_m, internal_name)
 
 		# Cache result to avoid unnecessary compilation
-		func_dict[(func, tuple(args_jl_ty...))] = cuda_func
+		func_cache[(func, tuple(args_jl_ty...))] = cuda_func
 	end
 
 	# Launch the kernel
