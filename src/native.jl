@@ -31,25 +31,6 @@ eltype{T}(io::CuInOut{T}) = T
 # macros/functions for native julia-cuda processing
 #
 
-# Module definition and usage helper
-#
-# This just prepends __ptx__ to the module name, a magic string we use to
-# identify the module from within the compiler
-macro cumodule(e::Expr)
-    if e.head == :module
-        name_index = 2
-    elseif e.head == :using
-        name_index = 1
-    else
-        error("@cumodule can only be used before 'module' or 'using' keywords")
-    end
-
-    modname = e.args[name_index]
-    e.args[name_index] = symbol("__ptx__" * string(modname))
-
-    esc(Expr(:toplevel, e))
-end
-
 func_dict = Dict{(Function, Tuple), CuFunction}()
 
 # User-friendly macro wrapper

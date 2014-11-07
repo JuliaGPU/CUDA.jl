@@ -39,7 +39,7 @@ module CUDA
 	warpsize, sync_threads,
 	CuIn, CuOut, CuInOut,
 	cuSharedMem, setCuSharedMem, getCuSharedMem,
-	@cuda, @cumodule,
+	@cuda,
 
 	# math
 	sin, cos, floor
@@ -57,7 +57,6 @@ module CUDA
 
 	include("memory.jl")
 	include("arrays.jl")
-
 
 	include("native.jl")
 	include("intrinsics.jl")
