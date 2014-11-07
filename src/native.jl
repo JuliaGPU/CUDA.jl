@@ -52,25 +52,13 @@ end
 
 func_dict = Dict{(Function, Tuple), CuFunction}()
 
-macro cuda(config, call::Expr)
-	exprs = ()
-
-	# Generate expressions to process the arguments
-	@gensym args
-	# TODO: fixed-size array
-	exprs = :($exprs; $args = Array(Any, 0))
-	for arg = call.args[2:end]
-		exprs_arg = quote
-			push!($args, $(esc(arg)))
-		end
-		exprs = :($exprs; $exprs_arg)
-	end
-
-	# Now execute the function and return all the expressions
-	:($exprs; $:(__cuda_exec($(esc(config)), $(esc(call.args[1])), $args...)))
+# User-friendly macro wrapper
+# @cuda (dims...) kernel(args...) -> CUDA.exec((dims...), kernel, args...)
+macro cuda(config, callexpr::Expr)
+	esc(Expr(:call, CUDA.exec, config, callexpr.args...))
 end
 
-function __cuda_exec(config, func::Function, args...)
+function exec(config, func::Function, args...)
 	jl_m::Module = config[1]
 	grid::CuDim  = config[2]
 	block::CuDim = config[3]
