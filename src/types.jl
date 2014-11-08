@@ -5,11 +5,16 @@
 # device pointer
 #
 
-typealias CuPtr Ptr{Void}
+# TODO: use custom pointer type, not convertible to Ptr, yet usable as one
 
-CuPtr() = Ptr{Void}(0)
+typealias DevicePtr{T} Ptr{T}
 
-isnull(p::CuPtr) = (p == 0)
+# FIXME: normal constructor doesn't work?
+function deviceptr{T}(p::Ptr{T})
+    p::DevicePtr{T}
+end
+
+isnull{T}(p::DevicePtr{T}) = (p == 0)
 
 
 #

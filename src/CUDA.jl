@@ -29,7 +29,7 @@ module CUDA
 	launch, CuDim,
 
 	# arrays
-	CuPtr, CuArray, free, to_host, ndims,
+	DevicePtr, CuArray, free, to_host, ndims,
 
 	# native
 	threadId_x, threadId_y, threadId_z,

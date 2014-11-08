@@ -10,7 +10,8 @@ func_cache = Dict{(Function, Tuple), CuFunction}()
 # User-friendly macro wrapper
 # @cuda (dims...) kernel(args...) -> CUDA.exec((dims...), kernel, [args...])
 macro cuda(config, callexpr::Expr)
-	esc(Expr(:call, CUDA.exec, config, callexpr.args[1], Expr(:cell1d, callexpr.args[2:end]...)))
+	esc(Expr(:call, CUDA.exec, config, callexpr.args[1],
+		     Expr(:cell1d, callexpr.args[2:end]...)))
 end
 
 function exec(config, func::Function, args::Array{Any})
@@ -26,8 +27,8 @@ function exec(config, func::Function, args::Array{Any})
 
 		# TODO: create a CuAddressable hierarchy rather than checking for each
 		#       type (currently only CuArray) individually?
-		#       Maybe based on can_convert_to(CuPtr)?
-		if !isa(arg, CuManaged) && !isa(arg, CuPtr)&& !isa(arg, CuArray)
+		#       Maybe based on can_convert_to(DevicePtr{Void})?
+		if !isa(arg, CuManaged) && !isa(arg, DevicePtr{Void})&& !isa(arg, CuArray)
 			warn("You specified an unmanaged host argument -- assuming input/output")
 			args[i] = CuInOut(arg)
 		end
@@ -59,7 +60,7 @@ function exec(config, func::Function, args::Array{Any})
 		elseif isa(arg, CuArray)
 			args_jl_ty[i] = Ptr{eltype(arg)}
 			args_cu[i] = arg
-		elseif isa(arg, CuPtr)
+		elseif isa(arg, DevicePtr{Void})
 			args_jl_ty[i] = typeof(arg)
 			args_cu[i] = arg
 		else

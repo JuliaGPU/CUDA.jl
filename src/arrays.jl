@@ -5,7 +5,7 @@
 #################################################
 
 type CuArray{T,N}
-	ptr::CuPtr
+	ptr::DevicePtr{Void}
 	shape::NTuple{N,Int}
 	len::Int
 end
@@ -50,7 +50,7 @@ end
 function free(g::CuArray)
 	if !isnull(g.ptr)
 		free(g.ptr)
-		g.ptr = CuPtr()
+		g.ptr = deviceptr(C_NULL)
 	end
 end
 
@@ -59,7 +59,7 @@ function copy!{T}(dst::Array{T}, src::CuArray{T})
 		throw(ArgumentError("Inconsistent array length."))
 	end
 	nbytes = length(src) * sizeof(T)
-	@cucall(:cuMemcpyDtoH, (Ptr{Void}, CuPtr, Csize_t), pointer(dst), src.ptr, nbytes)
+	@cucall(:cuMemcpyDtoH, (Ptr{Void}, DevicePtr{Void}, Csize_t), pointer(dst), src.ptr, nbytes)
 	return dst
 end
 
@@ -68,7 +68,7 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
 		throw(ArgumentError("Inconsistent array length."))
 	end
 	nbytes = length(src) * sizeof(T)
-	@cucall(:cuMemcpyHtoD, (CuPtr, Ptr{Void}, Csize_t), dst.ptr, pointer(src), nbytes)
+	@cucall(:cuMemcpyHtoD, (DevicePtr{Void}, Ptr{Void}, Csize_t), dst.ptr, pointer(src), nbytes)
 	return dst
 end
 

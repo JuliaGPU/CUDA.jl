@@ -1,14 +1,14 @@
 function cualloc(T::Type, len::Integer)
-        a = CuPtr[0]
+        a = DevicePtr{Void}[0]
         nbytes = int(len) * sizeof(T)
-        @cucall(:cuMemAlloc, (Ptr{CuPtr}, Csize_t), a, nbytes)
-        return CuPtr(a[1])
+        @cucall(:cuMemAlloc, (Ptr{DevicePtr{Void}}, Csize_t), a, nbytes)
+        return DevicePtr{Void}(a[1])
 end
 
-function cumemset(p::CuPtr, value::Cuint, len::Integer)
-        @cucall(:cuMemsetD32, (CuPtr, Cuint, Csize_t), p, value, len)
+function cumemset(p::DevicePtr{Void}, value::Cuint, len::Integer)
+        @cucall(:cuMemsetD32, (DevicePtr{Void}, Cuint, Csize_t), p, value, len)
 end
 
-function free(p::CuPtr)
-        @cucall(:cuMemFree, (CuPtr,), p)
+function free(p::DevicePtr{Void})
+        @cucall(:cuMemFree, (DevicePtr{Void},), p)
 end
