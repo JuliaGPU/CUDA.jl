@@ -85,9 +85,9 @@ function exec(config, func::Function, args::Array{Any})
 		end
 
 		# trigger module compilation
-		moduleString = code_native_module("cuda")
+		module_ptx = dump_native_module("cuda")
 
-		# create cuda module
+		# create CUDA module
 		cu_m = try
 			CuModule(module_ptx)
 		catch err
@@ -109,8 +109,10 @@ function exec(config, func::Function, args::Array{Any})
 		end
 
 		# Get internal function name
-		internal_name = function_name_llvm(jl_m, func, tuple(args_jl_ty...))
-		# Get cuda function object
+		internal_name = function_name_llvm(jl_m, func,
+			                           tuple(args_jl_ty...))
+
+		# Get CUDA function object
 		cuda_func = CuFunction(cu_m, internal_name)
 
 		# Cache result to avoid unnecessary compilation
