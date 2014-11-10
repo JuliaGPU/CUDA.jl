@@ -3,9 +3,15 @@ using CUDA, Base.Test
 @test devcount() > 0
 
 dev = CuDevice(0)
+cap = capability(dev)
 ctx = CuContext(dev)
 
-md = CuModule("vadd.ptx")
+if cap < v"2.0"
+    obj = "vadd-11.ptx"
+else
+    obj = "vadd-20.ptx"
+end
+md = CuModule(obj)
 f = CuFunction(md, "vadd")
 
 dims = (3, 4)

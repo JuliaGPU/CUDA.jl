@@ -8,7 +8,7 @@
 .target sm_20
 .address_size 64
 
-	.file	1 "/tmp/tmpxft_00006ec3_00000000-9_vadd.cpp3.i"
+	.file	1 "/tmp/tmpxft_0000797e_00000000-9_vadd.cpp3.i"
 	.file	2 "/home/tim/Werk/UGent/2014/code/julia-cuda/CUDA.jl/test/vadd.cu"
 
 .visible .entry vadd(

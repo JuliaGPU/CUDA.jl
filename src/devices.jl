@@ -13,11 +13,6 @@ immutable CuDevice
 	end
 end
 
-immutable CuCapability
-	major::Int
-	minor::Int
-end
-
 function name(dev::CuDevice)
 	const buflen = 256
 	buf = Array(Cchar, buflen)
@@ -41,7 +36,7 @@ function capability(dev::CuDevice)
 	major = Cint[0]
 	minor = Cint[0]
 	@cucall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint), major, minor, dev.handle)
-	return CuCapability(major[1], minor[1])
+	return VersionNumber(major[1], minor[1])
 end
 
 function devcount()
