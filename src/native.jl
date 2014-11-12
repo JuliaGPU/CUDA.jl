@@ -109,11 +109,14 @@ function exec(config, func::Function, args::Array{Any})
 		end
 
 		# Get internal function name
-		internal_name = function_name_llvm(jl_m, func,
-			                           tuple(args_jl_ty...))
+		# FIXME: just get new module / clean slate for every CUDA
+		# module, with a predestined function name for the kernel? But
+		# then what about type specialization?
+		function_name = ccall(:jl_dump_function_name, Any, (Any, Any),
+			                  func, tuple(args_jl_ty...))
 
 		# Get CUDA function object
-		cuda_func = CuFunction(cu_m, internal_name)
+		cuda_func = CuFunction(cu_m, function_name)
 
 		# Cache result to avoid unnecessary compilation
 		func_cache[(func, tuple(args_jl_ty...))] = cuda_func
