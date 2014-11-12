@@ -85,10 +85,12 @@ function exec(config, func::Function, args::Array{Any})
 		end
 
 		# trigger module compilation
-		module_ptx = dump_native_module("cuda")
+		module_ptx = ccall(:jl_to_ptx, Any, ())::String
 
 		# create CUDA module
 		cu_m = try
+			# TODO: what with other kernel calls? entirely new module? or just
+			# add them?
 			CuModule(module_ptx)
 		catch err
 			if isa(err, CuDriverError) && err.code == 209
