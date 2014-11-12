@@ -17,6 +17,8 @@ end
 function initialize(api_version::Int)
 	populate_api_dict(api_version)
 	@cucall(:cuInit, (Cint,), 0)
+	ccall(:jl_init_ptx_codegen, Void, (String, String),
+		  "nvptx64-nvidia-cuda", "sm_20")
 end
 
 # Emulate device synchronization by synchronizing stream 0
