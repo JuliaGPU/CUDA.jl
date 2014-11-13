@@ -35,9 +35,13 @@ end
 api_mapping = Dict{Symbol,Symbol}()
 resolve(f::Symbol) = get(api_mapping, f, f)
 
-function initialize()
+function initialize_api()
     # Create mapping for versioned API calls
-    api_version = driver_version()
+    if haskey(ENV, "CUDA_FORCE_API_VERSION")
+        api_version = ENV["CUDA_FORCE_API_VERSION"]
+    else
+        api_version = driver_version()
+    end
     global api_mapping
     if api_version >= 3020
         api_mapping[:cuDeviceTotalMem]   = :cuDeviceTotalMem_v2
@@ -57,9 +61,6 @@ function initialize()
 
     # Initialize the driver
     @cucall(:cuInit, (Cint,), 0)
-
-    ccall(:jl_init_ptx_codegen, Void, (String, String),
-          "nvptx64-nvidia-cuda", "sm_20")
 end
 
 function driver_version()

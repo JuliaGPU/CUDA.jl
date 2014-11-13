@@ -18,6 +18,9 @@ include("intrinsics.jl")
 
 include("profile.jl")
 
+function initialize()
+	initialize_api()
+end
 initialize()
 
 end
