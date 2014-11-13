@@ -13,8 +13,9 @@ include("execution.jl")
 include("memory.jl")
 include("arrays.jl")
 
-include("native.jl")
-include("intrinsics.jl")
+include("native/execution.jl")
+include("native/intrinsics.jl")
+include("native/arrays.jl")
 
 include("profile.jl")
 

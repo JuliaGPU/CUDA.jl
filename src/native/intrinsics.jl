@@ -1,4 +1,4 @@
-# Code generation intrinsics
+# Native intrinsics
 
 export
     # Indexing and dimensions

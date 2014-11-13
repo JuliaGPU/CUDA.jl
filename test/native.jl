@@ -4,10 +4,13 @@ using CUDA
 
 export vadd
 
-@target ptx function vadd(a::Ptr{Float32}, b::Ptr{Float32}, c::Ptr{Float32})
+@target ptx function vadd(a_ptr::Ptr{Float32}, b_ptr::Ptr{Float32}, c_ptr::Ptr{Float32})
+    a = UnsafeArray(a_ptr)
+    b = UnsafeArray(b_ptr)
+    c = UnsafeArray(c_ptr)
+
     i = blockId_x() + (threadId_x()-1) * numBlocks_x()
-    val = unsafe_load(a, i) + unsafe_load(b, i)
-    unsafe_store!(c, val, i)
+    c[i] = a[i] + b[i]
 
     return nothing
 end
