@@ -1,3 +1,5 @@
+# Code generation intrinsics
+
 export
     # Indexing and dimensions
     threadId_x, threadId_y, threadId_z,

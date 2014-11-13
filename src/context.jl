@@ -1,4 +1,4 @@
-# CUDA CuContext
+# Context management
 
 export
     CuContext, destroy, push, pop

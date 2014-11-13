@@ -1,4 +1,4 @@
-# Contiguous array on GPU
+# Contiguous on-device arrays
 
 import Base: length, size, ndims, eltype, copy!
 
