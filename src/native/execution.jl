@@ -188,7 +188,7 @@ end
 
 # The exec() function is executed for each kernel invocation, and performs the
 # necessary driver interactions to upload the kernel, and start execution.
-function exec(config, func::Function, args_kernel_type::Array{Type}, args_kernel_sym::Array{Any})
+function exec(config, func::Function, args_type::Array{Type}, args_val::Array{Any})
     jl_m::Module = config[1]
     grid::CuDim  = config[2]
     block::CuDim = config[3]
@@ -202,18 +202,18 @@ function exec(config, func::Function, args_kernel_type::Array{Type}, args_kernel
 
     # Cached kernel compilation
     # TODO: move to prepare_exec()
-    if haskey(func_cache, (func, tuple(args_kernel_type...)))
-        cuda_func = func_cache[func, tuple(args_kernel_type...)]
+    if haskey(func_cache, (func, tuple(args_type...)))
+        cuda_func = func_cache[func, tuple(args_type...)]
     else
         # trigger function compilation
         try
-            precompile(func, tuple(args_kernel_type...))
+            precompile(func, tuple(args_type...))
         catch err
             print("\n\n\n*** Compilation failed ***\n\n")
             # this is most likely caused by some boxing issue, so dump the ASTs
             # to help identifying the boxed variable
-            print("-- lowered AST --\n\n", code_lowered(func, tuple(args_kernel_type...)), "\n\n")
-            print("-- typed AST --\n\n", code_typed(func, tuple(args_kernel_type...)), "\n\n")
+            print("-- lowered AST --\n\n", code_lowered(func, tuple(args_type...)), "\n\n")
+            print("-- typed AST --\n\n", code_typed(func, tuple(args_type...)), "\n\n")
             throw(err)
         end
 
@@ -248,15 +248,15 @@ function exec(config, func::Function, args_kernel_type::Array{Type}, args_kernel
         # module, with a predestined function name for the kernel? But
         # then what about type specialization?
         function_name = ccall(:jl_dump_function_name, Any, (Any, Any),
-                              func, tuple(args_kernel_type...))
+                              func, tuple(args_type...))
 
         # Get CUDA function object
         cuda_func = CuFunction(cu_m, function_name)
 
         # Cache result to avoid unnecessary compilation
-        func_cache[(func, tuple(args_kernel_type...))] = cuda_func
+        func_cache[(func, tuple(args_type...))] = cuda_func
     end
 
     # Launch the kernel
-    launch(cuda_func, grid, block, tuple(args_kernel_sym...), shmem_bytes=shared_bytes)
+    launch(cuda_func, grid, block, tuple(args_val...), shmem_bytes=shared_bytes)
 end
