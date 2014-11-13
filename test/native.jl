@@ -14,13 +14,10 @@ end
 
 end
 
-using CUDA, Base.Test
 using GPUModule
 
 
 # set-up
-
-@test devcount() > 0
 
 dev = CuDevice(0)
 ctx = CuContext(dev)

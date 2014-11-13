@@ -1,7 +1,3 @@
-using CUDA, Base.Test
-
-@test devcount() > 0
-
 dev = CuDevice(0)
 cap = capability(dev)
 ctx = CuContext(dev)
