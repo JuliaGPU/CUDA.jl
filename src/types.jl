@@ -43,3 +43,11 @@ end
 type CuInOut{T} <: CuManaged{T}
     data::T
 end
+
+# FIXME: define on CuManaged instead of on each instance?
+#eltype{T}(::Type{CuManaged{T}}) = T
+eltype{T}(::Type{CuIn{T}}) = T
+eltype{T}(::Type{CuOut{T}}) = T
+eltype{T}(::Type{CuInOut{T}}) = T
+eltype{T<:CuManaged}(t::Type{T}) =
+    error("missing eltype definition for this managed type")

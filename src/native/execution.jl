@@ -66,90 +66,154 @@ end
 
 func_cache = Dict{(Function, Tuple), CuFunction}()
 
-# User-friendly macro wrapper
-# @cuda (dims...) kernel(args...) -> CUDA.exec((dims...), kernel, [args...])
+# The @cuda macro provides a user-friendly wrapper for prepare_exec(). It is
+# executed during parsing, and substitutes calls to itself with properly
+# formatted calls to prepare_exec().
 macro cuda(config, callexpr::Expr)
-    esc(Expr(:call, CUDA.exec, config, callexpr.args[1],
-             Expr(:cell1d, callexpr.args[2:end]...)))
+    # Sanity checks
+    @assert config.head == :tuple && 3 <= length(config.args) <= 4
+
+    esc(Expr(:call, CUDA.prepare_exec, config, callexpr.args[1],
+             callexpr.args[2:end]...))
 end
 
-function exec(config, func::Function, args::Array{Any})
-    @assert 3 <= length(config) <= 4
-    jl_m::Module = config[1]
-    grid::CuDim  = config[2]
-    block::CuDim = config[3]
-    shared_bytes::Int = length(config) > 3 ? config[4] : 0
+# The prepare_exec() staged function prepares the call to exec(), and runs once
+# for each combination of a call site and type inferred arguments. Knowing the
+# input type of each argument, it generates expressions which prepare the inputs
+# to be used in combination with a GPU kernel.
+stagedfunction prepare_exec(config, func, args...)
+    exprs = Expr(:block)
 
     # Sanity checks
     global codegen_initialized
     if !codegen_initialized
         error("native code generation is not initialized yet")
     end
+
+    # Check argument types (should be either managed or on-device already)
+    args_host_sym  = Array(Union(Symbol,Expr),  # symbolic reference to the
+                           length(args))        #  host variable or value
+    args_host_type = Array(Type, length(args))  # its original type
+    for i in 1:length(args)
+        var = :( args[$i] )     # symbolic reference to the argument
+        vartype = args[i]::Type # its type
+
+        if !(vartype <: CuManaged) && !(vartype <: DevicePtr{Void}) && !(vartype <: CuArray)
+            warn("You specified an unmanaged host argument -- assuming input/output (costly!)")
+            newvar = gensym()
+            push!(exprs.args, :( $newvar = CuInOut($var) ))
+            var = newvar
+            vartype = CuInOut{vartype}
+        end
+
+        args_host_sym[i] = var
+        args_host_type[i] = vartype
+    end
+
+    # Prepare arguments (allocate memory and upload inputs, if necessary)
+    args_kernel_sym  = Array(Union(Symbol,Expr),    # input objects for launch()
+                             length(args))          #  (var symbol or value expr)
+    args_kernel_type = Array(Type,                  # types for precompile()
+                             length(args))          #  and launch()
+    for i in 1:length(args)
+        arg_sym = args_host_sym[i]
+        arg_type = args_host_type[i]
+
+        # Process the argument based on its type
+        if arg_type <: CuManaged
+            input = (arg_type <: CuIn) || (arg_type <: CuInOut)
+
+            if eltype(arg_type) <: Array
+                arg_type = Ptr{eltype(eltype(arg_type))}
+                if input
+                    newvar = gensym()
+                    push!(exprs.args, :( $newvar = CuArray($arg_sym.data) ))
+                    arg_sym = newvar
+                else
+                    # create without initializing
+                    newvar = gensym()
+                    push!(exprs.args, :( $newvar = CuArray(eltype($arg_sym.data),
+                                                           size($arg_sym.data)) ))
+                    arg_sym = newvar
+                end
+            else
+                warn("no explicit support for $(typeof(arg)) input values; passing as-is")
+                arg_type = eltype(arg_type)
+                arg_sym = :( $arg_sym.data )
+            end
+        elseif arg_type <: CuArray
+            arg_type = Ptr{eltype(arg_type)}
+            # launch() converts CuArrays to DevicePtrs using ptrbox
+            # FIXME: access ptr ourselves?
+        elseif arg_type <: DevicePtr{Void}
+            # we can use these as-is
+        else
+            error("cannot handle arguments of type $(arg_type)")
+        end
+
+        args_kernel_type[i] = arg_type
+        args_kernel_sym[i] = :( $arg_sym )
+    end
+
+    # Call the runtime part of the execution
+    # TODO: directly call the API, and move everything from exec() over to here
+    arg_types = Expr(:ref, :Type, args_kernel_type...)
+    arg_syms = Expr(:cell1d, args_kernel_sym...)
+    push!(exprs.args, :( CUDA.exec(config, func, $arg_types, $arg_syms) ))
+
+    # Finish up (fetch results and free memory, if necessary)
+    for i in 1:length(args)
+        arg_sym = args_host_sym[i]
+        arg_sym_output = args_kernel_sym[i]
+        arg_type = args_host_type[i]
+
+        if arg_type <: CuManaged
+            output = (arg_type <: CuOut) || (arg_type <: CuInOut)
+
+            if eltype(arg_type) <: Array
+                if output
+                    data = gensym()
+                    push!(exprs.args, quote
+                        $data = to_host($arg_sym_output)
+                        copy!($arg_sym.data, $data)
+                    end)
+                end
+                push!(exprs.args, :(free($arg_sym_output)))
+            end
+        end
+    end
+
+    exprs
+end
+
+# The exec() function is executed for each kernel invocation, and performs the
+# necessary driver interactions to upload the kernel, and start execution.
+function exec(config, func::Function, args_kernel_type::Array{Type}, args_kernel_sym::Array{Any})
+    jl_m::Module = config[1]
+    grid::CuDim  = config[2]
+    block::CuDim = config[3]
+    shared_bytes::Int = length(config) > 3 ? config[4] : 0
+
+    # Sanity checks
+    # TODO: move this check in front
     if !(Base.function_name(func) in names(jl_m))
         error("could not find function $func in module $jl_m -- is the function exported?")
     end
 
-    # Check argument type (should be either managed or on-device already)
-    for it in enumerate(args)
-        i = it[1]
-        arg = it[2]
-
-        # TODO: create a CuAddressable hierarchy rather than checking for each
-        #       type (currently only CuArray) individually?
-        #       Maybe based on can_convert_to(DevicePtr{Void})?
-        if !isa(arg, CuManaged) && !isa(arg, DevicePtr{Void})&& !isa(arg, CuArray)
-            warn("You specified an unmanaged host argument -- assuming input/output")
-            args[i] = CuInOut(arg)
-        end
-    end
-
-    # Prepare arguments (allocate memory and upload inputs, if necessary)
-    args_jl_ty = Array(Type, length(args))    # types to codegen the kernel for
-    args_cu = Array(Any, length(args))        # values to pass to that kernel
-    for it in enumerate(args)
-        i = it[1]
-        arg = it[2]
-
-        if isa(arg, CuManaged)
-            input = isa(arg, CuIn) || isa(arg, CuInOut)
-
-            if isa(arg.data, Array)
-                args_jl_ty[i] = Ptr{eltype(arg.data)}
-                if input
-                    args_cu[i] = CuArray(arg.data)
-                else
-                    # create without initializing
-                    args_cu[i] = CuArray(eltype(arg.data), size(arg.data))
-                end
-            else
-                warn("no explicit support for $(typeof(arg)) input values; passing as-is")
-                args_jl_ty[i] = typeof(arg.data)
-                args_cu[i] = arg.data
-            end
-        elseif isa(arg, CuArray)
-            args_jl_ty[i] = Ptr{eltype(arg)}
-            args_cu[i] = arg
-        elseif isa(arg, DevicePtr{Void})
-            args_jl_ty[i] = typeof(arg)
-            args_cu[i] = arg
-        else
-            error("cannot handle arguments of type $(typeof(arg))")
-        end
-    end
-
     # Cached kernel compilation
-    if haskey(func_cache, (func, tuple(args_jl_ty...)))
-        cuda_func = func_cache[func, tuple(args_jl_ty...)]
+    # TODO: move to prepare_exec()
+    if haskey(func_cache, (func, tuple(args_kernel_type...)))
+        cuda_func = func_cache[func, tuple(args_kernel_type...)]
     else
         # trigger function compilation
         try
-            precompile(func, tuple(args_jl_ty...))
+            precompile(func, tuple(args_kernel_type...))
         catch err
             print("\n\n\n*** Compilation failed ***\n\n")
             # this is most likely caused by some boxing issue, so dump the ASTs
             # to help identifying the boxed variable
-            print("-- lowered AST --\n\n", code_lowered(func, tuple(args_jl_ty...)), "\n\n")
-            print("-- typed AST --\n\n", code_typed(func, tuple(args_jl_ty...)), "\n\n")
+            print("-- lowered AST --\n\n", code_lowered(func, tuple(args_kernel_type...)), "\n\n")
+            print("-- typed AST --\n\n", code_typed(func, tuple(args_kernel_type...)), "\n\n")
             throw(err)
         end
 
@@ -184,34 +248,15 @@ function exec(config, func::Function, args::Array{Any})
         # module, with a predestined function name for the kernel? But
         # then what about type specialization?
         function_name = ccall(:jl_dump_function_name, Any, (Any, Any),
-                              func, tuple(args_jl_ty...))
+                              func, tuple(args_kernel_type...))
 
         # Get CUDA function object
         cuda_func = CuFunction(cu_m, function_name)
 
         # Cache result to avoid unnecessary compilation
-        func_cache[(func, tuple(args_jl_ty...))] = cuda_func
+        func_cache[(func, tuple(args_kernel_type...))] = cuda_func
     end
 
     # Launch the kernel
-    launch(cuda_func, grid, block, tuple(args_cu...), shmem_bytes=shared_bytes)
-
-    # Finish up (fetch results and free memory, if necessary)
-    for it in enumerate(args)
-        i = it[1]
-        arg = it[2]
-
-        if isa(arg, CuManaged)
-            output = isa(arg, CuOut) || isa(arg, CuInOut)
-
-            if isa(arg.data, Array)
-                if output
-                    host = to_host(args_cu[i])
-                    copy!(arg.data, host)
-                end
-
-                free(args_cu[i])
-            end
-        end
-    end
+    launch(cuda_func, grid, block, tuple(args_kernel_sym...), shmem_bytes=shared_bytes)
 end
