@@ -6,7 +6,19 @@ export
     @cucall
 
 
-const libcuda = dlopen("libocelot")
+# Early library loading
+function load_library()
+    try
+        return dlopen("libcuda")
+    end
+
+    try
+        return dlopen("libocelot")
+    end
+
+    error("Could not load CUDA (or any compatible) library")
+end
+const libcuda = load_library()
 
 # API call wrapper
 macro cucall(f, argtypes, args...)
