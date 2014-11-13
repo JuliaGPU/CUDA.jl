@@ -59,6 +59,7 @@ type CuCodegenContext
     end
 end
 
+
 #
 # macros/functions for native Julia-CUDA processing
 #
@@ -78,7 +79,8 @@ function exec(config, func::Function, args::Array{Any})
     block::CuDim = config[3]
     shared_bytes::Int = length(config) > 3 ? config[4] : 0
     global codegen_initialized
-    assert(codegen_initialized)
+    @assert codegen_initialized
+    @assert Base.function_name(func) in names(jl_m)
 
     # Check argument type (should be either managed or on-device already)
     for it in enumerate(args)

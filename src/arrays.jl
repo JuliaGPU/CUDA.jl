@@ -61,7 +61,8 @@ function copy!{T}(dst::Array{T}, src::CuArray{T})
         throw(ArgumentError("Inconsistent array length."))
     end
     nbytes = length(src) * sizeof(T)
-    @cucall(:cuMemcpyDtoH, (Ptr{Void}, DevicePtr{Void}, Csize_t), pointer(dst), src.ptr, nbytes)
+    @cucall(:cuMemcpyDtoH, (Ptr{Void}, DevicePtr{Void}, Csize_t),
+                           pointer(dst), src.ptr, nbytes)
     return dst
 end
 
@@ -70,7 +71,8 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
         throw(ArgumentError("Inconsistent array length."))
     end
     nbytes = length(src) * sizeof(T)
-    @cucall(:cuMemcpyHtoD, (DevicePtr{Void}, Ptr{Void}, Csize_t), dst.ptr, pointer(src), nbytes)
+    @cucall(:cuMemcpyHtoD, (DevicePtr{Void}, Ptr{Void}, Csize_t),
+                           dst.ptr, pointer(src), nbytes)
     return dst
 end
 
