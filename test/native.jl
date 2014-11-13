@@ -17,6 +17,7 @@ end
 
 end
 
+using CUDA, Base.Test
 using GPUModule
 
 
