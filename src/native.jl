@@ -4,6 +4,16 @@ export
     @cuda,
     CuCodegenContext
 
+
+# NOTE: keep this in sync with the architectures supported by NVPTX
+#       (see lib/Target/NVPTX/NVPTXGenSubtargetInfo.inc)
+const architectures = [
+    (v"2.0", "sm_20"),
+    (v"2.1", "sm_21"),
+    (v"3.0", "sm_30"),
+    (v"3.5", "sm_35"),
+    (v"5.0", "sm_50") ]
+
 # TODO: allow code generation without actual device/ctx?
 codegen_initialized = false
 type CuCodegenContext
@@ -26,7 +36,15 @@ type CuCodegenContext
             arch = ENV["CUDA_FORCE_GPU_ARCH"]
         else
             cap = capability(dev)
-            arch = "sm_" * string(cap.major) * string(cap.minor)
+            if cap < architectures[1][1]
+                error("No support for SM < $(architectures[1][1])")
+            end
+            for i = 2:length(architectures)
+                if cap < architectures[i][1]
+                    arch = architectures[i][2]
+                    break
+                end
+            end
         end
 
         # TODO: this is ugly. If we allow multiple contexts, codegen.cpp will
