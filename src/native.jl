@@ -1,8 +1,45 @@
 # Native execution support
 
 export
-    @cuda
+    @cuda,
+    CuCodegenContext
 
+# TODO: allow code generation without actual device/ctx?
+codegen_initialized = false
+type CuCodegenContext
+    ctx::CuContext
+    dev::CuDevice
+
+    CuCodegenContext(ctx::CuContext) = CuCodegenContext(ctx, device(ctx))
+
+    function CuCodegenContext(ctx::CuContext, dev::CuDevice)
+        # Determine the triple
+        if haskey(ENV, "CUDA_FORCE_GPU_TRIPLE")
+            triple = ENV["CUDA_FORCE_GPU_TRIPLE"]
+        else
+            # TODO: detect 64/32
+            triple = "nvptx64-nvidia-cuda"
+        end
+
+        # Determine the architecture
+        if haskey(ENV, "CUDA_FORCE_GPU_ARCH")
+            arch = ENV["CUDA_FORCE_GPU_ARCH"]
+        else
+            cap = capability(dev)
+            arch = "sm_" * string(cap.major) * string(cap.minor)
+        end
+
+        # TODO: this is ugly. If we allow multiple contexts, codegen.cpp will
+        #       have a map of Ctx=>PM/FPM/M of some sort. This is too PTX-
+        #       specific, and should tie into @target somehow
+        global codegen_initialized
+        if codegen_initialized
+            error("Cannot have multiple active code generation contexts")
+        end
+        codegen_initialized = true
+        ccall(:jl_init_ptx_codegen, Void, (String, String), triple, arch)
+    end
+end
 
 #
 # macros/functions for native Julia-CUDA processing
@@ -22,6 +59,8 @@ function exec(config, func::Function, args::Array{Any})
     grid::CuDim  = config[2]
     block::CuDim = config[3]
     shared_bytes::Int = length(config) > 3 ? config[4] : 0
+    global codegen_initialized
+    assert(codegen_initialized)
 
     # Check argument type (should be either managed or on-device already)
     for it in enumerate(args)
