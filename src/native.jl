@@ -41,7 +41,7 @@ type CuCodegenContext
             end
             for i = 2:length(architectures)
                 if cap < architectures[i][1]
-                    arch = architectures[i][2]
+                    arch = architectures[i-1][2]
                     break
                 end
             end
