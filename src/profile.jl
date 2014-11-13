@@ -1,6 +1,7 @@
-# CUDA profiler interface
+# Profiler interface
 
-export @cuprofile, init_profiler
+export
+    @cuprofile, init_profiler
 
 initialized = false
 

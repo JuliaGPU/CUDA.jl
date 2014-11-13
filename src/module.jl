@@ -1,19 +1,32 @@
-# CUDA module management
+# Module-related types and auxiliary functions
+
+import Base: eltype
+
+export
+	CuModule, unload,
+	CuFunction,
+	CuGlobal, get, set
+
+
+#
+# CUDA module
+#
 
 immutable CuModule
 	handle::Ptr{Void}
 
 	function CuModule(mod::ASCIIString)
-		a = Ptr{Void}[0]
+		module_box = ptrbox(Ptr{Void})
 		is_data = true
 		try
 		  is_data = !ispath(mod)
 		catch
 		  is_data = true
 		end
+		# FIXME: this is pretty messy
 		fname = is_data ? (:cuModuleLoadData) : (:cuModuleLoad)
-		@cucall(fname, (Ptr{Ptr{Void}}, Ptr{Cchar}), a, mod)
-		new(a[1])
+		@cucall(fname, (Ptr{Ptr{Void}}, Ptr{Cchar}), module_box, mod)
+		new(ptrunbox(module_box))
 	end
 end
 
@@ -22,17 +35,25 @@ function unload(md::CuModule)
 end
 
 
+#
+# CUDA function
+#
+
 immutable CuFunction
 	handle::Ptr{Void}
 
 	function CuFunction(md::CuModule, name::ASCIIString)
-		a = Ptr{Void}[0]
-		@cucall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}), 
-			a, md.handle, name)
-		new(a[1])
+		function_box = ptrbox(Ptr{Void})
+		@cucall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}),
+			                          function_box, md.handle, name)
+		new(ptrunbox(function_box))
 	end
 end
 
+
+#
+# Module-scope global variables
+#
 
 # TODO: parametric type given knowledge about device type?
 immutable CuGlobal{T}
@@ -40,25 +61,27 @@ immutable CuGlobal{T}
 	nbytes::Cssize_t
 
 	function CuGlobal(md::CuModule, name::ASCIIString)
-		a = DevicePtr{Void}[0]
-		b = Cssize_t[0]
-		@cucall(:cuModuleGetGlobal, (Ptr{DevicePtr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
-			a, b, md.handle, name)
-		@assert b[1] == sizeof(T)
-		new(a[1], b[1])
+		dptr_box = ptrbox(DevicePtr{Void})
+		bytes_box = ptrbox(Cssize_t)
+		@cucall(:cuModuleGetGlobal,
+			    (Ptr{DevicePtr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
+			    dptr_box, bytes_box, md.handle, name)
+		@assert ptrunbox(bytes_box) == sizeof(T)
+		new(ptrunbox(dptr_box), ptrunbox(bytes_box))
 	end
 end
 
 eltype{T}(var::CuGlobal{T}) = T
 
 function get{T}(var::CuGlobal{T})
-	a = T[0]
-	@cucall(:cuMemcpyDtoH, (Ptr{Void}, DevicePtr{Void}, Csize_t), a, var.pointer, var.nbytes)
-	return a[1]
+	val_box = ptrbox(T)
+	@cucall(:cuMemcpyDtoH, (Ptr{Void}, DevicePtr{Void}, Csize_t),
+		                   val_box, var.pointer, var.nbytes)
+	return ptrunbox(val_box)
 end
 
 function set{T}(var::CuGlobal{T}, val::T)
-	a = T[0]
-	a[1] = val
-	@cucall(:cuMemcpyHtoD, (DevicePtr{Void}, Ptr{Void}, Csize_t), var.pointer, a, var.nbytes)
+	val_box = ptrbox(T, val)
+	@cucall(:cuMemcpyHtoD, (DevicePtr{Void}, Ptr{Void}, Csize_t),
+		                   var.pointer, val_box, var.nbytes)
 end

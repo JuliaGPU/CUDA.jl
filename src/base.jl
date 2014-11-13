@@ -1,64 +1,63 @@
-# Load & initialize CUDA driver
+# Basic library loading and API calling
 
-const libcuda = dlopen("libcuda")
+import Base: get
 
+export
+	@cucall
+
+
+const libcuda = dlopen("libocelot")
+
+# API call wrapper
 macro cucall(f, argtypes, args...)
 	quote
-		g = haskey(api_dict, $f) ? api_dict[$f] : $f
-		_curet = ccall(dlsym(libcuda, g), Cint, $argtypes, $(args...))
-		if _curet != 0
-			err = CuDriverError(int(_curet))
-			message = description(err)
+		api_function = resolve($f)
+		status = ccall(dlsym(libcuda, api_function), Cint, $argtypes, $(args...))
+		if status != 0
+			err = CuError(int(status))
 			throw(err)
 		end
 	end
 end
 
-function initialize(api_version::Int)
-	populate_api_dict(api_version)
+api_mapping = Dict{Symbol,Symbol}()
+resolve(f::Symbol) = get(api_mapping, f, f)
+
+function initialize()
+	# Create mapping for versioned API calls
+	api_version = driver_version()
+	global api_mapping
+	if api_version >= 3020
+		api_mapping[:cuDeviceTotalMem]   = :cuDeviceTotalMem_v2
+		api_mapping[:cuCtxCreate]        = :cuCtxCreate_v2
+		api_mapping[:cuMemAlloc]         = :cuMemAlloc_v2
+		api_mapping[:cuMemcpyHtoD]       = :cuMemcpyHtoD_v2
+		api_mapping[:cuMemcpyDtoH]       = :cuMemcpyDtoH_v2
+		api_mapping[:cuMemFree]          = :cuMemFree_v2
+		api_mapping[:cuModuleGetGlobal]  = :cuModuleGetGlobal_v2
+		api_mapping[:cuMemsetD32]        = :cuMemsetD32_v2
+	end
+	if api_version >= 4000
+		api_mapping[:cuCtxDestroy]       = :cuCtxDestroy_v2
+		api_mapping[:cuCtxPushCurrent]   = :cuCtxPushCurrent_v2
+		api_mapping[:cuCtxPopCurrent]    = :cuCtxPopCurrent_v2
+	end
+
+	# Initialize the driver
 	@cucall(:cuInit, (Cint,), 0)
+
 	ccall(:jl_init_ptx_codegen, Void, (String, String),
 		  "nvptx64-nvidia-cuda", "sm_20")
 end
 
-# Emulate device synchronization by synchronizing stream 0
-synchronize() = @cucall("cuStreamSynchronize", (Ptr{Void},), 0)
-
-
-# Get driver version
-
 function driver_version()
-	a = Cint[0]
-	@cucall(:cuDriverGetVersion, (Ptr{Cint},), a)
-	return int(a[1])
+	version_box = ptrbox(Cint)
+	@cucall(:cuDriverGetVersion, (Ptr{Cint},), version_box)
+	return ptrunbox(version_box)
 end
 
-
-# box a variable into array
-
-cubox{T}(x::T) = T[x]
-
-
-# create dict for ambiguous api calls
-
-global api_dict = Dict{Symbol,Symbol}()
-function populate_api_dict(api_version::Int)
-	if api_version >= 3020
-		api_dict[:cuDeviceTotalMem]   = :cuDeviceTotalMem_v2
-		api_dict[:cuCtxCreate]        = :cuCtxCreate_v2
-		api_dict[:cuMemAlloc]         = :cuMemAlloc_v2
-		api_dict[:cuMemcpyHtoD]       = :cuMemcpyHtoD_v2
-		api_dict[:cuMemcpyDtoH]       = :cuMemcpyDtoH_v2
-		api_dict[:cuMemFree]          = :cuMemFree_v2
-		api_dict[:cuModuleGetGlobal]  = :cuModuleGetGlobal_v2
-		api_dict[:cuMemsetD32]        = :cuMemsetD32_v2
-	end
-	if api_version >= 4000
-		api_dict[:cuCtxDestroy]       = :cuCtxDestroy_v2
-		api_dict[:cuCtxPushCurrent]   = :cuCtxPushCurrent_v2
-		api_dict[:cuCtxPopCurrent]    = :cuCtxPopCurrent_v2
-	end
-end
-
-
-initialize(5050)
+# Box a variable into an array for ccall() passing
+ptrbox(T::Type) = Array(T, 1)
+ptrbox(T::Type, val) = T[val]
+ptrunbox{T}(box::Array{T, 1}) = box[1]
+ptrunbox{T}(box::Array{T, 1}, desttype::Type) = convert(desttype, ptrunbox(box))

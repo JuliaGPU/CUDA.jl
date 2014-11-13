@@ -1,4 +1,16 @@
-# CUDA CuDevice management
+# Device type and auxiliary functions
+
+export
+	devcount,
+	CuDevice, name, totalmem, attribute, capability,
+	list_devices
+
+
+function devcount()
+	count_box = ptrbox(Cint)
+	@cucall(:cuDeviceGetCount, (Ptr{Cint},), count_box)
+	ptrunbox(count_box)
+end
 
 immutable CuDevice
 	ordinal::Cint
@@ -6,44 +18,39 @@ immutable CuDevice
 
 	function CuDevice(i::Integer)
 		ordinal = convert(Cint, i)
-		a = Cint[0]
-		@cucall(:cuDeviceGet, (Ptr{Cint}, Cint), a, ordinal)
-		handle = a[1]
-		new(ordinal, handle)		
+		handle_box = ptrbox(Cint)
+		@cucall(:cuDeviceGet, (Ptr{Cint}, Cint), handle_box, ordinal)
+		new(ordinal, ptrunbox(handle_box))
 	end
 end
 
 function name(dev::CuDevice)
 	const buflen = 256
 	buf = Array(Cchar, buflen)
-	@cucall(:cuDeviceGetName, (Ptr{Cchar}, Cint, Cint), buf, buflen, dev.handle)
-	bytestring(pointer(buf))
+	@cucall(:cuDeviceGetName, (Ptr{Cchar}, Cint, Cint),
+		                      buf, buflen, dev.handle)
+	return bytestring(pointer(buf))
 end
 
 function totalmem(dev::CuDevice)
-	a = Csize_t[0]
-	@cucall(:cuDeviceTotalMem, (Ptr{Csize_t}, Cint), a, dev.handle)
-	return int(a[1])
+	mem_box = ptrbox(Csize_t)
+	@cucall(:cuDeviceTotalMem, (Ptr{Csize_t}, Cint), mem_box, dev.handle)
+	return ptrunbox(mem_box)
 end
 
 function attribute(dev::CuDevice, attrcode::Integer)
-	a = Cint[0]
-	@cucall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, Cint), a, attrcode, dev.handle)
-	return int(a[1])
+	value_box = ptrbox(Csize_t)
+	@cucall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, Cint),
+		                           value_box, attrcode, dev.handle)
+	return ptrunbox(value_box)
 end
 
 function capability(dev::CuDevice)
-	major = Cint[0]
-	minor = Cint[0]
-	@cucall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint), major, minor, dev.handle)
-	return VersionNumber(major[1], minor[1])
-end
-
-function devcount()
-	# Get the number of CUDA-capable CuDevices
-	a = Cint[0]
-	@cucall(:cuDeviceGetCount, (Ptr{Cint},), a)
-	return int(a[1])
+	major_box = ptrbox(Cint)
+	minor_box = ptrbox(Cint)
+	@cucall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint),
+		                                major_box, minor_box, dev.handle)
+	return VersionNumber(ptrunbox(major_box), ptrunbox(minor_box))
 end
 
 function list_devices()

@@ -1,3 +1,19 @@
+export
+    # Indexing and dimensions
+    threadId_x, threadId_y, threadId_z,
+    numThreads_x, numThreads_y, numThreads_z,
+    blockId_x, blockId_y, blockId_z,
+    numBlocks_x, numBlocks_y, numBlocks_z,
+    warpsize,
+
+    # Memory management
+    sync_threads,
+    setCuSharedMem, getCuSharedMem,
+
+    # Math
+    sin, cos, floor
+
+
 #
 # Indexing and dimensions
 #
@@ -77,12 +93,33 @@ warpsize() = Base.llvmcall(
         ret i32 %1"""),
     Int32, ())
 
-# Barriers
+
+#
+# Memory management
+#
+
+# Synchronization
 sync_threads() = Base.llvmcall(
     ("""declare void @llvm.nvvm.barrier0() readnone nounwind""",
      """call void @llvm.nvvm.barrier0()
         ret void"""),
     Void, ())
+
+# Shared memory
+setCuSharedMem(shmem, index, value) = Base.llvmcall(
+    ("""@shmem = external addrspace(3) global [0 x float]""",
+     """%4 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
+        %5 = getelementptr inbounds float addrspace(3)* %4, i64 %1
+        store float %2, float addrspace(3)* %5
+        ret void"""),
+    Void, (Ptr{Float32}, Int64, Float32), shmem, index-1, value)
+getCuSharedMem(shmem, index) = Base.llvmcall(
+    ("""@shmem = external addrspace(3) global [0 x float]""",
+     """%3 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
+       %4 = getelementptr inbounds float addrspace(3)* %3, i64 %1
+       %5 = load float addrspace(3)* %4
+       ret float %5"""),
+    Float32, (Ptr{Float32}, Int64), shmem, index-1)
 
 
 #
@@ -122,24 +159,3 @@ floor(x::Float64) = Base.llvmcall(
      """%2 = call double @__nv_floor(double %0)
         ret double %2"""),
     Float64, (Float64,), x)
-
-
-
-#
-# Shared memory
-#
-
-setCuSharedMem(shmem, index, value) = Base.llvmcall(
-    ("""@shmem = external addrspace(3) global [0 x float]""",
-     """%4 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
-        %5 = getelementptr inbounds float addrspace(3)* %4, i64 %1
-        store float %2, float addrspace(3)* %5
-        ret void"""),
-    Void, (Ptr{Float32}, Int64, Float32), shmem, index-1, value)
-getCuSharedMem(shmem, index) = Base.llvmcall(
-    ("""@shmem = external addrspace(3) global [0 x float]""",
-     """%3 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
-       %4 = getelementptr inbounds float addrspace(3)* %3, i64 %1
-       %5 = load float addrspace(3)* %4
-       ret float %5"""),
-    Float32, (Ptr{Float32}, Int64), shmem, index-1)

@@ -1,8 +1,10 @@
-#################################################
-#
-#  CuArray: contiguous array on GPU
-#
-#################################################
+# Contiguous array on GPU
+
+import Base: length, size, ndims, eltype, copy!
+
+export
+	DevicePtr, CuArray, free, to_host, ndims
+
 
 type CuArray{T,N}
 	ptr::DevicePtr{Void}
@@ -36,7 +38,7 @@ function CuArray{N}(T::Type, shape::NTuple{N,Int}, value::Cuint)
 	CuArray{T,N}(p, shape, n)
 end
 
-cubox(a::CuArray) = cubox(a.ptr)
+ptrbox(a::CuArray) = ptrbox(typeof(a.ptr), a.ptr)
 
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape

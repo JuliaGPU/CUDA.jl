@@ -1,4 +1,7 @@
-# Native support for cuda
+# Native execution support
+
+export
+	@cuda
 
 
 #
@@ -93,7 +96,7 @@ function exec(config, func::Function, args::Array{Any})
 			# add them?
 			CuModule(module_ptx)
 		catch err
-			if isa(err, CuDriverError) && err.code == 209
+			if isa(err, CuError) && err.code == 209
 				# CUDA_ERROR_NO_BINARY_FOR_GPU (#209) usually indicates the PTX
 				# code was invalid, so try to assembly using "ptxas" manually in
 				# order to get some more information

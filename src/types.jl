@@ -1,11 +1,16 @@
 # CUDA related types
 
+import Base: length, size, eltype
 
-#
-# device pointer
-#
+export    
+    CuIn, CuOut, CuInOut
 
 # TODO: use custom pointer type, not convertible to Ptr, yet usable as one
+
+
+#
+# Device pointer
+#
 
 typealias DevicePtr{T} Ptr{T}
 
@@ -18,7 +23,7 @@ isnull{T}(p::DevicePtr{T}) = (p == 0)
 
 
 #
-# managed data containers
+# Managed data containers
 #
 
 abstract CuManaged{T}

@@ -1,4 +1,8 @@
-# CUDA stream management
+# Stream management
+
+export
+    CuStream, default_stream, synchronize, destroy
+
 
 immutable CuStream
 	handle::Ptr{Void}
@@ -6,15 +10,9 @@ immutable CuStream
 	priority::Int
 end
 
-function null_stream()
-	CuStream(convert(Ptr{Void}, 0), true, 0)
-end
+default_stream() = CuStream(convert(Ptr{Void}, 0), true, 0)
 
-function destroy(s::CuStream)
-	@cucall(:cuStreamDestroy, (Ptr{Void},), s.handle)
-end
+synchronize(s::CuStream) = @cucall(:cuStreamSynchronize, (Ptr{Void},), s.handle)
+synchronize() = synchronize(default_stream())
 
-function synchronize(s::CuStream)
-	@cucall(:cuStreamSynchronize, (Ptr{Void},), s.handle)
-end
-
+destroy(s::CuStream) = @cucall(:cuStreamDestroy, (Ptr{Void},), s.handle)

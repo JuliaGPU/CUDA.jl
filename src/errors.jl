@@ -1,16 +1,23 @@
-# CUDA errors
+# Error type and decoding functionality
 
+export CuError, description
 
-const driver_error_descriptions = Dict{Int,ASCIIString}(
-	0 => "Success",
-	1 => "Invalid value",
-	2 => "Out of memory",
-	3 => "Driver not initialized",
-	4 => "Driver being shutdown",
-	5 => "Profiler disabled",
-	6 => "Profiler not initialized",
-	7 => "Profiler already started",
-	8 => "Profiler already stopped",
+# TODO: provide named instantiations for easy error comparisons
+
+immutable CuError
+	code::Int
+end
+
+const error_descriptions = Dict{Int,ASCIIString}(
+	0   => "Success",
+	1   => "Invalid value",
+	2   => "Out of memory",
+	3   => "Driver not initialized",
+	4   => "Driver being shutdown",
+	5   => "Profiler disabled",
+	6   => "Profiler not initialized",
+	7   => "Profiler already started",
+	8   => "Profiler already stopped",
 	100 => "No CUDA-capable device",
 	101 => "Invalid device ordinal",
 	200 => "Invalid kernel image",
@@ -55,11 +62,7 @@ const driver_error_descriptions = Dict{Int,ASCIIString}(
 	999 => "Unknown error"
 )
 
+description(err::CuError) = error_descriptions[err.code]
 
-immutable CuDriverError
-	code::Int
-end
-
-description(err::CuDriverError) = driver_error_descriptions[err.code]
-
-Base.showerror(io::IO, err::CuDriverError) = print(io, description(err), " (#$(err.code))")
+Base.showerror(io::IO, err::CuError) = print(io, description(err),
+	                                         " (#$(err.code))")

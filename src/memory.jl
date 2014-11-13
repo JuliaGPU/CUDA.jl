@@ -1,14 +1,13 @@
+# Raw memory management
+
 function cualloc(T::Type, len::Integer)
-        a = DevicePtr{Void}[0]
-        nbytes = int(len) * sizeof(T)
-        @cucall(:cuMemAlloc, (Ptr{DevicePtr{Void}}, Csize_t), a, nbytes)
-        return DevicePtr{Void}(a[1])
+    dptr_box = ptrbox(DevicePtr{Void})
+    nbytes = int(len) * sizeof(T)
+    @cucall(:cuMemAlloc, (Ptr{DevicePtr{Void}}, Csize_t), dptr_box, nbytes)
+    return ptrunbox(dptr_box)
 end
 
-function cumemset(p::DevicePtr{Void}, value::Cuint, len::Integer)
-        @cucall(:cuMemsetD32, (DevicePtr{Void}, Cuint, Csize_t), p, value, len)
-end
+cumemset(p::DevicePtr{Void}, value::Cuint, len::Integer) = 
+    @cucall(:cuMemsetD32, (DevicePtr{Void}, Cuint, Csize_t), p, value, len)
 
-function free(p::DevicePtr{Void})
-        @cucall(:cuMemFree, (DevicePtr{Void},), p)
-end
+free(p::DevicePtr{Void}) = @cucall(:cuMemFree, (DevicePtr{Void},), p)

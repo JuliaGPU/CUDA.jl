@@ -1,5 +1,9 @@
 # CUDA Execution control
 
+export
+	launch, CuDim
+
+
 get_dim_x(g::Int) = g
 get_dim_x(g::(Int, Int)) = g[1]
 get_dim_x(g::(Int, Int, Int)) = g[1]
@@ -16,7 +20,8 @@ typealias CuDim Union(Int, (Int, Int), (Int, Int, Int))
 
 # Stream management
 
-function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple; shmem_bytes::Int=4, stream::CuStream=null_stream())
+function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
+	            shmem_bytes::Int=4, stream::CuStream=default_stream())
 	gx = get_dim_x(grid)
 	gy = get_dim_y(grid)
 	gz = get_dim_z(grid)
@@ -25,7 +30,7 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple; shmem_byt
 	ty = get_dim_y(block)
 	tz = get_dim_z(block)
 
-	kernel_args = [cubox(arg) for arg in args]
+	kernel_args = [ptrbox(arg) for arg in args]
 
 	@cucall(:cuLaunchKernel, (
 		Ptr{Void},  # function
