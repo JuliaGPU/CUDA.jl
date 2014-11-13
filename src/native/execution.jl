@@ -74,13 +74,20 @@ macro cuda(config, callexpr::Expr)
 end
 
 function exec(config, func::Function, args::Array{Any})
+    @assert 3 <= length(config) <= 4
     jl_m::Module = config[1]
     grid::CuDim  = config[2]
     block::CuDim = config[3]
     shared_bytes::Int = length(config) > 3 ? config[4] : 0
+
+    # Sanity checks
     global codegen_initialized
-    @assert codegen_initialized
-    @assert Base.function_name(func) in names(jl_m)
+    if !codegen_initialized
+        error("native code generation is not initialized yet")
+    end
+    if !(Base.function_name(func) in names(jl_m))
+        error("could not find function $func in module $jl_m -- is the function exported?")
+    end
 
     # Check argument type (should be either managed or on-device already)
     for it in enumerate(args)
@@ -115,7 +122,7 @@ function exec(config, func::Function, args::Array{Any})
                     args_cu[i] = CuArray(eltype(arg.data), size(arg.data))
                 end
             else
-                warn("No explicit support for $(typeof(arg)) input values; passing as-is")
+                warn("no explicit support for $(typeof(arg)) input values; passing as-is")
                 args_jl_ty[i] = typeof(arg.data)
                 args_cu[i] = arg.data
             end
@@ -126,7 +133,7 @@ function exec(config, func::Function, args::Array{Any})
             args_jl_ty[i] = typeof(arg)
             args_cu[i] = arg
         else
-            error("Cannot handle arguments of type $(typeof(arg))")
+            error("cannot handle arguments of type $(typeof(arg))")
         end
     end
 
