@@ -12,7 +12,7 @@ const CTX_MAP_HOST              = 0x08
 const CTX_LMEM_RESIZE_TO_MAX    = 0x10
 
 immutable CuContext
-	handle::Ptr{Void}
+    handle::Ptr{Void}
 
     function CuContext(dev::CuDevice, flags::Integer)
             pctx_box = ptrbox(Ptr{Void})
@@ -31,17 +31,17 @@ immutable CuContext
 end
 
 function destroy(ctx::CuContext)
-	@cucall(:cuCtxDestroy, (Ptr{Void},), ctx.handle)
+    @cucall(:cuCtxDestroy, (Ptr{Void},), ctx.handle)
 end
 
 function push(ctx::CuContext)
-	@cucall(:cuCtxPushCurrent, (Ptr{Void},), ctx.handle)
+    @cucall(:cuCtxPushCurrent, (Ptr{Void},), ctx.handle)
 end
 
 function pop(ctx::CuContext)
     pctx_box = ptrbox(Ptr{Void})
-	@cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), a)
-	return CuContext(ptrunbox(pctx_box))
+    @cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), a)
+    return CuContext(ptrunbox(pctx_box))
 end
 
 function device(ctx::CuContext)

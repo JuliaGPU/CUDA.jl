@@ -5,9 +5,9 @@ export
 
 
 immutable CuStream
-	handle::Ptr{Void}
-	blocking::Bool
-	priority::Int
+    handle::Ptr{Void}
+    blocking::Bool
+    priority::Int
 end
 
 default_stream() = CuStream(convert(Ptr{Void}, 0), true, 0)
