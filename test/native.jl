@@ -29,7 +29,7 @@ ctx = CuContext(dev)
 siz = (3, 4)
 len = prod(siz)
 
-native_ctx = CuCodegenContext(ctx, dev)
+initialize_codegen(ctx, dev)
 
 
 # test 1: manually managed data

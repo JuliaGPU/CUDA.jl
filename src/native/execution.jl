@@ -2,7 +2,7 @@
 
 export
     @cuda,
-    CuCodegenContext
+    initialize_codegen
 
 
 # NOTE: keep this in sync with the architectures supported by NVPTX
@@ -15,10 +15,11 @@ const architectures = [
     (v"5.0", "sm_50") ]
 
 # TODO: allow code generation without actual device/ctx?
-codegen_initialized = false
 type CuCodegenContext
     ctx::CuContext
     dev::CuDevice
+    triple::String
+    arch::String
 
     CuCodegenContext(ctx::CuContext) = CuCodegenContext(ctx, device(ctx))
 
@@ -47,16 +48,21 @@ type CuCodegenContext
             end
         end
 
-        # TODO: this is ugly. If we allow multiple contexts, codegen.cpp will
-        #       have a map of Ctx=>PM/FPM/M of some sort. This is too PTX-
-        #       specific, and should tie into @target somehow
-        global codegen_initialized
-        if codegen_initialized
-            error("Cannot have multiple active code generation contexts")
-        end
-        codegen_initialized = true
         ccall(:jl_init_ptx_codegen, Void, (String, String), triple, arch)
+
+        new(ctx, dev, triple, arch)
     end
+end
+cgctx = Nullable{CuCodegenContext}()
+function initialize_codegen(ctx::CuContext, dev::CuDevice)
+    # TODO: this is ugly. If we allow multiple contexts, codegen.cpp will
+    #       have a map of Ctx=>PM/FPM/M of some sort. This is too PTX-
+    #       specific, and should tie into @target somehow
+    global cgctx
+    if !Base.isnull(cgctx)
+        error("Cannot have multiple active code generation contexts")
+    end
+    cgctx = Nullable{CuCodegenContext}(CuCodegenContext(ctx, dev))
 end
 
 
@@ -118,7 +124,7 @@ stagedfunction prepare_exec(config, func_const, args...)
 
     # Sanity checks
     global codegen_initialized
-    if !codegen_initialized
+    if Base.isnull(cgctx)
         error("native code generation is not initialized yet")
     end
 
@@ -224,8 +230,7 @@ stagedfunction prepare_exec(config, func_const, args...)
                     (path, io) = mktemp()
                     print(io, module_ptx)
                     close(io)
-                    # TODO: don't hardcode sm_20
-                    run(`ptxas --gpu-name=sm_20 $path`)
+                    run(`ptxas --gpu-name=$(get(cgctx).arch) $path`)
                     rm(path)
                 end
             end
