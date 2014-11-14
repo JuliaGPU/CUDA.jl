@@ -66,3 +66,12 @@ b = round(rand(Float32, siz) * 100)
 
 @cuda (len, 1) GPUModule.vadd(a, b, c)
 @test_approx_eq (a + b) c
+
+
+# test 4: auto-managed host data, without specifying type, not using containers
+
+a = rand(Float32, siz)
+b = rand(Float32, siz)
+
+@cuda (len, 1) GPUModule.vadd(round(a*100), round(b*100), c)
+@test_approx_eq (round(a*100) + round(b*100)) c
