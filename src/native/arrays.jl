@@ -11,7 +11,7 @@ export
 # This is an alloc-free implementation of an array type
 
 immutable CuDeviceArray{T} <: AbstractArray
-    ptr::Ptr{T}
+    ptr::DevicePtr{T}
 end
 
 getindex{T}(A::CuDeviceArray{T}, i0::Real) =
