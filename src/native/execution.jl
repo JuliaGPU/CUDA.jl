@@ -81,6 +81,9 @@ macro cuda(config::Expr, callexpr::Expr)
     if config.head != :tuple || !(2 <= length(config.args) <= 3)
         error("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem])")
     end
+    if length(config.args) == 2
+        push!(config.args, :0)
+    end
     if callexpr.head != :call
         error("second argument to @cuda should be a fully specified function call")
     end
@@ -285,7 +288,7 @@ end
 function exec(config, ptx_func::CuFunction, args::Tuple)
     grid  = config[1]::CuDim
     block = config[2]::CuDim
-    shared_bytes = length(config) > 2 ? config[3]::Int : 0
+    shared_bytes = config[3]::Int
 
     # Launch the kernel
     launch(ptx_func, grid, block, args, shmem_bytes=shared_bytes)
