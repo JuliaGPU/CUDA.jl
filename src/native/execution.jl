@@ -88,7 +88,7 @@ macro cuda(config::Expr, callexpr::Expr)
         error("second argument to @cuda should be a fully specified function call")
     end
     func_sym = callexpr.args[1]
-    if func_sym.head != :.
+    if !isa(func_sym, Expr) || func_sym.head != :.
         error("kernel function call should be fully specified, including the module")
     end
     kernel_mod_sym = func_sym.args[1]
