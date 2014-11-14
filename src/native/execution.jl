@@ -161,18 +161,21 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
         host_arg_type = host_args_type[i]
 
         # Process the argument based on its type
+        # TODO: we currently pass a ptrbox'ed CuArray into a CuDeviceArray
+        #       specsig'd function. This works... for now.
         if host_arg_type <: CuManaged
             input = (host_arg_type <: CuIn) || (host_arg_type <: CuInOut)
 
             if eltype(host_arg_type) <: Array
-                host_arg_type = Ptr{eltype(eltype(host_arg_type))}
+                host_arg_type = CuDeviceArray{eltype(eltype(host_arg_type))}
                 newvar = gensym("arg$(i)")
                 if input
                     push!(exprs.args, :( $newvar = CuArray($host_arg_sym.data) ))
                 else
                     # create without initializing
-                    push!(exprs.args, :( $newvar = CuArray(eltype($host_arg_sym.data),
-                                                           size($host_arg_sym.data)) ))
+                    push!(exprs.args, :( $newvar =
+                        CuArray(eltype($host_arg_sym.data),
+                                size($host_arg_sym.data)) ))
                 end
                 host_arg_sym = newvar
             else
@@ -181,7 +184,7 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
                 host_arg_sym = :( $host_arg_sym.data )
             end
         elseif host_arg_type <: CuArray
-            host_arg_type = Ptr{eltype(host_arg_type)}
+            host_arg_type = CuDeviceArray{eltype(host_arg_type)}
             # launch() converts CuArrays to DevicePtrs using ptrbox
             # FIXME: replace with inner pointer ourselves?
         elseif host_arg_type <: DevicePtr{Void}
