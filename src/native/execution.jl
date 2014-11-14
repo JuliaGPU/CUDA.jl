@@ -123,9 +123,9 @@ stagedfunction prepare_exec(config, func_const, args...)
     end
 
     # Check argument types (should be either managed or on-device already)
-    args_host_sym  = Array(Union(Symbol,Expr),  # symbolic reference to the
+    host_args_sym  = Array(Union(Symbol,Expr),  # symbolic reference to the
                            length(args))        #  host variable or value
-    args_host_type = Array(Type, length(args))  # its original type
+    host_args_type = Array(Type, length(args))  # its original type
     for i in 1:length(args)
         var = :( args[$i] )     # symbolic reference to the argument
         vartype = args[i]::Type # its type
@@ -138,18 +138,18 @@ stagedfunction prepare_exec(config, func_const, args...)
             vartype = CuInOut{vartype}
         end
 
-        args_host_sym[i] = var
-        args_host_type[i] = vartype
+        host_args_sym[i] = var
+        host_args_type[i] = vartype
     end
 
     # Prepare arguments (allocate memory and upload inputs, if necessary)
-    args_kernel_sym  = Array(Union(Symbol,Expr),    # input objects for launch()
+    kernel_args_sym  = Array(Union(Symbol,Expr),    # input objects for launch()
                              length(args))          #  (var symbol or value expr)
-    args_kernel_type = Array(Type,                  # types for precompile()
+    kernel_args_type = Array(Type,                  # types for precompile()
                              length(args))          #  and launch()
     for i in 1:length(args)
-        arg_sym = args_host_sym[i]
-        arg_type = args_host_type[i]
+        arg_sym = host_args_sym[i]
+        arg_type = host_args_type[i]
 
         # Process the argument based on its type
         if arg_type <: CuManaged
@@ -176,34 +176,33 @@ stagedfunction prepare_exec(config, func_const, args...)
         elseif arg_type <: CuArray
             arg_type = Ptr{eltype(arg_type)}
             # launch() converts CuArrays to DevicePtrs using ptrbox
-            # FIXME: access ptr ourselves?
+            # FIXME: replace with inner pointer ourselves?
         elseif arg_type <: DevicePtr{Void}
             # we can use these as-is
         else
             error("cannot handle arguments of type $(arg_type)")
         end
 
-        args_kernel_type[i] = arg_type
-        args_kernel_sym[i] = :( $arg_sym )
+        kernel_args_type[i] = arg_type
+        kernel_args_sym[i] = :( $arg_sym )
     end
 
-    # Compile the kernel
-    kernel_specsig = tuple(args_kernel_type...)
-    func_sym = symbol(func_const)
-    func = eval(:($(current_module()).$func_sym))
-    if haskey(func_cache, (func_sym, kernel_specsig))
-        ptx_func = func_cache[func_sym, kernel_specsig]
+    # Compile the function
+    kernel_specsig = tuple(kernel_args_type...)
+    kernel_func_sym = symbol(func_const)
+    kernel_func = eval(:($(current_module()).$kernel_func_sym))
+    if haskey(func_cache, (kernel_func_sym, kernel_specsig))
+        ptx_func = func_cache[kernel_func_sym, kernel_specsig]
     else
         # trigger function compilation
         try
-            warn("Precompiling $func with args $kernel_specsig")
-            precompile(func, kernel_specsig)
+            precompile(kernel_func, kernel_specsig)
         catch err
             print("\n\n\n*** Compilation failed ***\n\n")
             # this is most likely caused by some boxing issue, so dump the ASTs
-            # to help identifying the boxed variable
-            print("-- lowered AST --\n\n", code_lowered(func, kernel_specsig), "\n\n")
-            print("-- typed AST --\n\n", code_typed(func, kernel_specsig), "\n\n")
+            # to help identifying the offending variable
+            print("-- lowered AST --\n\n", code_lowered(kernel_func, kernel_specsig), "\n\n")
+            print("-- typed AST --\n\n", code_typed(kernel_func, kernel_specsig), "\n\n")
             throw(err)
         end
 
@@ -211,7 +210,7 @@ stagedfunction prepare_exec(config, func_const, args...)
         module_ptx = ccall(:jl_to_ptx, Any, ())::String
 
         # create CUDA module
-        cu_m = try
+        ptx_mod = try
             # TODO: what with other kernel calls? entirely new module? or just
             # add them?
             CuModule(module_ptx)
@@ -237,25 +236,25 @@ stagedfunction prepare_exec(config, func_const, args...)
         # FIXME: just get new module / clean slate for every CUDA
         # module, with a predestined function name for the kernel? But
         # then what about type specialization?
-        function_name = ccall(:jl_dump_function_name, Any, (Any, Any),
-                              func, kernel_specsig)
+        ptx_func_name = ccall(:jl_dump_function_name, Any, (Any, Any),
+                              kernel_func, kernel_specsig)
 
         # Get CUDA function object
-        ptx_func = CuFunction(cu_m, function_name)
+        ptx_func = CuFunction(ptx_mod, ptx_func_name)
 
         # Cache result to avoid unnecessary compilation
-        func_cache[(func_sym, kernel_specsig)] = ptx_func
+        func_cache[(kernel_func_sym, kernel_specsig)] = ptx_func
     end
 
     # Call the runtime part of the execution
-    arg_syms = Expr(:cell1d, args_kernel_sym...)
-    push!(exprs.args, :( CUDA.exec(config, $ptx_func, $arg_syms) ))
+    kernel_args = Expr(:tuple, kernel_args_sym...)
+    push!(exprs.args, :( CUDA.exec(config, $ptx_func, $kernel_args) ))
 
     # Finish up (fetch results and free memory, if necessary)
     for i in 1:length(args)
-        arg_sym = args_host_sym[i]
-        arg_sym_output = args_kernel_sym[i]
-        arg_type = args_host_type[i]
+        arg_sym = host_args_sym[i]
+        arg_sym_output = kernel_args_sym[i]
+        arg_type = host_args_type[i]
 
         if arg_type <: CuManaged
             output = (arg_type <: CuOut) || (arg_type <: CuInOut)
@@ -278,11 +277,11 @@ end
 
 # The exec() function is executed for each kernel invocation, and performs the
 # necessary driver interactions to upload and launch the kernel.
-function exec(config, ptx_func::CuFunction, args_val::Array{Any})
-    grid::CuDim  = config[1]
-    block::CuDim = config[2]
-    shared_bytes::Int = length(config) > 2 ? config[3] : 0
+function exec(config, ptx_func::CuFunction, args::Tuple)
+    grid  = config[1]::CuDim
+    block = config[2]::CuDim
+    shared_bytes = length(config) > 2 ? config[3]::Int : 0
 
     # Launch the kernel
-    launch(ptx_func, grid, block, tuple(args_val...), shmem_bytes=shared_bytes)
+    launch(ptx_func, grid, block, args, shmem_bytes=shared_bytes)
 end
