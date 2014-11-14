@@ -119,7 +119,7 @@ func_cache = Dict{(Symbol, Tuple), CuFunction}()
 # for each combination of a call site and type inferred arguments. Knowing the
 # input type of each argument, it generates expressions which prepare the inputs
 # to be used in combination with a GPU kernel.
-stagedfunction prepare_exec(config, func_const, args...)
+stagedfunction prepare_exec(config, func_const, host_args...)
     exprs = Expr(:block)
 
     # Sanity checks
@@ -129,12 +129,12 @@ stagedfunction prepare_exec(config, func_const, args...)
     end
 
     # Check argument types (should be either managed or on-device already)
-    host_args_sym  = Array(Union(Symbol,Expr),  # symbolic reference to the
-                           length(args))        #  host variable or value
-    host_args_type = Array(Type, length(args))  # its original type
-    for i in 1:length(args)
-        var = :( args[$i] )     # symbolic reference to the argument
-        vartype = args[i]::Type # its type
+    host_args_sym  = Array(Union(Symbol,Expr),      # symbolic reference to the
+                           length(host_args))       #  host variable or value
+    host_args_type = Array(Type, length(host_args)) # its original type
+    for i in 1:length(host_args)
+        var = :( host_args[$i] )        # symbolic reference to the argument
+        vartype = host_args[i]::Type    # its type
 
         if !(vartype <: CuManaged) && !(vartype <: DevicePtr{Void}) && !(vartype <: CuArray)
             warn("You specified an unmanaged host argument -- assuming input/output (costly!)")
@@ -149,48 +149,48 @@ stagedfunction prepare_exec(config, func_const, args...)
     end
 
     # Prepare arguments (allocate memory and upload inputs, if necessary)
-    kernel_args_sym  = Array(Union(Symbol,Expr),    # input objects for launch()
-                             length(args))          #  (var symbol or value expr)
-    kernel_args_type = Array(Type,                  # types for precompile()
-                             length(args))          #  and launch()
-    for i in 1:length(args)
-        arg_sym = host_args_sym[i]
-        arg_type = host_args_type[i]
+    kernel_args_sym  = Array(Union(Symbol,Expr),     # input objects for launch()
+                             length(host_args))      #  (var symbol or value expr)
+    kernel_args_type = Array(Type,                   # types for precompile()
+                             length(host_args))      #  and launch()
+    for i in 1:length(host_args)
+        host_arg_sym = host_args_sym[i]
+        host_arg_type = host_args_type[i]
 
         # Process the argument based on its type
-        if arg_type <: CuManaged
-            input = (arg_type <: CuIn) || (arg_type <: CuInOut)
+        if host_arg_type <: CuManaged
+            input = (host_arg_type <: CuIn) || (host_arg_type <: CuInOut)
 
-            if eltype(arg_type) <: Array
-                arg_type = Ptr{eltype(eltype(arg_type))}
+            if eltype(host_arg_type) <: Array
+                host_arg_type = Ptr{eltype(eltype(host_arg_type))}
                 if input
                     newvar = gensym()
-                    push!(exprs.args, :( $newvar = CuArray($arg_sym.data) ))
-                    arg_sym = newvar
+                    push!(exprs.args, :( $newvar = CuArray($host_arg_sym.data) ))
+                    host_arg_sym = newvar
                 else
                     # create without initializing
                     newvar = gensym()
-                    push!(exprs.args, :( $newvar = CuArray(eltype($arg_sym.data),
-                                                           size($arg_sym.data)) ))
-                    arg_sym = newvar
+                    push!(exprs.args, :( $newvar = CuArray(eltype($host_arg_sym.data),
+                                                           size($host_arg_sym.data)) ))
+                    host_arg_sym = newvar
                 end
             else
                 warn("no explicit support for $(typeof(arg)) input values; passing as-is")
-                arg_type = eltype(arg_type)
-                arg_sym = :( $arg_sym.data )
+                host_arg_type = eltype(host_arg_type)
+                host_arg_sym = :( $host_arg_sym.data )
             end
-        elseif arg_type <: CuArray
-            arg_type = Ptr{eltype(arg_type)}
+        elseif host_arg_type <: CuArray
+            host_arg_type = Ptr{eltype(host_arg_type)}
             # launch() converts CuArrays to DevicePtrs using ptrbox
             # FIXME: replace with inner pointer ourselves?
-        elseif arg_type <: DevicePtr{Void}
+        elseif host_arg_type <: DevicePtr{Void}
             # we can use these as-is
         else
-            error("cannot handle arguments of type $(arg_type)")
+            error("cannot handle arguments of type $(host_arg_type)")
         end
 
-        kernel_args_type[i] = arg_type
-        kernel_args_sym[i] = :( $arg_sym )
+        kernel_args_type[i] = host_arg_type
+        kernel_args_sym[i] = :( $host_arg_sym )
     end
 
     # Compile the function
@@ -256,23 +256,23 @@ stagedfunction prepare_exec(config, func_const, args...)
     push!(exprs.args, :( CUDA.exec(config, $ptx_func, $kernel_args) ))
 
     # Finish up (fetch results and free memory, if necessary)
-    for i in 1:length(args)
-        arg_sym = host_args_sym[i]
-        arg_sym_output = kernel_args_sym[i]
-        arg_type = host_args_type[i]
+    for i in 1:length(host_args)
+        host_arg_sym = host_args_sym[i]
+        host_arg_type = host_args_type[i]
+        kernel_arg_sym = kernel_args_sym[i]
 
-        if arg_type <: CuManaged
-            output = (arg_type <: CuOut) || (arg_type <: CuInOut)
+        if host_arg_type <: CuManaged
+            output = (host_arg_type <: CuOut) || (host_arg_type <: CuInOut)
 
-            if eltype(arg_type) <: Array
+            if eltype(host_arg_type) <: Array
                 if output
                     data = gensym()
                     push!(exprs.args, quote
-                        $data = to_host($arg_sym_output)
-                        copy!($arg_sym.data, $data)
+                        $data = to_host($kernel_arg_sym)
+                        copy!($host_arg_sym.data, $data)
                     end)
                 end
-                push!(exprs.args, :(free($arg_sym_output)))
+                push!(exprs.args, :(free($kernel_arg_sym)))
             end
         end
     end
