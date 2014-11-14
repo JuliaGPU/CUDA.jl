@@ -141,7 +141,7 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
 
         if !(vartype <: CuManaged) && !(vartype <: DevicePtr{Void}) && !(vartype <: CuArray)
             warn("You specified an unmanaged host argument -- assuming input/output (costly!)")
-            newvar = gensym()
+            newvar = gensym("arg$(i)_managed")
             push!(exprs.args, :( $newvar = CuInOut($var) ))
             var = newvar
             vartype = CuInOut{vartype}
@@ -166,17 +166,15 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
 
             if eltype(host_arg_type) <: Array
                 host_arg_type = Ptr{eltype(eltype(host_arg_type))}
+                newvar = gensym("arg$(i)")
                 if input
-                    newvar = gensym()
                     push!(exprs.args, :( $newvar = CuArray($host_arg_sym.data) ))
-                    host_arg_sym = newvar
                 else
                     # create without initializing
-                    newvar = gensym()
                     push!(exprs.args, :( $newvar = CuArray(eltype($host_arg_sym.data),
                                                            size($host_arg_sym.data)) ))
-                    host_arg_sym = newvar
                 end
+                host_arg_sym = newvar
             else
                 warn("no explicit support for $(typeof(arg)) input values; passing as-is")
                 host_arg_type = eltype(host_arg_type)
@@ -269,11 +267,10 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
 
             if eltype(host_arg_type) <: Array
                 if output
-                    data = gensym()
-                    push!(exprs.args, quote
-                        $data = to_host($kernel_arg_sym)
-                        copy!($host_arg_sym.data, $data)
-                    end)
+                    data = gensym("arg$(i)_data")
+                    append!(exprs.args, [
+                        :( $data = to_host($kernel_arg_sym) ),
+                        :( copy!($host_arg_sym.data, $data) ) ])
                 end
                 push!(exprs.args, :(free($kernel_arg_sym)))
             end
