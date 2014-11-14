@@ -216,6 +216,16 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
             throw(err)
         end
 
+        # check if the function actually exists, by mimicking code_llvm()
+        # (precompile silently ignores invalid func/specsig combinations)
+        # TODO: is there a more clean way to check this?
+        kernel_llvm = ccall(:jl_dump_function, Any,
+              (Any,Any,Bool,Bool),
+              kernel_func, kernel_specsig, false, false)::ByteString
+        if kernel_llvm == ""
+            error("no method found for $kernel_func$kernel_specsig")
+        end
+
         # trigger module compilation
         module_ptx = ccall(:jl_to_ptx, Any, ())::String
 
