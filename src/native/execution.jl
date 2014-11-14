@@ -64,7 +64,8 @@ end
 # macros/functions for native Julia-CUDA processing
 #
 
-func_cache = Dict{(Function, Tuple), CuFunction}()
+immutable FunctionConst{sym} end
+symbol{sym}(::Type{FunctionConst{sym}}) = sym
 
 # The @cuda macro provides a user-friendly wrapper for prepare_exec(). It is
 # executed during parsing, and substitutes calls to itself with properly
@@ -98,15 +99,21 @@ macro cuda(config::Expr, callexpr::Expr)
         error("could not find function $kernel_func_sym in module $kernel_mod_sym -- is the function exported?")
     end
 
-    esc(Expr(:call, CUDA.prepare_exec, config, callexpr.args[1],
+    # HACK: wrap the function symbol in a type, so we can specialize on it in
+    #       the staged function
+    kernel_func_const = FunctionConst{kernel_func_sym}()
+    esc(Expr(:call, CUDA.prepare_exec, config, kernel_func_const,
              callexpr.args[2:end]...))
 end
+
+# TODO: is this necessary? Just check the method cache?
+func_cache = Dict{(Symbol, Tuple), CuFunction}()
 
 # The prepare_exec() staged function prepares the call to exec(), and runs once
 # for each combination of a call site and type inferred arguments. Knowing the
 # input type of each argument, it generates expressions which prepare the inputs
 # to be used in combination with a GPU kernel.
-stagedfunction prepare_exec(config, func, args...)
+stagedfunction prepare_exec(config, func_const, args...)
     exprs = Expr(:block)
 
     # Sanity checks
@@ -180,59 +187,23 @@ stagedfunction prepare_exec(config, func, args...)
         args_kernel_sym[i] = :( $arg_sym )
     end
 
-    # Call the runtime part of the execution
-    # TODO: directly call the API, and move everything from exec() over to here
-    arg_types = Expr(:ref, :Type, args_kernel_type...)
-    arg_syms = Expr(:cell1d, args_kernel_sym...)
-    push!(exprs.args, :( CUDA.exec(config, func, $arg_types, $arg_syms) ))
-
-    # Finish up (fetch results and free memory, if necessary)
-    for i in 1:length(args)
-        arg_sym = args_host_sym[i]
-        arg_sym_output = args_kernel_sym[i]
-        arg_type = args_host_type[i]
-
-        if arg_type <: CuManaged
-            output = (arg_type <: CuOut) || (arg_type <: CuInOut)
-
-            if eltype(arg_type) <: Array
-                if output
-                    data = gensym()
-                    push!(exprs.args, quote
-                        $data = to_host($arg_sym_output)
-                        copy!($arg_sym.data, $data)
-                    end)
-                end
-                push!(exprs.args, :(free($arg_sym_output)))
-            end
-        end
-    end
-
-    exprs
-end
-
-# The exec() function is executed for each kernel invocation, and performs the
-# necessary driver interactions to upload the kernel, and start execution.
-function exec(config, func::Function, args_type::Array{Type}, args_val::Array{Any})
-    grid::CuDim  = config[1]
-    block::CuDim = config[2]
-    shared_bytes::Int = length(config) > 2 ? config[3] : 0
-
-    # Cached kernel compilation
-    # TODO: move to prepare_exec() (for this we need access to the symbols in the
-    #       staged function)
-    if haskey(func_cache, (func, tuple(args_type...)))
-        cuda_func = func_cache[func, tuple(args_type...)]
+    # Compile the kernel
+    kernel_specsig = tuple(args_kernel_type...)
+    func_sym = symbol(func_const)
+    func = eval(:($(current_module()).$func_sym))
+    if haskey(func_cache, (func_sym, kernel_specsig))
+        ptx_func = func_cache[func_sym, kernel_specsig]
     else
         # trigger function compilation
         try
-            precompile(func, tuple(args_type...))
+            warn("Precompiling $func with args $kernel_specsig")
+            precompile(func, kernel_specsig)
         catch err
             print("\n\n\n*** Compilation failed ***\n\n")
             # this is most likely caused by some boxing issue, so dump the ASTs
             # to help identifying the boxed variable
-            print("-- lowered AST --\n\n", code_lowered(func, tuple(args_type...)), "\n\n")
-            print("-- typed AST --\n\n", code_typed(func, tuple(args_type...)), "\n\n")
+            print("-- lowered AST --\n\n", code_lowered(func, kernel_specsig), "\n\n")
+            print("-- typed AST --\n\n", code_typed(func, kernel_specsig), "\n\n")
             throw(err)
         end
 
@@ -267,15 +238,51 @@ function exec(config, func::Function, args_type::Array{Type}, args_val::Array{An
         # module, with a predestined function name for the kernel? But
         # then what about type specialization?
         function_name = ccall(:jl_dump_function_name, Any, (Any, Any),
-                              func, tuple(args_type...))
+                              func, kernel_specsig)
 
         # Get CUDA function object
-        cuda_func = CuFunction(cu_m, function_name)
+        ptx_func = CuFunction(cu_m, function_name)
 
         # Cache result to avoid unnecessary compilation
-        func_cache[(func, tuple(args_type...))] = cuda_func
+        func_cache[(func_sym, kernel_specsig)] = ptx_func
     end
 
+    # Call the runtime part of the execution
+    arg_syms = Expr(:cell1d, args_kernel_sym...)
+    push!(exprs.args, :( CUDA.exec(config, $ptx_func, $arg_syms) ))
+
+    # Finish up (fetch results and free memory, if necessary)
+    for i in 1:length(args)
+        arg_sym = args_host_sym[i]
+        arg_sym_output = args_kernel_sym[i]
+        arg_type = args_host_type[i]
+
+        if arg_type <: CuManaged
+            output = (arg_type <: CuOut) || (arg_type <: CuInOut)
+
+            if eltype(arg_type) <: Array
+                if output
+                    data = gensym()
+                    push!(exprs.args, quote
+                        $data = to_host($arg_sym_output)
+                        copy!($arg_sym.data, $data)
+                    end)
+                end
+                push!(exprs.args, :(free($arg_sym_output)))
+            end
+        end
+    end
+
+    exprs
+end
+
+# The exec() function is executed for each kernel invocation, and performs the
+# necessary driver interactions to upload and launch the kernel.
+function exec(config, ptx_func::CuFunction, args_val::Array{Any})
+    grid::CuDim  = config[1]
+    block::CuDim = config[2]
+    shared_bytes::Int = length(config) > 2 ? config[3] : 0
+
     # Launch the kernel
-    launch(cuda_func, grid, block, tuple(args_val...), shmem_bytes=shared_bytes)
+    launch(ptx_func, grid, block, tuple(args_val...), shmem_bytes=shared_bytes)
 end
