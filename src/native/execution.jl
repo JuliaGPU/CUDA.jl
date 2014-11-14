@@ -69,9 +69,22 @@ func_cache = Dict{(Function, Tuple), CuFunction}()
 # The @cuda macro provides a user-friendly wrapper for prepare_exec(). It is
 # executed during parsing, and substitutes calls to itself with properly
 # formatted calls to prepare_exec().
-macro cuda(config, callexpr::Expr)
+macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
     @assert config.head == :tuple && 3 <= length(config.args) <= 4
+
+    # Get a hold of the module and function
+    calling_mod = current_module()
+    kernel_mod_sym = config.args[1]
+    kernel_mod = try
+        eval(:( $calling_mod.$kernel_mod_sym ))
+    catch
+        error("could not inspect module $kernel_mod_sym -- have you imported it?")
+    end
+    kernel_func_sym = callexpr.args[1]
+    if !(kernel_func_sym in names(kernel_mod))
+        error("could not find function $kernel_func_sym in module $kernel_mod_sym -- is the function exported?")
+    end
 
     esc(Expr(:call, CUDA.prepare_exec, config, callexpr.args[1],
              callexpr.args[2:end]...))
@@ -193,12 +206,6 @@ function exec(config, func::Function, args_type::Array{Type}, args_val::Array{An
     grid::CuDim  = config[2]
     block::CuDim = config[3]
     shared_bytes::Int = length(config) > 3 ? config[4] : 0
-
-    # Sanity checks
-    # TODO: move this check in front
-    if !(Base.function_name(func) in names(jl_m))
-        error("could not find function $func in module $jl_m -- is the function exported?")
-    end
 
     # Cached kernel compilation
     # TODO: move to prepare_exec()
