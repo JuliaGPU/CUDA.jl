@@ -122,11 +122,11 @@ func_cache = Dict{(Symbol, Tuple), CuFunction}()
 # for each combination of a call site and type inferred arguments. Knowing the
 # input type of each argument, it generates expressions which prepare the inputs
 # to be used in combination with a GPU kernel.
-stagedfunction prepare_exec(config, func_const, host_args...)
+stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
+                            func_const::FunctionConst, host_args...)
     exprs = Expr(:block)
 
     # Sanity checks
-    global codegen_initialized
     if Base.isnull(cgctx)
         error("native code generation is not initialized yet")
     end
@@ -285,10 +285,10 @@ end
 
 # The exec() function is executed for each kernel invocation, and performs the
 # necessary driver interactions to upload and launch the kernel.
-function exec(config, ptx_func::CuFunction, args::Tuple)
-    grid  = config[1]::CuDim
-    block = config[2]::CuDim
-    shared_bytes = config[3]::Int
+function exec(config::(CuDim, CuDim, Int), ptx_func::CuFunction, args::Tuple)
+    grid  = config[1]
+    block = config[2]
+    shared_bytes = config[3]
 
     # Launch the kernel
     launch(ptx_func, grid, block, args, shmem_bytes=shared_bytes)
