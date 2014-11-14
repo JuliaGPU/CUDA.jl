@@ -41,7 +41,7 @@ ga = CuArray(a)
 gb = CuArray(b)
 gc = CuArray(Float32, siz)
 
-@cuda (GPUModule, len, 1) vadd(ga, gb, gc)
+@cuda (len, 1) GPUModule.vadd(ga, gb, gc)
 c = to_host(gc)
 @test_approx_eq (a + b) c
 
@@ -55,7 +55,7 @@ free(gc)
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
 
-@cuda (GPUModule, len, 1) vadd(CuIn(a), CuIn(b), CuOut(c))
+@cuda (len, 1) GPUModule.vadd(CuIn(a), CuIn(b), CuOut(c))
 @test_approx_eq (a + b) c
 
 
@@ -64,5 +64,5 @@ b = round(rand(Float32, siz) * 100)
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
 
-@cuda (GPUModule, len, 1) vadd(a, b, c)
+@cuda (len, 1) GPUModule.vadd(a, b, c)
 @test_approx_eq (a + b) c

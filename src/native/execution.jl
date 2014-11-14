@@ -71,17 +71,29 @@ func_cache = Dict{(Function, Tuple), CuFunction}()
 # formatted calls to prepare_exec().
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
-    @assert config.head == :tuple && 3 <= length(config.args) <= 4
+    if config.head != :tuple || !(2 <= length(config.args) <= 3)
+        error("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem])")
+    end
+    if callexpr.head != :call
+        error("second argument to @cuda should be a fully specified function call")
+    end
+    func_sym = callexpr.args[1]
+    if func_sym.head != :.
+        error("kernel function call should be fully specified, including the module")
+    end
+    kernel_mod_sym = func_sym.args[1]
+    kernel_func_sym = func_sym.args[2]
+    # FIXME: what is this :quote?
+    @assert kernel_func_sym.head == :quote && length(kernel_func_sym.args) == 1
+    kernel_func_sym = kernel_func_sym.args[1]
 
     # Get a hold of the module and function
     calling_mod = current_module()
-    kernel_mod_sym = config.args[1]
     kernel_mod = try
         eval(:( $calling_mod.$kernel_mod_sym ))
     catch
         error("could not inspect module $kernel_mod_sym -- have you imported it?")
     end
-    kernel_func_sym = callexpr.args[1]
     if !(kernel_func_sym in names(kernel_mod))
         error("could not find function $kernel_func_sym in module $kernel_mod_sym -- is the function exported?")
     end
@@ -202,13 +214,13 @@ end
 # The exec() function is executed for each kernel invocation, and performs the
 # necessary driver interactions to upload the kernel, and start execution.
 function exec(config, func::Function, args_type::Array{Type}, args_val::Array{Any})
-    jl_m::Module = config[1]
-    grid::CuDim  = config[2]
-    block::CuDim = config[3]
-    shared_bytes::Int = length(config) > 3 ? config[4] : 0
+    grid::CuDim  = config[1]
+    block::CuDim = config[2]
+    shared_bytes::Int = length(config) > 2 ? config[3] : 0
 
     # Cached kernel compilation
-    # TODO: move to prepare_exec()
+    # TODO: move to prepare_exec() (for this we need access to the symbols in the
+    #       staged function)
     if haskey(func_cache, (func, tuple(args_type...)))
         cuda_func = func_cache[func, tuple(args_type...)]
     else
