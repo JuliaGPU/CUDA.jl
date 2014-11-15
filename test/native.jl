@@ -51,6 +51,7 @@ free(gc)
 
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
+c = Array(Float32, siz)
 
 @cuda (len, 1) GPUModule.vadd(CuIn(a), CuIn(b), CuOut(c))
 @test_approx_eq (a + b) c
@@ -60,6 +61,7 @@ b = round(rand(Float32, siz) * 100)
 
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
+c = Array(Float32, siz)
 
 @cuda (len, 1) GPUModule.vadd(a, b, c)
 @test_approx_eq (a + b) c
@@ -69,6 +71,7 @@ b = round(rand(Float32, siz) * 100)
 
 a = rand(Float32, siz)
 b = rand(Float32, siz)
+c = Array(Float32, siz)
 
 @cuda (len, 1) GPUModule.vadd(round(a*100), round(b*100), c)
 @test_approx_eq (round(a*100) + round(b*100)) c
