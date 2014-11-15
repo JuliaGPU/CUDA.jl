@@ -14,7 +14,8 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
 	griddim = dim3(grid)
 	blockdim = dim3(block)
 
-    kernel_args = [ptrbox(arg) for arg in args]
+    # TODO: why is this necessary? We segfault without
+    kernel_args = [[arg] for arg in args]
 
     @cucall(:cuLaunchKernel, (
         Ptr{Void},  			# function

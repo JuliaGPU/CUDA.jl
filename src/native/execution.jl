@@ -73,9 +73,6 @@ end
 immutable FunctionConst{sym} end
 symbol{sym}(::Type{FunctionConst{sym}}) = sym
 
-# The @cuda macro provides a user-friendly wrapper for prepare_exec(). It is
-# executed during parsing, and substitutes calls to itself with properly
-# formatted calls to prepare_exec().
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 3)
@@ -111,19 +108,119 @@ macro cuda(config::Expr, callexpr::Expr)
     # HACK: wrap the function symbol in a type, so we can specialize on it in
     #       the staged function
     kernel_func_const = FunctionConst{kernel_func_sym}()
-    esc(Expr(:call, CUDA.prepare_exec, config, kernel_func_const,
+    esc(Expr(:call, CUDA.generate_launch, config, kernel_func_const,
              callexpr.args[2:end]...))
 end
 
 # TODO: is this necessary? Just check the method cache?
 func_cache = Dict{(Symbol, Tuple), CuFunction}()
 
-# The prepare_exec() staged function prepares the call to exec(), and runs once
-# for each combination of a call site and type inferred arguments. Knowing the
-# input type of each argument, it generates expressions which prepare the inputs
-# to be used in combination with a GPU kernel.
-stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
-                            func_const::FunctionConst, host_args...)
+immutable ArgRef
+    typ::Type
+    ref::Union(Symbol, Expr)
+end
+
+# TODO: nested stagedfunction?
+
+# Read the type and symbol information for each argument of the stagedfunction
+function read_arguments(argspec::Tuple)
+    args = Array(ArgRef, length(argspec))
+
+    for i in 1:length(argspec)
+        args[i] = ArgRef(argspec[i], :( argspec[$i] ))
+
+        if args[i].typ <: DevicePtr{Void} || isbits(args[i].typ)
+            # these will be passed as-is
+        elseif args[i].typ <: CuArray
+            # known conversion to CuDeviceArray
+        elseif args[i].typ <: CuManaged
+            # should be fine -- will be checked in manage_arguments()
+        else
+            warn("you passed an unmanaged argument -- assuming input/output (costly!)")
+            args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
+        end
+    end
+
+    return args
+end
+
+# Replace CuManaged-wrapped arguments by the underlying argument it manages
+function manage_arguments(args::Array{ArgRef})
+    # TODO: label blocks
+    setup = Expr[]
+    managed_args = Array(ArgRef, length(args))
+    teardown = Expr[]
+
+    for i in 1:length(args)
+        if args[i].typ <: CuManaged
+            input = (args[i].typ <: CuIn) || (args[i].typ <: CuInOut)
+            output = (args[i].typ <: CuOut) || (args[i].typ <: CuInOut)
+
+            managed_type = eltype(args[i].typ)
+            if managed_type <: Array
+                # TODO: accessing args[i].ref reconstructs the managed container
+                #       avoid by stripping Cu*() and accessing the underlying var?
+
+                # set-up
+                managed_var = gensym("arg$(i)")
+                if input
+                    # TODO: CuArray shouldn't auto-upload! Use to_device or smth
+                    #       maybe upload/download(CuArray)
+                    push!(setup, :( $managed_var = CuArray($(args[i].ref).data) ))
+                else
+                    # create without initializing
+                    push!(setup, :( $managed_var =
+                        CuArray(eltype($(args[i].ref).data),
+                                size($(args[i].ref).data)) ))
+                end
+                # TODO: N=1 -- how to / does it support higher dimensions?
+                #       does this even make sense?
+                managed_args[i] = ArgRef(CuArray{eltype(managed_type), 1},
+                                         managed_var)
+
+                # tear-down
+                if output
+                    data_var = gensym("arg$(i)_data")
+                    append!(teardown, [
+                        :( $data_var = to_host($managed_var) ),
+                        :( copy!($(args[i].ref).data, $data_var) ) ])
+                end
+                push!(teardown, :(free($managed_var)))
+            else
+                # TODO: support more types, for example CuOut(status::Int)
+                error("invalid managed type -- cannot handle $managed_type")
+            end
+        else
+            managed_args[i] = args[i]
+        end
+    end
+
+    return (setup, managed_args, teardown)
+end
+
+function convert_arguments(args::Array{ArgRef})
+    converted_args = Array(ArgRef, length(args))
+
+    for i in 1:length(args)
+        if args[i].typ <: DevicePtr || isbits(args[i].typ)
+            # pass these as-is
+            converted_args = args[i]
+        elseif args[i].typ <: CuArray
+            # TODO: here our type and actual argument mismatch -- convert already?
+            converted_args[i] = ArgRef(CuDeviceArray{eltype(args[i].typ)},
+                                      :( $(args[i].ref).ptr ) )
+        else
+            error("invalid argument type -- cannot handle $(args[i].typ)")
+        end
+
+    end
+
+    return converted_args
+
+end
+
+stagedfunction generate_launch(config::(CuDim, CuDim, Int), # NOTE: strangely works
+                               func_const::FunctionConst, argspec...)
     exprs = Expr(:block)
 
     # Sanity checks
@@ -131,80 +228,19 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
         error("native code generation is not initialized yet")
     end
 
-    # Check argument types (should be either managed or on-device already)
-    host_args_sym  = Array(Union(Symbol,Expr),      # symbolic reference to the
-                           length(host_args))       #  host variable or value
-    host_args_type = Array(Type, length(host_args)) # its original type
-    for i in 1:length(host_args)
-        var = :( host_args[$i] )        # symbolic reference to the argument
-        vartype = host_args[i]::Type    # its type
-
-        if !(vartype <: CuManaged) && !(vartype <: DevicePtr{Void}) && !(vartype <: CuArray)
-            warn("You specified an unmanaged host argument -- assuming input/output (costly!)")
-            newvar = gensym("arg$(i)_managed")
-            push!(exprs.args, :( $newvar = CuInOut($var) ))
-            var = newvar
-            vartype = CuInOut{vartype}
-        end
-
-        host_args_sym[i] = var
-        host_args_type[i] = vartype
-    end
-
-    # Prepare arguments (allocate memory and upload inputs, if necessary)
-    kernel_args_sym  = Array(Union(Symbol,Expr),     # input objects for launch()
-                             length(host_args))      #  (var symbol or value expr)
-    kernel_args_type = Array(Type,                   # types for precompile()
-                             length(host_args))      #  and launch()
-    for i in 1:length(host_args)
-        host_arg_sym = host_args_sym[i]
-        host_arg_type = host_args_type[i]
-
-        # Process the argument based on its type
-        # TODO: we currently pass a ptrbox'ed CuArray into a CuDeviceArray
-        #       specsig'd function. This works... for now.
-        if host_arg_type <: CuManaged
-            input = (host_arg_type <: CuIn) || (host_arg_type <: CuInOut)
-
-            if eltype(host_arg_type) <: Array
-                host_arg_type = CuDeviceArray{eltype(eltype(host_arg_type))}
-                newvar = gensym("arg$(i)")
-                if input
-                    push!(exprs.args, :( $newvar = CuArray($host_arg_sym.data) ))
-                else
-                    # create without initializing
-                    push!(exprs.args, :( $newvar =
-                        CuArray(eltype($host_arg_sym.data),
-                                size($host_arg_sym.data)) ))
-                end
-                host_arg_sym = newvar
-            else
-                warn("no explicit support for $(typeof(arg)) input values; passing as-is")
-                host_arg_type = eltype(host_arg_type)
-                host_arg_sym = :( $host_arg_sym.data )
-            end
-        elseif host_arg_type <: CuArray
-            host_arg_type = CuDeviceArray{eltype(host_arg_type)}
-            # launch() converts CuArrays to DevicePtrs using ptrbox
-            # FIXME: replace with inner pointer ourselves?
-        elseif host_arg_type <: DevicePtr{Void}
-            # we can use these as-is
-        else
-            error("cannot handle arguments of type $(host_arg_type)")
-        end
-
-        kernel_args_type[i] = host_arg_type
-        kernel_args_sym[i] = :( $host_arg_sym )
-    end
+    # Process the arguments
+    args = read_arguments(argspec)
+    (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
+    kernel_args = convert_arguments(managed_args)
 
     # Compile the function
-    kernel_specsig = tuple(kernel_args_type...)
+    kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
     kernel_func_sym = symbol(func_const)
-    kernel_func = eval(:($(current_module()).$kernel_func_sym))
     if haskey(func_cache, (kernel_func_sym, kernel_specsig))
         ptx_func = func_cache[kernel_func_sym, kernel_specsig]
     else
         # trigger function compilation
+        kernel_func = eval(:($(current_module()).$kernel_func_sym))
         try
             precompile(kernel_func, kernel_specsig)
         catch err
@@ -265,32 +301,13 @@ stagedfunction prepare_exec(config::(CuDim, CuDim, Int), # NOTE: strangely works
         func_cache[(kernel_func_sym, kernel_specsig)] = ptx_func
     end
 
-    # Call the runtime part of the execution
-    kernel_args = Expr(:tuple, kernel_args_sym...)
-    push!(exprs.args, :( CUDA.exec(config, $ptx_func, $kernel_args) ))
+    # Throw everything together and generate the final runtime call
+    append!(exprs.args, managing_setup)
+    kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
+    push!(exprs.args, :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) ))
+    append!(exprs.args, managing_teardown)
 
-    # Finish up (fetch results and free memory, if necessary)
-    for i in 1:length(host_args)
-        host_arg_sym = host_args_sym[i]
-        host_arg_type = host_args_type[i]
-        kernel_arg_sym = kernel_args_sym[i]
-
-        if host_arg_type <: CuManaged
-            output = (host_arg_type <: CuOut) || (host_arg_type <: CuInOut)
-
-            if eltype(host_arg_type) <: Array
-                if output
-                    data = gensym("arg$(i)_data")
-                    append!(exprs.args, [
-                        :( $data = to_host($kernel_arg_sym) ),
-                        :( copy!($host_arg_sym.data, $data) ) ])
-                end
-                push!(exprs.args, :(free($kernel_arg_sym)))
-            end
-        end
-    end
-
-    exprs
+    @show exprs
 end
 
 # The exec() function is executed for each kernel invocation, and performs the
