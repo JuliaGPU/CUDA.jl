@@ -144,12 +144,15 @@ function read_arguments(argspec::Tuple)
     return args
 end
 
-# Replace CuManaged-wrapped arguments by the underlying argument it manages
+# Replace CuManaged-wrapped arguments by the underlying argument it manages,
+# managing data up- and downloading along the way
 function manage_arguments(args::Array{ArgRef})
-    # TODO: label blocks
     setup = Expr[]
     managed_args = Array(ArgRef, length(args))
     teardown = Expr[]
+
+    # TODO: accessing args[i].ref reconstructs the managed container
+    #       avoid by stripping Cu*() and accessing the underlying var?
 
     for i in 1:length(args)
         if args[i].typ <: CuManaged
@@ -158,9 +161,6 @@ function manage_arguments(args::Array{ArgRef})
 
             managed_type = eltype(args[i].typ)
             if managed_type <: Array
-                # TODO: accessing args[i].ref reconstructs the managed container
-                #       avoid by stripping Cu*() and accessing the underlying var?
-
                 # set-up
                 managed_var = gensym("arg$(i)")
                 if input
@@ -198,6 +198,7 @@ function manage_arguments(args::Array{ArgRef})
     return (setup, managed_args, teardown)
 end
 
+# Convert the arguments to be used in combination with @cucall
 function convert_arguments(args::Array{ArgRef})
     converted_args = Array(ArgRef, length(args))
 
@@ -206,9 +207,13 @@ function convert_arguments(args::Array{ArgRef})
             # pass these as-is
             converted_args = args[i]
         elseif args[i].typ <: CuArray
-            # TODO: here our type and actual argument mismatch -- convert already?
+            # TODO: pass a CuDeviceArray-wrapped pointer,
+            #       so our type matches the actual argument?
+            # NOTE: when wrapping ptr in a CuDeviceArray,
+            #       the type would now be Void because of Ptr{Void}
+            #       (no constructor accepting a pointer?)
             converted_args[i] = ArgRef(CuDeviceArray{eltype(args[i].typ)},
-                                      :( $(args[i].ref).ptr ) )
+                                      :( $(args[i].ref).ptr ))
         else
             error("invalid argument type -- cannot handle $(args[i].typ)")
         end
@@ -219,8 +224,10 @@ function convert_arguments(args::Array{ArgRef})
 
 end
 
-stagedfunction generate_launch(config::(CuDim, CuDim, Int), # NOTE: strangely works
-                               func_const::FunctionConst, argspec...)
+# Construct the necessary argument conversions for launching a PTX kernel
+# with given Julia arguments
+stagedfunction generate_launch(config::(CuDim, CuDim, Int),
+                               func_const::FunctionConst, argspec::Any...)
     exprs = Expr(:block)
 
     # Sanity checks
@@ -248,7 +255,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int), # NOTE: strangely wo
             # this is most likely caused by some boxing issue, so dump the ASTs
             # to help identifying the offending variable
             print("-- lowered AST --\n\n", code_lowered(kernel_func, kernel_specsig), "\n\n")
-            print("-- typed AST --\n\n", code_typed(kernel_func, kernel_specsig), "\n\n")
+            #print("-- typed AST --\n\n", code_typed(kernel_func, kernel_specsig), "\n\n")
             throw(err)
         end
 
@@ -310,9 +317,8 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int), # NOTE: strangely wo
     exprs
 end
 
-# The exec() function is executed for each kernel invocation, and performs the
-# necessary driver interactions to upload and launch the kernel.
-function exec(config::(CuDim, CuDim, Int), ptx_func::CuFunction, args::Tuple)
+# Perform the run-time API calls launching the kernel
+function exec(config::(CuDim, CuDim, Int), ptx_func::CuFunction, args::(Any...))
     grid  = config[1]
     block = config[2]
     shared_bytes = config[3]
