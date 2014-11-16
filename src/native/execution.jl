@@ -307,7 +307,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int), # NOTE: strangely wo
     push!(exprs.args, :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) ))
     append!(exprs.args, managing_teardown)
 
-    @show exprs
+    exprs
 end
 
 # The exec() function is executed for each kernel invocation, and performs the
