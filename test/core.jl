@@ -21,7 +21,7 @@ a_dev = CuArray(a)
 b_dev = CuArray(b)
 c_dev = CuArray(Float32, dims)
 
-launch(f, len, 1, (a_dev, b_dev, c_dev))
+launch(f, len, 1, (a_dev.ptr, b_dev.ptr, c_dev.ptr))
 c = to_host(c_dev)
 
 free(a_dev)
