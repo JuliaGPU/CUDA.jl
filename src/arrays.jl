@@ -38,8 +38,6 @@ function CuArray{N}(T::Type, shape::NTuple{N,Int}, value::Cuint)
     CuArray{T,N}(p, shape, n)
 end
 
-ptrbox(a::CuArray) = ptrbox(typeof(a.ptr), a.ptr)
-
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape
 ndims{T,N}(g::CuArray{T,N}) = N
@@ -53,7 +51,7 @@ end
 function free(g::CuArray)
     if !isnull(g.ptr)
         free(g.ptr)
-        g.ptr = deviceptr(C_NULL)
+        g.ptr = DevicePtr(C_NULL)
     end
 end
 

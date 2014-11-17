@@ -5,19 +5,19 @@ import Base: length, size, eltype
 export    
     CuIn, CuOut, CuInOut
 
-# TODO: use custom pointer type, not convertible to Ptr, yet usable as one
-
 
 #
 # Device pointer
 #
 
-typealias DevicePtr{T} Ptr{T}
+# TODO: a custom DevicePtr class would be nice, but Julia doesn't reason through
+#       nested immutable classes (CuDeviceArray -> DevicePtr -> Ptr),
+#       resulting in boxed accesses in CuDeviceArray.get/setindex
+# immutable DevicePtr{T}
+#     ptr::Ptr{T}
+# end
 
-# FIXME: normal constructor doesn't work?
-function deviceptr{T}(p::Ptr{T})
-    p::DevicePtr{T}
-end
+typealias DevicePtr{T} Ptr{T}
 
 isnull{T}(p::DevicePtr{T}) = (p == 0)
 

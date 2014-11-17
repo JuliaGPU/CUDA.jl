@@ -14,7 +14,7 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
 	griddim = dim3(grid)
 	blockdim = dim3(block)
 
-    # TODO: why is this necessary? We segfault without
+    @assert all([isbits(arg) || isa(arg, DevicePtr) for arg in args])
     kernel_args = [[arg] for arg in args]
 
     @cucall(:cuLaunchKernel, (
