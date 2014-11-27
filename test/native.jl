@@ -1,21 +1,19 @@
-module GPUModule
+using CUDA, Base.Test
 
-using CUDA
+# kernels
 
-export vadd
-
-@target ptx function vadd(a::CuDeviceArray{Float32}, b::CuDeviceArray{Float32},
-                          c::CuDeviceArray{Float32})
+@target ptx function kernel_vadd(a::CuDeviceArray{Float32}, b::CuDeviceArray{Float32},
+                                 c::CuDeviceArray{Float32})
     i = blockId_x() + (threadId_x()-1) * numBlocks_x()
     c[i] = a[i] + b[i]
 
     return nothing
 end
 
+@target ptx function kernel_scalaradd(a::CuDeviceArray{Float32}, x)
+    i = blockId_x() + (threadId_x()-1) * numBlocks_x()
+    a[i] = a[i] + x
 end
-
-using CUDA, Base.Test
-using GPUModule
 
 
 # set-up
@@ -34,17 +32,17 @@ initialize_codegen(ctx, dev)
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
 
-ga = CuArray(a)
-gb = CuArray(b)
-gc = CuArray(Float32, siz)
+a_dev = CuArray(a)
+b_dev = CuArray(b)
+c_dev = CuArray(Float32, siz)
 
-@cuda (len, 1) GPUModule.vadd(ga, gb, gc)
-c = to_host(gc)
+@cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
+c = to_host(c_dev)
 @test_approx_eq (a + b) c
 
-free(ga)
-free(gb)
-free(gc)
+free(a_dev)
+free(b_dev)
+free(c_dev)
 
 
 # test 2: auto-managed host data
@@ -53,7 +51,7 @@ a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
 c = Array(Float32, siz)
 
-@cuda (len, 1) GPUModule.vadd(CuIn(a), CuIn(b), CuOut(c))
+@cuda (len, 1) kernel_vadd(CuIn(a), CuIn(b), CuOut(c))
 @test_approx_eq (a + b) c
 
 
@@ -63,7 +61,7 @@ a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
 c = Array(Float32, siz)
 
-@cuda (len, 1) GPUModule.vadd(a, b, c)
+@cuda (len, 1) kernel_vadd(a, b, c)
 @test_approx_eq (a + b) c
 
 
