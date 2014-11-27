@@ -84,25 +84,35 @@ macro cuda(config::Expr, callexpr::Expr)
     if callexpr.head != :call
         error("second argument to @cuda should be a fully specified function call")
     end
-    func_sym = callexpr.args[1]
-    if !isa(func_sym, Expr) || func_sym.head != :.
-        error("kernel function call should be fully specified, including the module")
-    end
-    kernel_mod_sym = func_sym.args[1]
-    kernel_func_sym = func_sym.args[2]
-    # FIXME: what is this :quote?
-    @assert kernel_func_sym.head == :quote && length(kernel_func_sym.args) == 1
-    kernel_func_sym = kernel_func_sym.args[1]
+    callargs = callexpr.args[1]
 
     # Get a hold of the module and function
-    calling_mod = current_module()
-    kernel_mod = try
-        eval(:( $calling_mod.$kernel_mod_sym ))
-    catch
-        error("could not inspect module $kernel_mod_sym -- have you imported it?")
+    if isa(callargs, Symbol)
+        # not a fully specified function call, assume calling into the current module
+        kernel_mod = current_module()
+
+        kernel_func_sym = callargs
+    elseif isa(callargs, Expr) && callargs.head == :.
+        kernel_mod_sym = callargs.args[1]
+        calling_mod = current_module()
+        kernel_mod = try
+            eval(:( $calling_mod.$kernel_mod_sym ))
+        catch
+            error("could not inspect module $kernel_mod_sym -- have you imported it?")
+        end
+
+        kernel_func_sym = callargs.args[2]
+        # FIXME: what is this :quote?
+        @assert kernel_func_sym.head == :quote && length(kernel_func_sym.args) == 1
+        kernel_func_sym = kernel_func_sym.args[1]
+    else
+        error("unrecognized kernel function call syntax")
     end
+
+    # Check if the module exported the function
+    calling_mod = current_module()
     if !(kernel_func_sym in names(kernel_mod))
-        error("could not find function $kernel_func_sym in module $kernel_mod_sym -- is the function exported?")
+        error("could not find function $kernel_func_sym in module $kernel_mod -- is the function exported?")
     end
 
     # HACK: wrap the function symbol in a type, so we can specialize on it in
@@ -221,7 +231,6 @@ function convert_arguments(args::Array{ArgRef})
     end
 
     return converted_args
-
 end
 
 # Construct the necessary argument conversions for launching a PTX kernel
