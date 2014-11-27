@@ -87,14 +87,14 @@ macro cuda(config::Expr, callexpr::Expr)
     callargs = callexpr.args[1]
 
     # Get a hold of the module and function
+    calling_mod = current_module()
     if isa(callargs, Symbol)
         # not a fully specified function call, assume calling into the current module
-        kernel_mod = current_module()
+        kernel_mod = calling_mod
 
         kernel_func_sym = callargs
     elseif isa(callargs, Expr) && callargs.head == :.
         kernel_mod_sym = callargs.args[1]
-        calling_mod = current_module()
         kernel_mod = try
             eval(:( $calling_mod.$kernel_mod_sym ))
         catch
@@ -110,7 +110,6 @@ macro cuda(config::Expr, callexpr::Expr)
     end
 
     # Check if the module exported the function
-    calling_mod = current_module()
     if !(kernel_func_sym in names(kernel_mod))
         error("could not find function $kernel_func_sym in module $kernel_mod -- is the function exported?")
     end
