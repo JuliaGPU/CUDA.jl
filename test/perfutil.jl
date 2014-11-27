@@ -66,7 +66,7 @@ macro output_timings(t,name,desc,group)
         if codespeed
             submit_to_codespeed($t, $name, $desc, "seconds", test_group)
         elseif print_output
-            @printf "%s (%s): %s ± %s\n" $desc $name readable(mean($t)) readable(std($t))
+            @printf "%-20s: %s ± %s\n" $name readable(mean($t)) readable(std($t))
         end
         gc()
     end
