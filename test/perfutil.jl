@@ -1,4 +1,3 @@
-const ntrials = 5
 print_output = isempty(ARGS)
 codespeed = length(ARGS) > 0 && ARGS[1] == "codespeed"
 
@@ -11,7 +10,7 @@ if codespeed
     pkgdir = dirname(Base.source_path())
     csdata = Dict()
     csdata["commitid"] = chomp(readall(`git -C $pkgdir rev-parse HEAD`))
-    csdata["project"] = "Julia/CUDA"
+    csdata["project"] = "CUDA.jl"
     csdata["branch"] = chomp(readall(`git -C $pkgdir symbolic-ref -q --short HEAD`))
     csdata["executable"] = CUDA_FLAVOR
     csdata["environment"] = chomp(readall(`hostname`))
@@ -21,7 +20,7 @@ end
 # Takes in the raw array of values in vals, along with the benchmark name, description, unit and whether less is better
 function submit_to_codespeed(vals,name,desc,unit,test_group,lessisbetter=true)
     # Points to the server
-    codespeed_host = "phoenix.elis.ugent.be:8000"
+    codespeed_host = "phoenix.elis.ugent.be/julia/speed/"
 
     csdata["benchmark"] = name
     csdata["description"] = desc
@@ -73,30 +72,40 @@ macro output_timings(t,name,desc,group)
     end
 end
 
+const mintrials = 5
+const maxtime = 2.5       # in seconds
+
 macro timeit(ex,name,desc,group...)
     quote
-        t = zeros(ntrials)
-        for i=0:ntrials
-            e = @elapsed $(esc(ex))
-            if i > 0
-                # warm up on first iteration
-                t[i] = e
-            end
-        end
-        @output_timings t $name $desc $group
+        @timeit_init $ex begin end $name $desc $group...
     end
 end
 
 macro timeit_init(ex,init,name,desc,group...)
     quote
-        t = zeros(ntrials)
-        for i=0:ntrials
+        trials = mintrials
+        t = zeros(trials)
+        start = time()
+        i = 0
+        while i <= trials
+            gc_disable()
             $(esc(init))
             e = @elapsed $(esc(ex))
+            gc_enable()
             if i > 0
                 # warm up on first iteration
                 t[i] = e
             end
+            if i == trials && (time()-start) < maxtime
+                # check if accurate enough
+                uncertainty = std(t[1:i])/mean(t[1:i])
+                if uncertainty > .05
+                    trials *= 2
+                    resize!(t, trials)
+                end
+            end
+
+            i += 1
         end
         @output_timings t $name $desc $group
     end
