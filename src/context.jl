@@ -51,3 +51,5 @@ function device(ctx::CuContext)
     @cucall(:cuCtxGetDevice, (Ptr{Cint},), device_box)
     return CuDevice(ptrunbox(device_box))
 end
+
+synchronize(ctx::CuContext) = @cucall(:cuCtxSynchronize, (Ptr{Void},), ctx.handle)

@@ -13,6 +13,5 @@ end
 default_stream() = CuStream(convert(Ptr{Void}, 0), true, 0)
 
 synchronize(s::CuStream) = @cucall(:cuStreamSynchronize, (Ptr{Void},), s.handle)
-synchronize() = synchronize(default_stream())
 
 destroy(s::CuStream) = @cucall(:cuStreamDestroy, (Ptr{Void},), s.handle)
