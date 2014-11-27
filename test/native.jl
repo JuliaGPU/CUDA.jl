@@ -71,5 +71,5 @@ a = rand(Float32, siz)
 b = rand(Float32, siz)
 c = Array(Float32, siz)
 
-@cuda (len, 1) GPUModule.vadd(round(a*100), round(b*100), c)
+@cuda (len, 1) kernel_vadd(round(a*100), round(b*100), c)
 @test_approx_eq (round(a*100) + round(b*100)) c
