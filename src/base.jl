@@ -3,14 +3,16 @@
 import Base: get
 
 export
-    CUDA_FLAVOR,
+    CUDA_VENDOR,
     @cucall
 
 
 # Early library loading
+# TODO: allow overriding the loaded library using ENV
 function load_library()
     try
-        return (dlopen("libcuda"), "CUDA")
+        # TODO: thorough check of vendor?
+        return (dlopen("libcuda"), "NVIDIA")
     end
 
     try
@@ -19,7 +21,7 @@ function load_library()
 
     error("Could not load CUDA (or any compatible) library")
 end
-const (libcuda, CUDA_FLAVOR) = load_library()
+const (libcuda, CUDA_VENDOR) = load_library()
 
 # API call wrapper
 macro cucall(f, argtypes, args...)

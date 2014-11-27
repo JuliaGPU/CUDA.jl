@@ -12,7 +12,7 @@ if codespeed
     csdata["commitid"] = chomp(readall(`git -C $pkgdir rev-parse HEAD`))
     csdata["project"] = "CUDA.jl"
     csdata["branch"] = chomp(readall(`git -C $pkgdir symbolic-ref -q --short HEAD`))
-    csdata["executable"] = CUDA_FLAVOR
+    csdata["executable"] = CUDA_VENDOR
     csdata["environment"] = chomp(readall(`hostname`))
     csdata["result_date"] = join( split(chomp(readall(`git -C $pkgdir log --pretty=format:%cd -n 1 --date=iso`)))[1:2], " " )    #Cut the timezone out
 end
