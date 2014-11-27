@@ -3,22 +3,23 @@
 import Base: get
 
 export
+    CUDA_FLAVOR,
     @cucall
 
 
 # Early library loading
 function load_library()
     try
-        return dlopen("libcuda")
+        return (dlopen("libcuda"), "CUDA")
     end
 
     try
-        return dlopen("libocelot")
+        return (dlopen("libocelot"), "Ocelot")
     end
 
     error("Could not load CUDA (or any compatible) library")
 end
-const libcuda = load_library()
+const (libcuda, CUDA_FLAVOR) = load_library()
 
 # API call wrapper
 macro cucall(f, argtypes, args...)
