@@ -37,7 +37,7 @@ initialize_codegen(ctx, dev)
 # @cuda macro
 #
 
-if opts["performance"]
+if PERFORMANCE
     i = 0
     @timeit_init begin
             @eval @cuda (0, 0) $fname()
@@ -52,7 +52,7 @@ if opts["performance"]
 end
 
 
-if opts["performance"]
+if PERFORMANCE
     @target ptx kernel_dummy() = return nothing
 
     @timeit begin
@@ -83,7 +83,7 @@ c_dev = CuArray(Float32, siz)
 c = to_host(c_dev)
 @test_approx_eq (a + b) c
 
-if opts["performance"]
+if PERFORMANCE
     @timeit begin
             @cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
             synchronize(ctx)

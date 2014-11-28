@@ -1,20 +1,8 @@
-using ArgParse
-
 using CUDA, Base.Test
 
-s = ArgParseSettings()
-@add_arg_table s begin
-    "--performance", "-p"
-        help = "Perform performance measurements"
-        action = :store_true
-    "--server"
-        help = "Codespeed server(s) to submit performance measurements to"
-        nargs = 1
-        arg_type = String
-        action = :append_arg
-end
-opts = parse_args(ARGS, s)
-if length(opts["server"]) > 0 && !opts["performance"]
+PERFORMANCE = haskey(ENV, "PERFORMANCE")
+CODESPEED = get(ENV, "CODESPEED", nothing)
+if CODESPEED != nothing && !PERFORMANCE
     error("Cannot submit to Codespeed without enabling performance measurements")
 end
 
