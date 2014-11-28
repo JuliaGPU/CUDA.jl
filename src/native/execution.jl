@@ -258,6 +258,10 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
         # trigger module compilation
         module_ptx = ccall(:jl_to_ptx, Any, ())::String
 
+        # DEBUG
+        #println(STDERR, "LLVM function:\n$(kernel_llvm)")
+        #println(STDERR, "PTX module:\n$(module_ptx)")
+
         # create CUDA module
         ptx_mod = try
             # TODO: what with other kernel calls? entirely new module? or just
@@ -286,6 +290,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
         # then what about type specialization?
         ptx_func_name = ccall(:jl_dump_function_name, Any, (Any, Any),
                               kernel_func, kernel_specsig)
+        #println(STDERR, "PTX function name: $(ptx_func_name)")
 
         # Get CUDA function object
         ptx_func = CuFunction(ptx_mod, ptx_func_name)

@@ -123,3 +123,35 @@ c = Array(Float32, siz)
 
 @cuda (len, 1) kernel_vadd(round(a*100), round(b*100), c)
 @test_approx_eq (round(a*100) + round(b*100)) c
+
+
+# test 5: calling a second kernel (multiple active kernels)
+
+exit()
+
+a = rand(Float32, siz)
+
+@cuda (len, 1) kernel_scalaradd(CuInOut(a), 1)
+@test_approx_eq (a+1) a
+
+
+# test 6: call the original kernel again
+
+
+# test 7: 2d arrays
+
+
+# test 8: math intrinsics
+
+siz = (10, 15)
+
+a = round(rand(Float32, siz) * 100)
+c = Array(Float32, siz)
+
+@cuda (siz[0], siz[1]) kernel_rotate(CuIn(a), 23, CuOut(c))
+
+
+# test 9: memory synchronization
+
+
+# test 10: shared memory
