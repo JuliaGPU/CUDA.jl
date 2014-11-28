@@ -1,7 +1,4 @@
-print_output = isempty(ARGS)
-codespeed = length(ARGS) > 0 && ARGS[1] == "codespeed"
-
-if codespeed
+if length(opts["server"]) > 0
     using JSON
     using HTTPClient.HTTPC
 
@@ -19,27 +16,24 @@ end
 
 # Takes in the raw array of values in vals, along with the benchmark name, description, unit and whether less is better
 function submit_to_codespeed(vals,name,desc,unit,test_group,lessisbetter=true)
-    # Points to the server
-    codespeed_host = "phoenix.elis.ugent.be/julia/speed/"
+    for host in opts["server"]
+        csdata["benchmark"] = name
+        csdata["description"] = desc
+        csdata["result_value"] = mean(vals)
+        csdata["std_dev"] = std(vals)
+        csdata["min"] = minimum(vals)
+        csdata["max"] = maximum(vals)
+        csdata["units"] = unit
+        csdata["units_title"] = test_group
+        csdata["lessisbetter"] = lessisbetter
 
-    csdata["benchmark"] = name
-    csdata["description"] = desc
-    csdata["result_value"] = mean(vals)
-    csdata["std_dev"] = std(vals)
-    csdata["min"] = minimum(vals)
-    csdata["max"] = maximum(vals)
-    csdata["units"] = unit
-    csdata["units_title"] = test_group
-    csdata["lessisbetter"] = lessisbetter
-
-    println( "$name: $(mean(vals))" )
-    ret = post( "http://$codespeed_host/result/add/json/", Dict("json" => json([csdata])) )
-    println( json([csdata]) )
-    if ret.http_code != 200 && ret.http_code != 202
-        error("Error submitting $name [HTTP code $(ret.http_code)], dumping headers and text: $(ret.headers)\n$(bytestring(ret.body))\n\n")
-        return false
+        println( "$name: $(mean(vals))" )
+        ret = post( "http://$host/result/add/json/", Dict("json" => json([csdata])) )
+        println( json([csdata]) )
+        if ret.http_code != 200 && ret.http_code != 202
+            error("Error submitting $name [HTTP code $(ret.http_code)], dumping headers and text: $(ret.headers)\n$(bytestring(ret.body))\n\n")
+        end
     end
-    return true
 end
 
 function readable(d)
@@ -63,9 +57,9 @@ macro output_timings(t,name,desc,group)
     quote
         # If we weren't given anything for the test group, infer off of file path!
         test_group = length($group) == 0 ? basename(dirname(Base.source_path())) : $group[1]
-        if codespeed
+        if length(opts["server"]) > 0
             submit_to_codespeed($t, $name, $desc, "seconds", test_group)
-        elseif print_output
+        else
             @printf "%-20s: %s ± %s\n" $name readable(mean($t)) readable(std($t))
         end
         gc()

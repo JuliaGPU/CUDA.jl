@@ -1,3 +1,7 @@
+#
+# Initialization
+#
+
 using CUDA, Base.Test
 
 # kernels
@@ -24,7 +28,46 @@ ctx = CuContext(dev)
 siz = (3, 4)
 len = prod(siz)
 
+# TODO: these are 2D arrays -- why isn't CuArray 2D?
+
 initialize_codegen(ctx, dev)
+
+
+#
+# @cuda macro
+#
+
+if opts["performance"]
+    i = 0
+    @timeit_init begin
+            @eval @cuda (0, 0) $fname()
+        end begin
+            # initialization
+            i += 1
+            fname = symbol("kernel_dummy_$i")
+            @eval @target ptx $fname() = return nothing
+        end "macro_full" "unlowered call to @cuda (staged function execution, kernel compilation, runtime API interactions and asynchronous kernel launch)"
+
+    synchronize(ctx)
+end
+
+
+if opts["performance"]
+    @target ptx kernel_dummy() = return nothing
+
+    @timeit begin
+            @cuda (0, 0) kernel_dummy()
+        end "macro_lowered" "lowered call to @cuda (runtime API interactions and asynchronous kernel launch)"
+
+    synchronize(ctx)
+end
+
+
+#
+# Data management
+#
+
+# TODO: new context with CTX_SCHED_BLOCKING_SYNC flag instead of synchronize(ctx)
 
 
 # test 1: manually managed data
@@ -39,6 +82,13 @@ c_dev = CuArray(Float32, siz)
 @cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
 c = to_host(c_dev)
 @test_approx_eq (a + b) c
+
+if opts["performance"]
+    @timeit begin
+            @cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
+            synchronize(ctx)
+        end "vadd_manual" "vector addition on manually added GPU arrays"
+end
 
 free(a_dev)
 free(b_dev)

@@ -121,6 +121,8 @@ function read_arguments(argspec::Tuple)
         elseif args[i].typ <: CuManaged
             # should be fine -- will be checked in manage_arguments()
         else
+            # TODO: warn optionally?
+            # TODO: also display variable name, if possible?
             warn("you passed an unmanaged argument -- assuming input/output (costly!)")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
