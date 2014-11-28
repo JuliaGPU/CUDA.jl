@@ -30,7 +30,7 @@ abstract CuManaged{T}
 
 length(i::CuManaged) = length(i.data)
 size(i::CuManaged) = size(i.data)
-eltype{T}(i::CuManaged{T}) = T
+eltype{T}(::CuManaged{T}) = T
 
 type CuIn{T} <: CuManaged{T}
     data::T
@@ -49,5 +49,5 @@ end
 eltype{T}(::Type{CuIn{T}}) = T
 eltype{T}(::Type{CuOut{T}}) = T
 eltype{T}(::Type{CuInOut{T}}) = T
-eltype{T<:CuManaged}(t::Type{T}) =
+eltype{T<:CuManaged}(::Type{T}) =
     error("missing eltype definition for this managed type")

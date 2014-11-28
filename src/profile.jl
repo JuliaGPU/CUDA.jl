@@ -1,7 +1,7 @@
 # Profiler interface
 
 export
-    @cuprofile, init_profiler
+    @cuprofile
 
 initialized = false
 

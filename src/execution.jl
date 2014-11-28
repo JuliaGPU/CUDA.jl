@@ -5,7 +5,7 @@ export
 
 
 typealias CuDim Union(Int, (Int, Int), (Int, Int, Int))
-dim3(g::Int) = (g[1], 1, 1)
+dim3(g::Int) = (g, 1, 1)
 dim3(g::(Int, Int)) = (g[1], g[2], 1)
 dim3(g::(Int, Int, Int)) = g
 

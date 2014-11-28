@@ -71,7 +71,7 @@ immutable CuGlobal{T}
     end
 end
 
-eltype{T}(var::CuGlobal{T}) = T
+eltype{T}(::CuGlobal{T}) = T
 
 function get{T}(var::CuGlobal{T})
     val_box = ptrbox(T)

@@ -40,11 +40,12 @@ end
 
 function pop(ctx::CuContext)
     pctx_box = ptrbox(Ptr{Void})
-    @cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), a)
+    @cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), pctx_box)
     return CuContext(ptrunbox(pctx_box))
 end
 
 function device(ctx::CuContext)
+    @assert CuContext() == ctx
     # TODO: cuCtxGetDevice returns the device ordinal, but as a CUDevice*?
     #       This can't be right...
     device_box = ptrbox(Cint)

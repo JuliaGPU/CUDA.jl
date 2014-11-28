@@ -13,13 +13,13 @@ type CuArray{T,N}
 end
 
 function CuArray(T::Type, len::Integer)
-    n = int(len)
+    n = Int(len)
     p = cualloc(T, n)
     CuArray{T,1}(p, (n,), n)
 end
 
 function CuArray(T::Type, len::Integer, value::Cuint)
-    n = int(len)
+    n = Int(len)
     p = cualloc(T, n)
     cumemset(p, value, n)
     CuArray{T,1}(p, (n,), n)
@@ -40,8 +40,8 @@ end
 
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape
-ndims{T,N}(g::CuArray{T,N}) = N
-eltype{T,N}(g::CuArray{T,N}) = T
+ndims{T,N}(::CuArray{T,N}) = N
+eltype{T,N}(::CuArray{T,N}) = T
 eltype{T,N}(::Type{CuArray{T,N}}) = T
 
 function size{T,N}(g::CuArray{T,N}, d::Integer)

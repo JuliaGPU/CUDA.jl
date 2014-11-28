@@ -2,7 +2,7 @@
 
 function cualloc(T::Type, len::Integer)
     dptr_box = ptrbox(DevicePtr{Void})
-    nbytes = int(len) * sizeof(T)
+    nbytes = Int(len) * sizeof(T)
     @cucall(:cuMemAlloc, (Ptr{DevicePtr{Void}}, Csize_t), dptr_box, nbytes)
     return ptrunbox(dptr_box)
 end
