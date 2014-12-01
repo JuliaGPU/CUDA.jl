@@ -14,6 +14,9 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
 	griddim = dim3(grid)
 	blockdim = dim3(block)
 
+    @assert all(dim->(dim > 0), grid)
+    @assert all(dim->(dim > 0), block)
+
     @assert all([isbits(arg) || isa(arg, DevicePtr) for arg in args])
     kernel_args = [[arg] for arg in args]
 
