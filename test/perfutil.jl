@@ -69,7 +69,7 @@ const maxtime = 2.5       # in seconds
 
 macro timeit(ex,name,desc,group...)
     quote
-        @timeit_init $ex begin end $name $desc $group...
+        @timeit_init $ex begin end $name $desc $(group...)
     end
 end
 
