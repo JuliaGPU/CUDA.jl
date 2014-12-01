@@ -40,7 +40,7 @@ initialize_codegen(ctx, dev)
 if PERFORMANCE
     i = 0
     @timeit_init begin
-            @eval @cuda (0, 0) $fname()
+            @eval @cuda (1, 1) $fname()
         end begin
             # initialization
             i += 1
@@ -56,7 +56,7 @@ if PERFORMANCE
     @target ptx kernel_dummy() = return nothing
 
     @timeit begin
-            @cuda (0, 0) kernel_dummy()
+            @cuda (1, 1) kernel_dummy()
         end "macro_lowered" "lowered call to @cuda (runtime API interactions and asynchronous kernel launch)"
 
     synchronize(ctx)
