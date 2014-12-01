@@ -15,4 +15,18 @@ end
     @cuda (1, 1) kernel_empty()
 end
 
-@test_throws @cuda (1, 1) SomeModule.SomeKernel()
+@test_throws ErrorException @eval begin
+    @cuda (1, 1) Module.kernel_foo()
+end
+@test_throws ErrorException @eval begin
+    @cuda (1, 1) InvalidPrefixedKernel()
+end
+
+module KernelModule
+    export kernel_empty2
+    @target ptx kernel_empty2() = return nothing
+end
+@eval begin
+    using KernelModule
+    @cuda (1, 1) kernel_empty2()
+end

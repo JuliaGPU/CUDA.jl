@@ -70,8 +70,8 @@ end
 # macros/functions for native Julia-CUDA processing
 #
 
-immutable FunctionConst{sym} end
-symbol{sym}(::Type{FunctionConst{sym}}) = sym
+immutable TypeConst{val} end
+value{val}(::Type{TypeConst{val}}) = val
 
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
@@ -85,14 +85,19 @@ macro cuda(config::Expr, callexpr::Expr)
         error("second argument to @cuda should be a function call")
     end
     kernel_func_sym = callexpr.args[1]
-
-    # TODO: check if the function exists, either in the current module or in
-    #       any other (exporting the function)
-    # TODO: also check kernel_ prefix
+    if !isa(kernel_func_sym, Symbol)
+        # NOTE: cannot support Module.Kernel calls, because TypeConst only works
+        #       on symbols (why?). If it allowed Expr's or even Strings (through
+        #       string(expr)), we could specialise the stagedfunction on that.
+        error("only simple function calls are supported")
+    end
+    if search(string(kernel_func_sym), "kernel_").start != 1
+        error("kernel function should start with \"kernel_\"")
+    end
 
     # HACK: wrap the function symbol in a type, so we can specialize on it in
     #       the staged function
-    kernel_func_const = FunctionConst{kernel_func_sym}()
+    kernel_func_const = TypeConst{kernel_func_sym}()
     esc(Expr(:call, CUDA.generate_launch, config, kernel_func_const,
              callexpr.args[2:end]...))
 end
@@ -213,7 +218,7 @@ end
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
 stagedfunction generate_launch(config::(CuDim, CuDim, Int),
-                               func_const::FunctionConst, argspec::Any...)
+                               func_const::TypeConst, argspec::Any...)
     exprs = Expr(:block)
 
     # Sanity checks
@@ -228,7 +233,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
 
     # Compile the function
     kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
-    kernel_func_sym = symbol(func_const)
+    kernel_func_sym = value(func_const)
     if haskey(func_cache, (kernel_func_sym, kernel_specsig))
         ptx_func = func_cache[kernel_func_sym, kernel_specsig]
     else
