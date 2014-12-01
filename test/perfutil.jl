@@ -80,8 +80,8 @@ macro timeit_init(ex,init,name,desc,group...)
         start = time()
         i = 0
         while i <= trials
-            gc_disable()
             $(esc(init))
+            gc_disable()
             e = @elapsed $(esc(ex))
             gc_enable()
             if i > 0
