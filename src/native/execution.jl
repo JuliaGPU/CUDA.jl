@@ -177,6 +177,8 @@ function manage_arguments(args::Array{ArgRef})
                         :( copy!($(args[i].ref).data, $data_var) ) ])
                 end
                 push!(teardown, :(free($managed_var)))
+            elseif isbits(managed_type)
+                error("managed bits types are not supported -- use an array instead") 
             else
                 # TODO: support more types, for example CuOut(status::Int)
                 error("invalid managed type -- cannot handle $managed_type")
@@ -196,7 +198,7 @@ function convert_arguments(args::Array{ArgRef})
     for i in 1:length(args)
         if args[i].typ <: DevicePtr || isbits(args[i].typ)
             # pass these as-is
-            converted_args = args[i]
+            converted_args[i] = args[i]
         elseif args[i].typ <: CuArray
             # TODO: pass a CuDeviceArray-wrapped pointer,
             #       so our type matches the actual argument?
