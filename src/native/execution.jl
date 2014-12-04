@@ -2,7 +2,7 @@
 
 export
     @cuda,
-    initialize_codegen
+    CuCodegenContext
 
 
 # NOTE: keep this in sync with the architectures supported by NVPTX
@@ -15,6 +15,8 @@ const architectures = [
     (v"5.0", "sm_50") ]
 
 # TODO: allow code generation without actual device/ctx?
+# TODO: require passing the codegen context to @cuda, so we can have multiple
+#       contexts active, generating for and executing on multiple GPUs
 type CuCodegenContext
     ctx::CuContext
     dev::CuDevice
@@ -53,16 +55,13 @@ type CuCodegenContext
         new(ctx, dev, triple, arch)
     end
 end
-cgctx = Nullable{CuCodegenContext}()
-function initialize_codegen(ctx::CuContext, dev::CuDevice)
-    # TODO: this is ugly. If we allow multiple contexts, codegen.cpp will
-    #       have a map of Ctx=>PM/FPM/M of some sort. This is too PTX-
-    #       specific, and should tie into @target somehow
-    global cgctx
-    if !Base.isnull(cgctx)
-        error("Cannot have multiple active code generation contexts")
-    end
-    cgctx = Nullable{CuCodegenContext}(CuCodegenContext(ctx, dev))
+
+function destroy(ctx::CuCodegenContext)
+    # TODO: we don't look at ctx, but we should, in order to prevent the user
+    #       from keeping a ctx after destruction, or destroying one context
+    #       while expecting to destroy another (cfr. other destroy methods,
+    #       asserting obj==active_obj)
+    ccall(:jl_destroy_codegen_ptx, Void, ())
 end
 
 
@@ -220,11 +219,6 @@ end
 stagedfunction generate_launch(config::(CuDim, CuDim, Int),
                                func_const::TypeConst, argspec::Any...)
     exprs = Expr(:block)
-
-    # Sanity checks
-    if Base.isnull(cgctx)
-        error("native code generation is not initialized yet")
-    end
 
     # Process the arguments
     args = read_arguments(argspec)

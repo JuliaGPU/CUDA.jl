@@ -1,11 +1,9 @@
 using CUDA, Base.Test
 
-# TODO: add all bugs or issues here, with appropriate error/assertion checks
-
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
-initialize_codegen(ctx, dev)
+cgctx = CuCodegenContext(ctx, dev)
 
 @target ptx kernel_empty() = return nothing
 @test_throws ErrorException @eval begin
@@ -30,3 +28,5 @@ end
     using KernelModule
     @cuda (1, 1) kernel_empty2()
 end
+
+destroy(cgctx)

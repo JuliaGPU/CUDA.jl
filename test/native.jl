@@ -28,9 +28,9 @@ ctx = CuContext(dev)
 siz = (3, 4)
 len = prod(siz)
 
-# TODO: these are 2D arrays -- why isn't CuArray 2D?
+cgctx = CuCodegenContext(ctx, dev)
 
-initialize_codegen(ctx, dev)
+# TODO: these are 2D arrays -- why isn't CuArray 2D?
 
 
 #
@@ -123,3 +123,6 @@ c = Array(Float32, siz)
 
 @cuda (len, 1) kernel_vadd(round(a*100), round(b*100), c)
 @test_approx_eq (round(a*100) + round(b*100)) c
+
+
+destroy(cgctx)

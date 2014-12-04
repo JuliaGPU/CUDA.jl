@@ -18,4 +18,4 @@ else
     include("native.jl")
 end
 
-#include("bugs.jl")
+include("bugs.jl")
