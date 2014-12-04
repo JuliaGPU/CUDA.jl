@@ -161,9 +161,10 @@ function manage_arguments(args::Array{ArgRef})
                 else
                     # create without initializing
                     push!(setup, :( $managed_var =
-                        CuArray(eltype($(args[i].ref).data),
+                        CuArray($(eltype(managed_type)),
                                 size($(args[i].ref).data)) ))
                 end
+
                 # TODO: N=1 -- how to / does it support higher dimensions?
                 #       does this even make sense?
                 managed_args[i] = ArgRef(CuArray{eltype(managed_type), 1},
