@@ -11,7 +11,10 @@ if CODESPEED != nothing
     csdata["branch"] = chomp(readall(`git -C $pkgdir symbolic-ref -q --short HEAD`))
     csdata["executable"] = CUDA_VENDOR
     csdata["environment"] = chomp(readall(`hostname`))
-    csdata["result_date"] = join( split(chomp(readall(`git -C $pkgdir log --pretty=format:%cd -n 1 --date=iso`)))[1:2], " " )    #Cut the timezone out
+    csdata["result_date"] = chomp(readall(`date +'%Y-%m-%d %H:%M:%S'`))
+    csdata["revision_date"] = join(split(
+            chomp(readall(`git -C $pkgdir log --pretty=format:%cd -n 1 --date=iso`)
+        ))[1:2], " " )    # ISO date format minus the timezone
 end
 
 # Takes in the raw array of values in vals, along with the benchmark name, description, unit and whether less is better
@@ -30,7 +33,7 @@ function submit_to_codespeed(vals,name,desc,unit,test_group,lessisbetter=true)
     ret = post( "http://$CODESPEED/result/add/json/", Dict("json" => json([csdata])) )
     println( json([csdata]) )
     if ret.http_code != 200 && ret.http_code != 202
-        error("Error submitting $name [HTTP code $(ret.http_code)], dumping headers and text: $(ret.headers)\n$(bytestring(ret.body))\n\n")
+        error("could not submit $name [HTTP code $(ret.http_code)]")
     end
 end
 
