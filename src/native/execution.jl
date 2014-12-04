@@ -128,7 +128,7 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            warn("you passed an unmanaged argument -- assuming input/output (costly!)")
+            @warn("you passed an unmanaged argument -- assuming input/output (costly!)")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -259,9 +259,11 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
         if kernel_llvm == ""
             error("no method found for $kernel_func$kernel_specsig")
         end
+        @debug("LLVM function IR: $(kernel_llvm)")
 
         # trigger module compilation
         module_ptx = ccall(:jl_to_ptx, Any, ())::String
+        @debug("PTX module contents: $(module_ptx)")
 
         # create CUDA module
         ptx_mod = try
@@ -291,6 +293,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
         # then what about type specialization?
         ptx_func_name = ccall(:jl_dump_function_name, Any, (Any, Any),
                               kernel_func, kernel_specsig)
+        @debug("PTX function name: $(ptx_func_name)")
 
         # Get CUDA function object
         ptx_func = CuFunction(ptx_mod, ptx_func_name)
