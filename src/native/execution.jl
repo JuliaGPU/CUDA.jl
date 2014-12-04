@@ -48,7 +48,7 @@ type CuCodegenContext
             end
         end
 
-        ccall(:jl_init_ptx_codegen, Void, (String, String), triple, arch)
+        ccall(:jl_init_codegen_ptx, Void, (String, String), triple, arch)
 
         new(ctx, dev, triple, arch)
     end
