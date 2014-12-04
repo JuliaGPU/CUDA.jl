@@ -55,16 +55,20 @@ function readable(d)
 end
 
 macro output_timings(t,name,desc,group)
-    quote
-        # If we weren't given anything for the test group, infer off of file path!
-        test_group = length($group) == 0 ? basename(dirname(Base.source_path())) : $group[1]
-        if CODESPEED != nothing
-            submit_to_codespeed($t, $name, $desc, "seconds", test_group)
-        else
+    if CODESPEED == nothing
+        ex = quote
             @printf "%-20s: %s ± %s\n" $name readable(mean($t)) readable(std($t))
         end
-        gc()
+    else
+        ex = quote
+            # If we weren't given anything for the test group, infer off of file path!
+            test_group = length($group) == 0 ? basename(dirname(Base.source_path())) : $group[1]
+
+            submit_to_codespeed($t, $name, $desc, "seconds", test_group)
+        end
     end
+
+    ex
 end
 
 const mintrials = 5
@@ -78,7 +82,7 @@ end
 
 macro timeit_init(ex,init,name,desc,group...)
     quote
-        trials = mintrials
+        trials = $mintrials
         t = zeros(trials)
         start = time()
         i = 0
@@ -91,7 +95,7 @@ macro timeit_init(ex,init,name,desc,group...)
                 # warm up on first iteration
                 t[i] = e
             end
-            if i == trials && (time()-start) < maxtime
+            if i == trials && (time()-start) < $maxtime
                 # check if accurate enough
                 uncertainty = std(t[1:i])/mean(t[1:i])
                 if uncertainty > .05
