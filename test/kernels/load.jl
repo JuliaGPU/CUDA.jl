@@ -55,8 +55,8 @@ for hostcc in hostcc_names
         continue
     end
 
-    verstring = chomp(readlines(`$hostcc --version`)[1])
-    m = match(r"\(GCC\) ([0-9.]+)$", verstring)
+    verstring = chomp(readlines(`$hostcc_path --version`)[1])
+    m = match(Regex("^$hostcc \\(.*\\) ([0-9.]+)\$"), verstring)
     if m == nothing
         warn("Could not parse GCC version info (\"$verstring\")")
     end
