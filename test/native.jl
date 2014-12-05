@@ -24,7 +24,8 @@ end
 end
 
 # TODO: get and compare dim tuple instead of xyz
-@target ptx function kernel_lastvalue(a::CuDeviceArray{Float32}, x::CuDeviceArray{Float32})
+@target ptx function kernel_lastvalue(a::CuDeviceArray{Float32},
+                                      x::CuDeviceArray{Float32})
     i = blockId_x() + (threadId_x()-1) * numBlocks_x()
     max = numBlocks_x() * numThreads_x()
     if i == max
@@ -138,6 +139,15 @@ c = Array(Float32, siz)
 
 @cuda (len, 1) kernel_vadd(round(a*100), round(b*100), c)
 @test_approx_eq (round(a*100) + round(b*100)) c
+
+
+# scalar through single-value array
+
+a = round(rand(Float32, siz) * 100)
+x = Float32[0]
+
+@cuda (len, 1) kernel_lastvalue(CuIn(a), CuOut(x))
+@test_approx_eq a[siz...] x[1]
 
 
 destroy(cgctx)
