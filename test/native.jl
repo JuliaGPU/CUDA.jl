@@ -1,12 +1,31 @@
-#
+################################################################################
 # Initialization
 #
+
+# IDEA: no core and native, but perf testing with for every native kernel a
+#       c++ counterpart, submitting as a different executable
 
 using CUDA, Base.Test
 
 include("perfutil.jl")
 
-# kernels
+
+#
+# Set-up
+#
+
+dev = CuDevice(0)
+ctx = CuContext(dev)
+
+siz = (3, 4)
+len = prod(siz)
+
+cgctx = CuCodegenContext(ctx, dev)
+
+
+#
+# Kernels
+#
 
 @target ptx function kernel_vadd(a::CuDeviceArray{Float32}, b::CuDeviceArray{Float32},
                                  c::CuDeviceArray{Float32})
@@ -36,23 +55,43 @@ end
 end
 
 
-# set-up
 
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
-siz = (3, 4)
-len = prod(siz)
-
-cgctx = CuCodegenContext(ctx, dev)
-
-# TODO: these are 2D arrays -- why isn't CuArray 2D?
-
+################################################################################
+# Smoke testing
+#
 
 #
 # @cuda macro
 #
 
+# kernel dims
+@target ptx kernel_empty() = return nothing
+@test_throws ErrorException @eval begin
+    @cuda (0, 0) kernel_empty()
+end
+@eval begin
+    @cuda (1, 1) kernel_empty()
+end
+
+# kernel name
+@test_throws ErrorException @eval begin
+    @cuda (1, 1) Module.kernel_foo()
+end
+@test_throws ErrorException @eval begin
+    @cuda (1, 1) InvalidPrefixedKernel()
+end
+
+# external kernel
+module KernelModule
+    export kernel_empty2
+    @target ptx kernel_empty2() = return nothing
+end
+@eval begin
+    using KernelModule
+    @cuda (1, 1) kernel_empty2()
+end
+
+# unlowered call
 if PERFORMANCE
     i = 0
     @timeit_init begin
@@ -68,6 +107,7 @@ if PERFORMANCE
 end
 
 
+# pre-lowered call
 if PERFORMANCE
     @target ptx kernel_dummy() = return nothing
 
@@ -79,14 +119,16 @@ if PERFORMANCE
 end
 
 
-#
-# Data management
+
+################################################################################
+# Argument passing
 #
 
 # TODO: new context with CTX_SCHED_BLOCKING_SYNC flag instead of synchronize(ctx)
 
-
-# test 1: manually managed data
+#
+# manually managed data
+#
 
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
@@ -111,7 +153,9 @@ free(b_dev)
 free(c_dev)
 
 
-# test 2: auto-managed host data
+#
+# auto-managed host data
+#
 
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
@@ -121,7 +165,9 @@ c = Array(Float32, siz)
 @test_approx_eq (a + b) c
 
 
-# test 3: auto-managed host data, without specifying type
+#
+# auto-managed host data, without specifying type
+#
 
 a = round(rand(Float32, siz) * 100)
 b = round(rand(Float32, siz) * 100)
@@ -131,7 +177,9 @@ c = Array(Float32, siz)
 @test_approx_eq (a + b) c
 
 
-# test 4: auto-managed host data, without specifying type, not using containers
+#
+# auto-managed host data, without specifying type, not using containers
+#
 
 a = rand(Float32, siz)
 b = rand(Float32, siz)
@@ -141,7 +189,9 @@ c = Array(Float32, siz)
 @test_approx_eq (round(a*100) + round(b*100)) c
 
 
+#
 # scalar through single-value array
+#
 
 a = round(rand(Float32, siz) * 100)
 x = Float32[0]
