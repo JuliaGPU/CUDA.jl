@@ -66,6 +66,13 @@ for dim in (:x, :y, :z)
     end
 end
 
+# Tuple accessors
+# TODO: these get boxed no matter what -- avoid that!
+#threadId() = (threadId_x(), threadId_y(), threadId_z())
+#numThreads() = (numThreads_x(), numThreads_y(), numThreads_z())
+#blockId() = (blockId_x(), blockId_y(), blockId_z())
+#numBlocks() = (numBlocks_x(), numBlocks_y(), numBlocks_z())
+
 # Warpsize
 warpsize() = Base.llvmcall(
     ("""declare i32 @llvm.nvvm.read.ptx.sreg.warpsize() readnone nounwind""",
