@@ -20,73 +20,51 @@ export
 # Indexing and dimensions
 #
 
-# Thread indexes
-threadId_x() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.tid.x() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.x()
-        ret i32 %1"""),
-    Int32, ()) + 1
-threadId_y() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.tid.y() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.y()
-        ret i32 %1"""),
-    Int32, ()) + 1
-threadId_z() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.tid.z() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.tid.z()
-        ret i32 %1"""),
-    Int32, ()) + 1
+for dim in (:x, :y, :z)
+    # Thread index
+    fname = symbol("threadId_$dim")
+    intrinsic = "llvm.nvvm.read.ptx.sreg.tid.$dim"
+    @eval begin
+        $fname() = Base.llvmcall(
+            ($("""declare i32 @$intrinsic() readnone nounwind"""),
+             $("""%1 = tail call i32 @$intrinsic()
+                  ret i32 %1""")),
+            Int32, ()) + 1
+    end
 
-# Block dimensions (num of threads per block)
-numThreads_x() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.ntid.x() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.x()
-        ret i32 %1"""),
-    Int32, ())
-numThreads_y() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.ntid.y() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.y()
-        ret i32 %1"""),
-    Int32, ())
-numThreads_z() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.ntid.z() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ntid.z()
-        ret i32 %1"""),
-    Int32, ())
+    # Block dimension (#threads per block)
+    fname = symbol("numThreads_$dim")
+    intrinsic = "llvm.nvvm.read.ptx.sreg.ntid.$dim"
+    @eval begin
+        $fname() = Base.llvmcall(
+            ($("""declare i32 @$intrinsic() readnone nounwind"""),
+             $("""%1 = tail call i32 @$intrinsic()
+                  ret i32 %1""")),
+            Int32, ())
+    end
 
-# Block indexes
-blockId_x() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.x() readnone nounwind""", 
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.x()
-        ret i32 %1"""),
-    Int32, ()) + 1
-blockId_y() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.y() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.y()
-        ret i32 %1"""),
-    Int32, ()) + 1
-blockId_z() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.ctaid.z() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.ctaid.z()
-        ret i32 %1"""),
-    Int32, ()) + 1
+    # Block index
+    fname = symbol("blockId_$dim")
+    intrinsic = "llvm.nvvm.read.ptx.sreg.ctaid.$dim"
+    @eval begin
+        $fname() = Base.llvmcall(
+            ($("""declare i32 @$intrinsic() readnone nounwind"""),
+             $("""%1 = tail call i32 @$intrinsic()
+                  ret i32 %1""")),
+            Int32, ()) + 1
+    end
 
-# Grid dimensions (num blocks per grid)
-numBlocks_x() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.nctaid.x() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.x()
-        ret i32 %1"""),
-    Int32, ())
-numBlocks_y() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.nctaid.y() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.y()
-       ret i32 %1"""),
-    Int32, ())
-numBlocks_z() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.nctaid.z() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.nctaid.z()
-        ret i32 %1"""),
-    Int32, ())
+    # Grid dimension (#blocks)
+    fname = symbol("numBlocks_$dim")
+    intrinsic = "llvm.nvvm.read.ptx.sreg.nctaid.$dim"
+    @eval begin
+        $fname() = Base.llvmcall(
+            ($("""declare i32 @$intrinsic() readnone nounwind"""),
+             $("""%1 = tail call i32 @$intrinsic()
+                  ret i32 %1""")),
+            Int32, ())
+    end
+end
 
 # Warpsize
 warpsize() = Base.llvmcall(
