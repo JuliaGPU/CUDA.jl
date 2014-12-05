@@ -1,3 +1,9 @@
+PERFORMANCE = haskey(ENV, "PERFORMANCE")
+CODESPEED = get(ENV, "CODESPEED", nothing)
+if CODESPEED != nothing && !PERFORMANCE
+    error("Cannot submit to Codespeed without enabling performance measurements")
+end
+
 if CODESPEED != nothing
     using JSON
     using HTTPClient.HTTPC

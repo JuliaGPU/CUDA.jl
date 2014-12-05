@@ -1,13 +1,5 @@
 using CUDA, Base.Test
 
-PERFORMANCE = haskey(ENV, "PERFORMANCE")
-CODESPEED = get(ENV, "CODESPEED", nothing)
-if CODESPEED != nothing && !PERFORMANCE
-    error("Cannot submit to Codespeed without enabling performance measurements")
-end
-
-include("perfutil.jl")
-
 @test devcount() > 0
 include("core.jl")
 

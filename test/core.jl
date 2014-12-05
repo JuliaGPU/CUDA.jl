@@ -1,5 +1,7 @@
 using CUDA, Base.Test
 
+include("perfutil.jl")
+
 dev = CuDevice(0)
 cap = capability(dev)
 ctx = CuContext(dev)
