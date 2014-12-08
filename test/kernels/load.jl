@@ -101,7 +101,12 @@ macro compile(kernel, code)
 end
 function _compile(kernel, code)
     (source, io) = mkstemps(".cu")
-    write(io, code)
+    write(io, """
+extern "C"
+{
+$code
+}
+""")
     close(io)
 
     builddir = "$scriptdir/.build"
@@ -110,7 +115,11 @@ function _compile(kernel, code)
     end
 
     output = "$builddir/$kernel.ptx"
-    run(`$(nvcc_path) $flags -ptx -o $output $source`)
+    try
+        run(`$(nvcc_path) $flags -ptx -o $output $source`)
+    catch
+        error("compilation of kernel $kernel failed")
+    end
 
     fname = symbol("cuda_$kernel")
     @eval begin
