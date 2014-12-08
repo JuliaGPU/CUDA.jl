@@ -36,21 +36,23 @@ include("kernels/load.jl")
 
 # TODO: make this a dummy kernel and put vadd below
 
-a = round(rand(Float32, dims) * 100)
-b = round(rand(Float32, dims) * 100)
+let
+    a = round(rand(Float32, dims) * 100)
+    b = round(rand(Float32, dims) * 100)
 
-a_dev = CuArray(a)
-b_dev = CuArray(b)
-c_dev = CuArray(Float32, dims)
+    a_dev = CuArray(a)
+    b_dev = CuArray(b)
+    c_dev = CuArray(Float32, dims)
 
-launch(reference_vadd(), len, 1, (a_dev.ptr, b_dev.ptr, c_dev.ptr))
-c = to_host(c_dev)
+    launch(reference_vadd(), len, 1, (a_dev.ptr, b_dev.ptr, c_dev.ptr))
+    c = to_host(c_dev)
 
-free(a_dev)
-free(b_dev)
-free(c_dev)
+    free(a_dev)
+    free(b_dev)
+    free(c_dev)
 
-@test_approx_eq (a + b) c
+    @test_approx_eq (a + b) c
+end
 
 
 #
@@ -127,67 +129,78 @@ end
 # manually managed data
 #
 
-a = round(rand(Float32, dims) * 100)
-b = round(rand(Float32, dims) * 100)
+let
+    a = round(rand(Float32, dims) * 100)
+    b = round(rand(Float32, dims) * 100)
 
-a_dev = CuArray(a)
-b_dev = CuArray(b)
-c_dev = CuArray(Float32, dims)
+    a_dev = CuArray(a)
+    b_dev = CuArray(b)
+    c_dev = CuArray(Float32, dims)
 
-@cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
-c = to_host(c_dev)
-@test_approx_eq (a + b) c
+    @cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
+    c = to_host(c_dev)
+    @test_approx_eq (a + b) c
 
-free(a_dev)
-free(b_dev)
-free(c_dev)
+    free(a_dev)
+    free(b_dev)
+    free(c_dev)
+end
 
 
 #
 # auto-managed host data
 #
 
-a = round(rand(Float32, dims) * 100)
-b = round(rand(Float32, dims) * 100)
-c = Array(Float32, dims)
+let
+    a = round(rand(Float32, dims) * 100)
+    b = round(rand(Float32, dims) * 100)
+    c = Array(Float32, dims)
 
-@cuda (len, 1) kernel_vadd(CuIn(a), CuIn(b), CuOut(c))
-@test_approx_eq (a + b) c
+    @cuda (len, 1) kernel_vadd(CuIn(a), CuIn(b), CuOut(c))
+    @test_approx_eq (a + b) c
+end
 
 
 #
 # auto-managed host data, without specifying type
 #
 
-a = round(rand(Float32, dims) * 100)
-b = round(rand(Float32, dims) * 100)
-c = Array(Float32, dims)
+let
+    a = round(rand(Float32, dims) * 100)
+    b = round(rand(Float32, dims) * 100)
+    c = Array(Float32, dims)
 
-@cuda (len, 1) kernel_vadd(a, b, c)
-@test_approx_eq (a + b) c
+    @cuda (len, 1) kernel_vadd(a, b, c)
+    @test_approx_eq (a + b) c
+end
 
 
 #
 # auto-managed host data, without specifying type, not using containers
 #
 
-a = rand(Float32, dims)
-b = rand(Float32, dims)
-c = Array(Float32, dims)
+let
+    a = rand(Float32, dims)
+    b = rand(Float32, dims)
+    c = Array(Float32, dims)
 
-@cuda (len, 1) kernel_vadd(round(a*100), round(b*100), c)
-@test_approx_eq (round(a*100) + round(b*100)) c
+    @cuda (len, 1) kernel_vadd(round(a*100), round(b*100), c)
+    @test_approx_eq (round(a*100) + round(b*100)) c
+end
 
 
 #
 # scalar through single-value array
 #
 
-a = round(rand(Float32, dims) * 100)
-x = Float32[0]
+let
+    a = round(rand(Float32, dims) * 100)
+    x = Float32[0]
 
-@cuda (len, 1) kernel_lastvalue(CuIn(a), CuOut(x))
-@test_approx_eq a[dims...] x[1]
+    @cuda (len, 1) kernel_lastvalue(CuIn(a), CuOut(x))
+    @test_approx_eq a[dims...] x[1]
+end
+
 
 
 ################################################################################

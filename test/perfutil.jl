@@ -88,20 +88,25 @@ macro timeit(setup,ex,verification,teardown,name,desc,group...)
         t = zeros(trials)
 
         # warm up
-        $(esc(setup))
-        e = @elapsed $(esc(ex))
-        $(esc(verification))
-        $(esc(teardown))
+        let
+            $(esc(setup))
+            e = @elapsed $(esc(ex))
+            $(esc(verification))
+            $(esc(teardown))
+        end
+        e = @elapsed ()
 
         # benchmark
         i = 1
         start = time()
         while i <= trials
-            $(esc(setup))
-            gc_disable()
-            e = @elapsed $(esc(ex))
-            gc_enable()
-            $(esc(teardown))
+            let
+                $(esc(setup))
+                gc_disable()
+                e = @elapsed $(esc(ex))
+                gc_enable()
+                $(esc(teardown))
+            end
 
             t[i] = e
             if i == trials && (time()-start) < $maxtime
