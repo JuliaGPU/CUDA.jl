@@ -2,9 +2,6 @@
 # Initialization
 #
 
-# IDEA: no core and native, but perf testing with for every native kernel a
-#       c++ counterpart, submitting as a different executable
-
 using CUDA, Base.Test
 
 include("perfutil.jl")
@@ -16,9 +13,6 @@ include("perfutil.jl")
 
 dev = CuDevice(0)
 ctx = CuContext(dev)
-
-dims = (3, 4)
-len = prod(dims)
 
 cgctx = CuCodegenContext(ctx, dev)
 ENV["ARCH"] = cgctx.arch
@@ -34,30 +28,14 @@ include("kernels/load.jl")
 # ptx loading
 #
 
-# TODO: make this a dummy kernel and put vadd below
-
-let
-    a = round(rand(Float32, dims) * 100)
-    b = round(rand(Float32, dims) * 100)
-
-    a_dev = CuArray(a)
-    b_dev = CuArray(b)
-    c_dev = CuArray(Float32, dims)
-
-    launch(reference_vadd(), len, 1, (a_dev.ptr, b_dev.ptr, c_dev.ptr))
-    c = to_host(c_dev)
-
-    free(a_dev)
-    free(b_dev)
-    free(c_dev)
-
-    @test_approx_eq (a + b) c
-end
+launch(reference_dummy(), 1, 1, ())
 
 
 #
 # @cuda macro
 #
+
+@cuda (1, 1) kernel_dummy()
 
 # kernel dims
 @target ptx kernel_empty() = return nothing
@@ -110,99 +88,14 @@ synchronize(ctx)
 synchronize(ctx)
 
 
-
-################################################################################
-# Argument passing
-#
-
-# TODO: new context with CTX_SCHED_BLOCKING_SYNC flag instead of synchronize(ctx)
-
-#
-# manually managed data
-#
-
-let
-    a = round(rand(Float32, dims) * 100)
-    b = round(rand(Float32, dims) * 100)
-
-    a_dev = CuArray(a)
-    b_dev = CuArray(b)
-    c_dev = CuArray(Float32, dims)
-
-    @cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
-    c = to_host(c_dev)
-    @test_approx_eq (a + b) c
-
-    free(a_dev)
-    free(b_dev)
-    free(c_dev)
-end
-
-
-#
-# auto-managed host data
-#
-
-let
-    a = round(rand(Float32, dims) * 100)
-    b = round(rand(Float32, dims) * 100)
-    c = Array(Float32, dims)
-
-    @cuda (len, 1) kernel_vadd(CuIn(a), CuIn(b), CuOut(c))
-    @test_approx_eq (a + b) c
-end
-
-
-#
-# auto-managed host data, without specifying type
-#
-
-let
-    a = round(rand(Float32, dims) * 100)
-    b = round(rand(Float32, dims) * 100)
-    c = Array(Float32, dims)
-
-    @cuda (len, 1) kernel_vadd(a, b, c)
-    @test_approx_eq (a + b) c
-end
-
-
-#
-# auto-managed host data, without specifying type, not using containers
-#
-
-let
-    a = rand(Float32, dims)
-    b = rand(Float32, dims)
-    c = Array(Float32, dims)
-
-    @cuda (len, 1) kernel_vadd(round(a*100), round(b*100), c)
-    @test_approx_eq (round(a*100) + round(b*100)) c
-end
-
-
-#
-# scalar through single-value array
-#
-
-let
-    a = round(rand(Float32, dims) * 100)
-    x = Float32[0]
-
-    @cuda (len, 1) kernel_lastvalue(CuIn(a), CuOut(x))
-    @test_approx_eq a[dims...] x[1]
-end
-
-
-
-################################################################################
-# Performance tests
-#
-
 #
 # Argument passing
 #
 
+dims = (3, 4)
+len = prod(dims)
+
+# manual allocation
 @timeit begin # setup
         input = round(rand(Float32, dims) * 100)
     end begin # benchmark
@@ -218,7 +111,6 @@ end
         @test_approx_eq input output
     end begin # teardown
     end "copy_reference" "vector copy reference execution"
-
 @timeit begin # setup
         input = round(rand(Float32, dims) * 100)
     end begin # benchmark
@@ -235,6 +127,7 @@ end
     end begin # teardown
     end "copy_manual" "vector copy on manually allocated GPU arrays"
 
+# auto-managed host data
 @timeit begin # setup
         input = round(rand(Float32, dims) * 100)
         output = Array(Float32, dims)
@@ -244,6 +137,33 @@ end
         @test_approx_eq input output
     end begin # teardown
     end "copy_managed" "vector copy on managed GPU arrays"
+
+# auto-managed host data, without specifying type
+let
+    input = round(rand(Float32, dims) * 100)
+    output = Array(Float32, dims)
+
+    @cuda (len, 1) kernel_copy(input, output)
+    @test_approx_eq input output
+end
+
+# auto-managed host data, without specifying type, not using containers
+let
+    input = rand(Float32, dims)
+    output = Array(Float32, dims)
+
+    @cuda (len, 1) kernel_copy(round(input*100), output)
+    @test_approx_eq round(input*100) output
+end
+
+# scalar through single-value array
+let
+    arr = round(rand(Float32, dims) * 100)
+    val = Float32[0]
+
+    @cuda (len, 1) kernel_lastvalue(CuIn(arr), CuOut(val))
+    @test_approx_eq arr[dims...] val[1]
+end
 
 
 destroy(cgctx)

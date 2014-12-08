@@ -126,7 +126,11 @@ $code
     catch
         error("loading of kernel $kernel failed (invalid CUDA code?)")
     end
-    func = CuFunction(mod, kernel)
+    func = try
+        CuFunction(mod, kernel)
+    catch
+        error("could not find kernel $kernel in the compiled binary (wrong function name?)")
+    end
 
     fname = symbol("reference_$kernel")
     @eval begin
