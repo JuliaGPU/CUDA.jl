@@ -43,7 +43,7 @@ a_dev = CuArray(a)
 b_dev = CuArray(b)
 c_dev = CuArray(Float32, dims)
 
-launch(cuda_vadd(), len, 1, (a_dev.ptr, b_dev.ptr, c_dev.ptr))
+launch(reference_vadd(), len, 1, (a_dev.ptr, b_dev.ptr, c_dev.ptr))
 c = to_host(c_dev)
 
 free(a_dev)
@@ -87,13 +87,14 @@ end
 # unlowered call
 if PERFORMANCE
     i = 0
-    @timeit_init begin
-            @eval @cuda (1, 1) $fname()
-        end begin
-            # initialization
+    @timeit begin # setup
             i += 1
             fname = symbol("kernel_dummy_$i")
             @eval @target ptx $fname() = return nothing
+        end begin # benchmark
+            @eval @cuda (1, 1) $fname()
+        end begin # verification
+        end begin # teardown
         end "macro_full" "unlowered call to @cuda (staged function execution, kernel compilation, runtime API interactions and asynchronous kernel launch)"
 
     synchronize(ctx)
@@ -104,8 +105,11 @@ end
 if PERFORMANCE
     @target ptx kernel_dummy() = return nothing
 
-    @timeit begin
+    @timeit begin # setup
+        end begin # benchmark
             @cuda (1, 1) kernel_dummy()
+        end begin # verification
+        end begin # teardown
         end "macro_lowered" "lowered call to @cuda (runtime API interactions and asynchronous kernel launch)"
 
     synchronize(ctx)
@@ -133,13 +137,6 @@ c_dev = CuArray(Float32, dims)
 @cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
 c = to_host(c_dev)
 @test_approx_eq (a + b) c
-
-if PERFORMANCE
-    @timeit begin
-            @cuda (len, 1) kernel_vadd(a_dev, b_dev, c_dev)
-            synchronize(ctx)
-        end "vadd_manual" "vector addition on manually added GPU arrays"
-end
 
 free(a_dev)
 free(b_dev)
@@ -191,6 +188,60 @@ x = Float32[0]
 
 @cuda (len, 1) kernel_lastvalue(CuIn(a), CuOut(x))
 @test_approx_eq a[dims...] x[1]
+
+
+################################################################################
+# Performance tests
+#
+
+#
+# Argument passing
+#
+
+# TODO: PERFORMANCE==0 just runs single iteration
+if PERFORMANCE
+    @timeit begin # setup
+            input = round(rand(Float32, dims) * 100)
+        end begin # benchmark
+            input_dev = CuArray(input)
+            output_dev = CuArray(Float32, dims)
+
+            launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
+            output = to_host(output_dev)
+
+            free(input_dev)
+            free(output_dev)
+        end begin # verification
+            @test_approx_eq input output
+        end begin # teardown
+        end "copy_reference" "vector copy reference execution"
+
+    @timeit begin # setup
+            input = round(rand(Float32, dims) * 100)
+        end begin # benchmark
+            input_dev = CuArray(input)
+            output_dev = CuArray(Float32, dims)
+
+            @cuda (len, 1) kernel_copy(input_dev, output_dev)
+            output = to_host(output_dev)
+
+            free(input_dev)
+            free(output_dev)
+        end begin # verification
+            @test_approx_eq input output
+        end begin # teardown
+        end "copy_manual" "vector copy on manually allocated GPU arrays"
+
+    @timeit begin # setup
+            input = round(rand(Float32, dims) * 100)
+            output = Array(Float32, dims)
+        end begin # benchmark
+            @cuda (len, 1) kernel_copy(CuIn(input), CuOut(output))
+        end begin # verification
+            @test_approx_eq input output
+        end begin # teardown
+        end "copy_managed" "vector copy on managed GPU arrays"
+end
 
 
 destroy(cgctx)

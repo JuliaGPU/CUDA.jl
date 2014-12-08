@@ -118,14 +118,20 @@ $code
     try
         run(`$(nvcc_path) $flags -ptx -o $output $source`)
     catch
-        error("compilation of kernel $kernel failed")
+        error("compilation of kernel $kernel failed (typo in C++ source?)")
     end
 
-    fname = symbol("cuda_$kernel")
+    mod = try
+        CuModule(output)
+    catch
+        error("loading of kernel $kernel failed (invalid CUDA code?)")
+    end
+    func = CuFunction(mod, kernel)
+
+    fname = symbol("reference_$kernel")
     @eval begin
         function $fname()
-            mod = CuModule($output)
-            CuFunction(mod, $kernel)
+            $func
         end
     end
 end

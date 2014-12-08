@@ -80,27 +80,30 @@ end
 const mintrials = 5
 const maxtime = 2.5       # in seconds
 
-macro timeit(ex,name,desc,group...)
-    quote
-        @timeit_init $ex begin end $name $desc $(group...)
-    end
-end
-
-macro timeit_init(ex,init,name,desc,group...)
+# TODO: wrap in let -- end?
+# TODO: trials shouldn't be accessible afterwards
+macro timeit(setup,ex,verification,teardown,name,desc,group...)
     quote
         trials = $mintrials
         t = zeros(trials)
+
+        # warm up
+        $(esc(setup))
+        e = @elapsed $(esc(ex))
+        $(esc(verification))
+        $(esc(teardown))
+
+        # benchmark
+        i = 1
         start = time()
-        i = 0
         while i <= trials
-            $(esc(init))
+            $(esc(setup))
             gc_disable()
             e = @elapsed $(esc(ex))
             gc_enable()
-            if i > 0
-                # warm up on first iteration
-                t[i] = e
-            end
+            $(esc(teardown))
+
+            t[i] = e
             if i == trials && (time()-start) < $maxtime
                 # check if accurate enough
                 uncertainty = std(t[1:i])/mean(t[1:i])
