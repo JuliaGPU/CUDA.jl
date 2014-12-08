@@ -87,7 +87,7 @@ macro timeit(setup,ex,verification,teardown,name,desc,group...)
         trials = $mintrials
         t = zeros(trials)
 
-        # warm up
+        # warm up and verify
         let
             $(esc(setup))
             e = @elapsed $(esc(ex))
@@ -97,30 +97,33 @@ macro timeit(setup,ex,verification,teardown,name,desc,group...)
         e = @elapsed ()
 
         # benchmark
-        i = 1
-        start = time()
-        while i <= trials
-            let
-                $(esc(setup))
-                gc_disable()
-                e = @elapsed $(esc(ex))
-                gc_enable()
-                $(esc(teardown))
-            end
-
-            t[i] = e
-            if i == trials && (time()-start) < $maxtime
-                # check if accurate enough
-                uncertainty = std(t[1:i])/mean(t[1:i])
-                if uncertainty > .05
-                    trials *= 2
-                    resize!(t, trials)
+        # TODO: compile-time branch?
+        if PERFORMANCE
+            i = 1
+            start = time()
+            while i <= trials
+                let
+                    $(esc(setup))
+                    gc_disable()
+                    e = @elapsed $(esc(ex))
+                    gc_enable()
+                    $(esc(teardown))
                 end
-            end
 
-            i += 1
+                t[i] = e
+                if i == trials && (time()-start) < $maxtime
+                    # check if accurate enough
+                    uncertainty = std(t[1:i])/mean(t[1:i])
+                    if uncertainty > .05
+                        trials *= 2
+                        resize!(t, trials)
+                    end
+                end
+
+                i += 1
+            end
+            @output_timings t $name $desc $group
         end
-        @output_timings t $name $desc $group
     end
 end
 
