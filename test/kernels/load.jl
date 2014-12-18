@@ -132,7 +132,8 @@ $code
         error("could not find kernel $kernel in the compiled binary (wrong function name?)")
     end
 
-    fname = symbol("reference_$kernel")
+    # Generate a function for accessing the function pointer
+    fname = symbol("$kernel")
     @eval begin
         function $fname()
             $func

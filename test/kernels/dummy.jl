@@ -1,5 +1,5 @@
-@compile dummy """
-__global__ void dummy()
+@compile reference_dummy """
+__global__ void reference_dummy()
 {
 }
 """

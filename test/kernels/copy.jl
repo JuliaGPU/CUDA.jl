@@ -1,5 +1,5 @@
-@compile copy """
-__global__ void copy(const float *input, float *output)
+@compile reference_copy """
+__global__ void reference_copy(const float *input, float *output)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     output[i] = input[i];
