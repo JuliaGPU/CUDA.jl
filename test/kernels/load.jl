@@ -97,9 +97,11 @@ end
 # Macro for C++ compilation
 macro compile(kernel, code)
     kernel_name = string(kernel)
-    :( _compile($kernel_name, $code) )
+    containing_file = Base.source_path()
+    :( _compile($kernel_name, $code, $containing_file) )
 end
-function _compile(kernel, code)
+function _compile(kernel, code, containing_file)
+    # Write the source into a compilable file
     (source, io) = mkstemps(".cu")
     write(io, """
 extern "C"
@@ -109,23 +111,41 @@ $code
 """)
     close(io)
 
+    # Manage the build directory
     builddir = "$scriptdir/.build"
     if !isdir(builddir)
         mkdir(builddir)
     end
 
+    # Check if we need to compile
     output = "$builddir/$kernel.ptx"
-    try
-        run(`$(nvcc_path) $flags -ptx -o $output $source`)
-    catch
-        error("compilation of kernel $kernel failed (typo in C++ source?)")
+    if isfile(output)
+        need_compile = (stat(containing_file).mtime > stat(output).mtime)
+    else
+        need_compile = true
     end
 
+    # Compile the source, if necessary
+    if need_compile
+        try
+            run(`$(nvcc_path) $flags -ptx -o $output $source`)
+        catch
+            error("compilation of kernel $kernel failed (typo in C++ source?)")
+        end
+
+        if !isfile(output)
+            error("compilation of kernel $kernel failed (no output generated)")
+        end
+    end
+
+    # Pass the module to the CUDA driver
     mod = try
         CuModule(output)
     catch
         error("loading of kernel $kernel failed (invalid CUDA code?)")
     end
+
+    # Load the function pointer
     func = try
         CuFunction(mod, kernel)
     catch
