@@ -1,2 +1,0 @@
-using Lint
-lintpkg("CUDA")
