@@ -27,6 +27,13 @@ Pkg.clone($CHECKOUT_DIRECTORY)
 
 4. Enjoy.
 
+Note that the compiler requires `libdevice` to link kernel functions. This
+library is only part of recent CUDA toolkits (version 5.5 or greater). If you
+use older an older CUDA release (for example because you use the GPU Ocelot
+emulator which only supports up to CUDA 5.0) you _will_ need to get a hold of
+these files. Afterwards, you can point Julia to these files using the
+NVVMIR_LIBRARY_DIR environment variable.
+
 
 ### Example
 
