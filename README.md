@@ -66,10 +66,8 @@ using CUDA
 # select a CUDA device
 dev = CuDevice(0)
 
-# create a context (like a process in CPU) on the selected device
+# create contexts on the selected device
 ctx = CuContext(dev)
-
-# initialize native code generation support
 cgctx = CuCodegenContext(ctx, dev)
 
 # generate random arrays and load them to GPU
@@ -90,7 +88,8 @@ println("a = \n$a")
 println("b = \n$b")
 println("c = \n$c")
 
-# finalize: unload module and destroy context
+# finalize: destroy contexts
+destroy(cgctx)
 destroy(ctx)
 ```
 
