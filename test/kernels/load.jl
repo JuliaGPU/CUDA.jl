@@ -56,9 +56,10 @@ for hostcc in hostcc_names
     end
 
     verstring = chomp(readlines(`$hostcc_path --version`)[1])
-    m = match(Regex("^$hostcc \\(.*\\) ([0-9.]+)\$"), verstring)
+    m = match(Regex("^$hostcc \\(.*\\) ([0-9.]+)"), verstring)
     if m == nothing
         warn("Could not parse GCC version info (\"$verstring\")")
+        continue
     end
     hostcc_ver = VersionNumber(m.captures[1])
 
