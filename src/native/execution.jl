@@ -102,7 +102,7 @@ macro cuda(config::Expr, callexpr::Expr)
 end
 
 # TODO: is this necessary? Just check the method cache?
-func_cache = Dict{(Symbol, Tuple), CuFunction}()
+func_cache = Dict{Tuple{Symbol, Tuple}, CuFunction}()
 
 immutable ArgRef
     typ::Type
@@ -219,7 +219,7 @@ end
 
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
-stagedfunction generate_launch(config::(CuDim, CuDim, Int),
+@generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
                                func_const::TypeConst, argspec::Any...)
     exprs = Expr(:block)
 
@@ -309,7 +309,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
 end
 
 # Perform the run-time API calls launching the kernel
-function exec(config::(CuDim, CuDim, Int), ptx_func::CuFunction, args::(Any...))
+function exec(config::Tuple{CuDim, CuDim, Int}, ptx_func::CuFunction, args::Tuple{Vararg{Any}})
     grid  = config[1]
     block = config[2]
     shared_bytes = config[3]

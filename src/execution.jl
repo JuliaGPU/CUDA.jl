@@ -4,10 +4,10 @@ export
     launch, CuDim
 
 
-typealias CuDim Union(Int, (Int, Int), (Int, Int, Int))
+typealias CuDim Union(Int, Tuple{Int, Int}, Tuple{Int, Int, Int})
 dim3(g::Int) = (g, 1, 1)
-dim3(g::(Int, Int)) = (g[1], g[2], 1)
-dim3(g::(Int, Int, Int)) = g
+dim3(g::Tuple{Int, Int}) = (g[1], g[2], 1)
+dim3(g::Tuple{Int, Int, Int}) = g
 
 function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
                 shmem_bytes::Int=4, stream::CuStream=default_stream())

@@ -12,11 +12,11 @@ export
 function load_library()
     try
         # TODO: thorough check of vendor?
-        return (dlopen("libcuda"), "NVIDIA")
+        return (Libdl.dlopen("libcuda"), "NVIDIA")
     end
 
     try
-        return (dlopen("libocelot"), "Ocelot")
+        return (Libdl.dlopen("libocelot"), "Ocelot")
     end
 
     error("Could not load CUDA (or any compatible) library")
@@ -27,7 +27,7 @@ const (libcuda, CUDA_VENDOR) = load_library()
 macro cucall(f, argtypes, args...)
     quote
         api_function = resolve($f)
-        status = ccall(dlsym(libcuda, api_function), Cint, $argtypes, $(args...))
+        status = ccall(Libdl.dlsym(libcuda, api_function), Cint, $argtypes, $(args...))
         if status != 0
             err = CuError(Int(status))
             throw(err)
