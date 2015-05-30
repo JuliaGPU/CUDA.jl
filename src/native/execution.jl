@@ -288,7 +288,7 @@ end
         # module, with a predestined function name for the kernel? But
         # then what about type specialization?
         ptx_func_name = ccall(:jl_dump_function_name, Any, (Any, Any),
-                              kernel_func, kernel_specsig)
+                              kernel_func, Tuple{kernel_specsig...})
         @debug("PTX function name: $(ptx_func_name)")
 
         # Get CUDA function object
