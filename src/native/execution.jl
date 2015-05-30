@@ -250,9 +250,8 @@ end
         # check if the function actually exists, by mimicking code_llvm()
         # (precompile silently ignores invalid func/specsig combinations)
         # TODO: is there a more clean way to check this?
-        kernel_llvm = ccall(:jl_dump_function, Any,
-              (Any,Any,Bool,Bool),
-              kernel_func, kernel_specsig, false, false)::ByteString
+        # Get the llvm ir of the kernel see bca5da5a native, wrapper, strip_metadata
+        kernel_llvm = Base._dump_function(kernel_func, kernel_specsig, false, false, false)
         if kernel_llvm == ""
             error("no method found for $kernel_func$kernel_specsig")
         end
