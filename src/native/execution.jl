@@ -102,7 +102,7 @@ macro cuda(config::Expr, callexpr::Expr)
 end
 
 # TODO: is this necessary? Just check the method cache?
-func_cache = Dict{(Symbol, Tuple), CuFunction}()
+func_cache = Dict{Tuple{Symbol, Tuple}, CuFunction}()
 
 immutable ArgRef
     typ::Type
@@ -219,7 +219,7 @@ end
 
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
-stagedfunction generate_launch(config::(CuDim, CuDim, Int),
+@generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
                                func_const::TypeConst, argspec::Any...)
     exprs = Expr(:block)
 
@@ -250,9 +250,8 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
         # check if the function actually exists, by mimicking code_llvm()
         # (precompile silently ignores invalid func/specsig combinations)
         # TODO: is there a more clean way to check this?
-        kernel_llvm = ccall(:jl_dump_function, Any,
-              (Any,Any,Bool,Bool),
-              kernel_func, kernel_specsig, false, false)::ByteString
+        # Get the llvm ir of the kernel see bca5da5a native, wrapper, strip_metadata
+        kernel_llvm = Base._dump_function(kernel_func, kernel_specsig, false, false, false)
         if kernel_llvm == ""
             error("no method found for $kernel_func$kernel_specsig")
         end
@@ -289,7 +288,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
         # module, with a predestined function name for the kernel? But
         # then what about type specialization?
         ptx_func_name = ccall(:jl_dump_function_name, Any, (Any, Any),
-                              kernel_func, kernel_specsig)
+                              kernel_func, Tuple{kernel_specsig...})
         @debug("PTX function name: $(ptx_func_name)")
 
         # Get CUDA function object
@@ -309,7 +308,7 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
 end
 
 # Perform the run-time API calls launching the kernel
-function exec(config::(CuDim, CuDim, Int), ptx_func::CuFunction, args::(Any...))
+function exec(config::Tuple{CuDim, CuDim, Int}, ptx_func::CuFunction, args::Tuple{Vararg{Any}})
     grid  = config[1]
     block = config[2]
     shared_bytes = config[3]
