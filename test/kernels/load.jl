@@ -5,7 +5,7 @@
 # Check availability NVCC
 nvcc = get(ENV, "NVCC", "nvcc")
 nvcc_path = try
-    chomp(readall(`which $nvcc` .> DevNull))
+    chomp(readall(pipe(`which $nvcc`, stderr=DevNull)))
 catch
     error("Could not find NVCC -- consider specifying with NVCC environment variable")
 end
@@ -50,7 +50,7 @@ end
 hostcc_possibilities = []
 for hostcc in hostcc_names
     hostcc_path = try
-        chomp(readall(`which $hostcc` .> DevNull))
+        chomp(readall(pipe(`which $hostcc`, stderr=DevNull)))
     catch
         continue
     end

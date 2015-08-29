@@ -65,4 +65,4 @@ const error_descriptions = Dict{Int,ASCIIString}(
 description(err::CuError) = error_descriptions[err.code]
 
 Base.showerror(io::IO, err::CuError) = print(io, description(err),
-                                             " (#$(err.code))")
+                                             " (CUDA error #$(err.code))")

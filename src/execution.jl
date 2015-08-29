@@ -18,7 +18,7 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
     @assert all(dim->(dim > 0), block)
 
     @assert all([isbits(arg) || isa(arg, DevicePtr) for arg in args])
-    kernel_args = [[arg] for arg in args]
+    kernel_args = Any[[arg] for arg in args]
 
     @cucall(:cuLaunchKernel, (
         Ptr{Void},  			# function

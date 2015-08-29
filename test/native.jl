@@ -102,7 +102,7 @@ len = prod(dims)
         input_dev = CuArray(input)
         output_dev = CuArray(Float32, dims)
 
-        launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
+        CUDA.launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
         output = to_host(output_dev)
 
         free(input_dev)
