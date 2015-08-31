@@ -28,7 +28,7 @@ include("kernels/load.jl")
 # ptx loading
 #
 
-launch(reference_dummy(), 1, 1, ())
+CUDA.launch(reference_dummy(), 1, 1, ())
 
 
 #
@@ -39,7 +39,7 @@ launch(reference_dummy(), 1, 1, ())
 
 # kernel dims
 @target ptx kernel_empty() = return nothing
-@test_throws ErrorException @eval begin
+@test_throws AssertionError @eval begin
     @cuda (0, 0) kernel_empty()
 end
 @eval begin
