@@ -9,6 +9,7 @@ dim3(g::Int) = (g, 1, 1)
 dim3(g::(Int, Int)) = (g[1], g[2], 1)
 dim3(g::(Int, Int, Int)) = g
 
+# TODO: why 4?
 function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
                 shmem_bytes::Int=4, stream::CuStream=default_stream())
 	griddim = dim3(grid)

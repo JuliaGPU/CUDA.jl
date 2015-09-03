@@ -97,6 +97,7 @@ macro cuda(config::Expr, callexpr::Expr)
     # HACK: wrap the function symbol in a type, so we can specialize on it in
     #       the staged function
     kernel_func_const = TypeConst{kernel_func_sym}()
+    # TODO: insert some typeasserts? @cuda ([1,1], [1,1]) now crashes
     esc(Expr(:call, CUDA.generate_launch, config, kernel_func_const,
              callexpr.args[2:end]...))
 end
