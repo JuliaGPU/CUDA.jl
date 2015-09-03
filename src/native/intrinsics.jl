@@ -2,10 +2,11 @@
 
 export
     # Indexing and dimensions
-    threadId_x, threadId_y, threadId_z,
-    numThreads_x, numThreads_y, numThreads_z,
-    blockId_x, blockId_y, blockId_z,
-    numBlocks_x, numBlocks_y, numBlocks_z,
+    # TODO: dynamically export
+    threadIdx_x, threadIdx_y, threadIdx_z,
+    blockDim_x, blockDim_y, blockDim_z,
+    blockIdx_x, blockIdx_y, blockIdx_z,
+    gridDim_x, gridDim_y, gridDim_z,
     warpsize,
 
     # Memory management
@@ -22,7 +23,7 @@ export
 
 for dim in (:x, :y, :z)
     # Thread index
-    fname = symbol("threadId_$dim")
+    fname = symbol("threadIdx_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.tid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -33,7 +34,7 @@ for dim in (:x, :y, :z)
     end
 
     # Block dimension (#threads per block)
-    fname = symbol("numThreads_$dim")
+    fname = symbol("blockDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.ntid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -44,7 +45,7 @@ for dim in (:x, :y, :z)
     end
 
     # Block index
-    fname = symbol("blockId_$dim")
+    fname = symbol("blockIdx_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.ctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -55,7 +56,7 @@ for dim in (:x, :y, :z)
     end
 
     # Grid dimension (#blocks)
-    fname = symbol("numBlocks_$dim")
+    fname = symbol("gridDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.nctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -68,10 +69,10 @@ end
 
 # Tuple accessors
 # TODO: these get boxed no matter what -- avoid that!
-#threadId() = (threadId_x(), threadId_y(), threadId_z())
-#numThreads() = (numThreads_x(), numThreads_y(), numThreads_z())
-#blockId() = (blockId_x(), blockId_y(), blockId_z())
-#numBlocks() = (numBlocks_x(), numBlocks_y(), numBlocks_z())
+#threadId() = (threadIdx_x(), threadIdx_y(), threadIdx_z())
+#blockDim() = (blockDim_x(), blockDim_y(), blockDim_z())
+#blockId() = (blockIdx_x(), blockIdx_y(), blockIdx_z())
+#gridDim() = (gridDim_x(), gridDim_y(), gridDim_z())
 
 # Warpsize
 warpsize() = Base.llvmcall(
