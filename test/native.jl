@@ -92,7 +92,7 @@ synchronize(ctx)
 # Argument passing
 #
 
-dims = (512, 512)
+dims = (16, 16)
 len = prod(dims)
 
 # manual allocation
