@@ -14,7 +14,10 @@ export
     setCuSharedMem, getCuSharedMem,
 
     # Math
-    sin, cos, floor
+    sin, cos,
+    floor, abs,
+    sqrt,
+    exp, log
 
 
 #
@@ -145,5 +148,55 @@ floor(x::Float32) = Base.llvmcall(
 floor(x::Float64) = Base.llvmcall(
     ("""declare double @__nv_floor(double)""",
      """%2 = call double @__nv_floor(double %0)
+        ret double %2"""),
+    Float64, (Float64,), x)
+abs(x::Int32) = Base.llvmcall(
+    ("""declare i32 @__nv_abs(i32)""",
+     """%2 = call i32 @__nv_abs(i32 %0)
+        ret i32 %2"""),
+    Int32, (Int32,), x)
+abs(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_fabsf(float)""",
+     """%2 = call float @__nv_fabsf(float %0)
+        ret float %2"""),
+    Float32, (Float32,), x)
+abs(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_fabs(double)""",
+     """%2 = call double @__nv_fabs(double %0)
+        ret double %2"""),
+    Float64, (Float64,), x)
+
+
+# Square root
+sqrt(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_sqrtf(float)""",
+     """%2 = call float @__nv_sqrtf(float %0)
+        ret float %2"""),
+    Float32, (Float32,), x)
+sqrt(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_sqrt(double)""",
+     """%2 = call double @__nv_sqrt(double %0)
+        ret double %2"""),
+    Float64, (Float64,), x)
+
+# Log and exp
+exp(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_expf(float)""",
+     """%2 = call float @__nv_expf(float %0)
+        ret float %2"""),
+    Float32, (Float32,), x)
+exp(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_exp(double)""",
+     """%2 = call double @__nv_exp(double %0)
+        ret double %2"""),
+    Float64, (Float64,), x)
+log(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_logf(float)""",
+     """%2 = call float @__nv_logf(float %0)
+        ret float %2"""),
+    Float32, (Float32,), x)
+log(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_log(double)""",
+     """%2 = call double @__nv_log(double %0)
         ret double %2"""),
     Float64, (Float64,), x)
