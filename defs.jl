@@ -57,4 +57,13 @@ const CURAND_DEFINITION = 12
 const CURAND_POISSON = 13
 
 
+typealias curandStatus_t UInt32
 
+type RNG
+    ptr::Ptr{Void}
+    rng_type::Int
+end
+
+type DiscreteDistribution
+    ptr::Ptr{Void}
+end
