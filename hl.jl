@@ -4,11 +4,11 @@ atexit(() -> destroy_generator(_rng))
  
 # uniform
 """Generate n uniformly distributed numbers"""
-curand(::Type{Float32}, rng::RNG, n::Int) = generate_uniform(rng, UInt(n))
-curand(::Type{Float32}, n::Int) = curand(Float64, _rng, n)
+curand(rng::RNG, ::Type{Float32}, n::Int) = generate_uniform(rng, UInt(n))
+curand(::Type{Float32}, n::Int) = curand(_rng, Float64, n)
 
-curand(::Type{Float64}, rng::RNG, n::Int) = generate_uniform_double(rng, UInt(n))
-curand(::Type{Float64}, n::Int) = curand(Float64, _rng, n)
+curand(rng::RNG, ::Type{Float64}, n::Int) = generate_uniform_double(rng, UInt(n))
+curand(::Type{Float64}, n::Int) = curand(_rng, Float64, n)
 curand(n::Int) = curand(Float64, n)
 
 
@@ -17,15 +17,15 @@ curand(n::Int) = curand(Float64, n)
 Generate n normally distributed numbers with specified mean and
 standard deviation
 """
-curandn(::Type{Float32}, rng::RNG, n::Int, mean::Float32, stddev::Float32) =
+curandn(rng::RNG, ::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
     generate_normal(rng, UInt(n), mean, stddev)
 curandn(::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
-    curandn(Float32, _rng, n, mean, stddev)
+    curandn(_rng, Float32, n, mean, stddev)
     
-curandn(::Type{Float64}, rng::RNG, n::Int, mean::Float64, stddev::Float64) =
+curandn(rng::RNG, ::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
     generate_normal_double(rng, UInt(n), mean, stddev)
 curandn(::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
-    curandn(Float64, _rng, n, mean, stddev)
+    curandn(_rng, Float64, n, mean, stddev)
 curandn(n::Int, mean::Float64, stddev::Float64) =
     curandn(Float64, n, mean, stddev)
 
@@ -34,15 +34,15 @@ curandn(n::Int, mean::Float64, stddev::Float64) =
 Generate n log-normally distributed numbers with specified mean and
 standard deviation
 """
-curand_logn(::Type{Float32}, rng::RNG, n::Int, mean::Float32, stddev::Float32) =
+curand_logn(rng::RNG, ::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
     generate_log_normal(rng, UInt(n), mean, stddev)
 curand_logn(::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
-    curand_logn(Float32, _rng, n, mean, stddev)
+    curand_logn(_rng, Float32, n, mean, stddev)
     
-curand_logn(::Type{Float64}, rng::RNG, n::Int, mean::Float64, stddev::Float64) =
+curand_logn(rng::RNG, ::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
     generate_log_normal_double(rng, UInt(n), mean, stddev)
 curand_logn(::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
-    curand_logn(Float64, _rng, n, mean, stddev)
+    curand_logn(_rng, Float64, n, mean, stddev)
 curand_logn(n::Int, mean::Float64, stddev::Float64) =
     curand_logn(Float64, n, mean, stddev)
 
