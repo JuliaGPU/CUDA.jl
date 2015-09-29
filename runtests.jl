@@ -12,21 +12,21 @@ sd = .1
 sdf = Float32(.1)
 lambda = .5
 
-curand(Float32, rng, n)
+curand(rng, Float32, n)
 curand(Float32, n)
-curand(Float64, rng, n)
+curand(rng, Float64, n)
 curand(Float64, n)
 curand(n)
 
-curandn(Float32, rng, n, mf, sdf)
+curandn(rng, Float32, n, mf, sdf)
 curandn(Float32, n, mf, sdf)
-curandn(Float64, rng, n, m, sd)
+curandn(rng, Float64, n, m, sd)
 curandn(Float64, n, m, sd)
 curandn(n, m, sd)
 
-curand_logn(Float32, rng, n, mf, sdf)
+curand_logn(rng, Float32, n, mf, sdf)
 curand_logn(Float32, n, mf, sdf)
-curand_logn(Float64, rng, n, m, sd)
+curand_logn(rng, Float64, n, m, sd)
 curand_logn(Float64, n, m, sd)
 curand_logn(n, m, sd)
 
