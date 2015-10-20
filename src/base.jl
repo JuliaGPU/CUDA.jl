@@ -25,9 +25,13 @@ const (libcuda, CUDA_VENDOR) = load_library()
 
 # API call wrapper
 macro cucall(f, argtypes, args...)
+    # Escape the tuple of arguments, making sure it is evaluated in caller scope
+    # (there doesn't seem to be inline syntax like `$(esc(argtypes))` for this)
+    esc_args = [esc(arg) for arg in args]
+
     quote
         api_function = resolve($f)
-        status = ccall(Libdl.dlsym(libcuda, api_function), Cint, $argtypes, $(args...))
+        status = ccall(Libdl.dlsym(libcuda, api_function), Cint, $(esc(argtypes)), $(esc_args...))
         if status != 0
             err = CuError(Int(status))
             throw(err)

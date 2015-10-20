@@ -49,7 +49,7 @@ using CUDA
 
 @target ptx function kernel_vadd(a::CuDeviceArray{Float32}, b::CuDeviceArray{Float32},
                                  c::CuDeviceArray{Float32})
-    i = blockId_x() + (threadId_x()-1) * numBlocks_x()
+    i = blockIdx_x() + (threadIdx_x()-1) * gridDim_x()
     c[i] = a[i] + b[i]
 
     return nothing

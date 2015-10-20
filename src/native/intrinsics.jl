@@ -2,10 +2,11 @@
 
 export
     # Indexing and dimensions
-    threadId_x, threadId_y, threadId_z,
-    numThreads_x, numThreads_y, numThreads_z,
-    blockId_x, blockId_y, blockId_z,
-    numBlocks_x, numBlocks_y, numBlocks_z,
+    # TODO: dynamically export
+    threadIdx_x, threadIdx_y, threadIdx_z,
+    blockDim_x, blockDim_y, blockDim_z,
+    blockIdx_x, blockIdx_y, blockIdx_z,
+    gridDim_x, gridDim_y, gridDim_z,
     warpsize,
 
     # Memory management
@@ -13,7 +14,10 @@ export
     setCuSharedMem, getCuSharedMem,
 
     # Math
-    sin, cos, floor
+    sin, cos,
+    floor, abs,
+    sqrt,
+    exp, log
 
 
 #
@@ -22,7 +26,7 @@ export
 
 for dim in (:x, :y, :z)
     # Thread index
-    fname = symbol("threadId_$dim")
+    fname = symbol("threadIdx_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.tid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -33,7 +37,7 @@ for dim in (:x, :y, :z)
     end
 
     # Block dimension (#threads per block)
-    fname = symbol("numThreads_$dim")
+    fname = symbol("blockDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.ntid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -44,7 +48,7 @@ for dim in (:x, :y, :z)
     end
 
     # Block index
-    fname = symbol("blockId_$dim")
+    fname = symbol("blockIdx_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.ctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -55,7 +59,7 @@ for dim in (:x, :y, :z)
     end
 
     # Grid dimension (#blocks)
-    fname = symbol("numBlocks_$dim")
+    fname = symbol("gridDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.nctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -68,10 +72,10 @@ end
 
 # Tuple accessors
 # TODO: these get boxed no matter what -- avoid that!
-#threadId() = (threadId_x(), threadId_y(), threadId_z())
-#numThreads() = (numThreads_x(), numThreads_y(), numThreads_z())
-#blockId() = (blockId_x(), blockId_y(), blockId_z())
-#numBlocks() = (numBlocks_x(), numBlocks_y(), numBlocks_z())
+#threadId() = (threadIdx_x(), threadIdx_y(), threadIdx_z())
+#blockDim() = (blockDim_x(), blockDim_y(), blockDim_z())
+#blockId() = (blockIdx_x(), blockIdx_y(), blockIdx_z())
+#gridDim() = (gridDim_x(), gridDim_y(), gridDim_z())
 
 # Warpsize
 warpsize() = Base.llvmcall(
@@ -144,5 +148,55 @@ floor(x::Float32) = Base.llvmcall(
 floor(x::Float64) = Base.llvmcall(
     ("""declare double @__nv_floor(double)""",
      """%2 = call double @__nv_floor(double %0)
+        ret double %2"""),
+    Float64, Tuple{Float64}, x)
+abs(x::Int32) = Base.llvmcall(
+    ("""declare i32 @__nv_abs(i32)""",
+     """%2 = call i32 @__nv_abs(i32 %0)
+        ret i32 %2"""),
+    Int32, Tuple{Int32}, x)
+abs(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_fabsf(float)""",
+     """%2 = call float @__nv_fabsf(float %0)
+        ret float %2"""),
+    Float32, Tuple{Float32}, x)
+abs(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_fabs(double)""",
+     """%2 = call double @__nv_fabs(double %0)
+        ret double %2"""),
+    Float64, Tuple{Float64}, x)
+
+
+# Square root
+sqrt(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_sqrtf(float)""",
+     """%2 = call float @__nv_sqrtf(float %0)
+        ret float %2"""),
+    Float32, Tuple{Float32}, x)
+sqrt(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_sqrt(double)""",
+     """%2 = call double @__nv_sqrt(double %0)
+        ret double %2"""),
+    Float64, Tuple{Float64}, x)
+
+# Log and exp
+exp(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_expf(float)""",
+     """%2 = call float @__nv_expf(float %0)
+        ret float %2"""),
+    Float32, Tuple{Float32}, x)
+exp(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_exp(double)""",
+     """%2 = call double @__nv_exp(double %0)
+        ret double %2"""),
+    Float64, Tuple{Float64}, x)
+log(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_logf(float)""",
+     """%2 = call float @__nv_logf(float %0)
+        ret float %2"""),
+    Float32, Tuple{Float32}, x)
+log(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_log(double)""",
+     """%2 = call double @__nv_log(double %0)
         ret double %2"""),
     Float64, Tuple{Float64}, x)
