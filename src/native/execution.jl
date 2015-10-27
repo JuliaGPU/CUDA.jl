@@ -128,7 +128,7 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            @warn("you passed an unmanaged argument -- assuming input/output (costly!)")
+            @warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -278,7 +278,8 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
                     (path, io) = mktemp()
                     print(io, module_ptx)
                     close(io)
-                    run(`ptxas --gpu-name=$(get(cgctx).arch) $path`)
+                    # FIXME: get a hold of the actual architecture (see cgctx)
+                    run(`ptxas --gpu-name=sm_35 $path`)
                     rm(path)
                 end
             end
