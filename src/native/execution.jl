@@ -251,8 +251,12 @@ end
         # check if the function actually exists, by mimicking code_llvm()
         # (precompile silently ignores invalid func/specsig combinations)
         # TODO: is there a more clean way to check this?
-        # Get the llvm ir of the kernel see bca5da5a native, wrapper, strip_metadata
-        kernel_llvm = Base._dump_function(kernel_func, kernel_specsig, false, false, false)
+        # TODO: use dump_module=true instead of our functionality in jl_to_ptx?
+        kernel_llvm = Base._dump_function(kernel_func, kernel_specsig,
+                                          false,    #native
+                                          false,    # wrapper
+                                          false,    # strip metadata
+                                          false)    # dump module
         if kernel_llvm == ""
             error("no method found for $kernel_func$kernel_specsig")
         end
