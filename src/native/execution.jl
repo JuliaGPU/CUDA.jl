@@ -200,6 +200,10 @@ function convert_arguments(args::Array{ArgRef})
     for i in 1:length(args)
         if args[i].typ <: DevicePtr || isbits(args[i].typ)
             # pass these as-is
+
+            # TODO: passing a DevicePtr requires the kernel function to accept a
+            #       Ptr{Void}. This is probably not wanted. We should probably
+            #       parametrize DevicePtr, allowing DevicePtr{Float32}
             converted_args[i] = args[i]
         elseif args[i].typ <: CuArray
             # TODO: pass a CuDeviceArray-wrapped pointer,
@@ -207,6 +211,7 @@ function convert_arguments(args::Array{ArgRef})
             # NOTE: when wrapping ptr in a CuDeviceArray,
             #       the type would now be Void because of Ptr{Void}
             #       (no constructor accepting a pointer?)
+            # TODO: warn if the eltype is Any?
             converted_args[i] = ArgRef(CuDeviceArray{eltype(args[i].typ)},
                                       :( $(args[i].ref).ptr ))
         else
@@ -225,6 +230,12 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
     exprs = Expr(:block)
 
     # Process the arguments
+    # FIXME: for some reason, this staged function runs multiple times, with
+    #        different sets of increasingly typed arguments. For some reason,
+    #        those partially untyped executions halt somewhere in
+    #        manage_arguments, and only the final, fully typed invocation
+    #        actually gets to compile...
+    # NOTE: the above is why there are so many "unmanaged type" errors
     args = read_arguments(argspec)
     (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
     kernel_args = convert_arguments(managed_args)
