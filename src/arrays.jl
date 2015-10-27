@@ -40,9 +40,14 @@ end
 
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape
+
 ndims{T,N}(::CuArray{T,N}) = N
 eltype{T,N}(::CuArray{T,N}) = T
 eltype{T,N}(::Type{CuArray{T,N}}) = T
+
+# TODO: can we avoid these duplicate definitions?
+eltype{T}(::CuArray{T}) = T
+eltype{T}(::Type{CuArray{T}}) = T
 
 function size{T,N}(g::CuArray{T,N}, d::Integer)
     d >= 1 ? (d <= N ? g.shape[d] : 1) : error("Invalid index of dimension.")

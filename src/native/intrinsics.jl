@@ -11,14 +11,7 @@ export
 
     # Memory management
     sync_threads,
-    setCuSharedMem, getCuSharedMem,
-
-    # Math
-    sin, cos,
-    floor, abs,
-    sqrt,
-    exp, log
-
+    cuSharedMem, setCuSharedMem, getCuSharedMem
 
 #
 # Indexing and dimensions
@@ -97,21 +90,31 @@ sync_threads() = Base.llvmcall(
     Void, Tuple{})
 
 # Shared memory
+# TODO: generalize for types
+# TODO: static shared memory
+# TODO: wrap this in a class, using get and setindex
+# FIXME: it is a hack to declare the p0,p3 intrinsic in cuSharedMem,
+#        but declaring it in the setters and getters results in two declarations
+cuSharedMem() = Base.llvmcall(
+    ("""@shmem = external addrspace(3) global [0 x float]
+        declare float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32(float addrspace(3)*)
+        declare float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32(float*)""",
+     """%1 = getelementptr inbounds [0 x float] addrspace(3)* @shmem, i64 0, i64 0
+        %2 = tail call float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32( float addrspace(3)* %1 )
+        ret float* %2"""),
+    Ptr{Float32}, ())
 setCuSharedMem(shmem, index, value) = Base.llvmcall(
-    ("""@shmem = external addrspace(3) global [0 x float]""",
      """%4 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
         %5 = getelementptr inbounds float addrspace(3)* %4, i64 %1
         store float %2, float addrspace(3)* %5
-        ret void"""),
+        ret void""",
     Void, Tuple{Ptr{Float32}, Int64, Float32}, shmem, index-1, value)
 getCuSharedMem(shmem, index) = Base.llvmcall(
-    ("""@shmem = external addrspace(3) global [0 x float]""",
      """%3 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
-       %4 = getelementptr inbounds float addrspace(3)* %3, i64 %1
-       %5 = load float addrspace(3)* %4
-       ret float %5"""),
+        %4 = getelementptr inbounds float addrspace(3)* %3, i64 %1
+        %5 = load float addrspace(3)* %4
+        ret float %5""",
     Float32, Tuple{Ptr{Float32}, Int64}, shmem, index-1)
-
 
 #
 # Math

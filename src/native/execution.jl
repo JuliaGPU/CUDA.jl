@@ -128,7 +128,7 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            @warn("you passed an unmanaged argument -- assuming input/output (costly!)")
+            @warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -200,6 +200,10 @@ function convert_arguments(args::Array{ArgRef})
     for i in 1:length(args)
         if args[i].typ <: DevicePtr || isbits(args[i].typ)
             # pass these as-is
+
+            # TODO: passing a DevicePtr requires the kernel function to accept a
+            #       Ptr{Void}. This is probably not wanted. We should probably
+            #       parametrize DevicePtr, allowing DevicePtr{Float32}
             converted_args[i] = args[i]
         elseif args[i].typ <: CuArray
             # TODO: pass a CuDeviceArray-wrapped pointer,
@@ -207,6 +211,7 @@ function convert_arguments(args::Array{ArgRef})
             # NOTE: when wrapping ptr in a CuDeviceArray,
             #       the type would now be Void because of Ptr{Void}
             #       (no constructor accepting a pointer?)
+            # TODO: warn if the eltype is Any?
             converted_args[i] = ArgRef(CuDeviceArray{eltype(args[i].typ)},
                                       :( $(args[i].ref).ptr ))
         else
@@ -225,6 +230,12 @@ end
     exprs = Expr(:block)
 
     # Process the arguments
+    # FIXME: for some reason, this staged function runs multiple times, with
+    #        different sets of increasingly typed arguments. For some reason,
+    #        those partially untyped executions halt somewhere in
+    #        manage_arguments, and only the final, fully typed invocation
+    #        actually gets to compile...
+    # NOTE: the above is why there are so many "unmanaged type" errors
     args = read_arguments(argspec)
     (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
     kernel_args = convert_arguments(managed_args)
@@ -237,16 +248,24 @@ end
     else
         # trigger function compilation
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
+        @debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
         catch err
-            print("\n\n\n*** Compilation failed ***\n\n")
+            @error("Kernel compilation phase 1 failed ($(sprint(showerror, err)))")
+
             # this is most likely caused by some boxing issue, so dump the ASTs
             # to help identifying the offending variable
-            print("-- lowered AST --\n\n", code_lowered(kernel_func, kernel_specsig), "\n\n")
-            #print("-- typed AST --\n\n", code_typed(kernel_func, kernel_specsig), "\n\n")
+            @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+            @debug("Typed AST:\n$(code_typed(kernel_func, kernel_specsig))")
+
+            quit()  # should the exception be catchable?
             throw(err)
         end
+
+        # Dump the ASTs anyway
+        @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+        @debug("Typed AST:\n$(code_typed(kernel_func, kernel_specsig))")
 
         # check if the function actually exists, by mimicking code_llvm()
         # (precompile silently ignores invalid func/specsig combinations)
@@ -281,7 +300,8 @@ end
                     (path, io) = mktemp()
                     print(io, module_ptx)
                     close(io)
-                    run(`ptxas --gpu-name=$(get(cgctx).arch) $path`)
+                    # FIXME: get a hold of the actual architecture (see cgctx)
+                    run(`ptxas --gpu-name=sm_35 $path`)
                     rm(path)
                 end
             end
