@@ -248,16 +248,24 @@ stagedfunction generate_launch(config::(CuDim, CuDim, Int),
     else
         # trigger function compilation
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
+        @debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
         catch err
-            print("\n\n\n*** Compilation failed ***\n\n")
+            @error("Kernel compilation phase 1 failed ($(sprint(showerror, err)))")
+
             # this is most likely caused by some boxing issue, so dump the ASTs
             # to help identifying the offending variable
-            print("-- lowered AST --\n\n", code_lowered(kernel_func, kernel_specsig), "\n\n")
-            #print("-- typed AST --\n\n", code_typed(kernel_func, kernel_specsig), "\n\n")
+            @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+            @debug("Typed AST:\n$(code_typed(kernel_func, kernel_specsig))")
+
+            quit()  # should the exception be catchable?
             throw(err)
         end
+
+        # Dump the ASTs anyway
+        @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+        @debug("Typed AST:\n$(code_typed(kernel_func, kernel_specsig))")
 
         # check if the function actually exists, by mimicking code_llvm()
         # (precompile silently ignores invalid func/specsig combinations)
