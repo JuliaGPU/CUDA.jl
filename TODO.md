@@ -1,10 +1,20 @@
+# Package infrastructure
+
 * Document environment variables (`CUDA_FORCE_API_VERSION`,
-  `CUDA_FORCE_GPU_TRIPLE`, `CUDA_FORCE_GPU_ARCH`)
+  `CUDA_FORCE_GPU_TRIPLE`, `CUDA_FORCE_GPU_ARCH`).
 
 * Use a `DevicePtr` containing a `Ptr` (cfr. `CppPtr` in
   [Cxx.jl](https://github.com/Keno/Cxx.jl/blob/master/src/Cxx.jl))?
 
-* Check if we can ditch the boxing logic, and use Julia's new `Ref` type instead
+* Check if we can ditch the boxing logic, and use Julia's new `Ref` type
+  instead.
+
+* Intrinsics clobber: importing CUDA overrides the normal stuff (ie. `floor` or
+  `sin`)... Current work-around: don't export, require `CUDA.`. Make them
+  conditional, based on `@target ptx`?
+
+
+# Native execution
 
 * Pass the native codegen context into `@cuda`, allowing for multiple active
   contexts.
@@ -19,3 +29,9 @@
   calling functions defined later on). This causes the PTX back-end to generate
   a `cannot box` error, while normally Julia would report `undefined function`
   at run-time.
+
+* Require kernel callees to have the `@target ptx` annotation.
+
+* Refuse use of undefined entities (functions, variables). Currently, Julia
+  silently boxes, and postpones any error to run-time, in case the object would
+  still be defined.
