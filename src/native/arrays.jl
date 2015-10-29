@@ -1,5 +1,7 @@
 # Native arrays
 
+import Base: getindex, setindex!
+
 export
     CuDeviceArray
 
@@ -10,11 +12,10 @@ export
 
 # This is an alloc-free implementation of an array type
 
-immutable CuDeviceArray{T} <: AbstractArray
-    ptr::DevicePtr{T}
-end
+# TODO: can we implement AbstractArray to inherit its useful functionality?
+typealias CuDeviceArray Ptr
 
 getindex{T}(a::CuDeviceArray{T}, i0::Real) =
-    unsafe_load(a.ptr, Base.to_index(i0))::T
+    unsafe_load(a, Base.to_index(i0))::T
 setindex!{T}(a::CuDeviceArray{T}, x::T, i0::Real) =
-    unsafe_store!(a.ptr, x, Base.to_index(i0))
+    unsafe_store!(a, x, Base.to_index(i0))
