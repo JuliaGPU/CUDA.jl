@@ -1,7 +1,7 @@
 module CUDA
 
 using Logging
-@Logging.configure(level=DEBUG)
+@Logging.configure(level=ERROR)
 
 include("errors.jl")
 
