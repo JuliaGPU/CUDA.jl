@@ -20,8 +20,8 @@ const architectures = [
 type CuCodegenContext
     ctx::CuContext
     dev::CuDevice
-    triple::String
-    arch::String
+    triple::ASCIIString
+    arch::ASCIIString
 
     CuCodegenContext(ctx::CuContext) = CuCodegenContext(ctx, device(ctx))
 
@@ -50,7 +50,8 @@ type CuCodegenContext
             end
         end
 
-        ccall(:jl_init_codegen_ptx, Void, (String, String), triple, arch)
+        # TODO: ASCIIString?
+        ccall(:jl_init_codegen_ptx, Void, (AbstractString, AbstractString), triple, arch)
 
         new(ctx, dev, triple, arch)
     end
@@ -107,7 +108,7 @@ func_cache = Dict{Tuple{Symbol, Tuple}, CuFunction}()
 
 immutable ArgRef
     typ::Type
-    ref::Union(Symbol, Expr)
+    ref::Union{Symbol, Expr}
 end
 
 # TODO: nested stagedfunction?
@@ -282,7 +283,7 @@ end
         @debug("LLVM function IR: $(kernel_llvm)")
 
         # trigger module compilation
-        module_ptx = ccall(:jl_to_ptx, Any, ())::String
+        module_ptx = ccall(:jl_to_ptx, Any, ())::AbstractString
         @debug("PTX module contents: $(module_ptx)")
 
         # create CUDA module

@@ -89,7 +89,7 @@ using CUDA
 scriptdir = dirname(Base.source_path())
 
 # Generate a temporary file with specific suffix
-function mkstemps(suffix::String)
+function mkstemps(suffix::AbstractString)
     b = joinpath(tempdir(), "tmpXXXXXX$suffix")
     p = ccall(:mkstemps, Int32, (Ptr{UInt8}, Cint), b, length(suffix)) # modifies b
     return (b, fdio(p, true))

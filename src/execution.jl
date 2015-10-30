@@ -4,7 +4,7 @@ export
     launch, CuDim
 
 
-typealias CuDim Union(Int, Tuple{Int, Int}, Tuple{Int, Int, Int})
+typealias CuDim Union{Int, Tuple{Int, Int}, Tuple{Int, Int, Int}}
 dim3(g::Int) = (g, 1, 1)
 dim3(g::Tuple{Int, Int}) = (g[1], g[2], 1)
 dim3(g::Tuple{Int, Int, Int}) = g
