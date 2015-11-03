@@ -3,11 +3,18 @@
 export
     launch, CuDim
 
+immutable dim3
+  x::Int
+  y::Int
+  z::Int
+end
 
+# Wrapper type for conveniently specifying the dimensions
+# (e.g. `(len, 2)` instead of `dim3(len, 2, 1)`)
 typealias CuDim Union{Int, Tuple{Int, Int}, Tuple{Int, Int, Int}}
-dim3(g::Int) = (g, 1, 1)
-dim3(g::Tuple{Int, Int}) = (g[1], g[2], 1)
-dim3(g::Tuple{Int, Int, Int}) = g
+dim3(g::Int) = dim3(g, 1, 1)
+dim3(g::Tuple{Int, Int}) = dim3(g[1], g[2], 1)
+dim3(g::Tuple{Int, Int, Int}) = dim3(g[1], g[2], g[3])
 
 # TODO: why 4?
 function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
@@ -29,6 +36,8 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
         Ptr{Void}, 				# stream 
         Ptr{Ptr{Void}}, 		# kernel parameters
         Ptr{Ptr{Void}}), 		# extra parameters
-        f.handle, griddim[1], griddim[2], griddim[3], blockdim[1], blockdim[2],
-        blockdim[3], shmem_bytes, stream.handle, kernel_args, C_NULL)
+        f.handle,
+        griddim.x, griddim.y, griddim.z,
+        blockdim.x, blockdim.y, blockdim.z,
+        shmem_bytes, stream.handle, kernel_args, C_NULL)
 end

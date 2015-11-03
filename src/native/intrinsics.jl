@@ -3,15 +3,15 @@
 export
     # Indexing and dimensions
     # TODO: dynamically export
-    threadIdx_x, threadIdx_y, threadIdx_z,
-    blockDim_x, blockDim_y, blockDim_z,
-    blockIdx_x, blockIdx_y, blockIdx_z,
-    gridDim_x, gridDim_y, gridDim_z,
+    threadIdx,
+    blockDim, blockIdx,
+    gridDim,
     warpsize,
 
     # Memory management
     sync_threads,
     cuSharedMem, setCuSharedMem, getCuSharedMem
+
 
 #
 # Indexing and dimensions
@@ -64,11 +64,10 @@ for dim in (:x, :y, :z)
 end
 
 # Tuple accessors
-# TODO: these get boxed no matter what -- avoid that!
-#threadId() = (threadIdx_x(), threadIdx_y(), threadIdx_z())
-#blockDim() = (blockDim_x(), blockDim_y(), blockDim_z())
-#blockId() = (blockIdx_x(), blockIdx_y(), blockIdx_z())
-#gridDim() = (gridDim_x(), gridDim_y(), gridDim_z())
+threadIdx() = dim3(threadIdx_x(), threadIdx_y(), threadIdx_z())
+blockDim() =  dim3(blockDim_x(),  blockDim_y(),  blockDim_z())
+blockIdx() =  dim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
+gridDim() =   dim3(gridDim_x(),   gridDim_y(),   gridDim_z())
 
 # Warpsize
 warpsize() = Base.llvmcall(
