@@ -165,5 +165,14 @@ let
     @test_approx_eq arr[dims...] val[1]
 end
 
+# same, but using a device function
+let
+    arr = round(rand(Float32, dims) * 100)
+    val = Float32[0]
+
+    @cuda (len, 1) kernel_lastvalue_devfun(CuIn(arr), CuOut(val))
+    @test_approx_eq arr[dims...] val[1]
+end
+
 
 destroy(cgctx)
