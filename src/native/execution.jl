@@ -249,24 +249,28 @@ end
     else
         # trigger function compilation
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
+        kernel_err = nothing
         @debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
         catch err
-            @error("Kernel compilation phase 1 failed ($(sprint(showerror, err)))")
-
-            # this is most likely caused by some boxing issue, so dump the ASTs
-            # to help identifying the offending variable
-            @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-            @debug("Typed AST:\n$(code_typed(kernel_func, kernel_specsig))")
-
-            quit()  # should the exception be catchable?
-            throw(err)
+            kernel_err = err
         end
 
-        # Dump the ASTs anyway
+        # dump the ASTs
+        # TODO: dump called functions too?
         @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-        @debug("Typed AST:\n$(code_typed(kernel_func, kernel_specsig))")
+        buf = IOBuffer()
+        code_warntype(buf, kernel_func, kernel_specsig)
+        @debug("Typed AST:\n$(takebuf_string(buf))")
+
+        if kernel_err != nothing
+            @error("Kernel compilation phase 1 failed ($(sprint(showerror, err)))")
+
+            # FIXME: should the exception be catchable?
+            #throw(err)
+            quit()
+        end
 
         # check if the function actually exists, by mimicking code_llvm()
         # (precompile silently ignores invalid func/specsig combinations)
