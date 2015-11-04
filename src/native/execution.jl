@@ -50,7 +50,8 @@ type CuCodegenContext
             end
         end
 
-        # TODO: ASCIIString?
+        # NOTE: forcibly box to AbstractString because jl_init_codegen_ptx
+        #       accepts jl_value_t arguments
         ccall(:jl_init_codegen_ptx, Void, (AbstractString, AbstractString), triple, arch)
 
         new(ctx, dev, triple, arch)

@@ -10,8 +10,6 @@
   `sin`)... Current work-around: don't export, require `CUDA.`. Make them
   conditional, based on `@target ptx`?
 
-* When to use `AbstractString` or `ASCIIString`?
-
 * Support for newer CUDA versions
 
 
