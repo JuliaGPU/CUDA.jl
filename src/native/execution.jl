@@ -200,12 +200,18 @@ function convert_arguments(args::Array{ArgRef})
     converted_args = Array(ArgRef, length(args))
 
     for i in 1:length(args)
-        if args[i].typ <: DevicePtr || isbits(args[i].typ)
+        if args[i].typ <: DevicePtr
+            # we currently don't generate code with device pointers,
+            # so get a hold of the inner, raw Ptr value
+            converted_args[i] = ArgRef(Ptr{eltype(args[i].typ)},
+                                      :( $(args[i].ref).inner ))
+        elseif isbits(args[i].typ)
             # pass these as-is
 
-            # TODO: passing a DevicePtr requires the kernel function to accept a
-            #       Ptr{Void}. This is probably not wanted. We should probably
-            #       parametrize DevicePtr, allowing DevicePtr{Float32}
+            if args[i].typ <: Ptr
+                @warn("passing a regular pointer to a device function")
+            end
+
             converted_args[i] = args[i]
         elseif args[i].typ <: CuArray
             # TODO: pass a CuDeviceArray-wrapped pointer,

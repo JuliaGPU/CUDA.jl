@@ -59,17 +59,17 @@ end
 
 # TODO: parametric type given knowledge about device type?
 immutable CuGlobal{T}
-    pointer::DevicePtr{Void}
+    ptr::DevicePtr{Void}
     nbytes::Cssize_t
 
     function CuGlobal(md::CuModule, name::ASCIIString)
-        dptr_ref = Ref{DevicePtr{Void}}()
+        ptr_ref = Ref{Ptr{Void}}()
         bytes_ref = Ref{Cssize_t}()
         @cucall(:cuModuleGetGlobal,
-                (Ptr{DevicePtr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
-                dptr_ref, bytes_ref, md.handle, name)
+                (Ptr{Ptr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
+                ptr_ref, bytes_ref, md.handle, name)
         @assert bytes_ref[] == sizeof(T)
-        new(dptr_ref[], bytes_ref[])
+        new(DevicePtr{Void}(ptr_ref[], true), bytes_ref[])
     end
 end
 
@@ -77,13 +77,13 @@ eltype{T}(::CuGlobal{T}) = T
 
 function get{T}(var::CuGlobal{T})
     val_ref = Ref{T}()
-    @cucall(:cuMemcpyDtoH, (Ptr{Void}, DevicePtr{Void}, Csize_t),
-                           val_ref, var.pointer, var.nbytes)
+    @cucall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
+                           val_ref, var.ptr.inner, var.nbytes)
     return val_ref[]
 end
 
 function set{T}(var::CuGlobal{T}, val::T)
     val_ref = Ref{T}(val)
-    @cucall(:cuMemcpyHtoD, (DevicePtr{Void}, Ptr{Void}, Csize_t),
-                           var.pointer, val_ref, var.nbytes)
+    @cucall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
+                           var.ptr.inner, val_ref, var.nbytes)
 end

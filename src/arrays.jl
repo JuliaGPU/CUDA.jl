@@ -3,7 +3,7 @@
 import Base: length, size, ndims, eltype, copy!
 
 export
-    DevicePtr, CuArray, free, to_host, ndims
+    CuArray, free, to_host, ndims
 
 
 type CuArray{T,N}
@@ -56,7 +56,7 @@ end
 function free(g::CuArray)
     if !isnull(g.ptr)
         free(g.ptr)
-        g.ptr = DevicePtr(C_NULL)
+        g.ptr = DevicePtr{eltype(g.ptr)}()
     end
 end
 
@@ -65,8 +65,8 @@ function copy!{T}(dst::Array{T}, src::CuArray{T})
         throw(ArgumentError("Inconsistent array length."))
     end
     nbytes = length(src) * sizeof(T)
-    @cucall(:cuMemcpyDtoH, (Ptr{Void}, DevicePtr{Void}, Csize_t),
-                           pointer(dst), src.ptr, nbytes)
+    @cucall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
+                           pointer(dst), src.ptr.inner, nbytes)
     return dst
 end
 
@@ -75,8 +75,8 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
         throw(ArgumentError("Inconsistent array length."))
     end
     nbytes = length(src) * sizeof(T)
-    @cucall(:cuMemcpyHtoD, (DevicePtr{Void}, Ptr{Void}, Csize_t),
-                           dst.ptr, pointer(src), nbytes)
+    @cucall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
+                           dst.ptr.inner, pointer(src), nbytes)
     return dst
 end
 

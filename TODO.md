@@ -1,13 +1,12 @@
 # Package infrastructure
 
-* Use a `DevicePtr` containing a `Ptr` (cfr. `CppPtr` in
-  [Cxx.jl](https://github.com/Keno/Cxx.jl/blob/master/src/Cxx.jl))?
-
 * Intrinsics clobber: importing CUDA overrides the normal stuff (ie. `floor` or
   `sin`)... Current work-around: don't export, require `CUDA.`. Make them
   conditional, based on `@target ptx`?
 
 * Support for newer CUDA versions
+
+* Use the existing `cfunction` functionality to generate a CUDA kernels?
 
 
 # Native execution
@@ -31,3 +30,8 @@
 * Refuse use of undefined entities (functions, variables). Currently, Julia
   silently boxes, and postpones any error to run-time, in case the object would
   still be defined.
+
+
+# Minor
+
+* Use `Logging.@error` instead of `error`?
