@@ -7,9 +7,9 @@ export
 
 
 function devcount()
-    count_box = ptrbox(Cint)
-    @cucall(:cuDeviceGetCount, (Ptr{Cint},), count_box)
-    ptrunbox(count_box)
+    count_ref = Ref{Cint}()
+    @cucall(:cuDeviceGetCount, (Ptr{Cint},), count_ref)
+    return count_ref[]
 end
 
 immutable CuDevice
@@ -18,9 +18,9 @@ immutable CuDevice
 
     function CuDevice(i::Integer)
         ordinal = convert(Cint, i)
-        handle_box = ptrbox(Cint)
-        @cucall(:cuDeviceGet, (Ptr{Cint}, Cint), handle_box, ordinal)
-        new(ordinal, ptrunbox(handle_box))
+        handle_ref = Ref{Cint}()
+        @cucall(:cuDeviceGet, (Ptr{Cint}, Cint), handle_ref, ordinal)
+        new(ordinal, handle_ref[])
     end
 end
 
@@ -33,24 +33,24 @@ function name(dev::CuDevice)
 end
 
 function totalmem(dev::CuDevice)
-    mem_box = ptrbox(Csize_t)
-    @cucall(:cuDeviceTotalMem, (Ptr{Csize_t}, Cint), mem_box, dev.handle)
-    return ptrunbox(mem_box)
+    mem_ref = Ref{Csize_t}()
+    @cucall(:cuDeviceTotalMem, (Ptr{Csize_t}, Cint), mem_ref, dev.handle)
+    return mem_ref[]
 end
 
 function attribute(dev::CuDevice, attrcode::Integer)
-    value_box = ptrbox(Csize_t)
+    value_ref = Ref{Csize_t}()
     @cucall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, Cint),
-                                   value_box, attrcode, dev.handle)
-    return ptrunbox(value_box)
+                                   value_ref, attrcode, dev.handle)
+    return value_ref[]
 end
 
 function capability(dev::CuDevice)
-    major_box = ptrbox(Cint)
-    minor_box = ptrbox(Cint)
+    major_ref = Ref{Cint}()
+    minor_ref = Ref{Cint}()
     @cucall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint),
-                                        major_box, minor_box, dev.handle)
-    return VersionNumber(ptrunbox(major_box), ptrunbox(minor_box))
+                                        major_ref, minor_ref, dev.handle)
+    return VersionNumber(major_ref[], minor_ref[])
 end
 
 function list_devices()

@@ -15,18 +15,18 @@ immutable CuContext
     handle::Ptr{Void}
 
     function CuContext(dev::CuDevice, flags::Integer)
-            pctx_box = ptrbox(Ptr{Void})
+            pctx_ref = Ref{Ptr{Void}}()
             @cucall(:cuCtxCreate, (Ptr{Ptr{Void}}, Cuint, Cint),
-                                  pctx_box, flags, dev.handle)
-            new(ptrunbox(pctx_box))
+                                  pctx_ref, flags, dev.handle)
+            new(pctx_ref[])
     end
 
     CuContext(dev::CuDevice) = CuContext(dev, 0)
 
     function CuContext()
-            pctx_box = ptrbox(Ptr{Void})
-            @cucall(:cuCtxGetCurrent, (Ptr{Ptr{Void}},), pctx_box)
-            new(ptrunbox(pctx_box))
+            pctx_ref = Ref{Ptr{Void}}()
+            @cucall(:cuCtxGetCurrent, (Ptr{Ptr{Void}},), pctx_ref)
+            new(pctx_ref[])
     end
 end
 
@@ -39,18 +39,18 @@ function push(ctx::CuContext)
 end
 
 function pop(ctx::CuContext)
-    pctx_box = ptrbox(Ptr{Void})
-    @cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), pctx_box)
-    return CuContext(ptrunbox(pctx_box))
+    pctx_ref = Ref{Ptr{Void}}()
+    @cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), pctx_ref)
+    return CuContext(pctx_ref[])
 end
 
 function device(ctx::CuContext)
     @assert CuContext() == ctx
     # TODO: cuCtxGetDevice returns the device ordinal, but as a CUDevice*?
     #       This can't be right...
-    device_box = ptrbox(Cint)
-    @cucall(:cuCtxGetDevice, (Ptr{Cint},), device_box)
-    return CuDevice(ptrunbox(device_box))
+    device_ref = Ref{Cint}()
+    @cucall(:cuCtxGetDevice, (Ptr{Cint},), device_ref)
+    return CuDevice(device_ref[])
 end
 
 synchronize(ctx::CuContext) = @cucall(:cuCtxSynchronize, (Ptr{Void},), ctx.handle)

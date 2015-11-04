@@ -71,13 +71,7 @@ function initialize_api()
 end
 
 function driver_version()
-    version_box = ptrbox(Cint)
-    @cucall(:cuDriverGetVersion, (Ptr{Cint},), version_box)
-    return ptrunbox(version_box)
+    version_ref = Ref{Cint}()
+    @cucall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
+    return version_ref[]
 end
-
-# Box a variable into an array for ccall() passing
-ptrbox(T::Type) = Array(T, 1)
-ptrbox(T::Type, val) = T[val]
-ptrunbox{T}(box::Array{T, 1}) = box[1]
-ptrunbox{T}(box::Array{T, 1}, desttype::Type) = convert(desttype, ptrunbox(box))

@@ -6,14 +6,13 @@
 * Use a `DevicePtr` containing a `Ptr` (cfr. `CppPtr` in
   [Cxx.jl](https://github.com/Keno/Cxx.jl/blob/master/src/Cxx.jl))?
 
-* Check if we can ditch the boxing logic, and use Julia's new `Ref` type
-  instead.
-
 * Intrinsics clobber: importing CUDA overrides the normal stuff (ie. `floor` or
   `sin`)... Current work-around: don't export, require `CUDA.`. Make them
   conditional, based on `@target ptx`?
 
 * When to use `AbstractString` or `ASCIIString`?
+
+* Support for newer CUDA versions
 
 
 # Native execution
