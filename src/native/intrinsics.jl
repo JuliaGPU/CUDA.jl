@@ -98,20 +98,20 @@ cuSharedMem() = Base.llvmcall(
     ("""@shmem = external addrspace(3) global [0 x float]
         declare float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32(float addrspace(3)*)
         declare float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32(float*)""",
-     """%1 = getelementptr inbounds [0 x float] addrspace(3)* @shmem, i64 0, i64 0
+     """%1 = getelementptr inbounds [0 x float], [0 x float] addrspace(3)* @shmem, i64 0, i64 0
         %2 = tail call float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32( float addrspace(3)* %1 )
         ret float* %2"""),
-    Ptr{Float32}, ())
+    Ptr{Float32}, Tuple{})
 setCuSharedMem(shmem, index, value) = Base.llvmcall(
      """%4 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
-        %5 = getelementptr inbounds float addrspace(3)* %4, i64 %1
+        %5 = getelementptr inbounds float, float addrspace(3)* %4, i64 %1
         store float %2, float addrspace(3)* %5
         ret void""",
     Void, Tuple{Ptr{Float32}, Int64, Float32}, shmem, index-1, value)
 getCuSharedMem(shmem, index) = Base.llvmcall(
      """%3 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
-        %4 = getelementptr inbounds float addrspace(3)* %3, i64 %1
-        %5 = load float addrspace(3)* %4
+        %4 = getelementptr inbounds float, float addrspace(3)* %3, i64 %1
+        %5 = load float, float addrspace(3)* %4
         ret float %5""",
     Float32, Tuple{Ptr{Float32}, Int64}, shmem, index-1)
 
