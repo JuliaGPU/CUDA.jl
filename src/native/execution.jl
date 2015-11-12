@@ -272,7 +272,7 @@ end
         @debug("Typed AST:\n$(takebuf_string(buf))")
 
         if kernel_err != nothing
-            @error("Kernel compilation phase 1 failed ($(sprint(showerror, err)))")
+            @error("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
 
             # FIXME: should the exception be catchable?
             #throw(err)
