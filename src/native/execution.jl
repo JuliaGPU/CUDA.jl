@@ -89,7 +89,8 @@ macro cuda(config::Expr, callexpr::Expr)
     if !isa(kernel_func_sym, Symbol)
         # NOTE: cannot support Module.Kernel calls, because TypeConst only works
         #       on symbols (why?). If it allowed Expr's or even Strings (through
-        #       string(expr)), we could specialise the stagedfunction on that.
+        #       string(expr)), we could specialize the generated function on
+        #       that.
         error("only simple function calls are supported")
     end
     if search(string(kernel_func_sym), "kernel_").start != 1
@@ -97,7 +98,7 @@ macro cuda(config::Expr, callexpr::Expr)
     end
 
     # HACK: wrap the function symbol in a type, so we can specialize on it in
-    #       the staged function
+    #       the generated function
     kernel_func_const = TypeConst{kernel_func_sym}()
     # TODO: insert some typeasserts? @cuda ([1,1], [1,1]) now crashes
     esc(Expr(:call, CUDA.generate_launch, config, kernel_func_const,
@@ -112,9 +113,8 @@ immutable ArgRef
     ref::Union{Symbol, Expr}
 end
 
-# TODO: nested stagedfunction?
-
-# Read the type and symbol information for each argument of the stagedfunction
+# Read the type and symbol information for each argument of the generated
+# function
 function read_arguments(argspec::Tuple)
     args = Array(ArgRef, length(argspec))
 
@@ -238,11 +238,13 @@ end
     exprs = Expr(:block)
 
     # Process the arguments
-    # FIXME: for some reason, this staged function runs multiple times, with
+    #
+    # FIXME: for some reason, this generated function runs multiple times, with
     #        different sets of increasingly typed arguments. For some reason,
     #        those partially untyped executions halt somewhere in
     #        manage_arguments, and only the final, fully typed invocation
     #        actually gets to compile...
+    #
     # NOTE: the above is why there are so many "unmanaged type" errors
     args = read_arguments(argspec)
     (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
