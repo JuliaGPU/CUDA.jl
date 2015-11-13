@@ -115,6 +115,7 @@ getCuSharedMem(shmem, index) = Base.llvmcall(
         ret float %5""",
     Float32, Tuple{Ptr{Float32}, Int64}, shmem, index-1)
 
+
 #
 # Math
 #

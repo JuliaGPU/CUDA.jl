@@ -88,15 +88,6 @@ using CUDA
 
 scriptdir = dirname(Base.source_path())
 
-# Generate a temporary file with specific suffix
-function mkstemps(suffix::AbstractString)
-    b = joinpath(tempdir(), "tmpXXXXXX$suffix")
-    # NOTE: mkstemps modifies b, which should be a NULL-terminated string
-    p = ccall(:mkstemps, Int32, (Cstring, Cint), b, length(suffix))
-    systemerror("mkstemps failed", p == -1)
-    return (b, fdio(p, true))
-end
-
 # Macro for C++ compilation
 macro compile(kernel, code)
     kernel_name = string(kernel)
