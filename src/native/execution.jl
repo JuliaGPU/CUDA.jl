@@ -233,6 +233,7 @@ end
 
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
+# TODO: we should split this in a performance oriented and debugging version
 @generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
                                func_const::TypeConst, argspec::Any...)
     exprs = Expr(:block)
@@ -293,7 +294,6 @@ end
         if kernel_llvm == ""
             error("no method found for $kernel_func$kernel_specsig")
         end
-        @debug("LLVM function IR: $(kernel_llvm)")
 
         # Get internal function name
         # FIXME: just get new module / clean slate for every CUDA
@@ -301,11 +301,10 @@ end
         # then what about type specialization?
         kernel_fname = ccall(:jl_dump_function_name, Any, (Any, Any),
                              kernel_func, Tuple{kernel_specsig...})
-        @debug("Internal function name: $(kernel_fname)")
         kernel_llvm = replace(kernel_llvm, kernel_fname, string(kernel_func))
 
         # DEBUG: dump the LLVM IR
-        if Logging._root.level >= DEBUG
+        if Logging._root.level <= DEBUG
             # Generate a safe and unique name
             kernel_uid = "$(kernel_func)-"
             if length(kernel_specsig) > 0
@@ -332,16 +331,20 @@ end
             close(f)
 
             if reference != nothing
+                @debug("Differences in kernel LLVM IR (if any):")
+                # TODO: capture output
                 run(ignorestatus(`diff -u $reference $output`))
+                rm(output)
+            else
+                @debug("Kernel LLVM IR: $(kernel_llvm)")
             end
         end
 
         # trigger module compilation
         module_ptx = ccall(:jl_to_ptx, Any, ())::AbstractString
-        @debug("PTX module contents: $(module_ptx)")
 
         # DEBUG: dump the PTX assembly
-        if Logging._root.level >= DEBUG
+        if Logging._root.level <= DEBUG
             # Extract the kernel function's PTX
             # TODO: do this in LLVM
             kernel_start = searchindex(module_ptx, ".visible .entry $(kernel_fname)")
@@ -362,7 +365,12 @@ end
             close(f)
 
             if reference != nothing
-                run(ignorestatus(`diff -u $reference $output`))
+                @debug("Differences in kernel PTX assembly (if any):")
+                # TODO: capture output
+                x = run(ignorestatus(`diff -u $reference $output`))
+                rm(output)
+            else
+                @debug("Kernel PTX assembly:\n$(kernel_ptx)")
             end
         end
 

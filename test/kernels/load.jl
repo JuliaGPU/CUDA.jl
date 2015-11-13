@@ -131,6 +131,7 @@ $code
             error("compilation of kernel $kernel failed (no output generated)")
         end
     end
+    rm(source)
 
     # Pass the module to the CUDA driver
     mod = try
