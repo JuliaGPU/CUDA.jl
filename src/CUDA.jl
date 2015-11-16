@@ -5,6 +5,7 @@ using Logging
 
 include("errors.jl")
 
+include("util.jl")
 include("base.jl")
 include("types.jl")
 include("devices.jl")
