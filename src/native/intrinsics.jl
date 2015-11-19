@@ -10,7 +10,9 @@ export
 
     # Memory management
     sync_threads,
-    cuSharedMem, setCuSharedMem, getCuSharedMem
+    cuSharedMem, setCuSharedMem, getCuSharedMem,
+    cuSharedMem_i64, setCuSharedMem_i64, getCuSharedMem_i64
+
 
 
 #
@@ -115,6 +117,27 @@ getCuSharedMem(shmem, index) = Base.llvmcall(
         ret float %5""",
     Float32, Tuple{Ptr{Float32}, Int64}, shmem, index-1)
 
+# Shared memory for type Int64
+cuSharedMem_i64() = Base.llvmcall(
+    ("""@shmem = external addrspace(3) global [0 x i64]
+        declare i64* @llvm.nvvm.ptr.shared.to.gen.p0i64.p3i64(i64 addrspace(3)*)
+        declare i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64(i64*)""",
+     """%1 = getelementptr inbounds [0 x i64], [0 x i64] addrspace(3)* @shmem, i64 0, i64 0
+        %2 = tail call i64* @llvm.nvvm.ptr.shared.to.gen.p0i64.p3i64( i64 addrspace(3)* %1 )
+        ret i64* %2"""),
+    Ptr{Int64}, Tuple{})
+setCuSharedMem_i64(shmem, index, value) = Base.llvmcall(
+     """%4 = tail call i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64( i64* %0 )
+        %5 = getelementptr inbounds i64, i64 addrspace(3)* %4, i64 %1
+        store i64 %2, i64 addrspace(3)* %5
+        ret void""",
+    Void, Tuple{Ptr{Int64}, Int64, Int64}, shmem, index-1, value)
+getCuSharedMem_i64(shmem, index) = Base.llvmcall(
+     """%3 = tail call i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64( i64* %0 )
+        %4 = getelementptr inbounds i64, i64 addrspace(3)* %3, i64 %1
+        %5 = load i64, i64 addrspace(3)* %4
+        ret i64 %5""",
+    Int64, Tuple{Ptr{Int64}, Int64}, shmem, index-1)
 
 #
 # Math
