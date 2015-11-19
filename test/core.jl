@@ -1,0 +1,44 @@
+dev = CuDevice(0)
+ctx = CuContext(dev)
+
+
+## Basic compilation & execution
+
+@compile dev reference_dummy """
+__global__ void reference_dummy()
+{
+}
+"""
+
+CUDA.launch(reference_dummy(), 1, 1, ())
+
+
+## Argument passing
+
+dims = (16, 16)
+len = prod(dims)
+
+@compile dev reference_copy """
+__global__ void reference_copy(const float *input, float *output)
+{
+    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    output[i] = input[i];
+}
+"""
+
+let
+    input = round(rand(Float32, dims) * 100)
+
+    input_dev = CuArray(input)
+    output_dev = CuArray(Float32, dims)
+
+    CUDA.launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
+    output = to_host(output_dev)
+    @test_approx_eq input output
+
+    free(input_dev)
+    free(output_dev)
+end
+
+
+destroy(ctx)

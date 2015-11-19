@@ -1,6 +1,6 @@
 # CUDA related types
 
-import Base: length, size, eltype, convert
+import Base: length, size, eltype, convert, isnull
 
 export
     CuIn, CuOut, CuInOut

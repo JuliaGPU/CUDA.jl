@@ -1,44 +1,13 @@
-################################################################################
-# Initialization
-#
-
-using CUDA, Base.Test
-
-include("perfutil.jl")
-
-
-#
-# Set-up
-#
-
 dev = CuDevice(0)
 ctx = CuContext(dev)
-
 cgctx = CuCodegenContext(ctx, dev)
-ENV["ARCH"] = cgctx.arch
-include("kernels/load.jl")
 
 
+## @cuda macro
 
-################################################################################
-# Smoke testing
-#
-
-#
-# ptx loading
-#
-
-CUDA.launch(reference_dummy(), 1, 1, ())
-
-
-#
-# @cuda macro
-#
-
-@cuda (1, 1) kernel_dummy()
+@target ptx kernel_empty() = return nothing
 
 # kernel dims
-@target ptx kernel_empty() = return nothing
 @test_throws AssertionError @eval begin
     @cuda (0, 0) kernel_empty()
 end
@@ -64,79 +33,43 @@ end
     @cuda (1, 1) kernel_empty2()
 end
 
-# unlowered call
-i = 0
-@timeit begin # setup
-        i += 1
-        fname = symbol("kernel_dummy_$i")
-        @eval @target ptx $fname() = return nothing
-    end begin # benchmark
-        @eval @cuda (1, 1) $fname()
-    end begin # verification
-    end begin # teardown
-    end "macro_full" "unlowered call to @cuda (staged function execution, kernel compilation, runtime API interactions and asynchronous kernel launch)"
-synchronize(ctx)
 
-# pre-lowered call
-@target ptx kernel_dummy() = return nothing
-@timeit begin # setup
-    end begin # benchmark
-        @cuda (1, 1) kernel_dummy()
-    end begin # verification
-    end begin # teardown
-    end "macro_lowered" "lowered call to @cuda (runtime API interactions and asynchronous kernel launch)"
-synchronize(ctx)
-
-
-#
-# Argument passing
-#
+## Argument passing
 
 dims = (16, 16)
 len = prod(dims)
 
+@target ptx function kernel_copy(input::CuDeviceArray{Float32},
+                                 output::CuDeviceArray{Float32})
+    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+    output[i] = input[i]
+
+    return nothing
+end
+
 # manual allocation
-@timeit begin # setup
-        input = round(rand(Float32, dims) * 100)
-    end begin # benchmark
-        input_dev = CuArray(input)
-        output_dev = CuArray(Float32, dims)
+let
+    input = round(rand(Float32, dims) * 100)
 
-        CUDA.launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
-        output = to_host(output_dev)
+    input_dev = CuArray(input)
+    output_dev = CuArray(Float32, dims)
 
-        free(input_dev)
-        free(output_dev)
-    end begin # verification
-        @test_approx_eq input output
-    end begin # teardown
-    end "copy_reference" "vector copy reference execution"
-@timeit begin # setup
-        input = round(rand(Float32, dims) * 100)
-    end begin # benchmark
-        input_dev = CuArray(input)
-        output_dev = CuArray(Float32, dims)
+    @cuda (len, 1) kernel_copy(input_dev, output_dev)
+    output = to_host(output_dev)
+    @test_approx_eq input output
 
-        @cuda (len, 1) kernel_copy(input_dev, output_dev)
-        output = to_host(output_dev)
-
-        free(input_dev)
-        free(output_dev)
-    end begin # verification
-        @test_approx_eq input output
-    end begin # teardown
-    end "copy_manual" "vector copy on manually allocated GPU arrays"
+    free(input_dev)
+    free(output_dev)
+end
 
 # auto-managed host data
-@timeit begin # setup
-        input = round(rand(Float32, dims) * 100)
-        output = Array(Float32, dims)
-    end begin # benchmark
-        @cuda (len, 1) kernel_copy(CuIn(input), CuOut(output))
-    end begin # verification
-        @test_approx_eq input output
-    end begin # teardown
-    end "copy_managed" "vector copy on managed GPU arrays"
+let
+    input = round(rand(Float32, dims) * 100)
+    output = Array(Float32, dims)
+
+    @cuda (len, 1) kernel_copy(CuIn(input), CuOut(output))
+    @test_approx_eq input output
+end
 
 # auto-managed host data, without specifying type
 let
@@ -156,6 +89,17 @@ let
     @test_approx_eq round(input*100) output
 end
 
+@target ptx function kernel_lastvalue(a::CuDeviceArray{Float32},
+                                      x::CuDeviceArray{Float32})
+    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+    max = gridDim().x * blockDim().x
+    if i == max
+        x[1] = a[i]
+    end
+
+    return nothing
+end
+
 # scalar through single-value array
 let
     arr = round(rand(Float32, dims) * 100)
@@ -163,6 +107,21 @@ let
 
     @cuda (len, 1) kernel_lastvalue(CuIn(arr), CuOut(val))
     @test_approx_eq arr[dims...] val[1]
+end
+
+@target ptx function kernel_lastvalue_devfun(a::CuDeviceArray{Float32},
+                                             x::CuDeviceArray{Float32})
+    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+    max = gridDim().x * blockDim().x
+    if i == max
+        x[1] = lastvalue_devfun(a, i)
+    end
+
+    return nothing
+end
+
+@target ptx function lastvalue_devfun(a::CuDeviceArray{Float32}, i)
+    return a[i]
 end
 
 # same, but using a device function
@@ -176,3 +135,4 @@ end
 
 
 destroy(cgctx)
+destroy(ctx)

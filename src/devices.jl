@@ -53,6 +53,31 @@ function capability(dev::CuDevice)
     return VersionNumber(major_ref[], minor_ref[])
 end
 
+# NOTE: keep this in sync with the architectures supported by NVPTX
+#       (see lib/Target/NVPTX/NVPTXGenSubtargetInfo.inc)
+const architectures = [
+    (v"2.0", "sm_20"),
+    (v"2.1", "sm_21"),
+    (v"3.0", "sm_30"),
+    (v"3.5", "sm_35"),
+    (v"5.0", "sm_50") ]
+
+function architecture(dev::CuDevice)
+    # TODO: this is used both when compiling natively, and when addressing NVCC
+    #       check both their restrictions individually
+    cap = capability(dev)
+    if cap < architectures[1][1]
+        error("No support for SM < $(architectures[1][1])")
+    end
+
+    for i = 2:length(architectures)
+        if cap < architectures[i][1]
+            return architectures[i-1][2]
+            break
+        end
+    end
+end
+
 function list_devices()
     cnt = devcount()
     if cnt == 0

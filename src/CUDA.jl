@@ -13,6 +13,7 @@ include("context.jl")
 include("module.jl")
 include("stream.jl")
 include("execution.jl")
+include("compilation.jl")
 
 include("memory.jl")
 include("arrays.jl")

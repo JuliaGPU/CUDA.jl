@@ -4,16 +4,6 @@ export
     @cuda,
     CuCodegenContext
 
-
-# NOTE: keep this in sync with the architectures supported by NVPTX
-#       (see lib/Target/NVPTX/NVPTXGenSubtargetInfo.inc)
-const architectures = [
-    (v"2.0", "sm_20"),
-    (v"2.1", "sm_21"),
-    (v"3.0", "sm_30"),
-    (v"3.5", "sm_35"),
-    (v"5.0", "sm_50") ]
-
 # TODO: allow code generation without actual device/ctx?
 # TODO: require passing the codegen context to @cuda, so we can have multiple
 #       contexts active, generating for and executing on multiple GPUs
@@ -38,16 +28,7 @@ type CuCodegenContext
         if haskey(ENV, "CUDA_FORCE_GPU_ARCH")
             arch = ENV["CUDA_FORCE_GPU_ARCH"]
         else
-            cap = capability(dev)
-            if cap < architectures[1][1]
-                error("No support for SM < $(architectures[1][1])")
-            end
-            for i = 2:length(architectures)
-                if cap < architectures[i][1]
-                    arch = architectures[i-1][2]
-                    break
-                end
-            end
+            arch = architecture(dev)
         end
 
         # NOTE: forcibly box to AbstractString because jl_init_codegen_ptx
