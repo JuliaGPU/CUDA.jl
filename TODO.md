@@ -11,6 +11,9 @@
 
 # Native execution
 
+* Fix the shared memory: wrap in a type, don't refer to the global through
+  `llvmcall` and add support for statically defined shared memory.
+
 * Pass the native codegen context into `@cuda`, allowing for multiple active
   contexts.
 
@@ -30,8 +33,3 @@
 * Refuse use of undefined entities (functions, variables). Currently, Julia
   silently boxes, and postpones any error to run-time, in case the object would
   still be defined.
-
-
-# Minor
-
-* Use `Logging.@error` instead of `error`?
