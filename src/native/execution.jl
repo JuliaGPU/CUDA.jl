@@ -4,6 +4,26 @@ export
     @cuda,
     CuCodegenContext
 
+# When in debug mode, we dump all built artifacts to a temporary directory.
+# This makes it easy to diff the generated code.
+if Logging._root.level <= DEBUG
+    dumpdir = begin
+        root = tempdir()
+
+        # Find a unique directory name
+        dir = ""
+        i = 0
+        while true
+            dir = joinpath(root, "JuliaCUDA_$i")
+            isdir(dir) || break
+            i += 1
+        end
+
+        mkdir(dir)
+        dir
+    end
+end
+
 # TODO: allow code generation without actual device/ctx?
 # TODO: require passing the codegen context to @cuda, so we can have multiple
 #       contexts active, generating for and executing on multiple GPUs
@@ -268,7 +288,7 @@ end
         # TODO: is there a more clean way to check this?
         # TODO: use dump_module=true instead of our functionality in jl_to_ptx?
         kernel_llvm = Base._dump_function(kernel_func, kernel_specsig,
-                                          false,    #native
+                                          false,    # native
                                           false,    # wrapper
                                           false,    # strip metadata
                                           false)    # dump module
@@ -289,36 +309,23 @@ end
             # Generate a safe and unique name
             kernel_uid = "$(kernel_func)-"
             if length(kernel_specsig) > 0
-                kernel_uid *= join([replace(string(x), r"\W", "") for x in kernel_specsig], '.')
+                kernel_uid *= join([replace(string(x), r"\W", "")
+                                    for x in kernel_specsig], '.')
             else
                 kernel_uid *= "Void"
             end
 
-            scriptdir = dirname(Base.source_path())
-            builddir = "$scriptdir/.build"
-            if !isdir(builddir)
-                mkdir(builddir)
-            end
-
-            output = "$builddir/$kernel_uid.ll"
+            output = "$dumpdir/$kernel_uid.ll"
             reference = nothing
             if isfile(output)
                 reference = output
                 (output, _) = mkstemps(".ll")
             end
 
-            f = open(output, "w")
-            write(f, kernel_llvm)
-            close(f)
-
-            if reference != nothing
-                @debug("Differences in kernel LLVM IR (if any):")
-                # TODO: capture output
-                run(ignorestatus(`diff -u $reference $output`))
-                rm(output)
-            else
-                @debug("Kernel LLVM IR: $(kernel_llvm)")
+            open(output, "w") do io
+                write(io, kernel_llvm)
             end
+            @debug("Wrote kernel LLVM IR to $output")
         end
 
         # trigger module compilation
@@ -334,25 +341,17 @@ end
 
             kernel_ptx = replace(kernel_ptx, kernel_fname, string(kernel_func))
 
-            output = "$builddir/$kernel_uid.ptx"
+            output = "$dumpdir/$kernel_uid.ptx"
             reference = nothing
             if isfile(output)
                 reference = output
                 (output, _) = mkstemps(".ptx")
             end
 
-            f = open(output, "w")
-            write(f, kernel_ptx)
-            close(f)
-
-            if reference != nothing
-                @debug("Differences in kernel PTX assembly (if any):")
-                # TODO: capture output
-                x = run(ignorestatus(`diff -u $reference $output`))
-                rm(output)
-            else
-                @debug("Kernel PTX assembly:\n$(kernel_ptx)")
+            open(output, "w") do io
+                write(io, kernel_ptx)
             end
+            @debug("Wrote kernel PTX assembly to $output")
         end
 
         # create CUDA module
