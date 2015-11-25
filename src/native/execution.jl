@@ -272,14 +272,13 @@ end
         # TODO: dump called functions too?
         @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
         @debug("Typed AST (::ANY types shown in red):\n")
-        code_warntype(Logging._root.output, kernel_func, kernel_specsig)
+        if Logging._root.level <= DEBUG
+            code_warntype(Logging._root.output, kernel_func, kernel_specsig)
+        end
 
         if kernel_err != nothing
             @critical("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
-
-            # FIXME: should the exception be catchable?
-            #throw(err)
-            quit()
+            throw(err)
         end
 
         # Check if the function actually exists, by mimicking code_llvm()
