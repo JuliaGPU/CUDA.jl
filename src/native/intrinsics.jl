@@ -192,7 +192,6 @@ abs(x::Float64) = Base.llvmcall(
         ret double %2"""),
     Float64, Tuple{Float64}, x)
 
-
 # Square root
 sqrt(x::Float32) = Base.llvmcall(
     ("""declare float @__nv_sqrtf(float)""",

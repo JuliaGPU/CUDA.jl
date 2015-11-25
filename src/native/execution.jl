@@ -261,7 +261,7 @@ end
         # trigger function compilation
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
         kernel_err = nothing
-        @debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
+        @info("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
         catch err
@@ -271,19 +271,18 @@ end
         # dump the ASTs
         # TODO: dump called functions too?
         @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-        buf = IOBuffer()
-        code_warntype(buf, kernel_func, kernel_specsig)
-        @debug("Typed AST:\n$(takebuf_string(buf))")
+        @debug("Typed AST (::ANY types shown in red):\n")
+        code_warntype(Logging._root.output, kernel_func, kernel_specsig)
 
         if kernel_err != nothing
-            @error("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
+            @critical("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
 
             # FIXME: should the exception be catchable?
             #throw(err)
             quit()
         end
 
-        # check if the function actually exists, by mimicking code_llvm()
+        # Check if the function actually exists, by mimicking code_llvm()
         # (precompile silently ignores invalid func/specsig combinations)
         # TODO: is there a more clean way to check this?
         # TODO: use dump_module=true instead of our functionality in jl_to_ptx?
@@ -328,7 +327,7 @@ end
             @debug("Wrote kernel LLVM IR to $output")
         end
 
-        # trigger module compilation
+        # Trigger module compilation
         module_ptx = ccall(:jl_to_ptx, Any, ())::AbstractString
 
         # DEBUG: dump the PTX assembly
@@ -354,7 +353,7 @@ end
             @debug("Wrote kernel PTX assembly to $output")
         end
 
-        # create CUDA module
+        # Create CUDA module
         ptx_mod = try
             # TODO: what with other kernel calls? entirely new module? or just
             # add them?
