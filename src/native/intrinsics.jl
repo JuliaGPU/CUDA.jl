@@ -96,6 +96,8 @@ sync_threads() = Base.llvmcall(
 # TODO: wrap this in a class, using get and setindex
 # FIXME: it is a hack to declare the p0,p3 intrinsic in cuSharedMem,
 #        but declaring it in the setters and getters results in two declarations
+# TODO: This is broken. Besides, the new llvmcall parses declarations,
+#       so the @shmem assignment now only works because of chance
 cuSharedMem() = Base.llvmcall(
     ("""@shmem = external addrspace(3) global [0 x float]
         declare float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32(float addrspace(3)*)
