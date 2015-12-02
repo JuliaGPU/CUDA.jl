@@ -12,7 +12,7 @@ function discover_toolchain()
         try
             nvcc = chomp(readall(pipeline(`which nvcc`, stderr=DevNull)))
         catch e
-            error("Could not find NVCC -- consider specifying with NVCC environment variable")
+            error("could not find NVCC -- consider specifying with NVCC environment variable")
         end
     end
     nvcc_ver = Nullable{VersionNumber}()
@@ -23,17 +23,16 @@ function discover_toolchain()
         end
     end
     if isnull(nvcc_ver)
-        error("Could not parse NVCC version info")
+        error("could not parse NVCC version info")
     end
 
     # Determine host compiler version requirements
-    # TODO: work with >v4.6- if possible
     const hostcc_support = [
         (v"5.0", v"4.6.4"),
         (v"5.5", v"4.7.2"),
-        (v"6.0", v"4.8.1") ]
+        (v"6.0", v"4.8.4") ]
     if get(nvcc_ver) < hostcc_support[1][1]
-        error("No support for CUDA < $(hostcc_req[1][1])")
+        error("no support for CUDA < $(hostcc_req[1][1])")
     end
     hostcc_maxver = Nullable{VersionNumber}()
     for i = 1:length(hostcc_support)
@@ -43,7 +42,7 @@ function discover_toolchain()
         end
     end
     if isnull(hostcc_maxver)
-        error("Unknown NVCC version $(get(nvcc_ver))")
+        error("unknown NVCC version $(get(nvcc_ver))")
     end
 
     # Collect possible hostcc executable names
@@ -65,7 +64,7 @@ function discover_toolchain()
         verstring = chomp(readlines(`$hostcc_path --version`)[1])
         m = match(Regex("^$hostcc \\(.*\\) ([0-9.]+)"), verstring)
         if m == nothing
-            warn("Could not parse GCC version info (\"$verstring\")")
+            warn("could not parse GCC version info (\"$verstring\"), skipping this compiler")
             continue
         end
         hostcc_ver = VersionNumber(m.captures[1])
@@ -75,7 +74,7 @@ function discover_toolchain()
         end
     end
     if length(hostcc_possibilities) == 0
-        error("Could not find a suitable host compiler")
+        error("could not find a suitable host compiler (your NVCC $(get(nvcc_ver)) needs GCC < $(get(hostcc_maxver)))")
     end
     sort!(hostcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
     hostcc = hostcc_possibilities[1]
