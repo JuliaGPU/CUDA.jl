@@ -10,7 +10,7 @@ if [[ -z "$BUILDS" ]]; then
     exit 1
 fi
 set -u
-if [[ ${#BUILDS[@]} < 2 ]]; then
+if (( ${#BUILDS[@]} < 2 )); then
     echo "ERROR: only a single build found, cannot compare output yet."
     exit 1
 fi
@@ -21,4 +21,5 @@ SORTED=( $(
         echo "$el"
     done | sort -t _ -k 2,2 -n) )
 
-$(set -x; diff -Nur ${SORTED[0]} ${SORTED[-1]})
+set -x
+diff -Nur "${SORTED[0]}" "${SORTED[-1]}"
