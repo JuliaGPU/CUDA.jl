@@ -1,11 +1,10 @@
 module CUDA
 
 using Logging
-if haskey(ENV, "DEBUG")
-    @Logging.configure(level=DEBUG)
-else
-    @Logging.configure(level=ERROR)
-end
+logger = Logger("CUDA.jl", haskey(ENV, "DEBUG") ? DEBUG : WARNING, STDERR)
+
+# Logging shadows info(), so let it work as intended again
+Logging.configure(output=STDOUT, level=Logging.INFO)
 
 include("errors.jl")
 

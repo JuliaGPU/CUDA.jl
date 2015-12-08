@@ -6,7 +6,7 @@ export
 
 # When in debug mode, we dump all built artifacts to a temporary directory.
 # This makes it easy to diff the generated code.
-if Logging._root.level <= DEBUG
+if logger.level <= DEBUG
     dumpdir = begin
         root = tempdir()
 
@@ -131,7 +131,7 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            @warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
+            warn(logger, "you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -210,7 +210,7 @@ function convert_arguments(args::Array{ArgRef})
             # pass these as-is
 
             if args[i].typ <: Ptr
-                @warn("passing a regular pointer to a device function")
+                warn(logger, "passing a regular pointer to a device function")
             end
 
             converted_args[i] = args[i]
@@ -261,7 +261,7 @@ end
         # trigger function compilation
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
         kernel_err = nothing
-        @info("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
+        info(logger, "Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
         catch err
@@ -270,14 +270,14 @@ end
 
         # dump the ASTs
         # TODO: dump called functions too?
-        @debug("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-        @debug("Typed AST (::ANY types shown in red):\n")
-        if Logging._root.level <= DEBUG
-            code_warntype(Logging._root.output, kernel_func, kernel_specsig)
+        debug(logger, "Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+        debug(logger, "Typed AST (::ANY types shown in red):\n")
+        if logger.level <= DEBUG
+            code_warntype(logger.output, kernel_func, kernel_specsig)
         end
 
         if kernel_err != nothing
-            @critical("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
+            logger.critical("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
             throw(err)
         end
 
@@ -303,7 +303,7 @@ end
         kernel_llvm = replace(kernel_llvm, kernel_fname, string(kernel_func))
 
         # DEBUG: dump the LLVM IR
-        if Logging._root.level <= DEBUG
+        if logger.level <= DEBUG
             # Generate a safe and unique name
             kernel_uid = "$(kernel_func)-"
             if length(kernel_specsig) > 0
@@ -323,14 +323,14 @@ end
             open(output, "w") do io
                 write(io, kernel_llvm)
             end
-            @debug("Wrote kernel LLVM IR to $output")
+            debug(logger, "Wrote kernel LLVM IR to $output")
         end
 
         # Trigger module compilation
         module_ptx = ccall(:jl_to_ptx, Any, ())::AbstractString
 
         # DEBUG: dump the PTX assembly
-        if Logging._root.level <= DEBUG
+        if logger.level <= DEBUG
             # Extract the kernel function's PTX
             # TODO: do this in LLVM
             kernel_start = searchindex(module_ptx, ".visible .entry $(kernel_fname)")
@@ -349,7 +349,7 @@ end
             open(output, "w") do io
                 write(io, kernel_ptx)
             end
-            @debug("Wrote kernel PTX assembly to $output")
+            debug(logger, "Wrote kernel PTX assembly to $output")
         end
 
         # Create CUDA module
