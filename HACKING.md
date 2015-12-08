@@ -81,3 +81,19 @@ Note that compilation will probably fail due to leaked memory. You can
 circumvent this by exporting `LSAN_OPTIONS=exitcode=0` at the shell. This can be
 embedded in `Make.user` using `export LSAN_OPTIONS=exitcode=0`, but also needs
 to be defined at run-time (ie. when running regular Julia code after building).
+
+
+# Build sanitized LLVM
+
+I've you're out of luck, and the memory error you're looking for is related to
+memory allocated by LLVM, you will need to build a separate sanitized version of
+LLVM and link Julia to it. This build should use the `clang` binary from your
+first LLVM build, and should have been configured with
+`LLVM_USE_SANITIZER=Address`. Finally, link Julia against this version using
+`LLVM_CONFIG=$(WHEREVER)/llvm-x.y.debug+asserts+asan/bin/llvm-config`.
+
+If you're going down this path, the first build of LLVM doesn't have to be a
+debug build, and shouldn't support the `NVPTX` target. Also note that building
+with `SANITIZE=0` (as you should for the dependencies) will fail, because the
+linked `libLLVM` will contain ASAN symbols but the final binary won't implement
+them.
