@@ -277,7 +277,7 @@ end
         end
 
         if kernel_err != nothing
-            logger.critical("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
+            critical(logger, "Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
             throw(err)
         end
 
@@ -285,13 +285,15 @@ end
         # (precompile silently ignores invalid func/specsig combinations)
         # TODO: is there a more clean way to check this?
         # TODO: use dump_module=true instead of our functionality in jl_to_ptx?
-        kernel_llvm = Base._dump_function(kernel_func, kernel_specsig,
-                                          false,    # native
-                                          false,    # wrapper
-                                          false,    # strip metadata
-                                          false)    # dump module
-        if kernel_llvm == ""
-            error("no method found for $kernel_func$kernel_specsig")
+        try
+            kernel_llvm = Base._dump_function(kernel_func, kernel_specsig,
+                                              false,    # native
+                                              false,    # wrapper
+                                              false,    # strip metadata
+                                              false)    # dump module
+        catch ex
+            err(logger, "no method found for $kernel_func$kernel_specsig")
+            rethrow()
         end
 
         # Get internal function name
