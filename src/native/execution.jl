@@ -264,8 +264,8 @@ end
         info(logger, "Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
-        catch err
-            kernel_err = err
+        catch ex
+            kernel_err = ex
         end
 
         # dump the ASTs
@@ -278,7 +278,7 @@ end
 
         if kernel_err != nothing
             critical(logger, "Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
-            throw(err)
+            rethrow(kernel_err)
         end
 
         # Check if the function actually exists, by mimicking code_llvm()
