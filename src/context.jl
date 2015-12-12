@@ -1,7 +1,7 @@
 # Context management
 
 export
-    CuContext, destroy, push, pop
+    CuContext, destroy, push, pop, synchronize
 
 
 const CTX_SCHED_AUTO            = 0x00
