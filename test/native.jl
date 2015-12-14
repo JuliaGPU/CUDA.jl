@@ -33,6 +33,18 @@ end
     @cuda (1, 1) kernel_empty2()
 end
 
+# TODO: test device function call with @noinline
+
+
+## Return values
+
+# TODO
+# TODO: test the actual error message
+# @test_throws ErrorException @eval begin
+#     @target ptx kernel_retint() = return 1
+#     @cuda (1, 1) kernel_retint()
+# end
+
 
 ## Argument passing
 
