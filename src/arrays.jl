@@ -7,7 +7,7 @@ export
 
 
 type CuArray{T,N}
-    ptr::DevicePtr{Void}
+    ptr::DevicePtr{T}
     shape::NTuple{N,Int}
     len::Int
 end
