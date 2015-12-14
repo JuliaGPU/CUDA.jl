@@ -62,6 +62,38 @@ let
     free(output_dev)
 end
 
+# Copy non-bit array
+
+@test_throws ArgumentError begin
+    # Something that's certainly not a bit type
+    f =  x -> x*x
+    input = [f for i=1:10]
+    cu_input = CuArray(input)
+end
+
+# CuArray with not-bit elements
+
+let
+    @test_throws ArgumentError CuArray(Function, 10)
+    @test_throws ArgumentError CuArray(Function, (10, 10))
+end
+
+# cu mem tests
+let
+    @test_throws ArgumentError CUDA.cualloc(Function, 10)
+
+    dev_array = CuArray(Int32, 10)
+    CUDA.cumemset(dev_array.ptr, UInt32(0), 10)
+    host_array = to_host(dev_array)
+
+    for i in host_array
+        @assert i == 0 "Memset failed on element $i"
+    end
+
+    CUDA.free(dev_array)
+
+end
+
 # auto-managed host data
 let
     input = round(rand(Float32, dims) * 100)

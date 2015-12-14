@@ -222,7 +222,7 @@ function convert_arguments(args::Array{ArgRef})
             #       (no constructor accepting a pointer?)
             # TODO: warn if the eltype is Any?
             converted_args[i] = ArgRef(CuDeviceArray{eltype(args[i].typ)},
-                                      :( $(args[i].ref).ptr ))
+                                      :( $(args[i].ref).ptr.inner ))
         else
             error("invalid argument type -- cannot handle $(args[i].typ)")
         end
