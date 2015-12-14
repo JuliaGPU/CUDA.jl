@@ -62,6 +62,22 @@ let
     free(output_dev)
 end
 
+# Copy non-bit array
+
+@test_throws ArgumentError begin
+    # Something that's certainly not a bit type
+    f =  x -> x*x
+    input = [f for i=1:10]
+    cu_input = CuArray(input)
+end
+
+# CuArray with not-bit elements
+
+let
+    @test_throws ArgumentError CuArray(Function, 10)
+    @test_throws ArgumentError CuArray(Function, (10, 10))
+end
+
 # auto-managed host data
 let
     input = round(rand(Float32, dims) * 100)

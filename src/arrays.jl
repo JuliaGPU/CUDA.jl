@@ -13,28 +13,20 @@ type CuArray{T,N}
 end
 
 function CuArray(T::Type, len::Integer)
+    if !isbits(T)
+        throw(ArgumentError("CuArray  with non-bit element type not supported"))
+    end
     n = Int(len)
     p = cualloc(T, n)
-    CuArray{T,1}(p, (n,), n)
-end
-
-function CuArray(T::Type, len::Integer, value::Cuint)
-    n = Int(len)
-    p = cualloc(T, n)
-    cumemset(p, value, n)
     CuArray{T,1}(p, (n,), n)
 end
 
 function CuArray{N}(T::Type, shape::NTuple{N,Int})
+    if !isbits(T)
+        throw(ArgumentError("CuArray  with non-bit element type not supported"))
+    end
     n = prod(shape)
     p = cualloc(T, n)
-    CuArray{T,N}(p, shape, n)
-end
-
-function CuArray{N}(T::Type, shape::NTuple{N,Int}, value::Cuint)
-    n = prod(shape)
-    p = cualloc(T, n)
-    cumemset(p, value, n)
     CuArray{T,N}(p, shape, n)
 end
 
@@ -61,8 +53,10 @@ function free(g::CuArray)
 end
 
 function copy!{T}(dst::Array{T}, src::CuArray{T})
-    if length(dst) != length(src)
+    if length(dst) != length(src) 
         throw(ArgumentError("Inconsistent array length."))
+    elseif !isbits(T)
+        throw(ArgumentError("Copy of non-bits element type not supported"))
     end
     nbytes = length(src) * sizeof(T)
     @cucall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
@@ -73,6 +67,8 @@ end
 function copy!{T}(dst::CuArray{T}, src::Array{T})
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
+    elseif !isbits(T)
+        throw(ArgumentError("Copy of non-bits element type not supported"))    
     end
     nbytes = length(src) * sizeof(T)
     @cucall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
