@@ -305,7 +305,7 @@ end
                                                 false,    # native
                                                 false,    # wrapper
                                                 false,    # strip metadata
-                                                true)    # dump module
+                                                true)     # dump module
             else
                 llvm_dump = Base._dump_function(kernel_func, kernel_specsig,
                                                 false,    # native
@@ -346,7 +346,7 @@ end
                 kernel_end = search(module_ptx, r"\n}", kernel_start)
                 ptx_dump = module_ptx[kernel_start:kernel_end.start+1]
 
-                ptx_dump = replace(kernel_ptx, kernel_fname, string(kernel_func))
+                ptx_dump = replace(ptx_dump, kernel_fname, string(kernel_func))
             end
 
             output = "$dumpdir/$kernel_uid.ptx"
