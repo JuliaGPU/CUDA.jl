@@ -111,7 +111,7 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            warn(logger[], "you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
+            warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -190,7 +190,7 @@ function convert_arguments(args::Array{ArgRef})
             # pass these as-is
 
             if args[i].typ <: Ptr
-                warn(logger[], "passing a regular pointer to a device function")
+                warn("passing a regular pointer to a device function")
             end
 
             converted_args[i] = args[i]
@@ -241,7 +241,7 @@ end
         # trigger function compilation
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
         kernel_err = nothing
-        info(logger[], "Invoking Julia compiler for $kernel_func$(kernel_specsig)")
+        debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
         catch ex
@@ -250,14 +250,14 @@ end
 
         # dump the ASTs
         # TODO: dump called functions too?
-        debug(logger[], "Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-        debug(logger[], "Typed AST (::ANY types shown in red):\n")
-        if logger[].level <= DEBUG
-            code_warntype(logger[].output, kernel_func, kernel_specsig)
+        trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+        trace("Typed AST (::ANY types shown in red):\n")
+        if TRACE[]
+            code_warntype(STDERR, kernel_func, kernel_specsig)
         end
 
         if kernel_err != nothing
-            critical(logger[], "Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
+            critical("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
             rethrow(kernel_err)
         end
 
@@ -269,7 +269,7 @@ end
                              kernel_func, Tuple{kernel_specsig...})
 
         # DEBUG: dump the LLVM IR
-        if logger[].level <= DEBUG
+        if TRACE[]
             # Generate a safe and unique name
             kernel_uid = "$(kernel_func)-"
             if length(kernel_specsig) > 0
@@ -297,7 +297,7 @@ end
 
             output = "$(dumpdir[])/$kernel_uid.ll"
             if isfile(output)
-                warn(logger[], "Could not write LLVM IR to $output (file already exists !?)")
+                warn("Could not write LLVM IR to $output (file already exists !?)")
             else
                 open(output, "w") do io
                     if !full_dump
@@ -308,7 +308,7 @@ end
 
                     write(io, llvm_dump)
                 end
-                debug(logger[], "Wrote kernel LLVM IR to $output")
+                trace("Wrote kernel LLVM IR to $output")
             end
         end
 
@@ -316,7 +316,7 @@ end
         module_ptx = ccall(:jl_to_ptx, Any, ())::AbstractString
 
         # DEBUG: dump the PTX assembly
-        if logger[].level <= DEBUG
+        if TRACE[]
             if full_dump
                 ptx_dump = module_ptx
             else
@@ -331,7 +331,7 @@ end
 
             output = "$(dumpdir[])/$kernel_uid.ptx"
             if isfile(output)
-                warn(logger[], "Could not write PTX assembly to $output (file already exists !?)")
+                warn("Could not write PTX assembly to $output (file already exists !?)")
             else
                 open(output, "w") do io
                     if !full_dump
@@ -342,7 +342,7 @@ end
 
                     write(io, ptx_dump)
                 end
-                debug(logger[], "Wrote kernel PTX assembly to $output")
+                trace("Wrote kernel PTX assembly to $output")
             end
         end
 

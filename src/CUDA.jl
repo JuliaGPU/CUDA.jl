@@ -3,8 +3,6 @@ __precompile__(false)
 
 module CUDA
 
-using Logging
-
 
 include("errors.jl")
 
