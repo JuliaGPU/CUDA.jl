@@ -3,15 +3,12 @@
 import Base: get
 
 export
-    CUDA_VENDOR,
     @cucall
 
-
-# Early library loading
-# TODO: allow overriding the loaded library using ENV
+const libcuda = Ref{Ptr{Void}}()
+const libcuda_vendor = Ref{ASCIIString}()
 function load_library()
     try
-        # TODO: thorough check of vendor?
         return (Libdl.dlopen("libcuda"), "NVIDIA")
     end
 
@@ -21,7 +18,6 @@ function load_library()
 
     error("Could not load CUDA (or any compatible) library")
 end
-const (libcuda, CUDA_VENDOR) = load_library()
 
 # API call wrapper
 macro cucall(f, argtypes, args...)
@@ -31,25 +27,27 @@ macro cucall(f, argtypes, args...)
 
     quote
         api_function = resolve($f)
-        status = ccall(Libdl.dlsym(libcuda, api_function), Cint, $(esc(argtypes)), $(esc_args...))
+        status = ccall(Libdl.dlsym(libcuda[], api_function), Cint,
+                       $(esc(argtypes)), $(esc_args...))
         if status != 0
-            err = CuError(Int(status))
+            err = CuError(status)
             throw(err)
         end
     end
 end
 
-api_mapping = Dict{Symbol,Symbol}()
+const api_mapping = Dict{Symbol,Symbol}()
 resolve(f::Symbol) = get(api_mapping, f, f)
 
-function initialize_api()
+function __init_base__()
+    (libcuda[], libcuda_vendor[]) = load_library()
+
     # Create mapping for versioned API calls
     if haskey(ENV, "CUDA_FORCE_API_VERSION")
         api_version = ENV["CUDA_FORCE_API_VERSION"]
     else
         api_version = driver_version()
     end
-    global api_mapping
     if api_version >= 3020
         api_mapping[:cuDeviceTotalMem]   = :cuDeviceTotalMem_v2
         api_mapping[:cuCtxCreate]        = :cuCtxCreate_v2
@@ -74,4 +72,8 @@ function driver_version()
     version_ref = Ref{Cint}()
     @cucall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
     return version_ref[]
+end
+
+function vendor()
+    return libcuda_vendor[]
 end

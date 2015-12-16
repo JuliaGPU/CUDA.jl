@@ -1,22 +1,24 @@
 export
     @compile
 
-initialized = false
+const initialized = Ref{Bool}()
+const nvcc = Ref{ASCIIString}()
+const flags = Ref{Array{ASCIIString, 1}}()
 
 function discover_toolchain()
     # Check availability NVCC
     global nvcc
     if haskey(ENV, "NVCC")
-        nvcc = get(ENV, "NVCC")
+        nvcc[] = get(ENV, "NVCC")
     else
         try
-            nvcc = chomp(readall(pipeline(`which nvcc`, stderr=DevNull)))
+            nvcc[] = chomp(readall(pipeline(`which nvcc`, stderr=DevNull)))
         catch e
             error("could not find NVCC -- consider specifying with NVCC environment variable")
         end
     end
     nvcc_ver = Nullable{VersionNumber}()
-    for line in readlines(`$(nvcc) --version`)
+    for line in readlines(`$(nvcc[]) --version`)
         m = match(r"release ([0-9.]+)", line)
         if m != nothing
             nvcc_ver = Nullable(VersionNumber(m.captures[1]))
@@ -80,18 +82,19 @@ function discover_toolchain()
     hostcc = hostcc_possibilities[1]
 
     # Determine compilation options
-    global flags = [ "--compiler-bindir", hostcc[1] ]
+    global flags
+    flags[] = [ "--compiler-bindir", hostcc[1] ]
     if haskey(ENV, "ARCH")
-        append!(flags, [ "--gpu-architecture", ENV["ARCH"] ])
+        append!(flags[], [ "--gpu-architecture", ENV["ARCH"] ])
     end
 end
 
 
 macro compile(dev, kernel, code)
     global initialized
-    if !initialized::Bool
+    if !initialized[]
         discover_toolchain()
-        initialized = true
+        initialized[] = true
     end
 
     kernel_name = string(kernel)
@@ -143,11 +146,11 @@ $code
     # Compile the source, if necessary
     if need_compile
         global flags
-        compile_flags = vcat(flags, ["--gpu-architecture", arch])
+        compile_flags = vcat(flags[], ["--gpu-architecture", arch])
 
         global nvcc
         try
-            run(`$(nvcc) $(compile_flags) -ptx -o $output $source`)
+            run(`$(nvcc[]) $(compile_flags) -ptx -o $output $source`)
         catch
             error("compilation of kernel $kernel failed (typo in C++ source?)")
         end

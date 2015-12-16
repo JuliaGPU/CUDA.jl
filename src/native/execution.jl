@@ -4,26 +4,6 @@ export
     @cuda,
     CuCodegenContext
 
-# When in debug mode, we dump all built artifacts to a temporary directory.
-# This makes it easy to diff the generated code.
-if logger.level <= DEBUG
-    dumpdir = begin
-        root = tempdir()
-
-        # Find a unique directory name
-        dir = ""
-        i = 0
-        while true
-            dir = joinpath(root, "JuliaCUDA_$i")
-            isdir(dir) || break
-            i += 1
-        end
-
-        mkdir(dir)
-        dir
-    end
-end
-
 # TODO: allow code generation without actual device/ctx?
 # TODO: require passing the codegen context to @cuda, so we can have multiple
 #       contexts active, generating for and executing on multiple GPUs
@@ -131,7 +111,7 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            warn(logger, "you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
+            warn(logger[], "you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -210,7 +190,7 @@ function convert_arguments(args::Array{ArgRef})
             # pass these as-is
 
             if args[i].typ <: Ptr
-                warn(logger, "passing a regular pointer to a device function")
+                warn(logger[], "passing a regular pointer to a device function")
             end
 
             converted_args[i] = args[i]
@@ -261,7 +241,7 @@ end
         # trigger function compilation
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
         kernel_err = nothing
-        info(logger, "Invoking Julia compiler for $kernel_func$(kernel_specsig)")
+        info(logger[], "Invoking Julia compiler for $kernel_func$(kernel_specsig)")
         try
             precompile(kernel_func, kernel_specsig)
         catch ex
@@ -270,14 +250,14 @@ end
 
         # dump the ASTs
         # TODO: dump called functions too?
-        debug(logger, "Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-        debug(logger, "Typed AST (::ANY types shown in red):\n")
-        if logger.level <= DEBUG
-            code_warntype(logger.output, kernel_func, kernel_specsig)
+        debug(logger[], "Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+        debug(logger[], "Typed AST (::ANY types shown in red):\n")
+        if logger[].level <= DEBUG
+            code_warntype(logger[].output, kernel_func, kernel_specsig)
         end
 
         if kernel_err != nothing
-            critical(logger, "Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
+            critical(logger[], "Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
             rethrow(kernel_err)
         end
 
@@ -289,7 +269,7 @@ end
                              kernel_func, Tuple{kernel_specsig...})
 
         # DEBUG: dump the LLVM IR
-        if logger.level <= DEBUG
+        if logger[].level <= DEBUG
             # Generate a safe and unique name
             kernel_uid = "$(kernel_func)-"
             if length(kernel_specsig) > 0
@@ -315,9 +295,9 @@ end
                 llvm_dump = replace(llvm_dump, kernel_fname, string(kernel_func))
             end
 
-            output = "$dumpdir/$kernel_uid.ll"
+            output = "$(dumpdir[])/$kernel_uid.ll"
             if isfile(output)
-                warn(logger, "Could not write LLVM IR to $output (file already exists !?)")
+                warn(logger[], "Could not write LLVM IR to $output (file already exists !?)")
             else
                 open(output, "w") do io
                     if !full_dump
@@ -328,7 +308,7 @@ end
 
                     write(io, llvm_dump)
                 end
-                debug(logger, "Wrote kernel LLVM IR to $output")
+                debug(logger[], "Wrote kernel LLVM IR to $output")
             end
         end
 
@@ -336,7 +316,7 @@ end
         module_ptx = ccall(:jl_to_ptx, Any, ())::AbstractString
 
         # DEBUG: dump the PTX assembly
-        if logger.level <= DEBUG
+        if logger[].level <= DEBUG
             if full_dump
                 ptx_dump = module_ptx
             else
@@ -349,9 +329,9 @@ end
                 ptx_dump = replace(ptx_dump, kernel_fname, string(kernel_func))
             end
 
-            output = "$dumpdir/$kernel_uid.ptx"
+            output = "$(dumpdir[])/$kernel_uid.ptx"
             if isfile(output)
-                warn(logger, "Could not write PTX assembly to $output (file already exists !?)")
+                warn(logger[], "Could not write PTX assembly to $output (file already exists !?)")
             else
                 open(output, "w") do io
                     if !full_dump
@@ -362,7 +342,7 @@ end
 
                     write(io, ptx_dump)
                 end
-                debug(logger, "Wrote kernel PTX assembly to $output")
+                debug(logger[], "Wrote kernel PTX assembly to $output")
             end
         end
 

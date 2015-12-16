@@ -1,10 +1,10 @@
+# NOTE: precompilation is supported, but slows down development
+__precompile__(false)
+
 module CUDA
 
 using Logging
-logger = Logger("CUDA.jl", haskey(ENV, "DEBUG") ? DEBUG : WARNING, STDERR)
 
-# Logging shadows info(), so let it work as intended again
-Logging.configure(output=STDOUT, level=Logging.INFO)
 
 include("errors.jl")
 
@@ -27,9 +27,10 @@ include("native/arrays.jl")
 
 include("profile.jl")
 
-function initialize()
-	initialize_api()
+
+function __init__()
+    __init_base__()
+    __init_util__()
 end
-initialize()
 
 end

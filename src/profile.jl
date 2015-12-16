@@ -3,8 +3,6 @@
 export
     @cuprofile
 
-initialized = false
-
 start_profiler() = @cucall(:cuProfilerStart, (Ptr{Void},), 0)
 stop_profiler() = @cucall(:cuProfilerStop, (Ptr{Void},), 0)
 
