@@ -352,10 +352,9 @@ end
             # add them?
             CuModule(module_ptx)
         catch err
-            if isa(err, CuError) && err.code == 209
-                # CUDA_ERROR_NO_BINARY_FOR_GPU (#209) usually indicates the PTX
-                # code was invalid, so try to assembly using "ptxas" manually in
-                # order to get some more information
+            if err == ERROR_NO_BINARY_FOR_GPU
+                # Usually the PTX code is invalid, so try to assembly using
+                # "ptxas" manually in order to get some more information
                 try
                     readall(`ptxas`)
                     (path, io) = mkstemps(".ptx")

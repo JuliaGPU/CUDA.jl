@@ -41,7 +41,7 @@ function __init_util__()
         trace("CUDA.jl is running in trace mode, this will generate a lot of additional output")
     elseif DEBUG[]
         debug("CUDA.jl is running in debug mode, this will generate additional output")
-        debug("Run with TRACE=1 to enable even more output.")
+        debug("Run with TRACE=1 to enable even more output")
     end
 
     if TRACE[]

@@ -29,7 +29,7 @@ macro cucall(f, argtypes, args...)
         api_function = resolve($f)
         status = ccall(Libdl.dlsym(libcuda[], api_function), Cint,
                        $(esc(argtypes)), $(esc_args...))
-        if status != 0
+        if status != SUCCESS.code
             err = CuError(status)
             throw(err)
         end
