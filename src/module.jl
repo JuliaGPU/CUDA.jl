@@ -24,10 +24,14 @@ immutable CuModule
         catch
           is_data = true
         end
-        # FIXME: this is pretty messy
-        fname = is_data ? (:cuModuleLoadData) : (:cuModuleLoad)
 
-        @cucall(fname, (Ptr{Ptr{Void}}, Ptr{Cchar}), module_ref, mod)
+        # FIXME: this is pretty messy
+        if is_data
+            @cucall(:cuModuleLoadData, (Ptr{Ptr{Void}}, Ptr{Cchar}), module_ref, mod)
+        else
+            @cucall(:cuModuleLoad, (Ptr{Ptr{Void}}, Ptr{Cchar}), module_ref, mod)
+        end
+
         new(module_ref[])
     end
 end

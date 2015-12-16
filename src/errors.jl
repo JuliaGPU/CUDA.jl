@@ -77,6 +77,9 @@ description(err::CuError) = return_codes[err.code][2]
 Base.showerror(io::IO, err::CuError) =
     @printf(io, "%s (CUDA error #%d, %s)", description(err), err.code, name(err))
 
+Base.show(io::IO, err::CuError) =
+    @printf(io, "%s(%d)", name(err), err.code)
+
 for code in return_codes
     @eval $(code[2][1]) = CuError($(code[1]))
 end

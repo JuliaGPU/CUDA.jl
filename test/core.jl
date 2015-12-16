@@ -7,6 +7,14 @@ ctx = CuContext(dev)
 @cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
 @test_throws ErrorException @cucall(:nonExisting, ())
+CUDA.trace(prefix=" ")
+
+@test_throws ErrorException eval(
+    quote
+        foo = :bar
+        @cucall(foo, ())
+    end
+)
 
 @test_throws CuError @cucall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), Ref{Ptr{Void}}(), 0)
 

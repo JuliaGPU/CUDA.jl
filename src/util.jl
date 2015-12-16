@@ -15,12 +15,15 @@ end
 debug(msg...; prefix="DEBUG: ") = debug(STDERR, msg..., prefix=prefix)
 
 const TRACE = Ref{Bool}()
-function trace(io::IO, msg...; prefix="TRACE: ")
+function trace(io::IO, msg...; prefix="TRACE: ", line=true)
     if TRACE[]
-        Base.println_with_color(:cyan, io, prefix, chomp(string(msg...)))
+        Base.print_with_color(:cyan, io, prefix, chomp(string(msg...)))
+        if line
+            println(io)
+        end
     end
 end
-trace(msg...; prefix="TRACE: ") = trace(STDERR, msg..., prefix=prefix)
+trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg..., prefix=prefix, line=line)
 
 
 # Generate a temporary file with specific suffix
@@ -34,6 +37,7 @@ end
 
 
 function __init_util__()
+    # IDEA: make these decisions at compile-time, avoiding runtime overhead
     TRACE[] = haskey(ENV, "TRACE")
     DEBUG[] = TRACE[] || haskey(ENV, "DEBUG")
 
