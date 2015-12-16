@@ -81,7 +81,7 @@ warpsize() = Base.llvmcall(
 
 
 #
-# Memory management
+# Thread management
 #
 
 # Synchronization
@@ -91,7 +91,11 @@ sync_threads() = Base.llvmcall(
         ret void"""),
     Void, Tuple{})
 
+
+#
 # Shared memory
+#
+
 # TODO: generalize for types
 # TODO: static shared memory
 # TODO: wrap this in a class, using get and setindex
@@ -99,69 +103,76 @@ sync_threads() = Base.llvmcall(
 #        but declaring it in the setters and getters results in two declarations
 # TODO: This is broken. Besides, the new llvmcall parses declarations,
 #       so the @shmem assignment now only works because of chance
+
+# Shared memory for type Float32
 cuSharedMem() = Base.llvmcall(
     ("""@shmem_f32 = external addrspace(3) global [0 x float]
-        declare float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32(float addrspace(3)*)
-        declare float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32(float*)""",
+        declare float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32(float addrspace(3)*)""",
      """%1 = getelementptr inbounds [0 x float], [0 x float] addrspace(3)* @shmem_f32, i64 0, i64 0
         %2 = tail call float* @llvm.nvvm.ptr.shared.to.gen.p0f32.p3f32( float addrspace(3)* %1 )
         ret float* %2"""),
     Ptr{Float32}, Tuple{})
 setCuSharedMem(shmem, index, value) = Base.llvmcall(
+    ("""declare float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32(float*)""",
      """%4 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
         %5 = getelementptr inbounds float, float addrspace(3)* %4, i64 %1
         store float %2, float addrspace(3)* %5
-        ret void""",
+        ret void"""),
     Void, Tuple{Ptr{Float32}, Int64, Float32}, shmem, index-1, value)
 getCuSharedMem(shmem, index) = Base.llvmcall(
+    ("""declare float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32(float*)""",
      """%3 = tail call float addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f32.p0f32( float* %0 )
         %4 = getelementptr inbounds float, float addrspace(3)* %3, i64 %1
         %5 = load float, float addrspace(3)* %4
-        ret float %5""",
+        ret float %5"""),
     Float32, Tuple{Ptr{Float32}, Int64}, shmem, index-1)
 
 # Shared memory for type Int64
 cuSharedMem_i64() = Base.llvmcall(
     ("""@shmem_i64 = external addrspace(3) global [0 x i64]
-        declare i64* @llvm.nvvm.ptr.shared.to.gen.p0i64.p3i64(i64 addrspace(3)*)
-        declare i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64(i64*)""",
+        declare i64* @llvm.nvvm.ptr.shared.to.gen.p0i64.p3i64(i64 addrspace(3)*)""",
      """%1 = getelementptr inbounds [0 x i64], [0 x i64] addrspace(3)* @shmem_i64, i64 0, i64 0
         %2 = tail call i64* @llvm.nvvm.ptr.shared.to.gen.p0i64.p3i64( i64 addrspace(3)* %1 )
         ret i64* %2"""),
     Ptr{Int64}, Tuple{})
 setCuSharedMem_i64(shmem, index, value) = Base.llvmcall(
+    ("""declare i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64(i64*)""",
      """%4 = tail call i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64( i64* %0 )
         %5 = getelementptr inbounds i64, i64 addrspace(3)* %4, i64 %1
         store i64 %2, i64 addrspace(3)* %5
-        ret void""",
+        ret void"""),
     Void, Tuple{Ptr{Int64}, Int64, Int64}, shmem, index-1, value)
 getCuSharedMem_i64(shmem, index) = Base.llvmcall(
+    ("""declare i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64(i64*)""",
      """%3 = tail call i64 addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3i64.p0i64( i64* %0 )
         %4 = getelementptr inbounds i64, i64 addrspace(3)* %3, i64 %1
         %5 = load i64, i64 addrspace(3)* %4
-        ret i64 %5""",
+        ret i64 %5"""),
     Int64, Tuple{Ptr{Int64}, Int64}, shmem, index-1)
 
+# Shared memory for type Float64
 cuSharedMem_double() = Base.llvmcall(
     ("""@shmem_f64 = external addrspace(3) global [0 x double]
-        declare double* @llvm.nvvm.ptr.shared.to.gen.p0f64.p3f64(double addrspace(3)*)
-        declare double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64(double*)""",
+        declare double* @llvm.nvvm.ptr.shared.to.gen.p0f64.p3f64(double addrspace(3)*)""",
      """%1 = getelementptr inbounds [0 x double], [0 x double] addrspace(3)* @shmem_f64, i64 0, i64 0
         %2 = tail call double* @llvm.nvvm.ptr.shared.to.gen.p0f64.p3f64( double addrspace(3)* %1 )
         ret double* %2"""),
     Ptr{Float64}, Tuple{})
 setCuSharedMem_double(shmem, index, value) = Base.llvmcall(
+    ("""declare double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64(double*)""",
      """%4 = tail call double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64( double* %0 )
         %5 = getelementptr inbounds double, double addrspace(3)* %4, i64 %1
         store double %2, double addrspace(3)* %5
-        ret void""",
+        ret void"""),
     Void, Tuple{Ptr{Float64}, Int64, Float64}, shmem, index-1, value)
 getCuSharedMem_double(shmem, index) = Base.llvmcall(
+    ("""declare double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64(double*)""",
      """%3 = tail call double addrspace(3)* @llvm.nvvm.ptr.gen.to.shared.p3f64.p0f64( double* %0 )
         %4 = getelementptr inbounds double, double addrspace(3)* %3, i64 %1
         %5 = load double, double addrspace(3)* %4
-        ret double %5""",
+        ret double %5"""),
     Float64, Tuple{Ptr{Float64}, Int64}, shmem, index-1)
+
 
 #
 # Math
