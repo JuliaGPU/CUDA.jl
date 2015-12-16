@@ -106,6 +106,102 @@ let
 
 end
 
+# CuShared memory
+
+@target ptx function kernel_reverse(a::CuDeviceArray{Int64})
+    
+    chunk_size = Int32(blockDim().x)
+
+    # Get shared memory
+    tmp = cuSharedMem_i64()
+
+    # Copy from a to shared mem
+    i = (blockIdx().x -1) * chunk_size + threadIdx().x
+    tmp_dst = chunk_size - threadIdx().x + 1
+    setCuSharedMem_i64(tmp, tmp_dst, a[i])
+
+    sync_threads()
+
+    # Calculate destination, starting from 0
+    dest_block = gridDim().x - blockIdx().x
+    offset = dest_block * chunk_size
+    dst_index = offset +  threadIdx().x
+
+    a[dst_index] = getCuSharedMem_i64(tmp, threadIdx().x)
+
+    return nothing
+end
+
+@target ptx function kernel_reverse(a::CuDeviceArray{Float32})
+    
+    chunk_size = Int32(blockDim().x)
+
+    # Get shared memory
+    tmp = cuSharedMem()
+
+    # Copy from a to shared mem
+    i = (blockIdx().x -1) * chunk_size + threadIdx().x
+    tmp_dst = chunk_size - threadIdx().x + 1
+    setCuSharedMem(tmp, tmp_dst, a[i])
+
+    sync_threads()
+
+    # Calculate destination, starting from 0
+    dest_block = gridDim().x - blockIdx().x
+    offset = dest_block * chunk_size
+    dst_index = offset +  threadIdx().x
+
+    a[dst_index] = getCuSharedMem(tmp, threadIdx().x)
+
+    return nothing
+end
+
+@target ptx function kernel_reverse(a::CuDeviceArray{Float64})
+    
+    chunk_size = Int32(blockDim().x)
+
+    # Get shared memory
+    tmp = cuSharedMem_double()
+
+    # Copy from a to shared mem
+    i = (blockIdx().x -1) * chunk_size + threadIdx().x
+    tmp_dst = chunk_size - threadIdx().x + 1
+    setCuSharedMem_double(tmp, tmp_dst, a[i])
+
+    sync_threads()
+
+    # Calculate destination, starting from 0
+    dest_block = gridDim().x - blockIdx().x
+    offset = dest_block * chunk_size
+    dst_index = offset +  threadIdx().x
+
+    a[dst_index] = getCuSharedMem_double(tmp, threadIdx().x)
+
+    return nothing
+end
+
+let
+    # Params
+    grid_size = 4
+    block_size = 512
+    n = grid_size * block_size
+
+    # Test for multiple types
+    types = [Int64, Float32, Float64]
+
+    for T in types
+        # Create data
+        a = rand(T, n)
+        r = reverse(a)  # to check later
+
+        # call kernel
+        shared_bytes = block_size * sizeof(T)
+        @cuda (grid_size, block_size, shared_bytes) kernel_reverse(CuInOut(a))
+
+        @assert a == r
+    end
+end
+
 # auto-managed host data
 let
     input = round(rand(Float32, dims) * 100)
