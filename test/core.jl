@@ -2,6 +2,15 @@ dev = CuDevice(0)
 ctx = CuContext(dev)
 
 
+## API call wrapper
+
+@cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
+
+@test_throws ErrorException @cucall(:nonExisting, ())
+
+@test_throws CuError @cucall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), Ref{Ptr{Void}}(), 0)
+
+
 ## Basic compilation & execution
 
 @compile dev reference_dummy """
