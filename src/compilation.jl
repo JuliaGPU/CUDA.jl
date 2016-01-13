@@ -29,10 +29,14 @@ function discover_toolchain()
     end
 
     # Determine host compiler version requirements
+    # Source: CUDA Getting Started Guide for Linux
     const hostcc_support = [
         (v"5.0", v"4.6.4"),
-        (v"5.5", v"4.7.2"),
-        (v"6.0", v"4.8.4") ]
+        (v"5.5", v"4.7.3"),
+        (v"6.0", v"4.8.1"),
+        (v"6.5", v"4.8.2"),
+        (v"7.0", v"4.9.2"),
+        (v"7.5", v"4.9.2") ]
     if get(nvcc_ver) < hostcc_support[1][1]
         error("no support for CUDA < $(hostcc_req[1][1])")
     end
@@ -76,7 +80,7 @@ function discover_toolchain()
         end
     end
     if length(hostcc_possibilities) == 0
-        error("could not find a suitable host compiler (your NVCC $(get(nvcc_ver)) needs GCC < $(get(hostcc_maxver)))")
+        error("could not find a suitable host compiler (your NVCC $(get(nvcc_ver)) needs GCC <= $(get(hostcc_maxver)))")
     end
     sort!(hostcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
     hostcc = hostcc_possibilities[1]
