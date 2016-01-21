@@ -1,51 +1,7 @@
 # Native execution support
 
 export
-    @cuda,
-    CuCodegenContext
-
-# TODO: allow code generation without actual device/ctx?
-# TODO: require passing the codegen context to @cuda, so we can have multiple
-#       contexts active, generating for and executing on multiple GPUs
-type CuCodegenContext
-    ctx::CuContext
-    dev::CuDevice
-    triple::ASCIIString
-    arch::ASCIIString
-
-    CuCodegenContext(ctx::CuContext) = CuCodegenContext(ctx, device(ctx))
-
-    function CuCodegenContext(ctx::CuContext, dev::CuDevice)
-        # Determine the triple
-        if haskey(ENV, "CUDA_FORCE_GPU_TRIPLE")
-            triple = ENV["CUDA_FORCE_GPU_TRIPLE"]
-        else
-            # TODO: detect 64/32
-            triple = "nvptx64-nvidia-cuda"
-        end
-
-        # Determine the architecture
-        if haskey(ENV, "CUDA_FORCE_GPU_ARCH")
-            arch = ENV["CUDA_FORCE_GPU_ARCH"]
-        else
-            arch = architecture(dev)
-        end
-
-        # NOTE: forcibly box to AbstractString because jl_init_codegen_ptx
-        #       accepts jl_value_t arguments
-        ccall(:jl_init_codegen_ptx, Void, (AbstractString, AbstractString), triple, arch)
-
-        new(ctx, dev, triple, arch)
-    end
-end
-
-function destroy(ctx::CuCodegenContext)
-    # TODO: we don't look at ctx, but we should, in order to prevent the user
-    #       from keeping a ctx after destruction, or destroying one context
-    #       while expecting to destroy another (cfr. other destroy methods,
-    #       asserting obj==active_obj)
-    ccall(:jl_destroy_codegen_ptx, Void, ())
-end
+    @cuda
 
 
 #

@@ -7,7 +7,6 @@ end
 
 dev = CuDevice(0)
 ctx = CuContext(dev)
-cgctx = CuCodegenContext(ctx, dev)
 
 a = [1, 2]
 b = [0]
@@ -16,4 +15,3 @@ b = [0]
 @assert length(a) == b[1]
 
 destroy(ctx)
-destroy(cgctx)

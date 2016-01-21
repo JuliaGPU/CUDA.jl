@@ -1,6 +1,5 @@
 dev = CuDevice(0)
 ctx = CuContext(dev)
-cgctx = CuCodegenContext(ctx, dev)
 
 
 ## @cuda macro
@@ -274,5 +273,4 @@ let
 end
 
 
-destroy(cgctx)
 destroy(ctx)

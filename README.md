@@ -66,9 +66,8 @@ using CUDA
 # select a CUDA device
 dev = CuDevice(0)
 
-# create contexts on the selected device
+# create context on the selected device
 ctx = CuContext(dev)
-cgctx = CuCodegenContext(ctx, dev)
 
 # generate random arrays and load them to GPU
 a = round(rand(Float32, (3, 4)) * 100)
@@ -88,8 +87,7 @@ println("a = \n$a")
 println("b = \n$b")
 println("c = \n$c")
 
-# finalize: destroy contexts
-destroy(cgctx)
+# finalize: destroy context
 destroy(ctx)
 ```
 
