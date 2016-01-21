@@ -289,17 +289,11 @@ end
             full_dump = haskey(ENV, "NO_SNIPPETS")
 
             if full_dump
-                llvm_dump = Base._dump_function(kernel_func, kernel_specsig,
-                                                false,    # native
-                                                false,    # wrapper
-                                                false,    # strip metadata
-                                                true)     # dump module
+                llvm_dump = ccall(:jl_dump_function_ir, Any, (Ptr{Void}, Bool, Bool),
+                                  llvmf, false, true)::ByteString
             else
-                llvm_dump = Base._dump_function(kernel_func, kernel_specsig,
-                                                false,    # native
-                                                false,    # wrapper
-                                                false,    # strip metadata
-                                                false)    # dump module
+                llvm_dump = ccall(:jl_dump_function_ir, Any, (Ptr{Void}, Bool, Bool),
+                                  llvmf, false, true)::ByteString
                 llvm_dump = replace(llvm_dump, kernel_fname, string(kernel_func))
             end
 
