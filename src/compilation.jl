@@ -12,7 +12,7 @@ function discover_toolchain()
         nvcc[] = get(ENV, "NVCC")
     else
         try
-            nvcc[] = chomp(readall(pipeline(`which nvcc`, stderr=DevNull)))
+            nvcc[] = chomp(readstring(pipeline(`which nvcc`, stderr=DevNull)))
         catch e
             error("could not find NVCC -- consider specifying with NVCC environment variable")
         end
@@ -62,7 +62,7 @@ function discover_toolchain()
     hostcc_possibilities = []
     for hostcc in hostcc_names
         hostcc_path = try
-            chomp(readall(pipeline(`which $hostcc`, stderr=DevNull)))
+            chomp(readstring(pipeline(`which $hostcc`, stderr=DevNull)))
         catch
             continue
         end
