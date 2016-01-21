@@ -216,7 +216,7 @@ end
 # with given Julia arguments
 # TODO: we should split this in a performance oriented and debugging version
 @generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
-                               func_const::TypeConst, argspec::Any...)
+                                    func_const::TypeConst, argspec::Any...)
     exprs = Expr(:block)
 
     # Process the arguments
@@ -242,10 +242,10 @@ end
         kernel_func = eval(:($(current_module()).$kernel_func_sym))
         kernel_err = nothing
         debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
-        try
-            precompile(kernel_func, kernel_specsig)
-        catch ex
-            kernel_err = ex
+        llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Any, Bool, Bool),
+                      kernel_func, Base.to_tuple_type(kernel_specsig), false, false)
+        if llvmf == C_NULL
+            error("no method found for the specified argument types")
         end
 
         # dump the ASTs
@@ -265,8 +265,16 @@ end
         # FIXME: just get new module / clean slate for every CUDA
         # module, with a predestined function name for the kernel? But
         # then what about type specialization?
-        kernel_fname = ccall(:jl_dump_function_name, Any, (Any, Any),
-                             kernel_func, Tuple{kernel_specsig...})
+        kernel_fname = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)
+        #=
+         HACK: strip the .1, because the llvmf returned by jl_get_llvmf is a copy
+
+         SOLUTION: properly use the execution chain, rather than hacking around
+                   getting hold of some function as we do now
+         =#
+        trace("Internal LLVM function name: $kernel_fname")
+        kernel_fname = kernel_fname[1:length(kernel_fname)-2]
+        trace("Internal LLVM function name: $kernel_fname")
 
         # DEBUG: dump the LLVM IR
         if TRACE[]
@@ -323,6 +331,9 @@ end
                 # Extract the kernel function's PTX
                 # TODO: do this in LLVM
                 kernel_start = searchindex(module_ptx, ".visible .entry $(kernel_fname)")
+                if kernel_start == 0
+                    error("Could not find kernel definition in PTX assembly")
+                end
                 kernel_end = search(module_ptx, r"\n}", kernel_start)
                 ptx_dump = module_ptx[kernel_start:kernel_end.start+1]
 
