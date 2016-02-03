@@ -192,27 +192,26 @@ end
     kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
     kernel_func_sym = value(func_const)
     if haskey(func_cache, (kernel_func_sym, kernel_specsig))
+        trace("Cache hit for $kernel_func_sym$(kernel_specsig)")
         ptx_func = func_cache[kernel_func_sym, kernel_specsig]
     else
-        kernel_func = eval(:($(current_module()).$kernel_func_sym))
+        debug("Compiling $kernel_func_sym$(kernel_specsig)")
 
         # TODO: get hold of the IR _before_ calling jl_to_ptx (which does
         # codegen + asm gen)
 
-        local module_ptx
-        local module_entry
-        try
-            debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
-            (module_ptx, module_entry) = ccall(:jl_to_ptx,
-                    Any, (Any, Any), kernel_func, Base.to_tuple_type(kernel_specsig)
-                )::Tuple{AbstractString, AbstractString}
-        finally
-            # dump the ASTs
-            trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-            trace("Typed AST (::ANY types shown in red):\n")
-            if TRACE[]
-                code_warntype(STDERR, kernel_func, kernel_specsig)
-            end
+        trace("Generating LLVM IR and PTX")
+        kernel_func = eval(:($(current_module()).$kernel_func_sym))
+        t = Base.tt_cons(Core.Typeof(kernel_func), Base.to_tuple_type(kernel_specsig))
+        (module_ptx, module_entry) = ccall(:jl_to_ptx,
+                Any, (Any, Any), kernel_func, t
+            )::Tuple{AbstractString, AbstractString}
+
+        # FIXME: putting this _before_ the jl_to_ptx trips an `target == PTX` within jl_to_ptx...
+        trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+        trace("Typed AST (::ANY types shown in red):\n")
+        if TRACE[]
+            code_warntype(STDERR, kernel_func, kernel_specsig)
         end
 
         trace("Kernel entry point: $module_entry")
