@@ -75,8 +75,6 @@ end
     @cuda (1, 1) kernel_empty2()
 end
 
-# TODO: test device function call with @noinline
-
 
 ## Return values
 
@@ -193,8 +191,8 @@ let
     @test_approx_eq arr[dims...] val[1]
 end
 
-@target ptx function kernel_lastvalue_devfun(a::CuDeviceArray{Float32},
-                                             x::CuDeviceArray{Float32})
+@target ptx @noinline function kernel_lastvalue_devfun(a::CuDeviceArray{Float32},
+                                                       x::CuDeviceArray{Float32})
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     max = gridDim().x * blockDim().x
     if i == max
