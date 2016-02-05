@@ -14,13 +14,13 @@ value{val}(::Type{TypeConst{val}}) = val
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 3)
-        error("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem])")
+        throw(ArgumentError("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem])"))
     end
     if length(config.args) == 2
         push!(config.args, :0)
     end
     if callexpr.head != :call
-        error("second argument to @cuda should be a function call")
+        throw(ArgumentError("second argument to @cuda should be a function call"))
     end
     kernel_func_sym = callexpr.args[1]
     if !isa(kernel_func_sym, Symbol)
@@ -28,10 +28,7 @@ macro cuda(config::Expr, callexpr::Expr)
         #       on symbols (why?). If it allowed Expr's or even Strings (through
         #       string(expr)), we could specialize the generated function on
         #       that.
-        error("only simple function calls are supported")
-    end
-    if search(string(kernel_func_sym), "kernel_").start != 1
-        error("kernel function should start with \"kernel_\"")
+        throw(ArgumentError("only simple function calls are supported"))
     end
 
     # HACK: wrap the function symbol in a type, so we can specialize on it in
