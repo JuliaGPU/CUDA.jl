@@ -201,17 +201,19 @@ end
         # TODO: get hold of the IR _before_ calling jl_to_ptx (which does
         # codegen + asm gen)
 
-        trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-        trace("Typed AST (::ANY types shown in red):\n")
-        if TRACE[]
-            code_warntype(STDERR, kernel_func, kernel_specsig)
-        end
-
+        # TODO: manual jl_to_llvmf now that it works
         trace("Generating LLVM IR and PTX")
         t = Base.tt_cons(Core.Typeof(kernel_func), Base.to_tuple_type(kernel_specsig))
         (module_ptx, module_entry) = ccall(:jl_to_ptx,
                 Any, (Any, Any), kernel_func, t
             )::Tuple{AbstractString, AbstractString}
+
+        # FIXME: put this before the IR/PTX generation when #14942 is fixed
+        trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+        trace("Typed AST (::ANY types shown in red):\n")
+        if TRACE[]
+            code_warntype(STDERR, kernel_func, kernel_specsig)
+        end
 
         trace("Kernel entry point: $module_entry")
 
