@@ -22,25 +22,19 @@ macro cuda(config::Expr, callexpr::Expr)
     if callexpr.head != :call
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
-    kernel_func_sym = callexpr.args[1]
-    if !isa(kernel_func_sym, Symbol)
-        # NOTE: cannot support Module.Kernel calls, because TypeConst only works
-        #       on symbols (why?). If it allowed Expr's or even Strings (through
-        #       string(expr)), we could specialize the generated function on
-        #       that.
-        throw(ArgumentError("only simple function calls are supported"))
-    end
+    kernel_func = callexpr.args[1]
 
-    # HACK: wrap the function symbol in a type, so we can specialize on it in
-    #       the generated function
-    kernel_func_const = TypeConst{kernel_func_sym}()
+    # HACK: wrap the function in a type, so we can specialize on it
+    #       in the generated function
+    # FIXME: isn't there something like TypeConst part of base?
+    kernel_func_const = :(CUDA.TypeConst{$kernel_func}())
     # TODO: insert some typeasserts? @cuda ([1,1], [1,1]) now crashes
     esc(Expr(:call, CUDA.generate_launch, config, kernel_func_const,
              callexpr.args[2:end]...))
 end
 
 # TODO: is this necessary? Just check the method cache?
-func_cache = Dict{Tuple{Symbol, Tuple}, CuFunction}()
+func_cache = Dict{Tuple{Function, Tuple}, CuFunction}()
 
 immutable ArgRef
     typ::Type
@@ -64,7 +58,9 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
+            bt_raw = backtrace()
+            bt = sprint(io->Base.show_backtrace(io, bt_raw))
+            warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)$bt\n")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -187,13 +183,12 @@ end
 
     # Compile the function
     kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
-    kernel_func_sym = value(func_const)
-    if haskey(func_cache, (kernel_func_sym, kernel_specsig))
-        trace("Cache hit for $kernel_func_sym$(kernel_specsig)")
-        ptx_func = func_cache[kernel_func_sym, kernel_specsig]
+    kernel_func = value(func_const)
+    if haskey(func_cache, (kernel_func, kernel_specsig))
+        trace("Cache hit for $kernel_func$(kernel_specsig)")
+        ptx_func = func_cache[kernel_func, kernel_specsig]
     else
-        debug("Compiling $kernel_func_sym$(kernel_specsig)")
-        kernel_func = eval(:($(current_module()).$kernel_func_sym))
+        debug("Compiling $kernel_func$(kernel_specsig)")
 
         # TODO: get hold of the IR _before_ calling jl_to_ptx (which does
         # codegen + asm gen)
@@ -281,7 +276,7 @@ end
         ptx_func = CuFunction(ptx_mod, module_entry)
 
         # Cache result to avoid unnecessary compilation
-        func_cache[(kernel_func_sym, kernel_specsig)] = ptx_func
+        func_cache[(kernel_func, kernel_specsig)] = ptx_func
     end
 
     # Throw everything together and generate the final runtime call
