@@ -256,7 +256,7 @@ end
                 # Usually the PTX code is invalid, so try to assembly using
                 # "ptxas" manually in order to get some more information
                 try
-                    readall(`ptxas`)
+                    readstring(`ptxas`)
                     (path, io) = mkstemps(".ptx")
                     print(io, module_ptx)
                     close(io)
