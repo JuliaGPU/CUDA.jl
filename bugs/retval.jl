@@ -1,11 +1,11 @@
 using CUDA
 
+dev = CuDevice(0)
+ctx = CuContext(dev)
+
 @target ptx function kernel_crash(a::CuDeviceArray, b::CuDeviceArray)
 	b[1] = length(a)
 end
-
-dev = CuDevice(0)
-ctx = CuContext(dev)
 
 a = [1, 2]
 b = [0]
