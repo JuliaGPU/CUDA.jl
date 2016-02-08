@@ -8,9 +8,6 @@ export
 # macros/functions for native Julia-CUDA processing
 #
 
-immutable TypeConst{val} end
-value{val}(::Type{TypeConst{val}}) = val
-
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 3)
@@ -26,8 +23,7 @@ macro cuda(config::Expr, callexpr::Expr)
 
     # HACK: wrap the function in a type, so we can specialize on it
     #       in the generated function
-    # FIXME: isn't there something like TypeConst part of base?
-    kernel_func_const = :(CUDA.TypeConst{$kernel_func}())
+    kernel_func_const = :(Val{$kernel_func}())
     # TODO: insert some typeasserts? @cuda ([1,1], [1,1]) now crashes
     esc(Expr(:call, CUDA.generate_launch, config, kernel_func_const,
              callexpr.args[2:end]...))
@@ -164,8 +160,8 @@ end
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
 # TODO: we should split this in a performance oriented and debugging version
-@generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
-                                    func_const::TypeConst, argspec::Any...)
+@generated function generate_launch{F}(config::Tuple{CuDim, CuDim, Int},
+                                       func_const::Val{F}, argspec::Any...)
     exprs = Expr(:block)
 
     # Process the arguments
@@ -183,7 +179,7 @@ end
 
     # Compile the function
     kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
-    kernel_func = value(func_const)
+    kernel_func = F
     if haskey(func_cache, (kernel_func, kernel_specsig))
         trace("Cache hit for $kernel_func$(kernel_specsig)")
         ptx_func = func_cache[kernel_func, kernel_specsig]
