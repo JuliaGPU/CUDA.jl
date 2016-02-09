@@ -50,8 +50,11 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            bt_raw = backtrace()
-            bt = sprint(io->Base.show_backtrace(io, bt_raw))
+            bt = ""
+            if DEBUG[]
+                bt_raw = backtrace()
+                bt = sprint(io->Base.show_backtrace(io, bt_raw))
+            end
             warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)$bt\n")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
