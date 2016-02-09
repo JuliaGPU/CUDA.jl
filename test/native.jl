@@ -46,6 +46,13 @@ ctx = CuContext(dev)
         @test !contains(ir, "jl_throw")
     end
 
+    # delayed binding lookup (due to noexisting global)
+    let
+        @target ptx foo() = nonexisting
+        @test_throws ErrorException @cuda (1,1) foo()
+    end
+
+    # generic call to nonexisting function
     let
         @target ptx foo() = nonexisting()
         @test_throws ErrorException @cuda (1,1) foo()

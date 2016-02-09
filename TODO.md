@@ -20,9 +20,9 @@
   before the `cgctx` instantiation is executed, but the compiler _does_ use the
   codegen context internally!
 
-* `@cuda` runs at parse-time, and compiles the function. This breaks when the
-  macro is execute before the function is compiled, eg. when `let; foo() = ...;
-  @cuda ... foo(); end`
+* Truly prohibit boxes (currently only a warning). This requires reworking
+  exception support, as we currently still create the exception, but ignore it
+  in `jl_throw` causing the box to disappear later on.
 
 * See [ISPC.jl](https://github.com/damiendr/ISPC.jl) for extracting closure vars
   (globals and such)
