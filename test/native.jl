@@ -203,9 +203,8 @@ end
             arr = round(rand(Float32, dims) * 100)
             val = Float32[0]
 
-            # FIXME: disable because of Julia bug #14988
-            #@cuda (len, 1) array_lastvalue_devfun(CuIn(arr), CuOut(val))
-            #@test_approx_eq arr[dims...] val[1]
+            @cuda (len, 1) array_lastvalue_devfun(CuIn(arr), CuOut(val))
+            @test_approx_eq arr[dims...] val[1]
         end
     end
 
