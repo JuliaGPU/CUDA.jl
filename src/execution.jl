@@ -33,8 +33,8 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
         Ptr{Void},  			# function
         Cuint, Cuint, Cuint,  	# grid dimensions (x, y, z)
         Cuint, Cuint, Cuint,  	# block dimensions (x, y, z)
-        Cuint,  				# shared memory bytes, 
-        Ptr{Void}, 				# stream 
+        Cuint,  				# shared memory bytes,
+        Ptr{Void}, 				# stream
         Ptr{Ptr{Void}}, 		# kernel parameters
         Ptr{Ptr{Void}}), 		# extra parameters
         f.handle,

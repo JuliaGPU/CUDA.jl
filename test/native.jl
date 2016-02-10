@@ -217,12 +217,11 @@ end
 
 end
 
-
 @testset "shared memory" begin
     dims = (16, 16)
     len = prod(dims)
 
-    @target ptx function array_reverse(a::CuDeviceArray{Int64})    
+    @target ptx function array_reverse(a::CuDeviceArray{Int64})
         chunk_size = Int32(blockDim().x)
 
         # Get shared memory
@@ -245,7 +244,7 @@ end
         return nothing
     end
 
-    @target ptx function array_reverse(a::CuDeviceArray{Float32})    
+    @target ptx function array_reverse(a::CuDeviceArray{Float32})
         chunk_size = Int32(blockDim().x)
 
         # Get shared memory
@@ -268,7 +267,7 @@ end
         return nothing
     end
 
-    @target ptx function array_reverse(a::CuDeviceArray{Float64})    
+    @target ptx function array_reverse(a::CuDeviceArray{Float64})
         chunk_size = Int32(blockDim().x)
 
         # Get shared memory

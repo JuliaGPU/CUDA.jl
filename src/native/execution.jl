@@ -20,9 +20,7 @@ macro cuda(config::Expr, callexpr::Expr)
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    # TODO: insert some typeasserts? @cuda ([1,1], [1,1]) now crashes
-    esc(Expr(:call, CUDA.generate_launch, config, callexpr.args[1],
-             callexpr.args[2:end]...))
+    esc(:(CUDA.generate_launch($config, $(callexpr.args...))))
 end
 
 # TODO: is this necessary? Just check the method cache?
@@ -164,14 +162,6 @@ end
     exprs = Expr(:block)
 
     # Process the arguments
-    #
-    # FIXME: for some reason, this generated function runs multiple times, with
-    #        different sets of increasingly typed arguments. For some reason,
-    #        those partially untyped executions halt somewhere in
-    #        manage_arguments, and only the final, fully typed invocation
-    #        actually gets to compile...
-    #
-    # NOTE: the above is why there are so many "unmanaged type" errors
     args = read_arguments(argspec)
     (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
     kernel_args = convert_arguments(managed_args)
@@ -186,7 +176,7 @@ end
         debug("Compiling $kernel_func$(kernel_specsig)")
 
         # TODO: get hold of the IR _before_ calling jl_to_ptx (which does
-        # codegen + asm gen)
+        #       codegen + asm gen)
 
         # TODO: manual jl_to_llvmf now that it works
         trace("Generating LLVM IR and PTX")
