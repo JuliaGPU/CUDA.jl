@@ -7,6 +7,7 @@ module CUDA
 include("errors.jl")
 
 include("util.jl")
+include("funmap.jl")
 include("base.jl")
 include("types.jl")
 include("devices.jl")
