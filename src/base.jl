@@ -9,7 +9,7 @@ const libcuda = Ref{Ptr{Void}}()
 const libcuda_vendor = Ref{ASCIIString}()
 function load_library()
     try
-        return (Libdl.dlopen("libcuda"), "NVIDIA")
+        return (Libdl.dlopen(@windows ? "nvcuda.dll" : "libcuda"), "NVIDIA")
     end
 
     try
@@ -95,21 +95,7 @@ function __init_base__()
     else
         api_version = driver_version()
     end
-    if api_version >= 3020
-        api_mapping[:cuDeviceTotalMem]   = :cuDeviceTotalMem_v2
-        api_mapping[:cuCtxCreate]        = :cuCtxCreate_v2
-        api_mapping[:cuMemAlloc]         = :cuMemAlloc_v2
-        api_mapping[:cuMemcpyHtoD]       = :cuMemcpyHtoD_v2
-        api_mapping[:cuMemcpyDtoH]       = :cuMemcpyDtoH_v2
-        api_mapping[:cuMemFree]          = :cuMemFree_v2
-        api_mapping[:cuModuleGetGlobal]  = :cuModuleGetGlobal_v2
-        api_mapping[:cuMemsetD32]        = :cuMemsetD32_v2
-    end
-    if api_version >= 4000
-        api_mapping[:cuCtxDestroy]       = :cuCtxDestroy_v2
-        api_mapping[:cuCtxPushCurrent]   = :cuCtxPushCurrent_v2
-        api_mapping[:cuCtxPopCurrent]    = :cuCtxPopCurrent_v2
-    end
+    populate_funmap(api_mapping, api_version)
 
     # Initialize the driver
     @cucall(:cuInit, (Cint,), 0)

@@ -1,93 +1,30 @@
 # Native execution support
 
 export
-    @cuda,
-    CuCodegenContext
-
-# TODO: allow code generation without actual device/ctx?
-# TODO: require passing the codegen context to @cuda, so we can have multiple
-#       contexts active, generating for and executing on multiple GPUs
-type CuCodegenContext
-    ctx::CuContext
-    dev::CuDevice
-    triple::ASCIIString
-    arch::ASCIIString
-
-    CuCodegenContext(ctx::CuContext) = CuCodegenContext(ctx, device(ctx))
-
-    function CuCodegenContext(ctx::CuContext, dev::CuDevice)
-        # Determine the triple
-        if haskey(ENV, "CUDA_FORCE_GPU_TRIPLE")
-            triple = ENV["CUDA_FORCE_GPU_TRIPLE"]
-        else
-            # TODO: detect 64/32
-            triple = "nvptx64-nvidia-cuda"
-        end
-
-        # Determine the architecture
-        if haskey(ENV, "CUDA_FORCE_GPU_ARCH")
-            arch = ENV["CUDA_FORCE_GPU_ARCH"]
-        else
-            arch = architecture(dev)
-        end
-
-        # NOTE: forcibly box to AbstractString because jl_init_codegen_ptx
-        #       accepts jl_value_t arguments
-        ccall(:jl_init_codegen_ptx, Void, (AbstractString, AbstractString), triple, arch)
-
-        new(ctx, dev, triple, arch)
-    end
-end
-
-function destroy(ctx::CuCodegenContext)
-    # TODO: we don't look at ctx, but we should, in order to prevent the user
-    #       from keeping a ctx after destruction, or destroying one context
-    #       while expecting to destroy another (cfr. other destroy methods,
-    #       asserting obj==active_obj)
-    ccall(:jl_destroy_codegen_ptx, Void, ())
-end
+    @cuda
 
 
 #
 # macros/functions for native Julia-CUDA processing
 #
 
-immutable TypeConst{val} end
-value{val}(::Type{TypeConst{val}}) = val
-
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 3)
-        error("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem])")
+        throw(ArgumentError("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem])"))
     end
     if length(config.args) == 2
         push!(config.args, :0)
     end
     if callexpr.head != :call
-        error("second argument to @cuda should be a function call")
-    end
-    kernel_func_sym = callexpr.args[1]
-    if !isa(kernel_func_sym, Symbol)
-        # NOTE: cannot support Module.Kernel calls, because TypeConst only works
-        #       on symbols (why?). If it allowed Expr's or even Strings (through
-        #       string(expr)), we could specialize the generated function on
-        #       that.
-        error("only simple function calls are supported")
-    end
-    if search(string(kernel_func_sym), "kernel_").start != 1
-        error("kernel function should start with \"kernel_\"")
+        throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    # HACK: wrap the function symbol in a type, so we can specialize on it in
-    #       the generated function
-    kernel_func_const = TypeConst{kernel_func_sym}()
-    # TODO: insert some typeasserts? @cuda ([1,1], [1,1]) now crashes
-    esc(Expr(:call, CUDA.generate_launch, config, kernel_func_const,
-             callexpr.args[2:end]...))
+    esc(:(CUDA.generate_launch($config, $(callexpr.args...))))
 end
 
 # TODO: is this necessary? Just check the method cache?
-func_cache = Dict{Tuple{Symbol, Tuple}, CuFunction}()
+func_cache = Dict{Tuple{Function, Tuple}, CuFunction}()
 
 immutable ArgRef
     typ::Type
@@ -111,7 +48,12 @@ function read_arguments(argspec::Tuple)
         else
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
-            warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)")
+            bt = ""
+            if DEBUG[]
+                bt_raw = backtrace()
+                bt = sprint(io->Base.show_backtrace(io, bt_raw))
+            end
+            warn("you passed an unmanaged $(args[i].typ) argument -- assuming input/output (costly!)$bt\n")
             args[i] = ArgRef(CuInOut{args[i].typ}, :( CuInOut($(args[i].ref)) ))
         end
     end
@@ -216,59 +158,42 @@ end
 # with given Julia arguments
 # TODO: we should split this in a performance oriented and debugging version
 @generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
-                               func_const::TypeConst, argspec::Any...)
+                                    ftype, argspec::Any...)
     exprs = Expr(:block)
 
     # Process the arguments
-    #
-    # FIXME: for some reason, this generated function runs multiple times, with
-    #        different sets of increasingly typed arguments. For some reason,
-    #        those partially untyped executions halt somewhere in
-    #        manage_arguments, and only the final, fully typed invocation
-    #        actually gets to compile...
-    #
-    # NOTE: the above is why there are so many "unmanaged type" errors
     args = read_arguments(argspec)
     (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
     kernel_args = convert_arguments(managed_args)
 
     # Compile the function
+    kernel_func = ftype.instance
     kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
-    kernel_func_sym = value(func_const)
-    if haskey(func_cache, (kernel_func_sym, kernel_specsig))
-        ptx_func = func_cache[kernel_func_sym, kernel_specsig]
+    if haskey(func_cache, (kernel_func, kernel_specsig))
+        trace("Cache hit for $kernel_func$(kernel_specsig)")
+        ptx_func = func_cache[kernel_func, kernel_specsig]
     else
-        # trigger function compilation
-        kernel_func = eval(:($(current_module()).$kernel_func_sym))
-        kernel_err = nothing
-        debug("Invoking Julia compiler for $kernel_func$(kernel_specsig)")
-        try
-            precompile(kernel_func, kernel_specsig)
-        catch ex
-            kernel_err = ex
-        end
+        debug("Compiling $kernel_func$(kernel_specsig)")
 
-        # dump the ASTs
-        # TODO: dump called functions too?
+        # TODO: get hold of the IR _before_ calling jl_to_ptx (which does
+        #       codegen + asm gen)
+
+        # TODO: manual jl_to_llvmf now that it works
+        trace("Generating LLVM IR and PTX")
+        t = Base.tt_cons(ftype, Base.to_tuple_type(kernel_specsig))
+        (module_ptx, module_entry) = ccall(:jl_to_ptx, Any, (Any,), t)
+
+        # FIXME: put this before the IR/PTX generation when #14942 is fixed
         trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
         trace("Typed AST (::ANY types shown in red):\n")
         if TRACE[]
             code_warntype(STDERR, kernel_func, kernel_specsig)
         end
 
-        if kernel_err != nothing
-            critical("Kernel compilation phase 1 failed ($(sprint(showerror, kernel_err)))")
-            rethrow(kernel_err)
-        end
-
-        # Get internal function name
-        # FIXME: just get new module / clean slate for every CUDA
-        # module, with a predestined function name for the kernel? But
-        # then what about type specialization?
-        kernel_fname = ccall(:jl_dump_function_name, Any, (Any, Any),
-                             kernel_func, Tuple{kernel_specsig...})
+        trace("Kernel entry point: $module_entry")
 
         # DEBUG: dump the LLVM IR
+        # TODO: this doesn't contain the full call cycle
         if TRACE[]
             # Generate a safe and unique name
             kernel_uid = "$(kernel_func)-"
@@ -278,69 +203,31 @@ end
             else
                 kernel_uid *= "Void"
             end
-            full_dump = haskey(ENV, "NO_SNIPPETS")
 
-            if full_dump
-                llvm_dump = Base._dump_function(kernel_func, kernel_specsig,
-                                                false,    # native
-                                                false,    # wrapper
-                                                false,    # strip metadata
-                                                true)     # dump module
-            else
-                llvm_dump = Base._dump_function(kernel_func, kernel_specsig,
-                                                false,    # native
-                                                false,    # wrapper
-                                                false,    # strip metadata
-                                                false)    # dump module
-                llvm_dump = replace(llvm_dump, kernel_fname, string(kernel_func))
-            end
+            buf = IOBuffer()
+            code_llvm(buf, kernel_func, kernel_specsig)
+            module_llvm = bytestring(buf)
 
             output = "$(dumpdir[])/$kernel_uid.ll"
             if isfile(output)
                 warn("Could not write LLVM IR to $output (file already exists !?)")
             else
                 open(output, "w") do io
-                    if !full_dump
-                        write(io, "; LLVM IR snippet generated by CUDA.jl\n")
-                        write(io, "; NOTE: this snippet is not self-contained, and will not compile\n")
-                        write(io, "\n")
-                    end
-
-                    write(io, llvm_dump)
+                    write(io, module_llvm)
                 end
                 trace("Wrote kernel LLVM IR to $output")
             end
         end
 
-        # Trigger module compilation
-        module_ptx = ccall(:jl_to_ptx, Any, ())::AbstractString
-
         # DEBUG: dump the PTX assembly
+        # TODO: make code_native return PTX code
         if TRACE[]
-            if full_dump
-                ptx_dump = module_ptx
-            else
-                # Extract the kernel function's PTX
-                # TODO: do this in LLVM
-                kernel_start = searchindex(module_ptx, ".visible .entry $(kernel_fname)")
-                kernel_end = search(module_ptx, r"\n}", kernel_start)
-                ptx_dump = module_ptx[kernel_start:kernel_end.start+1]
-
-                ptx_dump = replace(ptx_dump, kernel_fname, string(kernel_func))
-            end
-
             output = "$(dumpdir[])/$kernel_uid.ptx"
             if isfile(output)
                 warn("Could not write PTX assembly to $output (file already exists !?)")
             else
                 open(output, "w") do io
-                    if !full_dump
-                        write(io, "// PTX snippet generated by CUDA.jl\n")
-                        write(io, "// NOTE: this snippet is not self-contained, and will not compile\n")
-                        write(io, "\n")
-                    end
-
-                    write(io, ptx_dump)
+                    write(io, module_ptx)
                 end
                 trace("Wrote kernel PTX assembly to $output")
             end
@@ -356,7 +243,7 @@ end
                 # Usually the PTX code is invalid, so try to assembly using
                 # "ptxas" manually in order to get some more information
                 try
-                    readall(`ptxas`)
+                    readstring(`ptxas`)
                     (path, io) = mkstemps(".ptx")
                     print(io, module_ptx)
                     close(io)
@@ -369,10 +256,10 @@ end
         end
 
         # Get CUDA function object
-        ptx_func = CuFunction(ptx_mod, kernel_fname)
+        ptx_func = CuFunction(ptx_mod, module_entry)
 
         # Cache result to avoid unnecessary compilation
-        func_cache[(kernel_func_sym, kernel_specsig)] = ptx_func
+        func_cache[(kernel_func, kernel_specsig)] = ptx_func
     end
 
     # Throw everything together and generate the final runtime call

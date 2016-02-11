@@ -22,18 +22,19 @@ function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
 	griddim = dim3(grid)
 	blockdim = dim3(block)
 
-    @assert all(dim->(dim > 0), grid)
-    @assert all(dim->(dim > 0), block)
+    all(dim->(dim > 0), grid)  || throw(ArgumentError("Grid dimensions should be non-null"))
+    all(dim->(dim > 0), block) || throw(ArgumentError("Block dimensions should be non-null"))
 
-    @assert all([isbits(arg) || isa(arg, DevicePtr) for arg in args])
+    all([isbits(arg) || isa(arg, DevicePtr) for arg in args]) ||
+        throw(ArgumentError("Arguments to kernel should be bitstype or device pointer"))
     kernel_args = Any[[arg] for arg in args]
 
     @cucall(:cuLaunchKernel, (
         Ptr{Void},  			# function
         Cuint, Cuint, Cuint,  	# grid dimensions (x, y, z)
         Cuint, Cuint, Cuint,  	# block dimensions (x, y, z)
-        Cuint,  				# shared memory bytes, 
-        Ptr{Void}, 				# stream 
+        Cuint,  				# shared memory bytes,
+        Ptr{Void}, 				# stream
         Ptr{Ptr{Void}}, 		# kernel parameters
         Ptr{Ptr{Void}}), 		# extra parameters
         f.handle,
