@@ -49,13 +49,13 @@ ctx = CuContext(dev)
     # delayed binding lookup (due to noexisting global)
     let
         @target ptx foo() = nonexisting
-        @test_throws ErrorException @cuda (1,1) foo()
+        @test_throws ErrorException code_native(DevNull, foo, ())
     end
 
     # generic call to nonexisting function
     let
         @target ptx foo() = nonexisting()
-        @test_throws ErrorException @cuda (1,1) foo()
+        @test_throws ErrorException code_native(DevNull, foo, ())
     end
 
     let
@@ -66,24 +66,22 @@ ctx = CuContext(dev)
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
     let
         @target ptx foo() = return nothing
-        @cuda (1,1) foo()
-        @cuda (1,1) foo()
+        code_native(DevNull, foo, ())
+        code_native(DevNull, foo, ())
     end
 
+    # TODO: we use a lot of foo in here, make sure if we redefine foo in an
+    # inner clause it refers to the new function
 end
 
 
 @testset "@cuda" begin
     @target ptx do_nothing() = return nothing
 
-    @test_throws UndefVarError begin
-        @cuda (1, 1) undefined_kernel()
-    end
+    @test_throws UndefVarError @cuda (1, 1) undefined_kernel()
 
     @testset "kernel dims" begin
-        @test_throws ArgumentError begin
-            @cuda (0, 0) do_nothing()
-        end
+        @test_throws ArgumentError @cuda (0, 0) do_nothing()
         @cuda (1, 1) do_nothing()
     end
 
