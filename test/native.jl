@@ -96,11 +96,8 @@ end
     end
 
     @testset "return values" begin
-        # TODO: test the actual error message
-        # @test_throws ErrorException @eval begin
-        #     @target ptx retint() = return 1
-        #     @cuda (1, 1) retint()
-        # end
+        @target ptx retint() = return 1
+        @test_throws ErrorException @cuda (1, 1) retint()
     end
 
     @testset "argument passing" begin
