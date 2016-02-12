@@ -26,3 +26,9 @@
 
 * See [ISPC.jl](https://github.com/damiendr/ISPC.jl) for extracting closure vars
   (globals and such)
+
+* Run with `--inline=no`
+
+* Running with `--code-coverage=user` doesn't work with `TRACE=1` because PTX
+  methods get partially registered in the host module due to the `code_*` calls
+  (I think)
