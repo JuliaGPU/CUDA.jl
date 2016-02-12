@@ -63,6 +63,13 @@ ctx = CuContext(dev)
         @test_throws ErrorException foo()
     end
 
+    # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
+    let
+        @target ptx foo() = return nothing
+        @cuda (1,1) foo()
+        @cuda (1,1) foo()
+    end
+
 end
 
 
