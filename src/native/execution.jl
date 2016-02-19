@@ -240,6 +240,8 @@ end
 
     # TODO: CuModule can go out of scope here... intended?
 
+    # TODO: CUDA.methodcache
+
     key = (kernel_func, kernel_specsig)
     @gensym ptx_func ptx_mod
     cuda_setup = quote
