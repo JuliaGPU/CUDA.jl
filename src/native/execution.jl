@@ -220,7 +220,6 @@ end
     end
 
     # DEBUG: dump the PTX assembly
-    # TODO: make code_native return PTX code
     if TRACE[]
         output = "$(dumpdir[])/$kernel_uid.ptx"
         if isfile(output)
@@ -235,34 +234,28 @@ end
 
     # TODO: remove ptxas special case from i don't know where
 
-    # TODO: throw everything in a big quote so that ptx_mod and ptx_func aren't
-    #       unescaped literal vars. or manually use gensym
-
-    # TODO: CuModule can go out of scope here... intended?
-
-    # TODO: CUDA.methodcache
-
     key = (kernel_func, kernel_specsig)
     @gensym ptx_func ptx_mod
-    cuda_setup = quote
+    kernel_compilation = quote
         if (haskey(CUDA.methodcache, $key))
-            $ptx_func = methodcache[$key]
+            $ptx_func = CUDA.methodcache[$key]
         else
             $ptx_mod = CuModule($module_ptx)
             $ptx_func = CuFunction($ptx_mod, $module_entry)
-            methodcache[$key] = $ptx_func
+            CUDA.methodcache[$key] = $ptx_func
         end
     end
+    
+    kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
+    kernel_call = :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) )
 
-    # Throw everything together and generate the final runtime call
+    # Throw everything together
     exprs = Expr(:block)
     append!(exprs.args, managing_setup)
-    kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
-    append!(exprs.args, cuda_setup.args)
-    push!(exprs.args, :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) ))
+    append!(exprs.args, kernel_compilation.args)
+    push!(exprs.args, kernel_call)
     append!(exprs.args, managing_teardown)
-
-    exprs
+    return exprs
 end
 
 # Perform the run-time API calls launching the kernel
