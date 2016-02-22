@@ -232,8 +232,6 @@ end
         end
     end
 
-    # TODO: remove ptxas special case from i don't know where
-
     key = (kernel_func, kernel_specsig)
     @gensym ptx_func ptx_mod
     kernel_compilation = quote
@@ -245,7 +243,7 @@ end
             CUDA.methodcache[$key] = $ptx_func
         end
     end
-    
+
     kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
     kernel_call = :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) )
 
