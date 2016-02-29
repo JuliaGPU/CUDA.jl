@@ -12,3 +12,4 @@ LCOV.writefile("coverage/lcov.info", coverage)
 clean_folder("src")
 
 run(`genhtml coverage/lcov.info -o coverage/html`)
+println("Done! Open your browser at file://$dir/html/index.html")

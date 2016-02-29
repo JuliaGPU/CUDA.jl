@@ -23,8 +23,8 @@ macro cuda(config::Expr, callexpr::Expr)
     esc(:(CUDA.generate_launch($config, $(callexpr.args...))))
 end
 
-# TODO: is this necessary? Just check the method cache?
-func_cache = Dict{Tuple{Function, Tuple}, CuFunction}()
+# TODO: can we do this in the compiler?
+methodcache = Dict{Tuple{Function, Tuple}, CuFunction}()
 
 immutable ArgRef
     typ::Type
@@ -105,7 +105,7 @@ function manage_arguments(args::Array{ArgRef})
                 end
                 push!(teardown, :(free($managed_var)))
             elseif isbits(managed_type)
-                error("managed bits types are not supported -- use an array instead") 
+                error("managed bits types are not supported -- use an array instead")
             else
                 # TODO: support more types, for example CuOut(status::Int)
                 error("invalid managed type -- cannot handle $managed_type")
@@ -159,8 +159,6 @@ end
 # TODO: we should split this in a performance oriented and debugging version
 @generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
                                     ftype, argspec::Any...)
-    exprs = Expr(:block)
-
     # Process the arguments
     args = read_arguments(argspec)
     (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
@@ -169,106 +167,93 @@ end
     # Compile the function
     kernel_func = ftype.instance
     kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
-    if haskey(func_cache, (kernel_func, kernel_specsig))
-        trace("Cache hit for $kernel_func$(kernel_specsig)")
-        ptx_func = func_cache[kernel_func, kernel_specsig]
-    else
-        debug("Compiling $kernel_func$(kernel_specsig)")
+    debug("Compiling $kernel_func$(kernel_specsig)")
 
-        # TODO: get hold of the IR _before_ calling jl_to_ptx (which does
-        #       codegen + asm gen)
-
-        # TODO: manual jl_to_llvmf now that it works
-        trace("Generating LLVM IR and PTX")
-        t = Base.tt_cons(ftype, Base.to_tuple_type(kernel_specsig))
-        (module_ptx, module_entry) = ccall(:jl_to_ptx, Any, (Any,), t)
-
-        # FIXME: put this before the IR/PTX generation when #14942 is fixed
-        trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
-        trace("Typed AST (::ANY types shown in red):\n")
-        if TRACE[]
-            code_warntype(STDERR, kernel_func, kernel_specsig)
-        end
-
-        trace("Kernel entry point: $module_entry")
-
-        # DEBUG: dump the LLVM IR
-        # TODO: this doesn't contain the full call cycle
-        if TRACE[]
-            # Generate a safe and unique name
-            kernel_uid = "$(kernel_func)-"
-            if length(kernel_specsig) > 0
-                kernel_uid *= join([replace(string(x), r"\W", "")
-                                    for x in kernel_specsig], '.')
-            else
-                kernel_uid *= "Void"
-            end
-
-            buf = IOBuffer()
-            code_llvm(buf, kernel_func, kernel_specsig)
-            module_llvm = bytestring(buf)
-
-            output = "$(dumpdir[])/$kernel_uid.ll"
-            if isfile(output)
-                warn("Could not write LLVM IR to $output (file already exists !?)")
-            else
-                open(output, "w") do io
-                    write(io, module_llvm)
-                end
-                trace("Wrote kernel LLVM IR to $output")
-            end
-        end
-
-        # DEBUG: dump the PTX assembly
-        # TODO: make code_native return PTX code
-        if TRACE[]
-            output = "$(dumpdir[])/$kernel_uid.ptx"
-            if isfile(output)
-                warn("Could not write PTX assembly to $output (file already exists !?)")
-            else
-                open(output, "w") do io
-                    write(io, module_ptx)
-                end
-                trace("Wrote kernel PTX assembly to $output")
-            end
-        end
-
-        # Create CUDA module
-        ptx_mod = try
-            # TODO: what with other kernel calls? entirely new module? or just
-            # add them?
-            CuModule(module_ptx)
-        catch err
-            if err == ERROR_NO_BINARY_FOR_GPU
-                # Usually the PTX code is invalid, so try to assembly using
-                # "ptxas" manually in order to get some more information
-                try
-                    readstring(`ptxas`)
-                    (path, io) = mkstemps(".ptx")
-                    print(io, module_ptx)
-                    close(io)
-                    # FIXME: get a hold of the actual architecture (see cgctx)
-                    run(ignorestatus(`ptxas --gpu-name=sm_35 $path`))
-                    rm(path)
-                end
-            end
-            rethrow(err)
-        end
-
-        # Get CUDA function object
-        ptx_func = CuFunction(ptx_mod, module_entry)
-
-        # Cache result to avoid unnecessary compilation
-        func_cache[(kernel_func, kernel_specsig)] = ptx_func
+    # Generate LLVM IR
+    # NOTE: this is lifted from reflection.jl::_dump_function
+    t = Base.tt_cons(ftype, Base.to_tuple_type(kernel_specsig))
+    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Any, Bool, Bool), kernel_func, t, false, true)
+    if llvmf == C_NULL
+        error("no method found for the specified argument types")
     end
 
-    # Throw everything together and generate the final runtime call
-    append!(exprs.args, managing_setup)
-    kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
-    push!(exprs.args, :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) ))
-    append!(exprs.args, managing_teardown)
+    # Generate PTX assembly
+    module_ptx = ccall(:jl_dump_function_asm, Any, (Ptr{Void},Cint), llvmf, 0)::ByteString
 
-    exprs
+    # Get entry point
+    module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::ByteString
+
+    # FIXME: put this before the IR/PTX generation when #14942 is fixed
+    trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+    trace("Typed AST (::ANY types shown in red):\n")
+    if TRACE[]
+        code_warntype(STDERR, kernel_func, kernel_specsig)
+    end
+
+    trace("Kernel entry point: $module_entry")
+
+    # DEBUG: dump the LLVM IR
+    # TODO: this doesn't contain the full call cycle
+    if TRACE[]
+        # Generate a safe and unique name
+        kernel_uid = "$(kernel_func)-"
+        if length(kernel_specsig) > 0
+            kernel_uid *= join([replace(string(x), r"\W", "")
+                                for x in kernel_specsig], '.')
+        else
+            kernel_uid *= "Void"
+        end
+
+        buf = IOBuffer()
+        code_llvm(buf, kernel_func, kernel_specsig)
+        module_llvm = bytestring(buf)
+
+        output = "$(dumpdir[])/$kernel_uid.ll"
+        if isfile(output)
+            warn("Could not write LLVM IR to $output (file already exists !?)")
+        else
+            open(output, "w") do io
+                write(io, module_llvm)
+            end
+            trace("Wrote kernel LLVM IR to $output")
+        end
+    end
+
+    # DEBUG: dump the PTX assembly
+    if TRACE[]
+        output = "$(dumpdir[])/$kernel_uid.ptx"
+        if isfile(output)
+            warn("Could not write PTX assembly to $output (file already exists !?)")
+        else
+            open(output, "w") do io
+                write(io, module_ptx)
+            end
+            trace("Wrote kernel PTX assembly to $output")
+        end
+    end
+
+    key = (kernel_func, kernel_specsig)
+    @gensym ptx_func ptx_mod
+    kernel_compilation = quote
+        if (haskey(CUDA.methodcache, $key))
+            $ptx_func = CUDA.methodcache[$key]
+        else
+            $ptx_mod = CuModule($module_ptx)
+            $ptx_func = CuFunction($ptx_mod, $module_entry)
+            CUDA.methodcache[$key] = $ptx_func
+        end
+    end
+
+    kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
+    kernel_call = :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) )
+
+    # Throw everything together
+    exprs = Expr(:block)
+    append!(exprs.args, managing_setup)
+    append!(exprs.args, kernel_compilation.args)
+    push!(exprs.args, kernel_call)
+    append!(exprs.args, managing_teardown)
+    return exprs
 end
 
 # Perform the run-time API calls launching the kernel
