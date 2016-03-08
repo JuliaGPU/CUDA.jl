@@ -9,7 +9,7 @@ ctx = CuContext(dev)
     @cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
     @test_throws ErrorException @cucall(:nonExisting, ())
-    CUDA.trace(prefix=" ")
+    CUDAnative.trace(prefix=" ")
 
     @test_throws ErrorException eval(
         quote
@@ -31,7 +31,7 @@ end
     }
     """
 
-    CUDA.launch(reference_dummy(), 1, 1, ())
+    CUDAnative.launch(reference_dummy(), 1, 1, ())
 
 end
 
@@ -55,7 +55,7 @@ end
         input_dev = CuArray(input)
         output_dev = CuArray(Float32, dims)
 
-        CUDA.launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
+        CUDAnative.launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
         output = to_host(output_dev)
         @test_approx_eq input output
 

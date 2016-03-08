@@ -20,7 +20,7 @@ macro cuda(config::Expr, callexpr::Expr)
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    esc(:(CUDA.generate_launch($config, $(callexpr.args...))))
+    esc(:(CUDAnative.generate_launch($config, $(callexpr.args...))))
 end
 
 # TODO: can we do this in the compiler?
@@ -235,17 +235,17 @@ end
     key = (kernel_func, kernel_specsig)
     @gensym ptx_func ptx_mod
     kernel_compilation = quote
-        if (haskey(CUDA.methodcache, $key))
-            $ptx_func = CUDA.methodcache[$key]
+        if (haskey(CUDAnative.methodcache, $key))
+            $ptx_func = CUDAnative.methodcache[$key]
         else
             $ptx_mod = CuModule($module_ptx)
             $ptx_func = CuFunction($ptx_mod, $module_entry)
-            CUDA.methodcache[$key] = $ptx_func
+            CUDAnative.methodcache[$key] = $ptx_func
         end
     end
 
     kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
-    kernel_call = :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) )
+    kernel_call = :( CUDAnative.exec(config, $ptx_func, $kernel_arg_expr) )
 
     # Throw everything together
     exprs = Expr(:block)

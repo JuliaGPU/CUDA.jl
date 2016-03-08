@@ -143,17 +143,17 @@ end
 
         # cu mem tests
         let
-            @test_throws ArgumentError CUDA.cualloc(Function, 10)
+            @test_throws ArgumentError CUDAnative.cualloc(Function, 10)
 
             dev_array = CuArray(Int32, 10)
-            CUDA.cumemset(dev_array.ptr, UInt32(0), 10)
+            CUDAnative.cumemset(dev_array.ptr, UInt32(0), 10)
             host_array = to_host(dev_array)
 
             for i in host_array
                 @assert i == 0 "Memset failed on element $i"
             end
 
-            CUDA.free(dev_array)
+            CUDAnative.free(dev_array)
 
         end
 

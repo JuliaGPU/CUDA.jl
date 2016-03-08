@@ -44,7 +44,7 @@ The following example shows how to add two vectors on the GPU:
 First you have to write the computation kernel and mark it `@target ptx`:
 
 ```julia
-using CUDA
+using CUDAnative
 
 @target ptx function kernel_vadd(a::CuDeviceArray{Float32}, b::CuDeviceArray{Float32},
                                  c::CuDeviceArray{Float32})
@@ -61,7 +61,7 @@ end
 Using the `@cuda` macro, you can launch the kernel on a GPU of your choice:
 
 ```julia
-using CUDA
+using CUDAnative
 
 # select a CUDA device
 dev = CuDevice(0)

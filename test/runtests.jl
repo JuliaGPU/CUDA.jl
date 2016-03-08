@@ -1,4 +1,4 @@
-using CUDA, Base.Test
+using CUDAnative, Base.Test
 
 @test devcount() > 0
 

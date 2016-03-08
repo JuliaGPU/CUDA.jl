@@ -1,7 +1,7 @@
 # NOTE: precompilation is supported, but slows down development
 __precompile__(false)
 
-module CUDA
+module CUDAnative
 
 
 include("errors.jl")
