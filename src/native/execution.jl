@@ -226,6 +226,24 @@ function get_function_module{F<:Function}(fun::F, args_type::Type...)
     return (module_asm, module_entry)
 end
 
+@generated function get_kernel(kernel_func, args::Any...)
+    func_i = kernel_func.instance
+    # Get module containing kernel function
+    (module_ptx, module_entry) = get_function_module(func_i, args...)
+    key = (func_i, args)
+    @gensym ptx_func ptx_mod
+    kernel_compilation = quote
+        if (haskey(CUDA.methodcache, $key))
+            $ptx_func = CUDA.methodcache[$key]
+        else
+            $ptx_mod = CuModule($module_ptx)
+            $ptx_func = CuFunction($ptx_mod, $module_entry)
+            CUDA.methodcache[$key] = $ptx_func
+        end
+        return $ptx_func
+    end
+end
+
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
 # TODO: we should split this in a performance oriented and debugging version
