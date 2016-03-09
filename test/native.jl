@@ -239,7 +239,7 @@ end
     # Get raw pointers
     d_a_ptr = d_a.ptr.inner
     d_b_ptr = d_b.ptr.inner
-    d_c_ptr = d_b.ptr.inner
+    d_c_ptr = d_c.ptr.inner
 
     # Get compiled kernel handle
     kernel = CUDA.get_kernel(vadd, d_a_ptr, d_b_ptr, d_c_ptr)
