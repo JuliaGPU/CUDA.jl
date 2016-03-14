@@ -224,6 +224,40 @@ end
 
 end
 
+@testset "get kernel function" begin
+
+    @target ptx function vadd(a::CuDeviceArray{Int}, b::CuDeviceArray{Int}, c::CuDeviceArray{Int})
+        i = (blockIdx().x -1) * blockDim().x + threadIdx().x
+        c[i] = a[i] + b[i]
+        return nothing
+    end
+
+    # Arguments
+    n = 500
+    d_a = CuArray(ones(Int, n))
+    d_b = CuArray(ones(Int, n))
+    d_c = CuArray(Int, n)
+
+    # Get raw pointers
+    d_a_ptr = d_a.ptr.inner
+    d_b_ptr = d_b.ptr.inner
+    d_c_ptr = d_c.ptr.inner
+
+    # Get compiled kernel handle
+    kernel = CUDA.get_kernel(vadd, d_a_ptr, d_b_ptr, d_c_ptr)
+
+    #CUDA.exec((1, n, 0), kernel, d_a, d_b, d_c)
+    CUDA.launch(kernel, 1, n, (d_a_ptr, d_b_ptr, d_c_ptr))
+
+    c = to_host(d_c)
+    result = fill(2::Int, n)
+    @assert result == c
+
+    free(d_a)
+    free(d_b)
+    free(d_c)
+end
+
 @testset "shared memory" begin
     dims = (16, 16)
     len = prod(dims)
