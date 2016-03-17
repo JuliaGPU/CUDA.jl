@@ -164,7 +164,8 @@ function get_function_module{F<:Function}(fun::F, args_type::Type...)
     # Next call will trigger compilation (if necessary)
     llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Any, Bool, Bool), fun, t, false, true)
     if llvmf == C_NULL
-        error("no method found for the specified argument types")
+        methods = Base.methods(fun)
+        error("no method found for kernel $fun for argument types $args_type\nexisting methods are $methods")
     end
 
     # Generate (PTX) assembly
@@ -216,7 +217,7 @@ function get_function_module{F<:Function}(fun::F, args_type::Type...)
             warn("Could not write (PTX) assembly to $output (file already exists !?)")
         else
             open(output, "w") do io
-                write(io, module_ptx)
+                write(io, module_asm)
             end
             trace("Wrote kernel (PTX) assembly to $output")
         end
