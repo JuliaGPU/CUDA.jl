@@ -211,6 +211,16 @@ floor(x::Float64) = Base.llvmcall(
      """%2 = call double @__nv_floor(double %0)
         ret double %2"""),
     Float64, Tuple{Float64}, x)
+ceil(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_ceilf(float)""",
+     """%2 = call float @__nv_ceilf(float %0)
+        ret float %2"""),
+    Float32, Tuple{Float32}, x)
+ceil(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_ceil(double)""",
+     """%2 = call double @__nv_ceil(double %0)
+        ret double %2"""),
+    Float64, Tuple{Float64}, x)
 abs(x::Int32) = Base.llvmcall(
     ("""declare i32 @__nv_abs(i32)""",
      """%2 = call i32 @__nv_abs(i32 %0)

@@ -154,61 +154,51 @@ function convert_arguments(args::Array{ArgRef})
     return converted_args
 end
 
-# Construct the necessary argument conversions for launching a PTX kernel
-# with given Julia arguments
-# TODO: we should split this in a performance oriented and debugging version
-@generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
-                                    ftype, argspec::Any...)
-    # Process the arguments
-    args = read_arguments(argspec)
-    (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
-    kernel_args = convert_arguments(managed_args)
+function get_function_module{F<:Function}(fun::F, args_type::Type...)
 
-    # Compile the function
-    kernel_func = ftype.instance
-    kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
-    debug("Compiling $kernel_func$(kernel_specsig)")
+    debug("Compiling $fun$(args_type)")
 
     # Generate LLVM IR
     # NOTE: this is lifted from reflection.jl::_dump_function
-    t = Base.tt_cons(ftype, Base.to_tuple_type(kernel_specsig))
-    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Any, Bool, Bool), kernel_func, t, false, true)
+    t = Base.tt_cons(typeof(fun), Base.to_tuple_type(args_type))
+    # Next call will trigger compilation (if necessary)
+    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Any, Bool, Bool), fun, t, false, true)
     if llvmf == C_NULL
         error("no method found for the specified argument types")
     end
 
-    # Generate PTX assembly
-    module_ptx = ccall(:jl_dump_function_asm, Any, (Ptr{Void},Cint), llvmf, 0)::ByteString
+    # Generate (PTX) assembly
+    module_asm = ccall(:jl_dump_function_asm, Any, (Ptr{Void},Cint), llvmf, 0)::ByteString
 
     # Get entry point
     module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::ByteString
 
     # FIXME: put this before the IR/PTX generation when #14942 is fixed
-    trace("Lowered AST:\n$(code_lowered(kernel_func, kernel_specsig))")
+    trace("Lowered AST:\n$(code_lowered(fun, args_type))")
     trace("Typed AST (::ANY types shown in red):\n")
     if TRACE[]
-        code_warntype(STDERR, kernel_func, kernel_specsig)
+        code_warntype(STDERR, fun, args_type)
     end
 
-    trace("Kernel entry point: $module_entry")
+    trace("Function entry point: $module_entry")
 
     # DEBUG: dump the LLVM IR
     # TODO: this doesn't contain the full call cycle
     if TRACE[]
         # Generate a safe and unique name
-        kernel_uid = "$(kernel_func)-"
-        if length(kernel_specsig) > 0
-            kernel_uid *= join([replace(string(x), r"\W", "")
-                                for x in kernel_specsig], '.')
+        function_uid = "$(fun)-"
+        if length(args_type) > 0
+            function_uid *= join([replace(string(x), r"\W", "")
+                                for x in args_type], '.')
         else
-            kernel_uid *= "Void"
+            function_uid *= "Void"
         end
 
         buf = IOBuffer()
-        code_llvm(buf, kernel_func, kernel_specsig)
+        code_llvm(buf, fun, args_type)
         module_llvm = bytestring(buf)
 
-        output = "$(dumpdir[])/$kernel_uid.ll"
+        output = "$(dumpdir[])/$function_uid.ll"
         if isfile(output)
             warn("Could not write LLVM IR to $output (file already exists !?)")
         else
@@ -219,18 +209,58 @@ end
         end
     end
 
-    # DEBUG: dump the PTX assembly
+    # DEBUG: dump the (PTX) assembly
     if TRACE[]
-        output = "$(dumpdir[])/$kernel_uid.ptx"
+        output = "$(dumpdir[])/$function_uid.ptx"
         if isfile(output)
-            warn("Could not write PTX assembly to $output (file already exists !?)")
+            warn("Could not write (PTX) assembly to $output (file already exists !?)")
         else
             open(output, "w") do io
                 write(io, module_ptx)
             end
-            trace("Wrote kernel PTX assembly to $output")
+            trace("Wrote kernel (PTX) assembly to $output")
         end
     end
+
+    # Return module & module entry containing function
+    return (module_asm, module_entry)
+end
+
+@generated function get_kernel(kernel_func, args::Any...)
+    func_i = kernel_func.instance
+    # Get module containing kernel function
+    (module_ptx, module_entry) = get_function_module(func_i, args...)
+    key = (func_i, args)
+    @gensym ptx_func ptx_mod
+    kernel_compilation = quote
+        if (haskey(CUDAnative.methodcache, $key))
+            $ptx_func = CUDAnative.methodcache[$key]
+        else
+            $ptx_mod = CuModule($module_ptx)
+            $ptx_func = CuFunction($ptx_mod, $module_entry)
+            CUDAnative.methodcache[$key] = $ptx_func
+        end
+        return $ptx_func
+    end
+end
+
+# Construct the necessary argument conversions for launching a PTX kernel
+# with given Julia arguments
+# TODO: we should split this in a performance oriented and debugging version
+# TODO: fix type signature for ftype. {F<:Function} ... ftype::F does not work:
+#       ftype.instance crashes in one of the test instances
+@generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
+                                    ftype, argspec::Any...)
+    # Process the arguments
+    args = read_arguments(argspec)
+    (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
+    kernel_args = convert_arguments(managed_args)
+
+    # Compile the function
+    kernel_func = ftype.instance
+    kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
+
+    (module_ptx, module_entry) = get_function_module(kernel_func, kernel_specsig...)
 
     key = (kernel_func, kernel_specsig)
     @gensym ptx_func ptx_mod

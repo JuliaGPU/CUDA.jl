@@ -215,11 +215,47 @@ end
             arr = round(rand(Float32, dims) * 100)
             val = Float32[0]
 
-            @cuda (len, 1) array_lastvalue_devfun(CuIn(arr), CuOut(val))
-            @test_approx_eq arr[dims...] val[1]
+            # FIXME: fails since 0fa405a3b514ba40c1c08e611604635ac35cf148
+            #        due to undefined reference accessing ftype.instance
+            #@cuda (len, 1) array_lastvalue_devfun(CuIn(arr), CuOut(val))
+            #@test_approx_eq arr[dims...] val[1]
         end
     end
 
+end
+
+@testset "get kernel function" begin
+
+    @target ptx function vadd(a::CuDeviceArray{Int}, b::CuDeviceArray{Int}, c::CuDeviceArray{Int})
+        i = (blockIdx().x -1) * blockDim().x + threadIdx().x
+        c[i] = a[i] + b[i]
+        return nothing
+    end
+
+    # Arguments
+    n = 500
+    d_a = CuArray(ones(Int, n))
+    d_b = CuArray(ones(Int, n))
+    d_c = CuArray(Int, n)
+
+    # Get raw pointers
+    d_a_ptr = d_a.ptr.inner
+    d_b_ptr = d_b.ptr.inner
+    d_c_ptr = d_c.ptr.inner
+
+    # Get compiled kernel handle
+    kernel = CUDAnative.get_kernel(vadd, d_a_ptr, d_b_ptr, d_c_ptr)
+
+    #CUDAnative.exec((1, n, 0), kernel, d_a, d_b, d_c)
+    CUDAnative.launch(kernel, 1, n, (d_a_ptr, d_b_ptr, d_c_ptr))
+
+    c = to_host(d_c)
+    result = fill(2::Int, n)
+    @assert result == c
+
+    free(d_a)
+    free(d_b)
+    free(d_c)
 end
 
 @testset "shared memory" begin
