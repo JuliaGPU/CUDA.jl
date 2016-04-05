@@ -23,9 +23,6 @@ macro cuda(config::Expr, callexpr::Expr)
     esc(:(CUDAnative.generate_launch($config, $(callexpr.args...))))
 end
 
-# TODO: can we do this in the compiler?
-methodcache = Dict{Tuple{Function, Tuple}, CuFunction}()
-
 immutable ArgRef
     typ::Type
     ref::Union{Symbol, Expr}
@@ -225,19 +222,29 @@ function get_function_module{F<:Function}(fun::F, args_type::Type...)
     return (module_asm, module_entry)
 end
 
-@generated function get_kernel(kernel_func, args::Any...)
-    func_i = kernel_func.instance
-    # Get module containing kernel function
-    (module_asm, module_entry) = get_function_module(func_i, args...)
-    key = (func_i, args)
+# TODO: can we do this in the compiler?
+code_cache = Dict{Tuple{Function, Tuple}, Tuple{AbstractString, AbstractString}}()
+func_cache = Dict{Tuple{Function, Tuple}, CuFunction}()
+
+@generated function get_kernel(ftype, kernel_specsig::Any...)
+    kernel_func = ftype.instance
+    key = (kernel_func, kernel_specsig)
+
+    if (haskey(CUDAnative.code_cache, key))
+        (module_asm, module_entry) = CUDAnative.code_cache[key]
+    else
+        (module_asm, module_entry) = get_function_module(kernel_func, kernel_specsig...)
+        CUDAnative.code_cache[key] = (module_asm, module_entry)
+    end
+
     @gensym ptx_func ptx_mod
     kernel_compilation = quote
-        if (haskey(CUDAnative.methodcache, $key))
-            $ptx_func = CUDAnative.methodcache[$key]
+        if (haskey(CUDAnative.func_cache, $key))
+            $ptx_func = CUDAnative.func_cache[$key]
         else
             $ptx_mod = CuModule($module_asm)
             $ptx_func = CuFunction($ptx_mod, $module_entry)
-            CUDAnative.methodcache[$key] = $ptx_func
+            CUDAnative.func_cache[$key] = $ptx_func
         end
         return $ptx_func
     end
@@ -255,21 +262,28 @@ end
     (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
     kernel_args = convert_arguments(managed_args)
 
-    # Compile the function
+    # TODO: re-use get_kernel here
+
     kernel_func = ftype.instance
     kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
-
-    (module_ptx, module_entry) = get_function_module(kernel_func, kernel_specsig...)
-
     key = (kernel_func, kernel_specsig)
+
+    # FIXME: not caching (ie. compiling the same function twice) crashes the compiler
+    if (haskey(CUDAnative.code_cache, key))
+        (module_asm, module_entry) = CUDAnative.code_cache[key]
+    else
+        (module_asm, module_entry) = get_function_module(kernel_func, kernel_specsig...)
+        CUDAnative.code_cache[key] = (module_asm, module_entry)
+    end
+
     @gensym ptx_func ptx_mod
     kernel_compilation = quote
-        if (haskey(CUDAnative.methodcache, $key))
-            $ptx_func = CUDAnative.methodcache[$key]
+        if (haskey(CUDAnative.func_cache, $key))
+            $ptx_func = CUDAnative.func_cache[$key]
         else
-            $ptx_mod = CuModule($module_ptx)
+            $ptx_mod = CuModule($module_asm)
             $ptx_func = CuFunction($ptx_mod, $module_entry)
-            CUDAnative.methodcache[$key] = $ptx_func
+            CUDAnative.func_cache[$key] = $ptx_func
         end
     end
 
