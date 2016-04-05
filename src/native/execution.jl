@@ -155,7 +155,6 @@ function convert_arguments(args::Array{ArgRef})
 end
 
 function get_function_module{F<:Function}(fun::F, args_type::Type...)
-
     debug("Compiling $fun$(args_type)")
 
     # Generate LLVM IR
@@ -216,7 +215,7 @@ function get_function_module{F<:Function}(fun::F, args_type::Type...)
             warn("Could not write (PTX) assembly to $output (file already exists !?)")
         else
             open(output, "w") do io
-                write(io, module_ptx)
+                write(io, module_asm)
             end
             trace("Wrote kernel (PTX) assembly to $output")
         end
@@ -229,14 +228,14 @@ end
 @generated function get_kernel(kernel_func, args::Any...)
     func_i = kernel_func.instance
     # Get module containing kernel function
-    (module_ptx, module_entry) = get_function_module(func_i, args...)
+    (module_asm, module_entry) = get_function_module(func_i, args...)
     key = (func_i, args)
     @gensym ptx_func ptx_mod
     kernel_compilation = quote
         if (haskey(CUDAnative.methodcache, $key))
             $ptx_func = CUDAnative.methodcache[$key]
         else
-            $ptx_mod = CuModule($module_ptx)
+            $ptx_mod = CuModule($module_asm)
             $ptx_func = CuFunction($ptx_mod, $module_entry)
             CUDAnative.methodcache[$key] = $ptx_func
         end
