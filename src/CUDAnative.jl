@@ -28,8 +28,8 @@ include("profile.jl")
 
 
 function __init__()
-    __init_base__()
     __init_util__()
+    __init_base__()
 end
 
 end
