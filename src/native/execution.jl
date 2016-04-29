@@ -158,7 +158,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     # NOTE: this is lifted from reflection.jl::_dump_function
     t = Base.tt_cons(ftype, Base.to_tuple_type(types))
     # Next call will trigger compilation (if necessary)
-    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Any, Bool, Bool), fun, t, false, true)
+    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Bool, Bool), t, false, true)
     if llvmf == C_NULL
         error("no method found for the specified argument types")
     end
