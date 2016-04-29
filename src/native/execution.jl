@@ -234,7 +234,7 @@ end
 code_cache = Dict{Tuple{Type, Tuple}, Tuple{AbstractString, AbstractString}}()
 func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
 
-@generated function get_kernel(ftype, types::Any...)
+@generated function get_kernel{F<:Function}(ftype::F, types::Any...)
     key = (ftype, types)
 
     if (haskey(CUDAnative.code_cache, key))
@@ -260,10 +260,8 @@ end
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
 # TODO: we should split this in a performance oriented and debugging version
-# TODO: fix type signature for ftype. {F<:Function} ... ftype::F does not work:
-#       ftype.instance crashes in one of the test instances
-@generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
-                                    ftype, argspec::Any...)
+@generated function generate_launch{F<:Function}(config::Tuple{CuDim, CuDim, Int},
+                                                 ftype::F, argspec::Any...)
     # Process the arguments
     outer_args = read_arguments(argspec)
     (managing_setup, managed_args, managing_teardown) = manage_arguments(outer_args)
@@ -274,8 +272,7 @@ end
     types = tuple([arg.typ for arg in args]...)
     key = (ftype, types)
 
-    # FIXME: not caching (ie. compiling the same function twice) crashes the compiler
-    if (haskey(CUDAnative.code_cache, key))
+    if haskey(CUDAnative.code_cache, key)
         (module_asm, module_entry) = CUDAnative.code_cache[key]
     else
         (module_asm, module_entry) = get_function_module(ftype, types...)
