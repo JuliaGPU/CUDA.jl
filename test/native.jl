@@ -61,6 +61,7 @@ ctx = CuContext(dev)
         @test_throws ErrorException code_native(DevNull, foo, ())
     end
 
+    # cannot call PTX functions
     let
         @target ptx foo() = return nothing
         @test_throws ErrorException foo()
@@ -75,58 +76,58 @@ ctx = CuContext(dev)
 
     # bug: depending on a child function from multiple parents resulted in
     #      the child only being present once
-    # NOTE: disabled because of #15967 / #15967
+    # NOTE: disabled because of #15276 / #15967
     let
-        # @target ptx @noinline function child()
-        #     return 0
-        # end
+        @target ptx @noinline function child()
+            return 0
+        end
 
-        # @target ptx function parent1(arr::Ptr{Int64})
-        #     i = child()
-        #     unsafe_store!(arr, i, i)
-        #     return nothing
-        # end
+        @target ptx function parent1(arr::Ptr{Int64})
+            i = child()
+            unsafe_store!(arr, i, i)
+            return nothing
+        end
         # asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
         # @test ismatch(r".visible .func .+ julia_child", asm)
 
 
-        # @target ptx function parent2(arr::Ptr{Int64})
-        #     i = child()+1
-        #     unsafe_store!(arr, i, i)
+        @target ptx function parent2(arr::Ptr{Int64})
+            i = child()+1
+            unsafe_store!(arr, i, i)
 
-        #     return nothing
-        # end
+            return nothing
+        end
         # asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
         # @test ismatch(r".visible .func .+ julia_child", asm)
     end
 
     # bug: similar, but slightly different issue as above
     #      in the case of two child functions
-    # NOTE: disabled because of #15967 / #15967
+    # NOTE: disabled because of #15276 / #15967
     let
-        # @target ptx @noinline function child1()
-        #     return 0
-        # end
+        @target ptx @noinline function child1()
+            return 0
+        end
 
-        # @target ptx @noinline function child2()
-        #     return 0
-        # end
+        @target ptx @noinline function child2()
+            return 0
+        end
 
-        # @target ptx function parent1(arry::Ptr{Int64})
-        #     i = child1() + child2()
-        #     unsafe_store!(arry, i, i)
+        @target ptx function parent1(arry::Ptr{Int64})
+            i = child1() + child2()
+            unsafe_store!(arry, i, i)
 
-        #     return nothing
-        # end
+            return nothing
+        end
         # asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
 
 
-        # @target ptx function parent2(arry::Ptr{Int64})
-        #     i = child1() + child2()
-        #     unsafe_store!(arry, i, i+1)
+        @target ptx function parent2(arry::Ptr{Int64})
+            i = child1() + child2()
+            unsafe_store!(arry, i, i+1)
 
-        #     return nothing
-        # end
+            return nothing
+        end
         # asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
     end
 end
@@ -265,14 +266,13 @@ end
         end
 
         # same, but using a device function
+        # NOTE: disabled because of #15276 / #15967
         let
             arr = round(rand(Float32, dims) * 100)
             val = Float32[0]
 
-            # FIXME: fails since 0fa405a3b514ba40c1c08e611604635ac35cf148
-            #        due to undefined reference accessing ftype.instance
-            #@cuda (len, 1) array_lastvalue_devfun(CuIn(arr), CuOut(val))
-            #@test_approx_eq arr[dims...] val[1]
+            # @cuda (len, 1) array_lastvalue_devfun(CuIn(arr), CuOut(val))
+            # @test_approx_eq arr[dims...] val[1]
         end
     end
 end
