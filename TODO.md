@@ -32,3 +32,6 @@
 * Running with `--code-coverage=user` doesn't work with `TRACE=1` because PTX
   methods get partially registered in the host module due to the `code_*` calls
   (I think)
+
+* Additional specialization: when invoking a kernel with constant dimension config,
+  remove the intrinsic lookups and specialize for that configuration.

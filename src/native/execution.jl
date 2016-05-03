@@ -20,11 +20,8 @@ macro cuda(config::Expr, callexpr::Expr)
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    esc(:(CUDA.generate_launch($config, $(callexpr.args...))))
+    esc(:(CUDAnative.generate_launch($config, $(callexpr.args...))))
 end
-
-# TODO: can we do this in the compiler?
-methodcache = Dict{Tuple{Function, Tuple}, CuFunction}()
 
 immutable ArgRef
     typ::Type
@@ -154,15 +151,14 @@ function convert_arguments(args::Array{ArgRef})
     return converted_args
 end
 
-function get_function_module{F<:Function}(fun::F, args_type::Type...)
-
-    debug("Compiling $fun$(args_type)")
+function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
+    debug("Compiling $ftype$(types)")
 
     # Generate LLVM IR
     # NOTE: this is lifted from reflection.jl::_dump_function
-    t = Base.tt_cons(typeof(fun), Base.to_tuple_type(args_type))  
+    t = Base.tt_cons(ftype, Base.to_tuple_type(types))
     # Next call will trigger compilation (if necessary)
-    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Any, Bool, Bool), fun, t, false, true)
+    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Bool, Bool), t, false, true)
     if llvmf == C_NULL
         methods = Base.methods(fun)
         error("no method found for kernel $fun for argument types $args_type\nexisting methods are $methods")
@@ -174,29 +170,37 @@ function get_function_module{F<:Function}(fun::F, args_type::Type...)
     # Get entry point
     module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::ByteString
 
+    # Try to get a hold of the original function
+    # NOTE: this doesn't work for closures, as there can be multiple instances
+    #       with each a different environment
+    f = Nullable{Function}()
+    try
+        f = Nullable{Function}(ftype.instance)
+    end
+
     # FIXME: put this before the IR/PTX generation when #14942 is fixed
-    trace("Lowered AST:\n$(code_lowered(fun, args_type))")
-    trace("Typed AST (::ANY types shown in red):\n")
-    if TRACE[]
-        code_warntype(STDERR, fun, args_type)
+    if TRACE[] && !isnull(f)
+        trace("Lowered AST:\n$(code_lowered(f, types))")
+        trace("Typed AST (::ANY types shown in red):\n")
+        code_warntype(STDERR, fun[], types)
     end
 
     trace("Function entry point: $module_entry")
 
     # DEBUG: dump the LLVM IR
     # TODO: this doesn't contain the full call cycle
-    if TRACE[]
+    if TRACE[] && !isnull(f)
         # Generate a safe and unique name
-        function_uid = "$(fun)-"
-        if length(args_type) > 0
+        function_uid = "$(f[])-"
+        if length(types) > 0
             function_uid *= join([replace(string(x), r"\W", "")
-                                for x in args_type], '.')
+                                for x in types], '.')
         else
             function_uid *= "Void"
         end
 
         buf = IOBuffer()
-        code_llvm(buf, fun, args_type)
+        code_llvm(buf, f[], types)
         module_llvm = bytestring(buf)
 
         output = "$(dumpdir[])/$function_uid.ll"
@@ -227,19 +231,28 @@ function get_function_module{F<:Function}(fun::F, args_type::Type...)
     return (module_asm, module_entry)
 end
 
-@generated function get_kernel(kernel_func, args::Any...)
-    func_i = kernel_func.instance
-    # Get module containing kernel function
-    (module_ptx, module_entry) = get_function_module(func_i, args...)
-    key = (func_i, args)
+# TODO: can we do this in the compiler?
+code_cache = Dict{Tuple{Type, Tuple}, Tuple{AbstractString, AbstractString}}()
+func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
+
+@generated function get_kernel{F<:Function}(ftype::F, types::Any...)
+    key = (ftype, types)
+
+    if (haskey(CUDAnative.code_cache, key))
+        (module_asm, module_entry) = CUDAnative.code_cache[key]
+    else
+        (module_asm, module_entry) = get_function_module(ftype, types...)
+        CUDAnative.code_cache[key] = (module_asm, module_entry)
+    end
+
     @gensym ptx_func ptx_mod
     kernel_compilation = quote
-        if (haskey(CUDA.methodcache, $key))
-            $ptx_func = CUDA.methodcache[$key]
+        if (haskey(CUDAnative.func_cache, $key))
+            $ptx_func = CUDAnative.func_cache[$key]
         else
-            $ptx_mod = CuModule($module_ptx)
+            $ptx_mod = CuModule($module_asm)
             $ptx_func = CuFunction($ptx_mod, $module_entry)
-            CUDA.methodcache[$key] = $ptx_func
+            CUDAnative.func_cache[$key] = $ptx_func
         end
         return $ptx_func
     end
@@ -248,35 +261,38 @@ end
 # Construct the necessary argument conversions for launching a PTX kernel
 # with given Julia arguments
 # TODO: we should split this in a performance oriented and debugging version
-# TODO: fix type signature for ftype. {F<:Function} ... ftype::F does not work:
-#       ftype.instance crashes in one of the test instances
-@generated function generate_launch(config::Tuple{CuDim, CuDim, Int},
-                                    ftype, argspec::Any...)
+@generated function generate_launch{F<:Function}(config::Tuple{CuDim, CuDim, Int},
+                                                 ftype::F, argspec::Any...)
     # Process the arguments
-    args = read_arguments(argspec)
-    (managing_setup, managed_args, managing_teardown) = manage_arguments(args)
-    kernel_args = convert_arguments(managed_args)
+    outer_args = read_arguments(argspec)
+    (managing_setup, managed_args, managing_teardown) = manage_arguments(outer_args)
+    args = convert_arguments(managed_args)
 
-    # Compile the function
-    kernel_func = ftype.instance
-    kernel_specsig = tuple([arg.typ for arg in kernel_args]...)
+    # TODO: re-use get_kernel here
 
-    (module_ptx, module_entry) = get_function_module(kernel_func, kernel_specsig...)
+    types = tuple([arg.typ for arg in args]...)
+    key = (ftype, types)
 
-    key = (kernel_func, kernel_specsig)
+    if haskey(CUDAnative.code_cache, key)
+        (module_asm, module_entry) = CUDAnative.code_cache[key]
+    else
+        (module_asm, module_entry) = get_function_module(ftype, types...)
+        CUDAnative.code_cache[key] = (module_asm, module_entry)
+    end
+
     @gensym ptx_func ptx_mod
     kernel_compilation = quote
-        if (haskey(CUDA.methodcache, $key))
-            $ptx_func = CUDA.methodcache[$key]
+        if (haskey(CUDAnative.func_cache, $key))
+            $ptx_func = CUDAnative.func_cache[$key]
         else
-            $ptx_mod = CuModule($module_ptx)
+            $ptx_mod = CuModule($module_asm)
             $ptx_func = CuFunction($ptx_mod, $module_entry)
-            CUDA.methodcache[$key] = $ptx_func
+            CUDAnative.func_cache[$key] = $ptx_func
         end
     end
 
-    kernel_arg_expr = Expr(:tuple, [arg.ref for arg in kernel_args]...)
-    kernel_call = :( CUDA.exec(config, $ptx_func, $kernel_arg_expr) )
+    refs = Expr(:tuple, [arg.ref for arg in args]...)
+    kernel_call = :( CUDAnative.exec(config, $ptx_func, $refs) )
 
     # Throw everything together
     exprs = Expr(:block)
