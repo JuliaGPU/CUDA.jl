@@ -160,7 +160,8 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     # Next call will trigger compilation (if necessary)
     llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Bool, Bool), t, false, true)
     if llvmf == C_NULL
-        error("no method found for the specified argument types")
+        methods = Base.methods(fun)
+        error("no method found for kernel $fun for argument types $args_type\nexisting methods are $methods")
     end
 
     # Generate (PTX) assembly
