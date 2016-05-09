@@ -164,10 +164,10 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     end
 
     # Generate (PTX) assembly
-    module_asm = ccall(:jl_dump_function_asm, Any, (Ptr{Void},Cint), llvmf, 0)::ByteString
+    module_asm = ccall(:jl_dump_function_asm, Any, (Ptr{Void},Cint), llvmf, 0)::String
 
     # Get entry point
-    module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::ByteString
+    module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::String
 
     # Try to get a hold of the original function
     # NOTE: this doesn't work for closures, as there can be multiple instances

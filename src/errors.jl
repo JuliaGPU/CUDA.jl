@@ -10,7 +10,7 @@ end
 
 ==(x::CuError,y::CuError) = x.code == y.code
 
-const return_codes = Dict{Int,Tuple{Symbol,ASCIIString}}(
+const return_codes = Dict{Int,Tuple{Symbol,String}}(
     0   => (:SUCCESS, "Success"),
 
     1   => (:ERROR_INVALID_VALUE, "Invalid value"),

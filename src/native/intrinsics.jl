@@ -22,7 +22,7 @@ export
 
 for dim in (:x, :y, :z)
     # Thread index
-    fname = symbol("threadIdx_$dim")
+    fname = Symbol("threadIdx_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.tid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -33,7 +33,7 @@ for dim in (:x, :y, :z)
     end
 
     # Block dimension (#threads per block)
-    fname = symbol("blockDim_$dim")
+    fname = Symbol("blockDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.ntid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -44,7 +44,7 @@ for dim in (:x, :y, :z)
     end
 
     # Block index
-    fname = symbol("blockIdx_$dim")
+    fname = Symbol("blockIdx_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.ctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
@@ -55,7 +55,7 @@ for dim in (:x, :y, :z)
     end
 
     # Grid dimension (#blocks)
-    fname = symbol("gridDim_$dim")
+    fname = Symbol("gridDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.nctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(

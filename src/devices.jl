@@ -88,7 +88,7 @@ function list_devices()
     for i = 0:cnt-1
         dev = CuDevice(i)
         nam = name(dev)
-        tmem = iround(totalmem(dev) / (1024^2))
+        tmem = round(Integer, totalmem(dev) / (1024^2))
         cap = capability(dev)
 
         println("device[$i]: $(nam), capability $(cap.major).$(cap.minor), total mem = $tmem MB")

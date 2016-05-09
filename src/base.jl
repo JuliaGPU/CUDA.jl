@@ -6,7 +6,7 @@ export
     @cucall
 
 const libcuda = Ref{Ptr{Void}}()
-const libcuda_vendor = Ref{ASCIIString}()
+const libcuda_vendor = Ref{String}()
 function load_library()
     try
         return (Libdl.dlopen(@windows ? "nvcuda.dll" : "libcuda"), "NVIDIA")

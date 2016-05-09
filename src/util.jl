@@ -1,7 +1,7 @@
 export
     mkstemps
 
-const dumpdir = Ref{ASCIIString}()
+const dumpdir = Ref{String}()
 
 
 # Conditional logging (augmenting the default info/warn/error)

@@ -2,8 +2,8 @@ export
     @compile
 
 const initialized = Ref{Bool}()
-const nvcc = Ref{ASCIIString}()
-const flags = Ref{Array{ASCIIString, 1}}()
+const nvcc = Ref{String}()
+const flags = Ref{Array{String, 1}}()
 
 function discover_toolchain()
     # Check availability NVCC

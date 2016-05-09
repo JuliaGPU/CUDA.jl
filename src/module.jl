@@ -15,7 +15,7 @@ export
 immutable CuModule
     handle::Ptr{Void}
 
-    function CuModule(mod::ASCIIString)
+    function CuModule(mod::String)
         module_ref = Ref{Ptr{Void}}()
 
         is_data = true
@@ -48,7 +48,7 @@ end
 immutable CuFunction
     handle::Ptr{Void}
 
-    function CuFunction(md::CuModule, name::ASCIIString)
+    function CuFunction(md::CuModule, name::String)
         function_ref = Ref{Ptr{Void}}()
         @cucall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}),
                                       function_ref, md.handle, name)
@@ -66,7 +66,7 @@ immutable CuGlobal{T}
     ptr::DevicePtr{Void}
     nbytes::Cssize_t
 
-    function CuGlobal(md::CuModule, name::ASCIIString)
+    function CuGlobal(md::CuModule, name::String)
         ptr_ref = Ref{Ptr{Void}}()
         bytes_ref = Ref{Cssize_t}()
         @cucall(:cuModuleGetGlobal,
