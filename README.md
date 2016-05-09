@@ -46,8 +46,7 @@ First you have to write the computation kernel and mark it `@target ptx`:
 ```julia
 using CUDAnative
 
-@target ptx function kernel_vadd(a::CuDeviceArray{Float32}, b::CuDeviceArray{Float32},
-                                 c::CuDeviceArray{Float32})
+@target ptx function kernel_vadd(a, b, c)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     c[i] = a[i] + b[i]
 
