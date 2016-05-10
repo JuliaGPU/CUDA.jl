@@ -151,6 +151,8 @@ function convert_arguments(args::Array{ArgRef})
     return converted_args
 end
 
+# FIXME: the entire code_* logic is broken now that they check for being called
+#        from within a staged function.
 function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     debug("Compiling $ftype$(types)")
 
@@ -160,8 +162,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     # Next call will trigger compilation (if necessary)
     llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Bool, Bool), t, false, true)
     if llvmf == C_NULL
-        methods = Base.methods(fun)
-        error("no method found for kernel $fun for argument types $args_type\nexisting methods are $methods")
+        error("no method found for kernel $ftype with argument types $args_type")
     end
 
     # Generate (PTX) assembly
@@ -179,19 +180,19 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     end
 
     # FIXME: put this before the IR/PTX generation when #14942 is fixed
-    if TRACE[] && !isnull(f)
+    if TRACE[] && !isnull(f) && false
         trace("Lowered AST:\n$(code_lowered(f, types))")
         trace("Typed AST (::ANY types shown in red):\n")
-        code_warntype(STDERR, fun[], types)
+        code_warntype(STDERR, get(f), types)
     end
 
     trace("Function entry point: $module_entry")
 
     # DEBUG: dump the LLVM IR
     # TODO: this doesn't contain the full call cycle
-    if TRACE[] && !isnull(f)
+    if TRACE[] && !isnull(f) && false
         # Generate a safe and unique name
-        function_uid = "$(f[])-"
+        function_uid = "$(get(f))-"
         if length(types) > 0
             function_uid *= join([replace(string(x), r"\W", "")
                                 for x in types], '.')
@@ -200,7 +201,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
         end
 
         buf = IOBuffer()
-        code_llvm(buf, f[], types)
+        code_llvm(buf, get(f), types)
         module_llvm = bytestring(buf)
 
         output = "$(dumpdir[])/$function_uid.ll"
@@ -215,7 +216,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     end
 
     # DEBUG: dump the (PTX) assembly
-    if TRACE[]
+    if TRACE[] && false
         output = "$(dumpdir[])/$function_uid.ptx"
         if isfile(output)
             warn("Could not write (PTX) assembly to $output (file already exists !?)")
