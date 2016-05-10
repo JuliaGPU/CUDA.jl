@@ -279,6 +279,21 @@ end
             # @test_approx_eq arr[dims...] val[1]
         end
     end
+
+    @testset "intrinsics" begin
+        buf = CuArray(Float32, 1)
+
+        @target ptx function kernel_log10(a::CuDeviceArray{Float32}, i::Float32)
+            a[1] = CUDAnative.log10(i)
+            return nothing
+        end
+
+        @cuda (1, 1) kernel_log10(buf, Float32(100))
+        val = to_host(buf)
+        @test_approx_eq val[1] 2.0
+
+        free(buf)
+    end
 end
 
 @testset "get kernel function" begin

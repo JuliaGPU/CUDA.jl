@@ -261,3 +261,23 @@ log(x::Float64) = Base.llvmcall(
      """%2 = call double @__nv_log(double %0)
         ret double %2"""),
     Float64, Tuple{Float64}, x)
+log10(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_log10f(float)""",
+     """%2 = call float @__nv_log10f(float %0)
+        ret float %2"""),
+    Float32, Tuple{Float32}, x)
+log10(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_log10(double)""",
+     """%2 = call double @__nv_log10(double %0)
+        ret double %2"""),
+    Float64, Tuple{Float64}, x)
+erf(x::Float32) = Base.llvmcall(
+    ("""declare float @__nv_erff(float)""",
+     """%2 = call float @__nv_erff(float %0)
+        ret float %2"""),
+    Float32, Tuple{Float32}, x)
+erf(x::Float64) = Base.llvmcall(
+    ("""declare double @__nv_erf(double)""",
+     """%2 = call double @__nv_erf(double %0)
+        ret double %2"""),
+    Float64, Tuple{Float64}, x)
