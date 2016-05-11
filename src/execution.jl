@@ -16,9 +16,8 @@ dim3(g::Int) = dim3(g, 1, 1)
 dim3(g::Tuple{Int, Int}) = dim3(g[1], g[2], 1)
 dim3(g::Tuple{Int, Int, Int}) = dim3(g[1], g[2], g[3])
 
-# TODO: why 4?
 function launch(f::CuFunction, grid::CuDim, block::CuDim, args::Tuple;
-                shmem_bytes::Int=4, stream::CuStream=default_stream())
+                shmem_bytes::Int=0, stream::CuStream=default_stream())
 	griddim = dim3(grid)
 	blockdim = dim3(block)
 
