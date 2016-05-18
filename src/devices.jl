@@ -60,11 +60,11 @@ const architectures = [
     (v"2.1", "sm_21"),
     (v"3.0", "sm_30"),
     (v"3.5", "sm_35"),
-    (v"5.0", "sm_50") ]
+    (v"5.0", "sm_50"),
+    (v"5.2", "sm_52"),
+    (v"5.3", "sm_53") ]
 
 function architecture(dev::CuDevice)
-    # TODO: this is used both when compiling natively, and when addressing NVCC
-    #       check both their restrictions individually
     cap = capability(dev)
     if cap < architectures[1][1]
         error("No support for SM < $(architectures[1][1])")
@@ -76,6 +76,7 @@ function architecture(dev::CuDevice)
             break
         end
     end
+    return architectures[length(architectures)][2]
 end
 
 function list_devices()
