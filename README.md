@@ -6,7 +6,7 @@ CUDA programming interface for Julia, with native code execution support.
 This package wraps key functions in CUDA driver API for Julia, and provides
 support for writing native Julia kernels for execution on an NVIDIA GPU. It
 requires a version of Julia capable of generating PTX code, such as
-[maleadt/julia](https://github.com/maleadt/julia).
+[tb/cuda at JuliaGPU/julia](https://github.com/JuliaGPU/julia/tree/tb/cuda).
 
 
 ## Setup
@@ -25,14 +25,12 @@ requires a version of Julia capable of generating PTX code, such as
 3. Install a version of Julia with PTX support, and use that `julia` binary for
    all future steps.
 
-4. Check-out this package in Julia:
+4. Clone and test this package in Julia:
 
    ```julia
-   Pkg.clone($CHECKOUT_DIRECTORY)
+   Pkg.clone("https://github.com/JuliaGPU/CUDAnative.jl.git")
+   Pkg.test("CUDAnative")
    ```
-
-5. Test if everything works as expected by running `tests/runtests.jl` (you can
-   also do this using `Pkg.test`).
 
 
 ## Example
@@ -90,7 +88,7 @@ println("c = \n$c")
 destroy(ctx)
 ```
 
-See `tests/native.jl` for more comprehensive examples.
+See `examples` or `tests/native.jl` for more comprehensive examples.
 
 
 ## Advanced use
@@ -103,6 +101,5 @@ override settings, there are several environment variables to use:
 
 * `CUDA_FORCE_API_VERSION`: this mimics the macro from `cuda.h`, with the same
   format.
-* `CUDA_FORCE_GPU_TRIPLE` and `CUDA_FORCE_GPU_ARCH`: GPU triple and architecture
-  to pass to LLVM, defaults to respectively hard-coded `nvptx64-nvidia-cuda` and
-  auto-detected value based on the actual device capabilities.
+* `CUDA_FORCE_GPU_ARCH`: GPU architecture to pass to `nvcc` when compiling
+  inline CUDA sources
