@@ -26,7 +26,7 @@ immutable CuModule
         end
 
         options = Dict{CUjit_option,Any}()
-        if DEBUG[]
+        if DEBUG
             options[CU_JIT_GENERATE_LINE_INFO] = true
             options[CU_JIT_GENERATE_DEBUG_INFO] = true
 
@@ -48,7 +48,7 @@ immutable CuModule
         end
 
         options = decode(optionKeys, optionValues)
-        if DEBUG[]
+        if DEBUG
             debug("JIT info log:\n", options[CU_JIT_INFO_LOG_BUFFER])
         end
 

@@ -5,11 +5,12 @@ import Base: get
 export
     @cucall
 
+# TODO: put this in __init__ (cfr CPU_CORES)
 const libcuda = Ref{Ptr{Void}}()
 const libcuda_vendor = Ref{String}()
 function load_library()
     try
-        return (Libdl.dlopen(@windows ? "nvcuda.dll" : "libcuda"), "NVIDIA")
+        return (Libdl.dlopen(@static is_windows() ? "nvcuda.dll" : "libcuda"), "NVIDIA")
     end
 
     try
@@ -53,34 +54,44 @@ macro cucall(f, argtypes, args...)
     end
 
     # Print the function name & arguments
-    push!(blk.args, :(trace($(sprint(Base.show_unquoted,f.args[1])*"("); line=false)))
-    i=length(args)
-    for arg in args
-        i-=1
-        sep = (i>0 ? ", " : "")
+    @static if TRACE
+        push!(blk.args, :(trace($(sprint(Base.show_unquoted,f.args[1])*"("); line=false)))
+        i=length(args)
+        for arg in args
+            i-=1
+            sep = (i>0 ? ", " : "")
 
-        # TODO: we should only do this if evaluating `arg` has no side effects
-        push!(blk.args, :(trace(repr_indented($(esc(arg))), $sep;
-              prefix=$(sprint(Base.show_unquoted,arg))*"=", line=false)))
+            # TODO: we should only do this if evaluating `arg` has no side effects
+            push!(blk.args, :(trace(repr_indented($(esc(arg))), $sep;
+                  prefix=$(sprint(Base.show_unquoted,arg))*"=", line=false)))
+        end
+        push!(blk.args, :(trace(""; prefix=") =", line=false)))
     end
-    push!(blk.args, :(trace(""; prefix=") =", line=false)))
 
-    # Generate the actual call and error check
+    # Generate the actual call
+    @gensym status
     push!(blk.args, quote
         # NOTE: version symbol lookup needs to happen at runtime,
         #       because the mapping is created during __init__
         api_f = resolve($f)
-        status = ccall(Libdl.dlsym(libcuda[], api_f), Cint,
+        $status = ccall(Libdl.dlsym(libcuda[], api_f), Cint,
                        $(esc(argtypes)), $(esc_args...))
-        trace(CuError(status); prefix=" ")
+    end)
 
-        if status != SUCCESS.code
-            err = CuError(status)
+    # Print the results
+    @static if TRACE
+        push!(blk.args, :(trace(CuError($status); prefix=" ")))
+    end
+
+    # Check the return code
+    push!(blk.args, quote
+        if $status != SUCCESS.code
+            err = CuError($status)
             throw(err)
         end
     end)
 
-    blk
+    return blk
 end
 
 const api_mapping = Dict{Symbol,Symbol}()

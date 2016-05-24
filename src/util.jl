@@ -1,29 +1,28 @@
 export
-    mkstemps
+    mkstemps, TRACE
 
 const dumpdir = Ref{String}()
 
 
 # Conditional logging (augmenting the default info/warn/error)
-
-const DEBUG = Ref{Bool}()
-function debug(io::IO, msg...; prefix="DEBUG: ")
-    if DEBUG[]
-        Base.println_with_color(:green, io, prefix, chomp(string(msg...)))
-    end
-end
-debug(msg...; prefix="DEBUG: ") = debug(STDERR, msg..., prefix=prefix)
-
-const TRACE = Ref{Bool}()
-function trace(io::IO, msg...; prefix="TRACE: ", line=true)
-    if TRACE[]
+global TRACE = haskey(ENV, "TRACE")
+@inline function trace(io::IO, msg...; prefix="TRACE: ", line=true)
+    @static if TRACE
         Base.print_with_color(:cyan, io, prefix, chomp(string(msg...)))
         if line
             println(io)
         end
     end
 end
-trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg..., prefix=prefix, line=line)
+@inline trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg..., prefix=prefix, line=line)
+
+global DEBUG = TRACE || haskey(ENV, "DEBUG")
+@inline function debug(io::IO, msg...; prefix="DEBUG: ")
+    @static if DEBUG
+        Base.println_with_color(:green, io, prefix, chomp(string(msg...)))
+    end
+end
+@inline debug(msg...; prefix="DEBUG: ") = debug(STDERR, msg..., prefix=prefix)
 
 
 # Generate a temporary file with specific suffix
@@ -37,18 +36,18 @@ end
 
 
 function __init_util__()
-    # IDEA: make these decisions at compile-time, avoiding runtime overhead
-    TRACE[] = haskey(ENV, "TRACE")
-    DEBUG[] = TRACE[] || haskey(ENV, "DEBUG")
+    # TODO: assign TRACE and DEBUG at run-time, not using the pre-compiled code
+    #       when the values are different?
+    #       or make it work like CPU_CORES dose after Julia/#16219
 
-    if TRACE[]
+    if TRACE
         trace("CUDA.jl is running in trace mode, this will generate a lot of additional output")
-    elseif DEBUG[]
+    elseif DEBUG
         debug("CUDA.jl is running in debug mode, this will generate additional output")
         debug("Run with TRACE=1 to enable even more output")
     end
 
-    if TRACE[]
+    if TRACE
         # When in trace mode, we'll be dumping certain build artifacts to disk
         dumpdir[] = begin
             root = tempdir()

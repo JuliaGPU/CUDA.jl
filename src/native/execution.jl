@@ -46,7 +46,7 @@ function read_arguments(argspec::Tuple)
             # TODO: warn optionally?
             # TODO: also display variable name, if possible?
             bt = ""
-            if DEBUG[]
+            @static if DEBUG
                 bt_raw = backtrace()
                 bt = sprint(io->Base.show_backtrace(io, bt_raw))
             end
@@ -180,7 +180,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     end
 
     # FIXME: put this before the IR/PTX generation when #14942 is fixed
-    if TRACE[] && !isnull(f) && false
+    @static if TRACE && !isnull(f) && false
         trace("Lowered AST:\n$(code_lowered(f, types))")
         trace("Typed AST (::ANY types shown in red):\n")
         code_warntype(STDERR, get(f), types)
@@ -190,7 +190,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
 
     # DEBUG: dump the LLVM IR
     # TODO: this doesn't contain the full call cycle
-    if TRACE[] && !isnull(f) && false
+    @static if TRACE && !isnull(f) && false
         # Generate a safe and unique name
         function_uid = "$(get(f))-"
         if length(types) > 0
@@ -216,7 +216,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     end
 
     # DEBUG: dump the (PTX) assembly
-    if TRACE[] && false
+    @static if TRACE && false
         output = "$(dumpdir[])/$function_uid.ptx"
         if isfile(output)
             warn("Could not write (PTX) assembly to $output (file already exists !?)")
@@ -233,8 +233,8 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
 end
 
 # TODO: can we do this in the compiler?
-code_cache = Dict{Tuple{Type, Tuple}, Tuple{AbstractString, AbstractString}}()
-func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
+const code_cache = Dict{Tuple{Type, Tuple}, Tuple{AbstractString, AbstractString}}()
+const func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
 
 @generated function get_kernel{F<:Function}(ftype::F, types::Any...)
     key = (ftype, types)
