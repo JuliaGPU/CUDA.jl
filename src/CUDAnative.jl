@@ -25,6 +25,7 @@ include("native/execution.jl")
 include("native/intrinsics.jl")
 include("native/arrays.jl")
 
+include("events.jl")
 include("profile.jl")
 
 
