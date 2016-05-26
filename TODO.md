@@ -1,26 +1,33 @@
-# Code generation
+# Major
 
-* Make `sm_35` (and corresponding `libdevice`) configurable
+* Provide a third codegen target, for generic code
+
+* Disconnect or disambiguate the compiler's state based on the codegen target
+  (`functionObject`, etc). This will allow compiling the same functions for
+  multiple targets (see `bugs/host_after_ptx.jl`)
+
+* Dispatch based on the callee's `@target`, and expose math functions with it
+
+* Properly integrate kernel calling, as actual arguments might not correspond
+  with source-level arguments (see `bugs/inlined_parameters.jl`)
+
+* Replace generated function-time code generation (and consequent calls into
+  type inference) *without* degrading performance of calling kernels (ie. avoid
+  runtime code). Use existing `cfunction` functionality? See
+  JuliaLang/julia#15942, JuliaLang/julia#16000.
+
+
+# Minor
+
+- Use `has_meta` from C++ rather than modifying `lambdaInfo` (cfr. `@polly`)
+
+* Make `sm_35` (and corresponding `libdevice` filename) configurable
 
 * Add a `--debug` option, generating `.loc` instructions, exposed to
-  `CUDAnative.jl` in order to properly configure the PTX JIT.
-
-* `@target` should allow for generic functions (ie. for all targets).
-
-* `@target` should be incorporated in dispatch, selecting functions from the
-  same or a generic target. This is especially useful for device intrinsics (eg.
-  `sin`, `cos`, ...); as a workaround, these aren't exported currently.
-
-* Use the existing `cfunction` functionality to generate a CUDA kernels?
-
-* See [ISPC.jl](https://github.com/damiendr/ISPC.jl) for extracting closure vars
-  (globals and such)
-
-
-# API wrapping
+  `CUDAnative.jl` in order to properly configure the PTX JIT
 
 * Fix the shared memory: wrap in a type, don't refer to the global through
-  `llvmcall` and add support for statically defined shared memory.
+  `llvmcall` and add support for statically defined shared memory
 
 
 # Bugs
@@ -30,6 +37,8 @@
 * Running with `--code-coverage=user` doesn't work with `TRACE=1` because PTX
   methods get partially registered in the host module due to the `code_*` calls
   (I think)
+
+* A lot of undefined references running valgrind -- check this out!
 
 
 # Performance
