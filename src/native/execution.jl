@@ -180,38 +180,42 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     end
 
     # FIXME: put this before the IR/PTX generation when #14942 is fixed
-    @static if TRACE && !isnull(f) && false
-        trace("Lowered AST:\n$(code_lowered(f, types))")
-        trace("Typed AST (::ANY types shown in red):\n")
-        code_warntype(STDERR, get(f), types)
+    @static if TRACE
+        if !isnull(f) && false
+            trace("Lowered AST:\n$(code_lowered(f, types))")
+            trace("Typed AST (::ANY types shown in red):\n")
+            code_warntype(STDERR, get(f), types)
+        end
     end
 
     trace("Function entry point: $module_entry")
 
     # DEBUG: dump the LLVM IR
     # TODO: this doesn't contain the full call cycle
-    @static if TRACE && !isnull(f) && false
-        # Generate a safe and unique name
-        function_uid = "$(get(f))-"
-        if length(types) > 0
-            function_uid *= join([replace(string(x), r"\W", "")
-                                for x in types], '.')
-        else
-            function_uid *= "Void"
-        end
-
-        buf = IOBuffer()
-        code_llvm(buf, get(f), types)
-        module_llvm = bytestring(buf)
-
-        output = "$(dumpdir[])/$function_uid.ll"
-        if isfile(output)
-            warn("Could not write LLVM IR to $output (file already exists !?)")
-        else
-            open(output, "w") do io
-                write(io, module_llvm)
+    @static if TRACE
+        if !isnull(f) && false
+            # Generate a safe and unique name
+            function_uid = "$(get(f))-"
+            if length(types) > 0
+                function_uid *= join([replace(string(x), r"\W", "")
+                                    for x in types], '.')
+            else
+                function_uid *= "Void"
             end
-            trace("Wrote kernel LLVM IR to $output")
+
+            buf = IOBuffer()
+            code_llvm(buf, get(f), types)
+            module_llvm = bytestring(buf)
+
+            output = "$(dumpdir[])/$function_uid.ll"
+            if isfile(output)
+                warn("Could not write LLVM IR to $output (file already exists !?)")
+            else
+                open(output, "w") do io
+                    write(io, module_llvm)
+                end
+                trace("Wrote kernel LLVM IR to $output")
+            end
         end
     end
 
