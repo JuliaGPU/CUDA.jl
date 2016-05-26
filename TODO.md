@@ -19,22 +19,29 @@
 * Fix the shared memory: wrap in a type, don't refer to the global through
   `llvmcall` and add support for statically defined shared memory
 
+* Related to shared memory: proper address space support, for different memories
+  and function arguments
+
 
 # Minor
+
+* Support for non-escaping boxed objects (tough, see JuliaLang/Julia##12205)
+
+* Printing from kernels using `vprintf` (needs unboxed string literals)
+
+* Global variables? Closure variables?
 
 * Make `sm_35` (and corresponding `libdevice` filename) configurable
 
 * Add a `--debug` option, generating `.loc` instructions, exposed to
   `CUDAnative.jl` in order to properly configure the PTX JIT
 
-* Fix running with `--inline=no`
-
-* FIx running with `--code-coverage=user` while `TRACE=1`
+* Fix running tests with `--inline=no`
 
 * A lot of undefined references running valgrind -- check this out!
 
 
-# Performance
+# Ideas
 
-* Additional specialization: when invoking a kernel with constant dimension config,
-  remove the intrinsic lookups and specialize for that configuration.
+* Additional specialization: when invoking a kernel with constant dimension
+  config, remove the intrinsic lookups and specialize for that configuration.
