@@ -25,32 +25,31 @@ immutable CuModule
           is_data = true
         end
 
-        options = Dict{CUjit_option,Any}()
-        if DEBUG
-            options[CU_JIT_GENERATE_LINE_INFO] = true
-            options[CU_JIT_GENERATE_DEBUG_INFO] = true
-
-            options[CU_JIT_INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
-            options[CU_JIT_LOG_VERBOSE] = true
-        end
-        optionKeys, optionValues = encode(options)
-
         # FIXME: this is pretty messy
-        # TODO: always capture error log?
-        # TODO: call cuModuleLoadData if no options provided
         if is_data
+
+        options = Dict{CUjit_option,Any}()
+            # TODO: always capture error log?
+            if DEBUG
+                options[CU_JIT_GENERATE_LINE_INFO] = true
+                options[CU_JIT_GENERATE_DEBUG_INFO] = true
+
+                options[CU_JIT_INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
+                options[CU_JIT_LOG_VERBOSE] = true
+            end
+            optionKeys, optionValues = encode(options)
+
+            # TODO: call cuModuleLoadData if no options provided
             @cucall(:cuModuleLoadDataEx,
                     (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
                     module_ref, mod, length(optionKeys), optionKeys, optionValues)
-        else
-            @cucall(:cuModuleLoad,
-                    (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
-                    module_ref, mod, length(optionKeys), optionKeys, optionValues)
-        end
 
-        options = decode(optionKeys, optionValues)
-        if DEBUG
-            debug("JIT info log:\n", options[CU_JIT_INFO_LOG_BUFFER])
+            options = decode(optionKeys, optionValues)
+            if DEBUG
+                debug("JIT info log:\n", options[CU_JIT_INFO_LOG_BUFFER])
+            end
+        else
+            @cucall(:cuModuleLoad, (Ref{Ptr{Void}}, Ptr{Cchar}), module_ref, mod)
         end
 
         new(module_ref[])
