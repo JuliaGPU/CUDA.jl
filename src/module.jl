@@ -37,14 +37,15 @@ immutable CuModule
 
         # FIXME: this is pretty messy
         # TODO: always capture error log?
+        # TODO: call cuModuleLoadData if no options provided
         if is_data
             @cucall(:cuModuleLoadDataEx,
                     (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
-                    module_ref, mod, length(options), optionKeys, optionValues)
+                    module_ref, mod, length(optionKeys), optionKeys, optionValues)
         else
             @cucall(:cuModuleLoad,
                     (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
-                    module_ref, mod, length(options), optionKeys, optionValues)
+                    module_ref, mod, length(optionKeys), optionKeys, optionValues)
         end
 
         options = decode(optionKeys, optionValues)

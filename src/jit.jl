@@ -36,14 +36,16 @@ function encode(options::Dict{CUjit_option,Any})
            opt == CU_JIT_LOG_VERBOSE
             push!(vals, convert(Ptr{Void}, convert(Int, val::Bool)))
         elseif opt == CU_JIT_INFO_LOG_BUFFER
-            buf = val::Array{UInt8, 1}
+            buf = val::Vector{UInt8}
             push!(vals, pointer(buf))
             push!(keys, CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES)
+            println(sizeof(buf))
+            println(convert(Ptr{Void}, sizeof(buf)))
             push!(vals, sizeof(buf))
         elseif opt == CU_JIT_ERROR_LOG_BUFFER
-            buf = val::Array{UInt8, 1}
+            buf = val::Vector{UInt8}
             push!(vals, pointer(buf))
-            push!(keys, CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES)
+            push!(keys, CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES)
             push!(vals, sizeof(buf))
         elseif isa(val, Ptr{Void})
             push!(vals, val)
@@ -52,6 +54,7 @@ function encode(options::Dict{CUjit_option,Any})
         end
     end
 
+    @assert length(keys) == length(vals)
     return keys, vals
 end
 
@@ -84,13 +87,13 @@ function decode(keys::Array{CUjit_option,1}, vals::Array{Ptr{Void}, 1})
         buf = options[CU_JIT_INFO_LOG_BUFFER]
         size = options[CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES]
         delete!(options, CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES)
-        options[CU_JIT_INFO_LOG_BUFFER] = bytestring(buf, Int(size / sizeof(UInt8)))
+        options[CU_JIT_INFO_LOG_BUFFER] = String(buf, Int(size / sizeof(UInt8)))
     end
     if haskey(options, CU_JIT_ERROR_LOG_BUFFER)
         buf = options[CU_JIT_ERROR_LOG_BUFFER]
         size = options[CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES]
         delete!(options, CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES)
-        options[CU_JIT_ERROR_LOG_BUFFER] = bytestring(buf, Int(size / sizeof(UInt8)))
+        options[CU_JIT_ERROR_LOG_BUFFER] = String(buf, Int(size / sizeof(UInt8)))
     end
 
     return options
