@@ -39,8 +39,6 @@ function encode(options::Dict{CUjit_option,Any})
             buf = val::Vector{UInt8}
             push!(vals, pointer(buf))
             push!(keys, CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES)
-            println(sizeof(buf))
-            println(convert(Ptr{Void}, sizeof(buf)))
             push!(vals, sizeof(buf))
         elseif opt == CU_JIT_ERROR_LOG_BUFFER
             buf = val::Vector{UInt8}
