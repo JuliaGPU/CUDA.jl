@@ -16,27 +16,20 @@
   runtime code). Use existing `cfunction` functionality? See
   JuliaLang/julia#15942, JuliaLang/julia#16000.
 
+* Fix the shared memory: wrap in a type, don't refer to the global through
+  `llvmcall` and add support for statically defined shared memory
+
 
 # Minor
-
-- Use `has_meta` from C++ rather than modifying `lambdaInfo` (cfr. `@polly`)
 
 * Make `sm_35` (and corresponding `libdevice` filename) configurable
 
 * Add a `--debug` option, generating `.loc` instructions, exposed to
   `CUDAnative.jl` in order to properly configure the PTX JIT
 
-* Fix the shared memory: wrap in a type, don't refer to the global through
-  `llvmcall` and add support for statically defined shared memory
+* Fix running with `--inline=no`
 
-
-# Bugs
-
-* Run with `--inline=no`
-
-* Running with `--code-coverage=user` doesn't work with `TRACE=1` because PTX
-  methods get partially registered in the host module due to the `code_*` calls
-  (I think)
+* FIx running with `--code-coverage=user` while `TRACE=1`
 
 * A lot of undefined references running valgrind -- check this out!
 
