@@ -331,96 +331,28 @@ end
 end
 
 @testset "shared memory" begin
-    dims = (16, 16)
-    len = prod(dims)
+    @target ptx function kernel_reverse{T}(d::CuDeviceArray{T}, n)
+        t = threadIdx().x
+        tr = n-t+1
 
-    @target ptx function array_reverse(a::CuDeviceArray{Int64})
-        chunk_size = Int32(blockDim().x)
-
-        # Get shared memory
-        tmp = cuSharedMem_i64()
-
-        # Copy from a to shared mem
-        i = (blockIdx().x -1) * chunk_size + threadIdx().x
-        tmp_dst = chunk_size - threadIdx().x + 1
-        setCuSharedMem_i64(tmp, tmp_dst, a[i])
-
+        s = cuSharedMem(T)
+        s[t] = d[t]
         sync_threads()
-
-        # Calculate destination, starting from 0
-        dest_block = gridDim().x - blockIdx().x
-        offset = dest_block * chunk_size
-        dst_index = offset +  threadIdx().x
-
-        a[dst_index] = getCuSharedMem_i64(tmp, threadIdx().x)
+        d[t] = s[tr]
 
         return nothing
     end
 
-    @target ptx function array_reverse(a::CuDeviceArray{Float32})
-        chunk_size = Int32(blockDim().x)
-
-        # Get shared memory
-        tmp = cuSharedMem()
-
-        # Copy from a to shared mem
-        i = (blockIdx().x -1) * chunk_size + threadIdx().x
-        tmp_dst = chunk_size - threadIdx().x + 1
-        setCuSharedMem(tmp, tmp_dst, a[i])
-
-        sync_threads()
-
-        # Calculate destination, starting from 0
-        dest_block = gridDim().x - blockIdx().x
-        offset = dest_block * chunk_size
-        dst_index = offset +  threadIdx().x
-
-        a[dst_index] = getCuSharedMem(tmp, threadIdx().x)
-
-        return nothing
-    end
-
-    @target ptx function array_reverse(a::CuDeviceArray{Float64})
-        chunk_size = Int32(blockDim().x)
-
-        # Get shared memory
-        tmp = cuSharedMem_double()
-
-        # Copy from a to shared mem
-        i = (blockIdx().x -1) * chunk_size + threadIdx().x
-        tmp_dst = chunk_size - threadIdx().x + 1
-        setCuSharedMem_double(tmp, tmp_dst, a[i])
-
-        sync_threads()
-
-        # Calculate destination, starting from 0
-        dest_block = gridDim().x - blockIdx().x
-        offset = dest_block * chunk_size
-        dst_index = offset +  threadIdx().x
-
-        a[dst_index] = getCuSharedMem_double(tmp, threadIdx().x)
-
-        return nothing
-    end
-
-    # Params
-    grid_size = 4
-    block_size = 512
-    n = grid_size * block_size
-
-    # Test for multiple types
+    n = 1024
     types = [Int64, Float32, Float64]
 
     for T in types
-        # Create data
         a = rand(T, n)
-        r = reverse(a)  # to check later
+        d_a = CuArray(a)
 
-        # call kernel
-        shared_bytes = block_size * sizeof(T)
-        @cuda (grid_size, block_size, shared_bytes) array_reverse(CuInOut(a))
+        @cuda (1, n, n*sizeof(T)) kernel_reverse(d_a, n)
 
-        @assert a == r
+        @assert reverse(a) == to_host(d_a)
     end
 end
 

@@ -10,9 +10,7 @@ export
 
     # Memory management
     sync_threads,
-    cuSharedMem, setCuSharedMem, getCuSharedMem,
-    cuSharedMem_i64, setCuSharedMem_i64, getCuSharedMem_i64,
-    cuSharedMem_double, setCuSharedMem_double, getCuSharedMem_double
+    cuSharedMem
 
 
 
@@ -96,73 +94,33 @@ sync_threads() = Base.llvmcall(
 # Shared memory
 #
 
-# TODO: generalize for types
+# FIXME: this is broken, cannot declare in `llvmcall`
+# TODO: this is nasty
+#       - box-like semantics?
+#       - Ptr{AS}?
+# TODO: this is inefficient, converting to global pointers (does propagation suffice?)
 # TODO: static shared memory
-# TODO: wrap this in a class, using get and setindex
-# FIXME: it is a hack to declare the p0,p3 intrinsic in cuSharedMem,
-#        but declaring it in the setters and getters results in two declarations
-# TODO: This is broken. Besides, the new llvmcall parses declarations,
-#       so the @shmem assignment now only works because of chance
 
-# Shared memory for type Float32
-cuSharedMem() = Base.llvmcall(
-    ("""@shmem_f32 = external addrspace(3) global [0 x float]""",
-     """%1 = getelementptr inbounds [0 x float], [0 x float] addrspace(3)* @shmem_f32, i64 0, i64 0
-        %2 = addrspacecast float addrspace(3)* %1 to float addrspace(0)*
-        ret float* %2"""),
-    Ptr{Float32}, Tuple{})
-setCuSharedMem(shmem, index, value) = Base.llvmcall(
-     """%4 = addrspacecast float addrspace(0)* %0 to float addrspace(3)*
-        %5 = getelementptr inbounds float, float addrspace(3)* %4, i64 %1
-        store float %2, float addrspace(3)* %5
-        ret void""",
-    Void, Tuple{Ptr{Float32}, Int64, Float32}, shmem, index-1, value)
-getCuSharedMem(shmem, index) = Base.llvmcall(
-     """%3 = addrspacecast float addrspace(0)* %0 to float addrspace(3)*
-        %4 = getelementptr inbounds float, float addrspace(3)* %3, i64 %1
-        %5 = load float, float addrspace(3)* %4
-        ret float %5""",
-    Float32, Tuple{Ptr{Float32}, Int64}, shmem, index-1)
-
-# Shared memory for type Int64
-cuSharedMem_i64() = Base.llvmcall(
+cuSharedMem(::Type{Int64}) = Base.llvmcall(
     ("""@shmem_i64 = external addrspace(3) global [0 x i64]""",
      """%1 = getelementptr inbounds [0 x i64], [0 x i64] addrspace(3)* @shmem_i64, i64 0, i64 0
         %2 = addrspacecast i64 addrspace(3)* %1 to i64 addrspace(0)*
         ret i64* %2"""),
     Ptr{Int64}, Tuple{})
-setCuSharedMem_i64(shmem, index, value) = Base.llvmcall(
-     """%4 = addrspacecast i64 addrspace(0)* %0 to i64 addrspace(3)*
-        %5 = getelementptr inbounds i64, i64 addrspace(3)* %4, i64 %1
-        store i64 %2, i64 addrspace(3)* %5
-        ret void""",
-    Void, Tuple{Ptr{Int64}, Int64, Int64}, shmem, index-1, value)
-getCuSharedMem_i64(shmem, index) = Base.llvmcall(
-     """%3 = addrspacecast i64 addrspace(0)* %0 to i64 addrspace(3)*
-        %4 = getelementptr inbounds i64, i64 addrspace(3)* %3, i64 %1
-        %5 = load i64, i64 addrspace(3)* %4
-        ret i64 %5""",
-    Int64, Tuple{Ptr{Int64}, Int64}, shmem, index-1)
 
-# Shared memory for type Float64
-cuSharedMem_double() = Base.llvmcall(
+cuSharedMem(::Type{Float32}) = Base.llvmcall(
+    ("""@shmem_f32 = external addrspace(3) global [0 x float]""",
+     """%1 = getelementptr inbounds [0 x float], [0 x float] addrspace(3)* @shmem_f32, i64 0, i64 0
+        %2 = addrspacecast float addrspace(3)* %1 to float addrspace(0)*
+        ret float* %2"""),
+    Ptr{Float32}, Tuple{})
+
+cuSharedMem(::Type{Float64}) = Base.llvmcall(
     ("""@shmem_f64 = external addrspace(3) global [0 x double]""",
      """%1 = getelementptr inbounds [0 x double], [0 x double] addrspace(3)* @shmem_f64, i64 0, i64 0
         %2 = addrspacecast double addrspace(3)* %1 to double addrspace(0)*
         ret double* %2"""),
     Ptr{Float64}, Tuple{})
-setCuSharedMem_double(shmem, index, value) = Base.llvmcall(
-     """%4 = addrspacecast double addrspace(0)* %0 to double addrspace(3)*
-        %5 = getelementptr inbounds double, double addrspace(3)* %4, i64 %1
-        store double %2, double addrspace(3)* %5
-        ret void""",
-    Void, Tuple{Ptr{Float64}, Int64, Float64}, shmem, index-1, value)
-getCuSharedMem_double(shmem, index) = Base.llvmcall(
-     """%3 = addrspacecast double addrspace(0)* %0 to double addrspace(3)*
-        %4 = getelementptr inbounds double, double addrspace(3)* %3, i64 %1
-        %5 = load double, double addrspace(3)* %4
-        ret double %5""",
-    Float64, Tuple{Ptr{Float64}, Int64}, shmem, index-1)
 
 
 #
