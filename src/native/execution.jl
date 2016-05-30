@@ -154,7 +154,7 @@ end
 # FIXME: the entire code_* logic is broken now that they check for being called
 #        from within a staged function.
 function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
-    debug("Compiling $ftype$(types)")
+    debug("Compiling $ftype$types")
 
     # Generate LLVM IR
     # NOTE: this is lifted from reflection.jl::_dump_function
@@ -162,7 +162,7 @@ function get_function_module{F<:Function}(ftype::Type{F}, types::Type...)
     # Next call will trigger compilation (if necessary)
     llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Bool, Bool), t, false, true)
     if llvmf == C_NULL
-        error("no method found for kernel $ftype with argument types $args_type")
+        error("no method found for kernel $ftype$types")
     end
 
     # Generate (PTX) assembly
