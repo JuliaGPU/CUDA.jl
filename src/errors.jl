@@ -6,6 +6,10 @@ export CuError, description
 
 immutable CuError
     code::Int
+    info::Nullable{String}
+
+    CuError(code) = new(code, Nullable{String}())
+    CuError(code, info) = new(code, Nullable{String}(info))
 end
 
 ==(x::CuError,y::CuError) = x.code == y.code
@@ -74,8 +78,15 @@ const return_codes = Dict{Int,Tuple{Symbol,String}}(
 name(err::CuError)        = return_codes[err.code][1]
 description(err::CuError) = return_codes[err.code][2]
 
-Base.showerror(io::IO, err::CuError) =
-    @printf(io, "%s (CUDA error #%d, %s)", description(err), err.code, name(err))
+function Base.showerror(io::IO, err::CuError)
+    if isnull(err.info)
+        @printf(io, "%s (CUDA error #%d, %s)",
+                    description(err), err.code, name(err))
+    else
+        @printf(io, "%s (CUDA error #%d, %s)\n%s",
+                    description(err), err.code, name(err), get(err.info))
+    end
+end
 
 Base.show(io::IO, err::CuError) =
     @printf(io, "%s(%d)", name(err), err.code)

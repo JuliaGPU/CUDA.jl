@@ -29,7 +29,7 @@ immutable CuModule
         if is_data
 
         options = Dict{CUjit_option,Any}()
-            # TODO: always capture error log?
+            options[CU_JIT_ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
             if DEBUG
                 options[CU_JIT_GENERATE_LINE_INFO] = true
                 options[CU_JIT_GENERATE_DEBUG_INFO] = true
@@ -39,10 +39,15 @@ immutable CuModule
             end
             optionKeys, optionValues = encode(options)
 
-            # TODO: call cuModuleLoadData if no options provided
-            @cucall(:cuModuleLoadDataEx,
-                    (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
-                    module_ref, mod, length(optionKeys), optionKeys, optionValues)
+            try
+                @cucall(:cuModuleLoadDataEx,
+                        (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
+                        module_ref, mod, length(optionKeys), optionKeys, optionValues)
+            catch err
+                err == ERROR_NO_BINARY_FOR_GPU || rethrow(err)
+                options = decode(optionKeys, optionValues)
+                rethrow(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
+            end
 
             options = decode(optionKeys, optionValues)
             if DEBUG
