@@ -30,7 +30,7 @@ for dim in (:x, :y, :z)
             Int32, Tuple{}) + 1
     end
 
-    # Block dimension (#threads per block)
+    # Block size (#threads per block)
     fname = Symbol("blockDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.ntid.$dim"
     @eval begin
@@ -52,7 +52,7 @@ for dim in (:x, :y, :z)
             Int32, Tuple{}) + 1
     end
 
-    # Grid dimension (#blocks)
+    # Grid size (#blocks per grid)
     fname = Symbol("gridDim_$dim")
     intrinsic = "llvm.nvvm.read.ptx.sreg.nctaid.$dim"
     @eval begin
