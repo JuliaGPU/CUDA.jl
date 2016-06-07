@@ -16,6 +16,11 @@ CuDim3(g::Int) = CuDim3(g, 1, 1)
 CuDim3(g::Tuple{Int, Int}) = CuDim3(g[1], g[2], 1)
 CuDim3(g::Tuple{Int, Int, Int}) = CuDim3(g[1], g[2], g[3])
 
+"""
+Launch a CUDA function on a GPU.
+
+This is a low-level call, prefer the `cudacall` or `@cuda` interface instead.
+"""
 function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, args::Tuple;
                 shmem_bytes=0, stream::CuStream=default_stream())
     all([isbits(arg) || isa(arg, DevicePtr) for arg in args]) ||
@@ -45,7 +50,7 @@ function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, args::Tuple;
         shmem_bytes, stream.handle, args, C_NULL)
 end
 
-# Call interface mimicking Base.ccall
+"ccall-like interface to launching a CUDA function on a GPU"
 function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim, types::Tuple, values...;
                   shmem_bytes=0, stream::CuStream=default_stream())
     @assert length(types)==0 || eltype(types)==DataType # TODO: embed in type signature?

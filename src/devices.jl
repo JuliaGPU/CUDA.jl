@@ -6,6 +6,7 @@ export
     list_devices
 
 
+"Return the number of available CUDA devices"
 function devcount()
     count_ref = Ref{Cint}()
     @cucall(:cuDeviceGetCount, (Ptr{Cint},), count_ref)
@@ -24,6 +25,7 @@ immutable CuDevice
     end
 end
 
+"Get the name of a CUDA device"
 function name(dev::CuDevice)
     const buflen = 256
     buf = Array(Cchar, buflen)
@@ -32,6 +34,7 @@ function name(dev::CuDevice)
     return bytestring(pointer(buf))
 end
 
+"Get the amount of GPU memory (in bytes) of a CUDA device"
 function totalmem(dev::CuDevice)
     mem_ref = Ref{Csize_t}()
     @cucall(:cuDeviceTotalMem, (Ptr{Csize_t}, Cint), mem_ref, dev.handle)
@@ -45,6 +48,7 @@ function attribute(dev::CuDevice, attrcode::Integer)
     return value_ref[]
 end
 
+"Return the compute capabilities of a CUDA device"
 function capability(dev::CuDevice)
     major_ref = Ref{Cint}()
     minor_ref = Ref{Cint}()
@@ -64,6 +68,7 @@ const architectures = [
     (v"5.2", "sm_52"),
     (v"5.3", "sm_53") ]
 
+"Return the most recent supported architecture for a CUDA device"
 function architecture(dev::CuDevice)
     cap = capability(dev)
     if cap < architectures[1][1]
@@ -79,6 +84,7 @@ function architecture(dev::CuDevice)
     return architectures[length(architectures)][2]
 end
 
+"List all CUDA devices with their capabilities and attributes"
 function list_devices()
     cnt = devcount()
     if cnt == 0
@@ -95,4 +101,3 @@ function list_devices()
         println("device[$i]: $(nam), capability $(cap.major).$(cap.minor), total mem = $tmem MB")
     end
 end
-

@@ -17,6 +17,7 @@ abstract CuModule
 immutable CuModuleFile <: CuModule
     handle::Ptr{Void}
 
+    "Create a CUDA module from a file containing PTX code."
     function CuModuleFile(path)
         module_ref = Ref{Ptr{Void}}()
 
@@ -29,6 +30,7 @@ end
 immutable CuModuleData <: CuModule
     handle::Ptr{Void}
 
+    "Create a CUDA module from a string containing PTX code."
     function CuModuleData(data)
         module_ref = Ref{Ptr{Void}}()
 
@@ -62,6 +64,7 @@ immutable CuModuleData <: CuModule
     end
 end
 
+"Unload a CUDA module."
 function unload(md::CuModule)
     @cucall(:cuModuleUnload, (Ptr{Void},), md.handle)
 end
@@ -74,6 +77,7 @@ end
 immutable CuFunction
     handle::Ptr{Void}
 
+    "Get a handle to a kernel function in a CUDA module."
     function CuFunction(md::CuModule, name::String)
         function_ref = Ref{Ptr{Void}}()
         @cucall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}),
