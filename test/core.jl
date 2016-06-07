@@ -18,12 +18,60 @@ ctx = CuContext(dev)
     )
 
     @test_throws CuError @cucall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), Ref{Ptr{Void}}(), 0)
+end
 
+
+@testset "PTX loading & execution" begin
+    md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
+
+    # Load function
+    vadd = CuFunction(md, "vadd")
+    vmul = CuFunction(md, "vmul")
+    vsub = CuFunction(md, "vsub")
+    vdiv = CuFunction(md, "vdiv")
+
+    # Init
+    a = rand(Float32, 10)
+    b = rand(Float32, 10)
+    ad = CuArray(a)
+    bd = CuArray(b)
+
+    # Addition
+    c = zeros(Float32, 10)
+    cd = CuArray(c)
+    cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+    c = to_host(cd)
+    @test_approx_eq c a+b
+
+    # Subtraction
+    c = zeros(Float32, 10)
+    cd = CuArray(c)
+    cudacall(vsub, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+    c = to_host(cd)
+    @test_approx_eq c a-b
+
+    # Multiplication
+    c = zeros(Float32, 10)
+    cd = CuArray(c)
+    cudacall(vmul, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+    c = to_host(cd)
+    @test_approx_eq c a.*b
+
+    # Division
+    c = zeros(Float32, 10)
+    cd = CuArray(c)
+    cudacall(vdiv, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+    c = to_host(cd)
+    @test_approx_eq c a./b
+
+    free(ad)
+    free(bd)
+    free(cd)
+    unload(md)
 end
 
 
 @testset "compilation & execution" begin
-
     @compile dev reference_dummy """
     __global__ void reference_dummy()
     {
@@ -35,7 +83,6 @@ end
 
 
 @testset "argument passing" begin
-
     dims = (16, 16)
     len = prod(dims)
 
