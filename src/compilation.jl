@@ -167,7 +167,7 @@ $code
 
     # Pass the module to the CUDA driver
     mod = try
-        CuModule(output)
+        CuModuleFile(output)
     catch
         error("loading of kernel $kernel failed (invalid CUDA code?)")
     end

@@ -216,24 +216,6 @@ end
             CUDAnative.free(dev_array)
         end
 
-        @testset "auto-managed host data" begin
-            input = round(rand(Float32, dims) * 100)
-
-            output1 = Array(Float32, dims)
-            @cuda (len, 1) array_copy(CuIn(input), CuOut(output1))
-            @test_approx_eq input output1
-
-            output2 = Array(Float32, dims)
-            # ... without specifying type
-            @cuda (len, 1) array_copy(input, output2)
-            @test_approx_eq input output2
-
-            output3 = Array(Float32, dims)
-            #  ... not using containers
-            @cuda (len, 1) array_copy(round(input*100), output3)
-            @test_approx_eq round(input*100) output3
-        end
-
         @target ptx function array_lastvalue(a::CuDeviceArray{Float32},
                                              x::CuDeviceArray{Float32})
             i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
@@ -250,8 +232,11 @@ end
             arr = round(rand(Float32, dims) * 100)
             val = Float32[0]
 
-            @cuda (len, 1) array_lastvalue(CuIn(arr), CuOut(val))
-            @test_approx_eq arr[dims...] val[1]
+            arr_dev = CuArray(arr)
+            val_dev = CuArray(val)
+
+            @cuda (len, 1) array_lastvalue(arr_dev, val_dev)
+            @test_approx_eq arr[dims...] to_host(val_dev)[1]
         end
 
         @target ptx @noinline function array_lastvalue_devfun(a::CuDeviceArray{Float32},
@@ -275,8 +260,11 @@ end
             arr = round(rand(Float32, dims) * 100)
             val = Float32[0]
 
-            # @cuda (len, 1) array_lastvalue_devfun(CuIn(arr), CuOut(val))
-            # @test_approx_eq arr[dims...] val[1]
+            arr_dev = CuArray(arr)
+            val_dev = CuArray(val)
+
+            # @cuda (len, 1) array_lastvalue_devfun(arr_dev, val_dev)
+            # @test_approx_eq arr[dims...] to_host(val_dev)[1]
         end
     end
 
@@ -294,40 +282,6 @@ end
 
         free(buf)
     end
-end
-
-@testset "get kernel function" begin
-
-    @target ptx function vadd(a::CuDeviceArray{Int}, b::CuDeviceArray{Int}, c::CuDeviceArray{Int})
-        i = (blockIdx().x -1) * blockDim().x + threadIdx().x
-        c[i] = a[i] + b[i]
-        return nothing
-    end
-
-    # Arguments
-    n = 500
-    d_a = CuArray(ones(Int, n))
-    d_b = CuArray(ones(Int, n))
-    d_c = CuArray(Int, n)
-
-    # Get raw pointers
-    d_a_ptr = d_a.ptr.inner
-    d_b_ptr = d_b.ptr.inner
-    d_c_ptr = d_c.ptr.inner
-
-    # Get compiled kernel handle
-    kernel = CUDAnative.get_kernel(vadd, d_a_ptr, d_b_ptr, d_c_ptr)
-
-    #CUDAnative.exec((1, n, 0), kernel, d_a, d_b, d_c)
-    CUDAnative.launch(kernel, 1, n, (d_a_ptr, d_b_ptr, d_c_ptr))
-
-    c = to_host(d_c)
-    result = fill(2::Int, n)
-    @assert result == c
-
-    free(d_a)
-    free(d_b)
-    free(d_c)
 end
 
 @testset "shared memory" begin

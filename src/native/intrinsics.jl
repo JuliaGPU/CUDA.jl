@@ -65,10 +65,10 @@ for dim in (:x, :y, :z)
 end
 
 # Tuple accessors
-threadIdx() = dim3(threadIdx_x(), threadIdx_y(), threadIdx_z())
-blockDim() =  dim3(blockDim_x(),  blockDim_y(),  blockDim_z())
-blockIdx() =  dim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
-gridDim() =   dim3(gridDim_x(),   gridDim_y(),   gridDim_z())
+threadIdx() = CuDim3(threadIdx_x(), threadIdx_y(), threadIdx_z())
+blockDim() =  CuDim3(blockDim_x(),  blockDim_y(),  blockDim_z())
+blockIdx() =  CuDim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
+gridDim() =   CuDim3(gridDim_x(),   gridDim_y(),   gridDim_z())
 
 # Warpsize
 warpsize() = Base.llvmcall(

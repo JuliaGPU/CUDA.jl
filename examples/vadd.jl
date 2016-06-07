@@ -14,10 +14,14 @@ ctx = CuContext(dev)
 dims = (3,4)
 a = round(rand(Float32, dims) * 100)
 b = round(rand(Float32, dims) * 100)
-c = Array(Float32, dims)
+
+d_a = CuArray(a)
+d_b = CuArray(b)
+d_c = CuArray(Float32, dims)
 
 len = prod(dims)
-@cuda (len,1) kernel_vadd(CuIn(a), CuIn(b), CuOut(c))
+@cuda (len,1) kernel_vadd(d_a, d_b, d_c)
+c = to_host(d_c)
 @test_approx_eq a+b c
 
 destroy(ctx)

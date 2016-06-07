@@ -5,7 +5,6 @@ ctx = CuContext(dev)
 
 
 @testset "API call wrapper" begin
-
     @cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
     @test_throws ErrorException @cucall(:nonExisting, ())
@@ -31,8 +30,7 @@ end
     }
     """
 
-    CUDAnative.launch(reference_dummy(), 1, 1, ())
-
+    cudacall(reference_dummy(), 1, 1, ())
 end
 
 
@@ -55,14 +53,13 @@ end
         input_dev = CuArray(input)
         output_dev = CuArray(Float32, dims)
 
-        CUDAnative.launch(reference_copy(), len, 1, (input_dev.ptr, output_dev.ptr))
+        cudacall(reference_copy(), len, 1, (Ptr{Cfloat},Ptr{Cfloat}), input_dev, output_dev)
         output = to_host(output_dev)
         @test_approx_eq input output
 
         free(input_dev)
         free(output_dev)
     end
-
 end
 
 

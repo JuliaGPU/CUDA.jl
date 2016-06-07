@@ -1,9 +1,6 @@
 # CUDA related types
 
-import Base: length, size, eltype, convert, isnull
-
-export
-    CuIn, CuOut, CuInOut
+import Base: eltype, convert, isnull, cconvert
 
 
 #
@@ -38,34 +35,3 @@ convert{T}(::Type{DevicePtr{T}}, p::Ptr{T}) = throw(InexactError())
 # but due to the disallowed conversions we can't use those)
 isnull{T}(p::DevicePtr{T}) = (p.inner == 0)
 eltype{T}(x::Type{DevicePtr{T}}) = T
-
-
-#
-# Managed data containers
-#
-
-abstract CuManaged{T}
-
-length(i::CuManaged) = length(i.data)
-size(i::CuManaged) = size(i.data)
-eltype{T}(::CuManaged{T}) = T
-
-type CuIn{T} <: CuManaged{T}
-    data::T
-end
-
-type CuOut{T} <: CuManaged{T}
-    data::T
-end
-
-type CuInOut{T} <: CuManaged{T}
-    data::T
-end
-
-# FIXME: define on CuManaged instead of on each instance?
-#eltype{T}(::Type{CuManaged{T}}) = T
-eltype{T}(::Type{CuIn{T}}) = T
-eltype{T}(::Type{CuOut{T}}) = T
-eltype{T}(::Type{CuInOut{T}}) = T
-eltype{T<:CuManaged}(::Type{T}) =
-    error("missing eltype definition for this managed type")

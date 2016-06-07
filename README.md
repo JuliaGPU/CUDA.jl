@@ -69,14 +69,16 @@ ctx = CuContext(dev)
 # generate random arrays and load them to GPU
 a = round(rand(Float32, (3, 4)) * 100)
 b = round(rand(Float32, (3, 4)) * 100)
+d_a = CuArray(a)
+d_b = CuArray(b)
 
 # create an array on GPU to store results
-c = Array(Float32, (3, 4))
+d_c = CuArray(Float32, (3, 4))
 
-# run the kernel vadd
+# run the kernel and fetch results
 # syntax: @cuda (dims...) kernel(args...)
-# the CuIn/CuOut/CuInOut modifiers are optional, but improve performance
-@cuda (12, 1) kernel_vadd(CuIn(a), CuIn(b), CuOut(c))
+@cuda (12, 1) kernel_vadd(d_a, d_b, d_c)
+c = to_host(d_c)
 
 # print the results
 println("Results:")

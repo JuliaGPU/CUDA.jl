@@ -3,7 +3,7 @@
 import Base: eltype
 
 export
-    CuModule, unload,
+    CuModule, CuModuleFile, CuModuleData, unload,
     CuFunction,
     CuGlobal, get, set
 
@@ -12,49 +12,50 @@ export
 # CUDA module
 #
 
-immutable CuModule
+abstract CuModule
+
+immutable CuModuleFile <: CuModule
     handle::Ptr{Void}
 
-    function CuModule(mod::String)
+    function CuModuleFile(path)
         module_ref = Ref{Ptr{Void}}()
 
-        is_data = true
-        try
-          is_data = !ispath(mod)
-        catch
-          is_data = true
-        end
+        @cucall(:cuModuleLoad, (Ref{Ptr{Void}}, Ptr{Cchar}), module_ref, path)
 
-        # FIXME: this is pretty messy
-        if is_data
+        new(module_ref[])
+    end
+end
+
+immutable CuModuleData <: CuModule
+    handle::Ptr{Void}
+
+    function CuModuleData(data)
+        module_ref = Ref{Ptr{Void}}()
 
         options = Dict{CUjit_option,Any}()
-            options[CU_JIT_ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
-            if DEBUG
-                options[CU_JIT_GENERATE_LINE_INFO] = true
-                options[CU_JIT_GENERATE_DEBUG_INFO] = true
+        options[CU_JIT_ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
+        if DEBUG
+            options[CU_JIT_GENERATE_LINE_INFO] = true
+            options[CU_JIT_GENERATE_DEBUG_INFO] = true
 
-                options[CU_JIT_INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
-                options[CU_JIT_LOG_VERBOSE] = true
-            end
-            optionKeys, optionValues = encode(options)
+            options[CU_JIT_INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
+            options[CU_JIT_LOG_VERBOSE] = true
+        end
+        optionKeys, optionValues = encode(options)
 
-            try
-                @cucall(:cuModuleLoadDataEx,
-                        (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
-                        module_ref, mod, length(optionKeys), optionKeys, optionValues)
-            catch err
-                err == ERROR_NO_BINARY_FOR_GPU || rethrow(err)
-                options = decode(optionKeys, optionValues)
-                rethrow(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
-            end
-
+        try
+            @cucall(:cuModuleLoadDataEx,
+                    (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
+                    module_ref, data, length(optionKeys), optionKeys, optionValues)
+        catch err
+            err == ERROR_NO_BINARY_FOR_GPU || rethrow(err)
             options = decode(optionKeys, optionValues)
-            if DEBUG
-                debug("JIT info log:\n", options[CU_JIT_INFO_LOG_BUFFER])
-            end
-        else
-            @cucall(:cuModuleLoad, (Ref{Ptr{Void}}, Ptr{Cchar}), module_ref, mod)
+            rethrow(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
+        end
+
+        options = decode(optionKeys, optionValues)
+        if DEBUG
+            debug("JIT info log:\n", options[CU_JIT_INFO_LOG_BUFFER])
         end
 
         new(module_ref[])

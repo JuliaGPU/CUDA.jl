@@ -1,6 +1,6 @@
 # Contiguous on-device arrays
 
-import Base: length, size, ndims, eltype, copy!
+import Base: length, size, ndims, eltype, copy!, cconvert
 
 export
     CuArray, free, to_host, ndims
@@ -11,6 +11,8 @@ type CuArray{T,N}
     shape::NTuple{N,Int}
     len::Int
 end
+
+cconvert{T,N}(::Type{Ptr{T}}, a::CuArray{T,N}) = a.ptr
 
 function CuArray(T::Type, len::Integer)
     if !isbits(T)
