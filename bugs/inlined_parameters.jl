@@ -31,5 +31,5 @@ code_llvm(map_inner, (typeof(add), CuDeviceArray{Float32},
 
 @cuda (len, 1) map_inner(add, d_a, d_b, d_c)
 
-c = to_host(d_c)
+c = Array(d_c)
 @test a+b == c

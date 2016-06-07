@@ -20,7 +20,7 @@ function main(args)
 
 	@cuda (1, n) fill(0, stop, gpu_dst)
 
-	dst = to_host(gpu_dst)
+	dst = Array(gpu_dst)
 	println(dst)
 end
 

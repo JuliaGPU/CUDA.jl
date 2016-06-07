@@ -23,51 +23,74 @@ end
 
 @testset "PTX loading & execution" begin
     md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
-
-    # Load function
     vadd = CuFunction(md, "vadd")
     vmul = CuFunction(md, "vmul")
     vsub = CuFunction(md, "vsub")
     vdiv = CuFunction(md, "vdiv")
 
-    # Init
     a = rand(Float32, 10)
     b = rand(Float32, 10)
     ad = CuArray(a)
     bd = CuArray(b)
 
     # Addition
-    c = zeros(Float32, 10)
-    cd = CuArray(c)
-    cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
-    c = to_host(cd)
-    @test_approx_eq c a+b
+    let
+        c = zeros(Float32, 10)
+        cd = CuArray(c)
+        cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        c = Array(cd)
+        @test_approx_eq c a+b
+        free(cd)
+    end
 
     # Subtraction
-    c = zeros(Float32, 10)
-    cd = CuArray(c)
-    cudacall(vsub, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
-    c = to_host(cd)
-    @test_approx_eq c a-b
+    let
+        c = zeros(Float32, 10)
+        cd = CuArray(c)
+        cudacall(vsub, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        c = Array(cd)
+        @test_approx_eq c a-b
+        free(cd)
+    end
 
     # Multiplication
-    c = zeros(Float32, 10)
-    cd = CuArray(c)
-    cudacall(vmul, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
-    c = to_host(cd)
-    @test_approx_eq c a.*b
+    let
+        c = zeros(Float32, 10)
+        cd = CuArray(c)
+        cudacall(vmul, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        c = Array(cd)
+        @test_approx_eq c a.*b
+        free(cd)
+    end
 
     # Division
-    c = zeros(Float32, 10)
-    cd = CuArray(c)
-    cudacall(vdiv, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
-    c = to_host(cd)
-    @test_approx_eq c a./b
+    let
+        c = zeros(Float32, 10)
+        cd = CuArray(c)
+        cudacall(vdiv, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        c = Array(cd)
+        @test_approx_eq c a./b
+        free(cd)
+    end
 
     free(ad)
     free(bd)
-    free(cd)
     unload(md)
+end
+
+
+@testset "CuArray" begin
+    # Negative test cases
+    a = rand(Float32, 10)
+    ad = CuArray(Float32, 5)
+    @test_throws ArgumentError copy!(ad, a)
+    @test_throws ArgumentError copy!(a, ad)
+
+    # Utility
+    @test ndims(ad) == 1
+    @test eltype(ad) == Float32
+
+    free(ad)
 end
 
 
@@ -101,7 +124,7 @@ end
         output_dev = CuArray(Float32, dims)
 
         cudacall(reference_copy(), len, 1, (Ptr{Cfloat},Ptr{Cfloat}), input_dev, output_dev)
-        output = to_host(output_dev)
+        output = Array(output_dev)
         @test_approx_eq input output
 
         free(input_dev)

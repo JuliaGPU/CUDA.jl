@@ -1,9 +1,9 @@
 # Contiguous on-device arrays
 
-import Base: length, size, ndims, eltype, copy!, cconvert
+import Base: length, size, ndims, eltype, copy!, cconvert, Array
 
 export
-    CuArray, free, to_host, ndims
+    CuArray, free
 
 
 type CuArray{T,N}
@@ -78,5 +78,6 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
     return dst
 end
 
+# Convenience functions
 CuArray{T,N}(a::Array{T,N}) = copy!(CuArray(T, size(a)), a)
-to_host{T}(g::CuArray{T}) = copy!(Array(T, size(g)), g)
+Array{T}(g::CuArray{T}) = copy!(Array(T, size(g)), g)

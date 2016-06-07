@@ -78,7 +78,7 @@ d_c = CuArray(Float32, (3, 4))
 # run the kernel and fetch results
 # syntax: @cuda (dims...) kernel(args...)
 @cuda (12, 1) kernel_vadd(d_a, d_b, d_c)
-c = to_host(d_c)
+c = Array(d_c)
 
 # print the results
 println("Results:")

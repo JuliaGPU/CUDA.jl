@@ -180,7 +180,7 @@ end
             output_dev = CuArray(Float32, dims)
 
             @cuda (len, 1) array_copy(input_dev, output_dev)
-            output = to_host(output_dev)
+            output = Array(output_dev)
             @test_approx_eq input output
 
             free(input_dev)
@@ -207,7 +207,7 @@ end
 
             dev_array = CuArray(Int32, 10)
             CUDAnative.cumemset(dev_array.ptr, UInt32(0), 10)
-            host_array = to_host(dev_array)
+            host_array = Array(dev_array)
 
             for i in host_array
                 @assert i == 0 "Memset failed on element $i"
@@ -236,7 +236,7 @@ end
             val_dev = CuArray(val)
 
             @cuda (len, 1) array_lastvalue(arr_dev, val_dev)
-            @test_approx_eq arr[dims...] to_host(val_dev)[1]
+            @test_approx_eq arr[dims...] Array(val_dev)[1]
         end
 
         @target ptx @noinline function array_lastvalue_devfun(a::CuDeviceArray{Float32},
@@ -264,7 +264,7 @@ end
             val_dev = CuArray(val)
 
             # @cuda (len, 1) array_lastvalue_devfun(arr_dev, val_dev)
-            # @test_approx_eq arr[dims...] to_host(val_dev)[1]
+            # @test_approx_eq arr[dims...] Array(val_dev)[1]
         end
     end
 
@@ -277,7 +277,7 @@ end
         end
 
         @cuda (1, 1) kernel_log10(buf, Float32(100))
-        val = to_host(buf)
+        val = Array(buf)
         @test_approx_eq val[1] 2.0
 
         free(buf)
@@ -306,7 +306,7 @@ end
 
         @cuda (1, n, n*sizeof(T)) kernel_reverse(d_a, n)
 
-        @assert reverse(a) == to_host(d_a)
+        @assert reverse(a) == Array(d_a)
     end
 end
 
