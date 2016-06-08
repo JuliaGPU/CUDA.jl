@@ -42,7 +42,7 @@ function guess_types(argspec::Tuple)
 end
 
 # FIXME: this is broken/unsupported, as it is called during a @generated function
-function compile_function{F<:Function}(ftype::Type{F}, types::Type...)
+function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataType}})
     debug("Compiling $ftype$types")
 
     # Generate LLVM IR
@@ -138,7 +138,7 @@ const func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
     if haskey(CUDAnative.code_cache, key)
         (module_asm, module_entry) = CUDAnative.code_cache[key]
     else
-        (module_asm, module_entry) = compile_function(ftype, types...)
+        (module_asm, module_entry) = compile_function(ftype, types)
         CUDAnative.code_cache[key] = (module_asm, module_entry)
     end
 
