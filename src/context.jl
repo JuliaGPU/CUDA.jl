@@ -3,13 +3,12 @@
 export
     CuContext, destroy, push, pop, synchronize
 
-
-const CTX_SCHED_AUTO            = 0x00
-const CTX_SCHED_SPIN            = 0x01
-const CTX_SCHED_YIELD           = 0x02
-const CTX_SCHED_BLOCKING_SYNC   = 0x04
-const CTX_MAP_HOST              = 0x08
-const CTX_LMEM_RESIZE_TO_MAX    = 0x10
+@enum(CUctx_flags, CTX_SCHED_AUTO           = 0x00,
+                   CTX_SCHED_SPIN           = 0x01,
+                   CTX_SCHED_YIELD          = 0x02,
+                   CTX_SCHED_BLOCKING_SYNC  = 0x04,
+                   CTX_MAP_HOST             = 0x08,
+                   CTX_LMEM_RESIZE_TO_MAX   = 0x10)
 
 immutable CuContext
     handle::Ptr{Void}
