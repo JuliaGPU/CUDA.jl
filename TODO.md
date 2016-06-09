@@ -40,6 +40,12 @@
 
 * A lot of undefined references running valgrind -- check this out!
 
+* Allow "@target ptx \ \n function"
+
+* Reorganize test testsets, they are bad
+
+* Verify the dimension calculations in the tests and examples (cfr. blackscholes slowdown)
+
 
 # Ideas
 

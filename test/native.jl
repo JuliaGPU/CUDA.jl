@@ -4,7 +4,7 @@ module KernelModule
     @target ptx do_more_nothing() = return nothing
 end
 
-@testset "CUDA.jl native" begin
+@testset "native support" begin
 
 dev = CuDevice(0)
 ctx = CuContext(dev)
@@ -185,35 +185,6 @@ end
 
             free(input_dev)
             free(output_dev)
-        end
-
-        # Copy non-bit array
-        @test_throws ArgumentError begin
-            # Something that's certainly not a bit type
-            f =  x -> x*x
-            input = [f for i=1:10]
-            cu_input = CuArray(input)
-        end
-
-        # CuArray with not-bit elements
-        let
-            @test_throws ArgumentError CuArray(Function, 10)
-            @test_throws ArgumentError CuArray(Function, (10, 10))
-        end
-
-        # cu mem tests
-        let
-            @test_throws ArgumentError CUDAnative.cualloc(Function, 10)
-
-            dev_array = CuArray(Int32, 10)
-            CUDAnative.cumemset(dev_array.ptr, UInt32(0), 10)
-            host_array = Array(dev_array)
-
-            for i in host_array
-                @assert i == 0 "Memset failed on element $i"
-            end
-
-            CUDAnative.free(dev_array)
         end
 
         @target ptx function array_lastvalue(a::CuDeviceArray{Float32},

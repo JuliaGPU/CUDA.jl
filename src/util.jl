@@ -1,8 +1,6 @@
-export
-    mkstemps, TRACE
+# Utilities
 
 const dumpdir = Ref{String}()
-
 
 # Conditional logging (augmenting the default info/warn/error)
 global TRACE = haskey(ENV, "TRACE")
@@ -41,9 +39,9 @@ function __init_util__()
     #       or make it work like CPU_CORES dose after Julia/#16219
 
     if TRACE
-        trace("CUDA.jl is running in trace mode, this will generate a lot of additional output")
+        trace("CUDAnative.jl is running in trace mode, this will generate a lot of additional output")
     elseif DEBUG
-        debug("CUDA.jl is running in debug mode, this will generate additional output")
+        debug("CUDAnative.jl is running in debug mode, this will generate additional output")
         debug("Run with TRACE=1 to enable even more output")
     end
 

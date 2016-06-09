@@ -1,91 +1,26 @@
-# Contiguous on-device arrays
+# Native arrays
 
-import Base: length, size, ndims, eltype, copy!, cconvert, Array
+import Base: getindex, setindex!
 
 export
-    CuArray, free
+    CuDeviceArray
 
 
-type CuArray{T,N}
-    ptr::DevicePtr{T}
-    shape::NTuple{N,Int}
-    len::Int
-end
+#
+# Device array
+#
 
-cconvert{T,N}(::Type{Ptr{T}}, a::CuArray{T,N}) = a.ptr
+# This is an alloc-free implementation of an array type
 
-function CuArray(T::Type, len::Integer)
-    if !isbits(T)
-        throw(ArgumentError("CuArray  with non-bit element type not supported"))
-    end
-    n = Int(len)
-    p = cualloc(T, n)
-    CuArray{T,1}(p, (n,), n)
-end
+# TODO: can we implement AbstractArray to inherit its useful functionality?
+typealias CuDeviceArray Ptr
 
-function CuArray{N}(T::Type, shape::NTuple{N,Int})
-    if !isbits(T)
-        throw(ArgumentError("CuArray  with non-bit element type not supported"))
-    end
-    n = prod(shape)
-    p = cualloc(T, n)
-    CuArray{T,N}(p, shape, n)
-end
+# TODO: use an immutable type instead
+#immutable CuDeviceArray{T}
+#    ptr::Ptr{T}
+#end
 
-length(g::CuArray) = g.len
-size(g::CuArray) = g.shape
-
-ndims{T,N}(::CuArray{T,N}) = N
-eltype{T,N}(::CuArray{T,N}) = T
-eltype{T,N}(::Type{CuArray{T,N}}) = T
-
-# TODO: can we avoid these duplicate definitions?
-eltype{T}(::CuArray{T}) = T
-eltype{T}(::Type{CuArray{T}}) = T
-
-function size{T,N}(g::CuArray{T,N}, d::Integer)
-    d >= 1 ? (d <= N ? g.shape[d] : 1) : error("Invalid index of dimension.")
-end
-
-"Free GPU memory allocated to the pointer"
-function free(g::CuArray)
-    if !isnull(g.ptr)
-        free(g.ptr)
-        g.ptr = DevicePtr{eltype(g.ptr)}()
-    end
-end
-
-"Copy an array from device to host in place"
-function copy!{T}(dst::Array{T}, src::CuArray{T})
-    if length(dst) != length(src) 
-        throw(ArgumentError("Inconsistent array length."))
-    elseif !isbits(T)
-        throw(ArgumentError("Copy of non-bits element type not supported"))
-    end
-    nbytes = length(src) * sizeof(T)
-    @cucall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                           pointer(dst), src.ptr.inner, nbytes)
-    return dst
-end
-
-"Copy an array from host to device in place"
-function copy!{T}(dst::CuArray{T}, src::Array{T})
-    if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent array length."))
-    elseif !isbits(T)
-        throw(ArgumentError("Copy of non-bits element type not supported"))    
-    end
-    nbytes = length(src) * sizeof(T)
-    @cucall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                           dst.ptr.inner, pointer(src), nbytes)
-    return dst
-end
-
-
-## Convenience functions
-
-"Transfer an array from host to device, returning a pointer on the device"
-CuArray{T,N}(a::Array{T,N}) = copy!(CuArray(T, size(a)), a)
-
-"Transfer an array on the device to host"
-Array{T}(g::CuArray{T}) = copy!(Array(T, size(g)), g)
+getindex{T}(a::CuDeviceArray{T}, i0::Real) =
+    unsafe_load(a, Base.to_index(i0))::T
+setindex!{T}(a::CuDeviceArray{T}, x::T, i0::Real) =
+    unsafe_store!(a, x, Base.to_index(i0))

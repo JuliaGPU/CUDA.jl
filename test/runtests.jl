@@ -1,8 +1,9 @@
-using CUDAnative, Base.Test
+using CUDAnative, CUDAdrv
+using Base.Test
 
 @test devcount() > 0
 
-include("core.jl")
+include("compilation.jl")
 
 dev = CuDevice(0)
 if capability(dev) < v"2.0"
