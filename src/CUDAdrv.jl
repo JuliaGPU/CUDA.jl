@@ -3,6 +3,9 @@ __precompile__(false)
 
 module CUDAdrv
 
+using Compat
+import Compat.String
+
 
 include("errors.jl")
 
@@ -28,5 +31,6 @@ function __init__()
     __init_util__()
     __init_base__()
 end
+
 
 end
