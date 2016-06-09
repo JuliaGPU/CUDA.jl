@@ -1,27 +1,66 @@
-@testset "core" begin
-
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
 
-@testset "API call wrapper" begin
-    @cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
+## API call wrapper
 
-    @test_throws ErrorException @cucall(:nonExisting, ())
-    CUDAdrv.trace(prefix=" ")
+@cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
-    @test_throws ErrorException eval(
-        quote
-            foo = :bar
-            @cucall(foo, ())
-        end
-    )
+@test_throws ErrorException @cucall(:nonExisting, ())
+CUDAdrv.trace(prefix=" ")
 
-    @test_throws CuError @cucall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), Ref{Ptr{Void}}(), 0)
+@test_throws ErrorException eval(
+    quote
+        foo = :bar
+        @cucall(foo, ())
+    end
+)
+
+@test_throws CuError @cucall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), Ref{Ptr{Void}}(), 0)
+
+
+## CuArray
+
+let
+    # Negative test cases
+    a = rand(Float32, 10)
+    ad = CuArray(Float32, 5)
+    @test_throws ArgumentError copy!(ad, a)
+    @test_throws ArgumentError copy!(a, ad)
+
+    # Utility
+    @test ndims(ad) == 1
+    @test eltype(ad) == Float32
+
+    free(ad)
+end
+
+let
+    # non-isbits elements
+    @test_throws ArgumentError CuArray([x->x*x for i=1:10])
+    @test_throws ArgumentError CuArray(Function, 10)
+    @test_throws ArgumentError CuArray(Function, (10, 10))
 end
 
 
-@testset "PTX loading & execution" begin
+## memory handling
+
+@test_throws ArgumentError cualloc(Function, 10)
+
+let
+    dev_array = CuArray(Int32, 10)
+    cumemset(dev_array.ptr, UInt32(0), 10)
+    host_array = Array(dev_array)
+
+    @test all(x -> x==0, host_array)
+
+    free(dev_array)
+end
+
+
+## PTX loading & execution
+
+let
     md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
     vadd = CuFunction(md, "vadd")
     vmul = CuFunction(md, "vmul")
@@ -79,49 +118,4 @@ end
 end
 
 
-@testset "CuArray" begin
-    # Negative test cases
-    a = rand(Float32, 10)
-    ad = CuArray(Float32, 5)
-    @test_throws ArgumentError copy!(ad, a)
-    @test_throws ArgumentError copy!(a, ad)
-
-    # Utility
-    @test ndims(ad) == 1
-    @test eltype(ad) == Float32
-
-    free(ad)
-end
-
-# Copy non-bit array
-@test_throws ArgumentError begin
-    # Something that's certainly not a bit type
-    f =  x -> x*x
-    input = [f for i=1:10]
-    cu_input = CuArray(input)
-end
-
-# CuArray with not-bit elements
-let
-    @test_throws ArgumentError CuArray(Function, 10)
-    @test_throws ArgumentError CuArray(Function, (10, 10))
-end
-
-# cu mem tests
-let
-    @test_throws ArgumentError cualloc(Function, 10)
-
-    dev_array = CuArray(Int32, 10)
-    cumemset(dev_array.ptr, UInt32(0), 10)
-    host_array = Array(dev_array)
-
-    for i in host_array
-        @assert i == 0 "Memset failed on element $i"
-    end
-
-    free(dev_array)
-end
-
 destroy(ctx)
-
-end
