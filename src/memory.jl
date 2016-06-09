@@ -1,5 +1,8 @@
 # Raw memory management
 
+export
+    cualloc, cumemset, free
+
 function cualloc{T, N<:Integer}(::Type{T}, len::N)
 	if !isbits(T)
 		throw(ArgumentError("Only bit-types are supported"))

@@ -2,7 +2,7 @@
 
 # TODO: make the actual error trap at run time
 
-using CUDAnative
+using CUDAdrv
 
 dev = CuDevice(0)
 ctx = CuContext(dev)

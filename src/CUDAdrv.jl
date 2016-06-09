@@ -1,7 +1,7 @@
 # NOTE: precompilation is supported, but slows down development
 __precompile__(false)
 
-module CUDAnative
+module CUDAdrv
 
 
 include("errors.jl")
@@ -16,14 +16,9 @@ include("jit.jl")
 include("module.jl")
 include("stream.jl")
 include("execution.jl")
-include("compilation.jl")
 
 include("memory.jl")
 include("arrays.jl")
-
-include("native/execution.jl")
-include("native/intrinsics.jl")
-include("native/arrays.jl")
 
 include("events.jl")
 include("profile.jl")

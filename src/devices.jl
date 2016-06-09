@@ -2,7 +2,7 @@
 
 export
     devcount,
-    CuDevice, name, totalmem, attribute, capability,
+    CuDevice, name, totalmem, attribute, capability, architecture,
     list_devices
 
 

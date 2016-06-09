@@ -1,4 +1,4 @@
-using CUDAnative
+using CUDAdrv
 using Base.Test
 
 @target ptx function kernel_vadd(a, b, c)

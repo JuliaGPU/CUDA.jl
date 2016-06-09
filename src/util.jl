@@ -1,8 +1,4 @@
-export
-    mkstemps, TRACE
-
-const dumpdir = Ref{String}()
-
+# Utilities
 
 # Conditional logging (augmenting the default info/warn/error)
 global TRACE = haskey(ENV, "TRACE")
@@ -25,44 +21,15 @@ end
 @inline debug(msg...; prefix="DEBUG: ") = debug(STDERR, msg..., prefix=prefix)
 
 
-# Generate a temporary file with specific suffix
-function mkstemps(suffix::AbstractString)
-    b = joinpath(tempdir(), "tmpXXXXXX$suffix")
-    # NOTE: mkstemps modifies b, which should be a NULL-terminated string
-    p = ccall(:mkstemps, Int32, (Cstring, Cint), b, length(suffix))
-    systemerror(:mktemp, p == -1)
-    return (b, fdio(p, true))
-end
-
-
 function __init_util__()
     # TODO: assign TRACE and DEBUG at run-time, not using the pre-compiled code
     #       when the values are different?
     #       or make it work like CPU_CORES dose after Julia/#16219
 
     if TRACE
-        trace("CUDA.jl is running in trace mode, this will generate a lot of additional output")
+        trace("CUDAdrv.jl is running in trace mode, this will generate a lot of additional output")
     elseif DEBUG
-        debug("CUDA.jl is running in debug mode, this will generate additional output")
+        debug("CUDAdrv.jl is running in debug mode, this will generate additional output")
         debug("Run with TRACE=1 to enable even more output")
-    end
-
-    if TRACE
-        # When in trace mode, we'll be dumping certain build artifacts to disk
-        dumpdir[] = begin
-            root = tempdir()
-
-            # Find a unique directory name
-            dir = ""
-            i = 0
-            while true
-                dir = joinpath(root, "JuliaCUDA_$i")
-                isdir(dir) || break
-                i += 1
-            end
-
-            mkdir(dir)
-            dir
-        end
     end
 end

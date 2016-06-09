@@ -1,4 +1,4 @@
-using CUDAnative
+using CUDAdrv
 
 dev = CuDevice(0)
 ctx = CuContext(dev)

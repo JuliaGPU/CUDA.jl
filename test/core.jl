@@ -1,4 +1,4 @@
-@testset "CUDA.jl core" begin
+@testset "core" begin
 
 dev = CuDevice(0)
 ctx = CuContext(dev)
@@ -8,7 +8,7 @@ ctx = CuContext(dev)
     @cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
     @test_throws ErrorException @cucall(:nonExisting, ())
-    CUDAnative.trace(prefix=" ")
+    CUDAdrv.trace(prefix=" ")
 
     @test_throws ErrorException eval(
         quote
@@ -93,45 +93,34 @@ end
     free(ad)
 end
 
-
-@testset "compilation & execution" begin
-    @compile dev reference_dummy """
-    __global__ void reference_dummy()
-    {
-    }
-    """
-
-    cudacall(reference_dummy(), 1, 1, ())
+# Copy non-bit array
+@test_throws ArgumentError begin
+    # Something that's certainly not a bit type
+    f =  x -> x*x
+    input = [f for i=1:10]
+    cu_input = CuArray(input)
 end
 
+# CuArray with not-bit elements
+let
+    @test_throws ArgumentError CuArray(Function, 10)
+    @test_throws ArgumentError CuArray(Function, (10, 10))
+end
 
-@testset "argument passing" begin
-    dims = (16, 16)
-    len = prod(dims)
+# cu mem tests
+let
+    @test_throws ArgumentError cualloc(Function, 10)
 
-    @compile dev reference_copy """
-    __global__ void reference_copy(const float *input, float *output)
-    {
-        int i = threadIdx.x + blockIdx.x * blockDim.x;
-        output[i] = input[i];
-    }
-    """
+    dev_array = CuArray(Int32, 10)
+    cumemset(dev_array.ptr, UInt32(0), 10)
+    host_array = Array(dev_array)
 
-    let
-        input = round(rand(Float32, dims) * 100)
-
-        input_dev = CuArray(input)
-        output_dev = CuArray(Float32, dims)
-
-        cudacall(reference_copy(), len, 1, (Ptr{Cfloat},Ptr{Cfloat}), input_dev, output_dev)
-        output = Array(output_dev)
-        @test_approx_eq input output
-
-        free(input_dev)
-        free(output_dev)
+    for i in host_array
+        @assert i == 0 "Memset failed on element $i"
     end
-end
 
+    free(dev_array)
+end
 
 destroy(ctx)
 

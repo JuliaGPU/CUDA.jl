@@ -1,4 +1,4 @@
-using CUDAnative
+using CUDAdrv
 using Base.Test
 
 dev = CuDevice(0)
