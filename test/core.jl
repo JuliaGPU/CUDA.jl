@@ -1,8 +1,4 @@
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
-
-## API call wrapper
+## Base
 
 @cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
@@ -16,7 +12,107 @@ CUDAdrv.trace(prefix=" ")
     end
 )
 
-@test_throws CuError @cucall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), Ref{Ptr{Void}}(), 0)
+try
+    @cucall(:cuDeviceGet, (Ptr{Ptr{Void}}, Cint), Ref{Ptr{Void}}(), devcount())
+catch e
+    e == CUDAdrv.ERROR_INVALID_DEVICE || rethrow(e)
+end
+
+CUDAdrv.vendor()
+CUDAdrv.version()
+
+dev = CuDevice(0)
+ctx = CuContext(dev)
+
+
+## Types
+
+CUDAdrv.DevicePtr{Void}()
+@test_throws InexactError CUDAdrv.DevicePtr{Void}(C_NULL)
+CUDAdrv.DevicePtr{Void}(C_NULL, true)
+
+let
+    nullptr = CUDAdrv.DevicePtr{Void}()
+
+    @test isnull(nullptr)
+    @test eltype(nullptr) == Void
+
+    @test_throws InexactError convert(Ptr{Void}, nullptr)
+    @test_throws InexactError convert(CUDAdrv.DevicePtr{Void}, C_NULL)
+end
+
+
+## CuContext
+
+@test device(ctx) == dev
+synchronize(ctx)
+
+let
+    ctx2 = CuContext(dev)       # implicitly pushes
+    @test current_context() == ctx2
+    @test_throws ArgumentError device(ctx)
+
+    push(ctx)
+    @test current_context() == ctx
+
+    pop()
+    @test current_context() == ctx2
+
+    pop()
+    @test current_context() == ctx
+
+    destroy(ctx2)
+end
+
+
+## CuDevice
+
+name(dev)
+totalmem(dev)
+attribute(dev, 1)
+capability(dev)
+architecture(dev)
+list_devices()
+
+
+## CuError
+
+let
+    ex = CuError(0)
+    @test name(ex) == :SUCCESS
+    @test description(ex) == "Success"
+    
+    io = IOBuffer()
+    showerror(io, ex)
+    str = takebuf_string(io)
+
+    @test contains(str, "0")
+    @test contains(str, "Success")
+end
+
+let
+    ex = CuError(0, "foobar")
+    
+    io = IOBuffer()
+    showerror(io, ex)
+    str = takebuf_string(io)
+
+    @test contains(str, "foobar")
+end
+
+
+## CuEvent
+
+let
+    start = CuEvent()
+    stop = CuEvent()
+    record(start)
+    record(stop)
+    synchronize(stop)
+    @test elapsed(start, stop) > 0
+    destroy(start)
+    destroy(stop)
+end
 
 
 ## CuArray
@@ -30,7 +126,10 @@ let
 
     # Utility
     @test ndims(ad) == 1
+    @test size(ad, 1) == 5
+    @test size(ad, 2) == 1
     @test eltype(ad) == Float32
+    @test eltype(typeof(ad)) == Float32
 
     free(ad)
 end
@@ -41,6 +140,63 @@ let
     @test_throws ArgumentError CuArray(Function, 10)
     @test_throws ArgumentError CuArray(Function, (10, 10))
 end
+
+
+## CuModule
+
+let
+    md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
+
+    vadd = CuFunction(md, "vadd")
+
+    unload(md)
+end
+
+let
+    f = open(joinpath(Base.source_dir(), "vectorops.ptx"))
+    ptx = readstring(f)
+
+    md = CuModuleData(ptx)
+    vadd = CuFunction(md, "vadd")
+    unload(md)
+end
+
+try
+    CuModuleData("foobar")
+catch ex
+    ex == CUDAdrv.ERROR_INVALID_IMAGE  || rethrow(ex)
+end
+
+let
+    md = CuModuleFile(joinpath(Base.source_dir(), "global.ptx"))
+
+    var = CuGlobal{Int32}(md, "foobar")
+    @test_throws ArgumentError CuGlobal{Int64}(md, "foobar")
+
+    @test eltype(var) == Int32
+    set(var, Int32(42))
+    @test get(var) == Int32(42)
+
+    unload(md)
+end
+
+
+## CuProfile
+
+@cuprofile begin end
+
+
+## CuStream
+
+let
+    s = CuStream()
+    synchronize(s)
+    destroy(s)
+
+    synchronize(default_stream())
+end
+
+
 
 
 ## memory handling

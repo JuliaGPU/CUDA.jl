@@ -20,26 +20,6 @@ function load_library()
     error("Could not load CUDA (or any compatible) library")
 end
 
-function repr_indented(ex)
-    # NOTE: this is clumsy, but otherwise the endlines get escaped
-    io = IOBuffer()
-    print(io, ex)
-    str = takebuf_string(io)
-
-    lines = split(strip(str), '\n')
-    if length(lines) > 1
-        for i = 1:length(lines)
-            lines[i] = " "^7 * lines[i]
-        end
-
-        lines[1] = "\"\n" * lines[1]
-        lines[length(lines)] = lines[length(lines)] * "\""
-
-        return join(lines, '\n')
-    else
-        return str
-    end
-end
 
 # API call wrapper
 macro cucall(f, argtypes, args...)
@@ -104,7 +84,7 @@ function __init_base__()
     if haskey(ENV, "CUDA_FORCE_API_VERSION")
         api_version = ENV["CUDA_FORCE_API_VERSION"]
     else
-        api_version = driver_version()
+        api_version = version()
     end
     populate_funmap(api_mapping, api_version)
 
@@ -112,7 +92,7 @@ function __init_base__()
     @cucall(:cuInit, (Cint,), 0)
 end
 
-function driver_version()
+function version()
     version_ref = Ref{Cint}()
     @cucall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
     return version_ref[]

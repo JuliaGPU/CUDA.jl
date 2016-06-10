@@ -4,6 +4,7 @@ dir, _ = splitdir(Base.source_path())
 root = "$dir/../"
 cd(root)
 
+ENV["TRACE"] = 1
 run(`julia --inline=no --code-coverage=user "test/runtests.jl"`)
 
 using Coverage

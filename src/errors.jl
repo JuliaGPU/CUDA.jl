@@ -2,7 +2,7 @@
 
 import Base: ==
 
-export CuError, description
+export CuError, name, description, info
 
 immutable CuError
     code::Int

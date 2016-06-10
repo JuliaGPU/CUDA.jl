@@ -31,7 +31,8 @@ function name(dev::CuDevice)
     buf = Array(Cchar, buflen)
     @cucall(:cuDeviceGetName, (Ptr{Cchar}, Cint, Cint),
                               buf, buflen, dev.handle)
-    return bytestring(pointer(buf))
+    buf[end] = 0
+    return unsafe_string(pointer(buf))
 end
 
 "Get the amount of GPU memory (in bytes) of a CUDA device"
@@ -42,7 +43,7 @@ function totalmem(dev::CuDevice)
 end
 
 function attribute(dev::CuDevice, attrcode::Integer)
-    value_ref = Ref{Csize_t}()
+    value_ref = Ref{Cint}()
     @cucall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, Cint),
                                    value_ref, attrcode, dev.handle)
     return value_ref[]

@@ -6,8 +6,6 @@ export
 @enum(CUoutput_mode, CU_OUT_CSV = Cint(0),
                      CU_OUT_KEY_VALUE_PAIR)
 
-init_profiler() = @cucall(:cuProfilerInitialize, (Cstring,Cstring,CUoutput_mode),
-                                                 "", "", CU_OUT_CSV)
 start_profiler() = @cucall(:cuProfilerStart, (Ptr{Void},), C_NULL)
 stop_profiler() = @cucall(:cuProfilerStop, (Ptr{Void},), C_NULL)
 

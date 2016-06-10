@@ -20,6 +20,27 @@ global DEBUG = TRACE || haskey(ENV, "DEBUG")
 end
 @inline debug(msg...; prefix="DEBUG: ") = debug(STDERR, msg..., prefix=prefix)
 
+"Create an indented string from any value (instead of escaping endlines as \n)"
+function repr_indented(ex; prefix=" "^7)
+    io = IOBuffer()
+    print(io, ex)
+    str = takebuf_string(io)
+
+    lines = split(strip(str), '\n')
+    if length(lines) > 1
+        for i = 1:length(lines)
+            lines[i] = prefix * lines[i]
+        end
+
+        lines[1] = "\"\n" * lines[1]
+        lines[length(lines)] = lines[length(lines)] * "\""
+
+        return join(lines, '\n')
+    else
+        return str
+    end
+end
+
 
 function __init_util__()
     # TODO: assign TRACE and DEBUG at run-time, not using the pre-compiled code

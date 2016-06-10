@@ -50,7 +50,7 @@ immutable CuModuleData <: CuModule
                     (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
                     module_ref, data, length(optionKeys), optionKeys, optionValues)
         catch err
-            err == ERROR_NO_BINARY_FOR_GPU || rethrow(err)
+            (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
             options = decode(optionKeys, optionValues)
             rethrow(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
         end
@@ -102,6 +102,9 @@ immutable CuGlobal{T}
         @cucall(:cuModuleGetGlobal,
                 (Ptr{Ptr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
                 ptr_ref, bytes_ref, md.handle, name)
+        if bytes_ref[] != sizeof(T)
+            throw(ArgumentError("type of global does not match type parameter type"))
+        end
         @assert bytes_ref[] == sizeof(T)
         new(DevicePtr{Void}(ptr_ref[], true), bytes_ref[])
     end

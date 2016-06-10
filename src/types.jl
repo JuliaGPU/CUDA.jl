@@ -33,5 +33,5 @@ convert{T}(::Type{DevicePtr{T}}, p::Ptr{T}) = throw(InexactError())
 
 # Some convenience methods (which are already defined for Ptr{T},
 # but due to the disallowed conversions we can't use those)
-isnull{T}(p::DevicePtr{T}) = (p.inner == 0)
+isnull{T}(p::DevicePtr{T}) = (p.inner == C_NULL)
 eltype{T}(x::Type{DevicePtr{T}}) = T
