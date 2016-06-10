@@ -4,8 +4,7 @@ dir, _ = splitdir(Base.source_path())
 root = "$dir/../"
 cd(root)
 
-# TODO: --inline=no
-run(`julia --code-coverage=user "test/runtests.jl"`)
+run(`julia --inline=no --code-coverage=user "test/runtests.jl"`)
 
 using Coverage
 coverage = process_folder()
