@@ -59,7 +59,11 @@ immutable CuModuleData <: CuModule
 
         options = decode(optionKeys, optionValues)
         if DEBUG
-            debug("JIT info log:\n", options[CU_JIT_INFO_LOG_BUFFER])
+            if isempty(options[CU_JIT_INFO_LOG_BUFFER])
+                debug("JIT info log is empty")
+            else
+                debug("JIT info log: ", repr_indented(options[CU_JIT_INFO_LOG_BUFFER]))
+            end
         end
 
         new(module_ref[])

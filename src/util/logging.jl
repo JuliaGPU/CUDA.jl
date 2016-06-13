@@ -9,17 +9,20 @@ is set."
         end
     end
 end
-@inline trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg..., prefix=prefix, line=line)
+@inline trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg...; prefix=prefix, line=line)
 
 global DEBUG = TRACE || haskey(ENV, "DEBUG")
 "Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
 variable is set."
-@inline function debug(io::IO, msg...; prefix="DEBUG: ")
+@inline function debug(io::IO, msg...; prefix="DEBUG: ", line=true)
     @static if DEBUG
-        Base.println_with_color(:green, io, prefix, chomp(string(msg...)))
+        Base.print_with_color(:green, io, prefix, chomp(string(msg...)))
+        if line
+            println(io)
+        end
     end
 end
-@inline debug(msg...; prefix="DEBUG: ") = debug(STDERR, msg..., prefix=prefix)
+@inline debug(msg...; prefix="DEBUG: ", line=true) = debug(STDERR, msg...; prefix=prefix, line=line)
 
 "Create an indented string from any value (instead of escaping endlines as \n)"
 function repr_indented(ex; prefix=" "^7)
