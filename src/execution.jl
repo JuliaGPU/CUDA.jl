@@ -31,7 +31,7 @@ function guess_types(argspec::Tuple)
         if isbits(types[i])
             # these will be passed as-is
         elseif types[i] <: CUDAdrv.DevicePtr || types[i] <: CuArray
-            # known cconvert to raw pointers
+            # known convert to raw pointers
             types[i] = Ptr{eltype(types[i])}
         else
             warn("cannot guess kernel argument type from input argument of type $(types[i]), passing as-is")
