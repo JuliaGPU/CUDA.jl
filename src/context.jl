@@ -27,10 +27,10 @@ end
 unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
 
 function CuContext(dev::CuDevice, flags::Integer)
-    pctx_ref = Ref{CuContext_t}()
+    handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxCreate, (Ptr{CuContext_t}, Cuint, Cint),
-                          pctx_ref, flags, dev.handle)
-    CuContext(pctx_ref[])
+                          handle_ref, flags, dev.handle)
+    CuContext(handle_ref[])
 end
 
 CuContext(dev::CuDevice) = CuContext(dev, 0)
@@ -41,9 +41,9 @@ function destroy(ctx::CuContext)
 end
 
 function current_context()
-    pctx_ref = Ref{CuContext_t}()
-    @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), pctx_ref)
-    CuContext(pctx_ref[])
+    handle_ref = Ref{CuContext_t}()
+    @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), handle_ref)
+    CuContext(handle_ref[])
 end
 
 function push(ctx::CuContext)
@@ -51,8 +51,8 @@ function push(ctx::CuContext)
 end
 
 function pop()
-    pctx_ref = Ref{CuContext_t}()
-    @apicall(:cuCtxPopCurrent, (Ptr{CuContext_t},), pctx_ref)
+    handle_ref = Ref{CuContext_t}()
+    @apicall(:cuCtxPopCurrent, (Ptr{CuContext_t},), handle_ref)
     return nothing
 end
 

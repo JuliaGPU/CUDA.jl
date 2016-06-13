@@ -15,10 +15,10 @@ end
 unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
 
 function CuStream(flags::Integer)
-    pctx_ref = Ref{CuStream_t}()
+    handle_ref = Ref{CuStream_t}()
     @apicall(:cuStreamCreate, (Ptr{CuStream_t}, Cuint),
-                             pctx_ref, flags)
-    CuStream(pctx_ref[])
+                             handle_ref, flags)
+    CuStream(handle_ref[])
 end
 
 CuStream() = CuStream(0)

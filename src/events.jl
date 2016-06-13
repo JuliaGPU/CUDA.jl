@@ -25,11 +25,11 @@ record(e::CuEvent, stream=default_stream()) =
 synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e.handle)
 
 function elapsed(start::CuEvent, stop::CuEvent)
-    ms_ref = Ref{Cfloat}()
+    time_ref = Ref{Cfloat}()
     @apicall(:cuEventElapsedTime, 
         (Ptr{Cfloat}, CuEvent_t, CuEvent_t), 
-        ms_ref, start.handle, stop.handle)
-    return ms_ref[]
+        time_ref, start.handle, stop.handle)
+    return time_ref[]
 end
 
 destroy(e::CuEvent) = @apicall(:cuEventDestroy, (CuEvent_t,), e.handle)

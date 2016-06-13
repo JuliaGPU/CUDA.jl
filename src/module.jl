@@ -21,11 +21,11 @@ immutable CuModuleFile <: CuModule
 
     "Create a CUDA module from a file containing PTX code."
     function CuModuleFile(path)
-        module_ref = Ref{CuModule_t}()
+        handle_ref = Ref{CuModule_t}()
 
-        @apicall(:cuModuleLoad, (Ptr{CuModule_t}, Ptr{Cchar}), module_ref, path)
+        @apicall(:cuModuleLoad, (Ptr{CuModule_t}, Ptr{Cchar}), handle_ref, path)
 
-        new(module_ref[])
+        new(handle_ref[])
     end
 end
 
@@ -34,7 +34,7 @@ immutable CuModuleData <: CuModule
 
     "Create a CUDA module from a string containing PTX code."
     function CuModuleData(data)
-        module_ref = Ref{CuModule_t}()
+        handle_ref = Ref{CuModule_t}()
 
         options = Dict{CUjit_option,Any}()
         options[CU_JIT_ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
@@ -50,15 +50,15 @@ immutable CuModuleData <: CuModule
         try
             @apicall(:cuModuleLoadDataEx,
                     (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ref{CUjit_option}, Ref{Ptr{Void}}),
-                    module_ref, data, length(optionKeys), optionKeys, optionValues)
+                    handle_ref, data, length(optionKeys), optionKeys, optionValues)
         catch err
             (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
             options = decode(optionKeys, optionValues)
             rethrow(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
         end
 
-        options = decode(optionKeys, optionValues)
         if DEBUG
+            options = decode(optionKeys, optionValues)
             if isempty(options[CU_JIT_INFO_LOG_BUFFER])
                 debug("JIT info log is empty")
             else
@@ -66,7 +66,7 @@ immutable CuModuleData <: CuModule
             end
         end
 
-        new(module_ref[])
+        new(handle_ref[])
     end
 end
 
@@ -89,10 +89,10 @@ immutable CuFunction
 
     "Get a handle to a kernel function in a CUDA module."
     function CuFunction(mod::CuModule, name::String)
-        function_ref = Ref{CuFunction_t}()
+        handle_ref = Ref{CuFunction_t}()
         @apicall(:cuModuleGetFunction, (Ptr{CuFunction_t}, CuModule_t, Ptr{Cchar}),
-                                      function_ref, mod.handle, name)
-        new(function_ref[])
+                                      handle_ref, mod.handle, name)
+        new(handle_ref[])
     end
 end
 
@@ -110,15 +110,15 @@ immutable CuGlobal{T}
 
     function CuGlobal(mod::CuModule, name::String)
         ptr_ref = Ref{Ptr{Void}}()
-        bytes_ref = Ref{Cssize_t}()
+        nbytes_ref = Ref{Cssize_t}()
         @apicall(:cuModuleGetGlobal,
                 (Ptr{Ptr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
-                ptr_ref, bytes_ref, mod.handle, name)
-        if bytes_ref[] != sizeof(T)
+                ptr_ref, nbytes_ref, mod.handle, name)
+        if nbytes_ref[] != sizeof(T)
             throw(ArgumentError("type of global does not match type parameter type"))
         end
-        @assert bytes_ref[] == sizeof(T)
-        new(DevicePtr{Void}(ptr_ref[], true), bytes_ref[])
+        @assert nbytes_ref[] == sizeof(T)
+        new(DevicePtr{Void}(ptr_ref[], true), nbytes_ref[])
     end
 end
 
