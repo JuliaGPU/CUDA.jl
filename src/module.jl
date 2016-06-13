@@ -1,6 +1,6 @@
 # Module-related types and auxiliary functions
 
-import Base: eltype
+import Base: eltype, unsafe_convert
 
 export
     CuModule, CuModuleFile, CuModuleData, unload,
@@ -12,27 +12,29 @@ export
 # CUDA module
 #
 
+typealias CuModule_t Ptr{Void}
+
 abstract CuModule
 
 immutable CuModuleFile <: CuModule
-    handle::Ptr{Void}
+    handle::CuModule_t
 
     "Create a CUDA module from a file containing PTX code."
     function CuModuleFile(path)
-        module_ref = Ref{Ptr{Void}}()
+        module_ref = Ref{CuModule_t}()
 
-        @apicall(:cuModuleLoad, (Ref{Ptr{Void}}, Ptr{Cchar}), module_ref, path)
+        @apicall(:cuModuleLoad, (Ptr{CuModule_t}, Ptr{Cchar}), module_ref, path)
 
         new(module_ref[])
     end
 end
 
 immutable CuModuleData <: CuModule
-    handle::Ptr{Void}
+    handle::CuModule_t
 
     "Create a CUDA module from a string containing PTX code."
     function CuModuleData(data)
-        module_ref = Ref{Ptr{Void}}()
+        module_ref = Ref{CuModule_t}()
 
         options = Dict{CUjit_option,Any}()
         options[CU_JIT_ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
@@ -47,7 +49,7 @@ immutable CuModuleData <: CuModule
 
         try
             @apicall(:cuModuleLoadDataEx,
-                    (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
+                    (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ref{CUjit_option}, Ref{Ptr{Void}}),
                     module_ref, data, length(optionKeys), optionKeys, optionValues)
         catch err
             (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
@@ -64,9 +66,11 @@ immutable CuModuleData <: CuModule
     end
 end
 
+unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
+
 "Unload a CUDA module."
-function unload(md::CuModule)
-    @apicall(:cuModuleUnload, (Ptr{Void},), md.handle)
+function unload(mod::CuModule)
+    @apicall(:cuModuleUnload, (CuModule_t,), mod.handle)
 end
 
 
@@ -74,17 +78,21 @@ end
 # CUDA function
 #
 
+typealias CuFunction_t Ptr{Void}
+
 immutable CuFunction
-    handle::Ptr{Void}
+    handle::CuFunction_t
 
     "Get a handle to a kernel function in a CUDA module."
-    function CuFunction(md::CuModule, name::String)
-        function_ref = Ref{Ptr{Void}}()
-        @apicall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}),
-                                      function_ref, md.handle, name)
+    function CuFunction(mod::CuModule, name::String)
+        function_ref = Ref{CuFunction_t}()
+        @apicall(:cuModuleGetFunction, (Ptr{CuFunction_t}, CuModule_t, Ptr{Cchar}),
+                                      function_ref, mod.handle, name)
         new(function_ref[])
     end
 end
+
+unsafe_convert(::Type{CuFunction_t}, fun::CuFunction) = fun.handle
 
 
 #
@@ -96,12 +104,12 @@ immutable CuGlobal{T}
     ptr::DevicePtr{Void}
     nbytes::Cssize_t
 
-    function CuGlobal(md::CuModule, name::String)
+    function CuGlobal(mod::CuModule, name::String)
         ptr_ref = Ref{Ptr{Void}}()
         bytes_ref = Ref{Cssize_t}()
         @apicall(:cuModuleGetGlobal,
                 (Ptr{Ptr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
-                ptr_ref, bytes_ref, md.handle, name)
+                ptr_ref, bytes_ref, mod.handle, name)
         if bytes_ref[] != sizeof(T)
             throw(ArgumentError("type of global does not match type parameter type"))
         end

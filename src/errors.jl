@@ -4,6 +4,7 @@ import Base: ==
 
 export CuError, name, description, info
 
+
 immutable CuError
     code::Int
     info::Nullable{String}

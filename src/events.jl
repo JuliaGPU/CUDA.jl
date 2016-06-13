@@ -1,6 +1,9 @@
 # Events for timing
 
+import Base: unsafe_convert
+
 export CuEvent, record, synchronize, elapsed
+
 
 typealias CuEvent_t Ptr{Void}
 
@@ -14,10 +17,12 @@ immutable CuEvent
     end 
 end
 
-record(ce::CuEvent, stream=default_stream()) = 
-    @apicall(:cuEventRecord, (CuEvent_t, Ptr{Void}), ce.handle, stream.handle)
+unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
 
-synchronize(ce::CuEvent) = @apicall(:cuEventSynchronize, (Ptr{Void},), ce.handle)
+record(e::CuEvent, stream=default_stream()) = 
+    @apicall(:cuEventRecord, (CuEvent_t, CuStream_t), e.handle, stream.handle)
+
+synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e.handle)
 
 function elapsed(start::CuEvent, stop::CuEvent)
     ms_ref = Ref{Cfloat}()
@@ -27,4 +32,4 @@ function elapsed(start::CuEvent, stop::CuEvent)
     return ms_ref[]
 end
 
-destroy(ce::CuEvent) = @apicall(:cuEventDestroy, (CuEvent_t,), ce.handle)
+destroy(e::CuEvent) = @apicall(:cuEventDestroy, (CuEvent_t,), e.handle)

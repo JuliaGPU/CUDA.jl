@@ -12,8 +12,9 @@ CUDAdrv.trace(prefix=" ")
     end
 )
 
+typealias CuDevice_t Cint
 try
-    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{Ptr{Void}}, Cint), Ref{Ptr{Void}}(), devcount())
+    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), Ref{CuDevice_t}(), devcount())
 catch e
     e == CUDAdrv.ERROR_INVALID_DEVICE || rethrow(e)
 end
