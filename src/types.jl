@@ -1,6 +1,6 @@
 # CUDA related types
 
-import Base: eltype, convert, isnull, cconvert
+import Base: eltype, convert, isnull
 
 
 #

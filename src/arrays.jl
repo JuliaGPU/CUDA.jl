@@ -1,6 +1,6 @@
 # Contiguous on-device arrays
 
-import Base: length, size, copy!, cconvert, Array
+import Base: length, size, copy!, unsafe_convert, Array
 
 export
     CuArray, free
@@ -25,7 +25,7 @@ end
 CuArray{T}(::Type{T}, len::Int) = CuArray{T,1}(T, (len,))
 CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(T, shape)
 
-cconvert{T,N}(::Type{Ptr{T}}, a::CuArray{T,N}) = a.ptr
+unsafe_convert{T,N}(::Type{Ptr{T}}, a::CuArray{T,N}) = a.ptr
 
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape
