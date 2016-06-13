@@ -29,6 +29,18 @@ immutable CuModuleFile <: CuModule
     end
 end
 
+# do syntax, f(module)
+function CuModuleFile(f::Function, path::AbstractString)
+    mod = CuModuleFile(path)
+    local ret
+    try
+        ret = f(mod)
+    finally
+        unload(mod)
+    end
+    ret
+end
+
 immutable CuModuleData <: CuModule
     handle::CuModule_t
 

@@ -153,6 +153,10 @@ let
     unload(md)
 end
 
+CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx")) do md
+    vadd = CuFunction(md, "vadd")
+end
+
 let
     f = open(joinpath(Base.source_dir(), "vectorops.ptx"))
     ptx = readstring(f)
@@ -196,8 +200,6 @@ let
 
     synchronize(default_stream())
 end
-
-
 
 
 ## memory handling
