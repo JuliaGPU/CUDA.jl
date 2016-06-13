@@ -1,18 +1,16 @@
-# Utilities
-
-# Conditional logging (augmenting the default info/warn/error)
 global TRACE = haskey(ENV, "TRACE")
-@inline function trace(io::IO, msg...; prefix="TRACE: ", line=true)
+"Display a trace message. Only results in actual printing if the TRACE environment variable
+is set."
+@inline function trace(io::IO, msg...; prefix="TRACE: ")
     @static if TRACE
-        Base.print_with_color(:cyan, io, prefix, chomp(string(msg...)))
-        if line
-            println(io)
-        end
+        Base.println_with_color(:cyan, io, prefix, chomp(string(msg...)))
     end
 end
-@inline trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg..., prefix=prefix, line=line)
+@inline trace(msg...; prefix="TRACE: ") = trace(STDERR, msg..., prefix=prefix)
 
 global DEBUG = TRACE || haskey(ENV, "DEBUG")
+"Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
+variable is set."
 @inline function debug(io::IO, msg...; prefix="DEBUG: ")
     @static if DEBUG
         Base.println_with_color(:green, io, prefix, chomp(string(msg...)))
@@ -42,7 +40,7 @@ function repr_indented(ex; prefix=" "^7)
 end
 
 
-function __init_util__()
+function __init_logging__()
     # TODO: assign TRACE and DEBUG at run-time, not using the pre-compiled code
     #       when the values are different?
     #       or make it work like CPU_CORES dose after Julia/#16219
