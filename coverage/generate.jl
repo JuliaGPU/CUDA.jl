@@ -5,7 +5,7 @@ root = "$dir/../"
 cd(root)
 
 ENV["TRACE"] = 1
-run(`julia --inline=no --code-coverage=user "test/runtests.jl"`)
+run(`julia --compilecache=no --inline=no --code-coverage=user "test/runtests.jl"`)
 
 using Coverage
 coverage = process_folder()

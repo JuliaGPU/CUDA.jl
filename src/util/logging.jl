@@ -1,12 +1,15 @@
 global TRACE = haskey(ENV, "TRACE")
 "Display a trace message. Only results in actual printing if the TRACE environment variable
 is set."
-@inline function trace(io::IO, msg...; prefix="TRACE: ")
+@inline function trace(io::IO, msg...; prefix="TRACE: ", line=true)
     @static if TRACE
-        Base.println_with_color(:cyan, io, prefix, chomp(string(msg...)))
+        Base.print_with_color(:cyan, io, prefix, chomp(string(msg...)))
+        if line
+            println(io)
+        end
     end
 end
-@inline trace(msg...; prefix="TRACE: ") = trace(STDERR, msg..., prefix=prefix)
+@inline trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg..., prefix=prefix, line=line)
 
 global DEBUG = TRACE || haskey(ENV, "DEBUG")
 "Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
