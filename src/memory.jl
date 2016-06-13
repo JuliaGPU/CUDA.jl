@@ -9,11 +9,11 @@ function cualloc{T, N<:Integer}(::Type{T}, len::N)
 	end
     ptr_ref = Ref{Ptr{Void}}()
     nbytes = len * sizeof(T)
-    @cucall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, nbytes)
+    @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, nbytes)
     return DevicePtr{T}(reinterpret(Ptr{T}, ptr_ref[]), true)
 end
 
 cumemset(p::DevicePtr, value::Cuint, len::Integer) = 
-    @cucall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), p.inner, value, len)
+    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), p.inner, value, len)
 
-free(p::DevicePtr) = @cucall(:cuMemFree, (Ptr{Void},), p.inner)
+free(p::DevicePtr) = @apicall(:cuMemFree, (Ptr{Void},), p.inner)

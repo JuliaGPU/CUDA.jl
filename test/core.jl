@@ -1,19 +1,19 @@
 ## Base
 
-@cucall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
+CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
-@test_throws ErrorException @cucall(:nonExisting, ())
+@test_throws ErrorException CUDAdrv.@apicall(:nonExisting, ())
 CUDAdrv.trace(prefix=" ")
 
 @test_throws ErrorException eval(
     quote
         foo = :bar
-        @cucall(foo, ())
+        CUDAdrv.@apicall(foo, ())
     end
 )
 
 try
-    @cucall(:cuDeviceGet, (Ptr{Ptr{Void}}, Cint), Ref{Ptr{Void}}(), devcount())
+    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{Ptr{Void}}, Cint), Ref{Ptr{Void}}(), devcount())
 catch e
     e == CUDAdrv.ERROR_INVALID_DEVICE || rethrow(e)
 end

@@ -9,7 +9,7 @@ export
 "Return the number of available CUDA devices"
 function devcount()
     count_ref = Ref{Cint}()
-    @cucall(:cuDeviceGetCount, (Ptr{Cint},), count_ref)
+    @apicall(:cuDeviceGetCount, (Ptr{Cint},), count_ref)
     return count_ref[]
 end
 
@@ -20,7 +20,7 @@ immutable CuDevice
     function CuDevice(i::Integer)
         ordinal = convert(Cint, i)
         handle_ref = Ref{Cint}()
-        @cucall(:cuDeviceGet, (Ptr{Cint}, Cint), handle_ref, ordinal)
+        @apicall(:cuDeviceGet, (Ptr{Cint}, Cint), handle_ref, ordinal)
         new(ordinal, handle_ref[])
     end
 end
@@ -29,7 +29,7 @@ end
 function name(dev::CuDevice)
     const buflen = 256
     buf = Array(Cchar, buflen)
-    @cucall(:cuDeviceGetName, (Ptr{Cchar}, Cint, Cint),
+    @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, Cint),
                               buf, buflen, dev.handle)
     buf[end] = 0
     return unsafe_string(pointer(buf))
@@ -38,13 +38,13 @@ end
 "Get the amount of GPU memory (in bytes) of a CUDA device"
 function totalmem(dev::CuDevice)
     mem_ref = Ref{Csize_t}()
-    @cucall(:cuDeviceTotalMem, (Ptr{Csize_t}, Cint), mem_ref, dev.handle)
+    @apicall(:cuDeviceTotalMem, (Ptr{Csize_t}, Cint), mem_ref, dev.handle)
     return mem_ref[]
 end
 
 function attribute(dev::CuDevice, attrcode::Integer)
     value_ref = Ref{Cint}()
-    @cucall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, Cint),
+    @apicall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, Cint),
                                    value_ref, attrcode, dev.handle)
     return value_ref[]
 end
@@ -53,7 +53,7 @@ end
 function capability(dev::CuDevice)
     major_ref = Ref{Cint}()
     minor_ref = Ref{Cint}()
-    @cucall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint),
+    @apicall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, Cint),
                                         major_ref, minor_ref, dev.handle)
     return VersionNumber(major_ref[], minor_ref[])
 end

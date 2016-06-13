@@ -21,7 +21,7 @@ immutable CuModuleFile <: CuModule
     function CuModuleFile(path)
         module_ref = Ref{Ptr{Void}}()
 
-        @cucall(:cuModuleLoad, (Ref{Ptr{Void}}, Ptr{Cchar}), module_ref, path)
+        @apicall(:cuModuleLoad, (Ref{Ptr{Void}}, Ptr{Cchar}), module_ref, path)
 
         new(module_ref[])
     end
@@ -46,7 +46,7 @@ immutable CuModuleData <: CuModule
         optionKeys, optionValues = encode(options)
 
         try
-            @cucall(:cuModuleLoadDataEx,
+            @apicall(:cuModuleLoadDataEx,
                     (Ref{Ptr{Void}}, Ptr{Cchar}, Cuint, Ref{CUjit_option},Ref{Ptr{Void}}),
                     module_ref, data, length(optionKeys), optionKeys, optionValues)
         catch err
@@ -66,7 +66,7 @@ end
 
 "Unload a CUDA module."
 function unload(md::CuModule)
-    @cucall(:cuModuleUnload, (Ptr{Void},), md.handle)
+    @apicall(:cuModuleUnload, (Ptr{Void},), md.handle)
 end
 
 
@@ -80,7 +80,7 @@ immutable CuFunction
     "Get a handle to a kernel function in a CUDA module."
     function CuFunction(md::CuModule, name::String)
         function_ref = Ref{Ptr{Void}}()
-        @cucall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}),
+        @apicall(:cuModuleGetFunction, (Ptr{Ptr{Void}}, Ptr{Void}, Ptr{Cchar}),
                                       function_ref, md.handle, name)
         new(function_ref[])
     end
@@ -99,7 +99,7 @@ immutable CuGlobal{T}
     function CuGlobal(md::CuModule, name::String)
         ptr_ref = Ref{Ptr{Void}}()
         bytes_ref = Ref{Cssize_t}()
-        @cucall(:cuModuleGetGlobal,
+        @apicall(:cuModuleGetGlobal,
                 (Ptr{Ptr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
                 ptr_ref, bytes_ref, md.handle, name)
         if bytes_ref[] != sizeof(T)
@@ -114,13 +114,13 @@ eltype{T}(::CuGlobal{T}) = T
 
 function get{T}(var::CuGlobal{T})
     val_ref = Ref{T}()
-    @cucall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
+    @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
                            val_ref, var.ptr.inner, var.nbytes)
     return val_ref[]
 end
 
 function set{T}(var::CuGlobal{T}, val::T)
     val_ref = Ref{T}(val)
-    @cucall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
+    @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                            var.ptr.inner, val_ref, var.nbytes)
 end

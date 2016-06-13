@@ -36,7 +36,7 @@ function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, args::Tuple;
     (griddim.x>0 && griddim.y>0 && griddim.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
 
-    @cucall(:cuLaunchKernel, (
+    @apicall(:cuLaunchKernel, (
         Ptr{Void},  			# function
         Cuint, Cuint, Cuint,  	# grid dimensions (x, y, z)
         Cuint, Cuint, Cuint,  	# block dimensions (x, y, z)

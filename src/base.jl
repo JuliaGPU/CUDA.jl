@@ -2,9 +2,6 @@
 
 import Base: get
 
-export
-    @cucall
-
 # TODO: put this in __init__ (cfr CPU_CORES)
 const libcuda = Ref{Ptr{Void}}()
 const libcuda_vendor = Ref{String}()
@@ -20,9 +17,8 @@ function load_library()
     error("Could not load CUDA (or any compatible) library")
 end
 
-
 # API call wrapper
-macro cucall(f, argtypes, args...)
+macro apicall(f, argtypes, args...)
     # Escape the tuple of arguments, making sure it is evaluated in caller scope
     # (there doesn't seem to be inline syntax like `$(esc(argtypes))` for this)
     esc_args = [esc(arg) for arg in args]
@@ -30,7 +26,7 @@ macro cucall(f, argtypes, args...)
     blk = Expr(:block)
 
     if !isa(f, Expr) || f.head != :quote
-        error("first argument to @cucall should be a symbol")
+        error("first argument to @apicall should be a symbol")
     end
 
     # Print the function name & arguments
@@ -89,12 +85,12 @@ function __init_base__()
     populate_funmap(api_mapping, api_version)
 
     # Initialize the driver
-    @cucall(:cuInit, (Cint,), 0)
+    @apicall(:cuInit, (Cint,), 0)
 end
 
 function version()
     version_ref = Ref{Cint}()
-    @cucall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
+    @apicall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
     return version_ref[]
 end
 

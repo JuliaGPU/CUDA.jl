@@ -22,7 +22,7 @@ end
 
 function CuContext(dev::CuDevice, flags::Integer)
     pctx_ref = Ref{Ptr{Void}}()
-    @cucall(:cuCtxCreate, (Ptr{Ptr{Void}}, Cuint, Cint),
+    @apicall(:cuCtxCreate, (Ptr{Ptr{Void}}, Cuint, Cint),
                           pctx_ref, flags, dev.handle)
     CuContext(pctx_ref[])
 end
@@ -31,22 +31,22 @@ CuContext(dev::CuDevice) = CuContext(dev, 0)
 
 "Destroy the CUDA context, releasing resources allocated to it."
 function destroy(ctx::CuContext)
-    @cucall(:cuCtxDestroy, (Ptr{Void},), ctx.handle)
+    @apicall(:cuCtxDestroy, (Ptr{Void},), ctx.handle)
 end
 
 function current_context()
     pctx_ref = Ref{Ptr{Void}}()
-    @cucall(:cuCtxGetCurrent, (Ptr{Ptr{Void}},), pctx_ref)
+    @apicall(:cuCtxGetCurrent, (Ptr{Ptr{Void}},), pctx_ref)
     CuContext(pctx_ref[])
 end
 
 function push(ctx::CuContext)
-    @cucall(:cuCtxPushCurrent, (Ptr{Void},), ctx.handle)
+    @apicall(:cuCtxPushCurrent, (Ptr{Void},), ctx.handle)
 end
 
 function pop()
     pctx_ref = Ref{Ptr{Void}}()
-    @cucall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), pctx_ref)
+    @apicall(:cuCtxPopCurrent, (Ptr{Ptr{Void}},), pctx_ref)
     return nothing
 end
 
@@ -59,8 +59,8 @@ function device(ctx::CuContext)
     # TODO: cuCtxGetDevice returns the device ordinal, but as a CUDevice*?
     #       This can't be right...
     device_ref = Ref{Cint}()
-    @cucall(:cuCtxGetDevice, (Ptr{Cint},), device_ref)
+    @apicall(:cuCtxGetDevice, (Ptr{Cint},), device_ref)
     return CuDevice(device_ref[])
 end
 
-synchronize(ctx::CuContext) = @cucall(:cuCtxSynchronize, (Ptr{Void},), ctx.handle)
+synchronize(ctx::CuContext) = @apicall(:cuCtxSynchronize, (Ptr{Void},), ctx.handle)
