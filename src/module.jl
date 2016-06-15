@@ -49,13 +49,13 @@ immutable CuModuleData <: CuModule
         handle_ref = Ref{CuModule_t}()
 
         options = Dict{CUjit_option,Any}()
-        options[CU_JIT_ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
+        options[ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
         if DEBUG
-            options[CU_JIT_GENERATE_LINE_INFO] = true
-            options[CU_JIT_GENERATE_DEBUG_INFO] = true
+            options[GENERATE_LINE_INFO] = true
+            options[GENERATE_DEBUG_INFO] = true
 
-            options[CU_JIT_INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
-            options[CU_JIT_LOG_VERBOSE] = true
+            options[INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
+            options[LOG_VERBOSE] = true
         end
         optionKeys, optionValues = encode(options)
 
@@ -66,15 +66,15 @@ immutable CuModuleData <: CuModule
         catch err
             (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
             options = decode(optionKeys, optionValues)
-            rethrow(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
+            rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
         end
 
         if DEBUG
             options = decode(optionKeys, optionValues)
-            if isempty(options[CU_JIT_INFO_LOG_BUFFER])
+            if isempty(options[INFO_LOG_BUFFER])
                 debug("JIT info log is empty")
             else
-                debug("JIT info log: ", repr_indented(options[CU_JIT_INFO_LOG_BUFFER]))
+                debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]))
             end
         end
 
