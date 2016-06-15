@@ -3,6 +3,8 @@
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
+architecture(dev)
+
 
 ## basic compilation & execution
 
