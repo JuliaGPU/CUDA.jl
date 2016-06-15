@@ -194,12 +194,14 @@ $code
 """)
     close(io)
 
-    # Manage the build directory
-    scriptdir = dirname(containing_file)
-    builddir = "$scriptdir/.build"
-    if !isdir(builddir)
-        mkdir(builddir)
+    @static if is_linux()
+        builddir = joinpath(get(ENV, "XDG_CACHE_HOME", joinpath(homedir(), ".cache")),
+                            "CUDAnative.jl")
+    else
+        builddir = joinpath(tempdir(), "CUDAnative.jl")
     end
+    mkpath(builddir)
+    trace("Writing build artifacts to $builddir")   # TODO: trace once
 
     # Check if we need to compile
     codehash = hex(hash(code))
