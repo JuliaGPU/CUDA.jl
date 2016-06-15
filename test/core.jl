@@ -70,7 +70,7 @@ end
 
 name(dev)
 totalmem(dev)
-attribute(dev, 1)
+attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
 capability(dev)
 architecture(dev)
 list_devices()
