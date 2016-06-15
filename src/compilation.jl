@@ -65,7 +65,7 @@ function discover_toolchain()
             nvcc = chomp(readstring(pipeline(`which nvcc`, stderr=DevNull)))
         catch ex
             isa(ex, ErrorException) || rethrow(ex)
-            error("could not find NVCC -- consider specifying with NVCC environment variable")
+            rethrow(ErrorException("could not find NVCC -- consider specifying with NVCC environment variable"))
         end
     end
     nvcc_ver = Nullable{VersionNumber}()
@@ -169,6 +169,11 @@ macro compile(dev, kernel, code)
     end
 end
 
+type CompileError <: Base.WrappedException
+    message::String
+    error
+end
+
 function _compile(dev, kernel, code, containing_file)
     global toolchain
 
@@ -197,7 +202,8 @@ $code
     end
 
     # Check if we need to compile
-    output = "$builddir/$kernel-$arch.ptx"
+    codehash = hex(hash(code))
+    output = "$builddir/$(kernel)_$(codehash)-$(arch).ptx"
     if isfile(output)
         need_compile = (stat(containing_file).mtime > stat(output).mtime)
     else
@@ -209,10 +215,11 @@ $code
         compile_flags = vcat(toolchain[].flags, ["--gpu-architecture", arch])
 
         try
-            run(`$(toolchain[].nvcc) $(compile_flags) -ptx -o $output $source`)
+            # TODO: capture STDERR
+            run(pipeline(`$(toolchain[].nvcc) $(compile_flags) -ptx -o $output $source`, stderr=DevNull))
         catch ex
             isa(ex, ErrorException) || rethrow(ex)
-            error("compilation of kernel $kernel failed (typo in C++ source?)")
+            rethrow(CompileError("compilation of kernel $kernel failed (typo in C++ source?)", ex))
         end
 
         if !isfile(output)
@@ -224,17 +231,15 @@ $code
     # Pass the module to the CUDA driver
     mod = try
         CuModuleFile(output)
-    catch
-        # TODO: rethrow with additional message?
-        error("loading of kernel $kernel failed (invalid CUDA code?)")
+    catch ex
+        rethrow(CompileError("loading of kernel $kernel failed (invalid CUDA code?)", ex))
     end
 
     # Load the function pointer
     func = try
         CuFunction(mod, kernel)
-    catch
-        # TODO: rethrow with additional message?
-        error("could not find kernel $kernel in the compiled binary (wrong function name?)")
+    catch ex
+        rethrow(CompileError("could not find kernel $kernel in the compiled binary (wrong function name?)", ex))
     end
 
     return func

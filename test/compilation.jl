@@ -8,13 +8,32 @@ architecture(dev)
 
 ## basic compilation & execution
 
-@compile dev reference_dummy """
-__global__ void reference_dummy()
-{
-}
-"""
+let
+    @compile dev kernel """
+    __global__ void kernel()
+    {
+    }
+    """
 
-cudacall(reference_dummy(), 1, 1, ())
+    cudacall(kernel(), 1, 1, ())
+end
+
+@test_throws CUDAnative.CompileError let
+    @compile dev kernel """
+    __global__ void kernel()
+    {
+        invalid code
+    }
+    """
+end
+
+@test_throws CUDAnative.CompileError let
+    @compile dev wrongname """
+    __global__ void kernel()
+    {
+    }
+    """
+end
 
 
 ## argument passing
