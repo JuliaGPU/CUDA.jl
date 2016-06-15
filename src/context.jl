@@ -1,6 +1,6 @@
 # Context management
 
-import Base: unsafe_convert
+import Base: unsafe_convert, @deprecate_binding
 
 export
     CuContext, destroy, current_context,
@@ -12,12 +12,7 @@ export
                    SCHED_BLOCKING_SYNC  = 0x04,
                    MAP_HOST             = 0x08,
                    LMEM_RESIZE_TO_MAX   = 0x10)
-
-# Aliases
-const BLOCKING_SYNC = SCHED_BLOCKING_SYNC
-
-# Deprecated:
-# - BLOCKING_SYNC
+@deprecate_binding BLOCKING_SYNC SCHED_BLOCKING_SYNC
 
 typealias CuContext_t Ptr{Void}
 
