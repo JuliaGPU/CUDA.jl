@@ -4,6 +4,9 @@ module CUDAnative
 
 using CUDAdrv
 
+# non-exported utility functions
+import CUDAdrv: debug, DEBUG, trace, TRACE
+
 
 include("util.jl")
 
