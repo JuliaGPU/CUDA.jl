@@ -6,12 +6,18 @@ export
     CuContext, destroy, current_context,
     push, pop, synchronize, device
 
-@enum(CUctx_flags, CTX_SCHED_AUTO           = 0x00,
-                   CTX_SCHED_SPIN           = 0x01,
-                   CTX_SCHED_YIELD          = 0x02,
-                   CTX_SCHED_BLOCKING_SYNC  = 0x04,
-                   CTX_MAP_HOST             = 0x08,
-                   CTX_LMEM_RESIZE_TO_MAX   = 0x10)
+@enum(CUctx_flags, SCHED_AUTO           = 0x00,
+                   SCHED_SPIN           = 0x01,
+                   SCHED_YIELD          = 0x02,
+                   SCHED_BLOCKING_SYNC  = 0x04,
+                   MAP_HOST             = 0x08,
+                   LMEM_RESIZE_TO_MAX   = 0x10)
+
+# Aliases
+const BLOCKING_SYNC = SCHED_BLOCKING_SYNC
+
+# Deprecated:
+# - BLOCKING_SYNC
 
 typealias CuContext_t Ptr{Void}
 
@@ -26,14 +32,14 @@ end
 
 unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
 
-function CuContext(dev::CuDevice, flags::Integer)
+function CuContext(dev::CuDevice, flags::CUctx_flags)
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxCreate, (Ptr{CuContext_t}, Cuint, Cint),
                           handle_ref, flags, dev.handle)
     CuContext(handle_ref[])
 end
 
-CuContext(dev::CuDevice) = CuContext(dev, 0)
+CuContext(dev::CuDevice) = CuContext(dev, SCHED_AUTO)
 
 "Destroy the CUDA context, releasing resources allocated to it."
 function destroy(ctx::CuContext)

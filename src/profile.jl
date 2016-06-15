@@ -3,8 +3,8 @@
 export
     @cuprofile
 
-@enum(CUoutput_mode, CU_OUT_CSV = Cint(0),
-                     CU_OUT_KEY_VALUE_PAIR)
+@enum(CUoutput_mode, CSV            = 0x00,
+                     KEY_VALUE_PAIR = 0x01)
 
 start_profiler() = @apicall(:cuProfilerStart, (Ptr{Void},), C_NULL)
 stop_profiler() = @apicall(:cuProfilerStop, (Ptr{Void},), C_NULL)
