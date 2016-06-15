@@ -4,7 +4,7 @@ import Base: unsafe_convert, @deprecate_binding
 
 export
     devcount,
-    CuDevice, name, totalmem, attribute, capability, architecture,
+    CuDevice, name, totalmem, attribute, capability,
     list_devices
 
 
@@ -157,40 +157,6 @@ function capability(dev::CuDevice)
     @apicall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, CuDevice_t),
                                         major_ref, minor_ref, dev.handle)
     return VersionNumber(major_ref[], minor_ref[])
-end
-
-"Database of compute capabilities and matching shader model (boolean flag indicates which version of LLVM supports the architecture)"
-const architectures = [
-    (v"1.0", "sm_10", nothing),
-    (v"1.1", "sm_11", nothing),
-    (v"1.2", "sm_12", nothing),
-    (v"1.3", "sm_13", nothing),
-    (v"2.0", "sm_20", v"3.2"),
-    (v"2.1", "sm_21", v"3.2"),
-    (v"3.0", "sm_30", v"3.2"),
-    (v"3.2", "sm_32", v"3.7"),
-    (v"3.5", "sm_35", v"3.2"),
-    (v"3.7", "sm_37", v"3.7"),
-    (v"5.0", "sm_50", v"3.5"),
-    (v"5.2", "sm_52", v"3.7"),
-    (v"5.3", "sm_53", v"3.7"),
-    (v"6.0", "sm_60", nothing),
-    (v"6.1", "sm_61", nothing) ]
-
-"Return the most recent supported architecture for a CUDA device"
-function architecture(dev::CuDevice)
-    cap = capability(dev)
-    if cap < architectures[1][1]
-        error("No support for SM < $(architectures[1][1])")
-    end
-
-    for i = 2:length(architectures)
-        if cap < architectures[i][1]
-            return architectures[i-1][2]
-            break
-        end
-    end
-    return architectures[length(architectures)][2]
 end
 
 "List all CUDA devices with their capabilities and attributes"

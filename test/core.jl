@@ -72,7 +72,6 @@ name(dev)
 totalmem(dev)
 attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
 capability(dev)
-architecture(dev)
 list_devices()
 
 
