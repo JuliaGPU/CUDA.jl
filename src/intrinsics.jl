@@ -96,7 +96,7 @@ sync_threads() = Base.llvmcall(
 #       - box-like semantics?
 #       - Ptr{AS}?
 # TODO: this is inefficient, converting to global pointers (does propagation suffice?)
-# TODO: static shared memory
+# TODO: static shared memory (just `[$n x i64]`, but needs more powerful llvmcall)
 
 cuSharedMem(::Type{Int64}) = Base.llvmcall(
     ("""@shmem_i64 = external addrspace(3) global [0 x i64]""",

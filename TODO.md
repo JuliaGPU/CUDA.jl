@@ -19,8 +19,9 @@
 * Fix the shared memory: wrap in a type, don't refer to the global through
   `llvmcall` and add support for statically defined shared memory
 
-* Related to shared memory: proper address space support, for different memories
-  and function arguments
+* Related to shared memory: proper address space support, for different memories and
+  function arguments. On the other hand, is this necessary? Just mark the AS, convert as
+  soon as possible, and use the inference pass to improve performance.
 
 * Make `CuDeviceArray` a proper (immutable) type: this requires being able to pass the
   entire object on the stack, or we would need copies to and from GPU memory before _every_
