@@ -1,8 +1,8 @@
-# Running this example under cuda-memset properly gives line number info
+# Running this example under cuda-memset with DEBUG=1 properly gives line number info
 
 # TODO: make the actual error trap at run time
 
-using CUDAnative
+using CUDAdrv, CUDAnative
 
 dev = CuDevice(0)
 ctx = CuContext(dev)
