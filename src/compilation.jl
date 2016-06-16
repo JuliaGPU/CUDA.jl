@@ -159,14 +159,9 @@ macro compile(dev, kernel, code)
     kernel_name = string(kernel)
     containing_file = Base.source_path()
 
-    @gensym func
-    return quote
-        const $func = _compile($(esc(dev)), $kernel_name, $code, $containing_file)
-
-        function $(esc(kernel))()
-            return $func
-        end
-    end
+    return Expr(:toplevel,
+        Expr(:export,esc(kernel)),
+        :($(esc(kernel)) = _compile($(esc(dev)), $kernel_name, $code, $containing_file)))
 end
 
 type CompileError <: Base.WrappedException

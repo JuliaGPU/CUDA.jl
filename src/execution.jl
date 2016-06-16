@@ -129,6 +129,16 @@ end
 const code_cache = Dict{Tuple{Type, Tuple}, Tuple{AbstractString, AbstractString}}()
 const func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
 
+# Generate a cudacall to a pre-compiled CUDA function
+@generated function generate_cudacall(config::Tuple{CuDim, CuDim, Int},
+                                      cuda_fun::CuFunction, argspec...)
+    types = guess_types(argspec)
+
+    args = [:( argspec[$i] ) for i in 1:length(argspec)]
+    kernel_call = :( cudacall(cuda_fun, config[1], config[2], $types, $(args...);
+                              shmem_bytes=config[3]) )
+end
+
 # Compile a kernel and generate a cudacall
 @generated function generate_cudacall{F<:Function}(config::Tuple{CuDim, CuDim, Int},
                                                    ftype::F, argspec...)
@@ -142,19 +152,19 @@ const func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
         CUDAnative.code_cache[key] = (module_asm, module_entry)
     end
 
-    @gensym ptx_func ptx_mod
+    @gensym cuda_fun cuda_mod
     kernel_compilation = quote
         if (haskey(CUDAnative.func_cache, $key))
-            $ptx_func = CUDAnative.func_cache[$key]
+            $cuda_fun = CUDAnative.func_cache[$key]
         else
-            $ptx_mod = CuModuleData($module_asm)
-            $ptx_func = CuFunction($ptx_mod, $module_entry)
-            CUDAnative.func_cache[$key] = $ptx_func
+            $cuda_mod = CuModuleData($module_asm)
+            $cuda_fun = CuFunction($cuda_mod, $module_entry)
+            CUDAnative.func_cache[$key] = $cuda_fun
         end
     end
 
     args = [:( argspec[$i] ) for i in 1:length(argspec)]
-    kernel_call = :( cudacall($ptx_func, config[1], config[2], $types, $(args...);
+    kernel_call = :( cudacall($cuda_fun, config[1], config[2], $types, $(args...);
                               shmem_bytes=config[3]) )
 
     # Throw everything together

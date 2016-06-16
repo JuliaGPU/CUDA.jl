@@ -15,7 +15,7 @@ let
     }
     """
 
-    cudacall(kernel(), 1, 1, ())
+    @cuda (1,1) kernel()
 end
 
 @test_throws CUDAnative.CompileError let
@@ -41,8 +41,8 @@ end
 dims = (16, 16)
 len = prod(dims)
 
-@compile dev reference_copy """
-__global__ void reference_copy(const float *input, float *output)
+@compile dev kernel_copy """
+__global__ void kernel_copy(const float *input, float *output)
 {
     int i = threadIdx.x + blockIdx.x * blockDim.x;
     output[i] = input[i];
@@ -55,7 +55,7 @@ let
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
 
-    cudacall(reference_copy(), len, 1, (Ptr{Cfloat},Ptr{Cfloat}), input_dev, output_dev)
+    @cuda (len, 1) kernel_copy(input_dev, output_dev)
     output = Array(output_dev)
     @test_approx_eq input output
 
