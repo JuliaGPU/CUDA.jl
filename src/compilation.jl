@@ -179,16 +179,6 @@ function _compile(dev, kernel, code, containing_file)
         arch = architecture(dev; cuda=toolchain[].version)
     end
 
-    # Write the source into a compilable file
-    (source, io) = mkstemps(".cu")
-    write(io, """
-extern "C"
-{
-$code
-}
-""")
-    close(io)
-
     @static if is_linux()
         builddir = joinpath(get(ENV, "XDG_CACHE_HOME", joinpath(homedir(), ".cache")),
                             "CUDAnative.jl")
@@ -209,21 +199,31 @@ $code
 
     # Compile the source, if necessary
     if need_compile
-        compile_flags = vcat(toolchain[].flags, ["--gpu-architecture", arch])
+        # Write the source into a compilable file
+        (source, io) = mkstemps(".cu")
+        write(io, """
+extern "C"
+{
+$code
+}
+""")
+        close(io)
 
+        compile_flags = vcat(toolchain[].flags, ["--gpu-architecture", arch])
         try
             # TODO: capture STDERR
             run(pipeline(`$(toolchain[].nvcc) $(compile_flags) -ptx -o $output $source`, stderr=DevNull))
         catch ex
             isa(ex, ErrorException) || rethrow(ex)
             rethrow(CompileError("compilation of kernel $kernel failed (typo in C++ source?)", ex))
+        finally
+            rm(source)
         end
 
         if !isfile(output)
             error("compilation of kernel $kernel failed (no output generated)")
         end
     end
-    rm(source)
 
     # Pass the module to the CUDA driver
     mod = try
