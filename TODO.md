@@ -22,6 +22,10 @@
 * Related to shared memory: proper address space support, for different memories
   and function arguments
 
+* Make `CuDeviceArray` a proper (immutable) type: this requires being able to pass the
+  entire object on the stack, or we would need copies to and from GPU memory before _every_
+  kernel launch.
+
 
 # Minor
 
