@@ -53,7 +53,7 @@ type Toolchain
     flags::Vector{String}
 end
 
-const initialized = Ref{Bool}()
+const initialized = Ref{Bool}(false)
 const toolchain = Ref{Toolchain}()
 
 function discover_toolchain()
