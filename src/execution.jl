@@ -45,6 +45,22 @@ end
 function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataType}})
     debug("Compiling $ftype$types")
 
+    # Try to get a hold of the original function
+    # NOTE: this doesn't work for closures, as there can be multiple instances
+    #       with each a different environment
+    f = Nullable{Function}()
+    try
+        f = Nullable{Function}(ftype.instance)
+    end
+
+    @static if TRACE
+        if !isnull(f)
+            trace("Lowered AST:\n$(code_lowered(f, types))")
+            trace("Typed AST (::ANY types shown in red):\n")
+            code_warntype(STDERR, get(f), types)
+        end
+    end
+
     # Generate LLVM IR
     # NOTE: this is lifted from reflection.jl::_dump_function
     t = Base.tt_cons(ftype, Base.to_tuple_type(types))
@@ -60,29 +76,12 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataT
     # Get entry point
     module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::String
 
-    # Try to get a hold of the original function
-    # NOTE: this doesn't work for closures, as there can be multiple instances
-    #       with each a different environment
-    f = Nullable{Function}()
-    try
-        f = Nullable{Function}(ftype.instance)
-    end
-
-    # FIXME: put this before the IR/PTX generation when #14942 is fixed
-    @static if TRACE
-        if !isnull(f) && false
-            trace("Lowered AST:\n$(code_lowered(f, types))")
-            trace("Typed AST (::ANY types shown in red):\n")
-            code_warntype(STDERR, get(f), types)
-        end
-    end
-
     trace("Function entry point: $module_entry")
 
     # DEBUG: dump the LLVM IR
     # TODO: this doesn't contain the full call cycle
     @static if TRACE
-        if !isnull(f) && false
+        if !isnull(f)
             # Generate a safe and unique name
             function_uid = "$(get(f))-"
             if length(types) > 0
@@ -109,7 +108,7 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataT
     end
 
     # DEBUG: dump the (PTX) assembly
-    @static if TRACE && false
+    @static if TRACE
         output = "$(dumpdir[])/$function_uid.ptx"
         if isfile(output)
             warn("Could not write (PTX) assembly to $output (file already exists !?)")
