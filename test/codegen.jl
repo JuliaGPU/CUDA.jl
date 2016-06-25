@@ -60,7 +60,7 @@ ir = sprint(io->code_llvm(io, throw_exception, ()))
 
 # cannot call PTX functions
 @target ptx call_nonptx() = return nothing
-@test_throws ErrorException call_nonptx()
+@test_throws MethodError call_nonptx()
 
 # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 @target ptx codegen_twice() = return nothing
