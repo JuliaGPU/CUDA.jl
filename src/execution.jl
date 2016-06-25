@@ -125,9 +125,6 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataT
     return (module_asm, module_entry)
 end
 
-# TODO: can we do this in the compiler?
-const code_cache = Dict{Tuple{Type, Tuple}, Tuple{AbstractString, AbstractString}}()
-const func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
 
 # Generate a cudacall to a pre-compiled CUDA function
 @generated function generate_cudacall(config::Tuple{CuDim, CuDim, Int},
@@ -140,25 +137,20 @@ const func_cache = Dict{Tuple{Type, Tuple}, CuFunction}()
 end
 
 # Compile a kernel and generate a cudacall
+const func_cache = Dict{UInt, CuFunction}()
 @generated function generate_cudacall{F<:Function}(config::Tuple{CuDim, CuDim, Int},
                                                    ftype::F, argspec...)
     types = guess_types(argspec)
-    key = (ftype, types)
+    key = hash((ftype, types))
 
-    if haskey(CUDAnative.code_cache, key)
-        (module_asm, module_entry) = CUDAnative.code_cache[key]
-    else
-        (module_asm, module_entry) = compile_function(ftype, types)
-        CUDAnative.code_cache[key] = (module_asm, module_entry)
-    end
-
-    @gensym cuda_fun cuda_mod
+    @gensym cuda_fun
     kernel_compilation = quote
         if (haskey(CUDAnative.func_cache, $key))
             $cuda_fun = CUDAnative.func_cache[$key]
         else
-            $cuda_mod = CuModuleData($module_asm)
-            $cuda_fun = CuFunction($cuda_mod, $module_entry)
+            (module_asm, module_entry) = CUDAnative.compile_function($ftype, $types)
+            cuda_mod = CuModuleData(module_asm)
+            $cuda_fun = CuFunction(cuda_mod, module_entry)
             CUDAnative.func_cache[$key] = $cuda_fun
         end
     end
