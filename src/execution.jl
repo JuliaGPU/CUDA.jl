@@ -94,7 +94,7 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataT
 
             buf = IOBuffer()
             code_llvm(buf, get(f), types)
-            module_llvm = bytestring(buf)
+            module_llvm = String(buf)
 
             output = "$(dumpdir[])/$function_uid.ll"
             if isfile(output)
