@@ -23,10 +23,21 @@ end
 # Guess the intended kernel argument types from a given set of values.
 # This is used to specialize the kernel function, and convert argument values.
 function guess_types(argspec::Tuple)
-    types = Array(DataType, length(argspec))
+    types = Array(Type, length(argspec))
+    concrete = Array(Bool, length(argspec))
 
     for i in 1:length(argspec)
         types[i] = argspec[i]
+
+        if !types[i].mutable && sizeof(types[i]) == 0
+            # ghost type, ignored by the compiler
+            concrete[i] = false
+        elseif i==1 && types[i] <: Function
+            # specialization on first function type
+            concrete[i] = false
+        else
+            concrete[i] = true
+        end
 
         if isbits(types[i])
             # these will be passed as-is
@@ -38,10 +49,10 @@ function guess_types(argspec::Tuple)
         end
     end
 
-    return tuple(types...)
+    return tuple(types...), tuple(concrete...)
 end
 
-function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataType}})
+function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{Type}})
     debug("Compiling $ftype$types")
 
     # Try to get a hold of the original function
@@ -127,7 +138,7 @@ end
 # Generate a cudacall to a pre-compiled CUDA function
 @generated function generate_cudacall(config::Tuple{CuDim, CuDim, Int},
                                       cuda_fun::CuFunction, argspec...)
-    types = guess_types(argspec)
+    types, _ = guess_types(argspec)
 
     args = [:( argspec[$i] ) for i in 1:length(argspec)]
     kernel_call = :( cudacall(cuda_fun, config[1], config[2], $types, $(args...);
@@ -138,8 +149,12 @@ end
 const func_cache = Dict{UInt, CuFunction}()
 @generated function generate_cudacall{F<:Function}(config::Tuple{CuDim, CuDim, Int},
                                                    ftype::F, argspec...)
-    types = guess_types(argspec)
+    args = [:( argspec[$i] ) for i in 1:length(argspec)]
+    types, concrete = guess_types(argspec)
     key = hash((ftype, types))
+
+    concrete_types = tuple(map(x->x[2], filter(x->x[1], zip(concrete, types)))...)
+    concrete_args = tuple(map(x->x[2], filter(x->x[1], zip(concrete, args)))...)
 
     @gensym cuda_fun
     kernel_compilation = quote
@@ -153,8 +168,8 @@ const func_cache = Dict{UInt, CuFunction}()
         end
     end
 
-    args = [:( argspec[$i] ) for i in 1:length(argspec)]
-    kernel_call = :( cudacall($cuda_fun, config[1], config[2], $types, $(args...);
+    kernel_call = :( cudacall($cuda_fun, config[1], config[2],
+                              $concrete_types, $(concrete_args...);
                               shmem_bytes=config[3]) )
 
     # Throw everything together

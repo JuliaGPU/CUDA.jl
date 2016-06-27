@@ -93,5 +93,55 @@ let
     # @test_approx_eq arr[dims...] Array(val_dev)[1]
 end
 
+# bug: first argument function parameters are elided by the compiler
+let
+    len = 60
+    a = rand(Float32, len)
+    b = rand(Float32, len)
+
+    d_a = CuArray(a)
+    d_b = CuArray(b)
+    d_c = CuArray(Float32, len)
+
+    @target ptx add(a,b) = a+b
+    @target ptx function map_inner{F}(fun::F, a, b, c)
+        i = blockIdx().x + (threadIdx().x-1) * gridDim().x
+        c[i] = fun(a[i], b[i])
+
+        return nothing
+    end
+    # NOTE: the add isn't actually passed to the GPU,
+    #       and functions at code_llvm etc only contain 3 arguments
+    @cuda (len, 1) map_inner(add, d_a, d_b, d_c)
+
+    c = Array(d_c)
+    @test a+b == c
+end
+
+# bug: same with ghost types
+let
+    len = 60
+    a = rand(Float32, len)
+    b = rand(Float32, len)
+
+    d_a = CuArray(a)
+    d_b = CuArray(b)
+    d_c = CuArray(Float32, len)
+
+    immutable Ghost end
+
+    @target ptx function map_inner(ghost, a, b, c)
+        i = blockIdx().x + (threadIdx().x-1) * gridDim().x
+        c[i] = a[i] + b[i]
+
+        return nothing
+    end
+    @cuda (len, 1) map_inner(Ghost(), d_a, d_b, d_c)
+
+    c = Array(d_c)
+    @test a+b == c
+end
+
+
 
 destroy(ctx)
