@@ -10,6 +10,10 @@ ctx = CuContext(dev)
 @cuda (1, 1) do_nothing()
 
 # external kernel
+module KernelModule
+    export do_more_nothing
+    @target ptx do_more_nothing() = return nothing
+end
 @cuda (1, 1) KernelModule.do_more_nothing()
 @eval begin
     using KernelModule

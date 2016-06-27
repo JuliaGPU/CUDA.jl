@@ -1,9 +1,3 @@
-# NOTE: this is part of the @cuda test set, but needs to be top-level
-module KernelModule
-    export do_more_nothing
-    @target ptx do_more_nothing() = return nothing
-end
-
 ## LLVM IR
 
 @target ptx foo() = return nothing
@@ -46,9 +40,12 @@ ir = sprint(io->code_llvm(io, throw_exception, ()))
 
 # return values
 @target ptx retint() = return 1
-@test_throws ErrorException @cuda (1, 1) retint()
-# TODO: test whether child functions can return values
-#       (testing blocked by #15276 / #15967)
+@test_throws ErrorException code_native(DevNull, retint, ())
+@target ptx function call_retint()
+    retint()
+    return nothing
+end
+code_native(DevNull, call_retint, ())
 
 # delayed binding lookup (due to noexisting global)
 @target ptx ref_nonexisting() = nonexisting
@@ -69,7 +66,6 @@ code_native(DevNull, codegen_twice, ())
 
 # bug: depending on a child function from multiple parents resulted in
 #      the child only being present once
-# NOTE: disabled because of #15276 / #15967
 let
     @target ptx @noinline function child()
         return 0
@@ -80,8 +76,8 @@ let
         unsafe_store!(arr, i, i)
         return nothing
     end
-    # asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
-    # @test ismatch(r".visible .func .+ julia_child", asm)
+    asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
+    @test ismatch(r".visible .func .+ julia_child", asm)
 
 
     @target ptx function parent2(arr::Ptr{Int64})
@@ -90,13 +86,12 @@ let
 
         return nothing
     end
-    # asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
-    # @test ismatch(r".visible .func .+ julia_child", asm)
+    asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
+    @test ismatch(r".visible .func .+ julia_child", asm)
 end
 
 # bug: similar, but slightly different issue as above
 #      in the case of two child functions
-# NOTE: disabled because of #15276 / #15967
 let
     @target ptx @noinline function child1()
         return 0
@@ -112,7 +107,7 @@ let
 
         return nothing
     end
-    # asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
+    asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
 
 
     @target ptx function parent2(arry::Ptr{Int64})
@@ -121,5 +116,5 @@ let
 
         return nothing
     end
-    # asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
+    asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
 end
