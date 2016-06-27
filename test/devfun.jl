@@ -14,7 +14,7 @@ let
 
     @cuda (1, 1) kernel_log10(buf, Float32(100))
     val = Array(buf)
-    @test_approx_eq val[1] 2.0
+    @test val[1] ≈ 2.0
 
     free(buf)
 end

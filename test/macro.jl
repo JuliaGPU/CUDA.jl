@@ -39,7 +39,7 @@ let
 
     @cuda (len, 1) array_copy(input_dev, output_dev)
     output = Array(output_dev)
-    @test_approx_eq input output
+    @test input ≈ output
 
     free(input_dev)
     free(output_dev)
@@ -64,7 +64,7 @@ let
     val_dev = CuArray(val)
 
     @cuda (len, 1) array_lastvalue(arr_dev, val_dev)
-    @test_approx_eq arr[dims...] Array(val_dev)[1]
+    @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 # same, but using a device function
@@ -90,7 +90,7 @@ let
     val_dev = CuArray(val)
 
     # @cuda (len, 1) array_lastvalue_devfun(arr_dev, val_dev)
-    # @test_approx_eq arr[dims...] Array(val_dev)[1]
+    # @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 # bug: first argument function parameters are elided by the compiler

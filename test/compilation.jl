@@ -57,7 +57,7 @@ let
 
     @cuda (len, 1) kernel_copy(input_dev, output_dev)
     output = Array(output_dev)
-    @test_approx_eq input output
+    @test input ≈ output
 
     free(input_dev)
     free(output_dev)

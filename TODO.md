@@ -42,8 +42,6 @@
 
 * Allow "@target ptx \ \n function"
 
-* Reorganize test testsets, they are bad
-
 * Verify the dimension calculations in the tests and examples (cfr. blackscholes slowdown)
 
 

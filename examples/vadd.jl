@@ -22,6 +22,6 @@ d_c = CuArray(Float32, dims)
 len = prod(dims)
 @cuda (len,1) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
-@test_approx_eq a+b c
+@test a+b ≈ c
 
 destroy(ctx)
