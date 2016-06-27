@@ -11,11 +11,6 @@
 * Properly integrate kernel calling, as actual arguments might not correspond
   with source-level arguments (see `bugs/inlined_parameters.jl`)
 
-* Replace generated function-time code generation (and consequent calls into
-  type inference) *without* degrading performance of calling kernels (ie. avoid
-  runtime code). Use existing `cfunction` functionality? See
-  JuliaLang/julia#15942, JuliaLang/julia#16000.
-
 * Fix the shared memory: wrap in a type, don't refer to the global through
   `llvmcall` and add support for statically defined shared memory
 

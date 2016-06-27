@@ -41,7 +41,6 @@ function guess_types(argspec::Tuple)
     return tuple(types...)
 end
 
-# FIXME: this is broken/unsupported, as it is called during a @generated function
 function compile_function{F<:Function}(ftype::Type{F}, types::Tuple{Vararg{DataType}})
     debug("Compiling $ftype$types")
 
