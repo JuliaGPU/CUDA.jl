@@ -18,6 +18,6 @@ d_c = CuArray(Float32, dims)
 len = prod(dims)
 cudacall(vadd, len, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), d_a, d_b, d_c)
 c = Array(d_c)
-@test_approx_eq a+b c
+@test a+b ≈ c
 
 destroy(ctx)

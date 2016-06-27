@@ -236,7 +236,7 @@ let
         cd = CuArray(c)
         cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
-        @test_approx_eq c a+b
+        @test c ≈ a+b
         free(cd)
     end
 
@@ -246,7 +246,7 @@ let
         cd = CuArray(c)
         cudacall(vsub, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
-        @test_approx_eq c a-b
+        @test c ≈ a-b
         free(cd)
     end
 
@@ -256,7 +256,7 @@ let
         cd = CuArray(c)
         cudacall(vmul, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
-        @test_approx_eq c a.*b
+        @test c ≈ a.*b
         free(cd)
     end
 
@@ -266,7 +266,7 @@ let
         cd = CuArray(c)
         cudacall(vdiv, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
-        @test_approx_eq c a./b
+        @test c ≈ a./b
         free(cd)
     end
 
