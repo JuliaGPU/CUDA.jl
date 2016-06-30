@@ -38,7 +38,7 @@ function name(dev::CuDevice)
     @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CuDevice_t),
                               buf, buflen, dev.handle)
     buf[end] = 0
-    return unsafe_string(pointer(buf))
+    return unsafe_string(Ptr{UInt8}(pointer(buf)))
 end
 
 "Get the amount of GPU memory (in bytes) of a CUDA device"

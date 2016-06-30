@@ -1,3 +1,6 @@
+using Compat
+
+
 ## Base
 
 CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
