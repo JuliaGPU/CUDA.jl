@@ -7,7 +7,7 @@ using CUDAdrv, CUDAnative
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
-a = CuArray(Float32, 10);
+a = CuArray(Float32, 10)
 
 @target ptx function memset(a, val)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
