@@ -67,12 +67,12 @@ code_native(DevNull, codegen_twice, ())
 # bug: depending on a child function from multiple parents resulted in
 #      the child only being present once
 let
-    @target ptx @noinline function child()
-        return 0
+    @target ptx @noinline function child(i)
+        return i
     end
 
     @target ptx function parent1(arr::Ptr{Int64})
-        i = child()
+        i = child(0)
         unsafe_store!(arr, i, i)
         return nothing
     end
@@ -81,7 +81,7 @@ let
 
 
     @target ptx function parent2(arr::Ptr{Int64})
-        i = child()+1
+        i = child(0)+1
         unsafe_store!(arr, i, i)
 
         return nothing
