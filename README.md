@@ -1,7 +1,8 @@
-CUDA.jl
-=======
+# CUDAnative.jl
 
-CUDA programming interface for Julia, with native code execution support.
+**CUDA programming interface for Julia, with native code execution support.**
+
+[![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAnative.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAnative.jl)
 
 This package wraps key functions in CUDA driver API for Julia, and provides
 support for writing native Julia kernels for execution on an NVIDIA GPU. It
