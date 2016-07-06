@@ -19,7 +19,7 @@ abstract CuModule
 immutable CuModuleFile <: CuModule
     handle::CuModule_t
 
-    "Create a CUDA module from a file containing PTX code."
+    "Create a CUDA module from a file containing PTX code. Note that this method has limited error reporting due to CUDA restrictions, use CuModuleData if you require debug information or error diagnostics."
     function CuModuleFile(path)
         handle_ref = Ref{CuModule_t}()
 
