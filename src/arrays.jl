@@ -21,6 +21,6 @@ typealias CuDeviceArray Ptr
 #end
 
 getindex{T}(a::CuDeviceArray{T}, i0::Real) =
-    unsafe_load(a, Base.to_index(i0))::T
+    Base.pointerref(a, Base.to_index(i0), 8)::T
 setindex!{T}(a::CuDeviceArray{T}, x::T, i0::Real) =
-    unsafe_store!(a, x, Base.to_index(i0))
+    Base.pointerset(a, x, Base.to_index(i0), 8)
