@@ -31,11 +31,11 @@ function architecture(dev::CuDevice; cuda=nothing, llvm=nothing)
     compat_architectures = filter(x -> x[1] <= cap, architectures)
 
     if cuda != nothing
-        compat_architectures = filter(x -> cuda >= x[3], architectures)
+        compat_architectures = filter(x -> cuda >= x[3], compat_architectures)
     end
 
     if llvm != nothing
-        compat_architectures = filter(x -> llvm >= x[4], architectures)
+        compat_architectures = filter(x -> llvm >= x[4], compat_architectures)
     end
 
     if length(compat_architectures) == 0
