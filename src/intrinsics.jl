@@ -21,9 +21,9 @@ for dim in (:x, :y, :z)
     intrinsic = "llvm.nvvm.read.ptx.sreg.tid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
-            ($("""declare i32 @$intrinsic() readnone nounwind"""),
-             $("""%1 = tail call i32 @$intrinsic()
-                  ret i32 %1""")),
+            ($"""declare i32 @$intrinsic() readnone nounwind""",
+             $"""%1 = tail call i32 @$intrinsic()
+                 ret i32 %1"""),
             Int32, Tuple{}) + Int32(1)
     end
 
@@ -32,9 +32,9 @@ for dim in (:x, :y, :z)
     intrinsic = "llvm.nvvm.read.ptx.sreg.ntid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
-            ($("""declare i32 @$intrinsic() readnone nounwind"""),
-             $("""%1 = tail call i32 @$intrinsic()
-                  ret i32 %1""")),
+            ($"""declare i32 @$intrinsic() readnone nounwind""",
+             $"""%1 = tail call i32 @$intrinsic()
+                 ret i32 %1"""),
             Int32, Tuple{})
     end
 
@@ -43,9 +43,9 @@ for dim in (:x, :y, :z)
     intrinsic = "llvm.nvvm.read.ptx.sreg.ctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
-            ($("""declare i32 @$intrinsic() readnone nounwind"""),
-             $("""%1 = tail call i32 @$intrinsic()
-                  ret i32 %1""")),
+            ($"""declare i32 @$intrinsic() readnone nounwind""",
+             $"""%1 = tail call i32 @$intrinsic()
+                 ret i32 %1"""),
             Int32, Tuple{}) + Int32(1)
     end
 
@@ -54,9 +54,9 @@ for dim in (:x, :y, :z)
     intrinsic = "llvm.nvvm.read.ptx.sreg.nctaid.$dim"
     @eval begin
         $fname() = Base.llvmcall(
-            ($("""declare i32 @$intrinsic() readnone nounwind"""),
-             $("""%1 = tail call i32 @$intrinsic()
-                  ret i32 %1""")),
+            ($"""declare i32 @$intrinsic() readnone nounwind""",
+             $"""%1 = tail call i32 @$intrinsic()
+                 ret i32 %1"""),
             Int32, Tuple{})
     end
 end
@@ -98,26 +98,18 @@ sync_threads() = Base.llvmcall(
 # TODO: this is inefficient, converting to global pointers (does propagation suffice?)
 # TODO: static shared memory (just `[$n x i64]`, but needs more powerful llvmcall)
 
-cuSharedMem(::Type{Int64}) = Base.llvmcall(
-    ("""@shmem_i64 = external addrspace(3) global [0 x i64]""",
-     """%1 = getelementptr inbounds [0 x i64], [0 x i64] addrspace(3)* @shmem_i64, i64 0, i64 0
-        %2 = addrspacecast i64 addrspace(3)* %1 to i64 addrspace(0)*
-        ret i64* %2"""),
-    Ptr{Int64}, Tuple{})
+for typ in ((Int64, :i64), (Float32, :float), (Float64, :double))
+    T, U = typ
+    @eval begin
+        cuSharedMem(::Type{$T}) = Base.llvmcall(
+            ($"""@shmem_$U = external addrspace(3) global [0 x $U]""",
+             $"""%1 = getelementptr inbounds [0 x $U], [0 x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
+                 %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
+                 ret $U* %2"""),
+            Ptr{$T}, Tuple{})
+    end
 
-cuSharedMem(::Type{Float32}) = Base.llvmcall(
-    ("""@shmem_f32 = external addrspace(3) global [0 x float]""",
-     """%1 = getelementptr inbounds [0 x float], [0 x float] addrspace(3)* @shmem_f32, i64 0, i64 0
-        %2 = addrspacecast float addrspace(3)* %1 to float addrspace(0)*
-        ret float* %2"""),
-    Ptr{Float32}, Tuple{})
-
-cuSharedMem(::Type{Float64}) = Base.llvmcall(
-    ("""@shmem_f64 = external addrspace(3) global [0 x double]""",
-     """%1 = getelementptr inbounds [0 x double], [0 x double] addrspace(3)* @shmem_f64, i64 0, i64 0
-        %2 = addrspacecast double addrspace(3)* %1 to double addrspace(0)*
-        ret double* %2"""),
-    Ptr{Float64}, Tuple{})
+end
 
 
 #
