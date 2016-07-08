@@ -4,9 +4,10 @@
 ir = sprint(io->code_llvm(io, foo, (),
                           #=strip_ir_metadata=#true, #=dump_module=#true))
 
-# module should only contain our function + a generic call wrapper
-@test length(matchall(r"define .+", ir)) == 2
-@test ismatch(r"define void @julia_foo_.+\(\) #0 \{", ir)
+# module should contain our function + a generic call wrapper
+@test contains(ir, "define void @julia_foo")
+@test contains(ir, "define %jl_value_t* @jlcall_foo")
+@test ismatch(r"define void @julia_foo_.+\(\) #0.+\{", ir)
 @test ismatch(r"define %jl_value_t\* @jlcall_", ir)
 # module should be created for the PTX back-end
 @test contains(ir, "!\"Julia Codegen Target\", !\"ptx\"")
