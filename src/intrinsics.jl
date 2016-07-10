@@ -91,7 +91,7 @@ sync_threads() = Base.llvmcall(
 # Shared memory
 #
 
-typemap = Dict{Type,Symbol}(
+const typemap = Dict{Type,Symbol}(
     Int32   => :i32,
     Int64   => :i64,
     Float32 => :float,
@@ -103,6 +103,8 @@ typemap = Dict{Type,Symbol}(
 # TODO: downcasting pointers to global AS might be inefficient
 #       -> check if AS propagation resolves this
 #       -> Ptr{AS}, ASPtr{AS}, ...?
+# BUG: calling a device function referencing a static-memory @cuSharedMem will reference
+#      the same memory -- how does this work in CUDA?
 
 """
     @cuSharedMem(typ::Type, [nel::Integer=0]) -> Ptr{typ}
@@ -163,6 +165,31 @@ end
     #       generate_shmem will be emitted instead (obviously incompatible with PTX)
     return generate_shmem_llvmcall(T, N)
 end
+
+# NOTE: this might be a neater approach (with a user-end macro for hiding the `Val{N}`):
+
+# for typ in ((Int64,   :i64),
+#             (Float32, :float),
+#             (Float64, :double))
+#     T, U = typ
+#     @eval begin
+#         cuSharedMem{T}(::Type{$T}) = Base.llvmcall(
+#             ($"""@shmem_$U = external addrspace(3) global [0 x $U]""",
+#              $"""%1 = getelementptr inbounds [0 x $U], [0 x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
+#                  %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
+#                  ret $U* %2"""),
+#             Ptr{$T}, Tuple{})
+#         cuSharedMem{T,N}(::Type{$T}, ::Val{N}) = Base.llvmcall(
+#             ($"""@shmem_$U = internal addrspace(3) global [$N x $llvmtyp] zeroinitializer, align 4""",
+#              $"""%1 = getelementptr inbounds [$N x $U], [$N x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
+#                  %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
+#                  ret $U* %2"""),
+#             Ptr{$T}, Tuple{})
+#     end
+# end
+
+# However, it requires a change to `llvmcall`, as now calling the static case twice results in
+#          a reference to the same memory
 
 
 #
