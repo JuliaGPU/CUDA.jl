@@ -7,7 +7,7 @@ export
 
     # Memory management
     sync_threads,
-    cuSharedMem
+    @cuSharedMem
 
 
 
@@ -91,24 +91,77 @@ sync_threads() = Base.llvmcall(
 # Shared memory
 #
 
-# FIXME: this is broken, cannot declare global variables in `llvmcall`
-# TODO: this is nasty
-#       - box-like semantics?
-#       - Ptr{AS}?
-# TODO: this is inefficient, converting to global pointers (does propagation suffice?)
-# TODO: static shared memory (just `[$n x i64]`, but needs more powerful llvmcall)
+typemap = Dict{Type,Symbol}(
+    Int32   => :i32,
+    Int64   => :i64,
+    Float32 => :float,
+    Float64 => :double
+)
 
-for typ in ((Int64, :i64), (Float32, :float), (Float64, :double))
-    T, U = typ
-    @eval begin
-        cuSharedMem(::Type{$T}) = Base.llvmcall(
-            ($"""@shmem_$U = external addrspace(3) global [0 x $U]""",
-             $"""%1 = getelementptr inbounds [0 x $U], [0 x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
-                 %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
-                 ret $U* %2"""),
-            Ptr{$T}, Tuple{})
+# FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
+# TODO: return an Array-like object (containing the number of elements) instead of a raw pointer
+# TODO: downcasting pointers to global AS might be inefficient
+#       -> check if AS propagation resolves this
+#       -> Ptr{AS}, ASPtr{AS}, ...?
+
+"""
+    @cuSharedMem(typ::Type, [nel::Integer=0]) -> Ptr{typ}
+
+Get a reference to a chunk of shared memory. The type `typ` and number of elements `nel`
+should either be known at parse time (in which case the macro will directly generate the
+necessary code), or after inference by means of a generated function. Note that due to
+restrictions of generated functions, any errors will not be printed but result in a dynamic
+call to said generated function.
+
+If the number of elements is 0, dynamic shared memory will be referenced (ie. you need to
+allocated the shared memory when calling the kernel), otherwise statically-allocated memory
+will be used.
+"""
+macro cuSharedMem(typ, nel=0)
+    if haskey(typemap, typ) && isa(nel, Integer)
+        # easy case: both typ and N are known
+        return generate_shmem_llvmcall(typ, nel)
+    else
+        # either one is now known (often typ being a typevar), retry after inference
+        return esc(:(CUDAnative.generated_shmem($typ, Val{$nel})))
+    end
+end
+
+shmem_id = 0
+function generate_shmem_llvmcall(jltyp::Type, nel::Int)
+    if !haskey(typemap, jltyp)
+        error("cuSharedMem: unsupported type '$jltyp'")
+    end
+    llvmtyp = typemap[jltyp]
+
+    if !isa(nel, Integer)
+        error("cuSharedMem: second argument should be a positive integer")
     end
 
+    global shmem_id
+    var = "shmem$(shmem_id::Int += 1)"
+
+    if nel == 0
+        decl = """@$var = external addrspace(3) global [0 x $llvmtyp]"""
+    else
+        # TODO: alignment, why 4 (clang)? unify with dynamic shmem
+        decl = """@$var = internal addrspace(3) global [$nel x $llvmtyp] zeroinitializer, align 4"""
+    end
+
+    return quote
+        Base.llvmcall(
+            ($decl,
+             $"""%1 = getelementptr inbounds [$nel x $llvmtyp], [$nel x $llvmtyp] addrspace(3)* @$var, i64 0, i64 0
+                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
+                 ret $llvmtyp* %2"""),
+            Ptr{$jltyp}, Tuple{})
+    end
+end
+
+@generated function generated_shmem{T,N}(::Type{T}, ::Type{Val{N}})
+    # TODO: if this actually errors, the error won't be print but a generic call to
+    #       generate_shmem will be emitted instead (obviously incompatible with PTX)
+    return generate_shmem_llvmcall(T, N)
 end
 
 
