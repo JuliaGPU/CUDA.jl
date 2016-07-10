@@ -7,7 +7,7 @@
 This package wraps key functions in CUDA driver API for Julia, and provides
 support for writing native Julia kernels for execution on an NVIDIA GPU. It
 requires a version of Julia capable of generating PTX code, such as
-[tb/cuda at JuliaGPU/julia](https://github.com/JuliaGPU/julia/tree/tb/cuda).
+[JuliaGPU/julia](https://github.com/JuliaGPU/julia).
 
 
 ## Setup
