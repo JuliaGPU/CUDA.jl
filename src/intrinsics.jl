@@ -198,6 +198,63 @@ end
 
 
 #
+# Shuffling
+#
+
+# TODO: should shfl_idx conform to 1-based indexing?
+
+## narrow
+
+for typ in ((Int32,   :i32, :i32),
+            (UInt32,  :i32, :i32),
+            (Float32, :f32, :float))
+    jl, intr, llvm = typ
+
+    for op in ((:up,   Int32(0x00)),
+               (:down, Int32(0x1f)),
+               (:bfly, Int32(0x1f)),
+               (:idx,  Int32(0x1f)))
+        mode, mask = op
+        fname = Symbol("shfl_$mode")
+        intrinsic = Symbol("llvm.nvvm.shfl.$mode.$intr")
+        @eval begin
+            export $fname
+            @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = Base.llvmcall(
+                ($"""declare $llvm @$intrinsic($llvm, i32, i32)""",
+                 $"""%4 = call $llvm @$intrinsic($llvm %0, i32 %1, i32 %2)
+                     ret $llvm %4"""),
+                $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
+                ((warpsize - Int32(width)) << 8) | $mask)
+        end
+    end
+end
+
+
+## wide
+
+@inline decode(val::UInt64) = trunc(UInt32,  val & 0x00000000ffffffff),
+                              trunc(UInt32, (val & 0xffffffff00000000)>>32)
+
+@inline encode(x::UInt32, y::UInt32) = UInt64(x) | UInt64(y)<<32
+
+# NOTE: we only reuse the i32 shuffle, does it make any difference using eg. f32 shuffle for f64 values?
+for typ in (Int64, UInt64, Float64)
+    for mode in (:up, :down, :bfly, :idx)
+        fname = Symbol("shfl_$mode")
+        @eval begin
+            export $fname
+            @inline function $fname(val::$typ, srclane::Integer, width::Integer=warpsize)
+                x,y = decode(reinterpret(UInt64, val))
+                x = $fname(x, srclane, width)
+                y = $fname(y, srclane, width)
+                reinterpret($typ, encode(x,y))
+            end
+        end
+    end
+end
+
+
+#
 # Math
 #
 
