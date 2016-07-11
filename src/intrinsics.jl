@@ -3,7 +3,7 @@
 export
     # Indexing and dimensions
     threadIdx, blockDim, blockIdx, gridDim,
-    warpsize,
+    warpsize, nearest_warpsize,
 
     # Memory management
     sync_threads,
@@ -67,12 +67,17 @@ blockDim() =  CUDAdrv.CuDim3(blockDim_x(),  blockDim_y(),  blockDim_z())
 blockIdx() =  CUDAdrv.CuDim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
 gridDim() =   CUDAdrv.CuDim3(gridDim_x(),   gridDim_y(),   gridDim_z())
 
-# Warpsize
-warpsize() = Base.llvmcall(
-    ("""declare i32 @llvm.nvvm.read.ptx.sreg.warpsize() readnone nounwind""",
-     """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.warpsize()
-        ret i32 %1"""),
-    Int32, Tuple{})
+# NOTE: we often need a const warpsize (eg. for shared memory), sp keep this fixed for now
+# warpsize() = Base.llvmcall(
+#     ("""declare i32 @llvm.nvvm.read.ptx.sreg.warpsize() readnone nounwind""",
+#      """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.warpsize()
+#         ret i32 %1"""),
+#     Int32, Tuple{})
+const warpsize = Int32(32)
+
+"Return the nearest multiple of a warpsize, a common requirement for the amount of threads."
+@inline nearest_warpsize(threads) =  threads + (warpsize - threads % warpsize) % warpsize
+
 
 
 #
