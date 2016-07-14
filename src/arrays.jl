@@ -14,6 +14,8 @@ type CuArray{T,N} <: AbstractArray{T,N}
     function CuArray(::Type{T}, shape::NTuple{N,Int})
         if !isbits(T)
             throw(ArgumentError("CuArray with non-bit element type not supported"))
+        elseif (sizeof(T) == 0)
+            throw(ArgumentError("CuArray with zero-sized element types does not make sense"))
         end
         n = prod(shape)
         p = cualloc(T, n)

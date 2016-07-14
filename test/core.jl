@@ -138,8 +138,11 @@ let
 end
 
 let
-    # non-isbits elements
+    # ghost type
     @test_throws ArgumentError CuArray([x->x*x for i=1:10])
+
+    # non-isbits elements
+    @test_throws ArgumentError CuArray(["foobar" for i=1:10])
     @test_throws ArgumentError CuArray(Function, 10)
     @test_throws ArgumentError CuArray(Function, (10, 10))
 end
