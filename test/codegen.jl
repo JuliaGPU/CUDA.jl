@@ -67,7 +67,11 @@ code_native(DevNull, codegen_twice, ())
 #      the child only being present once
 let
     @target ptx @noinline function child(i)
-        return i
+        if i < 10
+            return i*i
+        else
+            return (i-1)*(i+1)
+        end
     end
 
     @target ptx function parent1(arr::Ptr{Int64})
@@ -115,4 +119,16 @@ let
         return nothing
     end
     asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
+end
+
+
+# bug: use a system image function
+let
+    @target ptx @noinline function call_sysimg(a,i)
+        Base.pointerset(a, 0, mod1(i,10), 8)
+        return nothing
+    end
+
+    ir = sprint(io->code_llvm(io, call_sysimg, (Ptr{Int},Int)))
+    @test !contains(ir, "jlsys_")
 end
