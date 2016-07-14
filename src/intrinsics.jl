@@ -232,11 +232,11 @@ for typ in ((Int32,   :i32, :i32),
             instruction = Symbol("shfl.$mode.b32")  # NOTE: only b32 available, no i32/f32
             @eval begin
                 export $fname
-                @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = reinterpret($jl, Base.llvmcall(
-                        $"""%4 = call i32 asm sideeffect \"$instruction \$0, \$1, \$2, \$3;\", \"=r,r,r,r\"(i32 %0, i32 %1, i32 %2)
-                            ret i32 %4""",
-                        Int32, Tuple{Int32, Int32, Int32}, reinterpret(Int32, val), Int32(srclane),
-                        $pack_expr))
+                @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = Base.llvmcall(
+                        $"""%4 = call $llvm asm sideeffect \"$instruction \$0, \$1, \$2, \$3;\", \"=r,r,r,r\"($llvm %0, i32 %1, i32 %2)
+                            ret $llvm %4""",
+                        $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
+                        $pack_expr)
             end
         end
     end
