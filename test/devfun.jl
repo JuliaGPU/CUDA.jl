@@ -115,4 +115,28 @@ for T in types
 end
 
 
+## shuffle
+
+n = 14
+
+@target ptx function kernel_shuffle_down{T}(d::CuDeviceArray{T}, n)
+    t = threadIdx().x
+    if t <= n
+        d[t] += shfl_down(d[t], n÷2)
+    end
+    return nothing
+end
+
+for T in types
+    a = T[i for i in 1:n]
+    d_a = CuArray(a)
+
+    @cuda (1, nearest_warpsize(n)) kernel_shuffle_down(d_a, n)
+
+    a[1:n÷2] += a[n÷2+1:end]
+    @assert a == Array(d_a)
+end
+
+
+
 destroy(ctx)
