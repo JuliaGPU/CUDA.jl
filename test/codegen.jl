@@ -76,8 +76,7 @@ let
         return nothing
     end
     asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
-    @test ismatch(r".visible .func .+ julia_child", asm)
-
+    @test ismatch(r".func .+ julia_child", asm)
 
     @target ptx function parent2(arr::Ptr{Int64})
         i = child(0)+1
@@ -86,7 +85,7 @@ let
         return nothing
     end
     asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
-    @test ismatch(r".visible .func .+ julia_child", asm)
+    @test ismatch(r".func .+ julia_child", asm)
 end
 
 # bug: similar, but slightly different issue as above
