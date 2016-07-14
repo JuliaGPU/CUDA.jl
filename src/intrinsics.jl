@@ -216,15 +216,28 @@ for typ in ((Int32,   :i32, :i32),
                (:idx,  Int32(0x1f)))
         mode, mask = op
         fname = Symbol("shfl_$mode")
-        intrinsic = Symbol("llvm.nvvm.shfl.$mode.$intr")
-        @eval begin
-            export $fname
-            @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = Base.llvmcall(
-                ($"""declare $llvm @$intrinsic($llvm, i32, i32)""",
-                 $"""%4 = call $llvm @$intrinsic($llvm %0, i32 %1, i32 %2)
-                     ret $llvm %4"""),
-                $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
-                ((warpsize - Int32(width)) << 8) | $mask)
+        pack_expr = :(((warpsize - Int32(width)) << 8) | $mask)
+        @static if VersionNumber(Base.libllvm_version) >= v"3.9-"
+            intrinsic = Symbol("llvm.nvvm.shfl.$mode.$intr")
+            @eval begin
+                export $fname
+                @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = Base.llvmcall(
+                        ($"""declare $llvm @$intrinsic($llvm, i32, i32)""",
+                         $"""%4 = call $llvm @$intrinsic($llvm %0, i32 %1, i32 %2)
+                             ret $llvm %4"""),
+                        $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
+                        $pack_expr)
+            end
+        else
+            instruction = Symbol("shfl.$mode.b32")  # NOTE: only b32 available, no i32/f32
+            @eval begin
+                export $fname
+                @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = reinterpret($jl, Base.llvmcall(
+                        $"""%4 = call i32 asm sideeffect \"$instruction \$0, \$1, \$2, \$3;\", \"=r,r,r,r\"(i32 %0, i32 %1, i32 %2)
+                            ret i32 %4""",
+                        Int32, Tuple{Int32, Int32, Int32}, reinterpret(Int32, val), Int32(srclane),
+                        $pack_expr))
+            end
         end
     end
 end
