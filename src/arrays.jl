@@ -17,20 +17,20 @@ type CuArray{T,N} <: AbstractArray{T,N}
         elseif (sizeof(T) == 0)
             throw(ArgumentError("CuArray with zero-sized element types does not make sense"))
         end
-        n = prod(shape)
-        p = cualloc(T, n)
-        new(p, shape, n)
+        len = prod(shape)
+        ptr = cualloc(T, len)
+        new(ptr, shape, len)
     end
 end
 
-# Define outer constructors for parameter-less construction (ie. `CuArray(...)`)
+
+## Host-side functionality
+
+# Define outer constructors for parameter-less construction
 CuArray{T}(::Type{T}, len::Int) = CuArray{T,1}(T, (len,))
 CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(T, shape)
 
-unsafe_convert{T,N}(::Type{Ptr{T}}, a::CuArray{T,N}) = a.ptr
-
-length(g::CuArray) = g.len
-size(g::CuArray) = g.shape
+unsafe_convert{T,N}(::Type{Ptr{T}}, a::CuArray{T,N}) = a.ptr.inner
 
 "Free GPU memory allocated to the pointer"
 function free(g::CuArray)
@@ -62,11 +62,14 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
     return dst
 end
 
-
-## Convenience functions
-
 "Transfer an array from host to device, returning a pointer on the device"
 CuArray{T,N}(a::Array{T,N}) = copy!(CuArray(T, size(a)), a)
 
 "Transfer an array on the device to host"
 Array{T}(g::CuArray{T}) = copy!(Array(T, size(g)), g)
+
+
+## Generic functionality
+
+length(g::CuArray) = g.len
+size(g::CuArray) = g.shape

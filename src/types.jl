@@ -10,9 +10,6 @@ import Base: eltype, convert, isnull
 # This wrapper type contains a pointer, but prevents all conversions from and to
 # regular pointers. This ensures we don't mix host and device pointers.
 
-# NOTE: this type is only for use in host code,
-#       device code is currently still generated using plain Ptr's
-
 import Base: getindex
 
 immutable DevicePtr{T}
