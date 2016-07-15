@@ -1,7 +1,6 @@
 # CUDA related types
 
-import Base: eltype, convert, isnull
-
+import Base: eltype, convert, cconvert, isnull
 
 #
 # Device pointer
@@ -27,6 +26,8 @@ end
 # Simple conversions between Ptr and DevicePtr are disallowed
 convert{T}(::Type{Ptr{T}}, p::DevicePtr{T}) = throw(InexactError())
 convert{T}(::Type{DevicePtr{T}}, p::Ptr{T}) = throw(InexactError())
+
+cconvert{P<:DevicePtr}(::Type{P}, x) = x # defer conversions to DevicePtr to unsafe_convert
 
 # Some convenience methods (which are already defined for Ptr{T},
 # but due to the disallowed conversions we can't use those)

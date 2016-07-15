@@ -30,7 +30,7 @@ end
 CuArray{T}(::Type{T}, len::Int) = CuArray{T,1}(T, (len,))
 CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(T, shape)
 
-unsafe_convert{T,N}(::Type{Ptr{T}}, a::CuArray{T,N}) = a.ptr.inner
+unsafe_convert{T,N}(::Type{DevicePtr{T}}, a::CuArray{T,N}) = a.ptr
 
 "Free GPU memory allocated to the pointer"
 function free(g::CuArray)
