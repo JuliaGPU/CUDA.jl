@@ -6,8 +6,8 @@ export
     cualloc, cumemset, free
 
 function cualloc{T, N<:Integer}(::Type{T}, len::N=1)
-    if T.abstract
-        throw(ArgumentError("Cannot allocate pointer to abstract type"))
+    if !T.isleaftype || T.abstract
+        throw(ArgumentError("Cannot allocate pointer to abstract or non-leaf type"))
     end
     ptr_ref = Ref{Ptr{Void}}()
     nbytes = len * sizeof(T)
