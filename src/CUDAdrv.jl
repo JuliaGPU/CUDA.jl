@@ -22,7 +22,7 @@ include("events.jl")
 include("profile.jl")
 
 include("memory.jl")
-include("arrays.jl")
+include("array.jl")
 
 
 function __init__()
