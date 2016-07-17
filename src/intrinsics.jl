@@ -156,12 +156,12 @@ function generate_shmem_llvmcall(jltyp::Type, nel::Int)
     end
 
     return quote
-        Base.llvmcall(
+        CuDeviceArray($jltyp, CUDAdrv.DevicePtr{$jltyp}(Base.llvmcall(
             ($decl,
              $"""%1 = getelementptr inbounds [$nel x $llvmtyp], [$nel x $llvmtyp] addrspace(3)* @$var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{})
+            Ptr{$jltyp}, Tuple{}), true), $nel)
     end
 end
 

@@ -6,8 +6,8 @@ ctx = CuContext(dev)
 @test_throws UndefVarError @cuda (1, 1) undefined_kernel()
 
 # kernel dims
-@test_throws ArgumentError @cuda (0, 0) do_nothing()
 @cuda (1, 1) do_nothing()
+@test_throws ArgumentError @cuda (0, 0) do_nothing()
 
 # external kernel
 module KernelModule
@@ -26,8 +26,7 @@ end
 dims = (16, 16)
 len = prod(dims)
 
-@target ptx function array_copy(input::CuDeviceArray{Float32},
-                                output::CuDeviceArray{Float32})
+@target ptx function array_copy(input, output)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     output[i] = input[i]
 
@@ -50,8 +49,7 @@ let
 end
 
 # scalar through single-value array
-@target ptx function array_lastvalue(a::CuDeviceArray{Float32},
-                                     x::CuDeviceArray{Float32})
+@target ptx function array_lastvalue(a, x)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     max = gridDim().x * blockDim().x
     if i == max
@@ -73,8 +71,7 @@ end
 
 # same, but using a device function
 # NOTE: disabled because of #15276 / #15967
-@target ptx @noinline function array_lastvalue_devfun(a::CuDeviceArray{Float32},
-                                                      x::CuDeviceArray{Float32})
+@target ptx @noinline function array_lastvalue_devfun(a, x)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     max = gridDim().x * blockDim().x
     if i == max
@@ -83,7 +80,7 @@ end
 
     return nothing
 end
-@target ptx function lastvalue_devfun(a::CuDeviceArray{Float32}, i)
+@target ptx function lastvalue_devfun(a, i)
     return a[i]
 end
 let

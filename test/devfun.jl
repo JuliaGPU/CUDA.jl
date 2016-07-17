@@ -7,7 +7,7 @@ ctx = CuContext(dev)
 let
     buf = CuArray(Float32, 1)
 
-    @target ptx function kernel_log10(a::CuDeviceArray{Float32}, i::Float32)
+    @target ptx function kernel_log10(a, i)
         a[1] = CUDAnative.log10(i)
         return nothing
     end
@@ -27,7 +27,7 @@ end
 n = 1024
 types = [Int32, Int64, Float32, Float64]
 
-@target ptx function kernel_dynmem_typed(d::CuDeviceArray{Float32}, n)
+@target ptx function kernel_dynmem_typed(d, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -72,7 +72,7 @@ end
 
 # static shmem
 
-@target ptx function kernel_statmem_typed(d::CuDeviceArray{Float32}, n)
+@target ptx function kernel_statmem_typed(d, n)
     t = threadIdx().x
     tr = n-t+1
 

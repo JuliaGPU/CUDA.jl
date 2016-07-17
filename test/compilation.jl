@@ -55,7 +55,7 @@ let
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
 
-    @cuda (len, 1) kernel_copy(input_dev, output_dev)
+    @cuda (len, 1) kernel_copy(input_dev.ptr, output_dev.ptr)
     output = Array(output_dev)
     @test input ≈ output
 

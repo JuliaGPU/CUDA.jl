@@ -9,6 +9,7 @@ import CUDAdrv: debug, DEBUG, trace, TRACE
 
 
 include("util.jl")
+include("types.jl")
 
 include("compilation.jl")
 
