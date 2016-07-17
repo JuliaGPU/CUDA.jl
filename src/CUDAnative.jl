@@ -15,7 +15,7 @@ include("compilation.jl")
 
 include("execution.jl")
 include("intrinsics.jl")
-include("arrays.jl")
+include("array.jl")
 
 
 function __init__()
