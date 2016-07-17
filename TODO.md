@@ -1,12 +1,8 @@
 # Major
 
-* Provide a third codegen target, for generic code
-
-* Disconnect or disambiguate the compiler's state based on the codegen target
-  (`functionObject`, etc). This will allow compiling the same functions for
-  multiple targets (see `bugs/host_after_ptx.jl`)
-
-* Dispatch based on the callee's `@target`, and expose math functions with it
+* Integrate target-selection with dispatch, including a "generic" target. Use this eg. to
+  expose math functions in a sane manner, and avoid the JIT clash of running the same
+  functions on device and host side.
 
 * Better way of integrating with call semantics (eg. ghost types not being passed)
 
@@ -14,12 +10,11 @@
   hand, is this necessary? Just mark the AS, convert as soon as possible, and use the
   inference pass to improve performance.
 
-* Make `CuDeviceArray` a proper (immutable) type: this requires being able to pass the
-  entire object on the stack, or we would need copies to and from GPU memory before _every_
-  kernel launch. It would allow proper bounds checking, eg. for static shared memory.
-
 
 # Minor
+
+* Make `CuArray` immutable such that we can merge it with `CuDeviceArray` (needs to be
+  immutable to allocate within device code, eg. shared memory).
 
 * Support for non-escaping boxed objects (tough, see JuliaLang/Julia##12205)
 

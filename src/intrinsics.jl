@@ -134,6 +134,7 @@ macro cuSharedMem(typ, nel=0)
     end
 end
 
+# TODO: shape instead of len
 shmem_id = 0
 function generate_shmem_llvmcall(jltyp::Type, nel::Int)
     if !haskey(typemap, jltyp)
