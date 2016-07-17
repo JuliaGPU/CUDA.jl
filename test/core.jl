@@ -1,3 +1,5 @@
+using CUDAdrv
+
 using Compat
 
 
@@ -31,18 +33,18 @@ ctx = CuContext(dev)
 
 ## Types
 
-CUDAdrv.DevicePtr{Void}()
-@test_throws InexactError CUDAdrv.DevicePtr{Void}(C_NULL)
-CUDAdrv.DevicePtr{Void}(C_NULL, true)
+DevicePtr{Void}()
+@test_throws InexactError DevicePtr{Void}(C_NULL)
+DevicePtr{Void}(C_NULL, true)
 
 let
-    nullptr = CUDAdrv.DevicePtr{Void}()
+    nullptr = DevicePtr{Void}()
 
     @test isnull(nullptr)
     @test eltype(nullptr) == Void
 
     @test_throws InexactError convert(Ptr{Void}, nullptr)
-    @test_throws InexactError convert(CUDAdrv.DevicePtr{Void}, C_NULL)
+    @test_throws InexactError convert(DevicePtr{Void}, C_NULL)
 end
 
 
@@ -240,7 +242,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vadd, 10, 1, (CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vadd, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a+b
         free(cd)
@@ -250,7 +252,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vsub, 10, 1, (CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vsub, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a-b
         free(cd)
@@ -260,7 +262,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vmul, 10, 1, (CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vmul, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a.*b
         free(cd)
@@ -270,7 +272,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vdiv, 10, 1, (CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat},CUDAdrv.DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vdiv, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a./b
         free(cd)

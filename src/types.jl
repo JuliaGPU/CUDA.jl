@@ -2,6 +2,10 @@
 
 import Base: eltype, convert, cconvert, isnull
 
+export
+    DevicePtr
+
+
 #
 # Device pointer
 #
