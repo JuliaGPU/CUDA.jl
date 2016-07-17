@@ -16,7 +16,7 @@
 * Make `CuArray` immutable such that we can merge it with `CuDeviceArray` (needs to be
   immutable to allocate within device code, eg. shared memory).
 
-* Support for non-escaping boxed objects (tough, see JuliaLang/Julia##12205)
+* Support for non-escaping boxed objects (tough, see JuliaLang/Julia#12205)
 
 * Printing from kernels using `vprintf` (needs unboxed string literals)
 

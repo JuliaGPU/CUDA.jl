@@ -15,12 +15,17 @@ immutable CuDeviceArray{T,N} <: AbstractArray{T,N}
         len = prod(shape)
         new(ptr, shape, len)
     end
+
+    function CuDeviceArray(::Type{T}, len::Int, ptr::DevicePtr{T})
+        shape = (len,)
+        new(ptr, shape, len)
+    end
 end
 
 cudaconvert{T,N}(::Type{CuArray{T,N}}) = CuDeviceArray{T,N}
 
 # Define outer constructors for parameter-less construction
-CuDeviceArray{T}(::Type{T}, ptr::DevicePtr{T}, len::Int) = CuDeviceArray{T,1}(T, (len,), ptr)
+CuDeviceArray{T}(::Type{T}, ptr::DevicePtr{T}, len::Int) = CuDeviceArray{T,1}(T, len, ptr)
 CuDeviceArray{T,N}(::Type{T}, ptr::DevicePtr{T}, shape::NTuple{N,Int}) = CuDeviceArray{T,N}(T, shape, ptr)
 
 convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) = CuDeviceArray{T,N}(T, a.shape, a.ptr)
