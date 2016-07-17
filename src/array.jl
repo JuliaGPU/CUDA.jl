@@ -31,4 +31,4 @@ size(g::CuDeviceArray) = g.shape
 @target ptx getindex{T}(a::CuDeviceArray{T}, i0::Real) =
     Base.pointerref(a.ptr.inner, Base.to_index(i0), 8)::T
 @target ptx setindex!{T}(a::CuDeviceArray{T}, x::T, i0::Real) =
-    Base.pointerset(a.ptr.inner, x, Base.to_index(i0), 8)
+    Base.pointerset(a.ptr.inner, convert(T, x)::T, Base.to_index(i0), 8)
