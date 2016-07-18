@@ -40,7 +40,7 @@ import Base: to_index, pointerref, pointerset
     pointerref(A.ptr.inner, to_index(I), 8)::T
 end
 
-@target ptx @inline function setindex!{T}(A::CuDeviceArray{T}, x::T, I::Real)
+@target ptx @inline function setindex!{T}(A::CuDeviceArray{T}, x, I::Real)
     @boundscheck checkbounds(A, I)
     pointerset(A.ptr.inner, convert(T, x)::T, to_index(I), 8)
 end
