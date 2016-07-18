@@ -33,10 +33,18 @@ convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) = CuDeviceArray{T,N}(T
 length(g::CuDeviceArray) = g.len
 size(g::CuDeviceArray) = g.shape
 
-@target ptx getindex{T}(a::CuDeviceArray{T}, i0::Real) =
-    Base.pointerref(a.ptr.inner, Base.to_index(i0), 8)::T
-@target ptx setindex!{T}(a::CuDeviceArray{T}, x::T, i0::Real) =
-    Base.pointerset(a.ptr.inner, convert(T, x)::T, Base.to_index(i0), 8)
+import Base: to_index, pointerref, pointerset
+
+@target ptx @inline function getindex{T}(A::CuDeviceArray{T}, I::Real)
+    @boundscheck checkbounds(A, I)
+    pointerref(A.ptr.inner, to_index(I), 8)::T
+end
+
+@target ptx @inline function setindex!{T}(A::CuDeviceArray{T}, x::T, I::Real)
+    @boundscheck checkbounds(A, I)
+    pointerset(A.ptr.inner, convert(T, x)::T, to_index(I), 8)
+end
+
 
 
 # TODO: remove this hack as soon as immutables with heap references (such as BoundsError)
