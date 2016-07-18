@@ -69,10 +69,26 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Vector{DataType})
     end
 
     @static if TRACE
+        # Generate a safe and unique name
+        function_uid = "$(get(f))-"
+        if length(types) > 0
+            function_uid *= join([replace(string(x), r"\W", "")
+                                for x in types], '.')
+        else
+            function_uid *= "Void"
+        end
+
+        # Dump the typed AST
         if !isnull(f)
-            trace("Lowered AST:\n$(code_lowered(f, types))")
-            trace("Typed AST (::ANY types shown in red):\n")
-            code_warntype(STDERR, get(f), types)
+            buf = IOBuffer()
+            code_warntype(buf, get(f), types)
+            ast = String(buf)
+
+            output = "$(dumpdir[])/$function_uid.jl"
+            trace("Writing kernel AST to $output")
+            open(output, "w") do io
+                write(io, ast)
+            end
         end
     end
 
@@ -93,44 +109,27 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Vector{DataType})
 
     trace("Function entry point: $module_entry")
 
-    # DEBUG: dump the LLVM IR
+    # Dump the LLVM IR
     @static if TRACE
         if !isnull(f)
-            # Generate a safe and unique name
-            function_uid = "$(get(f))-"
-            if length(types) > 0
-                function_uid *= join([replace(string(x), r"\W", "")
-                                    for x in types], '.')
-            else
-                function_uid *= "Void"
-            end
-
             buf = IOBuffer()
             code_llvm(buf, get(f), types, #=strip_di=#false, #=entire_module=#true)
             module_llvm = String(buf)
 
             output = "$(dumpdir[])/$function_uid.ll"
-            if isfile(output)
-                warn("Could not write LLVM IR to $output (file already exists !?)")
-            else
-                open(output, "w") do io
-                    write(io, module_llvm)
-                end
-                trace("Wrote kernel LLVM IR to $output")
+            trace("Writing kernel LLVM IR to $output")
+            open(output, "w") do io
+                write(io, module_llvm)
             end
         end
     end
 
-    # DEBUG: dump the (PTX) assembly
+    # Dump the PTX assembly
     @static if TRACE
         output = "$(dumpdir[])/$function_uid.ptx"
-        if isfile(output)
-            warn("Could not write (PTX) assembly to $output (file already exists !?)")
-        else
-            open(output, "w") do io
-                write(io, module_asm)
-            end
-            trace("Wrote kernel (PTX) assembly to $output")
+        trace("Writing kernel PTX assembly to $output")
+        open(output, "w") do io
+            write(io, module_asm)
         end
     end
 
