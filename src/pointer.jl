@@ -1,4 +1,4 @@
-# CUDA related types
+# CUDA device pointer type
 
 import Base: eltype, convert, cconvert, isnull
 
@@ -6,14 +6,8 @@ export
     DevicePtr
 
 
-#
-# Device pointer
-#
-
 # This wrapper type contains a pointer, but prevents all conversions from and to
 # regular pointers. This ensures we don't mix host and device pointers.
-
-import Base: getindex
 
 immutable DevicePtr{T}
     inner::Ptr{T}
