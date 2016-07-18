@@ -58,7 +58,7 @@ function physical_type(argtype::DataType)
 end
 
 function compile_function{F<:Function}(ftype::Type{F}, types::Vector{DataType})
-    debug("Compiling $ftype$types")
+    debug("Compiling $ftype($(types...))")
 
     # Try to get a hold of the original function
     # NOTE: this doesn't work for closures, as there can be multiple instances
@@ -69,17 +69,16 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Vector{DataType})
     end
 
     @static if TRACE
-        # Generate a safe and unique name
-        function_uid = "$(get(f))-"
-        if length(types) > 0
-            function_uid *= join([replace(string(x), r"\W", "")
-                                for x in types], '.')
-        else
-            function_uid *= "Void"
-        end
-
-        # Dump the typed AST
         if !isnull(f)
+            # Generate a safe and unique name
+            function_uid = "$(get(f))-"
+            if length(types) > 0
+                function_uid *= join([replace(string(x), r"\W", "") for x in types], '.')
+            else
+                function_uid *= "Void"
+            end
+
+            # Dump the typed AST
             buf = IOBuffer()
             code_warntype(buf, get(f), types)
             ast = String(buf)
@@ -98,7 +97,7 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Vector{DataType})
     # Next call will trigger compilation (if necessary)
     llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Bool, Bool), t, false, true)
     if llvmf == C_NULL
-        error("no method found for kernel $ftype$types")
+        error("no method found for kernel $ftype($(types...))")
     end
 
     # Generate (PTX) assembly
@@ -126,10 +125,12 @@ function compile_function{F<:Function}(ftype::Type{F}, types::Vector{DataType})
 
     # Dump the PTX assembly
     @static if TRACE
-        output = "$(dumpdir[])/$function_uid.ptx"
-        trace("Writing kernel PTX assembly to $output")
-        open(output, "w") do io
-            write(io, module_asm)
+        if !isnull(f)   # function_uid depends on having a function instance
+            output = "$(dumpdir[])/$function_uid.ptx"
+            trace("Writing kernel PTX assembly to $output")
+            open(output, "w") do io
+                write(io, module_asm)
+            end
         end
     end
 
