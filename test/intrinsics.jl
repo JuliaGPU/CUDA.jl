@@ -31,7 +31,7 @@ types = [Int32, Int64, Float32, Float64]
     t = threadIdx().x
     tr = n-t+1
 
-    s = @cuSharedMem(Float32)
+    s = @cuDynamicSharedMem(Float32, n)
     s[t] = d[t]
     sync_threads()
     d[t] = s[tr]
@@ -52,7 +52,7 @@ end
     t = threadIdx().x
     tr = n-t+1
 
-    s = @cuSharedMem(T)
+    s = @cuDynamicSharedMem(T, n)
     s[t] = d[t]
     sync_threads()
     d[t] = s[tr]
@@ -76,7 +76,7 @@ end
     t = threadIdx().x
     tr = n-t+1
 
-    s = @cuSharedMem(Float32, 1024)
+    s = @cuStaticSharedMem(Float32, 1024)
     s[t] = d[t]
     sync_threads()
     d[t] = s[tr]
@@ -97,7 +97,7 @@ end
     t = threadIdx().x
     tr = n-t+1
 
-    s = @cuSharedMem(T, 1024)
+    s = @cuStaticSharedMem(T, 1024)
     s[t] = d[t]
     sync_threads()
     d[t] = s[tr]

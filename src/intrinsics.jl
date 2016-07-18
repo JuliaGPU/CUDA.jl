@@ -7,7 +7,7 @@ export
 
     # Memory management
     sync_threads,
-    @cuSharedMem
+    @cuStaticSharedMem, @cuDynamicSharedMem
 
 
 
@@ -111,54 +111,38 @@ const typemap = Dict{Type,Symbol}(
 # BUG: calling a device function referencing a static-memory @cuSharedMem will reference
 #      the same memory -- how does this work in CUDA?
 
-"""
-    @cuSharedMem(typ::Type, [nel::Integer=0]) -> Ptr{typ}
-
-Get a reference to a chunk of shared memory. The type `typ` and number of elements `nel`
-should either be known at parse time (in which case the macro will directly generate the
-necessary code), or after inference by means of a generated function. Note that due to
-restrictions of generated functions, any errors will not be printed but result in a dynamic
-call to said generated function.
-
-If the number of elements is 0, dynamic shared memory will be referenced (ie. you need to
-allocated the shared memory when calling the kernel), otherwise statically-allocated memory
-will be used.
-"""
-macro cuSharedMem(typ, nel=0)
-    if haskey(typemap, typ) && isa(nel, Integer)
-        # easy case: both typ and N are known
-        return generate_shmem_llvmcall(typ, nel)
-    else
-        # either one is now known (often typ being a typevar), retry after inference
-        return esc(:(CUDAnative.generated_shmem($typ, Val{$nel})))
-    end
-end
+shmem_id = 0
 
 # TODO: shape instead of len
-shmem_id = 0
-function generate_shmem_llvmcall(jltyp::Type, nel::Int)
+
+"""
+    @cuStaticSharedMem(typ::Type, nel::Integer) -> CuDeviceArray{typ}
+
+Get an array pointing to a statically-allocated piece of shared memory. The type `typ` and
+number of elements `nel` should be statically known after type inference, or a (currently
+unreported) error will be thrown resulting in a runtime generic call to an internal
+generator function.
+"""
+macro cuStaticSharedMem(typ, nel)
+    return esc(:(CUDAnative.generate_static_shmem($typ, Val{$nel})))
+end
+
+@generated function generate_static_shmem{T,N}(::Type{T}, ::Type{Val{N}})
+    return emit_static_shmem(T, N)
+end
+
+function emit_static_shmem(jltyp::Type, nel::Integer)
     if !haskey(typemap, jltyp)
-        error("cuSharedMem: unsupported type '$jltyp'")
+        error("cuStaticSharedMem: unsupported type '$jltyp'")
     end
     llvmtyp = typemap[jltyp]
-
-    if !isa(nel, Integer)
-        error("cuSharedMem: second argument should be a positive integer")
-    end
 
     global shmem_id
     var = "shmem$(shmem_id::Int += 1)"
 
-    if nel == 0
-        decl = """@$var = external addrspace(3) global [0 x $llvmtyp]"""
-    else
-        # TODO: alignment, why 4 (clang)? unify with dynamic shmem
-        decl = """@$var = internal addrspace(3) global [$nel x $llvmtyp] zeroinitializer, align 4"""
-    end
-
     return quote
         CuDeviceArray($jltyp, CUDAdrv.DevicePtr{$jltyp}(Base.llvmcall(
-            ($decl,
+            ($"""@$var = internal addrspace(3) global [$nel x $llvmtyp] zeroinitializer, align 4""",
              $"""%1 = getelementptr inbounds [$nel x $llvmtyp], [$nel x $llvmtyp] addrspace(3)* @$var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
@@ -166,10 +150,40 @@ function generate_shmem_llvmcall(jltyp::Type, nel::Int)
     end
 end
 
-@generated function generated_shmem{T,N}(::Type{T}, ::Type{Val{N}})
-    # TODO: if this actually errors, the error won't be print but a generic call to
-    #       generate_shmem will be emitted instead (obviously incompatible with PTX)
-    return generate_shmem_llvmcall(T, N)
+
+"""
+    @cuDynamicSharedMem(typ::Type, nel::Integer) -> CuDeviceArray{typ}
+
+Get an array pointing to a dynamically-allocated piece of shared memory. The type `typ`
+should be statically known after type inference, or a (currently unreported) error will be
+thrown resulting in a runtime generic call to an internal generator function. The necessary
+memory needs to be allocated when calling the kernel.
+"""
+macro cuDynamicSharedMem(typ, nel)
+    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $nel)))
+end
+
+@generated function generate_dynamic_shmem{T}(::Type{T}, nel)
+    return emit_dynamic_shmem(T, :(nel))
+end
+
+function emit_dynamic_shmem(jltyp::Type, nel::Symbol)
+    if !haskey(typemap, jltyp)
+        error("cuDynamicSharedMem: unsupported type '$jltyp'")
+    end
+    llvmtyp = typemap[jltyp]
+
+    global shmem_id
+    var = "shmem$(shmem_id::Int += 1)"
+
+    return quote
+        CuDeviceArray($jltyp, CUDAdrv.DevicePtr{$jltyp}(Base.llvmcall(
+            ($"""@$var = external addrspace(3) global [0 x $llvmtyp]""",
+             $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* @$var, i64 0, i64 0
+                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
+                 ret $llvmtyp* %2"""),
+            Ptr{$jltyp}, Tuple{}), true), $nel)
+    end
 end
 
 # NOTE: this might be a neater approach (with a user-end macro for hiding the `Val{N}`):
