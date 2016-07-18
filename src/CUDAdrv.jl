@@ -27,7 +27,9 @@ include("array.jl")
 
 function __init__()
     __init_logging__()
-    __init_base__()
+    @static if !DEBUG
+        __init_base__()
+    end
 end
 
 

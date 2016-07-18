@@ -29,6 +29,10 @@ macro apicall(f, argtypes, args...)
         error("first argument to @apicall should be a symbol")
     end
 
+    @static if DEBUG
+        push!(blk.args, :(CUDAdrv.__lazy_init_base__($(sprint(Base.show_unquoted,f.args[1])))))
+    end
+
     # Print the function name & arguments
     @static if TRACE
         push!(blk.args, :(trace($(sprint(Base.show_unquoted,f.args[1])*"("); line=false)))
@@ -85,6 +89,23 @@ function __init_base__()
     populate_funmap(api_mapping, api_version)
 
     # Initialize the driver
+    init()
+end
+
+if DEBUG
+    # when in debug mode, we initialize the library and driver lazily rather than eagerly
+    # for compatibility with environments where the driver can't be initialized (eg. rr)
+    const initialized = Ref{Bool}(false)
+    function __lazy_init_base__(reason)
+        if !initialized[]
+            trace("lazy-initializing because of call to $reason")
+            initialized[] = true
+            __init_base__()
+        end
+    end
+end
+
+function init()
     @apicall(:cuInit, (Cint,), 0)
 end
 
@@ -95,5 +116,8 @@ function version()
 end
 
 function vendor()
+    @static if DEBUG
+        __lazy_init_base__("vendor")
+    end
     return libcuda_vendor[]
 end
