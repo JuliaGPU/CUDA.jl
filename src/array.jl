@@ -1,6 +1,6 @@
 # Contiguous on-device arrays
 
-import Base: length, size, getindex, setindex!, convert
+import Base: length, size, getindex, setindex!, convert, unsafe_convert
 
 export
     CuDeviceArray, CuBoundsError
@@ -37,15 +37,15 @@ import Base: to_index, pointerref, pointerset
 
 @target ptx @inline function getindex{T}(A::CuDeviceArray{T}, I::Real)
     @boundscheck checkbounds(A, I)
-    pointerref(A.ptr.inner, to_index(I), 8)::T
+    pointerref(unsafe_convert(Ptr{T}, A), to_index(I), 8)::T
 end
 
 @target ptx @inline function setindex!{T}(A::CuDeviceArray{T}, x, I::Real)
     @boundscheck checkbounds(A, I)
-    pointerset(A.ptr.inner, convert(T, x)::T, to_index(I), 8)
+    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, to_index(I), 8)
 end
 
-
+@target ptx @inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr.inner :: Ptr{T}
 
 # TODO: remove this hack as soon as immutables with heap references (such as BoundsError)
 #       can be stack-allocated
