@@ -85,6 +85,7 @@ const warpsize = Int32(32)
 #
 
 # Synchronization
+# TODO: rename to syncthreads
 sync_threads() = Base.llvmcall(
     ("""declare void @llvm.nvvm.barrier0() readnone nounwind""",
      """call void @llvm.nvvm.barrier0()

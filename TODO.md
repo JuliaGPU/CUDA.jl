@@ -10,6 +10,8 @@
   hand, is this necessary? Just mark the AS, convert as soon as possible, and use the
   inference pass to improve performance.
 
+* Stream granularity for execution, exceptions, etc
+
 
 # Minor
 
