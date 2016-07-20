@@ -181,10 +181,12 @@ function create_allocations(args, cgtypes, calltypes)
     return kernel_allocations, args
 end
 
-function create_call(cuda_fun, config, args, calltypes)
-    return :( cudacall($cuda_fun, $config[1], $config[2],
-                       $(tuple(calltypes...)), $(args...);
-                       shmem_bytes=$config[3]) )
+function create_call(fun, config, args, calltypes)
+    return quote
+        cudacall($fun, $config[1], $config[2],
+                 $(tuple(calltypes...)), $(args...);
+                 shmem_bytes=$config[3])
+    end
 end
 
 # TODO: generate_cudacall behaves subtly different when passing a CuFunction (no use of
@@ -204,7 +206,7 @@ end
     # Throw everything together
     exprs = Expr(:block)
     append!(exprs.args, kernel_allocations.args)
-    push!(exprs.args, kernel_call)
+    append!(exprs.args, kernel_call.args)
     return exprs
 end
 
@@ -240,6 +242,6 @@ const func_cache = Dict{UInt, CuFunction}()
     exprs = Expr(:block)
     append!(exprs.args, kernel_allocations.args)
     append!(exprs.args, kernel_compilation.args)
-    push!(exprs.args, kernel_call)
+    append!(exprs.args, kernel_call.args)
     return exprs
 end
