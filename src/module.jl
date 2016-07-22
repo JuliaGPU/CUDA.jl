@@ -116,7 +116,7 @@ immutable CuGlobal{T}
                 (Ptr{Ptr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
                 ptr_ref, nbytes_ref, mod.handle, name)
         if nbytes_ref[] != sizeof(T)
-            throw(ArgumentError("type of global does not match type parameter type"))
+            throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
         @assert nbytes_ref[] == sizeof(T)
         new(DevicePtr{Void}(ptr_ref[], true), nbytes_ref[])
