@@ -1,8 +1,4 @@
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
-
-## intrinsics
+## math
 
 let
     buf = CuArray(Float32, 1)
@@ -136,7 +132,3 @@ for T in types
     a[1:n÷2] += a[n÷2+1:end]
     @assert a == Array(d_a)
 end
-
-
-
-destroy(ctx)

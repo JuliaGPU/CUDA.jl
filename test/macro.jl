@@ -1,6 +1,3 @@
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
 @target ptx do_nothing() = return nothing
 
 @test_throws UndefVarError @cuda (1, 1) undefined_kernel()
@@ -120,7 +117,3 @@ let
     c = Array(d_c)
     @test a+b == c
 end
-
-
-
-destroy(ctx)
