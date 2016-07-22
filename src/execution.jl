@@ -28,18 +28,12 @@ end
 # codegen ABI will figure out it needs to be passed by ref, ie. a pointer), but we do need
 # to allocate memory and pass an actual pointer since we perform the call ourselves.
 function physical_type(argtype::DataType)
-    if argtype <: Ptr
-        error("cannot pass host pointers to a device function")
-    elseif argtype <: DevicePtr
-        # known convert to raw pointers
-        cgtype = argtype
-        calltype = argtype
-    elseif argtype.layout != C_NULL && Base.datatype_pointerfree(argtype)
+    if argtype.layout != C_NULL && Base.datatype_pointerfree(argtype)
         # pointerfree objects with a layout can be used on the GPU
         cgtype = argtype
         # but the ABI might require them to be passed by pointer
         if sizeof(argtype) > 8  # TODO: verify this at the LLVM side
-            calltype = DevicePtr{argtype}
+            calltype = Ptr{argtype}
         else
             calltype = argtype
         end
@@ -148,7 +142,11 @@ function decode_arguments(argspec)
         ct = cudaconvert(t)
         if ct != t
             argtypes[i] = ct
-            args[i] = :( convert($ct, $(args[i])) )
+            if ct <: Ptr
+                args[i] = :( unsafe_convert($ct, $(args[i])) )
+            else
+                args[i] = :( convert($ct, $(args[i])) )
+            end
         end
     end
 
@@ -158,6 +156,8 @@ function decode_arguments(argspec)
         cgtypes[i], calltypes[i] = physical_type(argtypes[i])
     end
 
+    # NOTE: DevicePtr's should have disappeared after this point
+
     return args, cgtypes, calltypes
 end
 
@@ -166,7 +166,7 @@ function create_allocations(args, cgtypes, calltypes)
     # this is indicative of needing to upload the value to GPU memory
     kernel_allocations = Expr(:block)
     for i in 1:length(args)
-        if calltypes[i] == DevicePtr{cgtypes[i]}
+        if calltypes[i] == Ptr{cgtypes[i]}
             @gensym dev_arg
             alloc = quote
                 $dev_arg = cualloc($(cgtypes[i]))

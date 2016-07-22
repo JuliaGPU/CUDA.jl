@@ -4,3 +4,5 @@
 # specialization and argument types (there might be other conversions, eg. factoring in the
 # ABI). This is different from `cconvert` in that we don't know which type to convert to.
 cudaconvert{T}(::Type{T}) = T
+cudaconvert{T}(::Type{DevicePtr{T}}) = Ptr{T}
+cudaconvert{T}(::Type{Ptr{T}}) = throw(InexactError())

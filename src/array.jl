@@ -7,28 +7,31 @@ export
 
 
 immutable CuDeviceArray{T,N} <: AbstractArray{T,N}
-    ptr::DevicePtr{T}
+    ptr::Ptr{T}
     shape::NTuple{N,Int}
     len::Int
 
-    function CuDeviceArray(::Type{T}, shape::NTuple{N,Int}, ptr::DevicePtr{T})
+    function CuDeviceArray(::Type{T}, shape::NTuple{N,Int}, ptr::Ptr{T})
         len = prod(shape)
         new(ptr, shape, len)
     end
 
-    function CuDeviceArray(::Type{T}, len::Int, ptr::DevicePtr{T})
+    function CuDeviceArray(::Type{T}, len::Int, ptr::Ptr{T})
         shape = (len,)
         new(ptr, shape, len)
     end
 end
 
+# TODO: mimic CuArray type constructors
+
 cudaconvert{T,N}(::Type{CuArray{T,N}}) = CuDeviceArray{T,N}
 
 # Define outer constructors for parameter-less construction
-CuDeviceArray{T}(::Type{T}, ptr::DevicePtr{T}, len::Int) = CuDeviceArray{T,1}(T, len, ptr)
-CuDeviceArray{T,N}(::Type{T}, ptr::DevicePtr{T}, shape::NTuple{N,Int}) = CuDeviceArray{T,N}(T, shape, ptr)
+CuDeviceArray{T}(::Type{T}, ptr::Ptr{T}, len::Int) = CuDeviceArray{T,1}(T, len, ptr)
+CuDeviceArray{T,N}(::Type{T}, ptr::Ptr{T}, shape::NTuple{N,Int}) = CuDeviceArray{T,N}(T, shape, ptr)
 
-convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) = CuDeviceArray{T,N}(T, a.shape, a.ptr)
+convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) =
+    CuDeviceArray{T,N}(T, a.shape, unsafe_convert(Ptr{T}, a.ptr))
 
 length(g::CuDeviceArray) = g.len
 size(g::CuDeviceArray) = g.shape
@@ -45,7 +48,7 @@ end
     pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, to_index(I), 8)
 end
 
-@target ptx @inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr.inner :: Ptr{T}
+@target ptx @inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
 
 # TODO: remove this hack as soon as immutables with heap references (such as BoundsError)
 #       can be stack-allocated
@@ -57,7 +60,7 @@ immutable CuBoundsError <: Exception end
 import Base: unsafe_view, ViewIndex
 function unsafe_view{T}(A::CuDeviceArray{T,1}, I::Vararg{ViewIndex,1})
     Base.@_inline_meta
-    ptr = DevicePtr{T}(A.ptr.inner + I[1].start*sizeof(T), true)
+    ptr = Ptr{T}(A.ptr + I[1].start*sizeof(T), true)
     len = I[1].stop - I[1].start
     CuDeviceArray{T,1}(T, len, ptr)
 end
