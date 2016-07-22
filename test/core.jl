@@ -31,7 +31,7 @@ dev = CuDevice(0)
 ctx = CuContext(dev)
 
 
-## Types
+## pointer
 
 DevicePtr{Void}()
 @test_throws InexactError DevicePtr{Void}(C_NULL)
@@ -40,8 +40,9 @@ DevicePtr{Void}(C_NULL, true)
 let
     nullptr = DevicePtr{Void}()
 
-    @test isnull(nullptr)
+    @test eltype(DevicePtr{Void}) == Void
     @test eltype(nullptr) == Void
+    @test isnull(nullptr)
 
     @test_throws InexactError convert(Ptr{Void}, nullptr)
     @test_throws InexactError convert(DevicePtr{Void}, C_NULL)
@@ -123,6 +124,16 @@ end
 ## CuArray
 
 let
+    # Inner constructors
+    CuArray{Int,1}((1,))
+    CuArray{Int,1}((1,), DevicePtr{Int}(C_NULL, true))
+
+    # Outer constructors
+    CuArray{Int}(1)
+    CuArray{Int}((1,2))
+    CuArray(Int, 1)
+    CuArray(Int, (1,2))
+
     # Negative test cases
     a = rand(Float32, 10)
     ad = CuArray(Float32, 5)
@@ -211,7 +222,35 @@ end
 
 ## memory handling
 
-@test_throws ArgumentError cualloc(Function, 10)
+let
+    ptr = cualloc(Int, 1)
+    free(ptr)
+
+    @test_throws ArgumentError cualloc(Function, 1)   # abstract
+    @test_throws ArgumentError cualloc(Array{Int}, 1) # non-leaftype
+    @test_throws ArgumentError cualloc(Int, 0)
+end
+
+let
+    type MutablePtrFree
+        foo::Int
+        bar::Int
+    end
+    ptr = cualloc(MutablePtrFree, 1)
+    copy!(ptr, MutablePtrFree(0,0))
+    free(ptr)
+end
+
+let
+    type MutableNonPtrFree
+        foo::Int
+        bar::String
+    end
+    ptr = cualloc(MutableNonPtrFree, 1)
+    @test_throws ArgumentError copy!(ptr, MutableNonPtrFree(0,""))
+    free(ptr)
+end
+
 
 let
     dev_array = CuArray(Int32, 10)
@@ -225,6 +264,12 @@ end
 
 
 ## PTX loading & execution
+
+let
+    @test CUDAdrv.CuDim3((3,2,1)) == CUDAdrv.CuDim3(3,2,1)
+    @test CUDAdrv.CuDim3((3,2))   == CUDAdrv.CuDim3(3,2,1)
+    @test CUDAdrv.CuDim3(3)       == CUDAdrv.CuDim3(3,1,1)
+end
 
 let
     md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
