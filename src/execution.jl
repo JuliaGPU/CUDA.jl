@@ -230,7 +230,7 @@ const func_cache = Dict{UInt, CuFunction}()
             $cuda_fun = CUDAnative.func_cache[$key]
         else
             (module_asm, module_entry) = CUDAnative.compile_function($ftype, $cgtypes)
-            cuda_mod = CuModuleData(module_asm)
+            cuda_mod = CuModule(module_asm)
             $cuda_fun = CuFunction(cuda_mod, module_entry)
             CUDAnative.func_cache[$key] = $cuda_fun
         end
