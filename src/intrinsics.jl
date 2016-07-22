@@ -142,12 +142,12 @@ function emit_static_shmem(jltyp::Type, nel::Integer)
     var = "shmem$(shmem_id::Int += 1)"
 
     return quote
-        CuDeviceArray($jltyp, Base.llvmcall(
+        CuDeviceArray($nel, Base.llvmcall(
             ($"""@$var = internal addrspace(3) global [$nel x $llvmtyp] zeroinitializer, align 4""",
              $"""%1 = getelementptr inbounds [$nel x $llvmtyp], [$nel x $llvmtyp] addrspace(3)* @$var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}), $nel)
+            Ptr{$jltyp}, Tuple{}))
     end
 end
 
@@ -178,12 +178,12 @@ function emit_dynamic_shmem(jltyp::Type, nel::Symbol)
     var = "shmem$(shmem_id::Int += 1)"
 
     return quote
-        CuDeviceArray($jltyp, Base.llvmcall(
+        CuDeviceArray($nel, Base.llvmcall(
             ($"""@$var = external addrspace(3) global [0 x $llvmtyp]""",
              $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* @$var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}), $nel)
+            Ptr{$jltyp}, Tuple{}))
     end
 end
 

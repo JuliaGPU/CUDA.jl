@@ -11,30 +11,26 @@ immutable CuDeviceArray{T,N} <: AbstractArray{T,N}
     shape::NTuple{N,Int}
     len::Int
 
-    function CuDeviceArray(::Type{T}, shape::NTuple{N,Int}, ptr::Ptr{T})
+    function CuDeviceArray(shape::NTuple{N,Int}, ptr::Ptr{T})
         len = prod(shape)
-        new(ptr, shape, len)
-    end
-
-    function CuDeviceArray(::Type{T}, len::Int, ptr::Ptr{T})
-        shape = (len,)
         new(ptr, shape, len)
     end
 end
 
-# TODO: mimic CuArray type constructors
+CuDeviceArray{T,N}(shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
+CuDeviceArray{T}(len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,), p)
+
+# deprecated
+CuDeviceArray{T,N}(::Type{T}, shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
+CuDeviceArray{T}(::Type{T}, len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,), p)
 
 cudaconvert{T,N}(::Type{CuArray{T,N}}) = CuDeviceArray{T,N}
 
-# Define outer constructors for parameter-less construction
-CuDeviceArray{T}(::Type{T}, ptr::Ptr{T}, len::Int) = CuDeviceArray{T,1}(T, len, ptr)
-CuDeviceArray{T,N}(::Type{T}, ptr::Ptr{T}, shape::NTuple{N,Int}) = CuDeviceArray{T,N}(T, shape, ptr)
-
 convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) =
-    CuDeviceArray{T,N}(T, a.shape, unsafe_convert(Ptr{T}, a.ptr))
+    CuDeviceArray{T,N}(a.shape, unsafe_convert(Ptr{T}, a.ptr))
 
-length(g::CuDeviceArray) = g.len
-size(g::CuDeviceArray) = g.shape
+@target ptx length(g::CuDeviceArray) = g.len
+@target ptx size(g::CuDeviceArray) = g.shape
 
 import Base: to_index, pointerref, pointerset
 
@@ -56,11 +52,11 @@ import Base: throw_boundserror
 immutable CuBoundsError <: Exception end
 @target ptx throw_boundserror{T,N}(A::CuDeviceArray{T,N}, I) = (Base.@_noinline_meta; throw(CuBoundsError()))
 
-# TODO: same for SubArray, although it might be too complex to every be non-allocating
+# TODO: same for SubArray, although it might be too complex to ever be non-allocating
 import Base: unsafe_view, ViewIndex
-function unsafe_view{T}(A::CuDeviceArray{T,1}, I::Vararg{ViewIndex,1})
+@target ptx function unsafe_view{T}(A::CuDeviceArray{T,1}, I::Vararg{ViewIndex,1})
     Base.@_inline_meta
     ptr = Ptr{T}(A.ptr + I[1].start*sizeof(T), true)
     len = I[1].stop - I[1].start
-    CuDeviceArray{T,1}(T, len, ptr)
+    CuDeviceArray{T,1}(len, ptr)
 end
