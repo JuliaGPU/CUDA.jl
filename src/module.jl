@@ -32,16 +32,15 @@ immutable CuModule
         end
         optionKeys, optionValues = encode(options)
 
-        # NOTE: temporarily disabled because of JuliaLang/julia#17288
-        # try
+        try
             @apicall(:cuModuleLoadDataEx,
                     (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ref{CUjit_option}, Ref{Ptr{Void}}),
                     handle_ref, data, length(optionKeys), optionKeys, optionValues)
-        # catch err
-        #     (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
-        #     options = decode(optionKeys, optionValues)
-        #     rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
-        # end
+        catch err
+            (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
+            options = decode(optionKeys, optionValues)
+            rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
+        end
 
         if DEBUG
             options = decode(optionKeys, optionValues)
