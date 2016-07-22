@@ -26,9 +26,11 @@ end
 dims = (16, 16)
 len = prod(dims)
 
-@target ptx function array_copy(input, output)
+@target ptx function ptr_copy(input, output)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
-    output[i] = input[i]
+
+    val = unsafe_load(input, i)
+    unsafe_store!(output, val, i)
 
     return nothing
 end
@@ -40,7 +42,7 @@ let
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
 
-    @cuda (len, 1) array_copy(input_dev, output_dev)
+    @cuda (len, 1) ptr_copy(input_dev.ptr, output_dev.ptr)
     output = Array(output_dev)
     @test input ≈ output
 
@@ -49,11 +51,12 @@ let
 end
 
 # scalar through single-value array
-@target ptx function array_lastvalue(a, x)
+@target ptx function ptr_lastvalue(a, x)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     max = gridDim().x * blockDim().x
     if i == max
-        x[1] = a[i]
+        val = unsafe_load(a, i)
+        unsafe_store!(x, val)
     end
 
     return nothing
@@ -65,23 +68,23 @@ let
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (len, 1) array_lastvalue(arr_dev, val_dev)
+    @cuda (len, 1) ptr_lastvalue(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 # same, but using a device function
-# NOTE: disabled because of #15276 / #15967
 @target ptx @noinline function array_lastvalue_devfun(a, x)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     max = gridDim().x * blockDim().x
     if i == max
-        x[1] = lastvalue_devfun(a, i)
+        val = lastvalue_devfun(a, i)
+        unsafe_store!(x, val)
     end
 
     return nothing
 end
 @target ptx function lastvalue_devfun(a, i)
-    return a[i]
+    return unsafe_load(a, i)
 end
 let
     arr = round(rand(Float32, dims) * 100)
@@ -90,36 +93,11 @@ let
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    # @cuda (len, 1) array_lastvalue_devfun(arr_dev, val_dev)
-    # @test arr[dims...] ≈ Array(val_dev)[1]
+    @cuda (len, 1) array_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
+    @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
-# bug: first argument function parameters are elided by the compiler
-let
-    len = 60
-    a = rand(Float32, len)
-    b = rand(Float32, len)
-
-    d_a = CuArray(a)
-    d_b = CuArray(b)
-    d_c = CuArray(Float32, len)
-
-    @target ptx add(a,b) = a+b
-    @target ptx function map_inner{F}(fun::F, a, b, c)
-        i = blockIdx().x + (threadIdx().x-1) * gridDim().x
-        c[i] = fun(a[i], b[i])
-
-        return nothing
-    end
-    # NOTE: the add isn't actually passed to the GPU,
-    #       and functions at code_llvm etc only contain 3 arguments
-    @cuda (len, 1) map_inner(add, d_a, d_b, d_c)
-
-    c = Array(d_c)
-    @test a+b == c
-end
-
-# bug: same with ghost types
+# bug: ghost type function parameters are elided by the compiler
 let
     len = 60
     a = rand(Float32, len)
@@ -133,11 +111,11 @@ let
 
     @target ptx function map_inner(ghost, a, b, c)
         i = blockIdx().x + (threadIdx().x-1) * gridDim().x
-        c[i] = a[i] + b[i]
+        unsafe_store!(c, unsafe_load(a,i)+unsafe_load(b,i), i)
 
         return nothing
     end
-    @cuda (len, 1) map_inner(Ghost(), d_a, d_b, d_c)
+    @cuda (len, 1) map_inner(Ghost(), d_a.ptr, d_b.ptr, d_c.ptr)
 
     c = Array(d_c)
     @test a+b == c
