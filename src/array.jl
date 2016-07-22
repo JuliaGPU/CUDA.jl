@@ -11,7 +11,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
     shape::NTuple{N,Int}
     len::Int
 
-    function CuArray(::Type{T}, shape::NTuple{N,Int})
+    function CuArray(shape::NTuple{N,Int})
         if !isbits(T)
             # non-isbits types results in an array with references to CPU objects
             throw(ArgumentError("CuArray with non-bit element type not supported"))
@@ -23,17 +23,19 @@ type CuArray{T,N} <: AbstractArray{T,N}
         new(ptr, shape, len)
     end
 
-    function CuArray(::Type{T}, shape::NTuple{N,Int}, ptr::DevicePtr{T})
+    function CuArray(shape::NTuple{N,Int}, ptr::DevicePtr{T})
         len = prod(shape)
         new(ptr, shape, len)
     end
 end
 
-# Define outer constructors for parameter-less construction
-CuArray{T}(::Type{T}, len::Int) = CuArray{T,1}(T, (len,))
-CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(T, shape)
-CuArray{T}(::Type{T}, len::Int, ptr::DevicePtr{T}) = CuArray{T,1}(T, (len,), ptr)
-CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}, ptr::DevicePtr{T}) = CuArray{T,N}(T, shape, ptr)
+# parameterless constructors
+(::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
+(::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
+
+# deprecated parameterless constructors
+CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(shape)
+CuArray{T}(::Type{T}, len::Int)               = CuArray{T,1}((len,))
 
 unsafe_convert{T,N}(::Type{DevicePtr{T}}, a::CuArray{T,N}) = a.ptr
 
