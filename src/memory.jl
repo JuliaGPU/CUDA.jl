@@ -11,7 +11,7 @@ function cualloc{T, N<:Integer}(::Type{T}, len::N=1)
     end
     ptr_ref = Ref{Ptr{Void}}()
     nbytes = len * sizeof(T)
-    if nbytes < 0
+    if nbytes <= 0
         throw(ArgumentError("Cannot allocate $nbytes bytes of memory"))
     end
     @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, nbytes)
