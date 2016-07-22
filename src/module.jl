@@ -3,7 +3,7 @@
 import Base: eltype, unsafe_convert
 
 export
-    CuModule, CuModuleFile, CuModuleData, unload,
+    CuModule, CuModuleFile, unload,
     CuFunction,
     CuGlobal, get, set
 
@@ -14,38 +14,11 @@ export
 
 typealias CuModule_t Ptr{Void}
 
-abstract CuModule
-
-immutable CuModuleFile <: CuModule
-    handle::CuModule_t
-
-    "Create a CUDA module from a file containing PTX code. Note that this method has limited error reporting due to CUDA restrictions, use CuModuleData if you require debug information or error diagnostics."
-    function CuModuleFile(path)
-        handle_ref = Ref{CuModule_t}()
-
-        @apicall(:cuModuleLoad, (Ptr{CuModule_t}, Ptr{Cchar}), handle_ref, path)
-
-        new(handle_ref[])
-    end
-end
-
-# do syntax, f(module)
-function CuModuleFile(f::Function, path::AbstractString)
-    mod = CuModuleFile(path)
-    local ret
-    try
-        ret = f(mod)
-    finally
-        unload(mod)
-    end
-    ret
-end
-
-immutable CuModuleData <: CuModule
+immutable CuModule
     handle::CuModule_t
 
     "Create a CUDA module from a string containing PTX code."
-    function CuModuleData(data)
+    function CuModule(data)
         handle_ref = Ref{CuModule_t}()
 
         options = Dict{CUjit_option,Any}()
@@ -88,6 +61,21 @@ unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
 "Unload a CUDA module."
 function unload(mod::CuModule)
     @apicall(:cuModuleUnload, (CuModule_t,), mod.handle)
+end
+
+"Create a CUDA module from a file containing PTX code. Note that for improved error reporting, this does not rely on the corresponding CUDA driver call, yet opens the file from within Julia."
+CuModuleFile(path) = CuModule(open(readstring, path))
+
+# do syntax, f(module)
+function CuModuleFile(f::Function, path::AbstractString)
+    mod = CuModuleFile(path)
+    local ret
+    try
+        ret = f(mod)
+    finally
+        unload(mod)
+    end
+    ret
 end
 
 

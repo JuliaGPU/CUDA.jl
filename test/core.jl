@@ -168,13 +168,13 @@ let
     f = open(joinpath(Base.source_dir(), "vectorops.ptx"))
     ptx = readstring(f)
 
-    md = CuModuleData(ptx)
+    md = CuModule(ptx)
     vadd = CuFunction(md, "vadd")
     unload(md)
 end
 
 try
-    CuModuleData("foobar")
+    CuModule("foobar")
 catch ex
     ex == CUDAdrv.ERROR_INVALID_IMAGE  || rethrow(ex)
 end
