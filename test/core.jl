@@ -33,9 +33,15 @@ ctx = CuContext(dev)
 
 ## pointer
 
+# construction
 DevicePtr{Void}()
 @test_throws InexactError DevicePtr{Void}(C_NULL)
-DevicePtr{Void}(C_NULL, true)
+
+# conversion
+Base.unsafe_convert(DevicePtr{Void}, C_NULL)
+Base.unsafe_convert(Ptr{Void}, DevicePtr{Void}())
+@test_throws InexactError convert(Ptr{Void}, DevicePtr{Void}())
+@test_throws InexactError convert(DevicePtr{Void}, C_NULL)
 
 let
     nullptr = DevicePtr{Void}()
@@ -126,7 +132,7 @@ end
 let
     # Inner constructors
     CuArray{Int,1}((1,))
-    CuArray{Int,1}((1,), DevicePtr{Int}(C_NULL, true))
+    CuArray{Int,1}((1,), DevicePtr{Int}())
 
     # Outer constructors
     CuArray{Int}(1)

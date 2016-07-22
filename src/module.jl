@@ -119,7 +119,7 @@ immutable CuGlobal{T}
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
         @assert nbytes_ref[] == sizeof(T)
-        new(DevicePtr{Void}(ptr_ref[], true), nbytes_ref[])
+        new(unsafe_convert(DevicePtr{Void}, ptr_ref[]), nbytes_ref[])
     end
 end
 

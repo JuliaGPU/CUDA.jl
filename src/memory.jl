@@ -15,7 +15,7 @@ function cualloc{T, N<:Integer}(::Type{T}, len::N=1)
         throw(ArgumentError("Cannot allocate $nbytes bytes of memory"))
     end
     @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, nbytes)
-    return DevicePtr{T}(reinterpret(Ptr{T}, ptr_ref[]), true)
+    return unsafe_convert(DevicePtr{T}, reinterpret(Ptr{T}, ptr_ref[]))
 end
 
 cumemset(p::DevicePtr, value::Cuint, len::Integer) = 

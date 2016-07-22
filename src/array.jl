@@ -29,11 +29,10 @@ type CuArray{T,N} <: AbstractArray{T,N}
     end
 end
 
-# parameterless constructors
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
-# deprecated parameterless constructors
+# deprecated
 CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 CuArray{T}(::Type{T}, len::Int)               = CuArray{T,1}((len,))
 
