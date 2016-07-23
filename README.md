@@ -13,15 +13,11 @@ requires a version of Julia capable of generating PTX code, such as
 ## Setup
 
 1. Install the NVIDIA driver, and make sure `libcuda` is in your library loading
-   path. If NVIDIA hardware is unavailable, you can use the [GPU Ocelot
-   emulator](https://github.com/maleadt/gpuocelot) instead, but note that this
-   emulator is not actively maintained and many API functions are not (properly)
-   implemented.
+   path.
 
-2. Install the CUDA toolkit (not all versions are supported, you might need to
-   install an older version). This is independent from whether you're using the
-   NVIDIA driver or GPU Ocelot emulator. If you want to run the test suite, make
-   sure the location of `nvcc` is part of your `PATH` environment variable.
+2. Install the CUDA toolkit (not all versions are supported, you might need to install an
+   older version). If you want to run the test suite, make sure `nvcc` is discoverable (ie.
+   part of your path).
 
 3. Install a version of Julia with PTX support, and use that `julia` binary for
    all future steps.
