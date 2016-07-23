@@ -10,10 +10,6 @@ function load_library()
         return (Libdl.dlopen(@static is_windows() ? "nvcuda.dll" : "libcuda"), "NVIDIA")
     end
 
-    try
-        return (Libdl.dlopen("libocelot"), "Ocelot")
-    end
-
     error("Could not load CUDA (or any compatible) library")
 end
 
