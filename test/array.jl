@@ -1,10 +1,15 @@
 dims = (16, 16)
 len = prod(dims)
 
-@target ptx function array_copy(input, output)
+## basics (argument passing, get and setindex, length)
+
+@target ptx function array_copy(input::CuDeviceArray{Float32},
+                                output::CuDeviceArray{Float32})
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
 
-    output[i] = input[i]
+    if i <= length(input)
+        output[i] = Float64(input[i])   # force conversion upon setindex!
+    end
 
     return nothing
 end
@@ -22,3 +27,33 @@ let
     free(input_dev)
     free(output_dev)
 end
+
+
+## views
+
+@target ptx function array_view(array)
+    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+
+    sub = view(array, 2:length(array)-1)
+    if i <= length(sub)
+        sub[i] = i
+    end
+
+    return nothing
+end
+
+let
+    array = zeros(Int64, 100)
+    array_dev = CuArray(array)
+
+    sub = view(array, 2:length(array)-1)
+    for i in 1:length(sub)
+        sub[i] = i
+    end
+
+    @cuda (100, 1) array_view(array_dev)
+    @test array == Array(array_dev)
+
+    free(array_dev)
+end
+

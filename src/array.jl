@@ -56,7 +56,7 @@ immutable CuBoundsError <: Exception end
 import Base: unsafe_view, ViewIndex
 @target ptx function unsafe_view{T}(A::CuDeviceArray{T,1}, I::Vararg{ViewIndex,1})
     Base.@_inline_meta
-    ptr = Ptr{T}(A.ptr + I[1].start*sizeof(T), true)
-    len = I[1].stop - I[1].start
-    CuDeviceArray{T,1}(len, ptr)
+    ptr = unsafe_convert(Ptr{T}, A) + (I[1].start-1)*sizeof(T)
+    len = I[1].stop - I[1].start + 1
+    CuDeviceArray(len, ptr)
 end

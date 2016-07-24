@@ -70,7 +70,7 @@ let
 end
 
 # same, but using a device function
-@target ptx @noinline function array_lastvalue_devfun(a, x)
+@target ptx @noinline function ptr_lastvalue_devfun(a, x)
     i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
     max = gridDim().x * blockDim().x
     if i == max
@@ -90,7 +90,7 @@ let
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (len, 1) array_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
+    @cuda (len, 1) ptr_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
