@@ -38,7 +38,8 @@
 * Verify the dimension calculations in the tests and examples (cfr. blackscholes slowdown)
 
 
-# Ideas
+# Optimizations
 
-* Additional specialization: when invoking a kernel with constant dimension
-  config, remove the intrinsic lookups and specialize for that configuration.
+* Specialization on kernel size (possibly only when specifying constant dimensions): replace
+  calls to dimension intrinsics with constants, and avoid branches (eg. bounds checks) by
+  combining constant dimensions with proper `!range` metadata on index intrinsics.
