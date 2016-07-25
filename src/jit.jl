@@ -14,6 +14,12 @@
                     GENERATE_LINE_INFO,
                     CACHE_MODE)
 
+@enum(CUjit_input, CUBIN = Cint(0),
+                   PTX,
+                   FATBINARY,
+                   OBJECT,
+                   LIBRARY)
+
 function convert_bits{T}(::Type{T}, data::UInt)
     if sizeof(data) == sizeof(T)
         return reinterpret(T, data)

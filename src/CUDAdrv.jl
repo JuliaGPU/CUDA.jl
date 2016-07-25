@@ -18,6 +18,7 @@ include("module.jl")
 include("stream.jl")
 include("execution.jl")
 include("jit.jl")
+include("linker.jl")
 include("events.jl")
 include("profile.jl")
 
