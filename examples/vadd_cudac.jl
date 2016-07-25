@@ -7,7 +7,7 @@ ctx = CuContext(dev)
 @compile dev kernel_vadd """
 __global__ void kernel_vadd(const float *a, const float *b, float *c)
 {
-    int i = blockIdx.x *blockDim.x + threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
     c[i] = a[i] + b[i];
 }
 """
@@ -21,7 +21,7 @@ d_b = CuArray(b)
 d_c = CuArray(Float32, dims)
 
 len = prod(dims)
-@cuda (len,1) kernel_vadd(d_a, d_b, d_c)
+@cuda (1,len) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
 @test a+b ≈ c
 

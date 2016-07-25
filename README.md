@@ -42,7 +42,7 @@ First you have to write the computation kernel and mark it `@target ptx`:
 using CUDAnative
 
 @target ptx function kernel_vadd(a, b, c)
-    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     c[i] = a[i] + b[i]
 
     return nothing
@@ -74,7 +74,7 @@ d_c = CuArray(Float32, (3, 4))
 
 # run the kernel and fetch results
 # syntax: @cuda (dims...) kernel(args...)
-@cuda (12, 1) kernel_vadd(d_a, d_b, d_c)
+@cuda (1,12) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
 
 # print the results

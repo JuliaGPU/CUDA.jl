@@ -44,7 +44,8 @@ len = prod(dims)
 @compile dev kernel_copy """
 __global__ void kernel_copy(const float *input, float *output)
 {
-    int i = threadIdx.x + blockIdx.x * blockDim.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
     output[i] = input[i];
 }
 """
@@ -55,7 +56,7 @@ let
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
 
-    @cuda (len, 1) kernel_copy(input_dev.ptr, output_dev.ptr)
+    @cuda (1,len) kernel_copy(input_dev.ptr, output_dev.ptr)
     output = Array(output_dev)
     @test input ≈ output
 

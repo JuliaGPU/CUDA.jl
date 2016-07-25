@@ -10,11 +10,11 @@ ctx = CuContext(dev)
 a = CuArray(Float32, 10)
 
 @target ptx function memset(a, val)
-    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
-    a[i] = 0f0
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    a[i] = val
     return nothing
 end
 
-@cuda (11,1) memset(a, 0f0)
+@cuda (1,11) memset(a, 0f0)
 
 destroy(ctx)

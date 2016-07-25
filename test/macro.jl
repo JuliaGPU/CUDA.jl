@@ -24,7 +24,7 @@ dims = (16, 16)
 len = prod(dims)
 
 @target ptx function ptr_copy(input, output)
-    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
     val = unsafe_load(input, i)
     unsafe_store!(output, val, i)
@@ -39,7 +39,7 @@ let
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
 
-    @cuda (len, 1) ptr_copy(input_dev.ptr, output_dev.ptr)
+    @cuda (1,len) ptr_copy(input_dev.ptr, output_dev.ptr)
     output = Array(output_dev)
     @test input ≈ output
 
@@ -49,7 +49,7 @@ end
 
 # scalar through single-value array
 @target ptx function ptr_lastvalue(a, x)
-    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     max = gridDim().x * blockDim().x
     if i == max
         val = unsafe_load(a, i)
@@ -65,13 +65,13 @@ let
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (len, 1) ptr_lastvalue(arr_dev.ptr, val_dev.ptr)
+    @cuda (1,len) ptr_lastvalue(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 # same, but using a device function
 @target ptx @noinline function ptr_lastvalue_devfun(a, x)
-    i = blockIdx().x +  (threadIdx().x-1) * gridDim().x
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     max = gridDim().x * blockDim().x
     if i == max
         val = lastvalue_devfun(a, i)
@@ -90,7 +90,7 @@ let
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (len, 1) ptr_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
+    @cuda (1,len) ptr_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -107,12 +107,12 @@ let
     immutable Ghost end
 
     @target ptx function map_inner(ghost, a, b, c)
-        i = blockIdx().x + (threadIdx().x-1) * gridDim().x
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         unsafe_store!(c, unsafe_load(a,i)+unsafe_load(b,i), i)
 
         return nothing
     end
-    @cuda (len, 1) map_inner(Ghost(), d_a.ptr, d_b.ptr, d_c.ptr)
+    @cuda (1,len) map_inner(Ghost(), d_a.ptr, d_b.ptr, d_c.ptr)
 
     c = Array(d_c)
     @test a+b == c
