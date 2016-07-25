@@ -30,20 +30,20 @@ immutable CuModule
             options[INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
             options[LOG_VERBOSE] = true
         end
-        optionKeys, optionValues = encode(options)
+        optionKeys, optionVals = encode(options)
 
         try
             @apicall(:cuModuleLoadDataEx,
-                    (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ref{CUjit_option}, Ref{Ptr{Void}}),
-                    handle_ref, data, length(optionKeys), optionKeys, optionValues)
+                    (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
+                    handle_ref, data, length(optionKeys), optionKeys, optionVals)
         catch err
             (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
-            options = decode(optionKeys, optionValues)
+            options = decode(optionKeys, optionVals)
             rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
         end
 
-        if DEBUG
-            options = decode(optionKeys, optionValues)
+        @static if DEBUG
+            options = decode(optionKeys, optionVals)
             if isempty(options[INFO_LOG_BUFFER])
                 debug("JIT info log is empty")
             else

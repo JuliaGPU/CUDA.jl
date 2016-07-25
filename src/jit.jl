@@ -85,14 +85,12 @@ function decode(keys::Array{CUjit_option,1}, vals::Array{Ptr{Void}, 1})
         buf = options[INFO_LOG_BUFFER]
         size = options[INFO_LOG_BUFFER_SIZE_BYTES]
         delete!(options, INFO_LOG_BUFFER_SIZE_BYTES)
-        # NOTE: we allocated buf as part of encode(), so no need to free
         options[INFO_LOG_BUFFER] = unsafe_string(buf, Int(size / sizeof(UInt8)))
     end
     if haskey(options, ERROR_LOG_BUFFER)
         buf = options[ERROR_LOG_BUFFER]
         size = options[ERROR_LOG_BUFFER_SIZE_BYTES]
         delete!(options, ERROR_LOG_BUFFER_SIZE_BYTES)
-        # NOTE: we allocated buf as part of encode(), so no need to free
         options[ERROR_LOG_BUFFER] = unsafe_string(buf, Int(size / sizeof(UInt8)))
     end
 
