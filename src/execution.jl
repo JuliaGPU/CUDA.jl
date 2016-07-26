@@ -4,7 +4,7 @@ export
     @cuda
 
 # Convenience macro to support a naturally looking call
-# eg. @cuda (len, 1) kernel_foo(bar)
+# eg. @cuda (1,len) kernel_foo(bar)
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 3)
