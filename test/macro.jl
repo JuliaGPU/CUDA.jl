@@ -1,21 +1,33 @@
 @target ptx do_nothing() = return nothing
 
-@test_throws UndefVarError @cuda (1, 1) undefined_kernel()
+@test_throws UndefVarError @cuda (1,1) undefined_kernel()
 
 # kernel dims
-@cuda (1, 1) do_nothing()
-@test_throws ArgumentError @cuda (0, 0) do_nothing()
+@cuda (1,1) do_nothing()
+@test_throws ArgumentError @cuda (0,0) do_nothing()
 
 # external kernel
 module KernelModule
     export do_more_nothing
     @target ptx do_more_nothing() = return nothing
 end
-@cuda (1, 1) KernelModule.do_more_nothing()
+@cuda (1,1) KernelModule.do_more_nothing()
 @eval begin
     using KernelModule
-    @cuda (1, 1) do_more_nothing()
+    @cuda (1,1) do_more_nothing()
 end
+
+
+## return values
+
+@target ptx retint() = return 1
+@test_throws ErrorException @cuda (1,1) retint()
+
+@target ptx function call_retint()
+    retint()
+    return nothing
+end
+@cuda (1,1) call_retint()
 
 
 ## argument passing

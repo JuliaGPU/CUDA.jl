@@ -37,15 +37,6 @@ ir = sprint(io->code_llvm(io, throw_exception, ()))
 @test !contains(ir, "jl_value_t")
 @test !contains(ir, "jl_throw")
 
-# return values
-@target ptx retint() = return 1
-@test_throws ErrorException code_native(DevNull, retint, ())
-@target ptx function call_retint()
-    retint()
-    return nothing
-end
-code_native(DevNull, call_retint, ())
-
 # delayed binding lookup (due to noexisting global)
 @target ptx ref_nonexisting() = nonexisting
 @test_throws ErrorException code_native(DevNull, ref_nonexisting, ())
