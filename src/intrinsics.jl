@@ -249,8 +249,8 @@ for typ in ((Int32,   :i32, :i32),
             @eval begin
                 export $fname
                 @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = Base.llvmcall(
-                        $"""%4 = call $llvm asm sideeffect \"$instruction \$0, \$1, \$2, \$3;\", \"=r,r,r,r\"($llvm %0, i32 %1, i32 %2)
-                            ret $llvm %4""",
+                        $"""%4 = call $llvm asm sideeffect "$instruction \$0, \$1, \$2, \$3;", "=r,r,r,r"($llvm %0, i32 %1, i32 %2)
+                            ret $llvm %4""",    # "
                         $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
                         $pack_expr)
             end
