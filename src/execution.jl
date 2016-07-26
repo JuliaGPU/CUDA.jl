@@ -51,84 +51,73 @@ function physical_type(argtype::DataType)
     return cgtype::Type, calltype::Type
 end
 
-function compile_function{F<:Function}(ftype::Type{F}, types::Vector{DataType})
-    debug("Compiling $ftype($(types...))")
-
-    # Try to get a hold of the original function
-    # NOTE: this doesn't work for closures, as there can be multiple instances
-    #       with each a different environment
-    f = Nullable{Function}()
-    try
-        f = Nullable{Function}(ftype.instance)
-    end
+function compile_function{F<:Function}(func::F, types::Vector{DataType})    # TODO: make types tuple?
+    debug("Compiling $func($(types...))")
 
     @static if TRACE
-        if !isnull(f)
-            # Generate a safe and unique name
-            function_uid = "$(get(f))-"
-            if length(types) > 0
-                function_uid *= join([replace(string(x), r"\W", "") for x in types], '.')
-            else
-                function_uid *= "Void"
-            end
-
-            # Dump the typed AST
-            buf = IOBuffer()
-            code_warntype(buf, get(f), types)
-            ast = String(buf)
-
-            output = "$(dumpdir[])/$function_uid.jl"
-            trace("Writing kernel AST to $output")
-            open(output, "w") do io
-                write(io, ast)
-            end
+        # Generate a safe and unique name
+        function_uid = "$func-"
+        if length(types) > 0
+            function_uid *= join([replace(string(x), r"\W", "") for x in types], '.')
+        else
+            function_uid *= "Void"
         end
+
+        # Dump the typed AST
+        buf = IOBuffer()
+        code_warntype(buf, func, types)
+        ast = String(buf)
+
+        output = "$(dumpdir[])/$function_uid.jl"
+        trace("Writing kernel AST to $output")
+        open(output, "w") do io
+            write(io, ast)
+        end
+    end
+
+    # Check method validity
+    tt = tuple(types...)
+    ml = Base.methods(func, tt)
+    if length(ml) == 0
+        error("no method found for kernel $func($(types...))")
+    elseif length(ml) > 1
+        # TODO: when does this happen?
+        error("ambiguous call to kernel $func($(types...))")
+    end
+    rt = Base.return_types(func, tt)[1]
+    if rt != Void
+        error("cannot call $func($(types...)) with @cuda as it returns $rt")
     end
 
     # Generate LLVM IR
-    # NOTE: this is lifted from reflection.jl::_dump_function
-    t = Base.tt_cons(ftype, Base.to_tuple_type(types))
-    # Next call will trigger compilation (if necessary)
-    llvmf = ccall(:jl_get_llvmf, Ptr{Void}, (Any, Bool, Bool), t, false, true)
-    if llvmf == C_NULL
-        error("no method found for kernel $ftype($(types...))")
+    @static if TRACE
+        module_llvm = sprint(io->code_llvm(io, func, tt, #=strip_di=#false, #=entire_module=#true))
+
+        output = "$(dumpdir[])/$function_uid.ll"
+        trace("Writing kernel LLVM IR to $output")
+        open(output, "w") do io
+            write(io, module_llvm)
+        end
     end
 
     # Generate (PTX) assembly
-    module_asm = ccall(:jl_dump_function_asm, Any, (Ptr{Void},Cint), llvmf, 0)::String
+    module_asm = sprint(io->code_native(io, func, tt))
+    @static if TRACE
+        output = "$(dumpdir[])/$function_uid.ptx"
+        trace("Writing kernel PTX assembly to $output")
+        open(output, "w") do io
+            write(io, module_asm)
+        end
+    end
 
     # Get entry point
+    # TODO: get rid of the llvmf (lifted from reflection.jl)
+    llvmf = ccall(:jl_get_llvmf, Ptr{Void},
+                 (Any, Bool, Bool),
+                 Base.tt_cons(typeof(func), tt), false, true)
     module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::String
-
     trace("Function entry point: $module_entry")
 
-    # Dump the LLVM IR
-    @static if TRACE
-        if !isnull(f)
-            buf = IOBuffer()
-            code_llvm(buf, get(f), types, #=strip_di=#false, #=entire_module=#true)
-            module_llvm = String(buf)
-
-            output = "$(dumpdir[])/$function_uid.ll"
-            trace("Writing kernel LLVM IR to $output")
-            open(output, "w") do io
-                write(io, module_llvm)
-            end
-        end
-    end
-
-    # Dump the PTX assembly
-    @static if TRACE
-        if !isnull(f)   # function_uid depends on having a function instance
-            output = "$(dumpdir[])/$function_uid.ptx"
-            trace("Writing kernel PTX assembly to $output")
-            open(output, "w") do io
-                write(io, module_asm)
-            end
-        end
-    end
-
-    # Return module & module entry containing function
     return (module_asm, module_entry)
 end
 
@@ -213,7 +202,7 @@ end
 # Compile a kernel and generate a cudacall
 const func_cache = Dict{UInt, CuFunction}()
 @generated function generate_cudacall{F<:Function}(config::Tuple{CuDim, CuDim, Int},
-                                                   ftype::F, argspec...)
+                                                   func::F, argspec...)
     args, cgtypes, calltypes = decode_arguments(argspec)
 
     kernel_allocations, args = create_allocations(args, cgtypes, calltypes)
@@ -224,12 +213,12 @@ const func_cache = Dict{UInt, CuFunction}()
     concrete_args      = map(x->x[2], filter(x->x[1], zip(concrete, args)))
 
     @gensym cuda_fun
-    key = hash((ftype, cgtypes...))
+    key = hash((func, cgtypes...))
     kernel_compilation = quote
         if (haskey(CUDAnative.func_cache, $key))
             $cuda_fun = CUDAnative.func_cache[$key]
         else
-            (module_asm, module_entry) = CUDAnative.compile_function($ftype, $cgtypes)
+            (module_asm, module_entry) = CUDAnative.compile_function(func, $cgtypes)
             cuda_mod = CuModule(module_asm)
             $cuda_fun = CuFunction(cuda_mod, module_entry)
             CUDAnative.func_cache[$key] = $cuda_fun
