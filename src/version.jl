@@ -49,18 +49,32 @@ function api_versioning(mapping, version)
         mapping[:cuTexRefSetAddress]         = :cuTexRefSetAddress_v2
         mapping[:cuTexRefGetAddress]         = :cuTexRefGetAddress_v2
         mapping[:cuGraphicsResourceGetMappedPointer] = :cuGraphicsResourceGetMappedPointer_v2
-        mapping[:cuDeviceTotalMem]           = :cuDeviceTotalMem_v2
-        mapping[:cuCtxCreate]                = :cuCtxCreate_v2
-        mapping[:cuMemAlloc]                 = :cuMemAlloc_v2
-        mapping[:cuMemcpyHtoD]               = :cuMemcpyHtoD_v2
-        mapping[:cuMemcpyDtoH]               = :cuMemcpyDtoH_v2
-        mapping[:cuMemFree]                  = :cuMemFree_v2
-        mapping[:cuModuleGetGlobal]          = :cuModuleGetGlobal_v2
-        mapping[:cuMemsetD32]                = :cuMemsetD32_v2
     end
+
     if version >= 4000
         mapping[:cuCtxDestroy]               = :cuCtxDestroy_v2
-        mapping[:cuCtxPushCurrent]           = :cuCtxPushCurrent_v2
         mapping[:cuCtxPopCurrent]            = :cuCtxPopCurrent_v2
+        mapping[:cuCtxPushCurrent]           = :cuCtxPushCurrent_v2
+        mapping[:cuStreamDestroy]            = :cuStreamDestroy_v2
+        mapping[:cuEventDestroy]             = :cuEventDestroy_v2
+    end
+
+    if version >= 4010
+        mapping[:cuTexRefSetAddress2D]       = :cuTexRefSetAddress2D_v3
+    end
+
+    if version >= 6050
+        mapping[:cuLinkCreate]              = :cuLinkCreate_v2
+        mapping[:cuLinkAddData]             = :cuLinkAddData_v2
+        mapping[:cuLinkAddFile]             = :cuLinkAddFile_v2
+    end
+
+    if version >= 6050
+        mapping[:cuMemHostRegister]         = :cuMemHostRegister_v2
+        mapping[:cuGraphicsResourceSetMapFlags] = :cuGraphicsResourceSetMapFlags_v2
+    end
+
+    if version >= 3020 && version < 4010
+        mapping[:cuTexRefSetAddress2D]      = :cuTexRefSetAddress2D_v2
     end
 end
