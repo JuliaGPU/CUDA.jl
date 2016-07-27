@@ -2,9 +2,12 @@
 
 import Base: get
 
-# TODO: put this in __init__ (cfr CPU_CORES)
+
+#
+# API call wrapper
+#
+
 const libcuda = Ref{Ptr{Void}}()
-const libcuda_vendor = Ref{String}()
 function load_library()
     try
         return (Libdl.dlopen(@static is_windows() ? "nvcuda.dll" : "libcuda"), "NVIDIA")
@@ -13,7 +16,9 @@ function load_library()
     error("Could not load CUDA (or any compatible) library")
 end
 
-# API call wrapper
+const api_mapping = Dict{Symbol,Symbol}()
+resolve(f::Symbol) = get(api_mapping, f, f)
+
 macro apicall(f, argtypes, args...)
     # Escape the tuple of arguments, making sure it is evaluated in caller scope
     # (there doesn't seem to be inline syntax like `$(esc(argtypes))` for this)
@@ -23,10 +28,6 @@ macro apicall(f, argtypes, args...)
 
     if !isa(f, Expr) || f.head != :quote
         error("first argument to @apicall should be a symbol")
-    end
-
-    @static if DEBUG
-        push!(blk.args, :(CUDAdrv.__lazy_init_base__($(sprint(Base.show_unquoted,f.args[1])))))
     end
 
     # Print the function name & arguments
@@ -70,50 +71,27 @@ macro apicall(f, argtypes, args...)
     return blk
 end
 
-const api_mapping = Dict{Symbol,Symbol}()
-resolve(f::Symbol) = get(api_mapping, f, f)
 
-function __init_base__()
+#
+# Initialization
+#
+
+const libcuda_vendor = Ref{String}()
+
+function __init_library__()
     (libcuda[], libcuda_vendor[]) = load_library()
 
     # Create mapping for versioned API calls
-    if haskey(ENV, "CUDA_FORCE_API_VERSION")
-        api_version = ENV["CUDA_FORCE_API_VERSION"]
-    else
-        api_version = version()
-    end
-    populate_funmap(api_mapping, api_version)
+    api_version = get(ENV, "CUDA_FORCE_API_VERSION", version())
+    api_versioning(api_mapping, api_version)
 
-    # Initialize the driver
     init()
-end
-
-if DEBUG
-    # when in debug mode, we initialize the library and driver lazily rather than eagerly
-    # for compatibility with environments where the driver can't be initialized (eg. rr)
-    const initialized = Ref{Bool}(false)
-    function __lazy_init_base__(reason)
-        if !initialized[]
-            trace("lazy-initializing because of call to $reason")
-            initialized[] = true
-            __init_base__()
-        end
-    end
 end
 
 function init()
     @apicall(:cuInit, (Cint,), 0)
 end
 
-function version()
-    version_ref = Ref{Cint}()
-    @apicall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
-    return version_ref[]
-end
-
 function vendor()
-    @static if DEBUG
-        __lazy_init_base__("vendor")
-    end
     return libcuda_vendor[]
 end

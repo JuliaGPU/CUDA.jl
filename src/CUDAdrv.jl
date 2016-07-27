@@ -5,14 +5,13 @@ module CUDAdrv
 using Compat
 import Compat.String
 
-# TODO: organize according to the CUDA Driver API reference
-
 include("util/logging.jl")
 
-include("errors.jl")
-include("funmap.jl")
-include("base.jl")
 include("pointer.jl")
+
+include("errors.jl")
+include("base.jl")
+include("version.jl")
 include("devices.jl")
 include("context.jl")
 include("module.jl")
@@ -27,9 +26,7 @@ include("array.jl")
 
 function __init__()
     __init_logging__()
-    @static if !DEBUG
-        __init_base__()
-    end
+    __init_library__()
 end
 
 
