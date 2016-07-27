@@ -30,6 +30,25 @@ function repr_indented(ex; prefix=" "^7)
     print(io, ex)
     str = takebuf_string(io)
 
+    # Limit output
+    if length(str) > 256
+        if isa(ex, Array)
+            T = eltype(ex)
+            dims = join(size(ex), " by ")
+            if zeros(ex) == ex
+                str = "$T[$dims zeros]"
+            else
+                str = "$T[$dims elements]"
+            end
+        else
+            if contains(strip(str), "\n")
+                str = str[1:100] * "…\n\n[snip]\n\n…" * str[end-100:end]
+            else
+                str = str[1:100] * "…" * str[end-100:end]
+            end
+        end
+    end
+
     lines = split(strip(str), '\n')
     if length(lines) > 1
         for i = 1:length(lines)
