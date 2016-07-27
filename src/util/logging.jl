@@ -9,7 +9,7 @@ is set."
         end
     end
 end
-@inline trace(msg...; prefix="TRACE: ", line=true) = trace(STDERR, msg...; prefix=prefix, line=line)
+@inline trace(msg...; kwargs...) = trace(STDERR, msg...; kwargs...)
 
 global DEBUG = TRACE || haskey(ENV, "DEBUG")
 "Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
@@ -22,16 +22,16 @@ variable is set."
         end
     end
 end
-@inline debug(msg...; prefix="DEBUG: ", line=true) = debug(STDERR, msg...; prefix=prefix, line=line)
+@inline debug(msg...; kwargs...) = debug(STDERR, msg...; kwargs...)
 
 "Create an indented string from any value (instead of escaping endlines as \n)"
-function repr_indented(ex; prefix=" "^7)
+function repr_indented(ex; prefix=" "^7, abbrev=true)
     io = IOBuffer()
     print(io, ex)
     str = takebuf_string(io)
 
     # Limit output
-    if length(str) > 256
+    if abbrev && length(str) > 256
         if isa(ex, Array)
             T = eltype(ex)
             dims = join(size(ex), " by ")

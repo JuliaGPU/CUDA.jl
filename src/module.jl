@@ -43,7 +43,7 @@ immutable CuModule
             if isempty(options[INFO_LOG_BUFFER])
                 debug("JIT info log is empty")
             else
-                debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]))
+                debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]; abbrev=false))
             end
         end
 
