@@ -19,17 +19,16 @@ end
 
 unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
 
-record(e::CuEvent, stream=default_stream()) = 
-    @apicall(:cuEventRecord, (CuEvent_t, CuStream_t), e.handle, stream.handle)
+record(e::CuEvent, stream=default_stream()) =
+    @apicall(:cuEventRecord, (CuEvent_t, CuStream_t), e, stream)
 
-synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e.handle)
+synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e)
 
 function elapsed(start::CuEvent, stop::CuEvent)
     time_ref = Ref{Cfloat}()
-    @apicall(:cuEventElapsedTime, 
-        (Ptr{Cfloat}, CuEvent_t, CuEvent_t), 
-        time_ref, start.handle, stop.handle)
+    @apicall(:cuEventElapsedTime, (Ptr{Cfloat}, CuEvent_t, CuEvent_t),
+                                  time_ref, start, stop)
     return time_ref[]
 end
 
-destroy(e::CuEvent) = @apicall(:cuEventDestroy, (CuEvent_t,), e.handle)
+destroy(e::CuEvent) = @apicall(:cuEventDestroy, (CuEvent_t,), e)

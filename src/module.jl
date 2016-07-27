@@ -30,8 +30,8 @@ immutable CuModule
 
         try
             @apicall(:cuModuleLoadDataEx,
-                    (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
-                    handle_ref, data, length(optionKeys), optionKeys, optionVals)
+                     (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
+                     handle_ref, data, length(optionKeys), optionKeys, optionVals)
         catch err
             (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
             options = decode(optionKeys, optionVals)
@@ -55,7 +55,7 @@ unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
 
 "Unload a CUDA module."
 function unload(mod::CuModule)
-    @apicall(:cuModuleUnload, (CuModule_t,), mod.handle)
+    @apicall(:cuModuleUnload, (CuModule_t,), mod)
 end
 
 "Create a CUDA module from a file containing PTX code. Note that for improved error reporting, this does not rely on the corresponding CUDA driver call, yet opens the file from within Julia."

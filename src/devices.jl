@@ -1,6 +1,6 @@
 # Device type and auxiliary functions
 
-import Base: unsafe_convert, @deprecate_binding
+import Base: convert, @deprecate_binding
 
 export
     devcount,
@@ -29,14 +29,14 @@ immutable CuDevice
     end
 end
 
-unsafe_convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
+convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
 
 "Get the name of a CUDA device"
 function name(dev::CuDevice)
     const buflen = 256
     buf = Array(Cchar, buflen)
     @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CuDevice_t),
-                              buf, buflen, dev.handle)
+                               buf, buflen, dev)
     buf[end] = 0
     return unsafe_string(Ptr{UInt8}(pointer(buf)))
 end
@@ -44,7 +44,7 @@ end
 "Get the amount of GPU memory (in bytes) of a CUDA device"
 function totalmem(dev::CuDevice)
     mem_ref = Ref{Csize_t}()
-    @apicall(:cuDeviceTotalMem, (Ptr{Csize_t}, CuDevice_t), mem_ref, dev.handle)
+    @apicall(:cuDeviceTotalMem, (Ptr{Csize_t}, CuDevice_t), mem_ref, dev)
     return mem_ref[]
 end
 
@@ -146,7 +146,7 @@ Base.deprecate(:CAN_TEX2D_GATHER)
 function attribute(dev::CuDevice, attrcode::CUdevice_attribute)
     value_ref = Ref{Cint}()
     @apicall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, CuDevice_t),
-                                   value_ref, attrcode, dev.handle)
+                                    value_ref, attrcode, dev)
     return value_ref[]
 end
 
@@ -155,7 +155,7 @@ function capability(dev::CuDevice)
     major_ref = Ref{Cint}()
     minor_ref = Ref{Cint}()
     @apicall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, CuDevice_t),
-                                        major_ref, minor_ref, dev.handle)
+                                         major_ref, minor_ref, dev)
     return VersionNumber(major_ref[], minor_ref[])
 end
 

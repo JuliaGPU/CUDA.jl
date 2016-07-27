@@ -15,7 +15,7 @@ immutable CuFunction
     function CuFunction(mod::CuModule, name::String)
         handle_ref = Ref{CuFunction_t}()
         @apicall(:cuModuleGetFunction, (Ptr{CuFunction_t}, CuModule_t, Ptr{Cchar}),
-                                      handle_ref, mod.handle, name)
+                                       handle_ref, mod, name)
         new(handle_ref[])
     end
 end

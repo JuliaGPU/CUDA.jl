@@ -23,8 +23,8 @@ end
 
 CuStream() = CuStream(0)
 
-destroy(s::CuStream) = @apicall(:cuStreamDestroy, (CuStream_t,), s.handle)
+destroy(s::CuStream) = @apicall(:cuStreamDestroy, (CuStream_t,), s)
 
 default_stream() = CuStream(convert(CuStream_t, C_NULL))
 
-synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CuStream_t,), s.handle)
+synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CuStream_t,), s)

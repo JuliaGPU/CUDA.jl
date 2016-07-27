@@ -44,10 +44,10 @@ function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, args::Tuple;
         CuStream_t,				# stream
         Ptr{Ptr{Void}}, 		# kernel parameters
         Ptr{Ptr{Void}}), 		# extra parameters
-        f.handle,
+        f,
         griddim.x, griddim.y, griddim.z,
         blockdim.x, blockdim.y, blockdim.z,
-        shmem_bytes, stream.handle, args, C_NULL)
+        shmem_bytes, stream, args, C_NULL)
 end
 
 "ccall-like interface to launching a CUDA function on a GPU"

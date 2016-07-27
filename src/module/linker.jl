@@ -30,9 +30,8 @@ immutable CuLink
         end
         optionKeys, optionVals = encode(options)
 
-        @apicall(:cuLinkCreate,
-                (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}, Ptr{CuLinkState_t}),
-                length(optionKeys), optionKeys, optionVals, handle_ref)
+        @apicall(:cuLinkCreate, (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}, Ptr{CuLinkState_t}),
+                                length(optionKeys), optionKeys, optionVals, handle_ref)
 
         new(handle_ref[], options, optionKeys, optionVals)
     end
@@ -47,9 +46,8 @@ function complete(link::CuLink)
     size_ref = Ref{Csize_t}()
 
     try
-        @apicall(:cuLinkComplete,
-                (CuLinkState_t, Ptr{Ptr{Void}}, Ptr{Csize_t}),
-                link.handle, cubin_ref, size_ref)
+        @apicall(:cuLinkComplete, (CuLinkState_t, Ptr{Ptr{Void}}, Ptr{Csize_t}),
+                                  link, cubin_ref, size_ref)
     catch err
         (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
         options = decode(link.optionKeys, link.optionVals)
@@ -69,7 +67,7 @@ function complete(link::CuLink)
 end
 
 function destroy(link::CuLink)
-    @apicall(:cuLinkDestroy, (CuLinkState_t,), link.handle)
+    @apicall(:cuLinkDestroy, (CuLinkState_t,), link)
 end
 
 function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, typ::CUjit_input)
@@ -84,7 +82,7 @@ function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, 
 
     @apicall(:cuLinkAddData,
              (CuLinkState_t, CUjit_input, Ptr{Void}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
-             link.handle, typ, untyped_ptr, length(data), name, 0, C_NULL, C_NULL)
+             link, typ, untyped_ptr, length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
 end
@@ -92,7 +90,7 @@ end
 function addFile(link::CuLink, path::String, typ::CUjit_input)
     @apicall(:cuLinkAddFile,
              (CuLinkState_t, CUjit_input, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
-             link.handle, typ, path, 0, C_NULL, C_NULL)
+             link, typ, path, 0, C_NULL, C_NULL)
 
     return nothing
 end

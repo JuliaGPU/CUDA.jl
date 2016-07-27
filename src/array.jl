@@ -56,7 +56,7 @@ function copy!{T}(dst::Array{T}, src::CuArray{T})
     end
     nbytes = length(src) * sizeof(T)
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                           pointer(dst), src.ptr.inner, nbytes)
+                            pointer(dst), src.ptr.inner, nbytes)
     return dst
 end
 
@@ -67,7 +67,7 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
     end
     nbytes = length(src) * sizeof(T)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                           dst.ptr.inner, pointer(src), nbytes)
+                            dst.ptr.inner, pointer(src), nbytes)
     return dst
 end
 

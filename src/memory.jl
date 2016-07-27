@@ -29,6 +29,6 @@ function copy!{T}(dst::DevicePtr{T}, src::T)
         throw(ArgumentError("Only pointer-free types can be copied"))
     end
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                           dst.inner, pointer_from_objref(src), sizeof(T))
+                            dst.inner, pointer_from_objref(src), sizeof(T))
     return nothing
 end

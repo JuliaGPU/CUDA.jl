@@ -30,7 +30,7 @@ unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
 function CuContext(dev::CuDevice, flags::CUctx_flags)
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxCreate, (Ptr{CuContext_t}, Cuint, Cint),
-                          handle_ref, flags, dev.handle)
+                           handle_ref, flags, dev)
     CuContext(handle_ref[])
 end
 
@@ -38,7 +38,7 @@ CuContext(dev::CuDevice) = CuContext(dev, SCHED_AUTO)
 
 "Destroy the CUDA context, releasing resources allocated to it."
 function destroy(ctx::CuContext)
-    @apicall(:cuCtxDestroy, (CuContext_t,), ctx.handle)
+    @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
 end
 
 function current_context()
@@ -48,7 +48,7 @@ function current_context()
 end
 
 function push(ctx::CuContext)
-    @apicall(:cuCtxPushCurrent, (CuContext_t,), ctx.handle)
+    @apicall(:cuCtxPushCurrent, (CuContext_t,), ctx)
 end
 
 function pop()
@@ -70,4 +70,4 @@ function device(ctx::CuContext)
     return CuDevice(device_ref[])
 end
 
-synchronize(ctx::CuContext) = @apicall(:cuCtxSynchronize, (CuContext_t,), ctx.handle)
+synchronize(ctx::CuContext) = @apicall(:cuCtxSynchronize, (CuContext_t,), ctx)
