@@ -3,11 +3,34 @@
 function version()
     version_ref = Ref{Cint}()
     @apicall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
-    return version_ref[]
+
+    major = version_ref[] ÷ 1000
+    minor = mod(version_ref[], 100) ÷ 10
+
+    return VersionNumber(major, minor)
 end
 
-function api_versioning(mapping, version)
-    if version >= 3020
+
+#
+# API versioning
+#
+
+const mapping = Dict{Symbol,Symbol}()
+const minreq = Dict{Symbol,VersionNumber}()
+
+function resolve(f::Symbol)
+    global mapping, version_requirements
+    versioned_f = get(mapping, f, f)
+    if versioned_f == Symbol()
+        throw(CuVersionError(f, minreq[f]))
+    end
+    return versioned_f
+end
+
+function __init_versioning__(driver_version=version())  # NOTE: performs unversioned API call
+    ## Versioned API calls from cuda.h
+
+    if driver_version >= v"3.2"
         mapping[:cuDeviceTotalMem]           = :cuDeviceTotalMem_v2
         mapping[:cuCtxCreate]                = :cuCtxCreate_v2
         mapping[:cuModuleGetGlobal]          = :cuModuleGetGlobal_v2
@@ -51,7 +74,7 @@ function api_versioning(mapping, version)
         mapping[:cuGraphicsResourceGetMappedPointer] = :cuGraphicsResourceGetMappedPointer_v2
     end
 
-    if version >= 4000
+    if driver_version >= v"4.0"
         mapping[:cuCtxDestroy]               = :cuCtxDestroy_v2
         mapping[:cuCtxPopCurrent]            = :cuCtxPopCurrent_v2
         mapping[:cuCtxPushCurrent]           = :cuCtxPushCurrent_v2
@@ -59,22 +82,38 @@ function api_versioning(mapping, version)
         mapping[:cuEventDestroy]             = :cuEventDestroy_v2
     end
 
-    if version >= 4010
+    if driver_version >= v"4.1"
         mapping[:cuTexRefSetAddress2D]       = :cuTexRefSetAddress2D_v3
     end
 
-    if version >= 6050
+    if driver_version >= v"6.5"
         mapping[:cuLinkCreate]              = :cuLinkCreate_v2
         mapping[:cuLinkAddData]             = :cuLinkAddData_v2
         mapping[:cuLinkAddFile]             = :cuLinkAddFile_v2
     end
 
-    if version >= 6050
+    if driver_version >= v"6.5"
         mapping[:cuMemHostRegister]         = :cuMemHostRegister_v2
         mapping[:cuGraphicsResourceSetMapFlags] = :cuGraphicsResourceSetMapFlags_v2
     end
 
-    if version >= 3020 && version < 4010
+    if v"3.2" <= driver_version < v"4.1"
         mapping[:cuTexRefSetAddress2D]      = :cuTexRefSetAddress2D_v2
+    end
+
+
+    ## Version-dependent features
+
+    minreq[:cuLinkCreate]       = v"5.5"
+    minreq[:cuLinkDestroy]      = v"5.5"
+    minreq[:cuLinkComplete]     = v"5.5"
+    minreq[:cuLinkAddFile]      = v"5.5"
+    minreq[:cuLinkAddData]      = v"5.5"
+
+    # explicitly mark unavailable symbols, signaling `resolve` to error out
+    for (api_function, minimum_version) in minreq
+        if driver_version < minimum_version
+            mapping[api_function]      = Symbol()
+        end
     end
 end

@@ -16,9 +16,6 @@ function load_library()
     error("Could not load CUDA (or any compatible) library")
 end
 
-const api_mapping = Dict{Symbol,Symbol}()
-resolve(f::Symbol) = get(api_mapping, f, f)
-
 macro apicall(f, argtypes, args...)
     # Escape the tuple of arguments, making sure it is evaluated in caller scope
     # (there doesn't seem to be inline syntax like `$(esc(argtypes))` for this)
@@ -80,11 +77,7 @@ const libcuda_vendor = Ref{String}()
 
 function __init_library__()
     (libcuda[], libcuda_vendor[]) = load_library()
-
-    # Create mapping for versioned API calls
-    api_version = get(ENV, "CUDA_FORCE_API_VERSION", version())
-    api_versioning(api_mapping, api_version)
-
+    __init_versioning__()
     init()
 end
 
