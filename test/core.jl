@@ -3,34 +3,6 @@ using CUDAdrv
 using Compat
 
 
-## Base
-
-CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
-
-@test_throws ErrorException CUDAdrv.@apicall(:nonExisting, ())
-CUDAdrv.trace(prefix=" ")
-
-@test_throws ErrorException eval(
-    quote
-        foo = :bar
-        CUDAdrv.@apicall(foo, ())
-    end
-)
-
-typealias CuDevice_t Cint
-try
-    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), Ref{CuDevice_t}(), devcount())
-catch e
-    e == CUDAdrv.ERROR_INVALID_DEVICE || rethrow(e)
-end
-
-CUDAdrv.vendor()
-CUDAdrv.version()
-
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
-
 ## pointer
 
 # construction
@@ -55,39 +27,7 @@ let
 end
 
 
-## CuContext
-
-@test device(ctx) == dev
-synchronize(ctx)
-
-let
-    ctx2 = CuContext(dev)       # implicitly pushes
-    @test current_context() == ctx2
-    @test_throws ArgumentError device(ctx)
-
-    push(ctx)
-    @test current_context() == ctx
-
-    pop()
-    @test current_context() == ctx2
-
-    pop()
-    @test current_context() == ctx
-
-    destroy(ctx2)
-end
-
-
-## CuDevice
-
-name(dev)
-totalmem(dev)
-attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
-capability(dev)
-list_devices()
-
-
-## CuError
+## errors
 
 let
     ex = CuError(0)
@@ -113,61 +53,71 @@ let
 end
 
 
-## CuEvent
+## base
+
+CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
+
+@test_throws ErrorException CUDAdrv.@apicall(:nonExisting, ())
+CUDAdrv.trace(prefix=" ")
+
+@test_throws ErrorException eval(
+    quote
+        foo = :bar
+        CUDAdrv.@apicall(foo, ())
+    end
+)
+
+typealias CuDevice_t Cint
+try
+    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), Ref{CuDevice_t}(), devcount())
+catch e
+    e == CUDAdrv.ERROR_INVALID_DEVICE || rethrow(e)
+end
+
+CUDAdrv.vendor()
+
+dev = CuDevice(0)
+ctx = CuContext(dev)
+
+
+## version
+
+CUDAdrv.version()
+
+
+## devices
+
+name(dev)
+totalmem(dev)
+attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
+capability(dev)
+list_devices()
+
+
+## context
+
+@test device(ctx) == dev
+synchronize(ctx)
 
 let
-    start = CuEvent()
-    stop = CuEvent()
-    record(start)
-    record(stop)
-    synchronize(stop)
-    @test elapsed(start, stop) > 0
-    destroy(start)
-    destroy(stop)
+    ctx2 = CuContext(dev)       # implicitly pushes
+    @test current_context() == ctx2
+    @test_throws ArgumentError device(ctx)
+
+    push(ctx)
+    @test current_context() == ctx
+
+    pop()
+    @test current_context() == ctx2
+
+    pop()
+    @test current_context() == ctx
+
+    destroy(ctx2)
 end
 
 
-## CuArray
-
-let
-    # Inner constructors
-    CuArray{Int,1}((1,))
-    CuArray{Int,1}((1,), DevicePtr{Int}())
-
-    # Outer constructors
-    CuArray{Int}(1)
-    CuArray{Int}((1,2))
-    CuArray(Int, 1)
-    CuArray(Int, (1,2))
-
-    # Negative test cases
-    a = rand(Float32, 10)
-    ad = CuArray(Float32, 5)
-    @test_throws ArgumentError copy!(ad, a)
-    @test_throws ArgumentError copy!(a, ad)
-
-    # Utility
-    @test ndims(ad) == 1
-    @test size(ad, 1) == 5
-    @test size(ad, 2) == 1
-    @test eltype(ad) == Float32
-    @test eltype(typeof(ad)) == Float32
-
-    free(ad)
-end
-
-let
-    # ghost type
-    @test_throws ArgumentError CuArray([x->x*x for i=1:10])
-
-    # non-isbits elements
-    @test_throws ArgumentError CuArray(["foobar" for i=1:10])
-    @test_throws ArgumentError CuArray(Function, 10)
-    @test_throws ArgumentError CuArray(Function, (10, 10))
-end
-
-
-## CuModule
+## module
 
 let
     md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
@@ -210,23 +160,7 @@ let
 end
 
 
-## CuProfile
-
-@cuprofile begin end
-
-
-## CuStream
-
-let
-    s = CuStream()
-    synchronize(s)
-    destroy(s)
-
-    synchronize(default_stream())
-end
-
-
-## memory handling
+## memory
 
 let
     ptr = cualloc(Int, 1)
@@ -269,7 +203,18 @@ let
 end
 
 
-## PTX loading & execution
+## stream
+
+let
+    s = CuStream()
+    synchronize(s)
+    destroy(s)
+
+    synchronize(default_stream())
+end
+
+
+## execution
 
 let
     @test CUDAdrv.CuDim3((3,2,1)) == CUDAdrv.CuDim3(3,2,1)
@@ -333,6 +278,65 @@ let
     free(bd)
     unload(md)
 end
+
+
+## events
+
+let
+    start = CuEvent()
+    stop = CuEvent()
+    record(start)
+    record(stop)
+    synchronize(stop)
+    @test elapsed(start, stop) > 0
+    destroy(start)
+    destroy(stop)
+end
+
+
+## array
+
+let
+    # Inner constructors
+    CuArray{Int,1}((1,))
+    CuArray{Int,1}((1,), DevicePtr{Int}())
+
+    # Outer constructors
+    CuArray{Int}(1)
+    CuArray{Int}((1,2))
+    CuArray(Int, 1)
+    CuArray(Int, (1,2))
+
+    # Negative test cases
+    a = rand(Float32, 10)
+    ad = CuArray(Float32, 5)
+    @test_throws ArgumentError copy!(ad, a)
+    @test_throws ArgumentError copy!(a, ad)
+
+    # Utility
+    @test ndims(ad) == 1
+    @test size(ad, 1) == 5
+    @test size(ad, 2) == 1
+    @test eltype(ad) == Float32
+    @test eltype(typeof(ad)) == Float32
+
+    free(ad)
+end
+
+let
+    # ghost type
+    @test_throws ArgumentError CuArray([x->x*x for i=1:10])
+
+    # non-isbits elements
+    @test_throws ArgumentError CuArray(["foobar" for i=1:10])
+    @test_throws ArgumentError CuArray(Function, 10)
+    @test_throws ArgumentError CuArray(Function, (10, 10))
+end
+
+
+## profile
+
+@cuprofile begin end
 
 
 destroy(ctx)
