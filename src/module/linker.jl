@@ -31,7 +31,7 @@ immutable CuLink
         optionKeys, optionVals = encode(options)
 
         @apicall(:cuLinkCreate,
-                (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}, Ptr{CuModule_t}),
+                (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}, Ptr{CuLinkState_t}),
                 length(optionKeys), optionKeys, optionVals, handle_ref)
 
         new(handle_ref[], options, optionKeys, optionVals)
@@ -48,7 +48,7 @@ function complete(link::CuLink)
 
     try
         @apicall(:cuLinkComplete,
-                (Ptr{CuLinkState_t}, Ptr{Ptr{Void}}, Ptr{Csize_t}),
+                (CuLinkState_t, Ptr{Ptr{Void}}, Ptr{Csize_t}),
                 link.handle, cubin_ref, size_ref)
     catch err
         (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
@@ -69,7 +69,7 @@ function complete(link::CuLink)
 end
 
 function destroy(link::CuLink)
-    @apicall(:cuLinkDestroy, (Ptr{CuLinkState_t},), link.handle)
+    @apicall(:cuLinkDestroy, (CuLinkState_t,), link.handle)
 end
 
 function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, typ::CUjit_input)
@@ -83,7 +83,7 @@ function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, 
     untyped_ptr = convert(Ptr{Void}, typed_ptr)
 
     @apicall(:cuLinkAddData,
-             (Ptr{CuLinkState_t}, CUjit_input, Ptr{Void}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
+             (CuLinkState_t, CUjit_input, Ptr{Void}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
              link.handle, typ, untyped_ptr, length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
@@ -91,7 +91,7 @@ end
 
 function addFile(link::CuLink, path::String, typ::CUjit_input)
     @apicall(:cuLinkAddFile,
-             (Ptr{CuLinkState_t}, CUjit_input, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
+             (CuLinkState_t, CUjit_input, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
              link.handle, typ, path, 0, C_NULL, C_NULL)
 
     return nothing
