@@ -1,16 +1,12 @@
 # Module-related types and auxiliary functions
 
-import Base: eltype, unsafe_convert
+import Base: unsafe_convert
 
 export
-    CuModule, CuModuleFile, unload,
-    CuFunction,
-    CuGlobal, get, set
+    CuModule, CuModuleFile, unload
 
+include("module/jit.jl")
 
-#
-# CUDA module
-#
 
 typealias CuModule_t Ptr{Void}
 
@@ -77,62 +73,6 @@ function CuModuleFile(f::Function, path::AbstractString)
     ret
 end
 
-
-#
-# CUDA function
-#
-
-typealias CuFunction_t Ptr{Void}
-
-immutable CuFunction
-    handle::CuFunction_t
-
-    "Get a handle to a kernel function in a CUDA module."
-    function CuFunction(mod::CuModule, name::String)
-        handle_ref = Ref{CuFunction_t}()
-        @apicall(:cuModuleGetFunction, (Ptr{CuFunction_t}, CuModule_t, Ptr{Cchar}),
-                                      handle_ref, mod.handle, name)
-        new(handle_ref[])
-    end
-end
-
-unsafe_convert(::Type{CuFunction_t}, fun::CuFunction) = fun.handle
-
-
-#
-# Module-scope global variables
-#
-
-# TODO: parametric type given knowledge about device type?
-immutable CuGlobal{T}
-    ptr::DevicePtr{Void}
-    nbytes::Cssize_t
-
-    function CuGlobal(mod::CuModule, name::String)
-        ptr_ref = Ref{Ptr{Void}}()
-        nbytes_ref = Ref{Cssize_t}()
-        @apicall(:cuModuleGetGlobal,
-                (Ptr{Ptr{Void}}, Ptr{Cssize_t}, Ptr{Void}, Ptr{Cchar}), 
-                ptr_ref, nbytes_ref, mod.handle, name)
-        if nbytes_ref[] != sizeof(T)
-            throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
-        end
-        @assert nbytes_ref[] == sizeof(T)
-        new(unsafe_convert(DevicePtr{Void}, ptr_ref[]), nbytes_ref[])
-    end
-end
-
-eltype{T}(::CuGlobal{T}) = T
-
-function get{T}(var::CuGlobal{T})
-    val_ref = Ref{T}()
-    @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                           val_ref, var.ptr.inner, var.nbytes)
-    return val_ref[]
-end
-
-function set{T}(var::CuGlobal{T}, val::T)
-    val_ref = Ref{T}(val)
-    @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                           var.ptr.inner, val_ref, var.nbytes)
-end
+include("module/linker.jl")
+include("module/function.jl")
+include("module/global.jl")

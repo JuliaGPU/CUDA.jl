@@ -5,6 +5,7 @@ module CUDAdrv
 using Compat
 import Compat.String
 
+# TODO: organize according to the CUDA Driver API reference
 
 include("util/logging.jl")
 
@@ -15,14 +16,12 @@ include("pointer.jl")
 include("devices.jl")
 include("context.jl")
 include("module.jl")
+include("memory.jl")
 include("stream.jl")
 include("execution.jl")
-include("jit.jl")
-include("linker.jl")
 include("events.jl")
 include("profile.jl")
 
-include("memory.jl")
 include("array.jl")
 
 
