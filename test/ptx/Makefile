@@ -1,4 +1,4 @@
-OBJS=vadd.ptx
+OBJS=vadd.ptx vadd_parent.ptx vadd_child.ptx
 
 NVCC=nvcc
 NVCCFLAGS=

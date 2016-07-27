@@ -120,19 +120,19 @@ end
 ## module
 
 let
-    md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
+    md = CuModuleFile(joinpath(Base.source_dir(), "ptx/vadd.ptx"))
 
     vadd = CuFunction(md, "vadd")
 
     unload(md)
 end
 
-CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx")) do md
+CuModuleFile(joinpath(Base.source_dir(), "ptx/vadd.ptx")) do md
     vadd = CuFunction(md, "vadd")
 end
 
 let
-    f = open(joinpath(Base.source_dir(), "vectorops.ptx"))
+    f = open(joinpath(Base.source_dir(), "ptx/vadd.ptx"))
     ptx = readstring(f)
 
     md = CuModule(ptx)
@@ -147,7 +147,7 @@ catch ex
 end
 
 let
-    md = CuModuleFile(joinpath(Base.source_dir(), "global.ptx"))
+    md = CuModuleFile(joinpath(Base.source_dir(), "ptx/global.ptx"))
 
     var = CuGlobal{Int32}(md, "foobar")
     @test_throws ArgumentError CuGlobal{Int64}(md, "foobar")
@@ -156,6 +156,17 @@ let
     set(var, Int32(42))
     @test get(var) == Int32(42)
 
+    unload(md)
+end
+
+let
+    link = CuLink()
+    addFile(link, joinpath(Base.source_dir(), "ptx/vadd_child.ptx"), CUDAdrv.PTX)
+    addFile(link, joinpath(Base.source_dir(), "ptx/vadd_parent.ptx"), CUDAdrv.PTX)
+    obj = complete(link)
+
+    md = CuModule(obj)
+    vadd = CuFunction(md, "vadd")
     unload(md)
 end
 
@@ -223,7 +234,7 @@ let
 end
 
 let
-    md = CuModuleFile(joinpath(Base.source_dir(), "vectorops.ptx"))
+    md = CuModuleFile(joinpath(Base.source_dir(), "ptx/vectorops.ptx"))
     vadd = CuFunction(md, "vadd")
     vmul = CuFunction(md, "vmul")
     vsub = CuFunction(md, "vsub")

@@ -10,18 +10,18 @@
 .target sm_20
 .address_size 64
 
-	// .globl	kernel_vadd
-.extern .func  (.param .b32 func_retval0) device_add
+	// .globl	vadd
+.extern .func  (.param .b32 func_retval0) add
 (
-	.param .b32 device_add_param_0,
-	.param .b32 device_add_param_1
+	.param .b32 add_param_0,
+	.param .b32 add_param_1
 )
 ;
 
-.visible .entry kernel_vadd(
-	.param .u64 kernel_vadd_param_0,
-	.param .u64 kernel_vadd_param_1,
-	.param .u64 kernel_vadd_param_2
+.visible .entry vadd(
+	.param .u64 vadd_param_0,
+	.param .u64 vadd_param_1,
+	.param .u64 vadd_param_2
 )
 {
 	.reg .f32 	%f<4>;
@@ -29,9 +29,9 @@
 	.reg .b64 	%rd<11>;
 
 
-	ld.param.u64 	%rd1, [kernel_vadd_param_0];
-	ld.param.u64 	%rd2, [kernel_vadd_param_1];
-	ld.param.u64 	%rd3, [kernel_vadd_param_2];
+	ld.param.u64 	%rd1, [vadd_param_0];
+	ld.param.u64 	%rd2, [vadd_param_1];
+	ld.param.u64 	%rd3, [vadd_param_2];
 	cvta.to.global.u64 	%rd4, %rd3;
 	cvta.to.global.u64 	%rd5, %rd2;
 	cvta.to.global.u64 	%rd6, %rd1;
@@ -54,7 +54,7 @@
 	st.param.f32	[param1+0], %f2;
 	.param .b32 retval0;
 	call.uni (retval0), 
-	device_add, 
+	add, 
 	(
 	param0, 
 	param1

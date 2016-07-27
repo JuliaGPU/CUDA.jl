@@ -10,18 +10,18 @@
 .target sm_20
 .address_size 64
 
-	// .globl	device_add
+	// .globl	add
 
-.visible .func  (.param .b32 func_retval0) device_add(
-	.param .b32 device_add_param_0,
-	.param .b32 device_add_param_1
+.visible .func  (.param .b32 func_retval0) add(
+	.param .b32 add_param_0,
+	.param .b32 add_param_1
 )
 {
 	.reg .f32 	%f<4>;
 
 
-	ld.param.f32 	%f1, [device_add_param_0];
-	ld.param.f32 	%f2, [device_add_param_1];
+	ld.param.f32 	%f1, [add_param_0];
+	ld.param.f32 	%f2, [add_param_1];
 	add.f32 	%f3, %f1, %f2;
 	st.param.f32	[func_retval0+0], %f3;
 	ret;
