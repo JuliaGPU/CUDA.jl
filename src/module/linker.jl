@@ -1,6 +1,6 @@
 # Linking of different PTX modules
 
-import Base: unsafe_convert, cconvert
+import Base: unsafe_convert, show, cconvert
 
 export
     CuLink, complete, destroy,
@@ -39,6 +39,7 @@ immutable CuLink
 end
 
 unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
+show(io::IO,link::CuLink) = print(io, typeof(link), "(", link.handle, ")")
 
 "Complete a pending linker invocation."
 function complete(link::CuLink)
