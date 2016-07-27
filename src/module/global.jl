@@ -23,7 +23,7 @@ immutable CuGlobal{T}
     end
 end
 
-eltype{T}(::CuGlobal{T}) = T
+eltype{T}(x::Type{CuGlobal{T}}) = T
 
 function get{T}(var::CuGlobal{T})
     val_ref = Ref{T}()

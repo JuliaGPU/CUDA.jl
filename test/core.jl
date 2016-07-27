@@ -150,9 +150,11 @@ let
     md = CuModuleFile(joinpath(Base.source_dir(), "ptx/global.ptx"))
 
     var = CuGlobal{Int32}(md, "foobar")
+    @test eltype(var) == Int32
+    @test eltype(typeof(var)) == Int32
+
     @test_throws ArgumentError CuGlobal{Int64}(md, "foobar")
 
-    @test eltype(var) == Int32
     set(var, Int32(42))
     @test get(var) == Int32(42)
 
