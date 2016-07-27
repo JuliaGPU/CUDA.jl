@@ -134,6 +134,7 @@ end
 let
     f = open(joinpath(Base.source_dir(), "ptx/vadd.ptx"))
     ptx = readstring(f)
+    close(f)
 
     md = CuModule(ptx)
     vadd = CuFunction(md, "vadd")
@@ -163,11 +164,39 @@ end
 
 let
     link = CuLink()
+
+    # regular string
+    open(joinpath(Base.source_dir(), "ptx/empty.ptx")) do f
+        addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
+    end
+
+    # string as vector of bytes
+    open(joinpath(Base.source_dir(), "ptx/empty.ptx")) do f
+        addData(link, "vadd_parent", convert(Vector{UInt8}, readstring(f)), CUDAdrv.PTX)
+    end
+
+    # string containing \0
+    @test_throws ArgumentError addData(link, "vadd_parent", "\0", CUDAdrv.PTX)
+    @test_throws CuError addData(link, "vadd_parent", "\0", CUDAdrv.OBJECT)
+
+    # vector of bytes containing \0
+    @test_throws ArgumentError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.PTX)
+    @test_throws CuError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.OBJECT)
+
+    destroy(link)
+end
+
+let
+    link = CuLink()
     addFile(link, joinpath(Base.source_dir(), "ptx/vadd_child.ptx"), CUDAdrv.PTX)
-    addFile(link, joinpath(Base.source_dir(), "ptx/vadd_parent.ptx"), CUDAdrv.PTX)
+    open(joinpath(Base.source_dir(), "ptx/vadd_parent.ptx")) do f
+        addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
+    end
     obj = complete(link)
 
     md = CuModule(obj)
+    destroy(link)
+
     vadd = CuFunction(md, "vadd")
     unload(md)
 end
