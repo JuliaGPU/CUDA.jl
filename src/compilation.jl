@@ -20,8 +20,9 @@ const architectures = [
     (v"5.0",    "sm_50",    v"6.0",     v"3.5"),
     (v"5.2",    "sm_52",    v"7.0",     v"3.7"),
     (v"5.3",    "sm_53",    v"7.5",     v"3.7"),
-    (v"6.0",    "sm_60",    v"8.0",     nothing),
-    (v"6.1",    "sm_61",    v"8.0",     nothing) ]
+    (v"6.0",    "sm_60",    v"8.0",     "v3.9"),
+    (v"6.1",    "sm_61",    v"8.0",     "v3.9"),
+    (v"6.2",    "sm_62",    v"8.0",     "v3.9") ]
 
 "Return the most recent supported architecture for a CUDA device"
 function architecture(dev::CuDevice; cuda=nothing, llvm=nothing)
@@ -88,7 +89,8 @@ function discover_toolchain()
         (v"6.0", v"4.8.1"),
         (v"6.5", v"4.8.2"),
         (v"7.0", v"4.9.2"),
-        (v"7.5", v"4.9.2") ]
+        (v"7.5", v"4.9.2"),
+        (v"8.0", v"5.3.1") ]
     if version < hostcc_support[1][1]
         error("no support for CUDA < $(hostcc_req[1][1])")
     end

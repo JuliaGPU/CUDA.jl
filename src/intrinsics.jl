@@ -168,6 +168,7 @@ end
     return emit_dynamic_shmem(T, :(nel))
 end
 
+# TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
 function emit_dynamic_shmem(jltyp::Type, nel::Symbol)
     if !haskey(typemap, jltyp)
         error("cuDynamicSharedMem: unsupported type '$jltyp'")
