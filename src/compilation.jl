@@ -159,7 +159,7 @@ macro compile(dev, kernel, code)
     end
 
     kernel_name = string(kernel)
-    containing_file = Base.source_path()
+    containing_file = @__FILE__
 
     return Expr(:toplevel,
         Expr(:export,esc(kernel)),
