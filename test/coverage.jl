@@ -8,7 +8,7 @@ end
 
 using Coverage
 
-dir, _ = splitdir(Base.source_path())
+dir, _ = dirname(@__FILE__)
 root = "$dir/../"
 cd(root)
 

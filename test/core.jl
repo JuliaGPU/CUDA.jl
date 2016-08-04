@@ -120,19 +120,19 @@ end
 ## module
 
 let
-    md = CuModuleFile(joinpath(Base.source_dir(), "ptx/vadd.ptx"))
+    md = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx"))
 
     vadd = CuFunction(md, "vadd")
 
     unload(md)
 end
 
-CuModuleFile(joinpath(Base.source_dir(), "ptx/vadd.ptx")) do md
+CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx")) do md
     vadd = CuFunction(md, "vadd")
 end
 
 let
-    f = open(joinpath(Base.source_dir(), "ptx/vadd.ptx"))
+    f = open(joinpath(dirname(@__FILE__), "ptx/vadd.ptx"))
     ptx = readstring(f)
     close(f)
 
@@ -148,7 +148,7 @@ catch ex
 end
 
 let
-    md = CuModuleFile(joinpath(Base.source_dir(), "ptx/global.ptx"))
+    md = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/global.ptx"))
 
     var = CuGlobal{Int32}(md, "foobar")
     @test eltype(var) == Int32
@@ -166,12 +166,12 @@ let
     link = CuLink()
 
     # regular string
-    open(joinpath(Base.source_dir(), "ptx/empty.ptx")) do f
+    open(joinpath(dirname(@__FILE__), "ptx/empty.ptx")) do f
         addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
     end
 
     # string as vector of bytes
-    open(joinpath(Base.source_dir(), "ptx/empty.ptx")) do f
+    open(joinpath(dirname(@__FILE__), "ptx/empty.ptx")) do f
         addData(link, "vadd_parent", convert(Vector{UInt8}, readstring(f)), CUDAdrv.PTX)
     end
 
@@ -188,8 +188,8 @@ end
 
 let
     link = CuLink()
-    addFile(link, joinpath(Base.source_dir(), "ptx/vadd_child.ptx"), CUDAdrv.PTX)
-    open(joinpath(Base.source_dir(), "ptx/vadd_parent.ptx")) do f
+    addFile(link, joinpath(dirname(@__FILE__), "ptx/vadd_child.ptx"), CUDAdrv.PTX)
+    open(joinpath(dirname(@__FILE__), "ptx/vadd_parent.ptx")) do f
         addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
     end
     obj = complete(link)
@@ -265,7 +265,7 @@ let
 end
 
 let
-    md = CuModuleFile(joinpath(Base.source_dir(), "ptx/vectorops.ptx"))
+    md = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vectorops.ptx"))
     vadd = CuFunction(md, "vadd")
     vmul = CuFunction(md, "vmul")
     vsub = CuFunction(md, "vsub")

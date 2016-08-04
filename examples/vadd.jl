@@ -4,7 +4,7 @@ using Base.Test
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
-md = CuModuleFile(joinpath(Base.source_dir(), "vadd.ptx"))
+md = CuModuleFile(joinpath(dirname(@__FILE__), "vadd.ptx"))
 vadd = CuFunction(md, "kernel_vadd")
 
 dims = (3,4)
