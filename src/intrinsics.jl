@@ -153,23 +153,27 @@ end
 
 
 """
-    @cuDynamicSharedMem(typ::Type, nel::Integer) -> CuDeviceArray{typ}
+    @cuDynamicSharedMem(typ::Type, nel::Integer, [offset::Integer=0]) -> CuDeviceArray{typ}
 
 Get an array pointing to a dynamically-allocated piece of shared memory. The type `typ`
 should be statically known after type inference, or a (currently unreported) error will be
 thrown resulting in a runtime generic call to an internal generator function. The necessary
 memory needs to be allocated when calling the kernel.
+
+Optionally, an offset parameter indicating how many bytes to add to the base shared memory
+pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
+shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-macro cuDynamicSharedMem(typ, nel)
-    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $nel)))
+macro cuDynamicSharedMem(typ, nel, offset=0)
+    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $nel, $offset)))
 end
 
-@generated function generate_dynamic_shmem{T}(::Type{T}, nel)
-    return emit_dynamic_shmem(T, :(nel))
+@generated function generate_dynamic_shmem{T}(::Type{T}, nel, offset)
+    return emit_dynamic_shmem(T, :(nel), :(offset))
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
-function emit_dynamic_shmem(jltyp::Type, nel::Symbol)
+function emit_dynamic_shmem(jltyp::Type, nel::Symbol, offset::Symbol)
     if !haskey(typemap, jltyp)
         error("cuDynamicSharedMem: unsupported type '$jltyp'")
     end
@@ -184,7 +188,7 @@ function emit_dynamic_shmem(jltyp::Type, nel::Symbol)
              $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* @$var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}))
+            Ptr{$jltyp}, Tuple{}) + $offset)
     end
 end
 
