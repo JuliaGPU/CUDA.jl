@@ -10,6 +10,91 @@ export
     @cuStaticSharedMem, @cuDynamicSharedMem
 
 
+#
+# Support functionality
+#
+
+const llvmtypes = Dict{Type,Symbol}(
+    Void    => :void,
+    Int32   => :i32,
+    Int64   => :i64,
+    Float32 => :float,
+    Float64 => :double
+)
+
+const jltypes = Dict{Symbol,Type}(v => k for (k,v) in llvmtypes)
+
+"""
+Decode an expression of the form:
+
+   function(arg::arg_type, arg::arg_type, ... arg::arg_type)::return_type
+
+Returns a tuple containing the function name, a vector of argument, a vector of argument
+types and the return type (all in symbolic form).
+"""
+function decode_call(e)
+    @assert e.head == :(::)
+    rettype = e.args[2]::Symbol
+
+    call = e.args[1]
+    @assert call.head == :call
+
+    fn = Symbol(call.args[1])
+    args = Symbol[arg.args[1] for arg in call.args[2:end]]
+    argtypes = Symbol[arg.args[2] for arg in call.args[2:end]]
+
+    return fn, args, argtypes, rettype
+end
+
+"""
+Generate a `llvmcall` statement calling an intrinsic specified as follows:
+
+    intrinsic(arg::arg_type, arg::arg_type, ... arg::arg_type)::return_type [attr]
+
+The argument types should be valid LLVM type identifiers (eg. i32, float, double).
+Conversions to the corresponding Julia type are automatically generated; make sure the
+actual arguments are of the same type to make these conversions no-ops. The optional
+argument `attr` indicates which LLVM function attributes (such as `readnone` or `nounwind`)
+to add to the intrinsic declaration.
+
+For example, the following call:
+    @wrap __somme__intr(x::float, y::double)::float
+
+will yield the following `llvmcall`:
+
+    Base.llvmcall(("declare float @__somme__intr(float, double)",
+                   "%3 = call float @__somme__intr(float %0, double %1)
+                    ret float %3"),
+                  Float32, Tuple{Float32,Float64},
+                  convert(Float32,x), convert(Float64,y))
+"""
+macro wrap(call, attrs="")
+    intrinsic, args, argtypes, rettype = decode_call(call)
+
+    llvm_args = String["%$i" for i in 0:length(argtypes)]
+    if rettype == :void
+        llvm_ret_asgn = ""
+        llvm_ret = "void"
+    else
+        llvm_ret_var = "%$(length(argtypes)+1)"
+        llvm_ret_asgn = "$llvm_ret_var = "
+        llvm_ret = "$rettype $llvm_ret_var"
+    end
+    llvm_declargs = join(argtypes, ", ")
+    llvm_defargs = join(("$t $arg" for (t,arg) in zip(argtypes, llvm_args)), ", ")
+
+    julia_argtypes = (jltypes[t] for t in argtypes)
+    julia_args = (:(convert($argtype, $arg)) for (arg, argtype) in zip(args, julia_argtypes))
+
+    return quote
+        Base.llvmcall(
+            ($"""declare $rettype @$intrinsic($llvm_declargs)""",
+             $"""$llvm_ret_asgn call $rettype @$intrinsic($llvm_defargs)
+                 ret $llvm_ret"""),
+            $(jltypes[rettype]), Tuple{$(julia_argtypes...)}, $(julia_args...))
+    end
+end
+
 
 #
 # Indexing and dimensions
@@ -17,62 +102,30 @@ export
 
 for dim in (:x, :y, :z)
     # Thread index
-    fname = Symbol("threadIdx_$dim")
-    intrinsic = "llvm.nvvm.read.ptx.sreg.tid.$dim"
-    @eval begin
-        $fname() = Base.llvmcall(
-            ($"""declare i32 @$intrinsic() readnone nounwind""",
-             $"""%1 = tail call i32 @$intrinsic()
-                 ret i32 %1"""),
-            Int32, Tuple{}) + Int32(1)
-    end
+    fn = Symbol("threadIdx_$dim")
+    @eval @inline @target ptx $fn() = (@wrap llvm.nvvm.read.ptx.sreg.tid.$dim()::i32    "readnone nounwind")+Int32(1)
 
     # Block size (#threads per block)
-    fname = Symbol("blockDim_$dim")
-    intrinsic = "llvm.nvvm.read.ptx.sreg.ntid.$dim"
-    @eval begin
-        $fname() = Base.llvmcall(
-            ($"""declare i32 @$intrinsic() readnone nounwind""",
-             $"""%1 = tail call i32 @$intrinsic()
-                 ret i32 %1"""),
-            Int32, Tuple{})
-    end
+    fn = Symbol("blockDim_$dim")
+    @eval @inline @target ptx $fn() =  @wrap llvm.nvvm.read.ptx.sreg.ntid.$dim()::i32   "readnone nounwind"
 
     # Block index
-    fname = Symbol("blockIdx_$dim")
-    intrinsic = "llvm.nvvm.read.ptx.sreg.ctaid.$dim"
-    @eval begin
-        $fname() = Base.llvmcall(
-            ($"""declare i32 @$intrinsic() readnone nounwind""",
-             $"""%1 = tail call i32 @$intrinsic()
-                 ret i32 %1"""),
-            Int32, Tuple{}) + Int32(1)
-    end
+    fn = Symbol("blockIdx_$dim")
+    @eval @inline @target ptx $fn() = (@wrap llvm.nvvm.read.ptx.sreg.ctaid.$dim()::i32  "readnone nounwind")+Int32(1)
 
     # Grid size (#blocks per grid)
-    fname = Symbol("gridDim_$dim")
-    intrinsic = "llvm.nvvm.read.ptx.sreg.nctaid.$dim"
-    @eval begin
-        $fname() = Base.llvmcall(
-            ($"""declare i32 @$intrinsic() readnone nounwind""",
-             $"""%1 = tail call i32 @$intrinsic()
-                 ret i32 %1"""),
-            Int32, Tuple{})
-    end
+    fn = Symbol("gridDim_$dim")
+    @eval @inline @target ptx $fn() =  @wrap llvm.nvvm.read.ptx.sreg.nctaid.$dim()::i32 "readnone nounwind"
 end
 
 # Tuple accessors
-threadIdx() = CUDAdrv.CuDim3(threadIdx_x(), threadIdx_y(), threadIdx_z())
-blockDim() =  CUDAdrv.CuDim3(blockDim_x(),  blockDim_y(),  blockDim_z())
-blockIdx() =  CUDAdrv.CuDim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
-gridDim() =   CUDAdrv.CuDim3(gridDim_x(),   gridDim_y(),   gridDim_z())
+@inline @target ptx threadIdx() = CUDAdrv.CuDim3(threadIdx_x(), threadIdx_y(), threadIdx_z())
+@inline @target ptx blockDim() =  CUDAdrv.CuDim3(blockDim_x(),  blockDim_y(),  blockDim_z())
+@inline @target ptx blockIdx() =  CUDAdrv.CuDim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
+@inline @target ptx gridDim() =   CUDAdrv.CuDim3(gridDim_x(),   gridDim_y(),   gridDim_z())
 
 # NOTE: we often need a const warpsize (eg. for shared memory), sp keep this fixed for now
-# warpsize() = Base.llvmcall(
-#     ("""declare i32 @llvm.nvvm.read.ptx.sreg.warpsize() readnone nounwind""",
-#      """%1 = tail call i32 @llvm.nvvm.read.ptx.sreg.warpsize()
-#         ret i32 %1"""),
-#     Int32, Tuple{})
+# @inline @target ptx warpsize() = @wrap llvm.nvvm.read.ptx.sreg.warpsize()::i32 "readnone nounwind"
 const warpsize = Int32(32)
 
 "Return the nearest multiple of a warpsize, a common requirement for the amount of threads."
@@ -86,23 +139,12 @@ const warpsize = Int32(32)
 
 # Synchronization
 # TODO: rename to syncthreads
-sync_threads() = Base.llvmcall(
-    ("""declare void @llvm.nvvm.barrier0() readnone nounwind""",
-     """call void @llvm.nvvm.barrier0()
-        ret void"""),
-    Void, Tuple{})
+@inline @target ptx sync_threads() = @wrap llvm.nvvm.barrier0()::void "readnone nounwind"
 
 
 #
 # Shared memory
 #
-
-const typemap = Dict{Type,Symbol}(
-    Int32   => :i32,
-    Int64   => :i64,
-    Float32 => :float,
-    Float64 => :double
-)
 
 # FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
 # TODO: return an Array-like object (containing the number of elements) instead of a raw pointer
@@ -133,10 +175,10 @@ end
 end
 
 function emit_static_shmem(jltyp::Type, nel::Integer)
-    if !haskey(typemap, jltyp)
+    if !haskey(llvmtypes, jltyp)
         error("cuStaticSharedMem: unsupported type '$jltyp'")
     end
-    llvmtyp = typemap[jltyp]
+    llvmtyp = llvmtypes[jltyp]
 
     global shmem_id
     var = "shmem$(shmem_id::Int += 1)"
@@ -174,10 +216,10 @@ end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
 function emit_dynamic_shmem(jltyp::Type, nel::Symbol, offset::Symbol)
-    if !haskey(typemap, jltyp)
+    if !haskey(llvmtypes, jltyp)
         error("cuDynamicSharedMem: unsupported type '$jltyp'")
     end
-    llvmtyp = typemap[jltyp]
+    llvmtyp = llvmtypes[jltyp]
 
     global shmem_id
     var = "shmem$(shmem_id::Int += 1)"
@@ -292,116 +334,34 @@ end
 # Math
 #
 
-# Trigonometric
-sin(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_sinf(float)""",
-     """%2 = call float @__nv_sinf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-sin(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_sin(double)""",
-     """%2 = call double @__nv_sin(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64} , x)
-cos(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_cosf(float)""",
-     """%2 = call float @__nv_cosf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-cos(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_cos(double)""",
-     """%2 = call double @__nv_cos(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
+@inline @target ptx sin(x::Float32) = @wrap __nv_sinf(x::float)::float
+@inline @target ptx sin(x::Float64) = @wrap __nv_sin(x::double)::double
 
-# Rounding
-floor(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_floorf(float)""",
-     """%2 = call float @__nv_floorf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-floor(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_floor(double)""",
-     """%2 = call double @__nv_floor(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
-ceil(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_ceilf(float)""",
-     """%2 = call float @__nv_ceilf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-ceil(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_ceil(double)""",
-     """%2 = call double @__nv_ceil(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
-abs(x::Int32) = Base.llvmcall(
-    ("""declare i32 @__nv_abs(i32)""",
-     """%2 = call i32 @__nv_abs(i32 %0)
-        ret i32 %2"""),
-    Int32, Tuple{Int32}, x)
-abs(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_fabsf(float)""",
-     """%2 = call float @__nv_fabsf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-abs(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_fabs(double)""",
-     """%2 = call double @__nv_fabs(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
+@inline @target ptx cos(x::Float32) = @wrap __nv_cosf(x::float)::float
+@inline @target ptx cos(x::Float64) = @wrap __nv_cos(x::double)::double
 
-# Square root
-sqrt(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_sqrtf(float)""",
-     """%2 = call float @__nv_sqrtf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-sqrt(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_sqrt(double)""",
-     """%2 = call double @__nv_sqrt(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
+@inline @target ptx floor(x::Float32) = @wrap __nv_floorf(x::float)::float
+@inline @target ptx floor(x::Float64) = @wrap __nv_floor(x::double)::double
 
-# Log and exp
-exp(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_expf(float)""",
-     """%2 = call float @__nv_expf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-exp(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_exp(double)""",
-     """%2 = call double @__nv_exp(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
-log(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_logf(float)""",
-     """%2 = call float @__nv_logf(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-log(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_log(double)""",
-     """%2 = call double @__nv_log(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
-log10(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_log10f(float)""",
-     """%2 = call float @__nv_log10f(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-log10(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_log10(double)""",
-     """%2 = call double @__nv_log10(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
+@inline @target ptx ceil(x::Float32) = @wrap __nv_ceilf(x::float)::float
+@inline @target ptx ceil(x::Float64) = @wrap __nv_ceil(x::double)::double
 
-erf(x::Float32) = Base.llvmcall(
-    ("""declare float @__nv_erff(float)""",
-     """%2 = call float @__nv_erff(float %0)
-        ret float %2"""),
-    Float32, Tuple{Float32}, x)
-erf(x::Float64) = Base.llvmcall(
-    ("""declare double @__nv_erf(double)""",
-     """%2 = call double @__nv_erf(double %0)
-        ret double %2"""),
-    Float64, Tuple{Float64}, x)
+@inline @target ptx abs(x::Int32) =   @wrap __nv_abs(x::i32)::i32
+@inline @target ptx abs(x::Int64) =   @wrap __nv_llabs(x::i64)::i64
+@inline @target ptx abs(x::Float32) = @wrap __nv_fabsf(x::double)::double
+@inline @target ptx abs(x::Float64) = @wrap __nv_fabs(x::double)::double
+
+@inline @target ptx sqrt(x::Float32) = @wrap __nv_sqrtf(x::float)::float
+@inline @target ptx sqrt(x::Float64) = @wrap __nv_sqrt(x::double)::double
+
+@inline @target ptx exp(x::Float32) = @wrap __nv_expf(x::float)::float
+@inline @target ptx exp(x::Float64) = @wrap __nv_exp(x::double)::double
+
+@inline @target ptx log(x::Float32) = @wrap __nv_logf(x::float)::float
+@inline @target ptx log(x::Float64) = @wrap __nv_log(x::double)::double
+
+@inline @target ptx log10(x::Float32) = @wrap __nv_log10f(x::float)::float
+@inline @target ptx log10(x::Float64) = @wrap __nv_log10(x::double)::double
+
+@inline @target ptx erf(x::Float32) = @wrap __nv_erff(x::float)::float
+@inline @target ptx erf(x::Float64) = @wrap __nv_erf(x::double)::double
