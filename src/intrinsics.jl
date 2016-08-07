@@ -331,7 +331,7 @@ end
 
 
 #
-# Math
+# Math (covered until function 3.211)
 #
 
 # TODO: compute capability checks
@@ -430,7 +430,8 @@ end
 @inline @target ptx ffs(x::Int32) =   @wrap __nv_ffs(x::i32)::i32
 @inline @target ptx ffs(x::Int64) =   @wrap __nv_ffsll(x::i64)::i64
 
-@inline @target ptx finite(x::Float32) = (@wrap __nv_finitef(x::float)::i32) != 0
+@inline @target ptx isfinite(x::Float32) = (@wrap __nv_finitef(x::float)::i32) != 0
+@inline @target ptx isfinite(x::Float64) = (@wrap __nv_isfinited(x::double)::i32) != 0
 
 @inline @target ptx fma(x::Float64, y::Float64, z::Float64) = @wrap __nv_fma(x::double, y::double, z::double)::double
 @inline @target ptx fma(x::Float32, y::Float32, z::Float32) = @wrap __nv_fmaf(x::float, y::float, z::float)::float
@@ -448,6 +449,34 @@ end
 
 @inline @target ptx hypot(x::Float64, y::Float64) = @wrap __nv_hypot(x::double, y::double)::double
 @inline @target ptx hypot(x::Float32, y::Float32) = @wrap __nv_hypotf(x::float, y::float)::float
+
+@inline @target ptx ilogb(x::Float64) = @wrap __nv_ilogb(x::double)::i32
+@inline @target ptx ilogb(x::Float32) = @wrap __nv_ilogbf(x::float)::i32
+
+# TODO: int2...
+
+@inline @target ptx isinf(x::Float32) = (@wrap __nv_isinfd(x::float)::i32) != 0
+@inline @target ptx isinf(x::Float64) = (@wrap __nv_isinff(x::double)::i32) != 0
+
+@inline @target ptx inan(x::Float32) = (@wrap __nv_inand(x::float)::i32) != 0
+@inline @target ptx inan(x::Float64) = (@wrap __nv_inanf(x::double)::i32) != 0
+
+@inline @target ptx j0(x::Float64) = @wrap __nv_j0(x::double)::double
+@inline @target ptx j0(x::Float32) = @wrap __nv_j0f(x::float)::float
+
+@inline @target ptx j1(x::Float64) = @wrap __nv_j1(x::double)::double
+@inline @target ptx j1(x::Float32) = @wrap __nv_j1f(x::float)::float
+
+@inline @target ptx jn(n::Int32, x::Float64) = @wrap __nv_jn(n::i32, x::double)::double
+@inline @target ptx jn(n::Int32, x::Float32) = @wrap __nv_jnf(n::i32, x::float)::float
+
+@inline @target ptx ldexp(x::Float64, y::Int32) = @wrap __nv_ldexp(x::double, y::i32)::double
+@inline @target ptx ldexp(x::Float32, y::Int32) = @wrap __nv_ldexpf(x::float, y::i32)::float
+
+@inline @target ptx lgamma(x::Float64) = @wrap __nv_lgamma(x::double)::double
+@inline @target ptx lgamma(x::Float32) = @wrap __nv_lgammaf(x::float)::float
+
+# TODO: ll2...
 
 
 @inline @target ptx sin(x::Float64) = @wrap __nv_sin(x::double)::double
