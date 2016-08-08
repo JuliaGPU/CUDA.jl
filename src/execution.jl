@@ -51,11 +51,13 @@ function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, args::Tuple;
 end
 
 "ccall-like interface to launching a CUDA function on a GPU"
-function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim, types::Tuple{Vararg{DataType}}, values...;
+function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim, types, values...;
                   shmem_bytes=0, stream::CuStream=default_stream())
+    tt = Base.to_tuple_type(types)
+
     # convert the values to match the kernel's signature (specified by the user)
     values = map(pair -> Base.unsafe_convert(pair[1], Base.cconvert(pair[1],pair[2])),
-                 zip(types,values))
+                 zip(tt.parameters,values))
 
     # TODO: tuple
     launch(f, CuDim3(griddim), CuDim3(blockdim), (values...);
