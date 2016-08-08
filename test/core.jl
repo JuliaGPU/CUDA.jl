@@ -349,6 +349,10 @@ let
     CuArray(Int, 1)
     CuArray(Int, (1,2))
 
+    # Conversions
+    @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), DevicePtr{Int}())) == DevicePtr{Int}()
+    @test pointer(CuArray{Int,1}((1,), DevicePtr{Int}())) == DevicePtr{Int}()
+
     # Negative test cases
     a = rand(Float32, 10)
     ad = CuArray(Float32, 5)

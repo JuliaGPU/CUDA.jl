@@ -1,6 +1,6 @@
 # Contiguous on-device arrays (host side representation)
 
-import Base: length, size, copy!, unsafe_convert, Array
+import Base: length, size, copy!, unsafe_convert, pointer, Array
 
 export
     CuArray, free
@@ -37,6 +37,7 @@ CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 CuArray{T}(::Type{T}, len::Int)               = CuArray{T,1}((len,))
 
 unsafe_convert{T,N}(::Type{DevicePtr{T}}, a::CuArray{T,N}) = a.ptr
+pointer{T}(x::CuArray{T}) = unsafe_convert(DevicePtr{T}, x)
 
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape
