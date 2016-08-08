@@ -19,19 +19,18 @@ CuDim3(g::Tuple{Int, Int, Int}) = CuDim3(g[1], g[2], g[3])
 """
 Launch a CUDA function on a GPU.
 
-This is a low-level call, prefer the `cudacall` or `@cuda` interface instead.
+This is a low-level call, prefer to use `cudacall` instead.
 """
-function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, args::Tuple;
-                shmem_bytes=0, stream::CuStream=default_stream())
+function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
+                shmem::Int, stream::CuStream, args)
     all([isbits(arg) || isa(arg, DevicePtr) for arg in args]) ||
         throw(ArgumentError("Arguments to kernel should be bitstype or device pointer"))
     args = [isa(arg, DevicePtr) ? arg.inner : arg for arg in args]  # extract DevicePtr.inner::Ptr
 
-    # Each of kernelParams must point to a region of memory from which the actual kernel
-    # parameter will be copied, hence the extra wrapping of `arg`.
-    # NOTE: can't use Ref(...) here, because Ref(Ptr()) yields the inner pointer
-    #       instead of the memory containing the pointer
-    args = [[arg] for arg in args]
+    # If f has N parameters, then kernelParams needs to be an array of N pointers.
+    # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory
+    # from which the actual kernel parameter will be copied.
+    argptrs = Ptr{Void}[Base.pointer_from_objref(arg) for arg in args]
 
     (griddim.x>0 && griddim.y>0 && griddim.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
@@ -47,19 +46,19 @@ function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, args::Tuple;
         f,
         griddim.x, griddim.y, griddim.z,
         blockdim.x, blockdim.y, blockdim.z,
-        shmem_bytes, stream, args, C_NULL)
+        shmem, stream, argptrs, C_NULL)
 end
 
-"ccall-like interface to launching a CUDA function on a GPU"
+"""
+ccall-like interface to launching a CUDA function on a GPU
+"""
 function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim, types, values...;
-                  shmem_bytes=0, stream::CuStream=default_stream())
+                  shmem=0, stream::CuStream=default_stream())
     tt = Base.to_tuple_type(types)
 
     # convert the values to match the kernel's signature (specified by the user)
     values = map(pair -> Base.unsafe_convert(pair[1], Base.cconvert(pair[1],pair[2])),
                  zip(tt.parameters,values))
 
-    # TODO: tuple
-    launch(f, CuDim3(griddim), CuDim3(blockdim), (values...);
-           shmem_bytes=shmem_bytes, stream=stream)
+    launch(f, CuDim3(griddim), CuDim3(blockdim), shmem, stream, values)
 end
