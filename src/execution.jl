@@ -7,43 +7,50 @@ export
 # Auxiliary
 #
 
-function decode_arguments(argspec)
-    argtypes = DataType[argspec...]
-    args = Union{Expr,Symbol}[:( argspec[$i] ) for i in 1:length(argtypes)]
+"""
+Convert the arguments to a kernel function to their CUDA representation, and figure out what
+types to specialize the kernel function for and how to actually pass those objects.
+"""
+function convert_arguments(args, tt)
+    argtypes = DataType[tt.parameters...]
+    argexprs = Union{Expr,Symbol}[args...]
 
     # convert types to their CUDA representation
-    for i in 1:length(args)
+    for i in 1:length(argexprs)
         t = argtypes[i]
         ct = cudaconvert(t)
         if ct != t
             argtypes[i] = ct
             if ct <: Ptr
-                args[i] = :( unsafe_convert($ct, $(args[i])) )
+                argexprs[i] = :( unsafe_convert($ct, $(argexprs[i])) )
             else
-                args[i] = :( convert($ct, $(args[i])) )
+                argexprs[i] = :( convert($ct, $(argexprs[i])) )
             end
         end
     end
 
     # figure out how to codegen and pass these types
     cgtypes, calltypes = Array{DataType}(length(argtypes)), Array{Type}(length(argtypes))
-    for i in 1:length(args)
-        cgtypes[i], calltypes[i] = physical_type(argtypes[i])
+    for i in 1:length(argexprs)
+        cgtypes[i], calltypes[i] = actual_types(argtypes[i])
     end
 
     # NOTE: DevicePtr's should have disappeared after this point
 
-    return args, Tuple{cgtypes...}, Tuple{calltypes...}
+    return argexprs, Tuple{cgtypes...}, Tuple{calltypes...}
 end
 
-# Determine the physical type of an object, that is, the types that will be used to
-# specialize the kernel function, and to convert argument values to.
-#
-# These two types can differ, eg. when passing a bitstype that doesn't fit in a register, in
-# which case we'll be specializing a function that directly uses that bitstype (and the
-# codegen ABI will figure out it needs to be passed by ref, ie. a pointer), but we do need
-# to allocate memory and pass an actual pointer since we perform the call ourselves.
-function physical_type(argtype::DataType)
+"""
+Determine the actual types of an object, that is, 1) the type that needs to be used to
+specialize (compile) the kernel function, and 2) the type which an object needs to be
+converted to before passing it to a kernel.
+
+These two types can differ, eg. when passing a bitstype that doesn't fit in a register, in
+which case we'll be specializing a function that directly uses that bitstype (and the
+codegen ABI will figure out it needs to be passed by ref, ie. a pointer), but we do need to
+allocate memory and pass an actual pointer since we perform the call ourselves.
+"""
+function actual_types(argtype::DataType)
     if argtype.layout != C_NULL && Base.datatype_pointerfree(argtype)
         # pointerfree objects with a layout can be used on the GPU
         cgtype = argtype
@@ -67,9 +74,13 @@ function physical_type(argtype::DataType)
     return cgtype::Type, calltype::Type
 end
 
+"""
+Compile a function to PTX, returning the assembly and an entry point.
+Not to be used directly, see `cufunction` instead.
+"""
 function compile_function{F<:Function}(func::F, tt)
     @static if TRACE
-        # Generate a safe and unique name
+        # generate a safe and unique name
         function_uid = "$func-"
         if length(tt.parameters) > 0
             function_uid *= join([replace(string(t), r"\W", "") for t in tt.parameters], '.')
@@ -77,7 +88,7 @@ function compile_function{F<:Function}(func::F, tt)
             function_uid *= "Void"
         end
 
-        # Dump the typed AST
+        # dump the typed AST
         buf = IOBuffer()
         code_warntype(buf, func, tt)
         ast = String(buf)
@@ -89,7 +100,7 @@ function compile_function{F<:Function}(func::F, tt)
         end
     end
 
-    # Generate LLVM IR
+    # generate LLVM IR
     @static if TRACE
         module_llvm = sprint(io->code_llvm(io, func, tt, #=strip_di=#false, #=entire_module=#true))
 
@@ -100,7 +111,7 @@ function compile_function{F<:Function}(func::F, tt)
         end
     end
 
-    # Generate (PTX) assembly
+    # generate (PTX) assembly
     module_asm = sprint(io->code_native(io, func, tt))
     @static if TRACE
         output = "$(dumpdir[])/$function_uid.ptx"
@@ -110,7 +121,7 @@ function compile_function{F<:Function}(func::F, tt)
         end
     end
 
-    # Get entry point
+    # get entry point
     # TODO: get rid of the llvmf (lifted from reflection.jl)
     llvmf = ccall(:jl_get_llvmf, Ptr{Void},
                  (Any, Bool, Bool),
@@ -118,7 +129,7 @@ function compile_function{F<:Function}(func::F, tt)
     module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::String
     trace("Function entry point: $module_entry")
 
-    return (module_asm, module_entry)
+    return module_asm, module_entry
 end
 
 function emit_allocations(args, codegen_tt, call_tt)
@@ -142,6 +153,13 @@ function emit_allocations(args, codegen_tt, call_tt)
 end
 
 function emit_cudacall(fun, config, args, tt)
+    # TODO: can we handle non-isbits types? 
+    #       if so, move this more stringent check to @cuda(CuFunction)
+    all(t -> isbits(t) && sizeof(t) > 0, tt.parameters) ||
+        error("can only pass bitstypes of size > 0 to CUDA kernels")
+    any(t -> sizeof(t) > 8, tt.parameters) &&
+        error("cannot pass objects that don't fit in registers to CUDA functions")
+
     return quote
         cudacall($fun, $config[1], $config[2],
                  $tt, $(args...);
@@ -154,7 +172,7 @@ end
 # cufunction
 #
 
-# Compile and create a CUDA kernel from a Julia function
+# Compile and create a CUDA function from a Julia function
 function cufunction{F<:Function}(func::F, types)
     tt = Base.to_tuple_type(types)
     sig = """$func($(join(tt.parameters, ", ")))"""
@@ -185,8 +203,24 @@ end
 # @cuda macro
 #
 
-# Convenience macro to support a naturally looking call
-# eg. @cuda (1,len) kernel_foo(bar)
+"""
+    @cuda (gridDim::CuDim, blockDim::CuDim, [shmem::Int]) func(args...)
+
+High-level interface for calling functions on a GPU. The `gridDim` and `blockDim` arguments
+represent the launch configuration, and the optional `shmem` parameter specifies how much
+bytes of dynamic shared memory should be allocated.
+
+When `func` represents a `CuFunction` object, a `cudacall` will be emitted, with the type
+signature derived from the actual argument types (if you need conversions to happen, use
+`cudacall` directly). Only bitstypes with size ∈ ]0,8] are supported (0-sized elements are
+ghost types that wouldn't get passed, while objects > 8 bytes don't fit in registers and
+need to be passed by pointer instead).
+
+If `func` represents a Julia function, a more automagic approach is taken. The function is
+compiled to a CUDA function, more objects are supported (ghost types are used during codegen
+but not passed, objects > 8 bytes are copied to memory and passed by pointer), and finally a
+`cudacall` is performed.
+"""
 macro cuda(config::Expr, callexpr::Expr)
     # Sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 3)
@@ -202,32 +236,22 @@ macro cuda(config::Expr, callexpr::Expr)
     esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...))))
 end
 
-# TODO: generated_cuda behaves subtly different when passing a CuFunction (no use of
-#       cgtypes, changes behaviour wrt. ghost types and type conversions). Iron this out,
-#       and create tests.
-
 # Execute a pre-compiled CUDA kernel
 @generated function generated_cuda(config::Tuple{CuDim, CuDim, Int},
-                                      cuda_fun::CuFunction, argspec...)
-    args, _, call_tt = decode_arguments(argspec)
-    any(t->t==Base.Bottom, call_tt.parameters) && error("cannot pass non-concrete types to precompiled kernels")
+                                   cuda_fun::CuFunction, argspec...)
+    tt = Base.to_tuple_type(argspec)
+    args = [:( argspec[$i] ) for i in 1:length(argspec)]
 
-    kernel_allocations, args = emit_allocations(args, call_tt, call_tt)
-
-    kernel_call = emit_cudacall(:(cuda_fun), :(config), args, call_tt)
-
-    # Throw everything together
-    exprs = Expr(:block)
-    append!(exprs.args, kernel_allocations.args)
-    append!(exprs.args, kernel_call.args)
-    return exprs
+    return emit_cudacall(:(cuda_fun), :(config), args, tt)
 end
 
 # Compile and execute a CUDA kernel from a Julia function
 const func_cache = Dict{UInt, CuFunction}()
 @generated function generated_cuda{F<:Function}(config::Tuple{CuDim, CuDim, Int},
-                                                   func::F, argspec...)
-    args, codegen_tt, call_tt = decode_arguments(argspec)
+                                                func::F, argspec...)
+    tt = Base.to_tuple_type(argspec)
+    args = [:( argspec[$i] ) for i in 1:length(argspec)]
+    args, codegen_tt, call_tt = convert_arguments(args, tt)
 
     kernel_allocations, args = emit_allocations(args, codegen_tt, call_tt)
 
