@@ -161,9 +161,7 @@ function emit_cudacall(fun, config, args, tt)
         error("cannot pass objects that don't fit in registers to CUDA functions")
 
     return quote
-        cudacall($fun, $config[1], $config[2],
-                 $tt, $(args...);
-                 shmem_bytes=$config[3])
+        cudacall($fun, $config[1], $config[2], $tt, $(args...); shmem=$config[3])
     end
 end
 
