@@ -12,7 +12,7 @@ if capability(dev) < v"2.0"
 else
     ctx = CuContext(dev)
 
-    include("macro.jl")
+    include("execution.jl")
     include("array.jl")
     include("intrinsics.jl")
 

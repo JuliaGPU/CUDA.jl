@@ -1,5 +1,23 @@
 @target ptx do_nothing() = return nothing
 
+#
+# cufunction
+#
+
+@test_throws UndefVarError cufunction(undefined_kernel, ())
+
+cufunction(do_nothing, ())
+cufunction(do_nothing, Tuple{})
+
+# NOTE: other cases are going to be covered by tests below,
+#       as @cuda internally uses cufunction
+
+
+
+#
+# @cuda
+#
+
 @test_throws UndefVarError @cuda (1,1) undefined_kernel()
 
 # kernel dims
