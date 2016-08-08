@@ -1,6 +1,34 @@
 dims = (16, 16)
 len = prod(dims)
 
+macro on_device(exprs)
+    quote
+        @target ptx function kernel()
+            $exprs
+
+            return nothing
+        end
+
+        @cuda (1,1) kernel()
+        synchronize(default_stream())
+    end
+end
+
+
+## construction
+
+let
+    # Inner constructors
+    @on_device CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
+
+    # Outer constructors
+    @on_device CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray(Int, 1, Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray(Int, (1,), Ptr{Int}(C_NULL))
+end
+
+
 ## basics (argument passing, get and setindex, length)
 
 @target ptx function array_copy(input::CuDeviceArray{Float32},

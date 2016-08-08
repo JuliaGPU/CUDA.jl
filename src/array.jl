@@ -17,8 +17,8 @@ immutable CuDeviceArray{T,N} <: AbstractArray{T,N}
     end
 end
 
-CuDeviceArray{T,N}(shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
-CuDeviceArray{T}(len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,), p)
+(::Type{CuDeviceArray{T}}){T,N}(shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
+(::Type{CuDeviceArray{T}}){T}(len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,), p)
 
 # deprecated
 CuDeviceArray{T,N}(::Type{T}, shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
@@ -58,5 +58,5 @@ import Base: unsafe_view, ViewIndex
     Base.@_inline_meta
     ptr = unsafe_convert(Ptr{T}, A) + (I[1].start-1)*sizeof(T)
     len = I[1].stop - I[1].start + 1
-    CuDeviceArray(len, ptr)
+    CuDeviceArray{T}(len, ptr)
 end
