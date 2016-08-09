@@ -8,7 +8,7 @@ end
 
 using Coverage
 
-dir, _ = dirname(@__FILE__)
+dir = dirname(@__FILE__)
 root = "$dir/../"
 cd(root)
 
