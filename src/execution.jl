@@ -152,7 +152,7 @@ function emit_allocations(args, codegen_tt, call_tt)
     return kernel_allocations, args
 end
 
-function emit_cudacall(fun, config, args, tt)
+function emit_cudacall(func, dims, kwargs, args, tt::Type)
     # TODO: can we handle non-isbits types? 
     #       if so, move this more stringent check to @cuda(CuFunction)
     all(t -> isbits(t) && sizeof(t) > 0, tt.parameters) ||
@@ -161,7 +161,7 @@ function emit_cudacall(fun, config, args, tt)
         error("cannot pass objects that don't fit in registers to CUDA functions")
 
     return quote
-        cudacall($fun, $config[1], $config[2], $tt, $(args...); shmem=$config[3])
+        cudacall($func, $dims[1], $dims[2], $tt, $(args...); $kwargs...)
     end
 end
 
@@ -202,11 +202,11 @@ end
 #
 
 """
-    @cuda (gridDim::CuDim, blockDim::CuDim, [shmem::Int]) func(args...)
+    @cuda (gridDim::CuDim, blockDim::CuDim, [shmem::Int], [stream::CuStream]) func(args...)
 
 High-level interface for calling functions on a GPU. The `gridDim` and `blockDim` arguments
-represent the launch configuration, and the optional `shmem` parameter specifies how much
-bytes of dynamic shared memory should be allocated.
+represent the launch configuration, the optional `shmem` parameter specifies how much bytes
+of dynamic shared memory should be allocated (defaults to 0).
 
 When `func` represents a `CuFunction` object, a `cudacall` will be emitted, with the type
 signature derived from the actual argument types (if you need conversions to happen, use
@@ -220,33 +220,41 @@ but not passed, objects > 8 bytes are copied to memory and passed by pointer), a
 `cudacall` is performed.
 """
 macro cuda(config::Expr, callexpr::Expr)
-    # Sanity checks
-    if config.head != :tuple || !(2 <= length(config.args) <= 3)
-        throw(ArgumentError("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem])"))
-    end
-    if length(config.args) == 2
-        push!(config.args, :0)
+    # sanity checks
+    if config.head != :tuple || !(2 <= length(config.args) <= 4)
+        throw(ArgumentError("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem], [stream])"))
     end
     if callexpr.head != :call
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...))))
+    # optional tuple elements are forwarded to `cudacall` by means of kwargs
+    if length(config.args) == 2
+        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...))))
+    elseif length(config.args) == 3
+        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
+                                               shmem=$config[3])))
+    elseif length(config.args) == 4
+        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
+                                               shmem=$config[3], stream=$config[4])))
+    end
 end
 
 # Execute a pre-compiled CUDA kernel
-@generated function generated_cuda(config::Tuple{CuDim, CuDim, Int},
-                                   cuda_fun::CuFunction, argspec...)
+@generated function generated_cuda(dims::Tuple{CuDim, CuDim},
+                                   cuda_fun::CuFunction, argspec...;
+                                   kwargs...)
     tt = Base.to_tuple_type(argspec)
     args = [:( argspec[$i] ) for i in 1:length(argspec)]
 
-    return emit_cudacall(:(cuda_fun), :(config), args, tt)
+    return emit_cudacall(:(cuda_fun), :(dims), :(kwargs), args, tt)
 end
 
 # Compile and execute a CUDA kernel from a Julia function
 const func_cache = Dict{UInt, CuFunction}()
-@generated function generated_cuda{F<:Function}(config::Tuple{CuDim, CuDim, Int},
-                                                func::F, argspec...)
+@generated function generated_cuda{F<:Function}(dims::Tuple{CuDim, CuDim},
+                                                func::F, argspec...;
+                                                kwargs...)
     tt = Base.to_tuple_type(argspec)
     args = [:( argspec[$i] ) for i in 1:length(argspec)]
     args, codegen_tt, call_tt = convert_arguments(args, tt)
@@ -269,7 +277,7 @@ const func_cache = Dict{UInt, CuFunction}()
     concrete_call_tt = Tuple{map(x->x[2], filter(x->x[1], zip(concrete, call_tt.parameters)))...}
     concrete_args    =       map(x->x[2], filter(x->x[1], zip(concrete, args)))
 
-    kernel_call = emit_cudacall(cuda_fun, :(config), concrete_args, concrete_call_tt)
+    kernel_call = emit_cudacall(cuda_fun, :(dims), :(kwargs), concrete_args, concrete_call_tt)
 
     # Throw everything together
     exprs = Expr(:block)

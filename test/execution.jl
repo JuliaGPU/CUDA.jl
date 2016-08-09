@@ -24,6 +24,14 @@ cufunction(do_nothing, Tuple{})
 @cuda (1,1) do_nothing()
 @test_throws ArgumentError @cuda (0,0) do_nothing()
 
+# shared memory
+@cuda (1,1,1) do_nothing()
+
+# streams
+s = CuStream()
+@cuda (1,1,1,s) do_nothing()
+destroy(s)
+
 # external kernel
 module KernelModule
     export do_more_nothing
