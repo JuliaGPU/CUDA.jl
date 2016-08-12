@@ -335,8 +335,7 @@ end
 #
 
 # TODO: compute capability checks
-# TODO: script to parse libdevice and check coverage
-# TODO: script to paste the libdevice line here, for verification purposes
+# TODO: check for intrinsics returning implicit boolean conditions
 
 @inline @target ptx abs(x::Int32) =   @wrap __nv_abs(x::i32)::i32
 @inline @target ptx abs(f::Float64) = @wrap __nv_fabs(f::double)::double
