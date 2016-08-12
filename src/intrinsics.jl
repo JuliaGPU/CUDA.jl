@@ -58,7 +58,7 @@ argument `attr` indicates which LLVM function attributes (such as `readnone` or 
 to add to the intrinsic declaration.
 
 For example, the following call:
-    @wrap __somme__intr(x::float, y::double)::float
+    @wrap __some_intrinsic(x::float, y::double)::float
 
 will yield the following `llvmcall`:
 
@@ -339,8 +339,8 @@ end
 # TODO: script to paste the libdevice line here, for verification purposes
 
 @inline @target ptx abs(x::Int32) =   @wrap __nv_abs(x::i32)::i32
-@inline @target ptx abs(x::Float64) = @wrap __nv_fabs(x::double)::double
-@inline @target ptx abs(x::Float32) = @wrap __nv_fabsf(x::float)::float
+@inline @target ptx abs(f::Float64) = @wrap __nv_fabs(f::double)::double
+@inline @target ptx abs(f::Float32) = @wrap __nv_fabsf(f::float)::float
 @inline @target ptx abs(x::Int64) =   @wrap __nv_llabs(x::i64)::i64
 
 @inline @target ptx acos(x::Float64) = @wrap __nv_acos(x::double)::double
@@ -376,7 +376,7 @@ end
 @inline @target ptx ceil(x::Float32) = @wrap __nv_ceilf(x::float)::float
 
 @inline @target ptx clz(x::Int32) =   @wrap __nv_clz(x::i32)::i32
-@inline @target ptx clz(x::Int64) =   @wrap __nv_clzll(x::i64)::i64
+@inline @target ptx clz(x::Int64) =   @wrap __nv_clzll(x::i64)::i32
 
 @inline @target ptx copysign(x::Float64, y::Float64) = @wrap __nv_copysign(x::double, y::double)::double
 @inline @target ptx copysign(x::Float32, y::Float32) = @wrap __nv_copysignf(x::float, y::float)::float
@@ -425,11 +425,11 @@ end
 
 # TODO: fast stuff
 
-@inline @target ptx dim(x::Float64, y::Float64) = @wrap __nv_dim(x::double, y::double)::double
-@inline @target ptx dim(x::Float32, y::Float32) = @wrap __nv_dimf(x::float, y::float)::float
+@inline @target ptx dim(x::Float64, y::Float64) = @wrap __nv_fdim(x::double, y::double)::double
+@inline @target ptx dim(x::Float32, y::Float32) = @wrap __nv_fdimf(x::float, y::float)::float
 
 @inline @target ptx ffs(x::Int32) =   @wrap __nv_ffs(x::i32)::i32
-@inline @target ptx ffs(x::Int64) =   @wrap __nv_ffsll(x::i64)::i64
+@inline @target ptx ffs(x::Int64) =   @wrap __nv_ffsll(x::i64)::i32
 
 @inline @target ptx isfinite(x::Float32) = (@wrap __nv_finitef(x::float)::i32) != 0
 @inline @target ptx isfinite(x::Float64) = (@wrap __nv_isfinited(x::double)::i32) != 0
@@ -460,11 +460,11 @@ end
 
 # TODO: int2...
 
-@inline @target ptx isinf(x::Float32) = (@wrap __nv_isinfd(x::float)::i32) != 0
-@inline @target ptx isinf(x::Float64) = (@wrap __nv_isinff(x::double)::i32) != 0
+@inline @target ptx isinf(x::Float32) = (@wrap __nv_isinfd(x::double)::i32) != 0
+@inline @target ptx isinf(x::Float64) = (@wrap __nv_isinff(x::float)::i32) != 0
 
-@inline @target ptx inan(x::Float32) = (@wrap __nv_inand(x::float)::i32) != 0
-@inline @target ptx inan(x::Float64) = (@wrap __nv_inanf(x::double)::i32) != 0
+@inline @target ptx isnan(x::Float32) = (@wrap __nv_isnand(x::double)::i32) != 0
+@inline @target ptx isnan(x::Float64) = (@wrap __nv_isnanf(x::float)::i32) != 0
 
 @inline @target ptx j0(x::Float64) = @wrap __nv_j0(x::double)::double
 @inline @target ptx j0(x::Float32) = @wrap __nv_j0f(x::float)::float
@@ -515,14 +515,14 @@ end
 # TODO: differentiate in return type, map correctly
 # @inline @target ptx rint(x::Float64) = @wrap __nv_llrint(x::double)::i64
 # @inline @target ptx rint(x::Float32) = @wrap __nv_llrintf(x::float)::i64
-# @inline @target ptx rint(x::Float64) = @wrap __nv_rint(x::double)::i32
-# @inline @target ptx rint(x::Float32) = @wrap __nv_rintf(x::float)::i32
+# @inline @target ptx rint(x::Float64) = @wrap __nv_rint(x::double)::double
+# @inline @target ptx rint(x::Float32) = @wrap __nv_rintf(x::float)::float
 
 # TODO: differentiate in return type, map correctly
 # @inline @target ptx round(x::Float64) = @wrap __nv_llround(x::double)::i64
 # @inline @target ptx round(x::Float32) = @wrap __nv_llroundf(x::float)::i64
-# @inline @target ptx round(x::Float64) = @wrap __nv_round(x::double)::i32
-# @inline @target ptx round(x::Float32) = @wrap __nv_roundf(x::float)::i32
+# @inline @target ptx round(x::Float64) = @wrap __nv_round(x::double)::double
+# @inline @target ptx round(x::Float32) = @wrap __nv_roundf(x::float)::float
 
 # TODO: modf
 
@@ -545,7 +545,7 @@ end
 @inline @target ptx normcdfinv(x::Float32) = @wrap __nv_normcdfinvf(x::float)::float
 
 @inline @target ptx popc(x::Int32) = @wrap __nv_popc(x::i32)::i32
-@inline @target ptx popc(x::Int64) = @wrap __nv_popcll(x::i64)::i64
+@inline @target ptx popc(x::Int64) = @wrap __nv_popcll(x::i64)::i32
 
 @inline @target ptx pow(x::Float64, y::Float64) = @wrap __nv_pow(x::double, y::double)::double
 @inline @target ptx pow(x::Float32, y::Float32) = @wrap __nv_powf(x::float, y::float)::float
@@ -573,8 +573,8 @@ end
 @inline @target ptx scalbn(x::Float64, y::Int32) = @wrap __nv_scalbn(x::double, y::i32)::double
 @inline @target ptx scalbn(x::Float32, y::Int32) = @wrap __nv_scalbnf(x::float, y::i32)::float
 
-@inline @target ptx signbit(x::Float64) = @wrap __nv_signbitd(x::double)::double
-@inline @target ptx signbit(x::Float32) = @wrap __nv_signbitf(x::float)::float
+@inline @target ptx signbit(x::Float64) = (@wrap __nv_signbitd(x::double)::i32) != 0
+@inline @target ptx signbit(x::Float32) = (@wrap __nv_signbitf(x::float)::i32) != 0
 
 # TODO: sincos, sincospi
 
@@ -588,5 +588,5 @@ end
 @inline @target ptx tgamma(x::Float32) = @wrap __nv_tgammaf(x::float)::float
 
 # TODO: would conflict with trunc usage in this module
-# @inline @target ptx trunc(x::Float64) = @wrap __nv_trunc(x::double)::i64
-# @inline @target ptx trunc(x::Float32) = @wrap __nv_truncf(x::float)::i64
+# @inline @target ptx trunc(x::Float64) = @wrap __nv_trunc(x::double)::double
+# @inline @target ptx trunc(x::Float32) = @wrap __nv_truncf(x::float)::float
