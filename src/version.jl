@@ -110,6 +110,9 @@ function __init_versioning__(driver_version=version())  # NOTE: performs unversi
     minreq[:cuLinkAddFile]      = v"5.5"
     minreq[:cuLinkAddData]      = v"5.5"
 
+    minreq[:cuDummyAvailable]   = v"0"      # non-existing functions
+    minreq[:cuDummyUnavailable] = v"999"    # for testing purposes
+
     # explicitly mark unavailable symbols, signaling `resolve` to error out
     for (api_function, minimum_version) in minreq
         if driver_version < minimum_version

@@ -57,7 +57,11 @@ end
 
 CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
-@test_throws ErrorException CUDAdrv.@apicall(:nonExisting, ())
+@test_throws ErrorException CUDAdrv.@apicall(:cuNonexisting, ())
+
+@test_throws ErrorException CUDAdrv.@apicall(:cuDummyAvailable, ())
+@test_throws CUDAdrv.CuVersionError CUDAdrv.@apicall(:cuDummyUnavailable, ())
+
 CUDAdrv.trace(prefix=" ")
 
 @test_throws ErrorException eval(
