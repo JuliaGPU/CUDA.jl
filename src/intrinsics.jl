@@ -14,6 +14,8 @@ export
 # Support functionality
 #
 
+# TODO: compute capability checks
+
 const llvmtypes = Dict{Type,Symbol}(
     Void    => :void,
     Int32   => :i32,
@@ -331,11 +333,8 @@ end
 
 
 #
-# Math (covered until function 3.316)
+# Unsorted
 #
-
-# TODO: compute capability checks
-# TODO: check for intrinsics returning implicit boolean conditions
 
 @inline @target ptx abs(x::Int32) =   @wrap __nv_abs(x::i32)::i32
 @inline @target ptx abs(f::Float64) = @wrap __nv_fabs(f::double)::double
@@ -389,10 +388,6 @@ end
 @inline @target ptx cospi(x::Float64) = @wrap __nv_cospi(x::double)::double
 @inline @target ptx cospi(x::Float32) = @wrap __nv_cospif(x::float)::float
 
-# TODO: dadd, ddiv, dmul, etc
-
-# TODO: rounding modes, _rd, _rn, _ru, _rz
-
 @inline @target ptx erf(x::Float64) = @wrap __nv_erf(x::double)::double
 @inline @target ptx erf(x::Float32) = @wrap __nv_erff(x::float)::float
 
@@ -420,10 +415,6 @@ end
 @inline @target ptx expm1(x::Float64) = @wrap __nv_expm1(x::double)::double
 @inline @target ptx expm1(x::Float32) = @wrap __nv_expm1f(x::float)::float
 
-# TODO: fadd, fmul, etc
-
-# TODO: fast stuff
-
 @inline @target ptx dim(x::Float64, y::Float64) = @wrap __nv_fdim(x::double, y::double)::double
 @inline @target ptx dim(x::Float32, y::Float32) = @wrap __nv_fdimf(x::float, y::float)::float
 
@@ -449,15 +440,11 @@ end
 @inline @target ptx mod(x::Float64, y::Float64) = @wrap __nv_fmod(x::double, y::double)::double
 @inline @target ptx mod(x::Float32, y::Float32) = @wrap __nv_fmodf(x::float, y::float)::float
 
-# TODO: frexp
-
 @inline @target ptx hypot(x::Float64, y::Float64) = @wrap __nv_hypot(x::double, y::double)::double
 @inline @target ptx hypot(x::Float32, y::Float32) = @wrap __nv_hypotf(x::float, y::float)::float
 
 @inline @target ptx ilogb(x::Float64) = @wrap __nv_ilogb(x::double)::i32
 @inline @target ptx ilogb(x::Float32) = @wrap __nv_ilogbf(x::float)::i32
-
-# TODO: int2...
 
 @inline @target ptx isinf(x::Float32) = (@wrap __nv_isinfd(x::double)::i32) != 0
 @inline @target ptx isinf(x::Float64) = (@wrap __nv_isinff(x::float)::i32) != 0
@@ -479,8 +466,6 @@ end
 
 @inline @target ptx lgamma(x::Float64) = @wrap __nv_lgamma(x::double)::double
 @inline @target ptx lgamma(x::Float32) = @wrap __nv_lgammaf(x::float)::float
-
-# TODO: ll2...
 
 @inline @target ptx sin(x::Float64) = @wrap __nv_sin(x::double)::double
 @inline @target ptx sin(x::Float32) = @wrap __nv_sinf(x::float)::float
@@ -523,13 +508,9 @@ end
 # @inline @target ptx round(x::Float64) = @wrap __nv_round(x::double)::double
 # @inline @target ptx round(x::Float32) = @wrap __nv_roundf(x::float)::float
 
-# TODO: modf
-
 @inline @target ptx mul24(x::Int32, y::Int32) = @wrap __nv_mul24(x::i32, y::i32)::i32
 @inline @target ptx mul64hi(x::Int64, y::Int64) = @wrap __nv_mul64hi(x::i64, y::i64)::i64
 @inline @target ptx mulhi(x::Int32, y::Int32) = @wrap __nv_mulhi(x::i32, y::i32)::i32
-
-# TODO: nan
 
 @inline @target ptx nearbyint(x::Float64) = @wrap __nv_nearbyint(x::double)::double
 @inline @target ptx nearbyint(x::Float32) = @wrap __nv_nearbyintf(x::float)::float
@@ -557,8 +538,6 @@ end
 @inline @target ptx rem(x::Float64, y::Float64) = @wrap __nv_remainder(x::double, y::double)::double
 @inline @target ptx rem(x::Float32, y::Float32) = @wrap __nv_remainderf(x::float, y::float)::float
 
-# TODO: remquo
-
 @inline @target ptx hadd(x::Int32, y::Int32) = @wrap __nv_hadd(x::i32, y::i32)::i32
 @inline @target ptx hadd(x::UInt32, y::UInt32) = @wrap __nv_uhadd(x::i32, y::i32)::i32
 
@@ -574,8 +553,6 @@ end
 
 @inline @target ptx signbit(x::Float64) = (@wrap __nv_signbitd(x::double)::i32) != 0
 @inline @target ptx signbit(x::Float32) = (@wrap __nv_signbitf(x::float)::i32) != 0
-
-# TODO: sincos, sincospi
 
 @inline @target ptx tan(x::Float64) = @wrap __nv_tan(x::double)::double
 @inline @target ptx tan(x::Float32) = @wrap __nv_tanf(x::float)::float
