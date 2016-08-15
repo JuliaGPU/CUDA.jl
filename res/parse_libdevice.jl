@@ -20,12 +20,16 @@ end
 function parse_libdevice(fn, cb)
     open(fn) do f
         next_proto = false
+        number = 0
+
         for ln in eachline(f)
-            if ismatch(r"^Prototype:", ln)
+            if (m = match(r"^\d\.(\d+)\..", ln); m != nothing)
+                number = parse(Int, m.captures[1])
+            elseif ismatch(r"^Prototype:", ln)
                 next_proto = true
             elseif next_proto
-                cb(chomp(ln))
-                next_proto = false;
+                cb(chomp(ln), number)
+                next_proto = false
             end
         end
     end
@@ -43,9 +47,10 @@ function main(args)
     parse_intrinsics(intr -> push!(wrapped, intr))
 
     intrinsics = Set{String}()
+    numbering = Dict{String,Number}()
     txt = tempname()
     run(`pdftotext $pdf $txt`)
-    parse_libdevice(txt, (proto) -> begin
+    parse_libdevice(txt, (proto, number) -> begin
         m = match(r"^(\w+) (@[\w.]+)\((.*?)\)", proto)
         if m != nothing
             rettype = m.captures[1]
@@ -63,6 +68,7 @@ function main(args)
 
             intr = "$wrap_fn($wrap_arglist)::$rettype"
             push!(intrinsics, intr)
+            numbering[intr] = number
         end
     end)
     rm(txt)
@@ -71,14 +77,14 @@ function main(args)
     superfluous = setdiff(wrapped, intrinsics)
 
     println("Missing intrinsics:")
-    for intr in missing
-        println(" - $intr")
+    for intr in sort(collect(missing), lt=(a,b)->numbering[a]<numbering[b])
+        println(" $(numbering[intr]). $intr")
     end
 
     println()
 
     println("Superfluous intrinsics:")
-    for intr in superfluous
+    for intr in sort(collect(superfluous))
         println(" - $intr")
     end
 end
