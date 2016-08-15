@@ -10,6 +10,7 @@ export
     @cuStaticSharedMem, @cuDynamicSharedMem
 
 
+
 #
 # Support functionality
 #
@@ -98,6 +99,7 @@ macro wrap(call, attrs="")
 end
 
 
+
 #
 # Indexing and dimensions
 #
@@ -142,6 +144,7 @@ const warpsize = Int32(32)
 # Synchronization
 # TODO: rename to syncthreads
 @inline @target ptx sync_threads() = @wrap llvm.nvvm.barrier0()::void "readnone nounwind"
+
 
 
 #
@@ -262,6 +265,7 @@ end
 #          a reference to the same memory
 
 
+
 #
 # Shuffling
 #
@@ -333,153 +337,67 @@ end
 
 
 #
-# Unsorted
+# Math
 #
 
-@inline @target ptx abs(x::Int32) =   @wrap __nv_abs(x::i32)::i32
-@inline @target ptx abs(f::Float64) = @wrap __nv_fabs(f::double)::double
-@inline @target ptx abs(f::Float32) = @wrap __nv_fabsf(f::float)::float
-@inline @target ptx abs(x::Int64) =   @wrap __nv_llabs(x::i64)::i64
-
-@inline @target ptx acos(x::Float64) = @wrap __nv_acos(x::double)::double
-@inline @target ptx acos(x::Float32) = @wrap __nv_acosf(x::float)::float
-
-@inline @target ptx acosh(x::Float64) = @wrap __nv_acosh(x::double)::double
-@inline @target ptx acosh(x::Float32) = @wrap __nv_acoshf(x::float)::float
-
-@inline @target ptx asin(x::Float64) = @wrap __nv_asin(x::double)::double
-@inline @target ptx asin(x::Float32) = @wrap __nv_asinf(x::float)::float
-
-@inline @target ptx asinh(x::Float64) = @wrap __nv_asinh(x::double)::double
-@inline @target ptx asinh(x::Float32) = @wrap __nv_asinhf(x::float)::float
-
-@inline @target ptx atan(x::Float64) = @wrap __nv_atan(x::double)::double
-@inline @target ptx atan(x::Float32) = @wrap __nv_atanf(x::float)::float
-
-@inline @target ptx atanh(x::Float64) = @wrap __nv_atanh(x::double)::double
-@inline @target ptx atanh(x::Float32) = @wrap __nv_atanhf(x::float)::float
-
-@inline @target ptx atan2(x::Float64, y::Float64) = @wrap __nv_atan2(x::double, y::double)::double
-@inline @target ptx atan2(x::Float32, y::Float32) = @wrap __nv_atan2f(x::float, y::float)::float
-
-@inline @target ptx brev(x::Int32) =   @wrap __nv_brev(x::i32)::i32
-@inline @target ptx brev(x::Int64) =   @wrap __nv_brevll(x::i64)::i64
-
-@inline @target ptx yte_perm(x::Int32, y::Int32, z::Int32) =   @wrap __nv_byte_perm(x::i32, y::i32, z::i32)::i32
-
-@inline @target ptx cbrt(x::Float64) = @wrap __nv_cbrt(x::double)::double
-@inline @target ptx cbrt(x::Float32) = @wrap __nv_cbrtf(x::float)::float
-
-@inline @target ptx ceil(x::Float64) = @wrap __nv_ceil(x::double)::double
-@inline @target ptx ceil(x::Float32) = @wrap __nv_ceilf(x::float)::float
-
-@inline @target ptx clz(x::Int32) =   @wrap __nv_clz(x::i32)::i32
-@inline @target ptx clz(x::Int64) =   @wrap __nv_clzll(x::i64)::i32
-
-@inline @target ptx copysign(x::Float64, y::Float64) = @wrap __nv_copysign(x::double, y::double)::double
-@inline @target ptx copysign(x::Float32, y::Float32) = @wrap __nv_copysignf(x::float, y::float)::float
+## trigonometric
 
 @inline @target ptx cos(x::Float64) = @wrap __nv_cos(x::double)::double
 @inline @target ptx cos(x::Float32) = @wrap __nv_cosf(x::float)::float
 
-@inline @target ptx cosh(x::Float64) = @wrap __nv_cosh(x::double)::double
-@inline @target ptx cosh(x::Float32) = @wrap __nv_coshf(x::float)::float
-
 @inline @target ptx cospi(x::Float64) = @wrap __nv_cospi(x::double)::double
 @inline @target ptx cospi(x::Float32) = @wrap __nv_cospif(x::float)::float
-
-@inline @target ptx erf(x::Float64) = @wrap __nv_erf(x::double)::double
-@inline @target ptx erf(x::Float32) = @wrap __nv_erff(x::float)::float
-
-@inline @target ptx erfinv(x::Float64) = @wrap __nv_erfinv(x::double)::double
-@inline @target ptx erfinv(x::Float32) = @wrap __nv_erfinvf(x::float)::float
-
-@inline @target ptx erfc(x::Float64) = @wrap __nv_erfc(x::double)::double
-@inline @target ptx erfc(x::Float32) = @wrap __nv_erfcf(x::float)::float
-
-@inline @target ptx erfcinv(x::Float64) = @wrap __nv_erfcinv(x::double)::double
-@inline @target ptx erfcinv(x::Float32) = @wrap __nv_erfcinvf(x::float)::float
-
-@inline @target ptx erfcx(x::Float64) = @wrap __nv_erfcx(x::double)::double
-@inline @target ptx erfcx(x::Float32) = @wrap __nv_erfcxf(x::float)::float
-
-@inline @target ptx exp(x::Float64) = @wrap __nv_exp(x::double)::double
-@inline @target ptx exp(x::Float32) = @wrap __nv_expf(x::float)::float
-
-@inline @target ptx exp2(x::Float64) = @wrap __nv_exp2(x::double)::double
-@inline @target ptx exp2(x::Float32) = @wrap __nv_exp2f(x::float)::float
-
-@inline @target ptx exp10(x::Float64) = @wrap __nv_exp10(x::double)::double
-@inline @target ptx exp10(x::Float32) = @wrap __nv_exp10f(x::float)::float
-
-@inline @target ptx expm1(x::Float64) = @wrap __nv_expm1(x::double)::double
-@inline @target ptx expm1(x::Float32) = @wrap __nv_expm1f(x::float)::float
-
-@inline @target ptx dim(x::Float64, y::Float64) = @wrap __nv_fdim(x::double, y::double)::double
-@inline @target ptx dim(x::Float32, y::Float32) = @wrap __nv_fdimf(x::float, y::float)::float
-
-@inline @target ptx ffs(x::Int32) =   @wrap __nv_ffs(x::i32)::i32
-@inline @target ptx ffs(x::Int64) =   @wrap __nv_ffsll(x::i64)::i32
-
-@inline @target ptx isfinite(x::Float32) = (@wrap __nv_finitef(x::float)::i32) != 0
-@inline @target ptx isfinite(x::Float64) = (@wrap __nv_isfinited(x::double)::i32) != 0
-
-@inline @target ptx fma(x::Float64, y::Float64, z::Float64) = @wrap __nv_fma(x::double, y::double, z::double)::double
-@inline @target ptx fma(x::Float32, y::Float32, z::Float32) = @wrap __nv_fmaf(x::float, y::float, z::float)::float
-
-@inline @target ptx max(x::Int32, y::Int32) = @wrap __nv_max(x::i32, y::i32)::i32
-@inline @target ptx max(x::Int64, y::Int64) = @wrap __nv_llmax(x::i64, y::i64)::i64
-@inline @target ptx max(x::Float64, y::Float64) = @wrap __nv_fmax(x::double, y::double)::double
-@inline @target ptx max(x::Float32, y::Float32) = @wrap __nv_fmaxf(x::float, y::float)::float
-
-@inline @target ptx min(x::Int32, y::Int32) = @wrap __nv_min(x::i32, y::i32)::i32
-@inline @target ptx min(x::Int64, y::Int64) = @wrap __nv_llmin(x::i64, y::i64)::i64
-@inline @target ptx min(x::Float64, y::Float64) = @wrap __nv_fmin(x::double, y::double)::double
-@inline @target ptx min(x::Float32, y::Float32) = @wrap __nv_fminf(x::float, y::float)::float
-
-@inline @target ptx mod(x::Float64, y::Float64) = @wrap __nv_fmod(x::double, y::double)::double
-@inline @target ptx mod(x::Float32, y::Float32) = @wrap __nv_fmodf(x::float, y::float)::float
-
-@inline @target ptx hypot(x::Float64, y::Float64) = @wrap __nv_hypot(x::double, y::double)::double
-@inline @target ptx hypot(x::Float32, y::Float32) = @wrap __nv_hypotf(x::float, y::float)::float
-
-@inline @target ptx ilogb(x::Float64) = @wrap __nv_ilogb(x::double)::i32
-@inline @target ptx ilogb(x::Float32) = @wrap __nv_ilogbf(x::float)::i32
-
-@inline @target ptx isinf(x::Float32) = (@wrap __nv_isinfd(x::double)::i32) != 0
-@inline @target ptx isinf(x::Float64) = (@wrap __nv_isinff(x::float)::i32) != 0
-
-@inline @target ptx isnan(x::Float32) = (@wrap __nv_isnand(x::double)::i32) != 0
-@inline @target ptx isnan(x::Float64) = (@wrap __nv_isnanf(x::float)::i32) != 0
-
-@inline @target ptx j0(x::Float64) = @wrap __nv_j0(x::double)::double
-@inline @target ptx j0(x::Float32) = @wrap __nv_j0f(x::float)::float
-
-@inline @target ptx j1(x::Float64) = @wrap __nv_j1(x::double)::double
-@inline @target ptx j1(x::Float32) = @wrap __nv_j1f(x::float)::float
-
-@inline @target ptx jn(n::Int32, x::Float64) = @wrap __nv_jn(n::i32, x::double)::double
-@inline @target ptx jn(n::Int32, x::Float32) = @wrap __nv_jnf(n::i32, x::float)::float
-
-@inline @target ptx ldexp(x::Float64, y::Int32) = @wrap __nv_ldexp(x::double, y::i32)::double
-@inline @target ptx ldexp(x::Float32, y::Int32) = @wrap __nv_ldexpf(x::float, y::i32)::float
-
-@inline @target ptx lgamma(x::Float64) = @wrap __nv_lgamma(x::double)::double
-@inline @target ptx lgamma(x::Float32) = @wrap __nv_lgammaf(x::float)::float
 
 @inline @target ptx sin(x::Float64) = @wrap __nv_sin(x::double)::double
 @inline @target ptx sin(x::Float32) = @wrap __nv_sinf(x::float)::float
 
-@inline @target ptx sinh(x::Float64) = @wrap __nv_sinh(x::double)::double
-@inline @target ptx sinh(x::Float32) = @wrap __nv_sinhf(x::float)::float
-
 @inline @target ptx sinpi(x::Float64) = @wrap __nv_sinpi(x::double)::double
 @inline @target ptx sinpi(x::Float32) = @wrap __nv_sinpif(x::float)::float
 
-@inline @target ptx sqrt(x::Float64) = @wrap __nv_sqrt(x::double)::double
-@inline @target ptx sqrt(x::Float32) = @wrap __nv_sqrtf(x::float)::float
-@inline @target ptx rsqrt(x::Float64) = @wrap __nv_rsqrt(x::double)::double
-@inline @target ptx rsqrt(x::Float32) = @wrap __nv_rsqrtf(x::float)::float
+@inline @target ptx tan(x::Float64) = @wrap __nv_tan(x::double)::double
+@inline @target ptx tan(x::Float32) = @wrap __nv_tanf(x::float)::float
+
+
+## inverse trigonometric
+
+@inline @target ptx acos(x::Float64) = @wrap __nv_acos(x::double)::double
+@inline @target ptx acos(x::Float32) = @wrap __nv_acosf(x::float)::float
+
+@inline @target ptx asin(x::Float64) = @wrap __nv_asin(x::double)::double
+@inline @target ptx asin(x::Float32) = @wrap __nv_asinf(x::float)::float
+
+@inline @target ptx atan(x::Float64) = @wrap __nv_atan(x::double)::double
+@inline @target ptx atan(x::Float32) = @wrap __nv_atanf(x::float)::float
+
+@inline @target ptx atan2(x::Float64, y::Float64) = @wrap __nv_atan2(x::double, y::double)::double
+@inline @target ptx atan2(x::Float32, y::Float32) = @wrap __nv_atan2f(x::float, y::float)::float
+
+
+## hyperbolic
+
+@inline @target ptx cosh(x::Float64) = @wrap __nv_cosh(x::double)::double
+@inline @target ptx cosh(x::Float32) = @wrap __nv_coshf(x::float)::float
+
+@inline @target ptx sinh(x::Float64) = @wrap __nv_sinh(x::double)::double
+@inline @target ptx sinh(x::Float32) = @wrap __nv_sinhf(x::float)::float
+
+@inline @target ptx tanh(x::Float64) = @wrap __nv_tanh(x::double)::double
+@inline @target ptx tanh(x::Float32) = @wrap __nv_tanhf(x::float)::float
+
+
+## inverse hyperbolic
+
+@inline @target ptx acosh(x::Float64) = @wrap __nv_acosh(x::double)::double
+@inline @target ptx acosh(x::Float32) = @wrap __nv_acoshf(x::float)::float
+
+@inline @target ptx asinh(x::Float64) = @wrap __nv_asinh(x::double)::double
+@inline @target ptx asinh(x::Float32) = @wrap __nv_asinhf(x::float)::float
+
+@inline @target ptx atanh(x::Float64) = @wrap __nv_atanh(x::double)::double
+@inline @target ptx atanh(x::Float32) = @wrap __nv_atanhf(x::float)::float
+
+
+## logarithmic
 
 @inline @target ptx log(x::Float64) = @wrap __nv_log(x::double)::double
 @inline @target ptx log(x::Float32) = @wrap __nv_logf(x::float)::float
@@ -496,21 +414,73 @@ end
 @inline @target ptx logb(x::Float64) = @wrap __nv_logb(x::double)::double
 @inline @target ptx logb(x::Float32) = @wrap __nv_logbf(x::float)::float
 
-# TODO: differentiate in return type, map correctly
-# @inline @target ptx rint(x::Float64) = @wrap __nv_llrint(x::double)::i64
-# @inline @target ptx rint(x::Float32) = @wrap __nv_llrintf(x::float)::i64
-# @inline @target ptx rint(x::Float64) = @wrap __nv_rint(x::double)::double
-# @inline @target ptx rint(x::Float32) = @wrap __nv_rintf(x::float)::float
+@inline @target ptx ilogb(x::Float64) = @wrap __nv_ilogb(x::double)::i32
+@inline @target ptx ilogb(x::Float32) = @wrap __nv_ilogbf(x::float)::i32
 
-# TODO: differentiate in return type, map correctly
-# @inline @target ptx round(x::Float64) = @wrap __nv_llround(x::double)::i64
-# @inline @target ptx round(x::Float32) = @wrap __nv_llroundf(x::float)::i64
-# @inline @target ptx round(x::Float64) = @wrap __nv_round(x::double)::double
-# @inline @target ptx round(x::Float32) = @wrap __nv_roundf(x::float)::float
 
-@inline @target ptx mul24(x::Int32, y::Int32) = @wrap __nv_mul24(x::i32, y::i32)::i32
-@inline @target ptx mul64hi(x::Int64, y::Int64) = @wrap __nv_mul64hi(x::i64, y::i64)::i64
-@inline @target ptx mulhi(x::Int32, y::Int32) = @wrap __nv_mulhi(x::i32, y::i32)::i32
+## exponential
+
+@inline @target ptx exp(x::Float64) = @wrap __nv_exp(x::double)::double
+@inline @target ptx exp(x::Float32) = @wrap __nv_expf(x::float)::float
+
+@inline @target ptx exp2(x::Float64) = @wrap __nv_exp2(x::double)::double
+@inline @target ptx exp2(x::Float32) = @wrap __nv_exp2f(x::float)::float
+
+@inline @target ptx exp10(x::Float64) = @wrap __nv_exp10(x::double)::double
+@inline @target ptx exp10(x::Float32) = @wrap __nv_exp10f(x::float)::float
+
+@inline @target ptx expm1(x::Float64) = @wrap __nv_expm1(x::double)::double
+@inline @target ptx expm1(x::Float32) = @wrap __nv_expm1f(x::float)::float
+
+@inline @target ptx ldexp(x::Float64, y::Int32) = @wrap __nv_ldexp(x::double, y::i32)::double
+@inline @target ptx ldexp(x::Float32, y::Int32) = @wrap __nv_ldexpf(x::float, y::i32)::float
+
+
+## error
+
+@inline @target ptx erf(x::Float64) = @wrap __nv_erf(x::double)::double
+@inline @target ptx erf(x::Float32) = @wrap __nv_erff(x::float)::float
+
+@inline @target ptx erfinv(x::Float64) = @wrap __nv_erfinv(x::double)::double
+@inline @target ptx erfinv(x::Float32) = @wrap __nv_erfinvf(x::float)::float
+
+@inline @target ptx erfc(x::Float64) = @wrap __nv_erfc(x::double)::double
+@inline @target ptx erfc(x::Float32) = @wrap __nv_erfcf(x::float)::float
+
+@inline @target ptx erfcinv(x::Float64) = @wrap __nv_erfcinv(x::double)::double
+@inline @target ptx erfcinv(x::Float32) = @wrap __nv_erfcinvf(x::float)::float
+
+@inline @target ptx erfcx(x::Float64) = @wrap __nv_erfcx(x::double)::double
+@inline @target ptx erfcx(x::Float32) = @wrap __nv_erfcxf(x::float)::float
+
+
+## integer handling (bit twiddling)
+
+@inline @target ptx brev(x::Int32) =   @wrap __nv_brev(x::i32)::i32
+@inline @target ptx brev(x::Int64) =   @wrap __nv_brevll(x::i64)::i64
+
+@inline @target ptx clz(x::Int32) =   @wrap __nv_clz(x::i32)::i32
+@inline @target ptx clz(x::Int64) =   @wrap __nv_clzll(x::i64)::i32
+
+@inline @target ptx ffs(x::Int32) = @wrap __nv_ffs(x::i32)::i32
+@inline @target ptx ffs(x::Int64) = @wrap __nv_ffsll(x::i64)::i32
+
+@inline @target ptx byte_perm(x::Int32, y::Int32, z::Int32) = @wrap __nv_byte_perm(x::i32, y::i32, z::i32)::i32
+
+@inline @target ptx popc(x::Int32) = @wrap __nv_popc(x::i32)::i32
+@inline @target ptx popc(x::Int64) = @wrap __nv_popcll(x::i64)::i32
+
+
+## floating-point handling
+
+@inline @target ptx isfinite(x::Float32) = (@wrap __nv_finitef(x::float)::i32) != 0
+@inline @target ptx isfinite(x::Float64) = (@wrap __nv_isfinited(x::double)::i32) != 0
+
+@inline @target ptx isinf(x::Float32) = (@wrap __nv_isinfd(x::double)::i32) != 0
+@inline @target ptx isinf(x::Float64) = (@wrap __nv_isinff(x::float)::i32) != 0
+
+@inline @target ptx isnan(x::Float32) = (@wrap __nv_isnand(x::double)::i32) != 0
+@inline @target ptx isnan(x::Float64) = (@wrap __nv_isnanf(x::float)::i32) != 0
 
 @inline @target ptx nearbyint(x::Float64) = @wrap __nv_nearbyint(x::double)::double
 @inline @target ptx nearbyint(x::Float32) = @wrap __nv_nearbyintf(x::float)::float
@@ -518,51 +488,161 @@ end
 @inline @target ptx nextafter(x::Float64, y::Float64) = @wrap __nv_nextafter(x::double, y::double)::double
 @inline @target ptx nextafter(x::Float32, y::Float32) = @wrap __nv_nextafterf(x::float, y::float)::float
 
+
+## sign handling
+
+@inline @target ptx signbit(x::Float64) = (@wrap __nv_signbitd(x::double)::i32) != 0
+@inline @target ptx signbit(x::Float32) = (@wrap __nv_signbitf(x::float)::i32) != 0
+
+@inline @target ptx copysign(x::Float64, y::Float64) = @wrap __nv_copysign(x::double, y::double)::double
+@inline @target ptx copysign(x::Float32, y::Float32) = @wrap __nv_copysignf(x::float, y::float)::float
+
+@inline @target ptx abs(x::Int32) =   @wrap __nv_abs(x::i32)::i32
+@inline @target ptx abs(f::Float64) = @wrap __nv_fabs(f::double)::double
+@inline @target ptx abs(f::Float32) = @wrap __nv_fabsf(f::float)::float
+@inline @target ptx abs(x::Int64) =   @wrap __nv_llabs(x::i64)::i64
+
+
+## roots and powers
+
+@inline @target ptx sqrt(x::Float64) = @wrap __nv_sqrt(x::double)::double
+@inline @target ptx sqrt(x::Float32) = @wrap __nv_sqrtf(x::float)::float
+
+@inline @target ptx rsqrt(x::Float64) = @wrap __nv_rsqrt(x::double)::double
+@inline @target ptx rsqrt(x::Float32) = @wrap __nv_rsqrtf(x::float)::float
+
+@inline @target ptx cbrt(x::Float64) = @wrap __nv_cbrt(x::double)::double
+@inline @target ptx cbrt(x::Float32) = @wrap __nv_cbrtf(x::float)::float
+
+@inline @target ptx rcbrt(x::Float64) = @wrap __nv_rcbrt(x::double)::double
+@inline @target ptx rcbrt(x::Float32) = @wrap __nv_rcbrtf(x::float)::float
+
+@inline @target ptx pow(x::Float64, y::Float64) = @wrap __nv_pow(x::double, y::double)::double
+@inline @target ptx pow(x::Float32, y::Float32) = @wrap __nv_powf(x::float, y::float)::float
+@inline @target ptx pow(x::Float64, y::Int32) =   @wrap __nv_powi(x::double, y::i32)::double
+@inline @target ptx pow(x::Float32, y::Int32) =   @wrap __nv_powif(x::float, y::i32)::float
+
+
+## rounding and selection
+
+# TODO: differentiate in return type, map correctly
+# @inline @target ptx round(x::Float64) = @wrap __nv_llround(x::double)::i64
+# @inline @target ptx round(x::Float32) = @wrap __nv_llroundf(x::float)::i64
+# @inline @target ptx round(x::Float64) = @wrap __nv_round(x::double)::double
+# @inline @target ptx round(x::Float32) = @wrap __nv_roundf(x::float)::float
+
+# TODO: differentiate in return type, map correctly
+# @inline @target ptx rint(x::Float64) = @wrap __nv_llrint(x::double)::i64
+# @inline @target ptx rint(x::Float32) = @wrap __nv_llrintf(x::float)::i64
+# @inline @target ptx rint(x::Float64) = @wrap __nv_rint(x::double)::double
+# @inline @target ptx rint(x::Float32) = @wrap __nv_rintf(x::float)::float
+
+# TODO: would conflict with trunc usage in this module
+# @inline @target ptx trunc(x::Float64) = @wrap __nv_trunc(x::double)::double
+# @inline @target ptx trunc(x::Float32) = @wrap __nv_truncf(x::float)::float
+
+@inline @target ptx ceil(x::Float64) = @wrap __nv_ceil(x::double)::double
+@inline @target ptx ceil(x::Float32) = @wrap __nv_ceilf(x::float)::float
+
+@inline @target ptx floor(f::Float64) = @wrap __nv_floor(f::double)::double
+@inline @target ptx floor(f::Float32) = @wrap __nv_floorf(f::float)::float
+
+@inline @target ptx min(x::Int32, y::Int32) = @wrap __nv_min(x::i32, y::i32)::i32
+@inline @target ptx min(x::Int64, y::Int64) = @wrap __nv_llmin(x::i64, y::i64)::i64
+@inline @target ptx min(x::UInt32, y::UInt32) = convert(UInt32, @wrap __nv_umin(x::i32, y::i32)::i32)
+@inline @target ptx min(x::UInt64, y::UInt64) = convert(UInt64, @wrap __nv_ullmin(x::i64, y::i64)::i64)
+@inline @target ptx min(x::Float64, y::Float64) = @wrap __nv_fmin(x::double, y::double)::double
+@inline @target ptx min(x::Float32, y::Float32) = @wrap __nv_fminf(x::float, y::float)::float
+
+@inline @target ptx max(x::Int32, y::Int32) = @wrap __nv_max(x::i32, y::i32)::i32
+@inline @target ptx max(x::Int64, y::Int64) = @wrap __nv_llmax(x::i64, y::i64)::i64
+@inline @target ptx max(x::UInt32, y::UInt32) = convert(UInt32, @wrap __nv_umax(x::i32, y::i32)::i32)
+@inline @target ptx max(x::UInt64, y::UInt64) = convert(UInt64, @wrap __nv_ullmax(x::i64, y::i64)::i64)
+@inline @target ptx max(x::Float64, y::Float64) = @wrap __nv_fmax(x::double, y::double)::double
+@inline @target ptx max(x::Float32, y::Float32) = @wrap __nv_fmaxf(x::float, y::float)::float
+
+@inline @target ptx saturate(x::Float32) = @wrap __nv_saturatef(x::float)::float
+
+
+## division and remainder
+
+@inline @target ptx mod(x::Float64, y::Float64) = @wrap __nv_fmod(x::double, y::double)::double
+@inline @target ptx mod(x::Float32, y::Float32) = @wrap __nv_fmodf(x::float, y::float)::float
+
+@inline @target ptx rem(x::Float64, y::Float64) = @wrap __nv_remainder(x::double, y::double)::double
+@inline @target ptx rem(x::Float32, y::Float32) = @wrap __nv_remainderf(x::float, y::float)::float
+
+
+## gamma function
+
+@inline @target ptx lgamma(x::Float64) = @wrap __nv_lgamma(x::double)::double
+@inline @target ptx lgamma(x::Float32) = @wrap __nv_lgammaf(x::float)::float
+
+@inline @target ptx tgamma(x::Float64) = @wrap __nv_tgamma(x::double)::double
+@inline @target ptx tgamma(x::Float32) = @wrap __nv_tgammaf(x::float)::float
+
+
+## Bessel
+
+@inline @target ptx j0(x::Float64) = @wrap __nv_j0(x::double)::double
+@inline @target ptx j0(x::Float32) = @wrap __nv_j0f(x::float)::float
+
+@inline @target ptx j1(x::Float64) = @wrap __nv_j1(x::double)::double
+@inline @target ptx j1(x::Float32) = @wrap __nv_j1f(x::float)::float
+
+@inline @target ptx jn(n::Int32, x::Float64) = @wrap __nv_jn(n::i32, x::double)::double
+@inline @target ptx jn(n::Int32, x::Float32) = @wrap __nv_jnf(n::i32, x::float)::float
+
+@inline @target ptx y0(x::Float64) = @wrap __nv_y0(x::double)::double
+@inline @target ptx y0(x::Float32) = @wrap __nv_y0f(x::float)::float
+
+@inline @target ptx y1(x::Float64) = @wrap __nv_y1(x::double)::double
+@inline @target ptx y1(x::Float32) = @wrap __nv_y1f(x::float)::float
+
+@inline @target ptx yn(n::Int32, x::Float64) = @wrap __nv_yn(n::i32, x::double)::double
+@inline @target ptx yn(n::Int32, x::Float32) = @wrap __nv_ynf(n::i32, x::float)::float
+
+
+
+## distributions
+
 @inline @target ptx normcdf(x::Float64) = @wrap __nv_normcdf(x::double)::double
 @inline @target ptx normcdf(x::Float32) = @wrap __nv_normcdff(x::float)::float
 
 @inline @target ptx normcdfinv(x::Float64) = @wrap __nv_normcdfinv(x::double)::double
 @inline @target ptx normcdfinv(x::Float32) = @wrap __nv_normcdfinvf(x::float)::float
 
-@inline @target ptx popc(x::Int32) = @wrap __nv_popc(x::i32)::i32
-@inline @target ptx popc(x::Int64) = @wrap __nv_popcll(x::i64)::i32
 
-@inline @target ptx pow(x::Float64, y::Float64) = @wrap __nv_pow(x::double, y::double)::double
-@inline @target ptx pow(x::Float32, y::Float32) = @wrap __nv_powf(x::float, y::float)::float
-@inline @target ptx pow(x::Float64, y::Int32) = @wrap __nv_powi(x::double, y::i32)::double
-@inline @target ptx pow(x::Float32, y::Int32) = @wrap __nv_powif(x::float, y::i32)::float
 
-@inline @target ptx rcbrt(x::Float64) = @wrap __nv_rcbrt(x::double)::double
-@inline @target ptx rcbrt(x::Float32) = @wrap __nv_rcbrtf(x::float)::float
+#
+# Unsorted
+#
 
-@inline @target ptx rem(x::Float64, y::Float64) = @wrap __nv_remainder(x::double, y::double)::double
-@inline @target ptx rem(x::Float32, y::Float32) = @wrap __nv_remainderf(x::float, y::float)::float
+@inline @target ptx hypot(x::Float64, y::Float64) = @wrap __nv_hypot(x::double, y::double)::double
+@inline @target ptx hypot(x::Float32, y::Float32) = @wrap __nv_hypotf(x::float, y::float)::float
 
-@inline @target ptx hadd(x::Int32, y::Int32) = @wrap __nv_hadd(x::i32, y::i32)::i32
-@inline @target ptx hadd(x::UInt32, y::UInt32) = @wrap __nv_uhadd(x::i32, y::i32)::i32
-
-@inline @target ptx rhadd(x::Int32, y::Int32) = @wrap __nv_rhadd(x::i32, y::i32)::i32
-@inline @target ptx rhadd(x::UInt32, y::UInt32) = @wrap __nv_urhadd(x::i32, y::i32)::i32
+@inline @target ptx fma(x::Float64, y::Float64, z::Float64) = @wrap __nv_fma(x::double, y::double, z::double)::double
+@inline @target ptx fma(x::Float32, y::Float32, z::Float32) = @wrap __nv_fmaf(x::float, y::float, z::float)::float
 
 @inline @target ptx sad(x::Int32, y::Int32, z::Int32) = @wrap __nv_sad(x::i32, y::i32, z::i32)::i32
+@inline @target ptx sad(x::UInt32, y::UInt32, z::UInt32) = convert(UInt32, @wrap __nv_usad(x::i32, y::i32, z::i32)::i32)
 
-@inline @target ptx saturate(x::Float32) = @wrap __nv_saturatef(x::float)::float
+@inline @target ptx dim(x::Float64, y::Float64) = @wrap __nv_fdim(x::double, y::double)::double
+@inline @target ptx dim(x::Float32, y::Float32) = @wrap __nv_fdimf(x::float, y::float)::float
+
+@inline @target ptx mul24(x::Int32, y::Int32) = @wrap __nv_mul24(x::i32, y::i32)::i32
+@inline @target ptx mul24(x::UInt32, y::UInt32) = convert(UInt32, @wrap __nv_umul24(x::i32, y::i32)::i32)
+
+@inline @target ptx mul64hi(x::Int64, y::Int64) = @wrap __nv_mul64hi(x::i64, y::i64)::i64
+@inline @target ptx mul64hi(x::UInt64, y::UInt64) = convert(UInt64, @wrap __nv_umul64hi(x::i64, y::i64)::i64)
+@inline @target ptx mulhi(x::Int32, y::Int32) = @wrap __nv_mulhi(x::i32, y::i32)::i32
+@inline @target ptx mulhi(x::UInt32, y::UInt32) = convert(UInt32, @wrap __nv_umulhi(x::i32, y::i32)::i32)
+
+@inline @target ptx hadd(x::Int32, y::Int32) = @wrap __nv_hadd(x::i32, y::i32)::i32
+@inline @target ptx hadd(x::UInt32, y::UInt32) = convert(UInt32, @wrap __nv_uhadd(x::i32, y::i32)::i32)
+
+@inline @target ptx rhadd(x::Int32, y::Int32) = @wrap __nv_rhadd(x::i32, y::i32)::i32
+@inline @target ptx rhadd(x::UInt32, y::UInt32) = convert(UInt32, @wrap __nv_urhadd(x::i32, y::i32)::i32)
 
 @inline @target ptx scalbn(x::Float64, y::Int32) = @wrap __nv_scalbn(x::double, y::i32)::double
 @inline @target ptx scalbn(x::Float32, y::Int32) = @wrap __nv_scalbnf(x::float, y::i32)::float
-
-@inline @target ptx signbit(x::Float64) = (@wrap __nv_signbitd(x::double)::i32) != 0
-@inline @target ptx signbit(x::Float32) = (@wrap __nv_signbitf(x::float)::i32) != 0
-
-@inline @target ptx tan(x::Float64) = @wrap __nv_tan(x::double)::double
-@inline @target ptx tan(x::Float32) = @wrap __nv_tanf(x::float)::float
-
-@inline @target ptx tanh(x::Float64) = @wrap __nv_tanh(x::double)::double
-@inline @target ptx tanh(x::Float32) = @wrap __nv_tanhf(x::float)::float
-
-@inline @target ptx tgamma(x::Float64) = @wrap __nv_tgamma(x::double)::double
-@inline @target ptx tgamma(x::Float32) = @wrap __nv_tgammaf(x::float)::float
-
-# TODO: would conflict with trunc usage in this module
-# @inline @target ptx trunc(x::Float64) = @wrap __nv_trunc(x::double)::double
-# @inline @target ptx trunc(x::Float32) = @wrap __nv_truncf(x::float)::float
