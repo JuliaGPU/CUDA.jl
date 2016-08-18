@@ -121,15 +121,21 @@ function compile_function{F<:Function}(func::F, tt)
         end
     end
 
-    # get entry point
-    # TODO: get rid of the llvmf (lifted from reflection.jl)
-    llvmf = ccall(:jl_get_llvmf, Ptr{Void},
-                 (Any, Bool, Bool),
-                 Base.tt_cons(typeof(func), tt), false, true)
-    module_entry = ccall(:jl_dump_function_name, Any, (Ptr{Void},), llvmf)::String
-    trace("Function entry point: $module_entry")
+    # extract entry point
+    module_entry = Nullable{String}()
+    entry_re = r"^\.visible \.entry (\w+)\("
+    buf = IOBuffer(module_asm)
+    for ln in eachline(buf)
+        m = match(entry_re, ln)
+        if m != nothing
+            isnull(module_entry) || error("multiple entry-points functions in module")
+            module_entry = Nullable{String}(m.captures[1])
+        end
+    end
+    isnull(module_entry) && error("no entry-points functions in module")
+    trace("Function entry point: ", get(module_entry))
 
-    return module_asm, module_entry
+    return module_asm, get(module_entry)
 end
 
 function emit_allocations(args, codegen_tt, call_tt)
