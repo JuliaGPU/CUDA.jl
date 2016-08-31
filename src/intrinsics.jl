@@ -172,28 +172,32 @@ unreported) error will be thrown resulting in a runtime generic call to an inter
 generator function.
 """
 # TODO: test multi shmem case
-macro cuStaticSharedMem(typ, nel)
+macro cuStaticSharedMem(typ, size)
     global shmem_id
     id = shmem_id::Int += 1
-    return esc(:(CUDAnative.generate_static_shmem($typ, Val{$nel}, Val{$id})))
+    return esc(:(CUDAnative.generate_static_shmem($typ, Val{$size}, Val{$id})))
 end
 
 @generated function generate_static_shmem{T,N,I}(::Type{T}, ::Type{Val{N}}, ::Type{Val{I}})
     return emit_static_shmem(T, N, I)
 end
 
-function emit_static_shmem(jltyp::Type, nel::Integer, id::Integer)
+emit_static_shmem(jltyp::Type, len::Integer, id::Integer) =
+    return emit_static_shmem(jltyp, (len,), id)
+
+function emit_static_shmem{N}(jltyp::Type, shape::NTuple{N,Int}, id::Integer)
     if !haskey(llvmtypes, jltyp)
         error("cuStaticSharedMem: unsupported type '$jltyp'")
     end
     llvmtyp = llvmtypes[jltyp]
 
     var = Symbol(:@shmem, id)
+    len = prod(shape)
 
     return quote
-        CuDeviceArray{$jltyp}($nel, Base.llvmcall(
-            ($"""$var = internal addrspace(3) global [$nel x $llvmtyp] zeroinitializer, align 4""",
-             $"""%1 = getelementptr inbounds [$nel x $llvmtyp], [$nel x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
+        CuDeviceArray{$jltyp}($shape, Base.llvmcall(
+            ($"""$var = internal addrspace(3) global [$len x $llvmtyp] zeroinitializer, align 4""",
+             $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
             Ptr{$jltyp}, Tuple{}))
@@ -213,18 +217,18 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-macro cuDynamicSharedMem(typ, nel, offset=0)
+macro cuDynamicSharedMem(typ, size, offset=0)
     global shmem_id
     id = shmem_id::Int += 1
-    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $nel, $offset, Val{$id})))
+    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $size, $offset, Val{$id})))
 end
 
-@generated function generate_dynamic_shmem{T,I}(::Type{T}, nel, offset, ::Type{Val{I}})
-    return emit_dynamic_shmem(T, :(nel), :(offset), I)
+@generated function generate_dynamic_shmem{T,I}(::Type{T}, size, offset, ::Type{Val{I}})
+    return emit_dynamic_shmem(T, :(size), :(offset), I)
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
-function emit_dynamic_shmem(jltyp::Type, nel::Symbol, offset::Symbol, id::Integer)
+function emit_dynamic_shmem(jltyp::Type, size::Union{Expr,Symbol}, offset::Symbol, id::Integer)
     if !haskey(llvmtypes, jltyp)
         error("cuDynamicSharedMem: unsupported type '$jltyp'")
     end
@@ -233,7 +237,7 @@ function emit_dynamic_shmem(jltyp::Type, nel::Symbol, offset::Symbol, id::Intege
     var = Symbol(:@shmem, id)
 
     return quote
-        CuDeviceArray{$jltyp}($nel, Base.llvmcall(
+        CuDeviceArray{$jltyp}($size, Base.llvmcall(
             ($"""$var = external addrspace(3) global [0 x $llvmtyp]""",
              $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
