@@ -1,10 +1,12 @@
 # Contiguous on-device arrays
 
-import Base: length, size, getindex, setindex!, convert, unsafe_convert
+import Base: convert, unsafe_convert
 
 export
     CuDeviceArray, CuBoundsError
 
+
+## construction
 
 immutable CuDeviceArray{T,N} <: AbstractArray{T,N}
     ptr::Ptr{T}
@@ -29,32 +31,28 @@ cudaconvert{T,N}(::Type{CuArray{T,N}}) = CuDeviceArray{T,N}
 convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) =
     CuDeviceArray{T,N}(a.shape, unsafe_convert(Ptr{T}, a.ptr))
 
+
+## array interface
+
+import Base: length, size,
+             linearindexing, LinearFast, getindex, setindex!,
+             pointerref, pointerset
+
 @target ptx length(g::CuDeviceArray) = g.len
 @target ptx size(g::CuDeviceArray) = g.shape
 
-import Base: pointerref, pointerset
+linearindexing{A<:CuDeviceArray}(::Type{A}) = LinearFast()
 
-@target ptx @inline function getindex{T}(A::CuDeviceArray{T}, I::Int)
-    @boundscheck checkbounds(A, I)
-    pointerref(unsafe_convert(Ptr{T}, A), I, 8)::T
-end
+@target ptx setindex!{T}(A::CuDeviceArray{T}, x, i::Int) =
+    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, i, 8)
 
-@target ptx @inline function getindex{T,N}(A::CuDeviceArray{T,N}, I::Vararg{Int, N})
-    @boundscheck checkbounds(A, I...)
-    pointerref(unsafe_convert(Ptr{T}, A), sub2ind(A, I...), 8)::T
-end
-
-@target ptx @inline function setindex!{T}(A::CuDeviceArray{T}, x, I::Int)
-    @boundscheck checkbounds(A, I)
-    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, I, 8)
-end
-
-@target ptx @inline function setindex!{T,N}(A::CuDeviceArray{T,N}, x, I::Vararg{Int, N})
-    @boundscheck checkbounds(A, I...)
-    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, sub2ind(A, I...), 8)
-end
+@target ptx getindex{T}(A::CuDeviceArray{T}, i::Int) =
+    pointerref(unsafe_convert(Ptr{T}, A), i, 8)::T
 
 @target ptx @inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
+
+
+## compatibility fixes
 
 # TODO: remove this hack as soon as immutables with heap references (such as BoundsError)
 #       can be stack-allocated
