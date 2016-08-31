@@ -79,6 +79,9 @@ Compile a function to PTX, returning the assembly and an entry point.
 Not to be used directly, see `cufunction` instead.
 """
 function compile_function{F<:Function}(func::F, tt)
+    sig = """$func($(join(tt.parameters, ", ")))"""
+    debug("Compiling $sig")
+
     @static if TRACE
         # generate a safe and unique name
         function_uid = "$func-"
@@ -98,6 +101,19 @@ function compile_function{F<:Function}(func::F, tt)
         open(output, "w") do io
             write(io, ast)
         end
+    end
+
+    # Check method validity
+    ml = Base.methods(func, tt)
+    if length(ml) == 0
+        error("no method found for kernel $sig")
+    elseif length(ml) > 1
+        # TODO: when does this happen?
+        error("ambiguous call to kernel $sig")
+    end
+    rt = Base.return_types(func, tt)[1]
+    if rt != Void
+        error("cannot call kernel $sig as it returns $rt")
     end
 
     # generate LLVM IR
@@ -179,21 +195,6 @@ end
 # Compile and create a CUDA function from a Julia function
 function cufunction{F<:Function}(func::F, types)
     tt = Base.to_tuple_type(types)
-    sig = """$func($(join(tt.parameters, ", ")))"""
-    debug("Generating CUDA function for $sig")
-
-    # Check method validity
-    ml = Base.methods(func, tt)
-    if length(ml) == 0
-        error("no method found for kernel $sig")
-    elseif length(ml) > 1
-        # TODO: when does this happen?
-        error("ambiguous call to kernel $sig")
-    end
-    rt = Base.return_types(func, tt)[1]
-    if rt != Void
-        error("cannot call kernel $sig as it returns $rt")
-    end
 
     (module_asm, module_entry) = compile_function(func, tt)
     cuda_mod = CuModule(module_asm)
