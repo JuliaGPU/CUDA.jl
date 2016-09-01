@@ -43,11 +43,15 @@ import Base: length, size,
 
 linearindexing{A<:CuDeviceArray}(::Type{A}) = LinearFast()
 
-@target ptx setindex!{T}(A::CuDeviceArray{T}, x, i::Int) =
-    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, i, 8)
+@target ptx function setindex!{T}(A::CuDeviceArray{T}, x, index::Int)
+    @boundscheck checkbounds(A, index)
+    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, 8)
+end
 
-@target ptx getindex{T}(A::CuDeviceArray{T}, i::Int) =
-    pointerref(unsafe_convert(Ptr{T}, A), i, 8)::T
+@target ptx function getindex{T}(A::CuDeviceArray{T}, index::Int)
+    @boundscheck checkbounds(A, index)
+    pointerref(unsafe_convert(Ptr{T}, A), index, 8)::T
+end
 
 @target ptx @inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
 
