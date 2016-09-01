@@ -1,19 +1,6 @@
 dims = (16, 16)
 len = prod(dims)
 
-macro on_device(exprs)
-    quote
-        @target ptx function kernel()
-            $exprs
-
-            return nothing
-        end
-
-        @cuda (1,1) kernel()
-        synchronize(default_stream())
-    end
-end
-
 
 ## construction
 

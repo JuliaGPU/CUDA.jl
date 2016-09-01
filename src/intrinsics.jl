@@ -161,31 +161,27 @@ const warpsize = Int32(32)
 
 shmem_id = 0
 
-# TODO: shape instead of len
-
 """
-    @cuStaticSharedMem(typ::Type, nel::Integer) -> CuDeviceArray{typ}
+    @cuStaticSharedMem(typ::Type, dims) -> CuDeviceArray{typ}
 
-Get an array pointing to a statically-allocated piece of shared memory. The type `typ` and
-number of elements `nel` should be statically known after type inference, or a (currently
-unreported) error will be thrown resulting in a runtime generic call to an internal
-generator function.
+Get an array of type `typ` and dimensions `dims` (either an integer length or tuple shape)
+pointing to a statically-allocated piece of shared memory. All arguments should be
+statically known after type inference, or a (currently unreported) error will be thrown
+resulting in a runtime generic call to the internal generator function.
 
 Multiple statically-allocated shared memory arrays can be requested by calling this macro
 multiple times.
 """
-macro cuStaticSharedMem(typ, size)
+macro cuStaticSharedMem(typ, dims)
     global shmem_id
     id = shmem_id::Int += 1
-    return esc(:(CUDAnative.generate_static_shmem($typ, Val{$size}, Val{$id})))
+
+    return esc(:(CUDAnative.generate_static_shmem($typ, Val{$dims}, Val{$id})))
 end
 
-@generated function generate_static_shmem{T,N,I}(::Type{T}, ::Type{Val{N}}, ::Type{Val{I}})
-    return emit_static_shmem(T, N, I)
+@generated function generate_static_shmem{T,D,I}(::Type{T}, ::Type{Val{D}}, ::Type{Val{I}})
+    return emit_static_shmem(T, tuple(D...), I)
 end
-
-emit_static_shmem(jltyp::Type, len::Integer, id::Integer) =
-    return emit_static_shmem(jltyp, (len,), id)
 
 function emit_static_shmem{N}(jltyp::Type, shape::NTuple{N,Int}, id::Integer)
     if !haskey(llvmtypes, jltyp)
@@ -208,12 +204,13 @@ end
 
 
 """
-    @cuDynamicSharedMem(typ::Type, nel::Integer, [offset::Integer=0]) -> CuDeviceArray{typ}
+    @cuDynamicSharedMem(typ::Type, dims, offset::Integer=0) -> CuDeviceArray{typ}
 
-Get an array pointing to a dynamically-allocated piece of shared memory. The type `typ`
-should be statically known after type inference, or a (currently unreported) error will be
-thrown resulting in a runtime generic call to an internal generator function. The necessary
-memory needs to be allocated when calling the kernel.
+Get an array of type `typ` and dimensions `dims` (either an integer length or tuple shape)
+pointing to a dynamically-allocated piece of shared memory. The type `typ` should be
+statically known after type inference, or a (currently unreported) error will be thrown
+resulting in a runtime generic call to an internal generator function. The necessary memory
+needs to be allocated when calling the kernel.
 
 Optionally, an offset parameter indicating how many bytes to add to the base shared memory
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
@@ -222,18 +219,19 @@ shared memory; in the case of a homogeneous multi-part buffer it is preferred to
 Note that calling this macro multiple times does not result in different shared arrays; only
 a single dynamically-allocated shared memory array exists.
 """
-macro cuDynamicSharedMem(typ, size, offset=0)
+macro cuDynamicSharedMem(typ, dims, offset=0)
     global shmem_id
     id = shmem_id::Int += 1
-    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $size, $offset, Val{$id})))
+
+    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $dims, $offset, Val{$id})))
 end
 
-@generated function generate_dynamic_shmem{T,I}(::Type{T}, size, offset, ::Type{Val{I}})
-    return emit_dynamic_shmem(T, :(size), :(offset), I)
+@generated function generate_dynamic_shmem{T,I}(::Type{T}, dims, offset, ::Type{Val{I}})
+    return emit_dynamic_shmem(T, :(dims), :(offset), I)
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
-function emit_dynamic_shmem(jltyp::Type, size::Union{Expr,Symbol}, offset::Symbol, id::Integer)
+function emit_dynamic_shmem(jltyp::Type, shape::Union{Expr,Symbol}, offset::Symbol, id::Integer)
     if !haskey(llvmtypes, jltyp)
         error("cuDynamicSharedMem: unsupported type '$jltyp'")
     end
@@ -242,7 +240,7 @@ function emit_dynamic_shmem(jltyp::Type, size::Union{Expr,Symbol}, offset::Symbo
     var = Symbol(:@shmem, id)
 
     return quote
-        CuDeviceArray{$jltyp}($size, Base.llvmcall(
+        CuDeviceArray{$jltyp}($shape, Base.llvmcall(
             ($"""$var = external addrspace(3) global [0 x $llvmtyp]""",
              $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*

@@ -18,6 +18,21 @@ end
 
 ## shared memory
 
+# smoke-test constructors
+let
+    # static
+    @on_device @cuStaticSharedMem(Float32, 1)
+    @on_device @cuStaticSharedMem(Float32, (1, 2))
+
+    # dynamic
+    @on_device @cuDynamicSharedMem(Float32, 1)
+    @on_device @cuDynamicSharedMem(Float32, (1, 2))
+    
+    # dynamic with offset
+    @on_device @cuDynamicSharedMem(Float32, 1, 8)
+    @on_device @cuDynamicSharedMem(Float32, (1, 2), 8)
+end
+
 # dynamic shmem
 
 n = 1024
@@ -73,7 +88,7 @@ end
     tr = n-t+1
 
     s = @cuStaticSharedMem(Float32, 1024)
-    s2 = @cuStaticSharedMem(Float32, 1024)
+    s2 = @cuStaticSharedMem(Float32, 1024)  # catch aliasing
 
     s[t] = d[t]
     s2[t] = 2*d[t]
@@ -97,7 +112,7 @@ end
     tr = n-t+1
 
     s = @cuStaticSharedMem(T, 1024)
-    s2 = @cuStaticSharedMem(T, 1024)
+    s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
 
     s[t] = d[t]
     s2[t] = d[t]
