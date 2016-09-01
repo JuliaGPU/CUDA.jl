@@ -170,8 +170,10 @@ Get an array pointing to a statically-allocated piece of shared memory. The type
 number of elements `nel` should be statically known after type inference, or a (currently
 unreported) error will be thrown resulting in a runtime generic call to an internal
 generator function.
+
+Multiple statically-allocated shared memory arrays can be requested by calling this macro
+multiple times.
 """
-# TODO: test multi shmem case
 macro cuStaticSharedMem(typ, size)
     global shmem_id
     id = shmem_id::Int += 1
@@ -216,6 +218,9 @@ memory needs to be allocated when calling the kernel.
 Optionally, an offset parameter indicating how many bytes to add to the base shared memory
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
+
+Note that calling this macro multiple times does not result in different shared arrays; only
+a single dynamically-allocated shared memory array exists.
 """
 macro cuDynamicSharedMem(typ, size, offset=0)
     global shmem_id

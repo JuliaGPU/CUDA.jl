@@ -23,7 +23,7 @@ end
 n = 1024
 types = [Int32, Int64, Float32, Float64]
 
-@target ptx function kernel_dynmem_typed(d, n)
+@target ptx function shmem_dynamic_typed(d, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -39,12 +39,12 @@ let
     a = rand(Float32, n)
     d_a = CuArray(a)
 
-    @cuda (1, n, n*sizeof(Float32)) kernel_dynmem_typed(d_a, n)
+    @cuda (1, n, n*sizeof(Float32)) shmem_dynamic_typed(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
 
-@target ptx function kernel_dynmem_typevar{T}(d::CuDeviceArray{T}, n)
+@target ptx function shmem_dynamic_typevar{T}(d::CuDeviceArray{T}, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -60,7 +60,7 @@ for T in types
     a = rand(T, n)
     d_a = CuArray(a)
 
-    @cuda (1, n, n*sizeof(T)) kernel_dynmem_typevar(d_a, n)
+    @cuda (1, n, n*sizeof(T)) shmem_dynamic_typevar(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
@@ -68,12 +68,15 @@ end
 
 # static shmem
 
-@target ptx function kernel_statmem_typed(d, n)
+@target ptx function shmem_static_typed(d, n)
     t = threadIdx().x
     tr = n-t+1
 
     s = @cuStaticSharedMem(Float32, 1024)
+    s2 = @cuStaticSharedMem(Float32, 1024)
+
     s[t] = d[t]
+    s2[t] = 2*d[t]
     sync_threads()
     d[t] = s[tr]
 
@@ -84,17 +87,20 @@ let
     a = rand(Float32, n)
     d_a = CuArray(a)
 
-    @cuda (1, n) kernel_statmem_typed(d_a, n)
+    @cuda (1, n) shmem_static_typed(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
 
-@target ptx function kernel_statmem_typevar{T}(d::CuDeviceArray{T}, n)
+@target ptx function shmem_static_typevar{T}(d::CuDeviceArray{T}, n)
     t = threadIdx().x
     tr = n-t+1
 
     s = @cuStaticSharedMem(T, 1024)
+    s2 = @cuStaticSharedMem(T, 1024)
+
     s[t] = d[t]
+    s2[t] = d[t]
     sync_threads()
     d[t] = s[tr]
 
@@ -105,7 +111,7 @@ for T in types
     a = rand(T, n)
     d_a = CuArray(a)
 
-    @cuda (1, n) kernel_statmem_typevar(d_a, n)
+    @cuda (1, n) shmem_static_typevar(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
@@ -115,7 +121,7 @@ end
 
 # common use case 1: dynamic shmem consists of multiple homogeneous arrays
 #                    -> split using `view`
-@target ptx function kernel_dynmem_multi_homogeneous(a, b, n)
+@target ptx function shmem_dynamic_multi_homogeneous(a, b, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -141,7 +147,7 @@ let
     b = rand(Float32, n)
     d_b = CuArray(b)
 
-    @cuda (1, n, 2*n*sizeof(Float32)) kernel_dynmem_multi_homogeneous(d_a, d_b, n)
+    @cuda (1, n, 2*n*sizeof(Float32)) shmem_dynamic_multi_homogeneous(d_a, d_b, n)
 
     @assert reverse(a) == Array(d_a)
     @assert reverse(b) == Array(d_b)
@@ -149,7 +155,7 @@ end
 
 # common use case 2: dynamic shmem consists of multiple heterogeneous arrays
 #                    -> construct using pointer offset
-@target ptx function kernel_dynmem_multi_heterogeneous(a, b, n)
+@target ptx function shmem_dynamic_multi_heterogeneous(a, b, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -173,7 +179,7 @@ let
     b = rand(Int64, n)
     d_b = CuArray(b)
 
-    @cuda (1, n, n*sizeof(Float32) + n*sizeof(Int64)) kernel_dynmem_multi_heterogeneous(d_a, d_b, n)
+    @cuda (1, n, n*sizeof(Float32) + n*sizeof(Int64)) shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
 
     @assert reverse(a) == Array(d_a)
     @assert reverse(b) == Array(d_b)
