@@ -138,13 +138,58 @@ const warpsize = Int32(32)
 
 
 #
-# Thread management
+# Parallel Synchronization and Communication
 #
 
-# Synchronization
+## barriers
+
 # TODO: rename to syncthreads
 @inline @target ptx sync_threads() = @wrap llvm.nvvm.barrier0()::void "readnone nounwind"
 
+
+## voting
+
+export vote_all, vote_any, vote_ballot
+
+const all_asm = """{
+    .reg .pred %p1;
+    .reg .pred %p2;
+    setp.ne.u32 %p1, \$1, 0;
+    vote.all.pred %p2, %p1;
+    selp.s32 \$0, 1, 0, %p2;
+}"""
+@target ptx function vote_all(pred::Bool)
+    return Base.llvmcall(
+        """%2 = call i32 asm sideeffect "$all_asm", "=r,r"(i32 %0)
+           ret i32 %2""",
+        Int32, Tuple{Int32}, convert(Int32, pred)) != Int32(0)
+end
+
+const any_asm = """{
+    .reg .pred %p1;
+    .reg .pred %p2;
+    setp.ne.u32 %p1, \$1, 0;
+    vote.any.pred %p2, %p1;
+    selp.s32 \$0, 1, 0, %p2;
+}"""
+@target ptx function vote_any(pred::Bool)
+    return Base.llvmcall(
+        """%2 = call i32 asm sideeffect "$any_asm", "=r,r"(i32 %0)
+           ret i32 %2""",
+        Int32, Tuple{Int32}, convert(Int32, pred)) != Int32(0)
+end
+
+const ballot_asm = """{
+   .reg .pred %p1;
+   setp.ne.u32 %p1, \$1, 0;
+   vote.ballot.b32 \$0, %p1;
+}"""
+@target ptx function vote_ballot(pred::Bool)
+    return Base.llvmcall(
+        """%2 = call i32 asm sideeffect "$ballot_asm", "=r,r"(i32 %0)
+           ret i32 %2""",
+        UInt32, Tuple{Int32}, convert(Int32, pred))
+end
 
 
 #
@@ -277,13 +322,14 @@ end
 
 
 #
-# Shuffling
+# Data movement and conversion
 #
+
+## shuffling
 
 # TODO: should shfl_idx conform to 1-based indexing?
 
-## narrow
-
+# narrow
 for typ in ((Int32,   :i32, :i32),
             (UInt32,  :i32, :i32),
             (Float32, :f32, :float))
@@ -321,14 +367,12 @@ for typ in ((Int32,   :i32, :i32),
     end
 end
 
-
-## wide
-
 @inline decode(val::UInt64) = trunc(UInt32,  val & 0x00000000ffffffff),
                               trunc(UInt32, (val & 0xffffffff00000000)>>32)
 
 @inline encode(x::UInt32, y::UInt32) = UInt64(x) | UInt64(y)<<32
 
+# wide
 # NOTE: we only reuse the i32 shuffle, does it make any difference using eg. f32 shuffle for f64 values?
 for typ in (Int64, UInt64, Float64)
     for mode in (:up, :down, :bfly, :idx)

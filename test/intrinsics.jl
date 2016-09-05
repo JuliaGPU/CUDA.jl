@@ -222,3 +222,77 @@ for T in types
     a[1:n÷2] += a[n÷2+1:end]
     @assert a == Array(d_a)
 end
+
+
+## parallel synchronization and communication
+
+# voting
+
+let
+    d_a = CuArray(UInt32, 1)
+
+    @target ptx function kernel_ballot(a, i)
+        vote = vote_ballot(threadIdx().x == i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+
+        return nothing
+    end
+
+    len = 4
+    for i in 1:len
+        @cuda (1,len) kernel_ballot(d_a, i)
+        @test Array(d_a) == [2^(i-1)]
+    end
+
+    free(d_a)
+end
+
+let
+    d_a = CuArray(UInt32, 1)
+
+    @target ptx function kernel_any(a, i)
+        vote = vote_any(threadIdx().x >= i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+
+        return nothing
+    end
+
+    @cuda (1,2) kernel_any(d_a, 1)
+    @test Array(d_a) == [1]
+
+    @cuda (1,2) kernel_any(d_a, 2)
+    @test Array(d_a) == [1]
+
+    @cuda (1,2) kernel_any(d_a, 3)
+    @test Array(d_a) == [0]
+
+    free(d_a)
+end
+
+let
+    d_a = CuArray(UInt32, 1)
+
+    @target ptx function kernel_all(a, i)
+        vote = vote_all(threadIdx().x >= i)
+        if threadIdx().x == 1
+            a[1] = vote
+        end
+
+        return nothing
+    end
+
+    @cuda (1,2) kernel_all(d_a, 1)
+    @test Array(d_a) == [1]
+
+    @cuda (1,2) kernel_all(d_a, 2)
+    @test Array(d_a) == [0]
+
+    @cuda (1,2) kernel_all(d_a, 3)
+    @test Array(d_a) == [0]
+
+    free(d_a)
+end
