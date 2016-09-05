@@ -30,7 +30,7 @@ end
 end
 
 let
-    input = round(rand(Float32, dims) * 100)
+    input = round.(rand(Float32, dims) * 100)
 
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)

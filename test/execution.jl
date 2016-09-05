@@ -72,7 +72,7 @@ end
 
 # manually allocated
 let
-    input = round(rand(Float32, dims) * 100)
+    input = round.(rand(Float32, dims) * 100)
 
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
@@ -97,7 +97,7 @@ end
     return nothing
 end
 let
-    arr = round(rand(Float32, dims) * 100)
+    arr = round.(rand(Float32, dims) * 100)
     val = Float32[0]
 
     arr_dev = CuArray(arr)
@@ -122,7 +122,7 @@ end
     return unsafe_load(a, i)
 end
 let
-    arr = round(rand(Float32, dims) * 100)
+    arr = round.(rand(Float32, dims) * 100)
     val = Float32[0]
 
     arr_dev = CuArray(arr)
