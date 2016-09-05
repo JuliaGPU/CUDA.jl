@@ -62,7 +62,7 @@ end
 #       can be stack-allocated
 import Base: throw_boundserror
 immutable CuBoundsError <: Exception end
-@target ptx throw_boundserror{T,N}(A::CuDeviceArray{T,N}, I) =
+@target ptx @inline throw_boundserror{T,N}(A::CuDeviceArray{T,N}, I) =
     (Base.@_noinline_meta; throw(CuBoundsError()))
 
 # TODO: same for SubArray, although it might be too complex to ever be non-allocating
