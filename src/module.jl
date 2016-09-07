@@ -13,16 +13,23 @@ typealias CuModule_t Ptr{Void}
 immutable CuModule
     handle::CuModule_t
 
-    "Create a CUDA module from a string containing PTX code."
+    """
+    Create a CUDA module from a string containing PTX code.
+
+    If the Julia debug level is 2 or higher (or, on 0.5, if CUDAdrv is loaded in DEBUG
+    mode), line number and debug information will be requested when loading the PTX code.
+    """
     function CuModule(data)
         handle_ref = Ref{CuModule_t}()
 
         options = Dict{CUjit_option,Any}()
         options[ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
-        if DEBUG
+        @static if (VERSION >= v"0.6.0-dev.779" && Base.JLOptions().debug_level >= 2) ||
+                   DEBUG
             options[GENERATE_LINE_INFO] = true
             options[GENERATE_DEBUG_INFO] = true
-
+        end
+        @static if DEBUG
             options[INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
             options[LOG_VERBOSE] = true
         end
