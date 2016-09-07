@@ -350,6 +350,8 @@ let
     # Outer constructors
     CuArray{Int}(1)
     CuArray{Int}((1,2))
+    CuArray{Int}(1, DevicePtr{Int}())
+    CuArray{Int}((1,2), DevicePtr{Int}())
     CuArray(Int, 1)
     CuArray(Int, (1,2))
 

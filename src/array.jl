@@ -32,6 +32,9 @@ end
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
+(::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}, p::DevicePtr{T}) = CuArray{T,N}(shape, p)
+(::Type{CuArray{T}}){T}(len::Int, p::DevicePtr{T})               = CuArray{T,1}((len,), p)
+
 # deprecated
 CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 CuArray{T}(::Type{T}, len::Int)               = CuArray{T,1}((len,))
