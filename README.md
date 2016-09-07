@@ -1,16 +1,14 @@
 # CUDAnative.jl
 
-**CUDA programming interface for Julia, with native code execution support.**
+Code Coverage: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAnative.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAnative.jl)
 
-[![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAnative.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAnative.jl)
-
-This package wraps key functions in CUDA driver API for Julia, and provides
-support for writing native Julia kernels for execution on an NVIDIA GPU. It
-requires a version of Julia capable of generating PTX code, such as
-[JuliaGPU/julia](https://github.com/JuliaGPU/julia).
+This package provides support for compiling and executing native Julia kernels on CUDA
+hardware. It is a work in progress, highly experimental, and for now requires a version of
+Julia capable of generating PTX code (ie. the fork at
+[JuliaGPU/julia](https://github.com/JuliaGPU/julia)).
 
 
-## Setup
+## Installation
 
 1. Install the NVIDIA driver, and make sure `libcuda` is in your library loading
    path.
@@ -30,7 +28,7 @@ requires a version of Julia capable of generating PTX code, such as
    ```
 
 
-## Example
+## Usage
 
 The following example shows how to add two vectors on the GPU:
 
