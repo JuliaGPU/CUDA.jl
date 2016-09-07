@@ -53,12 +53,19 @@ end
 
 unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
 
-"Unload a CUDA module."
+"""
+Unload a CUDA module.
+"""
 function unload(mod::CuModule)
     @apicall(:cuModuleUnload, (CuModule_t,), mod)
 end
 
-"Create a CUDA module from a file containing PTX code. Note that for improved error reporting, this does not rely on the corresponding CUDA driver call, yet opens the file from within Julia."
+"""
+Create a CUDA module from a file containing PTX code.
+
+Note that for improved error reporting, this does not rely on the corresponding CUDA driver
+call, but opens and reads the file from within Julia instead.
+"""
 CuModuleFile(path) = CuModule(open(readstring, path))
 
 # do syntax, f(module)

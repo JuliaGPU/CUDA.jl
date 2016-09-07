@@ -30,6 +30,5 @@ cconvert{P<:DevicePtr}(::Type{P}, x) = x # defer conversions to DevicePtr to uns
 
 # Some convenience methods (which are already defined for Ptr{T},
 # but due to the disallowed conversions we can't use those)
-# TODO: verify these are banned
 isnull{T}(p::DevicePtr{T}) = (p.inner == C_NULL)
 eltype{T}(::Type{DevicePtr{T}}) = T
