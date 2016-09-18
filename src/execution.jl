@@ -57,6 +57,10 @@ function actual_types(argtype::DataType)
         # but the ABI might require them to be passed by pointer
         if sizeof(argtype) > 8  # TODO: verify this at the LLVM side
             calltype = Ptr{argtype}
+        elseif argtype <: Tuple
+            # Ref https://github.com/JuliaLang/julia/issues/11187
+            #     https://github.com/JuliaLang/julia/commit/f2cce89ed2d4c535541dc31ad77b8b98f8e39d2d
+            calltype = Ptr{argtype}
         else
             calltype = argtype
         end

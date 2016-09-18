@@ -155,3 +155,20 @@ let
     c = Array(d_c)
     @test a+b == c
 end
+
+# issue #7: tuples not passed by pointer
+let
+    @target ptx function kernel7(keeps, out)
+        if keeps[1]
+            unsafe_store!(out, 1)
+        else
+            unsafe_store!(out, 2)
+        end
+        nothing
+    end
+
+    keeps = (true,)
+    d_out = CuArray(Int, 1)
+    @cuda (1,1) kernel7(keeps, d_out.ptr)
+    @test Array(d_out) == [1]
+end
