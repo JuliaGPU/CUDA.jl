@@ -12,12 +12,14 @@ which means no entry in module_for_fname. Consequently, finalization of the
 parent function will fail because the required module cannot be found.
 =#
 
+@noinline child(x) = x+1
+
 function f_host()
-    log10(10)
+    child(10)
 end
 
 @target ptx function f_ptx()
-    log10(10)
+    child(10)
     return nothing
 end
 
