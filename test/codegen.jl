@@ -123,3 +123,33 @@ let
     ir = sprint(io->code_llvm(io, call_sysimg, (Ptr{Int},Int)))
     @test !contains(ir, "jlsys_")
 end
+
+# issue #9: not specifying '@target ptx' on child function should still work
+let
+    @noinline child_9_a() = throw(KeyError("whatever"))
+
+    @target ptx function parent_9_a(out)
+        if unsafe_load(out) == 0
+            child_9_a()
+        end
+        return nothing
+    end
+
+    ir = sprint(io->code_llvm(io, parent_9_a, (Ptr{Int32},), true, true))
+    @test contains(ir, "trap")
+    @test !contains(ir, "jl_throw")
+end
+
+# issue #9: re-using non-sysimg functions should force recompilation
+#           (host fldmod1->mod1 throws)
+let
+    @target ptx function kernel_9_b(out)
+        wid, lane = fldmod1(unsafe_load(out), Int32(32))
+        unsafe_store!(out, wid)
+        return nothing
+    end
+
+    asm = sprint(io->code_native(io, kernel_9_b, (Ptr{Int32},)))
+    @test !contains(asm, "jl_throw")
+    @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
+end
