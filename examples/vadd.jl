@@ -12,8 +12,8 @@ dev = CuDevice(0)
 ctx = CuContext(dev)
 
 dims = (3,4)
-a = round(rand(Float32, dims) * 100)
-b = round(rand(Float32, dims) * 100)
+a = round.(rand(Float32, dims) * 100)
+b = round.(rand(Float32, dims) * 100)
 
 d_a = CuArray(a)
 d_b = CuArray(b)

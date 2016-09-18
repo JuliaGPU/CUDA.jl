@@ -13,8 +13,8 @@ __global__ void kernel_vadd(const float *a, const float *b, float *c)
 """
 
 dims = (3,4)
-a = round(rand(Float32, dims) * 100)
-b = round(rand(Float32, dims) * 100)
+a = round.(rand(Float32, dims) * 100)
+b = round.(rand(Float32, dims) * 100)
 
 d_a = CuArray(a)
 d_b = CuArray(b)
