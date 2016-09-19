@@ -40,6 +40,10 @@ function convert_arguments(args, tt)
     return argexprs, Tuple{cgtypes...}, Tuple{calltypes...}
 end
 
+# NOTE: keep this in sync with jl_is_bitstype in julia.h
+isbitstype(dt::DataType) =
+    !dt.mutable && dt.layout != C_NULL && nfields(dt) == 0 && sizeof(dt) > 0
+
 """
 Determine the actual types of an object, that is, 1) the type that needs to be used to
 specialize (compile) the kernel function, and 2) the type which an object needs to be
@@ -55,14 +59,10 @@ function actual_types(argtype::DataType)
         # pointerfree objects with a layout can be used on the GPU
         cgtype = argtype
         # but the ABI might require them to be passed by pointer
-        if sizeof(argtype) > 8  # TODO: verify this at the LLVM side
-            calltype = Ptr{argtype}
-        elseif argtype <: Tuple
-            # Ref https://github.com/JuliaLang/julia/issues/11187
-            #     https://github.com/JuliaLang/julia/commit/f2cce89ed2d4c535541dc31ad77b8b98f8e39d2d
-            calltype = Ptr{argtype}
-        else
+        if isbitstype(argtype)
             calltype = argtype
+        else
+            calltype = Ptr{argtype}
         end
     else
         error("don't know how to handle argument of type $argtype")

@@ -172,3 +172,18 @@ let
     @cuda (1,1) kernel7(keeps, d_out.ptr)
     @test Array(d_out) == [1]
 end
+
+# issue #15: immutables not passed by pointer
+let
+    @target ptx function kernel15(A, b)
+        unsafe_store!(A, imag(b))
+        nothing
+    end
+
+    A = CuArray(zeros(Float32, (1,)));
+    x = Complex64(2,2)
+
+    @cuda (1, 1) kernel15(A.ptr, x)
+
+    @test Array(A) == Float32[imag(x)]
+end
