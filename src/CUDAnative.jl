@@ -11,8 +11,6 @@ import CUDAdrv: debug, DEBUG, trace, TRACE
 include("util.jl")
 include("types.jl")
 
-include("compilation.jl")
-
 include("execution.jl")
 include("intrinsics.jl")
 include("array.jl")

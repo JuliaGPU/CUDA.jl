@@ -14,8 +14,7 @@ Julia capable of generating PTX code (ie. the fork at
    path.
 
 2. Install the CUDA toolkit (not all versions are supported, you might need to install an
-   older version). If you want to run the test suite, make sure `nvcc` is discoverable (ie.
-   part of your path).
+   older version).
 
 3. Install a version of Julia with PTX support, and use that `julia` binary for
    all future steps.

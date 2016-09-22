@@ -3,7 +3,6 @@ using Base.Test
 
 @test devcount() > 0
 
-include("compilation.jl")
 include("codegen.jl")
 
 macro on_device(exprs)
