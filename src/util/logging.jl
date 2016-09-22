@@ -1,4 +1,4 @@
-global TRACE = haskey(ENV, "TRACE")
+const TRACE = haskey(ENV, "TRACE")
 "Display a trace message. Only results in actual printing if the TRACE environment variable
 is set."
 @inline function trace(io::IO, msg...; prefix="TRACE: ", line=true)
@@ -11,7 +11,7 @@ is set."
 end
 @inline trace(msg...; kwargs...) = trace(STDERR, msg...; kwargs...)
 
-global DEBUG = TRACE || haskey(ENV, "DEBUG")
+const DEBUG = TRACE || haskey(ENV, "DEBUG")
 "Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
 variable is set."
 @inline function debug(io::IO, msg...; prefix="DEBUG: ", line=true)
