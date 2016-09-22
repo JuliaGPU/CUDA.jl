@@ -1,5 +1,8 @@
 # library and API version management
 
+"""
+Returns the CUDA driver version as a VersionNumber.
+"""
 function version()
     version_ref = Ref{Cint}()
     @apicall(:cuDriverGetVersion, (Ptr{Cint},), version_ref)
