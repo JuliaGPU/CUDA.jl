@@ -31,8 +31,8 @@ end
 
 let
     ex = CuError(0)
-    @test name(ex) == :SUCCESS
-    @test description(ex) == "Success"
+    @test CUDAdrv.name(ex) == :SUCCESS
+    @test CUDAdrv.description(ex) == "Success"
     
     io = IOBuffer()
     showerror(io, ex)

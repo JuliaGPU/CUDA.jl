@@ -2,7 +2,7 @@
 
 import Base: ==, show, showerror
 
-export CuError, name, description, info
+export CuError
 
 
 #
