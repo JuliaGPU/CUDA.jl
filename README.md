@@ -26,6 +26,13 @@ Julia capable of generating PTX code (ie. the fork at
    Pkg.test("CUDAnative")
    ```
 
+   NOTE: if checking out an unreleased version of CUDAnative, you might also need to
+   check-out the latest versions of any dependencies:
+
+   ```julia
+   Pkg.checkout("CUDAdrv")
+   ```
+
 
 ## Usage
 
