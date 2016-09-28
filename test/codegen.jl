@@ -153,3 +153,20 @@ let
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
+
+# issue #11: re-using host functions after PTX compilation
+let
+    @noinline child_11(x) = x+1
+
+    function kernel_11_host()
+        child_11(10)
+    end
+
+    @target ptx function kernel_11_ptx()
+        child_11(10)
+        return nothing
+    end
+
+    code_native(DevNull, kernel_11_ptx, ())
+    code_native(DevNull, kernel_11_host, ())
+end
