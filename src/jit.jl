@@ -7,28 +7,28 @@ export cufunction
 # replacements for code_* functions
 # default target is a sane one for testing purposes
 
-function function_ir(f::ANY, t::ANY=Tuple; optimize=true, target=v"2.0")
+function function_ir(f::ANY, t::ANY=Tuple; optimize::Bool=true, cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, t)
     if optimize
-        @assert target != nothing
-        optimize!(mod, target)
+        @assert cap != nothing
+        optimize!(mod, cap)
     end
     return sprint(io->show(io, entry))
 end
 
-function module_ir(f::ANY, t::ANY=Tuple; optimize=true, target=v"2.0")
+function module_ir(f::ANY, t::ANY=Tuple; optimize::Bool=true, cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, t)
     if optimize
-        @assert target != nothing
-        optimize!(mod, target)
+        @assert cap != nothing
+        optimize!(mod, cap)
     end
     return convert(String, mod)
 end
 
-function module_asm(f::ANY, t::ANY=Tuple, target::VersionNumber=v"2.0")
+function module_asm(f::ANY, t::ANY=Tuple, cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, t)
-    optimize!(mod, target)
-    return mcgen(mod, entry, target)
+    optimize!(mod, cap)
+    return mcgen(mod, entry, cap)
 end
 
 function irgen{F<:Core.Function}(func::F, tt)
@@ -76,10 +76,10 @@ function irgen{F<:Core.Function}(func::F, tt)
     return mod, get(functions(mod), get(entry_fn))
 end
 
-function link_libdevice!(mod::LLVM.Module, target::VersionNumber)
-    # figure out which libdevice versions are compatible with the selected target
+function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
+    # figure out which libdevice versions are compatible with the selected capability
     const libdevice_db = [v"2.0", v"3.0", v"3.5"]
-    libdevice_compat = Set(ver for ver in libdevice_db if ver <= target)
+    libdevice_compat = Set(ver for ver in libdevice_db if ver <= cap)
     isempty(libdevice_compat) && error("No compatible CUDA device library available")
     libdevice_ver = maximum(libdevice_compat)
     libdevice_fn = "libdevice.compute_$(libdevice_ver.major)$(libdevice_ver.minor).10.bc"
@@ -134,20 +134,20 @@ function link_libdevice!(mod::LLVM.Module, target::VersionNumber)
     end
 end
 
-function machine(target::VersionNumber, triple::String)
+function machine(cap::VersionNumber, triple::String)
     InitializeNVPTXTarget()
     InitializeNVPTXTargetInfo()
     t = Target(triple)
 
     InitializeNVPTXTargetMC()
-    cpu = "sm_$(target.major)$(target.minor)"
+    cpu = "sm_$(cap.major)$(cap.minor)"
     tm = TargetMachine(t, triple, cpu)
 
     return tm
 end
 
-function optimize!(mod::LLVM.Module, target::VersionNumber)
-    tm = machine(target, triple(mod))
+function optimize!(mod::LLVM.Module, cap::VersionNumber)
+    tm = machine(cap, triple(mod))
 
     ModulePassManager() do pm
         tbaa_gcframe = MDNode(ccall(:jl_get_tbaa_gcframe, LLVM.API.LLVMValueRef, ()))
@@ -167,8 +167,8 @@ function optimize!(mod::LLVM.Module, target::VersionNumber)
     end
 end
 
-function mcgen(mod::LLVM.Module, entry::LLVM.Function, target::VersionNumber)
-    tm = machine(target, triple(mod))
+function mcgen(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
+    tm = machine(cap, triple(mod))
 
     # kernel metadata
     push!(metadata(mod), "nvvm.annotations",
@@ -186,11 +186,12 @@ function compile_function{F<:Core.Function}(dev::CuDevice, func::F, tt)
     sig = """$func($(join(tt.parameters, ", ")))"""
     debug("Compiling $sig")
 
-    # select a target
-    cap = capability(dev)
-    targets = filter(ver -> ver <= cap, supported_targets)
-    isempty(targets) && error("Device capability v$cap not supported by available toolchain")
-    target = maximum(targets)
+    # select a capability level
+    dev_cap = capability(dev)
+    compat_caps = filter(cap -> cap <= dev_cap, toolchain_caps)
+    isempty(compat_caps) &&
+        error("Device capability v$dev_cap not supported by available toolchain")
+    cap = maximum(compat_caps)
 
     @static if TRACE
         # generate a safe and unique name
@@ -238,9 +239,9 @@ function compile_function{F<:Core.Function}(dev::CuDevice, func::F, tt)
     trace("Module entry point: ", LLVM.name(entry))
 
     # generate (PTX) assembly
-    link_libdevice!(mod, target)    # TODO: only do this conditionally
-    optimize!(mod, target)
-    module_asm = mcgen(mod, entry, target)
+    link_libdevice!(mod, cap)    # TODO: only do this conditionally
+    optimize!(mod, cap)
+    module_asm = mcgen(mod, entry, cap)
     @static if TRACE
         output = "$(dumpdir[])/$function_uid.ptx"
         trace("Writing kernel PTX assembly to $output")
@@ -263,7 +264,7 @@ function cufunction{F<:Core.Function}(dev::CuDevice, func::F, types)
     return cuda_fun, cuda_mod
 end
 
-const supported_targets = Vector{VersionNumber}()
+const toolchain_caps = Vector{VersionNumber}()
 function __init_jit__()
     # helper methods for querying version DBs
     # (tool::VersionNumber => devices::Vector{VersionNumber})
@@ -305,6 +306,6 @@ function __init_jit__()
         error("LLVM library $llvm_ver incompatible with Julia's LLVM $jl_llvm_ver")
     end
 
-    global supported_targets
-    append!(supported_targets, llvm_support ∩ cuda_support)
+    global toolchain_caps
+    append!(toolchain_caps, llvm_support ∩ cuda_support)
 end

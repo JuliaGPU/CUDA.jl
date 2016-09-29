@@ -183,7 +183,7 @@ let
     A = CuArray(zeros(Float32, (1,)));
     x = Complex64(2,2)
 
-    @cuda (1, 1) kernel15(A.ptr, x)
+    @cuda dev (1, 1) kernel15(A.ptr, x)
 
     @test Array(A) == Float32[imag(x)]
 end
