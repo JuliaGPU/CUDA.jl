@@ -7,6 +7,23 @@ export
 # Auxiliary
 #
 
+# custom wrappers of _dump_function (instead of code_llvm/code_native), passing cached=false
+
+function module_ir(f::ANY, t::ANY=Tuple; strip::Bool=true, optimize=true)
+    Base._dump_function(f, t, #=native=#false, #=wrapper=#false, strip, #=dump_module=#true,
+                        #=syntax=#:att, optimize, #=cached=#false)
+end
+
+function function_ir(f::ANY, t::ANY=Tuple; strip::Bool=true, optimize=true)
+    Base._dump_function(f, t, #=native=#false, #=wrapper=#false, strip, #=dump_module=#false,
+                        #=syntax=#:att, optimize, #=cached=#false)
+end
+
+function module_asm(f::ANY, t::ANY=Tuple)
+    Base._dump_function(f, t, #=native=#true, #=wrapper=#false, #=strip=#false, #=dump_module=#false,
+                        #=syntax=#:att, #=optimize=#true, #=cached=#false)
+end
+
 """
 Convert the arguments to a kernel function to their CUDA representation, and figure out what
 types to specialize the kernel function for and how to actually pass those objects.
