@@ -3,14 +3,15 @@
 export cufunction
 
 
+#
+# code_* replacements
+#
 
-# replacements for code_* functions
 # default target is a sane one for testing purposes
 
 function function_ir(f::ANY, t::ANY=Tuple; optimize::Bool=true, cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, t)
     if optimize
-        @assert cap != nothing
         optimize!(mod, cap)
     end
     return sprint(io->show(io, entry))
@@ -19,7 +20,6 @@ end
 function module_ir(f::ANY, t::ANY=Tuple; optimize::Bool=true, cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, t)
     if optimize
-        @assert cap != nothing
         optimize!(mod, cap)
     end
     return convert(String, mod)
@@ -30,6 +30,11 @@ function module_asm(f::ANY, t::ANY=Tuple, cap::VersionNumber=v"2.0")
     optimize!(mod, cap)
     return mcgen(mod, entry, cap)
 end
+
+
+#
+# main code generation functions
+#
 
 function irgen{F<:Core.Function}(func::F, tt)
     fn = string(F.name.mt.name)
@@ -46,7 +51,7 @@ function irgen{F<:Core.Function}(func::F, tt)
         datalayout!(mod, "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
     end
 
-    # TODO: emit into mod instead of parsing
+    # TODO: emit into module instead of parsing
     julia_ir = Base._dump_function(func, tt,
                                    #=native=#false, #=wrapper=#false, #=strip=#false,
                                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
@@ -259,7 +264,7 @@ function compile_function{F<:Core.Function}(dev::CuDevice, func::F, tt)
     return module_asm, LLVM.name(entry)
 end
 
-# Compile and create a CUDA function from a Julia function
+# Main entry-point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction{F<:Core.Function}(dev::CuDevice, func::F, types)
     tt = Base.to_tuple_type(types)
 
@@ -269,6 +274,11 @@ function cufunction{F<:Core.Function}(dev::CuDevice, func::F, types)
 
     return cuda_fun, cuda_mod
 end
+
+
+#
+# Initialization
+#
 
 const toolchain_caps = Vector{VersionNumber}()
 function __init_jit__()
