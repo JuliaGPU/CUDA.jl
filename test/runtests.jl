@@ -5,7 +5,7 @@ using Base.Test
 
 include("codegen.jl")
 
-macro on_device(exprs)
+macro on_device(dev, exprs)
     quote
         @target ptx function kernel()
             $exprs
@@ -13,7 +13,7 @@ macro on_device(exprs)
             return nothing
         end
 
-        @cuda (1,1) kernel()
+        @cuda $dev (1,1) kernel()
         synchronize(default_stream())
     end
 end

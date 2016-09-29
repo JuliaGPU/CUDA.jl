@@ -1,7 +1,7 @@
 ## LLVM IR
 
 @target ptx foo() = return nothing
-ir = CUDAnative.module_ir(foo, ())
+ir = CUDAnative.module_ir(foo, (); optimize=false)
 
 # module should contain our function + a generic call wrapper
 @test contains(ir, "define void @julia_foo")

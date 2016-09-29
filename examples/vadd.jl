@@ -20,7 +20,7 @@ d_b = CuArray(b)
 d_c = CuArray(Float32, dims)
 
 len = prod(dims)
-@cuda (1,len) kernel_vadd(d_a, d_b, d_c)
+@cuda dev (1,len) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
 @test a+b ≈ c
 

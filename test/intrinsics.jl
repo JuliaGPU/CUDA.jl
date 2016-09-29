@@ -8,7 +8,7 @@ let
         return nothing
     end
 
-    @cuda (1, 1) kernel_log10(buf, Float32(100))
+    @cuda dev (1, 1) kernel_log10(buf, Float32(100))
     val = Array(buf)
     @test val[1] ≈ 2.0
 
@@ -21,16 +21,16 @@ end
 # smoke-test constructors
 let
     # static
-    @on_device @cuStaticSharedMem(Float32, 1)
-    @on_device @cuStaticSharedMem(Float32, (1, 2))
+    @on_device dev @cuStaticSharedMem(Float32, 1)
+    @on_device dev @cuStaticSharedMem(Float32, (1, 2))
 
     # dynamic
-    @on_device @cuDynamicSharedMem(Float32, 1)
-    @on_device @cuDynamicSharedMem(Float32, (1, 2))
+    @on_device dev @cuDynamicSharedMem(Float32, 1)
+    @on_device dev @cuDynamicSharedMem(Float32, (1, 2))
     
     # dynamic with offset
-    @on_device @cuDynamicSharedMem(Float32, 1, 8)
-    @on_device @cuDynamicSharedMem(Float32, (1, 2), 8)
+    @on_device dev @cuDynamicSharedMem(Float32, 1, 8)
+    @on_device dev @cuDynamicSharedMem(Float32, (1, 2), 8)
 end
 
 # dynamic shmem
@@ -54,7 +54,7 @@ let
     a = rand(Float32, n)
     d_a = CuArray(a)
 
-    @cuda (1, n, n*sizeof(Float32)) shmem_dynamic_typed(d_a, n)
+    @cuda dev (1, n, n*sizeof(Float32)) shmem_dynamic_typed(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
@@ -75,7 +75,7 @@ for T in types
     a = rand(T, n)
     d_a = CuArray(a)
 
-    @cuda (1, n, n*sizeof(T)) shmem_dynamic_typevar(d_a, n)
+    @cuda dev (1, n, n*sizeof(T)) shmem_dynamic_typevar(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
@@ -102,7 +102,7 @@ let
     a = rand(Float32, n)
     d_a = CuArray(a)
 
-    @cuda (1, n) shmem_static_typed(d_a, n)
+    @cuda dev (1, n) shmem_static_typed(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
@@ -126,7 +126,7 @@ for T in types
     a = rand(T, n)
     d_a = CuArray(a)
 
-    @cuda (1, n) shmem_static_typevar(d_a, n)
+    @cuda dev (1, n) shmem_static_typevar(d_a, n)
 
     @assert reverse(a) == Array(d_a)
 end
@@ -162,7 +162,7 @@ let
     b = rand(Float32, n)
     d_b = CuArray(b)
 
-    @cuda (1, n, 2*n*sizeof(Float32)) shmem_dynamic_multi_homogeneous(d_a, d_b, n)
+    @cuda dev (1, n, 2*n*sizeof(Float32)) shmem_dynamic_multi_homogeneous(d_a, d_b, n)
 
     @assert reverse(a) == Array(d_a)
     @assert reverse(b) == Array(d_b)
@@ -194,7 +194,7 @@ let
     b = rand(Int64, n)
     d_b = CuArray(b)
 
-    @cuda (1, n, n*sizeof(Float32) + n*sizeof(Int64)) shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
+    @cuda dev (1, n, n*sizeof(Float32) + n*sizeof(Int64)) shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
 
     @assert reverse(a) == Array(d_a)
     @assert reverse(b) == Array(d_b)
@@ -217,7 +217,7 @@ for T in types
     a = T[i for i in 1:n]
     d_a = CuArray(a)
 
-    @cuda (1, nearest_warpsize(n)) kernel_shuffle_down(d_a, n)
+    @cuda dev (1, nearest_warpsize(n)) kernel_shuffle_down(d_a, n)
 
     a[1:n÷2] += a[n÷2+1:end]
     @assert a == Array(d_a)
@@ -242,7 +242,7 @@ let
 
     len = 4
     for i in 1:len
-        @cuda (1,len) kernel_ballot(d_a, i)
+        @cuda dev (1,len) kernel_ballot(d_a, i)
         @test Array(d_a) == [2^(i-1)]
     end
 
@@ -261,13 +261,13 @@ let
         return nothing
     end
 
-    @cuda (1,2) kernel_any(d_a, 1)
+    @cuda dev (1,2) kernel_any(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda (1,2) kernel_any(d_a, 2)
+    @cuda dev (1,2) kernel_any(d_a, 2)
     @test Array(d_a) == [1]
 
-    @cuda (1,2) kernel_any(d_a, 3)
+    @cuda dev (1,2) kernel_any(d_a, 3)
     @test Array(d_a) == [0]
 
     free(d_a)
@@ -285,13 +285,13 @@ let
         return nothing
     end
 
-    @cuda (1,2) kernel_all(d_a, 1)
+    @cuda dev (1,2) kernel_all(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda (1,2) kernel_all(d_a, 2)
+    @cuda dev (1,2) kernel_all(d_a, 2)
     @test Array(d_a) == [0]
 
-    @cuda (1,2) kernel_all(d_a, 3)
+    @cuda dev (1,2) kernel_all(d_a, 3)
     @test Array(d_a) == [0]
 
     free(d_a)

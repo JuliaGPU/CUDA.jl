@@ -1,28 +1,11 @@
 # Native execution support
 
-export
-    cufunction, @cuda
+export @cuda
+
 
 #
 # Auxiliary
 #
-
-# custom wrappers of _dump_function (instead of code_llvm/code_native), passing cached=false
-
-function module_ir(f::ANY, t::ANY=Tuple; strip::Bool=true, optimize=true)
-    Base._dump_function(f, t, #=native=#false, #=wrapper=#false, strip, #=dump_module=#true,
-                        #=syntax=#:att, optimize, #=cached=#false)
-end
-
-function function_ir(f::ANY, t::ANY=Tuple; strip::Bool=true, optimize=true)
-    Base._dump_function(f, t, #=native=#false, #=wrapper=#false, strip, #=dump_module=#false,
-                        #=syntax=#:att, optimize, #=cached=#false)
-end
-
-function module_asm(f::ANY, t::ANY=Tuple)
-    Base._dump_function(f, t, #=native=#true, #=wrapper=#false, #=strip=#false, #=dump_module=#false,
-                        #=syntax=#:att, #=optimize=#true, #=cached=#false)
-end
 
 """
 Convert the arguments to a kernel function to their CUDA representation, and figure out what
@@ -95,85 +78,6 @@ function actual_types(argtype::DataType)
     return cgtype::Type, calltype::Type
 end
 
-"""
-Compile a function to PTX, returning the assembly and an entry point.
-Not to be used directly, see `cufunction` instead.
-"""
-function compile_function{F<:Function}(func::F, tt)
-    sig = """$func($(join(tt.parameters, ", ")))"""
-    debug("Compiling $sig")
-
-    @static if TRACE
-        # generate a safe and unique name
-        function_uid = "$func-"
-        if length(tt.parameters) > 0
-            function_uid *= join([replace(string(t), r"\W", "") for t in tt.parameters], '.')
-        else
-            function_uid *= "Void"
-        end
-
-        # dump the typed AST
-        buf = IOBuffer()
-        code_warntype(buf, func, tt)
-        ast = String(buf)
-
-        output = "$(dumpdir[])/$function_uid.jl"
-        trace("Writing kernel AST to $output")
-        open(output, "w") do io
-            write(io, ast)
-        end
-    end
-
-    # Check method validity
-    ml = Base.methods(func, tt)
-    if length(ml) == 0
-        error("no method found for kernel $sig")
-    elseif length(ml) > 1
-        # TODO: when does this happen?
-        error("ambiguous call to kernel $sig")
-    end
-    rt = Base.return_types(func, tt)[1]
-    if rt != Void
-        error("cannot call kernel $sig as it returns $rt")
-    end
-
-    # generate LLVM IR
-    @static if TRACE
-        module_llvm = sprint(io->code_llvm(io, func, tt, #=strip_di=#false, #=entire_module=#true))
-
-        output = "$(dumpdir[])/$function_uid.ll"
-        trace("Writing kernel LLVM IR to $output")
-        open(output, "w") do io
-            write(io, module_llvm)
-        end
-    end
-
-    # generate (PTX) assembly
-    module_asm = sprint(io->code_native(io, func, tt))
-    @static if TRACE
-        output = "$(dumpdir[])/$function_uid.ptx"
-        trace("Writing kernel PTX assembly to $output")
-        open(output, "w") do io
-            write(io, module_asm)
-        end
-    end
-
-    # extract entry point
-    module_entry = Nullable{String}()
-    entry_re = r"^\.visible \.entry (\w+)\("
-    buf = IOBuffer(module_asm)
-    for ln in eachline(buf)
-        m = match(entry_re, ln)
-        if m != nothing
-            isnull(module_entry) || error("multiple entry-points functions in module")
-            module_entry = Nullable{String}(m.captures[1])
-        end
-    end
-    isnull(module_entry) && error("no entry-points functions in module")
-    trace("Function entry point: ", get(module_entry))
-
-    return module_asm, get(module_entry)
-end
 
 function emit_allocations(args, codegen_tt, call_tt)
     # if we're generating code for a given type, but passing a pointer to that type instead,
@@ -210,22 +114,6 @@ end
 
 
 #
-# cufunction
-#
-
-# Compile and create a CUDA function from a Julia function
-function cufunction{F<:Function}(func::F, types)
-    tt = Base.to_tuple_type(types)
-
-    (module_asm, module_entry) = compile_function(func, tt)
-    cuda_mod = CuModule(module_asm)
-    cuda_fun = CuFunction(cuda_mod, module_entry)
-
-    return cuda_fun, cuda_mod
-end
-
-
-#
 # @cuda macro
 #
 
@@ -247,7 +135,7 @@ compiled to a CUDA function, more objects are supported (ghost types are used du
 but not passed, objects > 8 bytes are copied to memory and passed by pointer), and finally a
 `cudacall` is performed.
 """
-macro cuda(config::Expr, callexpr::Expr)
+macro cuda(dev, config::Expr, callexpr::Expr)
     # sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 4)
         throw(ArgumentError("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem], [stream])"))
@@ -258,18 +146,18 @@ macro cuda(config::Expr, callexpr::Expr)
 
     # optional tuple elements are forwarded to `cudacall` by means of kwargs
     if length(config.args) == 2
-        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...))))
+        return esc(:(CUDAnative.generated_cuda($dev, $config[1:2], $(callexpr.args...))))
     elseif length(config.args) == 3
-        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
+        return esc(:(CUDAnative.generated_cuda($dev, $config[1:2], $(callexpr.args...);
                                                shmem=$config[3])))
     elseif length(config.args) == 4
-        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
+        return esc(:(CUDAnative.generated_cuda($dev, $config[1:2], $(callexpr.args...);
                                                shmem=$config[3], stream=$config[4])))
     end
 end
 
 # Execute a pre-compiled CUDA kernel
-@generated function generated_cuda(dims::Tuple{CuDim, CuDim},
+@generated function generated_cuda(dev::CuDevice, dims::Tuple{CuDim, CuDim},
                                    cuda_fun::CuFunction, argspec...;
                                    kwargs...)
     tt = Base.to_tuple_type(argspec)
@@ -280,9 +168,10 @@ end
 
 # Compile and execute a CUDA kernel from a Julia function
 const func_cache = Dict{UInt, CuFunction}()
-@generated function generated_cuda{F<:Function}(dims::Tuple{CuDim, CuDim},
-                                                func::F, argspec...;
-                                                kwargs...)
+@generated function generated_cuda{F<:Core.Function}(dev::CuDevice,
+                                                     dims::Tuple{CuDim, CuDim},
+                                                     func::F, argspec...;
+                                                     kwargs...)
     tt = Base.to_tuple_type(argspec)
     args = [:( argspec[$i] ) for i in 1:length(argspec)]
     args, codegen_tt, call_tt = convert_arguments(args, tt)
@@ -295,7 +184,7 @@ const func_cache = Dict{UInt, CuFunction}()
         if (haskey(CUDAnative.func_cache, $key))
             $cuda_fun = CUDAnative.func_cache[$key]
         else
-            $cuda_fun, _ = cufunction(func, $codegen_tt)
+            $cuda_fun, _ = cufunction(dev, func, $codegen_tt)
             CUDAnative.func_cache[$key] = $cuda_fun
         end
     end

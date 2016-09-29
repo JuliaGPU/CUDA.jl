@@ -31,6 +31,7 @@ Julia capable of generating PTX code (ie. the fork at
 
    ```julia
    Pkg.checkout("CUDAdrv")
+   Pkg.checkout("LLVM")
    ```
 
 
@@ -77,8 +78,8 @@ d_b = CuArray(b)
 d_c = CuArray(Float32, (3, 4))
 
 # run the kernel and fetch results
-# syntax: @cuda (dims...) kernel(args...)
-@cuda (1,12) kernel_vadd(d_a, d_b, d_c)
+# syntax: @cuda device (dims...) kernel(args...)
+@cuda dev (1,12) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
 
 # print the results

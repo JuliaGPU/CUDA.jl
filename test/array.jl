@@ -6,13 +6,13 @@ len = prod(dims)
 
 let
     # Inner constructors
-    @on_device CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
 
     # Outer constructors
-    @on_device CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
-    @on_device CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
-    @on_device CuDeviceArray(Int, 1, Ptr{Int}(C_NULL))
-    @on_device CuDeviceArray(Int, (1,), Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray(Int, 1, Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray(Int, (1,), Ptr{Int}(C_NULL))
 end
 
 
@@ -35,7 +35,7 @@ let
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
 
-    @cuda (1,len) array_copy(input_dev, output_dev)
+    @cuda dev (1,len) array_copy(input_dev, output_dev)
     output = Array(output_dev)
     @test input ≈ output
 
@@ -66,7 +66,7 @@ let
         sub[i] = i
     end
 
-    @cuda (100, 1) array_view(array_dev)
+    @cuda dev (100, 1) array_view(array_dev)
     @test array == Array(array_dev)
 
     free(array_dev)

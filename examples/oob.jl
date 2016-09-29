@@ -15,6 +15,6 @@ a = CuArray(Float32, 10)
     return nothing
 end
 
-@cuda (1,11) memset(a, 0f0)
+@cuda dev (1,11) memset(a, 0f0)
 
 destroy(ctx)

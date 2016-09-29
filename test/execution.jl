@@ -6,8 +6,8 @@
 
 @test_throws UndefVarError cufunction(undefined_kernel, ())
 
-cufunction(do_nothing, ())
-cufunction(do_nothing, Tuple{})
+cufunction(dev, do_nothing, ())
+cufunction(dev, do_nothing, Tuple{})
 
 # NOTE: other cases are going to be covered by tests below,
 #       as @cuda internally uses cufunction
@@ -18,18 +18,18 @@ cufunction(do_nothing, Tuple{})
 # @cuda
 #
 
-@test_throws UndefVarError @cuda (1,1) undefined_kernel()
+@test_throws UndefVarError @cuda dev (1,1) undefined_kernel()
 
 # kernel dims
-@cuda (1,1) do_nothing()
-@test_throws ArgumentError @cuda (0,0) do_nothing()
+@cuda dev (1,1) do_nothing()
+@test_throws ArgumentError @cuda dev (0,0) do_nothing()
 
 # shared memory
-@cuda (1,1,1) do_nothing()
+@cuda dev (1,1,1) do_nothing()
 
 # streams
 s = CuStream()
-@cuda (1,1,1,s) do_nothing()
+@cuda dev (1,1,1,s) do_nothing()
 destroy(s)
 
 # external kernel
@@ -37,23 +37,23 @@ module KernelModule
     export do_more_nothing
     @target ptx do_more_nothing() = return nothing
 end
-@cuda (1,1) KernelModule.do_more_nothing()
+@cuda dev (1,1) KernelModule.do_more_nothing()
 @eval begin
     using KernelModule
-    @cuda (1,1) do_more_nothing()
+    @cuda dev (1,1) do_more_nothing()
 end
 
 
 ## return values
 
 @target ptx retint() = return 1
-@test_throws ErrorException @cuda (1,1) retint()
+@test_throws ErrorException @cuda dev (1,1) retint()
 
 @target ptx function call_retint()
     retint()
     return nothing
 end
-@cuda (1,1) call_retint()
+@cuda dev (1,1) call_retint()
 
 
 ## argument passing
@@ -77,7 +77,7 @@ let
     input_dev = CuArray(input)
     output_dev = CuArray(Float32, dims)
 
-    @cuda (1,len) ptr_copy(input_dev.ptr, output_dev.ptr)
+    @cuda dev (1,len) ptr_copy(input_dev.ptr, output_dev.ptr)
     output = Array(output_dev)
     @test input ≈ output
 
@@ -103,7 +103,7 @@ let
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (1,len) ptr_lastvalue(arr_dev.ptr, val_dev.ptr)
+    @cuda dev (1,len) ptr_lastvalue(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -128,7 +128,7 @@ let
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (1,len) ptr_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
+    @cuda dev (1,len) ptr_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -150,7 +150,7 @@ let
 
         return nothing
     end
-    @cuda (1,len) map_inner(Ghost(), d_a.ptr, d_b.ptr, d_c.ptr)
+    @cuda dev (1,len) map_inner(Ghost(), d_a.ptr, d_b.ptr, d_c.ptr)
 
     c = Array(d_c)
     @test a+b == c
@@ -169,7 +169,7 @@ let
 
     keeps = (true,)
     d_out = CuArray(Int, 1)
-    @cuda (1,1) kernel7(keeps, d_out.ptr)
+    @cuda dev (1,1) kernel7(keeps, d_out.ptr)
     @test Array(d_out) == [1]
 end
 
