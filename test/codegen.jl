@@ -1,8 +1,25 @@
+# custom wrappers of _dump_function (instead of code_llvm/code_native), passing cached=false
+
+function module_ir(f::ANY, t::ANY=Tuple; strip::Bool=true, optimize=true)
+    Base._dump_function(f, t, #=native=#false, #=wrapper=#false, strip, #=dump_module=#true,
+                        #=syntax=#:att, optimize, #=cached=#false)
+end
+
+function function_ir(f::ANY, t::ANY=Tuple; strip::Bool=true, optimize=true)
+    Base._dump_function(f, t, #=native=#false, #=wrapper=#false, strip, #=dump_module=#false,
+                        #=syntax=#:att, optimize, #=cached=#false)
+end
+
+function ptx(f::ANY, t::ANY=Tuple)
+    Base._dump_function(f, t, #=native=#true, #=wrapper=#false, #=strip=#false, #=dump_module=#false,
+                        #=syntax=#:att, #=optimize=#true, #=cached=#false)
+end
+
+
 ## LLVM IR
 
 @target ptx foo() = return nothing
-ir = sprint(io->code_llvm(io, foo, (),
-                          #=strip_ir_metadata=#true, #=dump_module=#true))
+ir = module_ir(foo, ())
 
 # module should contain our function + a generic call wrapper
 @test contains(ir, "define void @julia_foo")
@@ -29,7 +46,7 @@ ir = sprint(io->code_llvm(io, foo, (),
 @target ptx function throw_exception()
     throw(DivideError())
 end
-ir = sprint(io->code_llvm(io, throw_exception, ()))
+ir = function_ir(throw_exception, ())
 
 # exceptions should get lowered to a plain trap...
 @test contains(ir, "llvm.trap")
@@ -39,11 +56,11 @@ ir = sprint(io->code_llvm(io, throw_exception, ()))
 
 # delayed binding lookup (due to noexisting global)
 @target ptx ref_nonexisting() = nonexisting
-@test_throws ErrorException code_native(DevNull, ref_nonexisting, ())
+@test_throws ErrorException ptx(ref_nonexisting, ())
 
 # generic call to nonexisting function
 @target ptx call_nonexisting() = nonexisting()
-@test_throws ErrorException code_native(DevNull, call_nonexisting, ())
+@test_throws ErrorException ptx(call_nonexisting, ())
 
 # cannot call PTX functions
 @target ptx call_nonptx() = return nothing
@@ -51,8 +68,8 @@ ir = sprint(io->code_llvm(io, throw_exception, ()))
 
 # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 @target ptx codegen_twice() = return nothing
-code_native(DevNull, codegen_twice, ())
-code_native(DevNull, codegen_twice, ())
+ptx(codegen_twice, ())
+ptx(codegen_twice, ())
 
 # bug: depending on a child function from multiple parents resulted in
 #      the child only being present once
@@ -70,7 +87,7 @@ let
         unsafe_store!(arr, i, i)
         return nothing
     end
-    asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
+    asm = ptx(parent1, (Ptr{Int64},))
     @test ismatch(r".func .+ julia_child", asm)
 
     @target ptx function parent2(arr::Ptr{Int64})
@@ -79,7 +96,7 @@ let
 
         return nothing
     end
-    asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
+    asm = ptx(parent2, (Ptr{Int64},))
     @test ismatch(r".func .+ julia_child", asm)
 end
 
@@ -100,7 +117,7 @@ let
 
         return nothing
     end
-    asm = sprint(io->code_native(io, parent1, (Ptr{Int64},)))
+    asm = ptx(parent1, (Ptr{Int64},))
 
 
     @target ptx function parent2(arry::Ptr{Int64})
@@ -109,7 +126,7 @@ let
 
         return nothing
     end
-    asm = sprint(io->code_native(io, parent2, (Ptr{Int64},)))
+    asm = ptx(parent2, (Ptr{Int64},))
 end
 
 
@@ -120,7 +137,8 @@ let
         return nothing
     end
 
-    ir = sprint(io->code_llvm(io, call_sysimg, (Ptr{Int},Int)))
+    ccall(:jl_breakpoint, Void, (Any,), 42)
+    ir = function_ir(call_sysimg, (Ptr{Int},Int))
     @test !contains(ir, "jlsys_")
 end
 
@@ -135,7 +153,7 @@ let
         return nothing
     end
 
-    ir = sprint(io->code_llvm(io, parent_9_a, (Ptr{Int32},), true, true))
+    ir = module_ir(parent_9_a, (Ptr{Int32},))
     @test contains(ir, "trap")
     @test !contains(ir, "jl_throw")
 end
@@ -149,7 +167,7 @@ let
         return nothing
     end
 
-    asm = sprint(io->code_native(io, kernel_9_b, (Ptr{Int32},)))
+    asm = ptx(kernel_9_b, (Ptr{Int32},))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
@@ -167,6 +185,6 @@ let
         return nothing
     end
 
-    code_native(DevNull, kernel_11_ptx, ())
-    code_native(DevNull, kernel_11_host, ())
+    ptx(kernel_11_ptx, ())
+    ptx(kernel_11_host, ())
 end
