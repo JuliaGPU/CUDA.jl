@@ -249,8 +249,12 @@ function compile_function{F<:Core.Function}(dev::CuDevice, func::F, tt)
     end
     trace("Module entry point: ", LLVM.name(entry))
 
+    # link libdevice, if it might be necessary
+    if any(f->isdeclaration(f) && intrinsic_id(f)==0, functions(mod))
+        link_libdevice!(mod, cap)
+    end
+
     # generate (PTX) assembly
-    link_libdevice!(mod, cap)    # TODO: only do this conditionally
     optimize!(mod, cap)
     module_asm = mcgen(mod, entry, cap)
     @static if TRACE
