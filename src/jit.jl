@@ -76,61 +76,67 @@ function irgen{F<:Core.Function}(func::F, tt)
     return mod, get(functions(mod), get(entry_fn))
 end
 
+const libdevices = Dict{VersionNumber, LLVM.Module}()
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
     # figure out which libdevice versions are compatible with the selected capability
-    const libdevice_db = [v"2.0", v"3.0", v"3.5"]
-    libdevice_compat = Set(ver for ver in libdevice_db if ver <= cap)
-    isempty(libdevice_compat) && error("No compatible CUDA device library available")
-    libdevice_ver = maximum(libdevice_compat)
-    libdevice_fn = "libdevice.compute_$(libdevice_ver.major)$(libdevice_ver.minor).10.bc"
+    const vers = [v"2.0", v"3.0", v"3.5"]
+    compat_vers = Set(ver for ver in vers if ver <= cap)
+    isempty(compat_vers) && error("No compatible CUDA device library available")
+    ver = maximum(compat_vers)
 
-    if haskey(ENV, "NVVMIR_LIBRARY_DIR")
-        libdevice_dirs = [ENV["NVVMIR_LIBRARY_DIR"]]
-    else
-        libdevice_dirs = ["/usr/lib/nvidia-cuda-toolkit/libdevice",
-                          "/usr/local/cuda/nvvm/libdevice",
-                          "/opt/cuda/nvvm/libdevice"]
-    end
-    any(d->isdir(d), libdevice_dirs) ||
-        error("CUDA device library path not found -- specify using NVVMIR_LIBRARY_DIR")
+    # load the library, once
+    if !haskey(libdevices, ver)
+        fn = "libdevice.compute_$(ver.major)$(ver.minor).10.bc"
 
-    libdevice_paths = filter(p->isfile(p), map(d->joinpath(d,libdevice_fn), libdevice_dirs))
-    isempty(libdevice_paths) && error("CUDA device library $libdevice_fn not found")
-    libdevice_path = first(libdevice_paths)
-
-    open(libdevice_path) do libdevice
-        let libdevice_mod = parse(LLVM.Module, read(libdevice))
-            name!(libdevice_mod, "libdevice")
-
-            # override libdevice's triple and datalayout to avoid warnings
-            triple!(libdevice_mod, triple(mod))
-            datalayout!(libdevice_mod, datalayout(mod))
-
-            # 1. Save list of external functions
-            exports = map(f->LLVM.name(f), functions(mod))
-            filter!(fn->!haskey(functions(libdevice_mod), fn), exports)
-
-            # 2. Link with libdevice
-            link!(mod, libdevice_mod)
-
-            ModulePassManager() do pm
-                # 3. Internalize all functions not in list from (1)
-                internalize!(pm, exports)
-
-                # 4. Eliminate all unused internal functions
-                global_optimizer!(pm)
-                global_dce!(pm)
-                strip_dead_prototypes!(pm)
-
-                # 5. Run NVVMReflect pass
-                nvvm_reflect!(pm, Dict("__CUDA_FTZ" => 1))
-
-                # 6. Run standard optimization pipeline
-                always_inliner!(pm)
-
-                run!(pm, mod)
-            end
+        if haskey(ENV, "NVVMIR_LIBRARY_DIR")
+            dirs = [ENV["NVVMIR_LIBRARY_DIR"]]
+        else
+            dirs = ["/usr/lib/nvidia-cuda-toolkit/libdevice",
+                    "/usr/local/cuda/nvvm/libdevice",
+                    "/opt/cuda/nvvm/libdevice"]
         end
+        any(d->isdir(d), dirs) ||
+            error("CUDA device library path not found -- specify using NVVMIR_LIBRARY_DIR")
+
+        paths = filter(p->isfile(p), map(d->joinpath(d,fn), dirs))
+        isempty(paths) && error("CUDA device library $fn not found")
+        path = first(paths)
+
+        open(path) do io
+            libdevice_mod = parse(LLVM.Module, read(io))
+            name!(libdevice_mod, "libdevice")
+            libdevices[ver] = libdevice_mod
+        end
+    end
+    libdevice_mod = LLVM.Module(libdevices[ver])
+
+    # override libdevice's triple and datalayout to avoid warnings
+    triple!(libdevice_mod, triple(mod))
+    datalayout!(libdevice_mod, datalayout(mod))
+
+    # 1. Save list of external functions
+    exports = map(f->LLVM.name(f), functions(mod))
+    filter!(fn->!haskey(functions(libdevice_mod), fn), exports)
+
+    # 2. Link with libdevice
+    link!(mod, libdevice_mod)
+
+    ModulePassManager() do pm
+        # 3. Internalize all functions not in list from (1)
+        internalize!(pm, exports)
+
+        # 4. Eliminate all unused internal functions
+        global_optimizer!(pm)
+        global_dce!(pm)
+        strip_dead_prototypes!(pm)
+
+        # 5. Run NVVMReflect pass
+        nvvm_reflect!(pm, Dict("__CUDA_FTZ" => 1))
+
+        # 6. Run standard optimization pipeline
+        always_inliner!(pm)
+
+        run!(pm, mod)
     end
 end
 
