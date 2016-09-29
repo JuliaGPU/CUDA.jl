@@ -179,13 +179,15 @@ const func_cache = Dict{UInt, CuFunction}()
     kernel_allocations, args = emit_allocations(args, codegen_tt, call_tt)
 
     @gensym cuda_fun
-    key = hash(Base.tt_cons(func, codegen_tt))
+    precomp_key = hash(Base.tt_cons(func, codegen_tt))  # precomputable part of the key
     kernel_compilation = quote
-        if (haskey(CUDAnative.func_cache, $key))
-            $cuda_fun = CUDAnative.func_cache[$key]
+        # NOTE: only the device capability matters, but querying that is more expensive
+        key = hash(($precomp_key, dev))
+        if (haskey(CUDAnative.func_cache, key))
+            $cuda_fun = CUDAnative.func_cache[key]
         else
             $cuda_fun, _ = cufunction(dev, func, $codegen_tt)
-            CUDAnative.func_cache[$key] = $cuda_fun
+            CUDAnative.func_cache[key] = $cuda_fun
         end
     end
 
