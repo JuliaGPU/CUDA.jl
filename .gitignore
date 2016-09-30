@@ -2,4 +2,3 @@
 devel
 .gdb_history
 .ipynb_checkpoints
-test/coverage
