@@ -171,6 +171,7 @@ function optimize!(mod::LLVM.Module, cap::VersionNumber)
               LLVM.ref(pm), LLVM.ref(tbaa_gcframe), 0)
 
         PassManagerBuilder() do pmb
+            always_inliner!(pm) # TODO: set it as the builder's inliner
             populate!(pm, pmb)
         end
 
