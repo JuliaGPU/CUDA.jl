@@ -49,10 +49,11 @@ function irgen{F<:Core.Function}(func::F, tt)
     end
 
     # TODO: emit into module instead of parsing
+    params = Base.CodegenParams(target=Base.TargetPTX, cached=false, executable=false)
     julia_ir = Base._dump_function(func, tt,
                                    #=native=#false, #=wrapper=#false, #=strip=#false,
                                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                   #=cached=#false, #=executable=#false)
+                                   params)
     entry_fn = Nullable{String}()
     let julia_mod = parse(LLVM.Module, julia_ir)
         name!(julia_mod, "Julia IR")

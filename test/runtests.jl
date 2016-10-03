@@ -7,7 +7,7 @@ include("codegen.jl")
 
 macro on_device(dev, exprs)
     quote
-        @target ptx function kernel()
+        function kernel()
             $exprs
 
             return nothing

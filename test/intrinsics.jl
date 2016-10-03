@@ -3,7 +3,7 @@
 let
     buf = CuArray(Float32, 1)
 
-    @target ptx function kernel_log10(a, i)
+    function kernel_log10(a, i)
         a[1] = CUDAnative.log10(i)
         return nothing
     end
@@ -38,7 +38,7 @@ end
 n = 1024
 types = [Int32, Int64, Float32, Float64]
 
-@target ptx function shmem_dynamic_typed(d, n)
+function shmem_dynamic_typed(d, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -59,7 +59,7 @@ let
     @assert reverse(a) == Array(d_a)
 end
 
-@target ptx function shmem_dynamic_typevar{T}(d::CuDeviceArray{T}, n)
+function shmem_dynamic_typevar{T}(d::CuDeviceArray{T}, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -83,7 +83,7 @@ end
 
 # static shmem
 
-@target ptx function shmem_static_typed(d, n)
+function shmem_static_typed(d, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -107,7 +107,7 @@ let
     @assert reverse(a) == Array(d_a)
 end
 
-@target ptx function shmem_static_typevar{T}(d::CuDeviceArray{T}, n)
+function shmem_static_typevar{T}(d::CuDeviceArray{T}, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -136,7 +136,7 @@ end
 
 # common use case 1: dynamic shmem consists of multiple homogeneous arrays
 #                    -> split using `view`
-@target ptx function shmem_dynamic_multi_homogeneous(a, b, n)
+function shmem_dynamic_multi_homogeneous(a, b, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -170,7 +170,7 @@ end
 
 # common use case 2: dynamic shmem consists of multiple heterogeneous arrays
 #                    -> construct using pointer offset
-@target ptx function shmem_dynamic_multi_heterogeneous(a, b, n)
+function shmem_dynamic_multi_heterogeneous(a, b, n)
     t = threadIdx().x
     tr = n-t+1
 
@@ -205,7 +205,7 @@ end
 
 n = 14
 
-@target ptx function kernel_shuffle_down{T}(d::CuDeviceArray{T}, n)
+function kernel_shuffle_down{T}(d::CuDeviceArray{T}, n)
     t = threadIdx().x
     if t <= n
         d[t] += shfl_down(d[t], n÷2)
@@ -231,7 +231,7 @@ end
 let
     d_a = CuArray(UInt32, 1)
 
-    @target ptx function kernel_ballot(a, i)
+    function kernel_ballot(a, i)
         vote = vote_ballot(threadIdx().x == i)
         if threadIdx().x == 1
             a[1] = vote
@@ -252,7 +252,7 @@ end
 let
     d_a = CuArray(UInt32, 1)
 
-    @target ptx function kernel_any(a, i)
+    function kernel_any(a, i)
         vote = vote_any(threadIdx().x >= i)
         if threadIdx().x == 1
             a[1] = vote
@@ -276,7 +276,7 @@ end
 let
     d_a = CuArray(UInt32, 1)
 
-    @target ptx function kernel_all(a, i)
+    function kernel_all(a, i)
         vote = vote_all(threadIdx().x >= i)
         if threadIdx().x == 1
             a[1] = vote

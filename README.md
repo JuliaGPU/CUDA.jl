@@ -50,12 +50,13 @@ The following example shows how to add two vectors on the GPU:
 
 **Writing the kernel**
 
-First you have to write the computation kernel and mark it `@target ptx`:
+First you have to write the kernel function and make sure it only uses features from the
+CUDA-supported subset of Julia:
 
 ```julia
 using CUDAnative
 
-@target ptx function kernel_vadd(a, b, c)
+function kernel_vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     c[i] = a[i] + b[i]
 

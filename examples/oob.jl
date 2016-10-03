@@ -9,7 +9,7 @@ ctx = CuContext(dev)
 
 a = CuArray(Float32, 10)
 
-@target ptx function memset(a, val)
+function memset(a, val)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     a[i] = val
     return nothing

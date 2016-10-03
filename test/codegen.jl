@@ -1,6 +1,6 @@
 ## LLVM IR
 
-@target ptx foo() = return nothing
+foo() = return nothing
 ir = CUDAnative.code_llvm(foo, (); optimize=false, dump_module=true)
 
 # module should contain our function + a generic call wrapper
@@ -21,7 +21,7 @@ ir = CUDAnative.code_llvm(foo, (); optimize=false, dump_module=true)
 # TODO: assert devfun non .entry
 
 
-@target ptx function throw_exception()
+function throw_exception()
     throw(DivideError())
 end
 ir = CUDAnative.code_llvm(throw_exception, ())
@@ -33,26 +33,22 @@ ir = CUDAnative.code_llvm(throw_exception, ())
 @test !contains(ir, "jl_throw")
 
 # delayed binding lookup (due to noexisting global)
-@target ptx ref_nonexisting() = nonexisting
+ref_nonexisting() = nonexisting
 @test_throws ErrorException CUDAnative.code_native(ref_nonexisting, ())
 
 # generic call to nonexisting function
-@target ptx call_nonexisting() = nonexisting()
+call_nonexisting() = nonexisting()
 @test_throws ErrorException CUDAnative.code_native(call_nonexisting, ())
 
-# cannot call PTX functions
-@target ptx call_nonptx() = return nothing
-@test_throws ErrorException call_nonptx()
-
 # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
-@target ptx codegen_twice() = return nothing
+codegen_twice() = return nothing
 CUDAnative.code_native(codegen_twice, ())
 CUDAnative.code_native(codegen_twice, ())
 
 # bug: depending on a child function from multiple parents resulted in
 #      the child only being present once
 let
-    @target ptx @noinline function child(i)
+    @noinline function child(i)
         if i < 10
             return i*i
         else
@@ -60,7 +56,7 @@ let
         end
     end
 
-    @target ptx function parent1(arr::Ptr{Int64})
+    function parent1(arr::Ptr{Int64})
         i = child(0)
         unsafe_store!(arr, i, i)
         return nothing
@@ -68,7 +64,7 @@ let
     asm = CUDAnative.code_native(parent1, (Ptr{Int64},))
     @test ismatch(r".func .+ julia_child", asm)
 
-    @target ptx function parent2(arr::Ptr{Int64})
+    function parent2(arr::Ptr{Int64})
         i = child(0)+1
         unsafe_store!(arr, i, i)
 
@@ -81,15 +77,15 @@ end
 # bug: similar, but slightly different issue as above
 #      in the case of two child functions
 let
-    @target ptx @noinline function child1()
+    @noinline function child1()
         return 0
     end
 
-    @target ptx @noinline function child2()
+    @noinline function child2()
         return 0
     end
 
-    @target ptx function parent1(arry::Ptr{Int64})
+    function parent1(arry::Ptr{Int64})
         i = child1() + child2()
         unsafe_store!(arry, i, i)
 
@@ -98,7 +94,7 @@ let
     asm = CUDAnative.code_native(parent1, (Ptr{Int64},))
 
 
-    @target ptx function parent2(arry::Ptr{Int64})
+    function parent2(arry::Ptr{Int64})
         i = child1() + child2()
         unsafe_store!(arry, i, i+1)
 
@@ -110,7 +106,7 @@ end
 
 # bug: use a system image function
 let
-    @target ptx @noinline function call_sysimg(a,i)
+    @noinline function call_sysimg(a,i)
         Base.pointerset(a, 0, mod1(i,10), 8)
         return nothing
     end
@@ -120,26 +116,10 @@ let
     @test !contains(ir, "jlsys_")
 end
 
-# issue #9: not specifying '@target ptx' on child function should still work
-let
-    @noinline child_9_a() = throw(KeyError("whatever"))
-
-    @target ptx function parent_9_a(out)
-        if unsafe_load(out) == 0
-            child_9_a()
-        end
-        return nothing
-    end
-
-    ir = CUDAnative.code_llvm(parent_9_a, (Ptr{Int32},); dump_module=true)
-    @test contains(ir, "trap")
-    @test !contains(ir, "jl_throw")
-end
-
 # issue #9: re-using non-sysimg functions should force recompilation
 #           (host fldmod1->mod1 throws)
 let
-    @target ptx function kernel_9_b(out)
+    function kernel_9_b(out)
         wid, lane = fldmod1(unsafe_load(out), Int32(32))
         unsafe_store!(out, wid)
         return nothing
@@ -158,7 +138,7 @@ let
         child_11(10)
     end
 
-    @target ptx function kernel_11_ptx()
+    function kernel_11_ptx()
         child_11(10)
         return nothing
     end

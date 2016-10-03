@@ -18,7 +18,7 @@ end
 
 ## basics (argument passing, get and setindex, length)
 
-@target ptx function array_copy(input::CuDeviceArray{Float32},
+function array_copy(input::CuDeviceArray{Float32},
                                 output::CuDeviceArray{Float32})
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
@@ -46,7 +46,7 @@ end
 
 ## views
 
-@target ptx function array_view(array)
+function array_view(array)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
     sub = view(array, 2:length(array)-1)

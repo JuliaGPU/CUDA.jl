@@ -38,22 +38,22 @@ import Base: length, size,
              linearindexing, LinearFast, getindex, setindex!,
              pointerref, pointerset
 
-@target ptx length(g::CuDeviceArray) = g.len
-@target ptx size(g::CuDeviceArray) = g.shape
+length(g::CuDeviceArray) = g.len
+size(g::CuDeviceArray) = g.shape
 
 linearindexing{A<:CuDeviceArray}(::Type{A}) = LinearFast()
 
-@target ptx @inline function setindex!{T}(A::CuDeviceArray{T}, x, index::Int)
+@inline function setindex!{T}(A::CuDeviceArray{T}, x, index::Int)
     @boundscheck checkbounds(A, index)
     pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, 8)
 end
 
-@target ptx @inline function getindex{T}(A::CuDeviceArray{T}, index::Int)
+@inline function getindex{T}(A::CuDeviceArray{T}, index::Int)
     @boundscheck checkbounds(A, index)
     pointerref(unsafe_convert(Ptr{T}, A), index, 8)::T
 end
 
-@target ptx @inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
+@inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
 
 
 ## compatibility fixes
@@ -62,12 +62,12 @@ end
 #       can be stack-allocated
 import Base: throw_boundserror
 immutable CuBoundsError <: Exception end
-@target ptx @inline throw_boundserror{T,N}(A::CuDeviceArray{T,N}, I) =
+@inline throw_boundserror{T,N}(A::CuDeviceArray{T,N}, I) =
     (Base.@_noinline_meta; throw(CuBoundsError()))
 
 # TODO: same for SubArray, although it might be too complex to ever be non-allocating
 import Base: unsafe_view, ViewIndex
-@target ptx function unsafe_view{T}(A::CuDeviceArray{T,1}, I::Vararg{ViewIndex,1})
+function unsafe_view{T}(A::CuDeviceArray{T,1}, I::Vararg{ViewIndex,1})
     Base.@_inline_meta
     ptr = unsafe_convert(Ptr{T}, A) + (I[1].start-1)*sizeof(T)
     len = I[1].stop - I[1].start + 1

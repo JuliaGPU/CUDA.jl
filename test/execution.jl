@@ -1,4 +1,4 @@
-@target ptx do_nothing() = return nothing
+do_nothing() = return nothing
 
 #
 # cufunction
@@ -35,7 +35,7 @@ destroy(s)
 # external kernel
 module KernelModule
     export do_more_nothing
-    @target ptx do_more_nothing() = return nothing
+    do_more_nothing() = return nothing
 end
 @cuda dev (1,1) KernelModule.do_more_nothing()
 @eval begin
@@ -46,10 +46,10 @@ end
 
 ## return values
 
-@target ptx retint() = return 1
+retint() = return 1
 @test_throws ErrorException @cuda dev (1,1) retint()
 
-@target ptx function call_retint()
+function call_retint()
     retint()
     return nothing
 end
@@ -61,7 +61,7 @@ end
 dims = (16, 16)
 len = prod(dims)
 
-@target ptx function ptr_copy(input, output)
+function ptr_copy(input, output)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
     val = unsafe_load(input, i)
@@ -86,7 +86,7 @@ let
 end
 
 # scalar through single-value array
-@target ptx function ptr_lastvalue(a, x)
+function ptr_lastvalue(a, x)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     max = gridDim().x * blockDim().x
     if i == max
@@ -108,7 +108,7 @@ let
 end
 
 # same, but using a device function
-@target ptx @noinline function ptr_lastvalue_devfun(a, x)
+@noinline function ptr_lastvalue_devfun(a, x)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     max = gridDim().x * blockDim().x
     if i == max
@@ -118,7 +118,7 @@ end
 
     return nothing
 end
-@target ptx function lastvalue_devfun(a, i)
+function lastvalue_devfun(a, i)
     return unsafe_load(a, i)
 end
 let
@@ -144,7 +144,7 @@ let
 
     immutable Ghost end
 
-    @target ptx function map_inner(ghost, a, b, c)
+    function map_inner(ghost, a, b, c)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         unsafe_store!(c, unsafe_load(a,i)+unsafe_load(b,i), i)
 
@@ -158,7 +158,7 @@ end
 
 # issue #7: tuples not passed by pointer
 let
-    @target ptx function kernel7(keeps, out)
+    function kernel7(keeps, out)
         if keeps[1]
             unsafe_store!(out, 1)
         else
@@ -175,7 +175,7 @@ end
 
 # issue #15: immutables not passed by pointer
 let
-    @target ptx function kernel15(A, b)
+    function kernel15(A, b)
         unsafe_store!(A, imag(b))
         nothing
     end
