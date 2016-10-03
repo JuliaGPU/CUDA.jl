@@ -5,11 +5,8 @@ ir = CUDAnative.code_llvm(foo, (); optimize=false, dump_module=true)
 
 # module should contain our function + a generic call wrapper
 @test contains(ir, "define void @julia_foo")
-@test contains(ir, "define %jl_value_t* @jlcall_foo")
+@test !contains(ir, "define %jl_value_t* @jlcall_")
 @test ismatch(r"define void @julia_foo_.+\(\) #0.+\{", ir)
-@test ismatch(r"define %jl_value_t\* @jlcall_", ir)
-# code shouldn't contain a TLS pointer (PTX doesn't support TLS)
-@test !contains(ir, "thread_ptr")
 
 
 ## PTX assembly

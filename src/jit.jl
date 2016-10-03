@@ -60,6 +60,12 @@ function irgen{F<:Core.Function}(func::F, tt)
         triple!(julia_mod, triple(mod))
         datalayout!(julia_mod, datalayout(mod))
 
+        # remove jlcall functions
+        # TODO: make Julia not emit those
+        for f in filter(f->startswith(LLVM.name(f), "jlcall_"), functions(julia_mod))
+            unsafe_delete!(julia_mod, f)
+        end
+
         # find the entry point
         # TODO
         for ir_f in functions(julia_mod)
