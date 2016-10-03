@@ -7,25 +7,22 @@ export cufunction
 # code_* replacements
 #
 
-# default target is a sane one for testing purposes
+# NOTE: default capability is a sane one for testing purposes
 
-function function_ir(f::ANY, t::ANY=Tuple; optimize::Bool=true, cap::VersionNumber=v"2.0")
+function code_llvm(f::ANY, t::ANY=Tuple; optimize::Bool=true, dump_module::Bool=false,
+                                         cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, t)
     if optimize
         optimize!(mod, cap)
     end
-    return sprint(io->show(io, entry))
-end
-
-function module_ir(f::ANY, t::ANY=Tuple; optimize::Bool=true, cap::VersionNumber=v"2.0")
-    mod, entry = irgen(f, t)
-    if optimize
-        optimize!(mod, cap)
+    if dump_module
+        return convert(String, mod)
+    else
+        return sprint(io->show(io, entry))
     end
-    return convert(String, mod)
 end
 
-function module_asm(f::ANY, t::ANY=Tuple, cap::VersionNumber=v"2.0")
+function code_native(f::ANY, t::ANY=Tuple, cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, t)
     optimize!(mod, cap)
     return mcgen(mod, entry, cap)

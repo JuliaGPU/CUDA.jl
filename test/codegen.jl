@@ -1,7 +1,7 @@
 ## LLVM IR
 
 @target ptx foo() = return nothing
-ir = CUDAnative.module_ir(foo, (); optimize=false)
+ir = CUDAnative.code_llvm(foo, (); optimize=false, dump_module=true)
 
 # module should contain our function + a generic call wrapper
 @test contains(ir, "define void @julia_foo")
@@ -24,7 +24,7 @@ ir = CUDAnative.module_ir(foo, (); optimize=false)
 @target ptx function throw_exception()
     throw(DivideError())
 end
-ir = CUDAnative.function_ir(throw_exception, ())
+ir = CUDAnative.code_llvm(throw_exception, ())
 
 # exceptions should get lowered to a plain trap...
 @test contains(ir, "llvm.trap")
@@ -34,11 +34,11 @@ ir = CUDAnative.function_ir(throw_exception, ())
 
 # delayed binding lookup (due to noexisting global)
 @target ptx ref_nonexisting() = nonexisting
-@test_throws ErrorException CUDAnative.module_asm(ref_nonexisting, ())
+@test_throws ErrorException CUDAnative.code_native(ref_nonexisting, ())
 
 # generic call to nonexisting function
 @target ptx call_nonexisting() = nonexisting()
-@test_throws ErrorException CUDAnative.module_asm(call_nonexisting, ())
+@test_throws ErrorException CUDAnative.code_native(call_nonexisting, ())
 
 # cannot call PTX functions
 @target ptx call_nonptx() = return nothing
@@ -46,8 +46,8 @@ ir = CUDAnative.function_ir(throw_exception, ())
 
 # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 @target ptx codegen_twice() = return nothing
-CUDAnative.module_asm(codegen_twice, ())
-CUDAnative.module_asm(codegen_twice, ())
+CUDAnative.code_native(codegen_twice, ())
+CUDAnative.code_native(codegen_twice, ())
 
 # bug: depending on a child function from multiple parents resulted in
 #      the child only being present once
@@ -65,7 +65,7 @@ let
         unsafe_store!(arr, i, i)
         return nothing
     end
-    asm = CUDAnative.module_asm(parent1, (Ptr{Int64},))
+    asm = CUDAnative.code_native(parent1, (Ptr{Int64},))
     @test ismatch(r".func .+ julia_child", asm)
 
     @target ptx function parent2(arr::Ptr{Int64})
@@ -74,7 +74,7 @@ let
 
         return nothing
     end
-    asm = CUDAnative.module_asm(parent2, (Ptr{Int64},))
+    asm = CUDAnative.code_native(parent2, (Ptr{Int64},))
     @test ismatch(r".func .+ julia_child", asm)
 end
 
@@ -95,7 +95,7 @@ let
 
         return nothing
     end
-    asm = CUDAnative.module_asm(parent1, (Ptr{Int64},))
+    asm = CUDAnative.code_native(parent1, (Ptr{Int64},))
 
 
     @target ptx function parent2(arry::Ptr{Int64})
@@ -104,7 +104,7 @@ let
 
         return nothing
     end
-    asm = CUDAnative.module_asm(parent2, (Ptr{Int64},))
+    asm = CUDAnative.code_native(parent2, (Ptr{Int64},))
 end
 
 
@@ -116,7 +116,7 @@ let
     end
 
     ccall(:jl_breakpoint, Void, (Any,), 42)
-    ir = CUDAnative.function_ir(call_sysimg, (Ptr{Int},Int))
+    ir = CUDAnative.code_llvm(call_sysimg, (Ptr{Int},Int))
     @test !contains(ir, "jlsys_")
 end
 
@@ -131,7 +131,7 @@ let
         return nothing
     end
 
-    ir = CUDAnative.module_ir(parent_9_a, (Ptr{Int32},))
+    ir = CUDAnative.code_llvm(parent_9_a, (Ptr{Int32},); dump_module=true)
     @test contains(ir, "trap")
     @test !contains(ir, "jl_throw")
 end
@@ -145,7 +145,7 @@ let
         return nothing
     end
 
-    asm = CUDAnative.module_asm(kernel_9_b, (Ptr{Int32},))
+    asm = CUDAnative.code_native(kernel_9_b, (Ptr{Int32},))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
@@ -163,6 +163,6 @@ let
         return nothing
     end
 
-    CUDAnative.module_asm(kernel_11_ptx, ())
-    CUDAnative.module_asm(kernel_11_host, ())
+    CUDAnative.code_native(kernel_11_ptx, ())
+    CUDAnative.code_native(kernel_11_host, ())
 end
