@@ -1,46 +1,57 @@
 ## LLVM IR
 
-foo() = return nothing
-ir = CUDAnative.code_llvm(foo, (); optimize=false, dump_module=true)
+let
+    foo() = return nothing
+    ir = CUDAnative.code_llvm(foo, (); optimize=false, dump_module=true)
 
-# module should contain our function + a generic call wrapper
-@test contains(ir, "define void @julia_foo")
-@test !contains(ir, "define %jl_value_t* @jlcall_")
-@test ismatch(r"define void @julia_foo_.+\(\) #0.+\{", ir)
+    # module should contain our function + a generic call wrapper
+    @test contains(ir, "define void @julia_foo")
+    @test !contains(ir, "define %jl_value_t* @jlcall_")
+    @test ismatch(r"define void @julia_foo_.+\(\) #0.+\{", ir)
+end
 
 
 ## PTX assembly
 
-# TODO: PTX assembly generation / code_native
-# -> test if foo and bar doesn't end up in same PTX module
+let
+    @noinline child() = return nothing
+    parent() = child()
+    asm = CUDAnative.code_native(parent, ())
 
-# TODO: assert .entry
-# TODO: assert devfun non .entry
+    @test contains(asm, ".visible .entry julia_parent_")
 
-
-function throw_exception()
-    throw(DivideError())
+    # TODO: assert child is there and hasn't got .entry
 end
-ir = CUDAnative.code_llvm(throw_exception, ())
 
-# exceptions should get lowered to a plain trap...
-@test contains(ir, "llvm.trap")
-# not a jl_throw referencing a jl_value_t representing the exception
-@test !contains(ir, "jl_value_t")
-@test !contains(ir, "jl_throw")
+let
+    throw_exception() = throw(DivideError())
+    ir = CUDAnative.code_llvm(throw_exception, ())
+
+    # exceptions should get lowered to a plain trap...
+    @test contains(ir, "llvm.trap")
+    # not a jl_throw referencing a jl_value_t representing the exception
+    @test !contains(ir, "jl_value_t")
+    @test !contains(ir, "jl_throw")
+end
 
 # delayed binding lookup (due to noexisting global)
-ref_nonexisting() = nonexisting
-@test_throws ErrorException CUDAnative.code_native(ref_nonexisting, ())
+let
+    ref_nonexisting() = nonexisting
+    @test_throws ErrorException CUDAnative.code_native(ref_nonexisting, ())
+end
 
 # generic call to nonexisting function
-call_nonexisting() = nonexisting()
-@test_throws ErrorException CUDAnative.code_native(call_nonexisting, ())
+let
+    call_nonexisting() = nonexisting()
+    @test_throws ErrorException CUDAnative.code_native(call_nonexisting, ())
+end
 
 # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
-codegen_twice() = return nothing
-CUDAnative.code_native(codegen_twice, ())
-CUDAnative.code_native(codegen_twice, ())
+let
+    codegen_twice() = return nothing
+    CUDAnative.code_native(codegen_twice, ())
+    CUDAnative.code_native(codegen_twice, ())
+end
 
 # bug: depending on a child function from multiple parents resulted in
 #      the child only being present once
