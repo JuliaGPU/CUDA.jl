@@ -24,16 +24,15 @@
 
 * Global variables? Closure variables?
 
-* Make `sm_35` (and corresponding `libdevice` filename) configurable
-
-* Add a `--debug` option, generating `.loc` instructions, exposed to
-  `CUDAnative.jl` in order to properly configure the PTX JIT
-
 * Fix running tests with `--inline=no`
 
 * A lot of undefined references running valgrind -- check this out!
 
-* Verify the dimension calculations in the tests and examples (cfr. blackscholes slowdown)
+* NVPTX debugging, currently not supported by the back-end (`.debug_info` missing):
+  ```c
+  const char *const argv_nvptxdbg[] = {"", "-debug-compile"};
+  cl::ParseCommandLineOptions(sizeof(argv_nvptxdbg)/sizeof(argv_nvptxdbg[0]), argv_nvptxdbg, "nvptx-debug-compile\n");
+  ```
 
 
 # Optimizations
