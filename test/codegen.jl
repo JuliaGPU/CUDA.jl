@@ -19,8 +19,7 @@ let
     asm = CUDAnative.code_native(parent, ())
 
     @test contains(asm, ".visible .entry julia_parent_")
-
-    # TODO: assert child is there and hasn't got .entry
+    @test contains(asm, ".visible .func julia_child_")
 end
 
 let

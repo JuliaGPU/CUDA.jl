@@ -48,39 +48,52 @@ function irgen{F<:Core.Function}(func::F, tt)
         datalayout!(mod, "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
     end
 
+    # collect all modules of IR
     # TODO: emit into module instead of parsing
-    params = Base.CodegenParams(target=Base.TargetPTX, cached=false, executable=false)
-    julia_ir = Base._dump_function(func, tt,
-                                   #=native=#false, #=wrapper=#false, #=strip=#false,
-                                   #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                   params)
+    # TODO: make codegen pure
+    modrefs = Vector{Ptr{Void}}()
+    finalize(ref::Ptr{Void}) = push!(modrefs, ref)
+    hooks = Base.CodegenHooks(;finalize=finalize)
+    params = Base.CodegenParams(target=Base.TargetPTX, cached=false, executable=false,
+                                hooks=hooks)
+    entry_irmod = Base._dump_function(func, tt,
+                                       #=native=#false, #=wrapper=#false, #=strip=#false,
+                                       #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                                       params)
+    irmods = map(ref->convert(String, LLVM.Module(ref)), modrefs)
+    unshift!(irmods, entry_irmod)
+
+    # find the entry function
     entry_fn = Nullable{String}()
-    let julia_mod = parse(LLVM.Module, julia_ir)
-        name!(julia_mod, "Julia IR")
-        triple!(julia_mod, triple(mod))
-        datalayout!(julia_mod, datalayout(mod))
-
-        # remove jlcall functions
-        # TODO: make Julia not emit those
-        for f in filter(f->startswith(LLVM.name(f), "jlcall_"), functions(julia_mod))
-            unsafe_delete!(julia_mod, f)
-        end
-
-        # find the entry point
-        # TODO
-        for ir_f in functions(julia_mod)
+    let entry_mod = parse(LLVM.Module, entry_irmod)
+        for ir_f in functions(entry_mod)
             ir_fn = LLVM.name(ir_f)
             if startswith(ir_fn, "julia_$fn")
                 entry_fn = Nullable(ir_fn)
                 break
             end
         end
-        isnull(entry_fn) && error("could not find entry-point function")
 
-        link!(mod, julia_mod)
-        
-        verify(mod)
+        isnull(entry_fn) && error("could not find entry-point function")
     end
+
+    # link all the modules
+    for irmod in irmods
+        partial_mod = parse(LLVM.Module, irmod)
+
+        name!(partial_mod, "Julia IR")
+        triple!(partial_mod, triple(mod))
+        datalayout!(partial_mod, datalayout(mod))
+
+        link!(mod, partial_mod)
+    end
+
+    # FIXME: remove jlcall functions
+    for f in filter(f->startswith(LLVM.name(f), "jlcall_"), functions(mod))
+        unsafe_delete!(mod, f)
+    end
+        
+    verify(mod)
 
     return mod, get(functions(mod), get(entry_fn))
 end

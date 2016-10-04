@@ -187,3 +187,11 @@ let
 
     @test Array(A) == Float32[imag(x)]
 end
+
+# issue: calling device function
+let
+    @noinline child() = return nothing
+    parent() = child()
+
+    @cuda dev (1,1) parent()
+end
