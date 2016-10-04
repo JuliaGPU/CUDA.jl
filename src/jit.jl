@@ -54,7 +54,8 @@ function irgen{F<:Core.Function}(func::F, tt)
     modrefs = Vector{Ptr{Void}}()
     finalize(ref::Ptr{Void}) = push!(modrefs, ref)
     hooks = Base.CodegenHooks(;finalize=finalize)
-    params = Base.CodegenParams(target=Base.TargetPTX, cached=false, executable=false,
+    params = Base.CodegenParams(target=Base.TargetPTX,
+                                cached=false, executable=false, can_allocate=false,
                                 hooks=hooks)
     entry_irmod = Base._dump_function(func, tt,
                                        #=native=#false, #=wrapper=#false, #=strip=#false,
