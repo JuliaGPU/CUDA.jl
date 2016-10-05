@@ -89,9 +89,14 @@ function irgen{F<:Core.Function}(func::F, tt)
         link!(mod, partial_mod)
     end
 
-    # FIXME: remove jlcall functions
-    for f in filter(f->startswith(LLVM.name(f), "jlcall_"), functions(mod))
-        unsafe_delete!(mod, f)
+    # FIXME: clean up incompatibilities
+    for f in functions(mod)
+        if startswith(LLVM.name(f), "jlcall_")
+            unsafe_delete!(mod, f)
+        else
+            # only occurs in debug builds
+            delete!(attributes(f), LLVM.API.LLVMStackProtectReqAttribute)
+        end
     end
         
     verify(mod)
