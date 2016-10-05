@@ -314,8 +314,8 @@ const toolchain_caps = Vector{VersionNumber}()
 function __init_jit__()
     # helper methods for querying version DBs
     # (tool::VersionNumber => devices::Vector{VersionNumber})
-    flatten(vecvec) = vcat(vecvec...)
-    search(db, predicate) = Set(flatten(valvec for (key,valvec) in db if predicate(key)))
+    search(db, predicate) =
+        Set(Base.flatten(valvec for (key,valvec) in db if predicate(key)))
 
     # figure out which devices this LLVM library supports
     llvm_ver = LLVM.version()
