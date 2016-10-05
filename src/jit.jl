@@ -310,6 +310,7 @@ end
 # Initialization
 #
 
+# TODO: this can be a build step
 const toolchain_caps = Vector{VersionNumber}()
 function __init_jit__()
     # helper methods for querying version DBs
