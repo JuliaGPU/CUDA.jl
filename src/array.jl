@@ -31,29 +31,28 @@ cudaconvert{T,N}(::Type{CuArray{T,N}}) = CuDeviceArray{T,N}
 convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) =
     CuDeviceArray{T,N}(a.shape, unsafe_convert(Ptr{T}, a.ptr))
 
+@inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
+
 
 ## array interface
 
-import Base: length, size,
-             linearindexing, LinearFast, getindex, setindex!,
+import Base: size, length, getindex, setindex!,
              pointerref, pointerset
 
-length(g::CuDeviceArray) = g.len
 size(g::CuDeviceArray) = g.shape
-
-linearindexing{A<:CuDeviceArray}(::Type{A}) = LinearFast()
-
-@inline function setindex!{T}(A::CuDeviceArray{T}, x, index::Int)
-    @boundscheck checkbounds(A, index)
-    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, 8)
-end
+length(g::CuDeviceArray) = g.len
 
 @inline function getindex{T}(A::CuDeviceArray{T}, index::Int)
     @boundscheck checkbounds(A, index)
     pointerref(unsafe_convert(Ptr{T}, A), index, 8)::T
 end
 
-@inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
+@inline function setindex!{T}(A::CuDeviceArray{T}, x, index::Int)
+    @boundscheck checkbounds(A, index)
+    pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, 8)
+end
+
+Base.linearindexing{A<:CuDeviceArray}(::Type{A}) = Base.LinearFast()
 
 
 ## compatibility fixes
