@@ -10,8 +10,6 @@
   hand, is this necessary? Just mark the AS, convert as soon as possible, and use the
   inference pass to improve performance.
 
-* Stream granularity for execution, exceptions, etc
-
 
 # Minor
 
@@ -24,15 +22,15 @@
 
 * Global variables? Closure variables?
 
-* Fix running tests with `--inline=no`
-
-* A lot of undefined references running valgrind -- check this out!
-
-* NVPTX debugging, currently not supported by the back-end (`.debug_info` missing):
+* DWARF debugging, currently not supported by the back-end (`.debug_info` missing):
   ```c
   const char *const argv_nvptxdbg[] = {"", "-debug-compile"};
   cl::ParseCommandLineOptions(sizeof(argv_nvptxdbg)/sizeof(argv_nvptxdbg[0]), argv_nvptxdbg, "nvptx-debug-compile\n");
   ```
+
+* Disable bounds checking if `cuda-memcheck` is used (`CUDA_MEMCHECK` env var)
+
+* Benchmarking: surround kernel invocation with `@benchmark` --> insert perf events, etc
 
 
 # Optimizations
