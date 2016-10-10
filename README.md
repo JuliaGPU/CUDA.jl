@@ -13,7 +13,9 @@ Installation
 
 Requirements:
 
-* Julia 0.5+
+* Julia 0.5 or higher (use
+  [v0.1.0](https://github.com/JuliaGPU/CUDAdrv.jl/releases/tag/v0.1.0) of this package
+  for compatibility with Julia 0.4)
 * CUDA toolkit: tested up until v8.0, newer versions might work but can be incompatible
 * CUDA hardware
 
