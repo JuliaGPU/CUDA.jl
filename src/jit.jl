@@ -53,7 +53,7 @@ function irgen{F<:Core.Function}(func::F, tt)
     params = Base.CodegenParams(target=Base.TargetPTX, cached=false,
                                 runtime=0, exceptions=0,
                                 track_allocations=0, code_coverage=0,
-                                static_alloc=0,
+                                static_alloc=0, dynamic_alloc=0,
                                 hooks=hooks)
     entry_irmod = Base._dump_function(func, tt,
                                       #=native=#false, #=wrapper=#false, #=strip=#false,
