@@ -34,10 +34,6 @@ end
 #
 
 function irgen{F<:Core.Function}(func::F, tt)
-    fn = string(F.name.mt.name)
-    # TODO: get the entry point from Julia
-    fn = replace(fn, '#', '_')
-
     mod = LLVM.Module("vadd")
     # TODO: why doesn't the datalayout match datalayout(tm)?
     if is(Int,Int64)
@@ -60,18 +56,20 @@ function irgen{F<:Core.Function}(func::F, tt)
                                 track_allocations=0, code_coverage=0,
                                 hooks=hooks)
     entry_irmod = Base._dump_function(func, tt,
-                                       #=native=#false, #=wrapper=#false, #=strip=#false,
-                                       #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                       params)
+                                      #=native=#false, #=wrapper=#false, #=strip=#false,
+                                      #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                                      params)
     irmods = map(ref->convert(String, LLVM.Module(ref)), modrefs)
     unshift!(irmods, entry_irmod)
 
     # find the entry function
+    # TODO: let Julia report this
     entry_fn = Nullable{String}()
     let entry_mod = parse(LLVM.Module, entry_irmod)
+        src_fn = String(F.name.mt.name) # FIXME: LLVM might have mangled this
         for ir_f in functions(entry_mod)
             ir_fn = LLVM.name(ir_f)
-            if startswith(ir_fn, "julia_$fn")
+            if startswith(ir_fn, "julia_$(src_fn)")
                 entry_fn = Nullable(ir_fn)
                 break
             end
@@ -98,6 +96,20 @@ function irgen{F<:Core.Function}(func::F, tt)
         else
             # only occurs in debug builds
             delete!(attributes(f), LLVM.API.LLVMStackProtectReqAttribute)
+
+            # make function names safe for ptxas
+            # (LLVM ought to do this, see eg. D17738 and D19126), but they fail
+            # TODO: fix all globals?
+            if !isdeclaration(f)
+                fn = LLVM.name(f)
+                safe_fn = replace(fn, r"[^aA-zZ0-9_]", "_")
+                if fn != safe_fn
+                    LLVM.name!(f, safe_fn)
+                    if fn == get(entry_fn)
+                        entry_fn = Nullable(safe_fn)
+                    end
+                end
+            end
         end
     end
         
