@@ -48,12 +48,12 @@ function irgen{F<:Core.Function}(func::F, tt)
     # TODO: emit into module instead of parsing
     # TODO: make codegen pure
     modrefs = Vector{Ptr{Void}}()
-    finalize(ref::Ptr{Void}) = push!(modrefs, ref)
-    hooks = Base.CodegenHooks(;finalize=finalize)
-    params = Base.CodegenParams(target=Base.TargetPTX,
-                                cached=false, executable=false,
-                                static_alloc=0, exceptions=0,
+    activate_module(ref::Ptr{Void}) = push!(modrefs, ref)
+    hooks = Base.CodegenHooks(;activate_module=activate_module)
+    params = Base.CodegenParams(target=Base.TargetPTX, cached=false,
+                                runtime=0, exceptions=0,
                                 track_allocations=0, code_coverage=0,
+                                static_alloc=0,
                                 hooks=hooks)
     entry_irmod = Base._dump_function(func, tt,
                                       #=native=#false, #=wrapper=#false, #=strip=#false,
