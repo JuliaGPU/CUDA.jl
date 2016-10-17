@@ -45,9 +45,8 @@ function module_setup(mod::LLVM.Module)
 
     # debug info metadata
     push!(metadata(mod), "llvm.module.flags",
-          MDNode([ConstantInt(LLVM.Int32Type(), 2),
-                  MDString("Debug Info Version"),
-                  ConstantInt(LLVM.Int32Type(), DEBUG_METADATA_VERSION())]))
+          MDNode([ConstantInt(Int32(2)),
+                  MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
 function irgen{F<:Core.Function}(func::F, tt)
@@ -233,7 +232,7 @@ function mcgen(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
 
     # kernel metadata
     push!(metadata(mod), "nvvm.annotations",
-          MDNode([entry, MDString("kernel"), ConstantInt(LLVM.Int32Type(), 1)]))
+          MDNode([entry, MDString("kernel"), ConstantInt(Int32(1))]))
 
     InitializeNVPTXAsmPrinter()
     return convert(String, emit(tm, mod, LLVM.API.LLVMAssemblyFile))
