@@ -33,8 +33,7 @@ end
 # main code generation functions
 #
 
-function irgen{F<:Core.Function}(func::F, tt)
-    mod = LLVM.Module("vadd")
+function module_setup(mod::LLVM.Module)
     # TODO: why doesn't the datalayout match datalayout(tm)?
     if is(Int,Int64)
         triple!(mod, "nvptx64-nvidia-cuda")
@@ -44,13 +43,26 @@ function irgen{F<:Core.Function}(func::F, tt)
         datalayout!(mod, "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
     end
 
+    # debug info metadata
+    push!(metadata(mod), "llvm.module.flags",
+          MDNode([ConstantInt(LLVM.Int32Type(), 2),
+                  MDString("Debug Info Version"),
+                  ConstantInt(LLVM.Int32Type(), DEBUG_METADATA_VERSION())]))
+end
+
+function irgen{F<:Core.Function}(func::F, tt)
+    mod = LLVM.Module("vadd")
+    module_setup(mod)
+
     # collect all modules of IR
     # TODO: emit into module instead of parsing
     # TODO: make codegen pure
+    hook_module_setup(ref::Ptr{Void}) = module_setup(LLVM.Module(ref))
     modrefs = Vector{Ptr{Void}}()
-    activate_module(ref::Ptr{Void}) = push!(modrefs, ref)
-    hooks = Base.CodegenHooks(;activate_module=activate_module)
-    params = Base.CodegenParams(target=Base.TargetPTX, cached=false,
+    hook_module_activation(ref::Ptr{Void}) = push!(modrefs, ref)
+    hooks = Base.CodegenHooks(module_setup=hook_module_setup,
+                              module_activation=hook_module_activation)
+    params = Base.CodegenParams(cached=false,
                                 runtime=0, exceptions=0,
                                 track_allocations=0, code_coverage=0,
                                 static_alloc=0, dynamic_alloc=0,
@@ -221,7 +233,7 @@ function mcgen(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
 
     # kernel metadata
     push!(metadata(mod), "nvvm.annotations",
-          MDNode([entry, MDString("kernel"),  ConstantInt(LLVM.Int32Type(), 1)]))
+          MDNode([entry, MDString("kernel"), ConstantInt(LLVM.Int32Type(), 1)]))
 
     InitializeNVPTXAsmPrinter()
     return convert(String, emit(tm, mod, LLVM.API.LLVMAssemblyFile))
