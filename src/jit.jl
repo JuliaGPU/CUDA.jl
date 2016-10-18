@@ -34,7 +34,8 @@ end
 #
 
 function module_setup(mod::LLVM.Module)
-    # TODO: why doesn't the datalayout match datalayout(tm)?
+    # NOTE: NVPTX::TargetMachine's data layout doesn't match the NVPTX user guide,
+    #       so we specify it ourselves
     if Int === Int64
         triple!(mod, "nvptx64-nvidia-cuda")
         datalayout!(mod, "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
