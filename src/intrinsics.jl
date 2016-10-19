@@ -210,9 +210,10 @@ shmem_id = 0
     @cuStaticSharedMem(typ::Type, dims) -> CuDeviceArray{typ}
 
 Get an array of type `typ` and dimensions `dims` (either an integer length or tuple shape)
-pointing to a statically-allocated piece of shared memory. All arguments should be
-statically known after type inference, or a (currently unreported) error will be thrown
-resulting in a runtime generic call to the internal generator function.
+pointing to a statically-allocated piece of shared memory. The type should be statically
+inferable and the dimensions should be constant (without requiring constant propagation, see
+JuliaLang/julia#5560), or an error will be thrown and the generator function will be called
+dynamically.
 
 Multiple statically-allocated shared memory arrays can be requested by calling this macro
 multiple times.
@@ -252,10 +253,12 @@ end
     @cuDynamicSharedMem(typ::Type, dims, offset::Integer=0) -> CuDeviceArray{typ}
 
 Get an array of type `typ` and dimensions `dims` (either an integer length or tuple shape)
-pointing to a dynamically-allocated piece of shared memory. The type `typ` should be
-statically known after type inference, or a (currently unreported) error will be thrown
-resulting in a runtime generic call to an internal generator function. The necessary memory
-needs to be allocated when calling the kernel.
+pointing to a dynamically-allocated piece of shared memory. The type should be statically
+inferable and the dimension and offset parameters should be constant (without requiring
+constant propagation, see JuliaLang/julia#5560), or an error will be thrown and the
+generator function will be called dynamically.
+
+Dynamic shared memory also needs to be allocated beforehand, when calling the kernel.
 
 Optionally, an offset parameter indicating how many bytes to add to the base shared memory
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
