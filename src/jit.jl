@@ -2,6 +2,8 @@
 
 export cufunction
 
+using Base.Iterators: flatten
+
 
 #
 # code_* replacements
@@ -340,7 +342,7 @@ function __init_jit__()
     # helper methods for querying version DBs
     # (tool::VersionNumber => devices::Vector{VersionNumber})
     search(db, predicate) =
-        Set(Base.flatten(valvec for (key,valvec) in db if predicate(key)))
+        Set(flatten(valvec for (key,valvec) in db if predicate(key)))
 
     # figure out which devices this LLVM library supports
     llvm_ver = LLVM.version()

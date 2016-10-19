@@ -2,6 +2,8 @@
 
 export @cuda
 
+using Base.Iterators: filter
+
 
 #
 # Auxiliary
