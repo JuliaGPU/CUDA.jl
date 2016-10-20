@@ -52,7 +52,7 @@ function module_setup(mod::LLVM.Module)
                   MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
-function irgen{F<:Core.Function}(func::F, tt)
+function irgen(func::ANY, tt::ANY)
     mod = LLVM.Module("vadd")
     module_setup(mod)
 
@@ -80,7 +80,7 @@ function irgen{F<:Core.Function}(func::F, tt)
     # TODO: let Julia report this
     entry_fn = Nullable{String}()
     let entry_mod = parse(LLVM.Module, entry_irmod)
-        src_fn = String(F.name.mt.name) # FIXME: LLVM might have mangled this
+        src_fn = String(typeof(func).name.mt.name) # FIXME: LLVM might have mangled this
         for ir_f in functions(entry_mod)
             ir_fn = LLVM.name(ir_f)
             if startswith(ir_fn, "julia_$(src_fn)")
@@ -242,7 +242,7 @@ end
 Compile a function to PTX, returning the assembly and an entry point.
 Not to be used directly, see `cufunction` instead.
 """
-function compile_function{F<:Core.Function}(dev::CuDevice, func::F, tt)
+function compile_function(dev::CuDevice, func::ANY, tt::ANY)
     sig = """$func($(join(tt.parameters, ", ")))"""
     debug("Compiling $sig")
 
@@ -318,7 +318,8 @@ function compile_function{F<:Core.Function}(dev::CuDevice, func::F, tt)
 end
 
 # Main entry-point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction{F<:Core.Function}(dev::CuDevice, func::F, types)
+function cufunction(dev::CuDevice, func::ANY, types::ANY)
+    @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
 
     (module_asm, module_entry) = compile_function(dev, func, tt)
