@@ -212,14 +212,11 @@ function optimize!(mod::LLVM.Module, cap::VersionNumber)
     tm = machine(cap, triple(mod))
 
     ModulePassManager() do pm
-        tbaa_gcframe = MDNode(ccall(:jl_get_tbaa_gcframe, LLVM.API.LLVMValueRef, ()))
         ccall(:LLVMAddLowerGCFramePass, Void,
-              (LLVM.API.LLVMPassManagerRef, LLVM.API.LLVMValueRef),
-              LLVM.ref(pm), LLVM.ref(tbaa_gcframe))
+              (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
         populate!(pm, tm)
         ccall(:LLVMAddLowerPTLSPass, Void,
-              (LLVM.API.LLVMPassManagerRef, LLVM.API.LLVMValueRef, Cint),
-              LLVM.ref(pm), LLVM.ref(tbaa_gcframe), 0)
+              (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
 
         PassManagerBuilder() do pmb
             always_inliner!(pm) # TODO: set it as the builder's inliner
