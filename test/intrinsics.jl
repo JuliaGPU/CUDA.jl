@@ -55,8 +55,9 @@ let
     d_a = CuArray(a)
 
     @cuda dev (1, n, n*sizeof(Float32)) shmem_dynamic_typed(d_a, n)
+    @test reverse(a) == Array(d_a)
 
-    @assert reverse(a) == Array(d_a)
+    free(d_a)
 end
 
 function shmem_dynamic_typevar{T}(d::CuDeviceArray{T}, n)
@@ -76,8 +77,9 @@ for T in types
     d_a = CuArray(a)
 
     @cuda dev (1, n, n*sizeof(T)) shmem_dynamic_typevar(d_a, n)
+    @test reverse(a) == Array(d_a)
 
-    @assert reverse(a) == Array(d_a)
+    free(d_a)
 end
 
 
@@ -103,8 +105,9 @@ let
     d_a = CuArray(a)
 
     @cuda dev (1, n) shmem_static_typed(d_a, n)
+    @test reverse(a) == Array(d_a)
 
-    @assert reverse(a) == Array(d_a)
+    free(d_a)
 end
 
 function shmem_static_typevar{T}(d::CuDeviceArray{T}, n)
@@ -127,8 +130,9 @@ for T in types
     d_a = CuArray(a)
 
     @cuda dev (1, n) shmem_static_typevar(d_a, n)
+    @test reverse(a) == Array(d_a)
 
-    @assert reverse(a) == Array(d_a)
+    free(d_a)
 end
 
 
@@ -163,9 +167,11 @@ let
     d_b = CuArray(b)
 
     @cuda dev (1, n, 2*n*sizeof(Float32)) shmem_dynamic_multi_homogeneous(d_a, d_b, n)
+    @test reverse(a) == Array(d_a)
+    @test reverse(b) == Array(d_b)
 
-    @assert reverse(a) == Array(d_a)
-    @assert reverse(b) == Array(d_b)
+    free(d_b)
+    free(d_a)
 end
 
 # common use case 2: dynamic shmem consists of multiple heterogeneous arrays
@@ -195,9 +201,11 @@ let
     d_b = CuArray(b)
 
     @cuda dev (1, n, n*sizeof(Float32) + n*sizeof(Int64)) shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
+    @test reverse(a) == Array(d_a)
+    @test reverse(b) == Array(d_b)
 
-    @assert reverse(a) == Array(d_a)
-    @assert reverse(b) == Array(d_b)
+    free(d_b)
+    free(d_a)
 end
 
 
@@ -220,7 +228,9 @@ for T in types
     @cuda dev (1, nearest_warpsize(n)) kernel_shuffle_down(d_a, n)
 
     a[1:n÷2] += a[n÷2+1:end]
-    @assert a == Array(d_a)
+    @test a == Array(d_a)
+
+    free(d_a)
 end
 
 

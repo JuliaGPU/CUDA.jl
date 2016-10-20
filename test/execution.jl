@@ -105,6 +105,9 @@ let
 
     @cuda dev (1,len) ptr_lastvalue(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
+
+    free(val_dev)
+    free(arr_dev)
 end
 
 # same, but using a device function
@@ -130,6 +133,9 @@ let
 
     @cuda dev (1,len) ptr_lastvalue_devfun(arr_dev.ptr, val_dev.ptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
+
+    free(val_dev)
+    free(arr_dev)
 end
 
 # bug: ghost type function parameters are elided by the compiler
@@ -154,6 +160,10 @@ let
 
     c = Array(d_c)
     @test a+b == c
+
+    free(d_c)
+    free(d_b)
+    free(d_a)
 end
 
 # issue #7: tuples not passed by pointer
@@ -169,8 +179,11 @@ let
 
     keeps = (true,)
     d_out = CuArray(Int, 1)
+
     @cuda dev (1,1) kernel7(keeps, d_out.ptr)
     @test Array(d_out) == [1]
+
+    free(d_out)
 end
 
 # issue #15: immutables not passed by pointer
@@ -184,8 +197,9 @@ let
     x = Complex64(2,2)
 
     @cuda dev (1, 1) kernel15(A.ptr, x)
-
     @test Array(A) == Float32[imag(x)]
+
+    free(A)
 end
 
 # issue: calling device function
