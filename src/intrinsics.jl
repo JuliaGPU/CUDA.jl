@@ -128,7 +128,16 @@ escape_llvm_string(s::AbstractString) = sprint(endof(s), escape_llvm_string, s, 
 const cuprintf_fmts = Vector{String}()
 
 """
-Print a formatted string from the GPU.
+Print a formatted string in device context on the host standard output:
+
+    @cuprintf("%Fmt", args...)
+
+Note that this is not a fully C-compliant `printf` implementation; see the CUDA
+documentation for supported options and inputs.
+
+Also beware that it is an untyped, and unforgiving `printf` implementation. Type widths need
+to match, eg. printing a Julia integer requires the `%ld` formatting string.
+
 """
 macro cuprintf(fmt::String, args...)
     # NOTE: we can't pass fmt by Val{}, so save it in a global buffer
