@@ -1,6 +1,9 @@
 # Native intrinsics
 
 export
+    # I/O
+    @cuprintf,
+
     # Indexing and dimensions
     threadIdx, blockDim, blockIdx, gridDim,
     warpsize, nearest_warpsize,
@@ -95,6 +98,79 @@ macro wrap(call, attrs="")
              $"""$llvm_ret_asgn call $rettype @$intrinsic($llvm_defargs)
                  ret $llvm_ret"""),
             $(jltypes[rettype]), Tuple{$(julia_argtypes...)}, $(julia_args...))
+    end
+end
+
+"""
+Make a string literal safe to embed in LLVM IR.
+
+This is a custom, simplified version of Base.escape_string, replacing non-printable
+characters with their two-digit hex code.
+"""
+function escape_llvm_string(io, s::AbstractString, esc::AbstractString)
+    i = start(s)
+    while !done(s,i)
+        c, j = next(s,i)
+        c == '\\'       ? print(io, "\\\\") :
+        c in esc        ? print(io, '\\', c) :
+        isprint(c)      ? print(io, c) :
+                          print(io, "\\", hex(c, 2))
+        i = j
+    end
+end
+escape_llvm_string(s::AbstractString) = sprint(endof(s), escape_llvm_string, s, "\"")
+
+
+#
+# I/O
+#
+
+const cuprintf_fmts = Vector{String}()
+
+"""
+Print a formatted string from the GPU.
+"""
+macro cuprintf(fmt::String, args...)
+    # NOTE: we can't pass fmt by Val{}, so save it in a global buffer
+    push!(cuprintf_fmts, "$fmt\0")
+    i = length(cuprintf_fmts)
+
+    return esc(:(CUDAnative.generated_cuprintf(Val{$i}, $(args...))))
+end
+
+@generated function generated_cuprintf{I}(::Type{Val{I}}, argspec...)
+    args = [:( argspec[$i] ) for i in 1:length(argspec)]
+
+    fmt = cuprintf_fmts[I]
+    fmtlen = length(fmt)
+
+    llvm_argtypes = [llvmtypes[jltype] for jltype in argspec]
+
+    decls = Vector{String}()
+    push!(decls, """declare i32 @vprintf(i8*, i8*)""")
+    push!(decls, """%argtype = type { $(join(llvm_argtypes, ", ")) }""")
+    push!(decls, """@fmt = private unnamed_addr constant [$fmtlen x i8] c"$(escape_llvm_string(fmt))", align 1""")
+
+    ir = Vector{String}()
+    push!(ir, """%args = alloca %argtype""")
+    arg = 0
+    tmp = length(args)+1
+    for jltype in argspec
+        llvmtype = llvmtypes[jltype]
+        push!(ir, """%$tmp = getelementptr inbounds %argtype, %argtype* %args, i32 0, i32 $arg""")
+        push!(ir, """store $llvmtype %$arg, $llvmtype* %$tmp, align 4""")
+        arg+=1
+        tmp+=1
+    end
+    push!(ir, """%argptr = bitcast %argtype* %args to i8*""")
+    push!(ir, """%$tmp = call i32 @vprintf(i8* getelementptr inbounds ([$fmtlen x i8], [$fmtlen x i8]* @fmt, i32 0, i32 0), i8* %argptr)""")
+    push!(ir, """ret void""")
+
+    return quote
+        Base.llvmcall(($(join(decls, "\n")),
+                       $(join(ir,    "\n"))),
+                      Void, Tuple{$argspec...}, $(args...)
+                     )
     end
 end
 

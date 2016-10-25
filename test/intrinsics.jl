@@ -16,6 +16,17 @@ let
 end
 
 
+## I/O
+
+# printing
+let
+    @on_device dev @cuprintf("")
+    @on_device dev @cuprintf("Testing...\n")
+    @on_device dev @cuprintf("Testing %d...\n", 42)
+    @on_device dev @cuprintf("Testing %d %d...\n", blockIdx().x, threadIdx().x)
+end
+
+
 ## shared memory
 
 # smoke-test constructors
