@@ -133,43 +133,46 @@ Print a formatted string from the GPU.
 macro cuprintf(fmt::String, args...)
     # NOTE: we can't pass fmt by Val{}, so save it in a global buffer
     push!(cuprintf_fmts, "$fmt\0")
-    i = length(cuprintf_fmts)
+    id = length(cuprintf_fmts)
 
-    return esc(:(CUDAnative.generated_cuprintf(Val{$i}, $(args...))))
+    return esc(:(CUDAnative.generated_cuprintf(Val{$id}, $(args...))))
 end
 
-@generated function generated_cuprintf{I}(::Type{Val{I}}, argspec...)
+@generated function generated_cuprintf{ID}(::Type{Val{ID}}, argspec...)
     args = [:( argspec[$i] ) for i in 1:length(argspec)]
+    return emit_vprintf(ID, argspec, args...)
+end
 
-    fmt = cuprintf_fmts[I]
+function emit_vprintf(id::Integer, argtypes, args...)
+    fmt = cuprintf_fmts[id]
     fmtlen = length(fmt)
 
-    llvm_argtypes = [llvmtypes[jltype] for jltype in argspec]
+    llvm_argtypes = [llvmtypes[jltype] for jltype in argtypes]
 
     decls = Vector{String}()
     push!(decls, """declare i32 @vprintf(i8*, i8*)""")
-    push!(decls, """%argtype = type { $(join(llvm_argtypes, ", ")) }""")
-    push!(decls, """@fmt = private unnamed_addr constant [$fmtlen x i8] c"$(escape_llvm_string(fmt))", align 1""")
+    push!(decls, """%print$(id)_argtyp = type { $(join(llvm_argtypes, ", ")) }""")
+    push!(decls, """@print$(id)_fmt = private unnamed_addr constant [$fmtlen x i8] c"$(escape_llvm_string(fmt))", align 1""")
 
     ir = Vector{String}()
-    push!(ir, """%args = alloca %argtype""")
+    push!(ir, """%args = alloca %print$(id)_argtyp""")
     arg = 0
     tmp = length(args)+1
-    for jltype in argspec
+    for jltype in argtypes
         llvmtype = llvmtypes[jltype]
-        push!(ir, """%$tmp = getelementptr inbounds %argtype, %argtype* %args, i32 0, i32 $arg""")
+        push!(ir, """%$tmp = getelementptr inbounds %print$(id)_argtyp, %print$(id)_argtyp* %args, i32 0, i32 $arg""")
         push!(ir, """store $llvmtype %$arg, $llvmtype* %$tmp, align 4""")
         arg+=1
         tmp+=1
     end
-    push!(ir, """%argptr = bitcast %argtype* %args to i8*""")
-    push!(ir, """%$tmp = call i32 @vprintf(i8* getelementptr inbounds ([$fmtlen x i8], [$fmtlen x i8]* @fmt, i32 0, i32 0), i8* %argptr)""")
+    push!(ir, """%argptr = bitcast %print$(id)_argtyp* %args to i8*""")
+    push!(ir, """%$tmp = call i32 @vprintf(i8* getelementptr inbounds ([$fmtlen x i8], [$fmtlen x i8]* @print$(id)_fmt, i32 0, i32 0), i8* %argptr)""")
     push!(ir, """ret void""")
 
     return quote
         Base.llvmcall(($(join(decls, "\n")),
                        $(join(ir,    "\n"))),
-                      Void, Tuple{$argspec...}, $(args...)
+                      Void, Tuple{$argtypes...}, $(args...)
                      )
     end
 end
@@ -298,14 +301,14 @@ macro cuStaticSharedMem(typ, dims)
     global shmem_id
     id = shmem_id::Int += 1
 
-    return esc(:(CUDAnative.generate_static_shmem($typ, Val{$dims}, Val{$id})))
+    return esc(:(CUDAnative.generate_static_shmem(Val{$id}, $typ, Val{$dims})))
 end
 
-@generated function generate_static_shmem{T,D,I}(::Type{T}, ::Type{Val{D}}, ::Type{Val{I}})
-    return emit_static_shmem(T, tuple(D...), I)
+@generated function generate_static_shmem{ID,T,D}(::Type{Val{ID}}, ::Type{T}, ::Type{Val{D}})
+    return emit_static_shmem(ID, T, tuple(D...))
 end
 
-function emit_static_shmem{N}(jltyp::Type, shape::NTuple{N,Int}, id::Integer)
+function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,Int})
     if !haskey(llvmtypes, jltyp)
         error("cuStaticSharedMem: unsupported type '$jltyp'")
     end
@@ -347,15 +350,15 @@ macro cuDynamicSharedMem(typ, dims, offset=0)
     global shmem_id
     id = shmem_id::Int += 1
 
-    return esc(:(CUDAnative.generate_dynamic_shmem($typ, $dims, $offset, Val{$id})))
+    return esc(:(CUDAnative.generate_dynamic_shmem(Val{$id}, $typ, $dims, $offset)))
 end
 
-@generated function generate_dynamic_shmem{T,I}(::Type{T}, dims, offset, ::Type{Val{I}})
-    return emit_dynamic_shmem(T, :(dims), :(offset), I)
+@generated function generate_dynamic_shmem{ID,T}(::Type{Val{ID}}, ::Type{T}, dims, offset)
+    return emit_dynamic_shmem(ID, T, :(dims), :(offset))
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
-function emit_dynamic_shmem(jltyp::Type, shape::Union{Expr,Symbol}, offset::Symbol, id::Integer)
+function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol}, offset::Symbol)
     if !haskey(llvmtypes, jltyp)
         error("cuDynamicSharedMem: unsupported type '$jltyp'")
     end

@@ -24,6 +24,11 @@ let
     @on_device dev @cuprintf("Testing...\n")
     @on_device dev @cuprintf("Testing %d...\n", 42)
     @on_device dev @cuprintf("Testing %d %d...\n", blockIdx().x, threadIdx().x)
+
+    @on_device dev begin
+        @cuprintf("foo")
+        @cuprintf("bar\n")
+    end
 end
 
 
