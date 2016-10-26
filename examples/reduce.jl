@@ -55,14 +55,14 @@ function reduce_kernel{F<:Function,T}(op::F, input::CuDeviceArray{T,1}, output::
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     step = blockDim().x * gridDim().x
     while i <= N
-        sum += input[i]
+        @inbounds sum += input[i]
         i += step
     end
 
     sum = reduce_block(+, sum)
 
     if threadIdx().x == 1
-        output[blockIdx().x] = sum
+        @inbounds output[blockIdx().x] = sum
     end
 
     return
