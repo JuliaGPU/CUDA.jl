@@ -48,7 +48,7 @@ function module_setup(mod::LLVM.Module)
 
     # debug info metadata
     push!(metadata(mod), "llvm.module.flags",
-          MDNode([ConstantInt(Int32(2)),
+          MDNode([ConstantInt(Int32(1)),    # llvm::Module::Error
                   MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
