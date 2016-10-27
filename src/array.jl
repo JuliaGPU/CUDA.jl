@@ -43,12 +43,14 @@ size(g::CuDeviceArray) = g.shape
 length(g::CuDeviceArray) = g.len
 
 @inline function getindex{T}(A::CuDeviceArray{T}, index::Int)
-    @boundscheck checkbounds(A, index)
+    # FIXME: disabled due to PTX assembler issue (see #4)
+    # @boundscheck checkbounds(A, index)
     pointerref(unsafe_convert(Ptr{T}, A), index, 8)::T
 end
 
 @inline function setindex!{T}(A::CuDeviceArray{T}, x, index::Int)
-    @boundscheck checkbounds(A, index)
+    # FIXME: disabled due to PTX assembler issue (see #4)
+    # @boundscheck checkbounds(A, index)
     pointerset(unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, 8)
 end
 
