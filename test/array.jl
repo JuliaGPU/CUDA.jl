@@ -1,10 +1,8 @@
-dims = (16, 16)
-len = prod(dims)
+@testset "device arrays" begin
 
+############################################################################################
 
-## construction
-
-let
+@testset "constructors" begin
     # Inner constructors
     @on_device dev CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
 
@@ -16,20 +14,24 @@ let
 end
 
 
-## basics (argument passing, get and setindex, length)
 
-function array_copy(input::CuDeviceArray{Float32},
-                                output::CuDeviceArray{Float32})
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+############################################################################################
 
-    if i <= length(input)
-        output[i] = Float64(input[i])   # force conversion upon setindex!
+@testset "basics" begin     # argument passing, get and setindex, length
+
+    dims = (16, 16)
+    len = prod(dims)
+
+    @eval function array_copy(input::CuDeviceArray{Float32}, output::CuDeviceArray{Float32})
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+
+        if i <= length(input)
+            output[i] = Float64(input[i])   # force conversion upon setindex!
+        end
+
+        return nothing
     end
 
-    return nothing
-end
-
-let
     input = round.(rand(Float32, dims) * 100)
 
     input_dev = CuArray(input)
@@ -44,20 +46,21 @@ let
 end
 
 
-## views
 
-function array_view(array)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+############################################################################################
 
-    sub = view(array, 2:length(array)-1)
-    if i <= length(sub)
-        sub[i] = i
+@testset "views" begin
+    @eval function array_view(array)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+
+        sub = view(array, 2:length(array)-1)
+        if i <= length(sub)
+            sub[i] = i
+        end
+
+        return nothing
     end
 
-    return nothing
-end
-
-let
     array = zeros(Int64, 100)
     array_dev = CuArray(array)
 
@@ -72,3 +75,6 @@ let
     free(array_dev)
 end
 
+############################################################################################
+
+end

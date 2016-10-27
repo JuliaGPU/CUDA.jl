@@ -1,6 +1,9 @@
 using CUDAnative, CUDAdrv
 using Base.Test
 
+# NOTE: all kernel function definitions are prefixed with @eval to force toplevel definition,
+#       avoiding boxing as seen in https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
+
 @test devcount() > 0
 
 include("codegen.jl")
@@ -36,9 +39,10 @@ end
 
 # Run some code on-device, returning captured standard output
 macro on_device(dev, exprs)
+    @gensym kernel_fn
     quote
         let
-            function kernel()
+            @eval function $kernel_fn()
                 $exprs
 
                 return nothing
@@ -49,7 +53,7 @@ macro on_device(dev, exprs)
             #       in allocations due to a lowering bug:
             #       https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
             _, out = @grab_output begin
-                @cuda $dev (1,1) kernel()
+                @cuda $dev (1,1) $kernel_fn()
                 synchronize(default_stream())
             end
 
