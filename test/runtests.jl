@@ -48,16 +48,8 @@ macro on_device(dev, exprs)
                 return nothing
             end
 
-            # NOTE: it would be nicer not to have @grab_outputs in here, using @grab_outputs
-            #       @on_device instead, but putting the kernel function in a try...end results
-            #       in allocations due to a lowering bug:
-            #       https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
-            _, out = @grab_output begin
-                @cuda $dev (1,1) $kernel_fn()
-                synchronize(default_stream())
-            end
-
-            out
+            @cuda $dev (1,1) $kernel_fn()
+            synchronize(default_stream())
         end
     end
 end
