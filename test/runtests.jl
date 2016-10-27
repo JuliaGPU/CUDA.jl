@@ -34,7 +34,7 @@ macro grab_output(ex)
     end
 end
 
-# Run some code on-device, returning STDOUT and STDERR
+# Run some code on-device, returning captured standard output
 macro on_device(dev, exprs)
     quote
         let
