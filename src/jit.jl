@@ -257,6 +257,7 @@ function compile_function(dev::CuDevice, func::ANY, tt::ANY)
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")
     cap = maximum(compat_caps)
+    trace("Targeting $cap architecture")
 
     @static if TRACE
         # generate a safe and unique name

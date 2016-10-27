@@ -18,8 +18,6 @@
 
 * Support for non-escaping boxed objects (tough, see JuliaLang/Julia#12205)
 
-* Printing from kernels using `vprintf` (needs unboxed string literals)
-
 * Global variables? Closure variables?
 
 * DWARF debugging, currently not supported by the back-end (`.debug_info` missing):
