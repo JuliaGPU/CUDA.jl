@@ -52,8 +52,12 @@ function module_setup(mod::LLVM.Module)
                   MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
+# make function names safe for ptxas
+sanitize_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]", "_")
+
 function irgen(func::ANY, tt::ANY)
-    mod = LLVM.Module("vadd")
+    fn = String(typeof(func).name.mt.name)
+    mod = LLVM.Module(sanitize_fn(fn))
     module_setup(mod)
 
     # collect all modules of IR
@@ -80,10 +84,9 @@ function irgen(func::ANY, tt::ANY)
     # TODO: let Julia report this
     entry_fn = Nullable{String}()
     let entry_mod = parse(LLVM.Module, entry_irmod)
-        src_fn = String(typeof(func).name.mt.name) # FIXME: LLVM might have mangled this
         for ir_f in functions(entry_mod)
             ir_fn = LLVM.name(ir_f)
-            if startswith(ir_fn, "julia_$(src_fn)")
+            if startswith(ir_fn, "julia_$fn") # FIXME: LLVM might have mangled this
                 entry_fn = Nullable(ir_fn)
                 break
             end
@@ -112,14 +115,16 @@ function irgen(func::ANY, tt::ANY)
             delete!(attributes(f), LLVM.API.LLVMStackProtectReqAttribute)
 
             # make function names safe for ptxas
-            # (LLVM ought to do this, see eg. D17738 and D19126), but they fail
+            # (LLVM ought to do this, see eg. D17738 and D19126), but fails
             # TODO: fix all globals?
             if !isdeclaration(f)
-                fn = LLVM.name(f)
-                safe_fn = replace(fn, r"[^aA-zZ0-9_]", "_")
-                if fn != safe_fn
+                orig_fn = LLVM.name(f)
+                safe_fn = sanitize_fn(orig_fn)
+                if orig_fn != safe_fn
                     LLVM.name!(f, safe_fn)
-                    if fn == get(entry_fn)
+
+                    # take care if we're renaming the entry-point function
+                    if orig_fn == get(entry_fn)
                         entry_fn = Nullable(safe_fn)
                     end
                 end
