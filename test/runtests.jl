@@ -5,16 +5,56 @@ using Base.Test
 
 include("codegen.jl")
 
-macro on_device(dev, exprs)
+# NOTE: based on test/pkg.jl::grab_outputs, only grabs STDOUT without capturing exceptions
+macro grab_output(ex)
     quote
-        function kernel()
-            $exprs
+        OLD_STDOUT = STDOUT
 
-            return nothing
+        foutname = tempname()
+        fout = open(foutname, "w")
+
+        local ret
+        local caught_ex = nothing
+        try
+            redirect_stdout(fout)
+            ret = $(esc(ex))
+        catch ex
+            caught_ex = nothing
+        finally
+            redirect_stdout(OLD_STDOUT)
+            close(fout)
+        end
+        out = readstring(foutname)
+        rm(foutname)
+        if caught_ex != nothing
+            throw(caught_ex)
         end
 
-        @cuda $dev (1,1) kernel()
-        synchronize(default_stream())
+        ret, out
+    end
+end
+
+# Run some code on-device, returning STDOUT and STDERR
+macro on_device(dev, exprs)
+    quote
+        let
+            function kernel()
+                $exprs
+
+                return nothing
+            end
+
+            # NOTE: it would be nicer not to have @grab_outputs in here, using @grab_outputs
+            #       @on_device instead, but putting the kernel function in a try...end results
+            #       in allocations due to a lowering bug:
+            #       https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
+            _, out = @grab_output begin
+                @cuda $dev (1,1) kernel()
+                synchronize(default_stream())
+            end
+
+            out
+        end
     end
 end
 

@@ -20,15 +20,23 @@ end
 
 # printing
 let
-    @on_device dev @cuprintf("")
-    @on_device dev @cuprintf("Testing...\n")
-    @on_device dev @cuprintf("Testing %d...\n", 42)
-    @on_device dev @cuprintf("Testing %d %d...\n", blockIdx().x, threadIdx().x)
+    out = @on_device dev @cuprintf("")
+    @test out == ""
 
-    @on_device dev begin
+    out = @on_device dev @cuprintf("Testing...\n")
+    @test out == "Testing...\n"
+
+    out = @on_device dev @cuprintf("Testing %d...\n", 42)
+    @test out == "Testing 42...\n"
+
+    out = @on_device dev @cuprintf("Testing %d %d...\n", blockIdx().x, threadIdx().x)
+    @test out == "Testing 1 1...\n"
+
+    out = @on_device dev begin
         @cuprintf("foo")
         @cuprintf("bar\n")
     end
+    @test out == "foobar\n"
 end
 
 
