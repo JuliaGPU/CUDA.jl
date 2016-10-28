@@ -127,7 +127,6 @@ end
         return nothing
     end
 
-    ccall(:jl_breakpoint, Void, (Any,), 42)
     ir = CUDAnative.code_llvm(codegen_call_sysimg, (Ptr{Int},Int))
     @test !contains(ir, "jlsys_")
 end
