@@ -3,7 +3,7 @@
 ############################################################################################
 
 @testset "math" begin
-    buf = CuArray(Float32, 1)
+    buf = CuArray{Float32}(1)
 
     @eval function kernel_math_log10(a, i)
         a[1] = CUDAnative.log10(i)
@@ -295,7 +295,7 @@ end
 @testset "voting" begin
 
 @testset "ballot" begin
-    d_a = CuArray(UInt32, 1)
+    d_a = CuArray{UInt32}(1)
 
     @eval function kernel_vote_ballot(a, i)
         vote = vote_ballot(threadIdx().x == i)
@@ -316,7 +316,7 @@ end
 end
 
 @testset "any" begin
-    d_a = CuArray(UInt32, 1)
+    d_a = CuArray{UInt32}(1)
 
     @eval function kernel_vote_any(a, i)
         vote = vote_any(threadIdx().x >= i)
@@ -340,7 +340,7 @@ end
 end
 
 @testset "all" begin
-    d_a = CuArray(UInt32, 1)
+    d_a = CuArray{UInt32}(1)
 
     @eval function kernel_vote_all(a, i)
         vote = vote_all(threadIdx().x >= i)

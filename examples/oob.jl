@@ -7,7 +7,7 @@ using CUDAdrv, CUDAnative
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
-a = CuArray(Float32, 10)
+a = CuArray{Float32}(10)
 
 function memset(a, val)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x

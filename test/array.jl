@@ -7,10 +7,10 @@
     @on_device dev CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
 
     # Outer constructors
+    @on_device dev CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray{Int}((1,), Ptr{Int}(C_NULL))
     @on_device dev CuDeviceArray(1, Ptr{Int}(C_NULL))
     @on_device dev CuDeviceArray((1,), Ptr{Int}(C_NULL))
-    @on_device dev CuDeviceArray(Int, 1, Ptr{Int}(C_NULL))
-    @on_device dev CuDeviceArray(Int, (1,), Ptr{Int}(C_NULL))
 end
 
 
@@ -35,7 +35,7 @@ end
     input = round.(rand(Float32, dims) * 100)
 
     input_dev = CuArray(input)
-    output_dev = CuArray(Float32, dims)
+    output_dev = CuArray{Float32}(dims)
 
     @cuda dev (1,len) array_copy(input_dev, output_dev)
     output = Array(output_dev)

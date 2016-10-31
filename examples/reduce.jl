@@ -106,7 +106,7 @@ cpu_a = reduce(+, cpu_a)
 println(cpu_a)
 
 gpu_a = CuArray(a)
-gpu_b = CuArray(eltype(a), len) # TODO: similar
+gpu_b = CuArray{eltype(a)}(len) # TODO: similar
 gpu_reduce(dev, +, gpu_a, gpu_b)
 println(Array(gpu_b)[1])
 

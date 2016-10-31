@@ -95,7 +95,7 @@ len = prod(dims)
     input = round.(rand(Float32, dims) * 100)
 
     input_dev = CuArray(input)
-    output_dev = CuArray(Float32, dims)
+    output_dev = CuArray{Float32}(dims)
 
     @cuda dev (1,len) exec_pass_ptr(input_dev.ptr, output_dev.ptr)
     output = Array(output_dev)
@@ -170,7 +170,7 @@ end
 
     d_a = CuArray(a)
     d_b = CuArray(b)
-    d_c = CuArray(Float32, len)
+    d_c = CuArray{Float32}(len)
 
     @eval immutable ExecGhost end
 
@@ -204,7 +204,7 @@ end
     end
 
     keeps = (true,)
-    d_out = CuArray(Int, 1)
+    d_out = CuArray{Int}(1)
 
     @cuda dev (1,1) exec_pass_tuples(keeps, d_out.ptr)
     @test Array(d_out) == [1]
