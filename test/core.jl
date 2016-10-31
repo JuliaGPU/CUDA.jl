@@ -239,7 +239,7 @@ end
 
 
 let
-    dev_array = CuArray(Int32, 10)
+    dev_array = CuArray{Int32}(10)
     cumemset(dev_array.ptr, UInt32(0), 10)
     host_array = Array(dev_array)
 
@@ -352,8 +352,8 @@ let
     CuArray{Int}((1,2))
     CuArray{Int}(1, DevicePtr{Int}())
     CuArray{Int}((1,2), DevicePtr{Int}())
-    CuArray(Int, 1)
-    CuArray(Int, (1,2))
+    CuArray(1, DevicePtr{Int}())
+    CuArray((1,2), DevicePtr{Int}())
 
     # Conversions
     @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), DevicePtr{Int}())) == DevicePtr{Int}()
@@ -361,7 +361,7 @@ let
 
     # Negative test cases
     a = rand(Float32, 10)
-    ad = CuArray(Float32, 5)
+    ad = CuArray{Float32}(5)
     @test_throws ArgumentError copy!(ad, a)
     @test_throws ArgumentError copy!(a, ad)
 
@@ -381,8 +381,8 @@ let
 
     # non-isbits elements
     @test_throws ArgumentError CuArray(["foobar" for i=1:10])
-    @test_throws ArgumentError CuArray(Function, 10)
-    @test_throws ArgumentError CuArray(Function, (10, 10))
+    @test_throws ArgumentError CuArray{Function}(10)
+    @test_throws ArgumentError CuArray{Function}((10, 10))
 end
 
 

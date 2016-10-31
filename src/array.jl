@@ -35,9 +35,8 @@ end
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}, p::DevicePtr{T}) = CuArray{T,N}(shape, p)
 (::Type{CuArray{T}}){T}(len::Int, p::DevicePtr{T})               = CuArray{T,1}((len,), p)
 
-# deprecated
-CuArray{T,N}(::Type{T}, shape::NTuple{N,Int}) = CuArray{T,N}(shape)
-CuArray{T}(::Type{T}, len::Int)               = CuArray{T,1}((len,))
+CuArray{T,N}(shape::NTuple{N,Int}, p::DevicePtr{T}) = CuArray{T,N}(shape, p)
+CuArray{T}(len::Int, p::DevicePtr{T})               = CuArray{T,1}((len,), p)
 
 unsafe_convert{T,N}(::Type{DevicePtr{T}}, a::CuArray{T,N}) = a.ptr
 pointer{T}(x::CuArray{T}) = unsafe_convert(DevicePtr{T}, x)
@@ -76,7 +75,7 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
 end
 
 "Transfer an array from host to device, returning a pointer on the device"
-CuArray{T,N}(a::Array{T,N}) = copy!(CuArray(T, size(a)), a)
+CuArray{T,N}(a::Array{T,N}) = copy!(CuArray{T}(size(a)), a)
 
 "Transfer an array on the device to host"
-Array{T}(g::CuArray{T}) = copy!(Array(T, size(g)), g)
+Array{T}(g::CuArray{T}) = copy!(Array{T}(size(g)), g)
