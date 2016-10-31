@@ -14,7 +14,7 @@ using Base.Test
 
 # Reduce a value across a warp
 function reduce_warp{F<:Function,T}(op::F, val::T)::T
-    offset = warpsize ÷ 2
+    offset = CUDAnative.warpsize() ÷ 2
     while offset > 0
         val = op(val, shfl_down(val, offset))
         offset ÷= 2
@@ -26,7 +26,7 @@ end
 function reduce_block{F<:Function,T}(op::F, val::T)::T
     shared = @cuStaticSharedMem(T, 32)
 
-    wid, lane = fldmod1(threadIdx().x, warpsize)
+    wid, lane = fldmod1(threadIdx().x, CUDAnative.warpsize())
 
     val = reduce_warp(op, val)
 
@@ -37,7 +37,7 @@ function reduce_block{F<:Function,T}(op::F, val::T)::T
     sync_threads()
 
     # read from shared memory only if that warp existed
-    @inbounds val = (threadIdx().x <= fld(blockDim().x, warpsize)) ? shared[lane] : zero(T)
+    @inbounds val = (threadIdx().x <= fld(blockDim().x, CUDAnative.warpsize())) ? shared[lane] : zero(T)
 
     if wid == 1
         # final reduce within first warp

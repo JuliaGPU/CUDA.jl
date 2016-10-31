@@ -6,7 +6,7 @@ export
 
     # Indexing and dimensions
     threadIdx, blockDim, blockIdx, gridDim,
-    warpsize, nearest_warpsize,
+    warpsize,
 
     # Memory management
     sync_threads,
@@ -216,12 +216,7 @@ end
 @inline blockIdx() =  CUDAdrv.CuDim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
 @inline gridDim() =   CUDAdrv.CuDim3(gridDim_x(),   gridDim_y(),   gridDim_z())
 
-# NOTE: we often need a const warpsize (eg. for shared memory), sp keep this fixed for now
-# @inline warpsize() = @wrap llvm.nvvm.read.ptx.sreg.warpsize()::i32 "readnone nounwind"
-const warpsize = Int32(32)
-
-"Return the nearest multiple of a warpsize, a common requirement for the amount of threads."
-@inline nearest_warpsize(threads) =  threads + (warpsize - threads % warpsize) % warpsize
+@inline warpsize() = @wrap llvm.nvvm.read.ptx.sreg.warpsize()::i32 "readnone nounwind"
 
 
 
@@ -426,18 +421,22 @@ for typ in ((Int32,   :i32, :i32),
             (Float32, :f32, :float))
     jl, intr, llvm = typ
 
+    # TODO: these functions should dispatch based on the actual warp size
+    ws = Int32(32)
+
     for op in ((:up,   Int32(0x00)),
                (:down, Int32(0x1f)),
                (:bfly, Int32(0x1f)),
                (:idx,  Int32(0x1f)))
         mode, mask = op
         fname = Symbol("shfl_$mode")
-        pack_expr = :(((warpsize - Int32(width)) << 8) | $mask)
+        pack_expr = :((($ws - Int32(width)) << 8) | $mask)
         @static if VersionNumber(Base.libllvm_version) >= v"3.9-"
             intrinsic = Symbol("llvm.nvvm.shfl.$mode.$intr")
             @eval begin
                 export $fname
-                @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = Base.llvmcall(
+                @inline $fname(val::$jl, srclane::Integer, width::Integer=$ws) =
+                    Base.llvmcall(
                         ($"""declare $llvm @$intrinsic($llvm, i32, i32)""",
                          $"""%4 = call $llvm @$intrinsic($llvm %0, i32 %1, i32 %2)
                              ret $llvm %4"""),
@@ -448,7 +447,8 @@ for typ in ((Int32,   :i32, :i32),
             instruction = Symbol("shfl.$mode.b32")  # NOTE: only b32 available, no i32/f32
             @eval begin
                 export $fname
-                @inline $fname(val::$jl, srclane::Integer, width::Integer=warpsize) = Base.llvmcall(
+                @inline $fname(val::$jl, srclane::Integer, width::Integer=$ws) =
+                    Base.llvmcall(
                         $"""%4 = call $llvm asm sideeffect "$instruction \$0, \$1, \$2, \$3;", "=r,r,r,r"($llvm %0, i32 %1, i32 %2)
                             ret $llvm %4""",    # "
                         $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
@@ -466,11 +466,14 @@ end
 # wide
 # NOTE: we only reuse the i32 shuffle, does it make any difference using eg. f32 shuffle for f64 values?
 for typ in (Int64, UInt64, Float64)
+    # TODO: these functions should dispatch based on the actual warp size
+    ws = Int32(32)
+
     for mode in (:up, :down, :bfly, :idx)
         fname = Symbol("shfl_$mode")
         @eval begin
             export $fname
-            @inline function $fname(val::$typ, srclane::Integer, width::Integer=warpsize)
+            @inline function $fname(val::$typ, srclane::Integer, width::Integer=$ws)
                 x,y = decode(reinterpret(UInt64, val))
                 x = $fname(x, srclane, width)
                 y = $fname(y, srclane, width)

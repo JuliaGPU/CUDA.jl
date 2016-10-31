@@ -275,7 +275,8 @@ types = [Int32, Int64, Float32, Float64]
         a = T[i for i in 1:n]
         d_a = CuArray(a)
 
-        @cuda dev (1, nearest_warpsize(n)) kernel_shuffle_down(d_a, n)
+        threads = nearest_warpsize(dev, n)
+        @cuda dev (1, threads) kernel_shuffle_down(d_a, n)
 
         a[1:n÷2] += a[n÷2+1:end]
         @test a == Array(d_a)

@@ -1,6 +1,6 @@
 # Native execution support
 
-export @cuda
+export @cuda, nearest_warpsize
 
 using Base.Iterators: filter
 
@@ -206,4 +206,16 @@ const func_cache = Dict{UInt, CuFunction}()
     append!(exprs.args, kernel_compilation.args)
     append!(exprs.args, kernel_call.args)
     return exprs
+end
+
+"""
+Return the nearest number of threads that is a multiple of the warp size of a device:
+
+    nearest_warpsize(dev::CuDevice, threads::Integer)
+
+This is a common requirement, eg. when using shuffle intrinsics.
+"""
+function nearest_warpsize(dev::CuDevice, threads::Integer)
+    ws = CUDAdrv.warpsize(dev)
+    return threads + (ws - threads % ws) % ws
 end
