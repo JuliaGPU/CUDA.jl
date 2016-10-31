@@ -226,7 +226,6 @@ end
 
 ## barriers
 
-# TODO: rename to syncthreads
 @inline sync_threads() = @wrap llvm.nvvm.barrier0()::void "readnone nounwind"
 
 
