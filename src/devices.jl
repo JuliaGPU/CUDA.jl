@@ -176,3 +176,10 @@ function list_devices()
         println("device[$i]: $(nam), capability $(cap.major).$(cap.minor), total mem = $tmem MB")
     end
 end
+
+
+## convenience attribute getters
+
+export warpsize
+
+warpsize(dev::CuDevice) = attribute(dev, WARP_SIZE)
