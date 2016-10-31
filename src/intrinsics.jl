@@ -1,18 +1,5 @@
 # Native intrinsics
 
-export
-    # I/O
-    @cuprintf,
-
-    # Indexing and dimensions
-    threadIdx, blockDim, blockIdx, gridDim,
-    warpsize,
-
-    # Memory management
-    sync_threads,
-    @cuStaticSharedMem, @cuDynamicSharedMem
-
-
 
 #
 # Support functionality
@@ -125,6 +112,9 @@ escape_llvm_string(s::AbstractString) = sprint(endof(s), escape_llvm_string, s, 
 # I/O
 #
 
+export
+    @cuprintf
+
 const cuprintf_fmts = Vector{String}()
 
 """
@@ -192,6 +182,10 @@ end
 # Indexing and dimensions
 #
 
+export
+    threadIdx, blockDim, blockIdx, gridDim,
+    warpsize
+
 for dim in (:x, :y, :z)
     # Thread index
     fn = Symbol("threadIdx_$dim")
@@ -224,14 +218,16 @@ end
 # Parallel Synchronization and Communication
 #
 
+export
+    sync_threads,
+    vote_all, vote_any, vote_ballot
+
 ## barriers
 
 @inline sync_threads() = @wrap llvm.nvvm.barrier0()::void "readnone nounwind"
 
 
 ## voting
-
-export vote_all, vote_any, vote_ballot
 
 const all_asm = """{
     .reg .pred %p1;
@@ -277,6 +273,9 @@ end
 #
 # Shared memory
 #
+
+export
+    @cuStaticSharedMem, @cuDynamicSharedMem
 
 # FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
 # TODO: downcasting pointers to global AS might be inefficient

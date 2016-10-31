@@ -4,7 +4,7 @@
 
 @testset "LLVM IR" begin
     foo() = return nothing
-    ir = CUDAnative.code_llvm(foo, (); optimize=false, dump_module=true)
+    ir = sprint(io->CUDAnative.code_llvm(io, foo, (); optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
     @test contains(ir, "define void @julia_foo")
@@ -20,7 +20,7 @@ end
 @testset "entry-point functions" begin
     @eval @noinline codegen_child() = return nothing
     @eval codegen_parent() = codegen_child()
-    asm = CUDAnative.code_native(codegen_parent, ())
+    asm = sprint(io->CUDAnative.code_native(io, codegen_parent, ()))
 
     @test contains(asm, ".visible .entry julia_codegen_parent_")
     @test contains(asm, ".visible .func julia_codegen_child_")
@@ -29,7 +29,7 @@ end
 
 @testset "exceptions" begin
     @eval codegen_exception() = throw(DivideError())
-    ir = CUDAnative.code_llvm(codegen_exception, ())
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_exception, ()))
 
     # exceptions should get lowered to a plain trap...
     @test contains(ir, "llvm.trap")
@@ -54,8 +54,8 @@ end
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
     @eval codegen_idempotency() = return nothing
-    CUDAnative.code_native(codegen_idempotency, ())
-    CUDAnative.code_native(codegen_idempotency, ())
+    CUDAnative.code_native(DevNull, codegen_idempotency, ())
+    CUDAnative.code_native(DevNull, codegen_idempotency, ())
 end
 
 
@@ -76,7 +76,7 @@ end
         unsafe_store!(arr, i, i)
         return nothing
     end
-    asm = CUDAnative.code_native(codegen_child_reuse_parent1, (Ptr{Int64},))
+    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_parent1, (Ptr{Int64},)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 
     @eval function codegen_child_reuse_parent2(arr::Ptr{Int64})
@@ -85,7 +85,7 @@ end
 
         return nothing
     end
-    asm = CUDAnative.code_native(codegen_child_reuse_parent2, (Ptr{Int64},))
+    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_parent2, (Ptr{Int64},)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 end
 
@@ -107,7 +107,7 @@ end
 
         return nothing
     end
-    asm = CUDAnative.code_native(codegen_child_reuse_bis_parent1, (Ptr{Int64},))
+    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_bis_parent1, (Ptr{Int64},)))
 
     @eval function codegen_child_reuse_bis_parent2(arry::Ptr{Int64})
         i = codegen_child_reuse_bis_child1() + codegen_child_reuse_bis_child2()
@@ -115,7 +115,7 @@ end
 
         return nothing
     end
-    asm = CUDAnative.code_native(codegen_child_reuse_bis_parent2, (Ptr{Int64},))
+    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_bis_parent2, (Ptr{Int64},)))
 end
 
 
@@ -127,7 +127,7 @@ end
         return nothing
     end
 
-    ir = CUDAnative.code_llvm(codegen_call_sysimg, (Ptr{Int},Int))
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, (Ptr{Int},Int)))
     @test !contains(ir, "jlsys_")
 end
 
@@ -141,7 +141,7 @@ end
         return nothing
     end
 
-    asm = CUDAnative.code_native(codegen_recompile, (Ptr{Int32},))
+    asm = sprint(io->CUDAnative.code_native(io, codegen_recompile, (Ptr{Int32},)))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
@@ -159,8 +159,8 @@ end
         return nothing
     end
 
-    CUDAnative.code_native(codegen_recompile_bis_fromptx, ())
-    CUDAnative.code_native(codegen_recompile_bis_fromhost, ())
+    CUDAnative.code_native(DevNull, codegen_recompile_bis_fromptx, ())
+    CUDAnative.code_native(DevNull, codegen_recompile_bis_fromhost, ())
 end
 
 end

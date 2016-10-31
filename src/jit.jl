@@ -11,24 +11,29 @@ using Base.Iterators: flatten
 
 # NOTE: default capability is a sane one for testing purposes
 
-function code_llvm(f::ANY, t::ANY=Tuple; optimize::Bool=true, dump_module::Bool=false,
-                                         cap::VersionNumber=v"2.0")
-    mod, entry = irgen(f, t)
+function code_llvm(io::IO, f::ANY, types::ANY=Tuple;
+                   optimize::Bool=true, dump_module::Bool=false, cap::VersionNumber=v"2.0")
+    mod, entry = irgen(f, types)
     if optimize
         optimize!(mod, cap)
     end
     if dump_module
-        return convert(String, mod)
+        show(io, mod)
     else
-        return sprint(io->show(io, entry))
+        show(io, entry)
     end
 end
 
-function code_native(f::ANY, t::ANY=Tuple, cap::VersionNumber=v"2.0")
-    mod, entry = irgen(f, t)
+code_llvm(f::ANY, types::ANY=Tuple; kwargs...) = code_llvm(STDOUT, f, types; kwargs...)
+
+function code_native(io::IO, f::ANY, types::ANY=Tuple;
+                     cap::VersionNumber=v"2.0")
+    mod, entry = irgen(f, types)
     optimize!(mod, cap)
-    return mcgen(mod, entry, cap)
+    print(io, mcgen(mod, entry, cap))
 end
+
+code_native(f::ANY, types::ANY=Tuple; kwargs...) = code_native(STDOUT, f, types; kwargs...)
 
 
 #
