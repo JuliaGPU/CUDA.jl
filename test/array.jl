@@ -7,8 +7,8 @@
     @on_device dev CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
 
     # Outer constructors
-    @on_device dev CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
-    @on_device dev CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray(1, Ptr{Int}(C_NULL))
+    @on_device dev CuDeviceArray((1,), Ptr{Int}(C_NULL))
     @on_device dev CuDeviceArray(Int, 1, Ptr{Int}(C_NULL))
     @on_device dev CuDeviceArray(Int, (1,), Ptr{Int}(C_NULL))
 end
