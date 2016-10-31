@@ -24,10 +24,14 @@ immutable CuModule
 
         options = Dict{CUjit_option,Any}()
         options[ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
-        @static if (VERSION >= v"0.6.0-dev.779" && Base.JLOptions().debug_level >= 2) ||
-                   DEBUG
-            options[GENERATE_LINE_INFO] = true
-            options[GENERATE_DEBUG_INFO] = true
+        @static if VERSION >= v"0.6.0-dev.779"
+            # TODO: put this in CUDAnative and document it
+            if DEBUG || Base.JLOptions().debug_level >= 1
+                options[GENERATE_LINE_INFO] = true
+            end
+            if DEBUG || Base.JLOptions().debug_level >= 2
+                options[GENERATE_DEBUG_INFO] = true
+            end
         end
         @static if DEBUG
             options[INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
