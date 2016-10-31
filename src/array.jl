@@ -1,10 +1,12 @@
 # Contiguous on-device arrays (host side representation)
 
-import Base: length, size, copy!, unsafe_convert, pointer, Array
+import Base: length, size, copy!, unsafe_convert, pointer, similar, Array
 
 export
     CuArray, free
 
+
+## construction
 
 type CuArray{T,N} <: AbstractArray{T,N}
     ptr::DevicePtr{T}
@@ -41,8 +43,20 @@ CuArray{T}(len::Int, p::DevicePtr{T})               = CuArray{T,1}((len,), p)
 unsafe_convert{T,N}(::Type{DevicePtr{T}}, a::CuArray{T,N}) = a.ptr
 pointer{T}(x::CuArray{T}) = unsafe_convert(DevicePtr{T}, x)
 
+similar{T}(a::CuArray{T,1})                    = CuArray{T}(length(a))
+similar{T}(a::CuArray{T,1}, S::Type)           = CuArray{S,1}(length(a))
+similar{T}(a::CuArray{T}, m::Int)              = CuArray{T}(m)
+similar{N}(a::CuArray, T::Type, dims::Dims{N}) = CuArray{T,N}(dims)
+similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
+
+
+## array interface
+
 length(g::CuArray) = g.len
 size(g::CuArray) = g.shape
+
+
+## memory management
 
 "Free GPU memory allocated to the pointer"
 function free(g::CuArray)

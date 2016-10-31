@@ -343,11 +343,11 @@ end
 ## array
 
 let
-    # Inner constructors
+    # inner constructors
     CuArray{Int,1}((1,))
     CuArray{Int,1}((1,), DevicePtr{Int}())
 
-    # Outer constructors
+    # outer constructors
     CuArray{Int}(1)
     CuArray{Int}((1,2))
     CuArray{Int}(1, DevicePtr{Int}())
@@ -355,17 +355,27 @@ let
     CuArray(1, DevicePtr{Int}())
     CuArray((1,2), DevicePtr{Int}())
 
-    # Conversions
+    # similar
+    let a = CuArray{Int}((1,2))
+        similar(a)
+        similar(a, Float32)
+        similar(a, 2)
+        similar(a, (2,1))
+        similar(a, Float32, 2)
+        similar(a, Float32, (2,1))
+    end
+
+    # conversions
     @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), DevicePtr{Int}())) == DevicePtr{Int}()
     @test pointer(CuArray{Int,1}((1,), DevicePtr{Int}())) == DevicePtr{Int}()
 
-    # Negative test cases
+    # negative test cases
     a = rand(Float32, 10)
     ad = CuArray{Float32}(5)
     @test_throws ArgumentError copy!(ad, a)
     @test_throws ArgumentError copy!(a, ad)
 
-    # Utility
+    # utility
     @test ndims(ad) == 1
     @test size(ad, 1) == 5
     @test size(ad, 2) == 1
