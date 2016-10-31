@@ -17,7 +17,7 @@ b = round.(rand(Float32, dims) * 100)
 
 d_a = CuArray(a)
 d_b = CuArray(b)
-d_c = CuArray{Float32}(dims)
+d_c = similar(d_a)
 
 len = prod(dims)
 @cuda dev (1,len) kernel_vadd(d_a, d_b, d_c)
