@@ -282,7 +282,11 @@ end
 # TODO: downcasting pointers to global AS might be inefficient
 #       -> check if AS propagation resolves this
 #       -> Ptr{AS}, ASPtr{AS}, ...?
-
+# NOTE: shmem_id increment in the macro isn't correct, as multiple parametrically typed
+#       functions will alias the id (but the size might be a parameter). but incrementing in
+#       the @generated function doesn't work, as it is supposed to be pure and identical
+#       invocations will erroneously share (and even cause multiple shmem globals).
+#       so maybe we should figure out an entirely new approach...
 shmem_id = 0
 
 """
