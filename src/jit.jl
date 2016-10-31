@@ -55,6 +55,22 @@ end
 # make function names safe for ptxas
 sanitize_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]", "_")
 
+function raise_exception(insblock::BasicBlock, ex::Value)
+    fun = LLVM.parent(insblock)
+    mod = LLVM.parent(fun)
+    ctx = context(mod)
+
+    builder = Builder(ctx)
+    position!(builder, insblock)
+
+    trap = if haskey(functions(mod), "llvm.trap")
+        get(functions(mod), "llvm.trap")
+    else
+        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
+    end
+    call!(builder, trap)
+end
+
 function irgen(func::ANY, tt::ANY)
     fn = String(typeof(func).name.mt.name)
     mod = LLVM.Module(sanitize_fn(fn))
@@ -63,11 +79,16 @@ function irgen(func::ANY, tt::ANY)
     # collect all modules of IR
     # TODO: emit into module instead of parsing
     # TODO: make codegen pure
-    hook_module_setup(ref::Ptr{Void}) = module_setup(LLVM.Module(ref))
+    hook_module_setup(ref::Ptr{Void}) =
+        module_setup(LLVM.Module(convert(LLVM.API.LLVMModuleRef, ref)))
+    hook_raise_exception(insblock::Ptr{Void}, ex::Ptr{Void}) =
+        raise_exception(BasicBlock(convert(LLVM.API.LLVMValueRef, insblock)),
+                        Value(convert(LLVM.API.LLVMValueRef, ex)))
     modrefs = Vector{Ptr{Void}}()
     hook_module_activation(ref::Ptr{Void}) = push!(modrefs, ref)
     hooks = Base.CodegenHooks(module_setup=hook_module_setup,
-                              module_activation=hook_module_activation)
+                              module_activation=hook_module_activation,
+                              raise_exception=hook_raise_exception)
     params = Base.CodegenParams(cached=false,
                                 runtime=0, exceptions=0,
                                 track_allocations=0, code_coverage=0,
