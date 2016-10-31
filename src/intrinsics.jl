@@ -240,7 +240,7 @@ const all_asm = """{
     vote.all.pred %p2, %p1;
     selp.s32 \$0, 1, 0, %p2;
 }"""
-function vote_all(pred::Bool)
+@inline function vote_all(pred::Bool)
     return Base.llvmcall(
         """%2 = call i32 asm sideeffect "$all_asm", "=r,r"(i32 %0)
            ret i32 %2""",
@@ -254,7 +254,7 @@ const any_asm = """{
     vote.any.pred %p2, %p1;
     selp.s32 \$0, 1, 0, %p2;
 }"""
-function vote_any(pred::Bool)
+@inline function vote_any(pred::Bool)
     return Base.llvmcall(
         """%2 = call i32 asm sideeffect "$any_asm", "=r,r"(i32 %0)
            ret i32 %2""",
@@ -266,7 +266,7 @@ const ballot_asm = """{
    setp.ne.u32 %p1, \$1, 0;
    vote.ballot.b32 \$0, %p1;
 }"""
-function vote_ballot(pred::Bool)
+@inline function vote_ballot(pred::Bool)
     return Base.llvmcall(
         """%2 = call i32 asm sideeffect "$ballot_asm", "=r,r"(i32 %0)
            ret i32 %2""",
@@ -279,12 +279,9 @@ end
 #
 
 # FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
-# TODO: return an Array-like object (containing the number of elements) instead of a raw pointer
 # TODO: downcasting pointers to global AS might be inefficient
 #       -> check if AS propagation resolves this
 #       -> Ptr{AS}, ASPtr{AS}, ...?
-# BUG: calling a device function referencing a static-memory @cuSharedMem will reference
-#      the same memory -- how does this work in CUDA?
 
 shmem_id = 0
 
