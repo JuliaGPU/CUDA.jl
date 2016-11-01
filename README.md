@@ -160,7 +160,7 @@ a `trap` instruction which halts the GPU. This might show up as a kernel launch 
 an unrelated error in another API call.
 
 If the error is thrown from an array access, and an out-of-bounds access is suspected, it is
-useful to turn of bounds checking (`julia --bounds-cheoc=no`) and run the Julia process
+useful to turn of bounds checking (`julia --check-bounds=no`) and run the Julia process
 under `cuda-memcheck` while enabling debug mode 1 or higher (`julia -g1`). This way,
 `cuda-memcheck` will be able to accurately pinpoint the out-of-bounds access, while
 specifying the exact location of the access within the active grid and block.
