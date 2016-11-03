@@ -128,7 +128,7 @@ julia> CUDAnative.code_llvm(foo, (Int,))
 ERROR: error compiling foo: error compiling #print_to_string#312: emit_allocobj for strings/io.jl:92 requires the dynamic_alloc language feature, which is disabled
 ```
 
-## CUDA support
+### CUDA support
 
 Not all of CUDA is supported, and because of time constraints the supported subset is again
 undocumented. The following (incomplete) list details the support and their CUDAnative.jl
@@ -143,7 +143,7 @@ date list:
 * Communication: `vote_{all,any,ballot}`
 * Data movement: `shfl_{up,down,bfly,idx}`
 
-### `libdevice`
+#### `libdevice`
 
 In addition to the native intrinsics listed above, math functionality from `libdevice` is
 wrapped and part of CUDAnative. For now, you need to fully qualify function calls to these
