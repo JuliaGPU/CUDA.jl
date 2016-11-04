@@ -5,7 +5,7 @@ import Base: eltype
 export
     CuGlobal, get, set
 
-
+# TODO: typed pointer
 immutable CuGlobal{T}
     devptr::DevicePtr{Void}
     nbytes::Cssize_t

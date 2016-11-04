@@ -102,20 +102,11 @@ capability(dev)
 synchronize(ctx)
 synchronize()
 
-let
-    ctx2 = CuContext(dev)       # implicitly pushes
-    @test CuCurrentContext() == ctx2
-    @test_throws ArgumentError device(ctx)
-
-    push(ctx)
-    @test CuCurrentContext() == ctx
-
-    pop()
-    @test CuCurrentContext() == ctx2
-
-    pop()
-    @test CuCurrentContext() == ctx
+CuContext(dev) do ctx2
+    @test ctx2 == CuCurrentContext()
+    @test ctx != ctx2
 end
+@test ctx == CuCurrentContext()
 
 
 ## module
