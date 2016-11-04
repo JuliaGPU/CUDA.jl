@@ -89,6 +89,17 @@ function Base.copy!{T}(dst::CuArray{T}, src::Array{T})
     return dst
 end
 
+"Copy an array from device to device in place"
+function Base.copy!{T}(dst::CuArray{T}, src::CuArray{T})
+    if length(dst) != length(src)
+        throw(ArgumentError("Inconsistent array length."))
+    end
+    nbytes = length(src) * sizeof(T)
+    @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
+                            dst.devptr.ptr, src.devptr.ptr, nbytes)
+    return dst
+end
+
 "Transfer an array from host to device, returning a pointer on the device"
 CuArray{T,N}(a::Array{T,N}) = copy!(CuArray{T}(size(a)), a)
 
