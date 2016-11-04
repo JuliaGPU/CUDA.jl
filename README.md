@@ -88,9 +88,6 @@ d_c = similar(d_a)  # output array
 c = Array(d_c)
 
 @test a+b ≈ c
-
-free(...)
-destroy(ctx)
 ```
 
 See `examples` or `tests/native.jl` for more comprehensive examples.
