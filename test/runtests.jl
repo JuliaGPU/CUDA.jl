@@ -64,8 +64,3 @@ else
     include("array.jl")
     include("intrinsics.jl")
 end
-
-# force garbage collection (this makes finalizers run before STDOUT is destroyed)
-for i in 1:5
-    gc()
-end
