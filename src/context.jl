@@ -66,14 +66,12 @@ Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
 
 ==(a::CuContext, b::CuContext) = a.handle == b.handle
 
-function CuContext(dev::CuDevice, flags::CUctx_flags)
+function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxCreate, (Ptr{CuContext_t}, Cuint, Cint),
                            handle_ref, flags, dev)
     CuContext(handle_ref[])
 end
-
-CuContext(dev::CuDevice) = CuContext(dev, SCHED_AUTO)
 
 "Return the current context."
 function CuCurrentContext()
