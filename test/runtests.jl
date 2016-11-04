@@ -49,7 +49,7 @@ macro on_device(dev, exprs)
             end
 
             @cuda $dev (1,1) $kernel_fn()
-            synchronize(default_stream())
+            synchronize()
         end
     end
 end
@@ -58,11 +58,14 @@ dev = CuDevice(0)
 if capability(dev) < v"2.0"
     warn("native execution not supported on SM < 2.0")
 else
-    ctx = CuContext(dev)
+    ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
     include("execution.jl")
     include("array.jl")
     include("intrinsics.jl")
+end
 
-    destroy(ctx)
+# force garbage collection (this makes finalizers run before STDOUT is destroyed)
+for i in 1:5
+    gc()
 end

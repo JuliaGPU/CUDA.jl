@@ -97,12 +97,9 @@ len = prod(dims)
     input_dev = CuArray(input)
     output_dev = similar(input_dev)
 
-    @cuda dev (1,len) exec_pass_ptr(input_dev.ptr, output_dev.ptr)
+    @cuda dev (1,len) exec_pass_ptr(input_dev.devptr, output_dev.devptr)
     output = Array(output_dev)
     @test input ≈ output
-
-    free(input_dev)
-    free(output_dev)
 end
 
 
@@ -124,11 +121,8 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda dev (1,len) exec_pass_scalar(arr_dev.ptr, val_dev.ptr)
+    @cuda dev (1,len) exec_pass_scalar(arr_dev.devptr, val_dev.devptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
-
-    free(val_dev)
-    free(arr_dev)
 end
 
 
@@ -153,11 +147,8 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda dev (1,len) exec_pass_scalar_devfun(arr_dev.ptr, val_dev.ptr)
+    @cuda dev (1,len) exec_pass_scalar_devfun(arr_dev.devptr, val_dev.devptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
-
-    free(val_dev)
-    free(arr_dev)
 end
 
 
@@ -180,14 +171,10 @@ end
 
         return nothing
     end
-    @cuda dev (1,len) exec_pass_ghost(ExecGhost(), d_a.ptr, d_b.ptr, d_c.ptr)
+    @cuda dev (1,len) exec_pass_ghost(ExecGhost(), d_a.devptr, d_b.devptr, d_c.devptr)
 
     c = Array(d_c)
     @test a+b == c
-
-    free(d_c)
-    free(d_b)
-    free(d_a)
 end
 
 
@@ -206,10 +193,8 @@ end
     keeps = (true,)
     d_out = CuArray{Int}(1)
 
-    @cuda dev (1,1) exec_pass_tuples(keeps, d_out.ptr)
+    @cuda dev (1,1) exec_pass_tuples(keeps, d_out.devptr)
     @test Array(d_out) == [1]
-
-    free(d_out)
 end
 
 
@@ -224,10 +209,8 @@ end
     A = CuArray(zeros(Float32, (1,)))
     x = Complex64(2,2)
 
-    @cuda dev (1, 1) exec_pass_immutables(A.ptr, x)
+    @cuda dev (1, 1) exec_pass_immutables(A.devptr, x)
     @test Array(A) == Float32[imag(x)]
-
-    free(A)
 end
 
 end

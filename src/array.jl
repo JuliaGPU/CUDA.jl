@@ -28,9 +28,9 @@ CuDeviceArray{T}(len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,),
 cudaconvert{T,N}(::Type{CuArray{T,N}}) = CuDeviceArray{T,N}
 
 convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) =
-    CuDeviceArray{T,N}(a.shape, unsafe_convert(Ptr{T}, a.ptr))
+    CuDeviceArray{T,N}(a.shape, unsafe_convert(Ptr{T}, a.devptr))
 
-@inline unsafe_convert{T}(::Type{Ptr{T}}, A::CuDeviceArray{T}) = A.ptr::Ptr{T}
+@inline unsafe_convert{T}(::Type{Ptr{T}}, a::CuDeviceArray{T}) = a.ptr::Ptr{T}
 
 
 ## array interface

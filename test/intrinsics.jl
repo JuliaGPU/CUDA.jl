@@ -13,8 +13,6 @@
     @cuda dev (1, 1) kernel_math_log10(buf, Float32(100))
     val = Array(buf)
     @test val[1] ≈ 2.0
-
-    free(buf)
 end
 
 
@@ -89,8 +87,6 @@ end
 
     @cuda dev (1, n, n*sizeof(Float32)) kernel_shmem_dynamic_typed(d_a, n)
     @test reverse(a) == Array(d_a)
-
-    free(d_a)
 end
 
 @testset "parametrically typed" begin
@@ -112,8 +108,6 @@ end
 
         @cuda dev (1, n, n*sizeof(T)) kernel_shmem_dynamic_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
-
-        free(d_a)
     end
 end
 
@@ -143,8 +137,6 @@ end
 
     @cuda dev (1, n) kernel_shmem_static_typed(d_a, n)
     @test reverse(a) == Array(d_a)
-
-    free(d_a)
 end
 
 @testset "parametrically typed" begin
@@ -169,8 +161,6 @@ end
 
         @cuda dev (1, n) kernel_shmem_static_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
-
-        free(d_a)
     end
 end
 
@@ -210,9 +200,6 @@ end
     @cuda dev (1, n, 2*n*sizeof(Float32)) kernel_shmem_dynamic_multi_homogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
-
-    free(d_b)
-    free(d_a)
 end
 
 # common use case 2: dynamic shmem consists of multiple heterogeneous arrays
@@ -244,9 +231,6 @@ end
     @cuda dev (1, n, n*sizeof(Float32) + n*sizeof(Int64)) kernel_shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
-
-    free(d_b)
-    free(d_a)
 end
 
 end
@@ -280,8 +264,6 @@ types = [Int32, Int64, Float32, Float64]
 
         a[1:n÷2] += a[n÷2+1:end]
         @test a == Array(d_a)
-
-        free(d_a)
     end
 end
 
@@ -312,8 +294,6 @@ end
         @cuda dev (1,len) kernel_vote_ballot(d_a, i)
         @test Array(d_a) == [2^(i-1)]
     end
-
-    free(d_a)
 end
 
 @testset "any" begin
@@ -336,8 +316,6 @@ end
 
     @cuda dev (1,2) kernel_vote_any(d_a, 3)
     @test Array(d_a) == [0]
-
-    free(d_a)
 end
 
 @testset "all" begin
@@ -360,8 +338,6 @@ end
 
     @cuda dev (1,2) kernel_vote_all(d_a, 3)
     @test Array(d_a) == [0]
-
-    free(d_a)
 end
 
 end

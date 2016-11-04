@@ -40,9 +40,6 @@ end
     @cuda dev (1,len) array_copy(input_dev, output_dev)
     output = Array(output_dev)
     @test input ≈ output
-
-    free(input_dev)
-    free(output_dev)
 end
 
 
@@ -71,8 +68,6 @@ end
 
     @cuda dev (100, 1) array_view(array_dev)
     @test array == Array(array_dev)
-
-    free(array_dev)
 end
 
 ############################################################################################
