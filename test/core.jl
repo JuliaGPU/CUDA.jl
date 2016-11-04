@@ -2,27 +2,22 @@ using CUDAdrv
 
 using Compat
 
-
 ## pointer
 
 # construction
-DevicePtr{Void}()
-@test_throws InexactError DevicePtr{Void}(C_NULL)
+@test_throws InexactError DevicePtr(C_NULL)
 
 # conversion
-Base.unsafe_convert(DevicePtr{Void}, C_NULL)
-Base.unsafe_convert(Ptr{Void}, DevicePtr{Void}())
-@test_throws InexactError convert(Ptr{Void}, DevicePtr{Void}())
+Base.unsafe_convert(Ptr{Void}, CU_NULL)
+@test_throws InexactError convert(Ptr{Void}, CU_NULL)
 @test_throws InexactError convert(DevicePtr{Void}, C_NULL)
 
 let
-    nullptr = DevicePtr{Void}()
-
     @test eltype(DevicePtr{Void}) == Void
-    @test eltype(nullptr) == Void
-    @test isnull(nullptr)
+    @test eltype(CU_NULL) == Void
+    @test isnull(CU_NULL)
 
-    @test_throws InexactError convert(Ptr{Void}, nullptr)
+    @test_throws InexactError convert(Ptr{Void}, CU_NULL)
     @test_throws InexactError convert(DevicePtr{Void}, C_NULL)
 end
 
@@ -83,6 +78,8 @@ CUDAdrv.vendor()
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
+@test ctx == CuCurrentContext()
+
 
 ## version
 
@@ -103,22 +100,21 @@ list_devices()
 
 @test device(ctx) == dev
 synchronize(ctx)
+synchronize()
 
 let
     ctx2 = CuContext(dev)       # implicitly pushes
-    @test current_context() == ctx2
+    @test CuCurrentContext() == ctx2
     @test_throws ArgumentError device(ctx)
 
     push(ctx)
-    @test current_context() == ctx
+    @test CuCurrentContext() == ctx
 
     pop()
-    @test current_context() == ctx2
+    @test CuCurrentContext() == ctx2
 
     pop()
-    @test current_context() == ctx
-
-    destroy(ctx2)
+    @test CuCurrentContext() == ctx
 end
 
 
@@ -241,12 +237,10 @@ end
 
 let
     dev_array = CuArray{Int32}(10)
-    cumemset(dev_array.ptr, UInt32(0), 10)
+    cumemset(dev_array.devptr, UInt32(0), 10)
     host_array = Array(dev_array)
 
     @test all(x -> x==0, host_array)
-
-    free(dev_array)
 end
 
 
@@ -288,7 +282,6 @@ let
         cudacall(vadd, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a+b
-        free(cd)
     end
 
     # Subtraction
@@ -298,7 +291,6 @@ let
         cudacall(vsub, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a-b
-        free(cd)
     end
 
     # Multiplication
@@ -308,7 +300,6 @@ let
         cudacall(vmul, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a.*b
-        free(cd)
     end
 
     # Division
@@ -318,11 +309,8 @@ let
         cudacall(vdiv, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a./b
-        free(cd)
     end
 
-    free(ad)
-    free(bd)
     unload(md)
 end
 
@@ -345,16 +333,13 @@ end
 
 let
     # inner constructors
-    CuArray{Int,1}((1,))
-    CuArray{Int,1}((1,), DevicePtr{Int}())
+    a = CuArray{Int,1}((2,))
+    devptr = a.devptr
+    CuArray{Int,1}((2,), devptr)
 
     # outer constructors
-    CuArray{Int}(1)
+    CuArray{Int}(2)
     CuArray{Int}((1,2))
-    CuArray{Int}(1, DevicePtr{Int}())
-    CuArray{Int}((1,2), DevicePtr{Int}())
-    CuArray(1, DevicePtr{Int}())
-    CuArray((1,2), DevicePtr{Int}())
 
     # similar
     let a = CuArray{Int}((1,2))
@@ -367,8 +352,8 @@ let
     end
 
     # conversions
-    @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), DevicePtr{Int}())) == DevicePtr{Int}()
-    @test pointer(CuArray{Int,1}((1,), DevicePtr{Int}())) == DevicePtr{Int}()
+    @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), devptr)) == devptr
+    @test pointer(CuArray{Int,1}((1,), devptr)) == devptr
 
     # negative test cases
     a = rand(Float32, 10)
@@ -382,8 +367,6 @@ let
     @test size(ad, 2) == 1
     @test eltype(ad) == Float32
     @test eltype(typeof(ad)) == Float32
-
-    free(ad)
 end
 
 let
@@ -402,4 +385,12 @@ end
 @cuprofile begin end
 
 
-destroy(ctx)
+## gc
+
+ctx = nothing
+for i in 1:5
+    gc()
+end
+
+@test length(CUDAdrv.context_consumers) == 0
+@test length(CUDAdrv.context_instances) == 0

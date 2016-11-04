@@ -3,7 +3,7 @@
 import Base: unsafe_convert, @deprecate_binding, ==
 
 export
-    CuContext, destroy, current_context,
+    CuContext, CuCurrentContext,
     push, pop, synchronize, device
 
 @enum(CUctx_flags, SCHED_AUTO           = 0x00,
@@ -16,16 +16,53 @@ export
 
 typealias CuContext_t Ptr{Void}
 
+
+## construction and destruction
+
 """
 Create a CUDA context for device. A context on the GPU is analogous to a process on the
 CPU, with its own distinct address space and allocated resources. When a context is
 destroyed, the system cleans up the resources allocated to it.
 """
-immutable CuContext
+type CuContext
     handle::CuContext_t
+
+    function CuContext(handle::CuContext_t)
+        obj = new(handle)
+        if handle!=C_NULL
+            instances = get(context_instances, handle, 0)
+            context_instances[handle] = instances+1
+            finalizer(obj, finalize)
+        end
+        obj
+    end
 end
+const context_instances = Dict{CuContext_t,Int}()
 
 unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
+
+function finalize(ctx::CuContext)
+    instances = context_instances[ctx.handle]
+    context_instances[ctx.handle] = instances-1
+
+    if instances == 1
+        delete!(context_instances, ctx.handle)
+        @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
+    end
+end
+
+# finalizers are run out-of-order (see JuliaLang/julia#3067), so we need to keep it alive as
+# long as there's any consumer to prevent the context getting finalized ahead of consumers
+const context_consumers = Set{Pair{Ptr{Void},CuContext}}()
+function track(ctx::CuContext, consumer::ANY)
+    push!(context_consumers, Pair(Base.pointer_from_objref(consumer),ctx))
+end
+function untrack(ctx::CuContext, consumer::ANY)
+    delete!(context_consumers, Pair(Base.pointer_from_objref(consumer),ctx))
+end
+
+Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
+    throw(ArgumentError("CuContext cannot be copied"))
 
 ==(a::CuContext, b::CuContext) = a.handle == b.handle
 
@@ -38,12 +75,8 @@ end
 
 CuContext(dev::CuDevice) = CuContext(dev, SCHED_AUTO)
 
-"Destroy the CUDA context, releasing resources allocated to it."
-function destroy(ctx::CuContext)
-    @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
-end
-
-function current_context()
+"Return the current context."
+function CuCurrentContext()
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), handle_ref)
     CuContext(handle_ref[])
@@ -59,8 +92,11 @@ function pop()
     return nothing
 end
 
+
+## context properties
+
 function device(ctx::CuContext)
-    if current_context() != ctx
+    if CuCurrentContext() != ctx
         # TODO: we could push and pop here
         throw(ArgumentError("context should be active"))
     end
@@ -72,4 +108,5 @@ function device(ctx::CuContext)
     return CuDevice(device_ref[])
 end
 
-synchronize(ctx::CuContext) = @apicall(:cuCtxSynchronize, (CuContext_t,), ctx)
+synchronize(ctx::CuContext=CuCurrentContext()) =
+    @apicall(:cuCtxSynchronize, (CuContext_t,), ctx)

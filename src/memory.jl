@@ -19,9 +19,11 @@ function cualloc{T, N<:Integer}(::Type{T}, len::N=1)
 end
 
 cumemset(p::DevicePtr, value::Cuint, len::Integer) = 
-    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), p.inner, value, len)
+    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), p.ptr, value, len)
 
-free(p::DevicePtr) = @apicall(:cuMemFree, (Ptr{Void},), p.inner)
+function free(p::DevicePtr)
+    @apicall(:cuMemFree, (Ptr{Void},), p.ptr)
+end
 
 function copy!{T}(dst::DevicePtr{T}, src::T)
     if !Base.datatype_pointerfree(T)
@@ -29,6 +31,6 @@ function copy!{T}(dst::DevicePtr{T}, src::T)
         throw(ArgumentError("Only pointer-free types can be copied"))
     end
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst.inner, pointer_from_objref(src), sizeof(T))
+                            dst.ptr, pointer_from_objref(src), sizeof(T))
     return nothing
 end

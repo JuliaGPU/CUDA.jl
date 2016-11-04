@@ -25,7 +25,7 @@ function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
                 shmem::Int, stream::CuStream, args)
     all([isbits(arg) || isa(arg, DevicePtr) for arg in args]) ||
         throw(ArgumentError("Arguments to kernel should be bitstype or device pointer"))
-    args = [isa(arg, DevicePtr) ? arg.inner : arg for arg in args]  # extract DevicePtr.inner::Ptr
+    args = [isa(arg, DevicePtr) ? arg.ptr : arg for arg in args]  # extract inner Ptr
 
     # If f has N parameters, then kernelParams needs to be an array of N pointers.
     # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory

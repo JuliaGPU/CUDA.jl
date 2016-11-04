@@ -3,15 +3,17 @@
 import Base: length, size, copy!, unsafe_convert, pointer, similar, Array
 
 export
-    CuArray, free
+    CuArray
 
 
 ## construction
 
 type CuArray{T,N} <: AbstractArray{T,N}
-    ptr::DevicePtr{T}
+    devptr::DevicePtr{T}
     shape::NTuple{N,Int}
     len::Int
+
+    ctx::CuContext
 
     function CuArray(shape::NTuple{N,Int})
         if !isbits(T)
@@ -20,27 +22,33 @@ type CuArray{T,N} <: AbstractArray{T,N}
         elseif (sizeof(T) == 0)
             throw(ArgumentError("CuArray with zero-sized element types does not make sense"))
         end
+
         len = prod(shape)
-        ptr = cualloc(T, len)
-        new(ptr, shape, len)
+        devptr = cualloc(T, len)
+
+        ctx = CuCurrentContext()
+        obj = new(devptr, shape, len, ctx)
+        track(ctx, obj)
+        finalizer(obj, finalize)
+
+        obj
     end
 
-    function CuArray(shape::NTuple{N,Int}, ptr::DevicePtr{T})
+    function CuArray(shape::NTuple{N,Int}, devptr::DevicePtr{T})
         len = prod(shape)
-        new(ptr, shape, len)
+        new(devptr, shape, len, CuContext(C_NULL))
     end
+end
+
+function finalize(a::CuArray)
+    untrack(a.ctx, a)
+    free(a.devptr)
 end
 
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
-(::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}, p::DevicePtr{T}) = CuArray{T,N}(shape, p)
-(::Type{CuArray{T}}){T}(len::Int, p::DevicePtr{T})               = CuArray{T,1}((len,), p)
-
-CuArray{T,N}(shape::NTuple{N,Int}, p::DevicePtr{T}) = CuArray{T,N}(shape, p)
-CuArray{T}(len::Int, p::DevicePtr{T})               = CuArray{T,1}((len,), p)
-
-unsafe_convert{T,N}(::Type{DevicePtr{T}}, a::CuArray{T,N}) = a.ptr
+unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
 pointer{T}(x::CuArray{T}) = unsafe_convert(DevicePtr{T}, x)
 
 similar{T}(a::CuArray{T,1})                    = CuArray{T}(length(a))
@@ -58,14 +66,6 @@ size(g::CuArray) = g.shape
 
 ## memory management
 
-"Free GPU memory allocated to the pointer"
-function free(g::CuArray)
-    if !isnull(g.ptr)
-        free(g.ptr)
-        g.ptr = DevicePtr{eltype(g.ptr)}()
-    end
-end
-
 "Copy an array from device to host in place"
 function copy!{T}(dst::Array{T}, src::CuArray{T})
     if length(dst) != length(src) 
@@ -73,7 +73,7 @@ function copy!{T}(dst::Array{T}, src::CuArray{T})
     end
     nbytes = length(src) * sizeof(T)
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            pointer(dst), src.ptr.inner, nbytes)
+                            pointer(dst), src.devptr.ptr, nbytes)
     return dst
 end
 
@@ -84,7 +84,7 @@ function copy!{T}(dst::CuArray{T}, src::Array{T})
     end
     nbytes = length(src) * sizeof(T)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst.ptr.inner, pointer(src), nbytes)
+                            dst.devptr.ptr, pointer(src), nbytes)
     return dst
 end
 

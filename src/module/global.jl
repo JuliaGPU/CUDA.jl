@@ -7,7 +7,7 @@ export
 
 
 immutable CuGlobal{T}
-    ptr::DevicePtr{Void}
+    devptr::DevicePtr{Void}
     nbytes::Cssize_t
 
     function CuGlobal(mod::CuModule, name::String)
@@ -19,7 +19,8 @@ immutable CuGlobal{T}
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
         @assert nbytes_ref[] == sizeof(T)
-        new(unsafe_convert(DevicePtr{Void}, ptr_ref[]), nbytes_ref[])
+
+        return new(unsafe_convert(DevicePtr{Void}, ptr_ref[]), nbytes_ref[])
     end
 end
 
@@ -28,12 +29,12 @@ eltype{T}(::Type{CuGlobal{T}}) = T
 function get{T}(var::CuGlobal{T})
     val_ref = Ref{T}()
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            val_ref, var.ptr.inner, var.nbytes)
+                            val_ref, var.devptr, var.nbytes)
     return val_ref[]
 end
 
 function set{T}(var::CuGlobal{T}, val::T)
     val_ref = Ref{T}(val)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            var.ptr.inner, val_ref, var.nbytes)
+                            var.devptr, val_ref, var.nbytes)
 end
