@@ -93,7 +93,7 @@ totalmem(dev)
 attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
 @test warpsize(dev) == Int32(32)
 capability(dev)
-list_devices()
+@grab_output list_devices()
 
 
 ## context
