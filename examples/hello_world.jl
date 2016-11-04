@@ -9,5 +9,3 @@ dev = CuDevice(0)
 ctx = CuContext(dev)
 
 @cuda dev (2,2) hello_world()
-
-destroy(ctx)
