@@ -50,7 +50,13 @@ function finalize(ctx::CuContext)
 
     if instances == 1
         delete!(context_instances, ctx.handle)
-        @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
+        # during teardown, finalizer order does not respect _any_ order
+        # (ie. it doesn't respect active instances carefully set-up in `context_consumers`)
+        # TODO: can we check this only happens during teardown?
+        remaining_consumers = filter((k,v) -> v == ctx, context_consumers)
+        if length(remaining_consumers) == 0
+            @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
+        end
     end
 end
 
@@ -59,12 +65,18 @@ Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
 
 # finalizers are run out-of-order (see JuliaLang/julia#3067), so we need to keep it alive as
 # long as there's any consumer to prevent the context getting finalized ahead of consumers
-const context_consumers = Set{Pair{Ptr{Void},CuContext}}()
+# NOTE: the Dict is inversed, to make the more common track/untrack operation cheap
+const context_consumers = Dict{Ptr{Void},CuContext}()
 function track(ctx::CuContext, consumer::ANY)
-    push!(context_consumers, Pair(Base.pointer_from_objref(consumer),ctx))
+    ptr = Base.pointer_from_objref(consumer)
+    haskey(context_consumers, ptr) && error("objects can only use a single context")
+    context_consumers[ptr] = ctx
 end
 function untrack(ctx::CuContext, consumer::ANY)
-    delete!(context_consumers, Pair(Base.pointer_from_objref(consumer),ctx))
+    ptr = Base.pointer_from_objref(consumer)
+    haskey(context_consumers, ptr) || error("track/untrack mismatch")
+    context_consumers[ptr] == ctx || error("track/untrack mismatch on context")
+    delete!(context_consumers, ptr)
 end
 
 function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)

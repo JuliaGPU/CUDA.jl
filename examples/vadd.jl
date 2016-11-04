@@ -19,5 +19,3 @@ len = prod(dims)
 cudacall(vadd, len, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), d_a, d_b, d_c)
 c = Array(d_c)
 @test a+b ≈ c
-
-destroy(ctx)

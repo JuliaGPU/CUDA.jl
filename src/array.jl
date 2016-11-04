@@ -39,8 +39,8 @@ type CuArray{T,N} <: AbstractArray{T,N}
 end
 
 function finalize(a::CuArray)
-    untrack(a.ctx, a)
     free(a.devptr)
+    untrack(a.ctx, a)
 end
 
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
