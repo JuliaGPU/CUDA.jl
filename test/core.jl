@@ -76,7 +76,7 @@ end
 CUDAdrv.vendor()
 
 dev = CuDevice(0)
-ctx = CuContext(dev)
+ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
 @test ctx == CuCurrentContext()
 
