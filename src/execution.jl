@@ -11,8 +11,9 @@ end
 
 # Wrapper type for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3(len, 2, 1)`)
-typealias CuDim Union{Int, Tuple{Int, Int}, Tuple{Int, Int, Int}}
+typealias CuDim Union{Int, Tuple{Int}, Tuple{Int, Int}, Tuple{Int, Int, Int}}
 CuDim3(g::Int) = CuDim3(g, 1, 1)
+CuDim3(g::Tuple{Int}) = CuDim3(g[1], 1, 1)
 CuDim3(g::Tuple{Int, Int}) = CuDim3(g[1], g[2], 1)
 CuDim3(g::Tuple{Int, Int, Int}) = CuDim3(g[1], g[2], g[3])
 

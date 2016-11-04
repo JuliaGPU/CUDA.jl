@@ -258,9 +258,10 @@ end
 ## execution
 
 let
-    @test CUDAdrv.CuDim3((3,2,1)) == CUDAdrv.CuDim3(3,2,1)
+    @test CUDAdrv.CuDim3((4,3,2)) == CUDAdrv.CuDim3(4,3,2)
     @test CUDAdrv.CuDim3((3,2))   == CUDAdrv.CuDim3(3,2,1)
-    @test CUDAdrv.CuDim3(3)       == CUDAdrv.CuDim3(3,1,1)
+    @test CUDAdrv.CuDim3((2,))    == CUDAdrv.CuDim3(2,1,1)
+    @test CUDAdrv.CuDim3(2)       == CUDAdrv.CuDim3(2,1,1)
 end
 
 let
