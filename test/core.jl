@@ -388,10 +388,12 @@ end
 
 ## gc
 
+# force garbage collection (this makes finalizers run before STDOUT is destroyed)
 ctx = nothing
 for i in 1:5
     gc()
 end
 
+# test there's no outstanding contexts or consumers thereof
 @test length(CUDAdrv.context_consumers) == 0
 @test length(CUDAdrv.context_instances) == 0
