@@ -1,7 +1,5 @@
 # Error type and decoding functionality
 
-import Base: ==, show, showerror
-
 export CuError
 
 
@@ -14,7 +12,7 @@ immutable CuVersionError <: Exception
     minver::VersionNumber
 end
 
-function showerror(io::IO, err::CuVersionError)
+function Base.showerror(io::IO, err::CuVersionError)
     @printf(io, "CuVersionError: call to %s requires at least driver v%s",
             err.symbol, err.minver)
 end
@@ -32,7 +30,7 @@ immutable CuError <: Exception
     CuError(code, info) = new(code, Nullable{String}(info))
 end
 
-==(x::CuError,y::CuError) = x.code == y.code
+Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 
 const return_codes = Dict{Int,Tuple{Symbol,String}}(
     0   => (:SUCCESS, "Success"),
@@ -98,7 +96,7 @@ const return_codes = Dict{Int,Tuple{Symbol,String}}(
 name(err::CuError)        = return_codes[err.code][1]
 description(err::CuError) = return_codes[err.code][2]
 
-function showerror(io::IO, err::CuError)
+function Base.showerror(io::IO, err::CuError)
     if isnull(err.info)
         @printf(io, "%s (CUDA error #%d, %s)",
                     description(err), err.code, name(err))
@@ -108,7 +106,7 @@ function showerror(io::IO, err::CuError)
     end
 end
 
-show(io::IO, err::CuError) =
+Base.show(io::IO, err::CuError) =
     @printf(io, "%s(%d)", name(err), err.code)
 
 for code in return_codes

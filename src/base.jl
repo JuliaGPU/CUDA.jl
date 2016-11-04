@@ -1,8 +1,5 @@
 # Basic library loading and API calling
 
-import Base: get
-
-
 #
 # API call wrapper
 #

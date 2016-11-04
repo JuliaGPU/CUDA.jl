@@ -1,7 +1,5 @@
 # Stream management
 
-import Base: unsafe_convert
-
 export
     CuStream, CuDefaultStream, synchronize, destroy
 
@@ -12,7 +10,7 @@ immutable CuStream
     handle::CuStream_t
 end
 
-unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
+Base.unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
 
 function CuStream(flags::Integer=0)
     handle_ref = Ref{CuStream_t}()

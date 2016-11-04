@@ -1,7 +1,5 @@
 # Context management
 
-import Base: unsafe_convert, @deprecate_binding, ==
-
 export
     CuContext, CuCurrentContext,
     synchronize, device
@@ -12,7 +10,7 @@ export
                    SCHED_BLOCKING_SYNC  = 0x04,
                    MAP_HOST             = 0x08,
                    LMEM_RESIZE_TO_MAX   = 0x10)
-@deprecate_binding BLOCKING_SYNC SCHED_BLOCKING_SYNC
+Base.@deprecate_binding BLOCKING_SYNC SCHED_BLOCKING_SYNC
 
 typealias CuContext_t Ptr{Void}
 
@@ -43,8 +41,8 @@ type CuContext
 end
 const context_instances = Dict{CuContext_t,Int}()
 
-unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
-==(a::CuContext, b::CuContext) = a.handle == b.handle
+Base.unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
+Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
 
 function finalize(ctx::CuContext)
     instances = context_instances[ctx.handle]

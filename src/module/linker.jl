@@ -1,7 +1,5 @@
 # Linking of different PTX modules
 
-import Base: unsafe_convert, show, cconvert
-
 export
     CuLink, complete, destroy,
     addData, addFile
@@ -37,8 +35,8 @@ immutable CuLink
     end
 end
 
-unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
-show(io::IO,link::CuLink) = print(io, typeof(link), "(", link.handle, ")")
+Base.unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
+Base.show(io::IO,link::CuLink) = print(io, typeof(link), "(", link.handle, ")")
 
 """
 Complete a pending linker invocation, returning an output image.
@@ -83,10 +81,11 @@ function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, 
     # NOTE: ccall can't directly convert String to Ptr{Void}, so step through a typed Ptr
     if typ == PTX
         # additionally, in the case of PTX there shouldn't be any embedded NULLs
-        typed_ptr = pointer(unsafe_convert(Cstring, cconvert(Cstring, String(data))))
+        raw_data = Base.unsafe_convert(Cstring, Base.cconvert(Cstring, String(data)))
     else
-        typed_ptr = pointer(unsafe_convert(Vector{UInt8}, cconvert(Vector{UInt8}, data)))
+        raw_data = Base.unsafe_convert(Vector{UInt8}, Base.cconvert(Vector{UInt8}, data))
     end
+    typed_ptr = pointer(raw_data)
     untyped_ptr = convert(Ptr{Void}, typed_ptr)
 
     @apicall(:cuLinkAddData,

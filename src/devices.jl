@@ -1,7 +1,5 @@
 # Device type and auxiliary functions
 
-import Base: convert, @deprecate_binding
-
 export
     devcount,
     CuDevice, name, totalmem, attribute, capability,
@@ -29,7 +27,7 @@ immutable CuDevice
     end
 end
 
-convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
+Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
 
 "Get the name of a CUDA device"
 function name(dev::CuDevice)
@@ -134,12 +132,12 @@ end
                           MULTI_GPU_BOARD,
                           MULTI_GPU_BOARD_GROUP_ID)
 @assert Cint(MULTI_GPU_BOARD_GROUP_ID) == 85
-@deprecate_binding SHARED_MEMORY_PER_BLOCK MAX_SHARED_MEMORY_PER_BLOCK
-@deprecate_binding REGISTERS_PER_BLOCK MAX_REGISTERS_PER_BLOCK
+Base.@deprecate_binding SHARED_MEMORY_PER_BLOCK MAX_SHARED_MEMORY_PER_BLOCK
+Base.@deprecate_binding REGISTERS_PER_BLOCK MAX_REGISTERS_PER_BLOCK
 Base.deprecate(:GPU_OVERLAP)
-@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_WIDTH MAXIMUM_TEXTURE2D_LAYERED_WIDTH
-@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_HEIGHT MAXIMUM_TEXTURE2D_LAYERED_HEIGHT
-@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_NUMSLICES MAXIMUM_TEXTURE2D_LAYERED_LAYERS
+Base.@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_WIDTH MAXIMUM_TEXTURE2D_LAYERED_WIDTH
+Base.@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_HEIGHT MAXIMUM_TEXTURE2D_LAYERED_HEIGHT
+Base.@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_NUMSLICES MAXIMUM_TEXTURE2D_LAYERED_LAYERS
 Base.deprecate(:CAN_TEX2D_GATHER)
 
 

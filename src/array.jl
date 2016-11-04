@@ -1,7 +1,5 @@
 # Contiguous on-device arrays (host side representation)
 
-import Base: length, size, copy!, unsafe_convert, pointer, similar, Array
-
 export
     CuArray
 
@@ -48,26 +46,27 @@ end
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
-unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
-pointer{T}(x::CuArray{T}) = unsafe_convert(DevicePtr{T}, x)
+Base.:(==)(a::CuArray, b::CuArray) = a.handle == b.handle
+Base.unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
+Base.pointer(a::CuArray) = a.devptr
 
-similar{T}(a::CuArray{T,1})                    = CuArray{T}(length(a))
-similar{T}(a::CuArray{T,1}, S::Type)           = CuArray{S,1}(length(a))
-similar{T}(a::CuArray{T}, m::Int)              = CuArray{T}(m)
-similar{N}(a::CuArray, T::Type, dims::Dims{N}) = CuArray{T,N}(dims)
-similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
+Base.similar{T}(a::CuArray{T,1})                    = CuArray{T}(length(a))
+Base.similar{T}(a::CuArray{T,1}, S::Type)           = CuArray{S,1}(length(a))
+Base.similar{T}(a::CuArray{T}, m::Int)              = CuArray{T}(m)
+Base.similar{N}(a::CuArray, T::Type, dims::Dims{N}) = CuArray{T,N}(dims)
+Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
 
 
 ## array interface
 
-length(g::CuArray) = g.len
-size(g::CuArray) = g.shape
+Base.length(g::CuArray) = g.len
+Base.size(g::CuArray) = g.shape
 
 
 ## memory management
 
 "Copy an array from device to host in place"
-function copy!{T}(dst::Array{T}, src::CuArray{T})
+function Base.copy!{T}(dst::Array{T}, src::CuArray{T})
     if length(dst) != length(src) 
         throw(ArgumentError("Inconsistent array length."))
     end
@@ -78,7 +77,7 @@ function copy!{T}(dst::Array{T}, src::CuArray{T})
 end
 
 "Copy an array from host to device in place"
-function copy!{T}(dst::CuArray{T}, src::Array{T})
+function Base.copy!{T}(dst::CuArray{T}, src::Array{T})
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))  
     end
@@ -92,4 +91,4 @@ end
 CuArray{T,N}(a::Array{T,N}) = copy!(CuArray{T}(size(a)), a)
 
 "Transfer an array on the device to host"
-Array{T}(g::CuArray{T}) = copy!(Array{T}(size(g)), g)
+Base.Array{T}(g::CuArray{T}) = copy!(Array{T}(size(g)), g)

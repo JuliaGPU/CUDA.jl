@@ -1,7 +1,5 @@
 # Functions in modules
 
-import Base: unsafe_convert
-
 export
     CuFunction
 
@@ -20,4 +18,4 @@ immutable CuFunction
     end
 end
 
-unsafe_convert(::Type{CuFunction_t}, fun::CuFunction) = fun.handle
+Base.unsafe_convert(::Type{CuFunction_t}, fun::CuFunction) = fun.handle

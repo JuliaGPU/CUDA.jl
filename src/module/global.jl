@@ -1,7 +1,5 @@
 # Module-scope global variables
 
-import Base: eltype
-
 export
     CuGlobal, get, set
 
@@ -20,13 +18,13 @@ immutable CuGlobal{T}
         end
         @assert nbytes_ref[] == sizeof(T)
 
-        return new(unsafe_convert(DevicePtr{Void}, ptr_ref[]), nbytes_ref[])
+        return new(Base.unsafe_convert(DevicePtr{Void}, ptr_ref[]), nbytes_ref[])
     end
 end
 
-eltype{T}(::Type{CuGlobal{T}}) = T
+Base.eltype{T}(::Type{CuGlobal{T}}) = T
 
-function get{T}(var::CuGlobal{T})
+function Base.get{T}(var::CuGlobal{T})
     val_ref = Ref{T}()
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
                             val_ref, var.devptr, var.nbytes)

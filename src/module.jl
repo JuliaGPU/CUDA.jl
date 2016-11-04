@@ -1,7 +1,5 @@
 # Module-related types and auxiliary functions
 
-import Base: unsafe_convert
-
 export
     CuModule, CuModuleFile, unload
 
@@ -62,7 +60,7 @@ immutable CuModule
     end
 end
 
-unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
+Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
 
 """
 Unload a CUDA module.

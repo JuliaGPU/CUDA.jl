@@ -1,7 +1,5 @@
 # Events for timing
 
-import Base: unsafe_convert
-
 export CuEvent, record, synchronize, elapsed
 
 
@@ -17,7 +15,7 @@ immutable CuEvent
     end 
 end
 
-unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
+Base.unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
 
 record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
     @apicall(:cuEventRecord, (CuEvent_t, CuStream_t), e, stream)
