@@ -1,6 +1,6 @@
 # Context management
 
-import Base: unsafe_convert, @deprecate_binding
+import Base: unsafe_convert, @deprecate_binding, ==
 
 export
     CuContext, destroy, current_context,
@@ -26,6 +26,8 @@ immutable CuContext
 end
 
 unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
+
+==(a::CuContext, b::CuContext) = a.handle == b.handle
 
 function CuContext(dev::CuDevice, flags::CUctx_flags)
     handle_ref = Ref{CuContext_t}()
