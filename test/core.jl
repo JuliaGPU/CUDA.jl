@@ -353,6 +353,11 @@ let
     @test_throws ArgumentError copy!(ad, a)
     @test_throws ArgumentError copy!(a, ad)
 
+    # copy device -> device
+    bd = copy(ad)
+    @test ad != bd
+    @test Array(ad) == Array(bd)
+
     # utility
     @test ndims(ad) == 1
     @test size(ad, 1) == 5
