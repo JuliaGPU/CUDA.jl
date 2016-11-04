@@ -251,7 +251,7 @@ let
     synchronize(s)
     destroy(s)
 
-    synchronize(default_stream())
+    synchronize(CuDefaultStream())
 end
 
 

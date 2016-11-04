@@ -53,7 +53,7 @@ end
 ccall-like interface to launching a CUDA function on a GPU
 """
 function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim, types, values...;
-                  shmem=0, stream::CuStream=default_stream())
+                  shmem=0, stream::CuStream=CuDefaultStream())
     tt = Base.to_tuple_type(types)
 
     # convert the values to match the kernel's signature (specified by the user)

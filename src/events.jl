@@ -19,7 +19,7 @@ end
 
 unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
 
-record(e::CuEvent, stream=default_stream()) =
+record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
     @apicall(:cuEventRecord, (CuEvent_t, CuStream_t), e, stream)
 
 synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e)
