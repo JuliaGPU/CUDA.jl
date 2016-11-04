@@ -36,7 +36,7 @@ immutable CuLink
 end
 
 Base.unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
-Base.show(io::IO,link::CuLink) = print(io, typeof(link), "(", link.handle, ")")
+Base.:(==)(a::CuLink, b::CuLink) = a.handle == b.handle
 
 """
 Complete a pending linker invocation, returning an output image.

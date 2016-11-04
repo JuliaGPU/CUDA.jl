@@ -28,6 +28,7 @@ immutable CuDevice
 end
 
 Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
+Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
 
 "Get the name of a CUDA device"
 function name(dev::CuDevice)

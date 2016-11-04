@@ -61,6 +61,7 @@ immutable CuModule
 end
 
 Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
+Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
 
 """
 Unload a CUDA module.

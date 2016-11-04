@@ -11,6 +11,7 @@ immutable CuStream
 end
 
 Base.unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
+Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 
 function CuStream(flags::Integer=0)
     handle_ref = Ref{CuStream_t}()

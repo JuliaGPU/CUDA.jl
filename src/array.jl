@@ -46,7 +46,9 @@ end
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
-Base.:(==)(a::CuArray, b::CuArray) = a.handle == b.handle
+function Base.:(==)(a::CuArray, b::CuArray)
+    return a.ctx == b.ctx && pointer(a) == pointer(b)
+end
 Base.unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
 Base.pointer(a::CuArray) = a.devptr
 
