@@ -23,26 +23,41 @@ function alloc(bytesize::Integer)
     return Base.unsafe_convert(DevicePtr{Void}, ptr_ref[])
 end
 
+"""
+Frees device memory.
+"""
 function free(p::DevicePtr)
     @apicall(:cuMemFree, (Ptr{Void},), p.ptr)
 end
 
+"""
+Initializes device memory.
+"""
 set(p::DevicePtr, value::Cuint, len::Integer) =
     @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), p.ptr, value, len)
 
 # NOTE: upload/download also accept Ref (with Ptr <: Ref)
 #       as there exists a conversion from Ref to Ptr{Void}
 
+"""
+Upload memory from Host to Device.
+"""
 function upload(dst::DevicePtr, src::Ref, nbytes::Integer)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             dst.ptr, src, nbytes)
 end
 
+"""
+Download memory from Device to Host.
+"""
 function download(src::Ref, dst::DevicePtr, nbytes::Integer)
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
                             src, dst.ptr, nbytes)
 end
 
+"""
+Transfer memory from Device to Device.
+"""
 function transfer(src::DevicePtr, dst::DevicePtr, nbytes::Integer)
     @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             src.ptr, dst.ptr, nbytes)
@@ -62,11 +77,11 @@ function alloc{T}(::Type{T}, len::Integer=1)
 end
 
 """
-Upload a Julia object to device memory.
+Upload objects from Host to Device.
 
-Note this does only copy the object itself, and does not peek through the object in order to
-get access the underlying data like `Ref` does. Consequently, this functionality should not
-be used to transfer arrays, see `CuArray` for that.
+Note this does only upload the object itself, and does not peek through it in order to get
+to the underlying data (like `Ref` does). Consequently, this functionality should not be
+used to transfer eg. arrays, use `CuArray`'s `copy` functionality for that.
 """
 function upload{T}(dst::DevicePtr{T}, src::T, len::Integer=1)
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
@@ -74,7 +89,7 @@ function upload{T}(dst::DevicePtr{T}, src::T, len::Integer=1)
 end
 
 """
-Download a Julia object from device memory.
+Download objects from Device to Host.
 
 See `upload` for notes on how arguments are processed.
 """
