@@ -89,9 +89,9 @@ function emit_allocations(args, codegen_tt, call_tt)
         if call_tt.parameters[i] == Ptr{codegen_tt.parameters[i]}
             @gensym dev_arg
             alloc = quote
-                $dev_arg = cualloc($(codegen_tt.parameters[i]))
-                # TODO: we're never freeing this
-                copy!($dev_arg, $(args[i]))
+                $dev_arg = Mem.alloc($(codegen_tt.parameters[i]))
+                # TODO: we're never freeing this (use refcounted single-value array?)
+                Mem.upload($dev_arg, $(args[i]))
             end
             append!(kernel_allocations.args, alloc.args)
             args[i] = dev_arg
