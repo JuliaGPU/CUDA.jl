@@ -22,7 +22,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
         end
 
         len = prod(shape)
-        devptr = cualloc(T, len)
+        devptr = Mem.alloc(T, len)
 
         ctx = CuCurrentContext()
         obj = new(devptr, shape, len, ctx)
@@ -39,7 +39,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
 end
 
 function finalize(a::CuArray)
-    free(a.devptr)
+    Mem.free(a.devptr)
     untrack(a.ctx, a)
 end
 
@@ -67,25 +67,21 @@ Base.size(g::CuArray) = g.shape
 
 ## memory management
 
-"Copy an array from device to host in place"
-function Base.copy!{T}(dst::Array{T}, src::CuArray{T})
-    if length(dst) != length(src) 
-        throw(ArgumentError("Inconsistent array length."))
-    end
-    nbytes = length(src) * sizeof(T)
-    @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            pointer(dst), src.devptr.ptr, nbytes)
-    return dst
-end
-
 "Copy an array from host to device in place"
 function Base.copy!{T}(dst::CuArray{T}, src::Array{T})
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))  
     end
-    nbytes = length(src) * sizeof(T)
-    @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst.devptr.ptr, pointer(src), nbytes)
+    Mem.upload(dst.devptr, pointer(src), length(src) * sizeof(T))
+    return dst
+end
+
+"Copy an array from device to host in place"
+function Base.copy!{T}(dst::Array{T}, src::CuArray{T})
+    if length(dst) != length(src)
+        throw(ArgumentError("Inconsistent array length."))
+    end
+    Mem.download(pointer(dst), src.devptr, length(src) * sizeof(T))
     return dst
 end
 
@@ -94,11 +90,12 @@ function Base.copy!{T}(dst::CuArray{T}, src::CuArray{T})
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
-    nbytes = length(src) * sizeof(T)
-    @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst.devptr.ptr, src.devptr.ptr, nbytes)
+    Mem.transfer(dst.devptr, src.devptr, length(src) * sizeof(T))
     return dst
 end
+
+
+### convenience functions
 
 "Transfer an array from host to device, returning a pointer on the device"
 CuArray{T,N}(a::Array{T,N}) = copy!(CuArray{T}(size(a)), a)

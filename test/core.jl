@@ -197,12 +197,12 @@ end
 ## memory
 
 let
-    ptr = cualloc(Int, 1)
-    free(ptr)
+    ptr = Mem.alloc(Int, 1)
+    Mem.free(ptr)
 
-    @test_throws ArgumentError cualloc(Function, 1)   # abstract
-    @test_throws ArgumentError cualloc(Array{Int}, 1) # non-leaftype
-    @test_throws ArgumentError cualloc(Int, 0)
+    @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract
+    @test_throws ArgumentError Mem.alloc(Array{Int}, 1) # non-leaftype
+    @test_throws ArgumentError Mem.alloc(Int, 0)
 end
 
 let
@@ -210,9 +210,9 @@ let
         foo::Int
         bar::Int
     end
-    ptr = cualloc(MutablePtrFree, 1)
-    copy!(ptr, MutablePtrFree(0,0))
-    free(ptr)
+    ptr = Mem.alloc(MutablePtrFree, 1)
+    Mem.upload(ptr, MutablePtrFree(0,0))
+    Mem.free(ptr)
 end
 
 let
@@ -220,15 +220,15 @@ let
         foo::Int
         bar::String
     end
-    ptr = cualloc(MutableNonPtrFree, 1)
-    @test_throws ArgumentError copy!(ptr, MutableNonPtrFree(0,""))
-    free(ptr)
+    ptr = Mem.alloc(MutableNonPtrFree, 1)
+    @test_throws ArgumentError Mem.upload(ptr, MutableNonPtrFree(0,""))
+    Mem.free(ptr)
 end
 
 
 let
     dev_array = CuArray{Int32}(10)
-    cumemset(dev_array.devptr, UInt32(0), 10)
+    Mem.set(dev_array.devptr, UInt32(0), 10)
     host_array = Array(dev_array)
 
     @test all(x -> x==0, host_array)
