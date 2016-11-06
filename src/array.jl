@@ -53,7 +53,7 @@ Base.unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
 Base.pointer(a::CuArray) = a.devptr
 
 Base.similar{T}(a::CuArray{T,1})                    = CuArray{T}(length(a))
-Base.similar{T}(a::CuArray{T,1}, S::Type)           = CuArray{S,1}(length(a))
+Base.similar{T}(a::CuArray{T,1}, S::Type)           = CuArray{S}(length(a))
 Base.similar{T}(a::CuArray{T}, m::Int)              = CuArray{T}(m)
 Base.similar{N}(a::CuArray, T::Type, dims::Dims{N}) = CuArray{T,N}(dims)
 Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)

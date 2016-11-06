@@ -334,6 +334,10 @@ let
     CuArray{Int}((1,2))
 
     # similar
+    let a = CuArray{Int}(2)
+        similar(a)
+        similar(a, Float32)
+    end
     let a = CuArray{Int}((1,2))
         similar(a)
         similar(a, Float32)
@@ -347,23 +351,54 @@ let
     @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), devptr)) == devptr
     @test pointer(CuArray{Int,1}((1,), devptr)) == devptr
 
-    # negative test cases
-    a = rand(Float32, 10)
-    ad = CuArray{Float32}(5)
-    @test_throws ArgumentError copy!(ad, a)
-    @test_throws ArgumentError copy!(a, ad)
+    # copy: size mismatches
+    let
+        a = rand(Float32, 10)
+        ad = CuArray{Float32}(5)
+        bd = CuArray{Float32}(10)
 
-    # copy device -> device
-    bd = copy(ad)
-    @test ad != bd
-    @test Array(ad) == Array(bd)
+        @test_throws ArgumentError copy!(ad, a)
+        @test_throws ArgumentError copy!(a, ad)
+        @test_throws ArgumentError copy!(ad, bd)
+    end
+
+    # copy to and from device
+    let
+        cpu = rand(Float32, 10)
+        gpu = CuArray{Float32}(10)
+
+        copy!(cpu, gpu)
+
+        cpu_back = Array{Float32}(10)
+        copy!(cpu_back, gpu)
+        @assert cpu == cpu_back
+    end
+
+    # same, but with convenience functions
+    let
+        cpu = rand(Float32, 10)
+
+        gpu = CuArray(cpu)
+        cpu_back = Array(gpu)
+
+        @assert cpu == cpu_back
+    end
+
+    # copy on device
+    let gpu = CuArray(rand(Float32, 10))
+        gpu_copy = copy(gpu)
+        @test gpu != gpu_copy
+        @test Array(gpu) == Array(gpu_copy)
+    end
 
     # utility
-    @test ndims(ad) == 1
-    @test size(ad, 1) == 5
-    @test size(ad, 2) == 1
-    @test eltype(ad) == Float32
-    @test eltype(typeof(ad)) == Float32
+    let gpu = CuArray{Float32}(5)
+        @test ndims(gpu) == 1
+        @test size(gpu, 1) == 5
+        @test size(gpu, 2) == 1
+        @test eltype(gpu) == Float32
+        @test eltype(typeof(gpu)) == Float32
+    end
 end
 
 let
