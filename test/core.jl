@@ -453,6 +453,12 @@ let
         @test eltype(gpu) == Float32
         @test eltype(typeof(gpu)) == Float32
     end
+
+    # printing
+    let gpu = CuArray([42])
+        show(DevNull, gpu)
+        show(DevNull, "text/plain", gpu)
+    end
 end
 
 let

@@ -64,6 +64,9 @@ Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
 Base.length(g::CuArray) = g.len
 Base.size(g::CuArray) = g.shape
 
+Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
+    Base.showarray(io, Array(a), repr; kwargs...)
+
 
 ## memory management
 
