@@ -66,10 +66,6 @@ end
 
 
 function __init_logging__()
-    # TODO: assign TRACE and DEBUG at run-time, not using the pre-compiled code
-    #       when the values are different?
-    #       or make it work like CPU_CORES dose after Julia/#16219
-
     if TRACE
         trace("CUDAdrv.jl is running in trace mode, this will generate a lot of additional output")
     elseif DEBUG
