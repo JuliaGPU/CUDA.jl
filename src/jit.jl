@@ -355,7 +355,16 @@ function cufunction(dev::CuDevice, func::ANY, types::ANY)
     tt = Base.to_tuple_type(types)
 
     (module_asm, module_entry) = compile_function(dev, func, tt)
-    cuda_mod = CuModule(module_asm)
+
+    # enable debug options based on Julia's debug setting
+    jit_options = Dict{CUDAdrv.CUjit_option,Any}()
+    if DEBUG || Base.JLOptions().debug_level >= 1
+        jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
+    end
+    if DEBUG || Base.JLOptions().debug_level >= 2
+        jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
+    end
+    cuda_mod = CuModule(module_asm, jit_options)
     cuda_fun = CuFunction(cuda_mod, module_entry)
 
     return cuda_fun, cuda_mod
