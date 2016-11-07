@@ -17,20 +17,10 @@ immutable CuModule
     If the Julia debug level is 2 or higher (or, on 0.5, if CUDAdrv is loaded in DEBUG
     mode), line number and debug information will be requested when loading the PTX code.
     """
-    function CuModule(data)
+    function CuModule(data, options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
         handle_ref = Ref{CuModule_t}()
 
-        options = Dict{CUjit_option,Any}()
         options[ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
-        @static if VERSION >= v"0.6.0-dev.779"
-            # TODO: put this in CUDAnative and document it
-            if DEBUG || Base.JLOptions().debug_level >= 1
-                options[GENERATE_LINE_INFO] = true
-            end
-            if DEBUG || Base.JLOptions().debug_level >= 2
-                options[GENERATE_DEBUG_INFO] = true
-            end
-        end
         @static if DEBUG
             options[INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
             options[LOG_VERBOSE] = true
