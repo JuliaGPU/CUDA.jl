@@ -10,6 +10,10 @@ using LLVM
 import CUDAdrv: debug, DEBUG, trace, TRACE
 
 
+ext = joinpath(dirname(@__FILE__), "..", "deps", "ext.jl")
+isfile(ext) || error("Unable to load $ext\n\nPlease re-run Pkg.build(\"CUDAnative\"), and restart Julia.")
+include(ext)
+
 include("util.jl")
 include("types.jl")
 
@@ -20,8 +24,10 @@ include("array.jl")
 
 
 function __init__()
+    CUDAdrv.version() != cuda_version && warn("CUDA library has been modified. Please re-run Pkg.build(\"CUDAnative\") and restart Julia.")
+    LLVM.version() != llvm_version && warn("CUDA library has been modified. Please re-run Pkg.build(\"CUDAnative\") and restart Julia.")
+
     __init_util__()
-    __init_jit__()
 end
 
 end
