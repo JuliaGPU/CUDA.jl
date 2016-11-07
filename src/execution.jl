@@ -24,7 +24,7 @@ function convert_arguments(args, tt)
         if ct != t
             argtypes[i] = ct
             if ct <: Ptr
-                argexprs[i] = :( unsafe_convert($ct, $(argexprs[i])) )
+                argexprs[i] = :( Base.unsafe_convert($ct, $(argexprs[i])) )
             else
                 argexprs[i] = :( convert($ct, $(argexprs[i])) )
             end

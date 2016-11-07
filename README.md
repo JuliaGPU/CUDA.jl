@@ -221,10 +221,12 @@ like `cuda-memcheck`. The functionality (which corresponds with `nvcc -lineinfo`
 when the Julia debug info level is 1 or higher.
 
 
-## Performance gotcha's
+## Bugs and quirks
 
-Apart from the standard GPU optimization tips, there are a few special considerations when
-using CUDAnative.jl.
+### Recursive functions
+
+Recursive functions, either directly or indirectly, are currently not supported.
+
 
 ### Object arguments
 
@@ -236,4 +238,24 @@ Although this issue will probably get fixed in the future, a workaround for now 
 all arguments are `bitstype` (ie. declared as primitive `bitstype` types, not to be confused
 with the `isbits` property). Specific to arrays, you can access and pass the underlying
 device pointer by means of the `ptr` field of `CuArray` objects, in addition to the size of
-the array.
+the array:
+
+```julia
+function inc_slow(a)
+    a[threadIdx().x] += 1
+
+    return nothing
+end
+
+@cuda dev (1,3) inc_slow(d_a)                       # implicit alloc & memcpy
+
+
+function inc_fast(a_ptr, a_len)
+    a = CuDeviceArray(a_len, a_ptr)
+    a[threadIdx().x] += 1
+
+    return nothing
+end
+
+@cuda dev (1,3) inc_fast(pointer(d_a), length(d_a)) # no implicit memory ops
+```
