@@ -11,6 +11,8 @@ import CUDAdrv: @apicall
 
 ## pointer-based
 
+# TODO: single copy function, with `memcpykind(Ptr, Ptr)` (cfr. CUDArt)?
+
 """Allocates `bytesize` bytes of linear memory on the device and returns a pointer to the
 allocated memory. The allocated memory is suitably aligned for any kind of variable. The
 memory is not cleared."""
@@ -66,14 +68,15 @@ end
 
 ## object-based
 
+# TODO: varargs functions for uploading multiple objects at once?
+
 function alloc{T}(::Type{T}, len::Integer=1)
     if T.abstract || !T.isleaftype
         throw(ArgumentError("cannot represent abstract or non-leaf type"))
     end
     sizeof(T) == 0 && throw(ArgumentError("cannot represent ghost types"))
 
-    bytesize = len * sizeof(T)
-    return convert(DevicePtr{T}, alloc(bytesize))
+    return convert(DevicePtr{T}, alloc(len*sizeof(T)))
 end
 
 """
@@ -83,9 +86,14 @@ Note this does only upload the object itself, and does not peek through it in or
 to the underlying data (like `Ref` does). Consequently, this functionality should not be
 used to transfer eg. arrays, use `CuArray`'s `copy` functionality for that.
 """
-function upload{T}(dst::DevicePtr{T}, src::T, len::Integer=1)
+function upload{T}(dst::DevicePtr{T}, src::T)
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
-    upload(dst, Base.RefValue(src), len*sizeof(T))
+    upload(dst, Base.RefValue(src), sizeof(T))
+end
+function upload{T}(src::T)
+    dst = alloc(T)
+    upload(dst, Base.RefValue(src), sizeof(T))
+    return dst
 end
 
 """
@@ -93,10 +101,10 @@ Download objects from Device to Host.
 
 See `upload` for notes on how arguments are processed.
 """
-function download{T}(src::DevicePtr{T}, len::Integer=1)
+function download{T}(src::DevicePtr{T})
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     dst = Base.RefValue{T}()
-    download(dst, src, len*sizeof(T))
+    download(dst, src, sizeof(T))
     return dst[]
 end
 

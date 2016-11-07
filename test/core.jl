@@ -255,6 +255,11 @@ let
 
     obj_copy = Mem.download(ptr)
     @test obj == obj_copy
+
+    ptr2 = Mem.upload(obj)
+
+    obj_copy2 = Mem.download(ptr2)
+    @test obj == obj_copy2
 end
 
 let
