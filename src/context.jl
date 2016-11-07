@@ -97,12 +97,14 @@ activate(ctx::CuContext) = @apicall(:cuCtxSetCurrent, (CuContext_t,), ctx)
 
 "Create a context, and activate it temporarily."
 function CuContext(f::Function, args...)
-    ctx = CuContext(args...)    # implicitly pushes
+    # NOTE: this could be implemented with context pushing and popping,
+    #       but that functionality / our implementation of it hasn't been reliable
+    old_ctx = CuCurrentContext()
+    ctx = CuContext(args...)    # implicitly activates
     try
         f(ctx)
     finally
-        handle_ref = Ref{CuContext_t}()
-        @apicall(:cuCtxPopCurrent, (Ptr{CuContext_t},), handle_ref[])
+        activate(old_ctx)
     end
 end
 
