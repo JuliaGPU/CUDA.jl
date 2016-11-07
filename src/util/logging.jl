@@ -1,12 +1,15 @@
+if false
+# debug version of `print_with_color` to print after I/O streams have been finalized
+Base.print_with_color(color::Union{Int, Symbol}, io::IO, msg::AbstractString...) =
+    ccall(:write, Cssize_t, (Cint, Cstring, Csize_t), 1, join(msg), length(join(msg)))
+end
+
 const TRACE = haskey(ENV, "TRACE")
 "Display a trace message. Only results in actual printing if the TRACE environment variable
 is set."
 @inline function trace(io::IO, msg...; prefix="TRACE: ", line=true)
     @static if TRACE
-        Base.print_with_color(:cyan, io, prefix, chomp(string(msg...)))
-        if line
-            println(io)
-        end
+        Base.print_with_color(:cyan, io, prefix, chomp(string(msg...)), line?"\n":"")
     end
 end
 @inline trace(msg...; kwargs...) = trace(STDERR, msg...; kwargs...)
@@ -16,10 +19,7 @@ const DEBUG = TRACE || haskey(ENV, "DEBUG")
 variable is set."
 @inline function debug(io::IO, msg...; prefix="DEBUG: ", line=true)
     @static if DEBUG
-        Base.print_with_color(:green, io, prefix, chomp(string(msg...)))
-        if line
-            println(io)
-        end
+        Base.print_with_color(:green, io, prefix, chomp(string(msg...)), line?"\n":"")
     end
 end
 @inline debug(msg...; kwargs...) = debug(STDERR, msg...; kwargs...)
