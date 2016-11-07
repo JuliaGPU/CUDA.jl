@@ -1,7 +1,7 @@
 # Context management
 
 export
-    CuContext, CuCurrentContext,
+    CuContext, CuCurrentContext, activate,
     synchronize, device
 
 @enum(CUctx_flags, SCHED_AUTO           = 0x00,
@@ -61,7 +61,7 @@ function finalize(ctx::CuContext)
 end
 
 Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
-    throw(ArgumentError("CuContext cannot be copied"))
+    error("CuContext cannot be copied")
 
 # finalizers are run out-of-order (see JuliaLang/julia#3067), so we need to keep it alive as
 # long as there's any consumer to prevent the context getting finalized ahead of consumers
@@ -111,8 +111,8 @@ end
 
 function device(ctx::CuContext)
     if CuCurrentContext() != ctx
-        # TODO: we could push and pop here
-        throw(ArgumentError("context should be active"))
+        # TODO: should we push and pop here?
+        error("context should be active")
     end
 
     # TODO: cuCtxGetDevice returns the device ordinal, but as a CUDevice*?

@@ -95,7 +95,7 @@ See `upload` for notes on how arguments are processed.
 """
 function download{T}(src::DevicePtr{T}, len::Integer=1)
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
-    dst = RefValue{T}()
+    dst = Base.RefValue{T}()
     download(dst, src, len*sizeof(T))
     return dst[]
 end

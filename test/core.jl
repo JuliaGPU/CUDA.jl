@@ -2,9 +2,11 @@ using CUDAdrv
 
 using Compat
 
+
 ## pointer
 
 # construction
+@test_throws InexactError DevicePtr{Void}(C_NULL)
 @test_throws InexactError DevicePtr(C_NULL)
 
 # conversion
@@ -80,6 +82,16 @@ ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
 @test ctx == CuCurrentContext()
 
+@test_throws ErrorException deepcopy(ctx)
+
+let ctx2 = CuContext(dev)
+    @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
+    activate(ctx)
+    @test ctx == CuCurrentContext()
+
+    @test_throws ErrorException device(ctx2)
+end
+
 
 ## version
 
@@ -130,6 +142,11 @@ let
 
     md = CuModule(ptx)
     vadd = CuFunction(md, "vadd")
+
+    CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx")) do md2
+        @test md != md2
+    end
+
     unload(md)
 end
 
@@ -196,10 +213,51 @@ end
 
 ## memory
 
+# pointer-based
 let
-    ptr = Mem.alloc(Int, 1)
-    Mem.free(ptr)
+    obj = 42
 
+    ptr = Mem.alloc(sizeof(obj))
+
+    Mem.set(ptr, Cuint(0), sizeof(Int)÷sizeof(Cuint))
+
+    Mem.upload(ptr, Ref(obj), sizeof(obj))
+
+    obj_copy = Ref(0)
+    Mem.download(Ref(obj_copy), ptr, sizeof(obj))
+    @test obj == obj_copy[]
+
+    ptr2 = Mem.alloc(sizeof(obj))
+    Mem.transfer(ptr2, ptr, sizeof(obj))
+    obj_copy2 = Ref(0)
+    Mem.download(Ref(obj_copy2), ptr2, sizeof(obj))
+    @test obj == obj_copy2[]
+
+    Mem.free(ptr2)
+    Mem.free(ptr)
+end
+
+let
+    dev_array = CuArray{Int32}(10)
+    Mem.set(dev_array.devptr, UInt32(0), 10)
+    host_array = Array(dev_array)
+
+    @test all(x -> x==0, host_array)
+end
+
+# object-based
+let
+    obj = 42
+
+    ptr = Mem.alloc(typeof(obj))
+
+    Mem.upload(ptr, obj)
+
+    obj_copy = Mem.download(ptr)
+    @test obj == obj_copy
+end
+
+let
     @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract
     @test_throws ArgumentError Mem.alloc(Array{Int}, 1) # non-leaftype
     @test_throws ArgumentError Mem.alloc(Int, 0)
@@ -226,20 +284,15 @@ let
 end
 
 
-let
-    dev_array = CuArray{Int32}(10)
-    Mem.set(dev_array.devptr, UInt32(0), 10)
-    host_array = Array(dev_array)
-
-    @test all(x -> x==0, host_array)
-end
-
-
 ## stream
 
 let
     s = CuStream()
     synchronize(s)
+    let s2 = CuStream()
+        @test s != s2
+        destroy(s2)
+    end
     destroy(s)
 
     synchronize(CuDefaultStream())
@@ -312,6 +365,7 @@ end
 let
     start = CuEvent()
     stop = CuEvent()
+    @test start != stop
     record(start)
     record(stop)
     synchronize(stop)
