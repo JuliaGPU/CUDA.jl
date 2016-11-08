@@ -136,7 +136,7 @@ function irgen(func::ANY, tt::ANY)
             unsafe_delete!(mod, f)
         else
             # only occurs in debug builds
-            delete!(attributes(f), LLVM.API.LLVMStackProtectReqAttribute)
+            delete!(function_attributes(f), EnumAttribute("sspreq"))
 
             # make function names safe for ptxas
             # (LLVM ought to do this, see eg. D17738 and D19126), but fails
