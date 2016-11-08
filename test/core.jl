@@ -80,18 +80,6 @@ CUDAdrv.vendor()
 dev = CuDevice(0)
 ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
-@test ctx == CuCurrentContext()
-
-@test_throws ErrorException deepcopy(ctx)
-
-let ctx2 = CuContext(dev)
-    @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
-    activate(ctx)
-    @test ctx == CuCurrentContext()
-
-    @test_throws ErrorException device(ctx2)
-end
-
 
 ## version
 
@@ -110,15 +98,33 @@ capability(dev)
 
 ## context
 
-@test device(ctx) == dev
-synchronize(ctx)
-synchronize()
+@test ctx == CuCurrentContext()
+@test ctx === CuCurrentContext()
 
+@test_throws ErrorException deepcopy(ctx)
+
+let ctx2 = CuContext(dev)
+    @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
+    activate(ctx)
+    @test ctx == CuCurrentContext()
+
+    @test_throws ErrorException device(ctx2)
+
+    destroy(ctx2)
+end
+
+instances = length(CUDAdrv.context_instances)
 CuContext(dev) do ctx2
+    @test length(CUDAdrv.context_instances) == instances+1
     @test ctx2 == CuCurrentContext()
     @test ctx != ctx2
 end
+@test length(CUDAdrv.context_instances) == instances
 @test ctx == CuCurrentContext()
+
+@test device(ctx) == dev
+synchronize(ctx)
+synchronize()
 
 
 ## module
@@ -485,7 +491,7 @@ end
 ## gc
 
 # force garbage collection (this makes finalizers run before STDOUT is destroyed)
-ctx = nothing
+destroy(ctx)
 for i in 1:5
     gc()
 end

@@ -1,7 +1,7 @@
 # Context management
 
 export
-    CuContext, CuCurrentContext, activate,
+    CuContext, destroy, CuCurrentContext, activate,
     synchronize, device
 
 @enum(CUctx_flags, SCHED_AUTO           = 0x00,
@@ -22,41 +22,61 @@ Create a CUDA context for device. A context on the GPU is analogous to a process
 CPU, with its own distinct address space and allocated resources. When a context is
 destroyed, the system cleans up the resources allocated to it.
 
-Contexts are reference counted based on the underlying handle. If all outstanding references
-to a context have been dropped, and the reference count has consequently dropped to 0, the
-context will be destroyed.
+Contexts are unique instances which need to be `destroy`ed after use. For automatic
+management, prefer the `do` block syntax, which implicitly calls `destroy`.
 """
 type CuContext
     handle::CuContext_t
 
     function CuContext(handle::CuContext_t)
-        obj = new(handle)
-        if handle != C_NULL
-            instances = get(context_instances, handle, 0)
-            context_instances[handle] = instances+1
-            finalizer(obj, finalize)
+        handle == C_NULL && return new(C_NULL)
+
+        # we need unique context instances for garbage collection reasons
+        #
+        # refcounting the context handle doesn't work, because having multiple instances can
+        # cause the first instance (if without any use) getting gc'd before a new instance
+        # (eg. through getting the current context, _with_ actual uses) is created
+        #
+        # instead, we force unique instances, and keep a reference alive in a global dict.
+        # this prevents contexts from getting collected, requiring the user to destroy it.
+        return get!(context_instances, handle) do
+            new(handle)
         end
-        obj
     end
 end
-const context_instances = Dict{CuContext_t,Int}()
+const context_instances = Dict{CuContext_t,CuContext}()
+
+"""
+Mark a context for destruction.
+
+This does not immediately destroy the context, as there might still be dependent resources
+which have not been collected yet.  It will get freed as soon as all outstanding instances
+have gone out-of-scope.
+"""
+function destroy(ctx::CuContext)
+    @static if DEBUG
+        remaining_consumers = filter((k,v) -> v == ctx, context_consumers)
+        if length(remaining_consumers) > 0
+            debug("Request to destroy context $ctx while there are still $(length(remaining_consumers)) remaining consumers")
+        end
+    end
+    delete!(context_instances, ctx.handle)
+    ctx = CuContext(C_NULL)
+    return
+end
 
 Base.unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
 Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
 
 function finalize(ctx::CuContext)
-    instances = context_instances[ctx.handle]
-    context_instances[ctx.handle] = instances-1
-
-    if instances == 1
-        delete!(context_instances, ctx.handle)
-        # during teardown, finalizer order does not respect _any_ order
-        # (ie. it doesn't respect active instances carefully set-up in `context_consumers`)
-        # TODO: can we check this only happens during teardown?
-        remaining_consumers = filter((k,v) -> v == ctx, context_consumers)
-        if length(remaining_consumers) == 0
-            @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
-        end
+    # during teardown, finalizer order does not respect _any_ order
+    # (ie. it doesn't respect active instances carefully set-up in `context_consumers`)
+    # TODO: can we check this only happens during teardown?
+    remaining_consumers = filter((k,v) -> v == ctx, context_consumers)
+    if length(remaining_consumers) == 0
+        @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
+    else
+        trace("Not destroying context $ctx because of out-of-order finalizer run")
     end
 end
 
@@ -104,6 +124,7 @@ function CuContext(f::Function, args...)
     try
         f(ctx)
     finally
+        destroy(ctx)
         activate(old_ctx)
     end
 end
