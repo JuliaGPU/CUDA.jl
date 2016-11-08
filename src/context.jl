@@ -55,9 +55,9 @@ have gone out-of-scope.
 """
 function destroy(ctx::CuContext)
     @static if DEBUG
-        remaining_consumers = filter((k,v) -> v == ctx, context_consumers)
-        if length(remaining_consumers) > 0
-            debug("Request to destroy context $ctx while there are still $(length(remaining_consumers)) remaining consumers")
+        children = length(gc_children(ctx))
+        if children > 0
+            debug("Request to destroy context $ctx while there are still $children remaining consumers")
         end
     end
     delete!(context_instances, ctx.handle)
@@ -70,10 +70,10 @@ Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
 
 function finalize(ctx::CuContext)
     # during teardown, finalizer order does not respect _any_ order
-    # (ie. it doesn't respect active instances carefully set-up in `context_consumers`)
+    # (ie. it doesn't respect active instances carefully set-up in `gc_keepalive`)
     # TODO: can we check this only happens during teardown?
-    remaining_consumers = filter((k,v) -> v == ctx, context_consumers)
-    if length(remaining_consumers) == 0
+    children = length(gc_children(ctx))
+    if children == 0
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
     else
         trace("Not destroying context $ctx because of out-of-order finalizer run")
@@ -82,22 +82,6 @@ end
 
 Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
     error("CuContext cannot be copied")
-
-# finalizers are run out-of-order (see JuliaLang/julia#3067), so we need to keep it alive as
-# long as there's any consumer to prevent the context getting finalized ahead of consumers
-# NOTE: the Dict is inversed, to make the more common track/untrack operation cheap
-const context_consumers = Dict{Ptr{Void},CuContext}()
-function track(ctx::CuContext, consumer::ANY)
-    ptr = Base.pointer_from_objref(consumer)
-    haskey(context_consumers, ptr) && error("objects can only use a single context")
-    context_consumers[ptr] = ctx
-end
-function untrack(ctx::CuContext, consumer::ANY)
-    ptr = Base.pointer_from_objref(consumer)
-    haskey(context_consumers, ptr) || error("track/untrack mismatch")
-    context_consumers[ptr] == ctx || error("track/untrack mismatch on context")
-    delete!(context_consumers, ptr)
-end
 
 function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
     handle_ref = Ref{CuContext_t}()

@@ -497,5 +497,5 @@ for i in 1:5
 end
 
 # test there's no outstanding contexts or consumers thereof
-@test length(CUDAdrv.context_consumers) == 0
+@test length(CUDAdrv.gc_keepalive) == 0
 @test length(CUDAdrv.context_instances) == 0

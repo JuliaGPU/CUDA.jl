@@ -26,7 +26,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
 
         ctx = CuCurrentContext()
         obj = new(devptr, shape, len, ctx)
-        track(ctx, obj)
+        gc_track(ctx, obj)
         finalizer(obj, finalize)
 
         obj
@@ -40,7 +40,7 @@ end
 
 function finalize(a::CuArray)
     Mem.free(a.devptr)
-    untrack(a.ctx, a)
+    gc_untrack(a.ctx, a)
 end
 
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)

@@ -7,6 +7,7 @@ import Compat.String
 
 include("util/logging.jl")
 
+include("gc.jl")
 include("pointer.jl")
 
 include("errors.jl")
