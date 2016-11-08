@@ -16,3 +16,7 @@ function memset(a, val)
 end
 
 @cuda dev (1,11) memset(a, 0f0)
+
+synchronize()
+
+destroy(ctx)

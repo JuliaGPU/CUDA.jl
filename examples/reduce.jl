@@ -111,3 +111,5 @@ gpu_reduce(dev, +, gpu_a, gpu_b)
 println(Array(gpu_b)[1])
 
 @assert cpu_a ≈ Array(gpu_b)[1]
+
+destroy(ctx)
