@@ -45,7 +45,7 @@ function repr_indented(ex; prefix=" "^7, abbrev=true)
         if isa(ex, Array)
             T = eltype(ex)
             dims = join(size(ex), " by ")
-            if isbits(T) && zeros(ex) == ex     # NOTE: not all types have zero() defined
+            if method_exists(zero, (T,)) && zeros(ex) == ex
                 str = "$T[$dims zeros]"
             else
                 str = "$T[$dims elements]"
