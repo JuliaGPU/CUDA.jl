@@ -9,7 +9,6 @@ export
 type CuArray{T,N} <: AbstractArray{T,N}
     devptr::DevicePtr{T}
     shape::NTuple{N,Int}
-    len::Int
 
     ctx::CuContext
 
@@ -25,7 +24,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
         devptr = Mem.alloc(T, len)
 
         ctx = CuCurrentContext()
-        obj = new(devptr, shape, len, ctx)
+        obj = new(devptr, shape, ctx)
         gc_track(ctx, obj)
         finalizer(obj, finalize)
 
@@ -33,8 +32,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
     end
 
     function CuArray(shape::NTuple{N,Int}, devptr::DevicePtr{T})
-        len = prod(shape)
-        new(devptr, shape, len, CuContext(C_NULL))
+        new(devptr, shape, CuContext(C_NULL))
     end
 end
 
@@ -64,8 +62,8 @@ Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
 
 ## array interface
 
-Base.length(g::CuArray) = g.len
 Base.size(g::CuArray) = g.shape
+Base.length(g::CuArray) = prod(g.shape)
 
 Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
     Base.showarray(io, Array(a), repr; kwargs...)
