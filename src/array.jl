@@ -10,8 +10,6 @@ type CuArray{T,N} <: AbstractArray{T,N}
     devptr::DevicePtr{T}
     shape::NTuple{N,Int}
 
-    ctx::CuContext
-
     function CuArray(shape::NTuple{N,Int})
         if !isbits(T)
             # non-isbits types results in an array with references to CPU objects
@@ -23,29 +21,27 @@ type CuArray{T,N} <: AbstractArray{T,N}
         len = prod(shape)
         devptr = Mem.alloc(T, len)
 
-        ctx = CuCurrentContext()
-        obj = new(devptr, shape, ctx)
-        gc_track(ctx, obj)
+        obj = new(devptr, shape)
+        gc_track(devptr.ctx, obj)
         finalizer(obj, finalize)
-
-        obj
+        return obj
     end
 
     function CuArray(shape::NTuple{N,Int}, devptr::DevicePtr{T})
-        new(devptr, shape, CuContext(C_NULL))
+        new(devptr, shape)
     end
 end
 
 function finalize(a::CuArray)
     Mem.free(a.devptr)
-    gc_untrack(a.ctx, a)
+    gc_untrack(a.devptr.ctx, a)
 end
 
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
 function Base.:(==)(a::CuArray, b::CuArray)
-    return a.ctx == b.ctx && pointer(a) == pointer(b)
+    return pointer(a) == pointer(b)
 end
 
 Base.isequal(a::CuArray, b::CuArray) = a == b

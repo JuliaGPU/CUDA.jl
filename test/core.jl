@@ -5,14 +5,9 @@ using Compat
 
 ## pointer
 
-# construction
-@test_throws InexactError DevicePtr{Void}(C_NULL)
-@test_throws InexactError DevicePtr(C_NULL)
-
-# conversion
-Base.unsafe_convert(Ptr{Void}, CU_NULL)
+# conversion to Ptr
 @test_throws InexactError convert(Ptr{Void}, CU_NULL)
-@test_throws InexactError convert(DevicePtr{Void}, C_NULL)
+Base.unsafe_convert(Ptr{Void}, CU_NULL)
 
 let
     @test eltype(DevicePtr{Void}) == Void
