@@ -20,8 +20,8 @@ Requirements:
 * CUDA hardware
 
 ```
-Pkg.add("CUDA")
-Pkg.test("CUDA")
+Pkg.add("CUDAdrv")
+Pkg.test("CUDAdrv")
 ```
 
 
