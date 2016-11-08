@@ -49,6 +49,9 @@ end
 function Base.:(==)(a::CuArray, b::CuArray)
     return a.ctx == b.ctx && pointer(a) == pointer(b)
 end
+
+Base.isequal(a::CuArray, b::CuArray) = a == b
+
 Base.unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
 Base.pointer(a::CuArray) = a.devptr
 
@@ -67,6 +70,11 @@ Base.size(g::CuArray) = g.shape
 Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
     Base.showarray(io, Array(a), repr; kwargs...)
 
+function Base.hash(a::CuArray, h::UInt)
+    h += hash(size(a))
+    h += hash(pointer(a))
+    return h
+end
 
 ## memory management
 
