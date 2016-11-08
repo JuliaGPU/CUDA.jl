@@ -24,7 +24,7 @@ This is a low-level call, prefer to use `cudacall` instead.
 """
 function launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
                 shmem::Int, stream::CuStream, args)
-    all([isbits(arg) || isa(arg, DevicePtr) for arg in args]) ||
+    all(isbits(arg) || isa(arg, DevicePtr) for arg in args) ||
         throw(ArgumentError("Arguments to kernel should be bitstype or device pointer"))
     args = [isa(arg, DevicePtr) ? arg.ptr : arg for arg in args]  # extract inner Ptr
 
