@@ -5,14 +5,9 @@ using Compat
 
 ## pointer
 
-# construction
-@test_throws InexactError DevicePtr{Void}(C_NULL)
-@test_throws InexactError DevicePtr(C_NULL)
-
-# conversion
-Base.unsafe_convert(Ptr{Void}, CU_NULL)
+# conversion to Ptr
 @test_throws InexactError convert(Ptr{Void}, CU_NULL)
-@test_throws InexactError convert(DevicePtr{Void}, C_NULL)
+Base.unsafe_convert(Ptr{Void}, CU_NULL)
 
 let
     @test eltype(DevicePtr{Void}) == Void
@@ -80,18 +75,6 @@ CUDAdrv.vendor()
 dev = CuDevice(0)
 ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
-@test ctx == CuCurrentContext()
-
-@test_throws ErrorException deepcopy(ctx)
-
-let ctx2 = CuContext(dev)
-    @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
-    activate(ctx)
-    @test ctx == CuCurrentContext()
-
-    @test_throws ErrorException device(ctx2)
-end
-
 
 ## version
 
@@ -110,15 +93,33 @@ capability(dev)
 
 ## context
 
-@test device(ctx) == dev
-synchronize(ctx)
-synchronize()
+@test ctx == CuCurrentContext()
+@test ctx === CuCurrentContext()
 
+@test_throws ErrorException deepcopy(ctx)
+
+let ctx2 = CuContext(dev)
+    @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
+    activate(ctx)
+    @test ctx == CuCurrentContext()
+
+    @test_throws ErrorException device(ctx2)
+
+    destroy(ctx2)
+end
+
+instances = length(CUDAdrv.context_instances)
 CuContext(dev) do ctx2
+    @test length(CUDAdrv.context_instances) == instances+1
     @test ctx2 == CuCurrentContext()
     @test ctx != ctx2
 end
+@test length(CUDAdrv.context_instances) == instances
 @test ctx == CuCurrentContext()
+
+@test device(ctx) == dev
+synchronize(ctx)
+synchronize()
 
 
 ## module
@@ -485,11 +486,11 @@ end
 ## gc
 
 # force garbage collection (this makes finalizers run before STDOUT is destroyed)
-ctx = nothing
+destroy(ctx)
 for i in 1:5
     gc()
 end
 
 # test there's no outstanding contexts or consumers thereof
-@test length(CUDAdrv.context_consumers) == 0
+@test length(CUDAdrv.gc_keepalive) == 0
 @test length(CUDAdrv.context_instances) == 0

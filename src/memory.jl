@@ -22,7 +22,7 @@ function alloc(bytesize::Integer)
     ptr_ref = Ref{Ptr{Void}}()
     @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
 
-    return Base.unsafe_convert(DevicePtr{Void}, ptr_ref[])
+    return DevicePtr{Void}(ptr_ref[], CuCurrentContext())
 end
 
 """

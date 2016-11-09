@@ -7,13 +7,12 @@ import Compat.String
 
 include("util/logging.jl")
 
-include("pointer.jl")
-
 include("errors.jl")
 include("base.jl")
 include("version.jl")
 include("devices.jl")
 include("context.jl")
+include("pointer.jl")
 include("module.jl")
 include("memory.jl")
 include("stream.jl")
@@ -21,6 +20,7 @@ include("execution.jl")
 include("events.jl")
 include("profile.jl")
 
+include("gc.jl")
 include("array.jl")
 
 

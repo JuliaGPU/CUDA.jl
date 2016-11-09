@@ -9,9 +9,6 @@ export
 type CuArray{T,N} <: AbstractArray{T,N}
     devptr::DevicePtr{T}
     shape::NTuple{N,Int}
-    len::Int
-
-    ctx::CuContext
 
     function CuArray(shape::NTuple{N,Int})
         if !isbits(T)
@@ -24,31 +21,31 @@ type CuArray{T,N} <: AbstractArray{T,N}
         len = prod(shape)
         devptr = Mem.alloc(T, len)
 
-        ctx = CuCurrentContext()
-        obj = new(devptr, shape, len, ctx)
-        track(ctx, obj)
+        obj = new(devptr, shape)
+        gc_track(devptr.ctx, obj)
         finalizer(obj, finalize)
-
-        obj
+        return obj
     end
 
     function CuArray(shape::NTuple{N,Int}, devptr::DevicePtr{T})
-        len = prod(shape)
-        new(devptr, shape, len, CuContext(C_NULL))
+        new(devptr, shape)
     end
 end
 
 function finalize(a::CuArray)
     Mem.free(a.devptr)
-    untrack(a.ctx, a)
+    gc_untrack(a.devptr.ctx, a)
 end
 
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
 function Base.:(==)(a::CuArray, b::CuArray)
-    return a.ctx == b.ctx && pointer(a) == pointer(b)
+    return pointer(a) == pointer(b)
 end
+
+Base.isequal(a::CuArray, b::CuArray) = a == b
+
 Base.unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
 Base.pointer(a::CuArray) = a.devptr
 
@@ -61,12 +58,17 @@ Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
 
 ## array interface
 
-Base.length(g::CuArray) = g.len
 Base.size(g::CuArray) = g.shape
+Base.length(g::CuArray) = prod(g.shape)
 
 Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
     Base.showarray(io, Array(a), repr; kwargs...)
 
+function Base.hash(a::CuArray, h::UInt)
+    h += hash(size(a))
+    h += hash(pointer(a))
+    return h
+end
 
 ## memory management
 

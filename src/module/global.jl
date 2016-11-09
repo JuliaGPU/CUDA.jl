@@ -18,7 +18,7 @@ immutable CuGlobal{T}
         end
         @assert nbytes_ref[] == sizeof(T)
 
-        return new(Base.unsafe_convert(DevicePtr{Void}, ptr_ref[]), nbytes_ref[])
+        return new(DevicePtr{Void}(ptr_ref[], CuCurrentContext()), nbytes_ref[])
     end
 end
 
