@@ -15,6 +15,7 @@ using Base.Test
 # Reduce a value across a warp
 function reduce_warp{F<:Function,T}(op::F, val::T)::T
     offset = CUDAnative.warpsize() ÷ 2
+    # TODO: this can be unrolled if warpsize is known...
     while offset > 0
         val = op(val, shfl_down(val, offset))
         offset ÷= 2
@@ -24,23 +25,27 @@ end
 
 # Reduce a value across a block, using shared memory for communication
 function reduce_block{F<:Function,T}(op::F, val::T)::T
+    # shared mem for 32 partial sums
     shared = @cuStaticSharedMem(T, 32)
 
     wid, lane = fldmod1(threadIdx().x, CUDAnative.warpsize())
 
+    # each warp performs partial reduction
     val = reduce_warp(op, val)
 
+    # write reduced value to shared memory
     if lane == 1
         @inbounds shared[wid] = val
     end
 
+    # wait for all partial reductions
     sync_threads()
 
     # read from shared memory only if that warp existed
     @inbounds val = (threadIdx().x <= fld(blockDim().x, CUDAnative.warpsize())) ? shared[lane] : zero(T)
 
+    # final reduce within first warp
     if wid == 1
-        # final reduce within first warp
         val = reduce_warp(op, val)
     end
 
@@ -103,12 +108,10 @@ a = ones(Int32,len)
 
 cpu_a = copy(a)
 cpu_a = reduce(+, cpu_a)
-println(cpu_a)
 
 gpu_a = CuArray(a)
 gpu_b = similar(gpu_a)
 gpu_reduce(dev, +, gpu_a, gpu_b)
-println(Array(gpu_b)[1])
 
 @assert cpu_a ≈ Array(gpu_b)[1]
 
