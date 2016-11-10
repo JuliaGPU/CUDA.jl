@@ -4,8 +4,8 @@ Code Coverage: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAnative.jl/
 
 This package provides support for compiling and executing native Julia kernels on CUDA
 hardware. It is a work in progress, highly experimental, and for now requires a version of
-Julia with the necessary compiler functionality (ie. the development tree from
-[PR #18338](https://github.com/JuliaLang/julia/pull/18338)).
+Julia with the necessary compiler functionality (eg. 
+[tb/cuda](https://github.com/JuliaLang/julia/commits/tb/cuda)).
 
 
 ## Installation

@@ -11,7 +11,11 @@
 
 # Minor
 
-* Disable bounds checking if `cuda-memcheck` is detected (`CUDA_MEMCHECK` env var)
+* Disable bounds checking if `cuda-memcheck` is detected (`CUDA_MEMCHECK` env var), and emit
+  line-number information if any debug tool is detected
+
+* Rename `code_native` to `code_ptx`, and provide `code_sass`
+
 
 ## CUDA support/interfacing
 

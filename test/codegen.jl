@@ -163,6 +163,12 @@ end
     CUDAnative.code_native(DevNull, codegen_recompile_bis_fromhost, ())
 end
 
+@testset "LLVM intrinsics" begin
+    # issue #13 (a): cannot select trunc
+    @eval codegen_issue_13(x) = convert(Int, x)
+    CUDAnative.code_native(DevNull, codegen_issue_13, (Float64,))
+end
+
 end
 
 ############################################################################################
