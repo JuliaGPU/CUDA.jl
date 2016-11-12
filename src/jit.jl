@@ -75,6 +75,10 @@ function raise_exception(insblock::BasicBlock, ex::Value)
 end
 
 function irgen(func::ANY, tt::ANY)
+    # sanity checks
+    Base.JLOptions().can_inline == 0 &&
+        Base.warn_once("inlining disabled, CUDA code generation will almost certainly fail")
+
     fn = String(typeof(func).name.mt.name)
     mod = LLVM.Module(sanitize_fn(fn))
     module_setup(mod)
