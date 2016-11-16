@@ -8,8 +8,9 @@ include("module/jit.jl")
 
 typealias CuModule_t Ptr{Void}
 
-immutable CuModule
+type CuModule
     handle::CuModule_t
+    ctx::CuContext
 
     """
     Create a CUDA module from a string containing PTX code.
@@ -46,12 +47,21 @@ immutable CuModule
             end
         end
 
-        new(handle_ref[])
+        ctx = CuCurrentContext()
+        obj = new(handle_ref[], ctx)
+        gc_track(ctx, obj)
+        finalizer(obj, finalize)
+        return obj
     end
+end
+
+function finalize(mod::CuModule)
+    gc_untrack(mod.ctx, mod)
 end
 
 Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
 Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
+Base.hash(mod::CuModule, h::UInt) = hash(mod.handle, h)
 
 """
 Unload a CUDA module.
