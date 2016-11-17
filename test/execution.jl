@@ -36,7 +36,6 @@ end
 @testset "streams" begin
     s = CuStream()
     @cuda (1,1,1,s) exec_dummy()
-    destroy(s)
 end
 
 
