@@ -2,6 +2,22 @@
 # JuliaLang/julia#3067), so we manually need to keep instances alive outside of the object
 # fields in order to prevent parent objects getting collected before their children
 
+# For example, we have:
+#   type CuContext
+#     ...
+#   end
+#   finalize(ctx::CuContext) = ccall(:cuDestroyContext, ctx)
+#
+#   type CuArray
+#     ctx::CuContext
+#     ptr::DevicePtr
+#   end
+#   finalize(arr::CuArray) = ccall(:cuMemFree, arr.ptr)
+#
+#  As finalizers are not guaranteed to run in order, the context might be finalized before
+#  the array, but doing breaks the call to :cuMemFree as destroying the underlying context
+#  invalidates all resources.
+
 # NOTE: the Dict is inversed (child => parent), to make the more ccommon track/untrack cheap
 # NOTE: we use `pointer_from_objref` instead of `WeakRef` because
 #       different objects can have the same hash
