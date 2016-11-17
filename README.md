@@ -41,7 +41,7 @@ However, many CUDA API functions implicitly depend on global state, such as the 
 active context. The wrapper needs to model those dependencies in order for objects not to
 get destroyed before any dependent object is. If we fail to model these dependency
 relations, API calls might randomly fail, eg. in the case of a missing context dependency
-with a `INVALID_CONTEXT` error message.
+with a `INVALID_CONTEXT` or `CONTEXT_IS_DESTROYED` error message.
 
 If this seems to be the case, re-run with `TRACE=1` and file a bug report.
 
