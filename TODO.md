@@ -16,18 +16,11 @@
 
 ## CUDA support/interfacing
 
-* Benchmarking: surround kernel invocation with `@benchmark` --> insert perf events, etc
-
 * ReadOnlyArray --> `getindex` does `__ldg`
 
 * Proper address space support, for different memories and function arguments. On the other
   hand, is this necessary? Just mark the AS, convert as soon as possible, and use the
   inference pass to improve performance.
-
-
-## Julia support
-
-* Step ranges
 
 
 
