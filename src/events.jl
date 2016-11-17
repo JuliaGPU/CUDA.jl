@@ -37,9 +37,40 @@ record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
 
 synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e)
 
+"""
+Computes the elapsed time between two events (in seconds).
+"""
 function elapsed(start::CuEvent, stop::CuEvent)
     time_ref = Ref{Cfloat}()
     @apicall(:cuEventElapsedTime, (Ptr{Cfloat}, CuEvent_t, CuEvent_t),
                                   time_ref, start, stop)
-    return time_ref[]
+    return time_ref[]/1000
+end
+
+"""
+A macro to evaluate an expression, discarding the resulting value, instead returning the
+number of seconds it took to execute on the GPU, as a floating-point number.
+
+    @elapsed begin
+        ...
+    end
+
+    @elapsed stream begin
+        ...
+    end
+"""
+macro elapsed(stream, ex)
+    quote
+        local t0 = CuEvent(), t1 = CuEvent()
+        record(t0, $stream)
+        $(esc(ex))
+        record(t1, $stream)
+        synchronize(t1)
+        elapsed(t0, t1)
+    end
+end
+macro elapsed(ex)
+    quote
+        CUDAdrv.@elapsed(CuDefaultStream(), $(esc(ex)))
+    end
 end
