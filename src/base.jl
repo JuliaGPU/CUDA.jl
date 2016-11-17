@@ -25,7 +25,7 @@ macro apicall(f, argtypes, args...)
     end
 
     # Print the function name & arguments
-    @static if TRACE
+    if TRACE
         push!(blk.args, :(trace($(sprint(Base.show_unquoted,f.args[1])*"("); line=false)))
         i=length(args)
         for arg in args
@@ -50,7 +50,7 @@ macro apicall(f, argtypes, args...)
     end)
 
     # Print the results
-    @static if TRACE
+    if TRACE
         push!(blk.args, :(trace(CuError($status); prefix=" ")))
     end
 
