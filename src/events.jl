@@ -16,7 +16,9 @@ immutable CuEvent
 end
 
 Base.unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
+
 Base.:(==)(a::CuEvent, b::CuEvent) = a.handle == b.handle
+Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 
 record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
     @apicall(:cuEventRecord, (CuEvent_t, CuStream_t), e, stream)

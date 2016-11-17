@@ -36,7 +36,9 @@ immutable CuLink
 end
 
 Base.unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
+
 Base.:(==)(a::CuLink, b::CuLink) = a.handle == b.handle
+Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
 
 """
 Complete a pending linker invocation, returning an output image.

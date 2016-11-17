@@ -56,11 +56,13 @@ type CuModule
 end
 
 function finalize(mod::CuModule)
+    trace("Finalizing CuModule at $(Base.pointer_from_objref(mod))")
     @apicall(:cuModuleUnload, (CuModule_t,), mod)
     gc_untrack(mod.ctx, mod)
 end
 
 Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
+
 Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
 Base.hash(mod::CuModule, h::UInt) = hash(mod.handle, h)
 

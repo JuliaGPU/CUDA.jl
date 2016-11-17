@@ -40,11 +40,31 @@ type CuContext
         # instead, we force unique instances, and keep a reference alive in a global dict.
         # this prevents contexts from getting collected, requiring the user to destroy it.
         return get!(context_instances, handle) do
-            new(handle)
+            obj = new(handle)
+            finalizer(obj, finalize)
+            return obj
         end
     end
 end
 const context_instances = Dict{CuContext_t,CuContext}()
+
+function finalize(ctx::CuContext)
+    # during teardown, finalizer order does not respect _any_ order
+    # (ie. it doesn't respect active instances carefully set-up in `gc_keepalive`)
+    # TODO: can we check this only happens during teardown?
+    trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
+    children = length(gc_children(ctx))
+    if children == 0
+        @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
+    else
+        trace("Not destroying context $ctx because of out-of-order finalizer run")
+    end
+end
+
+Base.unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
+
+Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
+Base.hash(ctx::CuContext, h::UInt) = hash(ctx.handle, h)
 
 """
 Mark a context for destruction.
@@ -63,21 +83,6 @@ function destroy(ctx::CuContext)
     delete!(context_instances, ctx.handle)
     ctx = CuContext(C_NULL)
     return
-end
-
-Base.unsafe_convert(::Type{CuContext_t}, ctx::CuContext) = ctx.handle
-Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
-
-function finalize(ctx::CuContext)
-    # during teardown, finalizer order does not respect _any_ order
-    # (ie. it doesn't respect active instances carefully set-up in `gc_keepalive`)
-    # TODO: can we check this only happens during teardown?
-    children = length(gc_children(ctx))
-    if children == 0
-        @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
-    else
-        trace("Not destroying context $ctx because of out-of-order finalizer run")
-    end
 end
 
 Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =

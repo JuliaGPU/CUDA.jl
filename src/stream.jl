@@ -12,7 +12,9 @@ type CuStream
 end
 
 Base.unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
+
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
+Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
 function CuStream(flags::Integer=0)
     handle_ref = Ref{CuStream_t}()
@@ -27,6 +29,7 @@ function CuStream(flags::Integer=0)
 end
 
 function finalize(s::CuStream)
+    trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
     @apicall(:cuStreamDestroy, (CuModule_t,), s)
     gc_untrack(s.ctx, s)
 end

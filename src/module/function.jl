@@ -20,5 +20,6 @@ immutable CuFunction
 end
 
 Base.unsafe_convert(::Type{CuFunction_t}, fun::CuFunction) = fun.handle
+
 Base.:(==)(a::CuFunction, b::CuFunction) = a.handle == b.handle
 Base.hash(fun::CuFunction, h::UInt) = hash(mod.handle, h)

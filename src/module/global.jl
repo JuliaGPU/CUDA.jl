@@ -3,8 +3,9 @@
 export
     CuGlobal, get, set
 
-# TODO: typed pointer
+
 immutable CuGlobal{T}
+    # TODO: typed pointer
     devptr::DevicePtr{Void}
     nbytes::Cssize_t
 
@@ -21,6 +22,11 @@ immutable CuGlobal{T}
         return new(DevicePtr{Void}(ptr_ref[], CuCurrentContext()), nbytes_ref[])
     end
 end
+
+Base.unsafe_convert(::Type{DevicePtr{Void}}, var::CuGlobal) = var.devptr
+
+Base.:(==)(a::CuGlobal, b::CuGlobal) = a.handle == b.handle
+Base.hash(var::CuGlobal, h::UInt) = hash(var.devptr, h)
 
 Base.eltype{T}(::Type{CuGlobal{T}}) = T
 
