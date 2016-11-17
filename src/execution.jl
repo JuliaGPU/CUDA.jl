@@ -122,9 +122,10 @@ end
 """
     @cuda (gridDim::CuDim, blockDim::CuDim, [shmem::Int], [stream::CuStream]) func(args...)
 
-High-level interface for calling functions on a GPU. The `gridDim` and `blockDim` arguments
-represent the launch configuration, the optional `shmem` parameter specifies how much bytes
-of dynamic shared memory should be allocated (defaults to 0).
+High-level interface for calling functions on a GPU, queues a kernel launch on the current
+context. The `gridDim` and `blockDim` arguments represent the launch configuration, the
+optional `shmem` parameter specifies how much bytes of dynamic shared memory should be
+allocated (defaults to 0).
 
 When `func` represents a `CuFunction` object, a `cudacall` will be emitted, with the type
 signature derived from the actual argument types (if you need conversions to happen, use
@@ -137,7 +138,7 @@ compiled to a CUDA function, more objects are supported (ghost types are used du
 but not passed, objects > 8 bytes are copied to memory and passed by pointer), and finally a
 `cudacall` is performed.
 """
-macro cuda(dev, config::Expr, callexpr::Expr)
+macro cuda(config::Expr, callexpr::Expr)
     # sanity checks
     if config.head != :tuple || !(2 <= length(config.args) <= 4)
         throw(ArgumentError("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem], [stream])"))
@@ -148,18 +149,18 @@ macro cuda(dev, config::Expr, callexpr::Expr)
 
     # optional tuple elements are forwarded to `cudacall` by means of kwargs
     if length(config.args) == 2
-        return esc(:(CUDAnative.generated_cuda($dev, $config[1:2], $(callexpr.args...))))
+        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...))))
     elseif length(config.args) == 3
-        return esc(:(CUDAnative.generated_cuda($dev, $config[1:2], $(callexpr.args...);
+        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
                                                shmem=$config[3])))
     elseif length(config.args) == 4
-        return esc(:(CUDAnative.generated_cuda($dev, $config[1:2], $(callexpr.args...);
+        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
                                                shmem=$config[3], stream=$config[4])))
     end
 end
 
 # Execute a pre-compiled CUDA kernel
-@generated function generated_cuda(dev::CuDevice, dims::Tuple{CuDim, CuDim},
+@generated function generated_cuda(dims::Tuple{CuDim, CuDim},
                                    cuda_fun::CuFunction, argspec...;
                                    kwargs...)
     tt = Base.to_tuple_type(argspec)
@@ -170,8 +171,7 @@ end
 
 # Compile and execute a CUDA kernel from a Julia function
 const func_cache = Dict{UInt, CuFunction}()
-@generated function generated_cuda{F<:Core.Function}(dev::CuDevice,
-                                                     dims::Tuple{CuDim, CuDim},
+@generated function generated_cuda{F<:Core.Function}(dims::Tuple{CuDim, CuDim},
                                                      func::F, argspec...;
                                                      kwargs...)
     tt = Base.to_tuple_type(argspec)
@@ -183,12 +183,12 @@ const func_cache = Dict{UInt, CuFunction}()
     @gensym cuda_fun
     precomp_key = hash(Base.tt_cons(func, codegen_tt))  # precomputable part of the key
     kernel_compilation = quote
-        # NOTE: only the device capability matters, but querying that is more expensive
-        key = hash(($precomp_key, dev))
+        ctx = CuCurrentContext()
+        key = hash(($precomp_key, ctx))
         if (haskey(CUDAnative.func_cache, key))
             $cuda_fun = CUDAnative.func_cache[key]
         else
-            $cuda_fun, _ = cufunction(dev, func, $codegen_tt)
+            $cuda_fun, _ = cufunction(device(ctx), func, $codegen_tt)
             CUDAnative.func_cache[key] = $cuda_fun
         end
     end

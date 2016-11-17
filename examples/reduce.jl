@@ -78,7 +78,9 @@ Reduce a large array.
 
 Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
 """
-function gpu_reduce{F<:Function,T}(dev, op::F, input::CuArray{T,1}, output::CuArray{T,1})
+function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T,1})
+    ctx = CuCurrentContext()
+    dev = device(ctx)
     @assert(capability(dev) >= v"3.0", "this implementation requires a newer GPU")
     N = length(input)
 
@@ -92,8 +94,8 @@ function gpu_reduce{F<:Function,T}(dev, op::F, input::CuArray{T,1}, output::CuAr
         throw(ArgumentError("output array too small, should be at least $blocks elements"))
     end
 
-    @cuda dev (blocks,threads) reduce_kernel(op, input, output, N)
-    @cuda dev (1,1024) reduce_kernel(op, output, output, blocks)
+    @cuda (blocks,threads) reduce_kernel(op, input, output, N)
+    @cuda (1,1024) reduce_kernel(op, output, output, blocks)
 
     return
 end
@@ -111,7 +113,7 @@ cpu_a = reduce(+, cpu_a)
 
 gpu_a = CuArray(a)
 gpu_b = similar(gpu_a)
-gpu_reduce(dev, +, gpu_a, gpu_b)
+gpu_reduce(+, gpu_a, gpu_b)
 
 @assert cpu_a ≈ Array(gpu_b)[1]
 

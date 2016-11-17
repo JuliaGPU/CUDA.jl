@@ -19,23 +19,23 @@ end
 
 @testset "@cuda" begin
 
-@test_throws UndefVarError @cuda dev (1,1) exec_undefined_kernel()
+@test_throws UndefVarError @cuda (1,1) exec_undefined_kernel()
 
 
 @testset "dimensions" begin
-    @cuda dev (1,1) exec_dummy()
-    @test_throws ArgumentError @cuda dev (0,0) exec_dummy()
+    @cuda (1,1) exec_dummy()
+    @test_throws ArgumentError @cuda (0,0) exec_dummy()
 end
 
 
 @testset "shared memory" begin
-    @cuda dev (1,1,1) exec_dummy()
+    @cuda (1,1,1) exec_dummy()
 end
 
 
 @testset "streams" begin
     s = CuStream()
-    @cuda dev (1,1,1,s) exec_dummy()
+    @cuda (1,1,1,s) exec_dummy()
     destroy(s)
 end
 
@@ -45,23 +45,23 @@ end
         export exec_external_dummy
         exec_external_dummy() = return nothing
     end
-    @cuda dev (1,1) KernelModule.exec_external_dummy()
+    @cuda (1,1) KernelModule.exec_external_dummy()
     @eval begin
         using KernelModule
-        @cuda dev (1,1) exec_external_dummy()
+        @cuda (1,1) exec_external_dummy()
     end
 end
 
 
 @testset "return values" begin
     @eval exec_return_int_inner() = return 1
-    @test_throws ErrorException @cuda dev (1,1) exec_return_int_inner()
+    @test_throws ErrorException @cuda (1,1) exec_return_int_inner()
 
     @eval function exec_return_int_outer()
         exec_return_int_inner()
         return nothing
     end
-    @cuda dev (1,1) exec_return_int_outer()
+    @cuda (1,1) exec_return_int_outer()
 end
 
 
@@ -69,7 +69,7 @@ end
     @eval @noinline exec_devfun_child() = return nothing
     @eval exec_devfun_parent() = exec_devfun_child()
 
-    @cuda dev (1,1) exec_devfun_parent()
+    @cuda (1,1) exec_devfun_parent()
 end
 
 end
@@ -97,7 +97,7 @@ len = prod(dims)
     input_dev = CuArray(input)
     output_dev = similar(input_dev)
 
-    @cuda dev (1,len) exec_pass_ptr(input_dev.devptr, output_dev.devptr)
+    @cuda (1,len) exec_pass_ptr(input_dev.devptr, output_dev.devptr)
     output = Array(output_dev)
     @test input ≈ output
 end
@@ -121,7 +121,7 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda dev (1,len) exec_pass_scalar(arr_dev.devptr, val_dev.devptr)
+    @cuda (1,len) exec_pass_scalar(arr_dev.devptr, val_dev.devptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -147,7 +147,7 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda dev (1,len) exec_pass_scalar_devfun(arr_dev.devptr, val_dev.devptr)
+    @cuda (1,len) exec_pass_scalar_devfun(arr_dev.devptr, val_dev.devptr)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -171,7 +171,7 @@ end
 
         return nothing
     end
-    @cuda dev (1,len) exec_pass_ghost(ExecGhost(), d_a.devptr, d_b.devptr, d_c.devptr)
+    @cuda (1,len) exec_pass_ghost(ExecGhost(), d_a.devptr, d_b.devptr, d_c.devptr)
 
     c = Array(d_c)
     @test a+b == c
@@ -193,7 +193,7 @@ end
     keeps = (true,)
     d_out = CuArray{Int}(1)
 
-    @cuda dev (1,1) exec_pass_tuples(keeps, d_out.devptr)
+    @cuda (1,1) exec_pass_tuples(keeps, d_out.devptr)
     @test Array(d_out) == [1]
 end
 
@@ -209,7 +209,7 @@ end
     A = CuArray(zeros(Float32, (1,)))
     x = Complex64(2,2)
 
-    @cuda dev (1, 1) exec_pass_immutables(A.devptr, x)
+    @cuda (1, 1) exec_pass_immutables(A.devptr, x)
     @test Array(A) == Float32[imag(x)]
 end
 

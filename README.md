@@ -80,8 +80,8 @@ d_b = CuArray(b)
 d_c = similar(d_a)  # output array
 
 # run the kernel and fetch results
-# syntax: @cuda device (dims...) kernel(args...)
-@cuda dev (1,12) kernel_vadd(d_a, d_b, d_c)
+# syntax: @cuda (dims...) kernel(args...)
+@cuda (1,12) kernel_vadd(d_a, d_b, d_c)
 
 # CUDAdrv functionality: download data
 # this synchronizes the device
@@ -176,7 +176,7 @@ DEBUG=1 julia --compilecache=no
 
 [...]
 
-julia> @cuda dev (1,1) foo(a)
+julia> @cuda (1,1) foo(a)
 DEBUG: Compiling foo(CUDAnative.CuDeviceArray{Int32,1})
 DEBUG: <unknown>:0:0: marked this call a tail call candidate
 DEBUG: JIT info log: ...
@@ -249,7 +249,7 @@ function inc_slow(a)
     return nothing
 end
 
-@cuda dev (1,3) inc_slow(d_a)                       # implicit alloc & memcpy
+@cuda (1,3) inc_slow(d_a)                       # implicit alloc & memcpy
 
 
 function inc_fast(a_ptr, a_len)
@@ -259,5 +259,5 @@ function inc_fast(a_ptr, a_len)
     return nothing
 end
 
-@cuda dev (1,3) inc_fast(pointer(d_a), length(d_a)) # no implicit memory ops
+@cuda (1,3) inc_fast(pointer(d_a), length(d_a)) # no implicit memory ops
 ```

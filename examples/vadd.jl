@@ -20,7 +20,7 @@ d_b = CuArray(b)
 d_c = similar(d_a)
 
 len = prod(dims)
-@cuda dev (1,len) kernel_vadd(d_a, d_b, d_c)
+@cuda (1,len) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
 @test a+b ≈ c
 

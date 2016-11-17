@@ -4,13 +4,13 @@
 
 @testset "constructors" begin
     # Inner constructors
-    @on_device dev CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
 
     # Outer constructors
-    @on_device dev CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
-    @on_device dev CuDeviceArray{Int}((1,), Ptr{Int}(C_NULL))
-    @on_device dev CuDeviceArray(1, Ptr{Int}(C_NULL))
-    @on_device dev CuDeviceArray((1,), Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray{Int}((1,), Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray(1, Ptr{Int}(C_NULL))
+    @on_device CuDeviceArray((1,), Ptr{Int}(C_NULL))
 end
 
 
@@ -37,7 +37,7 @@ end
     input_dev = CuArray(input)
     output_dev = similar(input_dev)
 
-    @cuda dev (1,len) array_copy(input_dev, output_dev)
+    @cuda (1,len) array_copy(input_dev, output_dev)
     output = Array(output_dev)
     @test input ≈ output
 end
@@ -66,7 +66,7 @@ end
         sub[i] = i
     end
 
-    @cuda dev (100, 1) array_view(array_dev)
+    @cuda (100, 1) array_view(array_dev)
     @test array == Array(array_dev)
 end
 

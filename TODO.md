@@ -42,3 +42,6 @@
 * Specialization on kernel size (possibly only when specifying constant dimensions): replace
   calls to dimension intrinsics with constants, and avoid branches (eg. bounds checks) by
   combining constant dimensions with proper `!range` metadata on index intrinsics.
+
+* `CuStaticArray` with size as compile-time parameter, as base for static shared memory
+  (while dynamic shared memory uses regular `CuDeviceArray`s)

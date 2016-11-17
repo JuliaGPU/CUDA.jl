@@ -38,7 +38,7 @@ macro grab_output(ex)
 end
 
 # Run some code on-device, returning captured standard output
-macro on_device(dev, exprs)
+macro on_device(exprs)
     @gensym kernel_fn
     quote
         let
@@ -48,7 +48,7 @@ macro on_device(dev, exprs)
                 return nothing
             end
 
-            @cuda $dev (1,1) $kernel_fn()
+            @cuda (1,1) $kernel_fn()
             synchronize()
         end
     end

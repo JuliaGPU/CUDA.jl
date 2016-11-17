@@ -10,7 +10,7 @@
         return nothing
     end
 
-    @cuda dev (1, 1) kernel_math_log10(buf, Float32(100))
+    @cuda (1, 1) kernel_math_log10(buf, Float32(100))
     val = Array(buf)
     @test val[1] ≈ 2.0
 end
@@ -22,19 +22,19 @@ end
 @testset "I/O" begin
 
 @testset "printing" begin
-    _, out = @grab_output @on_device dev @cuprintf("")
+    _, out = @grab_output @on_device @cuprintf("")
     @test out == ""
 
-    _, out = @grab_output @on_device dev @cuprintf("Testing...\n")
+    _, out = @grab_output @on_device @cuprintf("Testing...\n")
     @test out == "Testing...\n"
 
-    _, out = @grab_output @on_device dev @cuprintf("Testing %d...\n", 42)
+    _, out = @grab_output @on_device @cuprintf("Testing %d...\n", 42)
     @test out == "Testing 42...\n"
 
-    _, out = @grab_output @on_device dev @cuprintf("Testing %d %d...\n", blockIdx().x, threadIdx().x)
+    _, out = @grab_output @on_device @cuprintf("Testing %d %d...\n", blockIdx().x, threadIdx().x)
     @test out == "Testing 1 1...\n"
 
-    _, out = @grab_output @on_device dev begin
+    _, out = @grab_output @on_device begin
         @cuprintf("foo")
         @cuprintf("bar\n")
     end
@@ -54,16 +54,16 @@ types = [Int32, Int64, Float32, Float64]
 
 @testset "constructors" begin
     # static
-    @on_device dev @cuStaticSharedMem(Float32, 1)
-    @on_device dev @cuStaticSharedMem(Float32, (1, 2))
+    @on_device @cuStaticSharedMem(Float32, 1)
+    @on_device @cuStaticSharedMem(Float32, (1, 2))
 
     # dynamic
-    @on_device dev @cuDynamicSharedMem(Float32, 1)
-    @on_device dev @cuDynamicSharedMem(Float32, (1, 2))
+    @on_device @cuDynamicSharedMem(Float32, 1)
+    @on_device @cuDynamicSharedMem(Float32, (1, 2))
     
     # dynamic with offset
-    @on_device dev @cuDynamicSharedMem(Float32, 1, 8)
-    @on_device dev @cuDynamicSharedMem(Float32, (1, 2), 8)
+    @on_device @cuDynamicSharedMem(Float32, 1, 8)
+    @on_device @cuDynamicSharedMem(Float32, (1, 2), 8)
 end
 
 
@@ -85,7 +85,7 @@ end
     a = rand(Float32, n)
     d_a = CuArray(a)
 
-    @cuda dev (1, n, n*sizeof(Float32)) kernel_shmem_dynamic_typed(d_a, n)
+    @cuda (1, n, n*sizeof(Float32)) kernel_shmem_dynamic_typed(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
@@ -106,7 +106,7 @@ end
         a = rand(T, n)
         d_a = CuArray(a)
 
-        @cuda dev (1, n, n*sizeof(T)) kernel_shmem_dynamic_typevar(d_a, n)
+        @cuda (1, n, n*sizeof(T)) kernel_shmem_dynamic_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
     end
 end
@@ -135,7 +135,7 @@ end
     a = rand(Float32, n)
     d_a = CuArray(a)
 
-    @cuda dev (1, n) kernel_shmem_static_typed(d_a, n)
+    @cuda (1, n) kernel_shmem_static_typed(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
@@ -159,7 +159,7 @@ end
         a = rand(T, n)
         d_a = CuArray(a)
 
-        @cuda dev (1, n) kernel_shmem_static_typevar(d_a, n)
+        @cuda (1, n) kernel_shmem_static_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
     end
 end
@@ -197,7 +197,7 @@ end
     b = rand(Float32, n)
     d_b = CuArray(b)
 
-    @cuda dev (1, n, 2*n*sizeof(Float32)) kernel_shmem_dynamic_multi_homogeneous(d_a, d_b, n)
+    @cuda (1, n, 2*n*sizeof(Float32)) kernel_shmem_dynamic_multi_homogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
 end
@@ -228,7 +228,7 @@ end
     b = rand(Int64, n)
     d_b = CuArray(b)
 
-    @cuda dev (1, n, n*sizeof(Float32) + n*sizeof(Int64)) kernel_shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
+    @cuda (1, n, n*sizeof(Float32) + n*sizeof(Int64)) kernel_shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
 end
@@ -260,7 +260,7 @@ types = [Int32, Int64, Float32, Float64]
         d_a = CuArray(a)
 
         threads = nearest_warpsize(dev, n)
-        @cuda dev (1, threads) kernel_shuffle_down(d_a, n)
+        @cuda (1, threads) kernel_shuffle_down(d_a, n)
 
         a[1:n÷2] += a[n÷2+1:end]
         @test a == Array(d_a)
@@ -291,7 +291,7 @@ end
 
     len = 4
     for i in 1:len
-        @cuda dev (1,len) kernel_vote_ballot(d_a, i)
+        @cuda (1,len) kernel_vote_ballot(d_a, i)
         @test Array(d_a) == [2^(i-1)]
     end
 end
@@ -308,13 +308,13 @@ end
         return nothing
     end
 
-    @cuda dev (1,2) kernel_vote_any(d_a, 1)
+    @cuda (1,2) kernel_vote_any(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda dev (1,2) kernel_vote_any(d_a, 2)
+    @cuda (1,2) kernel_vote_any(d_a, 2)
     @test Array(d_a) == [1]
 
-    @cuda dev (1,2) kernel_vote_any(d_a, 3)
+    @cuda (1,2) kernel_vote_any(d_a, 3)
     @test Array(d_a) == [0]
 end
 
@@ -330,13 +330,13 @@ end
         return nothing
     end
 
-    @cuda dev (1,2) kernel_vote_all(d_a, 1)
+    @cuda (1,2) kernel_vote_all(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda dev (1,2) kernel_vote_all(d_a, 2)
+    @cuda (1,2) kernel_vote_all(d_a, 2)
     @test Array(d_a) == [0]
 
-    @cuda dev (1,2) kernel_vote_all(d_a, 3)
+    @cuda (1,2) kernel_vote_all(d_a, 3)
     @test Array(d_a) == [0]
 end
 

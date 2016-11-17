@@ -15,7 +15,7 @@ function memset(a, val)
     return nothing
 end
 
-@cuda dev (1,11) memset(a, 0f0)
+@cuda (1,11) memset(a, 0f0)
 
 synchronize()
 
