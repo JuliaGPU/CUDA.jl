@@ -160,7 +160,7 @@ an unrelated error in another API call.
 
 If the error is thrown from an array access, and an out-of-bounds access is suspected, it is
 useful to turn of bounds checking (`julia --check-bounds=no`) and run the Julia process
-under `cuda-memcheck` while enabling debug mode 1 or higher (`julia -g1`). This way,
+under `cuda-memcheck` while enabling debug mode 1 (the default value) or higher. This way,
 `cuda-memcheck` will be able to accurately pinpoint the out-of-bounds access, while
 specifying the exact location of the access within the active grid and block.
 
@@ -216,11 +216,11 @@ LLVM's NVPTX back-end does not support the undocumented PTX debug format, so we 
 generate the necessary DWARF sections. This means that debugging generated code with e.g.
 `cuda-gdb` will be an unpleasant experience. Nonetheless, the PTX JIT is configured to emit
 debug info (which corresponds with `nvcc -g`) when the Julia debug info level is 2 or
-higher.
+higher (`julia -g2`).
 
 We do however support emitting line number information, which is useful for other CUDA tools
 like `cuda-memcheck`. The functionality (which corresponds with `nvcc -lineinfo`) is enabled
-when the Julia debug info level is 1 or higher.
+when the Julia debug info level is 1 (the default value) or higher.
 
 
 ## Bugs and quirks

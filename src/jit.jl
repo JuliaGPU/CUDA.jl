@@ -364,6 +364,7 @@ function cufunction(dev::CuDevice, func::ANY, types::ANY)
         jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
     end
     if DEBUG || Base.JLOptions().debug_level >= 2
+        # TODO: detect cuda-gdb
         jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
     end
     cuda_mod = CuModule(module_asm, jit_options)
