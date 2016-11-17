@@ -1,7 +1,7 @@
 # Module-related types and auxiliary functions
 
 export
-    CuModule, CuModuleFile, unload
+    CuModule, CuModuleFile
 
 include("module/jit.jl")
 
@@ -56,6 +56,7 @@ type CuModule
 end
 
 function finalize(mod::CuModule)
+    @apicall(:cuModuleUnload, (CuModule_t,), mod)
     gc_untrack(mod.ctx, mod)
 end
 
@@ -64,31 +65,12 @@ Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
 Base.hash(mod::CuModule, h::UInt) = hash(mod.handle, h)
 
 """
-Unload a CUDA module.
-"""
-function unload(mod::CuModule)
-    @apicall(:cuModuleUnload, (CuModule_t,), mod)
-end
-
-"""
 Create a CUDA module from a file containing PTX code.
 
 Note that for improved error reporting, this does not rely on the corresponding CUDA driver
 call, but opens and reads the file from within Julia instead.
 """
 CuModuleFile(path) = CuModule(open(readstring, path))
-
-# do syntax, f(module)
-function CuModuleFile(f::Function, path::AbstractString)
-    mod = CuModuleFile(path)
-    local ret
-    try
-        ret = f(mod)
-    finally
-        unload(mod)
-    end
-    ret
-end
 
 include("module/linker.jl")
 include("module/function.jl")

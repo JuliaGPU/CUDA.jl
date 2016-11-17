@@ -128,12 +128,6 @@ let
     md = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx"))
 
     vadd = CuFunction(md, "vadd")
-
-    unload(md)
-end
-
-CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx")) do md
-    vadd = CuFunction(md, "vadd")
 end
 
 let
@@ -144,11 +138,8 @@ let
     md = CuModule(ptx)
     vadd = CuFunction(md, "vadd")
 
-    CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx")) do md2
-        @test md != md2
-    end
-
-    unload(md)
+    md2 = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx"))
+    @test md != md2
 end
 
 try
@@ -168,8 +159,6 @@ let
 
     set(var, Int32(42))
     @test get(var) == Int32(42)
-
-    unload(md)
 end
 
 let
@@ -208,7 +197,6 @@ let
     destroy(link)
 
     vadd = CuFunction(md, "vadd")
-    unload(md)
 end
 
 
@@ -361,8 +349,6 @@ let
         c = Array(cd)
         @test c ≈ a./b
     end
-
-    unload(md)
 end
 
 

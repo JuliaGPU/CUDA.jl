@@ -3,18 +3,20 @@
 # fields in order to prevent parent objects getting collected before their children
 
 # NOTE: the Dict is inversed (child => parent), to make the more ccommon track/untrack cheap
-# NOTE: we use pointer_from_objref instead of WeakRef because different objects
-#       can have the same hash
+# NOTE: we use `pointer_from_objref` instead of `WeakRef` because
+#       different objects can have the same hash
 const gc_keepalive = Dict{Ptr{Void},Any}()
 
 function gc_track(parent::ANY, child::ANY)
     ref = Base.pointer_from_objref(child)
+    trace("Tracking $(typeof(parent)) at $((Base.pointer_from_objref(parent))) from $(typeof(child)) at $ref")
     haskey(gc_keepalive, ref) && error("objects can only keep a single parent alive")
     gc_keepalive[ref] = parent
 end
 
 function gc_untrack(parent::ANY, child::ANY)
     ref = Base.pointer_from_objref(child)
+    trace("Untracking $(typeof(parent)) at $((Base.pointer_from_objref(parent))) from $(typeof(child)) at $ref")
     haskey(gc_keepalive, ref) || error("track/untrack mismatch")
     gc_keepalive[ref] == parent || error("track/untrack mismatch on parent")
     delete!(gc_keepalive, ref)
