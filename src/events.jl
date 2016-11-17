@@ -5,14 +5,26 @@ export CuEvent, record, synchronize, elapsed
 
 typealias CuEvent_t Ptr{Void}
 
-immutable CuEvent
+type CuEvent
     handle::CuEvent_t
+    ctx::CuContext
 
     function CuEvent()
         handle_ref = Ref{CuEvent_t}()
         @apicall(:cuEventCreate, (Ptr{CuEvent_t}, Cuint), handle_ref, 0)
-        return new(handle_ref[])
+
+        ctx = CuCurrentContext()
+        obj = new(handle_ref[], ctx)
+        gc_track(ctx, obj)
+        finalizer(obj, finalize)
+        return obj
     end 
+end
+
+function finalize(e::CuEvent)
+    trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
+    @apicall(:cuEventDestroy, (CuEvent_t,), e)
+    gc_untrack(e.ctx, e)
 end
 
 Base.unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
@@ -31,5 +43,3 @@ function elapsed(start::CuEvent, stop::CuEvent)
                                   time_ref, start, stop)
     return time_ref[]
 end
-
-destroy(e::CuEvent) = @apicall(:cuEventDestroy, (CuEvent_t,), e)

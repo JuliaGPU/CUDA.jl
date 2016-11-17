@@ -360,8 +360,6 @@ let
     record(stop)
     synchronize(stop)
     @test elapsed(start, stop) > 0
-    destroy(start)
-    destroy(stop)
 end
 
 
