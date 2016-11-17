@@ -25,6 +25,27 @@ Pkg.test("CUDAdrv")
 ```
 
 
+Features
+--------
+
+In general, this wrapper tries to stay close to the abstraction level of the CUDA driver
+API. However, there are some additional features:
+
+### Automatic memory management
+
+Except for the encapsulating context, `destroy` or `unload` calls are never needed. Objects
+are registered with the Julia garbage collector, and are automatically finalized when they
+go out of scope.
+
+However, many CUDA API functions implicitly depend on global state, such as the current
+active context. The wrapper needs to model those dependencies in order for objects not to
+get destroyed before any dependent object is. If we fail to model these dependency
+relations, API calls might randomly fail, eg. in the case of a missing context dependency
+with a `INVALID_CONTEXT` error message.
+
+If this seems to be the case, re-run with `TRACE=1` and file a bug report.
+
+
 Debugging
 ---------
 
