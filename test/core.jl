@@ -285,9 +285,7 @@ let
     synchronize(s)
     let s2 = CuStream()
         @test s != s2
-        destroy(s2)
     end
-    destroy(s)
 
     synchronize(CuDefaultStream())
 end
