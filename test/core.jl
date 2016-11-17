@@ -181,8 +181,6 @@ let
     # vector of bytes containing \0
     @test_throws ArgumentError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.PTX)
     @test_throws CuError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.OBJECT)
-
-    destroy(link)
 end
 
 let
@@ -191,10 +189,9 @@ let
     open(joinpath(dirname(@__FILE__), "ptx/vadd_parent.ptx")) do f
         addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
     end
-    obj = complete(link)
 
+    obj = complete(link)
     md = CuModule(obj)
-    destroy(link)
 
     vadd = CuFunction(md, "vadd")
 end
