@@ -23,7 +23,7 @@ function CuStream(flags::Integer=0)
 
     ctx = CuCurrentContext()
     obj = CuStream(handle_ref[], ctx)
-    gc_track(ctx, obj)
+    block_finalizer(obj, ctx)
     finalizer(obj, finalize)
     return obj
 end
@@ -31,7 +31,7 @@ end
 function finalize(s::CuStream)
     trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
     @apicall(:cuStreamDestroy, (CuModule_t,), s)
-    gc_untrack(s.ctx, s)
+    unblock_finalizer(s, s.ctx)
 end
 
 CuDefaultStream() = CuStream(convert(CuStream_t, C_NULL), CuContext(C_NULL))

@@ -15,7 +15,7 @@ type CuEvent
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
-        gc_track(ctx, obj)
+        block_finalizer(obj, ctx)
         finalizer(obj, finalize)
         return obj
     end 
@@ -24,7 +24,7 @@ end
 function finalize(e::CuEvent)
     trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
     @apicall(:cuEventDestroy, (CuEvent_t,), e)
-    gc_untrack(e.ctx, e)
+    unblock_finalizer(e, e.ctx)
 end
 
 Base.unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle

@@ -49,7 +49,7 @@ type CuModule
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
-        gc_track(ctx, obj)
+        block_finalizer(obj, ctx)
         finalizer(obj, finalize)
         return obj
     end
@@ -58,7 +58,7 @@ end
 function finalize(mod::CuModule)
     trace("Finalizing CuModule at $(Base.pointer_from_objref(mod))")
     @apicall(:cuModuleUnload, (CuModule_t,), mod)
-    gc_untrack(mod.ctx, mod)
+    unblock_finalizer(mod, mod.ctx)
 end
 
 Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle

@@ -49,14 +49,13 @@ end
 const context_instances = Dict{CuContext_t,CuContext}()
 
 function finalize(ctx::CuContext)
-    # during teardown, finalizer order does not respect _any_ order
-    # (ie. it doesn't respect active instances carefully set-up in `gc_keepalive`)
-    # TODO: can we check this only happens during teardown?
     trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
-    children = length(gc_children(ctx))
-    if children == 0
+    if can_finalize(ctx)
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
     else
+        # this is due to finalizers not respecting _any_ order during process teardown
+        # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
+        # TODO: can we check this only happens during teardown?
         trace("Not destroying context $ctx because of out-of-order finalizer run")
     end
 end
@@ -70,16 +69,10 @@ Base.hash(ctx::CuContext, h::UInt) = hash(ctx.handle, h)
 Mark a context for destruction.
 
 This does not immediately destroy the context, as there might still be dependent resources
-which have not been collected yet.  It will get freed as soon as all outstanding instances
-have gone out-of-scope.
+which have not been collected yet. The context will get freed as soon as all outstanding
+instances have been finalized.
 """
 function destroy(ctx::CuContext)
-    @static if DEBUG
-        children = length(gc_children(ctx))
-        if children > 0
-            debug("Request to destroy context $ctx while there are still $children remaining consumers")
-        end
-    end
     delete!(context_instances, ctx.handle)
     ctx = CuContext(C_NULL)
     return
