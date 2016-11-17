@@ -1,6 +1,6 @@
 # Events for timing
 
-export CuEvent, record, synchronize, elapsed
+export CuEvent, record, synchronize, elapsed, @elapsed
 
 
 typealias CuEvent_t Ptr{Void}
@@ -71,6 +71,6 @@ macro elapsed(stream, ex)
 end
 macro elapsed(ex)
     quote
-        CUDAdrv.@elapsed(CuDefaultStream(), $(esc(ex)))
+        @elapsed(CuDefaultStream(), $(esc(ex)))
     end
 end
