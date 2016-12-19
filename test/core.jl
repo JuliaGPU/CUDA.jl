@@ -28,7 +28,7 @@ let
     
     io = IOBuffer()
     showerror(io, ex)
-    str = takebuf_string(io)
+    str = String(take!(io))
 
     @test contains(str, "0")
     @test contains(str, "Success")
@@ -39,7 +39,7 @@ let
     
     io = IOBuffer()
     showerror(io, ex)
-    str = takebuf_string(io)
+    str = String(take!(io))
 
     @test contains(str, "foobar")
 end

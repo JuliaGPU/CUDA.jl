@@ -38,7 +38,7 @@ end
 function repr_indented(ex; prefix=" "^7, abbrev=true)
     io = IOBuffer()
     print(io, ex)
-    str = takebuf_string(io)
+    str = String(take!(io))
 
     # Limit output
     if abbrev && length(str) > 256
