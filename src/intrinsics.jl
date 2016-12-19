@@ -77,7 +77,7 @@ macro wrap(call, attrs="")
     llvm_defargs = join(("$t $arg" for (t,arg) in zip(argtypes, llvm_args)), ", ")
 
     julia_argtypes = (jltypes[t] for t in argtypes)
-    julia_args = (:(convert($argtype, $arg)) for (arg, argtype) in zip(args, julia_argtypes))
+    julia_args = (:(convert($argtype, $(esc(arg)))) for (arg, argtype) in zip(args, julia_argtypes))
 
     return quote
         Base.llvmcall(
