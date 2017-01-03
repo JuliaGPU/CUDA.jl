@@ -18,12 +18,18 @@ end
 @testset "PTX assembly" begin
 
 @testset "entry-point functions" begin
-    @eval @noinline codegen_child() = return nothing
-    @eval codegen_parent() = codegen_child()
-    asm = sprint(io->CUDAnative.code_native(io, codegen_parent, ()))
+    @eval @noinline function codegen_child(i)
+        if i < 10
+            return i*i
+        else
+            return (i-1)*(i+1)
+        end
+    end
+    @eval codegen_parent(i) = codegen_child(i)
+    asm = sprint(io->CUDAnative.code_native(io, codegen_parent, (Int64,)))
 
-    @test contains(asm, ".visible .entry julia_codegen_parent_")
-    @test contains(asm, ".visible .func julia_codegen_child_")
+    @test ismatch(r"\.visible \.entry julia_codegen_parent_", asm)
+    @test ismatch(r"\.visible \.func .+ julia_codegen_child_", asm)
 end
 
 
