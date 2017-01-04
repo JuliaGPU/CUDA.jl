@@ -184,7 +184,7 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
                     "/usr/local/cuda/nvvm/libdevice",
                     "/opt/cuda/nvvm/libdevice"]
         end
-        any(d->isdir(d), dirs) ||
+        any(isdir, dirs) ||
             error("CUDA device library path not found -- specify using NVVMIR_LIBRARY_DIR")
 
         paths = filter(p->isfile(p), map(d->joinpath(d,fn), dirs))
@@ -204,7 +204,7 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
     datalayout!(libdevice_mod, datalayout(mod))
 
     # 1. Save list of external functions
-    exports = map(f->LLVM.name(f), functions(mod))
+    exports = map(LLVM.name, functions(mod))
     filter!(fn->!haskey(functions(libdevice_mod), fn), exports)
 
     # 2. Link with libdevice
