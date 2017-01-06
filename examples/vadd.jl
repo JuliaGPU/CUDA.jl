@@ -1,9 +1,16 @@
 using CUDAdrv, CUDAnative
-using Base.Test
+
+@noinline function child(i)
+    if i < 10
+        return i*i
+    else
+        return (i-1)*(i+1)
+    end
+end
 
 function kernel_vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    c[i] = a[i] + b[i]
+    c[i] = a[i] + child(b[i])
 
     return nothing
 end
@@ -22,6 +29,9 @@ d_c = similar(d_a)
 len = prod(dims)
 @cuda (1,len) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
-@test a+b ≈ c
+
+CUDAnative.code_sass(kernel_vadd, Tuple{CuDeviceArray{Float32,2}, CuDeviceArray{Float32,2}, CuDeviceArray{Float32,2}})
+CUDAnative.code_ptx(child, Tuple{Float32})
+CUDAnative.code_sass(child, Tuple{Float32})
 
 destroy(ctx)

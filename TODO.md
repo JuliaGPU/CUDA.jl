@@ -9,11 +9,6 @@
 
 
 
-# Minor
-
-* Rename `code_native` to `code_ptx`, and provide `code_sass`
-
-
 ## CUDA support/interfacing
 
 * ReadOnlyArray --> `getindex` does `__ldg`

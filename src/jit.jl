@@ -24,14 +24,39 @@ end
 
 code_llvm(f::ANY, types::ANY=Tuple; kwargs...) = code_llvm(STDOUT, f, types; kwargs...)
 
-function code_native(io::IO, f::ANY, types::ANY=Tuple;
-                     cap::VersionNumber=v"2.0")
+function code_ptx(io::IO, f::ANY, types::ANY=Tuple; cap::VersionNumber=v"2.0")
     mod, entry = irgen(f, types)
     optimize!(mod, cap)
     print(io, mcgen(mod, entry, cap))
 end
 
-code_native(f::ANY, types::ANY=Tuple; kwargs...) = code_native(STDOUT, f, types; kwargs...)
+code_ptx(f::ANY, types::ANY=Tuple; kwargs...) = code_ptx(STDOUT, f, types; kwargs...)
+
+function code_native(io::IO, f::ANY, types::ANY=Tuple; kwargs...)
+    Base.depwarn("CUDAnative.code_native is deprecated, use code_ptx (or code_sass) instead.", :code_native)
+    code_ptx(io, f, types; kwargs...)
+end
+function code_native(f::ANY, types::ANY=Tuple; kwargs...)
+    Base.depwarn("CUDAnative.code_native is deprecated, use code_ptx (or code_sass) instead.", :code_native)
+    code_ptx(STDOUT, f, types; kwargs...)
+end
+
+function code_sass(io::IO, f::ANY, types::ANY=Tuple; cap::VersionNumber=v"2.0")
+    mod, entry = irgen(f, types)
+    optimize!(mod, cap)
+    ptx = mcgen(mod, entry, cap)
+
+    fn = tempname()
+    gpu = "sm_$(cap.major)$(cap.minor)"
+    Base.run(`ptxas --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
+    try
+        print(io, readstring(`cuobjdump --dump-sass $fn`))
+    finally
+        rm(fn)
+    end
+end
+
+code_sass(f::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, f, types; kwargs...)
 
 
 #

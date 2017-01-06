@@ -26,7 +26,7 @@ end
         end
     end
     @eval codegen_parent(i) = codegen_child(i)
-    asm = sprint(io->CUDAnative.code_native(io, codegen_parent, (Int64,)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_parent, (Int64,)))
 
     @test ismatch(r"\.visible \.entry julia_codegen_parent_", asm)
     @test ismatch(r"\.visible \.func .+ julia_codegen_child_", asm)
@@ -47,12 +47,12 @@ end
 
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
-    @test_throws ErrorException CUDAnative.code_native(codegen_ref_nonexisting, ())
+    @test_throws ErrorException CUDAnative.code_ptx(codegen_ref_nonexisting, ())
 end
 
 @testset "generic call" begin
     @eval codegen_call_nonexisting() = nonexisting()
-    @test_throws ErrorException CUDAnative.code_native(codegen_call_nonexisting, ())
+    @test_throws ErrorException CUDAnative.code_ptx(codegen_call_nonexisting, ())
 end
 
 
@@ -60,8 +60,8 @@ end
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
     @eval codegen_idempotency() = return nothing
-    CUDAnative.code_native(DevNull, codegen_idempotency, ())
-    CUDAnative.code_native(DevNull, codegen_idempotency, ())
+    CUDAnative.code_ptx(DevNull, codegen_idempotency, ())
+    CUDAnative.code_ptx(DevNull, codegen_idempotency, ())
 end
 
 
@@ -82,7 +82,7 @@ end
         unsafe_store!(arr, i, i)
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_parent1, (Ptr{Int64},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent1, (Ptr{Int64},)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 
     @eval function codegen_child_reuse_parent2(arr::Ptr{Int64})
@@ -91,7 +91,7 @@ end
 
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_parent2, (Ptr{Int64},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent2, (Ptr{Int64},)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 end
 
@@ -113,7 +113,7 @@ end
 
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_bis_parent1, (Ptr{Int64},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent1, (Ptr{Int64},)))
 
     @eval function codegen_child_reuse_bis_parent2(arry::Ptr{Int64})
         i = codegen_child_reuse_bis_child1() + codegen_child_reuse_bis_child2()
@@ -121,7 +121,7 @@ end
 
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_native(io, codegen_child_reuse_bis_parent2, (Ptr{Int64},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent2, (Ptr{Int64},)))
 end
 
 
@@ -147,7 +147,7 @@ end
         return nothing
     end
 
-    asm = sprint(io->CUDAnative.code_native(io, codegen_recompile, (Ptr{Int32},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_recompile, (Ptr{Int32},)))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
@@ -165,14 +165,38 @@ end
         return nothing
     end
 
-    CUDAnative.code_native(DevNull, codegen_recompile_bis_fromptx, ())
-    CUDAnative.code_native(DevNull, codegen_recompile_bis_fromhost, ())
+    CUDAnative.code_ptx(DevNull, codegen_recompile_bis_fromptx, ())
+    CUDAnative.code_ptx(DevNull, codegen_recompile_bis_fromhost, ())
 end
 
 @testset "LLVM intrinsics" begin
     # issue #13 (a): cannot select trunc
     @eval codegen_issue_13(x) = convert(Int, x)
-    CUDAnative.code_native(DevNull, codegen_issue_13, (Float64,))
+    CUDAnative.code_ptx(DevNull, codegen_issue_13, (Float64,))
+end
+
+end
+
+
+############################################################################################
+
+@testset "SASS" begin
+
+@testset "missing retval" begin
+    @eval @noinline function ptxas_child(i)
+        if i < 10
+            return i*i
+        else
+            return (i-1)*(i+1)
+        end
+    end
+    @eval ptxas_parent(i) = (ptxas_child(i); nothing)
+
+    @test CUDAnative.code_sass(DevNull, ptxas_parent, Tuple{Int}) == nothing
+    fout = open("/dev/null", "w")
+    redirect_stderr(fout) do
+        @test_broken CUDAnative.code_sass(DevNull, ptxas_child, Tuple{Int}) == nothing
+    end
 end
 
 end
