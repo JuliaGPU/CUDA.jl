@@ -30,3 +30,9 @@
 
 * `CuStaticArray` with size as compile-time parameter, as base for static shared memory
   (while dynamic shared memory uses regular `CuDeviceArray`s)
+
+* Try using NVIDIA's NVVM instead of LLVM's PTX back-end. This might give us DWARF, as well
+  as improved performance. But it involves generating NVVM compatible IR, possibly
+  duplicating a lot of code in the front-end (eg. intrinsics, libdevice, etc) and requiring
+  us to target an older LLVM IR format (see [Android's forward-ported
+  BitWriter](https://android.googlesource.com/platform/frameworks/compile/slang/+/master)).
