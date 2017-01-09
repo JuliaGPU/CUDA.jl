@@ -12,27 +12,6 @@
     @test ismatch(r"define void @julia_foo_.+\(\) #0.+\{", ir)
 end
 
-
-############################################################################################
-
-@testset "PTX assembly" begin
-
-@testset "entry-point functions" begin
-    @eval @noinline function codegen_child(i)
-        if i < 10
-            return i*i
-        else
-            return (i-1)*(i+1)
-        end
-    end
-    @eval codegen_parent(i) = codegen_child(i)
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_parent, (Int64,)))
-
-    @test ismatch(r"\.visible \.entry julia_codegen_parent_", asm)
-    @test ismatch(r"\.visible \.func .+ julia_codegen_child_", asm)
-end
-
-
 @testset "exceptions" begin
     @eval codegen_exception() = throw(DivideError())
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_exception, ()))
@@ -44,6 +23,46 @@ end
     @test !contains(ir, "jl_throw")
 end
 
+@testset "sysimg" begin
+    # bug: use a system image function
+
+    @eval function codegen_call_sysimg(a,i)
+        Base.pointerset(a, 0, mod1(i,10), 8)
+        return nothing
+    end
+
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, (Ptr{Int},Int)))
+    @test !contains(ir, "jlsys_")
+end
+
+
+############################################################################################
+
+@testset "PTX assembly" begin
+
+@testset "basic reflection" begin
+    @eval ptx_valid_kernel(a) = (a[0] = 1; nothing)
+    @eval ptx_invalid_kernel(a) = (a[0] = 1; 1)
+
+    @test CUDAnative.code_ptx(DevNull, ptx_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test_throws ErrorException CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}; kernel=true) == nothing
+end
+
+@testset "entry-point functions" begin
+    @eval @noinline function codegen_child(i)
+        if i < 10
+            return i*i
+        else
+            return (i-1)*(i+1)
+        end
+    end
+    @eval codegen_parent(i) = (codegen_child(i); nothing)
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_parent, (Int64,); kernel=true))
+
+    @test ismatch(r"\.visible \.entry julia_codegen_parent_", asm)
+    @test ismatch(r"\.visible \.func .+ julia_codegen_child_", asm)
+end
 
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
@@ -63,7 +82,6 @@ end
     CUDAnative.code_ptx(DevNull, codegen_idempotency, ())
     CUDAnative.code_ptx(DevNull, codegen_idempotency, ())
 end
-
 
 @testset "child function reuse" begin
     # bug: depending on a child function from multiple parents resulted in
@@ -95,7 +113,6 @@ end
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 end
 
-
 @testset "child function reuse bis" begin
     # bug: similar, but slightly different issue as above
     #      in the case of two child functions
@@ -122,19 +139,6 @@ end
         return nothing
     end
     asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent2, (Ptr{Int64},)))
-end
-
-
-@testset "sysimg" begin
-    # bug: use a system image function
-
-    @eval function codegen_call_sysimg(a,i)
-        Base.pointerset(a, 0, mod1(i,10), 8)
-        return nothing
-    end
-
-    ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, (Ptr{Int},Int)))
-    @test !contains(ir, "jlsys_")
 end
 
 @testset "nonsysimg recompilation" begin
@@ -182,21 +186,12 @@ end
 
 @testset "SASS" begin
 
-@testset "missing retval" begin
-    @eval @noinline function ptxas_child(i)
-        if i < 10
-            return i*i
-        else
-            return (i-1)*(i+1)
-        end
-    end
-    @eval ptxas_parent(i) = (ptxas_child(i); nothing)
+@testset "basic reflection" begin
+    @eval sass_valid_kernel(a) = (a[0] = 1; nothing)
+    @eval sass_invalid_kernel(a) = (a[0] = 1; 1)
 
-    @test CUDAnative.code_sass(DevNull, ptxas_parent, Tuple{Int}) == nothing
-    fout = open("/dev/null", "w")
-    redirect_stderr(fout) do
-        @test_broken CUDAnative.code_sass(DevNull, ptxas_child, Tuple{Int}) == nothing
-    end
+    @test CUDAnative.code_sass(DevNull, sass_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test_throws ErrorException CUDAnative.code_sass(DevNull, sass_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
 end
 
 end

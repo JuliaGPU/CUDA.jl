@@ -9,9 +9,9 @@ export cufunction
 
 # NOTE: default capability is a sane one for testing purposes
 
-function code_llvm(io::IO, f::ANY, types::ANY=Tuple;
+function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
                    optimize::Bool=true, dump_module::Bool=false, cap::VersionNumber=v"2.0")
-    mod, entry = irgen(f, types)
+    mod, entry = irgen(func, types)
     if optimize
         optimize!(mod, cap)
     end
@@ -21,30 +21,49 @@ function code_llvm(io::IO, f::ANY, types::ANY=Tuple;
         show(io, entry)
     end
 end
+code_llvm(func::ANY, types::ANY=Tuple; kwargs...) = code_llvm(STDOUT, func, types; kwargs...)
 
-code_llvm(f::ANY, types::ANY=Tuple; kwargs...) = code_llvm(STDOUT, f, types; kwargs...)
+"""
+    code_ptx([io], f, types, cap=v"2.0")
 
-function code_ptx(io::IO, f::ANY, types::ANY=Tuple; cap::VersionNumber=v"2.0")
-    mod, entry = irgen(f, types)
-    optimize!(mod, cap)
-    print(io, mcgen(mod, entry, cap))
+Prints the PTX assembly generated for the method matching the given generic function and
+type signature to `io` which defaults to `STDOUT`.
+"""
+function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
+                  cap::VersionNumber=v"2.0", kernel::Bool=false)
+    @assert isa(func, Core.Function)
+    tt = Base.to_tuple_type(types)
+    kernel && check_kernel(func, tt)
+
+    ptx,_ = compile_function(func, tt, cap; kernel=kernel)
+    print(io, ptx)
 end
+code_ptx(func::ANY, types::ANY=Tuple; kwargs...) = code_ptx(STDOUT, func, types; kwargs...)
 
-code_ptx(f::ANY, types::ANY=Tuple; kwargs...) = code_ptx(STDOUT, f, types; kwargs...)
-
-function code_native(io::IO, f::ANY, types::ANY=Tuple; kwargs...)
+function code_native(io::IO, func::ANY, types::ANY=Tuple; kwargs...)
     Base.depwarn("CUDAnative.code_native is deprecated, use code_ptx (or code_sass) instead.", :code_native)
-    code_ptx(io, f, types; kwargs...)
+    code_ptx(io, func, types; kwargs...)
 end
-function code_native(f::ANY, types::ANY=Tuple; kwargs...)
+function code_native(func::ANY, types::ANY=Tuple; kwargs...)
     Base.depwarn("CUDAnative.code_native is deprecated, use code_ptx (or code_sass) instead.", :code_native)
-    code_ptx(STDOUT, f, types; kwargs...)
+    code_ptx(STDOUT, func, types; kwargs...)
 end
 
-function code_sass(io::IO, f::ANY, types::ANY=Tuple; cap::VersionNumber=v"2.0")
-    mod, entry = irgen(f, types)
-    optimize!(mod, cap)
-    ptx = mcgen(mod, entry, cap)
+"""
+    code_sass([io], f, types, cap=v"2.0")
+
+Prints the SASS code generated for the method matching the given generic function and type
+signature to `io` which defaults to `STDOUT`.
+
+Note that the method needs to be a valid entry-point kernel, ie. it should not return any
+values.
+"""
+function code_sass(io::IO, func::ANY, types::ANY=Tuple; cap::VersionNumber=v"2.0")
+    @assert isa(func, Core.Function)
+    tt = Base.to_tuple_type(types)
+    check_kernel(func, tt)
+
+    ptx,_ = compile_function(func, tt, cap)
 
     fn = tempname()
     gpu = "sm_$(cap.major)$(cap.minor)"
@@ -55,8 +74,7 @@ function code_sass(io::IO, f::ANY, types::ANY=Tuple; cap::VersionNumber=v"2.0")
         rm(fn)
     end
 end
-
-code_sass(f::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, f, types; kwargs...)
+code_sass(func::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, func, types; kwargs...)
 
 
 #
@@ -285,12 +303,15 @@ function optimize!(mod::LLVM.Module, cap::VersionNumber)
     end
 end
 
-function mcgen(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
+function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber;
+               kernel::Bool=true)
     tm = machine(cap, triple(mod))
 
     # kernel metadata
-    push!(metadata(mod), "nvvm.annotations",
-          MDNode([entry, MDString("kernel"), ConstantInt(Int32(1))]))
+    if kernel
+        push!(metadata(mod), "nvvm.annotations",
+             MDNode([func, MDString("kernel"), ConstantInt(Int32(1))]))
+    end
 
     InitializeNVPTXAsmPrinter()
     return convert(String, emit(tm, mod, LLVM.API.LLVMAssemblyFile))
@@ -299,18 +320,13 @@ end
 """
 Compile a function to PTX, returning the assembly and an entry point.
 Not to be used directly, see `cufunction` instead.
-"""
-function compile_function(dev::CuDevice, func::ANY, tt::ANY)
-    sig = """$func($(join(tt.parameters, ", ")))"""
-    debug("Compiling $sig")
 
-    # select a capability level
-    dev_cap = capability(dev)
-    compat_caps = filter(cap -> cap <= dev_cap, toolchain_caps)
-    isempty(compat_caps) &&
-        error("Device capability v$dev_cap not supported by available toolchain")
-    cap = maximum(compat_caps)
-    trace("Targeting $cap architecture")
+The `kernel` argument indicates whether we are compiling a kernel entry-point function,
+in which case extra metadata needs to be attached.
+"""
+function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=true)
+    sig = """$func($(join(tt.parameters, ", ")))"""
+    debug("Compiling $sig for capability level $cap")
 
     @static if TRACE
         # generate a safe and unique name
@@ -333,19 +349,6 @@ function compile_function(dev::CuDevice, func::ANY, tt::ANY)
         end
     end
 
-    # Check method validity
-    ml = Base.methods(func, tt)
-    if length(ml) == 0
-        error("no method found for kernel $sig")
-    elseif length(ml) > 1
-        # TODO: when does this happen?
-        error("ambiguous call to kernel $sig")
-    end
-    rt = Base.return_types(func, tt)[1]
-    if rt != Void
-        error("cannot call kernel $sig as it returns $rt")
-    end
-
     # generate LLVM IR
     mod, entry = irgen(func, tt)
     @static if TRACE
@@ -364,7 +367,7 @@ function compile_function(dev::CuDevice, func::ANY, tt::ANY)
 
     # generate (PTX) assembly
     optimize!(mod, cap)
-    module_asm = mcgen(mod, entry, cap)
+    module_asm = mcgen(mod, entry, cap; kernel=kernel)
     @static if TRACE
         output = "$(dumpdir[])/$function_uid.ptx"
         trace("Writing kernel PTX assembly to $output")
@@ -376,12 +379,37 @@ function compile_function(dev::CuDevice, func::ANY, tt::ANY)
     return module_asm, LLVM.name(entry)
 end
 
+# check whether a (function, tuple of types) yields a valid kernel method
+function check_kernel(func::ANY, tt::ANY)
+    sig = """$func($(join(tt.parameters, ", ")))"""
+
+    ml = Base.methods(func, tt)
+    if length(ml) == 0
+        error("no method found for kernel $sig")
+    elseif length(ml) > 1
+        # TODO: when does this happen?
+        error("ambiguous call to kernel $sig")
+    end
+    rt = Base.return_types(func, tt)[1]
+    if rt != Void
+        error("$sig is not a valid kernel as it returns $rt")
+    end
+end
+
 # Main entry-point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction(dev::CuDevice, func::ANY, types::ANY)
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
+    check_kernel(func, tt)
 
-    (module_asm, module_entry) = compile_function(dev, func, tt)
+    # select a capability level
+    dev_cap = capability(dev)
+    compat_caps = filter(cap -> cap <= dev_cap, toolchain_caps)
+    isempty(compat_caps) &&
+        error("Device capability v$dev_cap not supported by available toolchain")
+    cap = maximum(compat_caps)
+
+    (module_asm, module_entry) = compile_function(func, tt, cap)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
