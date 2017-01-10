@@ -3,14 +3,16 @@ using Base.Test
 
 # Fast parallel reduction for Kepler hardware
 #
-# Based on https://devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
+# Based on devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
 #
-# TODO
+# FURTHER IMPROVEMENTS:
 # - analyze LLVM IR for redundant Int32/Int64 conversions
 # - use atomic memory operations
 # - add dispatch-based fallbacks for non-Kepler hardware
 # - dynamic block/grid size based on device capabilities
 # - improve documentation
+# - vectorized memory access
+#   devblogs.nvidia.com/parallelforall/cuda-pro-tip-increase-performance-with-vectorized-memory-access/
 
 # Reduce a value across a warp
 function reduce_warp{F<:Function,T}(op::F, val::T)::T
@@ -52,22 +54,23 @@ function reduce_block{F<:Function,T}(op::F, val::T)::T
     return val
 end
 
-# Reduce an array across a thread block
-function reduce_kernel{F<:Function,T}(op::F, input::CuDeviceArray{T,1}, output::CuDeviceArray{T,1}, N::Integer)
-    sum = zero(T)
+# Reduce an array across a complete grid
+function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1}, output::CuDeviceArray{T,1}, N::Integer)
+    val = zero(T)
 
     # reduce multiple elements per thread (grid-stride loop)
+    # TODO: step range (see JuliaGPU/CUDAnative.jl#12)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     step = blockDim().x * gridDim().x
     while i <= N
-        @inbounds sum += input[i]
+        @inbounds val = op(val, input[i])
         i += step
     end
 
-    sum = reduce_block(+, sum)
+    val = reduce_block(op, val)
 
     if threadIdx().x == 1
-        @inbounds output[blockIdx().x] = sum
+        @inbounds output[blockIdx().x] = val
     end
 
     return
@@ -94,8 +97,8 @@ function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T
         throw(ArgumentError("output array too small, should be at least $blocks elements"))
     end
 
-    @cuda (blocks,threads) reduce_kernel(op, input, output, N)
-    @cuda (1,1024) reduce_kernel(op, output, output, blocks)
+    @cuda (blocks,threads) reduce_grid(op, input, output, N)
+    @cuda (1,1024) reduce_grid(op, output, output, blocks)
 
     return
 end
