@@ -7,6 +7,7 @@ using Base.Test
 #
 # FURTHER IMPROVEMENTS:
 # - analyze LLVM IR for redundant Int32/Int64 conversions
+#   without adding Int32() everywhere (JuliaGPU/CUDAnative.jl#25)
 # - use atomic memory operations
 # - add dispatch-based fallbacks for non-Kepler hardware
 # - dynamic block/grid size based on device capabilities
@@ -16,11 +17,11 @@ using Base.Test
 
 # Reduce a value across a warp
 function reduce_warp{F<:Function,T}(op::F, val::T)::T
-    offset = CUDAnative.warpsize() ÷ 2
+    offset = CUDAnative.warpsize() ÷ Int32(2)
     # TODO: this can be unrolled if warpsize is known...
-    while offset > 0
+    while offset > Int32(0)
         val = op(val, shfl_down(val, offset))
-        offset ÷= 2
+        offset ÷= Int32(2)
     end
     return val
 end
@@ -56,11 +57,12 @@ end
 
 # Reduce an array across a complete grid
 function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1}, output::CuDeviceArray{T,1}, N::Integer)
+    # TODO: neutral element depends on the operator (see Base's 2 and 3 argument `reduce`)
     val = zero(T)
 
     # reduce multiple elements per thread (grid-stride loop)
     # TODO: step range (see JuliaGPU/CUDAnative.jl#12)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-Int32(1)) * blockDim().x + threadIdx().x
     step = blockDim().x * gridDim().x
     while i <= N
         @inbounds val = op(val, input[i])
@@ -69,7 +71,7 @@ function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1}, output::Cu
 
     val = reduce_block(op, val)
 
-    if threadIdx().x == 1
+    if threadIdx().x == Int32(1)
         @inbounds output[blockIdx().x] = val
     end
 
