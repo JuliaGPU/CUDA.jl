@@ -19,7 +19,7 @@ using Base.Test
 function reduce_warp{F<:Function,T}(op::F, val::T)::T
     offset = CUDAnative.warpsize() ÷ Int32(2)
     # TODO: this can be unrolled if warpsize is known...
-    while offset > Int32(0)
+    while offset > 0
         val = op(val, shfl_down(val, offset))
         offset ÷= Int32(2)
     end
@@ -84,9 +84,6 @@ Reduce a large array.
 Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
 """
 function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T,1})
-    ctx = CuCurrentContext()
-    dev = device(ctx)
-    @assert(capability(dev) >= v"3.0", "this implementation requires a newer GPU")
     N = length(input)
 
     # TODO: these values are hardware-dependent, with recent GPUs supporting more threads
@@ -99,27 +96,39 @@ function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T
         throw(ArgumentError("output array too small, should be at least $blocks elements"))
     end
 
-    @cuda (blocks,threads) reduce_grid(op, input, output, N)
-    @cuda (1,1024) reduce_grid(op, output, output, blocks)
+    @cuda (blocks,threads) reduce_grid(op, input, output, Int32(N))
+    @cuda (1,1024) reduce_grid(op, output, output, Int32(blocks))
 
     return
 end
 
+function gpu_reduce{F<:Function,T}(op::F, input::Array{T,1})
+    ctx = CuCurrentContext()
+    dev = device(ctx)
+    @assert(capability(dev) >= v"3.0", "this implementation requires a newer GPU")
+
+    gpu_input = CuArray(input)
+    gpu_output = similar(gpu_input)
+
+    gpu_reduce(op, gpu_input, gpu_output)
+
+    return Array(gpu_output)[1]
+end
+
+
+
+#
+# Main
+#
+
+len = 10^6
+input = ones(Int32,len)
+
+cpu_val = reduce(+, input)
 
 dev = CuDevice(0)
 ctx = CuContext(dev)
-
-len = 123456
-
-a = ones(Int32,len)
-
-cpu_a = copy(a)
-cpu_a = reduce(+, cpu_a)
-
-gpu_a = CuArray(a)
-gpu_b = similar(gpu_a)
-gpu_reduce(+, gpu_a, gpu_b)
-
-@assert cpu_a ≈ Array(gpu_b)[1]
-
+gpu_val = gpu_reduce(+, input)
 destroy(ctx)
+
+@assert cpu_val == gpu_val
