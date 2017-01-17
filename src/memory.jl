@@ -71,8 +71,15 @@ end
 # TODO: varargs functions for uploading multiple objects at once?
 
 function alloc{T}(::Type{T}, len::Integer=1)
-    if isa(T, UnionAll) || T.abstract || !T.isleaftype
-        throw(ArgumentError("cannot represent abstract or non-leaf type"))
+    @static if VERSION >= v"0.6.0-dev.2123"
+        if isa(T, UnionAll) || T.abstract || !T.isleaftype
+            throw(ArgumentError("cannot represent abstract or non-leaf type"))
+        end
+    else
+        # 0.5 compatibility
+        if T.abstract || !T.isleaftype
+            throw(ArgumentError("cannot represent abstract or non-leaf type"))
+        end
     end
     sizeof(T) == 0 && throw(ArgumentError("cannot represent ghost types"))
 
