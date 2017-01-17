@@ -61,7 +61,7 @@ number of seconds it took to execute on the GPU, as a floating-point number.
 """
 macro elapsed(stream, ex)
     quote
-        local t0 = CuEvent(), t1 = CuEvent()
+        t0, t1 = CuEvent(), CuEvent()
         record(t0, $stream)
         $(esc(ex))
         record(t1, $stream)
