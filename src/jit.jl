@@ -36,6 +36,8 @@ function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
     kernel && check_kernel(func, tt)
 
     ptx,_ = compile_function(func, tt, cap; kernel=kernel)
+    # TODO: this code contains all the functions in the call chain,
+    #       is it possible to implement `dump_module`?
     print(io, ptx)
 end
 code_ptx(func::ANY, types::ANY=Tuple; kwargs...) = code_ptx(STDOUT, func, types; kwargs...)

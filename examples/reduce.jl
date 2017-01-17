@@ -31,7 +31,9 @@ function reduce_block{F<:Function,T}(op::F, val::T)::T
     # shared mem for 32 partial sums
     shared = @cuStaticSharedMem(T, 32)
 
-    wid, lane = fldmod1(threadIdx().x, CUDAnative.warpsize())
+    # TODO: use fldmod1 (JuliaGPU/CUDAnative.jl#28)
+    wid =  div(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
+    lane = rem(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
 
     # each warp performs partial reduction
     val = reduce_warp(op, val)
@@ -132,3 +134,57 @@ gpu_val = gpu_reduce(+, input)
 destroy(ctx)
 
 @assert cpu_val == gpu_val
+
+
+
+#
+# Benchmark
+#
+
+using BenchmarkTools
+
+open(joinpath(@__DIR__, "reduce.ptx"), "w") do f
+    CUDAnative.code_ptx(f, reduce_grid, Tuple{typeof(+), CuDeviceArray{Int32, 1}, CuDeviceArray{Int32, 1}, Int32}; cap=v"6.1.0")
+end
+
+
+## CUDAnative
+
+ctx = CuContext(dev)
+benchmark_gpu = @benchmarkable begin
+        gpu_reduce(+, gpu_input, gpu_output)
+        val = Array(gpu_output)[1]
+    end setup=(
+        val = nothing;
+        gpu_input = CuArray($input);
+        gpu_output = similar(gpu_input)
+    ) teardown=(
+        @assert val == $cpu_val;
+        gpu_input = nothing;
+        gpu_output = nothing;
+        gc()
+    )
+println(run(benchmark_gpu))
+destroy(ctx)
+
+
+## CUDA
+
+lib = Libdl.dlopen(joinpath(@__DIR__, "reduce", "reduce.so"))
+setup_cuda(input) = ccall(Libdl.dlsym(lib, "setup"), Ptr{Void},
+                          (Ptr{Cint}, Csize_t), input, length(input))
+run_cuda(state) = ccall(Libdl.dlsym(lib, "run"), Cint,
+                        (Ptr{Void},), state)
+teardown_cuda(state) = ccall(Libdl.dlsym(lib, "teardown"), Void,
+                             (Ptr{Void},), state)
+
+benchmark_cuda = @benchmarkable begin
+        val = run_cuda(state)
+    end setup=(
+        val = nothing;
+        state = setup_cuda($input);
+    ) teardown=(
+        @assert val == $cpu_val;
+        teardown_cuda(state)
+    )
+println(run(benchmark_cuda))

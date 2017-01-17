@@ -27,7 +27,17 @@ types and the return type (all in symbolic form).
 """
 function decode_call(e)
     @assert e.head == :(::)
-    rettype = e.args[2]::Symbol
+
+    # decode the return type expression: single symbol (the LLVM type), or a tuple of 2
+    # symbols (the LLVM and corresponding Julia type)
+    retspec = e.args[2]
+    if isa(retspec, Symbol)
+        rettype = retspec
+    else
+        @assert retspec.head == :tuple
+        @assert length(retspec.args) == 2
+        rettype = (retspec.args[1], retspec.args[2])
+    end
 
     call = e.args[1]
     @assert call.head == :call
@@ -64,14 +74,25 @@ will yield the following `llvmcall`:
 macro wrap(call, attrs="")
     intrinsic, args, argtypes, rettype = decode_call(call)
 
+    # decide on intrinsic return type
+    if isa(rettype, Symbol)
+        # only LLVM return type specified, match against known LLVM/Julia type combinations
+        llvm_ret_typ = rettype
+        julia_ret_typ = jltypes[rettype]
+    else
+        # both specified (for when there is a mismatch, eg. i32 -> UInt32)
+        llvm_ret_typ = rettype[1]
+        julia_ret_typ = rettype[2]
+    end
+
     llvm_args = String["%$i" for i in 0:length(argtypes)]
-    if rettype == :void
+    if llvm_ret_typ == :void
         llvm_ret_asgn = ""
         llvm_ret = "void"
     else
         llvm_ret_var = "%$(length(argtypes)+1)"
         llvm_ret_asgn = "$llvm_ret_var = "
-        llvm_ret = "$rettype $llvm_ret_var"
+        llvm_ret = "$llvm_ret_typ $llvm_ret_var"
     end
     llvm_declargs = join(argtypes, ", ")
     llvm_defargs = join(("$t $arg" for (t,arg) in zip(argtypes, llvm_args)), ", ")
@@ -81,10 +102,10 @@ macro wrap(call, attrs="")
 
     return quote
         Base.llvmcall(
-            ($"""declare $rettype @$intrinsic($llvm_declargs)""",
-             $"""$llvm_ret_asgn call $rettype @$intrinsic($llvm_defargs)
+            ($"""declare $llvm_ret_typ @$intrinsic($llvm_declargs)""",
+             $"""$llvm_ret_asgn call $llvm_ret_typ @$intrinsic($llvm_defargs)
                  ret $llvm_ret"""),
-            $(jltypes[rettype]), Tuple{$(julia_argtypes...)}, $(julia_args...))
+            $julia_ret_typ, Tuple{$(julia_argtypes...)}, $(julia_args...))
     end
 end
 
@@ -189,19 +210,19 @@ export
 for dim in (:x, :y, :z)
     # Thread index
     fn = Symbol("threadIdx_$dim")
-    @eval @inline $fn() = (@wrap llvm.nvvm.read.ptx.sreg.tid.$dim()::i32    "readnone nounwind")+Int32(1)
+    @eval @inline $fn() = (@wrap llvm.nvvm.read.ptx.sreg.tid.$dim()::(i32, UInt32)    "readnone nounwind")+UInt32(1)
 
     # Block size (#threads per block)
     fn = Symbol("blockDim_$dim")
-    @eval @inline $fn() =  @wrap llvm.nvvm.read.ptx.sreg.ntid.$dim()::i32   "readnone nounwind"
+    @eval @inline $fn() =  @wrap llvm.nvvm.read.ptx.sreg.ntid.$dim()::(i32, UInt32)   "readnone nounwind"
 
     # Block index
     fn = Symbol("blockIdx_$dim")
-    @eval @inline $fn() = (@wrap llvm.nvvm.read.ptx.sreg.ctaid.$dim()::i32  "readnone nounwind")+Int32(1)
+    @eval @inline $fn() = (@wrap llvm.nvvm.read.ptx.sreg.ctaid.$dim()::(i32, UInt32)  "readnone nounwind")+UInt32(1)
 
     # Grid size (#blocks per grid)
     fn = Symbol("gridDim_$dim")
-    @eval @inline $fn() =  @wrap llvm.nvvm.read.ptx.sreg.nctaid.$dim()::i32 "readnone nounwind"
+    @eval @inline $fn() =  @wrap llvm.nvvm.read.ptx.sreg.nctaid.$dim()::(i32, UInt32) "readnone nounwind"
 end
 
 # Tuple accessors
@@ -210,7 +231,7 @@ end
 @inline blockIdx() =  CUDAdrv.CuDim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
 @inline gridDim() =   CUDAdrv.CuDim3(gridDim_x(),   gridDim_y(),   gridDim_z())
 
-@inline warpsize() = @wrap llvm.nvvm.read.ptx.sreg.warpsize()::i32 "readnone nounwind"
+@inline warpsize() = @wrap llvm.nvvm.read.ptx.sreg.warpsize()::(i32, UInt32) "readnone nounwind"
 
 
 
