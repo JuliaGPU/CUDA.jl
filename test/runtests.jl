@@ -10,32 +10,22 @@ include("base.jl")
 
 include("codegen.jl")
 
-# NOTE: based on test/pkg.jl::grab_outputs, only grabs STDOUT without capturing exceptions
+# NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
 macro grab_output(ex)
     quote
-        OLD_STDOUT = STDOUT
-
-        foutname = tempname()
-        fout = open(foutname, "w")
-
-        local ret
-        local caught_ex = nothing
-        try
-            redirect_stdout(fout)
-            ret = $(esc(ex))
-        catch ex
-            caught_ex = nothing
-        finally
-            redirect_stdout(OLD_STDOUT)
-            close(fout)
+        let fname = tempname()
+            try
+                ret = nothing
+                open(fname, "w") do fout
+                    redirect_stdout(fout) do
+                        ret = $(esc(ex))
+                    end
+                end
+                return ret, readstring(fname)
+            finally
+                rm(fname, force=true)
+            end
         end
-        out = readstring(foutname)
-        rm(foutname)
-        if caught_ex != nothing
-            throw(caught_ex)
-        end
-
-        ret, out
     end
 end
 
