@@ -291,10 +291,22 @@ end
 ## execution
 
 let
-    @test CUDAdrv.CuDim3((4,3,2)) == CUDAdrv.CuDim3(4,3,2)
-    @test CUDAdrv.CuDim3((3,2))   == CUDAdrv.CuDim3(3,2,1)
-    @test CUDAdrv.CuDim3((2,))    == CUDAdrv.CuDim3(2,1,1)
-    @test CUDAdrv.CuDim3(2)       == CUDAdrv.CuDim3(2,1,1)
+    # test outer CuDim3 constructors
+    @test CUDAdrv.CuDim3((Cuint(4),Cuint(3),Cuint(2))) == CUDAdrv.CuDim3(Cuint(4),Cuint(3),Cuint(2))
+    @test CUDAdrv.CuDim3((Cuint(3),Cuint(2)))          == CUDAdrv.CuDim3(Cuint(3),Cuint(2),Cuint(1))
+    @test CUDAdrv.CuDim3((Cuint(2),))                  == CUDAdrv.CuDim3(Cuint(2),Cuint(1),Cuint(1))
+    @test CUDAdrv.CuDim3(Cuint(2))                     == CUDAdrv.CuDim3(Cuint(2),Cuint(1),Cuint(1))
+
+    # outer constructor should type convert
+    @test CUDAdrv.CuDim3(2)       == CUDAdrv.CuDim3(Cuint(2),Cuint(1),Cuint(1))
+    @test_throws InexactError CUDAdrv.CuDim3(typemax(Int64))
+
+    # CuDim type alias should accept conveniently-typed dimensions
+    @test isa(2,        CUDAdrv.CuDim)
+    @test isa((2,),     CUDAdrv.CuDim)
+    @test isa((2,2),    CUDAdrv.CuDim)
+    @test isa((2,2,2),  CUDAdrv.CuDim)
+    @test isa(Cuint(2), CUDAdrv.CuDim)
 end
 
 let
