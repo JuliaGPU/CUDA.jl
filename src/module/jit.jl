@@ -32,8 +32,8 @@ function convert_bits{T}(::Type{T}, data::UInt)
 end
 
 function encode(options::Dict{CUjit_option,Any})
-    keys = Array(CUjit_option, 0)
-    vals = Array(Ptr{Void}, 0)
+    keys = Array{CUjit_option}(0)
+    vals = Array{Ptr{Void}}(0)
 
     for (opt, val) in options
         push!(keys, opt)

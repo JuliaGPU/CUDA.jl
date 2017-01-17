@@ -21,9 +21,9 @@ type CuModule
     function CuModule(data, options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
         handle_ref = Ref{CuModule_t}()
 
-        options[ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
+        options[ERROR_LOG_BUFFER] = Array{UInt8}(1024*1024)
         @static if DEBUG
-            options[INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
+            options[INFO_LOG_BUFFER] = Array{UInt8}(1024*1024)
             options[LOG_VERBOSE] = true
         end
         optionKeys, optionVals = encode(options)

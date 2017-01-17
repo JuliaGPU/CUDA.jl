@@ -35,7 +35,7 @@ Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
 "Get the name of a CUDA device"
 function name(dev::CuDevice)
     const buflen = 256
-    buf = Array(Cchar, buflen)
+    buf = Array{Cchar}(buflen)
     @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CuDevice_t),
                                buf, buflen, dev)
     buf[end] = 0

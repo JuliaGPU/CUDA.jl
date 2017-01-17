@@ -250,7 +250,10 @@ end
 
 let
     @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract
-    @test_throws ArgumentError Mem.alloc(Array{Int}, 1) # non-leaftype
+    @test_throws ArgumentError Mem.alloc(Array{Int}, 1) # UnionAll
+    @test_throws ArgumentError Mem.alloc(Integer, 1)    # abstract
+    # TODO: can we test for the third case?
+    #       !abstract && leaftype seems to imply UnionAll nowadays...
     @test_throws ArgumentError Mem.alloc(Int, 0)
 end
 

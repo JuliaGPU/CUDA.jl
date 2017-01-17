@@ -19,12 +19,12 @@ type CuLink
         handle_ref = Ref{CuLinkState_t}()
 
         options = Dict{CUjit_option,Any}()
-        options[ERROR_LOG_BUFFER] = Array(UInt8, 1024*1024)
+        options[ERROR_LOG_BUFFER] = Array{UInt8}(1024*1024)
         @static if DEBUG
             options[GENERATE_LINE_INFO] = true
             options[GENERATE_DEBUG_INFO] = true
 
-            options[INFO_LOG_BUFFER] = Array(UInt8, 1024*1024)
+            options[INFO_LOG_BUFFER] = Array{UInt8}(1024*1024)
             options[LOG_VERBOSE] = true
         end
         optionKeys, optionVals = encode(options)
