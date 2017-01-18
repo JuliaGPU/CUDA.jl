@@ -1,5 +1,14 @@
+// Fast parallel reduction for Kepler hardware
+//
+// Based on devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
+
 #include <cuda.h>
 #include <stdio.h>
+
+
+//
+// Main implementation
+//
 
 // Reduce a value across a warp
 __inline__ __device__
@@ -62,6 +71,11 @@ void sumReduce(int *input, int* output, int N) {
   sumReduce_grid<<<1, 1024>>>(output, output, blocks);
 }
 
+
+//
+// Benchmark entry-points
+//
+
 struct State
 {
   size_t len;
@@ -99,18 +113,4 @@ void teardown(State *state)
 {
   cudaFree(state->gpu_output);
   cudaFree(state->gpu_input);
-}
-
-const size_t len = 123456;
-
-int main() {
-  int input[len];
-  for (int i = 0; i < len; i++)
-      input[i] = 1;
-
-  State *state = setup(input, len);
-  int gpu_output = run(state);
-  teardown(state);
-
-  return 0;
 }

@@ -1,38 +1,32 @@
-using CUDAdrv, CUDAnative
-using Base.Test
-
 # Fast parallel reduction for Kepler hardware
 #
 # Based on devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
+
+using CUDAdrv, CUDAnative
+
+
 #
-# FURTHER IMPROVEMENTS:
-# - analyze LLVM IR for redundant Int32/Int64 conversions
-#   without adding Int32() everywhere (JuliaGPU/CUDAnative.jl#25)
-# - use atomic memory operations
-# - add dispatch-based fallbacks for non-Kepler hardware
-# - dynamic block/grid size based on device capabilities
-# - improve documentation
-# - vectorized memory access
-#   devblogs.nvidia.com/parallelforall/cuda-pro-tip-increase-performance-with-vectorized-memory-access/
+# Main implementation
+#
 
 # Reduce a value across a warp
-function reduce_warp{F<:Function,T}(op::F, val::T)::T
-    offset = CUDAnative.warpsize() ÷ Int32(2)
+@inline function reduce_warp{F<:Function,T}(op::F, val::T)::T
+    offset = CUDAnative.warpsize() ÷ UInt32(2)
     # TODO: this can be unrolled if warpsize is known...
     while offset > 0
         val = op(val, shfl_down(val, offset))
-        offset ÷= Int32(2)
+        offset ÷= UInt32(2)
     end
     return val
 end
 
 # Reduce a value across a block, using shared memory for communication
-function reduce_block{F<:Function,T}(op::F, val::T)::T
+@inline function reduce_block{F<:Function,T}(op::F, val::T)::T
     # shared mem for 32 partial sums
     shared = @cuStaticSharedMem(T, 32)
 
     # TODO: use fldmod1 (JuliaGPU/CUDAnative.jl#28)
-    wid =  div(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
+    wid  = div(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
     lane = rem(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
 
     # each warp performs partial reduction
@@ -104,87 +98,9 @@ function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T
     return
 end
 
-function gpu_reduce{F<:Function,T}(op::F, input::Array{T,1})
-    ctx = CuCurrentContext()
-    dev = device(ctx)
-    @assert(capability(dev) >= v"3.0", "this implementation requires a newer GPU")
 
-    gpu_input = CuArray(input)
-    gpu_output = similar(gpu_input)
-
-    gpu_reduce(op, gpu_input, gpu_output)
-
-    return Array(gpu_output)[1]
-end
-
-
-
-#
-# Main
-#
-
-len = 10^6
-input = ones(Int32,len)
-
-cpu_val = reduce(+, input)
-
-dev = CuDevice(0)
-ctx = CuContext(dev)
-gpu_val = gpu_reduce(+, input)
-destroy(ctx)
-
-@assert cpu_val == gpu_val
-
-
-
-#
-# Benchmark
-#
-
-using BenchmarkTools
-
-open(joinpath(@__DIR__, "reduce.ptx"), "w") do f
-    CUDAnative.code_ptx(f, reduce_grid, Tuple{typeof(+), CuDeviceArray{Int32, 1}, CuDeviceArray{Int32, 1}, Int32}; cap=v"6.1.0")
-end
-
-
-## CUDAnative
-
-ctx = CuContext(dev)
-benchmark_gpu = @benchmarkable begin
-        gpu_reduce(+, gpu_input, gpu_output)
-        val = Array(gpu_output)[1]
-    end setup=(
-        val = nothing;
-        gpu_input = CuArray($input);
-        gpu_output = similar(gpu_input)
-    ) teardown=(
-        @assert val == $cpu_val;
-        gpu_input = nothing;
-        gpu_output = nothing;
-        gc()
-    )
-println(run(benchmark_gpu))
-destroy(ctx)
-
-
-## CUDA
-
-lib = Libdl.dlopen(joinpath(@__DIR__, "reduce", "reduce.so"))
-setup_cuda(input) = ccall(Libdl.dlsym(lib, "setup"), Ptr{Void},
-                          (Ptr{Cint}, Csize_t), input, length(input))
-run_cuda(state) = ccall(Libdl.dlsym(lib, "run"), Cint,
-                        (Ptr{Void},), state)
-teardown_cuda(state) = ccall(Libdl.dlsym(lib, "teardown"), Void,
-                             (Ptr{Void},), state)
-
-benchmark_cuda = @benchmarkable begin
-        val = run_cuda(state)
-    end setup=(
-        val = nothing;
-        state = setup_cuda($input);
-    ) teardown=(
-        @assert val == $cpu_val;
-        teardown_cuda(state)
-    )
-println(run(benchmark_cuda))
+# FURTHER IMPROVEMENTS:
+# - use atomic memory operations
+# - dynamic block/grid size based on device capabilities
+# - vectorized memory access
+#   devblogs.nvidia.com/parallelforall/cuda-pro-tip-increase-performance-with-vectorized-memory-access/
