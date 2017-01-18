@@ -7,36 +7,19 @@ hardware. It is a work in progress, highly experimental, and only works on very 
 versions of Julia (see the `REQUIRE` file for specifics).
 
 
+## Requirements
+
+* Julia 0.6 with LLVM 3.9 (the default), built from source
+* Linux or macOS
+* NVIDIA driver and CUDA toolkit
+
+
 ## Installation
 
-1. Install the NVIDIA driver, and make sure `libcuda` is in your library loading path.
-
-2. Install the CUDA toolkit, making sure it contains the device library bitcode files, named
-   `libdevice.*.bc`. If the toolkit is installed in a nonstandard location, you will need to
-   define the `NVVMIR_LIBRARY_DIR` environment variable, pointing to the directory
-   containing these bitcode files.
-
-  Note that these files are only part of recent CUDA toolkits (version 5.5 or greater). If
-  you are using an older version, you will need to copy over those files from another
-  system.
-
-3. Compile a version of Julia with external language support, and use that `julia` binary
-   for all future steps.
-
-4. Clone and test this package in Julia:
-
-   ```julia
-   Pkg.clone("https://github.com/JuliaGPU/CUDAnative.jl.git")
-   Pkg.test("CUDAnative")
-   ```
-
-   NOTE: as there is no released version of CUDAnative yet, you will need to check-out the
-   latest versions of some dependencies:
-
-   ```julia
-   Pkg.checkout("CUDAdrv")
-   Pkg.checkout("LLVM")
-   ```
+```julia
+Pkg.add("CUDAnative")
+Pkg.test("CUDAnative")
+```
 
 
 ## Quick start guide
