@@ -265,7 +265,11 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
         strip_dead_prototypes!(pm)
 
         # 5. Run NVVMReflect pass
-        nvvm_reflect!(pm, Dict("__CUDA_FTZ" => 1))
+        push!(metadata(mod), "nvvm-reflect-ftz",
+              MDNode([ConstantInt(Int32(1))]))
+
+        # FIXME: we shouldn't queue this manually,
+        #        but use the TM's `addEarlyAsPossiblePasses` instead
 
         # 6. Run standard optimization pipeline
         always_inliner!(pm)
