@@ -149,13 +149,18 @@ macro cuda(config::Expr, callexpr::Expr)
 
     # optional tuple elements are forwarded to `cudacall` by means of kwargs
     if length(config.args) == 2
-        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...))))
+        return esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...))))
     elseif length(config.args) == 3
-        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
-                                               shmem=$config[3])))
+        shmem = config.args[3]
+        deleteat!(config.args, 3)
+        return esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...);
+                                               shmem=$shmem)))
     elseif length(config.args) == 4
-        return esc(:(CUDAnative.generated_cuda($config[1:2], $(callexpr.args...);
-                                               shmem=$config[3], stream=$config[4])))
+        shmem = config.args[3]
+        stream = config.args[4]
+        deleteat!(config.args, [3,4])
+        return esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...);
+                                               shmem=$shmem, stream=$stream)))
     end
 end
 
