@@ -3,6 +3,7 @@ include("reduce.jl")
 dev = CuDevice(0)
 @assert(capability(dev) >= v"3.0", "this implementation requires a newer GPU")
 
+# Stubs for the CUDA C implementation
 lib = Libdl.dlopen(joinpath(@__DIR__, "reduce.so"))
 setup_cuda(input)    = ccall(Libdl.dlsym(lib, "setup"), Ptr{Void},
                              (Ptr{Cint}, Csize_t), input, length(input))
@@ -10,6 +11,15 @@ run_cuda(state)      = ccall(Libdl.dlsym(lib, "run"), Cint,
                              (Ptr{Void},), state)
 teardown_cuda(state) = ccall(Libdl.dlsym(lib, "teardown"), Void,
                              (Ptr{Void},), state)
+
+# PTX generation
+open(joinpath(@__DIR__, "reduce.jl.ptx"), "w") do f
+    CUDAnative.code_ptx(f, reduce_grid,
+                        Tuple{typeof(+), CuDeviceArray{Int32,1},
+                              CuDeviceArray{Int32,1}, Int32};
+                        cap=v"6.1.0")
+end
+
 
 
 #
@@ -45,6 +55,7 @@ let
 end
 
 
+
 #
 # Performance
 #
@@ -63,7 +74,6 @@ benchmark_gpu = @benchmarkable begin
         gpu_input = CuArray($input);
         gpu_output = similar(gpu_input)
     ) teardown=(
-        @assert val == $cpu_val;
         gpu_input = nothing;
         gpu_output = nothing;
         gc()

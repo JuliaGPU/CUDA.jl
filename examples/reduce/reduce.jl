@@ -52,7 +52,9 @@ end
 end
 
 # Reduce an array across a complete grid
-function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1}, output::CuDeviceArray{T,1}, N::Integer)
+function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1},
+                                    output::CuDeviceArray{T,1}, len::Integer)
+
     # TODO: neutral element depends on the operator (see Base's 2 and 3 argument `reduce`)
     val = zero(T)
 
@@ -60,7 +62,7 @@ function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1}, output::Cu
     # TODO: step range (see JuliaGPU/CUDAnative.jl#12)
     i = (blockIdx().x-Int32(1)) * blockDim().x + threadIdx().x
     step = blockDim().x * gridDim().x
-    while i <= N
+    while i <= len
         @inbounds val = op(val, input[i])
         i += step
     end
@@ -80,11 +82,11 @@ Reduce a large array.
 Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
 """
 function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T,1})
-    N = length(input)
+    len = length(input)
 
     # TODO: these values are hardware-dependent, with recent GPUs supporting more threads
     threads = 512
-    blocks = min((N + threads - 1) ÷ threads, 1024)
+    blocks = min((len + threads - 1) ÷ threads, 1024)
 
     # the output array must have a size equal to or larger than the number of thread blocks
     # in the grid because each block writes to a unique location within the array.
@@ -92,7 +94,7 @@ function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T
         throw(ArgumentError("output array too small, should be at least $blocks elements"))
     end
 
-    @cuda (blocks,threads) reduce_grid(op, input, output, Int32(N))
+    @cuda (blocks,threads) reduce_grid(op, input, output, Int32(len))
     @cuda (1,1024) reduce_grid(op, output, output, Int32(blocks))
 
     return
