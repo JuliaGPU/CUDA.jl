@@ -5,6 +5,16 @@
 #include <cuda.h>
 #include <stdio.h>
 
+#define APICALL(code) { check_code((code), __FILE__, __LINE__); }
+inline void check_code(cudaError_t code, const char *file, int line)
+{
+  if (code != cudaSuccess)
+  {
+    fprintf(stderr,"CUDA error: %s %s %d\n", cudaGetErrorString(code), file, line);
+    exit(code);
+  }
+}
+
 
 //
 // Main implementation
@@ -90,9 +100,9 @@ State *setup(int *input, size_t len)
 
   state->len = len;
 
-  cudaMalloc(&state->gpu_input, len*sizeof(int));
-  cudaMemcpy(state->gpu_input, input, len*sizeof(int), cudaMemcpyHostToDevice);
-  cudaMalloc(&state->gpu_output, len*sizeof(int));
+  APICALL(cudaMalloc(&state->gpu_input, len*sizeof(int)));
+  APICALL(cudaMemcpy(state->gpu_input, input, len*sizeof(int), cudaMemcpyHostToDevice));
+  APICALL(cudaMalloc(&state->gpu_output, len*sizeof(int)));
 
   return state;
 }
@@ -102,15 +112,17 @@ int run(State *state)
 {
   sumReduce(state->gpu_input, state->gpu_output, state->len);
 
-  int output[state->len];
-  cudaMemcpy(output, state->gpu_output, state->len*sizeof(int), cudaMemcpyDeviceToHost);
+  int* output = (int*) malloc(state->len * sizeof(int));
+  APICALL(cudaMemcpy(output, state->gpu_output, state->len*sizeof(int), cudaMemcpyDeviceToHost));
+  int val = output[0];
+  free(output);
 
-  return output[0];
+  return val;
 }
 
 extern "C"
 void teardown(State *state)
 {
-  cudaFree(state->gpu_output);
-  cudaFree(state->gpu_input);
+  APICALL(cudaFree(state->gpu_output));
+  APICALL(cudaFree(state->gpu_input));
 }

@@ -28,8 +28,8 @@ end
 
 using Base.Test
 
-len = 10^6
-input = ones(Int32,len)
+len = 10^7
+input = ones(Int32, len)
 
 # CPU
 cpu_val = reduce(+, input)
