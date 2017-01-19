@@ -19,8 +19,8 @@ include("types.jl")
 
 include("jit.jl")
 include("execution.jl")
-include("intrinsics.jl")
-include("array.jl")
+include("device/intrinsics.jl")
+include("device/array.jl")
 
 
 function __init__()
