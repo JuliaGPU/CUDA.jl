@@ -410,7 +410,7 @@ let
         cpu = rand(Float32, 10)
         gpu = CuArray{Float32}(10)
 
-        copy!(cpu, gpu)
+        copy!(gpu, cpu)
 
         cpu_back = Array{Float32}(10)
         copy!(cpu_back, gpu)
