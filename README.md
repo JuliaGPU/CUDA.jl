@@ -49,6 +49,7 @@ Using the `@cuda` macro, you can launch the kernel on a GPU of your choice:
 
 ```julia
 using CUDAdrv, CUDAnative
+using Base.Test
 
 # CUDAdrv functionality: select device, create context
 dev = CuDevice(0)
