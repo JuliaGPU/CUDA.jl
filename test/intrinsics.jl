@@ -241,6 +241,9 @@ end
 
 ############################################################################################
 
+@testset "data movement and conversion" begin
+
+if capability(dev) >= v"3.0"
 @testset "shuffle" begin
 
 n = 14
@@ -265,6 +268,9 @@ types = [Int32, Int64, Float32, Float64]
         a[1:n÷2] += a[n÷2+1:end]
         @test a == Array(d_a)
     end
+end
+
+end
 end
 
 end
