@@ -192,16 +192,6 @@ macro cuda(config::Expr, callexpr::Expr)
     end
 end
 
-# Execute a pre-compiled CUDA kernel
-@generated function generated_cuda(dims::Tuple{CuDim, CuDim},
-                                   cuda_fun::CuFunction, argspec...;
-                                   kwargs...)
-    tt = Base.to_tuple_type(argspec)
-    args = [:( argspec[$i] ) for i in 1:length(argspec)]
-
-    return emit_cudacall(:(cuda_fun), :(dims), :(kwargs), args, tt)
-end
-
 # Compile and execute a CUDA kernel from a Julia function
 const func_cache = Dict{UInt, CuFunction}()
 @generated function generated_cuda{F<:Core.Function}(dims::Tuple{CuDim, CuDim},
