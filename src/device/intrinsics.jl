@@ -11,6 +11,8 @@ const llvmtypes = Dict{Type,Symbol}(
     Void    => :void,
     Int32   => :i32,
     Int64   => :i64,
+    UInt32   => :i32,
+    UInt64   => :i64,
     Float32 => :float,
     Float64 => :double
 )
