@@ -55,4 +55,6 @@ else
     include("execution.jl")
     include("array.jl")
     include("intrinsics.jl")
+
+    include("examples.jl")
 end
