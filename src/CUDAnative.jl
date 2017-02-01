@@ -15,12 +15,11 @@ isfile(ext) || error("Unable to load $ext\n\nPlease re-run Pkg.build(\"CUDAnativ
 include(ext)
 
 include("util.jl")
-include("types.jl")
 
 include("jit.jl")
-include("execution.jl")
-include("device/intrinsics.jl")
 include("device/array.jl")
+include("device/intrinsics.jl") # these files contain generated functions,
+include("execution.jl")         # so should get loaded last (JuliaLang/julia#19942)
 
 
 function __init__()
