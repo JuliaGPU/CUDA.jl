@@ -15,5 +15,5 @@ examples = find_sources(joinpath(@__DIR__, "..", "examples"))
 filter!(file -> readline(file) != "# EXCLUDE FROM TESTING", examples)
 
 for example in examples
-    run(`$(Base.julia_cmd()) $example`)
+    run(pipeline(`$(Base.julia_cmd()) $example`; stdout=DevNull))
 end
