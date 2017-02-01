@@ -1,3 +1,5 @@
+@testset "examples" begin
+
 function find_sources(dir)
     sources = String[]
     for entry in readdir(dir)
@@ -15,5 +17,7 @@ examples = find_sources(joinpath(@__DIR__, "..", "examples"))
 filter!(file -> readline(file) != "# EXCLUDE FROM TESTING", examples)
 
 for example in examples
-    run(pipeline(`$(Base.julia_cmd()) $example`; stdout=DevNull))
+    @test success(pipeline(`$(Base.julia_cmd()) $example`; stdout=DevNull))
+end
+
 end
