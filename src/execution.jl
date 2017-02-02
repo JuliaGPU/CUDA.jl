@@ -9,6 +9,34 @@ using Base.Iterators: filter
 # Auxiliary
 #
 
+# Determine which type to pre-convert objects to for use on a CUDA device.
+#
+# The resulting object type will be used as a starting point to determine the final
+# specialization and argument types (there might be other conversions, eg. factoring in the
+# ABI). This is different from `cconvert` in that we don't know which type to convert to.
+function convert_type(t)
+    # NOTE: this conversion was originally intended to be a user-extensible interface,
+    #       a la cconvert (look for cudaconvert in f1e592e61d6898869b918331e3e625292f4c8cab).
+    #
+    #       however, the generated function behind @cuda isn't allowed to call overloaded
+    #       functions (only pure ones), and also won't be able to see functions defined
+    #       after the generated function's body (see JuliaLang/julia#19942).
+
+    # Pointer handling
+    if t <: DevicePtr
+        return Ptr{t.parameters...}
+    elseif t <: Ptr
+        throw(InexactError())
+    end
+
+    # Array types
+    if t <: CuArray
+        return CuDeviceArray{t.parameters...}
+    end
+
+    return t
+end
+
 """
 Convert the arguments to a kernel function to their CUDA representation, and figure out what
 types to specialize the kernel function for and how to actually pass those objects.
@@ -20,7 +48,7 @@ function convert_arguments(args, tt)
     # convert types to their CUDA representation
     for i in 1:length(argexprs)
         t = argtypes[i]
-        ct = cudaconvert(t)
+        ct = convert_type(t)
         if ct != t
             argtypes[i] = ct
             if ct <: Ptr
@@ -162,16 +190,6 @@ macro cuda(config::Expr, callexpr::Expr)
         return esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...);
                                                shmem=$shmem, stream=$stream)))
     end
-end
-
-# Execute a pre-compiled CUDA kernel
-@generated function generated_cuda(dims::Tuple{CuDim, CuDim},
-                                   cuda_fun::CuFunction, argspec...;
-                                   kwargs...)
-    tt = Base.to_tuple_type(argspec)
-    args = [:( argspec[$i] ) for i in 1:length(argspec)]
-
-    return emit_cudacall(:(cuda_fun), :(dims), :(kwargs), args, tt)
 end
 
 # Compile and execute a CUDA kernel from a Julia function

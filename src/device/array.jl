@@ -19,8 +19,6 @@ end
 CuDeviceArray{T,N}(shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
 CuDeviceArray{T}(len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,), p)
 
-cudaconvert{T,N}(::Type{CuArray{T,N}}) = CuDeviceArray{T,N}
-
 Base.convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) =
     CuDeviceArray{T,N}(a.shape, Base.unsafe_convert(Ptr{T}, a.devptr))
 
