@@ -21,7 +21,7 @@ macro grab_output(ex)
                         ret = $(esc(ex))
                     end
                 end
-                return ret, readstring(fname)
+                ret, readstring(fname)
             finally
                 rm(fname, force=true)
             end
