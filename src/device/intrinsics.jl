@@ -160,11 +160,6 @@ macro cuprintf(fmt::String, args...)
     return esc(:(CUDAnative.generated_cuprintf(Val{$id}, $(args...))))
 end
 
-@generated function generated_cuprintf{ID}(::Type{Val{ID}}, argspec...)
-    args = [:( argspec[$i] ) for i in 1:length(argspec)]
-    return emit_vprintf(ID, argspec, args...)
-end
-
 function emit_vprintf(id::Integer, argtypes, args...)
     fmt = cuprintf_fmts[id]
     fmtlen = length(fmt)
@@ -197,6 +192,11 @@ function emit_vprintf(id::Integer, argtypes, args...)
                       Void, Tuple{$argtypes...}, $(args...)
                      )
     end
+end
+
+@generated function generated_cuprintf{ID}(::Type{Val{ID}}, argspec...)
+    args = [:( argspec[$i] ) for i in 1:length(argspec)]
+    return emit_vprintf(ID, argspec, args...)
 end
 
 
@@ -330,10 +330,6 @@ macro cuStaticSharedMem(typ, dims)
     return esc(:(CUDAnative.generate_static_shmem(Val{$id}, $typ, Val{$dims})))
 end
 
-@generated function generate_static_shmem{ID,T,D}(::Type{Val{ID}}, ::Type{T}, ::Type{Val{D}})
-    return emit_static_shmem(ID, T, tuple(D...))
-end
-
 function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,Int})
     if !haskey(llvmtypes, jltyp)
         error("cuStaticSharedMem: unsupported type '$jltyp'")
@@ -351,6 +347,10 @@ function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,Int})
                  ret $llvmtyp* %2"""),
             Ptr{$jltyp}, Tuple{}))
     end
+end
+
+@generated function generate_static_shmem{ID,T,D}(::Type{Val{ID}}, ::Type{T}, ::Type{Val{D}})
+    return emit_static_shmem(ID, T, tuple(D...))
 end
 
 
@@ -379,10 +379,6 @@ macro cuDynamicSharedMem(typ, dims, offset=0)
     return esc(:(CUDAnative.generate_dynamic_shmem(Val{$id}, $typ, $dims, $offset)))
 end
 
-@generated function generate_dynamic_shmem{ID,T}(::Type{Val{ID}}, ::Type{T}, dims, offset)
-    return emit_dynamic_shmem(ID, T, :(dims), :(offset))
-end
-
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
 function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol}, offset::Symbol)
     if !haskey(llvmtypes, jltyp)
@@ -400,6 +396,10 @@ function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol},
                  ret $llvmtyp* %2"""),
             Ptr{$jltyp}, Tuple{}) + $offset)
     end
+end
+
+@generated function generate_dynamic_shmem{ID,T}(::Type{Val{ID}}, ::Type{T}, dims, offset)
+    return emit_dynamic_shmem(ID, T, :(dims), :(offset))
 end
 
 # NOTE: this might be a neater approach (with a user-end macro for hiding the `Val{N}`):
