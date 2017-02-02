@@ -1,4 +1,8 @@
-# Running this example under cuda-memset with DEBUG=1 properly gives line number info
+# EXCLUDE FROM TESTING
+# this example might fail (CUDA error, or runtime trap if bounds-checking if enabled)
+
+# Running this example under cuda-memset properly gives line number info,
+# demonstrating how we support existing CUDA tools.
 
 # TODO: make the actual error trap at run time
 
