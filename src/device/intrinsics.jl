@@ -212,19 +212,19 @@ export
 for dim in (:x, :y, :z)
     # Thread index
     fn = Symbol("threadIdx_$dim")
-    @eval @inline $fn() = (@wrap llvm.nvvm.read.ptx.sreg.tid.$dim()::(i32, UInt32)    "readnone nounwind")+UInt32(1)
+    @eval @inline $fn() = (ccall($"llvm.nvvm.read.ptx.sreg.tid.$dim", llvmcall, UInt32, ()))+UInt32(1)
 
     # Block size (#threads per block)
     fn = Symbol("blockDim_$dim")
-    @eval @inline $fn() =  @wrap llvm.nvvm.read.ptx.sreg.ntid.$dim()::(i32, UInt32)   "readnone nounwind"
+    @eval @inline $fn() =  ccall($"llvm.nvvm.read.ptx.sreg.ntid.$dim", llvmcall, UInt32, ())
 
     # Block index
     fn = Symbol("blockIdx_$dim")
-    @eval @inline $fn() = (@wrap llvm.nvvm.read.ptx.sreg.ctaid.$dim()::(i32, UInt32)  "readnone nounwind")+UInt32(1)
+    @eval @inline $fn() = (ccall($"llvm.nvvm.read.ptx.sreg.ctaid.$dim", llvmcall, UInt32, ()))+UInt32(1)
 
     # Grid size (#blocks per grid)
     fn = Symbol("gridDim_$dim")
-    @eval @inline $fn() =  @wrap llvm.nvvm.read.ptx.sreg.nctaid.$dim()::(i32, UInt32) "readnone nounwind"
+    @eval @inline $fn() =  ccall($"llvm.nvvm.read.ptx.sreg.nctaid.$dim", llvmcall, UInt32, ())
 end
 
 # Tuple accessors
@@ -233,7 +233,7 @@ end
 @inline blockIdx() =  CUDAdrv.CuDim3(blockIdx_x(),  blockIdx_y(),  blockIdx_z())
 @inline gridDim() =   CUDAdrv.CuDim3(gridDim_x(),   gridDim_y(),   gridDim_z())
 
-@inline warpsize() = @wrap llvm.nvvm.read.ptx.sreg.warpsize()::(i32, UInt32) "readnone nounwind"
+@inline warpsize() = ccall("llvm.nvvm.read.ptx.sreg.warpsize", llvmcall, UInt32, ())
 
 
 
@@ -247,7 +247,7 @@ export
 
 ## barriers
 
-@inline sync_threads() = @wrap llvm.nvvm.barrier0()::void "readnone nounwind"
+@inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Void, ())
 
 
 ## voting
@@ -453,30 +453,15 @@ for typ in ((Int32,   :i32, :i32),
         mode, mask = op
         fname = Symbol("shfl_$mode")
         pack_expr = :((($ws - Int32(width)) << 8) | $mask)
-        @static if VersionNumber(Base.libllvm_version) >= v"3.9-"
-            intrinsic = Symbol("llvm.nvvm.shfl.$mode.$intr")
-            @eval begin
-                export $fname
-                @inline $fname(val::$jl, srclane::Integer, width::Integer=$ws) =
-                    Base.llvmcall(
-                        ($"""declare $llvm @$intrinsic($llvm, i32, i32)""",
-                         $"""%4 = call $llvm @$intrinsic($llvm %0, i32 %1, i32 %2)
-                             ret $llvm %4"""),
-                        $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
-                        $pack_expr)
-            end
-        else
-            instruction = Symbol("shfl.$mode.b32")  # NOTE: only b32 available, no i32/f32
-            @eval begin
-                export $fname
-                @inline $fname(val::$jl, srclane::Integer, width::Integer=$ws) =
-                    Base.llvmcall(
-                        $"""%4 = call $llvm asm sideeffect "$instruction \$0, \$1, \$2, \$3;", "=r,r,r,r"($llvm %0, i32 %1, i32 %2)
-                            ret $llvm %4""",    # "
-                        $jl, Tuple{$jl, Int32, Int32}, val, Int32(srclane),
-                        $pack_expr)
-            end
+        intrinsic = Symbol("llvm.nvvm.shfl.$mode.$intr")
+
+        @eval begin
+            export $fname
+            @inline $fname(val::$jl, srclane::Integer, width::Integer=$ws) =
+                ccall($"$intrinsic", llvmcall, $jl,
+                      ($jl, Int32, Int32), val, Int32(srclane), $pack_expr)
         end
+
     end
 end
 
@@ -504,6 +489,7 @@ for typ in (Int64, UInt64, Float64)
         end
     end
 end
+
 
 
 #
@@ -771,7 +757,6 @@ end
 
 @inline yn(n::Int32, x::Float64) = @wrap __nv_yn(n::i32, x::double)::double
 @inline yn(n::Int32, x::Float32) = @wrap __nv_ynf(n::i32, x::float)::float
-
 
 
 ## distributions
