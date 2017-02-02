@@ -28,10 +28,10 @@ end
     _, out = @grab_output @on_device @cuprintf("Testing...\n")
     @test out == "Testing...\n"
 
-    _, out = @grab_output @on_device @cuprintf("Testing %d...\n", 42)
+    _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
     @test out == "Testing 42...\n"
 
-    _, out = @grab_output @on_device @cuprintf("Testing %d %d...\n", blockIdx().x, threadIdx().x)
+    _, out = @grab_output @on_device @cuprintf("Testing %u %u...\n", blockIdx().x, threadIdx().x)
     @test out == "Testing 1 1...\n"
 
     _, out = @grab_output @on_device begin
