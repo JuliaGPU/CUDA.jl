@@ -1,4 +1,5 @@
-# CUDAnative.jl
+CUDAnative.jl
+=============
 
 Code Coverage: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAnative.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAnative.jl)
 
@@ -7,26 +8,33 @@ hardware. It is a work in progress, highly experimental, and only works on very 
 versions of Julia (see the `REQUIRE` file for specifics).
 
 
-## Requirements
 
-* Julia 0.6 with LLVM 3.9 (the default), built from source
-* Linux or macOS
-* NVIDIA driver and CUDA toolkit
+Installation
+------------
 
+Requirements:
 
-## Installation
+* Julia 0.6 with LLVM 3.9 **built from source**, executed **in tree** (for LLVM.jl)
+* NVIDIA driver, providing `libcuda.so` (for CUDAdrv.jl)
+* CUDA toolkit
 
-```julia
+Although that first requirements might sound complicated, it basically means you need to
+fetch and compile a copy of Julia 0.6 (refer to [the main repository's
+README](https://github.com/JuliaLang/julia/blob/master/README.md#source-download-and-compilation)
+and checkout the `release-0.6` branch), and execute the resulting `julia` binary in-place
+without doing a `make install`. Afterwards, you can do:
+
+```YOUR_BUILD_TREE/julia
 Pkg.add("CUDAnative")
 Pkg.test("CUDAnative")
 ```
 
+For now, only Linux and macOS are supported.
 
-## Quick start guide
 
-The following example shows how to add two vectors on the GPU.
 
-**Writing the kernel**
+Quick start
+-----------
 
 First you have to write the kernel function and make sure it only uses features from the
 CUDA-supported subset of Julia:
@@ -42,8 +50,6 @@ function kernel_vadd(a, b, c)
 end
 
 ```
-
-**Launching the kernel**
 
 Using the `@cuda` macro, you can launch the kernel on a GPU of your choice:
 
@@ -75,19 +81,22 @@ c = Array(d_c)
 destroy(ctx)
 ```
 
-See `examples` or `tests/native.jl` for more comprehensive examples.
+See the [examples](examples/) folder for more comprehensive examples.
 
 
-## Usage
+
+Usage
+-----
 
 This section documents some specific details on how to use the CUDAnative.jl package, and
 what to keep in mind.
 
 Note that this library is not meant to export a high-level interface for using GPUs
 transparently, instead it serves to write high-performance GPU kernels in Julia and manage
-their execution. Consequently, *you need to understand how GPUs work*, and more specifically
-*you need to know your way around CUDA*. Even though many components are made easier to work
-with, it sits at an abstraction level similar to CUDA's.
+their execution. Consequently, **you need to understand how GPUs work**, and more
+specifically **you need to know your way around CUDA**. Even though many components are made
+easier to work with, it sits at an abstraction level similar to CUDA's.
+
 
 ### Julia support
 
@@ -109,6 +118,7 @@ foo (generic function with 1 method)
 julia> CUDAnative.code_llvm(foo, (Int,))
 ERROR: error compiling foo: error compiling #print_to_string#312: emit_allocobj for strings/io.jl:92 requires the dynamic_alloc language feature, which is disabled
 ```
+
 
 ### CUDA support
 
@@ -133,7 +143,29 @@ intrinsics, which provide similar functionality to some of the low-level math fu
 of Base which would otherwise call out to `libm`.
 
 
-## Debugging
+
+Troubleshooting
+---------------
+
+You can enable verbose logging using two environment variables:
+
+* `DEBUG`: if set, enable additional (possibly costly) run-time checks, and some more
+  verbose output
+* `TRACE`: if set, the `DEBUG` level will be activated, in addition with a trace of every
+  call to the underlying library
+
+In order to avoid run-time cost for checking the log level, these flags are implemented by
+means of global constants. As a result, you **need to run Julia with precompilation
+disabled** if you want to modify these flags:
+
+```
+$ TRACE=1 julia --compilecache=no examples/vadd.jl
+TRACE: CUDAnative.jl is running in trace mode, this will generate a lot of additional output
+...
+```
+
+Enabling colors with `--color=yes` is also recommended as it color-codes the output.
+
 
 ### `trap` and kernel launch failures
 
@@ -147,27 +179,6 @@ under `cuda-memcheck` while enabling debug mode 1 (the default value) or higher.
 `cuda-memcheck` will be able to accurately pinpoint the out-of-bounds access, while
 specifying the exact location of the access within the active grid and block.
 
-### Output modes
-
-When debugging a failing kernel, or if you want to understand what code is being processed,
-you can use CUDAnative's `DEBUG` and `TRACE` modes. These modes are enabled by defining
-environment variables with the same name, but do note that their value is cached by
-precompilation so you probably need to invoke Julia with `--compilecache=no`:
-
-```
-DEBUG=1 julia --compilecache=no
-
-[...]
-
-julia> @cuda (1,1) foo(a)
-DEBUG: Compiling foo(CUDAnative.CuDeviceArray{Int32,1})
-DEBUG: <unknown>:0:0: marked this call a tail call candidate
-DEBUG: JIT info log: ...
-```
-
-The `TRACE` mode generates even more output, including typed Julia code, LLVM IR and PTX
-assembly. These sources can be useful when debugging code generation issues, or pinpointing
-use of unsupported language features.
 
 ### `code_*` alternatives
 
@@ -200,6 +211,7 @@ julia> CUDAnative.code_sass(foo, (Int,))
 ...
 ```
 
+
 ### Debug info and line-number information
 
 LLVM's NVPTX back-end does not support the undocumented PTX debug format, so we cannot
@@ -213,7 +225,9 @@ like `cuda-memcheck`. The functionality (which corresponds with `nvcc -lineinfo`
 when the Julia debug info level is 1 (the default value) or higher.
 
 
-## Bugs and quirks
+
+Bugs and quirks
+---------------
 
 ### Recursive functions
 
