@@ -1,7 +1,13 @@
 CUDAdrv.jl
 ==========
 
-Code Coverage: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl)
+**[Build status](https://ci.maleadt.net/buildbot/julia/waterfall?tag=CUDAdrv)** (Linux x86-64):
+
+| Julia 0.5 | Julia 0.6 |
+|:---------:|:---------:|
+| [![](https://ci.maleadt.net/buildbot/julia/png?builder=CUDAdrv.jl:%20Julia%200.5%20(x86-64))](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.5%20%28x86-64%29) | [![](https://ci.maleadt.net/buildbot/julia/png?builder=CUDAdrv.jl:%20Julia%20master%20(x86-64))](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%20master%20%28x86-64%29) |
+
+**Code coverage**: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl)
 
 This package wraps the [CUDA driver API](http://docs.nvidia.com/cuda/cuda-driver-api/). It
 is meant for users who need low-level access to the CUDA toolkit or the underlying GPU. For
