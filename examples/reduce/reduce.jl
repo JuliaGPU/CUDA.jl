@@ -1,4 +1,6 @@
 # Fast parallel reduction for Kepler hardware
+# - uses shuffle and shared memory to reduce efficiently
+# - support for large arrays
 #
 # Based on devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
 
