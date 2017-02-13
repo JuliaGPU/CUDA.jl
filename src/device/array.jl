@@ -6,7 +6,7 @@ export
 
 ## construction
 
-immutable CuDeviceArray{T,N} <: AbstractArray{T,N}
+struct CuDeviceArray{T,N} <: AbstractArray{T,N}
     shape::NTuple{N,Int}
     ptr::Ptr{T}
 
@@ -54,7 +54,7 @@ Base.show{T,N}(io::IO, a::CuDeviceArray{T,N}) =
 
 # TODO: remove this hack as soon as immutables with heap references (such as BoundsError)
 #       can be stack-allocated
-immutable CuBoundsError <: Exception end
+struct CuBoundsError <: Exception end
 @inline Base.throw_boundserror{T,N}(A::CuDeviceArray{T,N}, I) =
     (Base.@_noinline_meta; throw(CuBoundsError()))
 

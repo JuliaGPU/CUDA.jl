@@ -162,7 +162,7 @@ end
     d_b = CuArray(b)
     d_c = similar(d_a)
 
-    @eval immutable ExecGhost end
+    @eval struct ExecGhost end
 
     @eval function exec_pass_ghost(ghost, a, b, c)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
