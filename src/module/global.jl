@@ -4,12 +4,12 @@ export
     CuGlobal, get, set
 
 
-immutable CuGlobal{T}
+@compat immutable CuGlobal{T}
     # TODO: typed pointer
     devptr::DevicePtr{Void}
     nbytes::Cssize_t
 
-    function CuGlobal(mod::CuModule, name::String)
+    function (::Type{CuGlobal{T}}){T}(mod::CuModule, name::String)
         ptr_ref = Ref{Ptr{Void}}()
         nbytes_ref = Ref{Cssize_t}()
         @apicall(:cuModuleGetGlobal, (Ptr{Ptr{Void}}, Ptr{Cssize_t}, CuModule_t, Ptr{Cchar}), 
@@ -19,7 +19,7 @@ immutable CuGlobal{T}
         end
         @assert nbytes_ref[] == sizeof(T)
 
-        return new(DevicePtr{Void}(ptr_ref[], CuCurrentContext()), nbytes_ref[])
+        return new{T}(DevicePtr{Void}(ptr_ref[], CuCurrentContext()), nbytes_ref[])
     end
 end
 

@@ -6,11 +6,11 @@ export
 
 ## construction
 
-type CuArray{T,N} <: AbstractArray{T,N}
+@compat type CuArray{T,N} <: AbstractArray{T,N}
     devptr::DevicePtr{T}
     shape::NTuple{N,Int}
 
-    function CuArray(shape::NTuple{N,Int})
+    function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int})
         if !isbits(T)
             # non-isbits types results in an array with references to CPU objects
             throw(ArgumentError("CuArray with non-bit element type not supported"))
@@ -21,15 +21,14 @@ type CuArray{T,N} <: AbstractArray{T,N}
         len = prod(shape)
         devptr = Mem.alloc(T, len)
 
-        obj = new(devptr, shape)
+        obj = new{T,N}(devptr, shape)
         block_finalizer(obj, devptr.ctx)
         finalizer(obj, finalize)
         return obj
     end
 
-    function CuArray(shape::NTuple{N,Int}, devptr::DevicePtr{T})
-        new(devptr, shape)
-    end
+    (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, devptr::DevicePtr{T}) =
+        new{T,N}(devptr, shape)
 end
 
 (::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
