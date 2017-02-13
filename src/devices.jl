@@ -6,7 +6,7 @@ export
     list_devices
 
 
-typealias CuDevice_t Cint
+const CuDevice_t = Cint
 
 "Return the number of available CUDA devices"
 function devcount()

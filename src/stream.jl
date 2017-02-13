@@ -4,7 +4,7 @@ export
     CuStream, CuDefaultStream, synchronize
 
 
-typealias CuStream_t Ptr{Void}
+const CuStream_t = Ptr{Void}
 
 type CuStream
     handle::CuStream_t

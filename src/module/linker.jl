@@ -5,7 +5,7 @@ export
     addData, addFile
 
 
-typealias CuLinkState_t Ptr{Void}
+const CuLinkState_t = Ptr{Void}
 
 type CuLink
     handle::CuLinkState_t

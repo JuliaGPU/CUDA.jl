@@ -16,7 +16,7 @@ CuDim3{T <: Integer}(g::Tuple{T, T, T}) = CuDim3(g[1], g[2], g[3])
 
 # Type alias for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3((len, 2))`)
-typealias CuDim Union{Integer,
+const CuDim = Union{Integer,
                       Tuple{Integer},
                       Tuple{Integer, Integer},
                       Tuple{Integer, Integer, Integer}}
