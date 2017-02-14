@@ -3,7 +3,7 @@
 export CuEvent, record, synchronize, elapsed, @elapsed
 
 
-typealias CuEvent_t Ptr{Void}
+const CuEvent_t = Ptr{Void}
 
 type CuEvent
     handle::CuEvent_t

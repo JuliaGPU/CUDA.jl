@@ -10,11 +10,11 @@ export
 # It also keep track of the associated context, preventing it from getting freed while
 # there's still a pointer from that context live.
 
-immutable DevicePtr{T}
+@compat immutable DevicePtr{T}
     ptr::Ptr{T}
     ctx::CuContext
 
-    DevicePtr(ptr::Ptr{T}, ctx::CuContext) = new(ptr,ctx)
+    (::Type{DevicePtr{T}}){T}(ptr::Ptr{T}, ctx::CuContext) = new{T}(ptr,ctx)
 end
 
 function Base.:(==)(a::DevicePtr, b::DevicePtr)

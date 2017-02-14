@@ -4,7 +4,7 @@ export
     CuFunction
 
 
-typealias CuFunction_t Ptr{Void}
+const CuFunction_t = Ptr{Void}
 
 immutable CuFunction
     handle::CuFunction_t

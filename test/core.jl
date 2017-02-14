@@ -63,7 +63,7 @@ CUDAdrv.trace(prefix=" ")
     end
 )
 
-typealias CuDevice_t Cint
+const CuDevice_t = Cint
 try
     CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), Ref{CuDevice_t}(), devcount())
 catch e

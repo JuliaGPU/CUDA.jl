@@ -6,7 +6,7 @@ export
 include("module/jit.jl")
 
 
-typealias CuModule_t Ptr{Void}
+const CuModule_t = Ptr{Void}
 
 type CuModule
     handle::CuModule_t
