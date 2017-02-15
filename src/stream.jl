@@ -34,6 +34,6 @@ function finalize(s::CuStream)
     unblock_finalizer(s, s.ctx)
 end
 
-CuDefaultStream() = CuStream(convert(CuStream_t, C_NULL), CuContext(C_NULL))
+@inline CuDefaultStream() = CuStream(convert(CuStream_t, C_NULL), CuContext(C_NULL))
 
 synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CuStream_t,), s)
