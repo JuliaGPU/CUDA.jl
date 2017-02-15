@@ -5,14 +5,7 @@
 @testset "method caching" begin
 
 # #17057 fallout
-@eval @noinline function post17057_child(i)
-    if i < 10
-        return i*i
-    else
-        return (i-1)*(i+1)
-    end
-end
-
+@eval @noinline post17057_child(i) = i+1
 @eval function post17057_parent(arr::Ptr{Int64})
     i = post17057_child(0)
     unsafe_store!(arr, i, i)

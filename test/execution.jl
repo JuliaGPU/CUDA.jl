@@ -65,8 +65,8 @@ end
 
 
 @testset "calling device function" begin
-    @eval @noinline exec_devfun_child() = return nothing
-    @eval exec_devfun_parent() = exec_devfun_child()
+    @eval @noinline exec_devfun_child(i) = return i+1
+    @eval exec_devfun_parent() = (exec_devfun_child(1); return nothing)
 
     @cuda (1,1) exec_devfun_parent()
 end

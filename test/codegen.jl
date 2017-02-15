@@ -35,6 +35,16 @@ end
     @test !contains(ir, "jlsys_")
 end
 
+@testset "child functions" begin
+    # we often test using @noinline child functions, so test whether these survive
+    # (despite not having side-effects)
+    @eval @noinline codegen_child(i) = i+1
+    @eval codegen_parent(i) = (codegen_child(i); nothing)
+
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, (Int,)))
+    @test ismatch(r"call .+ @julia_codegen_child_", ir)
+end
+
 
 ############################################################################################
 
@@ -49,19 +59,23 @@ end
     @test_throws ErrorException CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}; kernel=true) == nothing
 end
 
-@testset "entry-point functions" begin
-    @eval @noinline function codegen_child(i)
-        if i < 10
-            return i*i
-        else
-            return (i-1)*(i+1)
-        end
-    end
-    @eval codegen_parent(i) = (codegen_child(i); nothing)
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_parent, (Int64,); kernel=true))
+@testset "child functions" begin
+    # we often test using @noinline child functions, so test whether these survive
+    # (despite not having side-effects)
+    @eval @noinline ptx_child(i) = i+1
+    @eval ptx_parent(i) = (ptx_child(i); nothing)
 
-    @test ismatch(r"\.visible \.entry julia_codegen_parent_", asm)
-    @test ismatch(r"\.visible \.func .+ julia_codegen_child_", asm)
+    asm = sprint(io->CUDAnative.code_ptx(io, ptx_parent, (Int64,)))
+    @test ismatch(r"call.uni \(retval0\),\s+julia_ptx_child_"m, asm)
+end
+
+@testset "entry-point functions" begin
+    @eval @noinline ptx_nonentry(i) = i+1
+    @eval ptx_entry(i) = (ptx_nonentry(i); nothing)
+
+    asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, (Int64,); kernel=true))
+    @test ismatch(r"\.visible \.entry julia_ptx_entry_", asm)
+    @test ismatch(r"\.visible \.func .+ julia_ptx_nonentry_", asm)
 end
 
 @testset "delayed lookup" begin
@@ -87,63 +101,45 @@ end
     # bug: depending on a child function from multiple parents resulted in
     #      the child only being present once
 
-    @eval @noinline function codegen_child_reuse_child(i)
-        if i < 10
-            return i*i
-        else
-            return (i-1)*(i+1)
-        end
-    end
-
-    @eval function codegen_child_reuse_parent1(arr::Ptr{Int64})
-        i = codegen_child_reuse_child(0)
-        unsafe_store!(arr, i, i)
+    @eval @noinline codegen_child_reuse_child(i) = i+1
+    @eval function codegen_child_reuse_parent1(i)
+        codegen_child_reuse_child(i)
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent1, (Ptr{Int64},)))
+
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent1, (Int,)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 
-    @eval function codegen_child_reuse_parent2(arr::Ptr{Int64})
-        i = codegen_child_reuse_child(0)+1
-        unsafe_store!(arr, i, i)
-
+    @eval function codegen_child_reuse_parent2(i)
+        codegen_child_reuse_child(i+1)
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent2, (Ptr{Int64},)))
+
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent2, (Int,)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 end
 
 @testset "child function reuse bis" begin
     # bug: similar, but slightly different issue as above
     #      in the case of two child functions
-    @eval @noinline function codegen_child_reuse_bis_child1()
-        return 0
-    end
-
-    @eval @noinline function codegen_child_reuse_bis_child2()
-        return 0
-    end
-
-    @eval function codegen_child_reuse_bis_parent1(arry::Ptr{Int64})
-        i = codegen_child_reuse_bis_child1() + codegen_child_reuse_bis_child2()
-        unsafe_store!(arry, i, i)
-
+    @eval @noinline codegen_child_reuse_bis_child1(i) = i+1
+    @eval @noinline codegen_child_reuse_bis_child2(i) = i+2
+    @eval function codegen_child_reuse_bis_parent1(i)
+        codegen_child_reuse_bis_child1(i) + codegen_child_reuse_bis_child2(i)
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent1, (Ptr{Int64},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent1, (Int,)))
 
-    @eval function codegen_child_reuse_bis_parent2(arry::Ptr{Int64})
-        i = codegen_child_reuse_bis_child1() + codegen_child_reuse_bis_child2()
-        unsafe_store!(arry, i, i+1)
-
+    @eval function codegen_child_reuse_bis_parent2(i)
+        codegen_child_reuse_bis_child1(i+1) + codegen_child_reuse_bis_child2(i+1)
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent2, (Ptr{Int64},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent2, (Int,)))
 end
 
-@testset "nonsysimg recompilation" begin
-    # issue #9: re-using non-sysimg functions should force recompilation
-    #           (host fldmod1->mod1 throws)
+@testset "indirect sysimg function use" begin
+    # issue #9: re-using sysimg functions should force recompilation
+    #           (host fldmod1->mod1 throwsm, so the PTX code shouldn't contain a throw)
 
     @eval function codegen_recompile(out)
         wid, lane = fldmod1(unsafe_load(out), Int32(32))
@@ -156,7 +152,7 @@ end
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
 
-@testset "reuse host sysimg" begin
+@testset "compile for host after PTX" begin
     # issue #11: re-using host functions after PTX compilation
     @eval @noinline codegen_recompile_bis_child(x) = x+1
 
@@ -170,7 +166,7 @@ end
     end
 
     CUDAnative.code_ptx(DevNull, codegen_recompile_bis_fromptx, ())
-    CUDAnative.code_ptx(DevNull, codegen_recompile_bis_fromhost, ())
+    @test codegen_recompile_bis_fromhost() == 11
 end
 
 @testset "LLVM intrinsics" begin
