@@ -22,7 +22,7 @@ type CuEvent
 end
 
 function finalize(e::CuEvent)
-    trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
+    @trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
     @apicall(:cuEventDestroy, (CuEvent_t,), e)
     unblock_finalizer(e, e.ctx)
 end

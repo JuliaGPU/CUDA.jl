@@ -37,8 +37,8 @@ finalized _before_ any parent object is finalized.
 """
 function block_finalizer(owner::ANY, target::ANY)
     owner_id = Base.pointer_from_objref(owner)
-    trace("Blocking finalization of $target at $((Base.pointer_from_objref(target)))",
-          " by $(typeof(owner)) at $owner_id")
+    @trace("Blocking finalization of $target at $((Base.pointer_from_objref(target)))",
+           " by $(typeof(owner)) at $owner_id")
     haskey(finalizer_blocks, owner_id) && error("can only issue a single call to block_finalizer")
     finalizer_blocks[owner_id] = target
 end
@@ -50,8 +50,8 @@ This function is meant to be called in the finalized of a child object.
 """
 function unblock_finalizer(owner::ANY, target::ANY)
     owner_id = Base.pointer_from_objref(owner)
-    trace("Unblocking finalization of $target at $((Base.pointer_from_objref(target)))",
-          " by $(typeof(owner)) at $owner_id")
+    @trace("Unblocking finalization of $target at $((Base.pointer_from_objref(target)))",
+           " by $(typeof(owner)) at $owner_id")
     haskey(finalizer_blocks, owner_id) ||
         error("no finalizer blocks found (no call to block_finalizer, or has been unblocked already)")
 

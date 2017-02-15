@@ -23,6 +23,9 @@ is set."
     end
 end
 @inline trace(msg...; kwargs...) = trace(STDERR, msg...; kwargs...)
+macro trace(args...)
+    TRACE && return esc(Expr(:call, :trace, args...))
+end
 
 const DEBUG = TRACE || haskey(ENV, "DEBUG")
 "Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
@@ -33,6 +36,9 @@ variable is set."
     end
 end
 @inline debug(msg...; kwargs...) = debug(STDERR, msg...; kwargs...)
+macro debug(args...)
+    DEBUG && return esc(Expr(:call, :trace, args...))
+end
 
 "Create an indented string from any value (instead of escaping endlines as \n)"
 function repr_indented(ex; prefix=" "^7, abbrev=true)

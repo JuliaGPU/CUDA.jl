@@ -29,7 +29,7 @@ function CuStream(flags::Integer=0)
 end
 
 function finalize(s::CuStream)
-    trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
+    @trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
     @apicall(:cuStreamDestroy, (CuModule_t,), s)
     unblock_finalizer(s, s.ctx)
 end

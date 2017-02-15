@@ -41,9 +41,9 @@ type CuModule
         @static if DEBUG
             options = decode(optionKeys, optionVals)
             if isempty(options[INFO_LOG_BUFFER])
-                debug("JIT info log is empty")
+                @debug("JIT info log is empty")
             else
-                debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]; abbrev=false))
+                @debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]; abbrev=false))
             end
         end
 
@@ -56,7 +56,7 @@ type CuModule
 end
 
 function finalize(mod::CuModule)
-    trace("Finalizing CuModule at $(Base.pointer_from_objref(mod))")
+    @trace("Finalizing CuModule at $(Base.pointer_from_objref(mod))")
     @apicall(:cuModuleUnload, (CuModule_t,), mod)
     unblock_finalizer(mod, mod.ctx)
 end

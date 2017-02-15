@@ -54,8 +54,6 @@ CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 @test_throws ErrorException @eval CUDAdrv.@apicall(:cuDummyAvailable, ())
 @test_throws CUDAdrv.CuVersionError @eval CUDAdrv.@apicall(:cuDummyUnavailable, ())
 
-CUDAdrv.trace(prefix=" ")
-
 @test_throws ErrorException eval(
     quote
         foo = :bar
