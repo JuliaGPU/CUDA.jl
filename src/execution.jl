@@ -9,10 +9,10 @@ immutable CuDim3
     z::Cuint
 end
 
-CuDim3{T <: Integer}(g::T) = CuDim3(g, 1, 1)
-CuDim3{T <: Integer}(g::Tuple{T}) = CuDim3(g[1], 1, 1)
-CuDim3{T <: Integer}(g::Tuple{T, T}) = CuDim3(g[1], g[2], 1)
-CuDim3{T <: Integer}(g::Tuple{T, T, T}) = CuDim3(g[1], g[2], g[3])
+CuDim3{T <: Integer}(g::T) =           CuDim3(g,    Cuint(1), Cuint(1))
+CuDim3{T <: Integer}(g::NTuple{1,T}) = CuDim3(g[1], Cuint(1), Cuint(1))
+CuDim3{T <: Integer}(g::NTuple{2,T}) = CuDim3(g[1], g[2],     Cuint(1))
+CuDim3{T <: Integer}(g::NTuple{3,T}) = CuDim3(g[1], g[2],     g[3])
 
 # Type alias for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3((len, 2))`)
