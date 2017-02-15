@@ -187,6 +187,7 @@ function emit_vprintf(id::Integer, argtypes, args...)
     push!(ir, """ret void""")
 
     return quote
+        Base.@_inline_meta
         Base.llvmcall(($(join(decls, "\n")),
                        $(join(ir,    "\n"))),
                       Void, Tuple{$argtypes...}, $(args...)
@@ -340,6 +341,7 @@ function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,Int})
     len = prod(shape)
 
     return quote
+        Base.@_inline_meta
         CuDeviceArray{$jltyp}($shape, Base.llvmcall(
             ($"""$var = internal addrspace(3) global [$len x $llvmtyp] zeroinitializer, align 4""",
              $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
@@ -389,6 +391,7 @@ function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol},
     var = Symbol(:@shmem, id)
 
     return quote
+        Base.@_inline_meta
         CuDeviceArray{$jltyp}($shape, Base.llvmcall(
             ($"""$var = external addrspace(3) global [0 x $llvmtyp]""",
              $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* $var, i64 0, i64 0

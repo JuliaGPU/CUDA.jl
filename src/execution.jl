@@ -215,6 +215,7 @@ const func_cache = Dict{UInt, CuFunction}()
                                 concrete_call_types, concrete_args)
 
     quote
+        Base.@_inline_meta
         $kernel_allocations
         $kernel_compilation
         $kernel_call
