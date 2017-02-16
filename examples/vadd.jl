@@ -1,10 +1,12 @@
 using CUDAdrv
 using Base.Test
 
+using Compat
+
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
-md = CuModuleFile(joinpath(dirname(@__FILE__), "vadd.ptx"))
+md = CuModuleFile(joinpath(@__DIR__, "vadd.ptx"))
 vadd = CuFunction(md, "kernel_vadd")
 
 dims = (3,4)

@@ -125,20 +125,20 @@ synchronize()
 ## module
 
 let
-    md = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx"))
+    md = CuModuleFile(joinpath(@__DIR__, "ptx/vadd.ptx"))
 
     vadd = CuFunction(md, "vadd")
 end
 
 let
-    f = open(joinpath(dirname(@__FILE__), "ptx/vadd.ptx"))
+    f = open(joinpath(@__DIR__, "ptx/vadd.ptx"))
     ptx = readstring(f)
     close(f)
 
     md = CuModule(ptx)
     vadd = CuFunction(md, "vadd")
 
-    md2 = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vadd.ptx"))
+    md2 = CuModuleFile(joinpath(@__DIR__, "ptx/vadd.ptx"))
     @test md != md2
 end
 
@@ -149,7 +149,7 @@ catch ex
 end
 
 let
-    md = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/global.ptx"))
+    md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
 
     var = CuGlobal{Int32}(md, "foobar")
     @test eltype(var) == Int32
@@ -165,12 +165,12 @@ let
     link = CuLink()
 
     # regular string
-    open(joinpath(dirname(@__FILE__), "ptx/empty.ptx")) do f
+    open(joinpath(@__DIR__, "ptx/empty.ptx")) do f
         addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
     end
 
     # string as vector of bytes
-    open(joinpath(dirname(@__FILE__), "ptx/empty.ptx")) do f
+    open(joinpath(@__DIR__, "ptx/empty.ptx")) do f
         addData(link, "vadd_parent", convert(Vector{UInt8}, readstring(f)), CUDAdrv.PTX)
     end
 
@@ -185,8 +185,8 @@ end
 
 let
     link = CuLink()
-    addFile(link, joinpath(dirname(@__FILE__), "ptx/vadd_child.ptx"), CUDAdrv.PTX)
-    open(joinpath(dirname(@__FILE__), "ptx/vadd_parent.ptx")) do f
+    addFile(link, joinpath(@__DIR__, "ptx/vadd_child.ptx"), CUDAdrv.PTX)
+    open(joinpath(@__DIR__, "ptx/vadd_parent.ptx")) do f
         addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
     end
 
@@ -313,7 +313,7 @@ let
 end
 
 let
-    md = CuModuleFile(joinpath(dirname(@__FILE__), "ptx/vectorops.ptx"))
+    md = CuModuleFile(joinpath(@__DIR__, "ptx/vectorops.ptx"))
     vadd = CuFunction(md, "vadd")
     vmul = CuFunction(md, "vmul")
     vsub = CuFunction(md, "vsub")

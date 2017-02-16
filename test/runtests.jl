@@ -1,6 +1,8 @@
 using CUDAdrv
 using Base.Test
 
+using Compat
+
 @test devcount() > 0
 
 # NOTE: based on test/pkg.jl::grab_outputs, only grabs STDOUT without capturing exceptions
