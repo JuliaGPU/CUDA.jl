@@ -323,6 +323,8 @@ let
     cudacall(dummy, 1, 1, Tuple{}; shmem=0, stream=CuDefaultStream())
     ## this one is wrong, but used to trigger an overflow
     @test_throws MethodError cudacall(dummy, 1, 1, CuDefaultStream(), 0, Tuple{})
+    ## bug in NTuple usage
+    cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{Tuple{Int64},Int64}, (1,), 1)
 end
 
 let

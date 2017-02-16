@@ -28,7 +28,7 @@ This is a low-level call, prefer to use `cudacall` instead.
 """
 @inline function launch{N}(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
                            shmem::Int, stream::CuStream,
-                           args::NTuple{N})
+                           args::NTuple{N,Any})
     (griddim.x>0 && griddim.y>0 && griddim.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
 
@@ -39,7 +39,7 @@ end
 # without having to inspect the types at runtime
 @generated function _launch{N}(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
                                shmem::Int, stream::CuStream,
-                               args::NTuple{N})
+                               args::NTuple{N,Any})
     arg_exprs = [:( args[$i] ) for i in 1:N]
     arg_types = args.parameters
 
@@ -113,7 +113,7 @@ end
 # without having to inspect the types at runtime
 @generated function _cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
                                  shmem::Integer, stream::CuStream,
-                                 tt, args::NTuple{N})
+                                 tt, args::NTuple{N,Any})
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     # convert the argument values to match the kernel's signature (specified by the user)
