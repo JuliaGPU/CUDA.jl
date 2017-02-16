@@ -79,7 +79,7 @@ end
 ccall-like interface for launching a CUDA function on a GPU
 """
 @inline cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                    typespec, values::Vararg{Any,N};
+                    typespec::Union{NTuple{N,DataType},Type}, values::Vararg{Any,N};
                     shmem::Integer=0, stream::CuStream=CuDefaultStream()) =
     cudacall(f, griddim, blockdim, shmem, stream, typespec, values...)
 

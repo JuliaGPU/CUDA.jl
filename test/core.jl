@@ -321,6 +321,8 @@ let
     cudacall(dummy, 1, 1, Tuple{})
     cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{})
     cudacall(dummy, 1, 1, Tuple{}; shmem=0, stream=CuDefaultStream())
+    ## this one is wrong, but used to trigger an overflow
+    @test_throws MethodError cudacall(dummy, 1, 1, CuDefaultStream(), 0, Tuple{})
 end
 
 let
