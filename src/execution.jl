@@ -101,9 +101,9 @@ ccall-like interface for launching a CUDA function on a GPU
     _cudacall(f, griddim, blockdim, shmem, stream, tt, values)
 end
 
-@inline function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                          shmem::Integer, stream::CuStream,
-                          tt::Type, values...)
+@inline function cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+                             shmem::Integer, stream::CuStream,
+                             tt::Type, values::Vararg{Any,N})
     # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
     # which means the generated function can be expanded earlier
     _cudacall(f, griddim, blockdim, shmem, stream, tt, values)
