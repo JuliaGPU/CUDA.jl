@@ -311,6 +311,19 @@ let
 end
 
 let
+    md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
+    dummy = CuFunction(md, "dummy")
+
+    # different cudacall syntaxes
+    cudacall(dummy, 1, 1, ())
+    cudacall(dummy, 1, 1, 0, CuDefaultStream(), ())
+    cudacall(dummy, 1, 1, (); shmem=0, stream=CuDefaultStream())
+    cudacall(dummy, 1, 1, Tuple{})
+    cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{})
+    cudacall(dummy, 1, 1, Tuple{}; shmem=0, stream=CuDefaultStream())
+end
+
+let
     md = CuModuleFile(joinpath(@__DIR__, "ptx/vectorops.ptx"))
     vadd = CuFunction(md, "vadd")
     vmul = CuFunction(md, "vmul")
