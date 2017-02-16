@@ -186,15 +186,16 @@ end
 
 # Compile and execute a CUDA kernel from a Julia function
 const func_cache = Dict{UInt, CuFunction}()
-@generated function generated_cuda{F<:Core.Function}(dims::Tuple{CuDim, CuDim}, shmem, stream,
-                                                     func::F, types...)
-    args = [:( types[$i] ) for i in 1:length(types)]
-    args, codegen_types, call_types = convert_arguments(args, types)
+@generated function generated_cuda{F<:Core.Function,N}(dims::Tuple{CuDim, CuDim}, shmem, stream,
+                                                       func::F, args::Vararg{Any,N})
+    arg_exprs = [:( args[$i] ) for i in 1:N]
+    arg_exprs, codegen_types, call_types = convert_arguments(arg_exprs, args)
 
-    kernel_allocations, args = emit_allocations(args, codegen_types, call_types)
+    kernel_allocations, arg_exprs = emit_allocations(arg_exprs, codegen_types, call_types)
 
+    # compile the function, once
     @gensym cuda_fun
-    precomp_key = hash(Base.tt_cons(func, codegen_types))  # precomputable part of the key
+    precomp_key = hash(tuple(func, codegen_types...))  # precomputable part of the key
     kernel_compilation = quote
         ctx = CuCurrentContext()
         key = hash(($precomp_key, ctx))
@@ -208,11 +209,11 @@ const func_cache = Dict{UInt, CuFunction}()
 
     # filter out non-concrete args
     concrete = map(t->t!=Base.Bottom, call_types)
-    concrete_call_types = map(x->x[2], filter(x->x[1], zip(concrete, call_types)))
-    concrete_args       = map(x->x[2], filter(x->x[1], zip(concrete, args)))
+    call_types = map(x->x[2], filter(x->x[1], zip(concrete, call_types)))
+    arg_exprs  = map(x->x[2], filter(x->x[1], zip(concrete, arg_exprs)))
 
     kernel_call = emit_cudacall(cuda_fun, :(dims), :(shmem), :(stream),
-                                concrete_call_types, concrete_args)
+                                call_types, arg_exprs)
 
     quote
         Base.@_inline_meta
