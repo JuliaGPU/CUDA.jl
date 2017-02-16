@@ -35,7 +35,7 @@ end
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
 function finalize(a::CuArray)
-    trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
+    @trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
     Mem.free(a.devptr)
     unblock_finalizer(a, a.devptr.ctx)
 end

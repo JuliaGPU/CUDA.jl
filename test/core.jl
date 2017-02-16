@@ -51,10 +51,8 @@ CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
 @test_throws ErrorException CUDAdrv.@apicall(:cuNonexisting, ())
 
-@test_throws ErrorException CUDAdrv.@apicall(:cuDummyAvailable, ())
-@test_throws CUDAdrv.CuVersionError CUDAdrv.@apicall(:cuDummyUnavailable, ())
-
-CUDAdrv.trace(prefix=" ")
+@test_throws ErrorException @eval CUDAdrv.@apicall(:cuDummyAvailable, ())
+@test_throws CUDAdrv.CuVersionError @eval CUDAdrv.@apicall(:cuDummyUnavailable, ())
 
 @test_throws ErrorException eval(
     quote
@@ -310,6 +308,23 @@ let
     @test isa((2,2),    CUDAdrv.CuDim)
     @test isa((2,2,2),  CUDAdrv.CuDim)
     @test isa(Cuint(2), CUDAdrv.CuDim)
+end
+
+let
+    md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
+    dummy = CuFunction(md, "dummy")
+
+    # different cudacall syntaxes
+    cudacall(dummy, 1, 1, ())
+    cudacall(dummy, 1, 1, 0, CuDefaultStream(), ())
+    cudacall(dummy, 1, 1, (); shmem=0, stream=CuDefaultStream())
+    cudacall(dummy, 1, 1, Tuple{})
+    cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{})
+    cudacall(dummy, 1, 1, Tuple{}; shmem=0, stream=CuDefaultStream())
+    ## this one is wrong, but used to trigger an overflow
+    @test_throws MethodError cudacall(dummy, 1, 1, CuDefaultStream(), 0, Tuple{})
+    ## bug in NTuple usage
+    cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{Tuple{Int64},Int64}, (1,), 1)
 end
 
 let

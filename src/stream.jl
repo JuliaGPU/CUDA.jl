@@ -29,11 +29,11 @@ function CuStream(flags::Integer=0)
 end
 
 function finalize(s::CuStream)
-    trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
+    @trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
     @apicall(:cuStreamDestroy, (CuModule_t,), s)
     unblock_finalizer(s, s.ctx)
 end
 
-CuDefaultStream() = CuStream(convert(CuStream_t, C_NULL), CuContext(C_NULL))
+@inline CuDefaultStream() = CuStream(convert(CuStream_t, C_NULL), CuContext(C_NULL))
 
 synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CuStream_t,), s)

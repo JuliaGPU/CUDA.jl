@@ -110,5 +110,5 @@ Base.show(io::IO, err::CuError) =
     @printf(io, "%s(%d)", name(err), err.code)
 
 for code in return_codes
-    @eval $(code[2][1]) = CuError($(code[1]))
+    @eval const $(code[2][1]) = CuError($(code[1]))
 end

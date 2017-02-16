@@ -41,7 +41,7 @@ type CuLink
 end
 
 function finalize(link::CuLink)
-    trace("Finalizing CuLink at $(Base.pointer_from_objref(link))")
+    @trace("Finalizing CuLink at $(Base.pointer_from_objref(link))")
     @apicall(:cuLinkDestroy, (CuLinkState_t,), link)
     unblock_finalizer(link, link.ctx)
 end
@@ -80,9 +80,9 @@ function complete(link::CuLink)
     @static if DEBUG
         options = decode(link.optionKeys, link.optionVals)
         if isempty(options[INFO_LOG_BUFFER])
-            debug("JIT info log is empty")
+            @debug("JIT info log is empty")
         else
-            debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]))
+            @debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]))
         end
     end
 

@@ -21,7 +21,7 @@ function Base.:(==)(a::DevicePtr, b::DevicePtr)
     return a.ctx == b.ctx && a.ptr == b.ptr
 end
 
-CU_NULL = DevicePtr{Void}(C_NULL, CuContext(C_NULL))
+const CU_NULL = DevicePtr{Void}(C_NULL, CuContext(C_NULL))
 
 # simple conversions between Ptr and DevicePtr are disallowed
 Base.convert{T}(::Type{Ptr{T}}, p::DevicePtr{T}) = throw(InexactError())

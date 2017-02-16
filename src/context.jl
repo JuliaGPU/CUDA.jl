@@ -49,14 +49,14 @@ end
 const context_instances = Dict{CuContext_t,CuContext}()
 
 function finalize(ctx::CuContext)
-    trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
+    @trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
     if can_finalize(ctx)
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
     else
         # this is due to finalizers not respecting _any_ order during process teardown
         # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
         # TODO: can we check this only happens during teardown?
-        trace("Not destroying context $ctx because of out-of-order finalizer run")
+        @trace("Not destroying context $ctx because of out-of-order finalizer run")
     end
 end
 
