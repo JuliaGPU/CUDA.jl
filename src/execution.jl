@@ -119,7 +119,7 @@ end
     # convert the argument values to match the kernel's signature (specified by the user)
     values = Expr(:tuple)
     for i in 1:N
-        push!(values.args, :(Base.unsafe_convert($(types[i]), args[$i])))
+        push!(values.args, :(Base.unsafe_convert($(types[i]), Base.cconvert($(types[i]), args[$i]))))
     end
 
     quote
