@@ -42,7 +42,7 @@ end
     Base.pointerset(Base.unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, 8)
 end
 
-Base.linearindexing{A<:CuDeviceArray}(::Type{A}) = Base.LinearFast()
+Base.IndexStyle{A<:CuDeviceArray}(::Type{A}) = Base.IndexLinear()
 
 Base.show{T}(io::IO, a::CuDeviceArray{T,1}) =
     print(io, "$(length(a))-element device array at $(pointer(a))")
