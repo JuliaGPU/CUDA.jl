@@ -41,8 +41,8 @@ end
 Convert the arguments to a kernel function to their CUDA representation, and figure out what
 types to specialize the kernel function for and how to actually pass those objects.
 """
-function convert_arguments(args, tt)
-    argtypes = DataType[tt.parameters...]
+function convert_arguments(args, types)
+    argtypes = DataType[types...]
     argexprs = Union{Expr,Symbol}[args...]
 
     # convert types to their CUDA representation
@@ -60,14 +60,14 @@ function convert_arguments(args, tt)
     end
 
     # figure out how to codegen and pass these types
-    cgtypes, calltypes = Array{DataType}(length(argtypes)), Array{Type}(length(argtypes))
+    codegen_types, call_types = Array{DataType}(length(argtypes)), Array{Type}(length(argtypes))
     for i in 1:length(argexprs)
-        cgtypes[i], calltypes[i] = actual_types(argtypes[i])
+        codegen_types[i], call_types[i] = actual_types(argtypes[i])
     end
 
     # NOTE: DevicePtr's should have disappeared after this point
 
-    return argexprs, Tuple{cgtypes...}, Tuple{calltypes...}
+    return argexprs, (codegen_types...), (call_types...)
 end
 
 # NOTE: keep this in sync with jl_is_bitstype in julia.h
@@ -109,15 +109,15 @@ function actual_types(argtype::DataType)
 end
 
 
-function emit_allocations(args, codegen_tt, call_tt)
+function emit_allocations(args, codegen_types, call_types)
     # if we're generating code for a given type, but passing a pointer to that type instead,
     # this is indicative of needing to upload the value to GPU memory
     kernel_allocations = Expr(:block)
     for i in 1:length(args)
-        if call_tt.parameters[i] == Ptr{codegen_tt.parameters[i]}
+        if call_types[i] == Ptr{codegen_types[i]}
             @gensym dev_arg
             alloc = quote
-                $dev_arg = Mem.alloc($(codegen_tt.parameters[i]))
+                $dev_arg = Mem.alloc($(codegen_types[i]))
                 # TODO: we're never freeing this (use refcounted single-value array?)
                 Mem.upload($dev_arg, $(args[i]))
             end
@@ -129,16 +129,15 @@ function emit_allocations(args, codegen_tt, call_tt)
     return kernel_allocations, args
 end
 
-function emit_cudacall(func, dims, kwargs, args, tt::Type)
-    # TODO: can we handle non-isbits types? 
-    #       if so, move this more stringent check to @cuda(CuFunction)
-    all(t -> isbits(t) && sizeof(t) > 0, tt.parameters) ||
+function emit_cudacall(func, dims, shmem, stream, types, args)
+    # TODO: can we handle non-isbits types?
+    all(t -> isbits(t) && sizeof(t) > 0, types) ||
         error("can only pass bitstypes of size > 0 to CUDA kernels")
-    any(t -> sizeof(t) > 8, tt.parameters) &&
+    any(t -> sizeof(t) > 8, types) &&
         error("cannot pass objects that don't fit in registers to CUDA functions")
 
     return quote
-        cudacall($func, $dims[1], $dims[2], $tt, $(args...); $kwargs...)
+        cudacall($func, $dims[1], $dims[2], $shmem, $stream, Tuple{$(types...)}, $(args...))
     end
 end
 
@@ -175,60 +174,53 @@ macro cuda(config::Expr, callexpr::Expr)
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    # optional tuple elements are forwarded to `cudacall` by means of kwargs
-    if length(config.args) == 2
-        return esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...))))
-    elseif length(config.args) == 3
-        shmem = config.args[3]
-        deleteat!(config.args, 3)
-        return esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...);
-                                               shmem=$shmem)))
-    elseif length(config.args) == 4
-        shmem = config.args[3]
-        stream = config.args[4]
-        deleteat!(config.args, [3,4])
-        return esc(:(CUDAnative.generated_cuda($config, $(callexpr.args...);
-                                               shmem=$shmem, stream=$stream)))
-    end
+    # handle optional arguments and forward the call
+    # NOTE: we duplicate the CUDAdrv's default values of these arguments,
+    #       because the kwarg version of `cudacall` is too slow
+    stream = length(config.args)==4 ? pop!(config.args) : :(CuDefaultStream())
+    shmem  = length(config.args)==3 ? pop!(config.args) : :(0)
+    dims = config
+    return esc(:(CUDAnative.generated_cuda($dims, $shmem, $stream,
+                                           $(callexpr.args...))))
 end
 
 # Compile and execute a CUDA kernel from a Julia function
 const func_cache = Dict{UInt, CuFunction}()
-@generated function generated_cuda{F<:Core.Function}(dims::Tuple{CuDim, CuDim},
-                                                     func::F, argspec...;
-                                                     kwargs...)
-    tt = Base.to_tuple_type(argspec)
-    args = [:( argspec[$i] ) for i in 1:length(argspec)]
-    args, codegen_tt, call_tt = convert_arguments(args, tt)
+@generated function generated_cuda{F<:Core.Function,N}(dims::Tuple{CuDim, CuDim}, shmem, stream,
+                                                       func::F, args::Vararg{Any,N})
+    arg_exprs = [:( args[$i] ) for i in 1:N]
+    arg_exprs, codegen_types, call_types = convert_arguments(arg_exprs, args)
 
-    kernel_allocations, args = emit_allocations(args, codegen_tt, call_tt)
+    kernel_allocations, arg_exprs = emit_allocations(arg_exprs, codegen_types, call_types)
 
+    # compile the function, once
     @gensym cuda_fun
-    precomp_key = hash(Base.tt_cons(func, codegen_tt))  # precomputable part of the key
+    precomp_key = hash(tuple(func, codegen_types...))  # precomputable part of the key
     kernel_compilation = quote
         ctx = CuCurrentContext()
         key = hash(($precomp_key, ctx))
         if (haskey(CUDAnative.func_cache, key))
             $cuda_fun = CUDAnative.func_cache[key]
         else
-            $cuda_fun, _ = cufunction(device(ctx), func, $codegen_tt)
+            $cuda_fun, _ = cufunction(device(ctx), func, $codegen_types)
             CUDAnative.func_cache[key] = $cuda_fun
         end
     end
 
     # filter out non-concrete args
-    concrete = map(t->t!=Base.Bottom, call_tt.parameters)
-    concrete_call_tt = Tuple{map(x->x[2], filter(x->x[1], zip(concrete, call_tt.parameters)))...}
-    concrete_args    =       map(x->x[2], filter(x->x[1], zip(concrete, args)))
+    concrete = map(t->t!=Base.Bottom, call_types)
+    call_types = map(x->x[2], filter(x->x[1], zip(concrete, call_types)))
+    arg_exprs  = map(x->x[2], filter(x->x[1], zip(concrete, arg_exprs)))
 
-    kernel_call = emit_cudacall(cuda_fun, :(dims), :(kwargs), concrete_args, concrete_call_tt)
+    kernel_call = emit_cudacall(cuda_fun, :(dims), :(shmem), :(stream),
+                                call_types, arg_exprs)
 
-    # Throw everything together
-    exprs = Expr(:block)
-    append!(exprs.args, kernel_allocations.args)
-    append!(exprs.args, kernel_compilation.args)
-    append!(exprs.args, kernel_call.args)
-    return exprs
+    quote
+        Base.@_inline_meta
+        $kernel_allocations
+        $kernel_compilation
+        $kernel_call
+    end
 end
 
 """
