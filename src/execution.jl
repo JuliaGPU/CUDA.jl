@@ -137,7 +137,7 @@ function emit_cudacall(func, dims, shmem, stream, types, args)
         error("cannot pass objects that don't fit in registers to CUDA functions")
 
     return quote
-        cudacall($func, $dims[1], $dims[2], $shmem, $stream, $(tuple(types...)), $(args...))
+        cudacall($func, $dims[1], $dims[2], $shmem, $stream, Tuple{$(types...)}, $(args...))
     end
 end
 
