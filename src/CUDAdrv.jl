@@ -33,7 +33,7 @@ function __init__()
     # check validity of CUDA library
     @debug("Checking validity of $(libcuda_path)")
     if version() != libcuda_version
-        error("CUDA library version has changed. Please re-run Pkg.build(\"CUDA\") and restart Julia.")
+        error("CUDA library version has changed. Please re-run Pkg.build(\"CUDAdrv\"), and restart Julia.")
     end
 
     __init_logging__()
