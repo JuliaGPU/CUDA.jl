@@ -410,7 +410,7 @@ function cufunction(dev::CuDevice, func::ANY, types::ANY)
 
     # select a capability level
     dev_cap = capability(dev)
-    compat_caps = filter(cap -> cap <= dev_cap, toolchain_caps)
+    compat_caps = filter(cap -> cap <= dev_cap, supported_capabilities)
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")
     cap = maximum(compat_caps)
