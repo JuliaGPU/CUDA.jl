@@ -14,8 +14,9 @@ try
         Set(Base.Iterators.flatten(valvec for (key,valvec) in db if predicate(key)))
 
     # figure out which targets are supported by LLVM
-    :NVPTX in LLVM.libllvm_targets ||
-        error("Your LLVM does not support PTX.\nPlease build or install a version of LLVM with the NVPTX back-end enabled, and rebuild LLVM.jl and CUDAnative.jl.")
+    InitializeAllTargets()
+    "nvptx" in LLVM.name.(collect(targets())) ||
+        error("Your LLVM does not support the NVPTX back-end. Fix this, and rebuild LLVM.jl and CUDAnative.jl.")
 
     # figure out which devices are supported by LLVM
     llvm_version = LLVM.version()
