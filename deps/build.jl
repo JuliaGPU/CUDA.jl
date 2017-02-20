@@ -47,7 +47,7 @@ try
             Previous.libcuda_path    == libcuda_path &&
             Previous.libcuda_vendor  == libcuda_vendor
             info("CUDAdrv.jl has already been built for this CUDA library, no need to rebuild")
-            exit(0)
+            return
         end
     end
 
