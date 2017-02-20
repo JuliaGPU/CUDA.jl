@@ -1,4 +1,9 @@
 coverage:
   ignore:
+    - "deps/*"
     - "src/util/*"
+  status:
+    patch: false
+    project: false
+    changes: false
 comment: false

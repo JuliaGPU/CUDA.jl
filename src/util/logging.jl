@@ -1,3 +1,5 @@
+# Logging functionality
+
 # I/O without libuv, for use after STDOUT is finalized
 raw_print(msg::AbstractString...) =
     ccall(:write, Cssize_t, (Cint, Cstring, Csize_t), 1, join(msg), length(join(msg)))
