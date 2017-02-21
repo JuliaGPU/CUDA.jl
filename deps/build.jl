@@ -62,7 +62,7 @@ try
             Previous.llvm_version       == llvm_version &&
             Previous.julia_llvm_version == julia_llvm_version
             info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
-            exit(0)
+            return
         end
     end
 
