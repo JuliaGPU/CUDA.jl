@@ -43,9 +43,9 @@ try
     if isfile(ext)
         debug("Checking validity of existing ext.jl...")
         @eval module Previous; include($ext); end
-        if  Previous.libcuda_version == libcuda_version &&
-            Previous.libcuda_path    == libcuda_path &&
-            Previous.libcuda_vendor  == libcuda_vendor
+        if  isdefined(Previous, :libcuda_version) && Previous.libcuda_version == libcuda_version &&
+            isdefined(Previous, :libcuda_path)    && Previous.libcuda_path == libcuda_path &&
+            isdefined(Previous, :libcuda_vendor)  && Previous.libcuda_vendor == libcuda_vendor
             info("CUDAdrv.jl has already been built for this CUDA library, no need to rebuild")
             return
         end
