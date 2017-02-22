@@ -58,9 +58,9 @@ try
     if isfile(ext)
         debug("Checking validity of existing ext.jl...")
         @eval module Previous; include($ext); end
-        if  Previous.cuda_version       == cuda_version &&
-            Previous.llvm_version       == llvm_version &&
-            Previous.julia_llvm_version == julia_llvm_version
+        if  isdefined(Previous, :cuda_version)       && Previous.cuda_version == cuda_version &&
+            isdefined(Previous, :llvm_version)       && Previous.llvm_version == llvm_version &&
+            isdefined(Previous, :julia_llvm_version) && Previous.julia_llvm_version == julia_llvm_version
             info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
             return
         end
