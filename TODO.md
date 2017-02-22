@@ -8,14 +8,8 @@
 * Reduce launch cost: no synchronization on kernel parameters malloc/memcpy
 
 
+
 # Minor
-
-* LLVM 4.0: NVVM reflect params have changed, now only accepted via module parameter (see D28700).
-
-* report: ptr overhead
-
-* @code_warntype @cuda seems to contain call to generated function? hack inference to get the error
-
 
 ## CUDA support/interfacing
 
