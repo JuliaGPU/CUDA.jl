@@ -5,8 +5,8 @@ module CUDAdrv
 using Compat
 import Compat.String
 
-ext = joinpath(dirname(@__FILE__), "..", "deps", "ext.jl")
-isfile(ext) || error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAdrv\"), and restart Julia.")
+const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
+isfile(ext) || error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAdrv\") and restart Julia.")
 include(ext)
 const libcuda = libcuda_path
 
@@ -28,17 +28,15 @@ include("profile.jl")
 include("gc.jl")
 include("array.jl")
 
-
 function __init__()
     # check validity of CUDA library
     @debug("Checking validity of $(libcuda_path)")
     if version() != libcuda_version
-        error("CUDA library version has changed. Please re-run Pkg.build(\"CUDAdrv\"), and restart Julia.")
+        error("CUDA library version has changed. Please re-run Pkg.build(\"CUDAdrv\") and restart Julia.")
     end
 
     __init_logging__()
     @apicall(:cuInit, (Cint,), 0)
 end
-
 
 end
