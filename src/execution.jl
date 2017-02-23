@@ -152,18 +152,13 @@ end
 High-level interface for calling functions on a GPU, queues a kernel launch on the current
 context. The `gridDim` and `blockDim` arguments represent the launch configuration, the
 optional `shmem` parameter specifies how much bytes of dynamic shared memory should be
-allocated (defaults to 0).
+allocated (defaulting to 0), while the optional `stream` parameter indicates on which stream
+the launch should be scheduled.
 
-When `func` represents a `CuFunction` object, a `cudacall` will be emitted, with the type
-signature derived from the actual argument types (if you need conversions to happen, use
-`cudacall` directly). Only bitstypes with size ∈ ]0,8] are supported (0-sized elements are
-ghost types that wouldn't get passed, while objects > 8 bytes don't fit in registers and
-need to be passed by pointer instead).
-
-If `func` represents a Julia function, a more automagic approach is taken. The function is
-compiled to a CUDA function, more objects are supported (ghost types are used during codegen
-but not passed, objects > 8 bytes are copied to memory and passed by pointer), and finally a
-`cudacall` is performed.
+The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
+upon first use, and to a certain extent arguments will be converted and managed
+automatically. Finally, a call to `cudacall` is performed, scheduling the compiled function
+for execution on the GPU.
 """
 macro cuda(config::Expr, callexpr::Expr)
     # sanity checks
