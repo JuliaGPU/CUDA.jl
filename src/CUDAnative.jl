@@ -13,8 +13,6 @@ ext = joinpath(dirname(@__FILE__), "..", "deps", "ext.jl")
 isfile(ext) || error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAnative\"), and restart Julia.")
 include(ext)
 
-include("util.jl")
-
 include("jit.jl")
 include("device/array.jl")
 include("device/intrinsics.jl") # these files contain generated functions,
@@ -27,8 +25,6 @@ function __init__()
         VersionNumber(Base.libllvm_version) != julia_llvm_version
         error("Your set-up has changed. Please re-run Pkg.build(\"CUDAnative\"), and restart Julia.")
     end
-
-    __init_util__()
 end
 
 end

@@ -334,36 +334,8 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     sig = """$func($(join(tt.parameters, ", ")))"""
     debug("Compiling $sig for capability level $cap")
 
-    @static if TRACE
-        # generate a safe and unique name
-        function_uid = "$func-"
-        if length(tt.parameters) > 0
-            function_uid *= join([replace(string(t), r"\W", "") for t in tt.parameters], '.')
-        else
-            function_uid *= "Void"
-        end
-
-        # dump the typed AST
-        buf = IOBuffer()
-        code_warntype(buf, func, tt)
-        ast = String(buf)
-
-        output = "$(dumpdir[])/$function_uid.jl"
-        trace("Writing kernel AST to $output")
-        open(output, "w") do io
-            write(io, ast)
-        end
-    end
-
     # generate LLVM IR
     mod, entry = irgen(func, tt)
-    @static if TRACE
-        output = "$(dumpdir[])/$function_uid.ll"
-        trace("Writing kernel LLVM IR to $output")
-        open(output, "w") do io
-            write(io, convert(String, mod))
-        end
-    end
     trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary
@@ -374,13 +346,6 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     # generate (PTX) assembly
     optimize!(mod, cap)
     module_asm = mcgen(mod, entry, cap; kernel=kernel)
-    @static if TRACE
-        output = "$(dumpdir[])/$function_uid.ptx"
-        trace("Writing kernel PTX assembly to $output")
-        open(output, "w") do io
-            write(io, module_asm)
-        end
-    end
 
     return module_asm, LLVM.name(entry)
 end
