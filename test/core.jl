@@ -518,14 +518,27 @@ end
 
 @testset "gc" begin
 
-# force garbage collection (this makes finalizers run before STDOUT is destroyed)
+# test outstanding contexts
+@test length(CUDAdrv.context_instances) == 1
 destroy(ctx)
 for i in 1:5
     gc()
 end
-
-# test there's no outstanding contexts or consumers thereof
-@test length(CUDAdrv.finalizer_blocks) == 0
+if length(CUDAdrv.context_instances) > 0
+    for (handle, object) in CUDAdrv.context_instances
+        warn("CUDA context $handle has outstanding object at $object")
+    end
+end
 @test length(CUDAdrv.context_instances) == 0
+
+# test blocked finalizers
+if length(CUDAdrv.finalizer_blocks) > 0
+    for (owner_ptr, target) in CUDAdrv.finalizer_blocks
+        # NOTE: we don't deref the owner ptr here, because it might have been freed
+        #       (in the case that object forgot to unblock target during finalization)
+        warn("Blocked finalizer: object at $owner_ptr keeps $target alive")
+    end
+end
+@test length(CUDAdrv.finalizer_blocks) == 0
 
 end
