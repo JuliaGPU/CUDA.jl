@@ -521,7 +521,7 @@ end
 # test outstanding contexts
 @test length(CUDAdrv.context_instances) == 1
 destroy(ctx)
-for i in 1:5
+for i in 1:50
     gc()
 end
 if length(CUDAdrv.context_instances) > 0
