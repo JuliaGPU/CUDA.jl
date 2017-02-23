@@ -3,7 +3,7 @@ using CUDAdrv
 using Compat
 
 
-## pointer
+@testset "pointer" begin
 
 # conversion to Ptr
 @test_throws InexactError convert(Ptr{Void}, CU_NULL)
@@ -18,8 +18,10 @@ let
     @test_throws InexactError convert(DevicePtr{Void}, C_NULL)
 end
 
+end
 
-## errors
+
+@testset "errors" begin
 
 let
     ex = CuError(0)
@@ -44,8 +46,10 @@ let
     @test contains(str, "foobar")
 end
 
+end
 
-## base
+
+@testset "base" begin
 
 CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
 
@@ -61,25 +65,28 @@ CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
     end
 )
 
-const CuDevice_t = Cint
 try
-    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), Ref{CuDevice_t}(), devcount())
+    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CUDAdrv.CuDevice_t}, Cint), Ref{CUDAdrv.CuDevice_t}(), devcount())
 catch e
     e == CUDAdrv.ERROR_INVALID_DEVICE || rethrow(e)
 end
 
 CUDAdrv.vendor()
 
+end
+
 dev = CuDevice(0)
 ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
 
-## version
+@testset "version" begin
 
-CUDAdrv.version()
+@test isa(CUDAdrv.version(), VersionNumber)
+
+end
 
 
-## devices
+@testset "devices" begin
 
 name(dev)
 totalmem(dev)
@@ -88,8 +95,10 @@ attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
 capability(dev)
 @grab_output list_devices()
 
+end
 
-## context
+
+@testset "context" begin
 
 @test ctx == CuCurrentContext()
 @test ctx === CuCurrentContext()
@@ -119,8 +128,10 @@ end
 synchronize(ctx)
 synchronize()
 
+end
 
-## module
+
+@testset "module" begin
 
 let
     md = CuModuleFile(joinpath(@__DIR__, "ptx/vadd.ptx"))
@@ -194,8 +205,10 @@ let
     vadd = CuFunction(md, "vadd")
 end
 
+end
 
-## memory
+
+@testset "memory" begin
 
 # pointer-based
 let
@@ -256,7 +269,7 @@ let
 end
 
 let
-    type MutablePtrFree
+    @eval type MutablePtrFree
         foo::Int
         bar::Int
     end
@@ -266,7 +279,7 @@ let
 end
 
 let
-    type MutableNonPtrFree
+    @eval type MutableNonPtrFree
         foo::Int
         bar::String
     end
@@ -275,8 +288,10 @@ let
     Mem.free(ptr)
 end
 
+end
 
-## stream
+
+@testset "stream" begin
 
 let
     s = CuStream()
@@ -288,8 +303,10 @@ let
     synchronize(CuDefaultStream())
 end
 
+end
 
-## execution
+
+@testset "execution" begin
 
 let
     # test outer CuDim3 constructors
@@ -376,8 +393,10 @@ let
     end
 end
 
+end
 
-## events
+
+@testset "events" begin
 
 let
     start = CuEvent()
@@ -393,8 +412,10 @@ let
         end) > 0
 end
 
+end
 
-## array
+
+@testset "array" begin
 
 let
     # inner constructors
@@ -490,13 +511,17 @@ let
     @test_throws ArgumentError CuArray{Function}((10, 10))
 end
 
+end
 
-## profile
+
+@testset "profile" begin
 
 @cuprofile begin end
 
+end
 
-## gc
+
+@testset "gc" begin
 
 # force garbage collection (this makes finalizers run before STDOUT is destroyed)
 destroy(ctx)
@@ -507,3 +532,5 @@ end
 # test there's no outstanding contexts or consumers thereof
 @test length(CUDAdrv.finalizer_blocks) == 0
 @test length(CUDAdrv.context_instances) == 0
+
+end
