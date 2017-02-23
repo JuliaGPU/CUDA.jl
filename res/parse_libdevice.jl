@@ -6,7 +6,7 @@ using Compat
 import Compat.String
 
 function parse_intrinsics(cb)
-    fn = joinpath(dirname(@__FILE__), "..", "src", "intrinsics.jl")
+    fn = joinpath(@__DIR__, "..", "src", "intrinsics.jl")
     open(fn) do f
         for ln in eachline(f)
             m = match(r"@wrap ([\w.]+\(.+?\)::\w+)", ln)
