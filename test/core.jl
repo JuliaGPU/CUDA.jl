@@ -1,8 +1,3 @@
-using CUDAdrv
-
-using Compat
-
-
 @testset "pointer" begin
 
 # conversion to Ptr
