@@ -177,11 +177,10 @@ macro cuda(config::Expr, callexpr::Expr)
     # handle optional arguments and forward the call
     # NOTE: we duplicate the CUDAdrv's default values of these arguments,
     #       because the kwarg version of `cudacall` is too slow
-    stream = length(config.args)==4 ? pop!(config.args) : :(CuDefaultStream())
-    shmem  = length(config.args)==3 ? pop!(config.args) : :(0)
-    dims = config
-    return esc(:(CUDAnative.generated_cuda($dims, $shmem, $stream,
-                                           $(callexpr.args...))))
+    stream = length(config.args)==4 ? esc(pop!(config.args)) : :(CuDefaultStream())
+    shmem  = length(config.args)==3 ? esc(pop!(config.args)) : :(0)
+    dims = esc(config)
+    return :(generated_cuda($dims, $shmem, $stream, $(map(esc, callexpr.args)...)))
 end
 
 # Compile and execute a CUDA kernel from a Julia function
@@ -199,11 +198,11 @@ const func_cache = Dict{UInt, CuFunction}()
     kernel_compilation = quote
         ctx = CuCurrentContext()
         key = hash(($precomp_key, ctx))
-        if (haskey(CUDAnative.func_cache, key))
-            $cuda_fun = CUDAnative.func_cache[key]
+        if (haskey(func_cache, key))
+            $cuda_fun = func_cache[key]
         else
             $cuda_fun, _ = cufunction(device(ctx), func, $codegen_types)
-            CUDAnative.func_cache[key] = $cuda_fun
+            func_cache[key] = $cuda_fun
         end
     end
 

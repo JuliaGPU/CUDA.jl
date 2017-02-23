@@ -49,6 +49,13 @@ end
         using KernelModule
         @cuda (1,1) exec_external_dummy()
     end
+
+    @eval module WrapperModule
+        using CUDAnative
+        @eval exec_dummy() = return nothing
+        wrapper() = @cuda (1,1) exec_dummy()
+    end
+    WrapperModule.wrapper()
 end
 
 
