@@ -1,3 +1,5 @@
+# EXCLUDE FROM TESTING
+
 using CUDAdrv
 
 # Generate a temporary file with specific suffix
