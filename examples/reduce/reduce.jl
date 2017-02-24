@@ -62,7 +62,7 @@ function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1},
 
     # reduce multiple elements per thread (grid-stride loop)
     # TODO: step range (see JuliaGPU/CUDAnative.jl#12)
-    i = (blockIdx().x-Int32(1)) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
     step = blockDim().x * gridDim().x
     while i <= len
         @inbounds val = op(val, input[i])
@@ -71,7 +71,7 @@ function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1},
 
     val = reduce_block(op, val)
 
-    if threadIdx().x == Int32(1)
+    if threadIdx().x == UInt32(1)
         @inbounds output[blockIdx().x] = val
     end
 
