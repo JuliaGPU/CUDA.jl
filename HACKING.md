@@ -74,3 +74,37 @@ function ballot(pred::Bool)
         UInt32, Tuple{Int32}, convert(Int32, pred))
 end
 ```
+
+
+Generated functions
+-------------------
+
+Generated functions are an interesting tool to use for GPU programming, as they allow to
+generate lean, allocation-less code specialized on the types of input arguments. Indeed, we
+use (and often abuse) generated functions to implement intrinsics where core language
+functionality doesn't allow us to generate GPU-compatible code.
+
+One problem with generated functions is that when they throw, inference inserts a dynamic
+call instead. Normally, this would result in the exception being print-out at runtime, but
+in the case of GPU programming this results in incompatible code. That's why the following
+patch to `inference.jl` is especially useful, making it eagerly print the exception it
+caught during evaluation of generated functions:
+
+```patch
+diff --git a/base/inference.jl b/base/inference.jl
+index 6443665676..b03d78ddaa 100644
+--- a/base/inference.jl
++++ b/base/inference.jl
+@@ -2430,7 +2430,10 @@ function typeinf_frame(linfo::MethodInstance, caller, optimize::Bool, cached::Bo
+             try
+                 # user code might throw errors – ignore them
+                 src = get_staged(linfo)
+-            catch
++            catch ex
++                println("WARNING: An error occurred during generated function execution.")
++                println(ex)
++                ccall(:jlbacktrace, Void, ())
+                 return nothing
+             end
+         else
+```
