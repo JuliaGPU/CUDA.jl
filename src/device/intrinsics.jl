@@ -333,9 +333,26 @@ macro cuStaticSharedMem(typ, dims)
 end
 
 function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
-    if !haskey(llvmtypes, jltyp)
-        error("cuStaticSharedMem: unsupported type '$jltyp'")
+    var = Symbol(:@shmem, id)
+    len = prod(shape) * sizeof(jltyp)
+    if !isbits(jltyp)
+        error("cuStaticSharedMem: unsupported type '$jltyp': not isbits!")
     end
+    align = Base.Threads.alignment(jltyp)
+    return quote
+        Base.@_inline_meta
+        ptr = Base.llvmcall(
+            ($"""$var = internal addrspace(3) global [$len x i8] zeroinitializer, align $align""",
+             $"""%1 = getelementptr inbounds [$len x i8], [$len x i8] addrspace(3)* $var, i64 0, i64 0
+                 %2 = addrspacecast i8 addrspace(3)* %1 to i8 addrspace(0)*
+                 ret i8* %2"""),
+            Ptr{UInt8}, Tuple{}
+        )
+        CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
+    end
+end
+const LLVMTypes = Union{keys(llvmtypes)...}
+function emit_static_shmem{N, T <: LLVMTypes}(id::Integer, jltyp::Type{T}, shape::NTuple{N,Int})
     llvmtyp = llvmtypes[jltyp]
 
     var = Symbol(:@shmem, id)
