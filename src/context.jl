@@ -24,13 +24,16 @@ destroyed, the system cleans up the resources allocated to it.
 
 Contexts are unique instances which need to be `destroy`ed after use. For automatic
 management, prefer the `do` block syntax, which implicitly calls `destroy`.
+
+The `owned` argument indicates whether the caller owns this context. If so, the context
+should get destroyed when it goes out of scope. If not, it is up to the caller to do so.
 """
 type CuContext
     handle::CuContext_t
-    is_primary::Bool
+    owned::Bool
 
-    function CuContext(handle::CuContext_t, is_primary=false)
-        handle == C_NULL && return new(C_NULL, false)
+    function CuContext(handle::CuContext_t, owned=true)
+        handle == C_NULL && return new(C_NULL)
 
         # we need unique context instances for garbage collection reasons
         #
@@ -40,20 +43,30 @@ type CuContext
         #
         # instead, we force unique instances, and keep a reference alive in a global dict.
         # this prevents contexts from getting collected, requiring the user to destroy it.
-        return get!(context_instances, handle) do
-            obj = new(handle, is_primary)
+        ctx = get!(context_instances, handle) do
+            obj = new(handle, owned)
             finalizer(obj, finalize)
             return obj
         end
+
+        if owned && !ctx.owned
+            # trying to get a non-owned handle on an already-owned context is common,
+            # eg. construct a context, and call a function doing CuCurrentContext()
+            #
+            # the inverse isn't true: constructing an owning-object on using a handle
+            # which was the result of a non-owning API call really shouldn't happen
+            warn("Ownership conflict on context $ctx")
+        end
+
+        ctx
     end
 end
 const context_instances = Dict{CuContext_t,CuContext}()
-const primary_contexts  = Dict{Int, CuContext}()
 
 function finalize(ctx::CuContext)
     @trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
-    if ctx.is_primary
-        @trace("Ignoring finalizer for primary context")
+    if !ctx.owned
+        @trace("Not destroying context $ctx because we don't own it")
     elseif can_finalize(ctx)
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
     else
@@ -96,7 +109,7 @@ end
 function CuCurrentContext()
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), handle_ref)
-    CuContext(handle_ref[])
+    CuContext(handle_ref[], false)
 end
 
 activate(ctx::CuContext) = @apicall(:cuCtxSetCurrent, (CuContext_t,), ctx)
@@ -133,30 +146,3 @@ end
 
 synchronize(ctx::CuContext=CuCurrentContext()) =
     @apicall(:cuCtxSynchronize, (CuContext_t,), ctx)
-
-## Primary context management
-get_pctx(dev::Int) = get!(primary_contexts, dev) do
-    handle = Ref{CuContext_t}(0)
-    @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, dev)
-    return CuContext(handle[], true)
-end
-
-function delete_pctx!(dev::Int)
-    if haskey(primary_contexts, dev)
-        pctx = primary_contexts[dev]
-        @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), dev)
-        delete!(primary_contexts, dev)
-        destroy(pctx)
-    end
-end
-
-function query_pctx(dev)
-    flags = Ref{Cuint}()
-    active = Ref{Cint}()
-    @apicall(:cuDevicePrimaryCtxGetState, (CuDevice_t, Ptr{Cuint}, Ptr{Cint}),
-             dev, flags, active)
-    return (flags[], active[] == one(Cint))
-end
-
-set_pctx(dev, flags) = @apicall(:cuDevicePrimaryCtxSetFlags, (CuDevice_t, Cuint), dev, flags)
-reset_pctx(dev) = @apicall(:cuDevicePrimaryCtxReset, (CuDevice_t,), dev)

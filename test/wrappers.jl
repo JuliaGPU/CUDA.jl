@@ -53,17 +53,20 @@ end
 
 @testset "primary context" begin
 
-flags, active = CUDAdrv.query_pctx(0)
-@test active == false
-pctx = CUDAdrv.get_pctx(0)
-@test pctx.is_primary
-@test length(CUDAdrv.primary_contexts) == 1
-flags, active = CUDAdrv.query_pctx(0)
-@test active == true
-CUDAdrv.delete_pctx!(0)
-@test length(CUDAdrv.primary_contexts) == 0
-flags, active = CUDAdrv.query_pctx(0)
-@test active == false
+pctx = CuPrimaryContext(0)
+
+state(pctx)
+@test !isactive(pctx)
+
+@test flags(pctx) == CUDAdrv.SCHED_AUTO
+setflags!(pctx, CUDAdrv.SCHED_BLOCKING_SYNC)
+@test flags(pctx) == CUDAdrv.SCHED_BLOCKING_SYNC
+
+CuContext(pctx) do ctx
+    @test isactive(pctx)
+end
+gc()
+@test !isactive(pctx)
 
 end
 
