@@ -51,6 +51,21 @@ synchronize()
 
 end
 
+@testset "primary context" begin
+
+flags, active = CUDAdrv.query_pctx(0)
+@test active == false
+pctx = CUDAdrv.get_pctx(0)
+@test pctx.is_primary
+@test length(CUDAdrv.primary_contexts) == 1
+flags, active = CUDAdrv.query_pctx(0)
+@test active == true
+CUDAdrv.delete_pctx!(0)
+@test length(CUDAdrv.primary_contexts) == 0
+flags, active = CUDAdrv.query_pctx(0)
+@test active == false
+
+end
 
 @testset "module" begin
 
