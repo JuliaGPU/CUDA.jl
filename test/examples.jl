@@ -22,7 +22,7 @@ for example in examples
     @eval begin
         @testset $id begin
             file = $example
-            @test success(pipeline(`$(Base.julia_cmd()) $file`; stdout=DevNull))
+            @test success(pipeline(`$(Base.julia_cmd()) $file`; stderr=STDERR))
         end
     end
 end
