@@ -41,8 +41,12 @@ type CuLink
 end
 
 function finalize(link::CuLink)
-    @trace("Finalizing CuLink at $(Base.pointer_from_objref(link))")
-    @apicall(:cuLinkDestroy, (CuLinkState_t,), link)
+    if isvalid(link.ctx)
+        @trace("Finalizing CuLink at $(Base.pointer_from_objref(link))")
+        @apicall(:cuLinkDestroy, (CuLinkState_t,), link)
+    else
+        @trace("Skipping finalizer for CuLink at $(Base.pointer_from_objref(link))) because context is no longer valid")
+    end
     unblock_finalizer(link, link.ctx)
 end
 

@@ -14,7 +14,7 @@ function CuContext(pctx::CuPrimaryContext)
     @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, pctx.dev)
     ctx = CuContext(handle[], false)    # CuContext shouldn't destroy this ctx
     finalizer(ctx, (ctx)->begin
-        @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
+        isvalid(ctx) && @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
     end)
     return ctx
 end

@@ -29,8 +29,12 @@ function CuStream(flags::Integer=0)
 end
 
 function finalize(s::CuStream)
-    @trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
-    @apicall(:cuStreamDestroy, (CuModule_t,), s)
+    if isvalid(s.ctx)
+        @trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
+        @apicall(:cuStreamDestroy, (CuModule_t,), s)
+    else
+        @trace("Skipping finalizer for CuStream at $(Base.pointer_from_objref(s)) because context is no longer valid")
+    end
     unblock_finalizer(s, s.ctx)
 end
 

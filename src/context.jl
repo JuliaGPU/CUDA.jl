@@ -31,9 +31,10 @@ should get destroyed when it goes out of scope. If not, it is up to the caller t
 type CuContext
     handle::CuContext_t
     owned::Bool
+    valid::Bool
 
     function CuContext(handle::CuContext_t, owned=true)
-        handle == C_NULL && return new(C_NULL)
+        handle == C_NULL && return new(C_NULL, false, true)
 
         # we need unique context instances for garbage collection reasons
         #
@@ -44,7 +45,7 @@ type CuContext
         # instead, we force unique instances, and keep a reference alive in a global dict.
         # this prevents contexts from getting collected, requiring the user to destroy it.
         ctx = get!(context_instances, handle) do
-            obj = new(handle, owned)
+            obj = new(handle, owned, true)
             finalizer(obj, finalize)
             return obj
         end
@@ -63,12 +64,20 @@ type CuContext
 end
 const context_instances = Dict{CuContext_t,CuContext}()
 
+isvalid(ctx::CuContext) = ctx.valid
+function invalidate!(ctx::CuContext)
+    @trace("Invalidating CuContext at $(Base.pointer_from_objref(ctx))")
+    ctx.valid = false
+    nothing
+end
+
 function finalize(ctx::CuContext)
     @trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
     if !ctx.owned
         @trace("Not destroying context $ctx because we don't own it")
-    elseif can_finalize(ctx)
+    elseif can_finalize(ctx) && isvalid(ctx)
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
+        invalidate!(ctx)
     else
         # this is due to finalizers not respecting _any_ order during process teardown
         # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)

@@ -56,8 +56,12 @@ type CuModule
 end
 
 function finalize(mod::CuModule)
-    @trace("Finalizing CuModule at $(Base.pointer_from_objref(mod))")
-    @apicall(:cuModuleUnload, (CuModule_t,), mod)
+    if isvalid(mod.ctx)
+        @trace("Finalizing CuModule at $(Base.pointer_from_objref(mod)))")
+        @apicall(:cuModuleUnload, (CuModule_t,), mod)
+    else
+        @trace("Skipping finalizer for CuModule at $(Base.pointer_from_objref(mod))) because context is no longer valid")
+    end
     unblock_finalizer(mod, mod.ctx)
 end
 

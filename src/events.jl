@@ -22,8 +22,12 @@ type CuEvent
 end
 
 function finalize(e::CuEvent)
-    @trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
-    @apicall(:cuEventDestroy, (CuEvent_t,), e)
+    if isvalid(e.ctx)
+        @trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
+        @apicall(:cuEventDestroy, (CuEvent_t,), e)
+    else
+        @trace("Skipping finalizer for CuEvent at $(Base.pointer_from_objref(e))) because context is no longer valid.")
+    end
     unblock_finalizer(e, e.ctx)
 end
 
