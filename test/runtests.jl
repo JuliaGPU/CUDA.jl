@@ -24,5 +24,7 @@ macro grab_output(ex)
     end
 end
 
+@testset "CUDAdrv" begin
 include("core.jl")
 include("examples.jl")
+end
