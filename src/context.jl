@@ -75,7 +75,7 @@ function finalize(ctx::CuContext)
     @trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
     if !ctx.owned
         @trace("Not destroying context $ctx because we don't own it")
-    elseif can_finalize(ctx) && isvalid(ctx)
+    elseif isvalid(ctx)
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
         invalidate!(ctx)
     else

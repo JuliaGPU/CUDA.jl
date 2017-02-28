@@ -26,7 +26,6 @@ include("execution.jl")
 include("events.jl")
 include("profile.jl")
 
-include("gc.jl")
 include("array.jl")
 
 function __init__()
