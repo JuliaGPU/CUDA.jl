@@ -13,11 +13,18 @@ function find_sources(dir)
     return sources
 end
 
-examples = find_sources(joinpath(@__DIR__, "..", "examples"))
+examples_dir = joinpath(@__DIR__, "..", "examples")
+examples = find_sources(examples_dir)
 filter!(file -> readline(file) != "# EXCLUDE FROM TESTING", examples)
 
 for example in examples
-    @test success(pipeline(`$(Base.julia_cmd()) $example`; stdout=DevNull))
+    id = relpath(example, examples_dir)
+    @eval begin
+        @testset $id begin
+            file = $example
+            @test success(pipeline(`$(Base.julia_cmd()) $file`; stderr=STDERR))
+        end
+    end
 end
 
 end

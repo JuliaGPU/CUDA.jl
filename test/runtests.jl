@@ -4,12 +4,6 @@ using Base.Test
 # NOTE: all kernel function definitions are prefixed with @eval to force toplevel definition,
 #       avoiding boxing as seen in https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
 
-@test devcount() > 0
-
-include("base.jl")
-
-include("codegen.jl")
-
 # NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
 macro grab_output(ex)
     quote
@@ -46,15 +40,26 @@ macro on_device(exprs)
     end
 end
 
-dev = CuDevice(0)
-if capability(dev) < v"2.0"
-    warn("native execution not supported on SM < 2.0")
-else
-    ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
+@testset "CUDAnative" begin
 
-    include("execution.jl")
-    include("array.jl")
-    include("intrinsics.jl")
+@test devcount() > 0
+if devcount() > 0
+    include("base.jl")
+    include("codegen.jl")
 
-    include("examples.jl")
+    global dev
+    dev = CuDevice(0)
+    if capability(dev) < v"2.0"
+        warn("native execution not supported on SM < 2.0")
+    else
+        ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
+
+        include("execution.jl")
+        include("array.jl")
+        include("intrinsics.jl")
+
+        include("examples.jl")
+    end
+end
+
 end
