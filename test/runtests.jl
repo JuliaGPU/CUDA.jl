@@ -47,13 +47,20 @@ if devcount() > 0
     include("base.jl")
     include("codegen.jl")
 
-    global dev
-    dev = CuDevice(0)
+    # pick most recent device (based on compute capability)
+    global dev = nothing
+    for i in 0:devcount()-1
+        newdev = CuDevice(i)
+        if dev == nothing || capability(newdev) > capability(dev)
+            dev = newdev
+        end
+    end
+    info("Testing using device $(name(dev))")
+    global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
+
     if capability(dev) < v"2.0"
         warn("native execution not supported on SM < 2.0")
     else
-        ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
-
         include("execution.jl")
         include("array.jl")
         include("intrinsics.jl")
