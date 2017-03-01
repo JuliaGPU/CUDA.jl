@@ -3,13 +3,15 @@
 ############################################################################################
 
 @testset "LLVM IR" begin
-    foo() = return nothing
-    ir = sprint(io->CUDAnative.code_llvm(io, foo, (); optimize=false, dump_module=true))
+
+@testset "basic reflection" begin
+    llvm_dummy() = return nothing
+    ir = sprint(io->CUDAnative.code_llvm(io, llvm_dummy, (); optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
-    @test contains(ir, "define void @julia_foo")
+    @test contains(ir, "define void @julia_llvm_dummy")
     @test !contains(ir, "define %jl_value_t* @jlcall_")
-    @test ismatch(r"define void @julia_foo_.+\(\) #0.+\{", ir)
+    @test ismatch(r"define void @julia_llvm_dummy_.+\(\) #0.+\{", ir)
 end
 
 @testset "exceptions" begin
@@ -43,6 +45,8 @@ end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, (Int,)))
     @test ismatch(r"call .+ @julia_codegen_child_", ir)
+end
+
 end
 
 
