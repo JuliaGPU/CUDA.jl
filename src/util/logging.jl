@@ -26,7 +26,7 @@ is set."
 end
 @inline trace(msg...; kwargs...) = trace(STDERR, msg...; kwargs...)
 macro trace(args...)
-    TRACE && return esc(Expr(:call, :trace, args...))
+    TRACE && return Expr(:call, :trace, map(esc, args)...)
 end
 
 const DEBUG = TRACE || haskey(ENV, "DEBUG")
@@ -39,7 +39,7 @@ variable is set."
 end
 @inline debug(msg...; kwargs...) = debug(STDERR, msg...; kwargs...)
 macro debug(args...)
-    DEBUG && return esc(Expr(:call, :trace, args...))
+    DEBUG && return Expr(:call, :trace, map(esc, args)...)
 end
 
 "Create an indented string from any value (instead of escaping endlines as \n)"

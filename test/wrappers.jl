@@ -51,6 +51,24 @@ synchronize()
 
 end
 
+@testset "primary context" begin
+
+pctx = CuPrimaryContext(0)
+
+state(pctx)
+@test !isactive(pctx)
+
+@test flags(pctx) == CUDAdrv.SCHED_AUTO
+setflags!(pctx, CUDAdrv.SCHED_BLOCKING_SYNC)
+@test flags(pctx) == CUDAdrv.SCHED_BLOCKING_SYNC
+
+CuContext(pctx) do ctx
+    @test isactive(pctx)
+end
+gc()
+@test !isactive(pctx)
+
+end
 
 @testset "module" begin
 

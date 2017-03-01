@@ -17,14 +17,4 @@ if length(CUDAdrv.context_instances) > 0
 end
 @test length(CUDAdrv.context_instances) == 0
 
-# test blocked finalizers
-if length(CUDAdrv.finalizer_blocks) > 0
-    for (owner_ptr, target) in CUDAdrv.finalizer_blocks
-        # NOTE: we don't deref the owner ptr here, because it might have been freed
-        #       (in the case that object forgot to unblock target during finalization)
-        warn("Blocked finalizer: object at $owner_ptr keeps $target alive")
-    end
-end
-@test length(CUDAdrv.finalizer_blocks) == 0
-
 end

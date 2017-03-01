@@ -49,16 +49,18 @@ type CuModule
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
-        block_finalizer(obj, ctx)
         finalizer(obj, finalize)
         return obj
     end
 end
 
 function finalize(mod::CuModule)
-    @trace("Finalizing CuModule at $(Base.pointer_from_objref(mod))")
-    @apicall(:cuModuleUnload, (CuModule_t,), mod)
-    unblock_finalizer(mod, mod.ctx)
+    if isvalid(mod.ctx)
+        @trace("Finalizing CuModule at $(Base.pointer_from_objref(mod)))")
+        @apicall(:cuModuleUnload, (CuModule_t,), mod)
+    else
+        @trace("Skipping finalizer for CuModule at $(Base.pointer_from_objref(mod))) because context is no longer valid")
+    end
 end
 
 Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle

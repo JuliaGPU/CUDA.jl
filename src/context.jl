@@ -24,12 +24,17 @@ destroyed, the system cleans up the resources allocated to it.
 
 Contexts are unique instances which need to be `destroy`ed after use. For automatic
 management, prefer the `do` block syntax, which implicitly calls `destroy`.
+
+The `owned` argument indicates whether the caller owns this context. If so, the context
+should get destroyed when it goes out of scope. If not, it is up to the caller to do so.
 """
 type CuContext
     handle::CuContext_t
+    owned::Bool
+    valid::Bool
 
-    function CuContext(handle::CuContext_t)
-        handle == C_NULL && return new(C_NULL)
+    function CuContext(handle::CuContext_t, owned=true)
+        handle == C_NULL && return new(C_NULL, false, true)
 
         # we need unique context instances for garbage collection reasons
         #
@@ -39,19 +44,40 @@ type CuContext
         #
         # instead, we force unique instances, and keep a reference alive in a global dict.
         # this prevents contexts from getting collected, requiring the user to destroy it.
-        return get!(context_instances, handle) do
-            obj = new(handle)
+        ctx = get!(context_instances, handle) do
+            obj = new(handle, owned, true)
             finalizer(obj, finalize)
             return obj
         end
+
+        if owned && !ctx.owned
+            # trying to get a non-owned handle on an already-owned context is common,
+            # eg. construct a context, and call a function doing CuCurrentContext()
+            #
+            # the inverse isn't true: constructing an owning-object on using a handle
+            # which was the result of a non-owning API call really shouldn't happen
+            warn("Ownership conflict on context $ctx")
+        end
+
+        ctx
     end
 end
 const context_instances = Dict{CuContext_t,CuContext}()
 
+isvalid(ctx::CuContext) = ctx.valid
+function invalidate!(ctx::CuContext)
+    @trace("Invalidating CuContext at $(Base.pointer_from_objref(ctx))")
+    ctx.valid = false
+    nothing
+end
+
 function finalize(ctx::CuContext)
     @trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
-    if can_finalize(ctx)
+    if !ctx.owned
+        @trace("Not destroying context $ctx because we don't own it")
+    elseif isvalid(ctx)
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
+        invalidate!(ctx)
     else
         # this is due to finalizers not respecting _any_ order during process teardown
         # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
@@ -92,7 +118,7 @@ end
 function CuCurrentContext()
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), handle_ref)
-    CuContext(handle_ref[])
+    CuContext(handle_ref[], false)
 end
 
 activate(ctx::CuContext) = @apicall(:cuCtxSetCurrent, (CuContext_t,), ctx)

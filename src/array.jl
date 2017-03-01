@@ -22,7 +22,6 @@ export
         devptr = Mem.alloc(T, len)
 
         obj = new{T,N}(devptr, shape)
-        block_finalizer(obj, devptr.ctx)
         finalizer(obj, finalize)
         return obj
     end
@@ -35,9 +34,12 @@ end
 (::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
 
 function finalize(a::CuArray)
-    @trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
-    Mem.free(a.devptr)
-    unblock_finalizer(a, a.devptr.ctx)
+    if isvalid(a.devptr.ctx)
+        @trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
+        Mem.free(a.devptr)
+    else
+        @trace("Skipping finalizer for CuArray at $(Base.pointer_from_objref(a))) because context is no longer valid")
+    end
 end
 
 Base.unsafe_convert{T}(::Type{DevicePtr{T}}, a::CuArray{T}) = a.devptr
