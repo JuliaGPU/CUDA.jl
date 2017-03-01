@@ -13,7 +13,8 @@ include(ext)
 include("jit.jl")
 include("device/array.jl")
 include("device/intrinsics.jl") # these files contain generated functions,
-include("execution.jl")         # so should get loaded last (JuliaLang/julia#19942)
+include("execution.jl")         # so should get loaded quite late (JuliaLang/julia#19942)
+include("reflection.jl")
 
 function __init__()
     if CUDAdrv.version() != cuda_version ||
