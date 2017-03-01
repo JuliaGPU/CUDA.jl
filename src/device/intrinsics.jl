@@ -63,15 +63,16 @@ argument `attr` indicates which LLVM function attributes (such as `readnone` or 
 to add to the intrinsic declaration.
 
 For example, the following call:
-    @wrap __some_intrinsic(x::float, y::double)::float
+    `@wrap __some_intrinsic(x::float, y::double)::float`
 
 will yield the following `llvmcall`:
-
+```
     Base.llvmcall(("declare float @__somme__intr(float, double)",
                    "%3 = call float @__somme__intr(float %0, double %1)
                     ret float %3"),
                   Float32, Tuple{Float32,Float64},
                   convert(Float32,x), convert(Float64,y))
+```
 """
 macro wrap(call, attrs="")
     intrinsic, args, argtypes, rettype = decode_call(call)
