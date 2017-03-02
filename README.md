@@ -26,7 +26,7 @@ README](https://github.com/JuliaLang/julia/blob/master/README.md#source-download
 and checkout the `release-0.6` branch), and execute the resulting `julia` binary in-place
 without doing a `make install`. Afterwards, you can do:
 
-```YOUR_BUILD_TREE/julia
+```
 Pkg.add("CUDAnative")
 Pkg.test("CUDAnative")
 ```
