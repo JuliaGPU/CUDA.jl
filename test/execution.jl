@@ -35,6 +35,21 @@ end
 end
 
 
+@testset "reflection with argument conversion" begin
+    @eval exec_dummy_array(a, i) = (a[1] = i; return nothing)
+
+    a = CuArray{Float32}(1)
+
+    @grab_output CUDAnative.@code_llvm @cuda (1,1) exec_dummy_array(a, 1)
+    @grab_output CUDAnative.@code_ptx @cuda (1,1) exec_dummy_array(a, 1)
+    @grab_output CUDAnative.@code_sass @cuda (1,1) exec_dummy_array(a, 1)
+
+    @grab_output CUDAnative.@code_llvm exec_dummy_array(a, 1)
+    @grab_output CUDAnative.@code_ptx exec_dummy_array(a, 1)
+    @grab_output CUDAnative.@code_sass exec_dummy_array(a, 1)
+end
+
+
 @testset "dimensions" begin
     @cuda (1,1) exec_dummy()
     @test_throws ArgumentError @cuda (0,0) exec_dummy()

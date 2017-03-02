@@ -82,13 +82,24 @@ code_sass(func::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, func, type
 #
 
 for fname in [:code_llvm, :code_ptx, :code_sass]
+    # types often need to be converted (eg. CuArray -> CuDeviceArray),
+    # so generate a type-converting wrapper, and a macro to call it
+    fname_wrapper = Symbol(fname, :_cputyped)
+
     @eval begin
+        function $fname_wrapper(func, types)
+            _, codegen_types, _ =
+                convert_arguments(fill(Symbol(), length(types.parameters)),
+                                  types.parameters)
+            $fname(func, codegen_types)
+        end
+
         macro ($fname)(ex0)
             if ex0.head == :macrocall
                 # @cuda (...) f()
                 ex0 = ex0.args[3]
             end
-            Base.gen_call_with_extracted_types($(Expr(:quote,fname)), ex0)
+            Base.gen_call_with_extracted_types($(Expr(:quote,fname_wrapper)), ex0)
         end
     end
 end
