@@ -40,15 +40,6 @@ function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
 end
 code_ptx(func::ANY, types::ANY=Tuple; kwargs...) = code_ptx(STDOUT, func, types; kwargs...)
 
-function code_native(io::IO, func::ANY, types::ANY=Tuple; kwargs...)
-    Base.depwarn("CUDAnative.code_native is deprecated, use code_ptx (or code_sass) instead.", :code_native)
-    code_ptx(io, func, types; kwargs...)
-end
-function code_native(func::ANY, types::ANY=Tuple; kwargs...)
-    Base.depwarn("CUDAnative.code_native is deprecated, use code_ptx (or code_sass) instead.", :code_native)
-    code_ptx(STDOUT, func, types; kwargs...)
-end
-
 """
     code_sass([io], f, types, cap=v"2.0")
 
