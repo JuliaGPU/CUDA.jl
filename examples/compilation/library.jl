@@ -3,12 +3,19 @@
 using CUDAdrv
 
 # Generate a temporary file with specific suffix
+# NOTE: mkstemps is glibc 2.19+, so emulate its behavior
 function mkstemps(suffix::AbstractString)
-    b = joinpath(tempdir(), "tmpXXXXXX$suffix")
-    # NOTE: mkstemps modifies b, which should be a NULL-terminated string
-    p = ccall(:mkstemps, Int32, (Cstring, Cint), b, length(suffix))
-    systemerror(:mktemp, p == -1)
-    return (b, fdio(p, true))
+    base = tempname()
+    filename = base * suffix
+
+    # make sure the filename is unique
+    i = 0
+    while isfile(filename)
+        i += 1
+        filename = base * ".$i" * suffix
+    end
+
+    return (filename, Base.open(filename, "w"))
 end
 
 "Database of compute capabilities with matching shader model, and initial version of the CUDA
