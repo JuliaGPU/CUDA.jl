@@ -114,11 +114,11 @@ If your code is incompatible with GPU execution, the compiler will mention the u
 feature, and where the use came from:
 
 ```
-julia> foo(i) = "foo$i"
+julia> foo(i) = (print("can't do this"); return nothing)
 foo (generic function with 1 method)
 
-julia> CUDAnative.code_llvm(foo, (Int,))
-ERROR: error compiling foo: error compiling #print_to_string#312: emit_allocobj for strings/io.jl:92 requires the dynamic_alloc language feature, which is disabled
+julia> @cuda (1,1) foo(1)
+ERROR: error compiling foo: error compiling print: generic call to unsafe_write requires the runtime language feature
 ```
 
 
@@ -191,14 +191,16 @@ generated GPU code:
 julia> foo(a, i) = (a[1] = i; return nothing)
 foo (generic function with 1 method)
 
-julia> CUDAnative.code_llvm(foo, (CuDeviceArray{Int,1}, Int))
+julia> a = CuArray{Int}(1)
+
+julia> CUDAnative.@code_llvm foo(a, 1)
 
 ; Function Attrs: nounwind
 define i64 @julia_foo_62405(%CuDeviceArray.2* nocapture readonly, i64) {
 ...
 }
 
-julia> CUDAnative.code_ptx(foo, (Int,))
+julia> @code_ptx foo(a, 1)
 .visible .entry julia_foo_62419(
         .param .u64 julia_foo_62419_param_0,
         .param .u64 julia_foo_62419_param_1
@@ -207,10 +209,26 @@ julia> CUDAnative.code_ptx(foo, (Int,))
 ...
 }
 
-julia> CUDAnative.code_sass(foo, (Int,))
+julia> @code_sass foo(a, 1)
         code for sm_20
                 Function : julia_foo_62539
 ...
+```
+
+Non-macro versions of these reflection entry-points are available as well (ie. `code_llvm`,
+etc), but as there's type conversions happening behind the scenes you will need to take care
+and perform those conversions manually:
+
+```julia
+julia> CUDAnative.code_llvm(foo, (CuArray{Int,1},Int))
+ERROR: error compiling foo: ...
+
+julia> CUDAnative.code_llvm(foo, (CuDeviceArray{Int,1},Int))
+
+; Function Attrs: nounwind
+define i64 @julia_foo_62405(%CuDeviceArray.2* nocapture readonly, i64) {
+...
+}
 ```
 
 
