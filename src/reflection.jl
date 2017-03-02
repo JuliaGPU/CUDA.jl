@@ -1,5 +1,8 @@
 # code reflection entry-points
 
+export
+    code_llvm, code_ptx, code_sass, @code_llvm, @code_ptx, @code_sass
+
 
 #
 # code_* replacements
