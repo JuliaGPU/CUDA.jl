@@ -25,10 +25,16 @@ end
 @testset "reflection" begin
     @cuda (1,1) exec_dummy()
 
+    @grab_output CUDAnative.@code_lowered @cuda (1,1) exec_dummy()
+    @grab_output CUDAnative.@code_typed @cuda (1,1) exec_dummy()
+    @grab_output CUDAnative.@code_warntype @cuda (1,1) exec_dummy()
     @grab_output CUDAnative.@code_llvm @cuda (1,1) exec_dummy()
     @grab_output CUDAnative.@code_ptx @cuda (1,1) exec_dummy()
     @grab_output CUDAnative.@code_sass @cuda (1,1) exec_dummy()
 
+    @grab_output CUDAnative.@code_lowered exec_dummy()
+    @grab_output CUDAnative.@code_typed exec_dummy()
+    @grab_output CUDAnative.@code_warntype exec_dummy()
     @grab_output CUDAnative.@code_llvm exec_dummy()
     @grab_output CUDAnative.@code_ptx exec_dummy()
     @grab_output CUDAnative.@code_sass exec_dummy()

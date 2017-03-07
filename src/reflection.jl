@@ -1,8 +1,8 @@
 # code reflection entry-points
 
 export
+    @code_lowered, @code_typed, @code_warntype,
     code_llvm, code_ptx, code_sass, @code_llvm, @code_ptx, @code_sass
-
 
 #
 # code_* replacements
@@ -75,7 +75,7 @@ code_sass(func::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, func, type
 # @code_* replacements
 #
 
-for fname in [:code_llvm, :code_ptx, :code_sass]
+for fname in [:code_lowered, :code_typed, :code_warntype, :code_llvm, :code_ptx, :code_sass]
     # types often need to be converted (eg. CuArray -> CuDeviceArray),
     # so generate a type-converting wrapper, and a macro to call it
     fname_wrapper = Symbol(fname, :_cputyped)
