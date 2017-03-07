@@ -145,13 +145,15 @@ end
     # issue #9: re-using sysimg functions should force recompilation
     #           (host fldmod1->mod1 throwsm, so the PTX code shouldn't contain a throw)
 
+    # FIXME: Int64 because of #49
+
     @eval function codegen_recompile(out)
-        wid, lane = fldmod1(unsafe_load(out), Int32(32))
+        wid, lane = fldmod1(unsafe_load(out), Int64(32))
         unsafe_store!(out, wid)
         return nothing
     end
 
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_recompile, (Ptr{Int32},)))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_recompile, (Ptr{Int64},)))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
