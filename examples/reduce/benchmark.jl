@@ -15,7 +15,7 @@ input = ones(Int32, len)
 
 # PTX generation
 open(joinpath(@__DIR__, "reduce.jl.ptx"), "w") do f
-    CUDAnative.code_ptx(f, reduce_grid,
+    code_ptx(f, reduce_grid,
                         Tuple{typeof(+), CuDeviceArray{Int32,1},
                               CuDeviceArray{Int32,1}, Int32};
                         cap=v"6.1.0")

@@ -58,9 +58,9 @@ end
     @eval ptx_valid_kernel(a) = (a[0] = 1; nothing)
     @eval ptx_invalid_kernel(a) = (a[0] = 1; 1)
 
-    @test CUDAnative.code_ptx(DevNull, ptx_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
-    @test CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
-    @test_throws ErrorException CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}; kernel=true) == nothing
+    @test code_ptx(DevNull, ptx_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test_throws ErrorException code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}; kernel=true) == nothing
 end
 
 @testset "child functions" begin
@@ -69,7 +69,7 @@ end
     @eval @noinline ptx_child(i) = i+1
     @eval ptx_parent(i) = (ptx_child(i); nothing)
 
-    asm = sprint(io->CUDAnative.code_ptx(io, ptx_parent, (Int64,)))
+    asm = sprint(io->code_ptx(io, ptx_parent, (Int64,)))
     @test ismatch(r"call.uni \(retval0\),\s+julia_ptx_child_"m, asm)
 end
 
@@ -77,19 +77,19 @@ end
     @eval @noinline ptx_nonentry(i) = i+1
     @eval ptx_entry(i) = (ptx_nonentry(i); nothing)
 
-    asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, (Int64,); kernel=true))
+    asm = sprint(io->code_ptx(io, ptx_entry, (Int64,); kernel=true))
     @test ismatch(r"\.visible \.entry julia_ptx_entry_", asm)
     @test ismatch(r"\.visible \.func .+ julia_ptx_nonentry_", asm)
 end
 
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
-    @test_throws ErrorException CUDAnative.code_ptx(codegen_ref_nonexisting, ())
+    @test_throws ErrorException code_ptx(codegen_ref_nonexisting, ())
 end
 
 @testset "generic call" begin
     @eval codegen_call_nonexisting() = nonexisting()
-    @test_throws ErrorException CUDAnative.code_ptx(codegen_call_nonexisting, ())
+    @test_throws ErrorException code_ptx(codegen_call_nonexisting, ())
 end
 
 
@@ -97,8 +97,8 @@ end
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
     @eval codegen_idempotency() = return nothing
-    CUDAnative.code_ptx(DevNull, codegen_idempotency, ())
-    CUDAnative.code_ptx(DevNull, codegen_idempotency, ())
+    code_ptx(DevNull, codegen_idempotency, ())
+    code_ptx(DevNull, codegen_idempotency, ())
 end
 
 @testset "child function reuse" begin
@@ -111,7 +111,7 @@ end
         return nothing
     end
 
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent1, (Int,)))
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent1, (Int,)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 
     @eval function codegen_child_reuse_parent2(i)
@@ -119,7 +119,7 @@ end
         return nothing
     end
 
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent2, (Int,)))
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent2, (Int,)))
     @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
 end
 
@@ -132,13 +132,13 @@ end
         codegen_child_reuse_bis_child1(i) + codegen_child_reuse_bis_child2(i)
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent1, (Int,)))
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent1, (Int,)))
 
     @eval function codegen_child_reuse_bis_parent2(i)
         codegen_child_reuse_bis_child1(i+1) + codegen_child_reuse_bis_child2(i+1)
         return nothing
     end
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent2, (Int,)))
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent2, (Int,)))
 end
 
 @testset "indirect sysimg function use" begin
@@ -153,7 +153,7 @@ end
         return nothing
     end
 
-    asm = sprint(io->CUDAnative.code_ptx(io, codegen_recompile, (Ptr{Int64},)))
+    asm = sprint(io->code_ptx(io, codegen_recompile, (Ptr{Int64},)))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
@@ -171,14 +171,14 @@ end
         return nothing
     end
 
-    CUDAnative.code_ptx(DevNull, codegen_recompile_bis_fromptx, ())
+    code_ptx(DevNull, codegen_recompile_bis_fromptx, ())
     @test codegen_recompile_bis_fromhost() == 11
 end
 
 @testset "LLVM intrinsics" begin
     # issue #13 (a): cannot select trunc
     @eval codegen_issue_13(x) = convert(Int, x)
-    CUDAnative.code_ptx(DevNull, codegen_issue_13, (Float64,))
+    code_ptx(DevNull, codegen_issue_13, (Float64,))
 end
 
 end
@@ -192,8 +192,8 @@ end
     @eval sass_valid_kernel(a) = (a[0] = 1; nothing)
     @eval sass_invalid_kernel(a) = (a[0] = 1; 1)
 
-    @test CUDAnative.code_sass(DevNull, sass_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
-    @test_throws ErrorException CUDAnative.code_sass(DevNull, sass_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test code_sass(DevNull, sass_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test_throws ErrorException code_sass(DevNull, sass_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
 end
 
 end
