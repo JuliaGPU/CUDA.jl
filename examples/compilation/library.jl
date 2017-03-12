@@ -1,6 +1,7 @@
 # EXCLUDE FROM TESTING
 
 using CUDAdrv
+using Compat
 
 # Generate a temporary file with specific suffix
 # NOTE: mkstemps is glibc 2.19+, so emulate its behavior
@@ -175,12 +176,7 @@ type CompileError <: Base.WrappedException
     error
 end
 
-if is_linux()
-    const builddir = joinpath(get(ENV, "XDG_CACHE_HOME", joinpath(homedir(), ".cache")),
-                              "CUDAdrv.jl")
-else
-    const builddir = joinpath(tempdir(), "CUDAdrv.jl")
-end
+const builddir = joinpath(@__DIR__, ".cache")
 
 function _compile(dev, kernel, code, containing_file)
     global toolchain
