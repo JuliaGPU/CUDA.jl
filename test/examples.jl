@@ -22,6 +22,7 @@ for example in examples
     @eval begin
         @testset $id begin
             file = $example
+            # FIXME: doesn't forward arguments (color=yes, compilecache=no)
             @test success(pipeline(`$(Base.julia_cmd()) $file`; stderr=STDERR))
         end
     end

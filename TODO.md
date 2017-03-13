@@ -19,6 +19,8 @@
   hand, is this necessary? Just mark the AS, convert as soon as possible, and use the
   inference pass to improve performance.
 
+* Use LLVM's linker with `InternalizeLinkedSymbols` when linking libdevice
+  (simplifies code in jit.jl)
 
 
 # Ideas
