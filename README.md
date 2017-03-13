@@ -6,8 +6,7 @@ CUDAnative.jl
 **Code coverage**: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAnative.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAnative.jl)
 
 This package provides support for compiling and executing native Julia kernels on CUDA
-hardware. It is a work in progress, highly experimental, and only works on very recent
-versions of Julia (see the `REQUIRE` file for specifics).
+hardware. It is a work in progress, and only works on very recent versions of Julia .
 
 
 
@@ -20,10 +19,10 @@ Requirements:
 * NVIDIA driver, providing `libcuda.so` (for CUDAdrv.jl)
 * CUDA toolkit
 
-Although that first requirements might sound complicated, it basically means you need to
+Although that first requirement might sound complicated, it basically means you need to
 fetch and compile a copy of Julia 0.6 (refer to [the main repository's
-README](https://github.com/JuliaLang/julia/blob/master/README.md#source-download-and-compilation)
-and checkout the `release-0.6` branch), and execute the resulting `julia` binary in-place
+README](https://github.com/JuliaLang/julia/blob/master/README.md#source-download-and-compilation),
+checking out the latest tag for 0.6), and execute the resulting `julia` binary in-place
 without doing a `make install`. Afterwards, you can do:
 
 ```
