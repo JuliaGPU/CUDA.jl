@@ -11,6 +11,12 @@ try
 
     libcuda = Libdl.find_library(libcuda_name)
     if libcuda == ""
+        # NOTE: we don't immediately call `find_library` wich a set of (popular) locations,
+        #       because those arbitrary locations might then override the system configuration
+        #       (e.g. ld.so.conf) or user preferences (LD_LIBRARY_PATH)
+        libcuda = Libdl.find_library(libcuda_name, ["/opt/cuda/lib", "/usr/local/cuda/lib"])
+    end
+    if libcuda == ""
         error("Could not find CUDA library -- is the CUDA driver installed?")
     end
 
