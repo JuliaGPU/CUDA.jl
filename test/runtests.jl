@@ -29,7 +29,7 @@ macro on_device(exprs)
     quote
         let
             @eval function $kernel_fn()
-                $exprs
+                $(esc(exprs))
 
                 return nothing
             end
