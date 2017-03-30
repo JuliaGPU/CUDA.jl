@@ -46,6 +46,28 @@ end
 
 ############################################################################################
 
+@testset "bounds checking" begin
+    @eval function array_oob_1d(array)
+        return array[1]
+    end
+
+    # NOTE: these tests verify that bounds checking is _disabled_ (see #4)
+
+    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_1d, (CuDeviceArray{Int,1},)))
+    @test !contains(ir, "trap")
+
+    @eval function array_oob_2d(array)
+        return array[1, 1]
+    end
+
+    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2},)))
+    @test !contains(ir, "trap")
+end
+
+
+
+############################################################################################
+
 @testset "views" begin
     @eval function array_view(array)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
