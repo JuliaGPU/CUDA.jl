@@ -358,13 +358,33 @@ end
 
 let
     # inner constructors
-    a = CuArray{Int,1}((2,))
-    devptr = a.devptr
-    CuArray{Int,1}((2,), devptr)
+    let
+        arr = CuArray{Int,1}((2,))
+        devptr = arr.devptr
+        CuArray{Int,1}((2,), devptr)
+    end
 
     # outer constructors
-    CuArray{Int}(2)
-    CuArray{Int}((1,2))
+    for I in [Int32,Int64]
+        a = I(1)
+        b = I(2)
+
+        # partially parameterized
+        CuArray{I}(b)
+        CuArray{I}((b,))
+        CuArray{I}(a,b)
+        CuArray{I}((a,b))
+
+        # fully parameterized
+        CuArray{I,1}(b)
+        CuArray{I,1}((b,))
+        @test_throws MethodError CuArray{I,1}(a,b)
+        @test_throws MethodError CuArray{I,1}((a,b))
+        @test_throws MethodError CuArray{I,2}(b)
+        @test_throws MethodError CuArray{I,2}((b,))
+        CuArray{I,2}(a,b)
+        CuArray{I,2}((a,b))
+    end
 
     # similar
     let a = CuArray{Int}(2)
@@ -381,8 +401,11 @@ let
     end
 
     # conversions
-    @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), devptr)) == devptr
-    @test pointer(CuArray{Int,1}((1,), devptr)) == devptr
+    let
+        devptr = convert(DevicePtr{Int}, CU_NULL)
+        @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), devptr)) == devptr
+        @test pointer(CuArray{Int,1}((1,), devptr)) == devptr
+    end
 
     # copy: size mismatches
     let
