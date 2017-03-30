@@ -3,14 +3,36 @@
 ############################################################################################
 
 @testset "constructors" begin
-    # Inner constructors
-    @on_device CuDeviceArray{Int,1}((1,), Ptr{Int}(C_NULL))
+    # inner constructors
+    let
+        p = Ptr{Int}(C_NULL)
+        @on_device CuDeviceArray{Int,1}((1,), $p)
+    end
 
-    # Outer constructors
-    @on_device CuDeviceArray{Int}(1, Ptr{Int}(C_NULL))
-    @on_device CuDeviceArray{Int}((1,), Ptr{Int}(C_NULL))
-    @on_device CuDeviceArray(1, Ptr{Int}(C_NULL))
-    @on_device CuDeviceArray((1,), Ptr{Int}(C_NULL))
+    # outer constructors
+    for I in [Int32,Int64]
+        a = I(1)
+        b = I(2)
+        p = Ptr{I}(C_NULL)
+
+        # not parameterized
+        @on_device CuDeviceArray($b, $p)
+        @on_device CuDeviceArray(($b,), $p)
+        @on_device CuDeviceArray(($b,$a), $p)
+
+        # partially parameterized
+        @on_device CuDeviceArray{$I}($b, $p)
+        @on_device CuDeviceArray{$I}(($b,), $p)
+        @on_device CuDeviceArray{$I}(($a,$b), $p)
+
+        # fully parameterized
+        @on_device CuDeviceArray{$I,1}($b, $p)
+        @on_device CuDeviceArray{$I,1}(($b,), $p)
+        @test_throws ErrorException @on_device CuDeviceArray{$I,1}(($a,$b), $p)
+        @test_throws ErrorException @on_device CuDeviceArray{$I,2}($b, $p)
+        @test_throws ErrorException @on_device CuDeviceArray{$I,2}(($b,), $p)
+        @on_device CuDeviceArray{$I,2}(($a,$b), $p)
+    end
 end
 
 
@@ -18,7 +40,6 @@ end
 ############################################################################################
 
 @testset "basics" begin     # argument passing, get and setindex, length
-
     dims = (16, 16)
     len = prod(dims)
 

@@ -332,7 +332,7 @@ macro cuStaticSharedMem(typ, dims)
     return esc(:(CUDAnative.generate_static_shmem(Val{$id}, $typ, Val{$dims})))
 end
 
-function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,Int})
+function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
     if !haskey(llvmtypes, jltyp)
         error("cuStaticSharedMem: unsupported type '$jltyp'")
     end

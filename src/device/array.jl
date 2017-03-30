@@ -6,23 +6,47 @@ export
 
 ## construction
 
+"""
+    CuDeviceArray(dims, ptr)
+    CuDeviceArray{T}(dims, ptr)
+    CuDeviceArray{T,N}(dims, ptr)
+
+Construct an `N`-dimensional dense CUDA device array with element type `T` wrapping a
+pointer, where `N` is determined from the length of `dims` and `T` is determined from the
+type of `ptr`. `dims` may be a single scalar, or a tuple of integers corresponding to the
+lengths in each dimension). If the rank `N` is supplied explicitly as in `Array{T,N}(dims)`,
+then it must match the length of `dims`. The same applies to the element type `T`, which
+should match the type of the pointer `ptr`.
+"""
+CuDeviceArray
+
+# NOTE: we can't support the typical `tuple or series of integer` style construction,
+#       because we're currently requiring a trailing pointer argument.
+
 struct CuDeviceArray{T,N} <: AbstractArray{T,N}
     shape::NTuple{N,Int}
     ptr::Ptr{T}
 
+    # inner constructors (exact types, ie. Int not <:Integer)
     CuDeviceArray{T,N}(shape::NTuple{N,Int}, ptr::Ptr{T}) where {T,N} = new(shape, ptr)
 end
 
-(::Type{CuDeviceArray{T}}){T,N}(shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
-(::Type{CuDeviceArray{T}}){T}(len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,), p)
+# outer constructors, non-parameterized
+CuDeviceArray(dims::NTuple{N,<:Integer}, p::Ptr{T})                where {T,N} = CuDeviceArray{T,N}(dims, p)
+CuDeviceArray(len::Integer, p::Ptr{T})                             where {T}   = CuDeviceArray{T,1}((len,), p)
 
-CuDeviceArray{T,N}(shape::NTuple{N,Int}, p::Ptr{T}) = CuDeviceArray{T,N}(shape, p)
-CuDeviceArray{T}(len::Int, p::Ptr{T})               = CuDeviceArray{T,1}((len,), p)
+# outer constructors, partially parameterized
+(::Type{CuDeviceArray{T}})(dims::NTuple{N,<:Integer}, p::Ptr{T})   where {T,N} = CuDeviceArray{T,N}(dims, p)
+(::Type{CuDeviceArray{T}})(len::Integer, p::Ptr{T})                where {T}   = CuDeviceArray{T,1}((len,), p)
 
-Base.convert{T,N}(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) =
+# outer constructors, fully parameterized
+(::Type{CuDeviceArray{T,N}})(dims::NTuple{N,<:Integer}, p::Ptr{T}) where {T,N} = CuDeviceArray{T,N}(Int.(dims), p)
+(::Type{CuDeviceArray{T,1}})(len::Integer, p::Ptr{T})              where {T}   = CuDeviceArray{T,1}((Int(len),), p)
+
+Base.convert(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) where {T,N} =
     CuDeviceArray{T,N}(a.shape, Base.unsafe_convert(Ptr{T}, a.devptr))
 
-Base.unsafe_convert{T}(::Type{Ptr{T}}, a::CuDeviceArray{T}) = a.ptr::Ptr{T}
+Base.unsafe_convert(::Type{Ptr{T}}, a::CuDeviceArray{T}) where {T} = a.ptr::Ptr{T}
 
 
 ## array interface
@@ -30,21 +54,21 @@ Base.unsafe_convert{T}(::Type{Ptr{T}}, a::CuDeviceArray{T}) = a.ptr::Ptr{T}
 Base.size(g::CuDeviceArray) = g.shape
 Base.length(g::CuDeviceArray) = prod(g.shape)
 
-@inline function Base.getindex{T}(A::CuDeviceArray{T}, index::Int)
+@inline function Base.getindex(A::CuDeviceArray{T}, index::Int) where {T}
     @boundscheck checkbounds(A, index)
     Base.pointerref(Base.unsafe_convert(Ptr{T}, A), index, 8)::T
 end
 
-@inline function Base.setindex!{T}(A::CuDeviceArray{T}, x, index::Int)
+@inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Int) where {T}
     @boundscheck checkbounds(A, index)
     Base.pointerset(Base.unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, 8)
 end
 
-Base.IndexStyle{A<:CuDeviceArray}(::Type{A}) = Base.IndexLinear()
+Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
 
-Base.show{T}(io::IO, a::CuDeviceArray{T,1}) =
+Base.show(io::IO, a::CuDeviceArray{T,1}) where {T} =
     print(io, "$(length(a))-element device array at $(pointer(a))")
-Base.show{T,N}(io::IO, a::CuDeviceArray{T,N}) =
+Base.show(io::IO, a::CuDeviceArray{T,N}) where {T,N} =
     print(io, "$(join(a.shape, '×')) device array at $(pointer(a))")
 
 
@@ -56,11 +80,11 @@ Base.checkbounds(::CuDeviceArray, I...) = nothing
 # replace boundserror-with-arguments to a non-allocating, argumentless version
 # TODO: can this be fixed by stack-allocating immutables with heap references?
 struct CuBoundsError <: Exception end
-@inline Base.throw_boundserror{T,N}(A::CuDeviceArray{T,N}, I) =
+@inline Base.throw_boundserror(A::CuDeviceArray, I) =
     (Base.@_noinline_meta; throw(CuBoundsError()))
 
 # idem
-function Base.unsafe_view{T}(A::CuDeviceArray{T,1}, I::Vararg{Base.ViewIndex,1})
+function Base.unsafe_view(A::CuDeviceArray{T,1}, I::Vararg{Base.ViewIndex,1}) where {T}
     Base.@_inline_meta
     ptr = Base.unsafe_convert(Ptr{T}, A) + (I[1].start-1)*sizeof(T)
     len = I[1].stop - I[1].start + 1
