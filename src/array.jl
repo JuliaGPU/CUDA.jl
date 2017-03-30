@@ -6,10 +6,23 @@ export
 
 ## construction
 
+"""
+    CuArray{T}(dims)
+    CuArray{T,N}(dims)
+
+Construct an uninitialized `N`-dimensional dense CUDA array with element type `T`, where `N`
+is determined from the length or number of `dims`. `dims` may be a tuple or a series of
+integer arguments corresponding to the lengths in each dimension. If the rank `N` is
+supplied explicitly as in `Array{T,N}(dims)`, then it must match the length or number of
+`dims`.
+"""
+CuArray
+
 @compat type CuArray{T,N} <: AbstractArray{T,N}
     devptr::DevicePtr{T}
     shape::NTuple{N,Int}
 
+    # inner constructors (exact types, ie. Int not <:Integer)
     function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int})
         if !isbits(T)
             # non-isbits types results in an array with references to CPU objects
@@ -25,13 +38,19 @@ export
         finalizer(obj, finalize)
         return obj
     end
-
-    (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, devptr::DevicePtr{T}) =
+    function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, devptr::DevicePtr{T})
+        # semi-hidden constructor, only called by unsafe_convert
         new{T,N}(devptr, shape)
+    end
 end
 
-(::Type{CuArray{T}}){T,N}(shape::NTuple{N,Int}) = CuArray{T,N}(shape)
-(::Type{CuArray{T}}){T}(len::Int)               = CuArray{T,1}((len,))
+# outer constructors, partially parameterized
+(::Type{CuArray{T}}){T,N,I<:Integer}(dims::NTuple{N,I})   = CuArray{T,N}(dims)
+(::Type{CuArray{T}}){T,N,I<:Integer}(dims::Vararg{I,N})   = CuArray{T,N}(dims)
+
+# outer constructors, fully parameterized
+(::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::NTuple{N,I}) = CuArray{T,N}(Int.(dims))
+(::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::Vararg{I,N}) = CuArray{T,N}(Int.(dims))
 
 function finalize(a::CuArray)
     if isvalid(a.devptr.ctx)
