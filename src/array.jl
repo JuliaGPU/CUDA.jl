@@ -35,7 +35,7 @@ CuArray
         devptr = Mem.alloc(T, len)
 
         obj = new{T,N}(devptr, shape)
-        finalizer(obj, finalize)
+        finalizer(obj, free!)
         return obj
     end
     function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, devptr::DevicePtr{T})
@@ -52,7 +52,7 @@ end
 (::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::NTuple{N,I}) = CuArray{T,N}(Int.(dims))
 (::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::Vararg{I,N}) = CuArray{T,N}(Int.(dims))
 
-function finalize(a::CuArray)
+function free!(a::CuArray)
     if isvalid(a.devptr.ctx)
         @trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
         Mem.free(a.devptr)
