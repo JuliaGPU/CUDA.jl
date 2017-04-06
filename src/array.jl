@@ -35,7 +35,7 @@ CuArray
         devptr = Mem.alloc(T, len)
 
         obj = new{T,N}(devptr, shape)
-        finalizer(obj, free!)
+        finalizer(obj, _free!)
         return obj
     end
     function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, devptr::DevicePtr{T})
@@ -52,7 +52,8 @@ end
 (::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::NTuple{N,I}) = CuArray{T,N}(Int.(dims))
 (::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::Vararg{I,N}) = CuArray{T,N}(Int.(dims))
 
-function free!(a::CuArray)
+"""Don't call this method directly, use `finalize(obj)` instead."""
+function _free!(a::CuArray)
     if isvalid(a.devptr.ctx)
         @trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
         Mem.free(a.devptr)

@@ -46,7 +46,7 @@ type CuContext
         # this prevents contexts from getting collected, requiring the user to destroy it.
         ctx = get!(context_instances, handle) do
             obj = new(handle, owned, true)
-            finalizer(obj, destroy!)
+            finalizer(obj, _destroy!)
             return obj
         end
 
@@ -71,7 +71,8 @@ function invalidate!(ctx::CuContext)
     nothing
 end
 
-function destroy!(ctx::CuContext)
+"""Don't call this method directly, use `finalize(obj)` instead."""
+function _destroy!(ctx::CuContext)
     @trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
     if !ctx.owned
         @trace("Not destroying context $ctx because we don't own it")
