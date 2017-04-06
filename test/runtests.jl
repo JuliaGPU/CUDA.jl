@@ -4,13 +4,6 @@ using Base.Test
 # NOTE: all kernel function definitions are prefixed with @eval to force toplevel definition,
 #       avoiding boxing as seen in https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
 
-# a composite type to test for more complex element types
-immutable RGB{T}
-    r::T
-    g::T
-    b::T
-end
-
 # NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
 macro grab_output(ex)
     quote
