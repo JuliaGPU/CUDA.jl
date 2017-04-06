@@ -122,13 +122,16 @@ let
         addData(link, "vadd_parent", convert(Vector{UInt8}, readstring(f)), CUDAdrv.PTX)
     end
 
-    # string containing \0
+    # PTX code containing \0
     @test_throws ArgumentError addData(link, "vadd_parent", "\0", CUDAdrv.PTX)
-    @test_throws CuError addData(link, "vadd_parent", "\0", CUDAdrv.OBJECT)
-
-    # vector of bytes containing \0
     @test_throws ArgumentError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.PTX)
-    @test_throws CuError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.OBJECT)
+
+    # object data containing \0
+    # NOTE: apparently, on Windows cuLinkAddData _does_ accept object data containing \0
+    if !is_windows()
+        @test_throws CuError addData(link, "vadd_parent", "\0", CUDAdrv.OBJECT)
+        @test_throws CuError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.OBJECT)
+    end
 end
 
 let
