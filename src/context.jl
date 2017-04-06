@@ -100,7 +100,6 @@ instances have been finalized.
 """
 function destroy(ctx::CuContext)
     delete!(context_instances, ctx.handle)
-    ctx = CuContext(C_NULL)
     return
 end
 
