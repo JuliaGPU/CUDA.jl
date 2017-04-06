@@ -152,8 +152,8 @@ macro apicall(f, argtypes, args...)
 
     # Check the return code
     push!(blk.args, quote
-        if $status != SUCCESS.code
-            err = CuError($status)
+        if $status != code(SUCCESS)
+            err = CuError{$status}()
             throw(err)
         end
     end)
