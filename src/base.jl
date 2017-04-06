@@ -142,7 +142,7 @@ macro apicall(f, argtypes, args...)
     api_f = resolve(f.args[1])
     @gensym status
     push!(blk.args, quote
-        $status = ccall(($(QuoteNode(api_f)), CUDAdrv.libcuda), Cint, $(esc(argtypes)), $(esc_args...))
+        $status = ccall(($(QuoteNode(api_f)), libcuda), Cint, $(esc(argtypes)), $(esc_args...))
     end)
 
     # Print the results
