@@ -55,18 +55,22 @@ types = [Int32, Int64, Float32, Float64]
 
 @testset "constructors" begin
     # static
-    @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, 1)
-    @on_device @cuStaticSharedMem(Tuple{RGB{Float32}, UInt32}, 1)
     @on_device @cuStaticSharedMem(Float32, 1)
-    @on_device @cuStaticSharedMem(Float32, (1, 2))
+    @on_device @cuStaticSharedMem(Float32, (1,2))
+    @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, 1)
+    @on_device @cuStaticSharedMem(Tuple{Float32, Float32}, (1,2))
 
     # dynamic
     @on_device @cuDynamicSharedMem(Float32, 1)
     @on_device @cuDynamicSharedMem(Float32, (1, 2))
+    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1)
+    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2))
 
     # dynamic with offset
     @on_device @cuDynamicSharedMem(Float32, 1, 8)
-    @on_device @cuDynamicSharedMem(Float32, (1, 2), 8)
+    @on_device @cuDynamicSharedMem(Float32, (1,2), 8)
+    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, 1, 8)
+    @on_device @cuDynamicSharedMem(Tuple{Float32, Float32}, (1,2), 8)
 end
 
 

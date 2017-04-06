@@ -11,11 +11,12 @@ const llvmtypes = Dict{Type,Symbol}(
     Void    => :void,
     Int32   => :i32,
     Int64   => :i64,
-    UInt32   => :i32,
-    UInt64   => :i64,
+    UInt32  => :i32,
+    UInt64  => :i64,
     Float32 => :float,
     Float64 => :double
 )
+const LLVMTypes = Union{keys(llvmtypes)...}     # for dispatch
 
 const jltypes = Dict{Symbol,Type}(v => k for (k,v) in llvmtypes)
 
@@ -332,13 +333,36 @@ macro cuStaticSharedMem(typ, dims)
     return esc(:(CUDAnative.generate_static_shmem(Val{$id}, $typ, Val{$dims})))
 end
 
-function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
+# types with known corresponding LLVM type
+function emit_static_shmem{N, T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::NTuple{N,Int})
+    llvmtyp = llvmtypes[jltyp]
+
+    len = prod(shape)
+    align = sizeof(jltyp)
+
     var = Symbol(:@shmem, id)
-    len = prod(shape) * sizeof(jltyp)
-    if !isbits(jltyp)
-        error("cuStaticSharedMem: unsupported type '$jltyp': not isbits!")
+    return quote
+        Base.@_inline_meta
+        ptr = Base.llvmcall(
+            ($"""$var = internal addrspace(3) global [$len x $llvmtyp] zeroinitializer, align $align""",
+             $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
+                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
+                 ret $llvmtyp* %2"""),
+            Ptr{$jltyp}, Tuple{})
+        CuDeviceArray{$jltyp}($shape, ptr)
     end
-    align = Base.Threads.alignment(jltyp)
+end
+
+# fallback for unknown types
+function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
+    if !isbits(jltyp)
+        error("cuStaticSharedMem: non-isbits type '$jltyp' is not supported")
+    end
+
+    len = prod(shape) * sizeof(jltyp)
+    align = sizeof(jltyp)
+
+    var = Symbol(:@shmem, id)
     return quote
         Base.@_inline_meta
         ptr = Base.llvmcall(
@@ -349,23 +373,6 @@ function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Intege
             Ptr{UInt8}, Tuple{}
         )
         CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
-    end
-end
-const LLVMTypes = Union{keys(llvmtypes)...}
-function emit_static_shmem{N, T <: LLVMTypes}(id::Integer, jltyp::Type{T}, shape::NTuple{N,Int})
-    llvmtyp = llvmtypes[jltyp]
-
-    var = Symbol(:@shmem, id)
-    len = prod(shape)
-
-    return quote
-        Base.@_inline_meta
-        CuDeviceArray{$jltyp}($shape, Base.llvmcall(
-            ($"""$var = internal addrspace(3) global [$len x $llvmtyp] zeroinitializer, align 4""",
-             $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
-                 ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}))
     end
 end
 
@@ -400,22 +407,45 @@ macro cuDynamicSharedMem(typ, dims, offset=0)
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
-function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol}, offset::Symbol)
-    if !haskey(llvmtypes, jltyp)
-        error("cuDynamicSharedMem: unsupported type '$jltyp'")
-    end
+
+# types with known corresponding LLVM type
+function emit_dynamic_shmem{T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::Union{Expr,Symbol}, offset)
     llvmtyp = llvmtypes[jltyp]
 
-    var = Symbol(:@shmem, id)
+    align = sizeof(jltyp)
 
+    var = Symbol(:@shmem, id)
     return quote
         Base.@_inline_meta
-        CuDeviceArray{$jltyp}($shape, Base.llvmcall(
-            ($"""$var = external addrspace(3) global [0 x $llvmtyp]""",
+        ptr = Base.llvmcall(
+            ($"""$var = external addrspace(3) global [0 x $llvmtyp], align $align""",
              $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}) + $offset)
+            Ptr{$jltyp}, Tuple{}) + $offset
+        CuDeviceArray{$jltyp}($shape, ptr)
+    end
+end
+
+# fallback for unknown types
+function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol}, offset)
+    if !isbits(jltyp)
+        error("cuDynamicSharedMem: non-isbits type '$jltyp' is not supported")
+    end
+
+    align = sizeof(jltyp)
+
+    var = Symbol(:@shmem, id)
+    return quote
+        Base.@_inline_meta
+
+        ptr = Base.llvmcall(
+            ($"""$var = external addrspace(3) global [0 x i8], align $align""",
+             $"""%1 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* $var, i64 0, i64 0
+                 %2 = addrspacecast i8 addrspace(3)* %1 to i8 addrspace(0)*
+                 ret i8* %2"""),
+            Ptr{UInt8}, Tuple{}) + $offset
+        CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
     end
 end
 
