@@ -304,15 +304,16 @@ export
     @cuStaticSharedMem, @cuDynamicSharedMem
 
 # FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
-# TODO: downcasting pointers to global AS might be inefficient
-#       -> check if AS propagation resolves this
-#       -> Ptr{AS}, ASPtr{AS}, ...?
-# NOTE: shmem_id increment in the macro isn't correct, as multiple parametrically typed
-#       functions will alias the id (but the size might be a parameter). but incrementing in
-#       the @generated function doesn't work, as it is supposed to be pure and identical
-#       invocations will erroneously share (and even cause multiple shmem globals).
-#       so maybe we should figure out an entirely new approach...
+
+# FIXME: `shmem_id` increment in the macro isn't correct, as multiple parametrically typed
+#        functions will alias the id (but the size might be a parameter). but incrementing in
+#        the @generated function doesn't work, as it is supposed to be pure and identical
+#        invocations will erroneously share (and even cause multiple shmem globals).
 shmem_id = 0
+
+# IDEA: merge static and dynamic shared memory, specializing on whether the shape is known
+#       (ie. a number) or an expression/symbol, communicating the necessary dynamic memory
+#       to `@cuda`
 
 """
     @cuStaticSharedMem(typ::Type, dims) -> CuDeviceArray{typ}
@@ -453,30 +454,30 @@ end
     return emit_dynamic_shmem(ID, T, :(dims), :(offset))
 end
 
-# NOTE: this might be a neater approach (with a user-end macro for hiding the `Val{N}`):
 
-# for typ in ((Int64,   :i64),
-#             (Float32, :float),
-#             (Float64, :double))
-#     T, U = typ
-#     @eval begin
-#         cuSharedMem{T}(::Type{$T}) = Base.llvmcall(
-#             ($"""@shmem_$U = external addrspace(3) global [0 x $U]""",
-#              $"""%1 = getelementptr inbounds [0 x $U], [0 x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
-#                  %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
-#                  ret $U* %2"""),
-#             Ptr{$T}, Tuple{})
-#         cuSharedMem{T,N}(::Type{$T}, ::Val{N}) = Base.llvmcall(
-#             ($"""@shmem_$U = internal addrspace(3) global [$N x $llvmtyp] zeroinitializer, align 4""",
-#              $"""%1 = getelementptr inbounds [$N x $U], [$N x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
-#                  %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
-#                  ret $U* %2"""),
-#             Ptr{$T}, Tuple{})
-#     end
-# end
-
-# However, it requires a change to `llvmcall`, as now calling the static case twice results in
-#          a reference to the same memory
+# IDEA: a neater approach (with a user-end macro for hiding the `Val{N}`):
+#
+#   for typ in ((Int64,   :i64),
+#               (Float32, :float),
+#               (Float64, :double))
+#       T, U = typ
+#       @eval begin
+#           cuSharedMem{T}(::Type{$T}) = Base.llvmcall(
+#               ($"""@shmem_$U = external addrspace(3) global [0 x $U]""",
+#                $"""%1 = getelementptr inbounds [0 x $U], [0 x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
+#                    %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
+#                    ret $U* %2"""),
+#               Ptr{$T}, Tuple{})
+#           cuSharedMem{T,N}(::Type{$T}, ::Val{N}) = Base.llvmcall(
+#               ($"""@shmem_$U = internal addrspace(3) global [$N x $llvmtyp] zeroinitializer, align 4""",
+#                $"""%1 = getelementptr inbounds [$N x $U], [$N x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
+#                    %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
+#                    ret $U* %2"""),
+#               Ptr{$T}, Tuple{})
+#       end
+#   end
+#
+# Requires a change to `llvmcall`, as calling the static case twice references the same memory.
 
 
 
