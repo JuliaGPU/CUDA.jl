@@ -7,10 +7,15 @@
 
 # TODO: compute capability checks
 
+# how to map primitive Julia types to LLVM data types
 const llvmtypes = Dict{Type,Symbol}(
     Void    => :void,
+    Int8    => :i8,
+    Int16   => :i16,
     Int32   => :i32,
     Int64   => :i64,
+    UInt8   => :i8,
+    UInt16  => :i16,
     UInt32  => :i32,
     UInt64  => :i64,
     Float32 => :float,
@@ -18,7 +23,16 @@ const llvmtypes = Dict{Type,Symbol}(
 )
 const LLVMTypes = Union{keys(llvmtypes)...}     # for dispatch
 
-const jltypes = Dict{Symbol,Type}(v => k for (k,v) in llvmtypes)
+# the inverse, ie. which Julia types map a given LLVM types
+const jltypes = Dict{Symbol,Type}(
+    :void   => Void,
+    :i8     => Int8,
+    :i16    => Int16,
+    :i32    => Int32,
+    :i64    => Int64,
+    :float  => Float32,
+    :double => Float64
+)
 
 """
 Decode an expression of the form:
@@ -303,13 +317,26 @@ end
 export
     @cuStaticSharedMem, @cuDynamicSharedMem
 
-# FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
-
 # FIXME: `shmem_id` increment in the macro isn't correct, as multiple parametrically typed
 #        functions will alias the id (but the size might be a parameter). but incrementing in
 #        the @generated function doesn't work, as it is supposed to be pure and identical
 #        invocations will erroneously share (and even cause multiple shmem globals).
 shmem_id = 0
+
+# add a shared memory definition to the module, and get a pointer to the first item
+# FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
+function emit_shmem(id, llvmtyp, len, align)
+    var = Symbol(:@shmem, id)
+    jltyp = jltypes[llvmtyp]
+    quote
+        Base.llvmcall(
+            ($"""$var = external addrspace(3) global [$len x $llvmtyp], align $align""",
+             $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
+                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
+                 ret $llvmtyp* %2"""),
+            Ptr{$jltyp}, Tuple{})
+    end
+end
 
 # IDEA: merge static and dynamic shared memory, specializing on whether the shape is known
 #       (ie. a number) or an expression/symbol, communicating the necessary dynamic memory
@@ -341,15 +368,9 @@ function emit_static_shmem{N, T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::
     len = prod(shape)
     align = sizeof(jltyp)
 
-    var = Symbol(:@shmem, id)
     return quote
         Base.@_inline_meta
-        ptr = Base.llvmcall(
-            ($"""$var = internal addrspace(3) global [$len x $llvmtyp] zeroinitializer, align $align""",
-             $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
-                 ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{})
+        ptr = $(emit_shmem(id, llvmtyp, len, align))
         CuDeviceArray{$jltyp}($shape, ptr)
     end
 end
@@ -363,16 +384,9 @@ function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Intege
     len = prod(shape) * sizeof(jltyp)
     align = sizeof(jltyp)
 
-    var = Symbol(:@shmem, id)
     return quote
         Base.@_inline_meta
-        ptr = Base.llvmcall(
-            ($"""$var = internal addrspace(3) global [$len x i8] zeroinitializer, align $align""",
-             $"""%1 = getelementptr inbounds [$len x i8], [$len x i8] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast i8 addrspace(3)* %1 to i8 addrspace(0)*
-                 ret i8* %2"""),
-            Ptr{UInt8}, Tuple{}
-        )
+        ptr = $(emit_shmem(id, :i8, len, align))
         CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
     end
 end
@@ -415,15 +429,9 @@ function emit_dynamic_shmem{T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::Un
 
     align = sizeof(jltyp)
 
-    var = Symbol(:@shmem, id)
     return quote
         Base.@_inline_meta
-        ptr = Base.llvmcall(
-            ($"""$var = external addrspace(3) global [0 x $llvmtyp], align $align""",
-             $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
-                 ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}) + $offset
+        ptr = $(emit_shmem(id, llvmtyp, 0, align)) + $offset
         CuDeviceArray{$jltyp}($shape, ptr)
     end
 end
@@ -436,16 +444,9 @@ function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol},
 
     align = sizeof(jltyp)
 
-    var = Symbol(:@shmem, id)
     return quote
         Base.@_inline_meta
-
-        ptr = Base.llvmcall(
-            ($"""$var = external addrspace(3) global [0 x i8], align $align""",
-             $"""%1 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast i8 addrspace(3)* %1 to i8 addrspace(0)*
-                 ret i8* %2"""),
-            Ptr{UInt8}, Tuple{}) + $offset
+        ptr = $(emit_shmem(id, :i8, 0, align)) + $offset
         CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
     end
 end
@@ -453,7 +454,6 @@ end
 @generated function generate_dynamic_shmem{ID,T}(::Type{Val{ID}}, ::Type{T}, dims, offset)
     return emit_dynamic_shmem(ID, T, :(dims), :(offset))
 end
-
 
 # IDEA: a neater approach (with a user-end macro for hiding the `Val{N}`):
 #
