@@ -60,7 +60,7 @@ try
     # write ext.jl
     open(ext, "w") do fh
         write(fh, """
-            const libcuda_path = "$libcuda_path"
+            const libcuda_path = "$(escape_string(libcuda_path))"
             const libcuda_version = v"$libcuda_version"
             const libcuda_vendor = "$libcuda_vendor"
             """)
