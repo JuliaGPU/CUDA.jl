@@ -47,6 +47,20 @@ end
     @test ismatch(r"call .+ @julia_codegen_child_", ir)
 end
 
+@testset "JuliaLang/julia#21121" begin
+    @eval function codegen_tuple_leak()
+        weight_matrix = @cuStaticSharedMem(Float32, (16, 16))
+        sync_threads()
+        weight_matrix[1, 16] *= 2
+        sync_threads()
+
+        return nothing
+    end
+
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_tuple_leak, ()))
+    @test !contains(ir, "inttoptr")
+end
+
 end
 
 
