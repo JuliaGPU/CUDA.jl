@@ -35,7 +35,7 @@ type CuModule
         catch err
             (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
             options = decode(optionKeys, optionVals)
-            rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
+            rethrow(CuError{code(err)}(options[ERROR_LOG_BUFFER]))
         end
 
         @static if DEBUG

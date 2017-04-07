@@ -74,9 +74,12 @@ function complete(link::CuLink)
         @apicall(:cuLinkComplete, (CuLinkState_t, Ptr{Ptr{Void}}, Ptr{Csize_t}),
                                   link, cubin_ref, size_ref)
     catch err
-        (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
-        options = decode(link.optionKeys, link.optionVals)
-        rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
+        if isa(err, ERROR_NO_BINARY_FOR_GPU) || isa(err, ERROR_INVALID_IMAGE)
+            options = decode(link.optionKeys, link.optionVals)
+            rethrow(CuError{code(err)}(options[ERROR_LOG_BUFFER]))
+        else
+            rethrow(err)
+        end
     end
 
     @static if DEBUG

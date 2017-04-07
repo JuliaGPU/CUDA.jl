@@ -22,17 +22,16 @@ end
 # Runtime API errors
 #
 
-immutable CuError <: Exception
-    code::Int
+@compat immutable CuError{C} <: Exception
     info::Nullable{String}
 
-    CuError(code) = new(code, Nullable{String}())
-    CuError(code, info) = new(code, Nullable{String}(info))
+    (::Type{CuError{C}}){C}()     = new{Int(C)}(Nullable{String}())
+    (::Type{CuError{C}}){C}(info) = new{Int(C)}(Nullable{String}(info))
 end
 
-Base.:(==)(x::CuError,y::CuError) = x.code == y.code
+Base.:(==)(x::CuError,y::CuError) = code(x) == code(y)
 
-const return_codes = Dict{Int,Tuple{Symbol,String}}(
+const error_codes = Dict{Int,Tuple{Symbol,String}}(
     0   => (:SUCCESS, "Success"),
 
     1   => (:ERROR_INVALID_VALUE, "Invalid value"),
@@ -93,22 +92,25 @@ const return_codes = Dict{Int,Tuple{Symbol,String}}(
     999 => (:ERROR_UNKNOWN, "Unknown error")
 )
 
-name(err::CuError)        = return_codes[err.code][1]
-description(err::CuError) = return_codes[err.code][2]
+code{C}(::Type{CuError{C}})  = C
+
+code{E<:CuError}(::E)     = code(E)
+name(err::CuError)        = error_codes[code(err)][1]
+description(err::CuError) = error_codes[code(err)][2]
 
 function Base.showerror(io::IO, err::CuError)
     if isnull(err.info)
         @printf(io, "%s (CUDA error #%d, %s)",
-                    description(err), err.code, name(err))
+                    description(err), code(err), name(err))
     else
         @printf(io, "%s (CUDA error #%d, %s)\n%s",
-                    description(err), err.code, name(err), get(err.info))
+                    description(err), code(err), name(err), get(err.info))
     end
 end
 
 Base.show(io::IO, err::CuError) =
-    @printf(io, "%s(%d)", name(err), err.code)
+    @printf(io, "%s(%d)", name(err), code(err))
 
-for code in return_codes
-    @eval const $(code[2][1]) = CuError($(code[1]))
+for c in error_codes
+    @eval const $(c[2][1]) = CuError{$(c[1])}
 end
