@@ -23,11 +23,12 @@ function CuStream(flags::Integer=0)
 
     ctx = CuCurrentContext()
     obj = CuStream(handle_ref[], ctx)
-    finalizer(obj, finalize)
+    finalizer(obj, _destroy!)
     return obj
 end
 
-function finalize(s::CuStream)
+"""Don't call this method directly, use `finalize(obj)` instead."""
+function _destroy!(s::CuStream)
     if isvalid(s.ctx)
         @trace("Finalizing CuStream at $(Base.pointer_from_objref(s))")
         @apicall(:cuStreamDestroy, (CuModule_t,), s)

@@ -204,6 +204,11 @@ let
     # TODO: can we test for the third case?
     #       !abstract && leaftype seems to imply UnionAll nowadays...
     @test_throws ArgumentError Mem.alloc(Int, 0)
+
+    # double-free should throw (we rely on it for CuArray finalizer tests)
+    x = Mem.alloc(1)
+    Mem.free(x)
+    @test_throws CUDAdrv.ERROR_INVALID_VALUE Mem.free(x)
 end
 
 let
@@ -459,6 +464,12 @@ let
     let gpu = CuArray([42])
         show(DevNull, gpu)
         show(DevNull, "text/plain", gpu)
+    end
+
+    # finalizers
+    let gpu = CuArray([42])
+        finalize(gpu) # triggers early finalization
+        finalize(gpu) # shouldn't re-run the finalizer
     end
 end
 
