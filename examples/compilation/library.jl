@@ -70,14 +70,18 @@ const toolchain = Ref{Toolchain}()
 function discover_toolchain()
     # Check availability NVCC
     if haskey(ENV, "NVCC")
-        nvcc = get(ENV, "NVCC")
-    else
+        nvcc = ENV["NVCC"]
+    elseif haskey(ENV, "CUDA_PATH")
+        nvcc = joinpath(ENV["CUDA_PATH"], "bin", "nvcc") * (is_windows() ? ".exe" : "")
+    elseif !is_windows()
         try
             nvcc = chomp(readstring(pipeline(`which nvcc`, stderr=DevNull)))
         catch ex
             isa(ex, ErrorException) || rethrow(ex)
-            rethrow(ErrorException("could not find NVCC -- consider specifying with NVCC environment variable"))
+            rethrow(ErrorException("could not find NVCC; consider setting the NVCC environment variable or the CUDA_PATH environment variable"))
         end
+    else
+        throw(ErrorException("could not find NVCC; consider setting the NVCC environment variable or the CUDA_PATH environment variable"))
     end
     nvcc_ver = Nullable{VersionNumber}()
     for line in readlines(`$nvcc --version`)
@@ -91,67 +95,78 @@ function discover_toolchain()
     end
     version = get(nvcc_ver)
 
-    # Determine host compiler version requirements
-    # Source: "CUDA Getting Started Guide for Linux"
-    const hostcc_support = [
-        (v"5.0", v"4.6.4"),
-        (v"5.5", v"4.7.3"),
-        (v"6.0", v"4.8.1"),
-        (v"6.5", v"4.8.2"),
-        (v"7.0", v"4.9.2"),
-        (v"7.5", v"4.9.2"),
-        (v"8.0", v"5.3.1") ]
-    if version < hostcc_support[1][1]
-        error("no support for CUDA < $(hostcc_req[1][1])")
-    end
-    hostcc_maxver = Nullable{VersionNumber}()
-    for i = 1:length(hostcc_support)
-        if version == hostcc_support[i][1]
-            hostcc_maxver = Nullable(hostcc_support[i][2])
-            break
-        end
-    end
-    if isnull(hostcc_maxver)
-        error("unknown NVCC version $version")
-    end
+
+    flags = [ "--compiler-bindir" ]
 
     # Collect possible hostcc executable names
-    hostcc_names = [ "gcc" ]
-    for ver in [v"4.4" v"4.5" v"4.6" v"4.7" v"4.8" v"4.9"]
-        push!(hostcc_names, "gcc-$(ver.major).$(ver.minor)")
-        push!(hostcc_names, "gcc$(ver.major)$(ver.minor)")
-    end
-
-    # Check availability host compiler
-    hostcc_possibilities = []
-    for hostcc in hostcc_names
-        hostcc_path = try
-            chomp(readstring(pipeline(`which $hostcc`, stderr=DevNull)))
-        catch ex
-            isa(ex, ErrorException) || rethrow(ex)
-            continue
+    if !is_windows()
+        # Determine host compiler version requirements
+        # Source: "CUDA Getting Started Guide for Linux"
+        const hostcc_support = [
+            (v"5.0", v"4.6.4"),
+            (v"5.5", v"4.7.3"),
+            (v"6.0", v"4.8.1"),
+            (v"6.5", v"4.8.2"),
+            (v"7.0", v"4.9.2"),
+            (v"7.5", v"4.9.2"),
+            (v"8.0", v"5.3.1") ]
+        if version < hostcc_support[1][1]
+            error("no support for CUDA < $(hostcc_req[1][1])")
+        end
+        hostcc_maxver = Nullable{VersionNumber}()
+        for i = 1:length(hostcc_support)
+            if version == hostcc_support[i][1]
+                hostcc_maxver = Nullable(hostcc_support[i][2])
+                break
+            end
+        end
+        if isnull(hostcc_maxver)
+            error("unknown NVCC version $version")
+        end
+        hostcc_names = [ "gcc" ]
+        for ver in [v"4.4" v"4.5" v"4.6" v"4.7" v"4.8" v"4.9"]
+            push!(hostcc_names, "gcc-$(ver.major).$(ver.minor)")
+            push!(hostcc_names, "gcc$(ver.major)$(ver.minor)")
         end
 
-        verstring = chomp(readlines(`$hostcc_path --version`)[1])
-        m = match(Regex("^$hostcc \\(.*\\) ([0-9.]+)"), verstring)
-        if m == nothing
-            warn("could not parse GCC version info (\"$verstring\"), skipping this compiler")
-            continue
-        end
-        hostcc_ver = VersionNumber(m.captures[1])
+        # Check availability host compiler
+        hostcc_possibilities = []
+        for hostcc in hostcc_names
+            hostcc_path = try
+                chomp(readstring(pipeline(`which $hostcc`, stderr=DevNull)))
+            catch ex
+                isa(ex, ErrorException) || rethrow(ex)
+                continue
+            end
 
-        if hostcc_ver <= get(hostcc_maxver)
-            push!(hostcc_possibilities, (hostcc_path, hostcc_ver))
+            verstring = chomp(readlines(`$hostcc_path --version`)[1])
+            m = match(Regex("^$hostcc \\(.*\\) ([0-9.]+)"), verstring)
+            if m == nothing
+                warn("could not parse GCC version info (\"$verstring\"), skipping this compiler")
+                continue
+            end
+            hostcc_ver = VersionNumber(m.captures[1])
+
+            if hostcc_ver <= get(hostcc_maxver)
+                push!(hostcc_possibilities, (hostcc_path, hostcc_ver))
+            end
         end
+        if length(hostcc_possibilities) == 0
+            error("could not find a suitable host compiler (your NVCC $version needs GCC <= $(get(hostcc_maxver)))")
+        end
+        sort!(hostcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
+        hostcc = hostcc_possibilities[1]
+
+        push!(flags, hostcc[1])
+    else
+        vc_versions = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
+        vs_cmd_tools_dir = ENV[vc_versions[first(find(x -> haskey(ENV, x), vc_versions))]]
+        hostccbin = joinpath(dirname(vs_cmd_tools_dir), "..", "..", "VC", Sys.WORD_SIZE == 64 ? "amd64" : "", "cl.exe")
+
+        push!(flags, hostccbin)
     end
-    if length(hostcc_possibilities) == 0
-        error("could not find a suitable host compiler (your NVCC $version needs GCC <= $(get(hostcc_maxver)))")
-    end
-    sort!(hostcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
-    hostcc = hostcc_possibilities[1]
 
     # Determine compilation options
-    flags = [ "--compiler-bindir", hostcc[1] ]
     if haskey(ENV, "ARCH")
         append!(flags, [ "--gpu-architecture", ENV["ARCH"] ])
     end
