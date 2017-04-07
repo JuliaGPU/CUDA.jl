@@ -7,17 +7,32 @@
 
 # TODO: compute capability checks
 
+# how to map primitive Julia types to LLVM data types
 const llvmtypes = Dict{Type,Symbol}(
     Void    => :void,
+    Int8    => :i8,
+    Int16   => :i16,
     Int32   => :i32,
     Int64   => :i64,
-    UInt32   => :i32,
-    UInt64   => :i64,
+    UInt8   => :i8,
+    UInt16  => :i16,
+    UInt32  => :i32,
+    UInt64  => :i64,
     Float32 => :float,
     Float64 => :double
 )
+const LLVMTypes = Union{keys(llvmtypes)...}     # for dispatch
 
-const jltypes = Dict{Symbol,Type}(v => k for (k,v) in llvmtypes)
+# the inverse, ie. which Julia types map a given LLVM types
+const jltypes = Dict{Symbol,Type}(
+    :void   => Void,
+    :i8     => Int8,
+    :i16    => Int16,
+    :i32    => Int32,
+    :i64    => Int64,
+    :float  => Float32,
+    :double => Float64
+)
 
 """
 Decode an expression of the form:
@@ -302,16 +317,30 @@ end
 export
     @cuStaticSharedMem, @cuDynamicSharedMem
 
-# FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
-# TODO: downcasting pointers to global AS might be inefficient
-#       -> check if AS propagation resolves this
-#       -> Ptr{AS}, ASPtr{AS}, ...?
-# NOTE: shmem_id increment in the macro isn't correct, as multiple parametrically typed
-#       functions will alias the id (but the size might be a parameter). but incrementing in
-#       the @generated function doesn't work, as it is supposed to be pure and identical
-#       invocations will erroneously share (and even cause multiple shmem globals).
-#       so maybe we should figure out an entirely new approach...
+# FIXME: `shmem_id` increment in the macro isn't correct, as multiple parametrically typed
+#        functions will alias the id (but the size might be a parameter). but incrementing in
+#        the @generated function doesn't work, as it is supposed to be pure and identical
+#        invocations will erroneously share (and even cause multiple shmem globals).
 shmem_id = 0
+
+# add a shared memory definition to the module, and get a pointer to the first item
+# FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
+function emit_shmem(id, llvmtyp, len, align)
+    var = Symbol(:@shmem, id)
+    jltyp = jltypes[llvmtyp]
+    quote
+        Base.llvmcall(
+            ($"""$var = external addrspace(3) global [$len x $llvmtyp], align $align""",
+             $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
+                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
+                 ret $llvmtyp* %2"""),
+            Ptr{$jltyp}, Tuple{})
+    end
+end
+
+# IDEA: merge static and dynamic shared memory, specializing on whether the shape is known
+#       (ie. a number) or an expression/symbol, communicating the necessary dynamic memory
+#       to `@cuda`
 
 """
     @cuStaticSharedMem(typ::Type, dims) -> CuDeviceArray{typ}
@@ -332,23 +361,33 @@ macro cuStaticSharedMem(typ, dims)
     return esc(:(CUDAnative.generate_static_shmem(Val{$id}, $typ, Val{$dims})))
 end
 
-function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
-    if !haskey(llvmtypes, jltyp)
-        error("cuStaticSharedMem: unsupported type '$jltyp'")
-    end
+# types with known corresponding LLVM type
+function emit_static_shmem{N, T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::NTuple{N,Int})
     llvmtyp = llvmtypes[jltyp]
 
-    var = Symbol(:@shmem, id)
     len = prod(shape)
+    align = sizeof(jltyp)
 
     return quote
         Base.@_inline_meta
-        CuDeviceArray{$jltyp}($shape, Base.llvmcall(
-            ($"""$var = internal addrspace(3) global [$len x $llvmtyp] zeroinitializer, align 4""",
-             $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
-                 ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}))
+        ptr = $(emit_shmem(id, llvmtyp, len, align))
+        CuDeviceArray{$jltyp}($shape, ptr)
+    end
+end
+
+# fallback for unknown types
+function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
+    if !isbits(jltyp)
+        error("cuStaticSharedMem: non-isbits type '$jltyp' is not supported")
+    end
+
+    len = prod(shape) * sizeof(jltyp)
+    align = sizeof(jltyp)
+
+    return quote
+        Base.@_inline_meta
+        ptr = $(emit_shmem(id, :i8, len, align))
+        CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
     end
 end
 
@@ -383,22 +422,32 @@ macro cuDynamicSharedMem(typ, dims, offset=0)
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
-function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol}, offset::Symbol)
-    if !haskey(llvmtypes, jltyp)
-        error("cuDynamicSharedMem: unsupported type '$jltyp'")
-    end
+
+# types with known corresponding LLVM type
+function emit_dynamic_shmem{T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::Union{Expr,Symbol}, offset)
     llvmtyp = llvmtypes[jltyp]
 
-    var = Symbol(:@shmem, id)
+    align = sizeof(jltyp)
 
     return quote
         Base.@_inline_meta
-        CuDeviceArray{$jltyp}($shape, Base.llvmcall(
-            ($"""$var = external addrspace(3) global [0 x $llvmtyp]""",
-             $"""%1 = getelementptr inbounds [0 x $llvmtyp], [0 x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
-                 ret $llvmtyp* %2"""),
-            Ptr{$jltyp}, Tuple{}) + $offset)
+        ptr = $(emit_shmem(id, llvmtyp, 0, align)) + $offset
+        CuDeviceArray{$jltyp}($shape, ptr)
+    end
+end
+
+# fallback for unknown types
+function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol}, offset)
+    if !isbits(jltyp)
+        error("cuDynamicSharedMem: non-isbits type '$jltyp' is not supported")
+    end
+
+    align = sizeof(jltyp)
+
+    return quote
+        Base.@_inline_meta
+        ptr = $(emit_shmem(id, :i8, 0, align)) + $offset
+        CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
     end
 end
 
@@ -406,30 +455,29 @@ end
     return emit_dynamic_shmem(ID, T, :(dims), :(offset))
 end
 
-# NOTE: this might be a neater approach (with a user-end macro for hiding the `Val{N}`):
-
-# for typ in ((Int64,   :i64),
-#             (Float32, :float),
-#             (Float64, :double))
-#     T, U = typ
-#     @eval begin
-#         cuSharedMem{T}(::Type{$T}) = Base.llvmcall(
-#             ($"""@shmem_$U = external addrspace(3) global [0 x $U]""",
-#              $"""%1 = getelementptr inbounds [0 x $U], [0 x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
-#                  %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
-#                  ret $U* %2"""),
-#             Ptr{$T}, Tuple{})
-#         cuSharedMem{T,N}(::Type{$T}, ::Val{N}) = Base.llvmcall(
-#             ($"""@shmem_$U = internal addrspace(3) global [$N x $llvmtyp] zeroinitializer, align 4""",
-#              $"""%1 = getelementptr inbounds [$N x $U], [$N x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
-#                  %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
-#                  ret $U* %2"""),
-#             Ptr{$T}, Tuple{})
-#     end
-# end
-
-# However, it requires a change to `llvmcall`, as now calling the static case twice results in
-#          a reference to the same memory
+# IDEA: a neater approach (with a user-end macro for hiding the `Val{N}`):
+#
+#   for typ in ((Int64,   :i64),
+#               (Float32, :float),
+#               (Float64, :double))
+#       T, U = typ
+#       @eval begin
+#           cuSharedMem{T}(::Type{$T}) = Base.llvmcall(
+#               ($"""@shmem_$U = external addrspace(3) global [0 x $U]""",
+#                $"""%1 = getelementptr inbounds [0 x $U], [0 x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
+#                    %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
+#                    ret $U* %2"""),
+#               Ptr{$T}, Tuple{})
+#           cuSharedMem{T,N}(::Type{$T}, ::Val{N}) = Base.llvmcall(
+#               ($"""@shmem_$U = internal addrspace(3) global [$N x $llvmtyp] zeroinitializer, align 4""",
+#                $"""%1 = getelementptr inbounds [$N x $U], [$N x $U] addrspace(3)* @shmem_$U, i64 0, i64 0
+#                    %2 = addrspacecast $U addrspace(3)* %1 to $U addrspace(0)*
+#                    ret $U* %2"""),
+#               Ptr{$T}, Tuple{})
+#       end
+#   end
+#
+# Requires a change to `llvmcall`, as calling the static case twice references the same memory.
 
 
 
