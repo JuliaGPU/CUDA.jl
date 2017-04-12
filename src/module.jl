@@ -3,7 +3,7 @@
 export
     CuModule, CuModuleFile
 
-include("module/jit.jl")
+include(joinpath("module", "jit.jl"))
 
 
 const CuModule_t = Ptr{Void}
@@ -77,6 +77,6 @@ call, but opens and reads the file from within Julia instead.
 """
 CuModuleFile(path) = CuModule(open(readstring, path))
 
-include("module/linker.jl")
-include("module/function.jl")
-include("module/global.jl")
+include(joinpath("module", "linker.jl"))
+include(joinpath("module", "function.jl"))
+include(joinpath("module", "global.jl"))

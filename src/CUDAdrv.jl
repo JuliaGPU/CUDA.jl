@@ -3,21 +3,24 @@ __precompile__()
 module CUDAdrv
 
 using Compat
-import Compat.String
+using Compat.String
 
-const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
-isfile(ext) || error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAdrv\") and restart Julia.")
-include(ext)
+const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
+if isfile(ext)
+    include(ext)
+else
+    error("Unable to load dependency file $ext.\nPlease run Pkg.build(\"CUDAdrv\") and restart Julia.")
+end
 const libcuda = libcuda_path
 
-include("util/logging.jl")
+include(joinpath("util", "logging.jl"))
 
 # CUDA API wrappers
 include("errors.jl")
 include("base.jl")
 include("devices.jl")
 include("context.jl")
-include("context/primary.jl")
+include(joinpath("context", "primary.jl"))
 include("pointer.jl")
 include("module.jl")
 include("memory.jl")
@@ -37,7 +40,7 @@ function __init__()
 
     __init_logging__()
     if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        warn("running under rr, which is incompatible with CUDA -- disabling initialization")
+        warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
     else
         @apicall(:cuInit, (Cint,), 0)
     end
