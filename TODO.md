@@ -11,6 +11,9 @@
 
 # Minor
 
+* Make code reflection macros pass the device (for capability version), and document how you
+  might want to do that when invoking code generation manually
+
 ## CUDA support/interfacing
 
 * ReadOnlyArray --> `getindex` does `__ldg`
