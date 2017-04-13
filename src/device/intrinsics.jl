@@ -173,7 +173,7 @@ macro cuprintf(fmt::String, args...)
     push!(cuprintf_fmts, "$fmt\0")
     id = length(cuprintf_fmts)
 
-    return esc(:(CUDAnative.generated_cuprintf(Val{$id}, $(args...))))
+    return :(generated_cuprintf(Val{$id}, $(map(esc, args)...)))
 end
 
 function emit_vprintf(id::Integer, argtypes, args...)
@@ -358,7 +358,7 @@ macro cuStaticSharedMem(typ, dims)
     global shmem_id
     id = shmem_id::Int += 1
 
-    return esc(:(CUDAnative.generate_static_shmem(Val{$id}, $typ, Val{$dims})))
+    return :(generate_static_shmem(Val{$id}, $(esc(typ)), Val{$(esc(dims))}))
 end
 
 # types with known corresponding LLVM type
@@ -418,7 +418,7 @@ macro cuDynamicSharedMem(typ, dims, offset=0)
     global shmem_id
     id = shmem_id::Int += 1
 
-    return esc(:(CUDAnative.generate_dynamic_shmem(Val{$id}, $typ, $dims, $offset)))
+    return :(generate_dynamic_shmem(Val{$id}, $(esc(typ)), $(esc(dims)), $(esc(offset))))
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
