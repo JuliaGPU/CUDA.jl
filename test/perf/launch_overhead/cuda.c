@@ -1,3 +1,5 @@
+// C version
+
 #include <stdio.h>
 #include <sys/time.h>
 
@@ -14,7 +16,7 @@ void __check(CUresult err, const char *file, const int line) {
   }
 }
 
-const size_t len = 10000;
+const size_t len = 1000;
 
 const size_t ITERATIONS = 5000;
 

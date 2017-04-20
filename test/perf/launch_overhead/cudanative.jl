@@ -1,5 +1,7 @@
 #!/usr/bin/env julia
 
+# CUDAnative.jl version
+
 using CUDAdrv, CUDAnative
 
 function kernel_dummy(ptr)
@@ -7,7 +9,7 @@ function kernel_dummy(ptr)
     return nothing
 end
 
-const len = 10000
+const len = 1000
 
 const ITERATIONS = 5000
 
