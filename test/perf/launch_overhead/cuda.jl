@@ -7,7 +7,7 @@ function kernel_dummy(ptr)
     return nothing
 end
 
-const len = 100000
+const len = 10000
 
 const ITERATIONS = 5000
 
@@ -27,18 +27,22 @@ function main()
     for i in 1:ITERATIONS
         i == ITERATIONS-4 && CUDAdrv.start_profiler()
 
-        cpu_time[i] = Base.@elapsed begin
-            gpu_time[i] = CUDAdrv.@elapsed begin
-                cudacall(fun, len, 1, (Ptr{Float32},), pointer(gpu_arr))
-            end
-        end
+        gpu_tic, gpu_toc = CuEvent(), CuEvent()
+
+        cpu_tic = time_ns()
+        record(gpu_tic)        
+        cudacall(fun, len, 1, (Ptr{Float32},), pointer(gpu_arr))
+        record(gpu_toc)
+        synchronize(gpu_toc)
+        cpu_toc = time_ns()
+
+        cpu_time[i] = (cpu_toc-cpu_tic)/1000
+        gpu_time[i] = CUDAdrv.elapsed(gpu_tic, gpu_toc)*1000000
     end
     CUDAdrv.stop_profiler()
 
-    overhead = cpu_time .- gpu_time
-    @printf("Overhead: %.2fus on %.2fus (%.2f%%)\n",
-            median(overhead)*1000000, median(gpu_time)*1000000,
-            100*median(overhead)/median(gpu_time))
+    @printf("CPU time: %.2fus\n", median(cpu_time))
+    @printf("GPU time: %.2fus\n", median(gpu_time))
 
     destroy(ctx)
 end

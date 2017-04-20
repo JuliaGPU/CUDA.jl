@@ -8,7 +8,11 @@ CFLAGS += -Wall
 LDLIBS += -lcuda
 
 NVCC = nvcc
-NVCCFLAGS = -arch=sm_61
+NVCCFLAGS = -arch=sm_35
 
 %.ptx: %.cu
 	$(NVCC) $(NVCCFLAGS) -ptx -o $@ $<
+
+.PHONY: clean
+clean:
+	$(RM) cuda.ptx
