@@ -90,11 +90,7 @@ let
     @test md != md2
 end
 
-try
-    CuModule("foobar")
-catch ex
-    ex == CUDAdrv.ERROR_INVALID_IMAGE || rethrow(ex)
-end
+@test_throws_cuerror CUDAdrv.ERROR_INVALID_IMAGE CuModule("foobar")
 
 let
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
@@ -129,8 +125,8 @@ let
     # object data containing \0
     # NOTE: apparently, on Windows cuLinkAddData _does_ accept object data containing \0
     if !is_windows()
-        @test_throws CuError addData(link, "vadd_parent", "\0", CUDAdrv.OBJECT)
-        @test_throws CuError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.OBJECT)
+        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN addData(link, "vadd_parent", "\0", CUDAdrv.OBJECT)
+        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.OBJECT)
     end
 end
 
@@ -212,11 +208,7 @@ let
     # double-free should throw (we rely on it for CuArray finalizer tests)
     x = Mem.alloc(1)
     Mem.free(x)
-    try
-        Mem.free(x)
-    catch ex
-        ex == CUDAdrv.ERROR_INVALID_VALUE || rethrow(ex)
-    end
+    @test_throws_cuerror CUDAdrv.ERROR_INVALID_VALUE Mem.free(x)
 end
 
 let

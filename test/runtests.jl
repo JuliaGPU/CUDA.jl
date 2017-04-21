@@ -22,6 +22,44 @@ macro grab_output(ex)
     end
 end
 
+# variant on @test_throws that checks the CuError error code
+macro test_throws_cuerror(kind, ex)
+    # generate a test only returning CuError if it is the correct one
+    test = quote
+        try
+            $(esc(ex))
+        catch ex
+            isa(ex, CuError) || rethrow()
+            ex == $kind      || rethrow(ErrorException(string("Wrong CuError kind: ", ex, " instead of ", $kind)))
+            rethrow()
+        end
+    end
+
+    # now re-use @test_throws (which ties into @testset, etc)
+    quote
+        @test_throws CuError $test
+    end
+end
+@test_throws_cuerror CUDAdrv.ERROR_UNKNOWN throw(CUDAdrv.ERROR_UNKNOWN)
+@test_throws Exception begin
+    OLD_STDOUT = STDOUT
+    redirect_stdout()
+    try
+        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN throw(CUDAdrv.ERROR_INVALID_VALUE)
+    finally
+        redirect_stdout(OLD_STDOUT)
+    end
+end
+@test_throws Exception begin
+    OLD_STDOUT = STDOUT
+    redirect_stdout()
+    try
+        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN error()
+    finally
+        redirect_stdout(OLD_STDOUT)
+    end
+end
+
 @testset "CUDAdrv" begin
 
 @test devcount() > 0
