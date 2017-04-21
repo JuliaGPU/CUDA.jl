@@ -21,8 +21,7 @@ end
 @testset "errors" begin
 
 let
-    ex = CuError{0}()
-    @test CUDAdrv.code(ex) == 0
+    ex = CuError(0)
     @test CUDAdrv.name(ex) == :SUCCESS
     @test CUDAdrv.description(ex) == "Success"
     
@@ -35,7 +34,7 @@ let
 end
 
 let
-    ex = CuError{0}("foobar")
+    ex = CuError(0, "foobar")
     
     io = IOBuffer()
     showerror(io, ex)
@@ -63,7 +62,11 @@ CUDAdrv.@apicall(:cuDriverGetVersion, (Ptr{Cint},), Ref{Cint}())
     end
 )
 
-@test_throws CUDAdrv.ERROR_INVALID_DEVICE CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CUDAdrv.CuDevice_t}, Cint), Ref{CUDAdrv.CuDevice_t}(), devcount())
+try
+    CUDAdrv.@apicall(:cuDeviceGet, (Ptr{CUDAdrv.CuDevice_t}, Cint), Ref{CUDAdrv.CuDevice_t}(), devcount())
+catch e
+    e == CUDAdrv.ERROR_INVALID_DEVICE || rethrow(e)
+end
 
 CUDAdrv.vendor()
 

@@ -147,13 +147,13 @@ macro apicall(f, argtypes, args...)
 
     # Print the results
     if TRACE
-        push!(blk.args, :(trace(CuError{$status}(); prefix=" ")))
+        push!(blk.args, :(trace(CuError($status); prefix=" ")))
     end
 
     # Check the return code
     push!(blk.args, quote
-        if $status != code(SUCCESS)
-            err = CuError{$status}()
+        if $status != SUCCESS.code
+            err = CuError($status)
             throw(err)
         end
     end)
