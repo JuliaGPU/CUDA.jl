@@ -488,7 +488,10 @@ end
 
 @testset "profile" begin
 
-@cuprofile begin end
+CUDAdrv.Profile.start()
+CUDAdrv.Profile.stop()
+
+CUDAdrv.@profile begin end
 
 end
 
