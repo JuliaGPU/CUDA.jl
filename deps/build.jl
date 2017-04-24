@@ -1,24 +1,59 @@
-# Discover the CUDA library
-
 using Compat
 
-const ext = joinpath(@__DIR__, "ext.jl")
-try
-    include(joinpath(dirname(@__DIR__), "src", "util", "logging.jl"))
+# TODO: put in CUDAapi.jl
+include(joinpath(dirname(@__DIR__), "src", "util", "logging.jl"))
 
+
+## API routines
+
+# these routines are the bare minimum we need from the API during build;
+# keep in sync with the actual implementations in src/
+
+macro apicall(libpath, fn, types, args...)
+    quote
+        lib = Libdl.dlopen($(esc(libpath)))
+        sym = Libdl.dlsym(lib, $(esc(fn)))
+
+        status = ccall(sym, Cint, $(esc(types)), $(map(esc, args)...))
+        status != 0 && error("CUDA error $status calling ", $fn)
+    end
+end
+
+function version(libpath)
+    ref = Ref{Cint}()
+    @apicall(libpath, :cuDriverGetVersion, (Ptr{Cint}, ), ref)
+    return VersionNumber(ref[] ÷ 1000, mod(ref[], 100) ÷ 10)
+end
+
+
+## discovery routines
+
+# find CUDA toolkit
+function find_cuda()
+    cuda_envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
+    cuda_envvars_set = filter(var -> haskey(ENV, var), cuda_envvars)
+    if length(cuda_envvars_set) > 0
+        cuda_paths = unique(map(var->ENV[var], cuda_envvars_set))
+        if length(unique(cuda_paths)) > 1
+            warn("Multiple CUDA path environment variables set: $(join(cuda_envvars_set, ", ", " and ")). ",
+                 "Arbitrarily selecting CUDA at $(first(cuda_paths)). ",
+                 "To ensure a consistent path, ensure only a single unique CUDA path is set.")
+        end
+        cuda_path = Nullable(first(cuda_paths))
+    else
+        cuda_path = Nullable{String}()
+    end
+
+    return cuda_path
+end
+
+# find CUDA driver library
+function find_libcuda()
     libcuda_name = is_windows() ? "nvcuda.dll" : "libcuda"
-    debug("Looking for $libcuda_name")
-
     libcuda = Libdl.find_library(libcuda_name)
-    if libcuda == ""
-        # NOTE: we don't immediately call `find_library` wich a set of (popular) locations,
-        #       because those arbitrary locations might then override the system configuration
-        #       (e.g. ld.so.conf) or user preferences (LD_LIBRARY_PATH)
-        libcuda = Libdl.find_library(libcuda_name, ["/opt/cuda/lib", "/usr/local/cuda/lib"])
-    end
-    if isempty(libcuda)
-        error("Could not find CUDA library; is the CUDA driver installed?")
-    end
+    # NOTE: no need to look in /opt/cuda or /usr/local/cuda here,
+    #       as the driver is kernel-specific and should be installed in standard directories
+    isempty(libcuda) && error("CUDA driver library cannot be found.")
 
     # find the full path of the library
     # NOTE: we could just as well use the result of `find_library,
@@ -31,19 +66,19 @@ try
     libcuda_vendor = "NVIDIA"
     debug("Vendor: $libcuda_vendor")
 
-    # find the library version
-    # NOTE: should be kept in sync with src/version.jl::version()
-    version_ref = Ref{Cint}()
-    lib = Libdl.dlopen(libcuda)
-    sym = Libdl.dlsym(lib, :cuDriverGetVersion)
-    status = ccall(sym, Cint, (Ptr{Cint},), version_ref)
-    if status != 0
-        error("Could not obtain CUDA library version")
-    end
-    major = version_ref[] ÷ 1000
-    minor = mod(version_ref[], 100) ÷ 10
-    libcuda_version = VersionNumber(major, minor)
-    debug("Version: $libcuda_version")
+    return libcuda_path, libcuda_vendor
+end
+
+
+## main
+
+const ext = joinpath(@__DIR__, "ext.jl")
+
+function main()
+    # discover stuff
+    cuda_path = find_cuda()
+    libcuda_path, libcuda_vendor = find_libcuda()
+    libcuda_version = version(libcuda_path)
 
     # check if we need to rebuild
     if isfile(ext)
@@ -64,6 +99,11 @@ try
             const libcuda_vendor = "$libcuda_vendor"
             """)
     end
+    nothing
+end
+
+try
+    main()
 catch ex
     # if anything goes wrong, wipe the existing ext.jl to prevent the package from loading
     rm(ext; force=true)
