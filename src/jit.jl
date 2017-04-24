@@ -136,30 +136,15 @@ end
 
 const libdevices = Dict{VersionNumber, LLVM.Module}()
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
-    # figure out which libdevice versions are compatible with the selected capability
-    const vers = [v"2.0", v"3.0", v"3.5"]
+    # select the most recent & compatible libdevice
+    const vers = keys(CUDAnative.libdevice_libraries)
     compat_vers = Set(ver for ver in vers if ver <= cap)
     isempty(compat_vers) && error("No compatible CUDA device library available")
     ver = maximum(compat_vers)
+    path = libdevice_libraries[ver]
 
     # load the library, once
     if !haskey(libdevices, ver)
-        fn = "libdevice.compute_$(ver.major)$(ver.minor).10.bc"
-
-        if haskey(ENV, "NVVMIR_LIBRARY_DIR")
-            dirs = [ENV["NVVMIR_LIBRARY_DIR"]]
-        else
-            dirs = ["/usr/lib/nvidia-cuda-toolkit/libdevice",
-                    "/usr/local/cuda/nvvm/libdevice",
-                    "/opt/cuda/nvvm/libdevice"]
-        end
-        any(isdir, dirs) ||
-            error("CUDA device library path not found -- specify using NVVMIR_LIBRARY_DIR")
-
-        paths = filter(p->isfile(p), map(d->joinpath(d,fn), dirs))
-        isempty(paths) && error("CUDA device library $fn not found")
-        path = first(paths)
-
         open(path) do io
             libdevice_mod = parse(LLVM.Module, read(io))
             name!(libdevice_mod, "libdevice")

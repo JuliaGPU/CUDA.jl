@@ -71,6 +71,66 @@ function check_julia(llvm_version)
 end
 
 
+## discovery routines
+
+# find CUDA toolkit
+function find_cuda()
+    cuda_envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
+    cuda_envvars_set = filter(var -> haskey(ENV, var), cuda_envvars)
+    if length(cuda_envvars_set) > 0
+        cuda_paths = unique(map(var->ENV[var], cuda_envvars_set))
+        if length(unique(cuda_paths)) > 1
+            warn("Multiple CUDA path environment variables set: $(join(cuda_envvars_set, ", ", " and ")). ",
+                 "Arbitrarily selecting CUDA at $(first(cuda_paths)). ",
+                 "To ensure a consistent path, ensure only a single unique CUDA path is set.")
+        end
+        cuda_path = Nullable(first(cuda_paths))
+    else
+        cuda_path = Nullable{String}()
+    end
+
+    return cuda_path
+end
+
+# find device library bitcode files
+function find_libdevice(cuda_path, supported_capabilities)
+    libraries = Dict{VersionNumber,String}()
+
+    # find the root directory
+    if haskey(ENV, "NVVMIR_LIBRARY_DIR")
+        dirs = [ENV["NVVMIR_LIBRARY_DIR"]]
+    elseif !isnull(cuda_path)
+        dirs = ["$(get(cuda_path))/libdevice",
+                "$(get(cuda_path))/nvvm/libdevice"]
+    else
+        dirs = ["/usr/lib/nvidia-cuda-toolkit/libdevice",
+                "/usr/local/cuda/nvvm/libdevice",
+                "/opt/cuda/nvvm/libdevice"]
+    end
+    dirs = unique(filter(isdir, dirs))
+    if isempty(dirs)
+        error("CUDA device library path not found. ",
+              "Specify by setting a CUDA path variable, or by setting NVVMIR_LIBRARY_DIR.")
+    elseif length(dirs) > 1
+        warn("Multiple locations found with device code: $(join(dirs, ", ", " and ")). ",
+             "Arbitrarily selecting those at $(first(dirs)).")
+    end
+    dir = first(dirs)
+
+    # discover individual device library files
+    for cap in supported_capabilities
+        path = joinpath(dir, "libdevice.compute_$(cap.major)$(cap.minor).10.bc")
+        if isfile(path)
+            libraries[cap] = path
+        end
+    end
+    isempty(libraries) && error("No device libraries found in $dir for your hardware.")
+    info("Found libdevice for $(join(sort(map(ver->"sm_$(ver.major)$(ver.minor)", keys(libraries))), ", ", " and "))")
+
+    return libraries
+end
+
+
 ## main
 
 const ext = joinpath(@__DIR__, "ext.jl")
@@ -81,22 +141,28 @@ function main()
     cuda_version, cuda_support = check_cuda()
     julia_llvm_version = check_julia(llvm_version)
 
-    # check if we need to rebuild
-    if isfile(ext)
-        debug("Checking validity of existing ext.jl...")
-        @eval module Previous; include($ext); end
-        if  isdefined(Previous, :cuda_version)       && Previous.cuda_version == cuda_version &&
-            isdefined(Previous, :llvm_version)       && Previous.llvm_version == llvm_version &&
-            isdefined(Previous, :julia_llvm_version) && Previous.julia_llvm_version == julia_llvm_version
-            info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
-            return
-        end
-    end
-
     # figure out supported capabilities
     supported_capabilities = Vector{VersionNumber}()
     append!(supported_capabilities, llvm_support ∩ cuda_support)
     debug("Supported capabilities: $(join(supported_capabilities, ", "))")
+
+    # discover stuff
+    cuda_path = find_cuda()
+    libdevice_libraries = find_libdevice(cuda_path, supported_capabilities)
+
+    # check if we need to rebuild
+    if isfile(ext)
+        debug("Checking validity of existing ext.jl...")
+        @eval module Previous; include($ext); end
+        if  isdefined(Previous, :cuda_version)           && Previous.cuda_version == cuda_version &&
+            isdefined(Previous, :llvm_version)           && Previous.llvm_version == llvm_version &&
+            isdefined(Previous, :julia_llvm_version)     && Previous.julia_llvm_version == julia_llvm_version &&
+            isdefined(Previous, :supported_capabilities) && Previous.supported_capabilities == supported_capabilities &&
+            isdefined(Previous, :libdevice_libraries)    && Previous.libdevice_libraries == libdevice_libraries
+            info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
+            return
+        end
+    end
 
     # write ext.jl
     open(ext, "w") do fh
@@ -107,6 +173,7 @@ function main()
             const julia_llvm_version = v"$julia_llvm_version"
 
             const supported_capabilities = $supported_capabilities
+            const libdevice_libraries = $libdevice_libraries
             """)
     end
     nothing
