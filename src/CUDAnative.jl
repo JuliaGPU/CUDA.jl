@@ -11,9 +11,9 @@ isfile(ext) || error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAnative\"
 include(ext)
 
 include("jit.jl")
-include("device/array.jl")
-include("device/intrinsics.jl") # these files contain generated functions,
-include("execution.jl")         # so should get loaded quite late (JuliaLang/julia#19942)
+include(joinpath("device", "array.jl"))
+include(joinpath("device", "intrinsics.jl")) # these files contain generated functions,
+include("execution.jl")                      # so should get loaded late (JuliaLang/julia#19942)
 include("reflection.jl")
 
 function __init__()
