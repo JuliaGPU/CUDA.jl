@@ -305,3 +305,14 @@ function cufunction(dev::CuDevice, func::ANY, types::ANY)
 
     return cuda_fun, cuda_mod
 end
+
+function init_jit()
+    llvm_args = [
+        # Program name; can be left blank.
+        "",
+        # Enable generation of FMA instructions to mimic behavior of nvcc.
+        "--nvptx-fma-level=1",
+    ]
+    LLVM.API.LLVMParseCommandLineOptions(Int32(length(llvm_args)),
+        [Base.unsafe_convert(Cstring, llvm_arg) for llvm_arg in llvm_args], C_NULL)
+end

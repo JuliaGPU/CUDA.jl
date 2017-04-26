@@ -23,6 +23,7 @@ function __init__()
         VersionNumber(Base.libllvm_version) != julia_llvm_version
         error("Your set-up has changed. Please re-run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
+    init_jit()
 end
 
 end
