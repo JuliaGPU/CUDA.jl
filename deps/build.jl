@@ -87,7 +87,7 @@ function main()
         if isdefined(Previous, :libcuda_version) && Previous.libcuda_version == libcuda_version &&
            isdefined(Previous, :libcuda_path)    && Previous.libcuda_path == libcuda_path &&
            isdefined(Previous, :libcuda_vendor)  && Previous.libcuda_vendor == libcuda_vendor
-            info("CUDAdrv.jl has already been built for this CUDA library, no need to rebuild.")
+            info("CUDAdrv.jl has already been built for this CUDA driver, no need to rebuild.")
         end
     end
 
