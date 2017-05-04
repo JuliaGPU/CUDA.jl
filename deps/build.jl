@@ -15,7 +15,7 @@ macro apicall(libpath, fn, types, args...)
         sym = Libdl.dlsym(lib, $(esc(fn)))
 
         status = ccall(sym, Cint, $(esc(types)), $(map(esc, args)...))
-        status != 0 && error("CUDA error $status calling ", $fn)
+        status != 0 && error("Error $status calling ", $fn)
     end
 end
 
@@ -28,31 +28,12 @@ end
 
 ## discovery routines
 
-# find CUDA toolkit
-function find_cuda()
-    cuda_envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
-    cuda_envvars_set = filter(var -> haskey(ENV, var), cuda_envvars)
-    if length(cuda_envvars_set) > 0
-        cuda_paths = unique(map(var->ENV[var], cuda_envvars_set))
-        if length(unique(cuda_paths)) > 1
-            warn("Multiple CUDA path environment variables set: $(join(cuda_envvars_set, ", ", " and ")). ",
-                 "Arbitrarily selecting CUDA at $(first(cuda_paths)). ",
-                 "To ensure a consistent path, ensure only a single unique CUDA path is set.")
-        end
-        cuda_path = Nullable(first(cuda_paths))
-    else
-        cuda_path = Nullable{String}()
-    end
-
-    return cuda_path
-end
-
 # find CUDA driver library
 function find_libcuda()
-    libcuda_name = is_windows() ? "nvcuda.dll" : "libcuda"
-    libcuda = Libdl.find_library(libcuda_name)
+    libcuda_name = is_windows() ? "nvcuda" : "libcuda"
     # NOTE: no need to look in /opt/cuda or /usr/local/cuda here,
     #       as the driver is kernel-specific and should be installed in standard directories
+    libcuda = Libdl.find_library(libcuda_name)
     isempty(libcuda) && error("CUDA driver library cannot be found.")
 
     # find the full path of the library
@@ -76,7 +57,6 @@ const ext = joinpath(@__DIR__, "ext.jl")
 
 function main()
     # discover stuff
-    cuda_path = find_cuda()
     libcuda_path, libcuda_vendor = find_libcuda()
     libcuda_version = version(libcuda_path)
 
@@ -87,7 +67,7 @@ function main()
         if isdefined(Previous, :libcuda_version) && Previous.libcuda_version == libcuda_version &&
            isdefined(Previous, :libcuda_path)    && Previous.libcuda_path == libcuda_path &&
            isdefined(Previous, :libcuda_vendor)  && Previous.libcuda_vendor == libcuda_vendor
-            info("CUDAdrv.jl has already been built for this CUDA driver, no need to rebuild.")
+            info("CUDAdrv.jl has already been built for this set-up.")
         end
     end
 
