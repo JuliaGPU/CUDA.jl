@@ -111,54 +111,22 @@ end
 # API call wrapper
 #
 
-# ccall wrapper for calling functions in the CUDA library
-macro apicall(f, argtypes, args...)
-    # Escape the tuple of arguments, making sure it is evaluated in caller scope
-    # (there doesn't seem to be inline syntax like `$(esc(argtypes))` for this)
-    esc_args = [esc(arg) for arg in args]
-
-    blk = Expr(:block)
-
-    if !isa(f, Expr) || f.head != :quote
+# ccall wrapper for calling functions in NVIDIA libraries
+macro apicall(fun, argtypes, args...)
+    if !isa(fun, Expr) || fun.head != :quote
         error("first argument to @apicall should be a symbol")
     end
 
-    # Print the function name & arguments
-    if TRACE
-        push!(blk.args, :(trace($(sprint(Base.show_unquoted,f.args[1])*"("); line=false)))
-        i=length(args)
-        for arg in args
-            i-=1
-            sep = (i>0 ? ", " : "")
+    api_fun = resolve(fun.args[1])
+    return quote
+        status = @logging_ccall($(QuoteNode(api_fun)), ($(QuoteNode(api_fun)), libcuda),
+                                Cint, $(esc(argtypes)), $(map(esc, args)...))
 
-            # TODO: we should only do this if evaluating `arg` has no side effects
-            push!(blk.args, :(trace(repr_indented($(esc(arg))), $sep;
-                  prefix=$(sprint(Base.show_unquoted,arg))*"=", line=false)))
-        end
-        push!(blk.args, :(trace(""; prefix=") =", line=false)))
-    end
-
-    # Generate the actual call
-    api_f = resolve(f.args[1])
-    @gensym status
-    push!(blk.args, quote
-        $status = ccall(($(QuoteNode(api_f)), libcuda), Cint, $(esc(argtypes)), $(esc_args...))
-    end)
-
-    # Print the results
-    if TRACE
-        push!(blk.args, :(trace(CuError($status); prefix=" ")))
-    end
-
-    # Check the return code
-    push!(blk.args, quote
-        if $status != SUCCESS.code
-            err = CuError($status)
+        if status != SUCCESS.code
+            err = CuError(status)
             throw(err)
         end
-    end)
-
-    return blk
+    end
 end
 
 

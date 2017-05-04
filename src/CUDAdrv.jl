@@ -15,9 +15,10 @@ const libcuda = libcuda_path
 
 include(joinpath("util", "logging.jl"))
 
-# CUDA API wrappers
 include("errors.jl")
 include("base.jl")
+
+# CUDA API wrappers
 include("devices.jl")
 include("context.jl")
 include(joinpath("context", "primary.jl"))
