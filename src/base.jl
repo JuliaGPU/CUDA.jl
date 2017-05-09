@@ -93,14 +93,14 @@ minreq[:cuDummyUnavailable] = v"999"    # for testing purposes
 # explicitly mark unavailable symbols, signaling `resolve` to error out
 for (api_function, minimum_version) in minreq
     if libcuda_version < minimum_version
-        mapping[api_function]      = Symbol()
+        mapping[api_function] = :unavailable
     end
 end
 
 function resolve(f::Symbol)
     global mapping, version_requirements
     versioned_f = get(mapping, f, f)
-    if versioned_f == Symbol()
+    if versioned_f == :unavailable
         throw(CuVersionError(f, minreq[f]))
     end
     return versioned_f
