@@ -26,6 +26,14 @@ Pkg.add("CUDAdrv")
 Pkg.test("CUDAdrv")
 ```
 
+If you get an error `ERROR_NO_DEVICE` (`No CUDA-capable device`) upon loading CUDAdrv.jl,
+CUDA could not detect any capable GPU. It probably means that your GPU isn't supported by
+the CUDA/NVIDIA driver loaded by CUDAdrv.jl, or that your set-up is damaged in some way.
+Please make sure that (1) your GPU is supported by the current driver (you might need the
+so-called legacy driver, refer to the CUDA installation instructions for your platform), and
+(2) CUDAdrv.jl targets the correct driver library (check the `libcuda_path` variable in
+`CUDAdrv/deps/ext.jl`, or run `Pkg.build` with the `DEBUG` environment variable set to 1).
+
 
 
 Features
