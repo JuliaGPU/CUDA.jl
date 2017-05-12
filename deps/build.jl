@@ -31,10 +31,19 @@ end
 # find CUDA driver library
 function find_libcuda()
     libcuda_name = is_windows() ? "nvcuda" : "libcuda"
-    # NOTE: no need to look in /opt/cuda or /usr/local/cuda here,
-    #       as the driver is kernel-specific and should be installed in standard directories
-    libcuda = Libdl.find_library(libcuda_name)
-    isempty(libcuda) && error("CUDA driver library cannot be found.")
+    libcuda_locations = if haskey(ENV, "CUDA_DRIVER")
+            [ENV["CUDA_DRIVER"]]
+        else
+            # NOTE: no need to look in CUDA toolkit directories here,
+            #       as the driver is system-specific and shipped/built independently
+            if is_apple()
+                ["/usr/local/cuda/lib"]
+            else
+                String[]
+            end
+        end
+    libcuda = Libdl.find_library(libcuda_name, libcuda_locations)
+    isempty(libcuda) && error("CUDA driver library cannot be found (specify the path to $(libcuda_name) using the CUDA_DRIVER environment variable).")
 
     # find the full path of the library
     # NOTE: we could just as well use the result of `find_library,
