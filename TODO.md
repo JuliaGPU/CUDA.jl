@@ -14,6 +14,13 @@
 * Make code reflection macros pass the device (for capability version), and document how you
   might want to do that when invoking code generation manually
 
+
+* Use LLVM's linker with `InternalizeLinkedSymbols` when linking libdevice
+  (simplifies code in jit.jl)
+
+* Pass 'Val{T}()' instead of 'Val{T}', easier on the compiler
+
+
 ## CUDA support/interfacing
 
 * ReadOnlyArray --> `getindex` does `__ldg`
@@ -21,9 +28,6 @@
 * Proper address space support, for different memories and function arguments. On the other
   hand, is this necessary? Just mark the AS, convert as soon as possible, and use the
   inference pass to improve performance.
-
-* Use LLVM's linker with `InternalizeLinkedSymbols` when linking libdevice
-  (simplifies code in jit.jl)
 
 
 # Ideas
