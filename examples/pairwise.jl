@@ -44,8 +44,7 @@ function haversine_gpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float3
     return radius * c
 end
 
-# _very_ naive/inefficient/ad-hoc pairwise kernel
-# can be made much more efficient and generic
+# pairwise distance calculation kernel
 function pairwise_dist_kernel(lat_ptr::Ptr{Float32}, lon_ptr::Ptr{Float32},
                               rowresult_ptr::Ptr{Float32}, n)
     lat = CuDeviceArray(n, lat_ptr)
@@ -57,7 +56,7 @@ function pairwise_dist_kernel(lat_ptr::Ptr{Float32}, lon_ptr::Ptr{Float32},
 
     if i <= n && j <= n
         # store to shared memory
-        shmem = @cuDynamicSharedMem(Float32, 2*blockDim().x + 2*2*blockDim().x)
+        shmem = @cuDynamicSharedMem(Float32, 2*blockDim().x + 2*blockDim().y)
         if threadIdx().y == 1
             shmem[threadIdx().x] = lat[i]
             shmem[blockDim().x + threadIdx().x] = lon[i]
