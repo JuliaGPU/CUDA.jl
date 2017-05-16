@@ -88,7 +88,14 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     rowresult_gpu = CuArray{Float32}(n, n)
 
     # calculate launch configuration
-    threads = (32, 32)  # XXX: hardcoded
+    # NOTE: we want our launch configuration to be as square as possible,
+    #       because that minimizes shared memory usage
+    ctx = CuCurrentContext()
+    dev = device(ctx)
+    total_threads = min(n, attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK))
+    threads_x = floor(Int, sqrt(total_threads))
+    threads_y = total_threads ÷ threads_x
+    threads = (threads_x, threads_y)
     blocks = ceil.(Int, n ./ threads)
 
     # calculate size of dynamic shared memory
