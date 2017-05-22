@@ -1,6 +1,8 @@
 CUDAnative.jl
 =============
 
+**Build status**: [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAnative.jl:%20Julia%200.6%20(x86-64)&badge=Julia%20v0.6)](https://ci.maleadt.net/buildbot/julia/builders/CUDAnative.jl%3A%20Julia%200.6%20%28x86-64%29) [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAnative.jl:%20Julia%20master%20(x86-64)&badge=Julia%20master)](https://ci.maleadt.net/buildbot/julia/builders/CUDAnative.jl%3A%20Julia%20master%20%28x86-64%29)
+
 **Code coverage** (of host code): [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAnative.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAnative.jl)
 
 This package provides support for compiling and executing native Julia kernels on CUDA
