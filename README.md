@@ -1,6 +1,8 @@
 CUDAdrv.jl
 ==========
 
+**Build status**: [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.5%20(x86-64)&badge=Julia%20v0.5)](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.5%20%28x86-64%29) [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.6%20(x86-64)&badge=Julia%200.6)](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.6%20%28x86-64%29) [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%20master%20(x86-64)&badge=Julia%20master)](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%20master%20%28x86-64%29)
+
 **Code coverage**: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl)
 
 This package wraps the [CUDA driver API](http://docs.nvidia.com/cuda/cuda-driver-api/). It
