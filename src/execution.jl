@@ -22,7 +22,9 @@ const CuDim = Union{Integer,
                     Tuple{Integer, Integer, Integer}}
 
 """
-Launch a CUDA function on a GPU.
+    launch(f, griddim, blockdim, shmem, stream, (args...))
+
+Launch a CUDA function `f` on a GPU.
 
 This is a low-level call, prefer to use `cudacall` instead.
 """
@@ -76,7 +78,24 @@ end
 end
 
 """
-ccall-like interface for launching a CUDA function on a GPU
+   cudacall(f, griddim, blockdim, types, values; shmem=0, stream=CuDefaultStream())
+
+`ccall`-like interface for launching a CUDA function `f` on a GPU.
+
+# Example
+
+```julia
+vadd = CuFunction(md, "vadd")
+a = rand(Float32, 10)
+b = rand(Float32, 10)
+ad = CuArray(a)
+bd = CuArray(b)
+c = zeros(Float32, 10)
+cd = CuArray(c)
+
+cudacall(vadd, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
+c = Array(cd)
+```
 """
 @inline cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
                     typespec::Union{NTuple{N,DataType},Type}, values::Vararg{Any,N};
