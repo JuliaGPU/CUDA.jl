@@ -38,9 +38,8 @@ end
 end
 
 @testset "child functions" begin
-    # we often test using @noinline child functions, so test whether these survive
-    # (despite not having side-effects)
-    @eval @noinline codegen_child(i) = i+1
+    # we often test using `@noinline sink` child functions, so test whether these survive
+    @eval @noinline codegen_child(i) = sink(i)
     @eval codegen_parent(i) = (codegen_child(i); nothing)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, (Int,)))
@@ -80,7 +79,7 @@ end
 @testset "child functions" begin
     # we often test using @noinline child functions, so test whether these survive
     # (despite not having side-effects)
-    @eval @noinline ptx_child(i) = i+1
+    @eval @noinline ptx_child(i) = sink(i)
     @eval ptx_parent(i) = (ptx_child(i); nothing)
 
     asm = sprint(io->code_ptx(io, ptx_parent, (Int64,)))
@@ -88,7 +87,7 @@ end
 end
 
 @testset "entry-point functions" begin
-    @eval @noinline ptx_nonentry(i) = i+1
+    @eval @noinline ptx_nonentry(i) = sink(i)
     @eval ptx_entry(i) = (ptx_nonentry(i); nothing)
 
     asm = sprint(io->code_ptx(io, ptx_entry, (Int64,); kernel=true))
@@ -119,7 +118,7 @@ end
     # bug: depending on a child function from multiple parents resulted in
     #      the child only being present once
 
-    @eval @noinline codegen_child_reuse_child(i) = i+1
+    @eval @noinline codegen_child_reuse_child(i) = sink(i)
     @eval function codegen_child_reuse_parent1(i)
         codegen_child_reuse_child(i)
         return nothing
@@ -140,8 +139,8 @@ end
 @testset "child function reuse bis" begin
     # bug: similar, but slightly different issue as above
     #      in the case of two child functions
-    @eval @noinline codegen_child_reuse_bis_child1(i) = i+1
-    @eval @noinline codegen_child_reuse_bis_child2(i) = i+2
+    @eval @noinline codegen_child_reuse_bis_child1(i) = sink(i)
+    @eval @noinline codegen_child_reuse_bis_child2(i) = sink(i+1)
     @eval function codegen_child_reuse_bis_parent1(i)
         codegen_child_reuse_bis_child1(i) + codegen_child_reuse_bis_child2(i)
         return nothing
@@ -174,7 +173,7 @@ end
 
 @testset "compile for host after PTX" begin
     # issue #11: re-using host functions after PTX compilation
-    @eval @noinline codegen_recompile_bis_child(x) = x+1
+    @eval @noinline codegen_recompile_bis_child(i) = sink(i+1)
 
     @eval function codegen_recompile_bis_fromhost()
         codegen_recompile_bis_child(10)
