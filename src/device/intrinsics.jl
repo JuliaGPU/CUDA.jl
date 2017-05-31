@@ -326,7 +326,7 @@ shmem_id = 0
 # add a shared memory definition to the module, and get a pointer to the first item
 # FIXME: this adds module-scope declarations by means of `llvmcall`, which is unsupported
 function emit_shmem(id, llvmtyp, len, align)
-    var = Symbol(:@shmem, id)
+    var = Symbol("@shmem", id)
     jltyp = jltypes[llvmtyp]
     quote
         Base.llvmcall(
