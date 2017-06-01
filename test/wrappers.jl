@@ -390,6 +390,12 @@ let
         CuArray{I,2}((a,b))
     end
 
+    # type aliases
+    let
+        CuVector{Int}(1)
+        CuMatrix{Int}(1,1)
+    end
+
     # similar
     let a = CuArray{Int}(2)
         similar(a)
