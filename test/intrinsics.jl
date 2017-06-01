@@ -48,7 +48,7 @@ end
 ############################################################################################
 
 # a composite type to test for more complex element types
-@eval immutable RGB{T}
+@eval struct RGB{T}
     r::T
     g::T
     b::T
