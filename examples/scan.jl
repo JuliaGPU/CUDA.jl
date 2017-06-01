@@ -4,9 +4,8 @@
 # Based on http://http.developer.nvidia.com/GPUGems3/gpugems3_ch39.html
 
 using CUDAdrv, CUDAnative
-using Base.Test
 
-function cpu_accumulate!{F<:Function,T}(op::F, data::Matrix{T})
+function cpu_accumulate!(op::Function, data::Matrix{T}) where {T}
     cols = size(data,2)
     for col in 1:cols
         accum = zero(T)
@@ -20,7 +19,7 @@ function cpu_accumulate!{F<:Function,T}(op::F, data::Matrix{T})
     return
 end
 
-function gpu_accumulate!{F<:Function,T}(op::F, data::CuDeviceArray{T,2})
+function gpu_accumulate!(op::Function, data::CuDeviceMatrix{T}) where {T}
     col = blockIdx().x
     cols = gridDim().x
 
@@ -65,8 +64,7 @@ ctx = CuContext(dev)
 rows = 5
 cols = 4
 
-a = ones(rows, cols)
-a = collect(reshape(1:rows*cols, (rows,cols)))
+a = rand(Int, rows, cols)
 
 cpu_a = copy(a)
 cpu_accumulate!(+, cpu_a)
@@ -74,6 +72,7 @@ cpu_accumulate!(+, cpu_a)
 gpu_a = CuArray(a)
 @cuda (cols,rows, cols*rows*sizeof(eltype(a))) gpu_accumulate!(+, gpu_a)
 
+using Base.Test
 @test cpu_a ≈ Array(gpu_a)
 
 destroy(ctx)
