@@ -8,10 +8,29 @@ export
 # code_* replacements
 #
 
-# NOTE: default capability is a sane one for testing purposes
+"""Return the capability of the current context's device, or a sane fall-back."""
+function current_capability()
+    ctx = CuCurrentContext()
+    if ctx == CuContext(C_NULL)
+        return v"2.0"
+    else
+        return capability(device(ctx))
+    end
+end
 
+"""
+    code_llvm([io], f, types, optimize=true, dump_module=false, cap::VersionNumber)
+
+Prints the LLVM IR generated for the method matching the given generic function and type
+signature to `io` which defaults to `STDOUT`. The IR is optimized according to `optimize`
+(defaults to true), and the entire module, including headers and other functions, is dumped
+if `dump_module` is set (defaults to false). The device capability `cap` to generate code
+for defaults to the current active device's capability, or v"2.0" if there is no such active
+context.
+"""
 function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
-                   optimize::Bool=true, dump_module::Bool=false, cap::VersionNumber=v"2.0")
+                   optimize::Bool=true, dump_module::Bool=false,
+                   cap::VersionNumber=current_capability())
     mod, entry = irgen(func, types)
     if optimize
         optimize!(mod, cap)
@@ -25,13 +44,15 @@ end
 code_llvm(func::ANY, types::ANY=Tuple; kwargs...) = code_llvm(STDOUT, func, types; kwargs...)
 
 """
-    code_ptx([io], f, types, cap=v"2.0")
+    code_ptx([io], f, types, cap::VersionNumber)
 
 Prints the PTX assembly generated for the method matching the given generic function and
-type signature to `io` which defaults to `STDOUT`.
+type signature to `io` which defaults to `STDOUT`. The device capability `cap` to generate
+code for defaults to the current active device's capability, or v"2.0" if there is no such
+active context.
 """
 function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
-                  cap::VersionNumber=v"2.0", kernel::Bool=false)
+                  cap::VersionNumber=current_capability(), kernel::Bool=false)
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
     kernel && check_kernel(func, tt)
@@ -44,15 +65,18 @@ end
 code_ptx(func::ANY, types::ANY=Tuple; kwargs...) = code_ptx(STDOUT, func, types; kwargs...)
 
 """
-    code_sass([io], f, types, cap=v"2.0")
+    code_sass([io], f, types, cap::VersionNumber)
 
 Prints the SASS code generated for the method matching the given generic function and type
-signature to `io` which defaults to `STDOUT`.
+signature to `io` which defaults to `STDOUT`. The device capability `cap` to generate code
+for defaults to the current active device's capability, or v"2.0" if there is no such active
+context.
 
 Note that the method needs to be a valid entry-point kernel, ie. it should not return any
 values.
 """
-function code_sass(io::IO, func::ANY, types::ANY=Tuple; cap::VersionNumber=v"2.0")
+function code_sass(io::IO, func::ANY, types::ANY=Tuple;
+                   cap::VersionNumber=current_capability())
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
     check_kernel(func, tt)
