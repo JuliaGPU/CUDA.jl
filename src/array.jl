@@ -1,7 +1,7 @@
 # Contiguous on-device arrays (host side representation)
 
 export
-    CuArray
+    CuArray, CuVector, CuMatrix
 
 
 ## construction
@@ -44,6 +44,9 @@ CuArray
     end
 end
 
+@compat const CuVector{T} = CuArray{T,1}
+@compat const CuMatrix{T} = CuArray{T,2}
+
 # outer constructors, partially parameterized
 (::Type{CuArray{T}}){T,N,I<:Integer}(dims::NTuple{N,I})   = CuArray{T,N}(dims)
 (::Type{CuArray{T}}){T,N,I<:Integer}(dims::Vararg{I,N})   = CuArray{T,N}(dims)
@@ -72,8 +75,8 @@ Base.pointer(a::CuArray) = a.devptr
 # override the Base isequal, which compares values
 Base.isequal(a::CuArray, b::CuArray) = a == b
 
-Base.similar{T}(a::CuArray{T,1})                    = CuArray{T}(length(a))
-Base.similar{T}(a::CuArray{T,1}, S::Type)           = CuArray{S}(length(a))
+Base.similar{T}(a::CuVector{T})                     = CuArray{T}(length(a))
+Base.similar{T}(a::CuVector{T}, S::Type)            = CuArray{S}(length(a))
 Base.similar{T}(a::CuArray{T}, m::Int)              = CuArray{T}(m)
 Base.similar{N}(a::CuArray, T::Type, dims::Dims{N}) = CuArray{T,N}(dims)
 Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
