@@ -6,6 +6,14 @@ let
     vadd = CuFunction(md, "vadd")
 end
 
+# comparisons
+let
+    md = CuModuleFile(joinpath(@__DIR__, "ptx/vectorops.ptx"))
+    vadd = CuFunction(md, "vadd")
+    @test vadd == vadd
+    @test vadd != CuFunction(md, "vdiv")
+end
+
 let
     f = open(joinpath(@__DIR__, "ptx/vadd.ptx"))
     ptx = readstring(f)
@@ -20,7 +28,8 @@ end
 
 @test_throws_cuerror CUDAdrv.ERROR_INVALID_IMAGE CuModule("foobar")
 
-let
+
+@testset "globals" begin
     md = CuModuleFile(joinpath(@__DIR__, "ptx/global.ptx"))
 
     var = CuGlobal{Int32}(md, "foobar")
@@ -33,8 +42,11 @@ let
     @test get(var) == Int32(42)
 end
 
-let
+
+@testset "linker" begin
     link = CuLink()
+    @test link == link
+    @test link != CuLink()
 
     # regular string
     open(joinpath(@__DIR__, "ptx/empty.ptx")) do f

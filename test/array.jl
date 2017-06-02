@@ -50,6 +50,13 @@ let
         similar(a, Float32, (2,1))
     end
 
+    # comparisons
+    let a = CuArray{Int}(2)
+        @test a == a
+        @test a != CuArray{Int}(2)
+        @test a != CuArray{Int}(3)
+    end
+
     # conversions
     let
         devptr = convert(DevicePtr{Int}, CU_NULL)
