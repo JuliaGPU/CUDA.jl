@@ -139,6 +139,8 @@ function emit_cudacall(func, dims, shmem, stream, types, args)
     end
 end
 
+world_age() = ccall(:jl_get_tls_world_age, UInt, ())
+
 
 #
 # @cuda macro
@@ -177,7 +179,7 @@ macro cuda(config::Expr, callexpr::Expr)
 end
 
 # Compile and execute a CUDA kernel from a Julia function
-const func_cache = Dict{UInt, CuFunction}()
+const compilecache = Dict{UInt, CuFunction}()
 @generated function generated_cuda{F<:Core.Function,N}(dims::Tuple{CuDim, CuDim}, shmem, stream,
                                                        func::F, args::Vararg{Any,N})
     arg_exprs = [:( args[$i] ) for i in 1:N]
@@ -185,17 +187,21 @@ const func_cache = Dict{UInt, CuFunction}()
 
     kernel_allocations, arg_exprs = emit_allocations(arg_exprs, codegen_types, call_types)
 
-    # compile the function, once
+    # compile the function, if necessary
+    # TODO: we currently recompile if _any_ world change is detected.
+    #       this is obviously much to coarse, and we should figure out a way to efficiently
+    #       query the kernel method's age, and/or put that query in a wrapper method with a
+    #       back-edge from the kernel method to make the check completely free.
     @gensym cuda_fun
     precomp_key = hash(tuple(func, codegen_types...))  # precomputable part of the key
     kernel_compilation = quote
         ctx = CuCurrentContext()
-        key = hash(($precomp_key, ctx))
-        if (haskey(func_cache, key))
-            $cuda_fun = func_cache[key]
+        key = hash(($precomp_key, ctx, world_age()))
+        if (haskey(compilecache, key))
+            $cuda_fun = compilecache[key]
         else
             $cuda_fun, _ = cufunction(device(ctx), func, $codegen_types)
-            func_cache[key] = $cuda_fun
+            compilecache[key] = $cuda_fun
         end
     end
 
