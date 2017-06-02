@@ -8,7 +8,6 @@ include("util.jl")
 @testset "CUDAdrv" begin
 
 include("pointer.jl")
-include("errors.jl")
 include("base.jl")
 
 @test length(devices()) > 0
@@ -23,9 +22,23 @@ if length(devices()) > 0
     info("Testing using device $(name(dev))")
     global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
-    include("wrappers.jl")
+    @testset "API wrappers" begin
+        include("errors.jl")
+        include("version.jl")
+        include("devices.jl")
+        include("context.jl")
+        include("module.jl")
+        include("memory.jl")
+        include("stream.jl")
+        include("execution.jl")
+        include("events.jl")
+        include("profile.jl")
+    end
+
+    include("array.jl")
     include("gc.jl")
 
     include("examples.jl")
 end
+
 end
