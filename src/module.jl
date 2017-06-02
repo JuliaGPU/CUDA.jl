@@ -8,16 +8,19 @@ include(joinpath("module", "jit.jl"))
 
 const CuModule_t = Ptr{Void}
 
+"""
+    CuModule(data, options::Dict{CUjit_option,Any})
+    CuModuleFile(path, options::Dict{CUjit_option,Any})
+
+Create a CUDA module from a data, or a file containing data. The data may be PTX code, a
+CUBIN, or a FATBIN.
+
+The `options` is an optional dictionary of JIT options and their respective value.
+"""
 type CuModule
     handle::CuModule_t
     ctx::CuContext
 
-    """
-    Create a CUDA module from a string containing PTX code.
-
-    If the Julia debug level is 2 or higher (or, on 0.5, if CUDAdrv is loaded in DEBUG
-    mode), line number and debug information will be requested when loading the PTX code.
-    """
     function CuModule(data, options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
         handle_ref = Ref{CuModule_t}()
 
@@ -69,14 +72,8 @@ Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
 Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
 Base.hash(mod::CuModule, h::UInt) = hash(mod.handle, h)
 
-"""
-Create a CUDA module from a file containing PTX code.
-
-Note that for improved error reporting, this does not rely on the corresponding CUDA driver
-call, but opens and reads the file from within Julia instead.
-"""
 CuModuleFile(path) = CuModule(open(readstring, path))
 
-include(joinpath("module", "linker.jl"))
 include(joinpath("module", "function.jl"))
 include(joinpath("module", "global.jl"))
+include(joinpath("module", "linker.jl"))
