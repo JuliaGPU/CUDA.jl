@@ -114,12 +114,13 @@ new memory is allocated and uploaded to.
 
 Note this does only upload the object itself, and does not peek through it in order to get
 to the underlying data (like `Ref` does). Consequently, this functionality should not be
-used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy`](@ref) functionality for that.
+used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
 """
 function upload{T}(dst::DevicePtr{T}, src::T)
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     upload(dst, Base.RefValue(src), sizeof(T))
 end
+
 function upload{T}(src::T)
     dst = alloc(T)
     upload(dst, Base.RefValue(src), sizeof(T))

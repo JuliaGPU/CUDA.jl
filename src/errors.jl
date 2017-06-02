@@ -27,6 +27,8 @@ end
 Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 
 """
+    name(err::CuError)
+
 Gets the string representation of an error code.
 
 This name can often be used as a symbol in source code to get an instance of this error.
@@ -39,6 +41,8 @@ function name(err::CuError)
 end
 
 """
+    description(err::CuError)
+
 Gets the string description of an error code.
 """
 function description(err::CuError)

@@ -1,7 +1,9 @@
 # Version management
 
 """
-Returns the CUDA driver version as a VersionNumber.
+    version()
+
+Returns the CUDA version as reported by the driver.
 """
 function version()
     version_ref = Ref{Cint}()

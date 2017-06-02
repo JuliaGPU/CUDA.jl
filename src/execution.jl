@@ -22,11 +22,16 @@ const CuDim = Union{Integer,
                     Tuple{Integer, Integer, Integer}}
 
 """
-    launch(f, griddim, blockdim, shmem, stream, (args...))
+    launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, shmem::Int, stream::CuStream, (args...))
 
-Launch a CUDA function `f` on a GPU.
+Low-level call to launch a CUDA function `f` on the GPU, using `griddim` and `blockdim` as
+respectively the grid and block configuration. Dynamic shared memory is allocated according
+to `shmem`, and the kernel is launched on stream `stream`.
 
-This is a low-level call, prefer to use `cudacall` instead.
+Arguments to a kernel should either be bitstype, in which case they will be copied to the
+internal kernel parameter buffer, or a pointer to device memory.
+
+This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
 @inline function launch{N}(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
                            shmem::Int, stream::CuStream,
@@ -78,24 +83,31 @@ end
 end
 
 """
-   cudacall(f, griddim, blockdim, types, values; shmem=0, stream=CuDefaultStream())
+    cudacall(f::CuFunction, griddim, blockdim, types, values; shmem=0, stream=CuDefaultStream())
+    cudacall(f::CuFunction, griddim, blockdim, shmem::Integer, stream::CuStream, types, values)
 
 `ccall`-like interface for launching a CUDA function `f` on a GPU.
 
-# Example
+For example:
 
-```julia
-vadd = CuFunction(md, "vadd")
-a = rand(Float32, 10)
-b = rand(Float32, 10)
-ad = CuArray(a)
-bd = CuArray(b)
-c = zeros(Float32, 10)
-cd = CuArray(c)
+    vadd = CuFunction(md, "vadd")
+    a = rand(Float32, 10)
+    b = rand(Float32, 10)
+    ad = CuArray(a)
+    bd = CuArray(b)
+    c = zeros(Float32, 10)
+    cd = CuArray(c)
 
-cudacall(vadd, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
-c = Array(cd)
-```
+    cudacall(vadd, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
+    c = Array(cd)
+
+The `griddim` and `blockdim` arguments control the launch configuration, and should both
+consist of either an integer, or a tuple of 1 to 3 integers (omitted dimensions default to
+1).
+
+Both a version with and without keyword arguments is provided, the latter being faster. In
+addition, the `types` argument can contain both a tuple of types, and a tuple type, again
+the former being slightly faster.
 """
 @inline cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
                     typespec::Union{NTuple{N,DataType},Type}, values::Vararg{Any,N};

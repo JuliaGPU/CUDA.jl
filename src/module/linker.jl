@@ -97,8 +97,8 @@ end
 """
 The result of a linking operation.
 
-This object keeps its parent linker object alive (as destroying a linker destroys linked
-images).
+This object keeps its parent linker object alive, as destroying a linker destroys linked
+images too.
 """
 immutable CuLinkImage
     data::Array{UInt8}

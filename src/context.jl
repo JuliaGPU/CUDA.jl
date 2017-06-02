@@ -17,6 +17,18 @@ const CuContext_t = Ptr{Void}
 
 ## construction and destruction
 
+"""
+    CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
+    CuContext(f::Function, ...)
+
+Create a CUDA context for device. A context on the GPU is analogous to a process on the CPU,
+with its own distinct address space and allocated resources. When a context is destroyed,
+the system cleans up the resources allocated to it.
+
+Contexts are unique instances which need to be `destroy`ed after use. For automatic
+management, prefer the `do` block syntax, which implicitly calls `destroy`.
+
+"""
 type CuContext
     handle::CuContext_t
     owned::Bool
@@ -101,18 +113,6 @@ end
 Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
     error("CuContext cannot be copied")
 
-"""
-    CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
-    CuContext(f::Function, ...)
-
-Create a CUDA context for device. A context on the GPU is analogous to a process on the CPU,
-with its own distinct address space and allocated resources. When a context is destroyed,
-the system cleans up the resources allocated to it.
-
-Contexts are unique instances which need to be `destroy`ed after use. For automatic
-management, prefer the `do` block syntax, which implicitly calls `destroy`.
-
-"""
 function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxCreate, (Ptr{CuContext_t}, Cuint, Cint),
@@ -123,13 +123,21 @@ end
 """
     CuCurrentContext()
 
-Return the current context.
+Return the current context, or a NULL context if there is no active context (see
+[`isnull`](@ref)).
 """
 function CuCurrentContext()
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), handle_ref)
     CuContext(handle_ref[], false)
 end
+
+"""
+    isnull(ctx::CuContext)
+
+Indicates whether the current context is an invalid NULL context.
+"""
+Base.isnull(ctx::CuContext) = (ctx.handle == C_NULL)
 
 """
     activate(ctx::CuContext)

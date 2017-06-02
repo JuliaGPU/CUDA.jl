@@ -16,6 +16,11 @@ Base.unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
+"""
+    CuStream(flags=0)
+
+Create a CUDA stream.
+"""
 function CuStream(flags::Integer=0)
     handle_ref = Ref{CuStream_t}()
     @apicall(:cuStreamCreate, (Ptr{CuStream_t}, Cuint),
@@ -36,6 +41,16 @@ function unsafe_destroy!(s::CuStream)
     end
 end
 
+"""
+    CuDefaultStream()
+
+Return the default stream.
+"""
 @inline CuDefaultStream() = CuStream(convert(CuStream_t, C_NULL), CuContext(C_NULL))
 
+"""
+    synchronize(s::CuStream)
+
+Wait until a stream's tasks are completed.
+"""
 synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CuStream_t,), s)

@@ -16,9 +16,9 @@ function safe_print_with_color(color::Union{Int, Symbol}, io::IO, msg::AbstractS
     end
 end
 
+# Display a trace message. Only results in actual printing if the TRACE environment variable
+# is set.
 const TRACE = haskey(ENV, "TRACE")
-"Display a trace message. Only results in actual printing if the TRACE environment variable
-is set."
 @inline function trace(io::IO, msg...; prefix="TRACE: ", line=true)
     @static if TRACE
         safe_print_with_color(:cyan, io, prefix, chomp(string(msg...)), line?"\n":"")
@@ -29,9 +29,9 @@ macro trace(args...)
     TRACE && return Expr(:call, :trace, map(esc, args)...)
 end
 
+# Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
+# variable is set.
 const DEBUG = TRACE || haskey(ENV, "DEBUG")
-"Display a debug message. Only results in actual printing if the TRACE or DEBUG environment
-variable is set."
 @inline function debug(io::IO, msg...; prefix="DEBUG: ", line=true)
     @static if DEBUG
         safe_print_with_color(:green, io, prefix, chomp(string(msg...)), line?"\n":"")
@@ -42,7 +42,7 @@ macro debug(args...)
     DEBUG && return Expr(:call, :trace, map(esc, args)...)
 end
 
-"Create an indented string from any value (instead of escaping endlines as \n)"
+# Create an indented string from any value (instead of escaping endlines as \n)
 function repr_indented(ex; prefix=" "^7, abbrev=true)
     io = IOBuffer()
     print(io, ex)
@@ -83,10 +83,8 @@ function repr_indented(ex; prefix=" "^7, abbrev=true)
 end
 
 
-"""
-    ccall wrapper logging the call, its arguments, and the returned value.
-    Only logs if TRACE environment variable is set.
-"""
+# ccall wrapper logging the call, its arguments, and the returned value.
+# Only logs if TRACE environment variable is set.
 macro logging_ccall(fun, target, rettyp, argtypes, args...)
     blk = Expr(:block)
 
