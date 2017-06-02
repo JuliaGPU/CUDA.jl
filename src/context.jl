@@ -17,22 +17,15 @@ const CuContext_t = Ptr{Void}
 
 ## construction and destruction
 
-"""
-Create a CUDA context for device. A context on the GPU is analogous to a process on the
-CPU, with its own distinct address space and allocated resources. When a context is
-destroyed, the system cleans up the resources allocated to it.
-
-Contexts are unique instances which need to be `destroy`ed after use. For automatic
-management, prefer the `do` block syntax, which implicitly calls `destroy`.
-
-The `owned` argument indicates whether the caller owns this context. If so, the context
-should get destroyed when it goes out of scope. If not, it is up to the caller to do so.
-"""
 type CuContext
     handle::CuContext_t
     owned::Bool
     valid::Bool
 
+    """
+    The `owned` argument indicates whether the caller owns this context. If so, the context
+    should get destroyed when it goes out of scope. If not, it is up to the caller to do so.
+    """
     function CuContext(handle::CuContext_t, owned=true)
         handle == C_NULL && return new(C_NULL, false, true)
 
@@ -93,6 +86,8 @@ Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
 Base.hash(ctx::CuContext, h::UInt) = hash(ctx.handle, h)
 
 """
+    destroy(ctx::CuContext)
+
 Mark a context for destruction.
 
 This does not immediately destroy the context, as there might still be dependent resources
@@ -107,6 +102,18 @@ end
 Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
     error("CuContext cannot be copied")
 
+"""
+    CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
+    CuContext(f::Function, ...)
+
+Create a CUDA context for device. A context on the GPU is analogous to a process on the CPU,
+with its own distinct address space and allocated resources. When a context is destroyed,
+the system cleans up the resources allocated to it.
+
+Contexts are unique instances which need to be `destroy`ed after use. For automatic
+management, prefer the `do` block syntax, which implicitly calls `destroy`.
+
+"""
 function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxCreate, (Ptr{CuContext_t}, Cuint, Cint),
@@ -114,16 +121,24 @@ function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
     CuContext(handle_ref[])
 end
 
-"Return the current context."
+"""
+    CuCurrentContext()
+
+Return the current context.
+"""
 function CuCurrentContext()
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), handle_ref)
     CuContext(handle_ref[], false)
 end
 
+"""
+    activate(ctx::CuContext)
+
+Binds the specified CUDA context to the calling CPU thread.
+"""
 activate(ctx::CuContext) = @apicall(:cuCtxSetCurrent, (CuContext_t,), ctx)
 
-"Create a context, and activate it temporarily."
 function CuContext(f::Function, args...)
     # NOTE: this could be implemented with context pushing and popping,
     #       but that functionality / our implementation of it hasn't been reliable
@@ -140,6 +155,12 @@ end
 
 ## context properties
 
+"""
+    device(ctx::Cucontext)
+
+Returns the device for the current context. The `ctx` parameter is to make sure that the
+current context is really active, and hence the returned device is valid.
+"""
 function device(ctx::CuContext)
     if CuCurrentContext() != ctx
         # TODO: should we push and pop here?
@@ -153,5 +174,12 @@ function device(ctx::CuContext)
     return CuDevice(device_ref[])
 end
 
+"""
+    synchronize(ctx::CuContext=CuCurrentContext())
+
+Block for a context's tasks to complete.
+
+The `ctx` parameter defaults to the current active context.
+"""
 synchronize(ctx::CuContext=CuCurrentContext()) =
     @apicall(:cuCtxSynchronize, (CuContext_t,), ctx)

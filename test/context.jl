@@ -34,7 +34,6 @@ end
 
 pctx = CuPrimaryContext(0)
 
-state(pctx)
 @test !isactive(pctx)
 
 @test flags(pctx) == CUDAdrv.SCHED_AUTO
