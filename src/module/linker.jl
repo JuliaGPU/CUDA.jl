@@ -38,13 +38,12 @@ type CuLink
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx, options, optionKeys, optionVals)
-        finalizer(obj, _destroy!)
+        finalizer(obj, unsafe_destroy!)
         return obj
     end
 end
 
-"""Don't call this method directly, use `finalize(obj)` instead."""
-function _destroy!(link::CuLink)
+function unsafe_destroy!(link::CuLink)
     if isvalid(link.ctx)
         @trace("Finalizing CuLink at $(Base.pointer_from_objref(link))")
         @apicall(:cuLinkDestroy, (CuLinkState_t,), link)

@@ -15,13 +15,12 @@ type CuEvent
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
-        finalizer(obj, _destroy!)
+        finalizer(obj, unsafe_destroy!)
         return obj
     end 
 end
 
-"""Don't call this method directly, use `finalize(obj)` instead."""
-function _destroy!(e::CuEvent)
+function unsafe_destroy!(e::CuEvent)
     if isvalid(e.ctx)
         @trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
         @apicall(:cuEventDestroy, (CuEvent_t,), e)
