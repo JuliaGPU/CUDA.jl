@@ -21,6 +21,7 @@ include("base.jl")
 # CUDA API wrappers
 include("init.jl")
 include("errors.jl")
+include("version.jl")
 include("devices.jl")
 include("context.jl")
 include("pointer.jl")   # not a wrapper, but depends on context.jl
