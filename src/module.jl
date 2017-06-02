@@ -52,13 +52,12 @@ type CuModule
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
-        finalizer(obj, _unload!)
+        finalizer(obj, unsafe_unload!)
         return obj
     end
 end
 
-"""Don't call this method directly, use `finalize(obj)` instead."""
-function _unload!(mod::CuModule)
+function unsafe_unload!(mod::CuModule)
     if isvalid(mod.ctx)
         @trace("Finalizing CuModule at $(Base.pointer_from_objref(mod)))")
         @apicall(:cuModuleUnload, (CuModule_t,), mod)
