@@ -29,8 +29,8 @@ include("pointer.jl")   # not a wrapper, but used by them
 include("module.jl")
 include("memory.jl")
 include("stream.jl")
-include("execution.jl")
 include("events.jl")
+include("execution.jl")
 include("profile.jl")
 
 include("array.jl")
