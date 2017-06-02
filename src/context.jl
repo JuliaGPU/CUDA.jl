@@ -1,7 +1,7 @@
 # Context management
 
 export
-    CuContext, destroy, CuCurrentContext, activate,
+    CuContext, destroy!, CuCurrentContext, activate,
     synchronize, device
 
 @enum(CUctx_flags, SCHED_AUTO           = 0x00,
@@ -97,7 +97,7 @@ Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
 Base.hash(ctx::CuContext, h::UInt) = hash(ctx.handle, h)
 
 """
-    destroy(ctx::CuContext)
+    destroy!(ctx::CuContext)
 
 Mark a context for destruction.
 
@@ -105,7 +105,7 @@ This does not immediately destroy the context, as there might still be dependent
 which have not been collected yet. The context will get freed as soon as all outstanding
 instances have been finalized.
 """
-function destroy(ctx::CuContext)
+function destroy!(ctx::CuContext)
     delete!(context_instances, ctx.handle)
     return
 end
@@ -154,7 +154,7 @@ function CuContext(f::Function, args...)
     try
         f(ctx)
     finally
-        destroy(ctx)
+        destroy!(ctx)
         activate(old_ctx)
     end
 end

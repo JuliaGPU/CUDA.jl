@@ -12,7 +12,7 @@ let ctx2 = CuContext(dev)
 
     @test_throws ErrorException device(ctx2)
 
-    destroy(ctx2)
+    destroy!(ctx2)
 end
 
 instances = length(CUDAdrv.context_instances)

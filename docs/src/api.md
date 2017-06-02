@@ -57,7 +57,7 @@ CUDAdrv.warpsize(::CuDevice)
 
 ```@docs
 CUDAdrv.CuContext
-CUDAdrv.destroy(::CuContext)
+CUDAdrv.destroy!(::CuContext)
 CUDAdrv.CuCurrentContext
 CUDAdrv.isnull(::CuContext)
 CUDAdrv.activate(::CuContext)
