@@ -1,4 +1,4 @@
-# Profiler interface
+# Profiler control
 
 export
     @profile, @cuprofile

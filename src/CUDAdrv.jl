@@ -35,5 +35,6 @@ include("profile.jl")
 
 include("array.jl")
 
+include("deprecated.jl")
 
 end
