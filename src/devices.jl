@@ -1,20 +1,16 @@
 # Device type and auxiliary functions
 
 export
-    devcount,
-    CuDevice, name, totalmem, attribute, capability,
-    list_devices
+    CuDevice, name, totalmem, attribute
 
 
 const CuDevice_t = Cint
 
-"Return the number of available CUDA devices"
-function devcount()
-    count_ref = Ref{Cint}()
-    @apicall(:cuDeviceGetCount, (Ptr{Cint},), count_ref)
-    return count_ref[]
-end
+"""
+    CuDevice(i::Integer)
 
+Get a handle to a compute device.
+"""
 immutable CuDevice
     ordinal::Cint
     handle::CuDevice_t
@@ -32,7 +28,15 @@ Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
 Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
 Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
 
-"Get the name of a CUDA device"
+function Base.show(io::IO, ::MIME"text/plain", dev::CuDevice)
+    print(io, "CuDevice($(dev.ordinal)): $(name(dev))")
+end
+
+"""
+    name(dev::CuDevice)
+
+Returns an identifier string for the device.
+"""
 function name(dev::CuDevice)
     const buflen = 256
     buf = Array{Cchar}(buflen)
@@ -42,7 +46,11 @@ function name(dev::CuDevice)
     return unsafe_string(pointer(buf))
 end
 
-"Get the amount of GPU memory (in bytes) of a CUDA device"
+"""
+    totalmem(dev::CuDevice)
+
+Returns the total amount of memory (in bytes) on the device.
+"""
 function totalmem(dev::CuDevice)
     mem_ref = Ref{Csize_t}()
     @apicall(:cuDeviceTotalMem, (Ptr{Csize_t}, CuDevice_t), mem_ref, dev)
@@ -135,52 +143,68 @@ end
                           MULTI_GPU_BOARD,
                           MULTI_GPU_BOARD_GROUP_ID)
 @assert Cint(MULTI_GPU_BOARD_GROUP_ID) == 85
-Base.@deprecate_binding SHARED_MEMORY_PER_BLOCK MAX_SHARED_MEMORY_PER_BLOCK
-Base.@deprecate_binding REGISTERS_PER_BLOCK MAX_REGISTERS_PER_BLOCK
-Base.deprecate(:GPU_OVERLAP)
-Base.@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_WIDTH MAXIMUM_TEXTURE2D_LAYERED_WIDTH
-Base.@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_HEIGHT MAXIMUM_TEXTURE2D_LAYERED_HEIGHT
-Base.@deprecate_binding MAXIMUM_TEXTURE2D_ARRAY_NUMSLICES MAXIMUM_TEXTURE2D_LAYERED_LAYERS
-Base.deprecate(:CAN_TEX2D_GATHER)
 
+"""
+    attribute(dev::CuDevice, code)
 
-function attribute(dev::CuDevice, attrcode::CUdevice_attribute)
+Returns information about the device.
+"""
+function attribute(dev::CuDevice, code::CUdevice_attribute)
     value_ref = Ref{Cint}()
     @apicall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, CuDevice_t),
-                                    value_ref, attrcode, dev)
+                                    value_ref, code, dev)
     return value_ref[]
 end
 
-"Return the compute capabilities of a CUDA device"
-function capability(dev::CuDevice)
-    major_ref = Ref{Cint}()
-    minor_ref = Ref{Cint}()
-    @apicall(:cuDeviceComputeCapability, (Ptr{Cint}, Ptr{Cint}, CuDevice_t),
-                                         major_ref, minor_ref, dev)
-    return VersionNumber(major_ref[], minor_ref[])
+
+## device iteration
+
+export devices
+
+immutable DeviceSet end
+
+"""
+    devices()
+
+Get an iterator for the compute devices.
+"""
+devices() = DeviceSet()
+
+Base.eltype(::DeviceSet) = CuDevice
+
+Base.start(::DeviceSet) = 0
+
+Base.next(::DeviceSet, state) =
+    (CuDevice(state), state+1)
+
+Base.done(iter::DeviceSet, state) = state == Base.length(iter)
+
+function Base.length(::DeviceSet)
+    count_ref = Ref{Cint}()
+    @apicall(:cuDeviceGetCount, (Ptr{Cint},), count_ref)
+    return count_ref[]
 end
 
-"List all CUDA devices with their capabilities and attributes"
-function list_devices()
-    cnt = devcount()
-    if cnt == 0
-        println("No CUDA-capable device found.")
-        return
-    end
-
-    for i = 0:cnt-1
-        dev = CuDevice(i)
-        nam = name(dev)
-        tmem = round(Integer, totalmem(dev) / (1024^2))
-        cap = capability(dev)
-
-        println("device[$i]: $(nam), capability $(cap.major).$(cap.minor), total mem = $tmem MB")
-    end
-end
+Base.iteratorsize(::DeviceSet) = Base.HasLength()
 
 
 ## convenience attribute getters
 
-export warpsize
+export warpsize, capability
 
+"""
+    warpsize(dev::CuDevice)
+
+Returns the warp size (in threads) of the device.
+"""
 warpsize(dev::CuDevice) = attribute(dev, WARP_SIZE)
+
+"""
+    capability(dev::CuDevice)
+
+Returns the compute capability of the device.
+"""
+function capability(dev::CuDevice)
+    return VersionNumber(attribute(dev, COMPUTE_CAPABILITY_MAJOR),
+                         attribute(dev, COMPUTE_CAPABILITY_MINOR))
+end

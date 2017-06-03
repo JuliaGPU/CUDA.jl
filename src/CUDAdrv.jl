@@ -8,6 +8,13 @@ using Compat.String
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 if isfile(ext)
     include(ext)
+elseif haskey(ENV, "ONLY_LOAD")
+    # special mode where the package is loaded without depending on any CUDA functionality.
+    # this is useful for loading in unsupported environments, eg. Travis + Documenter.jl
+    warn("Only loading the package, without activating any functionality.")
+    const libcuda_path = ""
+    const libcuda_version = v"999"  # make sure all functions are available
+    const libcuda_vendor = "none"
 else
     error("Unable to load dependency file $ext.\nPlease run Pkg.build(\"CUDAdrv\") and restart Julia.")
 end
@@ -15,36 +22,26 @@ const libcuda = libcuda_path
 
 include(joinpath("util", "logging.jl"))
 
-include("errors.jl")
+include("types.jl")
 include("base.jl")
 
 # CUDA API wrappers
+include("init.jl")
+include("errors.jl")
+include("version.jl")
 include("devices.jl")
 include("context.jl")
-include("pointer.jl")   # not a wrapper, but depends on context.jl
 include(joinpath("context", "primary.jl"))
+include("pointer.jl")   # not a wrapper, but used by them
 include("module.jl")
 include("memory.jl")
 include("stream.jl")
-include("execution.jl")
 include("events.jl")
+include("execution.jl")
 include("profile.jl")
 
 include("array.jl")
 
-function __init__()
-    # check validity of CUDA library
-    @debug("Checking validity of $(libcuda_path)")
-    if version() != libcuda_version
-        error("CUDA library version has changed. Please re-run Pkg.build(\"CUDAdrv\") and restart Julia.")
-    end
-
-    __init_logging__()
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
-    else
-        @apicall(:cuInit, (Cint,), 0)
-    end
-end
+include("deprecated.jl")
 
 end

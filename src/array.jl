@@ -15,6 +15,9 @@ is determined from the length or number of `dims`. `dims` may be a tuple or a se
 integer arguments corresponding to the lengths in each dimension. If the rank `N` is
 supplied explicitly as in `Array{T,N}(dims)`, then it must match the length or number of
 `dims`.
+
+Type aliases `CuVector` and `CuMatrix` are available for respectively 1 and 2-dimensional
+data.
 """
 CuArray
 
@@ -35,7 +38,7 @@ CuArray
         devptr = Mem.alloc(T, len)
 
         obj = new{T,N}(devptr, shape)
-        finalizer(obj, _free!)
+        finalizer(obj, unsafe_free!)
         return obj
     end
     function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, devptr::DevicePtr{T})
@@ -55,8 +58,7 @@ end
 (::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::NTuple{N,I}) = CuArray{T,N}(Int.(dims))
 (::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::Vararg{I,N}) = CuArray{T,N}(Int.(dims))
 
-"""Don't call this method directly, use `finalize(obj)` instead."""
-function _free!(a::CuArray)
+function unsafe_free!(a::CuArray)
     if isvalid(a.devptr.ctx)
         @trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
         Mem.free(a.devptr)
@@ -93,7 +95,12 @@ Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
 
 ## memory management
 
-"Copy an array from host to device in place"
+"""
+    copy!{T}(dst::CuArray{T}, src::Array{T})
+
+Copy an array from a host array `src` to a device array `dst` in place. Both arrays should
+have an equal length.
+"""
 function Base.copy!{T}(dst::CuArray{T}, src::Array{T})
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))  
@@ -102,7 +109,12 @@ function Base.copy!{T}(dst::CuArray{T}, src::Array{T})
     return dst
 end
 
-"Copy an array from device to host in place"
+"""
+    copy!{T}(dst::Array{T}, src::CuArray{T})
+
+Copy an array from a device array `src` to a host array `dst` in place. Both arrays should
+have an equal length.
+"""
 function Base.copy!{T}(dst::Array{T}, src::CuArray{T})
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
@@ -111,7 +123,12 @@ function Base.copy!{T}(dst::Array{T}, src::CuArray{T})
     return dst
 end
 
-"Copy an array from device to device in place"
+"""
+    copy!{T}(dst::CuArray{T}, src::CuArray{T})
+
+Copy an array from a device array `src` to a device array `dst` in place. Both arrays should
+have an equal length.
+"""
 function Base.copy!{T}(dst::CuArray{T}, src::CuArray{T})
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
@@ -123,8 +140,16 @@ end
 
 ### convenience functions
 
-"Transfer an array from host to device, returning a pointer on the device"
-CuArray{T,N}(a::Array{T,N}) = copy!(CuArray{T}(size(a)), a)
+"""
+    CuArray{T}(src::Array{T})
 
-"Transfer an array on the device to host"
-Base.Array{T}(g::CuArray{T}) = copy!(Array{T}(size(g)), g)
+Transfer a host array `src` to device, returning a [`CuArray`](@ref).
+"""
+CuArray{T,N}(src::Array{T,N}) = copy!(CuArray{T,N}(size(src)), src)
+
+"""
+    Array{T}(g::CuArray{T})
+
+Transfer a device array `src` to host, returning an `Array`.
+"""
+Base.Array{T,N}(src::CuArray{T,N}) = copy!(Array{T,N}(size(src)), src)

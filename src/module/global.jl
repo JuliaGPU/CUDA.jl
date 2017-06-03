@@ -4,6 +4,11 @@ export
     CuGlobal, get, set
 
 
+"""
+    CuGlobal{T}(mod::CuModule, name::String)
+
+Acquires a typed global variable handle from a named global in a module.
+"""
 @compat immutable CuGlobal{T}
     # TODO: typed pointer
     devptr::DevicePtr{Void}
@@ -28,8 +33,18 @@ Base.unsafe_convert(::Type{DevicePtr{Void}}, var::CuGlobal) = var.devptr
 Base.:(==)(a::CuGlobal, b::CuGlobal) = a.handle == b.handle
 Base.hash(var::CuGlobal, h::UInt) = hash(var.devptr, h)
 
+"""
+    eltype(var::CuGlobal)
+
+Return the element type of a global variable object.
+"""
 Base.eltype{T}(::Type{CuGlobal{T}}) = T
 
+"""
+    get(var::CuGlobal)
+
+Return the current value of a global variable.
+"""
 function Base.get{T}(var::CuGlobal{T})
     val_ref = Ref{T}()
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
@@ -37,6 +52,11 @@ function Base.get{T}(var::CuGlobal{T})
     return val_ref[]
 end
 
+"""
+    set(var::CuGlobal{T}, T)
+
+Set the value of a global variable to `val`
+"""
 function set{T}(var::CuGlobal{T}, val::T)
     val_ref = Ref{T}(val)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),

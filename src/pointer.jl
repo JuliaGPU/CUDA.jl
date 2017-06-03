@@ -1,8 +1,7 @@
-# CUDA device pointer type
+# Device pointer
 
 export
     DevicePtr, CU_NULL
-
 
 # This wrapper type contains a pointer, but prevents many conversions from and to
 # regular pointers. This ensures we don't mix host and device pointers.

@@ -22,4 +22,4 @@ cudacall(vadd, len, 1, Tuple{DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloa
 c = Array(d_c)
 @test a+b ≈ c
 
-destroy(ctx)
+destroy!(ctx)

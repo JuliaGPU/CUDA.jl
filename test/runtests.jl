@@ -1,3 +1,5 @@
+haskey(ENV, "ONLY_LOAD") && exit()
+
 using CUDAdrv
 using Base.Test
 
@@ -8,15 +10,13 @@ include("util.jl")
 @testset "CUDAdrv" begin
 
 include("pointer.jl")
-include("errors.jl")
 include("base.jl")
 
-@test devcount() > 0
-if devcount() > 0
+@test length(devices()) > 0
+if length(devices()) > 0
     # pick most recent device (based on compute capability)
     global dev = nothing
-    for i in 0:devcount()-1
-        newdev = CuDevice(i)
+    for newdev in devices()
         if dev == nothing || capability(newdev) > capability(dev)
             dev = newdev
         end
@@ -24,9 +24,23 @@ if devcount() > 0
     info("Testing using device $(name(dev))")
     global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
-    include("wrappers.jl")
+    @testset "API wrappers" begin
+        include("errors.jl")
+        include("version.jl")
+        include("devices.jl")
+        include("context.jl")
+        include("module.jl")
+        include("memory.jl")
+        include("stream.jl")
+        include("execution.jl")
+        include("events.jl")
+        include("profile.jl")
+    end
+
+    include("array.jl")
     include("gc.jl")
 
     include("examples.jl")
 end
+
 end
