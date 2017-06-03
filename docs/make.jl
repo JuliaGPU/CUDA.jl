@@ -5,9 +5,14 @@ makedocs(
     format = :html,
     sitename = "CUDAdrv.jl",
     pages = [
-        "Home" => "index.md",
-        "Manual" => [],
-        "Library" => ["api.md", "array.md"]
+        "Home"    => "index.md",
+        "Manual"  => [
+            "man/usage.md"
+        ],
+        "Library" => [
+            "lib/api.md",
+            "lib/array.md"
+        ]
     ]
 )
 

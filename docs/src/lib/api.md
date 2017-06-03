@@ -1,8 +1,11 @@
-# Driver API functionality
+# API wrappers
 
 This section lists the package's public functionality that directly corresponds to
-functionality of the CUDA driver API. The documentation is grouped according to the modules
-of the driver API.
+functionality of the CUDA driver API. In general, the abstractions stay close to those of
+the CUDA driver API, so for more information on certain library calls you can consult the
+[CUDA driver API reference](http://docs.nvidia.com/cuda/cuda-driver-api/).
+
+The documentation is grouped according to the modules of the driver API.
 
 
 ## Installation properties
