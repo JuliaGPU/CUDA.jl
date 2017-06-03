@@ -13,7 +13,7 @@ immutable CuVersionError <: Exception
 end
 
 function Base.showerror(io::IO, err::CuVersionError)
-    @printf(io, "CuVersionError: call to %s requires at least driver v%s",
+    @printf(io, "CuVersionError: use of %s requires at least driver v%s",
             err.symbol, err.minver)
 end
 
