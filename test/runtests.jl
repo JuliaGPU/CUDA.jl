@@ -1,3 +1,5 @@
+haskey(ENV, "ONLY_LOAD") && exit()
+
 using CUDAdrv
 using Base.Test
 
