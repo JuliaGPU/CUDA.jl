@@ -10,3 +10,10 @@ makedocs(
         "Library" => ["api.md", "array.md"]
     ]
 )
+
+deploydocs(
+    repo = "github.com/JuliaGPU/CUDAdrv.jl.git",
+    target = "build",
+    deps = nothing,
+    make = nothing
+)
