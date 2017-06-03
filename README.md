@@ -1,9 +1,24 @@
 CUDAdrv.jl
 ==========
 
-**Build status**: [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.5%20(x86-64)&badge=Julia%20v0.5)](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.5%20%28x86-64%29) [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.6%20(x86-64)&badge=Julia%200.6)](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.6%20%28x86-64%29) [![](https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%20master%20(x86-64)&badge=Julia%20master)](https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%20master%20%28x86-64%29)
+**Build status**: [![][buildbot-0.5-img]][buildbot-0.5-url] [![][buildbot-0.6-img]][buildbot-0.6-url] [![][buildbot-master-img]][buildbot-master-url]
 
-**Code coverage**: [![Coverage Status](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/coverage.svg)](https://codecov.io/gh/JuliaGPU/CUDAdrv.jl)
+**Documentation**: [![][docs-latest-img]][docs-latest-url]
+
+**Code coverage**: [![][coverage-img]][coverage-url]
+
+[buildbot-0.5-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.5%20(x86-64)&badge=Julia%20v0.5
+[buildbot-0.5-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.5%20%28x86-64%29
+[buildbot-0.6-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.6%20(x86-64)&badge=Julia%200.6
+[buildbot-0.6-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.6%20%28x86-64%29
+[buildbot-master-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%20master%20(x86-64)&badge=Julia%20master
+[buildbot-master-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%20master%20%28x86-64%29
+
+[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[docs-latest-url]: http://juliagpu.github.io/CUDAdrv.jl/latest
+
+[coverage-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/coverage.svg
+[coverage-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
 
 This package wraps the [CUDA driver API](http://docs.nvidia.com/cuda/cuda-driver-api/). It
 is meant for users who need low-level access to the CUDA toolkit or the underlying GPU. For
