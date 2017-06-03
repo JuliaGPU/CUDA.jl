@@ -5,7 +5,7 @@ CUDAdrv.jl
 
 **Build status**: [![][buildbot-0.5-img]][buildbot-0.5-url] [![][buildbot-0.6-img]][buildbot-0.6-url] [![][buildbot-master-img]][buildbot-master-url]
 
-**Documentation**: [![][docs-latest-img]][docs-latest-url]
+**Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
 
 **Code coverage**: [![][coverage-img]][coverage-url]
 
@@ -16,6 +16,8 @@ CUDAdrv.jl
 [buildbot-master-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%20master%20(x86-64)&badge=Julia%20master
 [buildbot-master-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%20master%20%28x86-64%29
 
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: http://juliagpu.github.io/CUDAdrv.jl/stable
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: http://juliagpu.github.io/CUDAdrv.jl/latest
 
@@ -38,5 +40,5 @@ Pkg.add("CUDAdrv")
 ```
 
 Julia versions 0.5 and 0.6 are supported, with limited effort to keep the package working on
-current master as well. Refer to [the documentation][docs-latest-url] for more information
+current master as well. Refer to [the documentation][docs-stable-url] for more information
 on how to install or use this package.
