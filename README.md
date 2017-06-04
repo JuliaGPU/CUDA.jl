@@ -11,7 +11,7 @@ CUDAdrv.jl
 
 [buildbot-0.5-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.5%20(x86-64)&badge=Julia%20v0.5
 [buildbot-0.5-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.5%20%28x86-64%29
-[buildbot-0.6-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.6%20(x86-64)&badge=Julia%200.6
+[buildbot-0.6-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%200.6%20(x86-64)&badge=Julia%20v0.6
 [buildbot-0.6-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%200.6%20%28x86-64%29
 [buildbot-master-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAdrv.jl:%20Julia%20master%20(x86-64)&badge=Julia%20master
 [buildbot-master-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAdrv.jl%3A%20Julia%20master%20%28x86-64%29

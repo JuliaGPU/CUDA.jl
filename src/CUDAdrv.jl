@@ -9,12 +9,11 @@ const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 if isfile(ext)
     include(ext)
 elseif haskey(ENV, "ONLY_LOAD")
-    # special mode where the package is loaded without depending on any CUDA functionality.
+    # special mode where the package is loaded without requiring a successful build.
     # this is useful for loading in unsupported environments, eg. Travis + Documenter.jl
     warn("Only loading the package, without activating any functionality.")
     const libcuda_path = ""
     const libcuda_version = v"999"  # make sure all functions are available
-    const libcuda_vendor = "none"
 else
     error("Unable to load dependency file $ext.\nPlease run Pkg.build(\"CUDAdrv\") and restart Julia.")
 end
@@ -25,7 +24,7 @@ include(joinpath("util", "logging.jl"))
 include("types.jl")
 include("base.jl")
 
-# CUDA API wrappers
+# CUDA Driver API wrappers
 include("init.jl")
 include("errors.jl")
 include("version.jl")
