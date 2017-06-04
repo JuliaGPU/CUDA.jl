@@ -1,5 +1,7 @@
 using Documenter, CUDAdrv
 
+const test = haskey(ENV, "TEST")    # are we running as part of the test suite?
+
 makedocs(
     modules = [CUDAdrv],
     format = :html,
@@ -13,13 +15,15 @@ makedocs(
             "lib/api.md",
             "lib/array.md"
         ]
-    ]
+    ],
+    doctest = test
 )
 
-deploydocs(
+test || deploydocs(
     repo = "github.com/JuliaGPU/CUDAdrv.jl.git",
-    target = "build",
     julia = "0.6",
+    # no need to build anything here, re-use output of `makedocs`
+    target = "build",
     deps = nothing,
     make = nothing
 )
