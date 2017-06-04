@@ -1,3 +1,5 @@
+haskey(ENV, "ONLY_LOAD") && exit()
+
 using CUDAnative, CUDAdrv
 using Base.Test
 
@@ -78,6 +80,7 @@ if devcount() > 0
         include("intrinsics.jl")
 
         include("examples.jl")
+        include("documentation.jl")
     end
 end
 

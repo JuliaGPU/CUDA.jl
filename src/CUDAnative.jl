@@ -7,8 +7,15 @@ using CUDAdrv
 import CUDAdrv: debug, DEBUG, trace, TRACE
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
-isfile(ext) || error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAnative\") and restart Julia.")
-include(ext)
+if isfile(ext)
+    include(ext)
+elseif haskey(ENV, "ONLY_LOAD")
+    # special mode where the package is loaded without requiring a successful build.
+    # this is useful for loading in unsupported environments, eg. Travis + Documenter.jl
+    warn("Only loading the package, without activating any functionality.")
+else
+    error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAnative\") and restart Julia.")
+end
 
 include("jit.jl")
 include("profile.jl")
@@ -18,6 +25,8 @@ include("execution.jl")                      # so should get loaded late (JuliaL
 include("reflection.jl")
 
 function __init__()
+    haskey(ENV, "ONLY_LOAD") && return
+
     if CUDAdrv.version() != cuda_version ||
         LLVM.version() != llvm_version ||
         VersionNumber(Base.libllvm_version) != julia_llvm_version
