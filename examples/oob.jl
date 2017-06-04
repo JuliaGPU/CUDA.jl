@@ -23,4 +23,4 @@ end
 
 synchronize()
 
-destroy(ctx)
+destroy!(ctx)

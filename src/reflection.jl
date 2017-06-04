@@ -11,7 +11,7 @@ export
 """Return the capability of the current context's device, or a sane fall-back."""
 function current_capability()
     ctx = CuCurrentContext()
-    if ctx == CuContext(C_NULL)
+    if isnull(ctx)
         return v"2.0"
     else
         return capability(device(ctx))

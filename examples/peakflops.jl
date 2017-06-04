@@ -46,7 +46,7 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
     flopcount = 200*len
     flops = flopcount / secs
 
-    destroy(ctx)
+    destroy!(ctx)
     return flops
 end
 

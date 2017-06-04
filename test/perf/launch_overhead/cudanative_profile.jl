@@ -21,7 +21,7 @@ function main()
 
     gpu_arr = CuArray{Float32}(len)
     for i in 1:ITERATIONS
-        i == ITERATIONS-4 && CUDAdrv.start_profiler()
+        i == ITERATIONS-4 && CUDAdrv.Profile.start()
 
         cpu_tic = time_ns()
         CUDAnative.@profile begin
@@ -31,12 +31,12 @@ function main()
 
         cpu_time[i] = (cpu_toc-cpu_tic)/1000
     end
-    CUDAdrv.stop_profiler()
+    CUDAdrv.Profile.stop()
 
     @printf("CPU time: %.2fus\n", median(cpu_time))
     CUDAnative.Profile.print()
 
-    destroy(ctx)
+    destroy!(ctx)
 end
 
 main()

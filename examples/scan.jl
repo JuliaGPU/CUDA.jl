@@ -75,7 +75,7 @@ gpu_a = CuArray(a)
 using Base.Test
 @test cpu_a ≈ Array(gpu_a)
 
-destroy(ctx)
+destroy!(ctx)
 
 
 # FURTHER IMPROVEMENTS:

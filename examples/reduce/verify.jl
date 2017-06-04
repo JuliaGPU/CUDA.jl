@@ -20,6 +20,6 @@ let
     gpu_output = similar(gpu_input)
     gpu_reduce(+, gpu_input, gpu_output)
     gpu_val = Array(gpu_output)[1]
-    destroy(ctx)
+    destroy!(ctx)
     @assert cpu_val == gpu_val
 end
