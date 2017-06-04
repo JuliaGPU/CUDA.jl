@@ -41,6 +41,7 @@ if length(devices()) > 0
     include("gc.jl")
 
     include("examples.jl")
+    include("documentation.jl")
 end
 
 end
