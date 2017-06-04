@@ -26,23 +26,3 @@ Pkg.test("CUDAnative")
 ```
 
 For now, only Linux and macOS are supported.
-
-
-## Manual Outline
-
-```@contents
-Pages = [
-    "man/usage.md",
-    "man/troubleshooting.md",
-    "man/performance.md"
-]
-```
-
-
-## Library Outline
-
-```@contents
-Pages = [
-    "lib/intrinsics.md"
-]
-```

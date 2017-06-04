@@ -1,10 +1,15 @@
 export @profile
 
 """
-    @profile
+    @profile ex
 
-`@profile <expression>` runs your expression, while activating the CUDA profiler upon first
-kernel launch.
+Runs your expression `ex` while activating the CUDA profiler upon first kernel launch. This
+makes it easier to profile accurately, without the overhead of initial compilation, memory
+transfers, ...
+
+Note that this API is used to programmatically control the profiling granularity by allowing
+profiling to be done only on selective pieces of code. It does not perform any profiling on
+itself, you need external tools for that.
 """
 macro profile(ex)
     quote

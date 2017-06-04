@@ -19,9 +19,11 @@ end
 
 include("jit.jl")
 include("profile.jl")
+include(joinpath("device", "util.jl"))
 include(joinpath("device", "array.jl"))
-include(joinpath("device", "intrinsics.jl")) # these files contain generated functions,
-include("execution.jl")                      # so should get loaded late (JuliaLang/julia#19942)
+include(joinpath("device", "intrinsics.jl")) # some of these files contain generated functions,
+include(joinpath("device", "libdevice.jl"))  # so should get loaded late (JuliaLang/julia#19942)
+include("execution.jl")
 include("reflection.jl")
 
 function __init__()

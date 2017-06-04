@@ -232,13 +232,11 @@ function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber;
     return convert(String, emit(tm, mod, LLVM.API.LLVMAssemblyFile))
 end
 
-"""
-Compile a function to PTX, returning the assembly and an entry point.
-Not to be used directly, see `cufunction` instead.
-
-The `kernel` argument indicates whether we are compiling a kernel entry-point function,
-in which case extra metadata needs to be attached.
-"""
+# Compile a function to PTX, returning the assembly and an entry point.
+# Not to be used directly, see `cufunction` instead.
+#
+# The `kernel` argument indicates whether we are compiling a kernel entry-point function,
+# in which case extra metadata needs to be attached.
 function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=true)
     sig = """$func($(join(tt.parameters, ", ")))"""
     debug("Compiling $sig for capability level $cap")

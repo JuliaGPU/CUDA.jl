@@ -37,10 +37,8 @@ function convert_type(t)
     return t
 end
 
-"""
-Convert the arguments to a kernel function to their CUDA representation, and figure out what
-types to specialize the kernel function for and how to actually pass those objects.
-"""
+# Convert the arguments to a kernel function to their CUDA representation, and figure out
+# what types to specialize the kernel function for and how to actually pass those objects.
 function convert_arguments(args, types)
     argtypes = DataType[types...]
     argexprs = Union{Expr,Symbol}[args...]
@@ -74,16 +72,14 @@ end
 isbitstype(dt::DataType) =
     !dt.mutable && dt.layout != C_NULL && nfields(dt) == 0 && sizeof(dt) > 0
 
-"""
-Determine the actual types of an object, that is, 1) the type that needs to be used to
-specialize (compile) the kernel function, and 2) the type which an object needs to be
-converted to before passing it to a kernel.
-
-These two types can differ, eg. when passing a bitstype that doesn't fit in a register, in
-which case we'll be specializing a function that directly uses that bitstype (and the
-codegen ABI will figure out it needs to be passed by ref, ie. a pointer), but we do need to
-allocate memory and pass an actual pointer since we perform the call ourselves.
-"""
+# Determine the actual types of an object, that is, 1) the type that needs to be used to
+# specialize (compile) the kernel function, and 2) the type which an object needs to be
+# converted to before passing it to a kernel.
+#
+# These two types can differ, eg. when passing a bitstype that doesn't fit in a register, in
+# which case we'll be specializing a function that directly uses that bitstype (and the
+# codegen ABI will figure out it needs to be passed by ref, ie. a pointer), but we do need to
+# allocate memory and pass an actual pointer since we perform the call ourselves.
 function actual_types(argtype::DataType)
     if argtype.layout != C_NULL && Base.datatype_pointerfree(argtype)
         # pointerfree objects with a layout can be used on the GPU

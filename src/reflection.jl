@@ -8,7 +8,7 @@ export
 # code_* replacements
 #
 
-"""Return the capability of the current context's device, or a sane fall-back."""
+# Return the capability of the current context's device, or a sane fall-back.
 function current_capability()
     ctx = CuCurrentContext()
     if ctx == CuContext(C_NULL)
@@ -19,7 +19,7 @@ function current_capability()
 end
 
 """
-    code_llvm([io], f, types, optimize=true, dump_module=false, cap::VersionNumber)
+    code_llvm([io], f, types; optimize=true, dump_module=false, cap::VersionNumber)
 
 Prints the LLVM IR generated for the method matching the given generic function and type
 signature to `io` which defaults to `STDOUT`. The IR is optimized according to `optimize`
@@ -44,12 +44,13 @@ end
 code_llvm(func::ANY, types::ANY=Tuple; kwargs...) = code_llvm(STDOUT, func, types; kwargs...)
 
 """
-    code_ptx([io], f, types, cap::VersionNumber)
+    code_ptx([io], f, types; cap::VersionNumber, kernel::Bool=false)
 
 Prints the PTX assembly generated for the method matching the given generic function and
 type signature to `io` which defaults to `STDOUT`. The device capability `cap` to generate
 code for defaults to the current active device's capability, or v"2.0" if there is no such
-active context.
+active context. The optional `kernel` parameter indicates whether the function in question
+is an entry-point function, or a regular device function.
 """
 function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
                   cap::VersionNumber=current_capability(), kernel::Bool=false)
@@ -115,7 +116,13 @@ for fname in [:code_lowered, :code_typed, :code_warntype, :code_llvm, :code_ptx,
             $fname(func, codegen_types)
         end
 
-        macro ($fname)(ex0)
+        @doc $"""
+            $fname
+
+        Extracts the relevant function call from any `@cuda` invocation, evaluates the
+        arguments to the function or macro call, determines their types (taking into account
+        GPU-specific type conversions), and calls $fname on the resulting expression.
+        """ macro $(fname)(ex0)
             if ex0.head == :macrocall
                 # @cuda (...) f()
                 ex0 = ex0.args[3]
