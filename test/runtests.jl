@@ -54,15 +54,14 @@ end
 
 @testset "CUDAnative" begin
 
-@test devcount() > 0
-if devcount() > 0
+@test length(devices()) > 0
+if length(devices()) > 0
     include("base.jl")
     include("codegen.jl")
 
     # pick most recent device (based on compute capability)
     global dev = nothing
-    for i in 0:devcount()-1
-        newdev = CuDevice(i)
+    for newdev in devices()
         if dev == nothing || capability(newdev) > capability(dev)
             dev = newdev
         end
