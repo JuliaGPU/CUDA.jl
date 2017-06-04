@@ -13,7 +13,7 @@ immutable CuVersionError <: Exception
 end
 
 function Base.showerror(io::IO, err::CuVersionError)
-    @printf(io, "CuVersionError: use of %s requires at least driver v%s",
+    @printf(io, "CUDA API version mismatch: use of %s requires at least CUDA %s",
             err.symbol, err.minver)
 end
 
@@ -67,16 +67,16 @@ end
 
 function Base.showerror(io::IO, err::CuError)
     if isnull(err.info)
-        @printf(io, "%s (CUDA error #%d, %s)",
+        @printf(io, "CUDA error: %s (code #%d, %s)",
                     description(err), err.code, name(err))
     else
-        @printf(io, "%s (CUDA error #%d, %s)\n%s",
+        @printf(io, "CUDA error: %s (code #%d, %s)\n%s",
                     description(err), err.code, name(err), get(err.info))
     end
 end
 
 Base.show(io::IO, err::CuError) =
-    @printf(io, "%s(%d)", name(err), err.code)
+    @printf(io, "CuError(%d, %s)", err.code, name(err))
 
 # known error constants
 const return_codes = Dict{Int,Symbol}(
