@@ -32,6 +32,10 @@
         @test_throws ErrorException @on_device CuDeviceArray{$I,2}($b, $p)
         @test_throws ErrorException @on_device CuDeviceArray{$I,2}(($b,), $p)
         @on_device CuDeviceArray{$I,2}(($a,$b), $p)
+
+        # type aliases
+        @on_device CuDeviceVector{$I}($b, $p)
+        @on_device CuDeviceMatrix{$I}(($a,$b), $p)
     end
 end
 

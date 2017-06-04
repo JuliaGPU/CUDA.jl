@@ -27,7 +27,7 @@ function main()
 
     gpu_arr = CuArray{Float32}(len)
     for i in 1:ITERATIONS
-        i == ITERATIONS-4 && CUDAdrv.start_profiler()
+        i == ITERATIONS-4 && CUDAdrv.Profile.start()
 
         gpu_tic, gpu_toc = CuEvent(), CuEvent()
 
@@ -41,12 +41,12 @@ function main()
         cpu_time[i] = (cpu_toc-cpu_tic)/1000
         gpu_time[i] = CUDAdrv.elapsed(gpu_tic, gpu_toc)*1000000
     end
-    CUDAdrv.stop_profiler()
+    CUDAdrv.Profile.stop()
 
     @printf("CPU time: %.2fus\n", median(cpu_time))
     @printf("GPU time: %.2fus\n", median(gpu_time))
 
-    destroy(ctx)
+    destroy!(ctx)
 end
 
 main()

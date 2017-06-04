@@ -1,7 +1,7 @@
 # Contiguous on-device arrays
 
 export
-    CuDeviceArray, CuBoundsError
+    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError
 
 
 ## construction
@@ -31,17 +31,20 @@ struct CuDeviceArray{T,N} <: AbstractArray{T,N}
     CuDeviceArray{T,N}(shape::NTuple{N,Int}, ptr::Ptr{T}) where {T,N} = new(shape, ptr)
 end
 
+const CuDeviceVector = CuDeviceArray{T,1} where {T}
+const CuDeviceMatrix = CuDeviceArray{T,2} where {T}
+
 # outer constructors, non-parameterized
 CuDeviceArray(dims::NTuple{N,<:Integer}, p::Ptr{T})                where {T,N} = CuDeviceArray{T,N}(dims, p)
-CuDeviceArray(len::Integer, p::Ptr{T})                             where {T}   = CuDeviceArray{T,1}((len,), p)
+CuDeviceArray(len::Integer, p::Ptr{T})                             where {T}   = CuDeviceVector{T}((len,), p)
 
 # outer constructors, partially parameterized
 (::Type{CuDeviceArray{T}})(dims::NTuple{N,<:Integer}, p::Ptr{T})   where {T,N} = CuDeviceArray{T,N}(dims, p)
-(::Type{CuDeviceArray{T}})(len::Integer, p::Ptr{T})                where {T}   = CuDeviceArray{T,1}((len,), p)
+(::Type{CuDeviceArray{T}})(len::Integer, p::Ptr{T})                where {T}   = CuDeviceVector{T}((len,), p)
 
 # outer constructors, fully parameterized
 (::Type{CuDeviceArray{T,N}})(dims::NTuple{N,<:Integer}, p::Ptr{T}) where {T,N} = CuDeviceArray{T,N}(Int.(dims), p)
-(::Type{CuDeviceArray{T,1}})(len::Integer, p::Ptr{T})              where {T}   = CuDeviceArray{T,1}((Int(len),), p)
+(::Type{CuDeviceVector{T}})(len::Integer, p::Ptr{T})               where {T}   = CuDeviceVector{T}((Int(len),), p)
 
 Base.convert(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) where {T,N} =
     CuDeviceArray{T,N}(a.shape, Base.unsafe_convert(Ptr{T}, a.devptr))
@@ -66,7 +69,7 @@ end
 
 Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
 
-Base.show(io::IO, a::CuDeviceArray{T,1}) where {T} =
+Base.show(io::IO, a::CuDeviceVector{T}) where {T} =
     print(io, "$(length(a))-element device array at $(pointer(a))")
 Base.show(io::IO, a::CuDeviceArray{T,N}) where {T,N} =
     print(io, "$(join(a.shape, '×')) device array at $(pointer(a))")
@@ -84,7 +87,7 @@ struct CuBoundsError <: Exception end
     (Base.@_noinline_meta; throw(CuBoundsError()))
 
 # idem
-function Base.unsafe_view(A::CuDeviceArray{T,1}, I::Vararg{Base.ViewIndex,1}) where {T}
+function Base.unsafe_view(A::CuDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
     Base.@_inline_meta
     ptr = Base.unsafe_convert(Ptr{T}, A) + (I[1].start-1)*sizeof(T)
     len = I[1].stop - I[1].start + 1

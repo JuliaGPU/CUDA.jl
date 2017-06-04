@@ -12,4 +12,4 @@ ctx = CuContext(dev)
 
 synchronize()
 
-destroy(ctx)
+destroy!(ctx)

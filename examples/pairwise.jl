@@ -119,4 +119,4 @@ const lon = rand(Float32, n) .* -120
 using Base.Test
 @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)
 
-destroy(ctx)
+destroy!(ctx)

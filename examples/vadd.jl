@@ -24,4 +24,4 @@ len = prod(dims)
 c = Array(d_c)
 @test a+b ≈ c
 
-destroy(ctx)
+destroy!(ctx)

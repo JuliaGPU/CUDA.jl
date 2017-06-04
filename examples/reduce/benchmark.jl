@@ -35,7 +35,7 @@ benchmark_gpu = @benchmarkable begin
         gc()
     )
 println(run(benchmark_gpu))
-destroy(ctx)
+destroy!(ctx)
 
 
 ## CUDA

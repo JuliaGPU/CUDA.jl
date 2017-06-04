@@ -12,7 +12,7 @@ using CUDAdrv, CUDAnative
 #
 
 # Reduce a value across a warp
-@inline function reduce_warp{F<:Function,T}(op::F, val::T)::T
+@inline function reduce_warp(op::Function, val::T)::T where {T}
     offset = CUDAnative.warpsize() ÷ UInt32(2)
     # TODO: this can be unrolled if warpsize is known...
     while offset > 0
@@ -23,7 +23,7 @@ using CUDAdrv, CUDAnative
 end
 
 # Reduce a value across a block, using shared memory for communication
-@inline function reduce_block{F<:Function,T}(op::F, val::T)::T
+@inline function reduce_block(op::Function, val::T)::T where {T}
     # shared mem for 32 partial sums
     shared = @cuStaticSharedMem(T, 32)
 
@@ -54,8 +54,8 @@ end
 end
 
 # Reduce an array across a complete grid
-function reduce_grid{F<:Function,T}(op::F, input::CuDeviceArray{T,1},
-                                    output::CuDeviceArray{T,1}, len::Integer)
+function reduce_grid(op::Function, input::CuDeviceVector{T}, output::CuDeviceVector{T},
+                     len::Integer) where {T}
 
     # TODO: neutral element depends on the operator (see Base's 2 and 3 argument `reduce`)
     val = zero(T)
@@ -83,7 +83,7 @@ Reduce a large array.
 
 Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
 """
-function gpu_reduce{F<:Function,T}(op::F, input::CuArray{T,1}, output::CuArray{T,1})
+function gpu_reduce(op::Function, input::CuVector{T}, output::CuVector{T}) where {T}
     len = length(input)
 
     # TODO: these values are hardware-dependent, with recent GPUs supporting more threads
