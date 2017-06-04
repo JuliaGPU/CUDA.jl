@@ -29,7 +29,7 @@ Installation
 CUDAnative is a registered package, and can be installed using the Julia package manager:
 
 ```julia
-Pkg.add("CUDAdrv")
+Pkg.add("CUDAnative")
 ```
 
 The package only works with Julia 0.6, which **you need to have built from source**. Refer
