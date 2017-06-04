@@ -78,6 +78,7 @@ if devcount() > 0
         include("intrinsics.jl")
 
         include("examples.jl")
+        include("documentation.jl")
     end
 end
 
