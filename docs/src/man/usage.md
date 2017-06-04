@@ -1,6 +1,22 @@
 # Usage
 
-WIP
+Quick start:
+
+```@meta
+DocTestSetup = quote
+    using CUDAdrv
+end
+```
+
+```jldoctest
+dev = CuDevice(0);
+ctx = CuContext(dev);
+
+destroy!(ctx)
+
+# output
+
+```
 
 
 ## Automatic memory management
