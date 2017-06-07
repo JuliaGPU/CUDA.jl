@@ -89,7 +89,7 @@ function irgen(func::ANY, tt::ANY)
             end
         end
 
-        isnull(entry_fn) && error("could not find entry-point function")
+        isnull(entry_fn) && error("could not find entry-point function (got ", join(LLVM.name.(collect(functions(entry_mod))), ", ", " and "), ")")
     end
 
     # link all the modules
