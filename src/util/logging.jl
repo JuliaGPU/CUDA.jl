@@ -89,25 +89,30 @@ macro logging_ccall(fun, target, rettyp, argtypes, args...)
     blk = Expr(:block)
 
     # print the function name & arguments
-    push!(blk.args, :(trace($(sprint(Base.show_unquoted,fun.args[1])*"("); line=false)))
-    i = length(args)
-    for arg in args
-        i -= 1
-        sep = (i>0 ? ", " : "")
+    if TRACE
+        push!(blk.args, :(trace($(sprint(Base.show_unquoted,fun.args[1])*"("); line=false)))
+        i = length(args)
+        for arg in args
+            i -= 1
+            sep = (i>0 ? ", " : "")
 
-        # TODO: we should only do this if evaluating `arg` has no side effects
-        push!(blk.args, :(trace(repr_indented($(esc(arg))), $sep;
-              prefix=$(sprint(Base.show_unquoted,arg))*"=", line=false)))
+            # TODO: we should only do this if evaluating `arg` has no side effects
+            push!(blk.args, :(trace(repr_indented($(esc(arg))), $sep;
+                  prefix=$(sprint(Base.show_unquoted,arg))*"=", line=false)))
+        end
+        push!(blk.args, :(trace(""; prefix=") =", line=false)))
     end
-    push!(blk.args, :(trace(""; prefix=") =", line=false)))
 
+    # actual ccall
     @gensym ret
     push!(blk.args, quote
         $ret = ccall($target, $(esc(rettyp)), $(esc(argtypes)), $(map(esc, args)...))
     end)
 
     # print results
-    push!(blk.args, :(trace($ret; prefix=" ")))
+    if TRACE
+        push!(blk.args, :(trace($ret; prefix=" ")))
+    end
 
     push!(blk.args, :($ret))
 
