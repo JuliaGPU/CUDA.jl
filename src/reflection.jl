@@ -125,7 +125,7 @@ for fname in [:code_lowered, :code_typed, :code_warntype, :code_llvm, :code_ptx,
         """ macro $(fname)(ex0)
             if ex0.head == :macrocall
                 # @cuda (...) f()
-                if Base.VERSION >= v"0.7.0-DEV.481"
+                if Base.VERSION >= v"0.7.0-DEV.357"
                     ex0 = ex0.args[4]
                 else
                     ex0 = ex0.args[3]
