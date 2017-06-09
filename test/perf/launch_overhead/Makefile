@@ -3,12 +3,11 @@ all: cuda
 
 cuda: | cuda.ptx
 
-CPPFLAGS += -isystem/opt/cuda/include/
 CFLAGS += -Wall
 LDLIBS += -lcuda
 
 NVCC = nvcc
-NVCCFLAGS = -arch=sm_35
+NVCCFLAGS = -arch=sm_35 -ccbin=$(CXX)
 
 %.ptx: %.cu
 	$(NVCC) $(NVCCFLAGS) -ptx -o $@ $<
