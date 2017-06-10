@@ -125,9 +125,18 @@ for fname in [:code_lowered, :code_typed, :code_warntype, :code_llvm, :code_ptx,
         """ macro $(fname)(ex0)
             if ex0.head == :macrocall
                 # @cuda (...) f()
-                ex0 = ex0.args[3]
+                if Base.VERSION >= v"0.7.0-DEV.357"
+                    ex0 = ex0.args[4]
+                else
+                    ex0 = ex0.args[3]
+                end
             end
-            Base.gen_call_with_extracted_types($(Expr(:quote,fname_wrapper)), ex0)
+
+            if Base.VERSION >= v"0.7.0-DEV.481"
+                Base.gen_call_with_extracted_types(__module__, $(Expr(:quote,fname_wrapper)), ex0)
+            else
+                Base.gen_call_with_extracted_types($(Expr(:quote,fname_wrapper)), ex0)
+            end
         end
     end
 end
