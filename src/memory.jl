@@ -38,6 +38,43 @@ function free(p::DevicePtr)
     @apicall(:cuMemFree, (Ptr{Void},), p.ptr)
 end
 
+
+"""
+    info()
+
+Returns a tuple of two integers, indicating respectively the free and total amount of memory
+(in bytes) available for allocation by the CUDA context.
+"""
+function info()
+    free_ref = Ref{Csize_t}()
+    total_ref = Ref{Csize_t}()
+    @apicall(:cuMemGetInfo, (Ptr{Csize_t},Ptr{Csize_t}), free_ref, total_ref)
+    return free_ref[], total_ref[]
+end
+
+"""
+    free()
+
+Returns the free amount of memory (in bytes), available for allocation by the CUDA context.
+"""
+free() = info()[1]
+
+"""
+    total()
+
+Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
+"""
+total() = info()[2]
+
+"""
+    used()
+
+Returns the used amount of memory (in bytes), allocated by the CUDA context.
+"""
+used() = total()-free()
+
+
+
 """
     set(p::DevicePtr, value::Cuint, len::Integer)
 

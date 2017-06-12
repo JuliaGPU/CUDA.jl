@@ -1,5 +1,12 @@
 @testset "memory" begin
 
+let
+    a,b = Mem.info()
+    @test a == Mem.free()
+    @test b == Mem.total()
+    @test b-a == Mem.used()
+end
+
 # pointer-based
 let
     obj = 42
