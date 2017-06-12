@@ -4,13 +4,7 @@
 
 using CUDAdrv
 
-function kernel_dummy(ptr)
-    Base.pointerset(ptr, Float32(0), Int(blockIdx().x), 8)
-    return nothing
-end
-
 const len = 1000
-
 const ITERATIONS = 5000
 
 # TODO: api-trace shows some attribute fetches, where do they come from?
@@ -32,7 +26,7 @@ function main()
         gpu_tic, gpu_toc = CuEvent(), CuEvent()
 
         cpu_tic = time_ns()
-        record(gpu_tic)        
+        record(gpu_tic)
         cudacall(fun, len, 1, (Ptr{Float32},), pointer(gpu_arr))
         record(gpu_toc)
         synchronize(gpu_toc)

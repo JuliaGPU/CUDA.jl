@@ -14,4 +14,4 @@ NVCCFLAGS = -arch=sm_35 -ccbin=$(CXX)
 
 .PHONY: clean
 clean:
-	$(RM) cuda.ptx
+	$(RM) cuda cuda.ptx

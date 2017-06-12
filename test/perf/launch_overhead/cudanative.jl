@@ -5,12 +5,11 @@
 using CUDAdrv, CUDAnative
 
 function kernel_dummy(ptr)
-    Base.pointerset(ptr, Float32(0), Int(blockIdx().x), 8)
-    return nothing
+    Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)
+    return
 end
 
 const len = 1000
-
 const ITERATIONS = 5000
 
 function main()    
@@ -26,7 +25,7 @@ function main()
         gpu_tic, gpu_toc = CuEvent(), CuEvent()
 
         cpu_tic = time_ns()
-        record(gpu_tic)        
+        record(gpu_tic)
         @cuda (len,1) kernel_dummy(pointer(gpu_arr))
         record(gpu_toc)
         synchronize(gpu_toc)

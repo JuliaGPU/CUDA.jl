@@ -1,7 +1,7 @@
 // C version
 
 #include <stdio.h>
-#include <sys/time.h>
+#include <time.h>
 
 #include <cuda.h>
 #include <cudaProfiler.h>
@@ -17,7 +17,6 @@ void __check(CUresult err, const char *file, const int line) {
 }
 
 const size_t len = 1000;
-
 const size_t ITERATIONS = 5000;
 
 float median(float x[], int n) {
@@ -70,8 +69,8 @@ int main(int argc, char **argv) {
     if (i == ITERATIONS - 5)
       check(cuProfilerStart());
 
-    struct timeval cpu_t0, cpu_t1;
-    gettimeofday(&cpu_t0, NULL);
+    struct timespec cpu_t0, cpu_t1;
+    clock_gettime(CLOCK_MONOTONIC, &cpu_t0);
 
     CUevent gpu_t0, gpu_t1;
     check(cuEventCreate(&gpu_t0, 0x0));
@@ -85,13 +84,13 @@ int main(int argc, char **argv) {
     check(cuEventRecord(gpu_t1, NULL));
     check(cuEventSynchronize(gpu_t1));
 
-    gettimeofday(&cpu_t1, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &cpu_t1);
 
     check(cuEventElapsedTime(&gpu_time[i], gpu_t0, gpu_t1));
     gpu_time[i] *= 1000;
 
     cpu_time[i] = (cpu_t1.tv_sec - cpu_t0.tv_sec) +
-                  (cpu_t1.tv_usec - cpu_t0.tv_usec);
+                  (cpu_t1.tv_nsec - cpu_t0.tv_nsec) / 1000.;
   }
   check(cuProfilerStop());
 
