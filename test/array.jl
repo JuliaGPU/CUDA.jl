@@ -111,6 +111,7 @@ let
         @test size(gpu, 2) == 1
         @test eltype(gpu) == Float32
         @test eltype(typeof(gpu)) == Float32
+        @test sizeof(gpu) == 5*sizeof(Float32)
     end
 
     # printing

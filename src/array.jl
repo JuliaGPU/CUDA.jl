@@ -74,6 +74,8 @@ Base.hash(a::CuArray, h::UInt) = hash(a.devptr, h)
 
 Base.pointer(a::CuArray) = a.devptr
 
+Base.sizeof(a::CuArray{T}) where {T} = prod(a.shape) * sizeof(T)
+
 # override the Base isequal, which compares values
 Base.isequal(a::CuArray, b::CuArray) = a == b
 
