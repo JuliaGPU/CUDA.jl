@@ -238,8 +238,8 @@ end
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
 function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=true)
-    sig = """$func($(join(tt.parameters, ", ")))"""
-    debug("Compiling $sig for capability level $cap")
+    sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
+    debug("(Re)compiling kernel $sig for device capability $cap")
 
     # generate LLVM IR
     mod, entry = irgen(func, tt)
@@ -259,7 +259,7 @@ end
 
 # check whether a (function, tuple of types) yields a valid kernel method
 function check_kernel(func::ANY, tt::ANY)
-    sig = """$func($(join(tt.parameters, ", ")))"""
+    sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
 
     ml = Base.methods(func, tt)
     if length(ml) == 0

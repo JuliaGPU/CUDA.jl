@@ -253,6 +253,21 @@ end
     @test Array(A) == Float32[imag(x)]
 end
 
+
+@testset "automatic recompilation" begin
+    d_a = CuArray{Int}(1)
+
+    @eval exec_265(a) = (a[1]=1; return nothing)
+
+    @cuda (1,1) exec_265(d_a)
+    @test Array(d_a) == [1]
+
+    @eval exec_265(a) = (a[1]=2; return nothing)
+
+    @cuda (1,1) exec_265(d_a)
+    @test Array(d_a) == [2]
+end
+
 end
 
 ############################################################################################
