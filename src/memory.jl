@@ -49,7 +49,7 @@ function info()
     free_ref = Ref{Csize_t}()
     total_ref = Ref{Csize_t}()
     @apicall(:cuMemGetInfo, (Ptr{Csize_t},Ptr{Csize_t}), free_ref, total_ref)
-    return free_ref[], total_ref[]
+    return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 
 """
