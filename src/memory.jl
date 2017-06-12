@@ -18,7 +18,7 @@ import CUDAdrv: @apicall
 
 Allocates `bytesize` bytes of linear memory on the device and returns a pointer to the
 allocated memory. The allocated memory is suitably aligned for any kind of variable. The
-memory is not cleared, use [`free`](@ref) for that.
+memory is not cleared, use [`free(::DevicePtr)`](@ref) for that.
 """
 function alloc(bytesize::Integer)
     bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
@@ -124,7 +124,7 @@ end
     alloc{T}(len=1)
 
 Allocates space for `len` objects of type `T` on the device and returns a pointer to the
-allocated memory. The memory is not cleared, use [`free`](@ref) for that.
+allocated memory. The memory is not cleared, use [`free(::DevicePtr)`](@ref) for that.
 """
 function alloc{T}(::Type{T}, len::Integer=1)
     @static if VERSION >= v"0.6.0-dev.2123"

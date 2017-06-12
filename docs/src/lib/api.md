@@ -95,8 +95,8 @@ CUDAdrv.CuFunction
 
 ```@docs
 CUDAdrv.CuGlobal
-CUDAdrv.eltype{T}(::CuGlobal{T})
-CUDAdrv.get{T}(::CuGlobal{T})
+CUDAdrv.eltype(::CuGlobal)
+CUDAdrv.get(::CuGlobal)
 CUDAdrv.set{T}(::CuGlobal{T}, ::T)
 ```
 
@@ -118,18 +118,22 @@ CUDAdrv.CuModule(::CUDAdrv.CuLinkImage, args...)
 ```@docs
 CUDAdrv.Mem.alloc(::Integer)
 CUDAdrv.Mem.free(::DevicePtr)
-CUDAdrv.Mem.set(::DevicePtr, ::Cuint, ::Integer)
+CUDAdrv.Mem.info
+CUDAdrv.Mem.total
+CUDAdrv.Mem.used
+CUDAdrv.Mem.free()
+CUDAdrv.Mem.set
 CUDAdrv.Mem.upload(::DevicePtr, ::Ref, ::Integer)
 CUDAdrv.Mem.download(::Ref, ::DevicePtr, ::Integer)
-CUDAdrv.Mem.transfer(::DevicePtr, ::DevicePtr, ::Integer)
+CUDAdrv.Mem.transfer
 ```
 
 ### Object-based (high-level)
 
 ```@docs
-CUDAdrv.Mem.alloc{T}(::Type{T}, ::Integer)
+CUDAdrv.Mem.alloc(::Type, ::Integer)
 CUDAdrv.Mem.upload{T}(::DevicePtr{T}, ::T)
-CUDAdrv.Mem.download{T}(::DevicePtr{T})
+CUDAdrv.Mem.download(::DevicePtr)
 ```
 
 ## Stream Management
@@ -153,6 +157,7 @@ CUDAdrv.@elapsed
 ## Execution Control
 
 ```@docs
+CUDAdrv.CuDim3
 CUDAdrv.cudacall
 CUDAdrv.launch
 ```
