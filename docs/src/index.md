@@ -31,10 +31,18 @@ Pkg.add("CUDAdrv")
 Pkg.test("CUDAdrv")
 ```
 
-If you get an error `ERROR_NO_DEVICE` (`No CUDA-capable device`) upon loading CUDAdrv.jl,
-CUDA could not detect any capable GPU. It probably means that your GPU isn't supported by
-the CUDA/NVIDIA driver loaded by CUDAdrv.jl, or that your set-up is damaged in some way.
-Please make sure that (1) your GPU is supported by the current driver (you might need the
-so-called legacy driver, refer to the CUDA installation instructions for your platform), and
-(2) CUDAdrv.jl targets the correct driver library (check the `libcuda_path` variable in
-`CUDAdrv/deps/ext.jl`, or run `Pkg.build` with the `DEBUG` environment variable set to 1).
+CUDAdrv can throw errors during build. These errors tend to be cryptic, as the library isn't
+loaded yet and we can't look-up the string for a given error code. Common errors include:
+
+* Code 999 (`UNKNOWN_ERROR`): this often indicates that your set-up is broken, eg. because
+  you didn't load the correct, or any, kernel module. Please verify your set-up, on Linux by
+  executing `nvidia-smi` or on other platforms by compiling and running CUDA C code using
+  `nvcc`.
+* Code 100 (`ERROR_NO_DEVICE`): CUDA didn't detect your device, because it is not supported
+  by CUDA or because you loaded the wrong kernel driver (eg. legacy when you need regular,
+  or vice-versa). CUDAdrv cannot work in this case, because CUDA does not allow us to query
+  the driver version without a valid device, something we need in order to version the API
+  calls.
+* Code -1 (not a valid CUDA error): this error shouldn't ever be thrown by any CUDA API
+  function. Possibly, CUDAdrv might have selected the library stubs instead, which always
+  return -1. Please run the build script with `DEBUG=1` and file a bug report.

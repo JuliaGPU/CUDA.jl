@@ -15,7 +15,7 @@ macro apicall(libpath, fn, types, args...)
         sym = Libdl.dlsym(lib, $(esc(fn)))
 
         status = ccall(sym, Cint, $(esc(types)), $(map(esc, args)...))
-        status != 0 && error("Error $status calling ", $fn)
+        status != 0 && error("CUDA error $status calling ", $fn)
     end
 end
 
@@ -23,6 +23,10 @@ function version(libpath)
     ref = Ref{Cint}()
     @apicall(libpath, :cuDriverGetVersion, (Ptr{Cint}, ), ref)
     return VersionNumber(ref[] ÷ 1000, mod(ref[], 100) ÷ 10)
+end
+
+function init(libpath, flags=0)
+    @apicall(libpath, :cuInit, (Cint, ), flags)
 end
 
 
@@ -67,7 +71,11 @@ const ext = joinpath(@__DIR__, "ext.jl")
 function main()
     # discover stuff
     libcuda_path, libcuda_vendor = find_libcuda()
+    init(libcuda_path)  # see note below
     libcuda_version = version(libcuda_path)
+
+    # NOTE: initializing the library isn't necessary, but flushes out errors that otherwise
+    #       would happen during `version` or, worse, at package load time.
 
     # check if we need to rebuild
     if isfile(ext)
