@@ -39,7 +39,7 @@ const DEBUG = TRACE || haskey(ENV, "DEBUG")
 end
 @inline debug(msg...; kwargs...) = debug(STDERR, msg...; kwargs...)
 macro debug(args...)
-    DEBUG && return Expr(:call, :trace, map(esc, args)...)
+    DEBUG && return Expr(:call, :debug, map(esc, args)...)
 end
 
 # Create an indented string from any value (instead of escaping endlines as \n)
