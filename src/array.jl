@@ -74,8 +74,6 @@ Base.hash(a::CuArray, h::UInt) = hash(a.devptr, h)
 
 Base.pointer(a::CuArray) = a.devptr
 
-Base.sizeof{T}(a::CuArray{T}) = prod(a.shape) * sizeof(T)
-
 # override the Base isequal, which compares values
 Base.isequal(a::CuArray, b::CuArray) = a == b
 
@@ -90,6 +88,8 @@ Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
 
 Base.size(g::CuArray) = g.shape
 Base.length(g::CuArray) = prod(g.shape)
+
+Base.sizeof{T}(a::CuArray{T}) = Base.elsize(a) * length(a)
 
 Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
     Base.showarray(io, Array(a), repr; kwargs...)
