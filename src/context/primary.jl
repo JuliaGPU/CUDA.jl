@@ -71,15 +71,12 @@ It is normally unnecessary to call this function, as resource are automatically 
 contexts go out of scope. In the case of primary contexts, they are collected when all
 contexts derived from that primary context have gone out of scope.
 """
-function unsafe_reset!(pctx::CuPrimaryContext)
-    if haskey(pctx_instances, pctx)
-        for ref in pctx_instances[pctx]
-            ctx = ref.value
-            info("forcibly finalizing $ctx")
-            finalize(ctx)
-        end
+function unsafe_reset!(pctx::CuPrimaryContext, check_state::Bool=true)
+    for ref in pctx_instances[pctx]
+        ctx = ref.value
+        finalize(ctx)
     end
-    @assert !isactive(pctx)
+    @assert isempty(pctx_instances[pctx])
 
     # NOTE: we don't support/perform the actual call to cuDevicePrimaryCtxReset, because of
     #       what's probably a bug in CUDA. Calling cuDevicePrimaryCtxReset makes CUDA ignore
@@ -91,6 +88,12 @@ function unsafe_reset!(pctx::CuPrimaryContext)
     #       finalization (and hence cuDevicePrimaryCtxRelease) on all derived contexts
     #       through the GC, and asserted that the primary context is inactive now.
     #@apicall(:cuDevicePrimaryCtxReset, (CuDevice_t,), pctx.dev)
+
+    if check_state
+        # we might not want to check this, because
+        # external libraries could keep the primary context active
+        @assert !isactive(pctx)
+    end
 
     return
 end
