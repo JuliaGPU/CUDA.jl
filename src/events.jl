@@ -27,10 +27,10 @@ end
 
 function unsafe_destroy!(e::CuEvent)
     if isvalid(e.ctx)
-        @trace("Finalizing CuEvent at $(Base.pointer_from_objref(e))")
+        @trace("Finalizing CuEvent object at $(Base.pointer_from_objref(e))")
         @apicall(:cuEventDestroy, (CuEvent_t,), e)
     else
-        @trace("Skipping finalizer for CuEvent at $(Base.pointer_from_objref(e))) because context is no longer valid.")
+        @trace("Skipping finalizer for CuEvent object at $(Base.pointer_from_objref(e))) because context is no longer valid.")
     end
 end
 

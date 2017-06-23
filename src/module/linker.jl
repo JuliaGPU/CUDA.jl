@@ -45,10 +45,10 @@ end
 
 function unsafe_destroy!(link::CuLink)
     if isvalid(link.ctx)
-        @trace("Finalizing CuLink at $(Base.pointer_from_objref(link))")
+        @trace("Finalizing CuLink object at $(Base.pointer_from_objref(link))")
         @apicall(:cuLinkDestroy, (CuLinkState_t,), link)
     else
-        @trace("Skipping finalizer for CuLink at $(Base.pointer_from_objref(link))) because context is no longer valid")
+        @trace("Skipping finalizer for CuLink object at $(Base.pointer_from_objref(link))) because context is no longer valid")
     end
 end
 

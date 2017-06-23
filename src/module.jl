@@ -59,10 +59,10 @@ end
 
 function unsafe_unload!(mod::CuModule)
     if isvalid(mod.ctx)
-        @trace("Finalizing CuModule at $(Base.pointer_from_objref(mod)))")
+        @trace("Finalizing CuModule object at $(Base.pointer_from_objref(mod)))")
         @apicall(:cuModuleUnload, (CuModule_t,), mod)
     else
-        @trace("Skipping finalizer for CuModule at $(Base.pointer_from_objref(mod))) because context is no longer valid")
+        @trace("Skipping finalizer for CuModule object at $(Base.pointer_from_objref(mod))) because context is no longer valid")
     end
 end
 

@@ -71,13 +71,13 @@ const context_instances = Dict{CuContext_t,CuContext}()
 
 isvalid(ctx::CuContext) = ctx.valid
 function invalidate!(ctx::CuContext)
-    @trace("Invalidating CuContext at $(Base.pointer_from_objref(ctx))")
+    @trace("Invalidating CuContext object at $(Base.pointer_from_objref(ctx))")
     ctx.valid = false
     nothing
 end
 
 function unsafe_destroy!(ctx::CuContext)
-    @trace("Finalizing CuContext at $(Base.pointer_from_objref(ctx))")
+    @trace("Finalizing CuContext object at $(Base.pointer_from_objref(ctx))")
     if !ctx.owned
         @trace("Not destroying context $ctx because we don't own it")
     elseif isvalid(ctx)
