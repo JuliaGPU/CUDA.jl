@@ -15,6 +15,12 @@ for interoperability with (applications using) the runtime API.
 """
 type CuPrimaryContext
     dev::CuDevice
+
+    function CuPrimaryContext(dev::CuDevice)
+        pctx = new(dev)
+        get!(pctx_instances, pctx, Set{WeakRef}())
+        return pctx
+    end
 end
 
 # keep a list of the contexts derived from a primary context.
@@ -35,12 +41,13 @@ function CuContext(pctx::CuPrimaryContext)
     @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, pctx.dev)
     ctx = CuContext(handle[], false)    # CuContext shouldn't destroy this ctx
     finalizer(ctx, (ctx)->begin
+        info("yay")
         @assert isvalid(ctx)    # not owned by CuContext, so shouldn't have been invalidated
         @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
         delete!(pctx_instances[pctx], WeakRef(ctx))
         invalidate!(ctx)
     end)
-    push!(get!(pctx_instances, pctx, Set{WeakRef}()), WeakRef(ctx))
+    push!(pctx_instances[pctx], WeakRef(ctx))
     return ctx
 end
 
@@ -64,17 +71,25 @@ contexts go out of scope. In the case of primary contexts, they are collected wh
 contexts derived from that primary context have gone out of scope.
 """
 function unsafe_reset!(pctx::CuPrimaryContext)
-    for ref in pctx_instances[pctx]
-        ctx = ref.value
-        info("forcibly finalizing $ctx")
-        finalize(ctx)
+    if haskey(pctx_instances, pctx)
+        for ref in pctx_instances[pctx]
+            ctx = ref.value
+            info("forcibly finalizing $ctx")
+            finalize(ctx)
+        end
     end
     @assert !isactive(pctx)
 
-    # NOTE: at this point we don't need to reset the primary context, as all derived
-    #       contexts have been forcibly finalized and the primary context has been verified
-    #       to be inactive, but let's just do so for reduncancy.
-    @apicall(:cuDevicePrimaryCtxReset, (CuDevice_t,), pctx.dev)
+    # NOTE: we don't support/perform the actual call to cuDevicePrimaryCtxReset, because of
+    #       what's probably a bug in CUDA. Calling cuDevicePrimaryCtxReset makes CUDA ignore
+    #       all future calls to cuDevicePrimaryCtxRelease, even if those would be necessary
+    #       to make the refcount of corresponding cuDevicePrimaryCtxRetain calls drop to 0.
+    #       As a result, calling cuDevicePrimaryCtxReset keeps
+    #
+    #       However, we don't _need_ cuDevicePrimaryCtxReset because we already forced
+    #       finalization (and hence cuDevicePrimaryCtxRelease) on all derived contexts
+    #       through the GC, and asserted that the primary context is inactive now.
+    #@apicall(:cuDevicePrimaryCtxReset, (CuDevice_t,), pctx.dev)
 
     return
 end

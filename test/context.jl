@@ -35,6 +35,8 @@ end
 pctx = CuPrimaryContext(dev)
 
 @test !isactive(pctx)
+unsafe_reset!(pctx)
+@test !isactive(pctx)
 
 @test flags(pctx) == CUDAdrv.SCHED_AUTO
 setflags!(pctx, CUDAdrv.SCHED_BLOCKING_SYNC)
