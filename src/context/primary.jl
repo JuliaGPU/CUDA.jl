@@ -39,13 +39,14 @@ reason, it is advised to use this function with `do` block syntax.
 function CuContext(pctx::CuPrimaryContext)
     handle = Ref{CuContext_t}()
     @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, pctx.dev)
-    ctx = CuContext(handle[], false)    # CuContext shouldn't destroy this ctx
+    ctx = CuContext(handle[], false)    # CuContext shouldn't manage this ctx
     finalizer(ctx, (ctx)->begin
-        info("yay")
+        @trace("Finalizing derived CuContext object at $(Base.pointer_from_objref(ctx)))")
         @assert isvalid(ctx)    # not owned by CuContext, so shouldn't have been invalidated
         @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
         delete!(pctx_instances[pctx], WeakRef(ctx))
         invalidate!(ctx)
+        destroy!(ctx)
     end)
     push!(pctx_instances[pctx], WeakRef(ctx))
     return ctx
