@@ -3,10 +3,10 @@
 # This is meant for interoperability with the CUDA runtime API
 
 export
-    CuPrimaryContext, isactive, flags, setflags!
+    CuPrimaryContext, unsafe_reset!, isactive, flags, setflags!
 
 """
-    CuPrimaryContext(dev::Int)
+    CuPrimaryContext(dev::CuDevice)
 
 Create a primary CUDA context for a given device.
 
@@ -14,8 +14,13 @@ Each primary context is unique per device and is shared with CUDA runtime API. I
 for interoperability with (applications using) the runtime API.
 """
 type CuPrimaryContext
-    dev::Int
+    dev::CuDevice
 end
+
+# keep a list of the contexts derived from a primary context.
+# these need to be invalidated when we reset the primary context forcibly
+# (as opposed to waiting for all derived contexts going out of scope).
+const pctx_instances = Dict{CuPrimaryContext,Set{WeakRef}}()
 
 """
     CuContext(pctx::CuPrimaryContext)
@@ -30,8 +35,12 @@ function CuContext(pctx::CuPrimaryContext)
     @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, pctx.dev)
     ctx = CuContext(handle[], false)    # CuContext shouldn't destroy this ctx
     finalizer(ctx, (ctx)->begin
-        isvalid(ctx) && @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
+        @assert isvalid(ctx)    # not owned by CuContext, so shouldn't have been invalidated
+        @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
+        delete!(pctx_instances[pctx], WeakRef(ctx))
+        invalidate!(ctx)
     end)
+    push!(get!(pctx_instances, pctx, Set{WeakRef}()), WeakRef(ctx))
     return ctx
 end
 
@@ -41,6 +50,33 @@ function state(pctx::CuPrimaryContext)
     @apicall(:cuDevicePrimaryCtxGetState, (CuDevice_t, Ptr{Cuint}, Ptr{Cint}),
              pctx.dev, flags, active)
     return (flags[], active[] == one(Cint))
+end
+
+"""
+    reset(pctx::CuPrimaryContext)
+
+Explicitly destroys and cleans up all resources associated with a device's primary context
+in the current process. Note that this forcibly invalidates all contexts derived from this
+primary context, and as a result outstanding resources might become invalid.
+
+It is normally unnecessary to call this function, as resource are automatically freed when
+contexts go out of scope. In the case of primary contexts, they are collected when all
+contexts derived from that primary context have gone out of scope.
+"""
+function unsafe_reset!(pctx::CuPrimaryContext)
+    for ref in pctx_instances[pctx]
+        ctx = ref.value
+        info("forcibly finalizing $ctx")
+        finalize(ctx)
+    end
+    @assert !isactive(pctx)
+
+    # NOTE: at this point we don't need to reset the primary context, as all derived
+    #       contexts have been forcibly finalized and the primary context has been verified
+    #       to be inactive, but let's just do so for reduncancy.
+    @apicall(:cuDevicePrimaryCtxReset, (CuDevice_t,), pctx.dev)
+
+    return
 end
 
 """
