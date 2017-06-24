@@ -44,9 +44,8 @@ function CuContext(pctx::CuPrimaryContext)
         @trace("Finalizing derived CuContext object at $(Base.pointer_from_objref(ctx)))")
         @assert isvalid(ctx)    # not owned by CuContext, so shouldn't have been invalidated
         @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
-        delete!(pctx_instances[pctx], WeakRef(ctx))
         invalidate!(ctx)
-        destroy!(ctx)
+        delete!(pctx_instances[pctx], WeakRef(ctx))
     end)
     push!(pctx_instances[pctx], WeakRef(ctx))
     return ctx
@@ -61,7 +60,7 @@ function state(pctx::CuPrimaryContext)
 end
 
 """
-    reset(pctx::CuPrimaryContext)
+    unsafe_reset!(pctx::CuPrimaryContext, [checked::Bool=true])
 
 Explicitly destroys and cleans up all resources associated with a device's primary context
 in the current process. Note that this forcibly invalidates all contexts derived from this
@@ -70,28 +69,38 @@ primary context, and as a result outstanding resources might become invalid.
 It is normally unnecessary to call this function, as resource are automatically freed when
 contexts go out of scope. In the case of primary contexts, they are collected when all
 contexts derived from that primary context have gone out of scope.
+
+The `checked` argument determines whether to verify that the primary context has become
+inactive after resetting the derived driver contexts. This may not be possible, eg. if the
+CUDA runtime API itself has retained an additional context instance.
 """
-function unsafe_reset!(pctx::CuPrimaryContext, check_state::Bool=true)
+function unsafe_reset!(pctx::CuPrimaryContext, checked::Bool=true)
     for ref in pctx_instances[pctx]
         ctx = ref.value
+        destroy!(ctx)
         finalize(ctx)
     end
     @assert isempty(pctx_instances[pctx])
 
     # NOTE: we don't support/perform the actual call to cuDevicePrimaryCtxReset, because of
-    #       what's probably a bug in CUDA. Calling cuDevicePrimaryCtxReset makes CUDA ignore
+    #       what's probably a bug in CUDA: calling cuDevicePrimaryCtxReset makes CUDA ignore
     #       all future calls to cuDevicePrimaryCtxRelease, even if those would be necessary
-    #       to make the refcount of corresponding cuDevicePrimaryCtxRetain calls drop to 0.
-    #       As a result, calling cuDevicePrimaryCtxReset keeps
+    #       to make the refcount of derived contexts instantiated through
+    #       cuDevicePrimaryCtxRetain drop to 0. As a result, calling cuDevicePrimaryCtxReset
+    #       makes that future activated primary contexts remain active indefinitely.
     #
     #       However, we don't _need_ cuDevicePrimaryCtxReset because we already forced
     #       finalization (and hence cuDevicePrimaryCtxRelease) on all derived contexts
-    #       through the GC, and asserted that the primary context is inactive now.
+    #       through the GC, and asserted that there's no derived contexts left.
     #@apicall(:cuDevicePrimaryCtxReset, (CuDevice_t,), pctx.dev)
 
-    if check_state
-        # we might not want to check this, because
-        # external libraries could keep the primary context active
+    if checked
+        # NOTE: having finalized all derived contexts doesn't mean the primary context is
+        #       inactive now, because external consumers (eg. CUDArt) might hold another
+        #       instance. That doesn't mean this logic isn't required, for correctness &
+        #       ease of debugging wrt. data structures managed by CUDAdrv tied to contexts
+        #       allocated via CUDAdrv. However, it requires us to still perform eg. a
+        #       cudaDeviceReset call in CUDArt.
         @assert !isactive(pctx)
     end
 

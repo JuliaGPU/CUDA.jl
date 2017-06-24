@@ -76,7 +76,7 @@ CUDAdrv.CuContext(::CuPrimaryContext)
 CUDAdrv.isactive(::CuPrimaryContext)
 CUDAdrv.flags(::CuPrimaryContext)
 CUDAdrv.setflags!(::CuPrimaryContext, ::CUDAdrv.CUctx_flags)
-CUDAdrv.unsafe_reset!(::CuPrimaryContext)
+CUDAdrv.unsafe_reset!(::CuPrimaryContext, ::Bool)
 ```
 
 
