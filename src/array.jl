@@ -60,10 +60,10 @@ end
 
 function unsafe_free!(a::CuArray)
     if isvalid(a.devptr.ctx)
-        @trace("Finalizing CuArray at $(Base.pointer_from_objref(a))")
+        @trace("Finalizing CuArray object at $(Base.pointer_from_objref(a))")
         Mem.free(a.devptr)
     else
-        @trace("Skipping finalizer for CuArray at $(Base.pointer_from_objref(a))) because context is no longer valid")
+        @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because context is no longer valid")
     end
 end
 

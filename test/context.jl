@@ -32,8 +32,10 @@ end
 
 @testset "primary context" begin
 
-pctx = CuPrimaryContext(0)
+pctx = CuPrimaryContext(dev)
 
+@test !isactive(pctx)
+unsafe_reset!(pctx)
 @test !isactive(pctx)
 
 @test flags(pctx) == CUDAdrv.SCHED_AUTO
@@ -41,9 +43,20 @@ setflags!(pctx, CUDAdrv.SCHED_BLOCKING_SYNC)
 @test flags(pctx) == CUDAdrv.SCHED_BLOCKING_SYNC
 
 CuContext(pctx) do ctx
+    @test CUDAdrv.isvalid(ctx)
     @test isactive(pctx)
 end
 gc()
 @test !isactive(pctx)
+
+CuContext(pctx) do ctx
+    @test CUDAdrv.isvalid(ctx)
+    @test isactive(pctx)
+
+    unsafe_reset!(pctx)
+
+    @test !isactive(pctx)
+    @test !CUDAdrv.isvalid(ctx)
+end
 
 end

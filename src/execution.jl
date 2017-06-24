@@ -35,6 +35,8 @@ const CuDim = Union{Integer,
                     Tuple{Integer, Integer},
                     Tuple{Integer, Integer, Integer}}
 
+# TODO: document ideal default values
+# TODO: unsafe convert voor arrays van en naar cudart?
 """
     launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, shmem::Int, stream::CuStream, (args...))
 
