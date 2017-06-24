@@ -5,7 +5,7 @@
 @testset "LLVM IR" begin
 
 @testset "basic reflection" begin
-    llvm_dummy() = return nothing
+    llvm_dummy() = return
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_dummy, (); optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
@@ -30,7 +30,7 @@ end
 
     @eval function codegen_call_sysimg(a,i)
         Base.pointerset(a, 0, mod1(i,10), 8)
-        return nothing
+        return
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, (Ptr{Int},Int)))
@@ -53,7 +53,7 @@ end
         weight_matrix[1, 16] *= 2
         sync_threads()
 
-        return nothing
+        return
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_tuple_leak, ()))
@@ -109,7 +109,7 @@ end
 @testset "idempotency" begin
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
-    @eval codegen_idempotency() = return nothing
+    @eval codegen_idempotency() = return
     code_ptx(DevNull, codegen_idempotency, ())
     code_ptx(DevNull, codegen_idempotency, ())
 end
@@ -121,7 +121,7 @@ end
     @eval @noinline codegen_child_reuse_child(i) = sink(i)
     @eval function codegen_child_reuse_parent1(i)
         codegen_child_reuse_child(i)
-        return nothing
+        return
     end
 
     asm = sprint(io->code_ptx(io, codegen_child_reuse_parent1, (Int,)))
@@ -129,7 +129,7 @@ end
 
     @eval function codegen_child_reuse_parent2(i)
         codegen_child_reuse_child(i+1)
-        return nothing
+        return
     end
 
     asm = sprint(io->code_ptx(io, codegen_child_reuse_parent2, (Int,)))
@@ -143,27 +143,27 @@ end
     @eval @noinline codegen_child_reuse_bis_child2(i) = sink(i+1)
     @eval function codegen_child_reuse_bis_parent1(i)
         codegen_child_reuse_bis_child1(i) + codegen_child_reuse_bis_child2(i)
-        return nothing
+        return
     end
     asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent1, (Int,)))
 
     @eval function codegen_child_reuse_bis_parent2(i)
         codegen_child_reuse_bis_child1(i+1) + codegen_child_reuse_bis_child2(i+1)
-        return nothing
+        return
     end
     asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent2, (Int,)))
 end
 
 @testset "indirect sysimg function use" begin
     # issue #9: re-using sysimg functions should force recompilation
-    #           (host fldmod1->mod1 throwsm, so the PTX code shouldn't contain a throw)
+    #           (host fldmod1->mod1 throws, so the PTX code shouldn't contain a throw)
 
     # FIXME: Int64 because of #49
 
     @eval function codegen_recompile(out)
         wid, lane = fldmod1(unsafe_load(out), Int64(32))
         unsafe_store!(out, wid)
-        return nothing
+        return
     end
 
     asm = sprint(io->code_ptx(io, codegen_recompile, (Ptr{Int64},)))
@@ -181,7 +181,7 @@ end
 
     @eval function codegen_recompile_bis_fromptx()
         codegen_recompile_bis_child(10)
-        return nothing
+        return
     end
 
     code_ptx(DevNull, codegen_recompile_bis_fromptx, ())
