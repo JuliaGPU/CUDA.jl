@@ -14,8 +14,8 @@ A type used to specify dimensions, consisting of 3 integers for respectively the
 and `z` dimension. Unspecified dimensions default to `1`.
 
 Often accepted as argument through the `CuDim` type alias, eg. in the case of
-[`cudacall`](@ref), allowing to pass dimensions as a plain integer or tuple without having
-to construct an explicit `CuDim3` object.
+[`cudacall`](@ref) or [`launch`](@ref), allowing to pass dimensions as a plain integer or a
+tuple without having to construct an explicit `CuDim3` object.
 """
 immutable CuDim3
     x::Cuint
@@ -30,15 +30,16 @@ CuDim3{T <: Integer}(g::NTuple{3,T}) = CuDim3(g[1], g[2],     g[3])
 
 # Type alias for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3((len, 2))`)
-const CuDim = Union{Integer,
+const CuDim = Union{CuDim3,
+                    Integer,
                     Tuple{Integer},
                     Tuple{Integer, Integer},
                     Tuple{Integer, Integer, Integer}}
 
-# TODO: document ideal default values
-# TODO: unsafe convert voor arrays van en naar cudart?
 """
-    launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3, shmem::Int, stream::CuStream, (args...))
+    launch(f::CuFunction, griddim::CuDim, blockdim::CuDim, args...;
+           shmem=0, stream=CuDefaultStream())
+    launch(f::CuFunction, griddim::CuDim, blockdim::CuDim, shmem::Int, stream::CuStream, args...)
 
 Low-level call to launch a CUDA function `f` on the GPU, using `griddim` and `blockdim` as
 respectively the grid and block configuration. Dynamic shared memory is allocated according
@@ -47,16 +48,25 @@ to `shmem`, and the kernel is launched on stream `stream`.
 Arguments to a kernel should either be bitstype, in which case they will be copied to the
 internal kernel parameter buffer, or a pointer to device memory.
 
+Both a version with and without keyword arguments is provided, the latter being slightly
+faster, but not providing default values for the `shmem` and `stream` arguments.
+
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
-@inline function launch{N}(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
-                           shmem::Int, stream::CuStream,
-                           args::NTuple{N,Any})
+@inline function launch(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+                        shmem::Int, stream::CuStream,
+                        args...)
+    griddim = CuDim3(griddim)
+    blockdim = CuDim3(blockdim)
     (griddim.x>0 && griddim.y>0 && griddim.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
 
-    _launch(f, griddim, blockdim, shmem, stream, args)
+    _launch(f, griddim, blockdim, shmem, stream, args...)
 end
+
+@inline launch(f::CuFunction, griddim::CuDim, blockdim::CuDim, args...;
+               shmem::Int=0, stream::CuStream=CuDefaultStream()) =
+    launch(f, griddim, blockdim, shmem, stream, args...)
 
 # we need a generated function to get an args array (DevicePtr->Ptr && pointer_from_objref),
 # without having to inspect the types at runtime
@@ -99,8 +109,11 @@ end
 end
 
 """
-    cudacall(f::CuFunction, griddim, blockdim, types, values; shmem=0, stream=CuDefaultStream())
-    cudacall(f::CuFunction, griddim, blockdim, shmem::Integer, stream::CuStream, types, values)
+    cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim, types, values;
+             shmem=0, stream=CuDefaultStream())
+    cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+             shmem::Integer, stream::CuStream,
+             types, values)
 
 `ccall`-like interface for launching a CUDA function `f` on a GPU.
 
@@ -121,7 +134,8 @@ The `griddim` and `blockdim` arguments control the launch configuration, and sho
 consist of either an integer, or a tuple of 1 to 3 integers (omitted dimensions default to
 1).
 
-Both a version with and without keyword arguments is provided, the latter being faster. In
+Both a version with and without keyword arguments is provided, the latter being slightly
+faster, but not providing default values for the `shmem` and `stream` arguments. In
 addition, the `types` argument can contain both a tuple of types, and a tuple type, again
 the former being slightly faster.
 """

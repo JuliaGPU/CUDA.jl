@@ -34,6 +34,18 @@ let
     @test_throws MethodError cudacall(dummy, 1, 1, CuDefaultStream(), 0, Tuple{})
     ## bug in NTuple usage
     cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{Tuple{Int64},Int64}, (1,), 1)
+
+    # different launch syntaxes
+    CUDAdrv.launch(dummy, 1, 1, ())
+    CUDAdrv.launch(dummy, 1, 1, (); shmem=0)
+    CUDAdrv.launch(dummy, 1, 1, (); stream=CuDefaultStream())
+    CUDAdrv.launch(dummy, 1, 1, (); shmem=0, stream=CuDefaultStream())
+
+    # each should also accept CuDim3's directly
+    let dim = CUDAdrv.CuDim3(1)
+        cudacall(dummy, dim, dim, ())
+        CUDAdrv.launch(dummy, dim, dim, ())
+    end
 end
 
 let
