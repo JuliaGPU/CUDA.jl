@@ -14,14 +14,14 @@ macro apicall(libpath, fn, types, args...)
         lib = Libdl.dlopen($(esc(libpath)))
         sym = Libdl.dlsym(lib, $(esc(fn)))
 
-        status = ccall(sym, Cint, $(esc(types)), $(map(esc, args)...))
-        status != 0 && error("CUDA error $status calling ", $fn)
+        ccall(sym, Cint, $(esc(types)), $(map(esc, args)...))
     end
 end
 
 function version(libpath)
     ref = Ref{Cint}()
-    @apicall(libpath, :cuDriverGetVersion, (Ptr{Cint}, ), ref)
+    status = @apicall(libpath, :cuDriverGetVersion, (Ptr{Cint}, ), ref)
+    @assert status == 0
     return VersionNumber(ref[] ÷ 1000, mod(ref[], 100) ÷ 10)
 end
 
@@ -47,7 +47,7 @@ function find_libcuda()
             end
         end
     libcuda = Libdl.find_library(libcuda_name, libcuda_locations)
-    isempty(libcuda) && error("CUDA driver library cannot be found (specify the path to $(libcuda_name) using the CUDA_DRIVER environment variable).")
+    isempty(libcuda) && error("Could not find the CUDA driver library (specify the path to $(libcuda_name) using the CUDA_DRIVER environment variable).")
 
     # find the full path of the library
     # NOTE: we could just as well use the result of `find_library,
@@ -71,7 +71,19 @@ const ext = joinpath(@__DIR__, "ext.jl")
 function main()
     # discover stuff
     libcuda_path, libcuda_vendor = find_libcuda()
-    init(libcuda_path)  # see note below
+    status = init(libcuda_path)  # see note below
+    if status != 0
+        # decode some common errors (as we haven't loaded errors.jl yet)
+        if status == -1
+            error("Building against CUDA driver stubs, which is not supported.")
+        elseif status == 100
+            error("Initializing CUDA driver failed: no CUDA hardware available (code 100).")
+        elseif status == 999
+            error("Initializing CUDA driver failed: unknown error (code 999).")
+        else
+            error("Initializing CUDA driver failed with code $status.")
+        end
+    end
     libcuda_version = version(libcuda_path)
 
     # NOTE: initializing the library isn't necessary, but flushes out errors that otherwise

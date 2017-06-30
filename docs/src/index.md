@@ -28,21 +28,27 @@ At the Julia REPL:
 
 ```julia
 Pkg.add("CUDAdrv")
-Pkg.test("CUDAdrv")
+using CUDAdrv
 ```
 
-CUDAdrv can throw errors during build. These errors tend to be cryptic, as the library isn't
-loaded yet and we can't look-up the string for a given error code. Common errors include:
+Building and loading CUDAdrv might display warnings, indicating issues with your set-up.
+Please pay close attention to these, as they might prevent CUDAdrv.jl, or even all of CUDA,
+to work properly! Some possible issues:
 
-* Code 999 (`UNKNOWN_ERROR`): this often indicates that your set-up is broken, eg. because
-  you didn't load the correct, or any, kernel module. Please verify your set-up, on Linux by
+* unknown error (code 999): this often indicates that your set-up is broken, eg. because you
+  didn't load the correct, or any, kernel module. Please verify your set-up, on Linux by
   executing `nvidia-smi` or on other platforms by compiling and running CUDA C code using
   `nvcc`.
-* Code 100 (`ERROR_NO_DEVICE`): CUDA didn't detect your device, because it is not supported
-  by CUDA or because you loaded the wrong kernel driver (eg. legacy when you need regular,
-  or vice-versa). CUDAdrv cannot work in this case, because CUDA does not allow us to query
+* no device (code 100): CUDA didn't detect your device, because it is not supported by CUDA
+  or because you loaded the wrong kernel driver (eg. legacy when you need regular, or
+  vice-versa). CUDAdrv.jl cannot work in this case, because CUDA does not allow us to query
   the driver version without a valid device, something we need in order to version the API
   calls.
-* Code -1 (not a valid CUDA error): this error shouldn't ever be thrown by any CUDA API
-  function. Possibly, CUDAdrv might have selected the library stubs instead, which always
-  return -1. Please run the build script with `DEBUG=1` and file a bug report.
+* using library stubs (code -1): if any API call returns -1, you're probably using the CUDA
+  driver library stubs which return this value for every function call. This is not
+  supported by CUDAdrv.jl, and is only intended to be used when compiling C or C++ code to
+  be linked with `libcuda.so` at a time when that library isn't available yet. Unless you
+  purposefully added the stub libraries to the search path, please run the build script with
+  `DEBUG=1` and file a bug report.
+
+Optionally, run the tests using `Pkg.test("CUDAdrv")`.
