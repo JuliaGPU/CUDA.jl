@@ -7,14 +7,13 @@ using CUDAdrv
 import CUDAdrv: debug, DEBUG, trace, TRACE
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
-if isfile(ext)
+const configured = if isfile(ext)
     include(ext)
-elseif haskey(ENV, "ONLY_LOAD")
-    # special mode where the package is loaded without requiring a successful build.
-    # this is useful for loading in unsupported environments, eg. Travis + Documenter.jl
-    warn("Only loading the package, without activating any functionality.")
+    true
 else
-    error("Unable to load $ext\n\nPlease run Pkg.build(\"CUDAnative\") and restart Julia.")
+    # enable CUDAnative.jl to be loaded when the build failed, simplifying downstream use.
+    # remove this when we have proper support for conditional modules.
+    false
 end
 
 include("jit.jl")
@@ -27,12 +26,16 @@ include("execution.jl")
 include("reflection.jl")
 
 function __init__()
-    haskey(ENV, "ONLY_LOAD") && return
+    if !configured
+        warn("CUDAnative.jl has not been configured, and will not work properly.")
+        warn("Please run Pkg.build(\"CUDAnative\") and restart Julia.")
+        return
+    end
 
     if CUDAdrv.version() != cuda_version ||
         LLVM.version() != llvm_version ||
         VersionNumber(Base.libllvm_version) != julia_llvm_version
-        error("Your set-up has changed. Please re-run Pkg.build(\"CUDAnative\") and restart Julia.")
+        error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
     init_jit()
 end
