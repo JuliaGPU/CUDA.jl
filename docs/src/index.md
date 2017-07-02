@@ -22,7 +22,17 @@ without doing a `make install`. Afterwards, you can do:
 
 ```
 Pkg.add("CUDAnative")
+using CUDAnative
+
+# optionally
 Pkg.test("CUDAnative")
 ```
 
-For now, only Linux and macOS are supported.
+For now, only Linux and macOS are supported. The build step will discover the available CUDA
+and LLVM installations, and figure out which devices can be programmed using that set-up. It
+depends on CUDAdrv and LLVM being properly configured.
+
+Even if the build fails, CUDAnative.jl should always be loadable. This simplifies use by
+downstream packages, until there is proper language support for conditional modules. You can
+check whether the package has been built properly by inspecting the `CUDAnative.configured`
+global variable.
