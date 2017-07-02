@@ -6,16 +6,16 @@ using Compat
 using Compat.String
 
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
-if isfile(ext)
+const configured = if isfile(ext)
     include(ext)
-elseif haskey(ENV, "ONLY_LOAD")
-    # special mode where the package is loaded without requiring a successful build.
-    # this is useful for loading in unsupported environments, eg. Travis + Documenter.jl
-    warn("Only loading the package, without activating any functionality.")
-    const libcuda_path = ""
-    const libcuda_version = v"999"  # make sure all functions are available
+    true
 else
-    error("Unable to load dependency file $ext.\nPlease run Pkg.build(\"CUDAdrv\") and restart Julia.")
+    # enable CUDAdrv.jl to be loaded when the build failed, simplifying downstream use.
+    # remove this when we have proper support for conditional modules.
+    const libcuda_version = v"5.5"
+    const libcuda_vendor = "none"
+    const libcuda_path = nothing
+    false
 end
 const libcuda = libcuda_path
 

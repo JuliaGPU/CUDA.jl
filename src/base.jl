@@ -117,7 +117,12 @@ macro apicall(fun, argtypes, args...)
         error("first argument to @apicall should be a symbol")
     end
 
-    api_fun = resolve(fun.args[1])
+    api_fun = resolve(fun.args[1])  # TODO: make this error at runtime?
+
+    if libcuda == nothing
+        return :(error("CUDAdrv.jl has not been configured."))
+    end
+
     return quote
         status = @logging_ccall($(QuoteNode(api_fun)), ($(QuoteNode(api_fun)), libcuda),
                                 Cint, $(esc(argtypes)), $(map(esc, args)...))

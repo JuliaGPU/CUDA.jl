@@ -26,6 +26,9 @@ end
 
 Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 
+# NOTE: `name` and `description` require CUDA to be initialized
+#       (and do they work in case of error 100 or 999?)
+
 """
     name(err::CuError)
 
@@ -51,7 +54,6 @@ function name(err::CuError)
     str_ref = Ref{Cstring}()
     @apicall(:cuGetErrorName, (CuError_t, Ptr{Cstring}), err.code, str_ref)
     unsafe_string(str_ref[])[6:end]
-
 end
 
 """
@@ -66,17 +68,26 @@ function description(err::CuError)
 end
 
 function Base.showerror(io::IO, err::CuError)
-    if isnull(err.info)
-        @printf(io, "CUDA error: %s (code #%d, %s)",
-                    description(err), err.code, name(err))
+    str = if configured
+        @sprintf("CUDA error: %s (code #%d, %s)", description(err), err.code, name(err))
     else
-        @printf(io, "CUDA error: %s (code #%d, %s)\n%s",
-                    description(err), err.code, name(err), get(err.info))
+        @sprintf("CUDA error #%d", err.code)
+    end
+
+    if isnull(err.info)
+        @printf(io, "%s", str)
+    else
+        @printf(io, "%s\n%s", get(err.info), str)
     end
 end
 
-Base.show(io::IO, err::CuError) =
-    @printf(io, "CuError(%d, %s)", err.code, name(err))
+function Base.show(io::IO, err::CuError)
+    if configured
+        @printf(io, "CuError(%d, %s)", err.code, name(err))
+    else
+        @printf(io, "CuError(%d)", err.code)
+    end
+end
 
 # known error constants
 const return_codes = Dict{Int,Symbol}(
