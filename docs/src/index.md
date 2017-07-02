@@ -29,11 +29,15 @@ At the Julia REPL:
 ```julia
 Pkg.add("CUDAdrv")
 using CUDAdrv
+
+# optionally
+Pkg.test("CUDAdrv")
 ```
 
-Building and loading CUDAdrv might display warnings, indicating issues with your set-up.
-Please pay close attention to these, as they might prevent CUDAdrv.jl, or even all of CUDA,
-to work properly! Some possible issues:
+Building CUDAdrv might display error messages, indicating issues with your set-up. These
+messages can be cryptic as they happen too early for decent error handling to be loaded.
+However, please pay close attention to them as they might prevent CUDAdrv.jl from working
+properly! Some common issues:
 
 * unknown error (code 999): this often indicates that your set-up is broken, eg. because you
   didn't load the correct, or any, kernel module. Please verify your set-up, on Linux by
@@ -51,4 +55,7 @@ to work properly! Some possible issues:
   purposefully added the stub libraries to the search path, please run the build script with
   `DEBUG=1` and file a bug report.
 
-Optionally, run the tests using `Pkg.test("CUDAdrv")`.
+Even if the build fails, CUDAdrv.jl should always be loadable. This simplifies use by
+downstream packages, until there is proper language support for conditional modules. You can
+check whether the package has been built properly by inspecting the `CUDAdrv.configured`
+global variable.
