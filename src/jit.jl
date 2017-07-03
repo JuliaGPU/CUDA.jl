@@ -1,3 +1,4 @@
+
 # JIT compilation of Julia code to PTX
 
 export cufunction
@@ -136,6 +137,8 @@ end
 
 const libdevices = Dict{VersionNumber, LLVM.Module}()
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
+    CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
+
     # select the most recent & compatible libdevice
     const vers = keys(CUDAnative.libdevice_libraries)
     compat_vers = Set(ver for ver in vers if ver <= cap)
@@ -276,6 +279,8 @@ end
 
 # Main entry-point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction(dev::CuDevice, func::ANY, types::ANY)
+    CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
+
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
     check_kernel(func, tt)

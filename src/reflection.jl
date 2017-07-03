@@ -10,12 +10,17 @@ export
 
 # Return the capability of the current context's device, or a sane fall-back.
 function current_capability()
+    fallback = v"2.0"
+    if !isdefined(CUDAdrv, :configured) || !CUDAdrv.configured
+        return fallback
+    end
+
     ctx = CuCurrentContext()
     if isnull(ctx)
-        return v"2.0"
-    else
-        return capability(device(ctx))
+        return fallback
     end
+
+    return capability(device(ctx))
 end
 
 """

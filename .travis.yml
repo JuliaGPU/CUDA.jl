@@ -12,7 +12,6 @@ notifications:
 env:
   global:
     - DOCUMENTER_DEBUG=true
-    - ONLY_LOAD=true
 
 after_success:
   - julia -e 'Pkg.add("Documenter")'
