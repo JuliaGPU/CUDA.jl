@@ -8,9 +8,6 @@ function kernel_vadd(a, b, c)
     return nothing
 end
 
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
 dims = (3,4)
 a = round.(rand(Float32, dims) * 100)
 b = round.(rand(Float32, dims) * 100)
@@ -23,5 +20,3 @@ len = prod(dims)
 @cuda (1,len) kernel_vadd(d_a, d_b, d_c)
 c = Array(d_c)
 @test a+b ≈ c
-
-destroy!(ctx)

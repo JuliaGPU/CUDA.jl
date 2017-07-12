@@ -24,10 +24,6 @@ Using the `@cuda` macro, you can launch the kernel on a GPU of your choice:
 using CUDAdrv, CUDAnative
 using Base.Test
 
-# CUDAdrv functionality: select device, create context
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
 # CUDAdrv functionality: generate and upload data
 a = round.(rand(Float32, (3, 4)) * 100)
 b = round.(rand(Float32, (3, 4)) * 100)
@@ -44,8 +40,19 @@ d_c = similar(d_a)  # output array
 c = Array(d_c)
 
 @test a+b ≈ c
+```
 
-destroy(ctx)
+This code is executed in a default, global context for the first device in your system. The
+compiler queries the context through `CuCurrentContext`, which implies you can easily switch
+contexts (using a different device, or supplying different flags) by activating a different
+one:
+
+```julia
+dev = CuDevice(0)
+CuContext(dev) do ctx
+    # allocate things in this context
+    @cuda ...
+end
 ```
 
 

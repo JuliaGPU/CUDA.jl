@@ -8,9 +8,6 @@
 
 using CUDAdrv, CUDAnative
 
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
 a = CuArray{Float32}(10)
 
 function memset(a, val)
@@ -20,7 +17,4 @@ function memset(a, val)
 end
 
 @cuda (1,11) memset(a, 0f0)
-
 synchronize()
-
-destroy!(ctx)

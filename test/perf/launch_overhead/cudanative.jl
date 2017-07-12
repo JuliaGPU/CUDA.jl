@@ -13,9 +13,6 @@ const len = 1000
 const ITERATIONS = 5000
 
 function main()    
-    dev = CuDevice(0)
-    ctx = CuContext(dev)
-
     cpu_time = Vector{Float64}(ITERATIONS)
     gpu_time = Vector{Float64}(ITERATIONS)
 
@@ -38,8 +35,6 @@ function main()
 
     @printf("CPU time: %.2fus\n", median(cpu_time))
     @printf("GPU time: %.2fus\n", median(gpu_time))
-
-    destroy!(ctx)
 end
 
 main()

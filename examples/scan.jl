@@ -58,9 +58,6 @@ function gpu_accumulate!(op::Function, data::CuDeviceMatrix{T}) where {T}
     return
 end
 
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
 rows = 5
 cols = 4
 
@@ -74,8 +71,6 @@ gpu_a = CuArray(a)
 
 using Base.Test
 @test cpu_a ≈ Array(gpu_a)
-
-destroy!(ctx)
 
 
 # FURTHER IMPROVEMENTS:
