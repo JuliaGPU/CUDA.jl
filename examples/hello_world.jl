@@ -5,11 +5,5 @@ function hello_world()
     return
 end
 
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
 @cuda (2,2) hello_world()
-
 synchronize()
-
-destroy!(ctx)

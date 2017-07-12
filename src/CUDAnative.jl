@@ -25,6 +25,8 @@ include(joinpath("device", "libdevice.jl"))  # so should get loaded late (JuliaL
 include("execution.jl")
 include("reflection.jl")
 
+const default_device = Ref{CuDevice}()
+const default_context = Ref{CuContext}()
 function __init__()
     if !configured
         warn("CUDAnative.jl has not been configured, and will not work properly.")
@@ -37,6 +39,16 @@ function __init__()
         VersionNumber(Base.libllvm_version) != julia_llvm_version
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
+
+    # instantiate a default device and context;
+    # this will be implicitly used through `CuCurrentContext`
+    # NOTE: although these conceptually match what the primary context is for,
+    #       we don't use that because it is refcounted separately
+    #       and might confuse / be confused by user operations
+    #       (eg. calling `unsafe_reset!` on a primary context)
+    default_device[] = CuDevice(0)
+    default_context[] = CuContext(default_device[])
+
     init_jit()
 end
 

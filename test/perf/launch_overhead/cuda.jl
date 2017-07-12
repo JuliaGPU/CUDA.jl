@@ -10,9 +10,6 @@ const ITERATIONS = 5000
 # TODO: api-trace shows some attribute fetches, where do they come from?
 
 function main()    
-    dev = CuDevice(0)
-    ctx = CuContext(dev)
-
     mod = CuModuleFile("cuda.ptx")
     fun = CuFunction(mod, "kernel_dummy")
 
@@ -39,8 +36,6 @@ function main()
 
     @printf("CPU time: %.2fus\n", median(cpu_time))
     @printf("GPU time: %.2fus\n", median(gpu_time))
-
-    destroy!(ctx)
 end
 
 main()

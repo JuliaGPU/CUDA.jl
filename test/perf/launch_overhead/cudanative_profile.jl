@@ -14,9 +14,6 @@ const len = 1000
 const ITERATIONS = 5000
 
 function main()    
-    dev = CuDevice(0)
-    ctx = CuContext(dev)
-
     cpu_time = Vector{Float64}(ITERATIONS)
 
     gpu_arr = CuArray{Float32}(len)
@@ -35,8 +32,6 @@ function main()
 
     @printf("CPU time: %.2fus\n", median(cpu_time))
     CUDAnative.Profile.print()
-
-    destroy!(ctx)
 end
 
 main()

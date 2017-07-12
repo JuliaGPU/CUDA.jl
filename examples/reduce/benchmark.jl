@@ -4,7 +4,8 @@
 using BenchmarkTools
 include("reduce.jl")
 
-dev = CuDevice(0)
+ctx = CuCurrentContext()
+dev = device(ctx)
 @assert(capability(dev) >= v"3.0", "this example requires a newer GPU")
 
 len = 10^7
@@ -21,7 +22,6 @@ open(joinpath(@__DIR__, "reduce.jl.ptx"), "w") do f
                         cap=v"6.1.0")
 end
 
-ctx = CuContext(dev)
 benchmark_gpu = @benchmarkable begin
         gpu_reduce(+, gpu_input, gpu_output)
         val = Array(gpu_output)[1]
@@ -35,7 +35,6 @@ benchmark_gpu = @benchmarkable begin
         gc()
     )
 println(run(benchmark_gpu))
-destroy!(ctx)
 
 
 ## CUDA

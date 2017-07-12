@@ -108,9 +108,6 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
 end
 
 
-const dev = CuDevice(0)
-const ctx = CuContext(dev)
-
 # generate reasonable data
 const n = 10000
 const lat = rand(Float32, n) .* 45
@@ -118,5 +115,3 @@ const lon = rand(Float32, n) .* -120
 
 using Base.Test
 @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)
-
-destroy!(ctx)
