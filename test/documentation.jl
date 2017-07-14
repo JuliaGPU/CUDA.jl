@@ -1,4 +1,4 @@
-if "Documenter" in Pkg.available()
+if "Documenter" in keys(Pkg.installed())
     @testset "documentation" begin
 
     out = Pipe()
