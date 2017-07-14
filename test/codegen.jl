@@ -60,6 +60,22 @@ end
     @test !contains(ir, "inttoptr")
 end
 
+@testset "kernel calling convention" begin
+@testset "aggregate rewriting" begin
+    @eval codegen_aggregates(x) = nothing
+
+    @eval struct Aggregate
+        x::Int
+    end
+
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, (Aggregate,)))
+    @test ismatch(r"@julia_codegen_aggregates_\d+\(%Aggregate.\d\* ", ir)
+
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, (Aggregate,); kernel=true))
+    @test ismatch(r"@ptxcall_codegen_aggregates_\d+\(%Aggregate.\d\)", ir)
+end
+end
+
 end
 
 
@@ -91,7 +107,7 @@ end
     @eval ptx_entry(i) = (ptx_nonentry(i); nothing)
 
     asm = sprint(io->code_ptx(io, ptx_entry, (Int64,); kernel=true))
-    @test ismatch(r"\.visible \.entry julia_ptx_entry_", asm)
+    @test ismatch(r"\.visible \.entry ptxcall_ptx_entry_", asm)
     @test ismatch(r"\.visible \.func .+ julia_ptx_nonentry_", asm)
 end
 

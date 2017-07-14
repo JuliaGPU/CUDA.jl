@@ -44,7 +44,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(func::ANY, tt::ANY)
+function irgen(func::ANY, tt::ANY; kernel::Bool=false)
     # sanity checks
     Base.JLOptions().can_inline == 0 &&
         Base.warn_once("inlining disabled, CUDA code generation will almost certainly fail")
@@ -92,6 +92,7 @@ function irgen(func::ANY, tt::ANY)
 
         isnull(entry_fn) && error("could not find entry-point function (got ", join(LLVM.name.(collect(functions(entry_mod))), ", ", " and "), ")")
     end
+    entry_fn = get(entry_fn)
 
     # link all the modules
     for irmod in irmods
@@ -122,17 +123,79 @@ function irgen(func::ANY, tt::ANY)
                     LLVM.name!(f, safe_fn)
 
                     # take care if we're renaming the entry-point function
-                    if orig_fn == get(entry_fn)
-                        entry_fn = Nullable(safe_fn)
+                    if orig_fn == entry_fn
+                        entry_fn = safe_fn
                     end
                 end
             end
         end
     end
+
+    # generate a kernel wrapper to fix & improve argument passing
+    entry_f = get(functions(mod), entry_fn)
+    if kernel
+        entry_ft = eltype(llvmtype(entry_f))
+        @assert return_type(entry_ft) == LLVM.VoidType()
+
+        # filter out ghost types, which don't occur in the LLVM function signatures
+        julia_types = filter(dt->!isghosttype(dt), tt.parameters)
+
+        # generate the wrapper function type & def
+        function wrapper_type(julia_t, codegen_t)
+            if isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
+                # we didn't specify a pointer, but codegen passes one anyway.
+                # make the wrapper accept the underlying value instead.
+                return eltype(codegen_t)
+            else
+                return codegen_t
+            end
+        end
+        wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
+                                      for (julia_t, codegen_t)
+                                      in zip(julia_types, parameters(entry_ft))]
+        wrapper_fn = "ptxcall" * entry_fn[6:end]
+        wrapper_ft = LLVM.FunctionType(LLVM.VoidType(), wrapper_types)
+        wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
+
+        # emit IR performing the "conversions"
+        Builder() do builder
+            entry = BasicBlock(wrapper_f, "entry")
+            position!(builder, entry)
+
+            wrapper_args = Vector{LLVM.Value}()
+
+            # perform argument conversions
+            codegen_types = parameters(entry_ft)
+            wrapper_params = parameters(wrapper_f)
+            for (julia_t, codegen_t, wrapper_t, wrapper_param) in
+                zip(julia_types, codegen_types, wrapper_types, wrapper_params)
+                if codegen_t != wrapper_t
+                    # the wrapper argument doesn't match the kernel parameter type.
+                    # this only happens when codegen wants to pass a pointer.
+                    @assert isa(codegen_t, LLVM.PointerType)
+                    # copy the argument value to a stack slot, and reference it.
+                    ptr = alloca!(builder, wrapper_t)
+                    store!(builder, wrapper_param, ptr)
+                    ptr_compat = bitcast!(builder, ptr, codegen_t)
+                    push!(wrapper_args, ptr_compat)
+                else
+                    push!(wrapper_args, wrapper_param)
+                end
+            end
+
+            call!(builder, entry_f, wrapper_args)
+
+            ret!(builder)
+        end
+
+        push!(function_attributes(entry_f), EnumAttribute("alwaysinline"))
+        linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
+        entry_f = wrapper_f
+    end
         
     verify(mod)
 
-    return mod, get(functions(mod), get(entry_fn))
+    return mod, entry_f
 end
 
 const libdevices = Dict{VersionNumber, LLVM.Module}()
@@ -180,11 +243,9 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
         push!(metadata(mod), "nvvm-reflect-ftz",
               MDNode([ConstantInt(Int32(1))]))
 
-        # FIXME: we shouldn't queue this manually,
-        #        but use the TM's `addEarlyAsPossiblePasses` instead
-
         # 6. Run standard optimization pipeline
-        always_inliner!(pm)
+        #
+        #    see `optimize!`
 
         run!(pm, mod)
     end
@@ -245,7 +306,7 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     debug("(Re)compiling kernel $sig for device capability $cap")
 
     # generate LLVM IR
-    mod, entry = irgen(func, tt)
+    mod, entry = irgen(func, tt; kernel=kernel)
     trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary

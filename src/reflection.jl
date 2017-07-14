@@ -35,8 +35,9 @@ context.
 """
 function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
                    optimize::Bool=true, dump_module::Bool=false,
-                   cap::VersionNumber=current_capability())
-    mod, entry = irgen(func, types)
+                   cap::VersionNumber=current_capability(), kernel::Bool=false)
+    tt = Base.to_tuple_type(types)
+    mod, entry = irgen(func, tt; kernel=kernel)
     if optimize
         optimize!(mod, cap)
     end
@@ -108,25 +109,46 @@ code_sass(func::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, func, type
 # @code_* replacements
 #
 
-for fname in [:code_lowered, :code_typed, :code_warntype, :code_llvm, :code_ptx, :code_sass]
+for (fname,kernel_arg) in [(:code_lowered, false), (:code_typed, false), (:code_warntype, false),
+                           (:code_llvm, true), (:code_ptx, true), (:code_sass, false)]
     # types often need to be converted (eg. CuArray -> CuDeviceArray),
     # so generate a type-converting wrapper, and a macro to call it
     fname_wrapper = Symbol(fname, :_cputyped)
+    if kernel_arg
+        # some reflection functions take a `kernel` argument, indicating whether
+        # kernel function or device function conventions should be used
+        @eval begin
+            function $fname_wrapper(func, types, kernel::Bool)
+                _, arg_types =
+                    convert_arguments(fill(Symbol(), length(types.parameters)),
+                                      types.parameters)
+                $fname(func, arg_types; kernel=kernel)
+            end
+        end
+    else
+        @eval begin
+            function $fname_wrapper(func, types)
+                _, arg_types =
+                    convert_arguments(fill(Symbol(), length(types.parameters)),
+                                      types.parameters)
+                $fname(func, arg_types)
+            end
+        end
+    end
+
+    # TODO: test the kernel_arg-based behavior
 
     @eval begin
-        function $fname_wrapper(func, types)
-            _, codegen_types, _ =
-                convert_arguments(fill(Symbol(), length(types.parameters)),
-                                  types.parameters)
-            $fname(func, codegen_types)
-        end
-
         @doc $"""
             $fname
 
         Extracts the relevant function call from any `@cuda` invocation, evaluates the
         arguments to the function or macro call, determines their types (taking into account
         GPU-specific type conversions), and calls $fname on the resulting expression.
+
+        Can be applied to a pure function call, or a call prefixed with the `@cuda` macro.
+        In that case, kernel code generation conventions are used (wrt. argument conversions,
+        return values, etc).
         """ macro $(fname)(ex0)
             if ex0.head == :macrocall
                 # @cuda (...) f()
@@ -135,12 +157,18 @@ for fname in [:code_lowered, :code_typed, :code_warntype, :code_llvm, :code_ptx,
                 else
                     ex0 = ex0.args[3]
                 end
+                kernel = true
+            else
+                kernel = false
             end
 
+            wrapper(func, types) = $kernel_arg ? $fname_wrapper(func, types, kernel) :
+                                                 $fname_wrapper(func, types)
+
             if Base.VERSION >= v"0.7.0-DEV.481"
-                Base.gen_call_with_extracted_types(__module__, $(Expr(:quote,fname_wrapper)), ex0)
+                Base.gen_call_with_extracted_types(__module__, wrapper, ex0)
             else
-                Base.gen_call_with_extracted_types($(Expr(:quote,fname_wrapper)), ex0)
+                Base.gen_call_with_extracted_types(wrapper, ex0)
             end
         end
     end

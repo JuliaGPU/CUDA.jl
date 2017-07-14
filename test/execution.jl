@@ -192,6 +192,26 @@ end
 end
 
 
+@testset "tuples" begin
+    # issue #7: tuples not passed by pointer
+
+    @eval function exec_pass_tuples(keeps, out)
+        if keeps[1]
+            unsafe_store!(out, 1)
+        else
+            unsafe_store!(out, 2)
+        end
+        nothing
+    end
+
+    keeps = (true,)
+    d_out = CuArray{Int}(1)
+
+    @cuda (1,1) exec_pass_tuples(keeps, d_out.devptr)
+    @test Array(d_out) == [1]
+end
+
+
 @testset "ghost function parameters" begin
     # bug: ghost type function parameters are elided by the compiler
 
@@ -215,26 +235,20 @@ end
 
     c = Array(d_c)
     @test a+b == c
-end
 
 
-@testset "tuples" begin
-    # issue #7: tuples not passed by pointer
+    # bug: ghost type function parameters confused aggregate type rewriting
 
-    @eval function exec_pass_tuples(keeps, out)
-        if keeps[1]
-            unsafe_store!(out, 1)
-        else
-            unsafe_store!(out, 2)
-        end
-        nothing
+    @eval function exec_pass_ghost_aggregate(ghost, out, aggregate)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        unsafe_store!(out, aggregate[1], i)
+
+        return nothing
     end
+    @cuda (1,len) exec_pass_ghost_aggregate(ExecGhost(), d_c.devptr, (42,))
 
-    keeps = (true,)
-    d_out = CuArray{Int}(1)
-
-    @cuda (1,1) exec_pass_tuples(keeps, d_out.devptr)
-    @test Array(d_out) == [1]
+    c = Array(d_c)
+    @test all(val->val==42, c)
 end
 
 

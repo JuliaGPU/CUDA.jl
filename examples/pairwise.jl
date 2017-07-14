@@ -45,12 +45,8 @@ function haversine_gpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float3
 end
 
 # pairwise distance calculation kernel
-function pairwise_dist_kernel(lat_ptr::Ptr{Float32}, lon_ptr::Ptr{Float32},
-                              rowresult_ptr::Ptr{Float32}, n)
-    lat = CuDeviceArray(n, lat_ptr)
-    lon = CuDeviceArray(n, lon_ptr)
-    rowresult = CuDeviceArray((n, n), rowresult_ptr)
-
+function pairwise_dist_kernel(lat::CuDeviceVector{Float32}, lon::CuDeviceVector{Float32},
+                              rowresult::CuDeviceMatrix{Float32}, n)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     j = (blockIdx().y-1) * blockDim().y + threadIdx().y
 
@@ -100,9 +96,7 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     # calculate size of dynamic shared memory
     shmem = 2 * sum(threads) * sizeof(Float32)
 
-    # XXX: pass arrays as pointer to avoid synchronization / global ptr loads
-    @cuda (blocks, threads, shmem) pairwise_dist_kernel(pointer(lat_gpu), pointer(lon_gpu),
-                                                        pointer(rowresult_gpu), n)
+    @cuda (blocks, threads, shmem) pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
 
     return Array(rowresult_gpu)
 end
