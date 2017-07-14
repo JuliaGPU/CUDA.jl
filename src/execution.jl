@@ -79,7 +79,16 @@ function emit_cudacall(func, dims, shmem, stream, types, args)
     end
 end
 
+# fast lookup of global world age
 world_age() = ccall(:jl_get_tls_world_age, UInt, ())
+
+# slow lookup of local method age
+function method_age(f, tt)
+    for m in Base._methods(f, tt, 1, typemax(UInt))
+        return m[3].min_world
+    end
+    return -1
+end
 
 isghosttype(dt) = !dt.mutable && sizeof(dt) == 0
 
@@ -121,6 +130,7 @@ macro cuda(config::Expr, callexpr::Expr)
 end
 
 # Compile and execute a CUDA kernel from a Julia function
+const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
 @generated function generated_cuda{F<:Core.Function,N}(dims::Tuple{CuDim, CuDim}, shmem, stream,
                                                        func::F, args::Vararg{Any,N})
@@ -128,16 +138,22 @@ const compilecache = Dict{UInt, CuFunction}()
     arg_exprs, arg_types = convert_arguments(arg_exprs, args)
 
     # compile the function, if necessary
-    # TODO: we currently recompile if _any_ world change is detected.
-    #       this is obviously much to coarse, and we should figure out a way to efficiently
-    #       query the kernel method's age, and/or put that query in a wrapper method with a
-    #       back-edge from the kernel method to make the check completely free.
     @gensym cuda_fun
     precomp_key = hash(tuple(func, arg_types...))  # precomputable part of the key
     kernel_compilation = quote
+        # look-up the method age
+        key = hash(($precomp_key, world_age()))
+        if haskey(agecache, key)
+            age = agecache[key]
+        else
+            age = method_age(func, $arg_types)
+            agecache[key] = age
+        end
+
+        # compile the function
         ctx = CuCurrentContext()
-        key = hash(($precomp_key, ctx, world_age()))
-        if (haskey(compilecache, key))
+        key = hash(($precomp_key, age, ctx))
+        if haskey(compilecache, key)
             $cuda_fun = compilecache[key]
         else
             $cuda_fun, _ = cufunction(device(ctx), func, $arg_types)
