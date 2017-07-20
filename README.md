@@ -3,16 +3,16 @@ CUDAnative.jl
 
 *Support for compiling and executing native Julia kernels on CUDA hardware.*
 
-**Build status**: [![][buildbot-0.6-img]][buildbot-0.6-url] [![][buildbot-master-img]][buildbot-master-url]
+**Build status**: [![][buildbot-julia06-img]][buildbot-julia06-url] [![][buildbot-juliadev-img]][buildbot-juliadev-url]
 
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
 
 **Code coverage** (of host code): [![][coverage-img]][coverage-url]
 
-[buildbot-0.6-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAnative.jl:%20Julia%200.6%20(x86-64)&badge=Julia%20v0.6
-[buildbot-0.6-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAnative.jl%3A%20Julia%200.6%20%28x86-64%29
-[buildbot-master-img]: https://ci.maleadt.net/buildbot/julia/badge.svg?builder=CUDAnative.jl:%20Julia%20master%20(x86-64)&badge=Julia%20master
-[buildbot-master-url]: https://ci.maleadt.net/buildbot/julia/builders/CUDAnative.jl%3A%20Julia%20master%20%28x86-64%29
+[buildbot-julia06-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAnative-julia06-x86-64bit&name=julia%200.6
+[buildbot-julia06-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-julia06-x86-64bit
+[buildbot-juliadev-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAnative-juliadev-x86-64bit&name=julia%20dev
+[buildbot-juliadev-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-juliadev-x86-64bit
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: http://juliagpu.github.io/CUDAnative.jl/stable
