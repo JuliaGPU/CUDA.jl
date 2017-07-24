@@ -2,8 +2,6 @@
 
 export @cuStaticSharedMem, @cuDynamicSharedMem
 
-alignment(::Type{T}) where {T} = ccall(:jl_alignment, Cint, (Csize_t,), sizeof(T))
-
 # FIXME: `shmem_id` increment in the macro isn't correct, as multiple parametrically typed
 #        functions will alias the id (but the size might be a parameter). but incrementing in
 #        the @generated function doesn't work, as it is supposed to be pure and identical

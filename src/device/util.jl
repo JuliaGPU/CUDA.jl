@@ -132,3 +132,7 @@ function escape_llvm_string(io, s::AbstractString, esc::AbstractString)
     end
 end
 escape_llvm_string(s::AbstractString) = sprint(endof(s), escape_llvm_string, s, "\"")
+
+
+Base.@pure alignment(::Type{T}) where {T} =
+    convert(Int, ccall(:jl_alignment, Cint, (Csize_t,), sizeof(T)))
