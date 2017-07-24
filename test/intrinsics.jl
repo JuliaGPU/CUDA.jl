@@ -130,6 +130,19 @@ end
     end
 end
 
+@testset "alignment" begin
+    # bug: used to generate align=12, which is invalid (non pow2)
+    @eval function kernel_shmem_dynamic_alignment{T}(v0::T, n)
+        shared = CUDAnative.@cuDynamicSharedMem(T, n)
+        @inbounds shared[Cuint(1)] = v0
+        return
+    end
+
+    n = 32
+    T = typeof((0f0, 0f0, 0f0))
+    @cuda (1, 1, n*sizeof(T)) kernel_shmem_dynamic_alignment((0f0, 0f0, 0f0), n)
+end
+
 end
 
 
@@ -181,6 +194,17 @@ end
         @cuda (1, n) kernel_shmem_static_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
     end
+end
+
+@testset "alignment" begin
+    # bug: used to generate align=12, which is invalid (non pow2)
+    @eval function kernel_shmem_static_alignment{T}(v0::T)
+        shared = CUDAnative.@cuStaticSharedMem(T, 32)
+        @inbounds shared[Cuint(1)] = v0
+        return
+    end
+
+    @cuda (1, 1) kernel_shmem_static_alignment((0f0, 0f0, 0f0))
 end
 
 end
