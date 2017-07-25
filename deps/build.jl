@@ -176,7 +176,14 @@ function main()
             const libdevice_libraries = $libdevice_libraries
             """)
     end
-    nothing
+
+    # refresh the compile cache
+    # NOTE: we need to do this manually, as the package will load & precompile after
+    #       not having loaded a nonexistent ext.jl in the case of a failed build,
+    #       causing it not to precompile after a subsequent successful build.
+    Base.compilecache("CUDAnative")
+
+    return
 end
 
 try
