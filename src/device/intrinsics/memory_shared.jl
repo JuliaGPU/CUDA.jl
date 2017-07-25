@@ -51,7 +51,7 @@ function emit_static_shmem{N, T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::
     llvmtyp = llvmtypes[jltyp]
 
     len = prod(shape)
-    align = alignment(jltyp)
+    align = datatype_align(jltyp)
 
     return quote
         Base.@_inline_meta
@@ -67,7 +67,7 @@ function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Intege
     end
 
     len = prod(shape) * sizeof(jltyp)
-    align = alignment(jltyp)
+    align = datatype_align(jltyp)
 
     return quote
         Base.@_inline_meta
@@ -112,7 +112,7 @@ end
 function emit_dynamic_shmem{T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::Union{Expr,Symbol}, offset)
     llvmtyp = llvmtypes[jltyp]
 
-    align = alignment(jltyp)
+    align = datatype_align(jltyp)
 
     return quote
         Base.@_inline_meta
@@ -127,7 +127,7 @@ function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol},
         error("cuDynamicSharedMem: non-isbits type '$jltyp' is not supported")
     end
 
-    align = alignment(jltyp)
+    align = datatype_align(jltyp)
 
     return quote
         Base.@_inline_meta

@@ -59,13 +59,13 @@ Base.length(g::CuDeviceArray) = prod(g.shape)
 
 @inline function Base.getindex(A::CuDeviceArray{T}, index::Int) where {T}
     @boundscheck checkbounds(A, index)
-    align = alignment(T)
+    align = datatype_align(T)
     Base.pointerref(Base.unsafe_convert(Ptr{T}, A), index, align)::T
 end
 
 @inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Int) where {T}
     @boundscheck checkbounds(A, index)
-    align = alignment(T)
+    align = datatype_align(T)
     Base.pointerset(Base.unsafe_convert(Ptr{T}, A), convert(T, x)::T, index, align)
 end
 
