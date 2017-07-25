@@ -90,7 +90,7 @@ function Base.show(io::IO, err::CuError)
 end
 
 # known error constants
-const return_codes = Dict{Int,Symbol}(
+const return_codes = Dict{CuError_t,Symbol}(
     0   => :SUCCESS,
 
     1   => :ERROR_INVALID_VALUE,
