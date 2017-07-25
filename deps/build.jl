@@ -108,7 +108,14 @@ function main()
             const libcuda_vendor = "$libcuda_vendor"
             """)
     end
-    nothing
+
+    # refresh the compile cache
+    # NOTE: we need to do this manually, as the package will load & precompile after
+    #       not having loaded a nonexistent ext.jl in the case of a failed build,
+    #       causing it not to precompile after a subsequent successful build.
+    Base.compilecache("CUDAdrv")
+
+    return
 end
 
 try
