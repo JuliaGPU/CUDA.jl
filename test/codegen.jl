@@ -5,13 +5,18 @@
 @testset "LLVM IR" begin
 
 @testset "basic reflection" begin
-    llvm_dummy() = return
-    ir = sprint(io->CUDAnative.code_llvm(io, llvm_dummy, (); optimize=false, dump_module=true))
+    @eval llvm_valid_kernel() = nothing
+    @eval llvm_invalid_kernel() = 1
+
+    ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, (); optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
-    @test contains(ir, "define void @julia_llvm_dummy")
+    @test contains(ir, "define void @julia_llvm_valid_kernel")
     @test !contains(ir, "define %jl_value_t* @jlcall_")
-    @test ismatch(r"define void @julia_llvm_dummy_.+\(\) #0.+\{", ir)
+    @test ismatch(r"define void @julia_llvm_valid_kernel_.+\(\) #0.+\{", ir)
+
+    @test CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}) == nothing
+    @test_throws AssertionError CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "exceptions" begin
@@ -84,12 +89,12 @@ end
 @testset "PTX assembly" begin
 
 @testset "basic reflection" begin
-    @eval ptx_valid_kernel(a) = (a[0] = 1; nothing)
-    @eval ptx_invalid_kernel(a) = (a[0] = 1; 1)
+    @eval ptx_valid_kernel() = nothing
+    @eval ptx_invalid_kernel() = 1
 
-    @test code_ptx(DevNull, ptx_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
-    @test code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
-    @test_throws ErrorException code_ptx(DevNull, ptx_invalid_kernel, Tuple{CuDeviceArray{Int,1}}; kernel=true) == nothing
+    @test code_ptx(DevNull, ptx_valid_kernel, Tuple{}) == nothing
+    @test code_ptx(DevNull, ptx_invalid_kernel, Tuple{}) == nothing
+    @test_throws ErrorException code_ptx(DevNull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "child functions" begin
@@ -125,7 +130,7 @@ end
 @testset "idempotency" begin
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
-    @eval codegen_idempotency() = return
+    @eval codegen_idempotency() = nothing
     code_ptx(DevNull, codegen_idempotency, ())
     code_ptx(DevNull, codegen_idempotency, ())
 end
@@ -218,11 +223,11 @@ end
 @testset "SASS" begin
 
 @testset "basic reflection" begin
-    @eval sass_valid_kernel(a) = (a[0] = 1; nothing)
-    @eval sass_invalid_kernel(a) = (a[0] = 1; 1)
+    @eval sass_valid_kernel() = nothing
+    @eval sass_invalid_kernel() = 1
 
-    @test code_sass(DevNull, sass_valid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
-    @test_throws ErrorException code_sass(DevNull, sass_invalid_kernel, Tuple{CuDeviceArray{Int,1}}) == nothing
+    @test code_sass(DevNull, sass_valid_kernel, Tuple{}) == nothing
+    @test_throws ErrorException code_sass(DevNull, sass_invalid_kernel, Tuple{}) == nothing
 end
 
 end
