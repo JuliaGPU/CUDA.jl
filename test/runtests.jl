@@ -32,7 +32,9 @@ if CUDAnative.configured
             include("intrinsics.jl")
 
             include("examples.jl")
-            include("documentation.jl")
+            if parse(Bool, get(ENV, "DOCTEST", "false"))
+                include("documentation.jl")
+            end
         end
     end
 else
