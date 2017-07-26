@@ -40,7 +40,9 @@ if CUDAdrv.configured
         include("gc.jl")
 
         include("examples.jl")
-        include("documentation.jl")
+        if parse(Bool, get(ENV, "DOCTEST", "false"))
+            include("documentation.jl")
+        end
     end
 else
     warn("CUDAdrv.jl has not been configured; skipping most tests.")
