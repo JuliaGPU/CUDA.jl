@@ -6,7 +6,7 @@ export
 module Mem
 
 using CUDAdrv
-import CUDAdrv: @apicall
+import CUDAdrv: @apicall, OwnedPtr
 
 
 ## pointer-based

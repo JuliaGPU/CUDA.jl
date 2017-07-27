@@ -59,7 +59,7 @@ let
 
     # conversions
     let
-        ptr = convert(OwnedPtr{Int}, CU_NULL)
+        ptr = CUDAdrv.OwnedPtr{Int}(convert(Ptr{Int}, C_NULL), CuContext(C_NULL))
         @test Base.unsafe_convert(Ptr{Int}, CuArray{Int,1}((1,), ptr)) == C_NULL
         @test pointer(CuArray{Int,1}((1,), ptr)) == ptr
     end

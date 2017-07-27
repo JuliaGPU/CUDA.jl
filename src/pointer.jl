@@ -1,8 +1,5 @@
 # Context-owned pointer
 
-export
-    OwnedPtr, CU_NULL
-
 # Wrapper pointer type to keep track of the associated context, to avoid destroying
 # the context while there's still outstanding references to its memory.
 @compat immutable OwnedPtr{T}
@@ -15,8 +12,6 @@ end
 function Base.:(==)(a::OwnedPtr, b::OwnedPtr)
     return a.ctx == b.ctx && a.ptr == b.ptr
 end
-
-const CU_NULL = OwnedPtr{Void}(C_NULL, CuContext(C_NULL))
 
 # simple conversions between Ptr and OwnedPtr are disallowed
 Base.convert{T}(::Type{Ptr{T}}, p::OwnedPtr{T}) = throw(InexactError())
