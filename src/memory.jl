@@ -18,7 +18,7 @@ import CUDAdrv: @apicall
 
 Allocates `bytesize` bytes of linear memory on the device and returns a pointer to the
 allocated memory. The allocated memory is suitably aligned for any kind of variable. The
-memory is not cleared, use [`free(::DevicePtr)`](@ref) for that.
+memory is not cleared, use [`free(::OwnedPtr)`](@ref) for that.
 """
 function alloc(bytesize::Integer)
     bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
@@ -26,15 +26,15 @@ function alloc(bytesize::Integer)
     ptr_ref = Ref{Ptr{Void}}()
     @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
 
-    return DevicePtr{Void}(ptr_ref[], CuCurrentContext())
+    return OwnedPtr{Void}(ptr_ref[], CuCurrentContext())
 end
 
 """
-    free(p::DevicePtr)
+    free(p::OwnedPtr)
 
 Frees device memory.
 """
-function free(p::DevicePtr)
+function free(p::OwnedPtr)
     @apicall(:cuMemFree, (Ptr{Void},), p.ptr)
 end
 
@@ -76,42 +76,42 @@ used() = total()-free()
 
 
 """
-    set(p::DevicePtr, value::Cuint, len::Integer)
+    set(p::OwnedPtr, value::Cuint, len::Integer)
 
 Initializes device memory, copying the value `val` for `len` times.
 """
-set(p::DevicePtr, value::Cuint, len::Integer) =
+set(p::OwnedPtr, value::Cuint, len::Integer) =
     @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), p.ptr, value, len)
 
 # NOTE: upload/download also accept Ref (with Ptr <: Ref)
 #       as there exists a conversion from Ref to Ptr{Void}
 
 """
-    upload(dst::DevicePtr, src, nbytes::Integer)
+    upload(dst::OwnedPtr, src, nbytes::Integer)
 
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
-function upload(dst::DevicePtr, src::Ref, nbytes::Integer)
+function upload(dst::OwnedPtr, src::Ref, nbytes::Integer)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             dst.ptr, src, nbytes)
 end
 
 """
-    download(dst::DevicePtr, src, nbytes::Integer)
+    download(dst::OwnedPtr, src, nbytes::Integer)
 
 Download `nbytes` memory from `src` on the device to `src` on the host.
 """
-function download(dst::Ref, src::DevicePtr, nbytes::Integer)
+function download(dst::Ref, src::OwnedPtr, nbytes::Integer)
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
                             dst, src.ptr, nbytes)
 end
 
 """
-    download(dst::DevicePtr, src, nbytes::Integer)
+    download(dst::OwnedPtr, src, nbytes::Integer)
 
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
-function transfer(dst::DevicePtr, src::DevicePtr, nbytes::Integer)
+function transfer(dst::OwnedPtr, src::OwnedPtr, nbytes::Integer)
     @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             dst.ptr, src.ptr, nbytes)
 end
@@ -124,7 +124,7 @@ end
     alloc{T}(len=1)
 
 Allocates space for `len` objects of type `T` on the device and returns a pointer to the
-allocated memory. The memory is not cleared, use [`free(::DevicePtr)`](@ref) for that.
+allocated memory. The memory is not cleared, use [`free(::OwnedPtr)`](@ref) for that.
 """
 function alloc{T}(::Type{T}, len::Integer=1)
     @static if VERSION >= v"0.6.0-dev.2123"
@@ -139,12 +139,12 @@ function alloc{T}(::Type{T}, len::Integer=1)
     end
     sizeof(T) == 0 && throw(ArgumentError("cannot represent ghost types"))
 
-    return convert(DevicePtr{T}, alloc(len*sizeof(T)))
+    return convert(OwnedPtr{T}, alloc(len*sizeof(T)))
 end
 
 """
     upload{T}(src::T)
-    upload{T}(dst::DevicePtr{T}, src::T)
+    upload{T}(dst::OwnedPtr{T}, src::T)
 
 Upload an object `src` from the host to the device. If a destination `dst` is not provided,
 new memory is allocated and uploaded to.
@@ -153,7 +153,7 @@ Note this does only upload the object itself, and does not peek through it in or
 to the underlying data (like `Ref` does). Consequently, this functionality should not be
 used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
 """
-function upload{T}(dst::DevicePtr{T}, src::T)
+function upload{T}(dst::OwnedPtr{T}, src::T)
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     upload(dst, Base.RefValue(src), sizeof(T))
 end
@@ -165,13 +165,13 @@ function upload{T}(src::T)
 end
 
 """
-    download{T}(src::DevicePtr{T})
+    download{T}(src::OwnedPtr{T})
 
 Download an object `src` from the device and return it as a host object.
 
 See [`upload`](@ref) for notes on how arguments are processed.
 """
-function download{T}(src::DevicePtr{T})
+function download{T}(src::OwnedPtr{T})
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     dst = Base.RefValue{T}()
     download(dst, src, sizeof(T))

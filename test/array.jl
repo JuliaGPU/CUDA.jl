@@ -4,8 +4,8 @@ let
     # inner constructors
     let
         arr = CuArray{Int,1}((2,))
-        devptr = arr.devptr
-        CuArray{Int,1}((2,), devptr)
+        ptr = arr.ptr
+        CuArray{Int,1}((2,), ptr)
     end
 
     # outer constructors
@@ -59,9 +59,9 @@ let
 
     # conversions
     let
-        devptr = convert(DevicePtr{Int}, CU_NULL)
-        @test Base.unsafe_convert(DevicePtr{Int}, CuArray{Int,1}((1,), devptr)) == devptr
-        @test pointer(CuArray{Int,1}((1,), devptr)) == devptr
+        ptr = convert(OwnedPtr{Int}, CU_NULL)
+        @test Base.unsafe_convert(Ptr{Int}, CuArray{Int,1}((1,), ptr)) == C_NULL
+        @test pointer(CuArray{Int,1}((1,), ptr)) == ptr
     end
 
     # copy: size mismatches

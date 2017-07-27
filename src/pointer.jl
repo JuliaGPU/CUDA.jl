@@ -1,41 +1,35 @@
-# Device pointer
+# Context-owned pointer
 
 export
-    DevicePtr, CU_NULL
+    OwnedPtr, CU_NULL
 
-# This wrapper type contains a pointer, but prevents many conversions from and to
-# regular pointers. This ensures we don't mix host and device pointers.
-#
-# It also keep track of the associated context, preventing it from getting freed while
-# there's still a pointer from that context live.
-
-@compat immutable DevicePtr{T}
+# Wrapper pointer type to keep track of the associated context, to avoid destroying
+# the context while there's still outstanding references to its memory.
+@compat immutable OwnedPtr{T}
     ptr::Ptr{T}
     ctx::CuContext
 
-    (::Type{DevicePtr{T}}){T}(ptr::Ptr{T}, ctx::CuContext) = new{T}(ptr,ctx)
+    (::Type{OwnedPtr{T}}){T}(ptr::Ptr{T}, ctx::CuContext) = new{T}(ptr,ctx)
 end
 
-function Base.:(==)(a::DevicePtr, b::DevicePtr)
+function Base.:(==)(a::OwnedPtr, b::OwnedPtr)
     return a.ctx == b.ctx && a.ptr == b.ptr
 end
 
-const CU_NULL = DevicePtr{Void}(C_NULL, CuContext(C_NULL))
+const CU_NULL = OwnedPtr{Void}(C_NULL, CuContext(C_NULL))
 
-# simple conversions between Ptr and DevicePtr are disallowed
-Base.convert{T}(::Type{Ptr{T}}, p::DevicePtr{T}) = throw(InexactError())
-Base.convert{T}(::Type{DevicePtr{T}}, p::Ptr{T}) = throw(InexactError())
+# simple conversions between Ptr and OwnedPtr are disallowed
+Base.convert{T}(::Type{Ptr{T}}, p::OwnedPtr{T}) = throw(InexactError())
+Base.convert{T}(::Type{OwnedPtr{T}}, p::Ptr{T}) = throw(InexactError())
 
 # unsafe ones are allowed
-Base.unsafe_convert{T}(::Type{Ptr{T}}, p::DevicePtr{T}) = p.ptr
-
-Base.cconvert{P<:DevicePtr}(::Type{P}, x) = x # defer conversions to DevicePtr to unsafe_convert
+Base.unsafe_convert{T}(::Type{Ptr{T}}, p::OwnedPtr{T}) = p.ptr
 
 # conversion between pointers of different types
-Base.convert{T}(::Type{DevicePtr{T}}, p::DevicePtr) =
-    DevicePtr{T}(reinterpret(Ptr{T}, p.ptr), p.ctx)
+Base.convert{T}(::Type{OwnedPtr{T}}, p::OwnedPtr) =
+    OwnedPtr{T}(reinterpret(Ptr{T}, p.ptr), p.ctx)
 
 # some convenience methods (which are already defined for Ptr{T},
 # but due to the disallowed conversions we can't use those)
-Base.isnull{T}(p::DevicePtr{T}) = (p.ptr == C_NULL)
-Base.eltype{T}(::Type{DevicePtr{T}}) = T
+Base.isnull{T}(p::OwnedPtr{T}) = (p.ptr == C_NULL)
+Base.eltype{T}(::Type{OwnedPtr{T}}) = T

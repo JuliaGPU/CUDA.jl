@@ -18,7 +18,7 @@ d_b = CuArray(b)
 d_c = similar(d_a)
 
 len = prod(dims)
-cudacall(vadd, len, 1, Tuple{DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}}, d_a, d_b, d_c)
+cudacall(vadd, len, 1, Tuple{Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}}, d_a, d_b, d_c)
 c = Array(d_c)
 @test a+b ≈ c
 

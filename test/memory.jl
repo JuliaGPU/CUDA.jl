@@ -33,7 +33,7 @@ end
 
 let
     dev_array = CuArray{Int32}(10)
-    Mem.set(dev_array.devptr, UInt32(0), 10)
+    Mem.set(dev_array.ptr, UInt32(0), 10)
     host_array = Array(dev_array)
 
     @test all(x -> x==0, host_array)

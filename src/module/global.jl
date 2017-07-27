@@ -11,7 +11,7 @@ Acquires a typed global variable handle from a named global in a module.
 """
 @compat immutable CuGlobal{T}
     # TODO: typed pointer
-    devptr::DevicePtr{Void}
+    ptr::OwnedPtr{Void}
     nbytes::Cssize_t
 
     function (::Type{CuGlobal{T}}){T}(mod::CuModule, name::String)
@@ -24,14 +24,14 @@ Acquires a typed global variable handle from a named global in a module.
         end
         @assert nbytes_ref[] == sizeof(T)
 
-        return new{T}(DevicePtr{Void}(ptr_ref[], CuCurrentContext()), nbytes_ref[])
+        return new{T}(OwnedPtr{Void}(ptr_ref[], CuCurrentContext()), nbytes_ref[])
     end
 end
 
-Base.unsafe_convert(::Type{DevicePtr{Void}}, var::CuGlobal) = var.devptr
+Base.unsafe_convert(::Type{OwnedPtr{Void}}, var::CuGlobal) = var.ptr
 
 Base.:(==)(a::CuGlobal, b::CuGlobal) = a.handle == b.handle
-Base.hash(var::CuGlobal, h::UInt) = hash(var.devptr, h)
+Base.hash(var::CuGlobal, h::UInt) = hash(var.ptr, h)
 
 """
     eltype(var::CuGlobal)
@@ -48,7 +48,7 @@ Return the current value of a global variable.
 function Base.get{T}(var::CuGlobal{T})
     val_ref = Ref{T}()
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            val_ref, var.devptr, var.nbytes)
+                            val_ref, var.ptr, var.nbytes)
     return val_ref[]
 end
 
@@ -60,5 +60,5 @@ Set the value of a global variable to `val`
 function set{T}(var::CuGlobal{T}, val::T)
     val_ref = Ref{T}(val)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            var.devptr, val_ref, var.nbytes)
+                            var.ptr, val_ref, var.nbytes)
 end

@@ -64,7 +64,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vadd, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a+b
     end
@@ -73,7 +73,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vsub, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vsub, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a-b
     end
@@ -82,7 +82,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vmul, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vmul, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a.*b
     end
@@ -91,7 +91,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vdiv, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
+        cudacall(vdiv, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
         c = Array(cd)
         @test c ≈ a./b
     end

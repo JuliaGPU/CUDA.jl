@@ -5,12 +5,12 @@
 Base.unsafe_convert(Ptr{Void}, CU_NULL)
 
 let
-    @test eltype(DevicePtr{Void}) == Void
+    @test eltype(OwnedPtr{Void}) == Void
     @test eltype(CU_NULL) == Void
     @test isnull(CU_NULL)
 
     @test_throws InexactError convert(Ptr{Void}, CU_NULL)
-    @test_throws InexactError convert(DevicePtr{Void}, C_NULL)
+    @test_throws InexactError convert(OwnedPtr{Void}, C_NULL)
 end
 
 end
