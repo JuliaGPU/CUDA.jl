@@ -1,6 +1,6 @@
 # Native execution support
 
-export @cuda, nearest_warpsize
+export @cuda, nearest_warpsize, cudaconvert
 
 using Base.Iterators: filter
 
@@ -9,32 +9,8 @@ using Base.Iterators: filter
 # Auxiliary
 #
 
-# Determine which type to pre-convert objects to for use on a CUDA device.
-#
-# The resulting object type will be used as a starting point to determine the final argument
-# types. This is different from `cconvert` in that we don't know which type to convert to.
-function convert_type(t)
-    # NOTE: this conversion was originally intended to be a user-extensible interface,
-    #       a la cconvert (look for cudaconvert in f1e592e61d6898869b918331e3e625292f4c8cab).
-    #
-    #       however, the generated function behind @cuda isn't allowed to call overloaded
-    #       functions (only pure ones), and also won't be able to see functions defined
-    #       after the generated function's body (see JuliaLang/julia#19942).
-
-    # Pointer handling
-    if t <: DevicePtr
-        return Ptr{t.parameters...}
-    elseif t <: Ptr
-        throw(InexactError())
-    end
-
-    # Array types
-    if t <: CuArray
-        return CuDeviceArray{t.parameters...}
-    end
-
-    return t
-end
+# NOTE: this method cannot be extended, because it is used in a generated function
+cudaconvert(::Type{T}) where {T} = T
 
 # Convert the arguments to a kernel function to their CUDA representation, and figure out
 # what types to specialize the kernel function for.
@@ -45,7 +21,7 @@ function convert_arguments(args, types)
     # convert types to their CUDA representation
     for i in 1:length(argexprs)
         t = argtypes[i]
-        ct = convert_type(t)
+        ct = cudaconvert(t)
         if ct != t
             argtypes[i] = ct
             if ct <: Ptr
@@ -55,8 +31,6 @@ function convert_arguments(args, types)
             end
         end
     end
-
-    # NOTE: DevicePtr's should have disappeared after this point
 
     for argtype in argtypes
         if argtype.layout == C_NULL || !Base.datatype_pointerfree(argtype)
@@ -108,8 +82,8 @@ the launch should be scheduled.
 
 The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
 upon first use, and to a certain extent arguments will be converted and managed
-automatically. Finally, a call to `cudacall` is performed, scheduling the compiled function
-for execution on the GPU.
+automatically (see [`cudaconvert`](@ref)). Finally, a call to `cudacall` is performed,
+scheduling the compiled function for execution on the GPU.
 """
 macro cuda(config::Expr, callexpr::Expr)
     # sanity checks

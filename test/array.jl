@@ -6,36 +6,46 @@
     # inner constructors
     let
         p = Ptr{Int}(C_NULL)
-        @on_device CuDeviceArray{Int,1}((1,), $p)
+        dp = CUDAnative.DevicePtr(p)
+        CuDeviceArray{Int,1,AS.Generic}((1,), dp)
     end
 
     # outer constructors
     for I in [Int32,Int64]
         a = I(1)
         b = I(2)
+
         p = Ptr{I}(C_NULL)
+        dp = CUDAnative.DevicePtr(p)
 
         # not parameterized
-        @on_device CuDeviceArray($b, $p)
-        @on_device CuDeviceArray(($b,), $p)
-        @on_device CuDeviceArray(($b,$a), $p)
+        CuDeviceArray(b, dp)
+        CuDeviceArray((b,), dp)
+        CuDeviceArray((b,a), dp)
 
         # partially parameterized
-        @on_device CuDeviceArray{$I}($b, $p)
-        @on_device CuDeviceArray{$I}(($b,), $p)
-        @on_device CuDeviceArray{$I}(($a,$b), $p)
+        CuDeviceArray{I}(b, dp)
+        CuDeviceArray{I}((b,), dp)
+        CuDeviceArray{I}((a,b), dp)
+        CuDeviceArray{I,1}(b, dp)
+        CuDeviceArray{I,1}((b,), dp)
+        @test_throws MethodError CuDeviceArray{I,1}((a,b), dp)
+        @test_throws MethodError CuDeviceArray{I,2}(b, dp)
+        @test_throws MethodError CuDeviceArray{I,2}((b,), dp)
+        CuDeviceArray{I,2}((a,b), dp)
 
         # fully parameterized
-        @on_device CuDeviceArray{$I,1}($b, $p)
-        @on_device CuDeviceArray{$I,1}(($b,), $p)
-        @test_throws ErrorException @on_device CuDeviceArray{$I,1}(($a,$b), $p)
-        @test_throws ErrorException @on_device CuDeviceArray{$I,2}($b, $p)
-        @test_throws ErrorException @on_device CuDeviceArray{$I,2}(($b,), $p)
-        @on_device CuDeviceArray{$I,2}(($a,$b), $p)
+        CuDeviceArray{I,1,AS.Generic}(b, dp)
+        CuDeviceArray{I,1,AS.Generic}((b,), dp)
+        @test_throws MethodError CuDeviceArray{I,1,AS.Generic}((a,b), dp)
+        @test_throws MethodError CuDeviceArray{I,1,AS.Shared}((a,b), dp)
+        @test_throws MethodError CuDeviceArray{I,2,AS.Generic}(b, dp)
+        @test_throws MethodError CuDeviceArray{I,2,AS.Generic}((b,), dp)
+        CuDeviceArray{I,2,AS.Generic}((a,b), dp)
 
         # type aliases
-        @on_device CuDeviceVector{$I}($b, $p)
-        @on_device CuDeviceMatrix{$I}(($a,$b), $p)
+        CuDeviceVector{I}(b, dp)
+        CuDeviceMatrix{I}((a,b), dp)
     end
 end
 
@@ -78,14 +88,14 @@ end
 
     # NOTE: these tests verify that bounds checking is _disabled_ (see #4)
 
-    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_1d, (CuDeviceArray{Int,1},)))
+    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_1d, (CuDeviceArray{Int,1,AS.Global},)))
     @test !contains(ir, "trap")
 
     @eval function array_oob_2d(array)
         return array[1, 1]
     end
 
-    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2},)))
+    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2,AS.Global},)))
     @test !contains(ir, "trap")
 end
 
@@ -118,5 +128,18 @@ end
 end
 
 ############################################################################################
+
+
+@testset "bug: non-Int index to unsafe_load" begin
+    @eval function array_load_index(a)
+        return a[UInt64(1)]
+    end
+
+    a = [1]
+    p = pointer(a)
+    dp = CUDAnative.DevicePtr(p)
+    da = CUDAnative.CuDeviceArray(1, dp)
+    array_load_index(da)
+end
 
 end

@@ -13,13 +13,16 @@ shmem_id = 0
 function emit_shmem(id, llvmtyp, len, align)
     var = Symbol("@shmem", id)
     jltyp = jltypes[llvmtyp]
+
+    @gensym ptr
     quote
-        Base.llvmcall(
+        $ptr = Base.llvmcall(
             ($"""$var = external addrspace(3) global [$len x $llvmtyp], align $align""",
              $"""%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
                  %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
                  ret $llvmtyp* %2"""),
             Ptr{$jltyp}, Tuple{})
+        DevicePtr{$jltyp,AS.Shared}($ptr)
     end
 end
 
@@ -28,7 +31,7 @@ end
 #       to `@cuda`
 
 """
-    @cuStaticSharedMem(typ::Type, dims) -> CuDeviceArray{typ}
+    @cuStaticSharedMem(typ::Type, dims) -> CuDeviceArray{typ,Shared}
 
 Get an array of type `typ` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a statically-allocated piece of shared memory. The type should be statically
@@ -53,10 +56,11 @@ function emit_static_shmem{N, T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::
     len = prod(shape)
     align = datatype_align(jltyp)
 
+    @gensym ptr
     return quote
         Base.@_inline_meta
-        ptr = $(emit_shmem(id, llvmtyp, len, align))
-        CuDeviceArray{$jltyp}($shape, ptr)
+        $ptr = $(emit_shmem(id, llvmtyp, len, align))
+        CuDeviceArray($shape, $ptr)
     end
 end
 
@@ -69,10 +73,11 @@ function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Intege
     len = prod(shape) * sizeof(jltyp)
     align = datatype_align(jltyp)
 
+    @gensym ptr
     return quote
         Base.@_inline_meta
-        ptr = $(emit_shmem(id, :i8, len, align))
-        CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
+        $ptr = $(emit_shmem(id, :i8, len, align))
+        CuDeviceArray($shape, Base.convert(DevicePtr{$jltyp}, $ptr))
     end
 end
 
@@ -82,7 +87,7 @@ end
 
 
 """
-    @cuDynamicSharedMem(typ::Type, dims, offset::Integer=0) -> CuDeviceArray{typ}
+    @cuDynamicSharedMem(typ::Type, dims, offset::Integer=0) -> CuDeviceArray{typ,Shared}
 
 Get an array of type `typ` and dimensions `dims` (either an integer length or tuple shape)
 pointing to a dynamically-allocated piece of shared memory. The type should be statically
@@ -114,10 +119,11 @@ function emit_dynamic_shmem{T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::Un
 
     align = datatype_align(jltyp)
 
+    @gensym ptr
     return quote
         Base.@_inline_meta
-        ptr = $(emit_shmem(id, llvmtyp, 0, align)) + $offset
-        CuDeviceArray{$jltyp}($shape, ptr)
+        $ptr = $(emit_shmem(id, llvmtyp, 0, align)) + $offset
+        CuDeviceArray($shape, $ptr)
     end
 end
 
@@ -129,10 +135,11 @@ function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol},
 
     align = datatype_align(jltyp)
 
+    @gensym ptr
     return quote
         Base.@_inline_meta
-        ptr = $(emit_shmem(id, :i8, 0, align)) + $offset
-        CuDeviceArray{$jltyp}($shape, Base.unsafe_convert(Ptr{$jltyp}, ptr))
+        $ptr = $(emit_shmem(id, :i8, 0, align)) + $offset
+        CuDeviceArray($shape, Base.convert(DevicePtr{$jltyp}, $ptr))
     end
 end
 
