@@ -1,7 +1,3 @@
-if !("Documenter" in keys(Pkg.installed()))
-    Pkg.add("Documenter")
-end
-
 @testset "documentation" begin
 
 out = Pipe()
