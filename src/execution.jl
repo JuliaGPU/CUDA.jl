@@ -68,7 +68,7 @@ end
                shmem::Int=0, stream::CuStream=CuDefaultStream()) =
     launch(f, griddim, blockdim, shmem, stream, args...)
 
-# we need a generated function to get an args array (DevicePtr->Ptr && pointer_from_objref),
+# we need a generated function to get an args array,
 # without having to inspect the types at runtime
 @generated function _launch{N}(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
                                shmem::Int, stream::CuStream,
@@ -76,19 +76,12 @@ end
     arg_exprs = [:( args[$i] ) for i in 1:N]
     arg_types = args.parameters
 
-    all(isbits(t) || t <: DevicePtr for t in arg_types) ||
-        throw(ArgumentError("Arguments to kernel should be bitstype or device pointer"))
-
-    # extract inner pointer
-    for i in 1:N
-        if arg_types[i] <: DevicePtr
-            arg_exprs[i] = :($(arg_exprs[i]).ptr)
-        end
-    end
+    all(isbits, arg_types) || throw(ArgumentError("Arguments to kernel should be bitstype"))
 
     # If f has N parameters, then kernelParams needs to be an array of N pointers.
     # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory
     # from which the actual kernel parameter will be copied.
+    # TODO: can this be done with Ref->Ptr instead?
     arg_exprs = [:(Base.pointer_from_objref($ex)) for ex in arg_exprs]
 
     quote
@@ -127,7 +120,7 @@ For example:
     c = zeros(Float32, 10)
     cd = CuArray(c)
 
-    cudacall(vadd, 10, 1, (DevicePtr{Cfloat},DevicePtr{Cfloat},DevicePtr{Cfloat}), ad, bd, cd)
+    cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
     c = Array(cd)
 
 The `griddim` and `blockdim` arguments control the launch configuration, and should both

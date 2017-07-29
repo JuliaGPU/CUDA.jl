@@ -118,14 +118,14 @@ CUDAdrv.CuModule(::CUDAdrv.CuLinkImage, args...)
 
 ```@docs
 CUDAdrv.Mem.alloc(::Integer)
-CUDAdrv.Mem.free(::DevicePtr)
+CUDAdrv.Mem.free(::CUDAdrv.OwnedPtr)
 CUDAdrv.Mem.info
 CUDAdrv.Mem.total
 CUDAdrv.Mem.used
 CUDAdrv.Mem.free()
 CUDAdrv.Mem.set
-CUDAdrv.Mem.upload(::DevicePtr, ::Ref, ::Integer)
-CUDAdrv.Mem.download(::Ref, ::DevicePtr, ::Integer)
+CUDAdrv.Mem.upload(::CUDAdrv.OwnedPtr, ::Ref, ::Integer)
+CUDAdrv.Mem.download(::Ref, ::CUDAdrv.OwnedPtr, ::Integer)
 CUDAdrv.Mem.transfer
 ```
 
@@ -133,8 +133,8 @@ CUDAdrv.Mem.transfer
 
 ```@docs
 CUDAdrv.Mem.alloc(::Type, ::Integer)
-CUDAdrv.Mem.upload{T}(::DevicePtr{T}, ::T)
-CUDAdrv.Mem.download(::DevicePtr)
+CUDAdrv.Mem.upload{T}(::CUDAdrv.OwnedPtr{T}, ::T)
+CUDAdrv.Mem.download(::CUDAdrv.OwnedPtr)
 ```
 
 ## Stream Management
