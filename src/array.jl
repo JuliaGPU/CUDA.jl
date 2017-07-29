@@ -39,3 +39,9 @@ function Base.copy!{T}(dst::CuArray{T}, src::CuArray{T})
     Mem.transfer(dst.ptr, src.ptr, length(src) * sizeof(T))
     return dst
 end
+
+Base.convert(::Type{CuArray{T,N}}, xs::DenseArray{T,N}) where {T,N} =
+  copy!(CuArray{T,N}(size(xs)), xs)
+
+Base.convert(::Type{CuArray}, xs::DenseArray{T,N}) where {T,N} =
+  convert(CuArray{T,N}, xs)
