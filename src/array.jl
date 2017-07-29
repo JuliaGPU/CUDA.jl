@@ -9,6 +9,11 @@ function CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N}
   return xs
 end
 
+CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
+  CuArray{T,N}(dims)
+
+CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float64,N}(dims)
+
 function unsafe_free!(xs::CuArray)
   CUDAdrv.isvalid(xs.ptr.ctx) && Mem.free(xs.ptr)
   return
