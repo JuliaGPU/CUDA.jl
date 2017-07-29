@@ -15,5 +15,22 @@ function unsafe_free!(xs::CuArray)
 end
 
 Base.size(x::CuArray) = x.dims
-
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
+
+function Base.copy!{T}(dst::CuArray{T}, src::DenseArray{T})
+    @assert length(dst) == length(src)
+    Mem.upload(dst.ptr, pointer(src), length(src) * sizeof(T))
+    return dst
+end
+
+function Base.copy!{T}(dst::DenseArray{T}, src::CuArray{T})
+    @assert length(dst) == length(src)
+    Mem.download(pointer(dst), src.ptr, length(src) * sizeof(T))
+    return dst
+end
+
+function Base.copy!{T}(dst::CuArray{T}, src::CuArray{T})
+    @assert length(dst) == length(src)
+    Mem.transfer(dst.ptr, src.ptr, length(src) * sizeof(T))
+    return dst
+end
