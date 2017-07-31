@@ -33,17 +33,19 @@ CuArray
         elseif (sizeof(T) == 0)
             throw(ArgumentError("CuArray with zero-sized element types does not make sense"))
         end
-
         len = prod(shape)
         ptr = Mem.alloc(T, len)
-
+        Mem.retain(ptr)
         obj = new{T,N}(ptr, shape)
         finalizer(obj, unsafe_free!)
         return obj
     end
     function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, ptr::OwnedPtr{T})
         # semi-hidden constructor, only called by unsafe_convert
-        new{T,N}(ptr, shape)
+        obj = new{T, N}(ptr, shape)
+        Mem.retain(ptr)
+        finalizer(obj, unsafe_free!)
+        obj
     end
 end
 
@@ -52,11 +54,13 @@ end
 
 function unsafe_free!(a::CuArray)
     ptr = pointer(a)
-    if isvalid(ptr.ctx)
+    if !isvalid(ptr.ctx)
+        @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because context is no longer valid")
+    elseif !Mem.release(ptr)
+        @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because pointer is held by another object")
+    else
         @trace("Finalizing CuArray object at $(Base.pointer_from_objref(a))")
         Mem.free(ptr)
-    else
-        @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because context is no longer valid")
     end
 end
 
@@ -118,7 +122,7 @@ have an equal length.
 """
 function Base.copy!{T}(dst::CuArray{T}, src::Array{T})
     if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent array length."))  
+        throw(ArgumentError("Inconsistent array length."))
     end
     Mem.upload(pointer(dst), pointer(src), length(src) * sizeof(T))
     return dst

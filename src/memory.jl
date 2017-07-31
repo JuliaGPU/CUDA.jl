@@ -9,6 +9,42 @@ using CUDAdrv
 import CUDAdrv: @apicall, OwnedPtr
 
 
+## refcounting
+
+const refcounts = Dict{Ptr{Void}, Int}()
+
+function refcount(ptr)
+    get(refcounts, Base.unsafe_convert(Ptr{Void}, ptr), 0)
+end
+
+"""
+    retain(ptr)
+
+Increase the refcount of a pointer.
+"""
+function retain(ptr)
+    untyped_ptr = Base.unsafe_convert(Ptr{Void}, ptr)
+    refcount = get!(refcounts, untyped_ptr, 0)
+    refcounts[untyped_ptr] = refcount + 1
+    return
+end
+
+"""
+    release(ptr)
+
+Decrease the refcount of a pointer. Returns `true` if the refcount has dropped to 0, and
+some action needs to be taken.
+"""
+function release(ptr)
+    untyped_ptr = Base.unsafe_convert(Ptr{Void}, ptr)
+    haskey(refcounts, untyped_ptr) || error("Release of unmanaged $ptr")
+    refcount = refcounts[untyped_ptr]
+    @assert refcount > 0 "Release of dead $ptr"
+    refcounts[untyped_ptr] = refcount - 1
+    return refcount==1
+end
+
+
 ## pointer-based
 
 # TODO: single copy function, with `memcpykind(Ptr, Ptr)` (cfr. CUDArt)?
@@ -25,7 +61,6 @@ function alloc(bytesize::Integer)
 
     ptr_ref = Ref{Ptr{Void}}()
     @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
-
     return OwnedPtr{Void}(ptr_ref[], CuCurrentContext())
 end
 
@@ -35,7 +70,8 @@ end
 Frees device memory.
 """
 function free(p::OwnedPtr)
-    @apicall(:cuMemFree, (Ptr{Void},), p.ptr)
+    @apicall(:cuMemFree, (Ptr{Void},), pointer(p))
+    return
 end
 
 
@@ -81,7 +117,7 @@ used() = total()-free()
 Initializes device memory, copying the value `val` for `len` times.
 """
 set(p::OwnedPtr, value::Cuint, len::Integer) =
-    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), p.ptr, value, len)
+    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), pointer(p), value, len)
 
 # NOTE: upload/download also accept Ref (with Ptr <: Ref)
 #       as there exists a conversion from Ref to Ptr{Void}
@@ -93,7 +129,7 @@ Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
 function upload(dst::OwnedPtr, src::Ref, nbytes::Integer)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst.ptr, src, nbytes)
+                            pointer(dst), src, nbytes)
 end
 
 """
@@ -103,7 +139,7 @@ Download `nbytes` memory from `src` on the device to `src` on the host.
 """
 function download(dst::Ref, src::OwnedPtr, nbytes::Integer)
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst, src.ptr, nbytes)
+                            dst, pointer(src), nbytes)
 end
 
 """
@@ -113,7 +149,7 @@ Transfer `nbytes` of device memory from `src` to `dst`.
 """
 function transfer(dst::OwnedPtr, src::OwnedPtr, nbytes::Integer)
     @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst.ptr, src.ptr, nbytes)
+                            pointer(dst), pointer(src), nbytes)
 end
 
 
