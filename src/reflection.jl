@@ -109,43 +109,19 @@ code_sass(func::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, func, type
 # @code_* replacements
 #
 
+function gen_call_with_extracted_types(f, ex)
+    :($f($(esc(ex.args[1])), Base.typesof(cudaconvert.(($(esc.(ex.args[2:end])...),))...)))
+end
+
 for (fname,kernel_arg) in [(:code_lowered, false), (:code_typed, false), (:code_warntype, false),
                            (:code_llvm, true), (:code_ptx, true), (:code_sass, false)]
-    # types often need to be converted (eg. CuArray -> CuDeviceArray),
-    # so generate a type-converting wrapper, and a macro to call it
-    fname_wrapper = Symbol(fname, :_cputyped)
-    if kernel_arg
-        # some reflection functions take a `kernel` argument, indicating whether
-        # kernel function or device function conventions should be used
-        @eval begin
-            function $fname_wrapper(func, types, kernel::Bool)
-                _, arg_types =
-                    convert_arguments(fill(Symbol(), length(types.parameters)),
-                                      types.parameters)
-                $fname(func, arg_types; kernel=kernel)
-            end
-        end
-    else
-        @eval begin
-            function $fname_wrapper(func, types)
-                _, arg_types =
-                    convert_arguments(fill(Symbol(), length(types.parameters)),
-                                      types.parameters)
-                $fname(func, arg_types)
-            end
-        end
-    end
-
     # TODO: test the kernel_arg-based behavior
-
     @eval begin
         @doc $"""
             $fname
-
         Extracts the relevant function call from any `@cuda` invocation, evaluates the
         arguments to the function or macro call, determines their types (taking into account
         GPU-specific type conversions), and calls $fname on the resulting expression.
-
         Can be applied to a pure function call, or a call prefixed with the `@cuda` macro.
         In that case, kernel code generation conventions are used (wrt. argument conversions,
         return values, etc).
@@ -162,14 +138,10 @@ for (fname,kernel_arg) in [(:code_lowered, false), (:code_typed, false), (:code_
                 kernel = false
             end
 
-            wrapper(func, types) = $kernel_arg ? $fname_wrapper(func, types, kernel) :
-                                                 $fname_wrapper(func, types)
+            wrapper(func, types) = $kernel_arg ? $fname(func, types, kernel = kernel) :
+                                                 $fname(func, types)
 
-            if Base.VERSION >= v"0.7.0-DEV.481"
-                Base.gen_call_with_extracted_types(__module__, wrapper, ex0)
-            else
-                Base.gen_call_with_extracted_types(wrapper, ex0)
-            end
+            gen_call_with_extracted_types(wrapper, ex0)
         end
     end
 end

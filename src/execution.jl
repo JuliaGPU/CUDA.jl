@@ -9,36 +9,22 @@ using Base.Iterators: filter
 # Auxiliary
 #
 
-# NOTE: this method cannot be extended, because it is used in a generated function
-cudaconvert(::Type{T}) where {T} = T
+"""
+    cudaconvert(x)
 
-# Convert the arguments to a kernel function to their CUDA representation, and figure out
-# what types to specialize the kernel function for.
-function convert_arguments(args, types)
-    argtypes = DataType[types...]
-    argexprs = Union{Expr,Symbol}[args...]
+This function is called for every argument to be passed to a kernel, allowing it to be
+converted to a GPU-friendly format. By default, the function does nothing and returns the
+input object `x` as-is.
 
-    # convert types to their CUDA representation
-    for i in 1:length(argexprs)
-        t = argtypes[i]
-        ct = cudaconvert(t)
-        if ct != t
-            argtypes[i] = ct
-            if ct <: Ptr
-                argexprs[i] = :( Base.unsafe_convert($ct, $(argexprs[i])) )
-            else
-                argexprs[i] = :( convert($ct, $(argexprs[i])) )
-            end
-        end
+For `CuArray` objects, a corresponding `CuDeviceArray` object in global space is returned,
+which implements GPU-compatible array functionality.
+"""
+function cudaconvert(x::T) where {T}
+    if T.layout == C_NULL || !Base.datatype_pointerfree(T)
+        error("don't know how to handle argument of type $T")
     end
 
-    for argtype in argtypes
-        if argtype.layout == C_NULL || !Base.datatype_pointerfree(argtype)
-            error("don't know how to handle argument of type $argtype")
-        end
-    end
-
-    return argexprs, argtypes
+    return x
 end
 
 function emit_cudacall(func, dims, shmem, stream, types, args)
@@ -100,7 +86,8 @@ macro cuda(config::Expr, callexpr::Expr)
     stream = length(config.args)==4 ? esc(pop!(config.args)) : :(CuDefaultStream())
     shmem  = length(config.args)==3 ? esc(pop!(config.args)) : :(0)
     dims = esc(config)
-    return :(generated_cuda($dims, $shmem, $stream, $(map(esc, callexpr.args)...)))
+    args = :(cudaconvert.(($(map(esc, callexpr.args)...),)))
+    return :(generated_cuda($dims, $shmem, $stream, $args...))
 end
 
 # Compile and execute a CUDA kernel from a Julia function
@@ -109,7 +96,7 @@ const compilecache = Dict{UInt, CuFunction}()
 @generated function generated_cuda{F<:Core.Function,N}(dims::Tuple{CuDim, CuDim}, shmem, stream,
                                                        func::F, args::Vararg{Any,N})
     arg_exprs = [:( args[$i] ) for i in 1:N]
-    arg_exprs, arg_types = convert_arguments(arg_exprs, args)
+    arg_types = args
 
     # compile the function, if necessary
     @gensym cuda_fun

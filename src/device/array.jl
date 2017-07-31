@@ -68,7 +68,7 @@ function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) whe
     ptr = Base.unsafe_convert(Ptr{T}, owned_ptr)
     CuDeviceArray{T,N,AS.Global}(a.shape, DevicePtr{T,AS.Global}(ptr))
 end
-cudaconvert(::Type{CuArray{T,N}}) where {T,N} = CuDeviceArray{T,N,AS.Global}
+cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global}, a)
 
 
 ## indexing
