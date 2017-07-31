@@ -4,7 +4,7 @@ mutable struct CuArray{T,N} <: DenseArray{T,N}
 end
 
 function CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N}
-  xs = CuArray{T,N}(Mem.alloc(Float64, prod(dims)), dims)
+  xs = CuArray{T,N}(Mem.alloc(T, prod(dims)), dims)
   finalizer(xs, unsafe_free!)
   return xs
 end
