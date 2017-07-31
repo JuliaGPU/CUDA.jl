@@ -6,5 +6,6 @@ export CuArray
 
 include("array.jl")
 include("slow.jl")
+include("broadcast.jl")
 
 end # module
