@@ -45,3 +45,13 @@ Base.convert(::Type{CuArray{T,N}}, xs::DenseArray{T,N}) where {T,N} =
 
 Base.convert(::Type{CuArray}, xs::DenseArray{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
+
+Base.convert(::Type{CuDeviceArray{T,N}}, a::CuArray{T,N}) where {T,N} =
+    CuDeviceArray{T,N}(a.dims, Base.unsafe_convert(Ptr{T}, a.ptr))
+
+Base.convert(::Type{CuDeviceArray}, a::CuArray{T,N}) where {T,N} =
+  convert(CuDeviceArray{T,N}, a)
+
+# TODO: auto conversions in CUDAnative
+todevice(x) = x
+todevice(x::CuArray) = convert(CuDeviceArray, x)
