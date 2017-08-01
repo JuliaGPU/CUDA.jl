@@ -98,51 +98,65 @@ Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
 Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
-@generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
-                                     ::Type{Val{align}}=Val{1}) where {T,A,align}
-    eltyp = convert(LLVMType, T)
-
-    # create a function
-    param_types = [LLVM.PointerType(eltyp),
-                   LLVM.IntType(sizeof(Int)*8, jlctx[])]
-    llvmf = create_llvmf(eltyp, param_types)
-
-    # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvmf, "entry", jlctx[])
-        position!(builder, entry)
-
-        ptr = gep!(builder, parameters(llvmf)[1], [parameters(llvmf)[2]])
-        ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
-        val = load!(builder, ptr_with_as)
-        alignment!(val, align)
-        ret!(builder, val)
+if Base.VERSION >= v"0.6.1-"
+    if Base.VERSION < v"0.6.1"
+        warn("Using CUDAnative with Julia 0.6.1-pre; make sure it includes #22022")
     end
 
-    call_llvmf(llvmf, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-1))))
-end
+    @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
+                                         ::Type{Val{align}}=Val{1}) where {T,A,align}
+        eltyp = convert(LLVMType, T)
 
-@generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
-                                       ::Type{Val{align}}=Val{1}) where {T,A,align}
-    eltyp = convert(LLVMType, T)
+        # create a function
+        param_types = [LLVM.PointerType(eltyp),
+                       LLVM.IntType(sizeof(Int)*8, jlctx[])]
+        llvmf = create_llvmf(eltyp, param_types)
 
-    # create a function
-    param_types = [LLVM.PointerType(eltyp), eltyp,
-                   LLVM.IntType(sizeof(Int)*8, jlctx[])]
-    llvmf = create_llvmf(LLVM.VoidType(jlctx[]), param_types)
+        # generate IR
+        Builder(jlctx[]) do builder
+            entry = BasicBlock(llvmf, "entry", jlctx[])
+            position!(builder, entry)
 
-    # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvmf, "entry", jlctx[])
-        position!(builder, entry)
+            ptr = gep!(builder, parameters(llvmf)[1], [parameters(llvmf)[2]])
+            ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
+            val = load!(builder, ptr_with_as)
+            alignment!(val, align)
+            ret!(builder, val)
+        end
 
-        ptr = gep!(builder, parameters(llvmf)[1], [parameters(llvmf)[3]])
-        ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
-        val = parameters(llvmf)[2]
-        inst = store!(builder, val, ptr_with_as)
-        alignment!(inst, align)
-        ret!(builder)
+        call_llvmf(llvmf, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-1))))
     end
 
-    call_llvmf(llvmf, Void, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-1))))
+    @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
+                                           ::Type{Val{align}}=Val{1}) where {T,A,align}
+        eltyp = convert(LLVMType, T)
+
+        # create a function
+        param_types = [LLVM.PointerType(eltyp), eltyp,
+                       LLVM.IntType(sizeof(Int)*8, jlctx[])]
+        llvmf = create_llvmf(LLVM.VoidType(jlctx[]), param_types)
+
+        # generate IR
+        Builder(jlctx[]) do builder
+            entry = BasicBlock(llvmf, "entry", jlctx[])
+            position!(builder, entry)
+
+            ptr = gep!(builder, parameters(llvmf)[1], [parameters(llvmf)[3]])
+            ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
+            val = parameters(llvmf)[2]
+            inst = store!(builder, val, ptr_with_as)
+            alignment!(inst, align)
+            ret!(builder)
+        end
+
+        call_llvmf(llvmf, Void, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-1))))
+    end
+else
+    @inline Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
+                             ::Type{Val{align}}=Val{1}) where {T,A,align} =
+                Base.pointerref(pointer(p), Int(i), align)
+
+    @inline Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
+                               ::Type{Val{align}}=Val{1}) where {T,A,align} =
+                Base.pointerset(pointer(p), convert(T, x)::T, Int(i), align)
 end

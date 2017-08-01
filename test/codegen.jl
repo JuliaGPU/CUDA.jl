@@ -81,12 +81,10 @@ end
 end
 end
 
-if Base.VERSION >= v"0.6.1-pre.1"
-    # JuliaLang/julia#22022 is required for AS-specific operations to work
-    # on certain structs, which this test verifies.
-    #
-    # Keep this test disabled until there's at least been one commit
-    # on the release-0.6 branch, which we assume to include #22022.
+if Base.VERSION >= v"0.6.1"
+    # NOTE: we're more strict than the version check in src/pointer.jl here,
+    #       because #22022 might not be included, in which case CUDAnative might work
+    #       but the test below will definitely fail.
 
     @testset "LLVM D32593" begin
         @eval struct llvm_D32593_struct
