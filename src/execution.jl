@@ -75,9 +75,9 @@ end
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
 @generated function _cuda(dims::Tuple{CuDim, CuDim}, shmem, stream,
-                          func::F, args::Vararg{Any,N}) where {F<:Core.Function,N}
-    arg_exprs = [:( args[$i] ) for i in 1:N]
-    arg_types = args
+                          func::Core.Function, argspec...)
+    arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
+    arg_types = argspec
 
     # filter out ghost arguments
     real_args = map(t->!isghosttype(t), arg_types)
