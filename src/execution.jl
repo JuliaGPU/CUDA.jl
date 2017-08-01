@@ -76,7 +76,7 @@ end
     arg_exprs = [:( args[$i] ) for i in 1:N]
     arg_types = args.parameters
 
-    all(isbits, arg_types) || throw(ArgumentError("Arguments to kernel should be bitstype"))
+    all(isbits, arg_types) || throw(ArgumentError("Arguments to kernel should be bitstype. Found $arg_types"))
 
     # If f has N parameters, then kernelParams needs to be an array of N pointers.
     # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory
