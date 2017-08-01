@@ -21,7 +21,7 @@ using Base.Broadcast: newindex, _broadcast_getindex
 end
 
 @inline function _broadcast!(f, C::AbstractArray, keeps, Idefaults, A, Bs)
-    @cuda (1, length(C)) broadcast_kernel(f, todevice(C), keeps, Idefaults, todevice(A), todevice.(Bs))
+    @cuda (1, length(C)) broadcast_kernel(cufunc(f), todevice(C), keeps, Idefaults, todevice(A), todevice.(Bs))
     return C
 end
 
@@ -59,4 +59,31 @@ end
         return similar(CuArray{T}, shape)
     end
     return broadcast_t(f, Any, shape, A, Bs...)
+end
+
+# Hack to work with cuda's arithmetic functions
+
+cufunc(f) = f
+
+libdevice = :[
+    cos, cospi, sin, sinpi, tan, acos, asin, atan, atan2,
+    cosh, sinh, tanh, acosh, asinh, atanh,
+    log, log10, log1p, log2, logb, ilogb,
+    exp, exp2, exp10, expm1, ldexp,
+    erf, erfinv, erfc, erfcinv, erfcx,
+    brev, clz, ffs, byte_perm, popc,
+    isfinite, isinf, isnan, nearbyint,
+    nextafter, signbit, copysign, abs,
+    sqrt, rsqrt, cbrt, rcbrt, pow,
+    ceil, floor, min, max, saturate, mod, rem,
+    lgamma, tgamma,
+    j0, j1, jn, y0, y1, yn,
+    normcdf, normcdfinv, hypot,
+    fma, sad, dim, mul24, mul64hi, hadd, rhadd, scalbn
+].args
+
+for f in libdevice
+    @eval using CUDAnative: $f
+    isdefined(Base, f) &&
+        @eval cufunc(f::typeof(Base.$f)) = CUDAnative.$f
 end
