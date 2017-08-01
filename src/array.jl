@@ -27,25 +27,33 @@ CuArray
 
     # inner constructors (exact types, ie. Int not <:Integer)
     function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int})
-        if !isbits(T)
-            # non-isbits types results in an array with references to CPU objects
-            throw(ArgumentError("CuArray with non-bit element type not supported"))
-        elseif (sizeof(T) == 0)
-            throw(ArgumentError("CuArray with zero-sized element types does not make sense"))
-        end
+        check_type(T)
+
         len = prod(shape)
         ptr = Mem.alloc(T, len)
         Mem.retain(ptr)
+
         obj = new{T,N}(ptr, shape)
         finalizer(obj, unsafe_free!)
         return obj
     end
     function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, ptr::OwnedPtr{T})
-        # semi-hidden constructor, only called by unsafe_convert
-        obj = new{T, N}(ptr, shape)
+        check_type(T)
+
         Mem.retain(ptr)
+
+        obj = new{T, N}(ptr, shape)
         finalizer(obj, unsafe_free!)
-        obj
+        return obj
+    end
+end
+
+function check_type{T}(::Type{T})
+    if !isbits(T)
+        # non-isbits types results in an array with references to CPU objects
+        throw(ArgumentError("CuArray with non-bit element type not supported"))
+    elseif (sizeof(T) == 0)
+        throw(ArgumentError("CuArray with zero-sized element types does not make sense"))
     end
 end
 
