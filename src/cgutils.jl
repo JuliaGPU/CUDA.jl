@@ -116,23 +116,6 @@ macro wrap(call, attrs="")
     end
 end
 
-# Make a string literal safe to embed in LLVM IR.
-#
-# This is a custom, simplified version of Base.escape_string, replacing non-printable
-# characters with their two-digit hex code.
-function escape_llvm_string(io, s::AbstractString, esc::AbstractString)
-    i = start(s)
-    while !done(s,i)
-        c, j = next(s,i)
-        c == '\\'       ? print(io, "\\\\") :
-        c in esc        ? print(io, '\\', c) :
-        isprint(c)      ? print(io, c) :
-                          print(io, "\\", hex(c, 2))
-        i = j
-    end
-end
-escape_llvm_string(s::AbstractString) = sprint(endof(s), escape_llvm_string, s, "\"")
-
 
 # julia.h: jl_datatype_align
 Base.@pure function datatype_align(::Type{T}) where {T}
@@ -149,7 +132,8 @@ end
 
 
 # create an LLVM function, given its return (LLVM) type and a vector of argument types
-function create_llvmf(ret::LLVMType, params::Vector{LLVMType}, name::String="")::LLVM.Function
+function create_llvmf(ret::LLVMType=LLVM.VoidType(jlctx[]), params::Vector{LLVMType}=LLVMType[],
+                      name::String="")
     mod = LLVM.Module("llvmcall", jlctx[])
 
     llvmf_typ = LLVM.FunctionType(ret, params)
@@ -161,7 +145,8 @@ end
 
 # call an LLVM function, given its return (Julia) type, a tuple-type for the arguments,
 # and an expression yielding a tuple of the actual argument values.
-function call_llvmf(llvmf::LLVM.Function, ret::Type, params::Type, args::Expr)
+function call_llvmf(llvmf::LLVM.Function, ret::Type=Void, params::Type=Tuple{},
+                    args::Expr=:())
     quote
         Base.@_inline_meta
         Base.llvmcall(LLVM.ref($llvmf), $ret, $params, $args...)
