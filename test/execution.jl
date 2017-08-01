@@ -137,7 +137,8 @@ len = prod(dims)
     input_dev = CuArray(input)
     output_dev = similar(input_dev)
 
-    @cuda (1,len) exec_pass_ptr(input_dev.devptr, output_dev.devptr)
+    @cuda (1,len) exec_pass_ptr(Base.unsafe_convert(Ptr{Float32}, input_dev),
+                                Base.unsafe_convert(Ptr{Float32}, output_dev))
     output = Array(output_dev)
     @test input ≈ output
 end
@@ -161,7 +162,8 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (1,len) exec_pass_scalar(arr_dev.devptr, val_dev.devptr)
+    @cuda (1,len) exec_pass_scalar(Base.unsafe_convert(Ptr{Float32}, arr_dev),
+                                   Base.unsafe_convert(Ptr{Float32}, val_dev))
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -187,7 +189,8 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda (1,len) exec_pass_scalar_devfun(arr_dev.devptr, val_dev.devptr)
+    @cuda (1,len) exec_pass_scalar_devfun(Base.unsafe_convert(Ptr{Float32}, arr_dev),
+                                          Base.unsafe_convert(Ptr{Float32}, val_dev))
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -207,7 +210,7 @@ end
     keeps = (true,)
     d_out = CuArray{Int}(1)
 
-    @cuda (1,1) exec_pass_tuples(keeps, d_out.devptr)
+    @cuda (1,1) exec_pass_tuples(keeps, Base.unsafe_convert(Ptr{Int}, d_out))
     @test Array(d_out) == [1]
 end
 
@@ -231,7 +234,10 @@ end
 
         return nothing
     end
-    @cuda (1,len) exec_pass_ghost(ExecGhost(), d_a.devptr, d_b.devptr, d_c.devptr)
+    @cuda (1,len) exec_pass_ghost(ExecGhost(),
+                                  Base.unsafe_convert(Ptr{Float32}, d_a),
+                                  Base.unsafe_convert(Ptr{Float32}, d_b),
+                                  Base.unsafe_convert(Ptr{Float32}, d_c))
 
     c = Array(d_c)
     @test a+b == c
@@ -245,7 +251,9 @@ end
 
         return nothing
     end
-    @cuda (1,len) exec_pass_ghost_aggregate(ExecGhost(), d_c.devptr, (42,))
+    @cuda (1,len) exec_pass_ghost_aggregate(ExecGhost(),
+                                            Base.unsafe_convert(Ptr{Float32}, d_c),
+                                            (42,))
 
     c = Array(d_c)
     @test all(val->val==42, c)
@@ -263,7 +271,7 @@ end
     A = CuArray(zeros(Float32, (1,)))
     x = Complex64(2,2)
 
-    @cuda (1, 1) exec_pass_immutables(A.devptr, x)
+    @cuda (1, 1) exec_pass_immutables(Base.unsafe_convert(Ptr{Float32}, A), x)
     @test Array(A) == Float32[imag(x)]
 end
 

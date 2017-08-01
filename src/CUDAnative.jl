@@ -16,17 +16,22 @@ else
     false
 end
 
+include("cgutils.jl")
+include("pointer.jl")
+
+# needs to be loaded _before_ the compiler infrastructure, because of generated functions
+include(joinpath("device", "array.jl"))
+include(joinpath("device", "intrinsics.jl"))
+include(joinpath("device", "libdevice.jl"))
+
 include("jit.jl")
 include("profile.jl")
-include(joinpath("device", "util.jl"))
-include(joinpath("device", "array.jl"))
-include(joinpath("device", "intrinsics.jl")) # some of these files contain generated functions,
-include(joinpath("device", "libdevice.jl"))  # so should get loaded late (JuliaLang/julia#19942)
 include("execution.jl")
 include("reflection.jl")
 
 const default_device = Ref{CuDevice}()
 const default_context = Ref{CuContext}()
+const jlctx = Ref{LLVM.Context}()
 function __init__()
     if !configured
         warn("CUDAnative.jl has not been configured, and will not work properly.")
@@ -48,6 +53,8 @@ function __init__()
     #       (eg. calling `unsafe_reset!` on a primary context)
     default_device[] = CuDevice(0)
     default_context[] = CuContext(default_device[])
+
+    jlctx[] = LLVM.Context(cglobal(:jl_LLVMContext, Void))
 
     init_jit()
 end

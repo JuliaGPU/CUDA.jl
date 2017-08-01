@@ -81,6 +81,25 @@ end
 end
 end
 
+if Base.VERSION >= v"0.6.1-pre.1"
+    # JuliaLang/julia#22022 is required for AS-specific operations to work
+    # on certain structs, which this test verifies.
+    #
+    # Keep this test disabled until there's at least been one commit
+    # on the release-0.6 branch, which we assume to include #22022.
+
+    @testset "LLVM D32593" begin
+        @eval struct llvm_D32593_struct
+            foo::Float32
+            bar::Float32
+        end
+
+        @eval llvm_D32593(arr) = arr[1].foo
+
+        CUDAnative.code_llvm(DevNull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
+    end
+end
+
 end
 
 

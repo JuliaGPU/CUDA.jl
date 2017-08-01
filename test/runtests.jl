@@ -6,6 +6,7 @@ using Base.Test
 include("util.jl")
 
 include("base.jl")
+include("pointer.jl")
 
 if CUDAnative.configured
     # requiring a configured LLVM.jl
