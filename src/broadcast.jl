@@ -3,23 +3,20 @@ Base.Broadcast._containertype(::Type{<:CuArray}) = CuArray
 using Base.Cartesian
 using Base.Broadcast: newindex, _broadcast_getindex
 
-@generated function _broadcast!(f, B::AbstractArray, keeps::K, Idefaults::ID, A::AT, Bs::BT, ::Type{Val{N}}, iter) where {K,ID,AT,BT,N}
+@generated function _broadcast!(f, C::AbstractArray, keeps::K, Idefaults::ID, A::AT, Bs::BT, ::Type{Val{N}}) where {K,ID,AT,BT,N}
     nargs = N + 1
     quote
         $(Expr(:meta, :inline))
-        # destructure the keeps and As tuples
         A_1 = A
-        @nexprs $N i->(A_{i+1} = Bs[i])
-        @nexprs $nargs i->(keep_i = keeps[i])
-        @nexprs $nargs i->(Idefault_i = Idefaults[i])
-        @simd for I in iter
-            # reverse-broadcast the indices
-            @nexprs $nargs i->(I_i = newindex(I, keep_i, Idefault_i))
-            # extract array values
-            @nexprs $nargs i->(@inbounds val_i = _broadcast_getindex(A_i, I_i))
-            # call the function and store the result
+        @nexprs $N i-> A_{i+1} = Bs[i]
+        @nexprs $nargs i -> keep_i = keeps[i]
+        @nexprs $nargs i -> Idefault_i = Idefaults[i]
+        for i = 1:length(C)
+            I = CartesianIndex(ind2sub(C, i))
+            @nexprs $nargs i -> I_i = newindex(I, keep_i, Idefault_i)
+            @nexprs $nargs i -> @inbounds val_i = _broadcast_getindex(A_i, I_i)
             result = @ncall $nargs f val
-            @inbounds B[I] = result
+            @inbounds C[I] = result
         end
     end
 end
@@ -31,11 +28,11 @@ Base.Broadcast.broadcast_indices(::Type{CuArray}, A::Ref) = ()
 Base.Broadcast.broadcast_indices(::Type{CuArray}, A) = indices(A)
 
 # TODO: computed eltype broadcast?
-@inline function broadcast_t(f, T, shape, iter, A, Bs::Vararg{Any,N}) where N
+@inline function broadcast_t(f, T, shape, A, Bs::Vararg{Any,N}) where N
     isleaftype(T) || error("Broadcast output type $T is not concrete")
     C = similar(CuArray{T}, shape)
     keeps, Idefaults = map_newindexer(shape, A, Bs)
-    _broadcast!(f, C, keeps, Idefaults, A, Bs, Val{N}, iter)
+    _broadcast!(f, C, keeps, Idefaults, A, Bs, Val{N})
     return C
 end
 
@@ -43,8 +40,7 @@ end
     shape = indices(C)
     @boundscheck check_broadcast_indices(shape, A, Bs...)
     keeps, Idefaults = map_newindexer(shape, A, Bs)
-    iter = CartesianRange(shape)
-    _broadcast!(f, C, keeps, Idefaults, A, Bs, Val{N}, iter)
+    _broadcast!(f, C, keeps, Idefaults, A, Bs, Val{N})
     return C
 end
 
@@ -53,10 +49,10 @@ end
     shape = broadcast_indices(A, Bs...)
     iter = CartesianRange(shape)
     if isleaftype(T)
-        return broadcast_t(f, T, shape, iter, A, Bs...)
+        return broadcast_t(f, T, shape, A, Bs...)
     end
     if isempty(iter)
         return similar(CuArray{T}, shape)
     end
-    return broadcast_t(f, Any, shape, iter, A, Bs...)
+    return broadcast_t(f, Any, shape, A, Bs...)
 end
