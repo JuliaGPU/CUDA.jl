@@ -98,10 +98,8 @@ Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
 Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
-if Base.VERSION >= v"0.6.1-"
-    if Base.VERSION < v"0.6.1"
-        warn("Using CUDAnative with Julia 0.6.1-pre; make sure it includes #22022")
-    end
+if Base.VERSION >= v"0.6.1"
+    # requires backport of JuliaLang/julia#22022
 
     @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
                                          ::Type{Val{align}}=Val{1}) where {T,A,align}
