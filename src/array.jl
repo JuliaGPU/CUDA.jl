@@ -58,3 +58,10 @@ Base.convert(::Type{CuDeviceArray}, a::CuArray{T,N}) where {T,N} =
 # TODO: auto conversions in CUDAnative
 todevice(x) = x
 todevice(x::CuArray) = convert(CuDeviceArray, x)
+
+cu(x) = x
+cu(x::CuArray) = x
+
+cu(xs::AbstractArray) = isbits(xs) ? xs : CuArray(xs)
+
+Base.getindex(::typeof(cu), xs...) = CuArray([xs...])

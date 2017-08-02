@@ -2,7 +2,7 @@ module CuArrays
 
 using CUDAdrv, CUDAnative
 
-export CuArray
+export CuArray, cu
 
 include("array.jl")
 include("indexing.jl")
