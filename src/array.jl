@@ -14,6 +14,9 @@ CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
 
 CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float64,N}(dims)
 
+Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
+  CuArray{T,N}(dims)
+
 function unsafe_free!(xs::CuArray)
   CUDAdrv.isvalid(xs.ptr.ctx) && Mem.free(xs.ptr)
   return
