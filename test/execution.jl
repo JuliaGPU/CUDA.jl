@@ -95,7 +95,7 @@ end
 
 @testset "return values" begin
     @eval exec_return_int_inner() = return 1
-    @test_throws ErrorException @cuda (1,1) exec_return_int_inner()
+    @test_throws ArgumentError @cuda (1,1) exec_return_int_inner()
 
     @eval function exec_return_int_outer()
         exec_return_int_inner()

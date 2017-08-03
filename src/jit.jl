@@ -78,21 +78,29 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
     irmods = map(ref->convert(String, LLVM.Module(ref)), modrefs)
     unshift!(irmods, entry_irmod)
 
-    # find the entry function
+    # find all Julia functions
     # TODO: let Julia report this
-    entry_fn = Nullable{String}()
+    julia_fns = Dict{String,Dict{String,String}}()
     let entry_mod = parse(LLVM.Module, entry_irmod)
+        r = r"^(?P<cc>(jl|japi|jsys|julia)[^\W_]*)_(?P<name>.+)_\d+$"
         for ir_f in functions(entry_mod)
             ir_fn = LLVM.name(ir_f)
-            if startswith(ir_fn, "julia_$fn") # FIXME: LLVM might have mangled this
-                entry_fn = Nullable(ir_fn)
-                break
+            m = match(r, ir_fn)
+            if m != nothing
+                fns = get!(julia_fns, m[:name], Dict{String,String}())
+                fns[m[:cc]] = ir_fn
             end
         end
-
-        isnull(entry_fn) && error("could not find entry-point function (got ", join(LLVM.name.(collect(functions(entry_mod))), ", ", " and "), ")")
     end
-    entry_fn = get(entry_fn)
+
+    # find the native entry-point function
+    haskey(julia_fns, fn) || error("could not find compiled function for $fn")
+    entry_fns = julia_fns[fn]
+    if !haskey(entry_fns, "julia")
+        error("could not find native function for $fn, available CCs are: ",
+              join(keys(entry_fns), ", "))
+    end
+    entry_fn = entry_fns["julia"]
 
     # link all the modules
     for irmod in irmods
@@ -105,9 +113,10 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
         link!(mod, partial_mod)
     end
 
-    # FIXME: clean up incompatibilities
+    # clean up incompatibilities
     for f in functions(mod)
         if startswith(LLVM.name(f), "jlcall_")
+            # we don't need the generic wrapper
             unsafe_delete!(mod, f)
         else
             # only occurs in debug builds
@@ -302,6 +311,8 @@ end
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
 function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=true)
+    check_invocation(func, tt; kernel=kernel)
+
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
     debug("(Re)compiling kernel $sig for device capability $cap")
 
@@ -321,30 +332,35 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     return module_asm, LLVM.name(entry)
 end
 
-# check whether a (function, tuple of types) yields a valid kernel method
-function check_kernel(func::ANY, tt::ANY)
+# check validity of a function invocation, specified by the generic function and a tupletype
+function check_invocation(func::ANY, tt::ANY; kernel::Bool=false)
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
 
-    ml = Base.methods(func, tt)
-    if length(ml) == 0
-        error("no method found for kernel $sig")
-    elseif length(ml) > 1
-        # TODO: when does this happen?
-        error("ambiguous call to kernel $sig")
-    end
-    rt = Base.return_types(func, tt)[1]
-    if rt != Void
-        error("$sig is not a valid kernel as it returns $rt")
+    # get the method
+    ms = Base.methods(func, tt)
+    isempty(ms)   && throw(ArgumentError("no method found for $sig"))
+    length(ms)!=1 && throw(ArgumentError("no unique matching method for $sig"))
+    m = first(ms)
+
+    # emulate some of the specsig logic from codegen.cppto detect non-native CC functions
+    # TODO: also do this for device functions (#87)
+    isleaftype(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
+    m.isva && throw(ArgumentError("invalid device function $sig: is a varargs function"))
+
+    # kernels can't return values
+    if kernel
+        rt = Base.return_types(func, tt)[1]
+        if rt != Void
+            throw(ArgumentError("$sig is not a valid kernel as it returns $rt"))
+        end
     end
 end
 
-# Main entry-point for compiling a Julia function + argtypes to a callable CUDA function
+# Main entry point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction(dev::CuDevice, func::ANY, types::ANY)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
-
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
-    check_kernel(func, tt)
 
     # select a capability level
     dev_cap = capability(dev)

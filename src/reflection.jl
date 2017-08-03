@@ -37,6 +37,7 @@ function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
                    optimize::Bool=true, dump_module::Bool=false,
                    cap::VersionNumber=current_capability(), kernel::Bool=false)
     tt = Base.to_tuple_type(types)
+    check_invocation(func, tt; kernel=kernel)
     mod, entry = irgen(func, tt; kernel=kernel)
     if optimize
         optimize!(mod, cap)
@@ -62,7 +63,7 @@ function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
                   cap::VersionNumber=current_capability(), kernel::Bool=false)
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
-    kernel && check_kernel(func, tt)
+    check_invocation(func, tt; kernel=kernel)
 
     ptx,_ = compile_function(func, tt, cap; kernel=kernel)
     # TODO: this code contains all the functions in the call chain,
@@ -86,7 +87,7 @@ function code_sass(io::IO, func::ANY, types::ANY=Tuple;
                    cap::VersionNumber=current_capability())
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
-    check_kernel(func, tt)
+    check_invocation(func, tt; kernel=true)
 
     ptx,_ = compile_function(func, tt, cap)
 

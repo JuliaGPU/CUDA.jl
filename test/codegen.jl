@@ -16,7 +16,7 @@
     @test ismatch(r"define void @julia_llvm_valid_kernel_.+\(\) #0.+\{", ir)
 
     @test CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}) == nothing
-    @test_throws AssertionError CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test_throws ArgumentError CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "exceptions" begin
@@ -94,6 +94,14 @@ if Base.VERSION >= v"0.6.1"
     end
 end
 
+@testset "julia calling convention" begin
+    @eval codegen_specsig_va(Is...) = nothing
+    @test_throws ArgumentError CUDAnative.code_llvm(DevNull, codegen_specsig_va, Tuple{})
+
+    @eval codegen_specsig_nonleaf(x) = nothing
+    @test_throws ArgumentError CUDAnative.code_llvm(DevNull, codegen_specsig_nonleaf, Tuple{Real})
+end
+
 end
 
 
@@ -107,7 +115,7 @@ end
 
     @test code_ptx(DevNull, ptx_valid_kernel, Tuple{}) == nothing
     @test code_ptx(DevNull, ptx_invalid_kernel, Tuple{}) == nothing
-    @test_throws ErrorException code_ptx(DevNull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test_throws ArgumentError code_ptx(DevNull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "child functions" begin
@@ -240,7 +248,7 @@ end
     @eval sass_invalid_kernel() = 1
 
     @test code_sass(DevNull, sass_valid_kernel, Tuple{}) == nothing
-    @test_throws ErrorException code_sass(DevNull, sass_invalid_kernel, Tuple{}) == nothing
+    @test_throws ArgumentError code_sass(DevNull, sass_invalid_kernel, Tuple{}) == nothing
 end
 
 end
