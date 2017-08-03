@@ -1,6 +1,16 @@
+const _allowslow = Ref(true)
+
+allowslow(flag = true) = (_allowslow[] = flag)
+
+function assertslow(op = "Operation")
+  _allowslow[] || error("$op is disabled")
+  return
+end
+
 Base.IndexStyle(::Type{<:CuArray}) = IndexLinear()
 
 function Base.getindex{T}(xs::CuArray{T}, i::Integer)
+  assertslow("getindex")
   x = Array{T}(1)
   ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.download(pointer(x), ptr, sizeof(T))
@@ -8,6 +18,7 @@ function Base.getindex{T}(xs::CuArray{T}, i::Integer)
 end
 
 function Base.setindex!{T}(xs::CuArray{T}, v::T, i::Integer)
+  assertslow("setindex!")
   x = T[v]
   ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.upload(ptr, pointer(x), sizeof(T))
