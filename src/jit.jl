@@ -71,36 +71,12 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
                                 track_allocations=false, code_coverage=false,
                                 static_alloc=false, dynamic_alloc=false,
                                 hooks=hooks)
-    entry_irmod = Base._dump_function(func, tt,
-                                      #=native=#false, #=wrapper=#false, #=strip=#false,
-                                      #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                      params)
+    top_irmod = Base._dump_function(func, tt,
+                                    #=native=#false, #=wrapper=#false, #=strip=#false,
+                                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                                    params)
     irmods = map(ref->convert(String, LLVM.Module(ref)), modrefs)
-    unshift!(irmods, entry_irmod)
-
-    # find all Julia functions
-    # TODO: let Julia report this
-    julia_fns = Dict{String,Dict{String,String}}()
-    let entry_mod = parse(LLVM.Module, entry_irmod)
-        r = r"^(?P<cc>(jl|japi|jsys|julia)[^\W_]*)_(?P<name>.+)_\d+$"
-        for ir_f in functions(entry_mod)
-            ir_fn = LLVM.name(ir_f)
-            m = match(r, ir_fn)
-            if m != nothing
-                fns = get!(julia_fns, m[:name], Dict{String,String}())
-                fns[m[:cc]] = ir_fn
-            end
-        end
-    end
-
-    # find the native entry-point function
-    haskey(julia_fns, fn) || error("could not find compiled function for $fn")
-    entry_fns = julia_fns[fn]
-    if !haskey(entry_fns, "julia")
-        error("could not find native function for $fn, available CCs are: ",
-              join(keys(entry_fns), ", "))
-    end
-    entry_fn = entry_fns["julia"]
+    unshift!(irmods, top_irmod)
 
     # link all the modules
     for irmod in irmods
@@ -113,35 +89,50 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
         link!(mod, partial_mod)
     end
 
+    # find all Julia functions
+    # TODO: let Julia report this
+    julia_fs = Dict{String,Dict{String,LLVM.Function}}()
+    r = r"^(?P<cc>(jl|japi|jsys|julia)[^\W_]*)_(?P<name>.+)_\d+$"
+    for llvmf in functions(mod)
+        m = match(r, LLVM.name(llvmf))
+        if m != nothing
+            fns = get!(julia_fs, m[:name], Dict{String,LLVM.Function}())
+            fns[m[:cc]] = llvmf
+        end
+    end
+
+    # find the native entry-point function
+    haskey(julia_fs, fn) || error("could not find compiled function for $fn")
+    entry_fs = julia_fs[fn]
+    if !haskey(entry_fs, "julia")
+        error("could not find native function for $fn, available CCs are: ",
+              join(keys(entry_fs), ", "))
+    end
+    entry_f = entry_fs["julia"]
+
     # clean up incompatibilities
-    for f in functions(mod)
-        if startswith(LLVM.name(f), "jlcall_")
+    for llvmf in functions(mod)
+        llvmfn = LLVM.name(llvmf)
+        if startswith(llvmfn, "jlcall_")
             # we don't need the generic wrapper
-            unsafe_delete!(mod, f)
+            unsafe_delete!(mod, llvmf)
         else
             # only occurs in debug builds
-            delete!(function_attributes(f), EnumAttribute("sspreq"))
+            delete!(function_attributes(llvmf), EnumAttribute("sspreq"))
 
             # make function names safe for ptxas
             # (LLVM ought to do this, see eg. D17738 and D19126), but fails
             # TODO: fix all globals?
-            if !isdeclaration(f)
-                orig_fn = LLVM.name(f)
-                safe_fn = sanitize_fn(orig_fn)
-                if orig_fn != safe_fn
-                    LLVM.name!(f, safe_fn)
-
-                    # take care if we're renaming the entry-point function
-                    if orig_fn == entry_fn
-                        entry_fn = safe_fn
-                    end
+            if !isdeclaration(llvmf)
+                safe_fn = sanitize_fn(llvmfn)
+                if llvmfn != safe_fn
+                    LLVM.name!(llvmf, safe_fn)
                 end
             end
         end
     end
 
     # generate a kernel wrapper to fix & improve argument passing
-    entry_f = get(functions(mod), entry_fn)
     if kernel
         entry_ft = eltype(llvmtype(entry_f))
         @assert return_type(entry_ft) == LLVM.VoidType()
@@ -162,7 +153,7 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
         wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
                                       for (julia_t, codegen_t)
                                       in zip(julia_types, parameters(entry_ft))]
-        wrapper_fn = "ptxcall" * entry_fn[6:end]
+        wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
         wrapper_ft = LLVM.FunctionType(LLVM.VoidType(), wrapper_types)
         wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
