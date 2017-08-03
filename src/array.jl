@@ -4,13 +4,21 @@ using CUDAnative: DevicePtr
 mutable struct CuArray{T,N} <: DenseArray{T,N}
   ptr::OwnedPtr{T}
   dims::NTuple{N,Int}
+  function CuArray{T,N}(ptr::OwnedPtr{T}, dims::NTuple{N,Integer}) where {T,N}
+    xs = new{T,N}(ptr, dims)
+    Mem.retain(ptr)
+    finalizer(xs, unsafe_free!)
+    return xs
+  end
 end
 
-function CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N}
-  xs = CuArray{T,N}(Mem.alloc(T, prod(dims)), dims)
-  finalizer(xs, unsafe_free!)
-  return xs
+function unsafe_free!(xs::CuArray)
+  Mem.release(xs.ptr) && CUDAdrv.isvalid(xs.ptr.ctx) && Mem.free(xs.ptr)
+  return
 end
+
+CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
+  CuArray{T,N}(Mem.alloc(T, prod(dims)), dims)
 
 CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(dims)
@@ -20,13 +28,10 @@ CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float64,N}(dims)
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
   CuArray{T,N}(dims)
 
-function unsafe_free!(xs::CuArray)
-  CUDAdrv.isvalid(xs.ptr.ctx) && Mem.free(xs.ptr)
-  return
-end
-
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
+
+# Interop with CPU array
 
 function Base.copy!{T}(dst::CuArray{T}, src::DenseArray{T})
     @assert length(dst) == length(src)
@@ -55,6 +60,22 @@ Base.convert(::Type{CuArray{T,N}}, xs::DenseArray{T,N}) where {T,N} =
 Base.convert(::Type{CuArray}, xs::DenseArray{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
 
+# Interop with CUDAdrv native array
+
+Base.convert(::Type{CUDAdrv.CuArray{T,N}}, xs::CuArray{T,N}) where {T,N} =
+  CUDAdrv.CuArray{T,N}(xs.dims, xs.ptr)
+
+Base.convert(::Type{CUDAdrv.CuArray}, xs::CuArray{T,N}) where {T,N} =
+  convert(CUDAdrv.CuArray{T,N}, xs)
+
+Base.convert(::Type{CuArray{T,N}}, xs::CUDAdrv.CuArray{T,N}) where {T,N} =
+  CuArray{T,N}(xs.ptr, xs.shape)
+
+Base.convert(::Type{CuArray}, xs::CUDAdrv.CuArray{T,N}) where {T,N} =
+  convert(CuArray{T,N}, xs)
+
+# Interop with CUDAnative device array
+
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
     ptr = Base.unsafe_convert(Ptr{T}, a.ptr)
     CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr))
@@ -62,6 +83,8 @@ end
 
 CUDAnative.cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global}, a)
 CUDAnative.cudaconvert(a::Tuple) = CUDAnative.cudaconvert.(a)
+
+# Utils
 
 Base.show(io::IO, ::Type{CuArray{T,N}}) where {T,N} =
   print(io, "CuArray{$T,$N}")
