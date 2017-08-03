@@ -2,14 +2,14 @@ Base.IndexStyle(::Type{<:CuArray}) = IndexLinear()
 
 function Base.getindex{T}(xs::CuArray{T}, i::Integer)
   x = Array{T}(1)
-  ptr = DevicePtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
+  ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.download(pointer(x), ptr, sizeof(T))
   return x[1]
 end
 
 function Base.setindex!{T}(xs::CuArray{T}, v::T, i::Integer)
   x = T[v]
-  ptr = DevicePtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
+  ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.upload(ptr, pointer(x), sizeof(T))
   return x[1]
 end
@@ -31,6 +31,6 @@ end
 
 function Base._unsafe_getindex!(dest::CuArray, src::CuArray, Is::Union{Real, AbstractArray}...)
     idims = map(length, Is)
-    @cuda (1, length(dest)) index_kernel(todevice(dest), todevice(src), idims, todevice.(Is))
+    @cuda (1, length(dest)) index_kernel(dest, src, idims, Is)
     return dest
 end

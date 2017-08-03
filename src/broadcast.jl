@@ -21,7 +21,7 @@ using Base.Broadcast: newindex, _broadcast_getindex
 end
 
 @inline function _broadcast!(f, C::AbstractArray, keeps, Idefaults, A, Bs)
-    @cuda (1, length(C)) broadcast_kernel(cufunc(f), todevice(C), keeps, Idefaults, todevice(A), todevice.(Bs))
+    @cuda (1, length(C)) broadcast_kernel(cufunc(f), C, keeps, Idefaults, A, Bs)
     return C
 end
 
