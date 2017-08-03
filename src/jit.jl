@@ -71,28 +71,12 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
                                 track_allocations=false, code_coverage=false,
                                 static_alloc=false, dynamic_alloc=false,
                                 hooks=hooks)
-    entry_irmod = Base._dump_function(func, tt,
-                                      #=native=#false, #=wrapper=#false, #=strip=#false,
-                                      #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                      params)
+    top_irmod = Base._dump_function(func, tt,
+                                    #=native=#false, #=wrapper=#false, #=strip=#false,
+                                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                                    params)
     irmods = map(ref->convert(String, LLVM.Module(ref)), modrefs)
-    unshift!(irmods, entry_irmod)
-
-    # find the entry function
-    # TODO: let Julia report this
-    entry_fn = Nullable{String}()
-    let entry_mod = parse(LLVM.Module, entry_irmod)
-        for ir_f in functions(entry_mod)
-            ir_fn = LLVM.name(ir_f)
-            if startswith(ir_fn, "julia_$fn") # FIXME: LLVM might have mangled this
-                entry_fn = Nullable(ir_fn)
-                break
-            end
-        end
-
-        isnull(entry_fn) && error("could not find entry-point function (got ", join(LLVM.name.(collect(functions(entry_mod))), ", ", " and "), ")")
-    end
-    entry_fn = get(entry_fn)
+    unshift!(irmods, top_irmod)
 
     # link all the modules
     for irmod in irmods
@@ -105,34 +89,50 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
         link!(mod, partial_mod)
     end
 
-    # FIXME: clean up incompatibilities
-    for f in functions(mod)
-        if startswith(LLVM.name(f), "jlcall_")
-            unsafe_delete!(mod, f)
+    # find all Julia functions
+    # TODO: let Julia report this
+    julia_fs = Dict{String,Dict{String,LLVM.Function}}()
+    r = r"^(?P<cc>(jl|japi|jsys|julia)[^\W_]*)_(?P<name>.+)_\d+$"
+    for llvmf in functions(mod)
+        m = match(r, LLVM.name(llvmf))
+        if m != nothing
+            fns = get!(julia_fs, m[:name], Dict{String,LLVM.Function}())
+            fns[m[:cc]] = llvmf
+        end
+    end
+
+    # find the native entry-point function
+    haskey(julia_fs, fn) || error("could not find compiled function for $fn")
+    entry_fs = julia_fs[fn]
+    if !haskey(entry_fs, "julia")
+        error("could not find native function for $fn, available CCs are: ",
+              join(keys(entry_fs), ", "))
+    end
+    entry_f = entry_fs["julia"]
+
+    # clean up incompatibilities
+    for llvmf in functions(mod)
+        llvmfn = LLVM.name(llvmf)
+        if startswith(llvmfn, "jlcall_")
+            # we don't need the generic wrapper
+            unsafe_delete!(mod, llvmf)
         else
             # only occurs in debug builds
-            delete!(function_attributes(f), EnumAttribute("sspreq"))
+            delete!(function_attributes(llvmf), EnumAttribute("sspreq"))
 
             # make function names safe for ptxas
             # (LLVM ought to do this, see eg. D17738 and D19126), but fails
             # TODO: fix all globals?
-            if !isdeclaration(f)
-                orig_fn = LLVM.name(f)
-                safe_fn = sanitize_fn(orig_fn)
-                if orig_fn != safe_fn
-                    LLVM.name!(f, safe_fn)
-
-                    # take care if we're renaming the entry-point function
-                    if orig_fn == entry_fn
-                        entry_fn = safe_fn
-                    end
+            if !isdeclaration(llvmf)
+                safe_fn = sanitize_fn(llvmfn)
+                if llvmfn != safe_fn
+                    LLVM.name!(llvmf, safe_fn)
                 end
             end
         end
     end
 
     # generate a kernel wrapper to fix & improve argument passing
-    entry_f = get(functions(mod), entry_fn)
     if kernel
         entry_ft = eltype(llvmtype(entry_f))
         @assert return_type(entry_ft) == LLVM.VoidType()
@@ -153,7 +153,7 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
         wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
                                       for (julia_t, codegen_t)
                                       in zip(julia_types, parameters(entry_ft))]
-        wrapper_fn = "ptxcall" * entry_fn[6:end]
+        wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
         wrapper_ft = LLVM.FunctionType(LLVM.VoidType(), wrapper_types)
         wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
@@ -302,6 +302,8 @@ end
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
 function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=true)
+    check_invocation(func, tt; kernel=kernel)
+
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
     debug("(Re)compiling kernel $sig for device capability $cap")
 
@@ -321,30 +323,35 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     return module_asm, LLVM.name(entry)
 end
 
-# check whether a (function, tuple of types) yields a valid kernel method
-function check_kernel(func::ANY, tt::ANY)
+# check validity of a function invocation, specified by the generic function and a tupletype
+function check_invocation(func::ANY, tt::ANY; kernel::Bool=false)
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
 
-    ml = Base.methods(func, tt)
-    if length(ml) == 0
-        error("no method found for kernel $sig")
-    elseif length(ml) > 1
-        # TODO: when does this happen?
-        error("ambiguous call to kernel $sig")
-    end
-    rt = Base.return_types(func, tt)[1]
-    if rt != Void
-        error("$sig is not a valid kernel as it returns $rt")
+    # get the method
+    ms = Base.methods(func, tt)
+    isempty(ms)   && throw(ArgumentError("no method found for $sig"))
+    length(ms)!=1 && throw(ArgumentError("no unique matching method for $sig"))
+    m = first(ms)
+
+    # emulate some of the specsig logic from codegen.cppto detect non-native CC functions
+    # TODO: also do this for device functions (#87)
+    isleaftype(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
+    m.isva && throw(ArgumentError("invalid device function $sig: is a varargs function"))
+
+    # kernels can't return values
+    if kernel
+        rt = Base.return_types(func, tt)[1]
+        if rt != Void
+            throw(ArgumentError("$sig is not a valid kernel as it returns $rt"))
+        end
     end
 end
 
-# Main entry-point for compiling a Julia function + argtypes to a callable CUDA function
+# Main entry point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction(dev::CuDevice, func::ANY, types::ANY)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
-
     @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
-    check_kernel(func, tt)
 
     # select a capability level
     dev_cap = capability(dev)
