@@ -46,6 +46,9 @@ function Base.copy!{T}(dst::CuArray{T}, src::CuArray{T})
     return dst
 end
 
+Base.collect(x::CuArray{T,N}) where {T,N} =
+  copy!(Array{T,N}(size(x)), x)
+
 Base.convert(::Type{CuArray{T,N}}, xs::DenseArray{T,N}) where {T,N} =
   copy!(CuArray{T,N}(size(xs)), xs)
 
@@ -59,6 +62,20 @@ end
 
 CUDAnative.cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global}, a)
 CUDAnative.cudaconvert(a::Tuple) = CUDAnative.cudaconvert.(a)
+
+Base.show(io::IO, ::Type{CuArray{T,N}}) where {T,N} =
+  print(io, "CuArray{$T,$N}")
+
+function Base.showarray(io::IO, X::CuArray, repr::Bool = true; header = true)
+  if repr
+    print(io, "CuArray(")
+    Base.showarray(io, collect(X), true)
+    print(io, ")")
+  else
+    println(io, summary(X), ":")
+    Base.showarray(io, collect(X), false, header = false)
+  end
+end
 
 cu(x) = x
 cu(x::CuArray) = x
