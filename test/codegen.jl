@@ -8,7 +8,7 @@
     @eval llvm_valid_kernel() = nothing
     @eval llvm_invalid_kernel() = 1
 
-    ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, (); optimize=false, dump_module=true))
+    ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{}; optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
     @test contains(ir, "define void @julia_llvm_valid_kernel")
@@ -21,7 +21,7 @@ end
 
 @testset "exceptions" begin
     @eval codegen_exception() = throw(DivideError())
-    ir = sprint(io->CUDAnative.code_llvm(io, codegen_exception, ()))
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_exception, Tuple{}))
 
     # exceptions should get lowered to a plain trap...
     @test contains(ir, "llvm.trap")
@@ -38,7 +38,7 @@ end
         return
     end
 
-    ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, (Ptr{Int},Int)))
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, Tuple{Ptr{Int},Int}))
     @test !contains(ir, "jlsys_")
 end
 
@@ -47,7 +47,7 @@ end
     @eval @noinline codegen_child(i) = sink(i)
     @eval codegen_parent(i) = (codegen_child(i); nothing)
 
-    ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, (Int,)))
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, Tuple{Int}))
     @test ismatch(r"call .+ @julia_codegen_child_", ir)
 end
 
@@ -61,7 +61,7 @@ end
         return
     end
 
-    ir = sprint(io->CUDAnative.code_llvm(io, codegen_tuple_leak, ()))
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_tuple_leak, Tuple{}))
     @test !contains(ir, "inttoptr")
 end
 
@@ -73,10 +73,10 @@ end
         x::Int
     end
 
-    ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, (Aggregate,)))
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}))
     @test ismatch(r"@julia_codegen_aggregates_\d+\(%Aggregate", ir)
 
-    ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, (Aggregate,); kernel=true))
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}; kernel=true))
     @test ismatch(r"@ptxcall_codegen_aggregates_\d+\(%Aggregate", ir)
 end
 end
@@ -132,7 +132,7 @@ end
     @eval @noinline ptx_nonentry(i) = sink(i)
     @eval ptx_entry(i) = (ptx_nonentry(i); nothing)
 
-    asm = sprint(io->code_ptx(io, ptx_entry, (Int64,); kernel=true))
+    asm = sprint(io->code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
     @test ismatch(r"\.visible \.entry ptxcall_ptx_entry_", asm)
     @test !ismatch(r"\.visible \.func julia_ptx_nonentry_", asm)
     @test ismatch(r"\.func julia_ptx_nonentry_", asm)
@@ -140,12 +140,12 @@ end
 
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
-    @test_throws ErrorException code_ptx(codegen_ref_nonexisting, ())
+    @test_throws ErrorException code_ptx(codegen_ref_nonexisting, Tuple{})
 end
 
 @testset "generic call" begin
     @eval codegen_call_nonexisting() = nonexisting()
-    @test_throws ErrorException code_ptx(codegen_call_nonexisting, ())
+    @test_throws ErrorException code_ptx(codegen_call_nonexisting, Tuple{})
 end
 
 
@@ -153,8 +153,8 @@ end
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
     @eval codegen_idempotency() = nothing
-    code_ptx(DevNull, codegen_idempotency, ())
-    code_ptx(DevNull, codegen_idempotency, ())
+    code_ptx(DevNull, codegen_idempotency, Tuple{})
+    code_ptx(DevNull, codegen_idempotency, Tuple{})
 end
 
 @testset "child function reuse" begin
@@ -188,13 +188,13 @@ end
         codegen_child_reuse_bis_child1(i) + codegen_child_reuse_bis_child2(i)
         return
     end
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent1, (Int,)))
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent1, Tuple{Int}))
 
     @eval function codegen_child_reuse_bis_parent2(i)
         codegen_child_reuse_bis_child1(i+1) + codegen_child_reuse_bis_child2(i+1)
         return
     end
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent2, (Int,)))
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent2, Tuple{Int}))
 end
 
 @testset "indirect sysimg function use" begin
@@ -209,7 +209,7 @@ end
         return
     end
 
-    asm = sprint(io->code_ptx(io, codegen_recompile, (Ptr{Int64},)))
+    asm = sprint(io->code_ptx(io, codegen_recompile, Tuple{Ptr{Int64}}))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
@@ -227,14 +227,14 @@ end
         return
     end
 
-    code_ptx(DevNull, codegen_recompile_bis_fromptx, ())
+    code_ptx(DevNull, codegen_recompile_bis_fromptx, Tuple{})
     @test codegen_recompile_bis_fromhost() == 11
 end
 
 @testset "LLVM intrinsics" begin
     # issue #13 (a): cannot select trunc
     @eval codegen_issue_13(x) = convert(Int, x)
-    code_ptx(DevNull, codegen_issue_13, (Float64,))
+    code_ptx(DevNull, codegen_issue_13, Tuple{Float64})
 end
 
 end
