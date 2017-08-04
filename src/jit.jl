@@ -45,24 +45,21 @@ function raise_exception(insblock::BasicBlock, ex::Value)
 end
 
 function irgen(func::ANY, tt::ANY; kernel::Bool=false)
+    fn = String(typeof(func).name.mt.name)
+
     # sanity checks
     Base.JLOptions().can_inline == 0 &&
         Base.warn_once("inlining disabled, CUDA code generation will almost certainly fail")
 
-    fn = String(typeof(func).name.mt.name)
-    mod = LLVM.Module(sanitize_fn(fn))
-    module_setup(mod)
-
     # collect all modules of IR
-    # TODO: emit into module instead of parsing
     # TODO: make codegen pure
     hook_module_setup(ref::Ptr{Void}) =
         module_setup(LLVM.Module(convert(LLVM.API.LLVMModuleRef, ref)))
     hook_raise_exception(insblock::Ptr{Void}, ex::Ptr{Void}) =
         raise_exception(BasicBlock(convert(LLVM.API.LLVMValueRef, insblock)),
                         Value(convert(LLVM.API.LLVMValueRef, ex)))
-    modrefs = Vector{Ptr{Void}}()
-    hook_module_activation(ref::Ptr{Void}) = push!(modrefs, ref)
+    irmods = Vector{LLVM.Module}()
+    hook_module_activation(ref::Ptr{Void}) = push!(irmods, LLVM.Module(ref))
     hooks = Base.CodegenHooks(module_setup=hook_module_setup,
                               module_activation=hook_module_activation,
                               raise_exception=hook_raise_exception)
@@ -71,22 +68,21 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
                                 track_allocations=false, code_coverage=false,
                                 static_alloc=false, dynamic_alloc=false,
                                 hooks=hooks)
-    top_irmod = Base._dump_function(func, tt,
-                                    #=native=#false, #=wrapper=#false, #=strip=#false,
-                                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                    params)
-    irmods = map(ref->convert(String, LLVM.Module(ref)), modrefs)
-    unshift!(irmods, top_irmod)
+    let irmod = parse(LLVM.Module,
+                      Base._dump_function(func, tt,
+                                          #=native=#false, #=wrapper=#false, #=strip=#false,
+                                          #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                                          params),
+                      jlctx[])
+        unshift!(irmods, irmod)
+    end
 
     # link all the modules
+    mod = LLVM.Module(sanitize_fn(fn), jlctx[])
+    module_setup(mod)
     for irmod in irmods
-        partial_mod = parse(LLVM.Module, irmod)
-
-        name!(partial_mod, "Julia IR")
-        triple!(partial_mod, triple(mod))
-        datalayout!(partial_mod, datalayout(mod))
-
-        link!(mod, partial_mod)
+        module_setup(irmod) # FIXME
+        link!(mod, irmod)
     end
 
     # find all Julia functions
@@ -135,7 +131,7 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
     # generate a kernel wrapper to fix & improve argument passing
     if kernel
         entry_ft = eltype(llvmtype(entry_f))
-        @assert return_type(entry_ft) == LLVM.VoidType()
+        @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
 
         # filter out ghost types, which don't occur in the LLVM function signatures
         julia_types = filter(dt->!isghosttype(dt), tt.parameters)
@@ -154,12 +150,12 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
                                       for (julia_t, codegen_t)
                                       in zip(julia_types, parameters(entry_ft))]
         wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
-        wrapper_ft = LLVM.FunctionType(LLVM.VoidType(), wrapper_types)
+        wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
         wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
         # emit IR performing the "conversions"
-        Builder() do builder
-            entry = BasicBlock(wrapper_f, "entry")
+        Builder(jlctx[]) do builder
+            entry = BasicBlock(wrapper_f, "entry", jlctx[])
             position!(builder, entry)
 
             wrapper_args = Vector{LLVM.Value}()
@@ -212,7 +208,7 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
     # load the library, once
     if !haskey(libdevices, ver)
         open(path) do io
-            libdevice_mod = parse(LLVM.Module, read(io))
+            libdevice_mod = parse(LLVM.Module, read(io), jlctx[])
             name!(libdevice_mod, "libdevice")
             libdevices[ver] = libdevice_mod
         end
