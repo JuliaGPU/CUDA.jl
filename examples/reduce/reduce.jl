@@ -1,3 +1,6 @@
+# EXCLUDE FROM TESTING
+# this file doesn't have an entry point, see `verify.jl` instead
+
 # Fast parallel reduction for Kepler hardware
 # - uses shuffle and shared memory to reduce efficiently
 # - support for large arrays
