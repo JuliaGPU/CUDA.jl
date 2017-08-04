@@ -42,6 +42,7 @@ end
 
 function Base._unsafe_getindex!(dest::CuArray, src::CuArray, Is::Union{Real, AbstractArray}...)
     idims = map(length, Is)
-    @cuda (1, length(dest)) index_kernel(dest, src, idims, Is)
+    blk, thr = cudims(length(dest))
+    @cuda (blk, thr) index_kernel(dest, src, idims, Is)
     return dest
 end

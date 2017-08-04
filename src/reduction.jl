@@ -11,6 +11,7 @@ end
 
 function Base._mapreducedim!(f, op, R::CuArray, A::CuArray)
   range = ifelse.(length.(indices(R)) .== 1, indices(A), nothing)
-  @cuda (1, length(R)) mapreducedim_kernel(f, op, R, A, range)
+  blk, thr = cudims(length(R))
+  @cuda (blk, thr) mapreducedim_kernel(f, op, R, A, range)
   return R
 end

@@ -1,12 +1,33 @@
 using Base.Cartesian
 
+function nextdivisor(n, d)
+  while n % d ≠ 0
+    d += 1
+  end
+  return d
+end
+
+function cudims(n::Integer)
+  warp = 32
+  max = 1024
+  if n % warp == 0
+    n ÷= warp
+    blocks = nextdivisor(n, Base.ceil(Int, n / (max ÷ warp)))
+    (blocks, warp*n÷blocks)
+  else
+    blocks = nextdivisor(n, Base.ceil(Int, n / max))
+    (blocks, n ÷ blocks)
+  end
+end
+
 function Base.fill!(xs::CuArray, x)
   function kernel(xs, x)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     xs[i] = x
     return
   end
-  @cuda (1, length(xs)) kernel(xs, convert(eltype(xs), x))
+  blk, thr = cudims(length(xs))
+  @cuda (blk, thr) kernel(xs, convert(eltype(xs), x))
   return xs
 end
 
