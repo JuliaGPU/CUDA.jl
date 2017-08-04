@@ -344,10 +344,9 @@ function check_invocation(func::ANY, tt::ANY; kernel::Bool=false)
 end
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, func::ANY, types::ANY)
+function cufunction(dev::CuDevice, func::ANY, tt::ANY)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(func, Core.Function)
-    tt = Base.to_tuple_type(types)
 
     # select a capability level
     dev_cap = capability(dev)
