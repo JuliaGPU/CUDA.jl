@@ -45,18 +45,22 @@ function __init__()
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
 
-    # instantiate a default device and context;
-    # this will be implicitly used through `CuCurrentContext`
-    # NOTE: although these conceptually match what the primary context is for,
-    #       we don't use that because it is refcounted separately
-    #       and might confuse / be confused by user operations
-    #       (eg. calling `unsafe_reset!` on a primary context)
-    default_device[] = CuDevice(0)
-    default_context[] = CuContext(default_device[])
-
     jlctx[] = LLVM.Context(cglobal(:jl_LLVMContext, Void))
 
     init_jit()
+
+    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+        warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
+    else
+        # instantiate a default device and context;
+        # this will be implicitly used through `CuCurrentContext`
+        # NOTE: although these conceptually match what the primary context is for,
+        #       we don't use that because it is refcounted separately
+        #       and might confuse / be confused by user operations
+        #       (eg. calling `unsafe_reset!` on a primary context)
+        default_device[] = CuDevice(0)
+        default_context[] = CuContext(default_device[])
+    end
 end
 
 end

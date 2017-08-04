@@ -139,6 +139,7 @@ function create_llvmf(ret::LLVMType=LLVM.VoidType(jlctx[]), params::Vector{LLVMT
     llvmf_typ = LLVM.FunctionType(ret, params)
     llvmf = LLVM.Function(mod, name, llvmf_typ)
     push!(function_attributes(llvmf), EnumAttribute("alwaysinline"))
+    linkage!(llvmf, LLVM.API.LLVMPrivateLinkage)
 
     return llvmf
 end
