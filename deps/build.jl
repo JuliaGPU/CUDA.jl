@@ -124,6 +124,12 @@ function find_libdevice(cuda_path, supported_capabilities)
             libraries[cap] = path
         end
     end
+    let path = joinpath(dir, "libdevice.10.bc")
+        if isfile(path)
+            # TODO: better solution (eg. either dict or string)
+            libraries[v"0"] = path
+        end
+    end
     isempty(libraries) && error("No device libraries found in $dir for your hardware.")
     info("Found libdevice for $(join(sort(map(ver->"sm_$(ver.major)$(ver.minor)", keys(libraries))), ", ", " and "))")
 
