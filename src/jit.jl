@@ -259,10 +259,16 @@ function machine(cap::VersionNumber, triple::String)
     return tm
 end
 
-function optimize!(mod::LLVM.Module, cap::VersionNumber)
+# Optimize a bitcode module according to a certain device capability.
+# Internalize all functions not in `exports`, if specified.
+function optimize!(mod::LLVM.Module, cap::VersionNumber; exports=LLVM.Function[])
     tm = machine(cap, triple(mod))
 
     ModulePassManager() do pm
+        if !isempty(exports)
+            internalize!(pm, map(LLVM.name, exports))
+        end
+
         ccall(:LLVMAddLowerGCFramePass, Void,
               (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
         populate!(pm, tm)
@@ -313,7 +319,7 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     end
 
     # generate (PTX) assembly
-    optimize!(mod, cap)
+    optimize!(mod, cap; exports=[entry])
     module_asm = mcgen(mod, entry, cap; kernel=kernel)
 
     return module_asm, LLVM.name(entry)

@@ -124,8 +124,8 @@ end
     @eval @noinline ptx_child(i) = sink(i)
     @eval ptx_parent(i) = (ptx_child(i); nothing)
 
-    asm = sprint(io->code_ptx(io, ptx_parent, (Int64,)))
-    @test ismatch(r"call.uni \(retval0\),\s+julia_ptx_child_"m, asm)
+    asm = sprint(io->code_ptx(io, ptx_parent, Tuple{Int64}))
+    @test ismatch(r"call.uni\s+julia_ptx_child_"m, asm)
 end
 
 @testset "entry-point functions" begin
@@ -134,7 +134,8 @@ end
 
     asm = sprint(io->code_ptx(io, ptx_entry, (Int64,); kernel=true))
     @test ismatch(r"\.visible \.entry ptxcall_ptx_entry_", asm)
-    @test ismatch(r"\.visible \.func .+ julia_ptx_nonentry_", asm)
+    @test !ismatch(r"\.visible \.func julia_ptx_nonentry_", asm)
+    @test ismatch(r"\.func julia_ptx_nonentry_", asm)
 end
 
 @testset "delayed lookup" begin
@@ -166,16 +167,16 @@ end
         return
     end
 
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent1, (Int,)))
-    @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent1, Tuple{Int}))
+    @test ismatch(r".func julia_codegen_child_reuse_child_", asm)
 
     @eval function codegen_child_reuse_parent2(i)
         codegen_child_reuse_child(i+1)
         return
     end
 
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent2, (Int,)))
-    @test ismatch(r".func .+ julia_codegen_child_reuse_child", asm)
+    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent2, Tuple{Int}))
+    @test ismatch(r".func julia_codegen_child_reuse_child_", asm)
 end
 
 @testset "child function reuse bis" begin
