@@ -6,120 +6,121 @@
 .target sm_61
 .address_size 64
 
-	// .globl	julia_reduce_grid_65679
-// shmem1 has been demoted
+	// .globl	julia_reduce_grid_61343
+.extern .shared .align 4 .b8 shmem1[128];
 
-.visible .func julia_reduce_grid_65679(
-	.param .b64 julia_reduce_grid_65679_param_0,
-	.param .b64 julia_reduce_grid_65679_param_1,
-	.param .b32 julia_reduce_grid_65679_param_2
+.visible .func julia_reduce_grid_61343(
+	.param .b64 julia_reduce_grid_61343_param_0,
+	.param .b64 julia_reduce_grid_61343_param_1,
+	.param .b32 julia_reduce_grid_61343_param_2
 )
 {
-	.reg .pred 	%p<13>;
-	.reg .s32 	%r<46>;
-	.reg .s64 	%rd<31>;
-	// demoted variable
-	.shared .align 4 .b8 shmem1[128];
-	ld.param.u64 	%rd14, [julia_reduce_grid_65679_param_1];
-	mov.u32	%r26, %ctaid.x;
-	mov.u32	%r1, %ntid.x;
-	mov.u32	%r2, %tid.x;
-	add.s32 	%r27, %r26, 1;
-	cvt.u64.u32	%rd1, %r27;
-	add.s64 	%rd15, %rd1, -1;
-	cvt.u64.u32	%rd16, %r1;
-	mul.lo.s64 	%rd17, %rd15, %rd16;
-	add.s32 	%r3, %r2, 1;
-	cvt.u64.u32	%rd18, %r3;
-	add.s64 	%rd30, %rd17, %rd18;
-	ld.param.s32 	%rd3, [julia_reduce_grid_65679_param_2];
-	setp.gt.s64	%p1, %rd30, %rd3;
-	@%p1 bra 	LBB0_1;
+	.reg .pred 	%p<15>;
+	.reg .s32 	%r<56>;
+	.reg .s64 	%rd<19>;
+
+	ld.param.u32 	%r30, [julia_reduce_grid_61343_param_2];
+	ld.param.u64 	%rd5, [julia_reduce_grid_61343_param_1];
+	mov.u32	%r1, %ctaid.x;
+	mov.u32	%r2, %ntid.x;
+	mov.u32	%r3, %tid.x;
+	mul.lo.s32 	%r4, %r2, %r1;
+	add.s32 	%r5, %r3, 1;
+	add.s32 	%r33, %r5, %r4;
+	setp.gt.u32	%p1, %r33, %r30;
+	setp.lt.s32	%p2, %r30, 0;
+	or.pred  	%p3, %p2, %p1;
+	@%p3 bra 	LBB0_1;
 	bra.uni 	LBB0_2;
 LBB0_1:
-	mov.u32 	%r38, 0;
+	mov.u32 	%r48, 0;
 	bra.uni 	LBB0_4;
 LBB0_2:
-	ld.param.u64 	%rd13, [julia_reduce_grid_65679_param_0];
-	mov.u32	%r29, %nctaid.x;
-	mul.lo.s32 	%r30, %r29, %r1;
-	ld.u64 	%rd19, [%rd13+8];
-	shl.b64 	%rd20, %rd30, 2;
-	add.s64 	%rd21, %rd19, %rd20;
-	cvt.u64.u32	%rd4, %r30;
-	add.s64 	%rd29, %rd21, -4;
-	mul.wide.u32 	%rd6, %r30, 4;
-	mov.u32 	%r38, 0;
+	ld.param.u64 	%rd4, [julia_reduce_grid_61343_param_0];
+	mov.u32	%r34, %nctaid.x;
+	mul.lo.s32 	%r6, %r34, %r2;
+	ld.u64 	%rd1, [%rd4+8];
+	add.s32 	%r7, %r3, %r4;
+	mov.u32 	%r48, 0;
+	mov.u32 	%r46, 1;
 LBB0_3:
-	ld.u32 	%r31, [%rd29];
-	add.s32 	%r38, %r31, %r38;
-	add.s64 	%rd30, %rd30, %rd4;
-	add.s64 	%rd29, %rd29, %rd6;
-	setp.le.s64	%p2, %rd30, %rd3;
-	@%p2 bra 	LBB0_3;
+	add.s32 	%r37, %r7, %r46;
+	mul.wide.u32 	%rd6, %r37, 4;
+	add.s64 	%rd7, %rd1, %rd6;
+	add.s64 	%rd8, %rd7, -4;
+	cvta.to.global.u64 	%rd9, %rd8;
+	ld.global.u32 	%r38, [%rd9];
+	add.s32 	%r48, %r38, %r48;
+	add.s32 	%r46, %r46, %r6;
+	add.s32 	%r39, %r7, %r46;
+	setp.le.u32	%p4, %r39, %r30;
+	@%p4 bra 	LBB0_3;
 LBB0_4:
-	mov.u32 	%r7, WARP_SZ;
-	setp.ne.s32	%p3, %r7, 0;
-	@%p3 bra 	LBB0_6;
+	mov.u32 	%r13, WARP_SZ;
+	setp.ne.s32	%p5, %r13, 0;
+	@%p5 bra 	LBB0_6;
 	bra.uni 	LBB0_5;
 LBB0_6:
-	rem.u32 	%r9, %r2, %r7;
-	shr.u32 	%r44, %r7, 1;
-	setp.eq.s32	%p4, %r44, 0;
-	@%p4 bra 	LBB0_9;
-	mov.u32 	%r40, %r44;
+	rem.u32 	%r15, %r3, %r13;
+	shr.u32 	%r54, %r13, 1;
+	setp.eq.s32	%p6, %r54, 0;
+	@%p6 bra 	LBB0_9;
+	mov.u32 	%r50, %r54;
 LBB0_8:
-	shfl.down.b32 %r33, %r38, %r40, 31;
-	add.s32 	%r38, %r33, %r38;
-	shr.u32 	%r40, %r40, 1;
-	setp.eq.s32	%p5, %r40, 0;
-	@%p5 bra 	LBB0_9;
+	shfl.down.b32 %r41, %r48, %r50, 31;
+	add.s32 	%r48, %r41, %r48;
+	shr.u32 	%r50, %r50, 1;
+	setp.eq.s32	%p7, %r50, 0;
+	@%p7 bra 	LBB0_9;
 	bra.uni 	LBB0_8;
 LBB0_9:
-	setp.eq.s32	%p6, %r9, 0;
-	mov.u64 	%rd23, shmem1;
-	@%p6 bra 	LBB0_10;
+	setp.eq.s32	%p8, %r15, 0;
+	mov.u64 	%rd11, shmem1;
+	@%p8 bra 	LBB0_10;
 	bra.uni 	LBB0_11;
 LBB0_10:
-	div.u32 	%r32, %r2, %r7;
-	add.s32 	%r8, %r32, 1;
-	mul.wide.u32 	%rd22, %r8, 4;
-	add.s64 	%rd11, %rd23, %rd22;
-	st.shared.u32 	[%rd11+-4], %r38;
+	div.u32 	%r40, %r3, %r13;
+	add.s32 	%r14, %r40, 1;
+	mul.wide.u32 	%rd10, %r14, 4;
+	add.s64 	%rd2, %rd11, %rd10;
+	st.shared.u32 	[%rd2+-4], %r48;
 LBB0_11:
 	bar.sync 	0;
-	div.u32 	%r35, %r1, %r7;
-	setp.gt.u32	%p7, %r3, %r35;
-	@%p7 bra 	LBB0_12;
+	div.u32 	%r43, %r2, %r13;
+	setp.gt.u32	%p9, %r5, %r43;
+	@%p9 bra 	LBB0_12;
 	bra.uni 	LBB0_13;
 LBB0_12:
-	mov.u32 	%r45, 0;
+	mov.u32 	%r55, 0;
 	bra.uni 	LBB0_14;
 LBB0_13:
-	add.s32 	%r10, %r9, 1;
-	mul.wide.u32 	%rd24, %r10, 4;
-	add.s64 	%rd12, %rd23, %rd24;
-	ld.shared.u32 	%r45, [%rd12+-4];
+	add.s32 	%r16, %r15, 1;
+	mul.wide.u32 	%rd12, %r16, 4;
+	add.s64 	%rd3, %rd11, %rd12;
+	ld.shared.u32 	%r55, [%rd3+-4];
 LBB0_14:
-	setp.le.u32	%p9, %r7, %r2;
-	or.pred  	%p10, %p9, %p4;
-	@%p10 bra 	LBB0_15;
+	setp.le.u32	%p11, %r13, %r3;
+	or.pred  	%p12, %p11, %p6;
+	@%p12 bra 	LBB0_15;
 LBB0_18:
-	shfl.down.b32 %r36, %r45, %r44, 31;
-	add.s32 	%r45, %r36, %r45;
-	shr.u32 	%r44, %r44, 1;
-	setp.eq.s32	%p11, %r44, 0;
-	@%p11 bra 	LBB0_15;
+	shfl.down.b32 %r44, %r55, %r54, 31;
+	add.s32 	%r55, %r44, %r55;
+	shr.u32 	%r54, %r54, 1;
+	setp.eq.s32	%p13, %r54, 0;
+	@%p13 bra 	LBB0_15;
 	bra.uni 	LBB0_18;
 LBB0_15:
-	setp.eq.s32	%p12, %r2, 0;
-	@%p12 bra 	LBB0_16;
+	setp.eq.s32	%p14, %r3, 0;
+	@%p14 bra 	LBB0_16;
 	bra.uni 	LBB0_17;
 LBB0_16:
-	ld.u64 	%rd26, [%rd14+8];
-	shl.b64 	%rd27, %rd1, 2;
-	add.s64 	%rd28, %rd26, %rd27;
-	st.u32 	[%rd28+-4], %r45;
+	add.s32 	%r45, %r1, 1;
+	ld.u64 	%rd14, [%rd5+8];
+	mul.wide.u32 	%rd15, %r45, 4;
+	add.s64 	%rd16, %rd14, %rd15;
+	add.s64 	%rd17, %rd16, -4;
+	cvta.to.global.u64 	%rd18, %rd17;
+	st.global.u32 	[%rd18], %r55;
 LBB0_17:
 	ret;
 LBB0_5:

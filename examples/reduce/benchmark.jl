@@ -16,9 +16,8 @@ input = ones(Int32, len)
 
 # PTX generation
 open(joinpath(@__DIR__, "reduce.jl.ptx"), "w") do f
-    code_ptx(f, reduce_grid,
-                        Tuple{typeof(+), CuDeviceArray{Int32,1},
-                              CuDeviceArray{Int32,1}, Int32};
+    code_ptx(f, reduce_grid, Tuple{typeof(+), CuDeviceVector{Int32,AS.Global},
+                                   CuDeviceVector{Int32,AS.Global}, Int32};
                         cap=v"6.1.0")
 end
 
