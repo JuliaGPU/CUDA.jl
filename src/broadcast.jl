@@ -1,5 +1,3 @@
-Base.Broadcast._containertype(::Type{<:CuArray}) = CuArray
-
 using Base.Cartesian
 using Base.Broadcast: newindex, _broadcast_getindex
 
@@ -41,6 +39,8 @@ Base.Broadcast.broadcast_indices(::Type{CuArray}, A) = indices(A)
 end
 
 # Called by Base broadcasting mechanisms (in place and out of place)
+
+Base.Broadcast._containertype(::Type{<:CuArray}) = CuArray
 
 @inline function Base.Broadcast.broadcast_c!(f, ::Type{CuArray}, ::Type, C, A, Bs::Vararg{Any,N}) where N
     shape = indices(C)
