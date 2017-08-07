@@ -43,7 +43,7 @@ end
   return val
 end
 
-function reduce_grid(op, v0::T, input::CuDeviceVector{T}, output::CuDeviceVector{T},
+function reduce_grid(op, v0::T, input::CuDeviceArray{T}, output::CuDeviceArray{T},
                      len::Integer) where {T}
   val = v0
   i = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
