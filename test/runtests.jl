@@ -16,12 +16,12 @@ end
 @testset "Indexing" begin
   xs = CuArray(rand(2, 3))
   # For some reason, this fails during Pkg.test() only...
-  @test_broken collect(xs[1:2, 2]) == collect(xs)[1:2, 2]
+  @test collect(xs[1:2, 2]) == collect(xs)[1:2, 2]
 end
 
 @testset "PermuteDims" begin
   xs = CuArray(rand(2, 3))
-  @test_broken collect(permutedims(xs, (2, 1))) == permutedims(collect(xs), (2, 1))
+  @test collect(permutedims(xs, (2, 1))) == permutedims(collect(xs), (2, 1))
   xs = CuArray(rand(4, 5, 6))
   @test_broken collect(permutedims(xs, (2, 1, 3))) == permutedims(collect(xs), (2, 1, 3))
 end
