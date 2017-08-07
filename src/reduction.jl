@@ -87,3 +87,6 @@ end
 
 Base.reduce(f, v0, xs::CuArray) =
   reduce(f, convert(eltype(xs), v0), xs)
+
+Base.sum(xs::CuArray) = reduce(+, 0, xs)
+Base.prod(xs::CuArray) = reduce(*, 1, xs)
