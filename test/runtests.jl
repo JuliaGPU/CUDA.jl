@@ -19,6 +19,13 @@ end
   @test_broken collect(xs[1:2, 2]) == collect(xs)[1:2, 2]
 end
 
+@testset "PermuteDims" begin
+  xs = CuArray(rand(2, 3))
+  @test_broken collect(permutedims(xs, (2, 1))) == permutedims(collect(xs), (2, 1))
+  xs = CuArray(rand(4, 5, 6))
+  @test_broken collect(permutedims(xs, (2, 1, 3))) == permutedims(collect(xs), (2, 1, 3))
+end
+
 @testset "Broadcast" begin
   @test collect(fill!(CuArray(2,2), 1)) == [1 1; 1 1]
 

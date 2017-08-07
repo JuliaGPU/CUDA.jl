@@ -31,6 +31,20 @@ function Base.fill!(xs::CuArray, x)
   return xs
 end
 
+using Base.PermutedDimsArrays: genperm
+
+function Base.permutedims!(dest::CuArray, src::CuArray, perm)
+  function kernel(dest, src, perm)
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    I = ind2sub(dest, i)
+    @inbounds dest[I...] = src[genperm(I, perm)...]
+    return
+  end
+  blk, thr = cudims(length(dest))
+  @cuda (blk, thr) kernel(dest, src, perm)
+  return dest
+end
+
 allequal(x) = true
 allequal(x, y, z...) = x == y && allequal(y, z...)
 
