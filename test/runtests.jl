@@ -26,6 +26,13 @@ end
   @test_broken collect(permutedims(xs, (2, 1, 3))) == permutedims(collect(xs), (2, 1, 3))
 end
 
+@testset "Concat" begin
+  xs = CuArray(rand(3, 3))
+  ys = CuArray(rand(3, 3))
+  @test collect(hcat(xs, ys)) == hcat(collect(xs), collect(ys))
+  @test collect(vcat(xs, ys)) == vcat(collect(xs), collect(ys))
+end
+
 @testset "Broadcast" begin
   @test collect(fill!(CuArray(2,2), 1)) == [1 1; 1 1]
 
