@@ -9,12 +9,16 @@ end
 
 Base.IndexStyle(::Type{<:CuArray}) = IndexLinear()
 
-function Base.getindex{T}(xs::CuArray{T}, i::Integer)
-  assertslow("getindex")
+function _getindex(xs::CuArray{T}, i::Integer) where T
   x = Array{T}(1)
   ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.download(pointer(x), ptr, sizeof(T))
   return x[1]
+end
+
+function Base.getindex{T}(xs::CuArray{T}, i::Integer)
+  assertslow("getindex")
+  _getindex(xs, i)
 end
 
 function Base.setindex!{T}(xs::CuArray{T}, v::T, i::Integer)

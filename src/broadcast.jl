@@ -76,7 +76,7 @@ libdevice = :[
     isfinite, isinf, isnan, nearbyint,
     nextafter, signbit, copysign, abs,
     sqrt, rsqrt, cbrt, rcbrt, pow,
-    ceil, floor, min, max, saturate, mod, rem,
+    ceil, floor, min, max, saturate,
     lgamma, tgamma,
     j0, j1, jn, y0, y1, yn,
     normcdf, normcdfinv, hypot,
