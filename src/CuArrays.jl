@@ -2,7 +2,7 @@ module CuArrays
 
 using CUDAdrv, CUDAnative
 
-export CuArray, cu
+export CuArray, CuVector, CuMatrix, cu
 
 include("array.jl")
 include("utils.jl")

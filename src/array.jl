@@ -12,6 +12,9 @@ mutable struct CuArray{T,N} <: DenseArray{T,N}
   end
 end
 
+CuVector{T} = CuArray{T,1}
+CuMatrix{T} = CuArray{T,2}
+
 function unsafe_free!(xs::CuArray)
   Mem.release(xs.ptr) && CUDAdrv.isvalid(xs.ptr.ctx) && Mem.free(xs.ptr)
   return
