@@ -27,7 +27,8 @@ function Base.fill!(xs::CuArray, x)
   return xs
 end
 
-using Base.PermutedDimsArrays: genperm
+genperm(I::NTuple{N}, perm::NTuple{N}) where N =
+  ntuple(d->I[perm[d]], Val{N})
 
 function Base.permutedims!(dest::CuArray, src::CuArray, perm)
   function kernel(dest, src, perm)
