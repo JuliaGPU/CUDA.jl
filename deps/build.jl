@@ -27,7 +27,7 @@ function check_llvm()
 
     InitializeAllTargets()
     "nvptx" in LLVM.name.(collect(targets())) ||
-        error("Your LLVM does not support the NVPTX back-end. Fix this, and rebuild LLVM.jl and CUDAnative.jl.")
+        error("Your LLVM does not support the NVPTX back-end. Fix this, and rebuild LLVM.jl and CUDAnative.jl")
 
     llvm_support = search(llvm_db, ver -> ver <= llvm_version)
     isempty(llvm_support) && error("LLVM $llvm_version does not support any compatible device")
@@ -75,50 +75,42 @@ end
 
 # find CUDA toolkit
 function find_cuda()
-    cuda_envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
-    cuda_envvars_set = filter(var -> haskey(ENV, var), cuda_envvars)
-    if length(cuda_envvars_set) > 0
-        cuda_paths = unique(map(var->ENV[var], cuda_envvars_set))
-        if length(unique(cuda_paths)) > 1
-            warn("Multiple CUDA path environment variables set: $(join(cuda_envvars_set, ", ", " and ")). ",
-                 "Arbitrarily selecting CUDA at $(first(cuda_paths)). ",
-                 "To ensure a consistent path, ensure only a single unique CUDA path is set.")
+    # read environment variables
+    envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
+    envvars_set = filter(var -> haskey(ENV, var), envvars)
+    dirs = if length(envvars_set) > 0
+        envvals = unique(map(var->ENV[var], envvars_set))
+        if length(envvals) > 1
+            warn("Multiple CUDA path environment variables set: $(join(envvars_set, ", ", " and "))")
         end
-        cuda_path = Nullable(first(cuda_paths))
+        envvals
     else
-        cuda_path = Nullable{String}()
+        # default values
+        ["/usr/lib/nvidia-cuda-toolkit",
+         "/usr/local/cuda",
+         "/opt/cuda"]
     end
 
-    return cuda_path
+    cuda_paths = unique(filter(isdir, dirs))
+    info("Found CUDA at $(join(dirs, ", ", " and "))")
+    return cuda_paths
 end
 
 # find device library bitcode files
-function find_libdevice(cuda_path, supported_capabilities)
-
+function find_libdevice(cuda_path, capabilities)
     # find the root directory
-    if haskey(ENV, "NVVMIR_LIBRARY_DIR")
-        dirs = [ENV["NVVMIR_LIBRARY_DIR"]]
-    elseif !isnull(cuda_path)
-        dirs = ["$(get(cuda_path))/libdevice",
-                "$(get(cuda_path))/nvvm/libdevice"]
-    else
-        dirs = ["/usr/lib/nvidia-cuda-toolkit/libdevice",
-                "/usr/local/cuda/nvvm/libdevice",
-                "/opt/cuda/nvvm/libdevice"]
-    end
+    dirs = ["$cuda_path/libdevice", "$cuda_path/nvvm/libdevice"]
     dirs = unique(filter(isdir, dirs))
     if isempty(dirs)
-        error("CUDA device library path not found. ",
-              "Specify by setting a CUDA path variable, or by setting NVVMIR_LIBRARY_DIR.")
+        return nothing
     elseif length(dirs) > 1
-        warn("Multiple locations found with device code: $(join(dirs, ", ", " and ")). ",
-             "Arbitrarily selecting those at $(first(dirs)).")
+        warn("Multiple locations found with device code: $(join(dirs, ", ", " and "))")
     end
     dir = first(dirs)
 
     # discover device library files
     libraries = Dict{VersionNumber,String}()
-    for cap in supported_capabilities
+    for cap in capabilities
         path = joinpath(dir, "libdevice.compute_$(cap.major)$(cap.minor).10.bc")
         if isfile(path)
             libraries[cap] = path
@@ -132,13 +124,23 @@ function find_libdevice(cuda_path, supported_capabilities)
     end
 
     if library != nothing
-        info("Found unified libdevice")
+        info("Found unified libdevice at $library")
         return library
     elseif !isempty(libraries)
-        info("Found libdevice for $(join(sort(map(ver->"sm_$(ver.major)$(ver.minor)", keys(libraries))), ", ", " and "))")
+        info("Found libdevice for $(join(sort(map(ver->"sm_$(ver.major)$(ver.minor)", keys(libraries))), ", ", " and ")) at $dir")
         return libraries
     else
-        error("No device libraries found in $dir for your hardware.")
+        return nothing
+    end
+end
+
+# find ptxas binary
+function find_ptxas(cuda_path)
+    ptxas = joinpath(cuda_path, "bin", "ptxas")
+    if ispath(ptxas)
+        return ptxas
+    else
+        return nothing
     end
 end
 
@@ -157,23 +159,40 @@ function main()
     julia_llvm_version = check_julia(llvm_version)
 
     # figure out supported capabilities
-    supported_capabilities = Vector{VersionNumber}()
-    append!(supported_capabilities, llvm_support ∩ cuda_support)
-    debug("Supported capabilities: $(join(supported_capabilities, ", "))")
+    capabilities = Vector{VersionNumber}()
+    append!(capabilities, llvm_support ∩ cuda_support)
+    debug("Supported capabilities: $(join(capabilities, ", "))")
 
     # discover stuff
-    cuda_path = find_cuda()
-    libdevice = find_libdevice(cuda_path, supported_capabilities)
+    cuda_paths = find_cuda()
+    if isempty(cuda_paths)
+        error("Could not find CUDA toolkit; specify using CUDA_(PATH|HOME|ROOT) environment variable")
+    elseif length(cuda_paths) > 1
+        warn("Found multiple CUDA installations")
+    end
+    cuda_path, ptxas, libdevice = nothing, nothing, nothing
+    for cuda_path in cuda_paths
+        libdevice = find_libdevice(cuda_path, capabilities)
+        ptxas = find_ptxas(cuda_path)
+        if ptxas != nothing && libdevice != nothing
+            break
+        end
+    end
+    libdevice == nothing && error("Could not find libdevice in any of your CUDA installations")
+    ptxas == nothing && error("Could not find ptxas in any of your CUDA installations")
+    info("Using CUDA at $cuda_path")
+
 
     # check if we need to rebuild
     if isfile(ext_bak)
         debug("Checking validity of existing ext.jl...")
         @eval module Previous; include($ext_bak); end
-        if  isdefined(Previous, :cuda_version)           && Previous.cuda_version == cuda_version &&
-            isdefined(Previous, :llvm_version)           && Previous.llvm_version == llvm_version &&
-            isdefined(Previous, :julia_llvm_version)     && Previous.julia_llvm_version == julia_llvm_version &&
-            isdefined(Previous, :supported_capabilities) && Previous.supported_capabilities == supported_capabilities &&
-            isdefined(Previous, :libdevice)              && Previous.libdevice == libdevice
+        if  isdefined(Previous, :cuda_version)       && Previous.cuda_version == cuda_version &&
+            isdefined(Previous, :llvm_version)       && Previous.llvm_version == llvm_version &&
+            isdefined(Previous, :julia_llvm_version) && Previous.julia_llvm_version == julia_llvm_version &&
+            isdefined(Previous, :capabilities)       && Previous.capabilities == capabilities &&
+            isdefined(Previous, :libdevice)          && Previous.libdevice == libdevice &&
+            isdefined(Previous, :ptxas)              && Previous.ptxas == ptxas
             info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
             mv(ext_bak, ext)
             return
@@ -188,8 +207,9 @@ function main()
             const llvm_version = $(repr(llvm_version))
             const julia_llvm_version = $(repr(julia_llvm_version))
 
-            const supported_capabilities = $(repr(supported_capabilities))
+            const capabilities = $(repr(capabilities))
             const libdevice = $(repr(libdevice))
+            const ptxas = $(repr(ptxas))
             """)
     end
 

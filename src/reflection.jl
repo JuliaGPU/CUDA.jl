@@ -96,7 +96,7 @@ function code_sass(io::IO, func::ANY, types::ANY=Tuple;
     # NOTE: this might not match what is being executed, due to the PTX->SASS conversion
     #       by the driver possibly not matching what `ptxas` (part of the toolkit) does.
     # TODO: see how `nvvp` extracts SASS code when doing PC sampling, and copy that.
-    Base.run(`ptxas --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
+    Base.run(`$ptxas --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
     try
         print(io, readstring(`cuobjdump --dump-sass $fn`))
     finally
