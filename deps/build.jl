@@ -146,8 +146,11 @@ end
 ## main
 
 const ext = joinpath(@__DIR__, "ext.jl")
+const ext_bak = ext * ".bak"
 
 function main()
+    ispath(ext) && mv(ext, ext_bak; remove_destination=true)
+
     # check version support
     llvm_version, llvm_support = check_llvm()
     cuda_version, cuda_support = check_cuda()
@@ -163,15 +166,16 @@ function main()
     libdevice = find_libdevice(cuda_path, supported_capabilities)
 
     # check if we need to rebuild
-    if isfile(ext)
+    if isfile(ext_bak)
         debug("Checking validity of existing ext.jl...")
-        @eval module Previous; include($ext); end
+        @eval module Previous; include($ext_bak); end
         if  isdefined(Previous, :cuda_version)           && Previous.cuda_version == cuda_version &&
             isdefined(Previous, :llvm_version)           && Previous.llvm_version == llvm_version &&
             isdefined(Previous, :julia_llvm_version)     && Previous.julia_llvm_version == julia_llvm_version &&
             isdefined(Previous, :supported_capabilities) && Previous.supported_capabilities == supported_capabilities &&
             isdefined(Previous, :libdevice)              && Previous.libdevice == libdevice
             info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
+            mv(ext_bak, ext)
             return
         end
     end
@@ -198,10 +202,4 @@ function main()
     return
 end
 
-try
-    main()
-catch ex
-    # if anything goes wrong, wipe the existing ext.jl to prevent the package from loading
-    rm(ext; force=true)
-    rethrow(ex)
-end
+main()
