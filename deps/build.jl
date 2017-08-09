@@ -91,7 +91,7 @@ function find_cuda()
 end
 
 # find device library bitcode files
-function find_libdevice(cuda_path, supported_capabilities)
+function find_libdevice(cuda_path, capabilities)
     # find the root directory
     if haskey(ENV, "NVVMIR_LIBRARY_DIR")
         dirs = [ENV["NVVMIR_LIBRARY_DIR"]]
@@ -115,7 +115,7 @@ function find_libdevice(cuda_path, supported_capabilities)
 
     # discover device library files
     libraries = Dict{VersionNumber,String}()
-    for cap in supported_capabilities
+    for cap in capabilities
         path = joinpath(dir, "libdevice.compute_$(cap.major)$(cap.minor).10.bc")
         if isfile(path)
             libraries[cap] = path
@@ -154,23 +154,23 @@ function main()
     julia_llvm_version = check_julia(llvm_version)
 
     # figure out supported capabilities
-    supported_capabilities = Vector{VersionNumber}()
-    append!(supported_capabilities, llvm_support ∩ cuda_support)
-    debug("Supported capabilities: $(join(supported_capabilities, ", "))")
+    capabilities = Vector{VersionNumber}()
+    append!(capabilities, llvm_support ∩ cuda_support)
+    debug("Supported capabilities: $(join(capabilities, ", "))")
 
     # discover stuff
     cuda_path = find_cuda()
-    libdevice = find_libdevice(cuda_path, supported_capabilities)
+    libdevice = find_libdevice(cuda_path, capabilities)
 
     # check if we need to rebuild
     if isfile(ext_bak)
         debug("Checking validity of existing ext.jl...")
         @eval module Previous; include($ext_bak); end
-        if  isdefined(Previous, :cuda_version)           && Previous.cuda_version == cuda_version &&
-            isdefined(Previous, :llvm_version)           && Previous.llvm_version == llvm_version &&
-            isdefined(Previous, :julia_llvm_version)     && Previous.julia_llvm_version == julia_llvm_version &&
-            isdefined(Previous, :supported_capabilities) && Previous.supported_capabilities == supported_capabilities &&
-            isdefined(Previous, :libdevice)              && Previous.libdevice == libdevice
+        if  isdefined(Previous, :cuda_version)       && Previous.cuda_version == cuda_version &&
+            isdefined(Previous, :llvm_version)       && Previous.llvm_version == llvm_version &&
+            isdefined(Previous, :julia_llvm_version) && Previous.julia_llvm_version == julia_llvm_version &&
+            isdefined(Previous, :capabilities)       && Previous.capabilities == capabilities &&
+            isdefined(Previous, :libdevice)          && Previous.libdevice == libdevice
             info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
             mv(ext_bak, ext)
             return
@@ -185,7 +185,7 @@ function main()
             const llvm_version = $(repr(llvm_version))
             const julia_llvm_version = $(repr(julia_llvm_version))
 
-            const supported_capabilities = $(repr(supported_capabilities))
+            const capabilities = $(repr(capabilities))
             const libdevice = $(repr(libdevice))
             """)
     end
