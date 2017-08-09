@@ -214,6 +214,20 @@ end
     @test Array(d_out) == [1]
 end
 
+@testset "tuple of arrays" begin
+
+    @eval function exec_pass_tuples(xs)
+        xs[1][1] = xs[2][1]
+        nothing
+    end
+
+    x1 = CuArray([1])
+    x2 = CuArray([2])
+
+    @cuda (1,1) exec_pass_tuples((x1, x2))
+    @test Array(x1) == [2]
+end
+
 
 @testset "ghost function parameters" begin
     # bug: ghost type function parameters are elided by the compiler
