@@ -9,8 +9,7 @@ using Base.Broadcast: newindex, _broadcast_getindex
         @nexprs $N i -> keep_i = keeps[i]
         @nexprs $N i -> Idefault_i = Idefaults[i]
 
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        I = CartesianIndex(ind2sub(C, i))
+        I = CartesianIndex(@cuindex C)
         @nexprs $N i -> I_i = newindex(I, keep_i, Idefault_i)
         @nexprs $N i -> @inbounds val_i = _broadcast_getindex(A_i, I_i)
         result = @ncall $N f val
@@ -19,7 +18,7 @@ using Base.Broadcast: newindex, _broadcast_getindex
 end
 
 @inline function _broadcast!(f, C::AbstractArray, keeps, Idefaults, A, Bs)
-    blk, thr = cudims(length(C))
+    blk, thr = cudims(C)
     @cuda (blk, thr) broadcast_kernel(cufunc(f), C, keeps, Idefaults, A, Bs)
     return C
 end

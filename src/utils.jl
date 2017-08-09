@@ -1,32 +1,28 @@
 using Base.Cartesian
 
-function nextdivisor(n, d)
-  while n % d ≠ 0
-    d += 1
-  end
-  return d
+function cudims(n::Integer)
+  threads = 256
+  Base.ceil(Int, n / threads), threads
 end
 
-function cudims(n::Integer)
-  warp = 32
-  max = 1024
-  if n % warp == 0
-    n ÷= warp
-    blocks = nextdivisor(n, Base.ceil(Int, n / (max ÷ warp)))
-    (blocks, warp*n÷blocks)
-  else
-    blocks = nextdivisor(n, Base.ceil(Int, n / max))
-    (blocks, n ÷ blocks)
+cudims(a::AbstractArray) = cudims(length(a))
+
+macro cuindex(A)
+  quote
+    A = $(esc(A))
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    i > length(A) && return
+    ind2sub(A, i)
   end
 end
 
 function Base.fill!(xs::CuArray, x)
   function kernel(xs, x)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    xs[i] = x
+    I = @cuindex xs
+    xs[I...] = x
     return
   end
-  blk, thr = cudims(length(xs))
+  blk, thr = cudims(xs)
   @cuda (blk, thr) kernel(xs, convert(eltype(xs), x))
   return xs
 end
@@ -35,12 +31,11 @@ using Base.PermutedDimsArrays: genperm
 
 function Base.permutedims!(dest::CuArray, src::CuArray, perm)
   function kernel(dest, src, perm)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    I = ind2sub(dest, i)
+    I = @cuindex dest
     @inbounds dest[I...] = src[genperm(I, perm)...]
     return
   end
-  blk, thr = cudims(length(dest))
+  blk, thr = cudims(dest)
   @cuda (blk, thr) kernel(dest, src, perm)
   return dest
 end
@@ -79,13 +74,12 @@ end
 
 function _cat(dim, dest, xs...)
   function kernel(dim, dest, xs)
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    I = ind2sub(dest, i)
+    I = @cuindex dest
     n, I′ = catindex(dim, I, size.(xs))
     @inbounds dest[I...] = xs[n][I′...]
     return
   end
-  blk, thr = cudims(length(dest))
+  blk, thr = cudims(dest)
   @cuda (blk, thr) kernel(dim, dest, xs)
   return dest
 end
