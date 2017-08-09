@@ -198,26 +198,31 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
     return mod, entry_f
 end
 
-const libdevices = Dict{VersionNumber, LLVM.Module}()
+const libdevices = Dict{String, LLVM.Module}()
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
 
-    # select the most recent & compatible libdevice
-    const vers = keys(CUDAnative.libdevice_libraries)
-    compat_vers = Set(ver for ver in vers if ver <= cap)
-    isempty(compat_vers) && error("No compatible CUDA device library available")
-    ver = maximum(compat_vers)
-    path = libdevice_libraries[ver]
+    # find libdevice
+    path = if isa(libdevice, Dict)
+        # select the most recent & compatible library
+        const vers = keys(CUDAnative.libdevice)
+        compat_vers = Set(ver for ver in vers if ver <= cap)
+        isempty(compat_vers) && error("No compatible CUDA device library available")
+        ver = maximum(compat_vers)
+        path = libdevice[ver]
+    else
+        libdevice
+    end
 
     # load the library, once
-    if !haskey(libdevices, ver)
+    if !haskey(libdevices, path)
         open(path) do io
             libdevice_mod = parse(LLVM.Module, read(io))
             name!(libdevice_mod, "libdevice")
-            libdevices[ver] = libdevice_mod
+            libdevices[path] = libdevice_mod
         end
     end
-    libdevice_mod = LLVM.Module(libdevices[ver])
+    libdevice_mod = LLVM.Module(libdevices[path])
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(libdevice_mod, triple(mod))

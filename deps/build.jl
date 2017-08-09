@@ -94,7 +94,6 @@ end
 
 # find device library bitcode files
 function find_libdevice(cuda_path, supported_capabilities)
-    libraries = Dict{VersionNumber,String}()
 
     # find the root directory
     if haskey(ENV, "NVVMIR_LIBRARY_DIR")
@@ -117,23 +116,30 @@ function find_libdevice(cuda_path, supported_capabilities)
     end
     dir = first(dirs)
 
-    # discover individual device library files
+    # discover device library files
+    libraries = Dict{VersionNumber,String}()
     for cap in supported_capabilities
         path = joinpath(dir, "libdevice.compute_$(cap.major)$(cap.minor).10.bc")
         if isfile(path)
             libraries[cap] = path
         end
     end
+    library = nothing
     let path = joinpath(dir, "libdevice.10.bc")
         if isfile(path)
-            # TODO: better solution (eg. either dict or string)
-            libraries[v"0"] = path
+            library = path
         end
     end
-    isempty(libraries) && error("No device libraries found in $dir for your hardware.")
-    info("Found libdevice for $(join(sort(map(ver->"sm_$(ver.major)$(ver.minor)", keys(libraries))), ", ", " and "))")
 
-    return libraries
+    if library != nothing
+        info("Found unified libdevice")
+        return library
+    elseif !isempty(libraries)
+        info("Found libdevice for $(join(sort(map(ver->"sm_$(ver.major)$(ver.minor)", keys(libraries))), ", ", " and "))")
+        return libraries
+    else
+        error("No device libraries found in $dir for your hardware.")
+    end
 end
 
 
@@ -154,7 +160,7 @@ function main()
 
     # discover stuff
     cuda_path = find_cuda()
-    libdevice_libraries = find_libdevice(cuda_path, supported_capabilities)
+    libdevice = find_libdevice(cuda_path, supported_capabilities)
 
     # check if we need to rebuild
     if isfile(ext)
@@ -164,7 +170,7 @@ function main()
             isdefined(Previous, :llvm_version)           && Previous.llvm_version == llvm_version &&
             isdefined(Previous, :julia_llvm_version)     && Previous.julia_llvm_version == julia_llvm_version &&
             isdefined(Previous, :supported_capabilities) && Previous.supported_capabilities == supported_capabilities &&
-            isdefined(Previous, :libdevice_libraries)    && Previous.libdevice_libraries == libdevice_libraries
+            isdefined(Previous, :libdevice)              && Previous.libdevice == libdevice
             info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
             return
         end
@@ -174,12 +180,12 @@ function main()
     open(ext, "w") do fh
         write(fh, """
             # Toolchain properties
-            const cuda_version = v"$cuda_version"
-            const llvm_version = v"$llvm_version"
-            const julia_llvm_version = v"$julia_llvm_version"
+            const cuda_version = $(repr(cuda_version))
+            const llvm_version = $(repr(llvm_version))
+            const julia_llvm_version = $(repr(julia_llvm_version))
 
-            const supported_capabilities = $supported_capabilities
-            const libdevice_libraries = $libdevice_libraries
+            const supported_capabilities = $(repr(supported_capabilities))
+            const libdevice = $(repr(libdevice))
             """)
     end
 
