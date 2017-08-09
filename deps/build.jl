@@ -67,8 +67,11 @@ end
 ## main
 
 const ext = joinpath(@__DIR__, "ext.jl")
+const ext_bak = ext * ".bak"
 
 function main()
+    ispath(ext) && mv(ext, ext_bak; remove_destination=true)
+
     # discover stuff
     libcuda_path, libcuda_vendor = find_libcuda()
     status = init(libcuda_path)  # see note below
@@ -90,13 +93,14 @@ function main()
     #       would happen during `version` or, worse, at package load time.
 
     # check if we need to rebuild
-    if isfile(ext)
+    if isfile(ext_bak)
         debug("Checking validity of existing ext.jl")
-        @eval module Previous; include($ext); end
+        @eval module Previous; include($ext_bak); end
         if isdefined(Previous, :libcuda_version) && Previous.libcuda_version == libcuda_version &&
            isdefined(Previous, :libcuda_path)    && Previous.libcuda_path == libcuda_path &&
            isdefined(Previous, :libcuda_vendor)  && Previous.libcuda_vendor == libcuda_vendor
             info("CUDAdrv.jl has already been built for this set-up.")
+            mv(ext_bak, ext)
         end
     end
 
@@ -118,10 +122,4 @@ function main()
     return
 end
 
-try
-    main()
-catch ex
-    # if anything goes wrong, wipe the existing ext.jl to prevent the package from loading
-    rm(ext; force=true)
-    rethrow(ex)
-end
+main()
