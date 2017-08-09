@@ -84,23 +84,20 @@ function find_cuda()
                  "Arbitrarily selecting CUDA at $(first(cuda_paths)). ",
                  "To ensure a consistent path, ensure only a single unique CUDA path is set.")
         end
-        cuda_path = Nullable(first(cuda_paths))
+        return first(cuda_paths)
     else
-        cuda_path = Nullable{String}()
+        return nothing
     end
-
-    return cuda_path
 end
 
 # find device library bitcode files
 function find_libdevice(cuda_path, supported_capabilities)
-
     # find the root directory
     if haskey(ENV, "NVVMIR_LIBRARY_DIR")
         dirs = [ENV["NVVMIR_LIBRARY_DIR"]]
-    elseif !isnull(cuda_path)
-        dirs = ["$(get(cuda_path))/libdevice",
-                "$(get(cuda_path))/nvvm/libdevice"]
+    elseif cuda_path != nothing
+        dirs = ["$cuda_path/libdevice",
+                "$cuda_path/nvvm/libdevice"]
     else
         dirs = ["/usr/lib/nvidia-cuda-toolkit/libdevice",
                 "/usr/local/cuda/nvvm/libdevice",
