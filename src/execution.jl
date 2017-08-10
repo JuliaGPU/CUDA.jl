@@ -23,6 +23,7 @@ function cudaconvert(x::T) where {T}
     return x
 end
 
+cudaconvert(x::Tuple) = cudaconvert.(x)
 
 # fast lookup of global world age
 world_age() = ccall(:jl_get_tls_world_age, UInt, ())
