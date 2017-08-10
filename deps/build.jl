@@ -134,11 +134,11 @@ function find_libdevice(cuda_path, capabilities)
     end
 end
 
-# find ptxas binary
-function find_ptxas(cuda_path)
-    ptxas = joinpath(cuda_path, "bin", "ptxas")
-    if ispath(ptxas)
-        return ptxas
+function find_binary(cuda_path, name)
+    path = joinpath(cuda_path, "bin", name)
+    if ispath(path)
+        info("Found $name at $path")
+        return path
     else
         return nothing
     end
@@ -170,18 +170,19 @@ function main()
     elseif length(cuda_paths) > 1
         warn("Found multiple CUDA installations")
     end
-    cuda_path, ptxas, libdevice = nothing, nothing, nothing
+    cuda_path = nothing
+    tools = nothing
     for cuda_path in cuda_paths
-        libdevice = find_libdevice(cuda_path, capabilities)
-        ptxas = find_ptxas(cuda_path)
-        if ptxas != nothing && libdevice != nothing
-            break
-        end
+        tools = [
+            find_libdevice(cuda_path, capabilities),
+            find_binary(cuda_path, "cuobjdump"),
+            find_binary(cuda_path, "ptxas")
+        ]
+        all(tools .!= nothing) && break
     end
-    libdevice == nothing && error("Could not find libdevice in any of your CUDA installations")
-    ptxas == nothing && error("Could not find ptxas in any of your CUDA installations")
+    any(tools == nothing) && error("Could not find a usable CUDA installation")
     info("Using CUDA at $cuda_path")
-
+    libdevice, cuobjdump, ptxas = tools
 
     # check if we need to rebuild
     if isfile(ext_bak)
@@ -192,6 +193,7 @@ function main()
             isdefined(Previous, :julia_llvm_version) && Previous.julia_llvm_version == julia_llvm_version &&
             isdefined(Previous, :capabilities)       && Previous.capabilities == capabilities &&
             isdefined(Previous, :libdevice)          && Previous.libdevice == libdevice &&
+            isdefined(Previous, :cuobjdump)          && Previous.cuobjdump == cuobjdump &&
             isdefined(Previous, :ptxas)              && Previous.ptxas == ptxas
             info("CUDAnative.jl has already been built for this set-up, no need to rebuild")
             mv(ext_bak, ext)
@@ -209,6 +211,7 @@ function main()
 
             const capabilities = $(repr(capabilities))
             const libdevice = $(repr(libdevice))
+            const cuobjdump = $(repr(cuobjdump))
             const ptxas = $(repr(ptxas))
             """)
     end

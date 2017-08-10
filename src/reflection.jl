@@ -98,7 +98,7 @@ function code_sass(io::IO, func::ANY, types::ANY=Tuple;
     # TODO: see how `nvvp` extracts SASS code when doing PC sampling, and copy that.
     Base.run(`$ptxas --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
     try
-        print(io, readstring(`cuobjdump --dump-sass $fn`))
+        print(io, readstring(`$cuobjdump --dump-sass $fn`))
     finally
         rm(fn)
     end
