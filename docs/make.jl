@@ -11,7 +11,8 @@ makedocs(
         "Manual"  => [
             "man/usage.md",
             "man/troubleshooting.md",
-            "man/performance.md"
+            "man/performance.md",
+            "man/hacking.md"
         ],
         "Library" => [
             "lib/compilation.md",

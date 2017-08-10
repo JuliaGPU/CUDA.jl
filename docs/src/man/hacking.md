@@ -1,21 +1,54 @@
-Wrapping intrinsics
--------------------
+# Hacking
+
+## Generated fnuctions
+
+Generated functions are used heavily in CUDAnative.jl, in combination with LLVM.jl, to
+generate type-specialized code and IR. If evaluating the generator results in an error,
+Julia generates a dynamic call to the generator for you to inspect the error at run-time.
+This is a problem in the world of GPUs, where dynamic calls are prohibited. A band-aid is to
+print the exception during inference:
+
+```patch
+diff --git a/base/inference.jl b/base/inference.jl
+index 6443665676..b03d78ddaa 100644
+--- a/base/inference.jl
++++ b/base/inference.jl
+@@ -2430,7 +2430,10 @@ function typeinf_frame(linfo::MethodInstance, caller, optimize::Bool, cached::Bo
+             try
+                 # user code might throw errors – ignore them
+                 src = get_staged(linfo)
+-            catch
++            catch ex
++                println("WARNING: An error occurred during generated function execution.")
++                println(ex)
++                ccall(:jlbacktrace, Void, ())
+                 return nothing
+             end
+         else
+```
+
+
+## Adding intrinsics
 
 Adding intrinsics to `CUDAnative.jl` can be relatively convoluted, depending on the type of
-intrinsic.
+intrinsic. Most of the boil down to inlining a snippet of LLVM IR, using `llvmcall` (or
+`ccall` with the `llvmcall` calling convention). For more complex code, use LLVM.jl to build
+the IR string.
+
 
 ### `libdevice` intrinsics
 
 These intrinsics are represented by function calls to `libdevice`. Most of them should
 already be covered. There's a convenience macro, `@wrap`, simplifying the job of adding and
 exporting intrinsics, and converting arguments and return values. See the documentation of
-the macro for more details, and look at `src/intrinsics.jl` for examples.
+the macro for more details, and look at `src/device/libdevice.jl` for examples.
 
 
 ### LLVM back-end intrinsics
 
-Calls to functions like `llvm.nvvm.barrier0` are backed the PTX LLVM back-end, but can be
-wrapped using the `@wrap` macro as well.
+Calls to functions like `llvm.nvvm.barrier0` are backed the PTX LLVM back-end, and can be
+wrapped using `ccall` with the `llvmcall` calling convention. For more complex intrinsics,
+or when you're not actually calling an intrinsic function, you can still use `@wrap`.
 
 
 ### Inline PTX assembly
@@ -75,36 +108,14 @@ function ballot(pred::Bool)
 end
 ```
 
+In the future, we will use LLVM.jl to properly embed inline assembly instead of this
+string-based hackery.
 
-Generated functions
--------------------
 
-Generated functions are an interesting tool to use for GPU programming, as they allow to
-generate lean, allocation-less code specialized on the types of input arguments. Indeed, we
-use (and often abuse) generated functions to implement intrinsics where core language
-functionality doesn't allow us to generate GPU-compatible code.
+### Other functionality
 
-One problem with generated functions is that when they throw, inference inserts a dynamic
-call instead. Normally, this would result in the exception being print-out at runtime, but
-in the case of GPU programming this results in incompatible code. That's why the following
-patch to `inference.jl` is especially useful, making it eagerly print the exception it
-caught during evaluation of generated functions:
-
-```patch
-diff --git a/base/inference.jl b/base/inference.jl
-index 6443665676..b03d78ddaa 100644
---- a/base/inference.jl
-+++ b/base/inference.jl
-@@ -2430,7 +2430,10 @@ function typeinf_frame(linfo::MethodInstance, caller, optimize::Bool, cached::Bo
-             try
-                 # user code might throw errors – ignore them
-                 src = get_staged(linfo)
--            catch
-+            catch ex
-+                println("WARNING: An error occurred during generated function execution.")
-+                println(ex)
-+                ccall(:jlbacktrace, Void, ())
-                 return nothing
-             end
-         else
-```
+For other functionality, like shared memory, or when some additional management is required,
+like storing a global variable for `printf`'s formatting string, you should use LLVM.jl to
+build the IR code instead of hacking strings together. As this doesn't touch global state,
+you can even do so from a `@generated` function. Do take care however to use Julia's LLVM
+context for all operations.
