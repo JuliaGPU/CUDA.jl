@@ -17,6 +17,7 @@ end
   xs = CuArray(rand(2, 3))
   # For some reason, this fails during Pkg.test() only...
   @test collect(xs[1:2, 2]) == collect(xs)[1:2, 2]
+  @test collect(xs[[2, 1], :]) == collect(xs)[[2, 1], :]
 end
 
 @testset "PermuteDims" begin
