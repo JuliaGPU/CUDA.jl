@@ -13,8 +13,7 @@ whether extra information, such as error logs, is known.
 """
 immutable CuError <: Exception
     code::CuError_t
-    info::Nullable{String}
+    meta::Any
 
-    CuError(code) = new(code, Nullable{String}())
-    CuError(code, info) = new(code, Nullable{String}(info))
+    CuError(code, meta=nothing) = new(code, meta)
 end

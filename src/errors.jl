@@ -68,16 +68,15 @@ function description(err::CuError)
 end
 
 function Base.showerror(io::IO, err::CuError)
-    str = if configured
-        @sprintf("CUDA error: %s (code #%d, %s)", description(err), err.code, name(err))
+    if configured
+        @printf(io, "CUDA error: %s (code #%d, %s)", description(err), err.code, name(err))
     else
-        @sprintf("CUDA error #%d", err.code)
+        @printf(io, "CUDA error #%d", err.code)
     end
 
-    if isnull(err.info)
-        @printf(io, "%s", str)
-    else
-        @printf(io, "%s\n%s", get(err.info), str)
+    if err.meta != nothing
+        print(io, "\n")
+        print(io, err.meta)
     end
 end
 
