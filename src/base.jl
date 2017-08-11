@@ -119,9 +119,7 @@ macro apicall(fun, argtypes, args...)
 
     api_fun = resolve(fun.args[1])  # TODO: make this error at runtime?
 
-    if libcuda == nothing
-        return :(error("CUDAdrv.jl has not been configured."))
-    end
+    configured || return :(error("CUDAdrv.jl has not been configured."))
 
     return quote
         status = @logging_ccall($(QuoteNode(api_fun)), ($(QuoteNode(api_fun)), libcuda),

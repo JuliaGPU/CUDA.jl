@@ -68,11 +68,7 @@ function description(err::CuError)
 end
 
 function Base.showerror(io::IO, err::CuError)
-    if configured
-        @printf(io, "CUDA error: %s (code #%d, %s)", description(err), err.code, name(err))
-    else
-        @printf(io, "CUDA error #%d", err.code)
-    end
+    @printf(io, "CUDA error: %s (code #%d, %s)", description(err), err.code, name(err))
 
     if err.meta != nothing
         print(io, "\n")
@@ -80,13 +76,7 @@ function Base.showerror(io::IO, err::CuError)
     end
 end
 
-function Base.show(io::IO, err::CuError)
-    if configured
-        @printf(io, "CuError(%d, %s)", err.code, name(err))
-    else
-        @printf(io, "CuError(%d)", err.code)
-    end
-end
+Base.show(io::IO, err::CuError) = @printf(io, "CuError(%d, %s)", err.code, name(err))
 
 # known error constants
 const return_codes = Dict{CuError_t,Symbol}(
