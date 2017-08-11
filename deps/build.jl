@@ -101,6 +101,7 @@ function main()
            isdefined(Previous, :libcuda_vendor)  && Previous.libcuda_vendor == libcuda_vendor
             info("CUDAdrv.jl has already been built for this set-up.")
             mv(ext_bak, ext)
+            return
         end
     end
 
