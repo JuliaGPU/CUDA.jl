@@ -35,7 +35,7 @@ struct DevicePtr{T,A}
 end
 
 # outer constructors, partially parameterized
-(::Type{DevicePtr{T}})(ptr::Ptr{T}) where {T} = DevicePtr{T,AS.Generic}(ptr)
+DevicePtr{T}(ptr::Ptr{T}) where {T} = DevicePtr{T,AS.Generic}(ptr)
 
 # outer constructors, non-parameterized
 DevicePtr(ptr::Ptr{T})              where {T} = DevicePtr{T,AS.Generic}(ptr)

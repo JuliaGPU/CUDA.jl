@@ -40,14 +40,14 @@ CuDeviceArray(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A})                where
 CuDeviceArray(len::Integer,              p::DevicePtr{T,A})                where {T,A}   = CuDeviceVector{T,A}((len,), p)
 
 # outer constructors, partially parameterized
-(::Type{CuDeviceArray{T}})(dims::NTuple{N,<:Integer},   p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-(::Type{CuDeviceArray{T}})(len::Integer,                p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
-(::Type{CuDeviceArray{T,N}})(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-(::Type{CuDeviceVector{T}})(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
+CuDeviceArray{T}(dims::NTuple{N,<:Integer},   p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
+CuDeviceArray{T}(len::Integer,                p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
+CuDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
+CuDeviceVector{T}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
 
 # outer constructors, fully parameterized
-(::Type{CuDeviceArray{T,N,A}})(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(Int.(dims), p)
-(::Type{CuDeviceVector{T,A}})(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((Int(len),), p)
+CuDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(Int.(dims), p)
+CuDeviceVector{T,A}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((Int(len),), p)
 
 
 ## getters

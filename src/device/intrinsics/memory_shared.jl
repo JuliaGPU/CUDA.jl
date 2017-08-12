@@ -50,7 +50,7 @@ macro cuStaticSharedMem(typ, dims)
 end
 
 # types with known corresponding LLVM type
-function emit_static_shmem{N, T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::NTuple{N,Int})
+function emit_static_shmem(id::Integer, jltyp::Type{T}, shape::NTuple{N,Int}) where {N, T<:LLVMTypes}
     llvmtyp = llvmtypes[jltyp]
 
     len = prod(shape)
@@ -65,7 +65,7 @@ function emit_static_shmem{N, T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::
 end
 
 # fallback for unknown types
-function emit_static_shmem{N}(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
+function emit_static_shmem(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer}) where N
     if !isbits(jltyp)
         error("cuStaticSharedMem: non-isbits type '$jltyp' is not supported")
     end
@@ -114,7 +114,7 @@ end
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
 
 # types with known corresponding LLVM type
-function emit_dynamic_shmem{T<:LLVMTypes}(id::Integer, jltyp::Type{T}, shape::Union{Expr,Symbol}, offset)
+function emit_dynamic_shmem(id::Integer, jltyp::Type{T}, shape::Union{Expr,Symbol}, offset) where T<:LLVMTypes
     llvmtyp = llvmtypes[jltyp]
 
     align = datatype_align(jltyp)
