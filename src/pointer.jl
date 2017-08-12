@@ -101,8 +101,8 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 if Base.VERSION >= v"0.6.1"
     # requires backport of JuliaLang/julia#22022
 
-    @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
-                                         ::Type{Val{align}}=Val{1}) where {T,A,align}
+    @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::I=1,
+                                         ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
         eltyp = convert(LLVMType, T)
 
         # create a function
@@ -122,11 +122,11 @@ if Base.VERSION >= v"0.6.1"
             ret!(builder, val)
         end
 
-        call_llvmf(llvmf, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-1))))
+        call_llvmf(llvmf, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(I)))))
     end
 
-    @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
-                                           ::Type{Val{align}}=Val{1}) where {T,A,align}
+    @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::I=1,
+                                           ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
         eltyp = convert(LLVMType, T)
 
         # create a function
@@ -147,7 +147,7 @@ if Base.VERSION >= v"0.6.1"
             ret!(builder)
         end
 
-        call_llvmf(llvmf, Void, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-1))))
+        call_llvmf(llvmf, Void, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
     end
 else
     @inline Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
