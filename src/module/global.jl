@@ -9,7 +9,7 @@ export
 
 Acquires a typed global variable handle from a named global in a module.
 """
-@compat immutable CuGlobal{T}
+immutable CuGlobal{T}
     # TODO: typed pointer
     ptr::OwnedPtr{Void}
     nbytes::Cssize_t
