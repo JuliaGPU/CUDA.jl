@@ -2,7 +2,7 @@
 
 # Wrapper pointer type to keep track of the associated context, to avoid destroying
 # the context while there's still outstanding references to its memory.
-@compat immutable OwnedPtr{T}
+immutable OwnedPtr{T}
     ptr::Ptr{T}
     ctx::CuContext
 

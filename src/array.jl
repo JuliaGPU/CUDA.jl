@@ -21,7 +21,7 @@ data.
 """
 CuArray
 
-@compat type CuArray{T,N} <: AbstractArray{T,N}
+type CuArray{T,N} <: AbstractArray{T,N}
     ptr::OwnedPtr{T}
     shape::NTuple{N,Int}
 
