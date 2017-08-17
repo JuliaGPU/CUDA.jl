@@ -1,4 +1,4 @@
 julia 0.6
-CUDAnative
-CUDAdrv
+CUDAnative 0.4
+CUDAdrv 0.5
 CUBLAS
