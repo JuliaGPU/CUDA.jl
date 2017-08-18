@@ -3,8 +3,8 @@ __precompile__()
 module CUDAnative
 
 using LLVM
+using CUDAapi
 using CUDAdrv
-import CUDAdrv: debug, DEBUG, trace, TRACE
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
 const configured = if isfile(ext)

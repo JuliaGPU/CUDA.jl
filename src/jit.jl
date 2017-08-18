@@ -323,12 +323,12 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     check_invocation(func, tt; kernel=kernel)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
-    debug("(Re)compiling kernel $sig for device capability $cap")
+    @debug("(Re)compiling kernel $sig for device capability $cap")
 
     # generate LLVM IR
     mod = irgen(func, tt)
     entry = add_entry!(mod, func, tt; kernel=kernel)
-    trace("Module entry point: ", LLVM.name(entry))
+    @trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary
     if any(f->isdeclaration(f) && intrinsic_id(f)==0, functions(mod))
@@ -382,11 +382,12 @@ function cufunction(dev::CuDevice, func::ANY, tt::ANY)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
-    if DEBUG || Base.JLOptions().debug_level >= 1
+    if CUDAapi.DEBUG || Base.JLOptions().debug_level >= 1
         jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
     end
-    if DEBUG || Base.JLOptions().debug_level >= 2
+    if CUDAapi.DEBUG || Base.JLOptions().debug_level >= 2
         # TODO: detect cuda-gdb
+        # FIXME: this conflicts with GENERATE_LINE_INFO (see the verbose PTX JIT log)
         jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
     end
     cuda_mod = CuModule(module_asm, jit_options)
