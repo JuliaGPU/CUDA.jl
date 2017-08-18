@@ -24,7 +24,7 @@ type CuLink
 
         options = Dict{CUjit_option,Any}()
         options[ERROR_LOG_BUFFER] = Array{UInt8}(1024*1024)
-        @static if DEBUG
+        @static if CUDAapi.DEBUG
             options[GENERATE_LINE_INFO] = true
             options[GENERATE_DEBUG_INFO] = true
 
@@ -124,12 +124,12 @@ function complete(link::CuLink)
         rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
     end
 
-    @static if DEBUG
+    @static if CUDAapi.DEBUG
         options = decode(link.optionKeys, link.optionVals)
         if isempty(options[INFO_LOG_BUFFER])
             @debug("JIT info log is empty")
         else
-            @debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]))
+            @debug("JIT info log: ", CUDAapi.repr_indented(options[INFO_LOG_BUFFER]))
         end
     end
 

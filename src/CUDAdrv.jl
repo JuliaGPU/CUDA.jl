@@ -5,6 +5,8 @@ module CUDAdrv
 using Compat
 using Compat.String
 
+using CUDAapi
+
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 const configured = if isfile(ext)
     include(ext)
@@ -18,8 +20,6 @@ else
     false
 end
 const libcuda = libcuda_path
-
-include(joinpath("util", "logging.jl"))
 
 include("types.jl")
 include("base.jl")

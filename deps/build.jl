@@ -1,7 +1,6 @@
 using Compat
 
-# TODO: put in CUDAapi.jl
-include(joinpath(dirname(@__DIR__), "src", "util", "logging.jl"))
+using CUDAapi
 
 
 ## API routines
@@ -30,40 +29,6 @@ function init(libpath, flags=0)
 end
 
 
-## discovery routines
-
-# find CUDA driver library
-function find_libcuda()
-    libcuda_name = is_windows() ? "nvcuda" : "libcuda"
-    libcuda_locations = if haskey(ENV, "CUDA_DRIVER")
-            [ENV["CUDA_DRIVER"]]
-        else
-            # NOTE: no need to look in CUDA toolkit directories here,
-            #       as the driver is system-specific and shipped/built independently
-            if is_apple()
-                ["/usr/local/cuda/lib"]
-            else
-                String[]
-            end
-        end
-    libcuda = Libdl.find_library(libcuda_name, libcuda_locations)
-    isempty(libcuda) && error("Could not find the CUDA driver library (specify the path to $(libcuda_name) using the CUDA_DRIVER environment variable).")
-
-    # find the full path of the library
-    # NOTE: we could just as well use the result of `find_library,
-    #       but the user might have run this script with eg. LD_LIBRARY_PATH set
-    #       so we save the full path in order to always be able to load the correct library
-    libcuda_path = Libdl.dlpath(libcuda)
-    debug("Found $libcuda at $libcuda_path")
-
-    # find the library vendor
-    libcuda_vendor = "NVIDIA"
-    debug("Vendor: $libcuda_vendor")
-
-    return libcuda_path, libcuda_vendor
-end
-
-
 ## main
 
 const ext = joinpath(@__DIR__, "ext.jl")
@@ -73,7 +38,9 @@ function main()
     ispath(ext) && mv(ext, ext_bak; remove_destination=true)
 
     # discover stuff
-    libcuda_path, libcuda_vendor = find_libcuda()
+    driver_path = find_driver()
+    libcuda_path = find_library(CUDAapi.libcuda, driver_path)
+    libcuda_vendor = "NVIDIA"
     status = init(libcuda_path)  # see note below
     if status != 0
         # decode some common errors (as we haven't loaded errors.jl yet)
@@ -94,7 +61,7 @@ function main()
 
     # check if we need to rebuild
     if isfile(ext_bak)
-        debug("Checking validity of existing ext.jl")
+        @debug("Checking validity of existing ext.jl")
         @eval module Previous; include($ext_bak); end
         if isdefined(Previous, :libcuda_version) && Previous.libcuda_version == libcuda_version &&
            isdefined(Previous, :libcuda_path)    && Previous.libcuda_path == libcuda_path &&
