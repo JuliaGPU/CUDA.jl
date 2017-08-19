@@ -101,7 +101,7 @@ function Base.showarray(io::IO, X::CuArray, repr::Bool = true; header = true)
     Base.showarray(io, collect(X), true)
     print(io, ")")
   else
-    println(io, summary(X), ":")
+    header && println(io, summary(X), ":")
     Base.showarray(io, collect(X), false, header = false)
   end
 end
