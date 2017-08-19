@@ -89,7 +89,6 @@ function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) whe
 end
 
 CUDAnative.cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global}, a)
-CUDAnative.cudaconvert(a::Tuple) = CUDAnative.cudaconvert.(a)
 
 # Utils
 
