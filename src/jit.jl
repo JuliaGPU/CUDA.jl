@@ -49,13 +49,20 @@ end
 function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
     # collect all modules of IR
     # TODO: make codegen pure
-    hook_module_setup(ref::Ptr{Void}) =
-        module_setup(LLVM.Module(convert(LLVM.API.LLVMModuleRef, ref)))
-    hook_raise_exception(insblock::Ptr{Void}, ex::Ptr{Void}) =
-        raise_exception(BasicBlock(convert(LLVM.API.LLVMValueRef, insblock)),
-                        Value(convert(LLVM.API.LLVMValueRef, ex)))
+    function hook_module_setup(ref::Ptr{Void})
+        ref = convert(LLVM.API.LLVMModuleRef, ref)
+        module_setup(LLVM.Module(ref))
+    end
+    function hook_raise_exception(insblock::Ptr{Void}, ex::Ptr{Void})
+        insblock = convert(LLVM.API.LLVMValueRef, insblock)
+        ex = convert(LLVM.API.LLVMValueRef, ex)
+        raise_exception(BasicBlock(insblock), Value(ex))
+    end
     irmods = Vector{LLVM.Module}()
-    hook_module_activation(ref::Ptr{Void}) = push!(irmods, LLVM.Module(ref))
+    function hook_module_activation(ref::Ptr{Void})
+        ref = convert(LLVM.API.LLVMModuleRef, ref)
+        push!(irmods, LLVM.Module(ref))
+    end
     hooks = Base.CodegenHooks(module_setup=hook_module_setup,
                               module_activation=hook_module_activation,
                               raise_exception=hook_raise_exception)

@@ -46,7 +46,8 @@ function __init__()
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
 
-    jlctx[] = LLVM.Context(cglobal(:jl_LLVMContext, Void))
+    jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
+                                   cglobal(:jl_LLVMContext, Void)))
 
     init_jit()
 
