@@ -44,12 +44,8 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(func::ANY, tt::ANY; kernel::Bool=false)
+function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
     fn = String(typeof(func).name.mt.name)
-
-    # sanity checks
-    Base.JLOptions().can_inline == 0 &&
-        Base.warn_once("inlining disabled, CUDA code generation will almost certainly fail")
 
     # collect all modules of IR
     # TODO: make codegen pure
@@ -64,9 +60,9 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
                               module_activation=hook_module_activation,
                               raise_exception=hook_raise_exception)
     params = Base.CodegenParams(cached=false,
-                                runtime=false, exceptions=false,
-                                track_allocations=false, code_coverage=false,
-                                static_alloc=false, dynamic_alloc=false,
+                                runtime=unsupported, exceptions=unsupported,
+                                track_allocations=unsupported, code_coverage=unsupported,
+                                static_alloc=unsupported, dynamic_alloc=unsupported,
                                 hooks=hooks)
     let irmod = parse(LLVM.Module,
                       Base._dump_function(func, tt,
@@ -84,6 +80,12 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
         module_setup(irmod) # FIXME
         link!(mod, irmod)
     end
+
+    return mod
+end
+
+function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
+    fn = String(typeof(func).name.mt.name)
 
     # find all Julia functions
     # TODO: let Julia report this
@@ -191,7 +193,7 @@ function irgen(func::ANY, tt::ANY; kernel::Bool=false)
         
     verify(mod)
 
-    return mod, entry_f
+    return entry_f
 end
 
 const libdevices = Dict{String, LLVM.Module}()
@@ -315,7 +317,8 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     debug("(Re)compiling kernel $sig for device capability $cap")
 
     # generate LLVM IR
-    mod, entry = irgen(func, tt; kernel=kernel)
+    mod = irgen(func, tt)
+    entry = add_entry!(mod, func, tt; kernel=kernel)
     trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary

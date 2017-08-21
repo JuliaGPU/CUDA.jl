@@ -38,7 +38,8 @@ function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
                    cap::VersionNumber=current_capability(), kernel::Bool=false)
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=kernel)
-    mod, entry = irgen(func, tt; kernel=kernel)
+    mod = irgen(func, tt)
+    entry = add_entry!(mod, func, tt; kernel=kernel)
     if optimize
         optimize!(mod, cap; exports=[entry])
     end
