@@ -11,7 +11,7 @@ export
 # Return the capability of the current context's device, or a sane fall-back.
 function current_capability()
     fallback = v"2.0"
-    if !isdefined(CUDAdrv, :configured) || !CUDAdrv.configured
+    if !initialized[]
         return fallback
     end
 

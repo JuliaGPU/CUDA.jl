@@ -29,6 +29,7 @@ include("profile.jl")
 include("execution.jl")
 include("reflection.jl")
 
+const initialized = Ref{Bool}(false)
 const default_device = Ref{CuDevice}()
 const default_context = Ref{CuContext}()
 const jlctx = Ref{LLVM.Context}()
@@ -58,6 +59,7 @@ function __init__()
         #       we don't use that because it is refcounted separately
         #       and might confuse / be confused by user operations
         #       (eg. calling `unsafe_reset!` on a primary context)
+        initialized[] = true
         default_device[] = CuDevice(0)
         default_context[] = CuContext(default_device[])
     end
