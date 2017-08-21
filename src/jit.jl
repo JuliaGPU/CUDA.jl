@@ -25,8 +25,10 @@ function module_setup(mod::LLVM.Module)
                   MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
-# make function names safe for ptxas
-sanitize_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]", "_")
+# make function names safe for PTX
+safe_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]", "_")
+safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
+safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
 function raise_exception(insblock::BasicBlock, ex::Value)
     fun = LLVM.parent(insblock)
@@ -45,8 +47,6 @@ function raise_exception(insblock::BasicBlock, ex::Value)
 end
 
 function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
-    fn = String(typeof(func).name.mt.name)
-
     # collect all modules of IR
     # TODO: make codegen pure
     hook_module_setup(ref::Ptr{Void}) =
@@ -74,39 +74,12 @@ function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
     end
 
     # link all the modules
-    mod = LLVM.Module(sanitize_fn(fn), jlctx[])
+    mod = LLVM.Module(safe_fn(func), jlctx[])
     module_setup(mod)
     for irmod in irmods
         module_setup(irmod) # FIXME
         link!(mod, irmod)
     end
-
-    return mod
-end
-
-function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
-    fn = String(typeof(func).name.mt.name)
-
-    # find all Julia functions
-    # TODO: let Julia report this
-    julia_fs = Dict{String,Dict{String,LLVM.Function}}()
-    r = r"^(?P<cc>(jl|japi|jsys|julia)[^\W_]*)_(?P<name>.+)_\d+$"
-    for llvmf in functions(mod)
-        m = match(r, LLVM.name(llvmf))
-        if m != nothing
-            fns = get!(julia_fs, m[:name], Dict{String,LLVM.Function}())
-            fns[m[:cc]] = llvmf
-        end
-    end
-
-    # find the native entry-point function
-    haskey(julia_fs, fn) || error("could not find compiled function for $fn")
-    entry_fs = julia_fs[fn]
-    if !haskey(entry_fs, "julia")
-        error("could not find native function for $fn, available CCs are: ",
-              join(keys(entry_fs), ", "))
-    end
-    entry_f = entry_fs["julia"]
 
     # clean up incompatibilities
     for llvmf in functions(mod)
@@ -122,13 +95,39 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
             # (LLVM ought to do this, see eg. D17738 and D19126), but fails
             # TODO: fix all globals?
             if !isdeclaration(llvmf)
-                safe_fn = sanitize_fn(llvmfn)
-                if llvmfn != safe_fn
-                    LLVM.name!(llvmf, safe_fn)
+                llvmfn′ = safe_fn(llvmf)
+                if llvmfn != llvmfn′
+                    LLVM.name!(llvmf, llvmfn′)
                 end
             end
         end
     end
+
+    return mod
+end
+
+function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
+    # find all Julia functions
+    # TODO: let Julia report this
+    julia_fs = Dict{String,Dict{String,LLVM.Function}}()
+    r = r"^(?P<cc>(jl|japi|jsys|julia)[^\W_]*)_(?P<name>.+)_\d+$"
+    for llvmf in functions(mod)
+        m = match(r, LLVM.name(llvmf))
+        if m != nothing
+            fns = get!(julia_fs, m[:name], Dict{String,LLVM.Function}())
+            fns[m[:cc]] = llvmf
+        end
+    end
+
+    # find the native entry-point function
+    fn = safe_fn(func)
+    haskey(julia_fs, fn) || error("could not find compiled function for $fn")
+    entry_fs = julia_fs[fn]
+    if !haskey(entry_fs, "julia")
+        error("could not find native function for $fn, available CCs are: ",
+              join(keys(entry_fs), ", "))
+    end
+    entry_f = entry_fs["julia"]
 
     # generate a kernel wrapper to fix & improve argument passing
     if kernel
@@ -268,13 +267,11 @@ end
 
 # Optimize a bitcode module according to a certain device capability.
 # Internalize all functions not in `exports`, if specified.
-function optimize!(mod::LLVM.Module, cap::VersionNumber; exports=LLVM.Function[])
+function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     tm = machine(cap, triple(mod))
 
     ModulePassManager() do pm
-        if !isempty(exports)
-            internalize!(pm, map(LLVM.name, exports))
-        end
+        internalize!(pm, [LLVM.name(entry)])
 
         ccall(:LLVMAddLowerGCFramePass, Void,
               (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
@@ -327,7 +324,7 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     end
 
     # generate (PTX) assembly
-    optimize!(mod, cap; exports=[entry])
+    optimize!(mod, entry, cap)
     module_asm = mcgen(mod, entry, cap; kernel=kernel)
 
     return module_asm, LLVM.name(entry)

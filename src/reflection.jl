@@ -41,7 +41,7 @@ function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
     mod = irgen(func, tt)
     entry = add_entry!(mod, func, tt; kernel=kernel)
     if optimize
-        optimize!(mod, cap; exports=[entry])
+        optimize!(mod, entry, cap)
     end
     if dump_module
         show(io, mod)
