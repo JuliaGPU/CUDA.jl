@@ -13,7 +13,7 @@ Note that some tests currently fail under `Pkg.test()`; you can run `julia --col
 ## Features
 
 ```julia
-xs = CuArray(rand(5, 5))
+xs = cu(rand(5, 5))
 ys = cu[1, 2, 3]
 xs_cpu = collect(xs)
 ```
