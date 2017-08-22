@@ -12,5 +12,6 @@ include("indexing.jl")
 include("broadcast.jl")
 include("reduction.jl")
 include("blas.jl")
+include("dnn.jl")
 
 end # module

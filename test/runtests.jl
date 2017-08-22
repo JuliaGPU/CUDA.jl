@@ -68,4 +68,13 @@ end
   @test collect(xs * ys) == collect(xs) * collect(ys)
 end
 
+using NNlib
+
+@testset "NNlib" begin
+  xs = rand(5, 5)
+  @test collect(softmax(xs)) ≈ softmax(collect(xs))
+  xs = rand(5)
+  @test collect(softmax(xs)) ≈ softmax(collect(xs))
+end
+
 end
