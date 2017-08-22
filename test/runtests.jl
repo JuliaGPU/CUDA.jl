@@ -66,6 +66,10 @@ end
   ys = rand(5)
   @test collect(xs * xs) == collect(xs) * collect(xs)
   @test collect(xs * ys) == collect(xs) * collect(ys)
+  xs = rand(5, 5)
+  ys = rand(5, 5)
+  @test collect(A_mul_Bt(xs, ys)) == A_mul_Bt(collect(xs), collect(ys))
+  @test collect(At_mul_B(xs, ys)) == At_mul_B(collect(xs), collect(ys))
 end
 
 using NNlib
