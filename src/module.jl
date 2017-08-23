@@ -36,7 +36,7 @@ type CuModule
                      (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
                      handle_ref, data, length(optionKeys), optionKeys, optionVals)
         catch err
-            (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)
+            (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX) || rethrow(err)
             options = decode(optionKeys, optionVals)
             rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
         end
