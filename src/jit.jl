@@ -19,10 +19,6 @@ function module_setup(mod::LLVM.Module)
         datalayout!(mod, "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
     end
 
-    # debug info metadata
-    push!(metadata(mod), "llvm.module.flags",
-          MDNode([ConstantInt(Int32(1)),    # llvm::Module::Error
-                  MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
 # make function names safe for PTX
@@ -80,6 +76,9 @@ function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
         unshift!(irmods, irmod)
     end
 
+    # FIXME: Julia doesn't honor the module_setup hook, and module_activation isn't called
+    #        for every module (causing us to re-parse the top-level module)
+
     # link all the modules
     mod = LLVM.Module(safe_fn(func), jlctx[])
     module_setup(mod)
@@ -87,6 +86,12 @@ function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
         module_setup(irmod) # FIXME
         link!(mod, irmod)
     end
+
+    # add debug info metadata
+    # TODO: do this once module_setup is properly honored
+    #push!(metadata(mod), "llvm.module.flags",
+    #      MDNode([ConstantInt(Int32(1)),    # llvm::Module::Error
+    #              MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
 
     # clean up incompatibilities
     for llvmf in functions(mod)
