@@ -72,13 +72,14 @@ end
   @test collect(At_mul_B(xs, ys)) ≈ At_mul_B(collect(xs), collect(ys))
 end
 
-using NNlib
+using NNlib: softmax, ∇softmax
 
 @testset "NNlib" begin
-  xs = cu(rand(5, 5))
-  @test collect(softmax(xs)) ≈ softmax(collect(xs))
-  xs = cu(rand(5))
-  @test collect(softmax(xs)) ≈ softmax(collect(xs))
+  for dims in [(5,5), (5,)]
+    xs, Δ = cu(rand(dims)), cu(rand(dims))
+    @test collect(softmax(xs)) ≈ softmax(collect(xs))
+    @test collect(∇softmax(Δ, xs)) ≈ ∇softmax(collect(Δ), collect(xs))
+  end
 end
 
 end
