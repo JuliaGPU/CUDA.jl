@@ -12,18 +12,18 @@ for typ in ((Int32,   :i32, :i32),
     ws = Int32(32)
 
     # NOTE: CUDA C disagrees with PTX on how shuffles are called
-    for (fname, mode, mask) in ((:shfl_up,   :up,   Int32(0x00)),
-                                (:shfl_down, :down, Int32(0x1f)),
-                                (:shfl_xor,  :bfly, Int32(0x1f)),
-                                (:shfl,      :idx,  Int32(0x1f)))
-        pack_expr = :((($ws - Int32(width)) << 8) | $mask)
+    for (fname, mode, mask) in ((:shfl_up,   :up,   UInt32(0x00)),
+                                (:shfl_down, :down, UInt32(0x1f)),
+                                (:shfl_xor,  :bfly, UInt32(0x1f)),
+                                (:shfl,      :idx,  UInt32(0x1f)))
+        pack_expr = :((($ws - convert(UInt32, width)) << 8) | $mask)
         intrinsic = Symbol("llvm.nvvm.shfl.$mode.$intr")
 
         @eval begin
             export $fname
             @inline $fname(val::$jl, srclane::Integer, width::Integer=$ws) =
                 ccall($"$intrinsic", llvmcall, $jl,
-                      ($jl, Int32, Int32), val, Int32(srclane), $pack_expr)
+                      ($jl, UInt32, UInt32), val, convert(UInt32, srclane), $pack_expr)
         end
 
     end
