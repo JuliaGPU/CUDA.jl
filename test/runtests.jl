@@ -16,6 +16,7 @@ end
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
+  testf(vec, rand(5,3))
 end
 
 @testset "Indexing" begin

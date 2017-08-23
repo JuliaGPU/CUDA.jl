@@ -36,6 +36,12 @@ Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
+function Base._reshape(parent::CuArray, dims::Dims)
+  n = Base._length(parent)
+  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
+  return CuArray{eltype(parent),length(dims)}(parent.ptr, dims)
+end
+
 # Interop with CPU array
 
 function Base.copy!{T}(dst::CuArray{T}, src::DenseArray{T})
