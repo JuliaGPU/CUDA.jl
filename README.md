@@ -1,14 +1,12 @@
 # CuArrays
 
-CuArrays provides a fully-functional GPU array, backed by [CUDAnative](https://github.com/JuliaGPU/CUDAnative.jl). CuArrays may give significant speedups over CPU arrays without code changes, though the package is a work in progress.
+CuArrays provides a fully-functional GPU array. CuArrays may give significant speedups over CPU arrays without code changes, though the package is a work in progress.
+
+Note that you need to build Julia 0.6 from source and have CUDA available to use this package.
 
 ```julia
-Pkg.add("CUDAnative") # see instructions
-Pkg.add("CUBLAS")
-Pkg.clone("https://github.com/MikeInnes/CuArrays.jl")
+Pkg.add("CuArrays")
 ```
-
-Note that some tests currently fail under `Pkg.test()`; you can run `julia --color=yes test/runtests.jl` to check your installation instead.
 
 ## Features
 
