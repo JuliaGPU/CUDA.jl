@@ -38,6 +38,7 @@ end
   testf((x)       -> fill!(x, 1),  rand(3,3))
   testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
   testf((x)       -> sin.(x),      rand(2, 3))
+  testf((x)       -> 2x,      rand(2, 3))
   testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
 end

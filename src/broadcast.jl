@@ -40,6 +40,8 @@ end
 # Called by Base broadcasting mechanisms (in place and out of place)
 
 Base.Broadcast._containertype(::Type{<:CuArray}) = CuArray
+Base.Broadcast.promote_containertype(::Type{Any}, ::Type{CuArray}) = CuArray
+Base.Broadcast.promote_containertype(::Type{CuArray}, ::Type{Any}) = CuArray
 
 @inline function Base.Broadcast.broadcast_c!(f, ::Type{CuArray}, ::Type, C, A, Bs::Vararg{Any,N}) where N
     shape = indices(C)
