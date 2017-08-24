@@ -180,7 +180,7 @@ function main()
         ]
         all(tools .!= nothing) && break
     end
-    any(tools == nothing) && error("Could not find a usable CUDA installation")
+    any(tools .== nothing) && error("Could not find a usable CUDA installation")
     info("Using CUDA at $cuda_path")
     libdevice, cuobjdump, ptxas = tools
 
