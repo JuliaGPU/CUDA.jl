@@ -1,7 +1,7 @@
 # Pkg.test runs with --check_bounds=1, forcing all bounds checks.
 # This is incompatible with CUDAnative (see JuliaGPU/CUDAnative.jl#98)
 if Base.JLOptions().check_bounds == 1
-  cmd = ignorestatus(```
+  run(```
     $(Base.julia_cmd())
     --color=$(Base.have_color ? "yes" : "no")
     --compilecache=$(Bool(Base.JLOptions().use_compilecache) ? "yes" : "no")
@@ -9,9 +9,7 @@ if Base.JLOptions().check_bounds == 1
     --code-coverage=$(["none", "user", "all"][1+Base.JLOptions().code_coverage])
     $(@__FILE__)
     ```)
-  proc = spawn(cmd)
-  wait(proc)
-  exit(proc.exitcode)
+  exit()
 end
 
 using CuArrays
