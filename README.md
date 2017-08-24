@@ -164,12 +164,12 @@ end
 
 mdclose() = (empty!(mdlist); empty!(ptxdict))
 
-function finit( )
+function finit()
   mdclose()
 end
 
-function init( devlist )
-  mdinit( devlist )
+function init(devlist)
+  mdinit(devlist)
 end
 
 function function1{T}(griddim::CuDim, blockdim::CuDim, data::CuArray{T})
@@ -189,7 +189,7 @@ gpuid = 0
 dev = CuDevice(gpuid) # Or the ID of the GPU you want, if you have many of them
 ctx = CuContext(dev)
 
-MyCudaModule.init( gpuid )
+MyCudaModule.init(gpuid)
 # Code that uses functions from your MyCudaModule
 MyCudaModule.finit()
 
