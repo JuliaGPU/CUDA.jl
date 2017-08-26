@@ -42,7 +42,7 @@ Device arrays are called `CuArray`s, as opposed to regular (CPU) Julia `Array`s
 
 `CuArray`s can be initialized with regular `Array`s:
 
-```julia
+```jldoctest
 A   = zeros(Float32,3,4)
 d_A = CuArray(A)
 ```
@@ -50,7 +50,7 @@ The `d_` syntax is a conventional way of reminding yourself that the array is
 allocated on the device.
 
 To copy a device array back to the host, use
-```julia
+```jldoctest
 copy!(A, d_A)
 ```
 
