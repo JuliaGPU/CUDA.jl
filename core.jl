@@ -1,5 +1,5 @@
 
-using CUDArt
+using CUDAdrv
  
 include("init.jl")
 include("defs.jl")

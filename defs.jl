@@ -57,13 +57,13 @@ const CURAND_DEFINITION = 12
 const CURAND_POISSON = 13
 
 
-typealias curandStatus_t UInt32
+const curandStatus_t = UInt32
 
-type RNG
+mutable struct RNG
     ptr::Ptr{Void}
     rng_type::Int
 end
 
-type DiscreteDistribution
+mutable struct DiscreteDistribution
     ptr::Ptr{Void}
 end

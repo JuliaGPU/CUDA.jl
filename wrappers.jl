@@ -86,7 +86,7 @@ Generate 64-bit quasirandom numbers.
 """
 function generate(rng::RNG, n::UInt)
     sz = Int(n)
-    arr = CudaArray(UInt32, sz)
+    arr = CuArray{UInt32}(sz)
     statuscheck(ccall((:curandGenerate, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{UInt32}, Csize_t),
                       rng.ptr, arr.ptr.ptr, n))
@@ -103,7 +103,7 @@ Valid RNG types are:
 """
 function generate_long_long(rng::RNG, n::UInt)
     sz = Int(n)
-    arr = CudaArray(UInt64, sz)    
+    arr = CuArray{UInt64}(sz)
     statuscheck(ccall((:curandGenerateLongLong, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{Culonglong}, Csize_t),
                       rng.ptr, arr.ptr.ptr, n))
@@ -113,7 +113,7 @@ end
 # uniform
 function generate_uniform(rng::RNG, n::UInt)
     sz = Int(n)
-    arr = CudaArray(Float32, sz)
+    arr = CuArray{Float32}(sz)
     statuscheck(ccall((:curandGenerateUniform, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{Float32}, Csize_t),
                       rng.ptr, arr.ptr.ptr, n))
@@ -122,7 +122,7 @@ end
 
 function generate_uniform_double(rng::RNG, n::UInt)
     sz = Int(n)
-    arr = CudaArray(Float64, sz)
+    arr = CuArray{Float64}(sz)
     statuscheck(ccall((:curandGenerateUniformDouble, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{Float64}, Csize_t),
                       rng.ptr, arr.ptr.ptr, n))
@@ -132,7 +132,7 @@ end
 # normal
 function generate_normal(rng::RNG, n::UInt, mean::Float32, stddev::Float32)
     sz = Int(n)
-    arr = CudaArray(Float32, sz)
+    arr = CuArray{Float32}(sz)
     statuscheck(ccall((:curandGenerateNormal, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float32}, Csize_t, Cfloat, Cfloat),
@@ -142,7 +142,7 @@ end
 
 function generate_normal_double(rng::RNG, n::UInt, mean::Float64, stddev::Float64)
     sz = Int(n)
-    arr = CudaArray(Float64, sz)
+    arr = CuArray{Float64}(sz)
     statuscheck(ccall((:curandGenerateNormalDouble, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float64}, Csize_t, Cdouble, Cdouble),
@@ -154,7 +154,7 @@ end
 # lognormal
 function generate_log_normal(rng::RNG, n::UInt, mean::Float32, stddev::Float32)
     sz = Int(n)
-    arr = CudaArray(Float32, sz)
+    arr = CuArray{Float32}(sz)
     statuscheck(ccall((:curandGenerateLogNormal, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float32}, Csize_t, Cfloat, Cfloat),
@@ -164,7 +164,7 @@ end
 
 function generate_log_normal_double(rng::RNG, n::UInt, mean::Float64, stddev::Float64)
     sz = Int(n)
-    arr = CudaArray(Float64, sz)
+    arr = CuArray{Float64}(sz)
     statuscheck(ccall((:curandGenerateLogNormalDouble, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float64}, Csize_t, Cdouble, Cdouble),
@@ -190,7 +190,7 @@ end
 """Generate Poisson-distributed unsigned ints."""
 function generate_poisson(rng::RNG, n::UInt, lambda::Float64)
     sz = Int(n)
-    arr = CudaArray(UInt32, sz)
+    arr = CuArray{UInt32}(sz)
     statuscheck(ccall((:curandGeneratePoisson, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Cuint}, Csize_t, Cdouble),

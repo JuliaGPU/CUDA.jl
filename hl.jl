@@ -1,7 +1,7 @@
 
 const _rng = create_generator()
 atexit(() -> destroy_generator(_rng))
- 
+
 # uniform
 """Generate n uniformly distributed numbers"""
 curand(rng::RNG, ::Type{Float32}, n::Int) = generate_uniform(rng, UInt(n))
@@ -21,7 +21,7 @@ curandn(rng::RNG, ::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
     generate_normal(rng, UInt(n), mean, stddev)
 curandn(::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
     curandn(_rng, Float32, n, mean, stddev)
-    
+
 curandn(rng::RNG, ::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
     generate_normal_double(rng, UInt(n), mean, stddev)
 curandn(::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
@@ -38,7 +38,7 @@ curand_logn(rng::RNG, ::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
     generate_log_normal(rng, UInt(n), mean, stddev)
 curand_logn(::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
     curand_logn(_rng, Float32, n, mean, stddev)
-    
+
 curand_logn(rng::RNG, ::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
     generate_log_normal_double(rng, UInt(n), mean, stddev)
 curand_logn(::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
@@ -51,4 +51,3 @@ curand_logn(n::Int, mean::Float64, stddev::Float64) =
 curand_poisson(rng::RNG, n::Int, lambda::Float64) =
     generate_poisson(rng, UInt(n), lambda)
 curand_poisson(n::Int, lambda::Float64) = curand_poisson(_rng, n, lambda)
-

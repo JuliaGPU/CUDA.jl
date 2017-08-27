@@ -39,7 +39,7 @@ export create_generator,
        destroy_distribution,
        generate_poisson,
        generate_seeds
-       
+
 
 include("core.jl")
 
