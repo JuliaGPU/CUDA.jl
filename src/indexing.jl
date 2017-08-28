@@ -21,12 +21,16 @@ function Base.getindex{T}(xs::CuArray{T}, i::Integer)
   _getindex(xs, i)
 end
 
-function Base.setindex!{T}(xs::CuArray{T}, v::T, i::Integer)
-  assertslow("setindex!")
+function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
   x = T[v]
   ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.upload(ptr, pointer(x), sizeof(T))
   return x[1]
+end
+
+function Base.setindex!{T}(xs::CuArray{T}, v::T, i::Integer)
+  assertslow("setindex!")
+  _setindex!(xs, v, i)
 end
 
 Base.setindex!(xs::CuArray, v, i::Integer) = xs[i] = convert(eltype(xs), v)
