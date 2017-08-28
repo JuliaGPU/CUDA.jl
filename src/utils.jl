@@ -7,12 +7,15 @@ end
 
 cudims(a::AbstractArray) = cudims(length(a))
 
+@inline ind2sub_(a::AbstractArray{T,0}, i) where T = ()
+@inline ind2sub_(a, i) = ind2sub(a, i)
+
 macro cuindex(A)
   quote
     A = $(esc(A))
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     i > length(A) && return
-    ind2sub(A, i)
+    ind2sub_(A, i)
   end
 end
 

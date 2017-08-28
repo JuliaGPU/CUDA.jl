@@ -74,6 +74,14 @@ end
   testf(At_mul_B, rand(5, 5), rand(5, 5))
 end
 
+@testset "0D" begin
+  x = CuArray{Float64}()
+  x .= 1
+  @test collect(x)[] == 1
+  x /= 2
+  @test collect(x)[] == 0.5
+end
+
 using NNlib: softmax, ∇softmax
 
 @testset "NNlib" begin
