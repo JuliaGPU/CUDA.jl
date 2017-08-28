@@ -3,7 +3,7 @@ const toolkits = [v"4.0", v"4.2", v"5.0", v"6.0", v"6.5", v"7.0", v"7.5", v"8.0"
 
 
 immutable VersionRange
-    lowest::VersionNumber
+    lower::VersionNumber
     upper::VersionNumber
 end
 
@@ -12,7 +12,7 @@ Base.in(v::VersionNumber, r::VersionRange) = (v >= r.lower && v < r.upper)
 Base.colon(a::VersionNumber, b::VersionNumber) = VersionRange(a, b)
 
 Base.intersect(v::VersionNumber, r::VersionRange) =
-    v < r.lower ? (r.lowest:v) :
+    v < r.lower ? (r.lower:v) :
     v > r.upper ? (v:r.upper) : (v:v)
 
 const lowest = v"0"
