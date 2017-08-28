@@ -16,7 +16,7 @@ function _getindex(xs::CuArray{T}, i::Integer) where T
   return x[1]
 end
 
-function Base.getindex{T}(xs::CuArray{T}, i::Integer)
+function Base.getindex(xs::CuArray{T}, i::Integer) where T
   assertslow("getindex")
   _getindex(xs, i)
 end
@@ -28,7 +28,7 @@ function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
   return x[1]
 end
 
-function Base.setindex!{T}(xs::CuArray{T}, v::T, i::Integer)
+function Base.setindex!(xs::CuArray{T}, v::T, i::Integer) where T
   assertslow("setindex!")
   _setindex!(xs, v, i)
 end
