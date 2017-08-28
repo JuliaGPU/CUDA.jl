@@ -2,6 +2,8 @@ __precompile__()
 
 module CUDAapi
 
+using Compat
+
 include("logging.jl")
 
 include("properties.jl")

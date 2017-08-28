@@ -3,8 +3,8 @@ export find_library, find_binary, find_toolkit, find_driver
 
 # library names
 
-const libcuda = is_windows() ? "nvcuda" : "cuda"
-const libnvml = is_windows() ? "nvml" : "nvidia-ml"
+const libcuda = Compat.Sys.iswindows() ? "nvcuda" : "cuda"
+const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 
 
 # generic stuff
@@ -13,7 +13,7 @@ function find_library(name, parent=nothing)
     @debug("Looking for $name library in $parent")
 
     # figure out names and locations
-    if is_windows()
+    if Compat.Sys.iswindows()
         # location of eg. cudart64_xx.dll or cudart32_xx.dll has to be in PATH env var
         # eg. C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin
         # (by default, it is set by CUDA toolkit installer)
@@ -55,7 +55,7 @@ function find_binary(name, parent)
     @debug("Looking for $name binary in $parent")
 
     # figure out names and locations
-    if is_windows()
+    if Compat.Sys.iswindows()
         name = "$name.exe"
     end
     paths = [joinpath(parent, "bin", name), joinpath(parent, name)]

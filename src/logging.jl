@@ -23,7 +23,7 @@ end
 const TRACE = haskey(ENV, "TRACE")
 @inline function trace(io::IO, msg...; prefix="TRACE: ", line=true)
     @static if TRACE
-        safe_print_with_color(:cyan, io, prefix, chomp(string(msg...)), line?"\n":"")
+        safe_print_with_color(:cyan, io, prefix, chomp(string(msg...)), line ? "\n" : "")
     end
 end
 @inline trace(msg...; kwargs...) = trace(STDERR, msg...; kwargs...)
@@ -36,7 +36,7 @@ end
 const DEBUG = TRACE || haskey(ENV, "DEBUG")
 @inline function debug(io::IO, msg...; prefix="DEBUG: ", line=true)
     @static if DEBUG
-        safe_print_with_color(:green, io, prefix, chomp(string(msg...)), line?"\n":"")
+        safe_print_with_color(:green, io, prefix, chomp(string(msg...)), line ? "\n" : "")
     end
 end
 @inline debug(msg...; kwargs...) = debug(STDERR, msg...; kwargs...)
