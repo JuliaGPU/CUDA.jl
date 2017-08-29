@@ -25,7 +25,7 @@ type CuModule
         handle_ref = Ref{CuModule_t}()
 
         options[ERROR_LOG_BUFFER] = Array{UInt8}(1024*1024)
-        @static if DEBUG
+        @static if CUDAapi.DEBUG
             options[INFO_LOG_BUFFER] = Array{UInt8}(1024*1024)
             options[LOG_VERBOSE] = true
         end
@@ -41,12 +41,12 @@ type CuModule
             rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
         end
 
-        @static if DEBUG
+        @static if CUDAapi.DEBUG
             options = decode(optionKeys, optionVals)
             if isempty(options[INFO_LOG_BUFFER])
                 @debug("JIT info log is empty")
             else
-                @debug("JIT info log: ", repr_indented(options[INFO_LOG_BUFFER]; abbrev=false))
+                @debug("JIT info log: ", CUDAapi.repr_indented(options[INFO_LOG_BUFFER]; abbrev=false))
             end
         end
 
