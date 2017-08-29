@@ -108,7 +108,7 @@ macro logging_ccall(fun, target, rettyp, argtypes, args...)
     # actual ccall
     @gensym ret
     push!(blk.args, quote
-        $ret = ccall($target, $(esc(rettyp)), $(esc(argtypes)), $(map(esc, args)...))
+        $ret = ccall($(esc(target)), $(esc(rettyp)), $(esc(argtypes)), $(map(esc, args)...))
     end)
 
     # print results
