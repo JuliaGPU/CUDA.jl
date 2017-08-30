@@ -35,3 +35,11 @@ Pkg.add("CUDAnative")
 The package only works with Julia 0.6, which **you need to have built from source**. Refer
 to [the documentation][docs-stable-url] for more information on how to install or use this
 package.
+
+
+License
+-------
+
+CUDAnative.jl is licensed under the [MIT License](LICENSE.md). The original author is Tim Besard.
+
+If you use this package in your research, please cite the [2016 arXiv paper](https://arxiv.org/abs/1604.03410).
