@@ -1,5 +1,4 @@
-CUDAdrv.jl
-==========
+# CUDAdrv.jl
 
 *A Julia wrapper for the CUDA driver API.*
 
@@ -28,10 +27,7 @@ This package aims to provide high-level wrappers for the functionality exposed b
 driver API, and is meant for users who need high- or low-level access to the CUDA toolkit or
 the underlying hardware.
 
-
-
-Installation
-------------
+## Installation
 
 CUDAdrv is a registered package, and can be installed using the Julia package manager:
 
