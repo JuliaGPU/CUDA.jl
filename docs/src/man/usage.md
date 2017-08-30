@@ -17,6 +17,7 @@ ctx = CuContext(dev)
 destroy!(ctx)
 
 # output
+
 ```
 
 
