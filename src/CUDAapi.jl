@@ -6,7 +6,7 @@ using Compat
 
 include("logging.jl")
 
-include("properties.jl")
+include("compatibility.jl")
 include("discovery.jl")
 
 function __init__()
