@@ -9,34 +9,34 @@ const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 
 # generic stuff
 
-function find_library(name, parent=nothing)
-    @debug("Looking for $name library in $parent")
+# TODO: make this work like find_library: always search everywhere, but prefix locations priority.
+# especially for find_binary.
 
-    # figure out names and locations
+# wrapper for Libdl.find_library, looking for more names in more locations.
+find_library(name, prefix::String) = find_library(name, [prefix])
+function find_library(name, prefixes=String[])
+    @debug("Looking for $name library in $prefixes")
+
+    # figure out names
     if Compat.Sys.iswindows()
-        # location of eg. cudart64_xx.dll or cudart32_xx.dll has to be in PATH env var
-        # eg. C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin
-        # (by default, it is set by CUDA toolkit installer)
         tag = Sys.WORD_SIZE == 64 ? "64" : "32"
         names = map(ver->"$name$(tag)_$(ver.major)$(ver.minor)", toolkits)
-        if parent != nothing
-            dirs = [parent]
-        else
-            dirs = []
-        end
     else
-        dir = Sys.WORD_SIZE == 64 ? "lib64" : "lib"
         names = ["lib$name"]
-        if parent != nothing
-            # we also include "parent/lib" for eg. "/usr/lib"
-            dirs = ["$parent/$dir", "$parent/lib", parent]
-        else
-            dirs = []
+    end
+
+    # figure out locations
+    locations = []
+    for prefix in prefixes
+        push!(locations, prefix)
+        push!(locations, joinpath(prefix, "lib"))
+        if Sys.WORD_SIZE == 64
+            push!(locations, joinpath(prefix, "lib64"))
         end
     end
 
-    @trace("Finding $names in $dirs")
-    name = Libdl.find_library(names, dirs)
+    @trace("Checking for $names in $locations")
+    name = Libdl.find_library(names, locations)
     if isempty(name)
         error("Could not find $name library")
     end
@@ -50,25 +50,36 @@ function find_library(name, parent=nothing)
     return path
 end
 
-# TODO: look in PATH if parent==nothing
-function find_binary(name, parent)
-    @debug("Looking for $name binary in $parent")
+# similar to find_library, but for binaries.
+# cfr. Libdl.find_library, looks for `name` in `prefix`, then PATH
+find_binary(name, prefix::String) = find_binary(name, [prefix])
+function find_binary(name, prefixes::Vector{String}=String[])
+    @debug("Looking for $name binary in $prefixes")
 
-    # figure out names and locations
+    # figure out names
     if Compat.Sys.iswindows()
         name = "$name.exe"
     end
-    paths = [joinpath(parent, "bin", name), joinpath(parent, name)]
 
-    @trace("Checking for $names at $paths")
+    # figure out locations
+    locations = []
+    for prefix in prefixes
+        push!(locations, prefix)
+        push!(locations, joinpath(prefix, "bin"))
+    end
+    let path = ENV["PATH"]
+        dirs = split(path, Compat.Sys.iswindows() ? ';' : ':')
+        filter!(path->!isempty(path), dirs)
+        append!(locations, dirs)
+    end
+
+    @trace("Checking for $name in $locations")
+    paths = [joinpath(location, name) for location in locations]
     paths = unique(filter(ispath, paths))
-    if length(paths) > 1
-        warn("Found multiple $name binaries: ", join(paths, ", ", " and "))
-    elseif isempty(paths)
+    if isempty(paths)
         error("Could not find $name binary")
     end
 
-    # select
     path = first(paths)
     @debug("Using $name binary at $path")
     return path
@@ -100,6 +111,8 @@ function find_toolkit()
             dir = dirname(dir)
         end
         push!(dirs, dir)
+    catch ex
+        isa(ex, ErrorException) || rethrow(ex)
     end
     ## look for the compiler binary (in the case PATH points to the installation)
     try
@@ -109,6 +122,8 @@ function find_toolkit()
             dir = dirname(dir)
         end
         push!(dirs, dir)
+    catch ex
+        isa(ex, ErrorException) || rethrow(ex)
     end
 
     dirs = filter(isdir, unique(dirs))
@@ -135,6 +150,8 @@ function find_driver()
             dir = dirname(dir)
         end
         push!(dirs, dir)
+    catch ex
+        isa(ex, ErrorException) || rethrow(ex)
     end
     ## look for the SMI binary (in the case PATH points to the installation)
     try
@@ -144,6 +161,8 @@ function find_driver()
             dir = dirname(dir)
         end
         push!(dirs, dir)
+    catch ex
+        isa(ex, ErrorException) || rethrow(ex)
     end
 
     # filter
