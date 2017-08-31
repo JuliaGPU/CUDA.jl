@@ -9,79 +9,80 @@ const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 
 # generic stuff
 
-find_library(name, prefix::String="") = find_library(name, [prefix])
-function find_library(name, prefixes::Vector{String})
+# TODO: make this work like find_library: always search everywhere, but prefix locations priority.
+# especially for find_binary.
+
+# wrapper for Libdl.find_library, looking for more names in more locations.
+find_library(name, prefix::String) = find_library(name, [prefix])
+function find_library(name, prefixes=String[])
     @debug("Looking for $name library in $prefixes")
 
+    # figure out names
+    if Compat.Sys.iswindows()
+        tag = Sys.WORD_SIZE == 64 ? "64" : "32"
+        names = map(ver->"$name$(tag)_$(ver.major)$(ver.minor)", toolkits)
+    else
+        names = ["lib$name"]
+    end
+
+    # figure out locations
+    locations = []
     for prefix in prefixes
-        # figure out names and locations
-        if Compat.Sys.iswindows()
-            # location of eg. cudart64_xx.dll or cudart32_xx.dll has to be in PATH env var
-            # eg. C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin
-            # (by default, it is set by CUDA toolkit installer)
-            tag = Sys.WORD_SIZE == 64 ? "64" : "32"
-            names = map(ver->"$name$(tag)_$(ver.major)$(ver.minor)", toolkits)
-            if isempty(prefix)
-                dirs = []
-            else
-                dirs = [prefix]
-            end
-        else
-            dir = Sys.WORD_SIZE == 64 ? "lib64" : "lib"
-            names = ["lib$name"]
-            if isempty(prefix)
-                dirs = []
-            else
-                # we also include "parent/lib" for eg. "/usr/lib"
-                dirs = ["$prefix/$dir", "$parent/lib", prefix]
-            end
-        end
-
-        @trace("Checking for $names in $dirs")
-        name = Libdl.find_library(names, dirs)
-
-        if !isempty(name)
-            # find the full path of the library
-            # NOTE: we could just as well use the result of `find_library,
-            # but the user might have run this script with eg. LD_LIBRARY_PATH set
-            # so we save the full path in order to always be able to load the correct library
-            path = Libdl.dlpath(name)
-            @debug("Using $name library at $path")
-            return path
+        push!(locations, prefix)
+        push!(locations, joinpath(prefix, "lib"))
+        if Sys.WORD_SIZE == 64
+            push!(locations, joinpath(prefix, "lib64"))
         end
     end
 
-    error("Could not find $name library")
+    @trace("Checking for $names in $locations")
+    name = Libdl.find_library(names, locations)
+    if isempty(name)
+        error("Could not find $name library")
+    end
+
+    # find the full path of the library
+    # NOTE: we could just as well use the result of `find_library,
+    # but the user might have run this script with eg. LD_LIBRARY_PATH set
+    # so we save the full path in order to always be able to load the correct library
+    path = Libdl.dlpath(name)
+    @debug("Using $name library at $path")
+    return path
 end
 
-find_binary(name, prefix::String="") = find_binary(name, [prefix])
-function find_binary(name, prefixes::Vector{String})
+# similar to find_library, but for binaries.
+# cfr. Libdl.find_library, looks for `name` in `prefix`, then PATH
+find_binary(name, prefix::String) = find_binary(name, [prefix])
+function find_binary(name, prefixes::Vector{String}=String[])
     @debug("Looking for $name binary in $prefixes")
 
-    for prefix in prefixes
-        # figure out names and locations
-        if Compat.Sys.iswindows()
-            name = "$name.exe"
-        end
-        if isempty(prefix)
-            dirs = split(ENV["PATH"], Compat.Sys.iswindows() ? ';' : ':')
-            filter!(path->!isempty(path), dirs)
-        else
-            dirs = [prefix, joinpath(prefix, "bin")]
-        end
-
-        @trace("Checking for $names in $dirs")
-        paths = [joinpath(dir, name) for dir in dirs]
-        paths = unique(filter(ispath, paths))
-
-        if !isempty(paths)
-            path = first(paths)
-            @debug("Using $name binary at $path")
-            return path
-        end
+    # figure out names
+    if Compat.Sys.iswindows()
+        name = "$name.exe"
     end
 
-    error("Could not find $name binary")
+    # figure out locations
+    locations = []
+    for prefix in prefixes
+        push!(locations, prefix)
+        push!(locations, joinpath(prefix, "bin"))
+    end
+    let path = ENV["PATH"]
+        dirs = split(path, Compat.Sys.iswindows() ? ';' : ':')
+        filter!(path->!isempty(path), dirs)
+        append!(locations, dirs)
+    end
+
+    @trace("Checking for $name in $locations")
+    paths = [joinpath(location, name) for location in locations]
+    paths = unique(filter(ispath, paths))
+    if isempty(paths)
+        error("Could not find $name binary")
+    end
+
+    path = first(paths)
+    @debug("Using $name binary at $path")
+    return path
 end
 
 
