@@ -30,6 +30,7 @@ if CUDAnative.configured
         if capability(dev) < v"2.0"
             warn("native execution not supported on SM < 2.0")
         else
+            include("codegen_device.jl")
             include("execution.jl")
             include("array.jl")
             include("intrinsics.jl")
