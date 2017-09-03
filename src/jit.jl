@@ -329,7 +329,7 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     check_invocation(func, tt; kernel=kernel)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
-    @debug("(Re)compiling kernel $sig for device capability $cap")
+    @debug("(Re)compiling $sig for capability $cap")
 
     # generate LLVM IR
     mod = irgen(func, tt)
@@ -342,8 +342,20 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
         link_libdevice!(mod, cap)
     end
 
-    # generate (PTX) assembly
+    # optimize the IR (otherwise the IR isn't necessarily compatible)
     optimize!(mod, entry, cap)
+
+    # validate generated IR
+    errors = validate_ir(mod)
+    if !isempty(errors)
+        for e in errors
+            warn("Encountered invalid LLVM IR for $sig at capability $cap: ", e)
+        end
+        error("IR generated for $sig at capability $cap is not valid")
+
+    end
+
+    # generate (PTX) assembly
     module_asm = mcgen(mod, entry, cap; kernel=kernel)
 
     return module_asm, LLVM.name(entry)
