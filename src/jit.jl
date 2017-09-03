@@ -42,7 +42,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
+function irgen(func::ANY, tt::ANY)
     # collect all modules of IR
     # TODO: make codegen pure
     function hook_module_setup(ref::Ptr{Void})
@@ -63,9 +63,9 @@ function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
                               module_activation=hook_module_activation,
                               raise_exception=hook_raise_exception)
     params = Base.CodegenParams(cached=false,
-                                runtime=unsupported, exceptions=unsupported,
-                                track_allocations=unsupported, code_coverage=unsupported,
-                                static_alloc=unsupported, dynamic_alloc=unsupported,
+                                track_allocations=false,
+                                code_coverage=false,
+                                static_alloc=false,
                                 hooks=hooks)
     let irmod = parse(LLVM.Module,
                       Base._dump_function(func, tt,
@@ -352,7 +352,6 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
             warn("Encountered invalid LLVM IR for $sig at capability $cap: ", e)
         end
         error("IR generated for $sig at capability $cap is not valid")
-
     end
 
     # generate (PTX) assembly
