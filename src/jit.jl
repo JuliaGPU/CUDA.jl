@@ -349,9 +349,9 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     errors = validate_ir(mod)
     if !isempty(errors)
         for e in errors
-            warn("Encountered invalid LLVM IR for $sig at capability $cap: ", e)
+            warn("Encountered incompatible LLVM IR for $sig at capability $cap: ", e)
         end
-        error("IR generated for $sig at capability $cap is not valid")
+        error("LLVM IR generated for $sig at capability $cap is not compatible")
     end
 
     # generate (PTX) assembly
