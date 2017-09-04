@@ -209,7 +209,7 @@ end
 
 const libdevices = Dict{String, LLVM.Module}()
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
-    CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
+    CUDAnative.configured || return
 
     # find libdevice
     path = if isa(libdevice, Dict)
@@ -337,6 +337,7 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     @trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary
+    # TODO: should be more find-grained -- only matching functions actually in this libdevice
     if any(f->isdeclaration(f) && intrinsic_id(f)==0, functions(mod))
         link_libdevice!(mod, cap)
     end

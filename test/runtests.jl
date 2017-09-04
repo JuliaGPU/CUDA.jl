@@ -8,11 +8,13 @@ include("util.jl")
 include("base.jl")
 include("pointer.jl")
 
-if CUDAnative.configured
-    # requiring a configured LLVM.jl
+if LLVM.configured
     include("codegen.jl")
+else
+    warn("LLVM.jl has not been configured; skipping CUDAnative codegen tests.")
+end
 
-    # requiring a configured CUDAdrv.jl
+if CUDAnative.configured
     @test length(devices()) > 0
     if length(devices()) > 0
         # pick most recent device (based on compute capability)
@@ -28,6 +30,7 @@ if CUDAnative.configured
         if capability(dev) < v"2.0"
             warn("native execution not supported on SM < 2.0")
         else
+            include("codegen_device.jl")
             include("execution.jl")
             include("array.jl")
             include("intrinsics.jl")
@@ -36,12 +39,12 @@ if CUDAnative.configured
             if "Documenter" in keys(Pkg.installed())
                 include("documentation.jl")
             else
-                warn("Documenter.jl not installed, skipping documentation tests.")
+                warn("Documenter.jl not installed, skipping CUDAnative documentation tests.")
             end
         end
     end
 else
-    warn("CUDAnative.jl has not been configured; skipping most tests.")
+    warn("CUDAnative.jl has not been configured; skipping CUDAnative execution tests.")
 end
 
 end
