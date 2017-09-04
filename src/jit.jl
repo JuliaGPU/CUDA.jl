@@ -201,7 +201,7 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
         linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
         entry_f = wrapper_f
     end
-        
+
     verify(mod)
 
     return entry_f
@@ -278,22 +278,28 @@ function machine(cap::VersionNumber, triple::String)
 end
 
 # Optimize a bitcode module according to a certain device capability.
-# Internalize all functions not in `exports`, if specified.
 function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     tm = machine(cap, triple(mod))
 
     ModulePassManager() do pm
         internalize!(pm, [LLVM.name(entry)])
 
-        ccall(:LLVMAddLowerGCFramePass, Void,
-              (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
-        populate!(pm, tm)
-        ccall(:LLVMAddLowerPTLSPass, Void,
-              (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
+        if Base.VERSION >= v"0.7.0-DEV.1494"
+            populate!(pm, tm)
+            ccall(:jl_add_optimization_passes, Void,
+                  (LLVM.API.LLVMPassManagerRef, Cint),
+                  LLVM.ref(pm), Base.JLOptions().opt_level)
+        else
+            ccall(:LLVMAddLowerGCFramePass, Void,
+                  (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
+            populate!(pm, tm)
+            ccall(:LLVMAddLowerPTLSPass, Void,
+                  (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
 
-        PassManagerBuilder() do pmb
-            always_inliner!(pm) # TODO: set it as the builder's inliner
-            populate!(pm, pmb)
+            PassManagerBuilder() do pmb
+                always_inliner!(pm) # TODO: set it as the builder's inliner
+                populate!(pm, pmb)
+            end
         end
 
         run!(pm, mod)
