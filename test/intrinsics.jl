@@ -289,8 +289,15 @@ end
 if capability(dev) >= v"3.0"
 @testset "shuffle" begin
 
+@eval struct AddableTuple
+    x::Int32
+    y::Int64
+    AddableTuple(val) = new(val, val*2)
+end
+@eval Base.:(+)(a::AddableTuple, b::AddableTuple) = AddableTuple(a.x+b.x)
+
 n = 14
-types = [Int32, Int64, Float32, Float64]
+types = [Int32, Int64, Float32, Float64, AddableTuple]
 
 @testset "down" begin
     @eval function kernel_shuffle_down{T}(d::CuDeviceArray{T}, n)
@@ -302,7 +309,7 @@ types = [Int32, Int64, Float32, Float64]
     end
 
     for T in types
-        a = T[i for i in 1:n]
+        a = T[T(i) for i in 1:n]
         d_a = CuArray(a)
 
         threads = nearest_warpsize(dev, n)

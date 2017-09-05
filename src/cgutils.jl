@@ -132,7 +132,8 @@ end
 
 
 # create an LLVM function, given its return (LLVM) type and a vector of argument types
-function create_llvmf(ret::LLVMType=LLVM.VoidType(jlctx[]), params::Vector{LLVMType}=LLVMType[],
+function create_llvmf(ret::LLVMType=LLVM.VoidType(jlctx[]),
+                      params::Vector{<:LLVMType}=LLVMType[],
                       name::String="")
     mod = LLVM.Module("llvmcall", jlctx[])
 
