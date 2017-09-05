@@ -285,14 +285,16 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
         internalize!(pm, [LLVM.name(entry)])
 
         if Base.VERSION >= v"0.7.0-DEV.1494"
-            populate!(pm, tm)
+            add_library_info!(pm, triple(mod))
+            add_transform_info!(pm, tm)
             ccall(:jl_add_optimization_passes, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level)
         else
+            add_transform_info!(pm, tm)
+            # TLI added by PMB
             ccall(:LLVMAddLowerGCFramePass, Void,
                   (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
-            populate!(pm, tm)
             ccall(:LLVMAddLowerPTLSPass, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
 
