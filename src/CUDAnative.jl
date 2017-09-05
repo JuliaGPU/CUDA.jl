@@ -28,6 +28,7 @@ include("jit.jl")
 include("profile.jl")
 include("execution.jl")
 include("reflection.jl")
+include("irvalidation.jl")
 
 const initialized = Ref{Bool}(false)
 const default_device = Ref{CuDevice}()

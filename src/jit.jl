@@ -42,7 +42,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
+function irgen(func::ANY, tt::ANY)
     # collect all modules of IR
     # TODO: make codegen pure
     function hook_module_setup(ref::Ptr{Void})
@@ -63,9 +63,9 @@ function irgen(func::ANY, tt::ANY; unsupported::Bool=false)
                               module_activation=hook_module_activation,
                               raise_exception=hook_raise_exception)
     params = Base.CodegenParams(cached=false,
-                                runtime=unsupported, exceptions=unsupported,
-                                track_allocations=unsupported, code_coverage=unsupported,
-                                static_alloc=unsupported, dynamic_alloc=unsupported,
+                                track_allocations=false,
+                                code_coverage=false,
+                                static_alloc=false,
                                 hooks=hooks)
     let irmod = parse(LLVM.Module,
                       Base._dump_function(func, tt,
@@ -329,7 +329,7 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
     check_invocation(func, tt; kernel=kernel)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
-    @debug("(Re)compiling kernel $sig for device capability $cap")
+    @debug("(Re)compiling $sig for capability $cap")
 
     # generate LLVM IR
     mod = irgen(func, tt)
@@ -342,8 +342,19 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
         link_libdevice!(mod, cap)
     end
 
-    # generate (PTX) assembly
+    # optimize the IR (otherwise the IR isn't necessarily compatible)
     optimize!(mod, entry, cap)
+
+    # validate generated IR
+    errors = validate_ir(mod)
+    if !isempty(errors)
+        for e in errors
+            warn("Encountered incompatible LLVM IR for $sig at capability $cap: ", e)
+        end
+        error("LLVM IR generated for $sig at capability $cap is not compatible")
+    end
+
+    # generate (PTX) assembly
     module_asm = mcgen(mod, entry, cap; kernel=kernel)
 
     return module_asm, LLVM.name(entry)
