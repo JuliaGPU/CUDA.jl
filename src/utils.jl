@@ -13,7 +13,7 @@ cudims(a::AbstractArray) = cudims(length(a))
 macro cuindex(A)
   quote
     A = $(esc(A))
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
     i > length(A) && return
     ind2sub_(A, i)
   end
