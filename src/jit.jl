@@ -59,14 +59,25 @@ function irgen(func::ANY, tt::ANY)
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(irmods, LLVM.Module(ref))
     end
-    hooks = Base.CodegenHooks(module_setup=hook_module_setup,
-                              module_activation=hook_module_activation,
-                              raise_exception=hook_raise_exception)
-    params = Base.CodegenParams(cached=false,
-                                track_allocations=false,
-                                code_coverage=false,
-                                static_alloc=false,
-                                hooks=hooks)
+    if VERSION >= v"0.7.0-DEV"
+        params = Base.CodegenParams(cached=false,
+                                    track_allocations=false,
+                                    code_coverage=false,
+                                    static_alloc=false,
+                                    prefer_specsig=true,
+                                    module_setup=hook_module_setup,
+                                    module_activation=hook_module_activation,
+                                    raise_exception=hook_raise_exception)
+    else
+        hooks = Base.CodegenHooks(module_setup=hook_module_setup,
+                                  module_activation=hook_module_activation,
+                                  raise_exception=hook_raise_exception)
+        params = Base.CodegenParams(cached=false,
+                                    track_allocations=false,
+                                    code_coverage=false,
+                                    static_alloc=false,
+                                    hooks=hooks)
+    end
     let irmod = parse(LLVM.Module,
                       Base._dump_function(func, tt,
                                           #=native=#false, #=wrapper=#false, #=strip=#false,
