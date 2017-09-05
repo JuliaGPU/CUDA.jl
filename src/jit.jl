@@ -59,7 +59,7 @@ function irgen(func::ANY, tt::ANY)
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(irmods, LLVM.Module(ref))
     end
-    if VERSION >= v"0.7.0-DEV"
+    if VERSION >= v"0.7.0-DEV.1669"
         params = Base.CodegenParams(cached=false,
                                     track_allocations=false,
                                     code_coverage=false,
