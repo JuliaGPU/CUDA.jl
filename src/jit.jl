@@ -193,11 +193,14 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
                     # the wrapper argument doesn't match the kernel parameter type.
                     # this only happens when codegen wants to pass a pointer.
                     @assert isa(codegen_t, LLVM.PointerType)
+                    @assert eltype(codegen_t) == wrapper_t
                     # copy the argument value to a stack slot, and reference it.
                     ptr = alloca!(builder, wrapper_t)
                     store!(builder, wrapper_param, ptr)
-                    ptr_compat = bitcast!(builder, ptr, codegen_t)
-                    push!(wrapper_args, ptr_compat)
+                    if LLVM.addrspace(codegen_t) != 0
+                        ptr = addrspacecast!(builder, ptr, codegen_t)
+                    end
+                    push!(wrapper_args, ptr)
                 else
                     push!(wrapper_args, wrapper_param)
                 end
