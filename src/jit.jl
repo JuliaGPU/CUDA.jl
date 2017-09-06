@@ -220,8 +220,10 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
                             delete!(md, LLVM.MD_tbaa)
                         end
 
-                        # follow along certain instructions
-                        if isa(inst, LLVM.GetElementPtrInst)
+                        # follow along certain pointer operations
+                        if isa(inst, LLVM.GetElementPtrInst) ||
+                           isa(inst, LLVM.BitCastInst) ||
+                           isa(inst, LLVM.AddrSpaceCastInst)
                             append!(candidate_uses, collect(uses(inst)))
                         end
                     end
