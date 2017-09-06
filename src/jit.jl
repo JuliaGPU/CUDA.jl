@@ -328,6 +328,7 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
             ccall(:jl_add_optimization_passes, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level)
+            global_dce!(pm)
         else
             add_transform_info!(pm, tm)
             # TLI added by PMB
