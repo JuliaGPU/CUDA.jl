@@ -196,10 +196,10 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
                     @assert eltype(codegen_t) == wrapper_t
                     # copy the argument value to a stack slot, and reference it.
                     ptr = alloca!(builder, wrapper_t)
-                    store!(builder, wrapper_param, ptr)
                     if LLVM.addrspace(codegen_t) != 0
                         ptr = addrspacecast!(builder, ptr, codegen_t)
                     end
+                    store!(builder, wrapper_param, ptr)
                     push!(wrapper_args, ptr)
                 else
                     push!(wrapper_args, wrapper_param)
