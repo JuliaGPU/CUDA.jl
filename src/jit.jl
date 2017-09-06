@@ -237,8 +237,14 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
             ret!(builder)
         end
 
+        # early-inline the original entry function into the wrapper
         push!(function_attributes(entry_f), EnumAttribute("alwaysinline"))
         linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
+        ModulePassManager() do pm
+            always_inliner!(pm)
+            run!(pm, mod)
+        end
+
         entry_f = wrapper_f
     end
 
