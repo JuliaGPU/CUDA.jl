@@ -35,7 +35,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     position!(builder, insblock)
 
     trap = if haskey(functions(mod), "llvm.trap")
-        get(functions(mod), "llvm.trap")
+        functions(mod)["llvm.trap"]
     else
         LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
     end
@@ -194,6 +194,7 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
                     # this only happens when codegen wants to pass a pointer.
                     @assert isa(codegen_t, LLVM.PointerType)
                     @assert eltype(codegen_t) == wrapper_t
+
                     # copy the argument value to a stack slot, and reference it.
                     ptr = alloca!(builder, wrapper_t)
                     if LLVM.addrspace(codegen_t) != 0
@@ -201,6 +202,29 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
                     end
                     store!(builder, wrapper_param, ptr)
                     push!(wrapper_args, ptr)
+
+                    # Julia marks parameters as TBAA immutable;
+                    # this is incompatible with us storing to a stack slot, so clear TBAA
+                    # TODO: tag with alternative information (eg. TBAA, or invariant groups)
+                    entry_params = collect(parameters(entry_f))
+                    candidate_uses = []
+                    for param in entry_params
+                        append!(candidate_uses, collect(uses(param)))
+                    end
+                    while !isempty(candidate_uses)
+                        usepair = shift!(candidate_uses)
+                        inst = user(usepair)
+
+                        md = metadata(inst)
+                        if haskey(md, LLVM.MD_tbaa)
+                            delete!(md, LLVM.MD_tbaa)
+                        end
+
+                        # follow along certain instructions
+                        if isa(inst, LLVM.GetElementPtrInst)
+                            append!(candidate_uses, collect(uses(inst)))
+                        end
+                    end
                 else
                     push!(wrapper_args, wrapper_param)
                 end
