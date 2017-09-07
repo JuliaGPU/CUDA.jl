@@ -23,12 +23,12 @@ macro grab_output(ex)
 end
 
 # Run some code on-device, returning captured standard output
-macro on_device(exprs)
+macro on_device(ex)
     @gensym kernel_fn
-    quote
+    esc(quote
         let
             @eval function $kernel_fn()
-                $(esc(exprs))
+                $ex
 
                 return nothing
             end
@@ -36,7 +36,7 @@ macro on_device(exprs)
             @cuda (1,1) $kernel_fn()
             synchronize()
         end
-    end
+    end)
 end
 
 function julia_cmd(cmd)
