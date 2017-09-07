@@ -303,7 +303,7 @@ types = [Int32, Int64, Float32, Float64, AddableTuple]
     @eval function kernel_shuffle_down{T}(d::CuDeviceArray{T}, n)
         t = threadIdx().x
         if t <= n
-            d[t] += shfl_down(d[t], n÷2)
+            d[t] += shfl_down(d[t], unsafe_trunc(UInt32, n÷2))
         end
         return nothing
     end

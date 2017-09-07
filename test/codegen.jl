@@ -233,7 +233,7 @@ end
 
 @testset "LLVM intrinsics" begin
     # issue #13 (a): cannot select trunc
-    @eval codegen_issue_13(x) = convert(Int, x)
+    @eval codegen_issue_13(x) = unsafe_trunc(Int, x)
     code_ptx(DevNull, codegen_issue_13, Tuple{Float64})
 end
 
