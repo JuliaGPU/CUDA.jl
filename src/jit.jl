@@ -339,6 +339,11 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
             ccall(:jl_add_optimization_passes, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level)
+
+            # CUDAnative's JIT internalizes non-inlined child functions, making it possible
+            # to rewrite them (whereas the Julia JIT caches those functions exactly);
+            # this opens up some more optimization opportunities
+            dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
         else
             add_transform_info!(pm, tm)
             # TLI added by PMB
