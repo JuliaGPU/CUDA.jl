@@ -336,7 +336,6 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
             ccall(:jl_add_optimization_passes, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level)
-            global_dce!(pm)
         else
             add_transform_info!(pm, tm)
             # TLI added by PMB
@@ -345,11 +344,15 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
             ccall(:LLVMAddLowerPTLSPass, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
 
+            always_inliner!(pm) # TODO: set it as the builder's inliner
             PassManagerBuilder() do pmb
-                always_inliner!(pm) # TODO: set it as the builder's inliner
                 populate!(pm, pmb)
             end
         end
+
+        global_optimizer!(pm)
+        global_dce!(pm)
+        strip_dead_prototypes!(pm)
 
         run!(pm, mod)
     end
