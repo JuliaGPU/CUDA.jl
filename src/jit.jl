@@ -283,27 +283,30 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
     triple!(libdevice_mod, triple(mod))
     datalayout!(libdevice_mod, datalayout(mod))
 
-    # 1. Save list of external functions
+    # 1. save list of external functions
     exports = map(LLVM.name, functions(mod))
     filter!(fn->!haskey(functions(libdevice_mod), fn), exports)
 
-    # 2. Link with libdevice
+    # 2. link with libdevice
     link!(mod, libdevice_mod)
 
     ModulePassManager() do pm
-        # 3. Internalize all functions not in list from (1)
+        # 3. internalize all functions not in list from (1)
         internalize!(pm, exports)
 
-        # 4. Eliminate all unused internal functions
+        # 4. eliminate all unused internal functions
+        #
+        # this isn't necessary, as we do the same in optimize! to inline kernel wrappers,
+        # but it results _much_ smaller modules which are easier to handle on optimize=false
         global_optimizer!(pm)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
 
-        # 5. Run NVVMReflect pass
+        # 5. run NVVMReflect pass
         push!(metadata(mod), "nvvm-reflect-ftz",
               MDNode([ConstantInt(Int32(1))]))
 
-        # 6. Run standard optimization pipeline
+        # 6. run standard optimization pipeline
         #
         #    see `optimize!`
 
