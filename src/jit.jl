@@ -35,7 +35,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     position!(builder, insblock)
 
     trap = if haskey(functions(mod), "llvm.trap")
-        get(functions(mod), "llvm.trap")
+        functions(mod)["llvm.trap"]
     else
         LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
     end
@@ -194,13 +194,39 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
                     # this only happens when codegen wants to pass a pointer.
                     @assert isa(codegen_t, LLVM.PointerType)
                     @assert eltype(codegen_t) == wrapper_t
+
                     # copy the argument value to a stack slot, and reference it.
                     ptr = alloca!(builder, wrapper_t)
-                    store!(builder, wrapper_param, ptr)
                     if LLVM.addrspace(codegen_t) != 0
                         ptr = addrspacecast!(builder, ptr, codegen_t)
                     end
+                    store!(builder, wrapper_param, ptr)
                     push!(wrapper_args, ptr)
+
+                    # Julia marks parameters as TBAA immutable;
+                    # this is incompatible with us storing to a stack slot, so clear TBAA
+                    # TODO: tag with alternative information (eg. TBAA, or invariant groups)
+                    entry_params = collect(parameters(entry_f))
+                    candidate_uses = []
+                    for param in entry_params
+                        append!(candidate_uses, collect(uses(param)))
+                    end
+                    while !isempty(candidate_uses)
+                        usepair = shift!(candidate_uses)
+                        inst = user(usepair)
+
+                        md = metadata(inst)
+                        if haskey(md, LLVM.MD_tbaa)
+                            delete!(md, LLVM.MD_tbaa)
+                        end
+
+                        # follow along certain pointer operations
+                        if isa(inst, LLVM.GetElementPtrInst) ||
+                           isa(inst, LLVM.BitCastInst) ||
+                           isa(inst, LLVM.AddrSpaceCastInst)
+                            append!(candidate_uses, collect(uses(inst)))
+                        end
+                    end
                 else
                     push!(wrapper_args, wrapper_param)
                 end
@@ -211,8 +237,14 @@ function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
             ret!(builder)
         end
 
+        # early-inline the original entry function into the wrapper
         push!(function_attributes(entry_f), EnumAttribute("alwaysinline"))
         linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
+        ModulePassManager() do pm
+            always_inliner!(pm)
+            run!(pm, mod)
+        end
+
         entry_f = wrapper_f
     end
 
@@ -251,27 +283,30 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
     triple!(libdevice_mod, triple(mod))
     datalayout!(libdevice_mod, datalayout(mod))
 
-    # 1. Save list of external functions
+    # 1. save list of external functions
     exports = map(LLVM.name, functions(mod))
     filter!(fn->!haskey(functions(libdevice_mod), fn), exports)
 
-    # 2. Link with libdevice
+    # 2. link with libdevice
     link!(mod, libdevice_mod)
 
     ModulePassManager() do pm
-        # 3. Internalize all functions not in list from (1)
+        # 3. internalize all functions not in list from (1)
         internalize!(pm, exports)
 
-        # 4. Eliminate all unused internal functions
+        # 4. eliminate all unused internal functions
+        #
+        # this isn't necessary, as we do the same in optimize! to inline kernel wrappers,
+        # but it results _much_ smaller modules which are easier to handle on optimize=false
         global_optimizer!(pm)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
 
-        # 5. Run NVVMReflect pass
+        # 5. run NVVMReflect pass
         push!(metadata(mod), "nvvm-reflect-ftz",
               MDNode([ConstantInt(Int32(1))]))
 
-        # 6. Run standard optimization pipeline
+        # 6. run standard optimization pipeline
         #
         #    see `optimize!`
 
@@ -304,6 +339,11 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
             ccall(:jl_add_optimization_passes, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level)
+
+            # CUDAnative's JIT internalizes non-inlined child functions, making it possible
+            # to rewrite them (whereas the Julia JIT caches those functions exactly);
+            # this opens up some more optimization opportunities
+            dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
         else
             add_transform_info!(pm, tm)
             # TLI added by PMB
@@ -312,11 +352,15 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
             ccall(:LLVMAddLowerPTLSPass, Void,
                   (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
 
+            always_inliner!(pm) # TODO: set it as the builder's inliner
             PassManagerBuilder() do pmb
-                always_inliner!(pm) # TODO: set it as the builder's inliner
                 populate!(pm, pmb)
             end
         end
+
+        global_optimizer!(pm)
+        global_dce!(pm)
+        strip_dead_prototypes!(pm)
 
         run!(pm, mod)
     end
