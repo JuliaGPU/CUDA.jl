@@ -73,11 +73,17 @@ end
         x::Int
     end
 
+    if VERSION >= v"0.7.0-DEV.1704"
+        typename = "{ i64 }"
+    else
+        typename = "%Aggregate(\\.\\d+)?"
+    end
+
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}))
-    @test ismatch(r"@julia_codegen_aggregates_\d+\(%Aggregate", ir)
+    @test ismatch(Regex("@julia_codegen_aggregates_\\d+\\($typename( addrspace\\(\\d+\\))?\\*"), ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}; kernel=true))
-    @test ismatch(r"@ptxcall_codegen_aggregates_\d+\(%Aggregate", ir)
+    @test ismatch(Regex("@ptxcall_codegen_aggregates_\\d+\\($typename\\)"), ir)
 end
 end
 
