@@ -3,7 +3,7 @@ CUDAnative.jl
 
 *Support for compiling and executing native Julia kernels on CUDA hardware.*
 
-**Build status**: [![][buildbot-julia06-img]][buildbot-julia06-url] <!--[![][buildbot-juliadev-img]][buildbot-juliadev-url]-->
+**Build status**: [![][buildbot-julia06-img]][buildbot-julia06-url] [![][buildbot-juliadev-img]][buildbot-juliadev-url]
 
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
 
