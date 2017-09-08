@@ -105,9 +105,13 @@ if Base.VERSION >= v"0.6.1"
                                          ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
         eltyp = convert(LLVMType, T)
 
+        T_int = convert(LLVMType, Int)
+        T_ptr = convert(LLVMType, Ptr{T})
+
+        T_actual_ptr = LLVM.PointerType(eltyp)
+
         # create a function
-        param_types = [LLVM.PointerType(eltyp),
-                       LLVM.IntType(sizeof(Int)*8, jlctx[])]
+        param_types = [T_ptr, T_int]
         llvmf = create_llvmf(eltyp, param_types)
 
         # generate IR
@@ -115,7 +119,13 @@ if Base.VERSION >= v"0.6.1"
             entry = BasicBlock(llvmf, "entry", jlctx[])
             position!(builder, entry)
 
-            ptr = gep!(builder, parameters(llvmf)[1], [parameters(llvmf)[2]])
+            if VERSION >= v"0.7.0-DEV.1704"
+                ptr = inttoptr!(builder, parameters(llvmf)[1], T_actual_ptr)
+            else
+                ptr = parameters(llvmf)[1]
+            end
+
+            ptr = gep!(builder, ptr, [parameters(llvmf)[2]])
             ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
             val = load!(builder, ptr_with_as)
             alignment!(val, align)
@@ -129,9 +139,13 @@ if Base.VERSION >= v"0.6.1"
                                            ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
         eltyp = convert(LLVMType, T)
 
+        T_int = convert(LLVMType, Int)
+        T_ptr = convert(LLVMType, Ptr{T})
+
+        T_actual_ptr = LLVM.PointerType(eltyp)
+
         # create a function
-        param_types = [LLVM.PointerType(eltyp), eltyp,
-                       LLVM.IntType(sizeof(Int)*8, jlctx[])]
+        param_types = [T_ptr, eltyp, T_int]
         llvmf = create_llvmf(LLVM.VoidType(jlctx[]), param_types)
 
         # generate IR
@@ -139,7 +153,13 @@ if Base.VERSION >= v"0.6.1"
             entry = BasicBlock(llvmf, "entry", jlctx[])
             position!(builder, entry)
 
-            ptr = gep!(builder, parameters(llvmf)[1], [parameters(llvmf)[3]])
+            if VERSION >= v"0.7.0-DEV.1704"
+                ptr = inttoptr!(builder, parameters(llvmf)[1], T_actual_ptr)
+            else
+                ptr = parameters(llvmf)[1]
+            end
+
+            ptr = gep!(builder, ptr, [parameters(llvmf)[3]])
             ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
             val = parameters(llvmf)[2]
             inst = store!(builder, val, ptr_with_as)
