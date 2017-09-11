@@ -67,8 +67,11 @@ Base.collect(x::CuArray{T,N}) where {T,N} =
 
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
-Base.convert(::Type{CuArray{T,N}}, xs::DenseArray{T,N}) where {T,N} =
-  copy!(CuArray{T,N}(size(xs)), xs)
+Base.convert(::Type{CuArray{T1,N}}, xs::DenseArray{T2,N}) where {T1,T2,N} =
+    copy!(CuArray{T1,N}(size(xs)), xs)
+
+Base.convert(::Type{CuArray{T1}}, xs::DenseArray{T2,N}) where {T1,T2,N} =
+    copy!(CuArray{T1}(size(xs)), xs)
 
 Base.convert(::Type{CuArray}, xs::DenseArray{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
