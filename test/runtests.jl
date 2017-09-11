@@ -25,7 +25,7 @@ end
 
 @testset "Array" begin
   xs = CuArray(2, 3)
-  @test xs isa CuArray{Float64, 2}
+  @test xs isa CuArray{Float32, 2}
   @test size(xs) == (2, 3)
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]

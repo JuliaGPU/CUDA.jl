@@ -26,7 +26,7 @@ CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
 CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(dims)
 
-CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float64,N}(dims)
+CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float32,N}(dims)
 
 (T::Type{<:CuArray})(dims::Integer...) = T(dims)
 
