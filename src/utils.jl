@@ -30,6 +30,8 @@ function Base.fill!(xs::CuArray, x)
   return xs
 end
 
+Base.fill(::Type{CuArray}, x, dims) = fill!(CuArray{typeof(x)}(dims), x)
+
 genperm(I::NTuple{N}, perm::NTuple{N}) where N =
   ntuple(d->I[perm[d]], Val{N})
 
