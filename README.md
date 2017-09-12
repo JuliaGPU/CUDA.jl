@@ -27,7 +27,7 @@ Because `CuArray` is an `AbstractArray`, it doesn't have much of a learning curv
 * General indexing (`xs[1:2, 5, :]`)
 * `permutedims`
 * Concatenation (`vcat(x, y)`, `cat(3, xs, ys, zs)`)
-* `map`, fused broadcast (`zs .= sin.(xs) .+ ys .* 2`)
+* `map`, fused broadcast (`zs .= xs.^2 .+ ys .* 2`)
 * `fill!(xs, 0)`
 * Reduction over dimensions (`reducedim(+, xs, 3)`, `sum(x -> x^2, xs, 1)` etc)
 * Reduction to scalar (`reduce(*, 1, xs)`, `sum(xs)` etc)
