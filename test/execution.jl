@@ -19,6 +19,7 @@ end
 @testset "@cuda" begin
 
 @test_throws UndefVarError @cuda (1,1) exec_undefined_kernel()
+@test_throws MethodError @cuda (1,1) exec_dummy(1)
 
 
 @testset "reflection" begin
