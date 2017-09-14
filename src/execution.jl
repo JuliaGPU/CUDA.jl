@@ -95,6 +95,7 @@ const compilecache = Dict{UInt, CuFunction}()
             age = agecache[key1]
         else
             age = method_age(func, $arg_types)
+            age == -1 && throw(MethodError(func, Tuple{$arg_types...}))
             agecache[key1] = age
         end
 
