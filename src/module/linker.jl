@@ -57,6 +57,7 @@ Base.unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
 Base.:(==)(a::CuLink, b::CuLink) = a.handle == b.handle
 Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
 
+# TODO: push! -- or add_data!, add_file!
 """
     addData(link::CuLink, name::String, data, type::CUjit_input)
 
