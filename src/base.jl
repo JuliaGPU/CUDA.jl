@@ -111,6 +111,22 @@ end
 # API call wrapper
 #
 
+# forward definition of CuError
+const CuError_t = Cint
+"""
+    CuError(code::Integer)
+    CuError(code::Integer, info::String)
+
+Create a CUDA error object with error code `code`. The optional `info` parameter indicates
+whether extra information, such as error logs, is known.
+"""
+immutable CuError <: Exception
+    code::CuError_t
+    meta::Any
+
+    CuError(code, meta=nothing) = new(code, meta)
+end
+
 # ccall wrapper for calling functions in NVIDIA libraries
 macro apicall(fun, argtypes, args...)
     if !isa(fun, Expr) || fun.head != :quote

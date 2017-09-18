@@ -21,7 +21,6 @@ else
 end
 const libcuda = libcuda_path
 
-include("types.jl")
 include("base.jl")
 
 # CUDA Driver API wrappers
