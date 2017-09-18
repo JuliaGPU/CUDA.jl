@@ -22,7 +22,7 @@ end
 # API errors
 #
 
-# immutable CuError <: Exception => types.jl
+# forward declaration in base.jl
 
 Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 
