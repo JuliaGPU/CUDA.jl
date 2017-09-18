@@ -28,7 +28,6 @@ include("version.jl")
 include("devices.jl")
 include("context.jl")
 include(joinpath("context", "primary.jl"))
-include("pointer.jl")   # not a wrapper, but used by them
 include("module.jl")
 include("memory.jl")
 include("stream.jl")

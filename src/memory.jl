@@ -1,79 +1,63 @@
 # Raw memory management
 
 export
-    Mem
+    Buffer, Mem
 
-module Mem
 
-using CUDAdrv
-import CUDAdrv: @apicall, OwnedPtr
+## buffer type
+
+# forward definition in global.jl
+# NOTE: this results in Buffer not being part of the Mem submodule
+
+
+Base.pointer(buf::Buffer) = buf.ptr
+
+Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, pointer(buf))
+
+Base.isnull(buf::Buffer) = (pointer(buf) == C_NULL)
+
 
 
 ## refcounting
 
-const refcounts = Dict{Ptr{Void}, Int}()
+const refcounts = Dict{Buffer, Int}()
 
-function refcount(ptr)
-    get(refcounts, Base.unsafe_convert(Ptr{Void}, ptr), 0)
+function refcount(buf::Buffer)
+    get(refcounts, Base.unsafe_convert(Ptr{Void}, buf), 0)
 end
 
 """
-    retain(ptr)
+    retain(buf)
 
 Increase the refcount of a pointer.
 """
-function retain(ptr)
-    untyped_ptr = Base.unsafe_convert(Ptr{Void}, ptr)
-    refcount = get!(refcounts, untyped_ptr, 0)
-    refcounts[untyped_ptr] = refcount + 1
+function retain(buf::Buffer)
+    refcount = get!(refcounts, buf, 0)
+    refcounts[buf] = refcount + 1
     return
 end
 
 """
-    release(ptr)
+    release(buf)
 
 Decrease the refcount of a pointer. Returns `true` if the refcount has dropped to 0, and
 some action needs to be taken.
 """
-function release(ptr)
-    untyped_ptr = Base.unsafe_convert(Ptr{Void}, ptr)
-    haskey(refcounts, untyped_ptr) || error("Release of unmanaged $ptr")
-    refcount = refcounts[untyped_ptr]
-    @assert refcount > 0 "Release of dead $ptr"
-    refcounts[untyped_ptr] = refcount - 1
+function release(buf::Buffer)
+    haskey(refcounts, buf) || error("Release of unmanaged $buf")
+    refcount = refcounts[buf]
+    @assert refcount > 0 "Release of dead $buf"
+    refcounts[buf] = refcount - 1
     return refcount==1
 end
 
 
-## pointer-based
+## memory info
 
-# TODO: single copy function, with `memcpykind(Ptr, Ptr)` (cfr. CUDArt)?
+module Mem
 
-"""
-    alloc(bytes::Integer)
-
-Allocates `bytesize` bytes of linear memory on the device and returns a pointer to the
-allocated memory. The allocated memory is suitably aligned for any kind of variable. The
-memory is not cleared, use [`free(::OwnedPtr)`](@ref) for that.
-"""
-function alloc(bytesize::Integer)
-    bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
-
-    ptr_ref = Ref{Ptr{Void}}()
-    @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
-    return OwnedPtr{Void}(ptr_ref[], CuCurrentContext())
-end
-
-"""
-    free(p::OwnedPtr)
-
-Frees device memory.
-"""
-function free(p::OwnedPtr)
-    @apicall(:cuMemFree, (Ptr{Void},), pointer(p))
-    return
-end
-
+using CUDAdrv
+import CUDAdrv: @apicall
 
 """
     info()
@@ -110,44 +94,70 @@ Returns the used amount of memory (in bytes), allocated by the CUDA context.
 used() = total()-free()
 
 
+## pointer-based
 
 """
-    set(p::OwnedPtr, value::Cuint, len::Integer)
+    alloc(bytes::Integer)
+
+Allocates `bytesize` bytes of linear memory on the device and returns a pointer to the
+allocated memory. The allocated memory is suitably aligned for any kind of variable. The
+memory is not cleared, use [`free(::Buffer)`](@ref) for that.
+"""
+function alloc(bytesize::Integer)
+    bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
+
+    ptr_ref = Ref{Ptr{Void}}()
+    @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
+    return Buffer(ptr_ref[], bytesize, CuCurrentContext())
+end
+
+"""
+    free(buf::Buffer)
+
+Frees device memory.
+"""
+function free(buf::Buffer)
+    @apicall(:cuMemFree, (Ptr{Void},), pointer(buf))
+    return
+end
+
+"""
+    set(buf::Buffer, value::Cuint, len::Integer)
 
 Initializes device memory, copying the value `val` for `len` times.
 """
-set(p::OwnedPtr, value::Cuint, len::Integer) =
-    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), pointer(p), value, len)
+set(buf::Buffer, value::Cuint, len::Integer) =
+    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), pointer(buf), value, len)
 
 # NOTE: upload/download also accept Ref (with Ptr <: Ref)
 #       as there exists a conversion from Ref to Ptr{Void}
 
 """
-    upload(dst::OwnedPtr, src, nbytes::Integer)
+    upload(dst::Buffer, src, nbytes::Integer)
 
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
-function upload(dst::OwnedPtr, src::Ref, nbytes::Integer)
+function upload(dst::Buffer, src::Ref, nbytes::Integer)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             pointer(dst), src, nbytes)
 end
 
 """
-    download(dst::OwnedPtr, src, nbytes::Integer)
+    download(dst::Buffer, src, nbytes::Integer)
 
 Download `nbytes` memory from `src` on the device to `src` on the host.
 """
-function download(dst::Ref, src::OwnedPtr, nbytes::Integer)
+function download(dst::Ref, src::Buffer, nbytes::Integer)
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
                             dst, pointer(src), nbytes)
 end
 
 """
-    download(dst::OwnedPtr, src, nbytes::Integer)
+    transfer(dst::Buffer, src::Buffer, nbytes::Integer)
 
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
-function transfer(dst::OwnedPtr, src::OwnedPtr, nbytes::Integer)
+function transfer(dst::Buffer, src::Buffer, nbytes::Integer)
     @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             pointer(dst), pointer(src), nbytes)
 end
@@ -156,6 +166,7 @@ end
 ## object-based
 
 # TODO: varargs functions for uploading multiple objects at once?
+
 """
     alloc{T}(len=1)
 
@@ -168,12 +179,12 @@ function alloc(::Type{T}, len::Integer=1) where T
     end
     sizeof(T) == 0 && throw(ArgumentError("cannot represent ghost types"))
 
-    return convert(OwnedPtr{T}, alloc(len*sizeof(T)))
+    return alloc(len*sizeof(T))
 end
 
 """
     upload{T}(src::T)
-    upload{T}(dst::OwnedPtr{T}, src::T)
+    upload{T}(dst::Buffer, src::T)
 
 Upload an object `src` from the host to the device. If a destination `dst` is not provided,
 new memory is allocated and uploaded to.
@@ -182,7 +193,7 @@ Note this does only upload the object itself, and does not peek through it in or
 to the underlying data (like `Ref` does). Consequently, this functionality should not be
 used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
 """
-function upload(dst::OwnedPtr{T}, src::T) where T
+function upload(dst::Buffer, src::T) where T
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     upload(dst, Base.RefValue(src), sizeof(T))
 end
@@ -194,13 +205,13 @@ function upload(src::T) where T
 end
 
 """
-    download{T}(src::OwnedPtr{T})
+    download{T}(::Type{T}, src::Buffer)
 
-Download an object `src` from the device and return it as a host object.
+Download an object `src` from the device and return it as a host object of type `T`.
 
 See [`upload`](@ref) for notes on how arguments are processed.
 """
-function download(src::OwnedPtr{T}) where T
+function download(::Type{T}, src::Buffer) where T
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     dst = Base.RefValue{T}()
     download(dst, src, sizeof(T))

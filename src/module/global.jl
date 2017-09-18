@@ -3,6 +3,14 @@
 export
     CuGlobal, get, set
 
+# forward definition
+type Buffer
+    ptr::Ptr{Void}
+    bytesize::Int
+
+    ctx::CuContext
+end
+
 
 """
     CuGlobal{T}(mod::CuModule, name::String)
@@ -10,9 +18,7 @@ export
 Acquires a typed global variable handle from a named global in a module.
 """
 struct CuGlobal{T}
-    # TODO: typed pointer
-    ptr::OwnedPtr{Void}
-    nbytes::Cssize_t
+    buf::Buffer
 
     function CuGlobal{T}(mod::CuModule, name::String) where T
         ptr_ref = Ref{Ptr{Void}}()
@@ -22,13 +28,13 @@ struct CuGlobal{T}
         if nbytes_ref[] != sizeof(T)
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
-        @assert nbytes_ref[] == sizeof(T)
+        buf = Buffer(ptr_ref[], nbytes_ref[], CuCurrentContext())
 
-        return new{T}(OwnedPtr{Void}(ptr_ref[], CuCurrentContext()), nbytes_ref[])
+        return new{T}(buf)
     end
 end
 
-Base.unsafe_convert(::Type{OwnedPtr{Void}}, var::CuGlobal) = var.ptr
+Base.cconvert(::Type{Ptr{Void}}, var::CuGlobal) = var.buf
 
 Base.:(==)(a::CuGlobal, b::CuGlobal) = a.handle == b.handle
 Base.hash(var::CuGlobal, h::UInt) = hash(var.ptr, h)
@@ -48,7 +54,7 @@ Return the current value of a global variable.
 function Base.get(var::CuGlobal{T}) where T
     val_ref = Ref{T}()
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            val_ref, var.ptr, var.nbytes)
+                            val_ref, var.buf, var.buf.bytesize)
     return val_ref[]
 end
 
@@ -60,5 +66,5 @@ Set the value of a global variable to `val`
 function set(var::CuGlobal{T}, val::T) where T
     val_ref = Ref{T}(val)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            var.ptr, val_ref, var.nbytes)
+                            var.buf, val_ref, var.buf.bytesize)
 end

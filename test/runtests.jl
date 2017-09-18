@@ -8,7 +8,6 @@ using Compat.Test
 include("util.jl")
 
 include("base.jl")
-include("pointer.jl")
 
 if CUDAdrv.configured
     @test length(devices()) > 0
