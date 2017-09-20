@@ -12,7 +12,7 @@ export
 
 Base.pointer(buf::Buffer) = buf.ptr
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, pointer(buf))
+Base.unsafe_convert{T}(::Type{Ptr{T}}, buf::Buffer) = convert(Ptr{T}, pointer(buf))
 
 Base.isnull(buf::Buffer) = (pointer(buf) == C_NULL)
 
@@ -171,7 +171,7 @@ end
     alloc{T}(len=1)
 
 Allocates space for `len` objects of type `T` on the device and returns a pointer to the
-allocated memory. The memory is not cleared, use [`free(::OwnedPtr)`](@ref) for that.
+allocated memory. The memory is not cleared, use [`free(::Buffer)`](@ref) for that.
 """
 function alloc(::Type{T}, len::Integer=1) where T
     if isa(T, UnionAll) || T.abstract || !T.isleaftype
