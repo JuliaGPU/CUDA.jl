@@ -73,19 +73,33 @@ end
 @generated function _launch{N}(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
                                shmem::Int, stream::CuStream,
                                args::NTuple{N,Any})
-    arg_exprs = [:( args[$i] ) for i in 1:N]
-    arg_types = args.parameters
+    all(isbits, args.parameters) || throw(ArgumentError("Arguments to kernel should be bitstype."))
 
-    all(isbits, arg_types) || throw(ArgumentError("Arguments to kernel should be bitstype. Found $arg_types"))
+    ex = Expr(:block)
+    push!(ex.args, :(Base.@_inline_meta))
 
     # If f has N parameters, then kernelParams needs to be an array of N pointers.
     # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory
     # from which the actual kernel parameter will be copied.
-    # TODO: can this be done with Ref->Ptr instead?
-    arg_exprs = [:(Base.pointer_from_objref($ex)) for ex in arg_exprs]
 
-    quote
-        Base.@_inline_meta
+    # put arguments in Ref boxes so that we can get a pointers to them
+    arg_refs = Vector{Symbol}(N)
+    for i in 1:N
+        arg_refs[i] = gensym()
+        push!(ex.args, :($(arg_refs[i]) = Base.RefValue(args[$i])))
+    end
+
+    # generate an array with pointers
+    arg_ptrs = [:(Base.unsafe_convert(Ptr{Void}, $(arg_refs[i]))) for i in 1:N]
+    push!(ex.args, :(kernelParams = [$(arg_ptrs...)]))
+
+    # root the argument boxes to the array of pointers,
+    # because the GC doesn't know both are linked
+    if VERSION >= v"0.7.0-DEV.1850"
+        push!(ex.args, :(Base.@gc_preserve $(arg_refs...) kernelParams))
+    end
+
+    push!(ex.args, :(
         @apicall(:cuLaunchKernel, (
             CuFunction_t,           # function
             Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
@@ -97,8 +111,11 @@ end
             f,
             griddim.x, griddim.y, griddim.z,
             blockdim.x, blockdim.y, blockdim.z,
-            shmem, stream, [$(arg_exprs...)], C_NULL)
-    end
+            shmem, stream, kernelParams, C_NULL)
+        )
+    )
+
+    return ex
 end
 
 """
@@ -170,14 +187,24 @@ end
                                  tt, args::NTuple{N,Any})
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
+    ex = Expr(:block)
+    push!(ex.args, :(Base.@_inline_meta))
+
     # convert the argument values to match the kernel's signature (specified by the user)
-    values = Expr(:tuple)
+    # (this mimics `lower-ccall` in julia-syntax.scm)
+
+    compat_args = Vector{Symbol}(N)
     for i in 1:N
-        push!(values.args, :(Base.unsafe_convert($(types[i]), Base.cconvert($(types[i]), args[$i]))))
+        compat_args[i] = gensym()
+        push!(ex.args, :($(compat_args[i]) = Base.cconvert($(types[i]), args[$i])))
     end
 
-    quote
-        Base.@_inline_meta
-        launch(f, CuDim3(griddim), CuDim3(blockdim), shmem, stream, $values)
-    end
+    # TODO: do we need to @gc_preserve the result of unsafe convert,
+    #       or is the result of cconvert kept alive across the call to launch?
+
+    arg_ptrs = [:(Base.unsafe_convert($(types[i]), $(compat_args[i]))) for i in 1:N]
+    push!(ex.args, :(launch(f, CuDim3(griddim), CuDim3(blockdim), shmem, stream,
+                            ($(arg_ptrs...),))))
+
+    return ex
 end
