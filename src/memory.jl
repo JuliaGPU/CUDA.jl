@@ -1,7 +1,6 @@
 # Raw memory management
 
-export
-    Buffer, Mem
+export Mem
 
 
 ## buffer type
@@ -57,7 +56,7 @@ end
 module Mem
 
 using CUDAdrv
-import CUDAdrv: @apicall
+import CUDAdrv: @apicall, Buffer
 
 """
     info()
