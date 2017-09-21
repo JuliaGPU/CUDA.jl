@@ -123,7 +123,7 @@ CUDAdrv.Mem.used
 CUDAdrv.Mem.free()
 ```
 
-### Pointer-based (low-level)
+### Low-level: pointer based
 
 ```@docs
 CUDAdrv.Mem.alloc(::Integer)
@@ -134,12 +134,18 @@ CUDAdrv.Mem.download(::Ref, ::CUDAdrv.Buffer, ::Integer)
 CUDAdrv.Mem.transfer
 ```
 
-### Object-based (high-level)
+### High-level: type and object based
 
 ```@docs
-CUDAdrv.Mem.alloc(::Type, ::Integer)
-CUDAdrv.Mem.upload{T}(::CUDAdrv.Buffer{T}, ::T)
+CUDAdrv.Mem.alloc(::Type)
 CUDAdrv.Mem.download(::Type, ::CUDAdrv.Buffer)
+```
+
+```@docs
+CUDAdrv.Mem.alloc(obj)
+CUDAdrv.Mem.upload(::CUDAdrv.Buffer, src)
+CUDAdrv.Mem.upload(src)
+CUDAdrv.Mem.download(dst, ::CUDAdrv.Buffer)
 ```
 
 ## Stream Management

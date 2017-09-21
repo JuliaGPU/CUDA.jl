@@ -30,7 +30,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
         check_type(T)
 
         len = prod(shape)
-        buf = Mem.alloc(T, len)
+        buf = Mem.alloc(len*sizeof(T))
         retain(buf)
 
         obj = new{T,N}(buf, shape)

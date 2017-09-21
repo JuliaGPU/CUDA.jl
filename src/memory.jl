@@ -28,7 +28,7 @@ end
 """
     retain(buf)
 
-Increase the refcount of a pointer.
+Increase the refcount of a buffer.
 """
 function retain(buf::Buffer)
     refcount = get!(refcounts, buf, 0)
@@ -39,7 +39,7 @@ end
 """
     release(buf)
 
-Decrease the refcount of a pointer. Returns `true` if the refcount has dropped to 0, and
+Decrease the refcount of a buffer. Returns `true` if the refcount has dropped to 0, and
 some action needs to be taken.
 """
 function release(buf::Buffer)
@@ -98,9 +98,9 @@ used() = total()-free()
 """
     alloc(bytes::Integer)
 
-Allocates `bytesize` bytes of linear memory on the device and returns a pointer to the
+Allocate `bytesize` bytes of linear memory on the device and return a buffer to the
 allocated memory. The allocated memory is suitably aligned for any kind of variable. The
-memory is not cleared, use [`free(::Buffer)`](@ref) for that.
+memory will not be freed automatically, use [`free(::Buffer)`](@ref) for that.
 """
 function alloc(bytesize::Integer)
     bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
@@ -127,9 +127,6 @@ Initializes device memory, copying the value `val` for `len` times.
 """
 set(buf::Buffer, value::Cuint, len::Integer) =
     @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), pointer(buf), value, len)
-
-# NOTE: upload/download also accept Ref (with Ptr <: Ref)
-#       as there exists a conversion from Ref to Ptr{Void}
 
 """
     upload(dst::Buffer, src, nbytes::Integer)
@@ -162,28 +159,58 @@ function transfer(dst::Buffer, src::Buffer, nbytes::Integer)
 end
 
 
-## object-based
+## type based
 
-# TODO: varargs functions for uploading multiple objects at once?
-
-"""
-    alloc{T}(len=1)
-
-Allocates space for `len` objects of type `T` on the device and returns a pointer to the
-allocated memory. The memory is not cleared, use [`free(::Buffer)`](@ref) for that.
-"""
-function alloc(::Type{T}, len::Integer=1) where T
+function _check_type(T)
     if isa(T, UnionAll) || T.abstract || !T.isleaftype
-        throw(ArgumentError("cannot represent abstract or non-leaf type"))
+        throw(ArgumentError("cannot represent abstract or non-leaf object"))
     end
-    sizeof(T) == 0 && throw(ArgumentError("cannot represent ghost types"))
-
-    return alloc(len*sizeof(T))
+    Base.datatype_pointerfree(T) || throw(ArgumentError("cannot handle non-ptrfree objects"))
+    sizeof(T) == 0 && throw(ArgumentError("cannot represent singleton objects"))
 end
 
 """
-    upload{T}(src::T)
-    upload{T}(dst::Buffer, src::T)
+    alloc(T::Type)
+
+Allocate space for an object of type `T` on the device and return a buffer to the allocated
+memory. The memory will not be freed automatically, use [`free(::Buffer)`](@ref) for that.
+"""
+function alloc{T}(::Type{T})
+    _check_type(T)
+
+    return alloc(sizeof(T))
+end
+
+"""
+    download(T::Type, src::Buffer)
+
+Download an object `src` of type `T` from the device, and return that object.
+
+Use this interface if you want to download exactly one instance of `T`, i.e., not if you
+want to download an array of items (use [`download(::T, src::Buffer)`](@ref) for that)
+"""
+function download{T}(::Type{T}, src::Buffer)
+    dst = Base.RefValue{T}()
+    download(dst, src, sizeof(dst))
+    return dst[]
+end
+
+
+## object based
+
+"""
+    alloc(obj)
+
+Allocate space for `obj` on the device and return a buffer to the allocated memory. The
+memory will not be freed automatically, use [`free(::Buffer)`](@ref) for that.
+"""
+function alloc(obj)
+    return alloc(sizeof(obj))
+end
+
+"""
+    upload{T}(src)
+    upload{T}(dst::Buffer, src)
 
 Upload an object `src` from the host to the device. If a destination `dst` is not provided,
 new memory is allocated and uploaded to.
@@ -192,29 +219,36 @@ Note this does only upload the object itself, and does not peek through it in or
 to the underlying data (like `Ref` does). Consequently, this functionality should not be
 used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
 """
-function upload(dst::Buffer, src::T) where T
-    Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
-    upload(dst, Base.RefValue(src), sizeof(T))
-end
+function upload(dst::Buffer, src)
+    # uses RefValue, make sure we don't contain pointers
+    T = typeof(src)
+    _check_type(T)
 
-function upload(src::T) where T
-    dst = alloc(T)
-    upload(dst, Base.RefValue(src), sizeof(T))
+    upload(dst, Ref(src), sizeof(src))
+end
+upload(dst::Buffer, src::AbstractArray) = upload(dst, Ref(src), sizeof(src))
+
+function upload(src)
+    dst = alloc(src)
+    upload(dst, src)
     return dst
 end
 
 """
-    download{T}(::Type{T}, src::Buffer)
+    download(dst, src::Buffer)
 
-Download an object `src` from the device and return it as a host object of type `T`.
+Download device memory from `src` to the memory location of `dst`. The amount of memory
+downloaded is determined by calling `sizeof` on the destination object, so it needs to be
+properly preallocated.
 
-See [`upload`](@ref) for notes on how arguments are processed.
+Use this interface to download variable amounts of data based on the size of `dst`. Do note
+that your object needs to be mutable through `Ref`; for immutable data, use the simpler
+[`download(::Type, src::Buffer)`](@ref) interface.
 """
-function download(::Type{T}, src::Buffer) where T
-    Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
-    dst = Base.RefValue{T}()
-    download(dst, src, sizeof(T))
-    return dst[]
+function download(dst, src::Buffer)
+    ref = Ref(dst)
+    download(ref, src, sizeof(dst))
+    return
 end
 
 end
