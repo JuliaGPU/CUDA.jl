@@ -94,7 +94,7 @@ end
     push!(ex.args, :(kernelParams = [$(arg_ptrs...)]))
 
     # root the argument boxes to the array of pointers,
-    # because the GC doesn't know both are linked
+    # keeping them alive across the call to `cuLaunchKernel`
     if VERSION >= v"0.7.0-DEV.1850"
         push!(ex.args, :(Base.@gc_preserve $(arg_refs...) kernelParams))
     end
@@ -193,16 +193,20 @@ end
     # convert the argument values to match the kernel's signature (specified by the user)
     # (this mimics `lower-ccall` in julia-syntax.scm)
 
-    compat_args = Vector{Symbol}(N)
+    arg_ptrs = Vector{Symbol}(N)
     for i in 1:N
-        compat_args[i] = gensym()
-        push!(ex.args, :($(compat_args[i]) = Base.cconvert($(types[i]), args[$i])))
+        converted_arg = gensym()
+        arg_ptrs[i] = gensym()
+        push!(ex.args, :($converted_arg = Base.cconvert($(types[i]), args[$i])))
+        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $converted_arg)))
+
+        # root the cconverted argument to the pointer,
+        # keeping them alive across the call to `launch`
+        if VERSION >= v"0.7.0-DEV.1850"
+            push!(ex.args, :(Base.@gc_preserve $(converted_arg) $(arg_ptrs[i])))
+        end
     end
 
-    # TODO: do we need to @gc_preserve the result of unsafe convert,
-    #       or is the result of cconvert kept alive across the call to launch?
-
-    arg_ptrs = [:(Base.unsafe_convert($(types[i]), $(compat_args[i]))) for i in 1:N]
     push!(ex.args, :(launch(f, CuDim3(griddim), CuDim3(blockdim), shmem, stream,
                             ($(arg_ptrs...),))))
 
