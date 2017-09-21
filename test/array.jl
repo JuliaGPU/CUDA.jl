@@ -77,7 +77,27 @@ end
     @test input ≈ output
 end
 
+@testset "iteration" begin     # argument passing, get and setindex, length
+    dims = (16, 16)
+    @eval function array_iteration(input::CuDeviceArray{Float32}, output::CuDeviceArray{Float32})
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        acc = 0f0
+        for elem in input
+            acc += elem
+        end
+        output[1] = acc
+        return nothing
+    end
 
+    input = round.(rand(Float32, dims) * 100)
+
+    input_dev = CuArray(input)
+    output_dev = similar(input_dev, 1)
+
+    @cuda (1, 1) array_iteration(input_dev, output_dev)
+    output = Array(output_dev)
+    @test sum(input) ≈ output[1]
+end
 
 ############################################################################################
 
