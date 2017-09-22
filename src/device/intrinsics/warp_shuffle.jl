@@ -20,12 +20,9 @@ for (name, mode, mask) in ((:shfl_up,   :up,   UInt32(0x00)),
 
     @eval begin
         export $name
-        @inline function $name(val::UInt32, srclane::Integer, width::Integer=$ws)
-            val = ccall($"$intrinsic", llvmcall, UInt32,
-                        (UInt32, UInt32, UInt32), val, convert(UInt32, srclane), $pack_expr)
-            sync_warp()
-            return val
-        end
+        @inline $name(val::UInt32, srclane::Integer, width::Integer=$ws) =
+            ccall($"$intrinsic", llvmcall, UInt32,
+                  (UInt32, UInt32, UInt32), val, convert(UInt32, srclane), $pack_expr)
     end
 end
 
