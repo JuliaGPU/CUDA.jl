@@ -22,7 +22,6 @@ end
         if elty <: Base.LinAlg.BlasComplex
             A += im*A
         end
-        @test ndims(A) == 1
         n1 = length(A)
         d_A = CuArray(A)
         d_B = CuArray{elty}(n1)
@@ -34,7 +33,6 @@ end
 
 @testset "scal!" begin
     function test_scal!(alpha,A::Array{T}) where T
-        @test ndims(A) == 1
         n1 = length(A)
         d_A = CuArray(A)
         CuArrays.BLAS.scal!(n1,alpha,d_A,1)
@@ -62,9 +60,6 @@ end
     @testset for elty in [Float32, Float64]
         A = convert(Vector{elty}, collect(1:m))
         B = convert(Vector{elty}, collect(1:m))
-        @test ndims(A) == 1
-        @test ndims(B) == 1
-        @test length(A) == length(B)
         n1 = length(A)
         d_A = CuArray(A)
         d_B = CuArray(B)
@@ -86,9 +81,6 @@ end
     @testset for elty in [Complex64, Complex128]
         A = rand(elty, m)
         B = rand(elty, m)
-        @test ndims(A) == 1
-        @test ndims(B) == 1
-        @test length(A) == length(B)
         n1 = length(A)
         d_A = CuArray(A)
         d_B = CuArray(B)
@@ -111,9 +103,6 @@ end
     @testset for elty in [Complex64, Complex128]
         A = rand(elty, m)
         B = rand(elty, m)
-        @test ndims(A) == 1
-        @test ndims(B) == 1
-        @test length(A) == length(B)
         n1 = length(A)
         d_A = CuArray(A)
         d_B = CuArray(B)
@@ -135,7 +124,6 @@ end
 @testset "nrm2" begin
     @testset for elty in [Float32, Float64, Complex64, Complex128]
         A = rand(elty, m)
-        @test ndims(A) == 1
         n1 = length(A)
         d_A = CuArray(A)
         cuda_nrm2_1 = CuArrays.BLAS.nrm2(n1,d_A,1)
@@ -151,7 +139,6 @@ end
 @testset "asum" begin
     @testset for elty in [Float32, Float64, Complex64, Complex128]
         A = rand(elty, m)
-        @test ndims(A) == 1
         n1 = length(A)
         d_A = CuArray(A)
         cuda_asum1 = CuArrays.BLAS.asum(n1,d_A,1)
@@ -165,7 +152,6 @@ end
 @testset "axpy!" begin
     # test axpy!
     function test_axpy!_1(alpha,A,B)
-        @test length(A) == length(B)
         n1 = length(A)
         d_A = CuArray(A)
         d_B1 = CuArray(B)
@@ -180,7 +166,6 @@ end
     test_axpy!_1(2.0+im*2.0,rand(Complex128,m),rand(Complex128,m))
 
     function test_axpy!_2(alpha,A,B)
-        @test length(A) == length(B)
         n1 = length(A)
         d_A = CuArray(A)
         d_B1 = CuArray(B)
