@@ -178,39 +178,6 @@ end
     test_axpy!_2(2.0,rand(Float64,m),rand(Float64,m))
     test_axpy!_2(2.0f0+im*2.0f0,rand(Complex64,m),rand(Complex64,m))
     test_axpy!_2(2.0+im*2.0,rand(Complex128,m),rand(Complex128,m))
-
-    #=function test_axpy!_3(alpha,A,B)
-        @test length(A) == length(B)
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B1 = CuArray(B)
-        CuArrays.BLAS.axpy!(alpha,d_A,1:2:n1,d_B1,1:2:n1)
-        B1 = collect(d_B1)
-        host_axpy = B
-        host_axpy[1:2:n1] = alpha*A[1:2:n1] + B[1:2:n1]
-        @test_approx_eq(host_axpy,B1)
-    end
-    test_axpy!_3(2.0f0,rand(Float32,m),rand(Float32,m))
-    test_axpy!_3(2.0,rand(Float64,m),rand(Float64,m))
-    test_axpy!_3(2.0f0+im*2.0f0,rand(Complex64,m),rand(Complex64,m))
-    test_axpy!_3(2.0+im*2.0,rand(Complex128,m),rand(Complex128,m))
-
-    function test_axpy!_4(alpha,A,B)
-        @test length(A) == length(B)
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B1 = CuArray(B)
-        r = 1:div(n1,2)
-        CuArrays.BLAS.axpy!(alpha,d_A,r,d_B1,r)
-        B1 = collect(d_B1)
-        host_axpy = B
-        host_axpy[r] = alpha*A[r] + B[r]
-        @test_approx_eq(host_axpy,B1)
-    end
-    test_axpy!_4(2.0f0,rand(Float32,m),rand(Float32,m))
-    test_axpy!_4(2.0,rand(Float64,m),rand(Float64,m))
-    test_axpy!_4(2.0f0+im*2.0f0,rand(Complex64,m),rand(Complex64,m))
-    test_axpy!_4(2.0+im*2.0,rand(Complex128,m),rand(Complex128,m))=#
 end
 
 @testset "iamax and iamin" begin
