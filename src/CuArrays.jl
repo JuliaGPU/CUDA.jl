@@ -11,7 +11,9 @@ include("utils.jl")
 include("indexing.jl")
 include("broadcast.jl")
 include("reduction.jl")
-include("blas.jl")
+
+include(joinpath(@__DIR__, "../deps/ext.jl"))
+include("blas/BLAS.jl")
 include("dnn.jl")
 
 end # module

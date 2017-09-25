@@ -67,13 +67,6 @@ end
   testf(x -> prod(x), rand(2, 3))
 end
 
-@testset "BLAS" begin
-  testf(*, rand(5, 5), rand(5, 5))
-  testf(*, rand(5, 5), rand(5))
-  testf(A_mul_Bt, rand(5, 5), rand(5, 5))
-  testf(At_mul_B, rand(5, 5), rand(5, 5))
-end
-
 @testset "0D" begin
   x = CuArray{Float64}()
   x .= 1
@@ -81,6 +74,8 @@ end
   x /= 2
   @test collect(x)[] == 0.5
 end
+
+include("blas.jl")
 
 using NNlib: softmax, ∇softmax
 

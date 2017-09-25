@@ -14,11 +14,15 @@ end
 
 CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
+CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 function unsafe_free!(xs::CuArray)
   Mem.release(xs.ptr) && CUDAdrv.isvalid(xs.ptr.ctx) && Mem.free(xs.ptr)
   return
 end
+
+Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where T =
+  Base.unsafe_convert(Ptr{T}, x.ptr)
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(Mem.alloc(T, prod(dims)), dims)
