@@ -149,7 +149,7 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
     end
 end
 # TODO: inspect blas.jl in julia to correct types here (dot{c,u})
-function dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
+function Base.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dot(n, DX, 1, DY, 1)
@@ -158,6 +158,9 @@ function dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex12
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dotc(n, DX, 1, DY, 1)
+end
+function Base.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
+    dotc(DX, DY)
 end
 function dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
     n = length(DX)

@@ -6,151 +6,27 @@ m = 20
 n = 35
 k = 13
 
-function blasabs(A)
-    return abs.(real(A)) + abs.(imag(A))
-end
-
 #################
 # level 1 tests #
 #################
 
 @testset "Level 1" begin
 
-@testset "blascopy!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
-        A = convert(Vector{elty}, collect(1:m))
-        if elty <: Base.LinAlg.BlasComplex
-            A += im*A
-        end
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B = CuArray{elty}(n1)
-        CuArrays.BLAS.blascopy!(n,d_A,1,d_B,1)
-        B = collect(d_B)
-        @test A == B
-    end
-end
+@testset for T in [Float32, Float64, Complex64, Complex128]
+  A = CuArray(rand(T, m))
+  B = CuArray{T}(m)
+  CuArrays.BLAS.blascopy!(m,A,1,B,1)
+  @test collect(A) == collect(B)
 
-@testset "scal!" begin
-    function test_scal!(alpha,A::Array{T}) where T
-        n1 = length(A)
-        d_A = CuArray(A)
-        CuArrays.BLAS.scal!(n1,alpha,d_A,1)
-        A1 = collect(d_A)
-        @test alpha*A ≈ A1
+  A = rand(T, m)
+  @test CuArrays.BLAS.asum(cu(A)) ≈ BLAS.asum(A)
 
-        d_A = CuArray(A)
-        d_As = CuArrays.BLAS.scale!(copy(d_A), alpha)
-        A1 = collect(d_As)
-        @test alpha*A ≈ A1
-
-        CuArrays.BLAS.scale!(d_A, alpha)
-        A1 = collect(d_As)
-        @test alpha*A ≈ A1
-    end
-    test_scal!(2.0f0,Float32[1:m;])
-    test_scal!(2.0,Float64[1:m;])
-    test_scal!(1.0f0+im*1.0f0,Float32[1:m;]+im*Float32[1:m;])
-    test_scal!(1.0+im*1.0,Float64[1:m;]+im*Float64[1:m;])
-    test_scal!(2.0f0,Float32[1:m;]+im*Float32[1:m;])
-    test_scal!(2.0,Float64[1:m;]+im*Float64[1:m;])
-end
-
-@testset "dot" begin
-    @testset for elty in [Float32, Float64]
-        A = convert(Vector{elty}, collect(1:m))
-        B = convert(Vector{elty}, collect(1:m))
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B = CuArray(B)
-        cuda_dot1 = CuArrays.BLAS.dot(n1,d_A,1,d_B,1)
-        cuda_dot2 = CuArrays.BLAS.dot(d_A,d_B)
-        host_dot = dot(A,B)
-        @test host_dot ≈ cuda_dot1
-        @test host_dot ≈ cuda_dot2
-
-        #d_A = CuArray(A)
-        #d_B = CuArray(B)
-        #cuda_dot3 = CuArrays.BLAS.dot(d_A, 3:5, d_B, 5:7)
-        #host_dot3 = dot(A, 3:5, B, 5:7)
-        #@test_approx_eq(cuda_dot3, host_dot3)
-    end
-end
-
-@testset "dotu" begin
-    @testset for elty in [Complex64, Complex128]
-        A = rand(elty, m)
-        B = rand(elty, m)
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B = CuArray(B)
-        cuda_dot1 = CuArrays.BLAS.dotu(n1,d_A,1,d_B,1)
-        cuda_dot2 = CuArrays.BLAS.dotu(d_A,d_B)
-        host_dot = A.'*B
-        if VERSION < v"0.6.0-dev.2074" # julia PR #19670
-            @test host_dot[1] ≈ cuda_dot1
-            @test host_dot[1] ≈ cuda_dot2
-            @test host_dot ≈ (d_A.'*d_B)
-        else
-            @test host_dot ≈ cuda_dot1
-            @test host_dot ≈ cuda_dot2
-            @test host_dot ≈ (d_A.'*d_B)[1]
-        end
-    end
-end
-
-@testset "dotc" begin
-    @testset for elty in [Complex64, Complex128]
-        A = rand(elty, m)
-        B = rand(elty, m)
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B = CuArray(B)
-        cuda_dot1 = CuArrays.BLAS.dotc(n1,d_A,1,d_B,1)
-        cuda_dot2 = CuArrays.BLAS.dotc(d_A,d_B)
-        host_dot = A'*B
-        if VERSION < v"0.6.0-dev.2074" # julia PR #19670
-            @test host_dot[1] ≈ cuda_dot1
-            @test host_dot[1] ≈ cuda_dot2
-            @test host_dot ≈ (d_A'*d_B)
-        else
-            @test host_dot ≈ cuda_dot1
-            @test host_dot ≈ cuda_dot2
-            @test host_dot ≈ (d_A'*d_B)[1]
-        end
-    end
-end
-
-@testset "nrm2" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
-        A = rand(elty, m)
-        n1 = length(A)
-        d_A = CuArray(A)
-        cuda_nrm2_1 = CuArrays.BLAS.nrm2(n1,d_A,1)
-        cuda_nrm2_2 = CuArrays.BLAS.nrm2(d_A)
-        cuda_nrm2_3 = norm(d_A)
-        host_nrm2 = norm(A)
-        @test host_nrm2 ≈ cuda_nrm2_1
-        @test host_nrm2 ≈ cuda_nrm2_2
-        @test host_nrm2 ≈ cuda_nrm2_3
-    end
-end
-
-@testset "asum" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
-        A = rand(elty, m)
-        n1 = length(A)
-        d_A = CuArray(A)
-        cuda_asum1 = CuArrays.BLAS.asum(n1,d_A,1)
-        cuda_asum2 = CuArrays.BLAS.asum(d_A)
-        host_asum = sum(abs.(real(A)) + abs.(imag(A)))
-        @test host_asum ≈ cuda_asum1
-        @test host_asum ≈ cuda_asum2
-    end
+  testf(scale!, rand(T, 6, 9, 3), rand())
+  testf(dot, rand(T, m), rand(T, m))
+  testf(norm, rand(T, m))
 end
 
 @testset "axpy!" begin
-    # test axpy!
     function test_axpy!_1(alpha,A,B)
         n1 = length(A)
         d_A = CuArray(A)
@@ -185,7 +61,7 @@ end
         A = rand(elty, m)
         n1 = length(A)
         d_A = CuArray(A)
-        Aabs = blasabs(A)
+        Aabs = abs.(A)
         imin1 = CuArrays.BLAS.iamin(n1,d_A,1)
         imax1 = CuArrays.BLAS.iamax(n1,d_A,1)
         imin2 = CuArrays.BLAS.iamin(d_A)
@@ -198,10 +74,6 @@ end
 end
 
 end # level 1 testset
-
-#################
-# level 2 tests #
-#################
 
 @testset "Level 2" begin
 

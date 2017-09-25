@@ -13,7 +13,8 @@ cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1:2), size(M, t=='N' ? 2
 #######
 # SCAL
 #######
-Base.scale!(x::CuArray{T}, k::Number) where {T<:CublasFloat} = scal!(length(x), k, x, 1)
+Base.scale!(x::CuArray{T}, k::Number) where T<:CublasFloat =
+  scal!(length(x), convert(eltype(x), k), x, 1)
 
 #######
 # DOT
