@@ -32,12 +32,12 @@ function dot(x::CuVector{T}, rx::Union{UnitRange{TI},Range{TI}}, y::CuVector{T},
     dot(length(rx), pointer(x)+(first(rx)-1)*sizeof(T), step(rx), pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
 end
 
-At_mul_B(x::CuVector{T}, y::CuVector{T}) where {T<:CublasReal} = [dot(x, y)]
-At_mul_B(x::CuVector{T}, y::CuVector{T}) where {T<:CublasComplex} = [dotu(x, y)]
-Ac_mul_B(x::CuVector{T}, y::CuVector{T}) where {T<:CublasComplex} = [dotc(x, y)]
+At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = [dot(x, y)]
+At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasComplex = [dotu(x, y)]
+Ac_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasComplex = [dotc(x, y)]
 
-vecdot(x::CuVector{T}, y::CuVector{T}) where {T<:CublasReal} = dot(x, y)
-vecdot(x::CuVector{T}, y::CuVector{T}) where {T<:CublasComplex} = dotc(x, y)
+vecdot(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = dot(x, y)
+vecdot(x::CuVector{T}, y::CuVector{T}) where T<:CublasComplex = dotc(x, y)
 
 #######
 # NRM2
@@ -73,10 +73,10 @@ function gemv_wrapper!(y::CuVector{T}, tA::Char, A::CuMatrix{T}, x::CuVector{T},
     gemv!(tA, alpha, A, x, beta, y)
 end
 
-A_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where {T<:CublasFloat} = gemv_wrapper!(y, 'N', A,  x)
-At_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where {T<:CublasFloat} = gemv_wrapper!(y, 'T', A, x)
-Ac_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where {T<:CublasFloat} = gemv_wrapper!(y, 'T', A, x)
-Ac_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where {T<:CublasComplex} = gemv_wrapper!(y, 'C', A, x)
+A_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(y, 'N', A,  x)
+At_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(y, 'T', A, x)
+Ac_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(y, 'T', A, x)
+Ac_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasComplex = gemv_wrapper!(y, 'C', A, x)
 
 function (*)(A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat
     A_mul_B!(similar(x, T, size(A,1)), A, x)
@@ -127,11 +127,11 @@ function gemm_wrapper!(C::CuVecOrMat{T}, tA::Char, tB::Char,
 end
 
 # Mutating
-A_mul_B!(C::CuMatrix{T}, A::CuMatrix{T}, B::CuMatrix{T}) where {T <: CublasFloat} = gemm_wrapper!(C, 'N', 'N', A, B)
+A_mul_B!(C::CuMatrix{T}, A::CuMatrix{T}, B::CuMatrix{T}) where T<:CublasFloat = gemm_wrapper!(C, 'N', 'N', A, B)
 At_mul_B!(C::CuMatrix, A::CuMatrix, B::CuMatrix) = gemm_wrapper!(C, 'T', 'N', A, B)
 A_mul_Bt!(C::CuMatrix, A::CuMatrix, B::CuMatrix) = gemm_wrapper!(C, 'N', 'T', A, B)
 At_mul_Bt!(C::CuMatrix, A::CuMatrix, B::CuMatrix) = gemm_wrapper!(C, 'T', 'T', A, B)
-Ac_mul_B!(C::CuMatrix{T}, A::CuMatrix{T}, B::CuMatrix{T}) where {T<:CublasReal} = At_mul_B!(C, A, B)
+Ac_mul_B!(C::CuMatrix{T}, A::CuMatrix{T}, B::CuMatrix{T}) where T<:CublasReal = At_mul_B!(C, A, B)
 Ac_mul_B!(C::CuMatrix, A::CuMatrix, B::CuMatrix) = gemm_wrapper!(C, 'C', 'N', A, B)
 
 function A_mul_B!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}) where T
