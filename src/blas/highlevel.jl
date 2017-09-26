@@ -1,8 +1,10 @@
-import Base: norm, vecdot,
+import Base:
   *,        At_mul_B,  A_mul_Bt,  Ac_mul_B,  A_mul_Bc,  At_mul_Bt,  Ac_mul_Bc,  At_mul_Bt,
   A_mul_B!, At_mul_B!, A_mul_Bt!, Ac_mul_B!, A_mul_Bc!, At_mul_Bt!, Ac_mul_Bc!, At_mul_Bt!
 
 cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1:2), size(M, t=='N' ? 2:1))
+
+CublasArray{T<:CublasFloat} = CuArray{T}
 
 ###########
 #
@@ -10,40 +12,40 @@ cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1:2), size(M, t=='N' ? 2
 #
 ###########
 
-#######
-# SCAL
-#######
 Base.scale!(x::CuArray{T}, k::Number) where T<:CublasFloat =
   scal!(length(x), convert(eltype(x), k), x, 1)
 
-#######
-# DOT
-#######
-function dot(x::CuVector{T}, rx::Union{UnitRange{TI},Range{TI}}, y::CuVector{T}, ry::Union{UnitRange{TI},Range{TI}}) where {T <: CublasFloat, TI<:Integer}
-    if length(rx) != length(ry)
-        throw(DimensionMismatch("length of rx, $(length(rx)), does not equal length of ry, $(length(ry))"))
-    end
-    if minimum(rx) < 1 || maximum(rx) > length(x)
-        throw(BoundsError(x, rx))
-    end
-    if minimum(ry) < 1 || maximum(ry) > length(y)
-        throw(BoundsError(y, ry))
-    end
-    dot(length(rx), pointer(x)+(first(rx)-1)*sizeof(T), step(rx), pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
+function Base.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
+    n = length(DX)
+    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
+    dot(n, DX, 1, DY, 1)
+end
+function Base.BLAS.dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
+    n = length(DX)
+    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
+    dotc(n, DX, 1, DY, 1)
+end
+function Base.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
+    Base.BLAS.dotc(DX, DY)
+end
+function Base.BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
+    n = length(DX)
+    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
+    dotu(n, DX, 1, DY, 1)
 end
 
-At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = [dot(x, y)]
-At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasComplex = [dotu(x, y)]
-Ac_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasComplex = [dotc(x, y)]
+At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = Base.BLAS.dot(x, y)
 
-vecdot(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = dot(x, y)
-vecdot(x::CuVector{T}, y::CuVector{T}) where T<:CublasComplex = dotc(x, y)
+Base.norm(x::CublasArray) = nrm2(x)
+Base.BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
 
-#######
-# NRM2
-#######
-norm(x::CuArray) = nrm2(x)
+function Base.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where T<:CublasFloat
+    length(x)==length(y) || throw(DimensionMismatch(""))
+    axpy!(length(x), convert(T,alpha), x, 1, y, 1)
+end
 
+Base.indmin(xs::CublasArray{T}) where T <: CublasReal = iamin(xs)
+Base.indmax(xs::CublasArray{T}) where T <: CublasReal = iamax(xs)
 
 ############
 #
@@ -77,18 +79,6 @@ A_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat = 
 At_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(y, 'T', A, x)
 Ac_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(y, 'T', A, x)
 Ac_mul_B!(y::CuVector{T}, A::CuMatrix{T}, x::CuVector{T}) where T<:CublasComplex = gemv_wrapper!(y, 'C', A, x)
-
-function (*)(A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat
-    A_mul_B!(similar(x, T, size(A,1)), A, x)
-end
-
-function At_mul_B(A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat
-    At_mul_B!(similar(x, T, size(A,2)), A, x)
-end
-
-function Ac_mul_B(A::CuMatrix{T}, x::CuVector{T}) where T<:CublasFloat
-    Ac_mul_B!(similar(x, T, size(A,2)), A, x)
-end
 
 ############
 #

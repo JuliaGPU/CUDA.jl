@@ -98,8 +98,6 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
         end
     end
 end
-# TODO: uncomment and test the following method
-#scal{T}(n::Integer, DA::T, DX::CuArray{T}, incx::Integer) = scal!(n, DA, copy(DX), incx)
 # In case DX is complex, and DA is real, use dscal/sscal to save flops
 for (fname, elty, celty) in ((:cublasSscal_v2, :Float32, :Complex64),
                              (:cublasDscal_v2, :Float64, :Complex128))
@@ -148,25 +146,6 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
         end
     end
 end
-# TODO: inspect blas.jl in julia to correct types here (dot{c,u})
-function Base.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
-    n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dot(n, DX, 1, DY, 1)
-end
-function dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
-    n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotc(n, DX, 1, DY, 1)
-end
-function Base.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
-    dotc(DX, DY)
-end
-function dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64,Complex128}
-    n = length(DX)
-    n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotu(n, DX, 1, DY, 1)
-end
 
 ## nrm2
 for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
@@ -210,8 +189,6 @@ for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
         end
     end
 end
-#asum(x::StridedVector) = asum(length(x), x, stride(x,1))
-asum(x::CuArray) = asum(length(x), x, 1)
 
 ## axpy
 for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
@@ -243,13 +220,6 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
             dy
         end
     end
-end
-
-function axpy!(alpha::Ta,
-               x::CuArray{T},
-               y::CuArray{T}) where {T<:CublasFloat,Ta<:Number}
-    length(x)==length(y) || throw(DimensionMismatch(""))
-    axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
 
 function axpy!(alpha::Ta,

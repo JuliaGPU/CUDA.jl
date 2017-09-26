@@ -18,157 +18,29 @@ k = 13
   CuArrays.BLAS.blascopy!(m,A,1,B,1)
   @test collect(A) == collect(B)
 
-  A = rand(T, m)
-  @test CuArrays.BLAS.asum(cu(A)) ≈ BLAS.asum(A)
-
   testf(scale!, rand(T, 6, 9, 3), rand())
   testf(dot, rand(T, m), rand(T, m))
+  testf(At_mul_B, rand(T, m), rand(T, m))
+  testf(Ac_mul_B, rand(T, m), rand(T, m))
   testf(norm, rand(T, m))
-end
+  testf(BLAS.asum, rand(T, m))
+  testf(BLAS.axpy!, rand(), rand(T, m), rand(T, m))
 
-@testset "axpy!" begin
-    function test_axpy!_1(alpha,A,B)
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B1 = CuArray(B)
-        CuArrays.BLAS.axpy!(n1,alpha,d_A,1,d_B1,1)
-        B1 = collect(d_B1)
-        host_axpy = alpha*A + B
-        @test host_axpy ≈ B1
-    end
-    test_axpy!_1(2.0f0,rand(Float32,m),rand(Float32,m))
-    test_axpy!_1(2.0,rand(Float64,m),rand(Float64,m))
-    test_axpy!_1(2.0f0+im*2.0f0,rand(Complex64,m),rand(Complex64,m))
-    test_axpy!_1(2.0+im*2.0,rand(Complex128,m),rand(Complex128,m))
-
-    function test_axpy!_2(alpha,A,B)
-        n1 = length(A)
-        d_A = CuArray(A)
-        d_B1 = CuArray(B)
-        CuArrays.BLAS.axpy!(alpha,d_A,d_B1)
-        B1 = collect(d_B1)
-        host_axpy = alpha*A + B
-        @test host_axpy ≈ B1
-    end
-    test_axpy!_2(2.0f0,rand(Float32,m),rand(Float32,m))
-    test_axpy!_2(2.0,rand(Float64,m),rand(Float64,m))
-    test_axpy!_2(2.0f0+im*2.0f0,rand(Complex64,m),rand(Complex64,m))
-    test_axpy!_2(2.0+im*2.0,rand(Complex128,m),rand(Complex128,m))
-end
-
-@testset "iamax and iamin" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
-        A = rand(elty, m)
-        n1 = length(A)
-        d_A = CuArray(A)
-        Aabs = abs.(A)
-        imin1 = CuArrays.BLAS.iamin(n1,d_A,1)
-        imax1 = CuArrays.BLAS.iamax(n1,d_A,1)
-        imin2 = CuArrays.BLAS.iamin(d_A)
-        imax2 = CuArrays.BLAS.iamax(d_A)
-        host_imin = indmin(Aabs)
-        host_imax = indmax(Aabs)
-        @test imin1 == imin2 == host_imin
-        @test imin1 == imin2 == host_imin
-    end
+  if T <: Real
+    testf(indmin, rand(T, m))
+    testf(indmax, rand(T, m))
+  end
 end
 
 end # level 1 testset
 
 @testset "Level 2" begin
 
-@testset "gemv!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
-        alpha = convert(elty,1)
-        beta = convert(elty,1)
-        A = rand(elty,m,n)
-        d_A = CuArray(A)
-
-        # test y = A*x + y
-        x = rand(elty,n)
-        d_x = CuArray(x)
-        y = rand(elty,m)
-        d_y = CuArray(y)
-        y = A*x + y
-        CuArrays.BLAS.gemv!('N',alpha,d_A,d_x,beta,d_y)
-        h_y = collect(d_y)
-        @test y ≈ h_y
-        A_mul_B!(d_y,d_A,d_x)
-        h_y = collect(d_y)
-        @test h_y ≈ A*x
-
-        # test x = A.'*y + x
-        x = rand(elty,n)
-        d_x = CuArray(x)
-        y = rand(elty,m)
-        d_y = CuArray(y)
-        x = A.'*y + x
-        CuArrays.BLAS.gemv!('T',alpha,d_A,d_y,beta,d_x)
-        h_x = collect(d_x)
-        @test x ≈ h_x
-        At_mul_B!(d_x,d_A,d_y)
-        h_x = collect(d_x)
-        @test h_x ≈ A.'*y
-
-        # test x = A'*y + x
-        x = rand(elty,n)
-        d_x = CuArray(x)
-        y = rand(elty,m)
-        d_y = CuArray(y)
-        x = A'*y + x
-        CuArrays.BLAS.gemv!('C',alpha,d_A,d_y,beta,d_x)
-        h_x = collect(d_x)
-        @test x ≈ h_x
-        Ac_mul_B!(d_x,d_A,d_y)
-        h_x = collect(d_x)
-        @test h_x ≈ A'*y
-    end
-end
-
-@testset "gemv" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
-        alpha = convert(elty,2)
-        A = rand(elty,m,n)
-        d_A = CuArray(A)
-        # test y = alpha*(A*x)
-        x = rand(elty,n)
-        d_x = CuArray(x)
-        y1 = alpha*(A*x)
-        y2 = A*x
-        d_y1 = CuArrays.BLAS.gemv('N',alpha,d_A,d_x)
-        d_y2 = CuArrays.BLAS.gemv('N',d_A,d_x)
-        h_y1 = collect(d_y1)
-        h_y2 = collect(d_y2)
-        @test y1 ≈ h_y1
-        @test y2 ≈ h_y2
-        @test y2 ≈ collect(d_A * d_x)
-
-        # test x = alpha*(A.'*y)
-        y = rand(elty,m)
-        d_y = CuArray(y)
-        x1 = alpha*(A.'*y)
-        x2 = A.'*y
-        d_x1 = CuArrays.BLAS.gemv('T',alpha,d_A,d_y)
-        d_x2 = CuArrays.BLAS.gemv('T',d_A,d_y)
-        h_x1 = collect(d_x1)
-        h_x2 = collect(d_x2)
-        @test x1 ≈ h_x1
-        @test x2 ≈ h_x2
-        @test x2 ≈ collect(d_A.' * d_y)
-
-        # test x = alpha*(A'*y)
-        y = rand(elty,m)
-        d_y = CuArray(y)
-        x1 = alpha*(A'*y)
-        x2 = A'*y
-        d_x1 = CuArrays.BLAS.gemv('C',alpha,d_A,d_y)
-        d_x2 = CuArrays.BLAS.gemv('C',d_A,d_y)
-        h_x1 = collect(d_x1)
-        h_x2 = collect(d_x2)
-        @test y1 ≈ h_y1
-        @test y2 ≈ h_y2
-        @test x2 ≈ collect(d_A' * d_y)
-    end
+@testset for T in [Float32, Float64, Complex64, Complex128]
+  # gemv
+  testf(*, rand(T, m, n), rand(T, n))
+  testf(At_mul_B, rand(T, m, n), rand(T, m))
+  testf(Ac_mul_B, rand(T, m, n), rand(T, m))
 end
 
 @testset "gbmv!" begin
