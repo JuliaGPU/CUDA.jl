@@ -78,9 +78,10 @@ end
         export exec_external_dummy
         exec_external_dummy() = return nothing
     end
+    import ...KernelModule
     @cuda (1,1) KernelModule.exec_external_dummy()
     @eval begin
-        using KernelModule
+        using ...KernelModule
         @cuda (1,1) exec_external_dummy()
     end
 

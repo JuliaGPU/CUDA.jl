@@ -1,6 +1,8 @@
 using CUDAnative, CUDAdrv
 using Base.Test
 
+import LLVM
+
 @testset "CUDAnative" begin
 
 include("util.jl")
