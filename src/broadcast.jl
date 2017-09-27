@@ -63,6 +63,11 @@ end
     return broadcast_t(f, Any, shape, A, Bs...)
 end
 
+# Hacky interop
+
+Base.Broadcast._containertype(::Type{<:RowVector{<:Any,<:CuArray}}) = CuArray
+CUDAnative.cudaconvert(x::RowVector{<:Any,<:CuArray}) = RowVector(cudaconvert(x.vec))
+
 # Hack to work with cuda's arithmetic functions
 
 cufunc(f) = f
