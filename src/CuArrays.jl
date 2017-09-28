@@ -13,7 +13,7 @@ include("indexing.jl")
 include("broadcast.jl")
 include("reduction.jl")
 
-include(joinpath(@__DIR__, "../deps/ext.jl"))
+include("../deps/ext.jl")
 include("blas/BLAS.jl")
 include("dnn.jl")
 
