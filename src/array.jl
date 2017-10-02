@@ -1,4 +1,3 @@
-using CUDAdrv: OwnedPtr
 using CUDAnative: DevicePtr
 
 mutable struct CuArray{T,N} <: DenseArray{T,N}
@@ -17,7 +16,7 @@ CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 function unsafe_free!(xs::CuArray)
-  Mem.release(xs.ptr) && dealloc(xs.ptr)
+  Mem.release(xs.ptr) && dealloc(xs.ptr, prod(xs.dims)*sizeof(eltype(xs)))
   return
 end
 
