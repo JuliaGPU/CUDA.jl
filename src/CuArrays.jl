@@ -7,6 +7,7 @@ import CUDAnative: cudaconvert
 
 export CuArray, CuVector, CuMatrix, cu
 
+include("memory.jl")
 include("array.jl")
 include("utils.jl")
 include("indexing.jl")

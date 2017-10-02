@@ -17,7 +17,7 @@ CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 function unsafe_free!(xs::CuArray)
-  Mem.release(xs.ptr) && CUDAdrv.isvalid(xs.ptr.ctx) && Mem.free(xs.ptr)
+  Mem.release(xs.ptr) && dealloc(xs.ptr)
   return
 end
 
@@ -25,7 +25,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where T =
   Base.unsafe_convert(Ptr{T}, x.ptr)
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
-  CuArray{T,N}(Mem.alloc(prod(dims)*sizeof(T)), dims)
+  CuArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)
 
 CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(dims)
