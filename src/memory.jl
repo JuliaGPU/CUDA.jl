@@ -1,5 +1,13 @@
+using CUDAdrv
+
 function alloc(bytes)
-  Mem.alloc(bytes)
+  try
+    Mem.alloc(bytes)
+  catch e
+    e == CUDAdrv.CuError(2) || rethrow()
+    gc(false)
+    Mem.alloc(bytes)
+  end
 end
 
 function dealloc(ptr)
