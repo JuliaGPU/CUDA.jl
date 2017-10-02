@@ -2,9 +2,9 @@ using CUDAdrv: OwnedPtr
 using CUDAnative: DevicePtr
 
 mutable struct CuArray{T,N} <: DenseArray{T,N}
-  ptr::OwnedPtr{T}
+  ptr::OwnedPtr{Void}
   dims::NTuple{N,Int}
-  function CuArray{T,N}(ptr::OwnedPtr{T}, dims::NTuple{N,Integer}) where {T,N}
+  function CuArray{T,N}(ptr::OwnedPtr{Void}, dims::NTuple{N,Integer}) where {T,N}
     xs = new{T,N}(ptr, dims)
     Mem.retain(ptr)
     finalizer(xs, unsafe_free!)
@@ -25,7 +25,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where T =
   Base.unsafe_convert(Ptr{T}, x.ptr)
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
-  CuArray{T,N}(Mem.alloc(T, prod(dims)), dims)
+  CuArray{T,N}(Mem.alloc(prod(dims)*sizeof(T)), dims)
 
 CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(dims)

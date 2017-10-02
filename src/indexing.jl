@@ -11,7 +11,7 @@ Base.IndexStyle(::Type{<:CuArray}) = IndexLinear()
 
 function _getindex(xs::CuArray{T}, i::Integer) where T
   x = Array{T}(1)
-  ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
+  ptr = OwnedPtr{Void}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.download(pointer(x), ptr, sizeof(T))
   return x[1]
 end
@@ -23,7 +23,7 @@ end
 
 function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
   x = T[v]
-  ptr = OwnedPtr{T}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
+  ptr = OwnedPtr{Void}(xs.ptr.ptr + (i-1)*sizeof(T), xs.ptr.ctx)
   Mem.upload(ptr, pointer(x), sizeof(T))
   return x[1]
 end
