@@ -17,7 +17,7 @@ function _getindex(xs::CuArray{T}, i::Integer) where T
 end
 
 function Base.getindex(xs::CuArray{T}, i::Integer) where T
-  assertscalar("scalar getindex")
+  ndims(xs) > 0 && assertscalar("scalar getindex")
   _getindex(xs, i)
 end
 
