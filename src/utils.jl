@@ -2,7 +2,7 @@ using Base.Cartesian
 
 function cudims(n::Integer)
   threads = 256
-  Base.ceil(Int, n / threads), threads
+  ceil(Int, n / threads), threads
 end
 
 cudims(a::AbstractArray) = cudims(length(a))

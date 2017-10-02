@@ -60,7 +60,7 @@ end
 
 function reduce_cudim(n)
   threads = 512
-  blocks = Base.min((n+ threads - 1) ÷ threads, 1024)
+  blocks = min((n + threads - 1) ÷ threads, 1024)
   return threads, blocks
 end
 

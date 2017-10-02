@@ -52,6 +52,6 @@ julia> sin.(cos.(xs))
 ERROR: CUDA error: invalid program counter (code #718, ERROR_INVALID_PC)
 ```
 
-A current limitation of CUDAnative means that you'll need to restart Julia and use `CuArrays.sin`, `CuArrays.cos` etc in this case.
+A current limitation of CUDAnative means that you'll need to restart Julia and use `CUDAnative.sin`, `CUDAnative.cos` etc in this case.
 
 There is currently no support for strided arrays or views, though these are planned.

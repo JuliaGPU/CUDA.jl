@@ -90,7 +90,6 @@ libdevice = :[
 ].args
 
 for f in libdevice
-    @eval using CUDAnative: $f
     isdefined(Base, f) &&
         @eval cufunc(f::typeof(Base.$f)) = CUDAnative.$f
 end
