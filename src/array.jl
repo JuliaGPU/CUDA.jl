@@ -124,4 +124,7 @@ cu(x::CuArray) = x
 
 cu(xs::AbstractArray) = isbits(xs) ? xs : CuArray(xs)
 
+cu(xs::AbstractArray{<:AbstractFloat}) =
+  isbits(xs) ? xs : CuArray(convert(AbstractArray{Float32}, xs))
+
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
