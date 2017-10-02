@@ -38,7 +38,7 @@ We welcome issues or PRs for functionality not on this list.
 Note that some operations not on this list will work, but be slow, due to Base's generic implementations. This is intentional, to enable a "make it work, then make it fast" workflow. When you're ready you can disable slow fallback methods:
 
 ```julia
-julia> CuArrays.allowslow(false)
+julia> CuArrays.allowscalar(false)
 julia> xs[5]
 ERROR: getindex is disabled
 ```

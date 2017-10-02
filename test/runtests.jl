@@ -15,7 +15,7 @@ end
 using CuArrays
 using Base.Test
 
-CuArrays.allowslow(false)
+CuArrays.allowscalar(false)
 
 function testf(f, xs...)
   @test collect(f(cu.(xs)...)) ≈ collect(f(xs...))

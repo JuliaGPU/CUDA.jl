@@ -1,9 +1,9 @@
-const _allowslow = Ref(true)
+const _allowscalar = Ref(true)
 
-allowslow(flag = true) = (_allowslow[] = flag)
+allowscalar(flag = true) = (_allowscalar[] = flag)
 
-function assertslow(op = "Operation")
-  _allowslow[] || error("$op is disabled")
+function assertscalar(op = "Operation")
+  _allowscalar[] || error("$op is disabled")
   return
 end
 
@@ -17,7 +17,7 @@ function _getindex(xs::CuArray{T}, i::Integer) where T
 end
 
 function Base.getindex(xs::CuArray{T}, i::Integer) where T
-  assertslow("getindex")
+  assertscalar("scalar getindex")
   _getindex(xs, i)
 end
 
@@ -29,7 +29,7 @@ function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
 end
 
 function Base.setindex!(xs::CuArray{T}, v::T, i::Integer) where T
-  assertslow("setindex!")
+  assertscalar("scalar setindex!")
   _setindex!(xs, v, i)
 end
 
