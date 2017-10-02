@@ -2,5 +2,4 @@ julia 0.6
 CUDAnative 0.5
 CUDAdrv 0.5
 CUDAapi
-CUDNN 0.4.0
 NNlib

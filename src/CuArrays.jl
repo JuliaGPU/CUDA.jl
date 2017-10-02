@@ -15,6 +15,8 @@ include("reduction.jl")
 
 include("../deps/ext.jl")
 include("blas/BLAS.jl")
-include("dnn.jl")
+if libcudnn ≠ nothing
+  include("cudnn/CUDNN.jl")
+end
 
 end # module
