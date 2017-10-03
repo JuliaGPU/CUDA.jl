@@ -1,6 +1,4 @@
-import Base:
-  *,        At_mul_B,  A_mul_Bt,  Ac_mul_B,  A_mul_Bc,  At_mul_Bt,  Ac_mul_Bc,  At_mul_Bt,
-  A_mul_B!, At_mul_B!, A_mul_Bt!, Ac_mul_B!, A_mul_Bc!, At_mul_Bt!, Ac_mul_Bc!, At_mul_Bt!
+import Base: A_mul_B!, At_mul_B!, A_mul_Bt!, Ac_mul_B!, A_mul_Bc!, At_mul_Bt!, Ac_mul_Bc!, At_mul_Bt!
 
 cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1:2), size(M, t=='N' ? 2:1))
 
@@ -34,7 +32,7 @@ function Base.BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Complex64
     dotu(n, DX, 1, DY, 1)
 end
 
-At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = Base.BLAS.dot(x, y)
+Base.At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = Base.BLAS.dot(x, y)
 
 Base.norm(x::CublasArray) = nrm2(x)
 Base.BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
@@ -126,41 +124,4 @@ Ac_mul_B!(C::CuMatrix, A::CuMatrix, B::CuMatrix) = gemm_wrapper!(C, 'C', 'N', A,
 
 function A_mul_B!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}) where T
     gemm_wrapper!(C, 'N', 'N', A, B)
-end
-
-# Non mutating
-
-# A_mul_Bx
-function (*)(A::CuMatrix{T}, B::CuMatrix{T}) where T <: CublasFloat
-    A_mul_B!(similar(B, T,(size(A,1), size(B,2))), A, B)
-end
-
-function A_mul_Bt(A::CuMatrix{T}, B::CuMatrix{T}) where T
-    A_mul_Bt!(similar(B, T, (size(A,1), size(B,1))), A, B)
-end
-
-function A_mul_Bc(A::CuMatrix{T}, B::CuMatrix{T}) where T
-    A_mul_Bc!(similar(B, T,(size(A,1),size(B,1))),A, B)
-end
-
-# At_mul_Bx
-function At_mul_B(A::CuMatrix{T}, B::CuMatrix{T}) where T
-    At_mul_B!(similar(B, T, (size(A,2), size(B,2))), A, B)
-end
-
-function At_mul_Bt(A::CuMatrix{T}, B::CuMatrix{T}) where T
-    At_mul_Bt!(similar(B, T, (size(A,2), size(B,1))), A, B)
-end
-
-# Ac_mul_Bx
-function Ac_mul_B(A::CuMatrix{T}, B::CuMatrix{T}) where T
-    Ac_mul_B!(similar(B, T, (size(A,2), size(B,2))), A, B)
-end
-
-function Ac_mul_Bt(A::CuMatrix{T}, B::CuMatrix{S}) where {T,S}
-    Ac_mul_Bt(similar(B, T, (size(A,2), size(B,1))), A, B)
-end
-
-function Ac_mul_Bc(A::CuMatrix{T}, B::CuMatrix{S}) where {T,S}
-    Ac_mul_Bc!(similar(B, T, (size(A,2), size(B,1))), A, B)
 end
