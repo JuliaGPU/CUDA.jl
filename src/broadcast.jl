@@ -17,6 +17,7 @@ using Base.Broadcast: newindex, _broadcast_getindex
     end
 end
 
+
 @inline function _broadcast!(f, C::AbstractArray, keeps, Idefaults, A, Bs)
     blk, thr = cudims(C)
     @cuda (blk, thr) broadcast_kernel(cufunc(f), C, keeps, Idefaults, A, Bs)

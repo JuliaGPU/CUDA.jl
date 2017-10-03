@@ -12,8 +12,6 @@ mutable struct CuArray{T,N} <: GPUArray{T,N}
   end
 end
 
-Base.pointer(x::CuArray) = x.ptr
-
 CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}

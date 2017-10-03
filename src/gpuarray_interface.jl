@@ -1,11 +1,11 @@
 import GPUArrays
 
-
+Base.similar(::Type{<: CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = CuArray{T, N}(size)
 
 #Abstract GPU interface
 immutable CUKernelState end
 
-@inline function LocalMemory(::CUKernelState, ::Type{T}, ::Val{N}, ::Val{C}) where {T, N, C}
+@inline function GPUArrays.LocalMemory(::CUKernelState, ::Type{T}, ::Val{N}, ::Val{C}) where {T, N, C}
     CUDAnative.generate_static_shmem(Val{C}, T, Val{N})
 end
 
@@ -63,9 +63,7 @@ end
 
 # Save reinterpret and reshape implementation use this in GPUArrays
 function GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray{ET}, size::NTuple{N, Integer}) where {T, ET, N}
-    ptr = pointer(A)
-    #Mem.retain(ptr) # TODO do we need to retain in cuda?
-    CuArray{T, N}(OwnedPtr{Void}(ptr), size)
+    CuArray{T, N}(A.ptr, size)
 end
 
 # Additional copy methods
@@ -77,7 +75,7 @@ function Base.copy!{T}(
     amount == 0 && return dest
     d_offset = d_offset
     s_offset = s_offset - 1
-    device_ptr = pointer(source)
+    device_ptr = source.ptr
     sptr = device_ptr + (sizeof(T) * s_offset)
     CUDAdrv.Mem.download(Ref(dest, d_offset), sptr, sizeof(T) * (amount))
     dest
@@ -89,7 +87,7 @@ function Base.copy!{T}(
     amount == 0 && return dest
     d_offset = d_offset - 1
     s_offset = s_offset
-    d_ptr = pointer(dest)
+    d_ptr = dest.ptr
     sptr = d_ptr + (sizeof(T) * d_offset)
     CUDAdrv.Mem.upload(sptr, Ref(source, s_offset), sizeof(T) * (amount))
     dest
@@ -102,10 +100,11 @@ function Base.copy!{T}(
     )
     d_offset = d_offset - 1
     s_offset = s_offset - 1
-    d_ptr = pointer(dest)
-    s_ptr = pointer(source)
+    d_ptr = dest.ptr
+    s_ptr = source.ptr
     dptr = d_ptr + (sizeof(T) * d_offset)
     sptr = s_ptr + (sizeof(T) * s_offset)
     CUDAdrv.Mem.transfer(sptr, dptr, sizeof(T) * (amount))
     dest
 end
+``
