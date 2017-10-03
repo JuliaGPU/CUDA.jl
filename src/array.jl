@@ -1,6 +1,7 @@
 using CUDAnative: DevicePtr
+using GPUArrays
 
-mutable struct CuArray{T,N} <: DenseArray{T,N}
+mutable struct CuArray{T,N} <: GPUArray{T,N}
   ptr::OwnedPtr{Void}
   dims::NTuple{N,Int}
   function CuArray{T,N}(ptr::OwnedPtr{Void}, dims::NTuple{N,Integer}) where {T,N}
@@ -10,6 +11,8 @@ mutable struct CuArray{T,N} <: DenseArray{T,N}
     return xs
   end
 end
+
+Base.pointer(x::CuArray) = x.ptr
 
 CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
