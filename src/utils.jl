@@ -37,8 +37,8 @@ genperm(I::NTuple{N}, perm::NTuple{N}) where N =
 
 function Base.permutedims!(dest::CuArray, src::CuArray, perm)
   function kernel(dest, src, perm)
-    I = @cuindex dest
-    @inbounds dest[I...] = src[genperm(I, perm)...]
+    I = @cuindex src
+    @inbounds dest[genperm(I, perm)...] = src[I...]
     return
   end
   blk, thr = cudims(dest)
