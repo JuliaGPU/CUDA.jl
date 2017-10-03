@@ -35,7 +35,7 @@ Base.fill(::Type{CuArray}, x, dims) = fill!(CuArray{typeof(x)}(dims), x)
 genperm(I::NTuple{N}, perm::NTuple{N}) where N =
   ntuple(d->I[perm[d]], Val{N})
 
-function Base.permutedims!(dest::CuArray, src::CuArray, perm)
+function Base.permutedims!(dest::CuArray, src::CuArray, perm::NTuple)
   function kernel(dest, src, perm)
     I = @cuindex src
     @inbounds dest[genperm(I, perm)...] = src[I...]
@@ -45,6 +45,9 @@ function Base.permutedims!(dest::CuArray, src::CuArray, perm)
   @cuda (blk, thr) kernel(dest, src, perm)
   return dest
 end
+
+Base.permutedims!(dest::CuArray, src::CuArray, perm) =
+  permutedims!(dest, src, (perm...,))
 
 allequal(x) = true
 allequal(x, y, z...) = x == y && allequal(y, z...)
