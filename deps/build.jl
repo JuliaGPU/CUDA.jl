@@ -122,7 +122,7 @@ function main()
     config[:ptxas] = find_binary("ptxas", toolkit_path)
 
     if config[:cuda_version] >= v"9.0-" && VERSION < v"0.7.0-DEV.1959"
-        warn("CUDA 9.0 is only supported on Julia 0.7; see https://github.com/JuliaGPU/CUDAnative.jl/pull/107")
+        error("CUDA 9.0 is only supported on Julia 0.7")
     end
 
 
