@@ -79,6 +79,9 @@ Base.convert(::Type{CuArray{T}}, xs::DenseArray{T,N}) where {T,N} =
 Base.convert(::Type{CuArray}, xs::DenseArray{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
 
+Base.convert(T::Type{<:CuArray}, xs::DenseArray) =
+  convert(T, convert(AbstractArray{eltype(T)}, xs))
+
 # Interop with CUDAdrv native array
 
 Base.convert(::Type{CUDAdrv.CuArray{T,N}}, xs::CuArray{T,N}) where {T,N} =
@@ -118,12 +121,14 @@ function Base.showarray(io::IO, X::CuArray, repr::Bool = true; header = true)
   end
 end
 
-cu(x) = x
-cu(x::CuArray) = x
+import NNlib: adapt, adapt_
 
-cu(xs::AbstractArray) = isbits(xs) ? xs : CuArray(xs)
+adapt_(::Type{<:CuArray}, xs::AbstractArray) =
+  isbits(xs) ? xs : convert(CuArray, xs)
 
-cu(xs::AbstractArray{<:AbstractFloat}) =
-  isbits(xs) ? xs : CuArray(convert(AbstractArray{Float32}, xs))
+adapt_(::Type{<:CuArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
+  isbits(xs) ? xs : convert(CuArray{T}, xs)
+
+cu(xs) = adapt(CuArray{Float32}, xs)
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
