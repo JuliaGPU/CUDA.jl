@@ -107,5 +107,5 @@ const n = 10000
 const lat = rand(Float32, n) .* 45
 const lon = rand(Float32, n) .* -120
 
-using Base.Test
+VERSION >= v"0.7.0-DEV.1995" ? using Test : using Base.Test
 @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)
