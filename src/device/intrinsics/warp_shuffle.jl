@@ -11,18 +11,44 @@ const ws = Int32(32)
 # single-word primitives
 
 # NOTE: CUDA C disagrees with PTX on how shuffles are called
-for (name, mode, mask) in ((:shfl_up,   :up,   UInt32(0x00)),
-                           (:shfl_down, :down, UInt32(0x1f)),
-                           (:shfl_xor,  :bfly, UInt32(0x1f)),
-                           (:shfl,      :idx,  UInt32(0x1f)))
-    pack_expr = :((($ws - convert(UInt32, width)) << 8) | $mask)
-    intrinsic = Symbol("llvm.nvvm.shfl.$mode.i32")
+for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
+                           ("_down", :down, UInt32(0x1f)),
+                           ("_xor",  :bfly, UInt32(0x1f)),
+                           ("",      :idx,  UInt32(0x1f)))
+    fname = Symbol("shfl$name")
 
-    @eval begin
-        export $name
-        @inline $name(val::UInt32, srclane::Integer, width::Integer=$ws) =
-            ccall($"$intrinsic", llvmcall, UInt32,
-                  (UInt32, UInt32, UInt32), val, convert(UInt32, srclane), $pack_expr)
+    # "two packed values specifying a mask for logically splitting warps into sub-segments
+    # and an upper bound for clamping the source lane index"
+    pack_expr = :((($ws - convert(UInt32, width)) << 8) | $mask)
+
+    if cuda_version >= v"9.0-"
+        instruction = Symbol("shfl.sync.$mode.b32")
+        fname_sync = Symbol("$(fname)_sync")
+
+        # TODO: implement using LLVM intrinsics when we have D38090
+
+        @eval begin
+            export $fname_sync, $fname
+
+            @inline $fname_sync(val::UInt32, src::Integer, width::Integer=$ws,
+                                threadmask::UInt32=0xffffffff) =
+                Base.llvmcall(
+                    $"""%5 = call i32 asm sideeffect "$instruction \$0, \$1, \$2, \$3, \$4;", "=r,r,r,r,r"(i32 %0, i32 %1, i32 %2, i32 %3)
+                        ret i32 %5""",
+                    UInt32, NTuple{4,UInt32}, val, src, $pack_expr, threadmask)
+
+            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
+                $fname_sync(val, src, width)
+        end
+    else
+        intrinsic = Symbol("llvm.nvvm.shfl.$mode.i32")
+
+        @eval begin
+            export $fname
+            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
+                ccall($"$intrinsic", llvmcall, UInt32,
+                      (UInt32, UInt32, UInt32), val, convert(UInt32, src), $pack_expr)
+        end
     end
 end
 
@@ -86,7 +112,7 @@ end
     call_llvmf(llvmf, val, Tuple{val, UInt32}, :( (val, word) ))
 end
 
-@generated function shuffle_primitive(op::Function, val, srclane::Integer, width::Integer)
+@generated function shuffle_primitive(op::Function, val, args...)
     ex = quote
         Base.@_inline_meta
     end
@@ -101,7 +127,7 @@ end
 
     # shuffle
     for word in words
-        push!(ex.args, :( $word = op($word, srclane, width)) )
+        push!(ex.args, :( $word = op($word, args...)) )
     end
 
     # reassemble
@@ -117,19 +143,19 @@ end
 
 # aggregates (recurse into fields)
 
-@generated function shuffle_aggregate(op::Function, val::T, srclane::Integer, width::Integer) where T
+@generated function shuffle_aggregate(op::Function, val::T, args...) where T
     ex = quote
         Base.@_inline_meta
     end
 
     fields = fieldnames(T)
     if isempty(fields)
-        push!(ex.args, :( shuffle_primitive(op, val, srclane, width) ))
+        push!(ex.args, :( shuffle_primitive(op, val, args...) ))
     else
         ctor = Expr(:new, T)
         for field in fields
             push!(ctor.args, :( shuffle_aggregate(op, getfield(val, $(QuoteNode(field))),
-                                                  srclane, width) ))
+                                                  args...) ))
         end
         push!(ex.args, ctor)
     end
@@ -140,34 +166,45 @@ end
 
 # entry-point functions
 
-for name in [:shfl_up, :shfl_down, :shfl_xor, :shfl]
-    @eval @inline $name(val, srclane::Integer, width::Integer=$ws) =
-        shuffle_aggregate($name, val, srclane, width)
+for name in ["_up", "_down", "_xor", ""]
+    fname = Symbol("shfl$name")
+    @eval @inline $fname(src, args...) = shuffle_aggregate($fname, src, args...)
+
+    fname_sync = Symbol("$(fname)_sync")
+    @eval @inline $fname_sync(src, args...) = shuffle_aggregate($fname, src, args...)
 end
 
 
 # documentation
 
 @doc """
-    shfl_idx(val, src::Integer, width::Integer=32)
+    shfl(val, lane::Integer, width::Integer=32)
+    shfl_sync(val, lane::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
-Shuffle a value from a directly indexed lane `src`
+Shuffle a value from a directly indexed lane `lane`.
 """ shfl
+@doc (@doc shfl) shfl_sync
 
 @doc """
-    shfl_up(val, src::Integer, width::Integer=32)
+    shfl_up(val, delta::Integer, width::Integer=32)
+    shfl_up_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
 Shuffle a value from a lane with lower ID relative to caller.
 """ shfl_up
+@doc (@doc shfl_up) shfl_up_sync
 
 @doc """
-    shfl_down(val, src::Integer, width::Integer=32)
+    shfl_down(val, delta::Integer, width::Integer=32)
+    shfl_down_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
 Shuffle a value from a lane with higher ID relative to caller.
 """ shfl_down
+@doc (@doc shfl_down) shfl_down_sync
 
 @doc """
-    shfl_xor(val, src::Integer, width::Integer=32)
+    shfl_xor(val, mask::Integer, width::Integer=32)
+    shfl_xor_sync(val, mask::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
-Shuffle a value from a lane based on bitwise XOR of own lane ID.
+Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`.
 """ shfl_xor
+@doc (@doc shfl_xor) shfl_xor_sync

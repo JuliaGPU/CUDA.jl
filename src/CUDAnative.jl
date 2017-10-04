@@ -13,6 +13,7 @@ const configured = if isfile(ext)
 else
     # enable CUDAnative.jl to be loaded when the build failed, simplifying downstream use.
     # remove this when we have proper support for conditional modules.
+    const cuda_version = v"5.5"
     false
 end
 

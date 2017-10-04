@@ -321,7 +321,13 @@ function machine(cap::VersionNumber, triple::String)
 
     InitializeNVPTXTargetMC()
     cpu = "sm_$(cap.major)$(cap.minor)"
-    tm = TargetMachine(t, triple, cpu)
+    if cuda_version >= v"9.0-" && VERSION >= v"0.7.0-DEV.1959"
+        # in the case of CUDA 9, we expose sync_warp which needs PTX ISA 6.0+
+        feat = "+ptx60"
+    else
+        feat = ""
+    end
+    tm = TargetMachine(t, triple, cpu, feat)
 
     return tm
 end

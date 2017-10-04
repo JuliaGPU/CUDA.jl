@@ -1,5 +1,5 @@
 using CUDAdrv, CUDAnative
-using Base.Test
+VERSION >= v"0.7.0-DEV.1995" ? using Test : using Base.Test
 
 "Dummy kernel doing 100 FMAs."
 function kernel_100fma(a, b, c, out)

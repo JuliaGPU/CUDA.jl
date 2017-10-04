@@ -331,6 +331,11 @@ end
 
 @testset "parallel synchronization and communication" begin
 
+@on_device sync_threads()
+
+@on_device sync_warp()
+@on_device sync_warp(0xffffffff)
+
 @testset "voting" begin
 
 @testset "ballot" begin

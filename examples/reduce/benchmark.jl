@@ -49,7 +49,7 @@ teardown_cuda(state) = ccall(Libdl.dlsym(lib, "teardown"), Void,
 
 # Correctness check (not part of verify.jl which is meant to run during testing)
 let
-    using Base.Test
+    VERSION >= v"0.7.0-DEV.1995" ? using Test : using Base.Test
     cuda_state = setup_cuda(input)
     cuda_val = run_cuda(cuda_state)
     teardown_cuda(cuda_state)

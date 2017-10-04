@@ -69,7 +69,7 @@ cpu_accumulate!(+, cpu_a)
 gpu_a = CuArray(a)
 @cuda (cols,rows, cols*rows*sizeof(eltype(a))) gpu_accumulate!(+, gpu_a)
 
-using Base.Test
+VERSION >= v"0.7.0-DEV.1995" ? using Test : using Base.Test
 @test cpu_a ≈ Array(gpu_a)
 
 
