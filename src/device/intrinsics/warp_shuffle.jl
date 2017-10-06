@@ -19,7 +19,7 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
 
     # "two packed values specifying a mask for logically splitting warps into sub-segments
     # and an upper bound for clamping the source lane index"
-    pack_expr = :((($ws - convert(UInt32, width)) << 8) | $mask)
+    pack_expr = :(((convert(UInt32, $ws - width)) << 8) | $mask)
 
     if cuda_version >= v"9.0-"
         instruction = Symbol("shfl.sync.$mode.b32")
