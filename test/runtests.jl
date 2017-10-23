@@ -23,6 +23,7 @@ CUDAapi.devices_for_llvm(v"5.0")
 ## discovery
 
 toolkit = find_toolkit()
+find_toolkit_version(toolkit)
 find_driver()
 find_binary("true")
 find_binary("nvcc", toolkit)

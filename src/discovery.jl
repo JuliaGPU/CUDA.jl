@@ -1,5 +1,5 @@
 export find_library, find_binary,
-       find_driver, find_toolkit, find_toolchain
+       find_driver, find_toolkit, find_toolkit_version, find_toolchain
 
 
 # names
@@ -182,29 +182,45 @@ function find_toolkit()
     return dir
 end
 
-type Toolchain
-    version::VersionNumber
-    nvcc::String
-    flags::Vector{String}
-end
-function find_toolchain(toolkit_path)
+# figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
+function find_toolkit_version(toolkit_path)
     nvcc_path = find_binary(nvcc, toolkit_path)
 
-    # parse the nvcc version
-    re = r"release (?<major>\d+).(?<minor>\d+)"
+    # parse the nvcc version string
+    re = r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b"
     m = match(re, readstring(`$nvcc_path --version`))
     m != nothing || error("Could not get version from nvcc")
-    version = VersionNumber(parse(Int, m[:major]), parse(Int, m[:minor]))
-    @debug("Looking for toolchain supported by CUDA $version")
+
+    version = VersionNumber(parse(Int, m[:major]),
+                            parse(Int, m[:minor]),
+                            parse(Int, m[:patch]))
+    @debug("CUDA toolkit at $toolkit_path identified as $version")
+    return version
+end
+
+type Toolchain
+    cuda_compiler::String
+    cuda_version::VersionNumber
+    cuda_flags::Vector{String}
+
+    host_compiler::String
+    host_version::VersionNumber
+    host_flags::Vector{String}
+end
+function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolkit_path))
+    # find the CUDA compiler
+    nvcc_path = find_binary(nvcc, toolkit_path)
+    nvcc_version = toolkit_version
+    nvcc_flags = String[]
 
     # find a suitable host compiler
-    flags = [ "--compiler-bindir" ]
+    host_flags = String[]
     if !(is_windows() || is_apple())
         # Unix-like platforms: find compatible GCC binary
 
         # find the maximally supported version of gcc
-        gcc_range = gcc_for_cuda(version)
-        @trace("CUDA $version supports GCC $gcc_range")
+        gcc_range = gcc_for_cuda(toolkit_version)
+        @trace("CUDA $toolkit_version supports GCC $gcc_range")
 
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
@@ -243,32 +259,34 @@ function find_toolchain(toolkit_path)
             end
         end
 
+        # select the most recent compiler
         if length(gcc_possibilities) == 0
-            error("Could not find a suitable host compiler (your CUDA v$version needs GCC <= $(get(gcc_maxver))).")
+            error("Could not find a suitable host compiler (your CUDA v$toolkit_version needs GCC <= $(get(gcc_maxver))).")
         end
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
-        gcc_path, gcc_ver = gcc_possibilities[1]
-        @debug("Using GCC $gcc_ver at $gcc_path")
-        push!(flags, gcc_path)
+        host_compiler, host_version = gcc_possibilities[1]
     elseif is_windows()
         # Windows: just use cl.exe
-
         vc_versions = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
         !any(x -> haskey(ENV, x), vc_versions) && error("Compatible Visual Studio installation cannot be found; Visual Studio 2015, 2013, 2012, or 2010 is required.")
         vs_cmd_tools_dir = ENV[vc_versions[first(find(x -> haskey(ENV, x), vc_versions))]]
         cl_path = joinpath(dirname(dirname(dirname(vs_cmd_tools_dir))), "VC", "bin", Sys.WORD_SIZE == 64 ? "amd64" : "", "cl.exe")
 
-        @debug("Using Visual Studio compiler at $cl_path")
-        push!(flags, cl_path)
+        host_compiler = cl_path
+        host_version = nothing
     elseif is_apple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: proper version matching, etc
-
         clang_path = find_binary("clang")
 
-        @trace("Using Clang at $clang_path")
-        push!(flags, clang_path)
+        host_compiler = clang_path
+        host_version = nothing
     end
+    @debug("Selected host compiler version $host_version at $host_compiler")
 
-    return Toolchain(version, nvcc_path, flags)
+    # make the CUDA compiler use the selected host compiler
+    append!(nvcc_flags, ["--compiler-bindir", host_compiler])
+
+    return Toolchain(nvcc_path, nvcc_version, nvcc_flags,
+                     host_compiler, host_version, host_flags)
 end
