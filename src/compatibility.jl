@@ -33,8 +33,10 @@ const cuda_gcc_db = Dict(
 )
 
 function gcc_for_cuda(ver::VersionNumber)
-    haskey(cuda_gcc_db, ver) || error("no support for CUDA $ver")
-    return cuda_gcc_db[ver]
+    match_ver = VersionNumber(ver.major, ver.minor)
+    return get(cuda_gcc_db, match_ver) do
+        error("no support for CUDA $ver")
+    end
 end
 
 
@@ -64,9 +66,11 @@ const dev_cuda_db = Dict(
 )
 
 function devices_for_cuda(ver::VersionNumber)
+    match_ver = VersionNumber(ver.major, ver.minor)
+
     caps = Set{VersionNumber}()
     for (cap,r) in dev_cuda_db
-        if ver in r
+        if match_ver in r
             push!(caps, cap)
         end
     end
@@ -93,9 +97,11 @@ const dev_llvm_db = Dict(
 )
 
 function devices_for_llvm(ver::VersionNumber)
+    match_ver = VersionNumber(ver.major, ver.minor)
+
     caps = Set{VersionNumber}()
     for (cap,r) in dev_llvm_db
-        if ver in r
+        if match_ver in r
             push!(caps, cap)
         end
     end
