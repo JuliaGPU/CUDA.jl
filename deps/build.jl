@@ -117,9 +117,15 @@ function main()
 
     # discover stuff
     toolkit_path = find_toolkit()
+    toolkit_version = find_toolkit_version(toolkit_path)
     config[:libdevice] = find_libdevice(config[:capabilities], toolkit_path)
     config[:cuobjdump] = find_binary("cuobjdump", toolkit_path)
     config[:ptxas] = find_binary("ptxas", toolkit_path)
+
+    if toolkit_version.major != config[:cuda_version].major ||
+       toolkit_version.minor != config[:cuda_version].minor
+       warn("CUDA toolkit version ($toolkit_version) does not match the driver ($(config[:cuda_version])); this may lead to incompatibilities")
+   end
 
     if config[:cuda_version] >= v"9.0-" && VERSION < v"0.7.0-DEV.1959"
         error("CUDA 9.0 is only supported on Julia 0.7")
