@@ -36,12 +36,12 @@ macro test_throws_cuerror(kind, ex)
     end
 end
 
-type NoThrowTestSet <: Base.Test.AbstractTestSet
+type NoThrowTestSet <: Test.AbstractTestSet
     results::Vector
     NoThrowTestSet(desc) = new([])
 end
-Base.Test.record(ts::NoThrowTestSet, t::Base.Test.Result) = (push!(ts.results, t); t)
-Base.Test.finish(ts::NoThrowTestSet) = ts.results
+Test.record(ts::NoThrowTestSet, t::Test.Result) = (push!(ts.results, t); t)
+Test.finish(ts::NoThrowTestSet) = ts.results
 fails = @testset NoThrowTestSet begin
     # OK
     @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN throw(CUDAdrv.ERROR_UNKNOWN)
@@ -50,9 +50,9 @@ fails = @testset NoThrowTestSet begin
     # Fail, wrong Exception
     @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN error()
 end
-@test isa(fails[1], Base.Test.Pass)
-@test isa(fails[2], Base.Test.Fail)
-@test isa(fails[3], Base.Test.Fail)
+@test isa(fails[1], Test.Pass)
+@test isa(fails[2], Test.Fail)
+@test isa(fails[3], Test.Fail)
 
 function julia_cmd(cmd)
     return `
