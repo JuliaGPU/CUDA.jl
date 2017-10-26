@@ -23,8 +23,6 @@ end
 
 
 using Base.Test, GPUArrays.TestSuite
-using GPUArrays: JLArray
-
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite: $(CUDAnative.default_device[])" begin
