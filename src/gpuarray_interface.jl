@@ -1,18 +1,18 @@
 import GPUArrays
 
-Base.similar(::Type{<: CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = CuArray{T, N}(size)
+Base.similar(::Type{<:CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = CuArray{T, N}(size)
 
 #Abstract GPU interface
-immutable CUKernelState end
+immutable CuKernelState end
 
-@inline function GPUArrays.LocalMemory(::CUKernelState, ::Type{T}, ::Val{N}, ::Val{C}) where {T, N, C}
+@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{C}) where {T, N, C}
     CUDAnative.generate_static_shmem(Val{C}, T, Val{N})
 end
 
 (::Type{GPUArrays.AbstractDeviceArray})(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
 
 
-@inline GPUArrays.synchronize_threads(::CUKernelState) = CUDAnative.sync_threads()
+@inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
 
 
 """
@@ -33,7 +33,7 @@ for (i, sym) in enumerate((:x, :y, :z))
         )
         fname = Symbol(string(f, '_', sym))
         cufun = Symbol(string(fcu, '_', sym))
-        @eval GPUArrays.$fname(::CUKernelState)::Cuint = CUDAnative.$cufun()
+        @eval GPUArrays.$fname(::CuKernelState)::Cuint = CUDAnative.$cufun()
     end
 end
 
@@ -58,7 +58,7 @@ GPUArrays.local_memory(dev::CUDAdrv.CuDevice) = CUDAdrv.attribute(dev, CUDAdrv.T
 
 function GPUArrays._gpu_call(f, A::CuArray, args::Tuple, blocks_threads::Tuple{T, T}) where T <: NTuple{N, Integer} where N
     blocks, threads = blocks_threads
-    @cuda (blocks, threads) f(CUKernelState(), args...)
+    @cuda (blocks, threads) f(CuKernelState(), args...)
 end
 
 # Save reinterpret and reshape implementation use this in GPUArrays
