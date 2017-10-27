@@ -19,5 +19,6 @@ include("blas/BLAS.jl")
 if libcudnn ≠ nothing
   include("cudnn/CUDNN.jl")
 end
+include("gpuarray_interface.jl")
 
 end # module

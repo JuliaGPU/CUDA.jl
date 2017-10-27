@@ -13,6 +13,10 @@ CublasArray{T<:CublasFloat} = CuArray{T}
 Base.scale!(x::CuArray{T}, k::Number) where T<:CublasFloat =
   scal!(length(x), convert(eltype(x), k), x, 1)
 
+# Work around ambiguity with GPUArrays wrapper
+Base.scale!(x::CuArray{T}, k::Real) where T<:CublasFloat =
+  invoke(scale!, (typeof(x), Number), x, k)
+
 function Base.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
