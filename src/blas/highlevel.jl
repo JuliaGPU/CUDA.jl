@@ -10,17 +10,12 @@ CublasArray{T<:CublasFloat} = CuArray{T}
 #
 ###########
 
-function Base.scale!(X::CuArray{T}, s::Real) where T <: Base.BLAS.BlasComplex
-    R = typeof(real(zero(T)))
-    buff = reinterpret(R, vec(X))
-    BLAS.scal!(2*length(X), R(s), buff, 1)
-    X
-end
-function Base.scale!(X::CuArray{T}, s::Real) where T <: Union{Float32, Float64}
-    BLAS.scal!(length(X), T(s), X, 1)
-    X
-end
+Base.scale!(x::CuArray{T}, k::Number) where T<:CublasFloat =
+  scal!(length(x), convert(eltype(x), k), x, 1)
 
+# Work around ambiguity with GPUArrays wrapper
+Base.scale!(x::CuArray{T}, k::Real) where T<:CublasFloat =
+  invoke(scale!, (typeof(x), Number), x, k)
 
 function Base.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
     n = length(DX)
