@@ -32,7 +32,15 @@ function check_cuda()
 end
 
 # check support for the Julia version
-function check_julia(llvm_version)
+function check_julia(llvm_version, cuda_version)
+    if cuda_version >= v"9.0-" && VERSION < v"0.7.0-DEV.1959"
+        error("CUDA 9.0 is only supported on Julia 0.7")
+    end
+
+    if VERSION == v"0.6.1"
+        warn("Julia 0.6.1 is buggy and might break CUDAnative.jl (see #124), please use 0.6.0 or 0.6.1+")
+    end
+
     julia_llvm_version = VersionNumber(Base.libllvm_version)
     @debug("Using Julia's LLVM $julia_llvm_version")
 
@@ -108,7 +116,7 @@ function main()
     # check version support
     config[:llvm_version], llvm_support = check_llvm()
     config[:cuda_version], cuda_support = check_cuda()
-    config[:julia_llvm_version] = check_julia(config[:llvm_version])
+    config[:julia_llvm_version] = check_julia(config[:llvm_version], config[:cuda_version])
 
     # figure out supported capabilities
     config[:capabilities] = Vector{VersionNumber}()
@@ -126,10 +134,6 @@ function main()
        toolkit_version.minor != config[:cuda_version].minor
        warn("CUDA toolkit version ($toolkit_version) does not match the driver ($(config[:cuda_version])); this may lead to incompatibilities")
    end
-
-    if config[:cuda_version] >= v"9.0-" && VERSION < v"0.7.0-DEV.1959"
-        error("CUDA 9.0 is only supported on Julia 0.7")
-    end
 
 
     ## (re)generate ext.jl
