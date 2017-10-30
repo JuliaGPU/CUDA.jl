@@ -97,6 +97,7 @@ end
 end
 
 include("blas.jl")
+include("solver.jl")
 
 using NNlib: softmax, ∇softmax
 

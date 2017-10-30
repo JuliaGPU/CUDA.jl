@@ -5,7 +5,7 @@ module CuArrays
 using CUDAdrv, CUDAnative
 import CUDAnative: cudaconvert
 
-export CuArray, CuVector, CuMatrix, cu
+export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 
 include("memory.jl")
 include("array.jl")
@@ -16,6 +16,7 @@ include("reduction.jl")
 
 include("../deps/ext.jl")
 include("blas/BLAS.jl")
+include("solver/CUSOLVER.jl")
 if libcudnn ≠ nothing
   include("cudnn/CUDNN.jl")
 end
