@@ -21,25 +21,18 @@ function testf(f, xs...)
   @test collect(f(cu.(xs)...)) ≈ collect(f(xs...))
 end
 
-
 using Base.Test, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite: $(CUDAnative.default_device[])" begin
-    Typ = CuArray
-    TestSuite.run_gpuinterface(Typ)
-    TestSuite.run_base(Typ)
-    TestSuite.run_blas(Typ)
-    # Issue: broadcast(f, RefValue(CuArray))
-    # And sumething with tuples
-    # TestSuite.run_broadcasting(Typ)
-    TestSuite.run_construction(Typ)
-    # FFT needs to get integrated first
-    # TestSuite.run_fft(Typ)
-    TestSuite.run_linalg(Typ)
-    TestSuite.run_mapreduce(Typ)
+    TestSuite.run_gpuinterface(CuArray)
+    TestSuite.run_base(CuArray)
+    TestSuite.run_blas(CuArray)
+    TestSuite.run_construction(CuArray)
+    TestSuite.run_linalg(CuArray)
+    TestSuite.run_mapreduce(CuArray)
     CuArrays.allowscalar(true)
-    TestSuite.run_indexing(Typ)
+    TestSuite.run_indexing(CuArray)
     CuArrays.allowscalar(false)
 end
 
