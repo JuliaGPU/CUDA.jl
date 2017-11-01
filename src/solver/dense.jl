@@ -279,8 +279,9 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
                                Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{Cint}),
                               cusolverDnhandle[1], m, n, k, A,
                               lda, tau, buffer, bufSize[], devinfo))
-            if devinfo[1] < 0
-                throw(ArgumentError("The $(devinfo[1])th parameter is wrong"))
+            info = collect(devinfo)
+            if info[1] < 0
+                throw(ArgumentError("The $(info[1])th parameter is wrong"))
             end
             if n < size(A, 2)
                 A[:, 1:n]
