@@ -256,6 +256,41 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSormqr, :F
     end
 end
 
+#orgqr 
+for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :Float32),
+                             (:cusolverDnDorgqr_bufferSize, :cusolverDnDorgqr, :Float64),
+                             (:cusolverDnCungqr_bufferSize, :cusolverDnCungqr, :Complex64),
+                             (:cusolverDnZungqr_bufferSize, :cusolverDnZungqr, :Complex128))
+    @eval begin
+        function orgqr!(A::CuMatrix{$elty}, tau::CuVector{$elty})
+            m = size(A , 1)
+            n = min(m, size(A, 2))
+            lda = max(1, stride(A, 2))
+            k = length(tau)
+            bufSize = Ref{Cint}(0)
+            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+                               (cusolverDnHandle_t, Cint, Cint, Cint, Ptr{$elty}, Cint,
+                                Ptr{$elty}, Ref{Cint}),
+                               cusolverDnhandle[1], m, n, k, A, lda, tau, bufSize))
+            buffer  = CuArray(zeros($elty, bufSize[]))
+            devinfo = CuArray(zeros(Cint, 1))
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
+                              (cusolverDnHandle_t, Cint, Cint, Cint, Ptr{$elty},
+                               Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{Cint}),
+                              cusolverDnhandle[1], m, n, k, A,
+                              lda, tau, buffer, bufSize[], devinfo))
+            if devinfo[1] < 0
+                throw(ArgumentError("The $(devinfo[1])th parameter is wrong"))
+            end
+            if n < size(A, 2)
+                A[:, 1:n]
+            else
+                A
+            end
+        end
+    end
+end
+
 #gebrd
 for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSgebrd, :Float32, :Float32),
                                     (:cusolverDnDgebrd_bufferSize, :cusolverDnDgebrd, :Float64, :Float64),

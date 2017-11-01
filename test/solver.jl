@@ -101,6 +101,23 @@ k = 1
         @test h_B ≈ qra[:Q]*B
     end
 
+    @testset "orgqr!" begin
+        A         = rand(elty,n,m)
+        d_A       = CuArray(A)
+        d_A,d_tau = CUSOLVER.geqrf!(d_A)
+        d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
+        h_Q       = collect(d_Q)
+        qr        = qrfact!(A)
+        @test h_Q ≈ Array(qr[:Q])
+        A         = rand(elty,m,n)
+        d_A       = CuArray(A)
+        d_A,d_tau = CUSOLVER.geqrf!(d_A)
+        d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
+        h_Q       = collect(d_Q)
+        qr        = qrfact!(A)
+        @test h_Q ≈ Array(qr[:Q])
+    end
+
     @testset "sytrf!" begin
         A          = rand(elty,n,n)
         A          = A + A' #symmetric
