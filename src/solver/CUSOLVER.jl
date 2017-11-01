@@ -3,7 +3,7 @@ module CUSOLVER
 using ..CuArrays
 const cudaStream_t = Ptr{Void}
 
-using ..CuArrays: libcusolver
+using ..CuArrays: libcusolver, _getindex
 
 import Base.one
 import Base.zero

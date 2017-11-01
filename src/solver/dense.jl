@@ -8,29 +8,29 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
         function potrf!(uplo::BlasChar,
                         A::CuMatrix{$elty})
             cuuplo = cublasfill(uplo)
-            n = size(A,1)
-            if size(A,2) != n
+            n = size(A, 1)
+            if size(A, 2) != n
                 throw(DimensionMismatch("Cholesky factorization is only possible for square matrices!"))
             end
-            lda     = max(1,stride(A,2))
+            lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+            statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, cublasFillMode_t, Cint,
                                Ptr{$elty}, Cint, Ref{Cint}),
                               cusolverDnhandle[1], cuuplo, n, A, lda, bufSize))
 
-            buffer  = CuArray(zeros($elty,bufSize[]))
-            devinfo = CuArray(zeros(Cint,1))
-            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
+            buffer  = CuArray{$elty}(bufSize[])
+            devinfo = CuArray{Cint}(1)
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, cublasFillMode_t, Cint,
                                Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{Cint}),
                               cusolverDnhandle[1], cuuplo, n, A, lda, buffer,
                               bufSize[], devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(-info[1])th parameter is wrong"))
-            elseif info[1] > 0
-                throw(Base.LinAlg.SingularException(info[1]))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(-info)th parameter is wrong"))
+            elseif info > 0
+                throw(Base.LinAlg.SingularException(info))
             end
             A
         end
@@ -45,26 +45,26 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
     @eval begin
         function getrf!(A::CuMatrix{$elty})
             m,n     = size(A)
-            lda = max(1,stride(A,2))
+            lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+            statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty}, Cint,
                                Ref{Cint}), cusolverDnhandle[1], m, n, A, lda,
                               bufSize))
 
-            buffer  = CuArray(zeros($elty,bufSize[]))
-            devipiv = CuArray(zeros(Cint,min(m,n)))
-            devinfo = CuArray(zeros(Cint,1))
-            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
+            buffer  = CuArray{$elty}(bufSize[])
+            devipiv = CuArray{Cint}(min(m,n))
+            devinfo = CuArray{Cint}(1)
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$elty}, Ptr{Cint}, Ptr{Cint}),
                               cusolverDnhandle[1], m, n, A, lda, buffer,
                               devipiv, devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
-            elseif info[1] > 0
-                throw(Base.LinAlg.SingularException(info[1]))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
+            elseif info > 0
+                throw(Base.LinAlg.SingularException(info))
             end
             A, devipiv
         end
@@ -78,25 +78,24 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
                             (:cusolverDnZgeqrf_bufferSize, :cusolverDnZgeqrf, :Complex128))
     @eval begin
         function geqrf!(A::CuMatrix{$elty})
-            m,n     = size(A)
-            lda = max(1,stride(A,2))
+            m, n    = size(A)
+            lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
             statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty}, Cint,
                                Ref{Cint}), cusolverDnhandle[1], m, n, A,
                               lda, bufSize))
-
-            buffer  = CuArray(zeros($elty, bufSize[]))
-            devtau  = CuArray(zeros($elty, min(m, n)))
-            devinfo = CuArray(zeros(Cint, 1))
+            buffer  = CuArray{$elty}(bufSize[])
+            devtau  = CuArray{$elty}(min(m, n))
+            devinfo = CuArray{Cint}(1)
             statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{Cint}),
                               cusolverDnhandle[1], m, n, A, lda, devtau, buffer,
                               bufSize[], devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
             end
             A, devtau
         end
@@ -112,30 +111,30 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
         function sytrf!(uplo::BlasChar,
                         A::CuMatrix{$elty})
             cuuplo = cublasfill(uplo)
-            n      = size(A,1)
+            n      = size(A, 1)
             if size(A,2) != n
                 throw(DimensionMismatch("SymTridiagonal matrix must be square!"))
             end
-            lda = max(1,stride(A,2))
+            lda = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
             statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Ptr{$elty}, Cint,
                                Ref{Cint}), cusolverDnhandle[1], n, A, lda,
                               bufSize))
 
-            buffer  = CuArray(zeros($elty, bufSize[]))
-            devipiv = CuArray(zeros(Cint, n))
-            devinfo = CuArray(zeros(Cint, 1))
+            buffer  = CuArray{$elty}(bufSize[])
+            devipiv = CuArray{Cint}(n)
+            devinfo = CuArray{Cint}(1)
             statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, cublasFillMode_t, Cint,
                                Ptr{$elty}, Cint, Ptr{Cint}, Ptr{$elty}, Cint,
                                Ptr{Cint}), cusolverDnhandle[1], cuuplo, n, A,
                               lda, devipiv, buffer, bufSize[], devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
-            elseif info[1] > 0
-                throw(Base.LinAlg.SingularException(info[1]))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
+            elseif info > 0
+                throw(Base.LinAlg.SingularException(info))
             end
             A, devipiv
         end
@@ -152,26 +151,26 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
                         A::CuMatrix{$elty},
                         B::CuVecOrMat{$elty})
             cuuplo = cublasfill(uplo)
-            n = size(A,1)
-            if size(A,2) != n
+            n = size(A, 1)
+            if size(A, 2) != n
                 throw(DimensionMismatch("Cholesky factorization is only possible for square matrices!"))
             end
-            if size(B,1) != n
+            if size(B, 1) != n
                 throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
             end
             nrhs = size(B,2)
-            lda  = max(1,stride(A,2))
-            ldb  = max(1,stride(B,2))
+            lda  = max(1, stride(A, 2))
+            ldb  = max(1, stride(B, 2))
 
-            devinfo = CuArray(zeros(Cint,1))
-            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
+            devinfo = CuArray{Cint}(1)
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
                                Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{Cint}),
                               cusolverDnhandle[1], cuuplo, n, nrhs, A, lda, B,
                               ldb, devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
             end
             B
         end
@@ -189,26 +188,26 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
                         ipiv::CuVector{Cint},
                         B::CuVecOrMat{$elty})
             cutrans = cublasop(trans)
-            n = size(A,1)
-            if size(A,2) != n
+            n = size(A, 1)
+            if size(A, 2) != n
                 throw(DimensionMismatch("LU factored matrix A must be square!"))
             end
-            if size(B,1) != n
+            if size(B, 1) != n
                 throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
             end
-            nrhs = size(B,2)
-            lda  = max(1,stride(A,2))
-            ldb  = max(1,stride(B,2))
+            nrhs = size(B, 2)
+            lda  = max(1, stride(A, 2))
+            ldb  = max(1, stride(B, 2))
 
-            devinfo = CuArray(zeros(Cint,1))
-            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
+            devinfo = CuArray{Cint}(1)
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, cublasOperation_t, Cint, Cint,
                                Ptr{$elty}, Cint, Ptr{Cint}, Ptr{$elty}, Cint,
                                Ptr{Cint}), cusolverDnhandle[1], cutrans, n, nrhs,
                               A, lda, ipiv, B, ldb, devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
             end
             B
         end
@@ -229,27 +228,27 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSormqr, :F
             cutrans = cublasop(trans)
             cuside  = cublasside(side)
             m,k     = size(A)
-            lda     = max(1,stride(A,2))
-            ldc     = max(1,stride(C,2))
-            n       = size(C,2)
+            lda     = max(1, stride(A, 2))
+            ldc     = max(1, stride(C, 2))
+            n       = size(C, 2)
             bufSize = Ref{Cint}(0)
-            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+            statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty}, Cint,
                                Ref{Cint}), cusolverDnhandle[1], m, k, A,
                               lda, bufSize))
 
-            buffer  = CuArray(zeros($elty, bufSize[]))
-            devinfo = CuArray(zeros(Cint, 1))
-            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
+            buffer  = CuArray{$elty}(bufSize[])
+            devinfo = CuArray{Cint}(1)
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, cublasSideMode_t,
                                cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
                                Cint, Ptr{Cint}), cusolverDnhandle[1], cuside,
                               cutrans, m, k, n, A, lda, devtau, C, ldc, buffer,
                               bufSize[], devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
             end
             C
         end
@@ -268,20 +267,20 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
             lda = max(1, stride(A, 2))
             k = length(tau)
             bufSize = Ref{Cint}(0)
-            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+            statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                                (cusolverDnHandle_t, Cint, Cint, Cint, Ptr{$elty}, Cint,
                                 Ptr{$elty}, Ref{Cint}),
                                cusolverDnhandle[1], m, n, k, A, lda, tau, bufSize))
-            buffer  = CuArray(zeros($elty, bufSize[]))
-            devinfo = CuArray(zeros(Cint, 1))
+            buffer  = CuArray{$elty}(bufSize[])
+            devinfo = CuArray{Cint}(1)
             statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{Cint}),
                               cusolverDnhandle[1], m, n, k, A,
                               lda, tau, buffer, bufSize[], devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
             end
             if n < size(A, 2)
                 A[:, 1:n]
@@ -300,27 +299,27 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
     @eval begin
         function gebrd!(A::CuMatrix{$elty})
             m,n     = size(A)
-            lda     = max(1,stride(A,2))
+            lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+            statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ref{Cint}),
                              cusolverDnhandle[1], m, n, bufSize))
 
-            buffer  = CuArray(zeros($elty,bufSize[]))
-            devinfo = CuArray(zeros(Cint,1))
-            D       = CuArray(zeros($relty,min(m,n)))
-            E       = CuArray(zeros($relty,min(m,n)))
-            TAUQ    = CuArray(zeros($elty,min(m,n)))
-            TAUP    = CuArray(zeros($elty,min(m,n)))
-            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
+            buffer  = CuArray{$elty}(bufSize[])
+            devinfo = CuArray{Cint}(1)
+            D       = CuArray{$relty}(min(m, n))
+            E       = CuArray{$relty}(min(m, n))
+            TAUQ    = CuArray{$elty}(min(m, n))
+            TAUP    = CuArray{$elty}(min(m, n))
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$relty}, Ptr{$relty}, Ptr{$elty},
                                Ptr{$elty}, Ptr{$elty}, Cint, Ptr{Cint}),
                               cusolverDnhandle[1], m, n, A, lda, D, E, TAUQ,
                               TAUP, buffer, bufSize[], devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
             end
             A, D, E, TAUQ, TAUP
         end
@@ -336,30 +335,30 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
                         jobvt::BlasChar,
                         A::CuMatrix{$elty})
             m,n     = size(A)
-            lda     = max(1,stride(A,2))
+            lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+            statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ref{Cint}),
                              cusolverDnhandle[1], m, n, bufSize))
 
-            buffer  = CuArray(zeros($elty, bufSize[]))
-            rbuffer = CuArray(zeros($relty, 5 * min(m, n)))
-            devinfo = CuArray(zeros(Cint, 1))
-            U       = CuArray(zeros($elty, m, m))
-            ldu     = max(1,stride(U,2))
-            S       = CuArray(zeros($relty, min(m, n)))
-            Vt      = CuArray(zeros($elty, n, n))
-            ldvt    = max(1,stride(Vt,2))
-            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
+            buffer  = CuArray{$elty}(bufSize[])
+            rbuffer = CuArray{$relty}(5 * min(m, n))
+            devinfo = CuArray{Cint}(1)
+            U       = CuArray{$elty}(m, m)
+            ldu     = max(1, stride(U, 2))
+            S       = CuArray{$relty}(min(m, n))
+            Vt      = CuArray{$elty}(n, n)
+            ldvt    = max(1, stride(Vt, 2))
+            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, BlasChar, BlasChar, Cint,
                                Cint, Ptr{$elty}, Cint, Ptr{$relty}, Ptr{$elty},
                                Cint, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
                                Ptr{$relty}, Ptr{Cint}), cusolverDnhandle[1],
                               jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
                               buffer, bufSize[], rbuffer, devinfo))
-            info = collect(devinfo)
-            if info[1] < 0
-                throw(ArgumentError("The $(info[1])th parameter is wrong"))
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
             end
             U, S, Vt
         end
