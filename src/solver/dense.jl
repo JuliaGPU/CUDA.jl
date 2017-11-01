@@ -86,18 +86,18 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
                                Ref{Cint}), cusolverDnhandle[1], m, n, A,
                               lda, bufSize))
             buffer  = CuArray{$elty}(bufSize[])
-            devtau  = CuArray{$elty}(min(m, n))
+            tau  = CuArray{$elty}(min(m, n))
             devinfo = CuArray{Cint}(1)
             statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{Cint}),
-                              cusolverDnhandle[1], m, n, A, lda, devtau, buffer,
+                              cusolverDnhandle[1], m, n, A, lda, tau, buffer,
                               bufSize[], devinfo))
             info = _getindex(devinfo, 1)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
             end
-            A, devtau
+            A, tau
         end
     end
 end
@@ -215,42 +215,55 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
 end
 
 #ormqr 
-for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSormqr, :Float32),
-                            (:cusolverDnDgeqrf_bufferSize, :cusolverDnDormqr, :Float64),
-                            (:cusolverDnCgeqrf_bufferSize, :cusolverDnCunmqr, :Complex64),
-                            (:cusolverDnZgeqrf_bufferSize, :cusolverDnZunmqr, :Complex128))
-    @eval begin
+for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :Float32),
+                             (:cusolverDnDormqr_bufferSize, :cusolverDnDormqr, :Float64),
+                             (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :Complex64),
+                             (:cusolverDnZunmqr_bufferSize, :cusolverDnZunmqr, :Complex128))    @eval begin
         function ormqr!(side::BlasChar,
                         trans::BlasChar,
                         A::CuMatrix{$elty},
-                        devtau::CuVector{$elty},
+                        tau::CuVector{$elty},
                         C::CuVecOrMat{$elty})
             cutrans = cublasop(trans)
             cuside  = cublasside(side)
-            m,k     = size(A)
-            lda     = max(1, stride(A, 2))
-            ldc     = max(1, stride(C, 2))
-            n       = size(C, 2)
+            if side == 'L'
+                m = size(A, 1)
+                ldc, n = size(C)
+                if m > ldc
+                    Ctemp = CuArray{$elty}(m - ldc, n) .= 0
+                    C = [C; Ctemp]
+                    ldc = m
+                end
+                lda = m
+            else
+                m, n = size(C)
+                ldc = m
+                lda = n
+            end
+            k       = length(tau)
             bufSize = Ref{Cint}(0)
-            statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                              (cusolverDnHandle_t, Cint, Cint, Ptr{$elty}, Cint,
-                               Ref{Cint}), cusolverDnhandle[1], m, k, A,
-                              lda, bufSize))
-
+            statuscheck(ccall(($(string(bname)),libcusolver), cusolverStatus_t,
+                               (cusolverDnHandle_t, cublasSideMode_t,
+                                cublasOperation_t, Cint, Cint, Cint, Ptr{$elty}, 
+                                Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ref{Cint}),
+                               cusolverDnhandle[1], cuside,
+                               cutrans, m, n, k, A,
+                               lda, tau, C, ldc, bufSize))
             buffer  = CuArray{$elty}(bufSize[])
             devinfo = CuArray{Cint}(1)
-            statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
+            statuscheck(ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, cublasSideMode_t,
                                cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
-                               Cint, Ptr{Cint}), cusolverDnhandle[1], cuside,
-                              cutrans, m, k, n, A, lda, devtau, C, ldc, buffer,
+                               Cint, Ptr{Cint}),
+                              cusolverDnhandle[1], cuside,
+                              cutrans, m, n, k, A, lda, tau, C, ldc, buffer,
                               bufSize[], devinfo))
             info = _getindex(devinfo, 1)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
             end
-            C
+            side == 'L' ? C : C[:, 1:minimum(size(A))]
         end
     end
 end
@@ -298,19 +311,19 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
                                     (:cusolverDnZgebrd_bufferSize, :cusolverDnZgebrd, :Complex128, :Float64))
     @eval begin
         function gebrd!(A::CuMatrix{$elty})
-            m,n     = size(A)
+            m, n    = size(A)
             lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
             statuscheck(ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ref{Cint}),
                              cusolverDnhandle[1], m, n, bufSize))
-
             buffer  = CuArray{$elty}(bufSize[])
             devinfo = CuArray{Cint}(1)
-            D       = CuArray{$relty}(min(m, n))
-            E       = CuArray{$relty}(min(m, n))
-            TAUQ    = CuArray{$elty}(min(m, n))
-            TAUP    = CuArray{$elty}(min(m, n))
+            k       = min(m, n)
+            D       = CuArray{$relty}(k)
+            E       = CuArray{$relty}(k) .= 0
+            TAUQ    = CuArray{$elty}(k)
+            TAUP    = CuArray{$elty}(k)
             statuscheck(ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                               (cusolverDnHandle_t, Cint, Cint, Ptr{$elty},
                                Cint, Ptr{$relty}, Ptr{$relty}, Ptr{$elty},
