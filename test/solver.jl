@@ -2,6 +2,8 @@ using CuArrays
 using CuArrays.CUSOLVER
 using Base.Test
 
+@testset "cuSolver" begin
+
 m = 15
 n = 10
 k = 1
@@ -146,4 +148,6 @@ k = 1
         # @test h_S ≈ svdvals(A)
         # @test h_Vt ≈ svda[:Vt]
     end
+end
+
 end
