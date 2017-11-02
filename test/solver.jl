@@ -191,6 +191,38 @@ k = 1
         @test h_S ≈ svdvals(A)
         @test h_Vt ≈ svda[:Vt]
     end
+
+    @testset "qr" begin
+        A              = rand(elty, m, n)
+        d_A            = CuArray(A)
+        d_q            = qonly!(d_A)
+        h_q            = collect(d_q)
+        q              = qrfact!(A)
+        @test h_q ≈ Array(q[:Q])
+        A              = rand(elty, n, m)
+        d_A            = CuArray(A)
+        d_q            = qonly!(d_A)
+        h_q            = collect(d_q)
+        q              = qrfact!(A)
+        @test h_q ≈ Array(q[:Q])
+        CuArrays.allowscalar(true)
+        A              = rand(elty, m, n)
+        d_A            = CuArray(A)
+        d_q, d_r       = qr(d_A)
+        h_q, h_r       = collect(d_q), collect(d_r)
+        q, r           = qr(A)
+        @test h_q ≈ q
+        @test h_r ≈ r
+        A              = rand(elty, n, m)
+        d_A            = CuArray(A)
+        d_q, d_r       = qr(d_A)
+        h_q, h_r       = collect(d_q), collect(d_r)
+        q, r           = qr(A)
+        @test h_q ≈ q
+        @test h_r ≈ r
+        CuArrays.allowscalar(false)
+    end
+
 end
 
 end

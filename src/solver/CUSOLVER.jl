@@ -50,5 +50,6 @@ function __init__()
 end
 
 include("dense.jl")
+include("highlevel.jl")
 
 end

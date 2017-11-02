@@ -227,8 +227,9 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             cutrans = cublasop(trans)
             cuside  = cublasside(side)
             if side == 'L'
-                m = size(A, 1)
-                ldc, n = size(C)
+                m   = size(A, 1)
+                ldc = size(C, 1)
+                n   = size(C, 2)
                 if m > ldc
                     Ctemp = CuArray{$elty}(m - ldc, n) .= 0
                     C = [C; Ctemp]
@@ -236,7 +237,8 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                 end
                 lda = m
             else
-                m, n = size(C)
+                m   = size(C, 1)
+                n   = size(C, 2)
                 ldc = m
                 lda = n
             end
