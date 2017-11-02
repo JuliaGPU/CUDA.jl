@@ -40,9 +40,9 @@ end
 
 function getindex(A::CuQRPackedQ{T, S}, i::Integer, j::Integer) where {T, S}
     B = CuArray{T}(size(A, 2)) .= 0
-	B[j] = 1
-	B = A_mul_B!(A, B)
-	_getindex(B, i)
+    B[j] = 1
+    B = A_mul_B!(A, B)
+    _getindex(B, i)
 end
 
 function qr(A::CuMatrix)
@@ -53,7 +53,7 @@ end
 
 function qonly!(A::CuMatrix)
     F = qrfact!(A)
-	orgqr!(F.factors, F.τ)
+    orgqr!(F.factors, F.τ)
 end
 
 A_mul_B!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
