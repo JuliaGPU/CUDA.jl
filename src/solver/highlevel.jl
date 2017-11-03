@@ -1,5 +1,5 @@
 import Base: qr, qrfact, qrfact!, getindex, A_mul_B!
-export qonly!
+export qrq!
 
 # QR factorization
 
@@ -51,9 +51,13 @@ function qr(A::CuMatrix)
     return CuArray(Q), R
 end
 
-function qonly!(A::CuMatrix)
-    F = qrfact!(A)
-    orgqr!(F.factors, F.τ)
+
+"""
+Returns the matrix `Q` from the QR factorization of the matrix `A` where
+`A = Q R`. `A` is overwritten in the process.
+"""
+function qrq!(A::CuMatrix)
+    orgqr!(geqrf!(A::CuMatrix{T})...)
 end
 
 A_mul_B!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
