@@ -57,7 +57,7 @@ Returns the matrix `Q` from the QR factorization of the matrix `A` where
 `A = Q R`. `A` is overwritten in the process.
 """
 function qrq!(A::CuMatrix)
-    orgqr!(geqrf!(A::CuMatrix{T})...)
+    orgqr!(geqrf!(A)...)
 end
 
 A_mul_B!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
