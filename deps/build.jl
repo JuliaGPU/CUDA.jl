@@ -34,11 +34,11 @@ end
 # check support for the Julia version
 function check_julia(llvm_version, cuda_version)
     if cuda_version >= v"9.0-" && VERSION < v"0.7.0-DEV.1959"
-        error("CUDA 9.0 is only supported on Julia 0.7")
+        warn("CUDA 9.0 is only supported on Julia 0.7, intra-thread intrinsics (shuffle, vote, ...) might yield wrong results (see #107)")
     end
 
     if VERSION == v"0.6.1"
-        warn("Julia 0.6.1 is buggy and might break CUDAnative.jl (see #124), please use 0.6.0 or 0.6.1+")
+        warn("Julia 0.6.1 is not supported, please use 0.6.0 or 0.6.1+ (see #124)")
     end
 
     julia_llvm_version = VersionNumber(Base.libllvm_version)
