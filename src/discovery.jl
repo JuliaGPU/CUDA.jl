@@ -201,20 +201,16 @@ end
 type Toolchain
     cuda_compiler::String
     cuda_version::VersionNumber
-    cuda_flags::Vector{String}
 
     host_compiler::String
     host_version::VersionNumber
-    host_flags::Vector{String}
 end
 function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolkit_path))
     # find the CUDA compiler
     nvcc_path = find_binary(nvcc, toolkit_path)
     nvcc_version = toolkit_version
-    nvcc_flags = String[]
 
     # find a suitable host compiler
-    host_flags = String[]
     if !(is_windows() || is_apple())
         # Unix-like platforms: find compatible GCC binary
 
@@ -284,9 +280,6 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
     end
     @debug("Selected host compiler version $host_version at $host_compiler")
 
-    # make the CUDA compiler use the selected host compiler
-    append!(nvcc_flags, ["--compiler-bindir", host_compiler])
-
-    return Toolchain(nvcc_path, nvcc_version, nvcc_flags,
-                     host_compiler, host_version, host_flags)
+    return Toolchain(nvcc_path, nvcc_version,
+                     host_compiler, host_version)
 end
