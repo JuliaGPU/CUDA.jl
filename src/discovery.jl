@@ -198,7 +198,7 @@ function find_toolkit_version(toolkit_path)
     return version
 end
 
-type Toolchain
+mutable struct Toolchain
     cuda_compiler::String
     cuda_version::VersionNumber
 
