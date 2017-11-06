@@ -21,12 +21,12 @@ data.
 """
 CuArray
 
-type CuArray{T,N} <: AbstractArray{T,N}
+mutable struct CuArray{T,N} <: AbstractArray{T,N}
     ptr::OwnedPtr{T}
     shape::NTuple{N,Int}
 
     # inner constructors (exact types, ie. Int not <:Integer)
-    function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int})
+    function CuArray{T,N}(shape::NTuple{N,Int}) where {T,N}
         check_type(T)
 
         len = prod(shape)
@@ -37,7 +37,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
         finalizer(obj, unsafe_free!)
         return obj
     end
-    function (::Type{CuArray{T,N}}){T,N}(shape::NTuple{N,Int}, ptr::OwnedPtr{T})
+    function CuArray{T,N}(shape::NTuple{N,Int}, ptr::OwnedPtr{T}) where {T,N}
         check_type(T)
 
         Mem.retain(ptr)
@@ -48,7 +48,7 @@ type CuArray{T,N} <: AbstractArray{T,N}
     end
 end
 
-function check_type{T}(::Type{T})
+function check_type(::Type{T}) where T
     if !isbits(T)
         # non-isbits types results in an array with references to CPU objects
         throw(ArgumentError("CuArray with non-bit element type not supported"))
@@ -57,8 +57,8 @@ function check_type{T}(::Type{T})
     end
 end
 
-@compat const CuVector{T} = CuArray{T,1}
-@compat const CuMatrix{T} = CuArray{T,2}
+const CuVector{T} = CuArray{T,1}
+const CuMatrix{T} = CuArray{T,2}
 
 function unsafe_free!(a::CuArray)
     ptr = pointer(a)
@@ -76,18 +76,18 @@ end
 ## construction
 
 # outer constructors, partially parameterized
-(::Type{CuArray{T}}){T,N,I<:Integer}(dims::NTuple{N,I})   = CuArray{T,N}(dims)
-(::Type{CuArray{T}}){T,N,I<:Integer}(dims::Vararg{I,N})   = CuArray{T,N}(dims)
+CuArray{T}(dims::NTuple{N,I}) where {T,N,I<:Integer}   = CuArray{T,N}(dims)
+CuArray{T}(dims::Vararg{I,N}) where {T,N,I<:Integer}   = CuArray{T,N}(dims)
 
 # outer constructors, fully parameterized
-(::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::NTuple{N,I}) = CuArray{T,N}(Int.(dims))
-(::Type{CuArray{T,N}}){T,N,I<:Integer}(dims::Vararg{I,N}) = CuArray{T,N}(Int.(dims))
+CuArray{T,N}(dims::NTuple{N,I}) where {T,N,I<:Integer} = CuArray{T,N}(Int.(dims))
+CuArray{T,N}(dims::Vararg{I,N}) where {T,N,I<:Integer} = CuArray{T,N}(Int.(dims))
 
-Base.similar{T}(a::CuVector{T})                     = CuArray{T}(length(a))
-Base.similar{T}(a::CuVector{T}, S::Type)            = CuArray{S}(length(a))
-Base.similar{T}(a::CuArray{T}, m::Int)              = CuArray{T}(m)
-Base.similar{N}(a::CuArray, T::Type, dims::Dims{N}) = CuArray{T,N}(dims)
-Base.similar{T,N}(a::CuArray{T}, dims::Dims{N})     = CuArray{T,N}(dims)
+Base.similar(a::CuVector{T}) where {T}                     = CuArray{T}(length(a))
+Base.similar(a::CuVector{T}, S::Type) where {T}            = CuArray{S}(length(a))
+Base.similar(a::CuArray{T}, m::Int) where {T}              = CuArray{T}(m)
+Base.similar(a::CuArray, T::Type, dims::Dims{N}) where {N} = CuArray{T,N}(dims)
+Base.similar(a::CuArray{T}, dims::Dims{N}) where {T,N}     = CuArray{T,N}(dims)
 
 
 ## getters
@@ -96,12 +96,12 @@ Base.pointer(a::CuArray) = a.ptr
 
 Base.size(g::CuArray) = g.shape
 Base.length(g::CuArray) = prod(g.shape)
-Base.sizeof{T}(a::CuArray{T}) = Base.elsize(a) * length(a)
+Base.sizeof(a::CuArray{T}) where {T} = Base.elsize(a) * length(a)
 
 
 ## conversions
 
-Base.unsafe_convert{T}(::Type{Ptr{T}}, a::CuArray{T}) =
+Base.unsafe_convert(::Type{Ptr{T}}, a::CuArray{T}) where {T} =
     Base.unsafe_convert(Ptr{T}, pointer(a))
 
 
@@ -128,7 +128,7 @@ Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
 Copy an array from a host array `src` to a device array `dst` in place. Both arrays should
 have an equal length.
 """
-function Base.copy!{T}(dst::CuArray{T}, src::Array{T})
+function Base.copy!(dst::CuArray{T}, src::Array{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
@@ -142,7 +142,7 @@ end
 Copy an array from a device array `src` to a host array `dst` in place. Both arrays should
 have an equal length.
 """
-function Base.copy!{T}(dst::Array{T}, src::CuArray{T})
+function Base.copy!(dst::Array{T}, src::CuArray{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
@@ -156,7 +156,7 @@ end
 Copy an array from a device array `src` to a device array `dst` in place. Both arrays should
 have an equal length.
 """
-function Base.copy!{T}(dst::CuArray{T}, src::CuArray{T})
+function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
@@ -172,11 +172,11 @@ end
 
 Transfer a host array `src` to device, returning a [`CuArray`](@ref).
 """
-CuArray{T,N}(src::Array{T,N}) = copy!(CuArray{T,N}(size(src)), src)
+CuArray(src::Array{T,N}) where {T,N} = copy!(CuArray{T,N}(size(src)), src)
 
 """
     Array{T}(g::CuArray{T})
 
 Transfer a device array `src` to host, returning an `Array`.
 """
-Base.Array{T,N}(src::CuArray{T,N}) = copy!(Array{T,N}(size(src)), src)
+Base.Array(src::CuArray{T,N}) where {T,N} = copy!(Array{T,N}(size(src)), src)

@@ -111,7 +111,7 @@ const CuError_t = Cint
 Create a CUDA error object with error code `code`. The optional `info` parameter indicates
 whether extra information, such as error logs, is known.
 """
-immutable CuError <: Exception
+struct CuError <: Exception
     code::CuError_t
     meta::Any
 

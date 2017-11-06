@@ -150,7 +150,7 @@ function init(devlist)
   mdinit(devlist)
 end
 
-function function1{T}(griddim::CuDim, blockdim::CuDim, data::CuArray{T})
+function function1(griddim::CuDim, blockdim::CuDim, data::CuArray{T}) where T
     cufunction1 = ptxdict[("function1", T)]
     cudacall(cufunction1, griddim, blockdim, (Ptr{T},), data)
 end

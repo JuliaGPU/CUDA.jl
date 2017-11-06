@@ -6,7 +6,7 @@ export
 
 const CuStream_t = Ptr{Void}
 
-type CuStream
+mutable struct CuStream
     handle::CuStream_t
     ctx::CuContext
 end

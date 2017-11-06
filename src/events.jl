@@ -10,7 +10,7 @@ const CuEvent_t = Ptr{Void}
 
 Create a new CUDA event.
 """
-type CuEvent
+mutable struct CuEvent
     handle::CuEvent_t
     ctx::CuContext
 

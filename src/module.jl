@@ -17,7 +17,7 @@ CUBIN, or a FATBIN.
 
 The `options` is an optional dictionary of JIT options and their respective value.
 """
-type CuModule
+mutable struct CuModule
     handle::CuModule_t
     ctx::CuContext
 

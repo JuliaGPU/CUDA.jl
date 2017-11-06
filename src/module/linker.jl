@@ -11,7 +11,7 @@ const CuLinkState_t = Ptr{Void}
 
 Creates a pending JIT linker invocation.
 """
-type CuLink
+mutable struct CuLink
     handle::CuLinkState_t
     ctx::CuContext
 
@@ -101,7 +101,7 @@ The result of a linking operation.
 This object keeps its parent linker object alive, as destroying a linker destroys linked
 images too.
 """
-immutable CuLinkImage
+struct CuLinkImage
     data::Array{UInt8}
     link::CuLink
 end

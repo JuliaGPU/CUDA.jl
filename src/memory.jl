@@ -162,16 +162,9 @@ end
 Allocates space for `len` objects of type `T` on the device and returns a pointer to the
 allocated memory. The memory is not cleared, use [`free(::OwnedPtr)`](@ref) for that.
 """
-function alloc{T}(::Type{T}, len::Integer=1)
-    @static if VERSION >= v"0.6.0-dev.2123"
-        if isa(T, UnionAll) || T.abstract || !T.isleaftype
-            throw(ArgumentError("cannot represent abstract or non-leaf type"))
-        end
-    else
-        # 0.5 compatibility
-        if T.abstract || !T.isleaftype
-            throw(ArgumentError("cannot represent abstract or non-leaf type"))
-        end
+function alloc(::Type{T}, len::Integer=1) where T
+    if isa(T, UnionAll) || T.abstract || !T.isleaftype
+        throw(ArgumentError("cannot represent abstract or non-leaf type"))
     end
     sizeof(T) == 0 && throw(ArgumentError("cannot represent ghost types"))
 
@@ -189,12 +182,12 @@ Note this does only upload the object itself, and does not peek through it in or
 to the underlying data (like `Ref` does). Consequently, this functionality should not be
 used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
 """
-function upload{T}(dst::OwnedPtr{T}, src::T)
+function upload(dst::OwnedPtr{T}, src::T) where T
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     upload(dst, Base.RefValue(src), sizeof(T))
 end
 
-function upload{T}(src::T)
+function upload(src::T) where T
     dst = alloc(T)
     upload(dst, Base.RefValue(src), sizeof(T))
     return dst
@@ -207,7 +200,7 @@ Download an object `src` from the device and return it as a host object.
 
 See [`upload`](@ref) for notes on how arguments are processed.
 """
-function download{T}(src::OwnedPtr{T})
+function download(src::OwnedPtr{T}) where T
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
     dst = Base.RefValue{T}()
     download(dst, src, sizeof(T))

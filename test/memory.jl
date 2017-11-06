@@ -71,7 +71,7 @@ let
 end
 
 let
-    @eval type MutablePtrFree
+    @eval mutable struct MutablePtrFree
         foo::Int
         bar::Int
     end
@@ -81,7 +81,7 @@ let
 end
 
 let
-    @eval type MutableNonPtrFree
+    @eval mutable struct MutableNonPtrFree
         foo::Int
         bar::String
     end

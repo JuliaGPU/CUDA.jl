@@ -20,7 +20,7 @@
                    OBJECT,
                    LIBRARY)
 
-function convert_bits{T}(::Type{T}, data::UInt)
+function convert_bits(::Type{T}, data::UInt) where T
     if sizeof(data) == sizeof(T)
         return reinterpret(T, data)
     elseif sizeof(data) == 8 && sizeof(T) == 4

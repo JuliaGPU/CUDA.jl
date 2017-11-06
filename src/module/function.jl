@@ -11,7 +11,7 @@ const CuFunction_t = Ptr{Void}
 
 Acquires a function handle from a named function in a module.
 """
-immutable CuFunction
+struct CuFunction
     handle::CuFunction_t
     mod::CuModule
 

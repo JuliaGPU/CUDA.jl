@@ -9,12 +9,12 @@ export
 
 Acquires a typed global variable handle from a named global in a module.
 """
-immutable CuGlobal{T}
+struct CuGlobal{T}
     # TODO: typed pointer
     ptr::OwnedPtr{Void}
     nbytes::Cssize_t
 
-    function (::Type{CuGlobal{T}}){T}(mod::CuModule, name::String)
+    function CuGlobal{T}(mod::CuModule, name::String) where T
         ptr_ref = Ref{Ptr{Void}}()
         nbytes_ref = Ref{Cssize_t}()
         @apicall(:cuModuleGetGlobal, (Ptr{Ptr{Void}}, Ptr{Cssize_t}, CuModule_t, Ptr{Cchar}), 
@@ -38,14 +38,14 @@ Base.hash(var::CuGlobal, h::UInt) = hash(var.ptr, h)
 
 Return the element type of a global variable object.
 """
-Base.eltype{T}(::Type{CuGlobal{T}}) = T
+Base.eltype(::Type{CuGlobal{T}}) where {T} = T
 
 """
     get(var::CuGlobal)
 
 Return the current value of a global variable.
 """
-function Base.get{T}(var::CuGlobal{T})
+function Base.get(var::CuGlobal{T}) where T
     val_ref = Ref{T}()
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
                             val_ref, var.ptr, var.nbytes)
@@ -57,7 +57,7 @@ end
 
 Set the value of a global variable to `val`
 """
-function set{T}(var::CuGlobal{T}, val::T)
+function set(var::CuGlobal{T}, val::T) where T
     val_ref = Ref{T}(val)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             var.ptr, val_ref, var.nbytes)
