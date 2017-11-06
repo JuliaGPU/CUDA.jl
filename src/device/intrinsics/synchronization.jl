@@ -21,7 +21,7 @@ the warp.
 """
 sync_warp
 
-if cuda_version >= v"9.0-"
+if cuda_version >= v"9.0-" && VERSION >= v"0.7.0-DEV.1959"
     @inline function sync_warp(mask::Integer=0xffffffff)
         return Base.llvmcall(
             """call void asm sideeffect "bar.warp.sync \$0;", "r"(i32 %0)
