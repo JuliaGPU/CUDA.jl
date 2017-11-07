@@ -69,7 +69,7 @@ function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, 
         # additionally, in the case of PTX there shouldn't be any embedded NULLs
         raw_data = Base.unsafe_convert(Cstring, Base.cconvert(Cstring, String(data)))
     else
-        raw_data = Base.unsafe_convert(Vector{UInt8}, Base.cconvert(Vector{UInt8}, data))
+        raw_data = Vector{UInt8}(data)
     end
     typed_ptr = pointer(raw_data)
     untyped_ptr = convert(Ptr{Void}, typed_ptr)

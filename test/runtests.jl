@@ -1,7 +1,7 @@
 using CUDAdrv
-using Base.Test
 
 using Compat
+using Compat.Test
 
 @testset "CUDAdrv" begin
 

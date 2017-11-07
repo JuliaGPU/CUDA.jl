@@ -71,7 +71,7 @@ Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
 Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
 Base.hash(mod::CuModule, h::UInt) = hash(mod.handle, h)
 
-CuModuleFile(path) = CuModule(open(readstring, path))
+CuModuleFile(path) = CuModule(read(path, String))
 
 include(joinpath("module", "function.jl"))
 include(joinpath("module", "global.jl"))
