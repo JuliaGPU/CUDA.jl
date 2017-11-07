@@ -109,7 +109,7 @@ end
 end
 
 @testset "parametrically typed" begin
-    @eval function kernel_shmem_dynamic_typevar{T}(d::CuDeviceArray{T}, n)
+    @eval function kernel_shmem_dynamic_typevar(d::CuDeviceArray{T}, n) where {T}
         t = threadIdx().x
         tr = n-t+1
 
@@ -132,7 +132,7 @@ end
 
 @testset "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
-    @eval function kernel_shmem_dynamic_alignment{T}(v0::T, n)
+    @eval function kernel_shmem_dynamic_alignment(v0::T, n) where {T}
         shared = CUDAnative.@cuDynamicSharedMem(T, n)
         @inbounds shared[Cuint(1)] = v0
         return
@@ -172,7 +172,7 @@ end
 end
 
 @testset "parametrically typed" begin
-    @eval function kernel_shmem_static_typevar{T}(d::CuDeviceArray{T}, n)
+    @eval function kernel_shmem_static_typevar(d::CuDeviceArray{T}, n) where {T}
         t = threadIdx().x
         tr = n-t+1
 
@@ -198,7 +198,7 @@ end
 
 @testset "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
-    @eval function kernel_shmem_static_alignment{T}(v0::T)
+    @eval function kernel_shmem_static_alignment(v0::T) where {T}
         shared = CUDAnative.@cuStaticSharedMem(T, 32)
         @inbounds shared[Cuint(1)] = v0
         return
@@ -300,7 +300,7 @@ n = 14
 types = [Int32, Int64, Float32, Float64, AddableTuple]
 
 @testset "down" begin
-    @eval function kernel_shuffle_down{T}(d::CuDeviceArray{T}, n)
+    @eval function kernel_shuffle_down(d::CuDeviceArray{T}, n) where {T}
         t = threadIdx().x
         if t <= n
             d[t] += shfl_down(d[t], unsafe_trunc(UInt32, n÷2))

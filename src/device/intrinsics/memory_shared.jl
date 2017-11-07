@@ -88,7 +88,8 @@ function emit_static_shmem(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
     end
 end
 
-@generated function generate_static_shmem{ID,T,D}(::Type{Val{ID}}, ::Type{T}, ::Type{Val{D}})
+@generated function generate_static_shmem(::Type{Val{ID}}, ::Type{T},
+                                          ::Type{Val{D}}) where {ID,T,D}
     return emit_static_shmem(ID, T, tuple(D...))
 end
 
@@ -150,7 +151,8 @@ function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol},
     end
 end
 
-@generated function generate_dynamic_shmem{ID,T}(::Type{Val{ID}}, ::Type{T}, dims, offset)
+@generated function generate_dynamic_shmem(::Type{Val{ID}}, ::Type{T}, dims,
+                                           offset) where {ID,T}
     return emit_dynamic_shmem(ID, T, :(dims), :(offset))
 end
 

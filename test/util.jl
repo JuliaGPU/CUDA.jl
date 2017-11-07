@@ -14,7 +14,7 @@ macro grab_output(ex)
                         ret = $(esc(ex))
                     end
                 end
-                ret, readstring(fname)
+                ret, read(fname, String)
             finally
                 rm(fname, force=true)
             end

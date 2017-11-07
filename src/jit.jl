@@ -42,7 +42,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(func::ANY, tt::ANY)
+function irgen(@nospecialize(func), @nospecialize(tt))
     # collect all modules of IR
     # TODO: make codegen pure
     function hook_module_setup(ref::Ptr{Void})
@@ -129,7 +129,7 @@ function irgen(func::ANY, tt::ANY)
     return mod
 end
 
-function add_entry!(mod::LLVM.Module, func::ANY, tt::ANY; kernel::Bool=false)
+function add_entry!(mod::LLVM.Module, @nospecialize(func), @nospecialize(tt); kernel::Bool=false)
     # find all Julia functions
     # TODO: let Julia report this
     julia_fs = Dict{String,Dict{String,LLVM.Function}}()
@@ -260,7 +260,7 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
     # find libdevice
     path = if isa(libdevice, Dict)
         # select the most recent & compatible library
-        const vers = keys(CUDAnative.libdevice)
+        vers = keys(CUDAnative.libdevice)
         compat_vers = Set(ver for ver in vers if ver <= cap)
         isempty(compat_vers) && error("No compatible CUDA device library available")
         ver = maximum(compat_vers)
@@ -383,7 +383,7 @@ function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber;
     end
 
     InitializeNVPTXAsmPrinter()
-    return convert(String, emit(tm, mod, LLVM.API.LLVMAssemblyFile))
+    return String(emit(tm, mod, LLVM.API.LLVMAssemblyFile))
 end
 
 # Compile a function to PTX, returning the assembly and an entry point.
@@ -391,7 +391,7 @@ end
 #
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
-function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=true)
+function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber; kernel::Bool=true)
     check_invocation(func, tt; kernel=kernel)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
@@ -427,7 +427,7 @@ function compile_function(func::ANY, tt::ANY, cap::VersionNumber; kernel::Bool=t
 end
 
 # check validity of a function invocation, specified by the generic function and a tupletype
-function check_invocation(func::ANY, tt::ANY; kernel::Bool=false)
+function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=false)
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
 
     # get the method
@@ -438,7 +438,7 @@ function check_invocation(func::ANY, tt::ANY; kernel::Bool=false)
 
     # emulate some of the specsig logic from codegen.cppto detect non-native CC functions
     # TODO: also do this for device functions (#87)
-    isleaftype(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
+    isconcrete(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
     m.isva && throw(ArgumentError("invalid device function $sig: is a varargs function"))
 
     # kernels can't return values
@@ -451,7 +451,7 @@ function check_invocation(func::ANY, tt::ANY; kernel::Bool=false)
 end
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, func::ANY, tt::ANY)
+function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(func, Core.Function)
 

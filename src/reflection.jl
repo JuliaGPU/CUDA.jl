@@ -33,11 +33,12 @@ if `dump_module` is set (defaults to false). The device capability `cap` to gene
 for defaults to the current active device's capability, or v"2.0" if there is no such active
 context.
 """
-function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
+function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    optimize::Bool=true, dump_module::Bool=false,
                    cap::VersionNumber=current_capability(), kernel::Bool=false)
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=kernel)
+
     mod = irgen(func, tt)
     entry = add_entry!(mod, func, tt; kernel=kernel)
     if optimize
@@ -49,7 +50,7 @@ function code_llvm(io::IO, func::ANY, types::ANY=Tuple;
         show(io, entry)
     end
 end
-code_llvm(func::ANY, types::ANY=Tuple; kwargs...) = code_llvm(STDOUT, func, types; kwargs...)
+code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) = code_llvm(STDOUT, func, types; kwargs...)
 
 """
     code_ptx([io], f, types; cap::VersionNumber, kernel::Bool=false)
@@ -60,9 +61,8 @@ code for defaults to the current active device's capability, or v"2.0" if there 
 active context. The optional `kernel` parameter indicates whether the function in question
 is an entry-point function, or a regular device function.
 """
-function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
+function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                   cap::VersionNumber=current_capability(), kernel::Bool=false)
-    @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=kernel)
 
@@ -71,7 +71,8 @@ function code_ptx(io::IO, func::ANY, types::ANY=Tuple;
     #       is it possible to implement `dump_module`?
     print(io, ptx)
 end
-code_ptx(func::ANY, types::ANY=Tuple; kwargs...) = code_ptx(STDOUT, func, types; kwargs...)
+code_ptx(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
+    code_ptx(STDOUT, func, types; kwargs...)
 
 """
     code_sass([io], f, types, cap::VersionNumber)
@@ -84,9 +85,8 @@ context.
 Note that the method needs to be a valid entry-point kernel, ie. it should not return any
 values.
 """
-function code_sass(io::IO, func::ANY, types::ANY=Tuple;
+function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    cap::VersionNumber=current_capability())
-    @assert isa(func, Core.Function)
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=true)
 
@@ -99,12 +99,13 @@ function code_sass(io::IO, func::ANY, types::ANY=Tuple;
     # TODO: see how `nvvp` extracts SASS code when doing PC sampling, and copy that.
     Base.run(`$ptxas --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
     try
-        print(io, readstring(`$cuobjdump --dump-sass $fn`))
+        print(io, read(`$cuobjdump --dump-sass $fn`, String))
     finally
         rm(fn)
     end
 end
-code_sass(func::ANY, types::ANY=Tuple; kwargs...) = code_sass(STDOUT, func, types; kwargs...)
+code_sass(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
+    code_sass(STDOUT, func, types; kwargs...)
 
 
 #
