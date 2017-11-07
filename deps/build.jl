@@ -6,8 +6,7 @@ using LLVM
 ## auxiliary routines
 
 # check support for the LLVM version
-function check_llvm()
-    llvm_version = LLVM.version()
+function check_llvm(llvm_version)
     @debug("Using LLVM $llvm_version")
 
     InitializeAllTargets()
@@ -17,13 +16,26 @@ function check_llvm()
     llvm_support = CUDAapi.devices_for_llvm(llvm_version)
     isempty(llvm_support) && error("LLVM $llvm_version does not support any compatible device")
 
-    return llvm_version, llvm_support
+    return llvm_support
 end
 
 # check support for the CUDA version
-function check_cuda()
-    cuda_version = CUDAdrv.version()
-    @debug("Using CUDA $cuda_version")
+function check_cuda(driver_version, toolkit_version)
+    @debug("Using CUDA driver $driver_version and toolkit $toolkit_version")
+
+    # the toolkit version as reported contains major.minor.patch,
+    # but the version number returned by libcuda is only major.minor.
+    toolkit_version = VersionNumber(toolkit_version.major, toolkit_version.minor)
+
+    if driver_version != toolkit_version
+       warn("CUDA toolkit version ($toolkit_version) does not match the driver ($driver_version); this may lead to incompatibilities")
+    end
+
+    # to be safe, downgrade to the lowest detected version.
+    # this assumes libcuda is backwards compatible, which it isn't (yay),
+    # but using a too new version leads to more issues (breaks reflection).
+    cuda_version = min(driver_version, toolkit_version)
+    @debug("Targeting CUDA $cuda_version")
 
     cuda_support = CUDAapi.devices_for_cuda(cuda_version)
     isempty(cuda_support) && error("CUDA $cuda_version does not support any compatible device")
@@ -32,7 +44,9 @@ function check_cuda()
 end
 
 # check support for the Julia version
-function check_julia(llvm_version, cuda_version)
+function check_julia(julia_llvm_version, llvm_version, cuda_version)
+    @debug("Using Julia's LLVM $julia_llvm_version")
+
     if cuda_version >= v"9.0-" && VERSION < v"0.7.0-DEV.1959"
         warn("CUDA 9.0 is only supported on Julia 0.7, intra-thread intrinsics (shuffle, vote, ...) might yield wrong results (see #107)")
     end
@@ -41,14 +55,11 @@ function check_julia(llvm_version, cuda_version)
         warn("Julia 0.6.1 is not supported, please use 0.6.0 or 0.6.1+ (see #124)")
     end
 
-    julia_llvm_version = VersionNumber(Base.libllvm_version)
-    @debug("Using Julia's LLVM $julia_llvm_version")
-
     if julia_llvm_version != llvm_version
         error("LLVM $llvm_version incompatible with Julia's LLVM $julia_llvm_version")
     end
 
-    return julia_llvm_version
+    return
 end
 
 
@@ -113,27 +124,31 @@ function main()
 
     ## gather info
 
-    # check version support
-    config[:llvm_version], llvm_support = check_llvm()
-    config[:cuda_version], cuda_support = check_cuda()
-    config[:julia_llvm_version] = check_julia(config[:llvm_version], config[:cuda_version])
+    # check LLVM compatibility
+    config[:llvm_version] = LLVM.version()
+    llvm_support = check_llvm(config[:llvm_version])
 
-    # figure out supported capabilities
+    # discover CUDA toolkit
+    toolkit_path = find_toolkit()
+    config[:cuda_toolkit_version] = find_toolkit_version(toolkit_path)
+
+    # check CUDA compatibility
+    config[:cuda_driver_version] = CUDAdrv.version()
+    config[:cuda_version], cuda_support = check_cuda(config[:cuda_driver_version], config[:cuda_toolkit_version])
+
+    # check Julia compatibility
+    config[:julia_llvm_version] = VersionNumber(Base.libllvm_version)
+    check_julia(config[:julia_llvm_version], config[:llvm_version], config[:cuda_version])
+
+    # check device compatibility
     config[:capabilities] = Vector{VersionNumber}()
     append!(config[:capabilities], llvm_support ∩ cuda_support)
     @debug("Supported capabilities: $(join(sort(config[:capabilities]), ", "))")
 
-    # discover stuff
-    toolkit_path = find_toolkit()
-    toolkit_version = find_toolkit_version(toolkit_path)
+    # discover other CUDA toolkit artifacts
     config[:libdevice] = find_libdevice(config[:capabilities], toolkit_path)
     config[:cuobjdump] = find_binary("cuobjdump", toolkit_path)
     config[:ptxas] = find_binary("ptxas", toolkit_path)
-
-    if toolkit_version.major != config[:cuda_version].major ||
-       toolkit_version.minor != config[:cuda_version].minor
-       warn("CUDA toolkit version ($toolkit_version) does not match the driver ($(config[:cuda_version])); this may lead to incompatibilities")
-   end
 
 
     ## (re)generate ext.jl
