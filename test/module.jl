@@ -16,7 +16,7 @@ end
 
 let
     f = open(joinpath(@__DIR__, "ptx/vadd.ptx"))
-    ptx = readstring(f)
+    ptx = read(f, String)
     close(f)
 
     md = CuModule(ptx)
@@ -50,23 +50,23 @@ end
 
     # regular string
     open(joinpath(@__DIR__, "ptx/empty.ptx")) do f
-        addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
+        addData(link, "vadd_parent", read(f, String), CUDAdrv.PTX)
     end
 
     # string as vector of bytes
     open(joinpath(@__DIR__, "ptx/empty.ptx")) do f
-        addData(link, "vadd_parent", convert(Vector{UInt8}, readstring(f)), CUDAdrv.PTX)
+        addData(link, "vadd_parent", Vector{UInt8}(read(f, String)), CUDAdrv.PTX)
     end
 
     # PTX code containing \0
     @test_throws ArgumentError addData(link, "vadd_parent", "\0", CUDAdrv.PTX)
-    @test_throws ArgumentError addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.PTX)
+    @test_throws ArgumentError addData(link, "vadd_parent", Vector{UInt8}("\0"), CUDAdrv.PTX)
 
     # object data containing \0
     # NOTE: apparently, on Windows cuLinkAddData _does_ accept object data containing \0
-    if !is_windows()
+    if !Compat.Sys.iswindows()
         @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN addData(link, "vadd_parent", "\0", CUDAdrv.OBJECT)
-        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN addData(link, "vadd_parent", convert(Vector{UInt8}, "\0"), CUDAdrv.OBJECT)
+        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN addData(link, "vadd_parent", Vector{UInt8}("\0"), CUDAdrv.OBJECT)
     end
 end
 
@@ -74,7 +74,7 @@ let
     link = CuLink()
     addFile(link, joinpath(@__DIR__, "ptx/vadd_child.ptx"), CUDAdrv.PTX)
     open(joinpath(@__DIR__, "ptx/vadd_parent.ptx")) do f
-        addData(link, "vadd_parent", readstring(f), CUDAdrv.PTX)
+        addData(link, "vadd_parent", read(f, String), CUDAdrv.PTX)
     end
 
     obj = complete(link)

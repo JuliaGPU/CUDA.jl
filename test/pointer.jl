@@ -1,6 +1,6 @@
 @testset "pointer" begin
 
-const CU_NULL = CUDAdrv.OwnedPtr{Void}(C_NULL, CuContext(C_NULL))
+CU_NULL = CUDAdrv.OwnedPtr{Void}(C_NULL, CuContext(C_NULL))
 
 # conversion to Ptr
 @test_throws InexactError convert(Ptr{Void}, CU_NULL)

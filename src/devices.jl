@@ -38,7 +38,7 @@ end
 Returns an identifier string for the device.
 """
 function name(dev::CuDevice)
-    const buflen = 256
+    buflen = 256
     buf = Array{Cchar}(buflen)
     @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CuDevice_t),
                                buf, buflen, dev)

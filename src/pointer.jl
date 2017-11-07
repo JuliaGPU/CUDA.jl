@@ -22,8 +22,10 @@ Base.eltype(::Type{OwnedPtr{T}}) where {T} = T
 
 # between Ptr and OwnedPtr
 ## simple conversions disallowed
-Base.convert(::Type{Ptr{T}}, p::OwnedPtr{T}) where {T} = throw(InexactError())
-Base.convert(::Type{OwnedPtr{T}}, p::Ptr{T}) where {T} = throw(InexactError())
+Base.convert(::Type{Ptr{T}}, p::OwnedPtr{T}) where {T} =
+    throw(InexactError(:convert, Ptr{T}, p))
+Base.convert(::Type{OwnedPtr{T}}, p::Ptr{T}) where {T} =
+    throw(InexactError(:convert, OwnedPtr{T}, p))
 ## unsafe ones are allowed
 Base.unsafe_convert(::Type{Ptr{T}}, p::OwnedPtr) where {T} = Ptr{T}(pointer(p))
 
