@@ -188,7 +188,7 @@ function find_toolkit_version(toolkit_path)
 
     # parse the nvcc version string
     re = r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b"
-    m = match(re, readstring(`$nvcc_path --version`))
+    m = match(re, read(`$nvcc_path --version`, String))
     m != nothing || error("Could not get version from nvcc")
 
     version = VersionNumber(parse(Int, m[:major]),
@@ -211,7 +211,7 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
     nvcc_version = toolkit_version
 
     # find a suitable host compiler
-    if !(is_windows() || is_apple())
+    if !(Compat.Sys.iswindows() || Compat.Sys.isapple())
         # Unix-like platforms: find compatible GCC binary
 
         # find the maximally supported version of gcc
@@ -261,7 +261,7 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
         end
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
-    elseif is_windows()
+    elseif Compat.Sys.iswindows()
         # Windows: just use cl.exe
         vc_versions = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
         !any(x -> haskey(ENV, x), vc_versions) && error("Compatible Visual Studio installation cannot be found; Visual Studio 2015, 2013, 2012, or 2010 is required.")
@@ -270,7 +270,7 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
 
         host_compiler = cl_path
         host_version = nothing
-    elseif is_apple()
+    elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: proper version matching, etc
         clang_path = find_binary("clang")

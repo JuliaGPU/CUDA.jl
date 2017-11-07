@@ -1,5 +1,7 @@
 using CUDAapi
-using Base.Test
+
+using Compat
+using Compat.Test
 
 
 ## logging
