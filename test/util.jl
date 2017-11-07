@@ -36,7 +36,7 @@ macro test_throws_cuerror(kind, ex)
     end
 end
 
-type NoThrowTestSet <: Test.AbstractTestSet
+mutable struct NoThrowTestSet <: Test.AbstractTestSet
     results::Vector
     NoThrowTestSet(desc) = new([])
 end

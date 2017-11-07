@@ -29,7 +29,7 @@ Contexts are unique instances which need to be `destroy`ed after use. For automa
 management, prefer the `do` block syntax, which implicitly calls `destroy`.
 
 """
-type CuContext
+mutable struct CuContext
     handle::CuContext_t
     owned::Bool
     valid::Bool

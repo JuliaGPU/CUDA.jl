@@ -11,7 +11,7 @@ const CuDevice_t = Cint
 
 Get a handle to a compute device.
 """
-immutable CuDevice
+struct CuDevice
     ordinal::Cint
     handle::CuDevice_t
 
@@ -161,7 +161,7 @@ end
 
 export devices
 
-immutable DeviceSet end
+struct DeviceSet end
 
 """
     devices()

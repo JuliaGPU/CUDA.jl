@@ -17,16 +17,16 @@ Often accepted as argument through the `CuDim` type alias, eg. in the case of
 [`cudacall`](@ref) or [`launch`](@ref), allowing to pass dimensions as a plain integer or a
 tuple without having to construct an explicit `CuDim3` object.
 """
-immutable CuDim3
+struct CuDim3
     x::Cuint
     y::Cuint
     z::Cuint
 end
 
-CuDim3{T <: Integer}(g::T) =           CuDim3(g,    Cuint(1), Cuint(1))
-CuDim3{T <: Integer}(g::NTuple{1,T}) = CuDim3(g[1], Cuint(1), Cuint(1))
-CuDim3{T <: Integer}(g::NTuple{2,T}) = CuDim3(g[1], g[2],     Cuint(1))
-CuDim3{T <: Integer}(g::NTuple{3,T}) = CuDim3(g[1], g[2],     g[3])
+CuDim3(g::T) where {T <: Integer} =           CuDim3(g,    Cuint(1), Cuint(1))
+CuDim3(g::NTuple{1,T}) where {T <: Integer} = CuDim3(g[1], Cuint(1), Cuint(1))
+CuDim3(g::NTuple{2,T}) where {T <: Integer} = CuDim3(g[1], g[2],     Cuint(1))
+CuDim3(g::NTuple{3,T}) where {T <: Integer} = CuDim3(g[1], g[2],     g[3])
 
 # Type alias for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3((len, 2))`)
@@ -70,9 +70,9 @@ end
 
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
-@generated function _launch{N}(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
-                               shmem::Int, stream::CuStream,
-                               args::NTuple{N,Any})
+@generated function _launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
+                            shmem::Int, stream::CuStream,
+                            args::NTuple{N,Any}) where N
     all(isbits, args.parameters) || throw(ArgumentError("Arguments to kernel should be bitstype."))
 
     ex = Expr(:block)
@@ -149,9 +149,9 @@ faster, but not providing default values for the `shmem` and `stream` arguments.
 addition, the `types` argument can contain both a tuple of types, and a tuple type, again
 the former being slightly faster.
 """
-@inline cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                    typespec::Union{NTuple{N,DataType},Type}, values::Vararg{Any,N};
-                    shmem::Integer=0, stream::CuStream=CuDefaultStream()) =
+@inline cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+                 typespec::Union{NTuple{N,DataType},Type}, values::Vararg{Any,N};
+                 shmem::Integer=0, stream::CuStream=CuDefaultStream()) where {N} =
     cudacall(f, griddim, blockdim, shmem, stream, typespec, values...)
 
 # kwargs are slow, so we provide versions of cudacall with all arguments specified
@@ -163,18 +163,18 @@ the former being slightly faster.
 # the most efficient combo is to use `cudacall` without kwargs, specifying a tuple type
 # (this is what eg. CUDAnative.jl does)
 
-@inline function cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                             shmem::Integer, stream::CuStream,
-                             types::NTuple{N,DataType}, values::Vararg{Any,N})
+@inline function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+                          shmem::Integer, stream::CuStream,
+                          types::NTuple{N,DataType}, values::Vararg{Any,N}) where N
     tt = Tuple{types...}
     # this cannot be inferred properly (because types only contains `DataType`s),
     # which results in the call `@generated _cudacall` getting expanded upon first use
     _cudacall(f, griddim, blockdim, shmem, stream, tt, values)
 end
 
-@inline function cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                             shmem::Integer, stream::CuStream,
-                             tt::Type, values::Vararg{Any,N})
+@inline function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+                          shmem::Integer, stream::CuStream,
+                          tt::Type, values::Vararg{Any,N}) where N
     # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
     # which means the generated function can be expanded earlier
     _cudacall(f, griddim, blockdim, shmem, stream, tt, values)
@@ -182,9 +182,9 @@ end
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function _cudacall{N}(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                                 shmem::Integer, stream::CuStream,
-                                 tt, args::NTuple{N,Any})
+@generated function _cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+                              shmem::Integer, stream::CuStream,
+                              tt, args::NTuple{N,Any}) where N
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     ex = Expr(:block)

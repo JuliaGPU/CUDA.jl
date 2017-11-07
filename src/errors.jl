@@ -7,7 +7,7 @@ export CuError
 # Versioning error
 #
 
-immutable CuVersionError <: Exception
+struct CuVersionError <: Exception
     symbol::Symbol
     minver::VersionNumber
 end
