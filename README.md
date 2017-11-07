@@ -2,14 +2,12 @@
 
 *A Julia wrapper for the CUDA driver API.*
 
-**Build status**: [![][buildbot-julia05-img]][buildbot-julia05-url] [![][buildbot-julia06-img]][buildbot-julia06-url] [![][buildbot-juliadev-img]][buildbot-juliadev-url]
+**Build status**: [![][buildbot-julia06-img]][buildbot-julia06-url] [![][buildbot-juliadev-img]][buildbot-juliadev-url]
 
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
 
 **Code coverage**: [![][coverage-img]][coverage-url]
 
-[buildbot-julia05-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAdrv-julia05-x86-64bit&name=julia%200.5
-[buildbot-julia05-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAdrv-julia05-x86-64bit
 [buildbot-julia06-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAdrv-julia06-x86-64bit&name=julia%200.6
 [buildbot-julia06-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAdrv-julia06-x86-64bit
 [buildbot-juliadev-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAdrv-juliadev-x86-64bit&name=julia%20dev
