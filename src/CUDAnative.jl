@@ -42,7 +42,7 @@ function __init__()
         return
     end
 
-    if CUDAdrv.version() != cuda_version ||
+    if CUDAdrv.version() != cuda_driver_version ||
         LLVM.version() != llvm_version ||
         VersionNumber(Base.libllvm_version) != julia_llvm_version
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
