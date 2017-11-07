@@ -13,7 +13,6 @@
     # module should contain our function + a generic call wrapper
     @test contains(ir, "define void @julia_llvm_valid_kernel")
     @test !contains(ir, "define %jl_value_t* @jlcall_")
-    @test ismatch(r"define void @julia_llvm_valid_kernel_.+\(\) #0.+\{", ir)
 
     @test CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}) == nothing
     @test_throws ArgumentError CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
