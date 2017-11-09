@@ -2,19 +2,19 @@
 
 # inner constructors
 
-const generic_null = CUDAnative.DevicePtr{Void,AS.Generic}(C_NULL)
-const global_null = CUDAnative.DevicePtr{Void,AS.Global}(C_NULL)
-const local_null = CUDAnative.DevicePtr{Void,AS.Local}(C_NULL)
+generic_null = CUDAnative.DevicePtr{Void,AS.Generic}(C_NULL)
+global_null = CUDAnative.DevicePtr{Void,AS.Global}(C_NULL)
+local_null = CUDAnative.DevicePtr{Void,AS.Local}(C_NULL)
 
-const C_NONNULL = Ptr{Void}(1)
-const generic_nonnull = CUDAnative.DevicePtr{Void,AS.Generic}(C_NONNULL)
-const global_nonnull = CUDAnative.DevicePtr{Void,AS.Global}(C_NONNULL)
-const local_nonnull = CUDAnative.DevicePtr{Void,AS.Local}(C_NONNULL)
+C_NONNULL = Ptr{Void}(1)
+generic_nonnull = CUDAnative.DevicePtr{Void,AS.Generic}(C_NONNULL)
+global_nonnull = CUDAnative.DevicePtr{Void,AS.Global}(C_NONNULL)
+local_nonnull = CUDAnative.DevicePtr{Void,AS.Local}(C_NONNULL)
 
-const C_ONE = Ptr{Int}(1)
-const generic_one = CUDAnative.DevicePtr{Int,AS.Generic}(C_ONE)
-const global_one = CUDAnative.DevicePtr{Int,AS.Global}(C_ONE)
-const local_one = CUDAnative.DevicePtr{Int,AS.Local}(C_ONE)
+C_ONE = Ptr{Int}(1)
+generic_one = CUDAnative.DevicePtr{Int,AS.Generic}(C_ONE)
+global_one = CUDAnative.DevicePtr{Int,AS.Global}(C_ONE)
+local_one = CUDAnative.DevicePtr{Int,AS.Local}(C_ONE)
 
 # outer constructors
 @test CUDAnative.DevicePtr{Void}(C_NULL) == generic_null

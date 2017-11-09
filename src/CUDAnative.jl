@@ -6,6 +6,8 @@ using LLVM
 using CUDAapi
 using CUDAdrv
 
+using Compat
+
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
 const configured = if isfile(ext)
     include(ext)

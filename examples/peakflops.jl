@@ -8,7 +8,7 @@ function kernel_100fma(a, b, c, out)
     @inbounds b_val = b[i]
     @inbounds c_val = c[i]
 
-    for i in 1:33
+    for j in 1:33
         a_val = CUDAnative.fma(a_val, b_val, c_val)
         b_val = CUDAnative.fma(a_val, b_val, c_val)
         c_val = CUDAnative.fma(a_val, b_val, c_val)

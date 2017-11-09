@@ -56,8 +56,8 @@ addrspace(::Type{DevicePtr{T,A}}) where {T,A} = A
 
 # between regular and device pointers
 ## simple conversions disallowed
-Base.convert(::Type{Ptr{T}}, p::DevicePtr{T})        where {T} = throw(InexactError())
-Base.convert(::Type{<:DevicePtr{T}}, p::Ptr{T})      where {T} = throw(InexactError())
+Base.convert(::Type{Ptr{T}}, p::DevicePtr{T})        where {T} = throw(InexactError(:convert, Ptr{T}, p))
+Base.convert(::Type{<:DevicePtr{T}}, p::Ptr{T})      where {T} = throw(InexactError(:convert, DevicePtr{T}, p))
 ## unsafe ones are allowed
 Base.unsafe_convert(::Type{Ptr{T}}, p::DevicePtr{T}) where {T} = pointer(p)
 
@@ -65,7 +65,7 @@ Base.unsafe_convert(::Type{Ptr{T}}, p::DevicePtr{T}) where {T} = pointer(p)
 Base.cconvert(::Type{<:DevicePtr}, x) = x
 
 # between device pointers
-Base.convert(::Type{<:DevicePtr}, p::DevicePtr)                         = throw(InexactError())
+Base.convert(::Type{<:DevicePtr}, p::DevicePtr)                         = throw(InexactError(:convert, DevicePtr, p))
 Base.convert(::Type{DevicePtr{T,A}}, p::DevicePtr{T,A})   where {T,A}   = p
 Base.unsafe_convert(::Type{DevicePtr{T,A}}, p::DevicePtr) where {T,A}   = DevicePtr{T,A}(reinterpret(Ptr{T}, pointer(p)))
 ## identical addrspaces
