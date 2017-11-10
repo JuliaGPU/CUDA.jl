@@ -21,7 +21,7 @@ the warp.
 """
 sync_warp
 
-if cuda_version >= v"9.0-" && VERSION >= v"0.7.0-DEV.1959"
+if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
     @inline function sync_warp(mask::Integer=0xffffffff)
         return Base.llvmcall(
             """call void asm sideeffect "bar.warp.sync \$0;", "r"(i32 %0)

@@ -15,7 +15,7 @@ const configured = if isfile(ext)
 else
     # enable CUDAnative.jl to be loaded when the build failed, simplifying downstream use.
     # remove this when we have proper support for conditional modules.
-    const cuda_version = v"5.5"
+    const cuda_driver_version = v"5.5"
     false
 end
 
@@ -44,9 +44,10 @@ function __init__()
         return
     end
 
-    if CUDAdrv.version() != cuda_driver_version ||
+    if VERSION != julia_version ||
+        VersionNumber(Base.libllvm_version) != julia_llvm_version ||
         LLVM.version() != llvm_version ||
-        VersionNumber(Base.libllvm_version) != julia_llvm_version
+        CUDAdrv.version() != cuda_driver_version
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
 

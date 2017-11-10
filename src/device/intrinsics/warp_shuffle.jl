@@ -21,7 +21,7 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
     # and an upper bound for clamping the source lane index"
     pack_expr = :(((convert(UInt32, $ws - width)) << 8) | $mask)
 
-    if cuda_version >= v"9.0-" && VERSION >= v"0.7.0-DEV.1959"
+    if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
         instruction = Symbol("shfl.sync.$mode.b32")
         fname_sync = Symbol("$(fname)_sync")
 

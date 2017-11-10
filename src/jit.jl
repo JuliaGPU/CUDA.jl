@@ -321,8 +321,8 @@ function machine(cap::VersionNumber, triple::String)
 
     InitializeNVPTXTargetMC()
     cpu = "sm_$(cap.major)$(cap.minor)"
-    if cuda_version >= v"9.0-" && VERSION >= v"0.7.0-DEV.1959"
-        # in the case of CUDA 9, we expose sync_warp which needs PTX ISA 6.0+
+    if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
+        # in the case of CUDA 9, we use sync intrinsics from PTX ISA 6.0+
         feat = "+ptx60"
     else
         feat = ""
@@ -457,7 +457,7 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
 
     # select a capability level
     dev_cap = capability(dev)
-    compat_caps = filter(cap -> cap <= dev_cap, capabilities)
+    compat_caps = filter(cap -> cap <= dev_cap, target_support)
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")
     cap = maximum(compat_caps)
