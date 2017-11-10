@@ -1,5 +1,13 @@
 # versions of the CUDA toolkit
-const toolkits = [v"4.0", v"4.2", v"5.0", v"6.0", v"6.5", v"7.0", v"7.5", v"8.0", v"9.0"]
+const toolkits = [v"1.0", v"1.1",
+                  v"2.0", v"2.1", v"2.2",
+                  v"3.0", v"3.1", v"3.2",
+                  v"4.0", v"4.1", v"4.2",
+                  v"5.0", v"5.5",
+                  v"6.0", v"6.5",
+                  v"7.0", v"7.5",
+                  v"8.0",
+                  v"9.0"]
 
 
 struct VersionRange
@@ -78,6 +86,46 @@ function devices_for_cuda(ver::VersionNumber)
 end
 
 
+# PTX ISAs supported by the CUDA toolkit
+
+# Source:
+# - PTX ISA document, Release History table
+# NOTE: this table lists e.g. sm_20 being supported on CUDA 9.0, which is wrong?
+const isa_cuda_db = Dict(
+    v"1.0" => v"1.0":highest,
+    v"1.1" => v"1.1":highest,
+    v"1.2" => v"2.0":highest,
+    v"1.3" => v"2.1":highest,
+    v"1.4" => v"2.2":highest,
+    v"1.5" => v"2.2":highest,   # driver 190
+    v"2.0" => v"3.0":highest,   # driver 195
+    v"2.1" => v"3.1":highest,   # driver 256
+    v"2.2" => v"3.2":highest,   # driver 260
+    v"2.3" => v"4.2":highest,   # driver 295, or driver 285 with 4.1
+    v"3.0" => v"4.1":highest,   # driver 285
+    v"3.1" => v"5.0":highest,   # driver 302
+    v"3.2" => v"5.5":highest,   # driver 319
+    v"4.0" => v"6.0":highest,   # driver 331
+    v"4.1" => v"6.5":highest,   # driver 340
+    v"4.2" => v"7.0":highest,   # driver 346
+    v"4.3" => v"7.5":highest,   # driver 351
+    v"5.0" => v"8.0":highest,   # driver 361
+    v"6.0" => v"9.0":highest    # driver 384
+)
+
+function isas_for_cuda(ver::VersionNumber)
+    match_ver = VersionNumber(ver.major, ver.minor)
+
+    caps = Set{VersionNumber}()
+    for (cap,r) in isa_cuda_db
+        if match_ver in r
+            push!(caps, cap)
+        end
+    end
+    return caps
+end
+
+
 # devices supported by the LLVM NVPTX back-end
 
 # Source: LLVM/lib/Target/NVPTX/NVPTX.td
@@ -101,6 +149,34 @@ function devices_for_llvm(ver::VersionNumber)
 
     caps = Set{VersionNumber}()
     for (cap,r) in dev_llvm_db
+        if match_ver in r
+            push!(caps, cap)
+        end
+    end
+    return caps
+end
+
+
+# PTX ISAs supported by the LVM NVPTX back-end
+
+# Source: LLVM/lib/Target/NVPTX/NVPTX.td
+const isa_llvm_db = Dict(
+    v"3.0" => v"3.2":v"3.6",
+    v"3.1" => v"3.2":v"3.6",
+    v"3.2" => v"3.5":highest,
+    v"4.0" => v"3.5":highest,
+    v"4.1" => v"3.7":highest,
+    v"4.2" => v"3.7":highest,
+    v"4.3" => v"3.9":highest,
+    v"5.0" => v"3.9":highest,
+    v"6.0" => v"6.0":highest
+)
+
+function isas_for_llvm(ver::VersionNumber)
+    match_ver = VersionNumber(ver.major, ver.minor)
+
+    caps = Set{VersionNumber}()
+    for (cap,r) in isa_llvm_db
         if match_ver in r
             push!(caps, cap)
         end

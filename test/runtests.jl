@@ -20,6 +20,8 @@ logging_run(`true`)
 CUDAapi.gcc_for_cuda(v"8.0")
 CUDAapi.devices_for_cuda(v"8.0")
 CUDAapi.devices_for_llvm(v"5.0")
+CUDAapi.isas_for_cuda(v"8.0")
+CUDAapi.isas_for_llvm(v"5.0")
 
 
 ## discovery
