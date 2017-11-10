@@ -185,7 +185,10 @@ function main()
     # NOTE: we need to do this manually, as the package will load & precompile after
     #       not having loaded a nonexistent ext.jl in the case of a failed build,
     #       causing it not to precompile after a subsequent successful build.
-    Base.compilecache("CUDAnative")
+    if VERSION >= v"0.7.0-DEV.1735" ? Base.JLOptions().use_compiled_modules :
+                                      Base.JLOptions().use_compilecache
+        Base.compilecache("CUDAnative")
+    end
 
     return
 end
