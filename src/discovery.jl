@@ -144,6 +144,7 @@ function find_toolkit()
         if length(envvals) > 1
             warn("Multiple CUDA environment variables set to different values: $(join(envvars_set, ", ", " and "))")
         end
+        @trace("Considering CUDA toolkit at $(envvals...) based on environment variables")
         unshift!(dirs, envvals...)
     end
     ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
@@ -153,6 +154,7 @@ function find_toolkit()
         if ismatch(r"^lib(32|64)?$", basename(dir))
             dir = dirname(dir)
         end
+        @trace("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
         push!(dirs, dir)
     catch ex
         isa(ex, ErrorException) || rethrow(ex)
@@ -164,6 +166,7 @@ function find_toolkit()
         if ismatch(r"^bin(32|64)?$", basename(dir))
             dir = dirname(dir)
         end
+        @trace("Considering CUDA toolkit at $dir based on nvcc at $nvcc_path")
         push!(dirs, dir)
     catch ex
         isa(ex, ErrorException) || rethrow(ex)
