@@ -10,7 +10,7 @@ export
 
 # Return the capability of the current context's device, or a sane fall-back.
 function current_capability()
-    fallback = v"2.0"
+    fallback = minimum(target_support)
     if !initialized[]
         return fallback
     end
