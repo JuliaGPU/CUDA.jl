@@ -23,10 +23,8 @@ sync_warp
 
 if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
     @inline function sync_warp(mask::Integer=0xffffffff)
-        return Base.llvmcall(
-            """call void asm sideeffect "bar.warp.sync \$0;", "r"(i32 %0)
-               ret void""",
-            Void, Tuple{UInt32}, convert(UInt32, mask))
+        @asmcall("bar.warp.sync \$0;", "r", true,
+                 Void, Tuple{UInt32}, convert(UInt32, mask))
     end
 else
     @inline sync_warp(mask::Integer=0xffffffff) = nothing

@@ -137,6 +137,8 @@ function main()
 
     ## compatibility checks
 
+    LLVM.libllvm_system && error("CUDAnative.jl requires LLVM.jl to be built against Julia's LLVM library, not a system-provided one")
+
     if config[:julia_version] == v"0.6.1"
         warn("Julia 0.6.1 is not supported, please use 0.6.0 or 0.6.1+ (see #124)")
     end

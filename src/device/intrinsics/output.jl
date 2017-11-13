@@ -35,12 +35,12 @@ end
 
     # create functions
     param_types = LLVMType[convert.(LLVMType, arg_types)...]
-    llvmf = create_llvmf(T_int32, param_types)
-    mod = LLVM.parent(llvmf)
+    llvm_f, _ = create_function(T_int32, param_types)
+    mod = LLVM.parent(llvm_f)
 
     # generate IR
     Builder(jlctx[]) do builder
-        entry = BasicBlock(llvmf, "entry", jlctx[])
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
         fmt = globalstring_ptr!(builder, cuprintf_fmts[id])
@@ -53,7 +53,7 @@ end
             elements!(argtypes, param_types)
 
             args = alloca!(builder, argtypes, "args")
-            for (i, param) in enumerate(parameters(llvmf))
+            for (i, param) in enumerate(parameters(llvm_f))
                 p = struct_gep!(builder, args, i-1)
                 store!(builder, param, p)
             end
@@ -70,5 +70,5 @@ end
     end
 
     arg_tuple = Expr(:tuple, arg_exprs...)
-    call_llvmf(llvmf, Int32, Tuple{arg_types...}, arg_tuple)
+    call_function(llvm_f, Int32, Tuple{arg_types...}, arg_tuple)
 end
