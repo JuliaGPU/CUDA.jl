@@ -79,8 +79,9 @@ function find_binary(name, prefixes::Vector{String}=String[])
     @trace("Checking for $name in $locations")
     paths = [joinpath(location, name) for location in locations]
     try
-        paths = unique(filter(ispath, paths))
+        paths = filter(ispath, paths)
     end
+    paths = unique(paths)
     if isempty(paths)
         error("Could not find $name binary")
     end
