@@ -1,4 +1,3 @@
-
 # JIT compilation of Julia code to PTX
 
 export cufunction
@@ -19,6 +18,11 @@ function module_setup(mod::LLVM.Module)
         datalayout!(mod, "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
     end
 
+    # add debug info metadata
+    push!(metadata(mod), "llvm.module.flags",
+         MDNode([ConstantInt(Int32(1)),    # llvm::Module::Error
+                 MDString("Debug Info Version"),
+                 ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
 # make function names safe for PTX
@@ -44,7 +48,6 @@ end
 
 function irgen(@nospecialize(func), @nospecialize(tt))
     # collect all modules of IR
-    # TODO: make codegen pure
     function hook_module_setup(ref::Ptr{Void})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         module_setup(LLVM.Module(ref))
@@ -54,10 +57,10 @@ function irgen(@nospecialize(func), @nospecialize(tt))
         ex = convert(LLVM.API.LLVMValueRef, ex)
         raise_exception(BasicBlock(insblock), Value(ex))
     end
-    irmods = Vector{LLVM.Module}()
+    dependencies = Vector{LLVM.Module}()
     function hook_module_activation(ref::Ptr{Void})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
-        push!(irmods, LLVM.Module(ref))
+        push!(dependencies, LLVM.Module(ref))
     end
     if VERSION >= v"0.7.0-DEV.1669"
         params = Base.CodegenParams(cached=false,
@@ -78,179 +81,170 @@ function irgen(@nospecialize(func), @nospecialize(tt))
                                     static_alloc=false,
                                     hooks=hooks)
     end
-    let irmod = parse(LLVM.Module,
-                      Base._dump_function(func, tt,
-                                          #=native=#false, #=wrapper=#false, #=strip=#false,
-                                          #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                          params),
-                      jlctx[])
-        unshift!(irmods, irmod)
+    mod = parse(LLVM.Module,
+                Base._dump_function(func, tt,
+                                    #=native=#false, #=wrapper=#false, #=strip=#false,
+                                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                                    params),
+                jlctx[])
+    if !(VERSION > v"0.7.0-DEV.2502") && !(v"0.6.3" <= VERSION < v"0.7-")
+        # NOTE: cgparams weren't passed to emit_function, breaking the module_setup hook
+        # NOTE: when removing this, there's no need to re-parse the _dump_function output,
+        #       and we can use the first module passed to module_setup
+        module_setup(mod)
     end
 
-    # FIXME: Julia doesn't honor the module_setup hook, and module_activation isn't called
-    #        for every module (causing us to re-parse the top-level module)
-
-    # link all the modules
-    mod = LLVM.Module(safe_fn(func), jlctx[])
-    module_setup(mod)
-    for irmod in irmods
-        module_setup(irmod) # FIXME
-        link!(mod, irmod)
+    # the main module should contain a single jlcall_ wrapper function,
+    # e.g. jlcall_kernel_vadd_62977
+    wrapper = let
+        fs = collect(filter(f->startswith(LLVM.name(f), "jlcall_"), functions(mod)))
+        @assert length(fs) == 1
+        fs[1]
     end
 
-    # add debug info metadata
-    # TODO: do this once module_setup is properly honored
-    #push!(metadata(mod), "llvm.module.flags",
-    #      MDNode([ConstantInt(Int32(1)),    # llvm::Module::Error
-    #              MDString("Debug Info Version"), ConstantInt(DEBUG_METADATA_VERSION())]))
+    # the wrapper function should point us to the actual entry-point,
+    # e.g. julia_kernel_vadd_62984
+    entry_tag = let
+        m = match(r"jlcall_(.+)_\d+", LLVM.name(wrapper))
+        @assert m != nothing
+        m.captures[1]
+    end
+    unsafe_delete!(mod, wrapper)
+    entry = let
+        re = Regex("julia_$(entry_tag)_\\d+")
+        llvmcall_re = Regex("julia_$(entry_tag)_\\d+u\\d+")
+        fs = collect(filter(f->ismatch(re, LLVM.name(f)) &&
+                               !ismatch(llvmcall_re, LLVM.name(f)), functions(mod)))
+        if length(fs) != 1
+            error("Could not find single entry-point for $entry_tag (available functions: ",
+                  join(map(f->LLVM.name(f), functions(mod)), ", "), ")")
+        end
+        fs[1]
+    end
+
+    # link in dependent modules
+    for dep in dependencies
+        if !(VERSION > v"0.7.0-DEV.2502") && !(v"0.6.3" <= VERSION < v"0.7-")
+            # NOTE: see above
+            module_setup(dep)
+        end
+        link!(mod, dep)
+    end
 
     # clean up incompatibilities
     for llvmf in functions(mod)
-        llvmfn = LLVM.name(llvmf)
-        if startswith(llvmfn, "jlcall_")
-            # we don't need the generic wrapper
-            unsafe_delete!(mod, llvmf)
-        else
-            # only occurs in debug builds
-            delete!(function_attributes(llvmf), EnumAttribute("sspreq"))
+        # only occurs in debug builds
+        delete!(function_attributes(llvmf), EnumAttribute("sspreq"))
 
-            # make function names safe for ptxas
-            # (LLVM ought to do this, see eg. D17738 and D19126), but fails
-            # TODO: fix all globals?
-            if !isdeclaration(llvmf)
-                llvmfn′ = safe_fn(llvmf)
-                if llvmfn != llvmfn′
-                    LLVM.name!(llvmf, llvmfn′)
-                end
+        # make function names safe for ptxas
+        # (LLVM ought to do this, see eg. D17738 and D19126), but fails
+        # TODO: fix all globals?
+        llvmfn = LLVM.name(llvmf)
+        if !isdeclaration(llvmf)
+            llvmfn′ = safe_fn(llvmf)
+            if llvmfn != llvmfn′
+                LLVM.name!(llvmf, llvmfn′)
             end
         end
     end
 
-    return mod
+    return mod, entry
 end
 
-function add_entry!(mod::LLVM.Module, @nospecialize(func), @nospecialize(tt); kernel::Bool=false)
-    # find all Julia functions
-    # TODO: let Julia report this
-    julia_fs = Dict{String,Dict{String,LLVM.Function}}()
-    r = r"^(?P<cc>(jl|japi|jsys|julia)[^\W_]*)_(?P<name>.+)_\d+$"
-    for llvmf in functions(mod)
-        m = match(r, LLVM.name(llvmf))
-        if m != nothing
-            fns = get!(julia_fs, m[:name], Dict{String,LLVM.Function}())
-            fns[m[:cc]] = llvmf
+# generate a kernel wrapper to fix & improve argument passing
+function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt))
+    entry_ft = eltype(llvmtype(entry_f))
+    @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
+
+    # filter out ghost types, which don't occur in the LLVM function signatures
+    julia_types = filter(dt->!isghosttype(dt), tt.parameters)
+
+    # generate the wrapper function type & def
+    function wrapper_type(julia_t, codegen_t)
+        if isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
+            # we didn't specify a pointer, but codegen passes one anyway.
+            # make the wrapper accept the underlying value instead.
+            return eltype(codegen_t)
+        else
+            return codegen_t
         end
     end
+    wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
+                                  for (julia_t, codegen_t)
+                                  in zip(julia_types, parameters(entry_ft))]
+    wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
+    wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
+    wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
-    # find the native entry-point function
-    fn = safe_fn(func)
-    haskey(julia_fs, fn) || error("could not find compiled function for $fn")
-    entry_fs = julia_fs[fn]
-    if !haskey(entry_fs, "julia")
-        error("could not find native function for $fn, available CCs are: ",
-              join(keys(entry_fs), ", "))
-    end
-    entry_f = entry_fs["julia"]
+    # emit IR performing the "conversions"
+    Builder(jlctx[]) do builder
+        entry = BasicBlock(wrapper_f, "entry", jlctx[])
+        position!(builder, entry)
 
-    # generate a kernel wrapper to fix & improve argument passing
-    if kernel
-        entry_ft = eltype(llvmtype(entry_f))
-        @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
+        wrapper_args = Vector{LLVM.Value}()
 
-        # filter out ghost types, which don't occur in the LLVM function signatures
-        julia_types = filter(dt->!isghosttype(dt), tt.parameters)
+        # perform argument conversions
+        codegen_types = parameters(entry_ft)
+        wrapper_params = parameters(wrapper_f)
+        for (julia_t, codegen_t, wrapper_t, wrapper_param) in
+            zip(julia_types, codegen_types, wrapper_types, wrapper_params)
+            if codegen_t != wrapper_t
+                # the wrapper argument doesn't match the kernel parameter type.
+                # this only happens when codegen wants to pass a pointer.
+                @assert isa(codegen_t, LLVM.PointerType)
+                @assert eltype(codegen_t) == wrapper_t
 
-        # generate the wrapper function type & def
-        function wrapper_type(julia_t, codegen_t)
-            if isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
-                # we didn't specify a pointer, but codegen passes one anyway.
-                # make the wrapper accept the underlying value instead.
-                return eltype(codegen_t)
-            else
-                return codegen_t
-            end
-        end
-        wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
-                                      for (julia_t, codegen_t)
-                                      in zip(julia_types, parameters(entry_ft))]
-        wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
-        wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
-        wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
-
-        # emit IR performing the "conversions"
-        Builder(jlctx[]) do builder
-            entry = BasicBlock(wrapper_f, "entry", jlctx[])
-            position!(builder, entry)
-
-            wrapper_args = Vector{LLVM.Value}()
-
-            # perform argument conversions
-            codegen_types = parameters(entry_ft)
-            wrapper_params = parameters(wrapper_f)
-            for (julia_t, codegen_t, wrapper_t, wrapper_param) in
-                zip(julia_types, codegen_types, wrapper_types, wrapper_params)
-                if codegen_t != wrapper_t
-                    # the wrapper argument doesn't match the kernel parameter type.
-                    # this only happens when codegen wants to pass a pointer.
-                    @assert isa(codegen_t, LLVM.PointerType)
-                    @assert eltype(codegen_t) == wrapper_t
-
-                    # copy the argument value to a stack slot, and reference it.
-                    ptr = alloca!(builder, wrapper_t)
-                    if LLVM.addrspace(codegen_t) != 0
-                        ptr = addrspacecast!(builder, ptr, codegen_t)
-                    end
-                    store!(builder, wrapper_param, ptr)
-                    push!(wrapper_args, ptr)
-
-                    # Julia marks parameters as TBAA immutable;
-                    # this is incompatible with us storing to a stack slot, so clear TBAA
-                    # TODO: tag with alternative information (eg. TBAA, or invariant groups)
-                    entry_params = collect(parameters(entry_f))
-                    candidate_uses = []
-                    for param in entry_params
-                        append!(candidate_uses, collect(uses(param)))
-                    end
-                    while !isempty(candidate_uses)
-                        usepair = shift!(candidate_uses)
-                        inst = user(usepair)
-
-                        md = metadata(inst)
-                        if haskey(md, LLVM.MD_tbaa)
-                            delete!(md, LLVM.MD_tbaa)
-                        end
-
-                        # follow along certain pointer operations
-                        if isa(inst, LLVM.GetElementPtrInst) ||
-                           isa(inst, LLVM.BitCastInst) ||
-                           isa(inst, LLVM.AddrSpaceCastInst)
-                            append!(candidate_uses, collect(uses(inst)))
-                        end
-                    end
-                else
-                    push!(wrapper_args, wrapper_param)
+                # copy the argument value to a stack slot, and reference it.
+                ptr = alloca!(builder, wrapper_t)
+                if LLVM.addrspace(codegen_t) != 0
+                    ptr = addrspacecast!(builder, ptr, codegen_t)
                 end
+                store!(builder, wrapper_param, ptr)
+                push!(wrapper_args, ptr)
+
+                # Julia marks parameters as TBAA immutable;
+                # this is incompatible with us storing to a stack slot, so clear TBAA
+                # TODO: tag with alternative information (eg. TBAA, or invariant groups)
+                entry_params = collect(parameters(entry_f))
+                candidate_uses = []
+                for param in entry_params
+                    append!(candidate_uses, collect(uses(param)))
+                end
+                while !isempty(candidate_uses)
+                    usepair = shift!(candidate_uses)
+                    inst = user(usepair)
+
+                    md = metadata(inst)
+                    if haskey(md, LLVM.MD_tbaa)
+                        delete!(md, LLVM.MD_tbaa)
+                    end
+
+                    # follow along certain pointer operations
+                    if isa(inst, LLVM.GetElementPtrInst) ||
+                       isa(inst, LLVM.BitCastInst) ||
+                       isa(inst, LLVM.AddrSpaceCastInst)
+                        append!(candidate_uses, collect(uses(inst)))
+                    end
+                end
+            else
+                push!(wrapper_args, wrapper_param)
             end
-
-            call!(builder, entry_f, wrapper_args)
-
-            ret!(builder)
         end
 
-        # early-inline the original entry function into the wrapper
-        push!(function_attributes(entry_f), EnumAttribute("alwaysinline"))
-        linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
-        ModulePassManager() do pm
-            always_inliner!(pm)
-            run!(pm, mod)
-        end
+        call!(builder, entry_f, wrapper_args)
 
-        entry_f = wrapper_f
+        ret!(builder)
     end
 
-    verify(mod)
+    # early-inline the original entry function into the wrapper
+    push!(function_attributes(entry_f), EnumAttribute("alwaysinline"))
+    linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
+    ModulePassManager() do pm
+        always_inliner!(pm)
+        run!(pm, mod)
+    end
 
-    return entry_f
+    return wrapper_f
 end
 
 const libdevices = Dict{String, LLVM.Module}()
@@ -391,15 +385,18 @@ end
 #
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
-function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber; kernel::Bool=true)
+function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber;
+                          kernel::Bool=true)
     check_invocation(func, tt; kernel=kernel)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
     @debug("(Re)compiling $sig for capability $cap")
 
     # generate LLVM IR
-    mod = irgen(func, tt)
-    entry = add_entry!(mod, func, tt; kernel=kernel)
+    mod, entry = irgen(func, tt)
+    if kernel
+        entry = wrap_entry!(mod, entry, tt)
+    end
     @trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary
