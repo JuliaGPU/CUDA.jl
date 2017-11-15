@@ -1,4 +1,6 @@
-VERSION >= v"0.7.0-DEV.1995" ? using Test : using Base.Test
+using Compat
+using Compat.Test
+
 include("reduce.jl")
 
 ctx = CuCurrentContext()
