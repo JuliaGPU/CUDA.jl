@@ -87,7 +87,7 @@ function irgen(@nospecialize(func), @nospecialize(tt))
                                     #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
                                     params),
                 jlctx[])
-    if !(VERSION >= v"0.7.0-DEV.2513") && !(v"0.6.3" <= VERSION < v"0.7-")
+    if !(VERSION >= v"0.7.0-DEV.2513") && !(v"0.6.2" <= VERSION < v"0.7-")
         # NOTE: cgparams weren't passed to emit_function, breaking the module_setup hook
         # NOTE: when removing this, there's no need to re-parse the _dump_function output,
         #       and we can use the first module passed to module_setup
@@ -124,7 +124,7 @@ function irgen(@nospecialize(func), @nospecialize(tt))
 
     # link in dependent modules
     for dep in dependencies
-        if !(VERSION >= v"0.7.0-DEV.2513") && !(v"0.6.3" <= VERSION < v"0.7-")
+        if !(VERSION >= v"0.7.0-DEV.2513") && !(v"0.6.2" <= VERSION < v"0.7-")
             # NOTE: see above
             module_setup(dep)
         end
