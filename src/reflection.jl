@@ -39,8 +39,10 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=kernel)
 
-    mod = irgen(func, tt)
-    entry = add_entry!(mod, func, tt; kernel=kernel)
+    mod, entry = irgen(func, tt)
+    if kernel
+        entry = wrap_entry!(mod, entry, tt)
+    end
     if optimize
         optimize!(mod, entry, cap)
     end
