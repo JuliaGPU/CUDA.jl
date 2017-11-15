@@ -141,7 +141,8 @@ function main()
         warn("Julia 0.6.1 is not supported, please use 0.6.0 or 0.6.1+ (see #124)")
     end
 
-    if config[:cuda_driver_version] != config[:cuda_toolkit_version]
+    if config[:cuda_driver_version].major != config[:cuda_toolkit_version].major ||
+       config[:cuda_driver_version].minor != config[:cuda_toolkit_version].minor
        warn("CUDA toolkit $(config[:cuda_toolkit_version]) does not match driver $(config[:cuda_driver_version]); this may lead to incompatibilities")
     end
 
