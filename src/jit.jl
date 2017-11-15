@@ -94,15 +94,16 @@ function irgen(@nospecialize(func), @nospecialize(tt))
         module_setup(mod)
     end
 
-    # the main module should contain a single jlcall_ wrapper function,
+    # the main module should contain a single jlcall_ function definition,
     # e.g. jlcall_kernel_vadd_62977
+    definitions = filter(f->!isdeclaration(f), functions(mod))
     wrapper = let
-        fs = collect(filter(f->startswith(LLVM.name(f), "jlcall_"), functions(mod)))
+        fs = collect(filter(f->startswith(LLVM.name(f), "jlcall_"), definitions))
         @assert length(fs) == 1
         fs[1]
     end
 
-    # the wrapper function should point us to the actual entry-point,
+    # the jlcall wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
     entry_tag = let
         m = match(r"jlcall_(.+)_\d+", LLVM.name(wrapper))
@@ -114,10 +115,10 @@ function irgen(@nospecialize(func), @nospecialize(tt))
         re = Regex("julia_$(entry_tag)_\\d+")
         llvmcall_re = Regex("julia_$(entry_tag)_\\d+u\\d+")
         fs = collect(filter(f->ismatch(re, LLVM.name(f)) &&
-                               !ismatch(llvmcall_re, LLVM.name(f)), functions(mod)))
+                               !ismatch(llvmcall_re, LLVM.name(f)), definitions))
         if length(fs) != 1
             error("Could not find single entry-point for $entry_tag (available functions: ",
-                  join(map(f->LLVM.name(f), functions(mod)), ", "), ")")
+                  join(map(f->LLVM.name(f), definitions), ", "), ")")
         end
         fs[1]
     end
