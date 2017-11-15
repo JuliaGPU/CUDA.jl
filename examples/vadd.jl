@@ -1,5 +1,7 @@
 using CUDAdrv, CUDAnative
-VERSION >= v"0.7.0-DEV.1995" ? using Test : using Base.Test
+
+using Compat
+using Compat.Test
 
 function kernel_vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x

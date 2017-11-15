@@ -1,5 +1,7 @@
 using CUDAnative, CUDAdrv
-VERSION >= v"0.7.0-DEV.1995" ? using Test : using Base.Test
+
+using Compat
+using Compat.Test
 
 import LLVM
 
