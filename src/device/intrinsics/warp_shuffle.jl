@@ -32,10 +32,8 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
 
             @inline $fname_sync(val::UInt32, src::Integer, width::Integer=$ws,
                                 threadmask::UInt32=0xffffffff) =
-                Base.llvmcall(
-                    $"""%5 = call i32 asm sideeffect "$instruction \$0, \$1, \$2, \$3, \$4;", "=r,r,r,r,r"(i32 %0, i32 %1, i32 %2, i32 %3)
-                        ret i32 %5""",
-                    UInt32, NTuple{4,UInt32}, val, src, $pack_expr, threadmask)
+                @asmcall($"$instruction \$0, \$1, \$2, \$3, \$4;", "=r,r,r,r,r", true,
+                         UInt32, NTuple{4,UInt32}, val, src, $pack_expr, threadmask)
 
             @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
                 $fname_sync(val, src, width)
@@ -64,15 +62,15 @@ end
     T_int = LLVM.IntType(8*bytes, jlctx[])
 
     # create function
-    llvmf = create_llvmf(T_int32, [T_val])
-    mod = LLVM.parent(llvmf)
+    llvm_f, _ = create_function(T_int32, [T_val])
+    mod = LLVM.parent(llvm_f)
 
     # generate IR
     Builder(jlctx[]) do builder
-        entry = BasicBlock(llvmf, "entry", jlctx[])
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
-        equiv = bitcast!(builder, parameters(llvmf)[1], T_int)
+        equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
         shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, 32*(i-1)))
         # extracted = and!(builder, shifted, 2^32-1)
         extracted = trunc!(builder, shifted, T_int32, "word$i")
@@ -80,7 +78,7 @@ end
         ret!(builder, extracted)
     end
 
-    call_llvmf(llvmf, UInt32, Tuple{val}, :( (val,) ))
+    call_function(llvm_f, UInt32, Tuple{val}, :( (val,) ))
 end
 
 ## insert a word into a value
@@ -92,16 +90,16 @@ end
     T_int = LLVM.IntType(8*bytes, jlctx[])
 
     # create function
-    llvmf = create_llvmf(T_val, [T_val, T_int32])
-    mod = LLVM.parent(llvmf)
+    llvm_f, _ = create_function(T_val, [T_val, T_int32])
+    mod = LLVM.parent(llvm_f)
 
     # generate IR
     Builder(jlctx[]) do builder
-        entry = BasicBlock(llvmf, "entry", jlctx[])
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
-        equiv = bitcast!(builder, parameters(llvmf)[1], T_int)
-        ext = zext!(builder, parameters(llvmf)[2], T_int)
+        equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
+        ext = zext!(builder, parameters(llvm_f)[2], T_int)
         shifted = shl!(builder, ext, LLVM.ConstantInt(T_int, 32*(i-1)))
         inserted = or!(builder, equiv, shifted)
         orig = bitcast!(builder, inserted, T_val)
@@ -109,7 +107,7 @@ end
         ret!(builder, orig)
     end
 
-    call_llvmf(llvmf, val, Tuple{val, UInt32}, :( (val, word) ))
+    call_function(llvm_f, val, Tuple{val, UInt32}, :( (val, word) ))
 end
 
 @generated function shuffle_primitive(op::Function, val, args...)

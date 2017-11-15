@@ -129,36 +129,3 @@ Base.@pure function datatype_align(::Type{T}) where {T}
     field = T.layout + sizeof(UInt32)
     unsafe_load(convert(Ptr{UInt16}, field)) & convert(Int16, 2^9-1)
 end
-
-
-# create an LLVM function, given its return (LLVM) type and a vector of argument types
-function create_llvmf(ret::LLVMType=LLVM.VoidType(jlctx[]),
-                      params::Vector{<:LLVMType}=LLVMType[],
-                      name::String="")
-    mod = LLVM.Module("llvmcall", jlctx[])
-
-    llvmf_typ = LLVM.FunctionType(ret, params)
-    llvmf = LLVM.Function(mod, name, llvmf_typ)
-    push!(function_attributes(llvmf), EnumAttribute("alwaysinline"))
-    linkage!(llvmf, LLVM.API.LLVMPrivateLinkage)
-
-    return llvmf
-end
-
-# call an LLVM function, given its return (Julia) type, a tuple-type for the arguments,
-# and an expression yielding a tuple of the actual argument values.
-function call_llvmf(llvmf::LLVM.Function, ret::Type=Void, params::Type=Tuple{},
-                    args::Expr=:())
-    quote
-        Base.@_inline_meta
-        Base.llvmcall(LLVM.ref($llvmf), $ret, $params, $args...)
-    end
-end
-
-function Base.convert(::Type{LLVMType}, typ::Type)
-    isboxed_ref = Ref{Bool}()
-    llvmtyp = LLVMType(ccall(:julia_type_to_llvm, LLVM.API.LLVMTypeRef,
-                             (Any, Ptr{Bool}), typ, isboxed_ref))
-    @assert !isboxed_ref[]
-    return llvmtyp
-end

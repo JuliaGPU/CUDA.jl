@@ -112,27 +112,27 @@ if Base.VERSION >= v"0.6.1"
 
         # create a function
         param_types = [T_ptr, T_int]
-        llvmf = create_llvmf(eltyp, param_types)
+        llvm_f, _ = create_function(eltyp, param_types)
 
         # generate IR
         Builder(jlctx[]) do builder
-            entry = BasicBlock(llvmf, "entry", jlctx[])
+            entry = BasicBlock(llvm_f, "entry", jlctx[])
             position!(builder, entry)
 
             if VERSION >= v"0.7.0-DEV.1704"
-                ptr = inttoptr!(builder, parameters(llvmf)[1], T_actual_ptr)
+                ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
             else
-                ptr = parameters(llvmf)[1]
+                ptr = parameters(llvm_f)[1]
             end
 
-            ptr = gep!(builder, ptr, [parameters(llvmf)[2]])
+            ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
             ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
             val = load!(builder, ptr_with_as)
             alignment!(val, align)
             ret!(builder, val)
         end
 
-        call_llvmf(llvmf, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(I)))))
+        call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(I)))))
     end
 
     @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::I=1,
@@ -146,28 +146,28 @@ if Base.VERSION >= v"0.6.1"
 
         # create a function
         param_types = [T_ptr, eltyp, T_int]
-        llvmf = create_llvmf(LLVM.VoidType(jlctx[]), param_types)
+        llvm_f, _ = create_function(LLVM.VoidType(jlctx[]), param_types)
 
         # generate IR
         Builder(jlctx[]) do builder
-            entry = BasicBlock(llvmf, "entry", jlctx[])
+            entry = BasicBlock(llvm_f, "entry", jlctx[])
             position!(builder, entry)
 
             if VERSION >= v"0.7.0-DEV.1704"
-                ptr = inttoptr!(builder, parameters(llvmf)[1], T_actual_ptr)
+                ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
             else
-                ptr = parameters(llvmf)[1]
+                ptr = parameters(llvm_f)[1]
             end
 
-            ptr = gep!(builder, ptr, [parameters(llvmf)[3]])
+            ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
             ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
-            val = parameters(llvmf)[2]
+            val = parameters(llvm_f)[2]
             inst = store!(builder, val, ptr_with_as)
             alignment!(inst, align)
             ret!(builder)
         end
 
-        call_llvmf(llvmf, Void, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
+        call_function(llvm_f, Void, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
     end
 else
     @inline Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,

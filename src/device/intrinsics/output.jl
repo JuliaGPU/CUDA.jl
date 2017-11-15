@@ -2,8 +2,6 @@
 
 export @cuprintf
 
-const cuprintf_fmts = Vector{String}()
-
 """
 Print a formatted string in device context on the host standard output:
 
@@ -16,14 +14,11 @@ Also beware that it is an untyped, and unforgiving `printf` implementation. Type
 to match, eg. printing a 64-bit Julia integer requires the `%ld` formatting string.
 """
 macro cuprintf(fmt::String, args...)
-    # NOTE: we can't pass fmt by Val{}, so save it in a global buffer
-    push!(cuprintf_fmts, "$fmt")
-    id = length(cuprintf_fmts)
-
-    return :(_cuprintf(Val{$id}, $(map(esc, args)...)))
+    fmt_val = Val{Symbol(fmt)}()
+    return :(_cuprintf($fmt_val, $(map(esc, args)...)))
 end
 
-@generated function _cuprintf(::Type{Val{id}}, argspec...) where {id}
+@generated function _cuprintf(::Val{fmt}, argspec...) where {fmt}
     arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
     arg_types = [argspec...]
 
@@ -35,15 +30,15 @@ end
 
     # create functions
     param_types = LLVMType[convert.(LLVMType, arg_types)...]
-    llvmf = create_llvmf(T_int32, param_types)
-    mod = LLVM.parent(llvmf)
+    llvm_f, _ = create_function(T_int32, param_types)
+    mod = LLVM.parent(llvm_f)
 
     # generate IR
     Builder(jlctx[]) do builder
-        entry = BasicBlock(llvmf, "entry", jlctx[])
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
-        fmt = globalstring_ptr!(builder, cuprintf_fmts[id])
+        str = globalstring_ptr!(builder, String(fmt))
 
         # construct and fill args buffer
         if isempty(argspec)
@@ -53,7 +48,7 @@ end
             elements!(argtypes, param_types)
 
             args = alloca!(builder, argtypes, "args")
-            for (i, param) in enumerate(parameters(llvmf))
+            for (i, param) in enumerate(parameters(llvm_f))
                 p = struct_gep!(builder, args, i-1)
                 store!(builder, param, p)
             end
@@ -64,11 +59,11 @@ end
         # invoke vprintf and return
         vprintf_typ = LLVM.FunctionType(T_int32, [T_pint8, T_pint8])
         vprintf = LLVM.Function(mod, "vprintf", vprintf_typ)
-        chars = call!(builder, vprintf, [fmt, buffer])
+        chars = call!(builder, vprintf, [str, buffer])
 
         ret!(builder, chars)
     end
 
     arg_tuple = Expr(:tuple, arg_exprs...)
-    call_llvmf(llvmf, Int32, Tuple{arg_types...}, arg_tuple)
+    call_function(llvm_f, Int32, Tuple{arg_types...}, arg_tuple)
 end

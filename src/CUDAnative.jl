@@ -2,9 +2,11 @@ __precompile__()
 
 module CUDAnative
 
-using LLVM
 using CUDAapi
 using CUDAdrv
+
+using LLVM
+using LLVM.Interop
 
 using Compat
 
