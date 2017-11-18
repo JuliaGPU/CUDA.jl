@@ -9,7 +9,7 @@ using CUDAapi
 
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 isfile(ext) || error("CUDAdrv.jl has not been built, please run Pkg.build(\"CUDAdrv\").")
-const configured = include(ext)
+include(ext)
 if !configured
     # default (non-functional) values for critical variables,
     # making it possible to _load_ the package at all times.
