@@ -12,7 +12,7 @@ end
 
 function __init__()
     if !configured
-        warn("CUDAdrv.jl has not been configured, and will not work properly.")
+        warn("CUDAdrv.jl has not been successfully built, and will not work properly.")
         warn("Please run Pkg.build(\"CUDAdrv\") and restart Julia.")
         return
     end
