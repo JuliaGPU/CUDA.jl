@@ -8,16 +8,14 @@ using Compat.String
 using CUDAapi
 
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
-const configured = if isfile(ext)
-    include(ext)
-    true
-else
-    # enable CUDAdrv.jl to be loaded when the build failed, simplifying downstream use.
-    # remove this when we have proper support for conditional modules.
+isfile(ext) || error("CUDAdrv.jl has not been built, please run Pkg.build(\"CUDAdrv\").")
+include(ext)
+if !configured
+    # default (non-functional) values for critical variables,
+    # making it possible to _load_ the package at all times.
     const libcuda_version = v"5.5"
     const libcuda_vendor = "none"
     const libcuda_path = nothing
-    false
 end
 const libcuda = libcuda_path
 
