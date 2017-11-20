@@ -1,6 +1,6 @@
 # Hacking
 
-## Generated fnuctions
+## Generated functions
 
 Generated functions are used heavily in CUDAnative.jl, in combination with LLVM.jl, to
 generate type-specialized code and IR. If evaluating the generator results in an error,
