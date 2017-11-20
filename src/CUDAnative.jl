@@ -11,14 +11,12 @@ using LLVM.Interop
 using Compat
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
-const configured = if isfile(ext)
-    include(ext)
-    true
-else
-    # enable CUDAnative.jl to be loaded when the build failed, simplifying downstream use.
-    # remove this when we have proper support for conditional modules.
+isfile(ext) || error("CUDAnative.jl has not been built, please run Pkg.build(\"CUDAnative\").")
+include(ext)
+if !configured
+    # default (non-functional) values for critical variables,
+    # making it possible to _load_ the package at all times.
     const cuda_driver_version = v"5.5"
-    false
 end
 
 include("cgutils.jl")
@@ -41,7 +39,7 @@ const default_context = Ref{CuContext}()
 const jlctx = Ref{LLVM.Context}()
 function __init__()
     if !configured
-        warn("CUDAnative.jl has not been configured, and will not work properly.")
+        warn("CUDAnative.jl has not been successfully built, and will not work properly.")
         warn("Please run Pkg.build(\"CUDAnative\") and restart Julia.")
         return
     end
