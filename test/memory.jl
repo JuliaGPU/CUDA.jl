@@ -59,20 +59,20 @@ let
     @test src == Mem.download(eltype(src), buf)
 end
 
-# various
 let
-    @test_throws ArgumentError Mem.alloc(Function)   # abstract
-    @test_throws ArgumentError Mem.alloc(Array{Int}) # UnionAll
-    @test_throws ArgumentError Mem.alloc(Integer)    # abstract
+    @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract
+    @test_throws ArgumentError Mem.alloc(Array{Int}, 1) # UnionAll
+    @test_throws ArgumentError Mem.alloc(Integer, 1)    # abstract
     # TODO: can we test for the third case?
     #       !abstract && leaftype seems to imply UnionAll nowadays...
-    @test_throws ArgumentError Mem.alloc(0)
+    @test_throws ArgumentError Mem.alloc(Int, 0)
 
     # double-free should throw (we rely on it for CuArray finalizer tests)
     x = Mem.alloc(1)
     Mem.free(x)
     @test_throws_cuerror CUDAdrv.ERROR_INVALID_VALUE Mem.free(x)
 end
+
 let
     @eval mutable struct MutablePtrFree
         foo::Int
@@ -82,6 +82,7 @@ let
     Mem.upload!(buf, [MutablePtrFree(0,0)])
     Mem.free(buf)
 end
+
 let
     @eval mutable struct MutableNonPtrFree
         foo::Int
