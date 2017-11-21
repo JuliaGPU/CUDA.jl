@@ -134,13 +134,14 @@ len = prod(dims)
     end
 
     input = round.(rand(Float32, dims) * 100)
+    output = similar(input)
 
-    input_dev = CuArray(input)
-    output_dev = similar(input_dev)
+    input_dev = Mem.upload(input)
+    output_dev = Mem.alloc(input)
 
     @cuda (1,len) exec_pass_ptr(Base.unsafe_convert(Ptr{Float32}, input_dev),
                                 Base.unsafe_convert(Ptr{Float32}, output_dev))
-    output = Array(output_dev)
+    Mem.download!(output, output_dev)
     @test input ≈ output
 end
 
@@ -158,14 +159,14 @@ end
     end
 
     arr = round.(rand(Float32, dims) * 100)
-    val = Float32[0]
+    val = [0f0]
 
-    arr_dev = CuArray(arr)
-    val_dev = CuArray(val)
+    arr_dev = Mem.upload(arr)
+    val_dev = Mem.upload(val)
 
     @cuda (1,len) exec_pass_scalar(Base.unsafe_convert(Ptr{Float32}, arr_dev),
                                    Base.unsafe_convert(Ptr{Float32}, val_dev))
-    @test arr[dims...] ≈ Array(val_dev)[1]
+    @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
 end
 
 
@@ -185,14 +186,14 @@ end
     end
 
     arr = round.(rand(Float32, dims) * 100)
-    val = Float32[0]
+    val = [0f0]
 
-    arr_dev = CuArray(arr)
-    val_dev = CuArray(val)
+    arr_dev = Mem.upload(arr)
+    val_dev = Mem.upload(val)
 
     @cuda (1,len) exec_pass_scalar_devfun(Base.unsafe_convert(Ptr{Float32}, arr_dev),
                                           Base.unsafe_convert(Ptr{Float32}, val_dev))
-    @test arr[dims...] ≈ Array(val_dev)[1]
+    @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
 end
 
 
@@ -209,14 +210,13 @@ end
     end
 
     keeps = (true,)
-    d_out = CuArray{Int}(1)
+    d_out = Mem.alloc(Int)
 
     @cuda (1,1) exec_pass_tuples(keeps, Base.unsafe_convert(Ptr{Int}, d_out))
-    @test Array(d_out) == [1]
+    @test Mem.download(Int, d_out) == [1]
 end
 
 @testset "tuple of arrays" begin
-
     @eval function exec_pass_tuples(xs)
         xs[1][1] = xs[2][1]
         nothing
@@ -236,10 +236,11 @@ end
     len = 60
     a = rand(Float32, len)
     b = rand(Float32, len)
+    c = similar(a)
 
-    d_a = CuArray(a)
-    d_b = CuArray(b)
-    d_c = similar(d_a)
+    d_a = Mem.upload(a)
+    d_b = Mem.upload(b)
+    d_c = Mem.alloc(c)
 
     @eval struct ExecGhost end
 
@@ -253,8 +254,7 @@ end
                                   Base.unsafe_convert(Ptr{Float32}, d_a),
                                   Base.unsafe_convert(Ptr{Float32}, d_b),
                                   Base.unsafe_convert(Ptr{Float32}, d_c))
-
-    c = Array(d_c)
+    Mem.download!(c, d_c)
     @test a+b == c
 
 
@@ -270,7 +270,7 @@ end
                                             Base.unsafe_convert(Ptr{Float32}, d_c),
                                             (42,))
 
-    c = Array(d_c)
+    Mem.download!(c, d_c)
     @test all(val->val==42, c)
 end
 
@@ -278,31 +278,31 @@ end
 @testset "immutables" begin
     # issue #15: immutables not passed by pointer
 
-    @eval function exec_pass_immutables(A, b)
-        unsafe_store!(A, imag(b))
-        nothing
+    @eval function exec_pass_immutables(ptr, b)
+        unsafe_store!(ptr, imag(b))
+        return nothing
     end
 
-    A = CuArray(zeros(Float32, (1,)))
+    buf = Mem.upload([0f0])
     x = Complex64(2,2)
 
-    @cuda (1, 1) exec_pass_immutables(Base.unsafe_convert(Ptr{Float32}, A), x)
-    @test Array(A) == Float32[imag(x)]
+    @cuda (1, 1) exec_pass_immutables(Base.unsafe_convert(Ptr{Float32}, buf), x)
+    @test Mem.download(Float32, buf) == [imag(x)]
 end
 
 
 @testset "automatic recompilation" begin
-    d_a = CuArray{Int}(1)
+    buf = Mem.alloc(Int)
 
-    @eval exec_265(a) = (a[1]=1; return nothing)
+    @eval exec_265(ptr) = (unsafe_store!(ptr, 1); return nothing)
 
-    @cuda (1,1) exec_265(d_a)
-    @test Array(d_a) == [1]
+    @cuda (1,1) exec_265(Base.unsafe_convert(Ptr{Int}, buf))
+    @test Mem.download(Int, buf) == [1]
 
-    @eval exec_265(a) = (a[1]=2; return nothing)
+    @eval exec_265(ptr) = (unsafe_store!(ptr, 2); return nothing)
 
-    @cuda (1,1) exec_265(d_a)
-    @test Array(d_a) == [2]
+    @cuda (1,1) exec_265(Base.unsafe_convert(Ptr{Int}, buf))
+    @test Mem.download(Int, buf) == [2]
 end
 
 end
