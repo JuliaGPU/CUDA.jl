@@ -128,7 +128,7 @@ function Base.copy!(dst::CuArray{T}, src::Array{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
-    Mem.upload(dst.buf, pointer(src), length(src) * sizeof(T))
+    Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
     return dst
 end
 
@@ -142,7 +142,7 @@ function Base.copy!(dst::Array{T}, src::CuArray{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
-    Mem.download(pointer(dst), src.buf, length(src) * sizeof(T))
+    Mem.download!(pointer(dst), src.buf, length(src) * sizeof(T))
     return dst
 end
 
@@ -156,7 +156,7 @@ function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
-    Mem.transfer(dst.buf, src.buf, length(src) * sizeof(T))
+    Mem.transfer!(dst.buf, src.buf, length(src) * sizeof(T))
     return dst
 end
 

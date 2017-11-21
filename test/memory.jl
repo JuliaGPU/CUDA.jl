@@ -9,53 +9,57 @@ end
 
 # pointer-based
 let
-    obj = 42
+    src = 42
 
-    buf = Mem.alloc(sizeof(obj))
+    buf1 = Mem.alloc(sizeof(src))
 
-    Mem.set(buf, Cuint(0), sizeof(Int)÷sizeof(Cuint))
+    Mem.set!(buf1, Cuint(0), sizeof(Int)÷sizeof(Cuint))
 
-    Mem.upload(buf, Ref(obj), sizeof(obj))
+    Mem.upload!(buf1, Ref(src), sizeof(src))
 
-    obj_copy = Ref(0)
-    Mem.download(Ref(obj_copy), buf, sizeof(obj))
-    @test obj == obj_copy[]
+    dst1 = Ref(0)
+    Mem.download!(Ref(dst1), buf1, sizeof(src))
+    @test src == dst1[]
 
-    ptr2 = Mem.alloc(sizeof(obj))
-    Mem.transfer(ptr2, buf, sizeof(obj))
-    obj_copy2 = Ref(0)
-    Mem.download(Ref(obj_copy2), ptr2, sizeof(obj))
-    @test obj == obj_copy2[]
+    buf2 = Mem.alloc(sizeof(src))
 
-    Mem.free(ptr2)
-    Mem.free(buf)
+    Mem.transfer!(buf2, buf1, sizeof(src))
+
+    dst2 = Ref(0)
+    Mem.download!(Ref(dst2), buf2, sizeof(src))
+    @test src == dst2[]
+
+    Mem.free(buf2)
+    Mem.free(buf1)
 end
 
+# type-based
 let
-    dev_array = CuArray{Int32}(10)
-    Mem.set(dev_array.buf, UInt32(0), 10)
-    host_array = Array(dev_array)
+    buf = Mem.alloc(Int)
 
-    @test all(x -> x==0, host_array)
+    # there's no type-based upload, duh
+    val = 42
+    Mem.upload!(buf, Ref(val), sizeof(val))
+
+    @test val == Mem.download(typeof(val), buf)
 end
 
 # object-based
 let
-    obj = 42
+    src = [42]
 
-    buf = Mem.alloc(typeof(obj))
+    buf = Mem.alloc(src)
 
-    Mem.upload(buf, obj)
+    Mem.upload!(buf, src)
 
-    obj_copy = Mem.download(typeof(obj), buf)
-    @test obj == obj_copy
+    dst = similar(src)
+    Mem.download!(dst, buf)
+    @test src == dst
 
-    ptr2 = Mem.upload(obj)
-
-    obj_copy2 = Mem.download(typeof(obj), ptr2)
-    @test obj == obj_copy2
+    Mem.free(buf)
 end
 
+# various
 let
     @test_throws ArgumentError Mem.alloc(Function)   # abstract
     @test_throws ArgumentError Mem.alloc(Array{Int}) # UnionAll
@@ -69,17 +73,15 @@ let
     Mem.free(x)
     @test_throws_cuerror CUDAdrv.ERROR_INVALID_VALUE Mem.free(x)
 end
-
 let
     @eval mutable struct MutablePtrFree
         foo::Int
         bar::Int
     end
     buf = Mem.alloc(MutablePtrFree)
-    Mem.upload(buf, MutablePtrFree(0,0))
+    Mem.upload!(buf, MutablePtrFree(0,0))
     Mem.free(buf)
 end
-
 let
     @eval mutable struct MutableNonPtrFree
         foo::Int

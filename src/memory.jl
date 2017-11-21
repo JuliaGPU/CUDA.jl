@@ -121,39 +121,39 @@ function free(buf::Buffer)
 end
 
 """
-    set(buf::Buffer, value::Cuint, len::Integer)
+    set!(buf::Buffer, value::Cuint, len::Integer)
 
 Initializes device memory, copying the value `val` for `len` times.
 """
-set(buf::Buffer, value::Cuint, len::Integer) =
+set!(buf::Buffer, value::Cuint, len::Integer) =
     @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), pointer(buf), value, len)
 
 """
-    upload(dst::Buffer, src, nbytes::Integer)
+    upload!(dst::Buffer, src, nbytes::Integer)
 
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
-function upload(dst::Buffer, src::Ref, nbytes::Integer)
+function upload!(dst::Buffer, src::Ref, nbytes::Integer)
     @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             pointer(dst), src, nbytes)
 end
 
 """
-    download(dst::Buffer, src, nbytes::Integer)
+    download!(dst, src::Buffer, nbytes::Integer)
 
 Download `nbytes` memory from `src` on the device to `src` on the host.
 """
-function download(dst::Ref, src::Buffer, nbytes::Integer)
+function download!(dst::Ref, src::Buffer, nbytes::Integer)
     @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
                             dst, pointer(src), nbytes)
 end
 
 """
-    transfer(dst::Buffer, src::Buffer, nbytes::Integer)
+    transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
 
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
-function transfer(dst::Buffer, src::Buffer, nbytes::Integer)
+function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
     @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
                             pointer(dst), pointer(src), nbytes)
 end
@@ -187,11 +187,11 @@ end
 Download an object `src` of type `T` from the device, and return that object.
 
 Use this interface if you want to download exactly one instance of `T`, i.e., not if you
-want to download an array of items (use [`download(::T, src::Buffer)`](@ref) for that)
+want to download an array of items (use [`download!(dst, src::Buffer)`](@ref) for that)
 """
 function download{T}(::Type{T}, src::Buffer)
     dst = Base.RefValue{T}()
-    download(dst, src, sizeof(dst))
+    download!(dst, src, sizeof(dst))
     return dst[]
 end
 
@@ -210,7 +210,7 @@ end
 
 """
     upload{T}(src)
-    upload{T}(dst::Buffer, src)
+    upload!{T}(dst::Buffer, src)
 
 Upload an object `src` from the host to the device. If a destination `dst` is not provided,
 new memory is allocated and uploaded to.
@@ -219,23 +219,23 @@ Note this does only upload the object itself, and does not peek through it in or
 to the underlying data (like `Ref` does). Consequently, this functionality should not be
 used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
 """
-function upload(dst::Buffer, src)
+function upload!(dst::Buffer, src)
     # uses RefValue, make sure we don't contain pointers
     T = typeof(src)
     _check_type(T)
 
-    upload(dst, Ref(src), sizeof(src))
+    upload!(dst, Ref(src), sizeof(src))
 end
-upload(dst::Buffer, src::AbstractArray) = upload(dst, Ref(src), sizeof(src))
+upload!(dst::Buffer, src::AbstractArray) = upload!(dst, Ref(src), sizeof(src))
 
 function upload(src)
     dst = alloc(src)
-    upload(dst, src)
+    upload!(dst, src)
     return dst
 end
 
 """
-    download(dst, src::Buffer)
+    download!(dst, src::Buffer)
 
 Download device memory from `src` to the memory location of `dst`. The amount of memory
 downloaded is determined by calling `sizeof` on the destination object, so it needs to be
@@ -245,9 +245,9 @@ Use this interface to download variable amounts of data based on the size of `ds
 that your object needs to be mutable through `Ref`; for immutable data, use the simpler
 [`download(::Type, src::Buffer)`](@ref) interface.
 """
-function download(dst, src::Buffer)
+function download!(dst, src::Buffer)
     ref = Ref(dst)
-    download(ref, src, sizeof(dst))
+    download!(ref, src, sizeof(dst))
     return
 end
 
