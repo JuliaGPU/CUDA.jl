@@ -128,24 +128,24 @@ CUDAdrv.Mem.free()
 ```@docs
 CUDAdrv.Mem.alloc(::Integer)
 CUDAdrv.Mem.free(::CUDAdrv.Buffer)
-CUDAdrv.Mem.set
-CUDAdrv.Mem.upload(::CUDAdrv.Buffer, ::Ref, ::Integer)
-CUDAdrv.Mem.download(::Ref, ::CUDAdrv.Buffer, ::Integer)
-CUDAdrv.Mem.transfer
+CUDAdrv.Mem.set!
+CUDAdrv.Mem.upload!(::CUDAdrv.Buffer, ::Ref, ::Integer)
+CUDAdrv.Mem.download!(::Ref, ::CUDAdrv.Buffer, ::Integer)
+CUDAdrv.Mem.transfer!
 ```
 
-### High-level: type and object based
+### High-level: array and type based
 
 ```@docs
-CUDAdrv.Mem.alloc(::Type)
-CUDAdrv.Mem.download(::Type, ::CUDAdrv.Buffer)
+CUDAdrv.Mem.alloc(::AbstractArray)
+CUDAdrv.Mem.upload(::AbstractArray)
+CUDAdrv.Mem.upload!(::CUDAdrv.Buffer, ::AbstractArray)
+CUDAdrv.Mem.download!(::AbstractArray, ::CUDAdrv.Buffer)
 ```
 
 ```@docs
-CUDAdrv.Mem.alloc(obj)
-CUDAdrv.Mem.upload(::CUDAdrv.Buffer, src)
-CUDAdrv.Mem.upload(src)
-CUDAdrv.Mem.download(dst, ::CUDAdrv.Buffer)
+CUDAdrv.Mem.alloc(::Type, Integer)
+CUDAdrv.Mem.download(::Type, ::CUDAdrv.Buffer, Integer)
 ```
 
 ## Stream Management
