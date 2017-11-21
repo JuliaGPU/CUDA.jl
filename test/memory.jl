@@ -33,18 +33,7 @@ let
     Mem.free(buf1)
 end
 
-# type-based
-let
-    buf = Mem.alloc(Int)
-
-    # there's no type-based upload, duh
-    val = 42
-    Mem.upload!(buf, Ref(val), sizeof(val))
-
-    @test val == Mem.download(typeof(val), buf)
-end
-
-# object-based
+# array-based
 let
     src = [42]
 
@@ -57,6 +46,17 @@ let
     @test src == dst
 
     Mem.free(buf)
+end
+
+# type-based
+let
+    buf = Mem.alloc(Int)
+
+    # there's no type-based upload, duh
+    src = [42]
+    Mem.upload!(buf, src)
+
+    @test src == Mem.download(eltype(src), buf)
 end
 
 # various
@@ -79,7 +79,7 @@ let
         bar::Int
     end
     buf = Mem.alloc(MutablePtrFree)
-    Mem.upload!(buf, MutablePtrFree(0,0))
+    Mem.upload!(buf, [MutablePtrFree(0,0)])
     Mem.free(buf)
 end
 let

@@ -159,6 +159,45 @@ function transfer!(dst::Buffer, src::Buffer, nbytes::Integer)
 end
 
 
+## array based
+
+"""
+    alloc(src::AbstractArray)
+
+Allocate space for `src` on the device and return a buffer to the allocated memory. The
+memory will not be freed automatically, use [`free(::Buffer)`](@ref) for that.
+"""
+function alloc(src::AbstractArray)
+    return alloc(sizeof(src))
+end
+
+"""
+    upload{T}(src::AbstractArray)
+    upload!{T}(dst::Buffer, src::AbstractArray)
+
+Upload an array `src` from the host to the device. If a destination `dst` is not provided,
+new memory is allocated and uploaded to.
+"""
+function upload(src::AbstractArray)
+    dst = alloc(src)
+    upload!(dst, src)
+    return dst
+end
+upload!(dst::Buffer, src::AbstractArray) = upload!(dst, Ref(src), sizeof(src))
+
+"""
+    download!(dst::AbstractArray, src::Buffer)
+
+Download device memory from `src` to the array at `dst`. The amount of memory downloaded is
+determined by calling `sizeof` on the array, so it needs to be properly preallocated.
+"""
+function download!(dst::AbstractArray, src::Buffer)
+    ref = Ref(dst)
+    download!(ref, src, sizeof(dst))
+    return
+end
+
+
 ## type based
 
 function _check_type(T)
@@ -170,85 +209,27 @@ function _check_type(T)
 end
 
 """
-    alloc(T::Type)
+    alloc(T::Type, [count::Integer=1])
 
-Allocate space for an object of type `T` on the device and return a buffer to the allocated
-memory. The memory will not be freed automatically, use [`free(::Buffer)`](@ref) for that.
+Allocate space for `count` objects of type `T` on the device and return a buffer to the
+allocated memory. The memory will not be freed automatically, use [`free(::Buffer)`](@ref)
+for that.
 """
-function alloc{T}(::Type{T})
+function alloc{T}(::Type{T}, count::Integer=1)
     _check_type(T)
 
-    return alloc(sizeof(T))
+    return alloc(sizeof(T)*count)
 end
 
 """
-    download(T::Type, src::Buffer)
+    download(T::Type, src::Buffer, [count::Integer=1])::Vector{T}
 
-Download an object `src` of type `T` from the device, and return that object.
-
-Use this interface if you want to download exactly one instance of `T`, i.e., not if you
-want to download an array of items (use [`download!(dst, src::Buffer)`](@ref) for that)
+Download `count` objects of type `T` from the device at `src`, and return a vector.
 """
-function download{T}(::Type{T}, src::Buffer)
-    dst = Base.RefValue{T}()
-    download!(dst, src, sizeof(dst))
-    return dst[]
-end
-
-
-## object based
-
-"""
-    alloc(obj)
-
-Allocate space for `obj` on the device and return a buffer to the allocated memory. The
-memory will not be freed automatically, use [`free(::Buffer)`](@ref) for that.
-"""
-function alloc(obj)
-    return alloc(sizeof(obj))
-end
-
-"""
-    upload{T}(src)
-    upload!{T}(dst::Buffer, src)
-
-Upload an object `src` from the host to the device. If a destination `dst` is not provided,
-new memory is allocated and uploaded to.
-
-Note this does only upload the object itself, and does not peek through it in order to get
-to the underlying data (like `Ref` does). Consequently, this functionality should not be
-used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
-"""
-function upload!(dst::Buffer, src)
-    # uses RefValue, make sure we don't contain pointers
-    T = typeof(src)
-    _check_type(T)
-
-    upload!(dst, Ref(src), sizeof(src))
-end
-upload!(dst::Buffer, src::AbstractArray) = upload!(dst, Ref(src), sizeof(src))
-
-function upload(src)
-    dst = alloc(src)
-    upload!(dst, src)
+function download{T}(::Type{T}, src::Buffer, count::Integer=1)
+    dst = Vector{T}(count)
+    download!(dst, src)
     return dst
-end
-
-"""
-    download!(dst, src::Buffer)
-
-Download device memory from `src` to the memory location of `dst`. The amount of memory
-downloaded is determined by calling `sizeof` on the destination object, so it needs to be
-properly preallocated.
-
-Use this interface to download variable amounts of data based on the size of `dst`. Do note
-that your object needs to be mutable through `Ref`; for immutable data, use the simpler
-[`download(::Type, src::Buffer)`](@ref) interface.
-"""
-function download!(dst, src::Buffer)
-    ref = Ref(dst)
-    download!(ref, src, sizeof(dst))
-    return
 end
 
 end
