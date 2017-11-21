@@ -14,8 +14,6 @@ a = round.(rand(Float32, dims) * 100)
 b = round.(rand(Float32, dims) * 100)
 c = similar(a)
 
-x = similar(a)
-
 d_a = Mem.upload(a)
 d_b = Mem.upload(b)
 d_c = Mem.alloc(c)
