@@ -11,7 +11,7 @@ export Mem
 
 Base.pointer(buf::Buffer) = buf.ptr
 
-Base.unsafe_convert{T}(::Type{Ptr{T}}, buf::Buffer) = convert(Ptr{T}, pointer(buf))
+Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, pointer(buf))
 
 Base.isnull(buf::Buffer) = (pointer(buf) == C_NULL)
 
@@ -215,7 +215,7 @@ Allocate space for `count` objects of type `T` on the device and return a buffer
 allocated memory. The memory will not be freed automatically, use [`free(::Buffer)`](@ref)
 for that.
 """
-function alloc{T}(::Type{T}, count::Integer=1)
+function alloc(::Type{T}, count::Integer=1) where {T}
     _check_type(T)
 
     return alloc(sizeof(T)*count)

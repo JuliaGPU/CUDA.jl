@@ -4,7 +4,7 @@ export
     CuGlobal, get, set
 
 # forward definition
-type Buffer
+struct Buffer
     ptr::Ptr{Void}
     bytesize::Int
 
