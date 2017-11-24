@@ -2,22 +2,27 @@
 
 Quick start:
 
-```@meta
-DocTestSetup = quote
-    using CUDAdrv
-end
-```
-
 ```jldoctest
+using CUDAdrv
+
 dev = CuDevice(0)
 ctx = CuContext(dev)
 
-# Code that does GPU computations
+# code that does GPU computations
 
 destroy!(ctx)
 
 # output
 
+```
+
+```@meta
+DocTestSetup = quote
+    using CUDAdrv
+
+    dev = CuDevice(0)
+    ctx = CuContext(dev)
+end
 ```
 
 
@@ -46,13 +51,40 @@ Device arrays are called `CuArray`s, as opposed to regular (CPU) Julia `Array`s
 ```jldoctest
 A   = zeros(Float32,3,4)
 d_A = CuArray(A)
+
+# output
+
+3×4 Array{Float32,2}:
+ 0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0
 ```
+
 The `d_` syntax is a conventional way of reminding yourself that the array is
 allocated on the device.
 
-To copy a device array back to the host, use
+```@meta
+DocTestSetup = quote
+    using CUDAdrv
+
+    dev = CuDevice(0)
+    ctx = CuContext(dev)
+
+    A   = zeros(Float32,3,4)
+    d_A = CuArray(A)
+end
+```
+
+To copy a device array back to the host, use:
 ```jldoctest
 copy!(A, d_A)
+
+# output
+
+3×4 Array{Float32,2}:
+ 0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0
+ 0.0  0.0  0.0  0.0
 ```
 
 You can also invert `d_A` and `A` to copy from host to device.
