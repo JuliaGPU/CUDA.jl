@@ -8,25 +8,27 @@ let
 end
 
 # pointer-based
-let
+for async in [false, true]
     src = 42
 
     buf1 = Mem.alloc(sizeof(src))
 
-    Mem.set!(buf1, Cuint(0), sizeof(Int)÷sizeof(Cuint))
+    Mem.set!(buf1, UInt32(0), sizeof(Int)÷sizeof(UInt32); async=async)
 
-    Mem.upload!(buf1, Ref(src), sizeof(src))
+    Mem.upload!(buf1, Ref(src), sizeof(src); async=async)
 
     dst1 = Ref(0)
-    Mem.download!(Ref(dst1), buf1, sizeof(src))
+    Mem.download!(Ref(dst1), buf1, sizeof(src); async=async)
+    async && synchronize()
     @test src == dst1[]
 
     buf2 = Mem.alloc(sizeof(src))
 
-    Mem.transfer!(buf2, buf1, sizeof(src))
+    Mem.transfer!(buf2, buf1, sizeof(src); async=async)
 
     dst2 = Ref(0)
-    Mem.download!(Ref(dst2), buf2, sizeof(src))
+    Mem.download!(Ref(dst2), buf2, sizeof(src); async=async)
+    async && synchronize()
     @test src == dst2[]
 
     Mem.free(buf2)
@@ -34,29 +36,39 @@ let
 end
 
 # array-based
-let
+for async in [false, true]
     src = [42]
 
-    buf = Mem.alloc(src)
+    buf1 = Mem.alloc(src)
 
-    Mem.upload!(buf, src)
+    Mem.upload!(buf1, src; async=async)
 
-    dst = similar(src)
-    Mem.download!(dst, buf)
-    @test src == dst
+    dst1 = similar(src)
+    Mem.download!(dst1, buf1; async=async)
+    async && synchronize()
+    @test src == dst1
 
-    Mem.free(buf)
+    buf2 = Mem.upload(src)
+
+    dst2 = similar(src)
+    Mem.download!(dst2, buf2; async=async)
+    async && synchronize()
+    @test src == dst2
+
+    Mem.free(buf1)
 end
 
 # type-based
-let
+for async in [false, true]
     buf = Mem.alloc(Int)
 
     # there's no type-based upload, duh
     src = [42]
     Mem.upload!(buf, src)
 
-    @test src == Mem.download(eltype(src), buf)
+    dst = Mem.download(eltype(src), buf; async=async)
+    async && synchronize()
+    @test src == dst
 end
 
 let
