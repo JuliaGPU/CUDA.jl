@@ -64,8 +64,7 @@ Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,
 
 # from CuArray
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-    owned_ptr = pointer(a)
-    ptr = Base.unsafe_convert(Ptr{T}, owned_ptr)
+    ptr = Base.unsafe_convert(Ptr{T}, Base.cconvert(Ptr{T}, a))
     CuDeviceArray{T,N,AS.Global}(a.shape, DevicePtr{T,AS.Global}(ptr))
 end
 cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global}, a)
