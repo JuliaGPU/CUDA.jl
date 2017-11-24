@@ -27,7 +27,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
 
     # inner constructors (exact types, ie. Int not <:Integer)
     function CuArray{T,N}(shape::NTuple{N,Int}) where {T,N}
-        check_type(T)
+        check_type(CuArray, T)
 
         len = prod(shape)
         buf = Mem.alloc(len*sizeof(T))
@@ -38,7 +38,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
         return obj
     end
     function CuArray{T,N}(shape::NTuple{N,Int}, buf::Buffer) where {T,N}
-        check_type(T)
+        check_type(CuArray, T)
 
         retain(buf)
 
@@ -48,7 +48,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
     end
 end
 
-function check_type(::Type{T}) where T
+function check_type(::Type{CuArray}, ::Type{T}) where {T}
     if !isbits(T)
         # non-isbits types results in an array with references to CPU objects
         throw(ArgumentError("CuArray with non-bit element type not supported"))

@@ -288,7 +288,7 @@ end
 
 ## type based
 
-function check_type(T)
+function check_type(::Type{Buffer}, T)
     if isa(T, UnionAll) || T.abstract || !T.isleaftype
         throw(ArgumentError("cannot represent abstract or non-leaf object"))
     end
@@ -302,7 +302,7 @@ end
 Allocate space for `count` objects of type `T`.
 """
 function alloc(::Type{T}, count::Integer=1) where {T}
-    check_type(T)
+    check_type(Buffer, T)
 
     return alloc(sizeof(T)*count)
 end
