@@ -1,79 +1,62 @@
 # Raw memory management
 
-export
-    Mem
+export Mem
 
-module Mem
 
-using CUDAdrv
-import CUDAdrv: @apicall, OwnedPtr
+## buffer type
+
+# forward definition in global.jl
+# NOTE: this results in Buffer not being part of the Mem submodule
+
+
+Base.pointer(buf::Buffer) = buf.ptr
+
+Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, pointer(buf))
+
+Base.isnull(buf::Buffer) = (pointer(buf) == C_NULL)
+
 
 
 ## refcounting
 
-const refcounts = Dict{Ptr{Void}, Int}()
+const refcounts = Dict{Buffer, Int}()
 
-function refcount(ptr)
-    get(refcounts, Base.unsafe_convert(Ptr{Void}, ptr), 0)
+function refcount(buf::Buffer)
+    get(refcounts, Base.unsafe_convert(Ptr{Void}, buf), 0)
 end
 
 """
-    retain(ptr)
+    retain(buf)
 
-Increase the refcount of a pointer.
+Increase the refcount of a buffer.
 """
-function retain(ptr)
-    untyped_ptr = Base.unsafe_convert(Ptr{Void}, ptr)
-    refcount = get!(refcounts, untyped_ptr, 0)
-    refcounts[untyped_ptr] = refcount + 1
+function retain(buf::Buffer)
+    refcount = get!(refcounts, buf, 0)
+    refcounts[buf] = refcount + 1
     return
 end
 
 """
-    release(ptr)
+    release(buf)
 
-Decrease the refcount of a pointer. Returns `true` if the refcount has dropped to 0, and
+Decrease the refcount of a buffer. Returns `true` if the refcount has dropped to 0, and
 some action needs to be taken.
 """
-function release(ptr)
-    untyped_ptr = Base.unsafe_convert(Ptr{Void}, ptr)
-    haskey(refcounts, untyped_ptr) || error("Release of unmanaged $ptr")
-    refcount = refcounts[untyped_ptr]
-    @assert refcount > 0 "Release of dead $ptr"
-    refcounts[untyped_ptr] = refcount - 1
+function release(buf::Buffer)
+    haskey(refcounts, buf) || error("Release of unmanaged $buf")
+    refcount = refcounts[buf]
+    @assert refcount > 0 "Release of dead $buf"
+    refcounts[buf] = refcount - 1
     return refcount==1
 end
 
 
-## pointer-based
+## memory info
 
-# TODO: single copy function, with `memcpykind(Ptr, Ptr)` (cfr. CUDArt)?
+module Mem
 
-"""
-    alloc(bytes::Integer)
-
-Allocates `bytesize` bytes of linear memory on the device and returns a pointer to the
-allocated memory. The allocated memory is suitably aligned for any kind of variable. The
-memory is not cleared, use [`free(::OwnedPtr)`](@ref) for that.
-"""
-function alloc(bytesize::Integer)
-    bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
-
-    ptr_ref = Ref{Ptr{Void}}()
-    @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
-    return OwnedPtr{Void}(ptr_ref[], CuCurrentContext())
-end
-
-"""
-    free(p::OwnedPtr)
-
-Frees device memory.
-"""
-function free(p::OwnedPtr)
-    @apicall(:cuMemFree, (Ptr{Void},), pointer(p))
-    return
-end
-
+using CUDAdrv
+import CUDAdrv: @apicall, Buffer, CuStream_t
 
 """
     info()
@@ -110,101 +93,230 @@ Returns the used amount of memory (in bytes), allocated by the CUDA context.
 used() = total()-free()
 
 
+## generic interface (for documentation purposes)
 
 """
-    set(p::OwnedPtr, value::Cuint, len::Integer)
-
-Initializes device memory, copying the value `val` for `len` times.
+Allocate linear memory on the device and return a buffer to the allocated memory. The
+allocated memory is suitably aligned for any kind of variable. The memory will not be freed
+automatically, use [`free(::Buffer)`](@ref) for that.
 """
-set(p::OwnedPtr, value::Cuint, len::Integer) =
-    @apicall(:cuMemsetD32, (Ptr{Void}, Cuint, Csize_t), pointer(p), value, len)
-
-# NOTE: upload/download also accept Ref (with Ptr <: Ref)
-#       as there exists a conversion from Ref to Ptr{Void}
+function alloc end
 
 """
-    upload(dst::OwnedPtr, src, nbytes::Integer)
+Free device memory.
+"""
+function free end
+
+"""
+Initialize device memory with a repeating value.
+"""
+function set! end
+
+"""
+Upload memory from host to device.
+Executed asynchronously on `stream` if `async` is true.
+"""
+function upload end
+@doc (@doc upload) upload!
+
+"""
+Download memory from device to host.
+Executed asynchronously on `stream` if `async` is true.
+"""
+function download end
+@doc (@doc download) download!
+
+"""
+Transfer memory from device to device.
+Executed asynchronously on `stream` if `async` is true.
+"""
+function transfer end
+@doc (@doc transfer) transfer!
+
+
+## pointer-based
+
+"""
+    alloc(bytes::Integer)
+
+Allocate `bytesize` bytes of memory.
+"""
+function alloc(bytesize::Integer)
+    bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
+
+    ptr_ref = Ref{Ptr{Void}}()
+    @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
+    return Buffer(ptr_ref[], bytesize, CuCurrentContext())
+end
+
+function free(buf::Buffer)
+    @apicall(:cuMemFree, (Ptr{Void},), pointer(buf))
+    return
+end
+
+for T in [UInt8, UInt16, UInt32]
+    bits = 8*sizeof(T)
+    fn_sync = Symbol("cuMemsetD$(bits)")
+    fn_async = Symbol("cuMemsetD$(bits)Async")
+    @eval begin
+        @doc $"""
+            set!(buf::Buffer, value::$T, len::Integer, [stream=CuDefaultStream()]; async=false)
+
+        Initialize device memory by copying the $bits-bit value `val` for `len` times.
+        Executed asynchronously if `async` is true.
+        """
+        function set!(buf::Buffer, value::$T, len::Integer,
+                      stream::CuStream=CuDefaultStream(); async::Bool=false)
+            if async
+                @apicall($(QuoteNode(fn_async)),
+                         (Ptr{Void}, $T, Csize_t, CuStream_t),
+                         pointer(buf), value, len, stream)
+            else
+                @assert stream==CuDefaultStream()
+                @apicall($(QuoteNode(fn_sync)),
+                         (Ptr{Void}, $T, Csize_t),
+                         pointer(buf), value, len)
+            end
+        end
+    end
+end
+
+"""
+    upload!(dst::Buffer, src, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
 
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
-function upload(dst::OwnedPtr, src::Ref, nbytes::Integer)
-    @apicall(:cuMemcpyHtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            pointer(dst), src, nbytes)
+function upload!(dst::Buffer, src::Ref, nbytes::Integer,
+                 stream::CuStream=CuDefaultStream(); async::Bool=false)
+    if async
+        @apicall(:cuMemcpyHtoDAsync,
+                 (Ptr{Void}, Ptr{Void}, Csize_t, CuStream_t),
+                 pointer(dst), src, nbytes, stream)
+    else
+        @assert stream==CuDefaultStream()
+        @apicall(:cuMemcpyHtoD,
+                 (Ptr{Void}, Ptr{Void}, Csize_t),
+                 pointer(dst), src, nbytes)
+    end
 end
 
 """
-    download(dst::OwnedPtr, src, nbytes::Integer)
+    download!(dst::Ref, src::Buffer, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
 
 Download `nbytes` memory from `src` on the device to `src` on the host.
 """
-function download(dst::Ref, src::OwnedPtr, nbytes::Integer)
-    @apicall(:cuMemcpyDtoH, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            dst, pointer(src), nbytes)
+function download!(dst::Ref, src::Buffer, nbytes::Integer,
+                   stream::CuStream=CuDefaultStream(); async::Bool=false)
+    if async
+        @apicall(:cuMemcpyDtoHAsync,
+                 (Ptr{Void}, Ptr{Void}, Csize_t, CuStream_t),
+                 dst, pointer(src), nbytes, stream)
+    else
+        @assert stream==CuDefaultStream()
+        @apicall(:cuMemcpyDtoH,
+                 (Ptr{Void}, Ptr{Void}, Csize_t),
+                 dst, pointer(src), nbytes)
+    end
 end
 
 """
-    download(dst::OwnedPtr, src, nbytes::Integer)
+    transfer!(dst::Buffer, src::Buffer, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
 
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
-function transfer(dst::OwnedPtr, src::OwnedPtr, nbytes::Integer)
-    @apicall(:cuMemcpyDtoD, (Ptr{Void}, Ptr{Void}, Csize_t),
-                            pointer(dst), pointer(src), nbytes)
-end
-
-
-## object-based
-
-# TODO: varargs functions for uploading multiple objects at once?
-"""
-    alloc{T}(len=1)
-
-Allocates space for `len` objects of type `T` on the device and returns a pointer to the
-allocated memory. The memory is not cleared, use [`free(::OwnedPtr)`](@ref) for that.
-"""
-function alloc(::Type{T}, len::Integer=1) where T
-    if isa(T, UnionAll) || T.abstract || !T.isleaftype
-        throw(ArgumentError("cannot represent abstract or non-leaf type"))
+function transfer!(dst::Buffer, src::Buffer, nbytes::Integer,
+                   stream::CuStream=CuDefaultStream(); async::Bool=false)
+    if async
+        @apicall(:cuMemcpyDtoDAsync,
+                 (Ptr{Void}, Ptr{Void}, Csize_t, CuStream_t),
+                 pointer(dst), pointer(src), nbytes, stream)
+    else
+        @assert stream==CuDefaultStream()
+        @apicall(:cuMemcpyDtoD,
+                 (Ptr{Void}, Ptr{Void}, Csize_t),
+                 pointer(dst), pointer(src), nbytes)
     end
-    sizeof(T) == 0 && throw(ArgumentError("cannot represent ghost types"))
+end
 
-    return convert(OwnedPtr{T}, alloc(len*sizeof(T)))
+
+## array based
+
+"""
+    alloc(src::AbstractArray)
+
+Allocate space to store the contents of `src`.
+"""
+function alloc(src::AbstractArray)
+    return alloc(sizeof(src))
 end
 
 """
-    upload{T}(src::T)
-    upload{T}(dst::OwnedPtr{T}, src::T)
+    upload!(dst::Buffer, src::AbstractArray, [stream=CuDefaultStream()]; async=false)
 
-Upload an object `src` from the host to the device. If a destination `dst` is not provided,
-new memory is allocated and uploaded to.
-
-Note this does only upload the object itself, and does not peek through it in order to get
-to the underlying data (like `Ref` does). Consequently, this functionality should not be
-used to transfer eg. arrays, use [`CuArray`](@ref)'s [`copy!`](@ref) functionality for that.
+Upload the contents of an array `src` to `dst`.
 """
-function upload(dst::OwnedPtr{T}, src::T) where T
-    Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
-    upload(dst, Base.RefValue(src), sizeof(T))
+function upload!(dst::Buffer, src::AbstractArray,
+                 stream=CuDefaultStream(); async::Bool=false)
+    upload!(dst, Ref(src), sizeof(src), stream; async=async)
 end
 
-function upload(src::T) where T
-    dst = alloc(T)
-    upload(dst, Base.RefValue(src), sizeof(T))
+"""
+    upload(src::AbstractArray)::Buffer
+
+Allocates space for and uploads the contents of an array `src`, returning a Buffer.
+Cannot be executed asynchronously due to the synchronous allocation.
+"""
+function upload(src::AbstractArray)
+    dst = alloc(src)
+    upload!(dst, src)
     return dst
 end
 
 """
-    download{T}(src::OwnedPtr{T})
+    download!(dst::AbstractArray, src::Buffer, [stream=CuDefaultStream()]; async=false)
 
-Download an object `src` from the device and return it as a host object.
-
-See [`upload`](@ref) for notes on how arguments are processed.
+Downloads memory from `src` to the array at `dst`. The amount of memory downloaded is
+determined by calling `sizeof` on the array, so it needs to be properly preallocated.
 """
-function download(src::OwnedPtr{T}) where T
-    Base.datatype_pointerfree(T) || throw(ArgumentError("cannot transfer non-ptrfree objects"))
-    dst = Base.RefValue{T}()
-    download(dst, src, sizeof(T))
-    return dst[]
+function download!(dst::AbstractArray, src::Buffer,
+                   stream::CuStream=CuDefaultStream(); async::Bool=false)
+    ref = Ref(dst)
+    download!(ref, src, sizeof(dst), stream; async=async)
+    return
+end
+
+
+## type based
+
+function check_type(::Type{Buffer}, T)
+    if isa(T, UnionAll) || T.abstract || !T.isleaftype
+        throw(ArgumentError("cannot represent abstract or non-leaf object"))
+    end
+    Base.datatype_pointerfree(T) || throw(ArgumentError("cannot handle non-ptrfree objects"))
+    sizeof(T) == 0 && throw(ArgumentError("cannot represent singleton objects"))
+end
+
+"""
+    alloc(T::Type, [count::Integer=1])
+
+Allocate space for `count` objects of type `T`.
+"""
+function alloc(::Type{T}, count::Integer=1) where {T}
+    check_type(Buffer, T)
+
+    return alloc(sizeof(T)*count)
+end
+
+"""
+    download(::Type{T}, src::Buffer, [count::Integer=1], [stream=CuDefaultStream()]; async=false)::Vector{T}
+
+Download `count` objects of type `T` from the device at `src`, returning a vector.
+"""
+function download(::Type{T}, src::Buffer, count::Integer=1,
+                  stream::CuStream=CuDefaultStream(); async::Bool=false) where {T}
+    dst = Vector{T}(count)
+    download!(dst, src, stream; async=async)
+    return dst
 end
 
 end

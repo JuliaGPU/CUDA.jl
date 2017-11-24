@@ -114,27 +114,38 @@ CUDAdrv.CuModule(::CUDAdrv.CuLinkImage, args...)
 
 ## Memory Management
 
-### Pointer-based (low-level)
+### Memory info
 
 ```@docs
-CUDAdrv.Mem.alloc(::Integer)
-CUDAdrv.Mem.free(::CUDAdrv.OwnedPtr)
 CUDAdrv.Mem.info
 CUDAdrv.Mem.total
 CUDAdrv.Mem.used
 CUDAdrv.Mem.free()
-CUDAdrv.Mem.set
-CUDAdrv.Mem.upload(::CUDAdrv.OwnedPtr, ::Ref, ::Integer)
-CUDAdrv.Mem.download(::Ref, ::CUDAdrv.OwnedPtr, ::Integer)
-CUDAdrv.Mem.transfer
 ```
 
-### Object-based (high-level)
+### Low-level: pointer based
 
 ```@docs
-CUDAdrv.Mem.alloc(::Type, ::Integer)
-CUDAdrv.Mem.upload{T}(::CUDAdrv.OwnedPtr{T}, ::T)
-CUDAdrv.Mem.download(::CUDAdrv.OwnedPtr)
+CUDAdrv.Mem.alloc(::Integer)
+CUDAdrv.Mem.free(::CUDAdrv.Buffer)
+CUDAdrv.Mem.set!
+CUDAdrv.Mem.upload!(::CUDAdrv.Buffer, ::Ref, ::Integer)
+CUDAdrv.Mem.download!(::Ref, ::CUDAdrv.Buffer, ::Integer)
+CUDAdrv.Mem.transfer!
+```
+
+### High-level: array and type based
+
+```@docs
+CUDAdrv.Mem.alloc(::AbstractArray)
+CUDAdrv.Mem.upload(::AbstractArray)
+CUDAdrv.Mem.upload!(::CUDAdrv.Buffer, ::AbstractArray)
+CUDAdrv.Mem.download!(::AbstractArray, ::CUDAdrv.Buffer)
+```
+
+```@docs
+CUDAdrv.Mem.alloc(::Type, Integer)
+CUDAdrv.Mem.download(::Type, ::CUDAdrv.Buffer, Integer)
 ```
 
 ## Stream Management

@@ -8,52 +8,67 @@ let
 end
 
 # pointer-based
-let
-    obj = 42
+for async in [false, true]
+    src = 42
 
-    ptr = Mem.alloc(sizeof(obj))
+    buf1 = Mem.alloc(sizeof(src))
 
-    Mem.set(ptr, Cuint(0), sizeof(Int)÷sizeof(Cuint))
+    Mem.set!(buf1, UInt32(0), sizeof(Int)÷sizeof(UInt32); async=async)
 
-    Mem.upload(ptr, Ref(obj), sizeof(obj))
+    Mem.upload!(buf1, Ref(src), sizeof(src); async=async)
 
-    obj_copy = Ref(0)
-    Mem.download(Ref(obj_copy), ptr, sizeof(obj))
-    @test obj == obj_copy[]
+    dst1 = Ref(0)
+    Mem.download!(Ref(dst1), buf1, sizeof(src); async=async)
+    async && synchronize()
+    @test src == dst1[]
 
-    ptr2 = Mem.alloc(sizeof(obj))
-    Mem.transfer(ptr2, ptr, sizeof(obj))
-    obj_copy2 = Ref(0)
-    Mem.download(Ref(obj_copy2), ptr2, sizeof(obj))
-    @test obj == obj_copy2[]
+    buf2 = Mem.alloc(sizeof(src))
 
-    Mem.free(ptr2)
-    Mem.free(ptr)
+    Mem.transfer!(buf2, buf1, sizeof(src); async=async)
+
+    dst2 = Ref(0)
+    Mem.download!(Ref(dst2), buf2, sizeof(src); async=async)
+    async && synchronize()
+    @test src == dst2[]
+
+    Mem.free(buf2)
+    Mem.free(buf1)
 end
 
-let
-    dev_array = CuArray{Int32}(10)
-    Mem.set(dev_array.ptr, UInt32(0), 10)
-    host_array = Array(dev_array)
+# array-based
+for async in [false, true]
+    src = [42]
 
-    @test all(x -> x==0, host_array)
+    buf1 = Mem.alloc(src)
+
+    Mem.upload!(buf1, src; async=async)
+
+    dst1 = similar(src)
+    Mem.download!(dst1, buf1; async=async)
+    async && synchronize()
+    @test src == dst1
+
+    buf2 = Mem.upload(src)
+
+    dst2 = similar(src)
+    Mem.download!(dst2, buf2; async=async)
+    async && synchronize()
+    @test src == dst2
+
+    Mem.free(buf1)
 end
 
-# object-based
-let
-    obj = 42
+# type-based
+for async in [false, true]
+    buf = Mem.alloc(Int)
 
-    ptr = Mem.alloc(typeof(obj))
+    # there's no type-based upload, duh
+    src = [42]
+    Mem.upload!(buf, src)
 
-    Mem.upload(ptr, obj)
-
-    obj_copy = Mem.download(ptr)
-    @test obj == obj_copy
-
-    ptr2 = Mem.upload(obj)
-
-    obj_copy2 = Mem.download(ptr2)
-    @test obj == obj_copy2
+    dst = Mem.download(eltype(src), buf; async=async)
+    async && synchronize()
+    @test src == dst
 end
 
 let
@@ -75,9 +90,9 @@ let
         foo::Int
         bar::Int
     end
-    ptr = Mem.alloc(MutablePtrFree, 1)
-    Mem.upload(ptr, MutablePtrFree(0,0))
-    Mem.free(ptr)
+    buf = Mem.alloc(MutablePtrFree)
+    Mem.upload!(buf, [MutablePtrFree(0,0)])
+    Mem.free(buf)
 end
 
 let
@@ -85,9 +100,7 @@ let
         foo::Int
         bar::String
     end
-    ptr = Mem.alloc(MutableNonPtrFree, 1)
-    @test_throws ArgumentError Mem.upload(ptr, MutableNonPtrFree(0,""))
-    Mem.free(ptr)
+    @test_throws ArgumentError Mem.alloc(MutableNonPtrFree)
 end
 
 end

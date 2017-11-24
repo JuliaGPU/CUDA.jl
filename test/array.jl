@@ -4,8 +4,8 @@ let
     # inner constructors
     let
         arr = CuArray{Int,1}((2,))
-        ptr = arr.ptr
-        CuArray{Int,1}((2,), ptr)
+        buf = arr.buf
+        CuArray{Int,1}((2,), buf)
     end
 
     # outer constructors
@@ -59,9 +59,10 @@ let
 
     # conversions
     let
-        ptr = CUDAdrv.OwnedPtr{Int}(convert(Ptr{Int}, C_NULL), CuContext(C_NULL))
-        @test Base.unsafe_convert(Ptr{Int}, CuArray{Int,1}((1,), ptr)) == C_NULL
-        @test pointer(CuArray{Int,1}((1,), ptr)) == ptr
+        buf = CUDAdrv.Buffer(C_NULL, 0, CuContext(C_NULL))
+        a = CuArray{Int,1}((1,), buf)
+
+        @test Base.unsafe_convert(Ptr{Int}, Base.cconvert(Ptr{Int}, a)) == C_NULL
     end
 
     # copy: size mismatches
