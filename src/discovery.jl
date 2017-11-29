@@ -277,27 +277,38 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
     elseif Compat.Sys.iswindows()
-        # Windows: just use cl.exe
+        # Windows: find compatible Visual Studio installation providing cl.exe
 
-        # NOTE: we could try and detect cl.exe from the env vars below,
-        #       but Microsoft seems to change the location often.
-        #       so we just require the user to modify his PATH
-        # envvars = collect(filter(key->ismatch(r"^VS\d+.+TOOLS$", key), keys(ENV)))
-        # if isempty(envvars)
-        #     error("Could not find Visual Studio environment variable; did you install Visual Studio and start Julia through the Developer Command Prompt?")
-        # elseif length(envvars) > 1
-        #     warn("Found multiple Visual Studio installations")
-        # end
-        # tools_dir = ENV[envvars[1]]
+        # find the maximally supported version of msvc
+        msvc_range = msvc_for_cuda(toolkit_version)
+        @trace("CUDA $toolkit_version supports MSVC $msvc_range")
 
-        msvc_path = try
-            find_binary("cl")
-        catch ex
-            isa(ex, ErrorException) || rethrow(ex)
-            error("Could not find the Microsoft Visual C++ Compiler (cl.exe); did you install Visual Studio and put cl.exe on your PATH?")
+        # find Visual Studio installation
+        vswhere_path = download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
+        vs_path = chomp(read(`$vswhere_path -latest -property installationPath`, String))
+        if !isdir(vs_path)
+            error("Cannot find a proper Visual Studio installation. Make sure Visual Studio is installed.")
         end
 
-        host_compiler, host_version = msvc_path, nothing
+        # parse the version number
+        msvc_ver_str = chomp(read(`$vswhere_path  -latest -property installationVersion`, String))
+        msvc_ver_parts = parse.(Int, split(msvc_ver_str, "."))
+        msvc_ver = VersionNumber(msvc_ver_parts[1:min(3,length(msvc_ver_parts))]...)
+        if !in(msvc_ver, msvc_range)
+            error("Visual Studio C++ compiler $msvc_ver is not compatible with CUDA $toolkit_version")
+        end
+
+        # spawn a developer prompt to find cl.exe
+        vs_prompt = if msvc_ver >= v"15"
+            joinpath(vs_path, "VC", "Auxiliary", "Build", "vcvarsall.bat")
+        else
+            joinpath(vs_path, "VC", "vcvarsall.bat")
+        end
+        arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
+        msvc_path = readlines(`cmd /C "$vs_prompt" $arch \& where cl.exe`)[end]
+        @assert ispath(msvc_path)
+
+        host_compiler, host_version = msvc_path, msvc_ver
     elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: proper version matching, etc

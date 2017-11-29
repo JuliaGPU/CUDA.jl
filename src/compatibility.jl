@@ -48,6 +48,27 @@ function gcc_for_cuda(ver::VersionNumber)
 end
 
 
+# MSVC compilers supported by the CUDA toolkit
+
+# Source: CUDA_Getting_Started_Windows.pdf
+const cuda_msvc_db = Dict(
+    v"5.5" => v"9":v"12-",
+    v"6.0" => v"9":v"12-",
+    v"6.5" => v"10":v"13-",
+    v"7.0" => v"10":v"13-",
+    v"7.5" => v"10":v"13-",
+    v"8.0" => v"10":v"15-",
+    v"9.0" => v"10":v"16-"
+)
+
+function msvc_for_cuda(ver::VersionNumber)
+    match_ver = VersionNumber(ver.major, ver.minor)
+    return get(cuda_msvc_db, match_ver) do
+        error("no support for CUDA $ver")
+    end
+end
+
+
 # devices supported by the CUDA toolkit
 
 # Source:
