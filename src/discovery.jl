@@ -7,6 +7,12 @@ export find_library, find_binary,
 const nvcc = "nvcc"
 
 const libcuda = Compat.Sys.iswindows() ? "nvcuda" : "cuda"
+const libcudart = if Compat.Sys.iswindows()
+    tag = Sys.WORD_SIZE == 64 ? "64" : "32"
+    map(ver->"cudart$(tag)_$(ver.major)$(ver.minor)", toolkits)
+else
+    "cudart"
+end
 const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 
 
@@ -16,18 +22,21 @@ const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 # especially for find_binary.
 
 # wrapper for Libdl.find_library, looking for more names in more locations.
-find_library(name, prefix::String) = find_library(name, [prefix])
-function find_library(name, prefixes=String[])
+find_library(name::String, prefix::String) = find_library(name, [prefix])
+function find_library(name::String, prefixes::Vector{String}=String[])
     @debug("Looking for $name library in $prefixes")
 
     # figure out names
     if Compat.Sys.iswindows()
-        tag = Sys.WORD_SIZE == 64 ? "64" : "32"
-        names = map(ver->"$name$(tag)_$(ver.major)$(ver.minor)", toolkits)
+        names = [name]
     else
         names = ["lib$name"]
     end
 
+    find_library(names, prefixes)
+end
+find_library(names::Vector{String}, prefix::String) = find_library(names, [prefix])
+function find_library(names::Vector{String}, prefixes::Vector{String}=String[])
     # figure out locations
     locations = []
     for prefix in prefixes
@@ -41,7 +50,7 @@ function find_library(name, prefixes=String[])
     @trace("Checking for $names in $locations")
     name = Libdl.find_library(names, locations)
     if isempty(name)
-        error("Could not find $name library")
+        error("Could not find any of $names")
     end
 
     # find the full path of the library
@@ -150,18 +159,6 @@ function find_toolkit()
         @trace("Considering CUDA toolkit at $(envvals...) based on environment variables")
         unshift!(dirs, envvals...)
     end
-    ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
-    try
-        libcudart_path = find_library("cudart")
-        dir = dirname(libcudart_path)
-        if ismatch(r"^lib(32|64)?$", basename(dir))
-            dir = dirname(dir)
-        end
-        @trace("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
-        push!(dirs, dir)
-    catch ex
-        isa(ex, ErrorException) || rethrow(ex)
-    end
     ## look for the compiler binary (in the case PATH points to the installation)
     try
         nvcc_path = find_binary(nvcc)
@@ -170,6 +167,18 @@ function find_toolkit()
             dir = dirname(dir)
         end
         @trace("Considering CUDA toolkit at $dir based on nvcc at $nvcc_path")
+        push!(dirs, dir)
+    catch ex
+        isa(ex, ErrorException) || rethrow(ex)
+    end
+    ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
+    try
+        libcudart_path = find_library(libcudart)
+        dir = dirname(libcudart_path)
+        if ismatch(r"^lib(32|64)?$", basename(dir))
+            dir = dirname(dir)
+        end
+        @trace("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
         push!(dirs, dir)
     catch ex
         isa(ex, ErrorException) || rethrow(ex)
@@ -269,13 +278,26 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
         host_compiler, host_version = gcc_possibilities[1]
     elseif Compat.Sys.iswindows()
         # Windows: just use cl.exe
-        vc_versions = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
-        !any(x -> haskey(ENV, x), vc_versions) && error("Compatible Visual Studio installation cannot be found; Visual Studio 2015, 2013, 2012, or 2010 is required.")
-        vs_cmd_tools_dir = ENV[vc_versions[first(find(x -> haskey(ENV, x), vc_versions))]]
-        cl_path = joinpath(dirname(dirname(dirname(vs_cmd_tools_dir))), "VC", "bin", Sys.WORD_SIZE == 64 ? "amd64" : "", "cl.exe")
 
-        host_compiler = cl_path
-        host_version = nothing
+        # NOTE: we could try and detect cl.exe from the env vars below,
+        #       but Microsoft seems to change the location often.
+        #       so we just require the user to modify his PATH
+        # envvars = collect(filter(key->ismatch(r"^VS\d+.+TOOLS$", key), keys(ENV)))
+        # if isempty(envvars)
+        #     error("Could not find Visual Studio environment variable; did you install Visual Studio and start Julia through the Developer Command Prompt?")
+        # elseif length(envvars) > 1
+        #     warn("Found multiple Visual Studio installations")
+        # end
+        # tools_dir = ENV[envvars[1]]
+
+        msvc_path = try
+            find_binary("cl")
+        catch ex
+            isa(ex, ErrorException) || rethrow(ex)
+            error("Could not find the Microsoft Visual C++ Compiler (cl.exe); did you install Visual Studio and put cl.exe on your PATH?")
+        end
+
+        host_compiler, host_version = msvc_path, nothing
     elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: proper version matching, etc
