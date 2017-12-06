@@ -19,7 +19,7 @@ end
 function pairwise_dist_cpu(lat::Vector{Float32}, lon::Vector{Float32})
     # allocate
     n = length(lat)
-    rowresult = Array{Float32}(n, n)
+    rowresult = Array{Float32}(uninitialized, n, n)
     
     # brute force fill in each cell
     for i in 1:n, j in 1:n
