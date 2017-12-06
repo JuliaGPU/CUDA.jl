@@ -83,7 +83,7 @@ end
     # from which the actual kernel parameter will be copied.
 
     # put arguments in Ref boxes so that we can get a pointers to them
-    arg_refs = Vector{Symbol}(N)
+    arg_refs = Vector{Symbol}(uninitialized, N)
     for i in 1:N
         arg_refs[i] = gensym()
         push!(ex.args, :($(arg_refs[i]) = Base.RefValue(args[$i])))
@@ -193,7 +193,7 @@ end
     # convert the argument values to match the kernel's signature (specified by the user)
     # (this mimics `lower-ccall` in julia-syntax.scm)
 
-    arg_ptrs = Vector{Symbol}(N)
+    arg_ptrs = Vector{Symbol}(uninitialized, N)
     for i in 1:N
         converted_arg = gensym()
         arg_ptrs[i] = gensym()

@@ -28,7 +28,7 @@ function CuStream(flags::Integer=0)
 
     ctx = CuCurrentContext()
     obj = CuStream(handle_ref[], ctx)
-    finalizer(obj, unsafe_destroy!)
+    @compat finalizer(unsafe_destroy!, obj)
     return obj
 end
 

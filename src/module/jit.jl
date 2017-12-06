@@ -32,8 +32,8 @@ function convert_bits(::Type{T}, data::UInt) where T
 end
 
 function encode(options::Dict{CUjit_option,Any})
-    keys = Array{CUjit_option}(0)
-    vals = Array{Ptr{Void}}(0)
+    keys = Vector{CUjit_option}()
+    vals = Vector{Ptr{Void}}()
 
     for (opt, val) in options
         push!(keys, opt)
@@ -62,7 +62,7 @@ function encode(options::Dict{CUjit_option,Any})
     return keys, vals
 end
 
-function decode(keys::Array{CUjit_option,1}, vals::Array{Ptr{Void}, 1})
+function decode(keys::Vector{CUjit_option}, vals::Vector{Ptr{Void}})
     @assert length(keys) == length(vals)
     options = Dict{CUjit_option,Any}()
 

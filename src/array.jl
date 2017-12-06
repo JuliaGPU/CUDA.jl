@@ -34,7 +34,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
         retain(buf)
 
         obj = new{T,N}(buf, shape)
-        finalizer(obj, unsafe_free!)
+        @compat finalizer(unsafe_free!, obj)
         return obj
     end
     function CuArray{T,N}(shape::NTuple{N,Int}, buf::Buffer) where {T,N}
@@ -43,7 +43,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
         retain(buf)
 
         obj = new{T, N}(buf, shape)
-        finalizer(obj, unsafe_free!)
+        @compat finalizer(unsafe_free!, obj)
         return obj
     end
 end
@@ -175,4 +175,4 @@ CuArray(src::Array{T,N}) where {T,N} = copy!(CuArray{T,N}(size(src)), src)
 
 Transfer a device array `src` to host, returning an `Array`.
 """
-Base.Array(src::CuArray{T,N}) where {T,N} = copy!(Array{T,N}(size(src)), src)
+Base.Array(src::CuArray{T,N}) where {T,N} = copy!(Array{T,N}(uninitialized, size(src)), src)

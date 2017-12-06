@@ -39,7 +39,7 @@ Returns an identifier string for the device.
 """
 function name(dev::CuDevice)
     buflen = 256
-    buf = Array{Cchar}(buflen)
+    buf = Vector{Cchar}(uninitialized, buflen)
     @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CuDevice_t),
                                buf, buflen, dev)
     buf[end] = 0
