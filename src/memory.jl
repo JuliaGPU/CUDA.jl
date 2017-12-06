@@ -58,6 +58,8 @@ module Mem
 using CUDAdrv
 import CUDAdrv: @apicall, Buffer, CuStream_t
 
+using Compat
+
 """
     info()
 
@@ -314,7 +316,7 @@ Download `count` objects of type `T` from the device at `src`, returning a vecto
 """
 function download(::Type{T}, src::Buffer, count::Integer=1,
                   stream::CuStream=CuDefaultStream(); async::Bool=false) where {T}
-    dst = Vector{T}(count)
+    dst = Vector{T}(uninitialized, count)
     download!(dst, src, stream; async=async)
     return dst
 end

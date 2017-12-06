@@ -23,12 +23,12 @@ mutable struct CuLink
         handle_ref = Ref{CuLinkState_t}()
 
         options = Dict{CUjit_option,Any}()
-        options[ERROR_LOG_BUFFER] = Array{UInt8}(1024*1024)
+        options[ERROR_LOG_BUFFER] = Vector{UInt8}(uninitialized, 1024*1024)
         @static if CUDAapi.DEBUG
             options[GENERATE_LINE_INFO] = true
             options[GENERATE_DEBUG_INFO] = true
 
-            options[INFO_LOG_BUFFER] = Array{UInt8}(1024*1024)
+            options[INFO_LOG_BUFFER] = Vector{UInt8}(uninitialized, 1024*1024)
             options[LOG_VERBOSE] = true
         end
         optionKeys, optionVals = encode(options)
@@ -38,7 +38,7 @@ mutable struct CuLink
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx, options, optionKeys, optionVals)
-        finalizer(obj, unsafe_destroy!)
+        @compat finalizer(unsafe_destroy!, obj)
         return obj
     end
 end

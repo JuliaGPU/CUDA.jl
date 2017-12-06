@@ -51,7 +51,7 @@ mutable struct CuContext
         # this prevents contexts from getting collected, requiring the user to destroy it.
         ctx = get!(context_instances, handle) do
             obj = new(handle, owned, true)
-            finalizer(obj, unsafe_destroy!)
+            @compat finalizer(unsafe_destroy!, obj)
             return obj
         end
 
