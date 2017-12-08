@@ -15,7 +15,7 @@ Base.scale!(x::CuArray{T}, k::Number) where T<:CublasFloat =
 
 # Work around ambiguity with GPUArrays wrapper
 Base.scale!(x::CuArray{T}, k::Real) where T<:CublasFloat =
-  invoke(scale!, (typeof(x), Number), x, k)
+  invoke(scale!, Tuple{typeof(x), Number}, x, k)
 
 function Base.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
     n = length(DX)

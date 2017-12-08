@@ -2,8 +2,11 @@ using CuArrays
 using CuArrays.CUSOLVER
 using Base.Test
 
+@testset "cuSolver" begin
+
 m = 15
 n = 10
+l = 13
 k = 1
 
 @testset for elty in [Float32, Float64, Complex64, Complex128]
@@ -86,17 +89,59 @@ k = 1
     end
 
     @testset "ormqr!" begin
-        A         = rand(elty,n,n)
+        A          = rand(elty, m, n)
+        d_A        = CuArray(A)
+        d_A, d_tau = CUSOLVER.geqrf!(d_A)
+        B          = rand(elty, n, l)
+        d_B        = CuArray(B)
+        d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
+        h_B        = collect(d_B)
+        qr         = qrfact!(A)
+        @test h_B  ≈ Array(qr[:Q])*B
+        A          = rand(elty, n, m)
+        d_A        = CuArray(A)
+        d_A, d_tau = CUSOLVER.geqrf!(d_A)
+        B          = rand(elty, n, l)
+        d_B        = CuArray(B)
+        d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
+        h_B        = collect(d_B)
+        qr         = qrfact!(A)
+        @test h_B  ≈ Array(qr[:Q])*B
+        A          = rand(elty, m, n)
+        d_A        = CuArray(A)
+        d_A, d_tau = CUSOLVER.geqrf!(d_A)
+        B          = rand(elty, l, m)
+        d_B        = CuArray(B)
+        d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
+        h_B        = collect(d_B)
+        qr         = qrfact!(A)
+        @test h_B  ≈ B*Array(qr[:Q])
+        A          = rand(elty, n, m)
+        d_A        = CuArray(A)
+        d_A, d_tau = CUSOLVER.geqrf!(d_A)
+        B          = rand(elty, l, n)
+        d_B        = CuArray(B)
+        d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
+        h_B        = collect(d_B)
+        qr         = qrfact!(A)
+        @test h_B  ≈ B*Array(qr[:Q])
+    end
+
+    @testset "orgqr!" begin
+        A         = rand(elty,n,m)
         d_A       = CuArray(A)
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
-        h_A       = collect(d_A)
-        h_tau     = collect(d_tau)
-        qra       = Base.LinAlg.QR(h_A, h_tau)
-        B         = rand(elty,n,n)
-        d_B       = CuArray(B)
-        d_B       = CUSOLVER.ormqr!('L','N',d_A,d_tau,d_B)
-        h_B       = collect(d_B)
-        @test h_B ≈ qra[:Q]*B
+        d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
+        h_Q       = collect(d_Q)
+        qr        = qrfact!(A)
+        @test h_Q ≈ Array(qr[:Q])
+        A         = rand(elty,m,n)
+        d_A       = CuArray(A)
+        d_A,d_tau = CUSOLVER.geqrf!(d_A)
+        d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
+        h_Q       = collect(d_Q)
+        qr        = qrfact!(A)
+        @test h_Q ≈ Array(qr[:Q])
     end
 
     @testset "sytrf!" begin
@@ -142,8 +187,42 @@ k = 1
         h_U            = collect(d_U)
         h_Vt           = collect(d_Vt)
         svda           = svdfact(A,thin=false)
-        # @test h_U ≈ svda[:U]
-        # @test h_S ≈ svdvals(A)
-        # @test h_Vt ≈ svda[:Vt]
+        @test h_U ≈ svda[:U]
+        @test h_S ≈ svdvals(A)
+        @test h_Vt ≈ svda[:Vt]
     end
+
+    @testset "qr" begin
+        A              = rand(elty, m, n)
+        d_A            = CuArray(A)
+        d_q            = qrq!(d_A)
+        h_q            = collect(d_q)
+        q              = qrfact!(A)
+        @test h_q ≈ Array(q[:Q])
+        A              = rand(elty, n, m)
+        d_A            = CuArray(A)
+        d_q            = qrq!(d_A)
+        h_q            = collect(d_q)
+        q              = qrfact!(A)
+        @test h_q ≈ Array(q[:Q])
+        CuArrays.allowscalar(true)
+        A              = rand(elty, m, n)
+        d_A            = CuArray(A)
+        d_q, d_r       = qr(d_A)
+        h_q, h_r       = collect(d_q), collect(d_r)
+        q, r           = qr(A)
+        @test h_q ≈ q
+        @test h_r ≈ r
+        A              = rand(elty, n, m)
+        d_A            = CuArray(A)
+        d_q, d_r       = qr(d_A)
+        h_q, h_r       = collect(d_q), collect(d_r)
+        q, r           = qr(A)
+        @test h_q ≈ q
+        @test h_r ≈ r
+        CuArrays.allowscalar(false)
+    end
+
+end
+
 end
