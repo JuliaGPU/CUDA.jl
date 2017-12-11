@@ -3,14 +3,6 @@
 export
     CuGlobal, get, set
 
-# forward definition
-struct Buffer
-    ptr::Ptr{Void}
-    bytesize::Int
-
-    ctx::CuContext
-end
-
 
 """
     CuGlobal{T}(mod::CuModule, name::String)
@@ -18,7 +10,7 @@ end
 Acquires a typed global variable handle from a named global in a module.
 """
 struct CuGlobal{T}
-    buf::Buffer
+    buf::Mem.Buffer
 
     function CuGlobal{T}(mod::CuModule, name::String) where T
         ptr_ref = Ref{Ptr{Void}}()
@@ -28,7 +20,7 @@ struct CuGlobal{T}
         if nbytes_ref[] != sizeof(T)
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
-        buf = Buffer(ptr_ref[], nbytes_ref[], CuCurrentContext())
+        buf = Mem.Buffer(ptr_ref[], nbytes_ref[], CuCurrentContext())
 
         return new{T}(buf)
     end

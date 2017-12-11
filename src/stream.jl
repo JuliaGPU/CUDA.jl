@@ -35,7 +35,7 @@ end
 function unsafe_destroy!(s::CuStream)
     if isvalid(s.ctx)
         @trace("Finalizing CuStream object at $(Base.pointer_from_objref(s))")
-        @apicall(:cuStreamDestroy, (CuModule_t,), s)
+        @apicall(:cuStreamDestroy, (CuStream_t,), s)
     else
         @trace("Skipping finalizer for CuStream object at $(Base.pointer_from_objref(s)) because context is no longer valid")
     end

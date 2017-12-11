@@ -59,7 +59,7 @@ let
 
     # conversions
     let
-        buf = CUDAdrv.Buffer(C_NULL, 0, CuContext(C_NULL))
+        buf = Mem.Buffer(C_NULL, 0, CuContext(C_NULL))
         a = CuArray{Int,1}((1,), buf)
 
         @test Base.unsafe_convert(Ptr{Int}, Base.cconvert(Ptr{Int}, a)) == C_NULL
