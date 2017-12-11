@@ -1,5 +1,6 @@
 export find_library, find_binary,
-       find_driver, find_toolkit, find_toolkit_version, find_toolchain
+       find_driver, find_toolkit, find_toolkit_version,
+       find_host_compiler, find_toolchain
 
 
 # names
@@ -226,12 +227,21 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
     nvcc_version = toolkit_version
 
     # find a suitable host compiler
+    host_compiler, host_version = find_host_compiler(toolkit_version)
+
+    return Toolchain(nvcc_path, nvcc_version,
+                     host_compiler, host_version)
+end
+
+function find_host_compiler(toolkit_version=nothing)
     if !(Compat.Sys.iswindows() || Compat.Sys.isapple())
         # Unix-like platforms: find compatible GCC binary
 
         # find the maximally supported version of gcc
-        gcc_range = gcc_for_cuda(toolkit_version)
-        @trace("CUDA $toolkit_version supports GCC $gcc_range")
+        gcc_range = if toolkit_version != nothing
+            gcc_for_cuda(toolkit_version)
+            @trace("CUDA $toolkit_version supports GCC $gcc_range")
+        end
 
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
@@ -265,7 +275,7 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
             gcc_ver = VersionNumber(m.captures[1])
             @trace("Found GCC $gcc_ver at $gcc_path")
 
-            if in(gcc_ver, gcc_range)
+            if toolkit_version == nothing || in(gcc_ver, gcc_range)
                 push!(gcc_possibilities, (gcc_path, gcc_ver))
             end
         end
@@ -277,48 +287,28 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
     elseif Compat.Sys.iswindows()
-        # Windows: find compatible Visual Studio installation providing cl.exe
-
-        # find the maximally supported version of msvc
-        msvc_range = msvc_for_cuda(toolkit_version)
-        @trace("CUDA $toolkit_version supports MSVC $msvc_range")
-
-        # find Visual Studio installation
-        vswhere_path = download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
-        vs_path = chomp(read(`$vswhere_path -latest -property installationPath`, String))
-        if !isdir(vs_path)
-            error("Cannot find a proper Visual Studio installation. Make sure Visual Studio is installed.")
-        end
-
-        # parse the version number
-        msvc_ver_str = chomp(read(`$vswhere_path  -latest -property installationVersion`, String))
-        msvc_ver_parts = parse.(Int, split(msvc_ver_str, "."))
-        msvc_ver = VersionNumber(msvc_ver_parts[1:min(3,length(msvc_ver_parts))]...)
-        if !in(msvc_ver, msvc_range)
-            error("Visual Studio C++ compiler $msvc_ver is not compatible with CUDA $toolkit_version")
-        end
-
-        # spawn a developer prompt to find cl.exe
-        vs_prompt = if msvc_ver >= v"15"
-            joinpath(vs_path, "VC", "Auxiliary", "Build", "vcvarsall.bat")
-        else
-            joinpath(vs_path, "VC", "vcvarsall.bat")
-        end
-        arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
-        msvc_path = readlines(`cmd /C "$vs_prompt" $arch \& where cl.exe`)[end]
-        @assert ispath(msvc_path)
+        # Windows: just use cl.exe
+        # TODO: discovery of all compilers, and version matching against cuda_msvc_db
+        vc_versions = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
+        !any(x -> haskey(ENV, x), vc_versions) && error("Compatible Visual Studio installation cannot be found; Visual Studio 2015, 2013, 2012, or 2010 is required.")
+        vs_cmd_tools_dir = ENV[vc_versions[first(find(x -> haskey(ENV, x), vc_versions))]]
+        msvc_path = joinpath(dirname(dirname(dirname(vs_cmd_tools_dir))), "VC", "bin", Sys.WORD_SIZE == 64 ? "amd64" : "", "cl.exe")
+        tmpfile = tempname() # cl.exe writes version info to stderr, this is the only way I know of capturing it
+        readstring(pipeline(`$msvc_path`,stderr=tmpfile))
+        msvc_ver_str = match(r"Version\s+(\d+(\.\d+)?(\.\d+)?)"i, readstring(tmpfile))[1]
+        msvc_ver = VersionNumber(msvc_ver_str)
 
         host_compiler, host_version = msvc_path, msvc_ver
     elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
-        # TODO: proper version matching, etc
+        # TODO: discovery of all compilers, and version matching against the toolkit
         clang_path = find_binary("clang")
+        clang_ver_str = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, readstring(`$clang_path --version`))[1]
+        clang_ver = VersionNumber(clang_ver_str)
 
-        host_compiler = clang_path
-        host_version = nothing
+        host_compiler, host_version = clang_path, clang_ver
     end
     @debug("Selected host compiler version $host_version at $host_compiler")
 
-    return Toolchain(nvcc_path, nvcc_version,
-                     host_compiler, host_version)
+    return host_compiler, host_version
 end
