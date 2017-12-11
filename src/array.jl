@@ -112,8 +112,13 @@ Base.isequal(a::CuArray, b::CuArray) = a == b
 
 ## other
 
-Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
-    Base.showarray(io, Array(a), repr; kwargs...)
+if VERSION >= v"0.7.0-DEV.2797"
+    Base.print_array(io::IO, a::CuArray) = Base.print_array(io, Array(a))
+    Base.show_vector(io::IO, a::CuArray; kwargs...) = Base.show_vector(io, Array(a); kwargs...)
+else
+    Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
+        Base.showarray(io, Array(a), repr; kwargs...)
+end
 
 
 ## memory management
