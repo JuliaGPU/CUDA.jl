@@ -69,7 +69,7 @@ end
 
     input = round.(rand(Float32, dims) * 100)
 
-    input_dev = CuArray(input)
+    input_dev = CuTestArray(input)
     output_dev = similar(input_dev)
 
     @cuda (1,len) array_copy(input_dev, output_dev)
@@ -91,7 +91,7 @@ end
 
     input = round.(rand(Float32, dims) * 100)
 
-    input_dev = CuArray(input)
+    input_dev = CuTestArray(input)
     output_dev = similar(input_dev, 1)
 
     @cuda (1, 1) array_iteration(input_dev, output_dev)
@@ -136,7 +136,7 @@ end
     end
 
     array = zeros(Int64, 100)
-    array_dev = CuArray(array)
+    array_dev = CuTestArray(array)
 
     sub = view(array, 2:length(array)-1)
     for i in 1:length(sub)

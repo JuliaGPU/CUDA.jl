@@ -3,7 +3,7 @@
 ############################################################################################
 
 @testset "math" begin
-    buf = CuArray{Float32}(1)
+    buf = CuTestArray(Float32[0])
 
     @eval function kernel_math_log10(a, i)
         a[1] = CUDAnative.log10(i)
@@ -102,7 +102,7 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuArray(a)
+    d_a = CuTestArray(a)
 
     @cuda (1, n, n*sizeof(Float32)) kernel_shmem_dynamic_typed(d_a, n)
     @test reverse(a) == Array(d_a)
@@ -123,7 +123,7 @@ end
 
     for T in types
         a = rand(T, n)
-        d_a = CuArray(a)
+        d_a = CuTestArray(a)
 
         @cuda (1, n, n*sizeof(T)) kernel_shmem_dynamic_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
@@ -165,7 +165,7 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuArray(a)
+    d_a = CuTestArray(a)
 
     @cuda (1, n) kernel_shmem_static_typed(d_a, n)
     @test reverse(a) == Array(d_a)
@@ -189,7 +189,7 @@ end
 
     for T in types
         a = rand(T, n)
-        d_a = CuArray(a)
+        d_a = CuTestArray(a)
 
         @cuda (1, n) kernel_shmem_static_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
@@ -235,10 +235,10 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuArray(a)
+    d_a = CuTestArray(a)
 
     b = rand(Float32, n)
-    d_b = CuArray(b)
+    d_b = CuTestArray(b)
 
     @cuda (1, n, 2*n*sizeof(Float32)) kernel_shmem_dynamic_multi_homogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
@@ -266,10 +266,10 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuArray(a)
+    d_a = CuTestArray(a)
 
     b = rand(Int64, n)
-    d_b = CuArray(b)
+    d_b = CuTestArray(b)
 
     @cuda (1, n, n*sizeof(Float32) + n*sizeof(Int64)) kernel_shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
@@ -310,7 +310,7 @@ types = [Int32, Int64, Float32, Float64, AddableTuple]
 
     for T in types
         a = T[T(i) for i in 1:n]
-        d_a = CuArray(a)
+        d_a = CuTestArray(a)
 
         threads = nearest_warpsize(dev, n)
         @cuda (1, threads) kernel_shuffle_down(d_a, n)
@@ -339,7 +339,7 @@ end
 @testset "voting" begin
 
 @testset "ballot" begin
-    d_a = CuArray{UInt32}(1)
+    d_a = CuTestArray(UInt32[0])
 
     @eval function kernel_vote_ballot(a, i)
         vote = vote_ballot(threadIdx().x == i)
@@ -358,7 +358,7 @@ end
 end
 
 @testset "any" begin
-    d_a = CuArray{UInt32}(1)
+    d_a = CuTestArray(UInt32[0])
 
     @eval function kernel_vote_any(a, i)
         vote = vote_any(threadIdx().x >= i)
@@ -380,7 +380,7 @@ end
 end
 
 @testset "all" begin
-    d_a = CuArray{UInt32}(1)
+    d_a = CuTestArray(UInt32[0])
 
     @eval function kernel_vote_all(a, i)
         vote = vote_all(threadIdx().x >= i)
