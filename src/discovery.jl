@@ -30,21 +30,15 @@ const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 # especially for find_binary.
 
 # wrapper for Libdl.find_library, looking for more names in more locations.
-find_library(name::String, prefix::String) = find_library(name, [prefix])
-function find_library(name::String, prefixes::Vector{String}=String[])
-    @debug("Looking for $name library in $prefixes")
-
-    # figure out names
-    if Compat.Sys.iswindows()
-        names = [name]
-    else
-        names = ["lib$name"]
-    end
-
-    find_library(names, prefixes)
-end
+find_library(name::String, prefix::String) = find_library([name], [prefix])
+find_library(name::String, prefixes::Vector{String}=String[]) = find_library([name], prefixes)
 find_library(names::Vector{String}, prefix::String) = find_library(names, [prefix])
 function find_library(names::Vector{String}, prefixes::Vector{String}=String[])
+    # figure out names
+    if !Compat.Sys.iswindows()
+        names = ["lib$name" for name in names]
+    end
+
     # figure out locations
     locations = []
     for prefix in prefixes
@@ -245,8 +239,9 @@ function find_host_compiler(toolkit_version=nothing)
         # Unix-like platforms: find compatible GCC binary
 
         # find the maximally supported version of gcc
-        gcc_range = if toolkit_version != nothing
-            gcc_for_cuda(toolkit_version)
+        gcc_range = nothing
+        if toolkit_version != nothing
+            gcc_range = gcc_for_cuda(toolkit_version)
             @trace("CUDA $toolkit_version supports GCC $gcc_range")
         end
 
@@ -289,7 +284,11 @@ function find_host_compiler(toolkit_version=nothing)
 
         # select the most recent compiler
         if length(gcc_possibilities) == 0
-            error("Could not find a suitable host compiler (your CUDA v$toolkit_version needs GCC <= $(get(gcc_maxver))).")
+            if gcc_range == nothing
+                error("Could not find any GCC")
+            else
+                error("Could not find a suitable GCC (your CUDA v$toolkit_version needs GCC $gcc_range).")
+            end
         end
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
