@@ -1,14 +1,13 @@
 using CUDAdrv
-using CUDAdrv: OwnedPtr
 
-const pools = Vector{OwnedPtr{Void}}[]
+const pools = Vector{Mem.Buffer}[]
 
 poolidx(n) = ceil(Int, log2(n))+1
 poolsize(idx) = 2^(idx-1)
 
 function pool(idx)
   while length(pools) < idx
-    push!(pools, OwnedPtr{Void}[])
+    push!(pools, Mem.Buffer[])
   end
   @inbounds return pools[idx]
 end
@@ -40,6 +39,6 @@ function alloc(bytes)
   end
 end
 
-function dealloc(ptr, n)
-  push!(pool(poolidx(n)), ptr)
+function dealloc(buf, n)
+  push!(pool(poolidx(n)), buf)
 end
