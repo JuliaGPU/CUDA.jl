@@ -14,6 +14,13 @@ const libcudart = if Compat.Sys.iswindows()
 else
     "cudart"
 end
+const libcudnn = if Compat.Sys.iswindows()
+    # cuDNN uses single version digit
+    tag = Sys.WORD_SIZE == 64 ? "64" : "32"
+    map(ver->"cudnn$(tag)_$(ver.major)", cudnns)
+else
+    "cudnn"
+end
 const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 
 

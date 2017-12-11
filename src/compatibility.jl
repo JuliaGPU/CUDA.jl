@@ -9,6 +9,7 @@ const toolkits = [v"1.0", v"1.1",
                   v"8.0",
                   v"9.0"]
 
+const cudnns = [v"1.0", v"2.0", v"3.0", v"4.0", v"5.0", v"5.1", v"6.0", v"7.0"]
 
 struct VersionRange
     lower::VersionNumber
