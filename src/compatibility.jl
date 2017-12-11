@@ -29,7 +29,7 @@ const highest = v"999"
 
 # GCC compilers supported by the CUDA toolkit
 
-# Source: CUDA/include/host_config.h
+# Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
 const cuda_gcc_db = Dict(
     v"5.5" => lowest:v"4.9-",   # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
     v"6.0" => lowest:v"4.9-",   # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
@@ -50,23 +50,20 @@ end
 
 # MSVC compilers supported by the CUDA toolkit
 
-# Source: CUDA_Getting_Started_Windows.pdf
+# Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
+#
+# NOTE: plain integers, because from MSVC 14.1 on the number increases monolithically
+#       https://blogs.msdn.microsoft.com/vcblog/2016/10/05/visual-c-compiler-version/
 const cuda_msvc_db = Dict(
-    v"5.5" => v"9":v"12-",
-    v"6.0" => v"9":v"12-",
-    v"6.5" => v"10":v"13-",
-    v"7.0" => v"10":v"13-",
-    v"7.5" => v"10":v"13-",
-    v"8.0" => v"10":v"15-",
-    v"9.0" => v"10":v"16-"
+    v"5.5"     => 1500:1700,  # (_MSC_VER < 1500 || _MSC_VER > 1700) && #error
+    v"6.0"     => 1500:1700,  # (_MSC_VER < 1500 || _MSC_VER > 1700) && #error
+    v"6.5"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
+    v"7.0"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
+    v"7.5"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
+    v"8.0"     => 1600:1900,  # (_MSC_VER < 1600 || _MSC_VER > 1900) && #error
+    v"9.0"     => 1600:1910,  # (_MSC_VER < 1600 || _MSC_VER > 1910) && #error
+    v"9.0.176" => 1600:1911   # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
 )
-
-function msvc_for_cuda(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-    return get(cuda_msvc_db, match_ver) do
-        error("no support for CUDA $ver")
-    end
-end
 
 
 # devices supported by the CUDA toolkit
