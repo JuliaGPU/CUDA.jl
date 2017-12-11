@@ -15,6 +15,16 @@ end
 using CuArrays
 using Base.Test
 
+import CUDAdrv
+## pick the most recent device
+global dev = nothing
+for newdev in CUDAdrv.devices()
+    if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
+        dev = newdev
+    end
+end
+info("Testing using device $(CUDAdrv.name(dev))")
+
 CuArrays.allowscalar(false)
 
 function testf(f, xs...)
