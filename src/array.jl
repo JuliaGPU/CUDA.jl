@@ -31,16 +31,16 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
 
         len = prod(shape)
         buf = Mem.alloc(len*sizeof(T))
-        retain(buf)
+        Mem.retain(buf)
 
         obj = new{T,N}(buf, shape)
         @compat finalizer(unsafe_free!, obj)
         return obj
     end
-    function CuArray{T,N}(shape::NTuple{N,Int}, buf::Buffer) where {T,N}
+    function CuArray{T,N}(shape::NTuple{N,Int}, buf::Mem.Buffer) where {T,N}
         check_type(CuArray, T)
 
-        retain(buf)
+        Mem.retain(buf)
 
         obj = new{T, N}(buf, shape)
         @compat finalizer(unsafe_free!, obj)
@@ -61,7 +61,7 @@ const CuVector{T} = CuArray{T,1}
 const CuMatrix{T} = CuArray{T,2}
 
 function unsafe_free!(a::CuArray)
-    if !release(a.buf)
+    if !Mem.release(a.buf)
         @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because pointer is held by another object")
     elseif !isvalid(a.buf.ctx)
         @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because context is no longer valid")
@@ -112,8 +112,13 @@ Base.isequal(a::CuArray, b::CuArray) = a == b
 
 ## other
 
-Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
-    Base.showarray(io, Array(a), repr; kwargs...)
+if VERSION >= v"0.7.0-DEV.2797"
+    Base.print_array(io::IO, a::CuArray) = Base.print_array(io, Array(a))
+    Base.show_vector(io::IO, a::CuArray; kwargs...) = Base.show_vector(io, Array(a); kwargs...)
+else
+    Base.showarray(io::IO, a::CuArray, repr::Bool = true; kwargs...) =
+        Base.showarray(io, Array(a), repr; kwargs...)
+end
 
 
 ## memory management
