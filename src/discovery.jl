@@ -323,7 +323,7 @@ function find_host_compiler(toolkit_version=nothing)
                 msvs_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
                 vs_prompt = joinpath(msvs_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
                 tmpfile = tempname()
-                run(pipeline(`"$vs_prompt" $arch \& where cl.exe`, tmpfile))
+                run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
                 msvs_path = readlines(tmpfile)[end]
                 push!(msvs_paths, msvs_path)
             end
