@@ -1,5 +1,6 @@
 export find_library, find_binary,
-       find_driver, find_toolkit, find_toolkit_version, find_toolchain
+       find_driver, find_toolkit, find_toolkit_version,
+       find_host_compiler, find_toolchain
 
 
 # names
@@ -7,6 +8,19 @@ export find_library, find_binary,
 const nvcc = "nvcc"
 
 const libcuda = Compat.Sys.iswindows() ? "nvcuda" : "cuda"
+const libcudart = if Compat.Sys.iswindows()
+    tag = Sys.WORD_SIZE == 64 ? "64" : "32"
+    map(ver->"cudart$(tag)_$(ver.major)$(ver.minor)", reverse(toolkits))
+else
+    "cudart"
+end
+const libcudnn = if Compat.Sys.iswindows()
+    # cuDNN uses single version digit
+    tag = Sys.WORD_SIZE == 64 ? "64" : "32"
+    map(ver->"cudnn$(tag)_$(ver.major)", reverse(cudnns))
+else
+    "cudnn"
+end
 const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 
 
@@ -16,32 +30,33 @@ const libnvml = Compat.Sys.iswindows() ? "nvml" : "nvidia-ml"
 # especially for find_binary.
 
 # wrapper for Libdl.find_library, looking for more names in more locations.
-find_library(name, prefix::String) = find_library(name, [prefix])
-function find_library(name, prefixes=String[])
-    @debug("Looking for $name library in $prefixes")
-
+find_library(name::String, prefix::String) = find_library([name], [prefix])
+find_library(name::String, prefixes::Vector{String}=String[]) = find_library([name], prefixes)
+find_library(names::Vector{String}, prefix::String) = find_library(names, [prefix])
+function find_library(names::Vector{String}, prefixes::Vector{String}=String[])
     # figure out names
-    if Compat.Sys.iswindows()
-        tag = Sys.WORD_SIZE == 64 ? "64" : "32"
-        names = map(ver->"$name$(tag)_$(ver.major)$(ver.minor)", toolkits)
-    else
-        names = ["lib$name"]
+    if !Compat.Sys.iswindows()
+        names = ["lib$name" for name in names]
     end
 
     # figure out locations
-    locations = []
+    locations = String[]
     for prefix in prefixes
         push!(locations, prefix)
-        push!(locations, joinpath(prefix, "lib"))
-        if Sys.WORD_SIZE == 64
-            push!(locations, joinpath(prefix, "lib64"))
+        if Compat.Sys.iswindows()
+            push!(locations, joinpath(prefix, "bin"))
+        else
+            push!(locations, joinpath(prefix, "lib"))
+            if Sys.WORD_SIZE == 64
+                push!(locations, joinpath(prefix, "lib64"))
+            end
         end
     end
 
     @trace("Checking for $names in $locations")
     name = Libdl.find_library(names, locations)
     if isempty(name)
-        error("Could not find $name library")
+        error("Could not find any of $names")
     end
 
     # find the full path of the library
@@ -65,7 +80,7 @@ function find_binary(name, prefixes::Vector{String}=String[])
     end
 
     # figure out locations
-    locations = []
+    locations = String[]
     for prefix in prefixes
         push!(locations, prefix)
         push!(locations, joinpath(prefix, "bin"))
@@ -136,9 +151,23 @@ end
 
 function find_toolkit()
     # figure out locations
-    dirs = ["/usr/lib/nvidia-cuda-toolkit",
-            "/usr/local/cuda",
-            "/opt/cuda"]
+    if Compat.Sys.iswindows()
+        # CUDA versions are installed in separate directories under one of the following folders
+        searchdirs = [joinpath(get(ENV, "ProgramFiles", ""),      "NVIDIA GPU Computing Toolkit", "CUDA"),
+                      joinpath(get(ENV, "ProgramFiles(x86)", ""), "NVIDIA GPU Computing Toolkit", "CUDA")]
+        filter!(isdir, searchdirs)
+
+        dirs = String[]
+        for dir in searchdirs
+            # add all CUDA toolkit versions under the root CUDA folder
+            push!(dirs, map(x -> joinpath(dir, x),  readdir(dir))...)
+        end
+        sort!(dirs, rev=true) # we want to search starting from the newest CUDA version
+    else
+        dirs = ["/usr/lib/nvidia-cuda-toolkit",
+                "/usr/local/cuda",
+                "/opt/cuda"]
+    end
     ## look for environment variables (taking priority over default values)
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
     envvars_set = filter(var -> haskey(ENV, var), envvars)
@@ -150,26 +179,26 @@ function find_toolkit()
         @trace("Considering CUDA toolkit at $(envvals...) based on environment variables")
         unshift!(dirs, envvals...)
     end
-    ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
-    try
-        libcudart_path = find_library("cudart")
-        dir = dirname(libcudart_path)
-        if ismatch(r"^lib(32|64)?$", basename(dir))
-            dir = dirname(dir)
-        end
-        @trace("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
-        push!(dirs, dir)
-    catch ex
-        isa(ex, ErrorException) || rethrow(ex)
-    end
     ## look for the compiler binary (in the case PATH points to the installation)
     try
-        nvcc_path = find_binary(nvcc)
+        nvcc_path = find_binary(nvcc, dirs)
         dir = dirname(nvcc_path)
         if ismatch(r"^bin(32|64)?$", basename(dir))
             dir = dirname(dir)
         end
         @trace("Considering CUDA toolkit at $dir based on nvcc at $nvcc_path")
+        push!(dirs, dir)
+    catch ex
+        isa(ex, ErrorException) || rethrow(ex)
+    end
+    ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
+    try
+        libcudart_path = find_library(libcudart, dirs)
+        dir = dirname(libcudart_path)
+        if ismatch(r"^(lib|bin)(32|64)?$", basename(dir))
+            dir = dirname(dir)
+        end
+        @trace("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
         push!(dirs, dir)
     catch ex
         isa(ex, ErrorException) || rethrow(ex)
@@ -183,9 +212,9 @@ function find_toolkit()
     end
 
     # select
-    dir = first(dirs)
-    @debug("Using CUDA toolkit at $dir")
-    return dir
+    toolkit_path = first(dirs)
+    @debug("Using CUDA toolkit at $toolkit_path")
+    return toolkit_path
 end
 
 # figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
@@ -217,12 +246,22 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
     nvcc_version = toolkit_version
 
     # find a suitable host compiler
+    host_compiler, host_version = find_host_compiler(toolkit_version)
+
+    return Toolchain(nvcc_path, nvcc_version,
+                     host_compiler, host_version)
+end
+
+function find_host_compiler(toolkit_version=nothing)
     if !(Compat.Sys.iswindows() || Compat.Sys.isapple())
         # Unix-like platforms: find compatible GCC binary
 
         # find the maximally supported version of gcc
-        gcc_range = gcc_for_cuda(toolkit_version)
-        @trace("CUDA $toolkit_version supports GCC $gcc_range")
+        gcc_range = nothing
+        if toolkit_version != nothing
+            gcc_range = gcc_for_cuda(toolkit_version)
+            @trace("CUDA $toolkit_version supports GCC $gcc_range")
+        end
 
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
@@ -256,36 +295,89 @@ function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolk
             gcc_ver = VersionNumber(m.captures[1])
             @trace("Found GCC $gcc_ver at $gcc_path")
 
-            if in(gcc_ver, gcc_range)
+            if toolkit_version == nothing || in(gcc_ver, gcc_range)
                 push!(gcc_possibilities, (gcc_path, gcc_ver))
             end
         end
 
         # select the most recent compiler
         if length(gcc_possibilities) == 0
-            error("Could not find a suitable host compiler (your CUDA v$toolkit_version needs GCC <= $(get(gcc_maxver))).")
+            if gcc_range == nothing
+                error("Could not find any GCC")
+            else
+                error("Could not find a suitable GCC (your CUDA v$toolkit_version needs GCC $gcc_range).")
+            end
         end
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
     elseif Compat.Sys.iswindows()
-        # Windows: just use cl.exe
-        vc_versions = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
-        !any(x -> haskey(ENV, x), vc_versions) && error("Compatible Visual Studio installation cannot be found; Visual Studio 2015, 2013, 2012, or 2010 is required.")
-        vs_cmd_tools_dir = ENV[vc_versions[first(find(x -> haskey(ENV, x), vc_versions))]]
-        cl_path = joinpath(dirname(dirname(dirname(vs_cmd_tools_dir))), "VC", "bin", Sys.WORD_SIZE == 64 ? "amd64" : "", "cl.exe")
+        # Windows: search for MSVS in default locations
+        try
+            global msvs_paths
+            msvs_paths = String[]
+            arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
 
-        host_compiler = cl_path
-        host_version = nothing
+            # locate VS2017
+            vswhere = joinpath(get(ENV, "ProgramFiles(x86)", ""), "Microsoft Visual Studio", "Installer", "vswhere.exe")
+            if isfile(vswhere)
+                msvs_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
+                vs_prompt = joinpath(msvs_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
+                tmpfile = tempname()
+                run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
+                msvs_path = readlines(tmpfile)[end]
+                push!(msvs_paths, msvs_path)
+            end
+
+            # locate VS2012 to 2014
+            vc_versions_100_140 = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
+            for inds in find(x -> haskey(ENV, x), vc_versions_100_140)
+                path = ENV[vc_versions_100_140[inds]]
+                msvs_path = joinpath(dirname(dirname(dirname(path))), "VC", "bin", arch, "cl.exe")
+                push!(msvs_paths, msvs_path)
+            end
+        catch ex
+            error("Compatible Visual Studio installation cannot be found; Visual Studio 2017, 2015, 2013, 2012, or 2010 is required.")
+        end
+
+        msvs_list = Dict{VersionNumber,String}()
+        for path in msvs_paths
+            tmpfile = tempname() # cl.exe writes version info to stderr, this is the only way I know of capturing it
+            read(pipeline(`$path`, stderr=tmpfile), String)
+            ver_str = match(r"Version\s+(\d+(\.\d+)?(\.\d+)?)"i, read(tmpfile, String))[1]
+            ver = VersionNumber(ver_str)
+            msvs_list[ver] = path
+        end
+
+        # check compiler compatibility
+        if toolkit_version !== nothing
+            found_compatible_compiler = false
+            for ver in sort(collect(keys(msvs_list)), rev=true) # search the higest version first
+                if parse(Int, string(ver.major,ver.minor)) in cuda_msvc_db[toolkit_version]
+                    host_compiler, host_version = msvs_list[ver], ver
+                    found_compatible_compiler = true
+                    break
+                end
+            end
+            if !found_compatible_compiler
+                error("Visual Studio C++ compiler $msvs_ver is not compatible with CUDA $toolkit_version")
+            end
+            return host_compiler, host_version
+        else
+            # take the first found host, which will be the higest version found
+            host_pair = first(sort(collect(msvs_list), by=x->x[1], rev=true))
+            host_compiler, host_version = last(host_pair), first(host_pair)
+            return host_compiler, host_version
+        end
     elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
-        # TODO: proper version matching, etc
+        # TODO: discovery of all compilers, and version matching against the toolkit
         clang_path = find_binary("clang")
+        clang_ver_str = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, readstring(`$clang_path --version`))[1]
+        clang_ver = VersionNumber(clang_ver_str)
 
-        host_compiler = clang_path
-        host_version = nothing
+        host_compiler, host_version = clang_path, clang_ver
     end
     @debug("Selected host compiler version $host_version at $host_compiler")
 
-    return Toolchain(nvcc_path, nvcc_version,
-                     host_compiler, host_version)
+    return host_compiler, host_version
 end

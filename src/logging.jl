@@ -85,50 +85,6 @@ function repr_indented(ex; prefix=" "^7, abbrev=true)
 end
 
 
-# ccall wrapper logging the call, its arguments, and the returned value.
-# Only logs if TRACE environment variable is set.
-macro logging_ccall(fun, target, rettyp, argtypes, args...)
-    blk = Expr(:block)
-
-    # print the function name & arguments
-    if TRACE
-        push!(blk.args, :(trace($(sprint(Base.show_unquoted,fun.args[1])*"("); line=false)))
-        i = length(args)
-        for arg in args
-            i -= 1
-            sep = (i>0 ? ", " : "")
-
-            # TODO: we should only do this if evaluating `arg` has no side effects
-            push!(blk.args, :(trace(repr_indented($(esc(arg))), $sep;
-                  prefix=$(sprint(Base.show_unquoted,arg))*"=", line=false)))
-        end
-        push!(blk.args, :(trace(""; prefix=") =", line=false)))
-    end
-
-    # actual ccall
-    @gensym ret
-    push!(blk.args, quote
-        $ret = ccall($(esc(target)), $(esc(rettyp)), $(esc(argtypes)), $(map(esc, args)...))
-    end)
-
-    # print results
-    if TRACE
-        push!(blk.args, :(trace($ret; prefix=" ")))
-    end
-
-    push!(blk.args, :($ret))
-
-    return blk
-end
-
-function logging_run(cmd)
-    if TRACE
-        println(cmd)
-    end
-    run(cmd)
-end
-
-
 function __init_logging__()
     if TRACE
         trace("CUDA packages running in trace mode, this will generate a lot of additional output")
