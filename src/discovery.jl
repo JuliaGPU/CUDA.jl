@@ -311,60 +311,60 @@ function find_host_compiler(toolkit_version=nothing)
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
     elseif Compat.Sys.iswindows()
-        # Windows: search for MSVS in default locations
+        # Windows: search for MSVC in default locations
         try
-            global msvs_paths
-            msvs_paths = String[]
+            global msvc_paths
+            msvc_paths = String[]
             arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
 
             # locate VS2017
             vswhere = joinpath(get(ENV, "ProgramFiles(x86)", ""), "Microsoft Visual Studio", "Installer", "vswhere.exe")
             if isfile(vswhere)
-                msvs_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
-                vs_prompt = joinpath(msvs_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
+                msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
+                vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
                 tmpfile = tempname()
                 run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
-                msvs_path = readlines(tmpfile)[end]
-                push!(msvs_paths, msvs_path)
+                msvc_path = readlines(tmpfile)[end]
+                push!(msvc_paths, msvc_path)
             end
 
             # locate VS2012 to 2014
             vc_versions_100_140 = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
             for inds in find(x -> haskey(ENV, x), vc_versions_100_140)
                 path = ENV[vc_versions_100_140[inds]]
-                msvs_path = joinpath(dirname(dirname(dirname(path))), "VC", "bin", arch, "cl.exe")
-                push!(msvs_paths, msvs_path)
+                msvc_path = joinpath(dirname(dirname(dirname(path))), "VC", "bin", arch, "cl.exe")
+                push!(msvc_paths, msvc_path)
             end
         catch ex
             error("Compatible Visual Studio installation cannot be found; Visual Studio 2017, 2015, 2013, 2012, or 2010 is required.")
         end
 
-        msvs_list = Dict{VersionNumber,String}()
-        for path in msvs_paths
+        msvc_list = Dict{VersionNumber,String}()
+        for path in msvc_paths
             tmpfile = tempname() # cl.exe writes version info to stderr, this is the only way I know of capturing it
             read(pipeline(`$path`, stderr=tmpfile), String)
             ver_str = match(r"Version\s+(\d+(\.\d+)?(\.\d+)?)"i, read(tmpfile, String))[1]
             ver = VersionNumber(ver_str)
-            msvs_list[ver] = path
+            msvc_list[ver] = path
         end
 
         # check compiler compatibility
         if toolkit_version !== nothing
             found_compatible_compiler = false
-            for ver in sort(collect(keys(msvs_list)), rev=true) # search the higest version first
+            for ver in sort(collect(keys(msvc_list)), rev=true) # search the higest version first
                 if parse(Int, string(ver.major,ver.minor)) in cuda_msvc_db[toolkit_version]
-                    host_compiler, host_version = msvs_list[ver], ver
+                    host_compiler, host_version = msvc_list[ver], ver
                     found_compatible_compiler = true
                     break
                 end
             end
             if !found_compatible_compiler
-                error("Visual Studio C++ compiler $msvs_ver is not compatible with CUDA $toolkit_version")
+                error("Visual Studio C++ compiler $msvc_ver is not compatible with CUDA $toolkit_version")
             end
             return host_compiler, host_version
         else
             # take the first found host, which will be the higest version found
-            host_pair = first(sort(collect(msvs_list), by=x->x[1], rev=true))
+            host_pair = first(sort(collect(msvc_list), by=x->x[1], rev=true))
             host_compiler, host_version = last(host_pair), first(host_pair)
             return host_compiler, host_version
         end
