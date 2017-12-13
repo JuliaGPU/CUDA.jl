@@ -181,7 +181,7 @@ function find_toolkit()
     end
     ## look for the compiler binary (in the case PATH points to the installation)
     try
-        nvcc_path = find_binary(nvcc, dirs)
+        nvcc_path = find_binary(nvcc)
         dir = dirname(nvcc_path)
         if ismatch(r"^bin(32|64)?$", basename(dir))
             dir = dirname(dir)
@@ -193,7 +193,7 @@ function find_toolkit()
     end
     ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
     try
-        libcudart_path = find_library(libcudart, dirs)
+        libcudart_path = find_library(libcudart)
         dir = dirname(libcudart_path)
         if ismatch(r"^(lib|bin)(32|64)?$", basename(dir))
             dir = dirname(dir)
@@ -204,6 +204,7 @@ function find_toolkit()
         isa(ex, ErrorException) || rethrow(ex)
     end
 
+    # filter
     dirs = filter(isdir, unique(dirs))
     if length(dirs) > 1
         warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "))
