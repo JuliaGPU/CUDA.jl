@@ -9,7 +9,7 @@ function llvm_support(version)
     @debug("Using LLVM $version")
 
     InitializeAllTargets()
-    "nvptx" in LLVM.name.(collect(targets())) ||
+    haskey(targets(), "nvptx") ||
         error("Your LLVM does not support the NVPTX back-end. Fix this, and rebuild LLVM.jl and CUDAnative.jl")
 
     target_support = CUDAapi.devices_for_llvm(version)
@@ -120,7 +120,9 @@ function main()
     ## gather info
 
     config[:julia_version] = VERSION
-    config[:julia_llvm_version] = VersionNumber(Base.libllvm_version)
+    config[:julia_llvm_version] = VERSION >= v"0.7.0-DEV.421" ?
+                                    Base.libllvm_version :
+                                    VersionNumber(Base.libllvm_version)
 
     config[:llvm_version] = LLVM.version()
     llvm_targets, llvm_isas = llvm_support(config[:llvm_version])
