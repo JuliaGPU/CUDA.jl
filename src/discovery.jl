@@ -350,25 +350,24 @@ function find_host_compiler(toolkit_version=nothing)
         end
 
         # check compiler compatibility
+        msvc_path, msvc_ver = nothing, nothing
         if toolkit_version !== nothing
-            found_compatible_compiler = false
-            for ver in sort(collect(keys(msvc_list)), rev=true) # search the higest version first
+            for ver in sort(collect(keys(msvc_list)), rev=true) # search the highest version first
                 if parse(Int, string(ver.major,ver.minor)) in cuda_msvc_db[toolkit_version]
-                    host_compiler, host_version = msvc_list[ver], ver
-                    found_compatible_compiler = true
+                    msvc_path, msvc_ver = msvc_list[ver], ver
                     break
                 end
             end
-            if !found_compatible_compiler
-                error("Visual Studio C++ compiler $msvc_ver is not compatible with CUDA $toolkit_version")
+            if msvc_ver == nothing
+                error("None of the available Visual Studio C++ compilers ($(join(keys(msvc_list), ", "))) is compatible with CUDA $toolkit_version")
             end
-            return host_compiler, host_version
         else
-            # take the first found host, which will be the higest version found
+            # take the first found host, which will be the highest version found
             host_pair = first(sort(collect(msvc_list), by=x->x[1], rev=true))
-            host_compiler, host_version = last(host_pair), first(host_pair)
-            return host_compiler, host_version
+            msvc_path, msvc_ver = last(host_pair), first(host_pair)
         end
+
+        host_compiler, host_version = msvc_path, msvc_ver
     elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: discovery of all compilers, and version matching against the toolkit
