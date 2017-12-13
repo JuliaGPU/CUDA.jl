@@ -13,7 +13,8 @@ using Compat.Test
 
 ## properties
 
-CUDAapi.gcc_for_cuda(v"8.0")
+@test !CUDAapi.gcc_supported(v"5.0", v"5.5")
+@test CUDAapi.gcc_supported(v"5.0", v"8.0")
 CUDAapi.devices_for_cuda(v"8.0")
 CUDAapi.devices_for_llvm(v"5.0")
 CUDAapi.isas_for_cuda(v"8.0")

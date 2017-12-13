@@ -41,14 +41,17 @@ const cuda_gcc_db = Dict(
     v"6.5" => lowest:v"4.8",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
     v"7.0" => lowest:v"4.9",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
     v"7.5" => lowest:v"4.9",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
-    v"8.0" => lowest:v"5",      # (__GNUC__ > 5)                                          && #error
-    v"9.0" => lowest:v"6"       # (__GNUC__ > 6)                                          && #error
+    v"8.0" => lowest:v"6-",     # (__GNUC__ > 5)                                          && #error
+    v"9.0" => lowest:v"7-",     # (__GNUC__ > 6)                                          && #error
+    v"9.1" => lowest:v"7-"      # (__GNUC__ > 6)                                          && #error
 )
 
-function gcc_for_cuda(ver::VersionNumber)
-    return get(cuda_gcc_db, strip_patch(ver)) do
-        error("no support for CUDA $ver")
+function gcc_supported(gcc::VersionNumber, toolkit::VersionNumber)
+    gcc_range = get(cuda_gcc_db, strip_patch(toolkit)) do
+        error("no support for CUDA $toolkit")
     end
+
+    return in(strip_patch(gcc), gcc_range)
 end
 
 
@@ -66,16 +69,19 @@ const cuda_msvc_db = Dict(
     v"7.5"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
     v"8.0"     => 1600:1900,  # (_MSC_VER < 1600 || _MSC_VER > 1900) && #error
     v"9.0"     => 1600:1910,  # (_MSC_VER < 1600 || _MSC_VER > 1910) && #error
-    v"9.0.176" => 1600:1911   # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
+    v"9.0.176" => 1600:1911,  # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
+    v"9.1"     => 1600:1911   # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
 )
 
-function msvc_for_cuda(ver::VersionNumber)
-    if haskey(cuda_msvc_db, ver)
-        return cuda_msvc_db[ver]
+function msvc_supported(msvc::VersionNumber, toolkit::VersionNumber)
+    msvc_range = get(cuda_msvc_db, toolkit) do
+        get(cuda_msvc_db, strip_patch(toolkit)) do
+            error("no support for CUDA $toolkit")
+        end
     end
-    return get(cuda_msvc_db, strip_patch(ver)) do
-        error("no support for CUDA $ver")
-    end
+
+    msvc_num = parse(Int, string(msvc.major, msvc.minor))
+    return in(msvc_num, msvc_range)
 end
 
 

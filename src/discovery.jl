@@ -257,12 +257,6 @@ function find_host_compiler(toolkit_version=nothing)
     if !(Compat.Sys.iswindows() || Compat.Sys.isapple())
         # Unix-like platforms: find compatible GCC binary
 
-        # find the maximally supported version of gcc
-        if toolkit_version != nothing
-            gcc_range = gcc_for_cuda(toolkit_version)
-            @trace("CUDA $toolkit_version supports GCC $gcc_range")
-        end
-
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
         gcc_names = [ "gcc" ]
@@ -295,30 +289,19 @@ function find_host_compiler(toolkit_version=nothing)
             gcc_ver = VersionNumber(m.captures[1])
             @trace("Found GCC $gcc_ver at $gcc_path")
 
-            if toolkit_version == nothing || in(gcc_ver, gcc_range)
+            if toolkit_version == nothing || gcc_supported(gcc_ver, toolkit_version)
                 push!(gcc_possibilities, (gcc_path, gcc_ver))
             end
         end
 
         # select the most recent compiler
         if length(gcc_possibilities) == 0
-            if toolkit_version == nothing
-                error("Could not find a suitable GCC")
-            else
-                error("Could not find a suitable GCC (your CUDA v$toolkit_version needs GCC $gcc_range).")
-            end
+            error("Could not find a suitable GCC")
         end
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
     elseif Compat.Sys.iswindows()
         # Windows: search for MSVC in default locations
-
-
-        # find the maximally supported version of MSVC
-        if toolkit_version != nothing
-            msvc_range = msvc_for_cuda(toolkit_ver)
-            @trace("CUDA $toolkit_version supports MSVC $msvc_range")
-        end
 
         # discover Visual Studio installations
         try
@@ -362,7 +345,7 @@ function find_host_compiler(toolkit_version=nothing)
         msvc_path, msvc_ver = nothing, nothing
         if toolkit_version != nothing
             for ver in sort(collect(keys(msvc_list)), rev=true) # search the highest version first
-                if parse(Int, string(ver.major,ver.minor)) in msvc_range
+                if msvc_supported(ver, toolkit_version)
                     msvc_path, msvc_ver = msvc_list[ver], ver
                     break
                 end
