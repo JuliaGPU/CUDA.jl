@@ -27,6 +27,10 @@ Base.intersect(v::VersionNumber, r::VersionRange) =
 const lowest = v"0"
 const highest = v"999"
 
+# some version comparisons need to ignore part of the version number
+strip_patch(ver) = VersionNumber(ver.major, ver.minor)
+strip_minor(ver) = VersionNumber(ver.major)
+
 
 # GCC compilers supported by the CUDA toolkit
 
@@ -42,8 +46,7 @@ const cuda_gcc_db = Dict(
 )
 
 function gcc_for_cuda(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-    return get(cuda_gcc_db, match_ver) do
+    return get(cuda_gcc_db, strip_patch(ver)) do
         error("no support for CUDA $ver")
     end
 end
@@ -93,11 +96,9 @@ const dev_cuda_db = Dict(
 )
 
 function devices_for_cuda(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in dev_cuda_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
@@ -133,11 +134,9 @@ const isa_cuda_db = Dict(
 )
 
 function isas_for_cuda(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in isa_cuda_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
@@ -164,11 +163,9 @@ const dev_llvm_db = Dict(
 )
 
 function devices_for_llvm(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in dev_llvm_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
@@ -192,11 +189,9 @@ const isa_llvm_db = Dict(
 )
 
 function isas_for_llvm(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in isa_llvm_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
