@@ -69,6 +69,15 @@ const cuda_msvc_db = Dict(
     v"9.0.176" => 1600:1911   # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
 )
 
+function msvc_for_cuda(ver::VersionNumber)
+    if haskey(cuda_msvc_db, ver)
+        return cuda_msvc_db[ver]
+    end
+    return get(cuda_msvc_db, strip_patch(ver)) do
+        error("no support for CUDA $ver")
+    end
+end
+
 
 # devices supported by the CUDA toolkit
 

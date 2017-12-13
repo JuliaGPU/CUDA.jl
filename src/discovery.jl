@@ -258,7 +258,6 @@ function find_host_compiler(toolkit_version=nothing)
         # Unix-like platforms: find compatible GCC binary
 
         # find the maximally supported version of gcc
-        gcc_range = nothing
         if toolkit_version != nothing
             gcc_range = gcc_for_cuda(toolkit_version)
             @trace("CUDA $toolkit_version supports GCC $gcc_range")
@@ -303,8 +302,8 @@ function find_host_compiler(toolkit_version=nothing)
 
         # select the most recent compiler
         if length(gcc_possibilities) == 0
-            if gcc_range == nothing
-                error("Could not find any GCC")
+            if toolkit_version == nothing
+                error("Could not find a suitable GCC")
             else
                 error("Could not find a suitable GCC (your CUDA v$toolkit_version needs GCC $gcc_range).")
             end
@@ -313,6 +312,15 @@ function find_host_compiler(toolkit_version=nothing)
         host_compiler, host_version = gcc_possibilities[1]
     elseif Compat.Sys.iswindows()
         # Windows: search for MSVC in default locations
+
+
+        # find the maximally supported version of MSVC
+        if toolkit_version != nothing
+            msvc_range = msvc_for_cuda(toolkit_ver)
+            @trace("CUDA $toolkit_version supports MSVC $msvc_range")
+        end
+
+        # discover Visual Studio installations
         try
             global msvc_paths
             msvc_paths = String[]
@@ -340,6 +348,7 @@ function find_host_compiler(toolkit_version=nothing)
             error("Compatible Visual Studio installation cannot be found; Visual Studio 2017, 2015, 2013, 2012, or 2010 is required.")
         end
 
+        # find MSVC versions
         msvc_list = Dict{VersionNumber,String}()
         for path in msvc_paths
             tmpfile = tempname() # cl.exe writes version info to stderr, this is the only way I know of capturing it
@@ -351,9 +360,9 @@ function find_host_compiler(toolkit_version=nothing)
 
         # check compiler compatibility
         msvc_path, msvc_ver = nothing, nothing
-        if toolkit_version !== nothing
+        if toolkit_version != nothing
             for ver in sort(collect(keys(msvc_list)), rev=true) # search the highest version first
-                if parse(Int, string(ver.major,ver.minor)) in cuda_msvc_db[toolkit_version]
+                if parse(Int, string(ver.major,ver.minor)) in msvc_range
                     msvc_path, msvc_ver = msvc_list[ver], ver
                     break
                 end
