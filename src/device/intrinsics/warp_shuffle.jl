@@ -111,9 +111,7 @@ end
 end
 
 @generated function shuffle_primitive(op::Function, val, args...)
-    ex = quote
-        Base.@_inline_meta
-    end
+    ex = Expr(:block, Expr(:meta, :inline))
 
     # disassemble into words
     words = Symbol[]
@@ -142,9 +140,7 @@ end
 # aggregates (recurse into fields)
 
 @generated function shuffle_aggregate(op::Function, val::T, args...) where T
-    ex = quote
-        Base.@_inline_meta
-    end
+    ex = Expr(:block, Expr(:meta, :inline))
 
     fields = fieldnames(T)
     if isempty(fields)
