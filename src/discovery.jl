@@ -307,8 +307,9 @@ function find_host_compiler(toolkit_version=nothing)
         # discover Visual Studio installations
         msvc_paths = String[]
         arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
+        program_files = get(ENV, Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles")
         ## locate VS2017
-        vswhere = joinpath(get(ENV, "ProgramFiles(x86)", ""), "Microsoft Visual Studio", "Installer", "vswhere.exe")
+        vswhere = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
         if isfile(vswhere)
             msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
             vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
