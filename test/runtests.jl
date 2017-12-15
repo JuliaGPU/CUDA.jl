@@ -6,8 +6,6 @@ using Compat.Test
 
 ## logging
 
-@trace("test")
-
 @debug("test")
 
 

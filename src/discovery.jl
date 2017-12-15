@@ -199,7 +199,7 @@ function find_cuda_toolkit()
         if length(envvals) > 1
             warn("Multiple CUDA environment variables set to different values: $(join(envvars_set, ", ", " and "))")
         end
-        @trace("Considering CUDA toolkit at $(envvals...) based on environment variables")
+        @debug("Considering CUDA toolkit at $(envvals...) based on environment variables")
         unshift!(dirs, envvals...)
     end
     ## look for the compiler binary (in the case PATH points to the installation)
@@ -209,7 +209,7 @@ function find_cuda_toolkit()
         if ismatch(r"^bin(32|64)?$", basename(dir))
             dir = dirname(dir)
         end
-        @trace("Considering CUDA toolkit at $dir based on nvcc at $nvcc_path")
+        @debug("Considering CUDA toolkit at $dir based on nvcc at $nvcc_path")
         push!(dirs, dir)
     end
     ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
@@ -219,7 +219,7 @@ function find_cuda_toolkit()
         if ismatch(r"^(lib|bin)(32|64)?$", basename(dir))
             dir = dirname(dir)
         end
-        @trace("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
+        @debug("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
         push!(dirs, dir)
     end
 
@@ -288,7 +288,7 @@ function find_host_compiler(toolkit_version=nothing)
                 continue
             end
             gcc_ver = VersionNumber(m.captures[1])
-            @trace("Found GCC $gcc_ver at $gcc_path")
+            @debug("Found GCC $gcc_ver at $gcc_path")
 
             if toolkit_version == nothing || gcc_supported(gcc_ver, toolkit_version)
                 push!(gcc_possibilities, (gcc_path, gcc_ver))
