@@ -4,7 +4,7 @@ module CUDAapi
 
 using Compat
 
-include("logging.jl")
+include("util.jl")
 
 include("compatibility.jl")
 include("discovery.jl")

@@ -23,16 +23,17 @@ CUDAapi.isas_for_llvm(v"5.0")
 
 ## discovery
 
-toolkit = find_toolkit()
-toolkit_version = find_toolkit_version(toolkit)
-find_driver()
-find_binary(Compat.Sys.iswindows() ? "CHKDSK" : "true")
-find_binary(CUDAapi.nvcc, toolkit)
-find_binary(CUDAapi.nvcc, [toolkit])
-find_library(Compat.Sys.iswindows() ? "NTDLL" : "c")
+# generic
+find_binary([Compat.Sys.iswindows() ? "CHKDSK" : "true"])
 find_library([Compat.Sys.iswindows() ? "NTDLL" : "c"])
-find_library(CUDAapi.libcudart, toolkit)
-find_library(CUDAapi.libcudart, [toolkit])
+
+# CUDA
+
+toolkit = find_cuda_toolkit()
+toolkit_version = find_cuda_toolkit_version(toolkit)
+# find_cuda_driver()
+find_cuda_binary("nvcc", toolkit)
+find_cuda_library("cudart", toolkit)
 find_host_compiler()
 find_host_compiler(toolkit_version)
 find_toolchain(toolkit)

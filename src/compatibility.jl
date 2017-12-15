@@ -1,28 +1,4 @@
-# versions of the CUDA toolkit
-const toolkits = [v"1.0", v"1.1",
-                  v"2.0", v"2.1", v"2.2",
-                  v"3.0", v"3.1", v"3.2",
-                  v"4.0", v"4.1", v"4.2",
-                  v"5.0", v"5.5",
-                  v"6.0", v"6.5",
-                  v"7.0", v"7.5",
-                  v"8.0",
-                  v"9.0"]
-
-const cudnns = [v"1.0", v"2.0", v"3.0", v"4.0", v"5.0", v"5.1", v"6.0", v"7.0"]
-
-struct VersionRange
-    lower::VersionNumber
-    upper::VersionNumber
-end
-
-Base.in(v::VersionNumber, r::VersionRange) = (v >= r.lower && v <= r.upper)
-
-Base.colon(a::VersionNumber, b::VersionNumber) = VersionRange(a, b)
-
-Base.intersect(v::VersionNumber, r::VersionRange) =
-    v < r.lower ? (r.lower:v) :
-    v > r.upper ? (v:r.upper) : (v:v)
+## auxiliary
 
 const lowest = v"0"
 const highest = v"999"
@@ -32,7 +8,7 @@ strip_patch(ver) = VersionNumber(ver.major, ver.minor)
 strip_minor(ver) = VersionNumber(ver.major)
 
 
-# GCC compilers supported by the CUDA toolkit
+## GCC compilers supported by the CUDA toolkit
 
 # Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
 const cuda_gcc_db = Dict(
@@ -55,7 +31,7 @@ function gcc_supported(gcc::VersionNumber, toolkit::VersionNumber)
 end
 
 
-# MSVC compilers supported by the CUDA toolkit
+## MSVC compilers supported by the CUDA toolkit
 
 # Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
 #
@@ -80,12 +56,12 @@ function msvc_supported(msvc::VersionNumber, toolkit::VersionNumber)
         end
     end
 
-    msvc_num = parse(Int, string(msvc.major, msvc.minor))
+    msvc_num = msvc.major * 100 + msvc.minor
     return in(msvc_num, msvc_range)
 end
 
 
-# devices supported by the CUDA toolkit
+## devices supported by the CUDA toolkit
 
 # Source:
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
@@ -121,7 +97,7 @@ function devices_for_cuda(ver::VersionNumber)
 end
 
 
-# PTX ISAs supported by the CUDA toolkit
+## PTX ISAs supported by the CUDA toolkit
 
 # Source:
 # - PTX ISA document, Release History table
@@ -159,7 +135,7 @@ function isas_for_cuda(ver::VersionNumber)
 end
 
 
-# devices supported by the LLVM NVPTX back-end
+## devices supported by the LLVM NVPTX back-end
 
 # Source: LLVM/lib/Target/NVPTX/NVPTX.td
 const dev_llvm_db = Dict(
@@ -188,7 +164,7 @@ function devices_for_llvm(ver::VersionNumber)
 end
 
 
-# PTX ISAs supported by the LVM NVPTX back-end
+## PTX ISAs supported by the LVM NVPTX back-end
 
 # Source: LLVM/lib/Target/NVPTX/NVPTX.td
 const isa_llvm_db = Dict(
@@ -214,6 +190,6 @@ function isas_for_llvm(ver::VersionNumber)
 end
 
 
-# other
+## other
 
 shader(cap::VersionNumber) = "sm_$(cap.major)$(cap.minor)"
