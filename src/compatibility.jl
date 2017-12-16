@@ -1,55 +1,37 @@
-# versions of the CUDA toolkit
-const toolkits = [v"1.0", v"1.1",
-                  v"2.0", v"2.1", v"2.2",
-                  v"3.0", v"3.1", v"3.2",
-                  v"4.0", v"4.1", v"4.2",
-                  v"5.0", v"5.5",
-                  v"6.0", v"6.5",
-                  v"7.0", v"7.5",
-                  v"8.0",
-                  v"9.0"]
-
-const cudnns = [v"1.0", v"2.0", v"3.0", v"4.0", v"5.0", v"5.1", v"6.0", v"7.0"]
-
-struct VersionRange
-    lower::VersionNumber
-    upper::VersionNumber
-end
-
-Base.in(v::VersionNumber, r::VersionRange) = (v >= r.lower && v < r.upper)
-
-Base.colon(a::VersionNumber, b::VersionNumber) = VersionRange(a, b)
-
-Base.intersect(v::VersionNumber, r::VersionRange) =
-    v < r.lower ? (r.lower:v) :
-    v > r.upper ? (v:r.upper) : (v:v)
+## auxiliary
 
 const lowest = v"0"
 const highest = v"999"
 
+# some version comparisons need to ignore part of the version number
+strip_patch(ver) = VersionNumber(ver.major, ver.minor)
+strip_minor(ver) = VersionNumber(ver.major)
 
-# GCC compilers supported by the CUDA toolkit
+
+## GCC compilers supported by the CUDA toolkit
 
 # Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
 const cuda_gcc_db = Dict(
-    v"5.5" => lowest:v"4.9-",   # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
-    v"6.0" => lowest:v"4.9-",   # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
-    v"6.5" => lowest:v"4.9-",   # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
-    v"7.0" => lowest:v"4.10-",  # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
-    v"7.5" => lowest:v"4.10-",  # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
+    v"5.5" => lowest:v"4.8",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
+    v"6.0" => lowest:v"4.8",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
+    v"6.5" => lowest:v"4.8",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
+    v"7.0" => lowest:v"4.9",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
+    v"7.5" => lowest:v"4.9",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
     v"8.0" => lowest:v"6-",     # (__GNUC__ > 5)                                          && #error
-    v"9.0" => lowest:v"7-"      # (__GNUC__ > 6)                                          && #error
+    v"9.0" => lowest:v"7-",     # (__GNUC__ > 6)                                          && #error
+    v"9.1" => lowest:v"7-"      # (__GNUC__ > 6)                                          && #error
 )
 
-function gcc_for_cuda(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-    return get(cuda_gcc_db, match_ver) do
-        error("no support for CUDA $ver")
+function gcc_supported(gcc::VersionNumber, toolkit::VersionNumber)
+    gcc_range = get(cuda_gcc_db, strip_patch(toolkit)) do
+        error("no support for CUDA $toolkit")
     end
+
+    return in(strip_patch(gcc), gcc_range)
 end
 
 
-# MSVC compilers supported by the CUDA toolkit
+## MSVC compilers supported by the CUDA toolkit
 
 # Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
 #
@@ -63,22 +45,34 @@ const cuda_msvc_db = Dict(
     v"7.5"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
     v"8.0"     => 1600:1900,  # (_MSC_VER < 1600 || _MSC_VER > 1900) && #error
     v"9.0"     => 1600:1910,  # (_MSC_VER < 1600 || _MSC_VER > 1910) && #error
-    v"9.0.176" => 1600:1911   # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
+    v"9.0.176" => 1600:1911,  # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
+    v"9.1"     => 1600:1911   # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
 )
 
+function msvc_supported(msvc::VersionNumber, toolkit::VersionNumber)
+    msvc_range = get(cuda_msvc_db, toolkit) do
+        get(cuda_msvc_db, strip_patch(toolkit)) do
+            error("no support for CUDA $toolkit")
+        end
+    end
 
-# devices supported by the CUDA toolkit
+    msvc_num = msvc.major * 100 + msvc.minor
+    return in(msvc_num, msvc_range)
+end
+
+
+## devices supported by the CUDA toolkit
 
 # Source:
 # - https://en.wikipedia.org/wiki/CUDA#GPUs_supported
 # - ptxas |& grep -A 10 '\--gpu-name'
 const dev_cuda_db = Dict(
-    v"1.0" => lowest:v"7.0",
-    v"1.1" => lowest:v"7.0",
-    v"1.2" => lowest:v"7.0",
-    v"1.3" => lowest:v"7.0",
-    v"2.0" => lowest:v"9.0",
-    v"2.1" => lowest:v"9.0",
+    v"1.0" => lowest:v"6.5",
+    v"1.1" => lowest:v"6.5",
+    v"1.2" => lowest:v"6.5",
+    v"1.3" => lowest:v"6.5",
+    v"2.0" => lowest:v"8.0",
+    v"2.1" => lowest:v"8.0",
     v"3.0" => v"4.2":highest,
     v"3.2" => v"6.0":highest,
     v"3.5" => v"5.0":highest,
@@ -93,11 +87,9 @@ const dev_cuda_db = Dict(
 )
 
 function devices_for_cuda(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in dev_cuda_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
@@ -105,7 +97,7 @@ function devices_for_cuda(ver::VersionNumber)
 end
 
 
-# PTX ISAs supported by the CUDA toolkit
+## PTX ISAs supported by the CUDA toolkit
 
 # Source:
 # - PTX ISA document, Release History table
@@ -133,11 +125,9 @@ const isa_cuda_db = Dict(
 )
 
 function isas_for_cuda(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in isa_cuda_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
@@ -145,7 +135,7 @@ function isas_for_cuda(ver::VersionNumber)
 end
 
 
-# devices supported by the LLVM NVPTX back-end
+## devices supported by the LLVM NVPTX back-end
 
 # Source: LLVM/lib/Target/NVPTX/NVPTX.td
 const dev_llvm_db = Dict(
@@ -164,11 +154,9 @@ const dev_llvm_db = Dict(
 )
 
 function devices_for_llvm(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in dev_llvm_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
@@ -176,12 +164,12 @@ function devices_for_llvm(ver::VersionNumber)
 end
 
 
-# PTX ISAs supported by the LVM NVPTX back-end
+## PTX ISAs supported by the LVM NVPTX back-end
 
 # Source: LLVM/lib/Target/NVPTX/NVPTX.td
 const isa_llvm_db = Dict(
-    v"3.0" => v"3.2":v"3.6",
-    v"3.1" => v"3.2":v"3.6",
+    v"3.0" => v"3.2":v"3.5",
+    v"3.1" => v"3.2":v"3.5",
     v"3.2" => v"3.5":highest,
     v"4.0" => v"3.5":highest,
     v"4.1" => v"3.7":highest,
@@ -192,11 +180,9 @@ const isa_llvm_db = Dict(
 )
 
 function isas_for_llvm(ver::VersionNumber)
-    match_ver = VersionNumber(ver.major, ver.minor)
-
     caps = Set{VersionNumber}()
     for (cap,r) in isa_llvm_db
-        if match_ver in r
+        if strip_patch(ver) in r
             push!(caps, cap)
         end
     end
@@ -204,6 +190,6 @@ function isas_for_llvm(ver::VersionNumber)
 end
 
 
-# other
+## other
 
 shader(cap::VersionNumber) = "sm_$(cap.major)$(cap.minor)"
