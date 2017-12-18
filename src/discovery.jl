@@ -331,7 +331,7 @@ function find_host_compiler(toolkit_version=nothing)
             msvc_path = joinpath(dirname(dirname(dirname(path))), "VC", "bin", arch, "cl.exe")
             push!(msvc_paths, msvc_path)
         end
-        isempty(msvc_path) && error("No Visual Studio installation found")
+        isempty(msvc_paths) && error("No Visual Studio installation found")
 
         # find MSVC versions
         msvc_list = Dict{VersionNumber,String}()
