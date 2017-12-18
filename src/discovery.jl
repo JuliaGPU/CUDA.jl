@@ -309,8 +309,9 @@ function find_host_compiler(toolkit_version=nothing)
         arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
         ## locate VS2017
-        vswhere = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
-        if isfile(vswhere)
+        vswhere_dist = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
+        let vswhere = isfile(vswhere_dist) ? vswhere_dist : download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
+            @debug("Locating VS2017 using vswhere from $vswhere")
             msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
             vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
             tmpfile = tempname() # TODO: do this with a pipe
