@@ -126,7 +126,7 @@ const cuda_versions = Dict(
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit path as prefix.
 find_cuda_library(name::String, toolkit_path::Union{String,Void}=nothing;
-                  versions::Vector{VersionNumber}=get(cuda_versions, name, cuda_versions["toolkit"]),
+                  versions::Vector{VersionNumber}=reverse(get(cuda_versions, name, cuda_versions["toolkit"])),
                   kwargs...) =
     find_library(get(cuda_names, name, [name]);
                  versions=versions,
