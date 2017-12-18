@@ -27,9 +27,9 @@ find_library([Compat.Sys.iswindows() ? "NTDLL" : "c"])
 
 # CUDA
 
-toolkit = find_cuda_toolkit()
-toolkit_version = find_cuda_toolkit_version(toolkit)
-# find_cuda_driver()
+toolkit = find_toolkit()
+toolkit_version = find_toolkit_version(toolkit)
+find_driver()
 find_cuda_binary("nvcc", toolkit)
 find_cuda_library("cudart", toolkit)
 find_host_compiler()

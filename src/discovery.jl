@@ -1,6 +1,6 @@
 export find_library, find_binary,
        find_cuda_library, find_cuda_binary,
-       find_cuda_driver, find_cuda_toolkit, find_cuda_toolkit_version,
+       find_driver, find_toolkit, find_toolkit_version,
        find_host_compiler, find_toolchain
 
 # debug print helpers
@@ -141,7 +141,7 @@ find_cuda_binary(name::String, toolkit_path::Union{String,Void}=nothing; kwargs.
                 locations=(toolkit_path!=nothing ? [toolkit_path] : String[]),
                 kwargs...)
 
-function find_cuda_driver()
+function find_driver()
     # figure out locations
     dirs = String[]
     ## look for the driver library (in the case LD_LIBRARY_PATH points to the installation)
@@ -177,7 +177,7 @@ function find_cuda_driver()
     return dir
 end
 
-function find_cuda_toolkit()
+function find_toolkit()
     # figure out locations
     if Compat.Sys.iswindows()
         # CUDA versions are installed in separate directories under one of the following folders
@@ -243,7 +243,7 @@ function find_cuda_toolkit()
 end
 
 # figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
-function find_cuda_toolkit_version(toolkit_path)
+function find_toolkit_version(toolkit_path)
     nvcc_path = find_cuda_binary("nvcc", toolkit_path)
     if nvcc_path == nothing
         error("CUDA toolkit at $toolkit_path doesn't contain nvcc")
@@ -389,7 +389,7 @@ mutable struct Toolchain
     host_compiler::String
     host_version::VersionNumber
 end
-function find_toolchain(toolkit_path, toolkit_version=find_cuda_toolkit_version(toolkit_path))
+function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolkit_path))
     # find the CUDA compiler
     nvcc_path = find_cuda_binary("nvcc", toolkit_path)
     if nvcc_path == nothing
