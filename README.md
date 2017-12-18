@@ -32,10 +32,3 @@ compatibility information that cannot be queried from APIs.
 The file `src/discovery.jl` defines helper methods for discovering the NVIDIA driver and
 CUDA toolkit, as well as some more generic methods to find libraries and binaries relative
 to eg. the location of the driver or toolkit.
-
-
-## Logging
-
-The file `src/logging.jl` contains some methods for fine-grained logging at different
-log-levels. It is excepted to be deprecated and removed when
-[MicroLogging.jl](https://github.com/c42f/MicroLogging.jl) is usable.
