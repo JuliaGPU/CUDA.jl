@@ -25,20 +25,22 @@ end
     _, out = @grab_output @on_device @cuprintf("")
     @test out == ""
 
+    endline = Compat.Sys.iswindows() ? "\r\n" : "\n"
+
     _, out = @grab_output @on_device @cuprintf("Testing...\n")
-    @test out == "Testing...\n"
+    @test out == "Testing...$endline"
 
     _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
-    @test out == "Testing 42...\n"
+    @test out == "Testing 42...$endline"
 
     _, out = @grab_output @on_device @cuprintf("Testing %u %u...\n", blockIdx().x, threadIdx().x)
-    @test out == "Testing 1 1...\n"
+    @test out == "Testing 1 1...$endline"
 
     _, out = @grab_output @on_device begin
         @cuprintf("foo")
         @cuprintf("bar\n")
     end
-    @test out == "foobar\n"
+    @test out == "foobar$endline"
 end
 
 end
