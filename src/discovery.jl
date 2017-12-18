@@ -1,6 +1,6 @@
 export find_library, find_binary,
        find_cuda_library, find_cuda_binary,
-       find_cuda_driver, find_cuda_toolkit, find_cuda_toolkit_version,
+       find_driver, find_toolkit, find_toolkit_version,
        find_host_compiler, find_toolchain
 
 # debug print helpers
@@ -22,16 +22,21 @@ function find_library(names::Vector{String};
     # figure out names
     all_names = String[]
     if Compat.Sys.iswindows()
-        for name in names, version in versions
-            # priority goes to the `names` argument, as per `Libdl.find_library`
-            append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
-                                "$(name)$(word_size)_$(version.major)",
-                                "$(name)$(word_size)"])
+        # priority goes to the `names` argument, as per `Libdl.find_library`
+        for name in names
+            for version in versions
+                append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
+                                    "$(name)$(word_size)_$(version.major)"])
+            end
+            # look for unversioned libraries
+            append!(all_names, ["$(name)$(word_size)", name])
         end
     else
         all_names = ["lib$name" for name in names]
     end
-    all_names = unique(all_names)
+    # the dual reverse is to put less specific names last,
+    # eg. ["lib9.1", "lib9", "lib9.0", "lib9.0"] => ["lib9.1", "lib9.0", "lib9.0"]
+    all_names = reverse(unique(reverse(all_names)))
 
     # figure out locations
     all_locations = String[]
@@ -125,7 +130,7 @@ const cuda_versions = Dict(
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit path as prefix.
 find_cuda_library(name::String, toolkit_path::Union{String,Void}=nothing;
-                  versions::Vector{VersionNumber}=get(cuda_versions, name, cuda_versions["toolkit"]),
+                  versions::Vector{VersionNumber}=reverse(get(cuda_versions, name, cuda_versions["toolkit"])),
                   kwargs...) =
     find_library(get(cuda_names, name, [name]);
                  versions=versions,
@@ -136,7 +141,7 @@ find_cuda_binary(name::String, toolkit_path::Union{String,Void}=nothing; kwargs.
                 locations=(toolkit_path!=nothing ? [toolkit_path] : String[]),
                 kwargs...)
 
-function find_cuda_driver()
+function find_driver()
     # figure out locations
     dirs = String[]
     ## look for the driver library (in the case LD_LIBRARY_PATH points to the installation)
@@ -172,7 +177,7 @@ function find_cuda_driver()
     return dir
 end
 
-function find_cuda_toolkit()
+function find_toolkit()
     # figure out locations
     if Compat.Sys.iswindows()
         # CUDA versions are installed in separate directories under one of the following folders
@@ -238,7 +243,7 @@ function find_cuda_toolkit()
 end
 
 # figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
-function find_cuda_toolkit_version(toolkit_path)
+function find_toolkit_version(toolkit_path)
     nvcc_path = find_cuda_binary("nvcc", toolkit_path)
     if nvcc_path == nothing
         error("CUDA toolkit at $toolkit_path doesn't contain nvcc")
@@ -307,10 +312,11 @@ function find_host_compiler(toolkit_version=nothing)
         # discover Visual Studio installations
         msvc_paths = String[]
         arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
-        program_files = get(ENV, Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles")
+        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
         ## locate VS2017
-        vswhere = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
-        if isfile(vswhere)
+        vswhere_dist = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
+        let vswhere = isfile(vswhere_dist) ? vswhere_dist : download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
+            @debug("Locating VS2017 using vswhere from $vswhere")
             msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
             vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
             tmpfile = tempname() # TODO: do this with a pipe
@@ -325,7 +331,7 @@ function find_host_compiler(toolkit_version=nothing)
             msvc_path = joinpath(dirname(dirname(dirname(path))), "VC", "bin", arch, "cl.exe")
             push!(msvc_paths, msvc_path)
         end
-        isempty(msvc_path) && error("No Visual Studio installation found")
+        isempty(msvc_paths) && error("No Visual Studio installation found")
 
         # find MSVC versions
         msvc_list = Dict{VersionNumber,String}()
@@ -383,7 +389,7 @@ mutable struct Toolchain
     host_compiler::String
     host_version::VersionNumber
 end
-function find_toolchain(toolkit_path, toolkit_version=find_cuda_toolkit_version(toolkit_path))
+function find_toolchain(toolkit_path, toolkit_version=find_toolkit_version(toolkit_path))
     # find the CUDA compiler
     nvcc_path = find_cuda_binary("nvcc", toolkit_path)
     if nvcc_path == nothing
