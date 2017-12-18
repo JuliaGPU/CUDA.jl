@@ -22,17 +22,21 @@ function find_library(names::Vector{String};
     # figure out names
     all_names = String[]
     if Compat.Sys.iswindows()
-        for name in names, version in versions
-            # priority goes to the `names` argument, as per `Libdl.find_library`
-            append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
-                                "$(name)$(word_size)_$(version.major)",
-                                "$(name)$(word_size)",
-                                name])
+        # priority goes to the `names` argument, as per `Libdl.find_library`
+        for name in names
+            for version in versions
+                append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
+                                    "$(name)$(word_size)_$(version.major)"])
+            end
+            # look for unversioned libraries
+            append!(all_names, ["$(name)$(word_size)", name])
         end
     else
         all_names = ["lib$name" for name in names]
     end
-    all_names = unique(all_names)
+    # the dual reverse is to put less specific names last,
+    # eg. ["lib9.1", "lib9", "lib9.0", "lib9.0"] => ["lib9.1", "lib9.0", "lib9.0"]
+    all_names = reverse(unique(reverse(all_names)))
 
     # figure out locations
     all_locations = String[]
