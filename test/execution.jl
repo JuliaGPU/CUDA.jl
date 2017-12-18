@@ -44,7 +44,7 @@ end
 @testset "reflection with argument conversion" begin
     @eval exec_dummy_array(a, i) = (a[1] = i; return nothing)
 
-    a = CuArray{Float32}(1)
+    a = CuTestArray([1])
 
     @grab_output CUDAnative.@code_llvm @cuda (1,1) exec_dummy_array(a, 1)
     @grab_output CUDAnative.@code_ptx @cuda (1,1) exec_dummy_array(a, 1)
@@ -222,8 +222,8 @@ end
         nothing
     end
 
-    x1 = CuArray([1])
-    x2 = CuArray([2])
+    x1 = CuTestArray([1])
+    x2 = CuTestArray([2])
 
     @cuda (1,1) exec_pass_tuples((x1, x2))
     @test Array(x1) == [2]

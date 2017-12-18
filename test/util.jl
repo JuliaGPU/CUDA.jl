@@ -1,5 +1,3 @@
-
-
 # NOTE: all kernel function definitions are prefixed with @eval to force toplevel definition,
 #       avoiding boxing as seen in https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
 
@@ -62,3 +60,38 @@ end
                      store volatile i64 %0, i64* %slot
                      %value = load volatile i64, i64* %slot
                      ret i64 %value""", Int64, Tuple{Int64}, i)
+
+# a lightweight CUDA array type for testing purposes
+## ctor & finalizer
+mutable struct CuTestArray{T,N}
+    buf::Mem.Buffer
+    shape::NTuple{N,Int}
+    function CuTestArray{T,N}(shape::NTuple{N,Int}) where {T,N}
+        len = prod(shape)
+        buf = Mem.alloc(len*sizeof(T))
+
+        obj = new{T,N}(buf, shape)
+        @compat finalizer(unsafe_free!, obj)
+        return obj
+    end
+end
+function unsafe_free!(a::CuTestArray)
+    CUDAdrv.isvalid(a.buf.ctx) && Mem.free(a.buf)
+end
+## memory copy operations
+function CuTestArray(src::Array{T,N}) where {T,N}
+    dst = CuTestArray{T,N}(size(src))
+    Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
+    return dst
+end
+function Base.Array(src::CuTestArray{T,N}) where {T,N}
+    dst = Array{T,N}(uninitialized, src.shape)
+    Mem.download!(pointer(dst), src.buf, prod(src.shape) * sizeof(T))
+    return dst
+end
+## conversions
+function CUDAnative.cudaconvert(a::CuTestArray{T,N}) where {T,N}
+    ptr = Base.unsafe_convert(Ptr{T}, a.buf)
+    devptr = CUDAnative.DevicePtr{T,AS.Global}(ptr)
+    CuDeviceArray{T,N,AS.Global}(a.shape, devptr)
+end
