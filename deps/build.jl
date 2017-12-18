@@ -2,6 +2,11 @@ using CUDAapi
 using CUDAdrv
 using LLVM
 
+# FIXME: replace with an additional log level when we depend on 0.7+
+macro trace(ex...)
+    esc(:(@debug $(ex...)))
+end
+
 
 ## auxiliary routines
 
