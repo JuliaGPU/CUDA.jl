@@ -26,7 +26,8 @@ function find_library(names::Vector{String};
             # priority goes to the `names` argument, as per `Libdl.find_library`
             append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
                                 "$(name)$(word_size)_$(version.major)",
-                                "$(name)$(word_size)"])
+                                "$(name)$(word_size)",
+                                name])
         end
     else
         all_names = ["lib$name" for name in names]
