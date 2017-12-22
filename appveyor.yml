@@ -13,14 +13,18 @@ environment:
   global:
     DEBUG: true
   matrix:
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-      JULIA_URL: "https://julialang-s3.julialang.org/bin/winnt/x64/0.6/julia-0.6-latest-win64.exe"
+    - JULIA_URL: "https://julialang-s3.julialang.org/bin/winnt/x64/0.6/julia-0.6-latest-win64.exe"
       CUDA_VERSION: 8.0
       CUDA_BUILD: 8.0.44
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-      JULIA_URL: "https://julialangnightlies-s3.julialang.org/bin/winnt/x64/julia-latest-win64.exe"
+    - JULIA_URL: "https://julialangnightlies-s3.julialang.org/bin/winnt/x64/julia-latest-win64.exe"
       CUDA_VERSION: 8.0
       CUDA_BUILD: 8.0.44
+    - JULIA_URL: "https://julialang-s3.julialang.org/bin/winnt/x64/0.6/julia-0.6-latest-win64.exe"
+      CUDA_VERSION: 9.0
+      CUDA_BUILD: 9.0.176
+    - JULIA_URL: "https://julialangnightlies-s3.julialang.org/bin/winnt/x64/julia-latest-win64.exe"
+      CUDA_VERSION: 9.0
+      CUDA_BUILD: 9.0.176
 
 install:
   # Julia
@@ -38,9 +42,3 @@ build_script:
 
 test_script:
   - C:\julia\bin\julia -e "Pkg.test(\"CUDAapi\")"
-
-init:
-  - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
-
-on_finish:
-  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
