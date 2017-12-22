@@ -325,24 +325,27 @@ function find_host_compiler(toolkit_version=nothing)
         ## locate VS2017
         vswhere_dist = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
         let vswhere = isfile(vswhere_dist) ? vswhere_dist : download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
-            @debug("Locating VS2017 using vswhere from $vswhere")
             msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
             if !isempty(msvc_cmd_tools_dir)
                 vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
                 tmpfile = tempname() # TODO: do this with a pipe
                 run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
                 msvc_path = readlines(tmpfile)[end]
+                @debug("Considering MSVC at $msvc_path located with vswhere")
                 push!(msvc_paths, msvc_path)
             end
         end
         ## locate VS2012 to 2014
-        vc_versions_100_140 = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
-        for inds in find(x -> haskey(ENV, x), vc_versions_100_140)
-            path = ENV[vc_versions_100_140[inds]]
-            msvc_path = joinpath(dirname(dirname(dirname(path))), "VC", "bin", arch, "cl.exe")
-            push!(msvc_paths, msvc_path)
+        let envvars = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
+            envvars_set = filter(var -> haskey(ENV, var), envvars)
+            for var in envvars_set
+                val = ENV[var]
+                msvc_path = joinpath(dirname(dirname(dirname(val))), "VC", "bin", arch, "cl.exe")
+                @debug("Considering MSVC at $msvc_path located with environment variable $var")
+                push!(msvc_paths, msvc_path)
+            end
+            isempty(msvc_paths) && error("No Visual Studio installation found")
         end
-        isempty(msvc_paths) && error("No Visual Studio installation found")
 
         # find MSVC versions
         msvc_list = Dict{VersionNumber,String}()
