@@ -181,28 +181,8 @@ end
 
 function find_toolkit()
     # figure out locations
-    if Compat.Sys.iswindows()
-        # CUDA versions are installed in separate directories under one of the following folders
-        searchdirs = [joinpath(get(ENV, "ProgramFiles", ""),      "NVIDIA GPU Computing Toolkit", "CUDA"),
-                      joinpath(get(ENV, "ProgramFiles(x86)", ""), "NVIDIA GPU Computing Toolkit", "CUDA")]
-        filter!(isdir, searchdirs)
-
-        dirs = String[]
-        for dir in searchdirs
-            # add all CUDA toolkit versions under the root CUDA folder
-            push!(dirs, map(x -> joinpath(dir, x),  readdir(dir))...)
-        end
-        sort!(dirs, rev=true) # we want to search starting from the newest CUDA version
-    else
-        dirs = String[]
-        basedirs = ["/usr/local/cuda", "/opt/cuda"]
-        for dir in basedirs
-            append!(dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
-        end
-        append!(dirs, basedirs)
-        push!(dirs, "/usr/lib/nvidia-cuda-toolkit")
-    end
-    ## look for environment variables (taking priority over default values)
+    dirs = String[]
+    ## look for environment variables
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
     envvars_set = filter(var -> haskey(ENV, var), envvars)
     if length(envvars_set) > 0
@@ -210,8 +190,27 @@ function find_toolkit()
         if length(envvals) > 1
             warn("Multiple CUDA environment variables set to different values: $(join(envvars_set, ", ", " and "))")
         end
-        @debug("Considering CUDA toolkit at $(envvals...) based on environment variables")
-        unshift!(dirs, envvals...)
+        @debug("Considering CUDA toolkit at $(envvals...) based on environment variables $(join(envvars_set, ", "))")
+        push!(dirs, envvals...)
+    end
+    ## look in default installation directories
+    if Compat.Sys.iswindows()
+        # CUDA versions are installed in separate directories under a single base dir
+        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
+        basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
+        if isdir(basedir)
+            entries = map(x -> joinpath(dir, x), readdir(dir))
+            reverse!(entries) # we want to search starting from the newest CUDA version
+            append!(dirs, entries)
+        end
+    else
+        # CUDA versions are installed in unversioned dirs, or suffixed with the version
+        basedirs = ["/usr/local/cuda", "/opt/cuda"]
+        for dir in basedirs
+            append!(dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
+        end
+        append!(dirs, basedirs)
+        push!(dirs, "/usr/lib/nvidia-cuda-toolkit")
     end
     ## look for the compiler binary (in the case PATH points to the installation)
     nvcc_path = find_cuda_binary("nvcc")
