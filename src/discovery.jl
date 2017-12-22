@@ -200,7 +200,7 @@ function find_toolkit()
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
         @debug("Considering default CUDA installation directory at $basedir")
         if isdir(basedir)
-            entries = map(x -> joinpath(dir, x), readdir(dir))
+            entries = map(dir -> joinpath(basedir, dir), readdir(basedir))
             reverse!(entries) # we want to search starting from the newest CUDA version
             @debug("Considering CUDA toolkits at $(join(entries, ", ")) based on default installation directory")
             append!(dirs, entries)
