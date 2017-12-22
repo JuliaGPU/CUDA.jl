@@ -196,7 +196,7 @@ function find_toolkit()
     ## look in default installation directories
     if Compat.Sys.iswindows()
         # CUDA versions are installed in separate directories under a single base dir
-        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
+        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)" ]
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
         @debug("Considering default CUDA installation directory at $basedir")
         if isdir(basedir)
