@@ -320,7 +320,7 @@ function find_host_compiler(toolkit_version=nothing)
 
         # discover Visual Studio installations
         msvc_paths = String[]
-        archs = Sys.WORD_SIZE == 64 ? ["amd64", "x86_amd64"] : ["x86"]
+        arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
         ## locate VS2017
         vswhere_dist = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
@@ -328,19 +328,17 @@ function find_host_compiler(toolkit_version=nothing)
             msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
             if !isempty(msvc_cmd_tools_dir)
                 vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
-                for arch in archs
-                    tmpfile = tempname() # TODO: do this with a pipe
-                    run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
-                    msvc_path = readlines(tmpfile)[end]
-                    @debug("Considering MSVC at $msvc_path located with vswhere")
-                    push!(msvc_paths, msvc_path)
-                end
+                tmpfile = tempname() # TODO: do this with a pipe
+                run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
+                msvc_path = readlines(tmpfile)[end]
+                @debug("Considering MSVC at $msvc_path located with vswhere")
+                push!(msvc_paths, msvc_path)
             end
         end
         ## locate VS2012 to 2014
         let envvars = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
             envvars_set = filter(var -> haskey(ENV, var), envvars)
-            for var in envvars_set, arch in archs
+            for var in envvars_set
                 val = ENV[var]
                 msvc_path = joinpath(dirname(dirname(dirname(val))), "VC", "bin", arch, "cl.exe")
                 if isfile(msvc_path)
@@ -348,8 +346,8 @@ function find_host_compiler(toolkit_version=nothing)
                     push!(msvc_paths, msvc_path)
                 end
             end
-            isempty(msvc_paths) && error("No Visual Studio installation found")
         end
+        isempty(msvc_paths) && error("No Visual Studio installation found")
 
         # find MSVC versions
         msvc_list = Dict{VersionNumber,String}()
