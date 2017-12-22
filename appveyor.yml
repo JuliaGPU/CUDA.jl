@@ -33,7 +33,7 @@ environment:
 install:
   # Julia
   - appveyor DownloadFile %JULIA_URL% -FileName julia-installer.exe
-  - julia-installer.exe /S /D=C:\projects\julia
+  - julia-installer.exe /S /D=C:\julia
   # CUDA
   - appveyor DownloadFile https://developer.nvidia.com/compute/cuda/%CUDA_VERSION%/prod/local_installers/cuda_%CUDA_BUILD%_windows-exe -FileName cuda_%CUDA_BUILD%_windows.exe
   - cuda_%CUDA_BUILD%_windows.exe -s compiler_%CUDA_VERSION% cublas_%CUDA_VERSION% cublas_dev_%CUDA_VERSION% cudart_%CUDA_VERSION% curand_%CUDA_VERSION% curand_dev_%CUDA_VERSION% nvrtc_%CUDA_VERSION% nvrtc_dev_%CUDA_VERSION%
@@ -41,8 +41,14 @@ install:
 build_script:
   # convert from shallow to complete for Pkg.clone to work
   - IF EXIST .git\shallow (git fetch --unshallow)
-  - C:\projects\julia\bin\julia -e "versioninfo();
+  - C:\julia\bin\julia -e "versioninfo();
       Pkg.clone(pwd(), \"CUDAapi\"); Pkg.build(\"CUDAapi\")"
 
 test_script:
-  - C:\projects\julia\bin\julia -e "Pkg.test(\"CUDAapi\")"
+  - C:\julia\bin\julia -e "Pkg.test(\"CUDAapi\")"
+
+init:
+  - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
+
+on_finish:
+  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
