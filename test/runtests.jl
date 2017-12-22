@@ -27,12 +27,26 @@ find_library([Compat.Sys.iswindows() ? "NTDLL" : "c"])
 
 # CUDA
 
-toolkit = find_toolkit()
+macro test_something(ex...)
+    quote
+        rv = $(ex...)
+        @test rv != nothing
+        rv
+    end
+end
+
+toolkit = @test_something find_toolkit()
 toolkit_version = find_toolkit_version(toolkit)
-find_driver()
-find_cuda_binary("nvcc", toolkit)
-find_cuda_library("cudart", toolkit)
-find_host_compiler()
-find_host_compiler(toolkit_version)
-find_toolchain(toolkit)
-find_toolchain(toolkit, toolkit_version)
+
+if haskey(ENV, "CI")
+    find_driver()
+else
+    @test_something find_driver()
+end
+
+@test_something find_cuda_binary("nvcc", toolkit)
+@test_something find_cuda_library("cudart", toolkit)
+@test_something find_host_compiler()
+@test_something find_host_compiler(toolkit_version)
+@test_something find_toolchain(toolkit)
+@test_something find_toolchain(toolkit, toolkit_version)

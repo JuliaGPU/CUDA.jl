@@ -170,7 +170,8 @@ function find_driver()
     if length(dirs) > 1
         warn("Found multiple CUDA driver installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
-        error("Could not find CUDA driver")
+        warn("Could not find CUDA driver")
+        return nothing
     end
 
     # select
@@ -240,7 +241,8 @@ function find_toolkit()
     if length(dirs) > 1
         warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
-        error("Could not find CUDA toolkit; specify using any of the $(join(envvars, ", ", " or ")) environment variables")
+        warn("Could not find CUDA toolkit; specify using any of the $(join(envvars, ", ", " or ")) environment variables")
+        return nothing
     end
 
     # select
