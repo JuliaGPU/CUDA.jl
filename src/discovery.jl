@@ -327,11 +327,13 @@ function find_host_compiler(toolkit_version=nothing)
         let vswhere = isfile(vswhere_dist) ? vswhere_dist : download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
             @debug("Locating VS2017 using vswhere from $vswhere")
             msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
-            vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
-            tmpfile = tempname() # TODO: do this with a pipe
-            run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
-            msvc_path = readlines(tmpfile)[end]
-            push!(msvc_paths, msvc_path)
+            if !isempty(msvc_cmd_tools_dir)
+                vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
+                tmpfile = tempname() # TODO: do this with a pipe
+                run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
+                msvc_path = readlines(tmpfile)[end]
+                push!(msvc_paths, msvc_path)
+            end
         end
         ## locate VS2012 to 2014
         vc_versions_100_140 = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
