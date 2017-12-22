@@ -14,16 +14,23 @@ julia:
   - nightly
 
 env:
+  - CUDA_VER_SHORT=5.5
+    CUDA_VER_LONG=5.5-54
+  - CUDA_VER_SHORT=6.5
+    CUDA_VER_LONG=6.5-19
+  - CUDA_VER_SHORT=7.0
+    CUDA_VER_LONG=7.0-28
   - CUDA_VER_SHORT=7.5
     CUDA_VER_LONG=7.5-18
+  - CUDA_VER_SHORT=8.0
+    CUDA_VER_LONG=8.0.61-1
 
 before_install:
   - wget "http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_${CUDA_VER_LONG}_amd64.deb";
     sudo dpkg -i cuda-repo-ubuntu1404_${CUDA_VER_LONG}_amd64.deb;
-    sudo apt-get update -qq;
+    sudo apt-get update;
     export CUDA_APT=${CUDA_VER_SHORT/./-};
     sudo apt-get install -y cuda-drivers cuda-core-${CUDA_APT} cuda-cudart-dev-${CUDA_APT} cuda-cufft-dev-${CUDA_APT};
     export CUDA_HOME=/usr/local/cuda-${CUDA_VER_SHORT};
     export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH};
     export PATH=${CUDA_HOME}/bin:${PATH};
-    sudo apt-get install -y libgl1-mesa-dev;
