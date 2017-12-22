@@ -192,9 +192,13 @@ function find_toolkit()
         end
         sort!(dirs, rev=true) # we want to search starting from the newest CUDA version
     else
-        dirs = ["/usr/lib/nvidia-cuda-toolkit",
-                "/usr/local/cuda",
-                "/opt/cuda"]
+        dirs = String[]
+        basedirs = ["/usr/local/cuda", "/opt/cuda"]
+        for dir in basedirs
+            append!(dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
+        end
+        append!(dirs, basedirs)
+        push!(dirs, "/usr/lib/nvidia-cuda-toolkit")
     end
     ## look for environment variables (taking priority over default values)
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
