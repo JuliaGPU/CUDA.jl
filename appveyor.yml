@@ -19,8 +19,8 @@ notifications:
 environment:
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-      CUDA_VERSION=8.0
-      CUDA_BUILD=8.0.44
+      CUDA_VERSION: 8.0
+      CUDA_BUILD: 8.0.44
 
 install:
   - ps: "[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12"
