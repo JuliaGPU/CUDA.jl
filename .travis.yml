@@ -32,6 +32,6 @@ before_install:
     sudo apt-get update;
     export CUDA_NAME=${CUDA_VERSION/./-};
     sudo apt-get install -y cuda-drivers cuda-core-${CUDA_NAME} cuda-cudart-dev-${CUDA_NAME} cuda-cufft-dev-${CUDA_NAME};
-    export CUDA_HOME=/usr/local/cuda-${CUDA_VER_SHORT};
+    export CUDA_HOME=/usr/local/cuda-${CUDA_VERSION};
     export LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH};
     export PATH=${CUDA_HOME}/bin:${PATH};
