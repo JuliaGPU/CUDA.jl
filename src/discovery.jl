@@ -9,6 +9,8 @@ source_str(srcs::Vector{String}) = isempty(srcs) ? "anywhere" : "in " * join(src
 target_str(typ::String, dst::String) = "$typ $dst"
 target_str(typ::String, dsts::Vector{String}) = isempty(dsts) ? "no $typ" : "$typ " * join(dsts, ", ", " or ")
 
+# FIXME: CUDA on 32-bit Windows isn't supported
+
 
 ## generic discovery routines
 

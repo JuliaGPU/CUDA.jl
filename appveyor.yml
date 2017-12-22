@@ -14,15 +14,7 @@ environment:
     DEBUG: true
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-      JULIA_URL: "https://julialang-s3.julialang.org/bin/winnt/x86/0.6/julia-0.6-latest-win32.exe"
-      CUDA_VERSION: 8.0
-      CUDA_BUILD: 8.0.44
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
       JULIA_URL: "https://julialang-s3.julialang.org/bin/winnt/x64/0.6/julia-0.6-latest-win64.exe"
-      CUDA_VERSION: 8.0
-      CUDA_BUILD: 8.0.44
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
-      JULIA_URL: "https://julialangnightlies-s3.julialang.org/bin/winnt/x86/julia-latest-win32.exe"
       CUDA_VERSION: 8.0
       CUDA_BUILD: 8.0.44
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
@@ -46,9 +38,3 @@ build_script:
 
 test_script:
   - C:\julia\bin\julia -e "Pkg.test(\"CUDAapi\")"
-
-init:
-  - ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
-
-on_finish:
-  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
