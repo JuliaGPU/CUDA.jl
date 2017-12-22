@@ -198,9 +198,11 @@ function find_toolkit()
         # CUDA versions are installed in separate directories under a single base dir
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
+        @debug("Considering default CUDA installation directory at $basedir")
         if isdir(basedir)
             entries = map(x -> joinpath(dir, x), readdir(dir))
             reverse!(entries) # we want to search starting from the newest CUDA version
+            @debug("Considering CUDA toolkits at $(join(entries, ", ")) based on default installation directory")
             append!(dirs, entries)
         end
     else
@@ -238,7 +240,7 @@ function find_toolkit()
     if length(dirs) > 1
         warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
-        error("Could not find CUDA toolkit; specify using CUDA_(dir|HOME|ROOT) environment variable")
+        error("Could not find CUDA toolkit; specify using any of the $(join(envvars, ", ", " or ")) environment variables")
     end
 
     # select
