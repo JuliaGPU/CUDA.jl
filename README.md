@@ -3,12 +3,18 @@ CUDAapi.jl
 
 *Reusable components for CUDA API development.*
 
-**Build status**: [![][buildbot-julia06-img]][buildbot-julia06-url] [![][buildbot-juliadev-img]][buildbot-juliadev-url]
+**Build status**: [![][buildbot-julia06-img]][buildbot-julia06-url] [![][buildbot-juliadev-img]][buildbot-juliadev-url] [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url]
 
 [buildbot-julia06-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAapi-julia06-x86-64bit&name=julia%200.6
 [buildbot-julia06-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAapi-julia06-x86-64bit
 [buildbot-juliadev-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAapi-juliadev-x86-64bit&name=julia%20dev
 [buildbot-juliadev-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAapi-juliadev-x86-64bit
+
+[travis-img]: https://travis-ci.org/JuliaGPU/CUDAapi.jl.svg?branch=master
+[travis-url]: https://travis-ci.org/JuliaGPU/CUDAapi.jl
+
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/e41yic5p5ru018mf/branch/master?svg=true
+[appveyor-url]: https://ci.appveyor.com/project/maleadt/cudaapi-jl
 
 
 This package provides some reusable functionality for programming against CUDA or NVIDIA
