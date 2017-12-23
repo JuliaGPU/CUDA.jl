@@ -9,6 +9,8 @@ source_str(srcs::Vector{String}) = isempty(srcs) ? "anywhere" : "in " * join(src
 target_str(typ::String, dst::String) = "$typ $dst"
 target_str(typ::String, dsts::Vector{String}) = isempty(dsts) ? "no $typ" : "$typ " * join(dsts, ", ", " or ")
 
+# FIXME: CUDA on 32-bit Windows isn't supported
+
 
 ## generic discovery routines
 
@@ -168,7 +170,8 @@ function find_driver()
     if length(dirs) > 1
         warn("Found multiple CUDA driver installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
-        error("Could not find CUDA driver")
+        warn("Could not find CUDA driver")
+        return nothing
     end
 
     # select
@@ -179,24 +182,8 @@ end
 
 function find_toolkit()
     # figure out locations
-    if Compat.Sys.iswindows()
-        # CUDA versions are installed in separate directories under one of the following folders
-        searchdirs = [joinpath(get(ENV, "ProgramFiles", ""),      "NVIDIA GPU Computing Toolkit", "CUDA"),
-                      joinpath(get(ENV, "ProgramFiles(x86)", ""), "NVIDIA GPU Computing Toolkit", "CUDA")]
-        filter!(isdir, searchdirs)
-
-        dirs = String[]
-        for dir in searchdirs
-            # add all CUDA toolkit versions under the root CUDA folder
-            push!(dirs, map(x -> joinpath(dir, x),  readdir(dir))...)
-        end
-        sort!(dirs, rev=true) # we want to search starting from the newest CUDA version
-    else
-        dirs = ["/usr/lib/nvidia-cuda-toolkit",
-                "/usr/local/cuda",
-                "/opt/cuda"]
-    end
-    ## look for environment variables (taking priority over default values)
+    dirs = String[]
+    ## look for environment variables
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
     envvars_set = filter(var -> haskey(ENV, var), envvars)
     if length(envvars_set) > 0
@@ -204,8 +191,29 @@ function find_toolkit()
         if length(envvals) > 1
             warn("Multiple CUDA environment variables set to different values: $(join(envvars_set, ", ", " and "))")
         end
-        @debug("Considering CUDA toolkit at $(envvals...) based on environment variables")
-        unshift!(dirs, envvals...)
+        @debug("Considering CUDA toolkit at $(envvals...) based on environment variables $(join(envvars_set, ", "))")
+        push!(dirs, envvals...)
+    end
+    ## look in default installation directories
+    if Compat.Sys.iswindows()
+        # CUDA versions are installed in separate directories under a single base dir
+        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)" ]
+        basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
+        @debug("Considering default CUDA installation directory at $basedir")
+        if isdir(basedir)
+            entries = map(dir -> joinpath(basedir, dir), readdir(basedir))
+            reverse!(entries) # we want to search starting from the newest CUDA version
+            @debug("Considering CUDA toolkits at $(join(entries, ", ")) based on default installation directory")
+            append!(dirs, entries)
+        end
+    else
+        # CUDA versions are installed in unversioned dirs, or suffixed with the version
+        basedirs = ["/usr/local/cuda", "/opt/cuda"]
+        for dir in basedirs
+            append!(dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
+        end
+        append!(dirs, basedirs)
+        push!(dirs, "/usr/lib/nvidia-cuda-toolkit")
     end
     ## look for the compiler binary (in the case PATH points to the installation)
     nvcc_path = find_cuda_binary("nvcc")
@@ -233,7 +241,8 @@ function find_toolkit()
     if length(dirs) > 1
         warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
-        error("Could not find CUDA toolkit; specify using CUDA_(dir|HOME|ROOT) environment variable")
+        warn("Could not find CUDA toolkit; specify using any of the $(join(envvars, ", ", " or ")) environment variables")
+        return nothing
     end
 
     # select
@@ -316,20 +325,27 @@ function find_host_compiler(toolkit_version=nothing)
         ## locate VS2017
         vswhere_dist = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
         let vswhere = isfile(vswhere_dist) ? vswhere_dist : download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
-            @debug("Locating VS2017 using vswhere from $vswhere")
             msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
-            vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
-            tmpfile = tempname() # TODO: do this with a pipe
-            run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
-            msvc_path = readlines(tmpfile)[end]
-            push!(msvc_paths, msvc_path)
+            if !isempty(msvc_cmd_tools_dir)
+                vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
+                tmpfile = tempname() # TODO: do this with a pipe
+                run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
+                msvc_path = readlines(tmpfile)[end]
+                @debug("Considering MSVC at $msvc_path located with vswhere")
+                push!(msvc_paths, msvc_path)
+            end
         end
         ## locate VS2012 to 2014
-        vc_versions_100_140 = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
-        for inds in find(x -> haskey(ENV, x), vc_versions_100_140)
-            path = ENV[vc_versions_100_140[inds]]
-            msvc_path = joinpath(dirname(dirname(dirname(path))), "VC", "bin", arch, "cl.exe")
-            push!(msvc_paths, msvc_path)
+        let envvars = ["VS140COMNTOOLS", "VS120COMNTOOLS", "VS110COMNTOOLS", "VS100COMNTOOLS"]
+            envvars_set = filter(var -> haskey(ENV, var), envvars)
+            for var in envvars_set
+                val = ENV[var]
+                msvc_path = joinpath(dirname(dirname(dirname(val))), "VC", "bin", arch, "cl.exe")
+                if isfile(msvc_path)
+                    @debug("Considering MSVC at $msvc_path located with environment variable $var")
+                    push!(msvc_paths, msvc_path)
+                end
+            end
         end
         isempty(msvc_paths) && error("No Visual Studio installation found")
 
