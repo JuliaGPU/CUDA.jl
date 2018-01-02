@@ -55,14 +55,14 @@ function find_library(names::Vector{String};
     end
 
     @debug("Looking $(source_str(locations)) for $(target_str("library", names))")
-    name = Libdl.find_library(all_names, all_locations)
-    if isempty(name)
+    name_found = Libdl.find_library(all_names, all_locations)
+    if isempty(name_found)
         return nothing
     end
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
-    path = Libdl.dlpath(name)
-    @debug("Found $name library at $path")
+    path = Libdl.dlpath(name_found)
+    @debug("Found $name_found library at $path")
     return path
 end
 
@@ -218,22 +218,22 @@ function find_toolkit()
     ## look for the compiler binary (in the case PATH points to the installation)
     nvcc_path = find_cuda_binary("nvcc")
     if nvcc_path != nothing
-        dir = dirname(nvcc_path)
-        if ismatch(r"^bin(32|64)?$", basename(dir))
-            dir = dirname(dir)
+        nvcc_dir = dirname(nvcc_path)
+        if ismatch(r"^bin(32|64)?$", basename(nvcc_dir))
+            nvcc_dir = dirname(nvcc_dir)
         end
-        @debug("Considering CUDA toolkit at $dir based on nvcc at $nvcc_path")
-        push!(dirs, dir)
+        @debug("Considering CUDA toolkit at $nvcc_dir based on nvcc at $nvcc_path")
+        push!(dirs, nvcc_dir)
     end
     ## look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
     libcudart_path = find_cuda_library("cudart")
     if libcudart_path != nothing
-        dir = dirname(libcudart_path)
-        if ismatch(r"^(lib|bin)(32|64)?$", basename(dir))
-            dir = dirname(dir)
+        libcudart_dir = dirname(libcudart_path)
+        if ismatch(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
+            libcudart_dir = dirname(libcudart_dir)
         end
-        @debug("Considering CUDA toolkit at $dir based on libcudart at $libcudart_path")
-        push!(dirs, dir)
+        @debug("Considering CUDA toolkit at $libcudart_dir based on libcudart at $libcudart_path")
+        push!(dirs, libcudart_dir)
     end
 
     # filter
