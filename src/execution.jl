@@ -23,10 +23,11 @@ struct CuDim3
     z::Cuint
 end
 
-CuDim3(g::T) where {T <: Integer} =           CuDim3(g,    Cuint(1), Cuint(1))
-CuDim3(g::NTuple{1,T}) where {T <: Integer} = CuDim3(g[1], Cuint(1), Cuint(1))
-CuDim3(g::NTuple{2,T}) where {T <: Integer} = CuDim3(g[1], g[2],     Cuint(1))
-CuDim3(g::NTuple{3,T}) where {T <: Integer} = CuDim3(g[1], g[2],     g[3])
+CuDim3(dims::CuDim3)              = dims
+CuDim3(dims::Integer)             = CuDim3(dims,    Cuint(1), Cuint(1))
+CuDim3(dims::NTuple{1,<:Integer}) = CuDim3(dims[1], Cuint(1), Cuint(1))
+CuDim3(dims::NTuple{2,<:Integer}) = CuDim3(dims[1], dims[2],  Cuint(1))
+CuDim3(dims::NTuple{3,<:Integer}) = CuDim3(dims[1], dims[2],  dims[3])
 
 # Type alias for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3((len, 2))`)
@@ -207,8 +208,7 @@ end
         end
     end
 
-    push!(ex.args, :(launch(f, CuDim3(griddim), CuDim3(blockdim), shmem, stream,
-                            ($(arg_ptrs...),))))
+    push!(ex.args, :(launch(f, griddim, blockdim, shmem, stream, ($(arg_ptrs...),))))
 
     return ex
 end
