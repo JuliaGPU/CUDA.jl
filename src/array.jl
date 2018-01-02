@@ -123,61 +123,67 @@ end
 
 ## memory management
 
-"""
-    copy!{T}(dst::CuArray{T}, src::Array{T})
+const copyfun = VERSION >= v"0.7.0-DEV.3057" ? :(copyto!) : :(copy!)
 
-Copy an array from a host array `src` to a device array `dst` in place. Both arrays should
-have an equal length.
-"""
-function Base.copy!(dst::CuArray{T}, src::Array{T}) where T
-    if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent array length."))
+@eval begin
+    """
+        $copyfun{T}(dst::CuArray{T}, src::Array{T})
+
+    Copy an array from a host array `src` to a device array `dst` in place. Both arrays should
+    have an equal length.
+    """
+    function Base.$copyfun(dst::CuArray{T}, src::Array{T}) where T
+        if length(dst) != length(src)
+            throw(ArgumentError("Inconsistent array length."))
+        end
+        Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
+        return dst
     end
-    Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
-    return dst
-end
 
-"""
-    copy!{T}(dst::Array{T}, src::CuArray{T})
+    """
+        $copyfun{T}(dst::Array{T}, src::CuArray{T})
 
-Copy an array from a device array `src` to a host array `dst` in place. Both arrays should
-have an equal length.
-"""
-function Base.copy!(dst::Array{T}, src::CuArray{T}) where T
-    if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent array length."))
+    Copy an array from a device array `src` to a host array `dst` in place. Both arrays should
+    have an equal length.
+    """
+    function Base.$copyfun(dst::Array{T}, src::CuArray{T}) where T
+        if length(dst) != length(src)
+            throw(ArgumentError("Inconsistent array length."))
+        end
+        Mem.download!(pointer(dst), src.buf, length(src) * sizeof(T))
+        return dst
     end
-    Mem.download!(pointer(dst), src.buf, length(src) * sizeof(T))
-    return dst
-end
 
-"""
-    copy!{T}(dst::CuArray{T}, src::CuArray{T})
+    """
+        $copyfun{T}(dst::CuArray{T}, src::CuArray{T})
 
-Copy an array from a device array `src` to a device array `dst` in place. Both arrays should
-have an equal length.
-"""
-function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
-    if length(dst) != length(src)
-        throw(ArgumentError("Inconsistent array length."))
+    Copy an array from a device array `src` to a device array `dst` in place. Both arrays should
+    have an equal length.
+    """
+    function Base.$copyfun(dst::CuArray{T}, src::CuArray{T}) where T
+        if length(dst) != length(src)
+            throw(ArgumentError("Inconsistent array length."))
+        end
+        Mem.transfer!(dst.buf, src.buf, length(src) * sizeof(T))
+        return dst
     end
-    Mem.transfer!(dst.buf, src.buf, length(src) * sizeof(T))
-    return dst
 end
 
 
 ### convenience functions
 
-"""
-    CuArray{T}(src::Array{T})
+@eval begin
+    """
+        CuArray{T}(src::Array{T})
 
-Transfer a host array `src` to device, returning a [`CuArray`](@ref).
-"""
-CuArray(src::Array{T,N}) where {T,N} = copy!(CuArray{T,N}(size(src)), src)
+    Transfer a host array `src` to device, returning a [`CuArray`](@ref).
+    """
+    CuArray(src::Array{T,N}) where {T,N} = $copyfun(CuArray{T,N}(size(src)), src)
 
-"""
-    Array{T}(src::CuArray{T})
+    """
+        Array{T}(src::CuArray{T})
 
-Transfer a device array `src` to host, returning an `Array`.
-"""
-Base.Array(src::CuArray{T,N}) where {T,N} = copy!(Array{T,N}(uninitialized, size(src)), src)
+    Transfer a device array `src` to host, returning an `Array`.
+    """
+    Base.Array(src::CuArray{T,N}) where {T,N} = $copyfun(Array{T,N}(uninitialized, size(src)), src)
+end
