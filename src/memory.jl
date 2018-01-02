@@ -265,7 +265,7 @@ Upload the contents of an array `src` to `dst`.
 """
 function upload!(dst::Buffer, src::AbstractArray,
                  stream=CuDefaultStream(); async::Bool=false)
-    upload!(dst, Ref(src), sizeof(src), stream; async=async)
+    upload!(dst, Ref(src, 1), sizeof(src), stream; async=async)
 end
 
 """
@@ -288,7 +288,7 @@ determined by calling `sizeof` on the array, so it needs to be properly prealloc
 """
 function download!(dst::AbstractArray, src::Buffer,
                    stream::CuStream=CuDefaultStream(); async::Bool=false)
-    ref = Ref(dst)
+    ref = Ref(dst, 1)
     download!(ref, src, sizeof(dst), stream; async=async)
     return
 end
