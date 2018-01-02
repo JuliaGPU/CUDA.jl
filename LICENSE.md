@@ -1,6 +1,7 @@
 The MIT License (MIT)
 
-Copyright (c) 2013-2016 Dahua Lin, and other contributors:
+Copyright &copy; 2013 Dahua Lin
+Copyright &copy; 2014-2018 Tim Besard, and other contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

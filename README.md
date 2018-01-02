@@ -40,6 +40,18 @@ package.
 License
 -------
 
-CUDAnative.jl is licensed under the [MIT License](LICENSE.md). The original author is Tim Besard.
+CUDAnative.jl is licensed under the [MIT license](LICENSE.md).
 
-If you use this package in your research, please cite the [2017 arXiv paper](https://arxiv.org/abs/1712.03112).
+If you use this package in your research, please cite the [following
+paper](https://arxiv.org/abs/1712.03112):
+
+```
+@article{besard:2017,
+  author    = {Tim Besard and Christophe Foket and De Sutter, Bjorn},
+  title     = {Effective Extensible Programming: Unleashing {Julia} on {GPUs}},
+  journal   = {arXiv},
+  volume    = {abs/11712.03112},
+  year      = {2017},
+  url       = {http://arxiv.org/abs/1712.03112},
+}
+```
