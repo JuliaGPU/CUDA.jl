@@ -33,14 +33,14 @@ end
 
 function encode(options::Dict{CUjit_option,Any})
     keys = Vector{CUjit_option}()
-    vals = Vector{Ptr{Void}}()
+    vals = Vector{Ptr{Cvoid}}()
 
     for (opt, val) in options
         push!(keys, opt)
         if opt == GENERATE_LINE_INFO ||
            opt == GENERATE_DEBUG_INFO ||
            opt == LOG_VERBOSE
-            push!(vals, convert(Ptr{Void}, convert(Int, val::Bool)))
+            push!(vals, convert(Ptr{Cvoid}, convert(Int, val::Bool)))
         elseif opt == INFO_LOG_BUFFER
             buf = val::Vector{UInt8}
             push!(vals, pointer(buf))
@@ -51,7 +51,7 @@ function encode(options::Dict{CUjit_option,Any})
             push!(vals, pointer(buf))
             push!(keys, ERROR_LOG_BUFFER_SIZE_BYTES)
             push!(vals, sizeof(buf))
-        elseif isa(val, Ptr{Void})
+        elseif isa(val, Ptr{Cvoid})
             push!(vals, val)
         else
             error("cannot handle option $opt")
@@ -62,7 +62,7 @@ function encode(options::Dict{CUjit_option,Any})
     return keys, vals
 end
 
-function decode(keys::Vector{CUjit_option}, vals::Vector{Ptr{Void}})
+function decode(keys::Vector{CUjit_option}, vals::Vector{Ptr{Cvoid}})
     @assert length(keys) == length(vals)
     options = Dict{CUjit_option,Any}()
 

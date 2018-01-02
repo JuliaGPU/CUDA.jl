@@ -91,7 +91,7 @@ end
     end
 
     # generate an array with pointers
-    arg_ptrs = [:(Base.unsafe_convert(Ptr{Void}, $(arg_refs[i]))) for i in 1:N]
+    arg_ptrs = [:(Base.unsafe_convert(Ptr{Cvoid}, $(arg_refs[i]))) for i in 1:N]
     push!(ex.args, :(kernelParams = [$(arg_ptrs...)]))
 
     # root the argument boxes to the array of pointers,
@@ -107,8 +107,8 @@ end
             Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
             Cuint,                  # shared memory bytes,
             CuStream_t,             # stream
-            Ptr{Ptr{Void}},         # kernel parameters
-            Ptr{Ptr{Void}}),        # extra parameters
+            Ptr{Ptr{Cvoid}},        # kernel parameters
+            Ptr{Ptr{Cvoid}}),       # extra parameters
             f,
             griddim.x, griddim.y, griddim.z,
             blockdim.x, blockdim.y, blockdim.z,

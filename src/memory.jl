@@ -13,7 +13,7 @@ using Compat
 ## buffer type
 
 struct Buffer
-    ptr::Ptr{Void}
+    ptr::Ptr{Cvoid}
     bytesize::Int
 
     ctx::CuContext
@@ -35,7 +35,7 @@ end
 const refcounts = Dict{Buffer, Int}()
 
 function refcount(buf::Buffer)
-    get(refcounts, Base.unsafe_convert(Ptr{Void}, buf), 0)
+    get(refcounts, Base.unsafe_convert(Ptr{Cvoid}, buf), 0)
 end
 
 """
@@ -152,13 +152,13 @@ Allocate `bytesize` bytes of memory.
 function alloc(bytesize::Integer)
     bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
 
-    ptr_ref = Ref{Ptr{Void}}()
-    @apicall(:cuMemAlloc, (Ptr{Ptr{Void}}, Csize_t), ptr_ref, bytesize)
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    @apicall(:cuMemAlloc, (Ptr{Ptr{Cvoid}}, Csize_t), ptr_ref, bytesize)
     return Buffer(ptr_ref[], bytesize, CuCurrentContext())
 end
 
 function free(buf::Buffer)
-    @apicall(:cuMemFree, (Ptr{Void},), buf.ptr)
+    @apicall(:cuMemFree, (Ptr{Cvoid},), buf.ptr)
     return
 end
 
@@ -177,12 +177,12 @@ for T in [UInt8, UInt16, UInt32]
                       stream::CuStream=CuDefaultStream(); async::Bool=false)
             if async
                 @apicall($(QuoteNode(fn_async)),
-                         (Ptr{Void}, $T, Csize_t, CuStream_t),
+                         (Ptr{Cvoid}, $T, Csize_t, CuStream_t),
                          buf.ptr, value, len, stream)
             else
                 @assert stream==CuDefaultStream()
                 @apicall($(QuoteNode(fn_sync)),
-                         (Ptr{Void}, $T, Csize_t),
+                         (Ptr{Cvoid}, $T, Csize_t),
                          buf.ptr, value, len)
             end
         end
@@ -198,12 +198,12 @@ function upload!(dst::Buffer, src::Ref, nbytes::Integer,
                  stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
         @apicall(:cuMemcpyHtoDAsync,
-                 (Ptr{Void}, Ptr{Void}, Csize_t, CuStream_t),
+                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
         @assert stream==CuDefaultStream()
         @apicall(:cuMemcpyHtoD,
-                 (Ptr{Void}, Ptr{Void}, Csize_t),
+                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
                  dst, src, nbytes)
     end
 end
@@ -217,12 +217,12 @@ function download!(dst::Ref, src::Buffer, nbytes::Integer,
                    stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
         @apicall(:cuMemcpyDtoHAsync,
-                 (Ptr{Void}, Ptr{Void}, Csize_t, CuStream_t),
+                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
         @assert stream==CuDefaultStream()
         @apicall(:cuMemcpyDtoH,
-                 (Ptr{Void}, Ptr{Void}, Csize_t),
+                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
                  dst, src, nbytes)
     end
 end
@@ -236,12 +236,12 @@ function transfer!(dst::Buffer, src::Buffer, nbytes::Integer,
                    stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
         @apicall(:cuMemcpyDtoDAsync,
-                 (Ptr{Void}, Ptr{Void}, Csize_t, CuStream_t),
+                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
         @assert stream==CuDefaultStream()
         @apicall(:cuMemcpyDtoD,
-                 (Ptr{Void}, Ptr{Void}, Csize_t),
+                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
                  dst, src, nbytes)
     end
 end

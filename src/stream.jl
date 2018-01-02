@@ -4,7 +4,7 @@ export
     CuStream, CuDefaultStream, synchronize
 
 
-const CuStream_t = Ptr{Void}
+const CuStream_t = Ptr{Cvoid}
 
 mutable struct CuStream
     handle::CuStream_t

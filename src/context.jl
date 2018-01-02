@@ -12,7 +12,7 @@ export
                    LMEM_RESIZE_TO_MAX   = 0x10)
 Base.@deprecate_binding BLOCKING_SYNC SCHED_BLOCKING_SYNC
 
-const CuContext_t = Ptr{Void}
+const CuContext_t = Ptr{Cvoid}
 
 
 ## construction and destruction

@@ -4,7 +4,7 @@ export
     CuFunction
 
 
-const CuFunction_t = Ptr{Void}
+const CuFunction_t = Ptr{Cvoid}
 
 """
     CuFunction(mod::CuModule, name::String)
