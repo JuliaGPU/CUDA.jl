@@ -1,5 +1,5 @@
 CUDAdrv.jl
-##########
+==========
 
 *A Julia wrapper for the CUDA driver API.*
 
