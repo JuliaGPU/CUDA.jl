@@ -167,6 +167,41 @@ const copyfun = VERSION >= v"0.7.0-DEV.3057" ? :(copyto!) : :(copy!)
         Mem.transfer!(dst.buf, src.buf, length(src) * sizeof(T))
         return dst
     end
+
+    """
+        $copyfun{T}(dst::CuArray{T}, src::SubArray{T,N,A,I,true})
+
+    Copy an array view from a host array `src` to a device array `dst` in place. Both arrays
+    should have an equal length, and the stide of the view must be unity in all dimensions.
+    """
+    function Base.$copyfun(dst::CuArray{T}, src::SubArray{T,N,A,I,true}) where T
+        if length(dst) != length(src)
+            throw(ArgumentError("Inconsistent array length."))
+        end
+        if any(strides(src) .!= 1)
+            throw(ArgumentError("Transfers to an array view require unit stride."))
+        end
+        Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
+        return dst
+    end
+
+    """
+        $copyfun{T}(dst::SubArray{T,N,A,I,true}, src::CuArray{T})
+
+    Copy an array from a device array `src` to a host array view `dst` in place. Both arrays
+    should have an equal length, and the stride of the view must be unity in all dimensions.
+    """
+    function Base.$copyfun(dst::SubArray{T,N,A,I,true}, src::CuArray{T}) where T
+        if length(dst) != length(src)
+            throw(ArgumentError("Inconsistent array length."))
+        end
+        if any(strides(dst) .!= 1)
+            throw(ArgumentError("Transfers to an array view require unit stride."))
+        end
+        Mem.download!(pointer(dst), src.buf, length(src) * sizeof(T))
+        return dst
+    end
+
 end
 
 
