@@ -71,6 +71,8 @@ function pairwise_dist_kernel(lat::CuDeviceVector{Float32}, lon::CuDeviceVector{
 
         @inbounds rowresult[i, j] = haversine_gpu(lat_i, lon_i, lat_j, lon_j, 6372.8f0)
     end
+
+    return
 end
 
 function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})

@@ -2,6 +2,11 @@ using CUDAapi
 using CUDAdrv
 using LLVM
 
+# FIXME: replace with an additional log level when we depend on 0.7+
+macro trace(ex...)
+    esc(:(@debug $(ex...)))
+end
+
 
 ## auxiliary routines
 
@@ -143,8 +148,8 @@ function main()
 
     # discover other CUDA toolkit artifacts
     config[:libdevice] = find_libdevice(config[:target_support], toolkit_path)
-    config[:cuobjdump] = find_binary("cuobjdump", toolkit_path)
-    config[:ptxas] = find_binary("ptxas", toolkit_path)
+    config[:cuobjdump] = find_cuda_binary("cuobjdump", toolkit_path)
+    config[:ptxas] = find_cuda_binary("ptxas", toolkit_path)
 
 
     ## compatibility checks
