@@ -4,7 +4,7 @@ export
     CuLink, addData, addFile, complete
 
 
-const CuLinkState_t = Ptr{Void}
+const CuLinkState_t = Ptr{Cvoid}
 
 """
     CuLink()
@@ -17,7 +17,7 @@ mutable struct CuLink
 
     options::Dict{CUjit_option,Any}
     optionKeys::Vector{CUjit_option}
-    optionVals::Vector{Ptr{Void}}
+    optionVals::Vector{Ptr{Cvoid}}
 
     function CuLink()
         handle_ref = Ref{CuLinkState_t}()
@@ -33,7 +33,7 @@ mutable struct CuLink
         end
         optionKeys, optionVals = encode(options)
 
-        @apicall(:cuLinkCreate, (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}, Ptr{CuLinkState_t}),
+        @apicall(:cuLinkCreate, (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}, Ptr{CuLinkState_t}),
                                 length(optionKeys), optionKeys, optionVals, handle_ref)
 
         ctx = CuCurrentContext()
@@ -64,7 +64,7 @@ Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
 Add data to a link operation. The argument `typ` indicates the type of the data.
 """
 function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, typ::CUjit_input)
-    # NOTE: ccall can't directly convert String to Ptr{Void}, so step through a typed Ptr
+    # NOTE: ccall can't directly convert String to Ptr{Cvoid}, so step through a typed Ptr
     if typ == PTX
         # additionally, in the case of PTX there shouldn't be any embedded NULLs
         raw_data = Base.unsafe_convert(Cstring, Base.cconvert(Cstring, String(data)))
@@ -72,10 +72,10 @@ function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, 
         raw_data = Vector{UInt8}(data)
     end
     typed_ptr = pointer(raw_data)
-    untyped_ptr = convert(Ptr{Void}, typed_ptr)
+    untyped_ptr = convert(Ptr{Cvoid}, typed_ptr)
 
     @apicall(:cuLinkAddData,
-             (CuLinkState_t, CUjit_input, Ptr{Void}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
+             (CuLinkState_t, CUjit_input, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, typ, untyped_ptr, length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
@@ -89,7 +89,7 @@ contained data.
 """
 function addFile(link::CuLink, path::String, typ::CUjit_input)
     @apicall(:cuLinkAddFile,
-             (CuLinkState_t, CUjit_input, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
+             (CuLinkState_t, CUjit_input, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, typ, path, 0, C_NULL, C_NULL)
 
     return nothing
@@ -113,11 +113,11 @@ end
 Complete a pending linker invocation, returning an output image.
 """
 function complete(link::CuLink)
-    cubin_ref = Ref{Ptr{Void}}()
+    cubin_ref = Ref{Ptr{Cvoid}}()
     size_ref = Ref{Csize_t}()
 
     try
-        @apicall(:cuLinkComplete, (CuLinkState_t, Ptr{Ptr{Void}}, Ptr{Csize_t}),
+        @apicall(:cuLinkComplete, (CuLinkState_t, Ptr{Ptr{Cvoid}}, Ptr{Csize_t}),
                                   link, cubin_ref, size_ref)
     catch err
         (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE) || rethrow(err)

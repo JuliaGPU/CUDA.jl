@@ -3,7 +3,7 @@
 export CuEvent, record, synchronize, elapsed, @elapsed
 
 
-const CuEvent_t = Ptr{Void}
+const CuEvent_t = Ptr{Cvoid}
 
 """
     CuEvent()

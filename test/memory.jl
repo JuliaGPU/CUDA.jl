@@ -18,7 +18,7 @@ for async in [false, true]
     Mem.upload!(buf1, Ref(src), sizeof(src); async=async)
 
     dst1 = Ref(0)
-    Mem.download!(Ref(dst1), buf1, sizeof(src); async=async)
+    Mem.download!(dst1, buf1, sizeof(src); async=async)
     async && synchronize()
     @test src == dst1[]
 
@@ -27,7 +27,7 @@ for async in [false, true]
     Mem.transfer!(buf2, buf1, sizeof(src); async=async)
 
     dst2 = Ref(0)
-    Mem.download!(Ref(dst2), buf2, sizeof(src); async=async)
+    Mem.download!(dst2, buf2, sizeof(src); async=async)
     async && synchronize()
     @test src == dst2[]
 

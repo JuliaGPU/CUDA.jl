@@ -6,7 +6,7 @@ export
 include(joinpath("module", "jit.jl"))
 
 
-const CuModule_t = Ptr{Void}
+const CuModule_t = Ptr{Cvoid}
 
 """
     CuModule(data, options::Dict{CUjit_option,Any})
@@ -33,7 +33,7 @@ mutable struct CuModule
 
         try
             @apicall(:cuModuleLoadDataEx,
-                     (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Void}}),
+                     (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
                      handle_ref, data, length(optionKeys), optionKeys, optionVals)
         catch err
             (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX) || rethrow(err)

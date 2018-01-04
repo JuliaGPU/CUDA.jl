@@ -4,10 +4,9 @@ module CUDAdrv
 
 VERSION >= v"0.7.0-DEV.3052" && using Printf
 
-using Compat
-using Compat.String
-
 using CUDAapi
+
+using Compat
 
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 isfile(ext) || error("CUDAdrv.jl has not been built, please run Pkg.build(\"CUDAdrv\").")
