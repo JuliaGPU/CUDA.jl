@@ -65,18 +65,24 @@ Add data to a link operation. The argument `typ` indicates the type of the data.
 """
 function addData(link::CuLink, name::String, data::Union{Vector{UInt8},String}, typ::CUjit_input)
     # NOTE: ccall can't directly convert String to Ptr{Cvoid}, so step through a typed Ptr
+    len = length(data)
     if typ == PTX
         # additionally, in the case of PTX there shouldn't be any embedded NULLs
         raw_data = Base.unsafe_convert(Cstring, Base.cconvert(Cstring, String(data)))
     else
-        raw_data = Vector{UInt8}(data)
+        raw_data = if VERSION >= v"0.7.0-DEV.3244"
+            unsafe_wrap(Vector{UInt8}, data)
+        else
+            Vector{UInt8}(data)
+        end
     end
+    # NOTE: `data` now isn't valid anymore
     typed_ptr = pointer(raw_data)
     untyped_ptr = convert(Ptr{Cvoid}, typed_ptr)
 
     @apicall(:cuLinkAddData,
              (CuLinkState_t, CUjit_input, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-             link, typ, untyped_ptr, length(data), name, 0, C_NULL, C_NULL)
+             link, typ, untyped_ptr, len, name, 0, C_NULL, C_NULL)
 
     return nothing
 end
