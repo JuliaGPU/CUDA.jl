@@ -174,7 +174,7 @@ const copyfun = VERSION >= v"0.7.0-DEV.3057" ? :(copyto!) : :(copy!)
     Copy an array view from a host array `src` to a device array `dst` in place. Both arrays
     should have an equal length, and the stide of the view must be unity in all dimensions.
     """
-    function Base.$copyfun(dst::CuArray{T}, src::SubArray{T,N,A,I,true}) where T
+    function Base.$copyfun(dst::CuArray{T}, src::SubArray{T,N,A,I,true}) where {T,N,A,I}
         if length(dst) != length(src)
             throw(ArgumentError("Inconsistent array length."))
         end
@@ -191,7 +191,7 @@ const copyfun = VERSION >= v"0.7.0-DEV.3057" ? :(copyto!) : :(copy!)
     Copy an array from a device array `src` to a host array view `dst` in place. Both arrays
     should have an equal length, and the stride of the view must be unity in all dimensions.
     """
-    function Base.$copyfun(dst::SubArray{T,N,A,I,true}, src::CuArray{T}) where T
+    function Base.$copyfun(dst::SubArray{T,N,A,I,true}, src::CuArray{T}) where {T,N,A,I}
         if length(dst) != length(src)
             throw(ArgumentError("Inconsistent array length."))
         end
