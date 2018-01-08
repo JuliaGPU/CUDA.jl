@@ -15,13 +15,13 @@ include("broadcast.jl")
 include("reduction.jl")
 
 include("../deps/ext.jl")
-include("blas/BLAS.jl")
+include("blas/CUBLAS.jl")
 include("solver/CUSOLVER.jl")
 include("gpuarray_interface.jl")
 
 cudnn_available() = libcudnn ≠ nothing
 if cudnn_available()
-  include("cudnn/CUDNN.jl")
+  include("dnn/CUDNN.jl")
 end
 
 end # module

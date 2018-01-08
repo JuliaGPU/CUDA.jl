@@ -101,16 +101,8 @@ end
 
 include("blas.jl")
 include("solver.jl")
-
-using NNlib: softmax, ∇softmax
-
-@testset "NNlib" begin
-  if CuArrays.cudnn_available()
-    for dims in [(5,5), (5,)]
-      testf(softmax, rand(dims))
-      testf(∇softmax, rand(dims), rand(dims))
-    end
-  end
+if CuArrays.cudnn_available()
+  include("nnlib.jl")
 end
 
 end

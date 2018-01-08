@@ -2,7 +2,7 @@ module CUDNN
 
 using ..CuArrays: CuArray, libcudnn
 
-include("types.jl")
+include("libcudnn_types.jl")
 include("helpers.jl")
 include("libcudnn.jl")
 include("nnlib.jl")
