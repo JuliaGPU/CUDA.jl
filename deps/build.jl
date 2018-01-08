@@ -5,13 +5,12 @@ config = Dict()
 
 toolkit = CUDAapi.find_toolkit()
 
-config[:libcublas] = CUDAapi.find_library("cublas", toolkit)
-config[:libcusolver] = CUDAapi.find_library("cusolver", toolkit)
+config[:libcublas] = CUDAapi.find_cuda_library("cublas", toolkit)
+config[:libcusolver] = CUDAapi.find_cuda_library("cusolver", toolkit)
 
-config[:libcudnn] = try
-  CUDAapi.find_library("cudnn", toolkit)
-catch e
-  warn("No CUDNN available: $(sprint(showerror, e))")
+config[:libcudnn] = CUDAapi.find_cuda_library("cudnn", toolkit)
+if config[:libcudnn] == nothing
+  warn("could not find CUDNN, its functionality will be unavailable")
 end
 
 open(config_path, "w") do io
