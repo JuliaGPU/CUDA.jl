@@ -913,6 +913,13 @@ for (fname, elty) in
     end
 end
 
+# helper function to get a device array of device pointers
+function device_batch(batch::Array{T}) where {T<:CuArray}
+  E = eltype(T)
+  ptrs = [Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch]
+  CuArray(ptrs)
+end
+
 ## (GE) general matrix-matrix multiplication batched
 for (fname, elty) in
         ((:cublasDgemmBatched,:Float64),
@@ -952,9 +959,9 @@ for (fname, elty) in
             lda = max(1,stride(A[1],2))
             ldb = max(1,stride(B[1],2))
             ldc = max(1,stride(C[1],2))
-            Aptrs = CuArray(pointer.(A))
-            Bptrs = CuArray(pointer.(B))
-            Cptrs = CuArray(pointer.(C))
+            Aptrs = device_batch(A)
+            Bptrs = device_batch(B)
+            Cptrs = device_batch(C)
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
                          (cublasHandle_t, cublasOperation_t,
                           cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
@@ -1438,8 +1445,8 @@ for (fname, elty) in
             m,n = size(B[1])
             lda = max(1,stride(A[1],2))
             ldb = max(1,stride(B[1],2))
-            Aptrs = CuArray(pointer.(A))
-            Bptrs = CuArray(pointer.(B))
+            Aptrs = device_batch(A)
+            Bptrs = device_batch(B)
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
                          (cublasHandle_t, cublasSideMode_t, cublasFillMode_t,
                           cublasOperation_t, cublasDiagType_t, Cint, Cint,
@@ -1546,7 +1553,7 @@ for (fname, elty) in
             end
             m,n = size(A[1])
             lda = max(1,stride(A[1],2))
-            Aptrs = CuArray(pointer.(A))
+            Aptrs = device_batch(A)
             info  = CuArray{Cint}(length(A))
             pivotArray  = Pivot ? CuArray{Int32}((n, length(A))) : C_NULL
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
@@ -1591,8 +1598,8 @@ for (fname, elty) in
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(C[1],2))
-            Aptrs = CuArray(pointer.(A))
-            Cptrs = CuArray(pointer.(C))
+            Aptrs = device_batch(A)
+            Cptrs = device_batch(C)
             info = CuArray(zeros(Cint,length(A)))
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{Ptr{$elty}}, Cint,
@@ -1630,8 +1637,8 @@ for (fname, elty) in
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(C[1],2))
-            Aptrs = CuArray(pointer.(A))
-            Cptrs = CuArray(pointer.(C))
+            Aptrs = device_batch(A)
+            Cptrs = device_batch(C)
             info = CuArray(zeros(Cint,length(A)))
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{Ptr{$elty}}, Cint,
@@ -1658,13 +1665,13 @@ for (fname, elty) in
         function geqrf_batched!(A::Array{CuMatrix{$elty},1})
             m,n = size(A[1])
             lda = max(1,stride(A[1],2))
-            Aptrs = CuArray(pointer.(A))
+            Aptrs = device_batch(A)
             hTauArray = [zeros($elty, min(m,n)) for i in 1:length(A)]
             TauArray = CuArray{$elty,1}[]
             for i in 1:length(A)
                 push!(TauArray,CuArray(hTauArray[i]))
             end
-            Tauptrs = CuArray(pointer.(TauArray))
+            Tauptrs = device_batch(TauArray)
             info    = zero(Cint)
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Cint, Ptr{Ptr{$elty}},
@@ -1716,8 +1723,8 @@ for (fname, elty) in
             nrhs = size(C[1])[2]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(A[1],2))
-            Aptrs = CuArray(pointer.(A))
-            Cptrs = CuArray(pointer.(C))
+            Aptrs = device_batch(A)
+            Cptrs = device_batch(C)
             info  = zero(Cint)
             infoarray = CuArray(zeros(Cint, length(A)))
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
