@@ -177,32 +177,53 @@ end
 
 @doc """
     shfl(val, lane::Integer, width::Integer=32)
-    shfl_sync(val, lane::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
 Shuffle a value from a directly indexed lane `lane`.
 """ shfl
-@doc (@doc shfl) shfl_sync
 
 @doc """
     shfl_up(val, delta::Integer, width::Integer=32)
-    shfl_up_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
 Shuffle a value from a lane with lower ID relative to caller.
 """ shfl_up
-@doc (@doc shfl_up) shfl_up_sync
 
 @doc """
     shfl_down(val, delta::Integer, width::Integer=32)
-    shfl_down_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
 Shuffle a value from a lane with higher ID relative to caller.
 """ shfl_down
-@doc (@doc shfl_down) shfl_down_sync
 
 @doc """
     shfl_xor(val, mask::Integer, width::Integer=32)
-    shfl_xor_sync(val, mask::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
 Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`.
 """ shfl_xor
-@doc (@doc shfl_xor) shfl_xor_sync
+
+
+@doc """
+    shfl_sync(val, lane::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+
+Shuffle a value from a directly indexed lane `lane`. The default value for `threadmask`
+performs the shuffle on all threads in the warp.
+""" shfl_sync
+
+@doc """
+    shfl_up_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+
+Shuffle a value from a lane with lower ID relative to caller. The default value for
+`threadmask` performs the shuffle on all threads in the warp.
+""" shfl_up_sync
+
+@doc """
+    shfl_down_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+
+Shuffle a value from a lane with higher ID relative to caller. The default value for
+`threadmask` performs the shuffle on all threads in the warp.
+""" shfl_down_sync
+
+@doc """
+    shfl_xor_sync(val, mask::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+
+Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`. The default
+value for `threadmask` performs the shuffle on all threads in the warp.
+""" shfl_xor_sync

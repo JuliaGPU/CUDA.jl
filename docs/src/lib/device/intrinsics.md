@@ -32,6 +32,7 @@ CUDAnative.@cuDynamicSharedMem
 
 ```@docs
 CUDAnative.sync_threads
+CUDAnative.sync_warp
 ```
 
 
@@ -57,6 +58,16 @@ CUDAnative.shfl
 CUDAnative.shfl_up
 CUDAnative.shfl_down
 CUDAnative.shfl_xor
+```
+
+If using CUDA 9.0, and PTX ISA 6.0 is supported, synchronizing versions of these
+intrinsics are available as well:
+
+```@docs
+CUDAnative.shfl_sync
+CUDAnative.shfl_up_sync
+CUDAnative.shfl_down_sync
+CUDAnative.shfl_xor_sync
 ```
 
 
