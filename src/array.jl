@@ -23,6 +23,7 @@ function unsafe_free!(xs::CuArray)
 end
 
 Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = x.buf
+Base.cconvert(::Type{Ptr{Void}}, x::CuArray) = x.buf
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)
