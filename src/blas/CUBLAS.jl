@@ -2,7 +2,7 @@ module BLAS
 
 import Base: one, zero
 using CUDAdrv
-using ..CuArrays: CuArray, CuVector, CuMatrix, CuVecOrMat, libcublas
+using ..CuArrays: CuArray, CuVector, CuMatrix, CuVecOrMat, libcublas, configured
 
 const BlasChar = Char
 
@@ -19,6 +19,8 @@ include("libcublas.jl")
 const cublashandle = cublasHandle_t[0]
 
 function __init__()
+    configured || return
+
     cublasCreate_v2(cublashandle)
     # destroy cublas handle at julia exit
     atexit(()->cublasDestroy_v2(cublashandle[1]))
