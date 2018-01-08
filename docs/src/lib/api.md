@@ -105,8 +105,8 @@ CUDAdrv.set{T}(::CuGlobal{T}, ::T)
 
 ```@docs
 CUDAdrv.CuLink
-CUDAdrv.addData
-CUDAdrv.addFile
+CUDAdrv.add_data!
+CUDAdrv.add_file!
 CUDAdrv.CuLinkImage
 CUDAdrv.complete
 CUDAdrv.CuModule(::CUDAdrv.CuLinkImage, args...)
