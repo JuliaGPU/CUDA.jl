@@ -17,9 +17,11 @@ include("reduction.jl")
 include("../deps/ext.jl")
 include("blas/BLAS.jl")
 include("solver/CUSOLVER.jl")
-if libcudnn ≠ nothing
+include("gpuarray_interface.jl")
+
+cudnn_available() = libcudnn ≠ nothing
+if cudnn_available()
   include("cudnn/CUDNN.jl")
 end
-include("gpuarray_interface.jl")
 
 end # module

@@ -95,9 +95,11 @@ include("solver.jl")
 using NNlib: softmax, ∇softmax
 
 @testset "NNlib" begin
-  for dims in [(5,5), (5,)]
-    testf(softmax, rand(dims))
-    testf(∇softmax, rand(dims), rand(dims))
+  if CuArrays.cudnn_available()
+    for dims in [(5,5), (5,)]
+      testf(softmax, rand(dims))
+      testf(∇softmax, rand(dims), rand(dims))
+    end
   end
 end
 
