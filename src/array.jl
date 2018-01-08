@@ -122,7 +122,7 @@ function Base.showarray(io::IO, X::CuArray, repr::Bool = true; header = true)
   end
 end
 
-import NNlib: adapt, adapt_
+import Adapt: adapt, adapt_
 
 adapt_(::Type{<:CuArray}, xs::AbstractArray) =
   isbits(xs) ? xs : convert(CuArray, xs)
