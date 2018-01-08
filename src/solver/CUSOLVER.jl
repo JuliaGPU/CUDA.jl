@@ -12,13 +12,13 @@ include("libcusolver_types.jl")
 include("error.jl")
 include("libcusolver.jl")
 
-const cusolverDnhandle = cusolverDnHandle_t[0]
+const libcusolver_handle_dense = Ref{cusolverDnHandle_t}()
 
 function __init__()
   configured || return
 
-  cusolverDnCreate(cusolverDnhandle)
-  atexit(() -> cusolverDnDestroy(cusolverDnhandle[1]))
+  cusolverDnCreate(libcusolver_handle_dense)
+  atexit(() -> cusolverDnDestroy(libcusolver_handle_dense[]))
 end
 
 include("dense.jl")

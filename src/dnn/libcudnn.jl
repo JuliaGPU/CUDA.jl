@@ -35,7 +35,7 @@ function cudnnSoftmaxForward(handle,algo,mode,alpha,xDesc,x,beta,yDesc,y)
 end
 
 function cudnnSoftmaxForward(src::CuArray, dest::CuArray=src;
-                             handle=cudnnHandle,
+                             handle=libcudnn_handle[],
                              algorithm=CUDNN_SOFTMAX_ACCURATE, # or CUDNN_SOFTMAX_FAST
                              mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                              alpha=1.0, beta=0.0)
@@ -50,7 +50,7 @@ function cudnnSoftmaxBackward(handle,algo,mode,alpha,yDesc,y,dyDesc,dy,beta,dxDe
 end
 
 function cudnnSoftmaxBackward(src::CuArray, srcDiff::CuArray, destDiff::CuArray=srcDiff;
-                              handle=cudnnHandle,
+                              handle=libcudnn_handle[],
                               algorithm=CUDNN_SOFTMAX_ACCURATE, # or CUDNN_SOFTMAX_FAST
                               mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                               alpha=1.0, beta=0.0)

@@ -8,16 +8,13 @@ include("helpers.jl")
 include("libcudnn.jl")
 include("nnlib.jl")
 
+const libcudnn_handle = Ref{cudnnHandle_t}()
 function __init__()
     configured || return
 
-    # Setup default cudnn handle
-    global cudnnHandle
-    cudnnHandlePtr = cudnnHandle_t[0]
-    cudnnCreate(cudnnHandlePtr)
-    cudnnHandle = cudnnHandlePtr[1]
-    # destroy cudnn handle at julia exit
-    atexit(()->cudnnDestroy(cudnnHandle))
+    cudnnCreate(libcudnn_handle)
+    atexit(()->cudnnDestroy(libcudnn_handle[]))
+
     global CUDNN_VERSION = convert(Int, ccall((:cudnnGetVersion,libcudnn),Csize_t,()))
 end
 

@@ -15,15 +15,12 @@ const cudaStream_t = Ptr{Void}
 
 include("libcublas.jl")
 
-# setup cublas handle
-const cublashandle = cublasHandle_t[0]
-
+const libcublas_handle = Ref{cublasHandle_t}()
 function __init__()
     configured || return
 
-    cublasCreate_v2(cublashandle)
-    # destroy cublas handle at julia exit
-    atexit(()->cublasDestroy_v2(cublashandle[1]))
+    cublasCreate_v2(libcublas_handle)
+    atexit(()->cublasDestroy_v2(libcublas_handle[]))
 end
 
 include("wrap.jl")
