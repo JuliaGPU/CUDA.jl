@@ -84,8 +84,8 @@ function cudnnSoftmaxForward(src::CuArray, dest::CuArray=src;
                              mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                              alpha=1.0, beta=0.0)
     cudnnSoftmaxForward(handle, algorithm, mode,
-                        cptr(alpha, src), TD(src,4), src,
-                        cptr(beta, dest), TD(dest,4), dest)
+                        cptr(alpha, src), TensorDesc(src,4), src,
+                        cptr(beta, dest), TensorDesc(dest,4), dest)
     return dest
 end
 
@@ -99,9 +99,9 @@ function cudnnSoftmaxBackward(src::CuArray, srcDiff::CuArray, destDiff::CuArray=
                               mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                               alpha=1.0, beta=0.0)
     cudnnSoftmaxBackward(handle, algorithm, mode,
-                         cptr(alpha, src), TD(src,4), src,
-                         TD(srcDiff,4), srcDiff,
-                         cptr(beta, destDiff), TD(destDiff,4), destDiff)
+                         cptr(alpha, src), TensorDesc(src,4), src,
+                         TensorDesc(srcDiff,4), srcDiff,
+                         cptr(beta, destDiff), TensorDesc(destDiff,4), destDiff)
     return destDiff
 end
 
@@ -112,9 +112,9 @@ end
 function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N};
                     handle=libcudnn_handle[], algo=0, workSpace=C_NULL, workSpaceSizeInBytes=0,
                     alpha=1, beta=0, padding=0, stride=1, upscale=1, mode=0) where {T,N}
-    cd = CD(T, N-2, padding, stride, upscale, mode)
+    cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
     cudnnConvolutionForward(
-          handle,Ref(T(alpha)),TD(x),x,FD(w),w,cd,algo,workSpace,
-          workSpaceSizeInBytes,Ref(T(beta)),TD(y),y)
+          handle,Ref(T(alpha)),TensorDesc(x),x,FilterDesc(w),w,cd,algo,workSpace,
+          workSpaceSizeInBytes,Ref(T(beta)),TensorDesc(y),y)
     return y
 end

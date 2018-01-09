@@ -16,25 +16,25 @@ juliaDataType(a)=(a==CUDNN_DATA_HALF ? Float16 :
 
 # Descriptors
 
-mutable struct TD; ptr; end
-free(td::TD) = cudnnDestroyTensorDescriptor(td.ptr)
-Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TD)=td.ptr
+mutable struct TensorDesc; ptr; end
+free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
+Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc)=td.ptr
 
-function TD(a::CuArray, dims=ndims(a))
+function TensorDesc(a::CuArray, dims=ndims(a))
     (sz, st) = tensorsize(a, dims)
     d = cudnnTensorDescriptor_t[0]
     cudnnCreateTensorDescriptor(d)
     cudnnSetTensorNdDescriptor(d[1], cudnnDataType(a), length(sz), sz, st)
-    this = TD(d[1])
+    this = TensorDesc(d[1])
     finalizer(this, free)
     return this
 end
 
-mutable struct FD; ptr; end
-free(fd::FD)=cudnnDestroyFilterDescriptor(fd.ptr)
-Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FD)=fd.ptr
+mutable struct FilterDesc; ptr; end
+free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
+Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
 
-function FD(a::CuArray, dims=ndims(a), format=CUDNN_TENSOR_NCHW)
+function FilterDesc(a::CuArray, dims=ndims(a), format=CUDNN_TENSOR_NCHW)
     # The only difference of a FilterDescriptor is no strides.
     (sz, st) = tensorsize(a, dims)
     d = cudnnFilterDescriptor_t[0]
@@ -44,14 +44,14 @@ function FD(a::CuArray, dims=ndims(a), format=CUDNN_TENSOR_NCHW)
     CUDNN_VERSION >= 4000 ?
         cudnnSetFilterNdDescriptor_v4(d[1], cudnnDataType(a), format, length(sz), sz) :
         cudnnSetFilterNdDescriptor(d[1], cudnnDataType(a), length(sz), sz)
-    this = FD(d[1])
+    this = FilterDesc(d[1])
     finalizer(this, free)
     return this
 end
 
-mutable struct CD; ptr; end
-free(cd::CD) = cudnnDestroyConvolutionDescriptor(cd.ptr)
-Base.unsafe_convert(::Type{cudnnConvolutionDescriptor_t}, cd::CD)=cd.ptr
+mutable struct ConvDesc; ptr; end
+free(cd::ConvDesc) = cudnnDestroyConvolutionDescriptor(cd.ptr)
+Base.unsafe_convert(::Type{cudnnConvolutionDescriptor_t}, cd::ConvDesc)=cd.ptr
 
 function cdsize(w, nd)
     isa(w, Integer) ? Cint[fill(w,nd)...] :
@@ -59,13 +59,13 @@ function cdsize(w, nd)
     Cint[reverse(w)...]
 end
 
-function CD(T, N, padding, stride, upscale, mode)
+function ConvDesc(T, N, padding, stride, upscale, mode)
     cd = cudnnConvolutionDescriptor_t[0]
     cudnnCreateConvolutionDescriptor(cd)
     CUDNN_VERSION >= 4000 ? cudnnSetConvolutionNdDescriptor(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
     CUDNN_VERSION >= 3000 ? cudnnSetConvolutionNdDescriptor_v3(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
     cudnnSetConvolutionNdDescriptor(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode)
-    this = CD(cd[1])
+    this = ConvDesc(cd[1])
     finalizer(this, free)
     return this
 end
