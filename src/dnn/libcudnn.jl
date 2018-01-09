@@ -3,7 +3,7 @@ function cudnnGetVersion()
 end
 
 function cudnnGetErrorString(status)
-    @check ccall((:cudnnGetErrorString,libcudnn),Ptr{UInt8},(cudnnStatus_t,),status)
+    ccall((:cudnnGetErrorString,libcudnn),Ptr{UInt8},(cudnnStatus_t,),status)
 end
 
 function cudnnCreate(handle)
