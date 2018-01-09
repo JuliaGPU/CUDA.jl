@@ -63,7 +63,7 @@ end
 
 # Save reinterpret and reshape implementation use this in GPUArrays
 function GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray{ET}, size::NTuple{N, Integer}) where {T, ET, N}
-    CuArray{T, N}(A.ptr, size)
+    CuArray{T, N}(A.buf, size)
 end
 
 # Additional copy methods
@@ -75,11 +75,11 @@ function Base.copy!{T}(
     amount == 0 && return dest
     d_offset = d_offset
     s_offset = s_offset - 1
-    device_ptr = source.ptr
-    sptr = device_ptr + (sizeof(T) * s_offset)
-    CUDAdrv.Mem.download(Ref(dest, d_offset), sptr, sizeof(T) * (amount))
+    buf = Mem.view(source.buf, s_offset*sizeof(T))
+    CUDAdrv.Mem.download(Ref(dest, d_offset), buf, sizeof(T) * (amount))
     dest
 end
+
 function Base.copy!{T}(
         dest::CuArray{T}, d_offset::Integer,
         source::Array{T}, s_offset::Integer, amount::Integer
@@ -87,12 +87,10 @@ function Base.copy!{T}(
     amount == 0 && return dest
     d_offset = d_offset - 1
     s_offset = s_offset
-    d_ptr = dest.ptr
-    sptr = d_ptr + (sizeof(T) * d_offset)
-    CUDAdrv.Mem.upload(sptr, Ref(source, s_offset), sizeof(T) * (amount))
+    buf = Mem.view(dest.buf, s_offset*sizeof(T))
+    CUDAdrv.Mem.upload(buf, Ref(source, s_offset), sizeof(T) * (amount))
     dest
 end
-
 
 function Base.copy!{T}(
         dest::CuArray{T}, d_offset::Integer,
@@ -107,4 +105,3 @@ function Base.copy!{T}(
     CUDAdrv.Mem.transfer(sptr, dptr, sizeof(T) * (amount))
     dest
 end
-``

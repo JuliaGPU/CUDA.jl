@@ -1170,8 +1170,8 @@ end
                 dU += triu(h_A,k)
             end
             #compare
-            @test isapprox(C[:L], dL, rtol=1e-2)
-            @test isapprox(C[:U], dU, rtol=1e-2)
+            @test C[:L] ≈ dL rtol=1e-2
+            @test C[:U] ≈ dU rtol=1e-2
         end
         for i in 1:length(A)
             d_A[ i ] = CuArray(A[i])
@@ -1228,8 +1228,8 @@ end
                 dL += tril(h_B,-k-1)
             end
             #compare
-            @test isapprox(C[:L], dL, rtol=1e-2)
-            @test isapprox(C[:U], dU, rtol=1e-2)
+            @test C[:L]≈dL rtol=1e-2
+            @test C[:U]≈dU rtol=1e-2
         end
     end
 end
@@ -1254,7 +1254,7 @@ end
             C   = inv(A[Cs])
             h_C = collect(d_C[Cs])
             @test h_info[Cs] == 0
-            @test C ≈ h_C
+            @test C ≈ h_C rtol=1e-2
         end
     end
 end
@@ -1299,7 +1299,7 @@ end
                 v[i+1:m] = h_A[i+1:m,i]
                 Q *= eye(elty,m) - h_tau[i] * v * v'
             end
-            @test Q≈full(C[:Q])
+            @test Q ≈ full(C[:Q]) rtol=1e-2
         end
     end
 end
@@ -1326,7 +1326,7 @@ end
                 v[i+1:m] = h_B[i+1:m,i]
                 Q *= eye(elty,m) - h_tau[i] * v * v'
             end
-            @test Q≈full(C[:Q])
+            @test Q ≈ full(C[:Q]) rtol=1e-2
         end
     end
 end
@@ -1347,7 +1347,7 @@ end
         for Cs in 1:length(d_C)
             X = A[Cs]\C[Cs]
             h_C = collect(d_C[Cs])
-            @test X≈h_C
+            @test X ≈ h_C rtol=1e-2
         end
     end
 end
@@ -1368,7 +1368,7 @@ end
         for Ds in 1:length(d_D)
             X = A[Ds]\C[Ds]
             h_D = collect(d_D[Ds])
-            @test X ≈ h_D
+            @test X ≈ h_D rtol=1e-2
         end
     end
 end

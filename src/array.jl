@@ -1,12 +1,13 @@
-using CUDAnative: DevicePtr
 using GPUArrays
 
+import CUDAnative: DevicePtr
+
 mutable struct CuArray{T,N} <: GPUArray{T,N}
-  ptr::OwnedPtr{Void}
+  buf::Mem.Buffer
   dims::NTuple{N,Int}
-  function CuArray{T,N}(ptr::OwnedPtr{Void}, dims::NTuple{N,Integer}) where {T,N}
-    xs = new{T,N}(ptr, dims)
-    Mem.retain(ptr)
+  function CuArray{T,N}(buf::Mem.Buffer, dims::NTuple{N,Integer}) where {T,N}
+    xs = new{T,N}(buf, dims)
+    Mem.retain(buf)
     finalizer(xs, unsafe_free!)
     return xs
   end
@@ -17,12 +18,12 @@ CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 function unsafe_free!(xs::CuArray)
-  Mem.release(xs.ptr) && dealloc(xs.ptr, prod(xs.dims)*sizeof(eltype(xs)))
+  Mem.release(xs.buf) && dealloc(xs.buf, prod(xs.dims)*sizeof(eltype(xs)))
   return
 end
 
-Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where T =
-  Base.unsafe_convert(Ptr{T}, x.ptr)
+Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = x.buf
+Base.cconvert(::Type{Ptr{Void}}, x::CuArray) = x.buf
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)
@@ -43,26 +44,26 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 function Base._reshape(parent::CuArray, dims::Dims)
   n = Base._length(parent)
   prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(parent.ptr, dims)
+  return CuArray{eltype(parent),length(dims)}(parent.buf, dims)
 end
 
 # Interop with CPU array
 
 function Base.copy!(dst::CuArray{T}, src::DenseArray{T}) where T
     @assert length(dst) == length(src)
-    Mem.upload(dst.ptr, pointer(src), length(src) * sizeof(T))
+    Mem.upload!(dst.buf, src)
     return dst
 end
 
 function Base.copy!(dst::DenseArray{T}, src::CuArray{T}) where T
     @assert length(dst) == length(src)
-    Mem.download(pointer(dst), src.ptr, length(src) * sizeof(T))
+    Mem.download!(dst, src.buf)
     return dst
 end
 
 function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
     @assert length(dst) == length(src)
-    Mem.transfer(dst.ptr, src.ptr, length(src) * sizeof(T))
+    Mem.transfer!(dst.buf, src.buf, length(src) * sizeof(T))
     return dst
 end
 
@@ -83,24 +84,10 @@ Base.convert(::Type{CuArray}, xs::DenseArray{T,N}) where {T,N} =
 Base.convert(T::Type{<:CuArray}, xs::DenseArray) =
   convert(T, convert(AbstractArray{eltype(T)}, xs))
 
-# Interop with CUDAdrv native array
-
-Base.convert(::Type{CUDAdrv.CuArray{T,N}}, xs::CuArray{T,N}) where {T,N} =
-  CUDAdrv.CuArray{T,N}(xs.dims, xs.ptr)
-
-Base.convert(::Type{CUDAdrv.CuArray}, xs::CuArray{T,N}) where {T,N} =
-  convert(CUDAdrv.CuArray{T,N}, xs)
-
-Base.convert(::Type{CuArray{T,N}}, xs::CUDAdrv.CuArray{T,N}) where {T,N} =
-  CuArray{T,N}(xs.ptr, xs.shape)
-
-Base.convert(::Type{CuArray}, xs::CUDAdrv.CuArray{T,N}) where {T,N} =
-  convert(CuArray{T,N}, xs)
-
 # Interop with CUDAnative device array
 
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-    ptr = Base.unsafe_convert(Ptr{T}, a.ptr)
+    ptr = Base.unsafe_convert(Ptr{T}, a.buf)
     CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr))
 end
 

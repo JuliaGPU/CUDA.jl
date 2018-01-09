@@ -1,7 +1,7 @@
 julia 0.6
 CUDAnative 0.5
-CUDAdrv 0.5
-CUDAapi
+CUDAdrv 0.7
+CUDAapi 0.3
 NNlib
 GPUArrays
 Adapt

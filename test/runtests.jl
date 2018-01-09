@@ -15,6 +15,16 @@ end
 using CuArrays
 using Base.Test
 
+import CUDAdrv
+## pick the most recent device
+global dev = nothing
+for newdev in CUDAdrv.devices()
+    if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
+        dev = newdev
+    end
+end
+info("Testing using device $(CUDAdrv.name(dev))")
+
 CuArrays.allowscalar(false)
 
 function testf(f, xs...)
@@ -91,16 +101,8 @@ end
 
 include("blas.jl")
 include("solver.jl")
-
-using NNlib: softmax, ∇softmax
-
-@testset "NNlib" begin
-  if CuArrays.cudnn_available()
-    for dims in [(5,5), (5,)]
-      testf(softmax, rand(dims))
-      testf(∇softmax, rand(dims), rand(dims))
-    end
-  end
+if CuArrays.cudnn_available()
+  include("nnlib.jl")
 end
 
 end
