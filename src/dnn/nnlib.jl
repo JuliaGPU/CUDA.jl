@@ -1,4 +1,5 @@
-import NNlib: softmax, softmax!, ∇softmax!
+using NNlib
+import NNlib: conv2d, softmax, softmax!, ∇softmax!
 
 const CUDNNFloat = Union{Float16,Float32,Float64}
 CUDNNArray{T<:CUDNNFloat,N} = CuArray{T,N}
@@ -15,4 +16,10 @@ end
 function ∇softmax!(out::CUDNNVecOrMat, Δ::CUDNNVecOrMat, xs::CUDNNVecOrMat)
   cudnnSoftmaxBackward(softmax(xs), Δ, out)
   return out
+end
+
+function conv2d(x::CuArray{T,4}, w::CuArray{T,4};
+                padding=0, stride=1, mode=0, alpha=1) where T<:CUDNNFloat
+  y = similar(x, NNlib.cdims(w, x, padding=padding, stride=stride))
+  cudnnConvolutionForward(y, x, w, padding=padding, stride=stride, mode=0, alpha=1)
 end
