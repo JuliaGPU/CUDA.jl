@@ -31,31 +31,3 @@ end
 
 Base.setindex!(xs::CuArray, v, i::Integer) = xs[i] = convert(eltype(xs), v)
 
-# Vector indexing
-
-using Base.Cartesian
-
-# For now, this triggers scalar indexing in `checkbounds`
-# Base.to_index(x::CuArray, i::AbstractArray) = cu(i)
-# instead:
-to_index(x) = x
-to_index(x::AbstractArray) = cu(x)
-
-@generated function index_kernel(dest::AbstractArray, src::AbstractArray, idims, Is)
-    N = length(Is.parameters)
-    quote
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        i > length(dest) && return
-        is = ind2sub(idims, i)
-        @nexprs $N i -> @inbounds I_i = Is[i][is[i]]
-        @inbounds dest[i] = @ncall $N getindex src i -> I_i
-        return
-    end
-end
-
-function Base._unsafe_getindex!(dest::CuArray, src::CuArray, Is::Union{Real, AbstractArray}...)
-    idims = map(length, Is)
-    blk, thr = cudims(dest)
-    @cuda (blk, thr) index_kernel(dest, src, idims, to_index.(Is))
-    return dest
-end
