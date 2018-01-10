@@ -167,6 +167,49 @@ const copyfun = VERSION >= v"0.7.0-DEV.3057" ? :(copyto!) : :(copy!)
         Mem.transfer!(dst.buf, src.buf, length(src) * sizeof(T))
         return dst
     end
+
+    """
+        $copyfun{T}(dst::CuArray{T}, src::SubArray{T,N,<:DenseArray,I,true})
+
+    Copy an array view from a host array `src` to a device array `dst` in place. Both arrays
+    should have an equal length, and the view must have a contiguous memory layout.
+    """
+    function Base.$copyfun(dst::CuArray{T}, src::SubArray{T,N,<:DenseArray,I,true}) where {T,N,I}
+        if length(dst) != length(src)
+            throw(ArgumentError("Inconsistent array length."))
+        end
+        if any(strides(src) .!= strides(parent(src)))
+            throw(ArgumentError("Transfers from an array view require contiguous memory layout."))
+        end
+        Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
+        return dst
+    end
+
+    function Base.$copyfun(dst::CuArray, src::SubArray)
+        throw(ArgumentError("Transfers from an array view require a contiguous memory layout."))
+    end
+
+    """
+        $copyfun{T}(dst::SubArray{T,N,A,I,true}, src::CuArray{T})
+
+    Copy an array from a device array `src` to a host array view `dst` in place. Both arrays
+    should have an equal length, and the view must have a contiguous memory layout.
+    """
+    function Base.$copyfun(dst::SubArray{T,N,<:DenseArray,I,true}, src::CuArray{T}) where {T,N,I}
+        if length(dst) != length(src)
+            throw(ArgumentError("Inconsistent array length."))
+        end
+        if any(strides(dst) .!= strides(parent(dst)))
+            throw(ArgumentError("Transfers to an array view require contiguous memory layout."))
+        end
+        Mem.download!(pointer(dst), src.buf, length(src) * sizeof(T))
+        return dst
+    end
+
+    function Base.$copyfun(dst::SubArray, src::CuArray)
+        throw(ArgumentError("Transfers to an array view require a contiguous memory layout."))
+    end
+
 end
 
 

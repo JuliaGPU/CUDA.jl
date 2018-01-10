@@ -98,6 +98,33 @@ let
         @assert cpu == cpu_back
     end
 
+    # copy views to and from device
+    let
+        gpu = CuArray{Float32}(10,10,3)
+        cpu = rand(Float32, 10,10,10)
+        
+        cpuv1 = view(cpu, :, :, 1:3)
+
+        copy!(gpu, cpuv1)
+        
+        cpu_back = Array{Float32}(uninitialized, 10, 10, 3)
+        copy!(cpu_back, gpu)
+        @assert cpuv1 == cpu_back
+
+        cpuv1 .= 0
+        copy!(cpuv1, gpu)
+        @assert cpuv1 == cpu[:,:,1:3]
+
+        cpuv2 = view(cpu, 1:3, :, :) # correct length, not contiguous
+        @test_throws ArgumentError copy!(gpu, cpuv2)
+     
+        cpuv3 = view(cpu, :, :, 1:4) # wrong dimensions, but contiguous
+        @test_throws ArgumentError copy!(gpu, cpuv3)
+
+    end
+
+
+
     # copy on device
     let gpu = CuArray(rand(Float32, 10))
         gpu_copy = copy(gpu)
