@@ -1,19 +1,15 @@
 using NNlib
 import NNlib: conv2d, softmax, softmax!, ∇softmax!
+using ..CuArrays: CuVecOrMat
 
 const CUDNNFloat = Union{Float16,Float32,Float64}
-CUDNNArray{T<:CUDNNFloat,N} = CuArray{T,N}
 
-CUDNNVector{T} = CUDNNArray{T,1}
-CUDNNMatrix{T} = CUDNNArray{T,2}
-CUDNNVecOrMat{T} = Union{CUDNNVector{T},CUDNNMatrix{T}}
-
-function softmax!(out::CUDNNVecOrMat, xs::CUDNNVecOrMat)
+function softmax!(out::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
   cudnnSoftmaxForward(xs, out)
   return out
 end
 
-function ∇softmax!(out::CUDNNVecOrMat, Δ::CUDNNVecOrMat, xs::CUDNNVecOrMat)
+function ∇softmax!(out::CuVecOrMat{T}, Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
   cudnnSoftmaxBackward(softmax(xs), Δ, out)
   return out
 end
