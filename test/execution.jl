@@ -284,7 +284,7 @@ end
     end
 
     buf = Mem.upload([0f0])
-    x = Complex64(2,2)
+    x = ComplexF32(2,2)
 
     @cuda (1, 1) exec_pass_immutables(Base.unsafe_convert(Ptr{Float32}, buf), x)
     @test Mem.download(Float32, buf) == [imag(x)]
