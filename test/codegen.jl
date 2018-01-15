@@ -47,7 +47,7 @@ end
     @eval codegen_parent(i) = codegen_child(i)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, Tuple{Int}))
-    @test ismatch(r"call .+ @julia_codegen_child_", ir)
+    @test contains(ir, r"call .+ @julia_codegen_child_")
 end
 
 @testset "JuliaLang/julia#21121" begin
@@ -79,10 +79,10 @@ end
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}))
-    @test ismatch(Regex("@julia_codegen_aggregates_\\d+\\($typename( addrspace\\(\\d+\\))?\\*"), ir)
+    @test contains(ir, Regex("@julia_codegen_aggregates_\\d+\\($typename( addrspace\\(\\d+\\))?\\*"))
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}; kernel=true))
-    @test ismatch(Regex("@ptxcall_codegen_aggregates_\\d+\\($typename\\)"), ir)
+    @test contains(ir, Regex("@ptxcall_codegen_aggregates_\\d+\\($typename\\)"))
 end
 end
 
@@ -130,7 +130,7 @@ end
     @eval ptx_parent(i) = ptx_child(i)
 
     asm = sprint(io->code_ptx(io, ptx_parent, Tuple{Int64}))
-    @test ismatch(r"call.uni\s+julia_ptx_child_"m, asm)
+    @test contains(asm, r"call.uni\s+julia_ptx_child_"m)
 end
 
 @testset "entry-point functions" begin
@@ -138,9 +138,9 @@ end
     @eval ptx_entry(i) = ptx_nonentry(i)
 
     asm = sprint(io->code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
-    @test ismatch(r"\.visible \.entry ptxcall_ptx_entry_", asm)
-    @test !ismatch(r"\.visible \.func julia_ptx_nonentry_", asm)
-    @test ismatch(r"\.func julia_ptx_nonentry_", asm)
+    @test contains(asm, r"\.visible \.entry ptxcall_ptx_entry_")
+    @test !contains(asm, r"\.visible \.func julia_ptx_nonentry_")
+    @test contains(asm, r"\.func julia_ptx_nonentry_")
 end
 
 @testset "delayed lookup" begin
@@ -173,7 +173,7 @@ end
     end
 
     asm = sprint(io->code_ptx(io, codegen_child_reuse_parent1, Tuple{Int}))
-    @test ismatch(r".func julia_codegen_child_reuse_child_", asm)
+    @test contains(asm, r".func julia_codegen_child_reuse_child_")
 
     @eval function codegen_child_reuse_parent2(i)
         codegen_child_reuse_child(i+1)
@@ -181,7 +181,7 @@ end
     end
 
     asm = sprint(io->code_ptx(io, codegen_child_reuse_parent2, Tuple{Int}))
-    @test ismatch(r".func julia_codegen_child_reuse_child_", asm)
+    @test contains(asm, r".func julia_codegen_child_reuse_child_")
 end
 
 @testset "child function reuse bis" begin

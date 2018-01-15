@@ -114,8 +114,8 @@ function irgen(@nospecialize(func), @nospecialize(tt))
     entry = let
         re = Regex("julia_$(entry_tag)_\\d+")
         llvmcall_re = Regex("julia_$(entry_tag)_\\d+u\\d+")
-        fs = collect(filter(f->ismatch(re, LLVM.name(f)) &&
-                               !ismatch(llvmcall_re, LLVM.name(f)), definitions))
+        fs = collect(filter(f->contains(LLVM.name(f), re) &&
+                               !contains(LLVM.name(f), llvmcall_re), definitions))
         if length(fs) != 1
             error("Could not find single entry-point for $entry_tag (available functions: ",
                   join(map(f->LLVM.name(f), definitions), ", "), ")")
