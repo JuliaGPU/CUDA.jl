@@ -58,7 +58,7 @@ function __init__()
     end
 
     jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
-                                   cglobal(:jl_LLVMContext, Void)))
+                                   cglobal(:jl_LLVMContext, Cvoid)))
 
     init_jit()
 

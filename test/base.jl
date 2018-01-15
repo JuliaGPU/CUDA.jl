@@ -15,7 +15,7 @@ end
 # bug 1: emit_invoke performed dynamic call due to NULL child function
 #        (hooked module activation because of bug 2 below)
 if VERSION < v"0.7.0-DEV.1669"
-    hook_module_activation(ref::Ptr{Void}) = nothing
+    hook_module_activation(ref::Ptr{Cvoid}) = nothing
     hooks = Base.CodegenHooks(module_activation=hook_module_activation)
     params = Base.CodegenParams(cached=false, runtime=false, hooks=hooks)
     Base._dump_function(post17057_parent, Tuple{Ptr{Int64}},
