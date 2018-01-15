@@ -1,6 +1,7 @@
-using Compat
-
 using CUDAapi
+
+using Compat
+VERSION >= v"0.7.0-DEV.3382" && using Libdl
 
 
 ## API routines
