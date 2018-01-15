@@ -1,3 +1,3 @@
 julia 0.6
-Compat 0.39.0
+Compat 0.46.0
 CUDAapi 0.3.0
