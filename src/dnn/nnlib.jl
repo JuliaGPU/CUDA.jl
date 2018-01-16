@@ -1,5 +1,5 @@
 using NNlib
-import NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, softmax, softmax!, ∇softmax!
+import NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, pool, pool_grad, softmax, softmax!, ∇softmax!
 using ..CuArrays: CuVecOrMat
 
 const CUDNNFloat = Union{Float16,Float32,Float64}
@@ -30,4 +30,15 @@ function conv2d_grad_x(x::CuArray{T,4}, w::CuArray{T,4}, dy::CuArray{T,4};
                 padding=0, stride=1, mode=0, alpha=1) where T<:CUDNNFloat
   dx = similar(x)
   cudnnConvolutionBackwardData(dx, x, w, dy, padding=padding, stride=stride, mode=mode, alpha=alpha)
+end
+
+function pool(x::CuArray{T,4}; window=2, padding=0, stride=window, mode=0, alpha=1) where T<:CUDNNFloat
+  y = similar(x, NNlib.pdims(x))
+  cudnnPoolingForward(y, x, window=window, padding=padding, stride=stride, mode=mode, alpha=alpha)
+end
+
+function pool_grad(x::CuArray{T,4}, y::CuArray{T,4}, dy::CuArray{T,4};
+                   window=2, padding=0, stride=window, mode=0, alpha=1) where T<:CUDNNFloat
+  dx = similar(x)
+  cudnnPoolingBackward(dx, dy, x, y, window=window, padding=padding, stride=stride, mode=mode, alpha=alpha)
 end

@@ -59,6 +59,9 @@ function cdsize(w, nd)
     Cint[reverse(w)...]
 end
 
+pdsize(w, nd)=Cint[reverse(psize(w,nd))...]
+psize(w, nd)=(isa(w,Integer)  ? fill(w,nd) : length(w) != nd ? error("Dimension mismatch") : w)
+
 function ConvDesc(T, N, padding, stride, upscale, mode)
     cd = cudnnConvolutionDescriptor_t[0]
     cudnnCreateConvolutionDescriptor(cd)
@@ -66,6 +69,19 @@ function ConvDesc(T, N, padding, stride, upscale, mode)
     CUDNN_VERSION >= 3000 ? cudnnSetConvolutionNdDescriptor_v3(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
     cudnnSetConvolutionNdDescriptor(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode)
     this = ConvDesc(cd[1])
+    finalizer(this, free)
+    return this
+end
+
+mutable struct PoolDesc; ptr; end
+free(pd::PoolDesc)=cudnnDestroyPoolingDescriptor(pd.ptr)
+Base.unsafe_convert(::Type{cudnnPoolingDescriptor_t}, pd::PoolDesc)=pd.ptr
+
+function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_PROPAGATE_NAN)
+    pd = cudnnPoolingDescriptor_t[0]
+    cudnnCreatePoolingDescriptor(pd)
+    cudnnSetPoolingNdDescriptor(pd[1],mode,maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
+    this = PoolDesc(pd[1])
     finalizer(this, free)
     return this
 end
