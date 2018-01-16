@@ -252,7 +252,11 @@ function find_toolkit()
     end
 
     # filter
-    dirs = valid_dirs(dirs)
+    @show dirs = valid_dirs(dirs)
+    filter!(dirs) do dir
+        # the toolkit directory should at least contain a "bin" folder
+        ispath(joinpath(dir, "bin"))
+    end
     if length(dirs) > 1
         warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "), "; ",
              "specify using any of the $(join(envvars, ", ", " or ")) environment variables")
