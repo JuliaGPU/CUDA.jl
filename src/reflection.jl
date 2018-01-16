@@ -134,6 +134,8 @@ function emit_hooked_compilation(inner_hook, ex...)
         finally
             CUDAnative.compile_hook[] = nothing
         end
+
+        nothing
     end
 end
 
