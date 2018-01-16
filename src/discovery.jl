@@ -9,7 +9,19 @@ source_str(srcs::Vector{String}) = isempty(srcs) ? "anywhere" : "in " * join(src
 target_str(typ::String, dst::String) = "$typ $dst"
 target_str(typ::String, dsts::Vector{String}) = isempty(dsts) ? "no $typ" : "$typ " * join(dsts, ", ", " or ")
 
-# FIXME: CUDA on 32-bit Windows isn't supported
+function resolve(path)
+    if islink(path)
+        resolve(readlink(path))
+    else
+        path
+    end
+end
+
+# return a list of valid directories, resolving symlinks and pruning duplicates
+function valid_dirs(dirs)
+    map!(resolve, dirs, dirs)
+    filter(isdir, unique(dirs))
+end
 
 
 ## generic discovery routines
@@ -110,6 +122,8 @@ end
 
 ## CUDA-specific discovery routines
 
+# FIXME: CUDA on 32-bit Windows isn't supported
+
 const cuda_names = Dict(
     "cuda"      => Compat.Sys.iswindows() ? ["nvcuda"] : ["cuda"],
     "nvml"      => Compat.Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"]
@@ -142,18 +156,6 @@ find_cuda_binary(name::String, toolkit_path::Union{String,Nothing}=nothing; kwar
     find_binary(get(cuda_names, name, [name]);
                 locations=(toolkit_path!=nothing ? [toolkit_path] : String[]),
                 kwargs...)
-
-# return a list of valid directories, resolving symlinks and pruning duplicates
-function valid_dirs(dirs)
-    map!(dirs, dirs) do dir
-        if islink(dir)
-            readlink(dir)
-        else
-            dir
-        end
-    end
-    filter(isdir, unique(dirs))
-end
 
 function find_driver()
     # figure out candidate locations
