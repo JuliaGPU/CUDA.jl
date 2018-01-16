@@ -150,7 +150,7 @@ function find_driver()
     libcuda_path = find_cuda_library("cuda")
     if libcuda_path != nothing
         dir = dirname(libcuda_path)
-        if ismatch(r"^lib(32|64)?$", basename(dir))
+        if contains(basename(dir), r"^lib(32|64)?$")
             dir = dirname(dir)
         end
         push!(dirs, dir)
@@ -159,7 +159,7 @@ function find_driver()
     nvidiasmi_path = find_cuda_binary("nvidia-smi")
     if nvidiasmi_path != nothing
         dir = dirname(nvidiasmi_path)
-        if ismatch(r"^bin(32|64)?$", basename(dir))
+        if contains(basename(dir), r"^bin(32|64)?$")
             dir = dirname(dir)
         end
         push!(dirs, dir)
@@ -219,7 +219,7 @@ function find_toolkit()
     nvcc_path = find_cuda_binary("nvcc")
     if nvcc_path != nothing
         nvcc_dir = dirname(nvcc_path)
-        if ismatch(r"^bin(32|64)?$", basename(nvcc_dir))
+        if contains(basename(nvcc_dir), r"^bin(32|64)?$")
             nvcc_dir = dirname(nvcc_dir)
         end
         @debug("Considering CUDA toolkit at $nvcc_dir based on nvcc at $nvcc_path")
@@ -229,7 +229,7 @@ function find_toolkit()
     libcudart_path = find_cuda_library("cudart")
     if libcudart_path != nothing
         libcudart_dir = dirname(libcudart_path)
-        if ismatch(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
+        if contains(basename(libcudart_dir), r"^(lib|bin)(32|64)?$")
             libcudart_dir = dirname(libcudart_dir)
         end
         @debug("Considering CUDA toolkit at $libcudart_dir based on libcudart at $libcudart_path")
