@@ -118,49 +118,73 @@ code_sass(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
 export @device_code_lowered, @device_code_typed, @device_code_warntype,
        @device_code_llvm, @device_code_ptx, @device_code_sass
 
-function emit_hooked_compilation(inner_hook, ex)
+function emit_hooked_compilation(inner_hook, ex...)
+    user_code = ex[end]
+    kwargs = ex[1:end-1]
     quote
         # wipe the compile cache to force recompilation
         empty!(CUDAnative.compilecache)
 
+        outer_hook(args...) = $inner_hook(args...; $(map(esc, kwargs)...))
+
         @assert CUDAnative.compile_hook[] == nothing
         try
-            CUDAnative.compile_hook[] = $inner_hook
-            $(esc(ex))
+            CUDAnative.compile_hook[] = outer_hook
+            $(esc(user_code))
         finally
             CUDAnative.compile_hook[] = nothing
         end
     end
 end
 
-macro device_code_lowered(ex)
-    # NOTE: these normally return values, so print instead
-    hook = (func, tt, _) -> println(code_lowered(func, tt))
-    emit_hooked_compilation(hook, ex)
+macro device_code_lowered(ex...)
+    @gensym hook
+    quote
+        buf = Any[]
+        function $hook(func, tt, _)
+            append!(buf, code_lowered(func, tt))
+        end
+        $(emit_hooked_compilation(hook, ex...))
+        buf
+    end
 end
 
-macro device_code_typed(ex)
-    # NOTE: these normally return values, so print instead
-    hook = (func, tt, _) -> println(code_typed(func, tt))
-    emit_hooked_compilation(hook, ex)
+macro device_code_typed(ex...)
+    @gensym hook
+    quote
+        buf = Any[]
+        function $hook(func, tt, _)
+            append!(buf, code_typed(func, tt))
+        end
+        $(emit_hooked_compilation(hook, ex...))
+        buf
+    end
 end
 
-macro device_code_warntype(ex)
-    hook = (func, tt, _) -> code_warntype(func, tt)
-    emit_hooked_compilation(hook, ex)
+macro device_code_warntype(ex...)
+    function hook(func, tt, _; io::IO=STDOUT)
+        code_warntype(io, func, tt)
+    end
+    emit_hooked_compilation(hook, ex...)
 end
 
-macro device_code_llvm(ex)
-    hook = (func, tt, cap) -> code_llvm(func, tt; cap=cap)
-    emit_hooked_compilation(hook, ex)
+macro device_code_llvm(ex...)
+    function hook(func, tt, cap; io::IO=STDOUT, optimize::Bool=true, dump_module::Bool=false)
+        code_llvm(io, func, tt; cap=cap, optimize=optimize, dump_module=dump_module)
+    end
+    emit_hooked_compilation(hook, ex...)
 end
 
-macro device_code_ptx(ex)
-    hook = (func, tt, cap) -> code_ptx(func, tt; cap=cap)
-    emit_hooked_compilation(hook, ex)
+macro device_code_ptx(ex...)
+    function hook(func, tt, cap; io::IO=STDOUT)
+        code_ptx(io, func, tt; cap=cap)
+    end
+    emit_hooked_compilation(hook, ex...)
 end
 
-macro device_code_sass(ex)
-    hook = (func, tt, cap) -> code_sass(func, tt; cap=cap)
-    emit_hooked_compilation(hook, ex)
+macro device_code_sass(ex...)
+    function hook(func, tt, cap; io::IO=STDOUT)
+        code_sass(io, func, tt; cap=cap)
+    end
+    emit_hooked_compilation(hook, ex...)
 end
