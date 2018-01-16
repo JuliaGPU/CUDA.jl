@@ -139,6 +139,14 @@ function emit_hooked_compilation(inner_hook, ex...)
     end
 end
 
+"""
+    @device_code_lowered ex
+
+Evaluates the expression `ex` and returns the result of [`Base.code_lowered`](@ref) for
+every compiled CUDA kernel.
+
+See also: [`Base.@code_lowered`](@ref)
+"""
 macro device_code_lowered(ex...)
     @gensym hook
     quote
@@ -151,6 +159,14 @@ macro device_code_lowered(ex...)
     end
 end
 
+"""
+    @device_code_typed ex
+
+Evaluates the expression `ex` and returns the result of [`Base.code_typed`](@ref) for
+every compiled CUDA kernel.
+
+See also: [`Base.@code_typed`](@ref)
+"""
 macro device_code_typed(ex...)
     @gensym hook
     quote
@@ -163,6 +179,14 @@ macro device_code_typed(ex...)
     end
 end
 
+"""
+    @device_code_warntype [io::IO=STDOUT] ex
+
+Evaluates the expression `ex` and prints the result of [`Base.code_warntype`](@ref) to `io`
+for every compiled CUDA kernel.
+
+See also: [`Base.@code_warntype`](@ref)
+"""
 macro device_code_warntype(ex...)
     function hook(func, tt, _; io::IO=STDOUT)
         code_warntype(io, func, tt)
@@ -170,6 +194,16 @@ macro device_code_warntype(ex...)
     emit_hooked_compilation(hook, ex...)
 end
 
+"""
+    @device_code_llvm [io::IO=STDOUT] [optimize::Bool=true] [dump_module::Bool=false] ex
+
+Evaluates the expression `ex` and prints the result of [`Base.code_llvm`](@ref) to `io` for
+every compiled CUDA kernel. The `optimize` keyword argument determines whether the code is
+optimized, and `dump_module` can be used to print the entire LLVM module instead of only the
+entry-point function.
+
+See also: [`Base.@code_llvm`](@ref)
+"""
 macro device_code_llvm(ex...)
     function hook(func, tt, cap; io::IO=STDOUT, optimize::Bool=true, dump_module::Bool=false)
         code_llvm(io, func, tt; cap=cap, optimize=optimize, dump_module=dump_module)
@@ -177,6 +211,12 @@ macro device_code_llvm(ex...)
     emit_hooked_compilation(hook, ex...)
 end
 
+"""
+    @device_code_ptx [io::IO=STDOUT] ex
+
+Evaluates the expression `ex` and prints the result of [`CUDAnative.code_ptx`](@ref) to `io`
+for every compiled CUDA kernel.
+"""
 macro device_code_ptx(ex...)
     function hook(func, tt, cap; io::IO=STDOUT)
         code_ptx(io, func, tt; cap=cap)
@@ -184,6 +224,12 @@ macro device_code_ptx(ex...)
     emit_hooked_compilation(hook, ex...)
 end
 
+"""
+    @device_code_sass [io::IO=STDOUT] ex
+
+Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](@ref) to
+`io` for every compiled CUDA kernel.
+"""
 macro device_code_sass(ex...)
     function hook(func, tt, cap; io::IO=STDOUT)
         code_sass(io, func, tt; cap=cap)
