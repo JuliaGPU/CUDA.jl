@@ -388,12 +388,16 @@ end
 # in which case extra metadata needs to be attached.
 function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber;
                           kernel::Bool=true)
-    check_invocation(func, tt; kernel=kernel)
+    ## high-level code generation (Julia AST)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
     @debug("(Re)compiling $sig for capability $cap")
 
-    # generate LLVM IR
+    check_invocation(func, tt; kernel=kernel)
+
+
+    ## low-level code generation (LLVM IR)
+
     mod, entry = irgen(func, tt)
     if kernel
         entry = wrap_entry!(mod, entry, tt)
@@ -418,7 +422,9 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
         error("LLVM IR generated for $sig at capability $cap is not compatible")
     end
 
-    # generate (PTX) assembly
+
+    ## machine code generation (PTX assembly)
+
     module_asm = mcgen(mod, entry, cap; kernel=kernel)
 
     return module_asm, LLVM.name(entry)
@@ -448,6 +454,9 @@ function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=f
     end
 end
 
+# (func::Function, tt::Type, cap::VersionNumber)
+const compile_hook = Ref{Union{Nothing,Function}}(nothing)
+
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
@@ -459,6 +468,10 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")
     cap = maximum(compat_caps)
+
+    if compile_hook[] != nothing
+        compile_hook[](func, tt, cap)
+    end
 
     (module_asm, module_entry) = compile_function(func, tt, cap)
 
