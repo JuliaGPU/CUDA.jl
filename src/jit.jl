@@ -26,7 +26,7 @@ function module_setup(mod::LLVM.Module)
 end
 
 # make function names safe for PTX
-safe_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]", "_")
+safe_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]"=>"_")
 safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
@@ -48,17 +48,17 @@ end
 
 function irgen(@nospecialize(func), @nospecialize(tt))
     # collect all modules of IR
-    function hook_module_setup(ref::Ptr{Void})
+    function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         module_setup(LLVM.Module(ref))
     end
-    function hook_raise_exception(insblock::Ptr{Void}, ex::Ptr{Void})
+    function hook_raise_exception(insblock::Ptr{Cvoid}, ex::Ptr{Cvoid})
         insblock = convert(LLVM.API.LLVMValueRef, insblock)
         ex = convert(LLVM.API.LLVMValueRef, ex)
         raise_exception(BasicBlock(insblock), Value(ex))
     end
     dependencies = Vector{LLVM.Module}()
-    function hook_module_activation(ref::Ptr{Void})
+    function hook_module_activation(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(dependencies, LLVM.Module(ref))
     end
@@ -114,8 +114,8 @@ function irgen(@nospecialize(func), @nospecialize(tt))
     entry = let
         re = Regex("julia_$(entry_tag)_\\d+")
         llvmcall_re = Regex("julia_$(entry_tag)_\\d+u\\d+")
-        fs = collect(filter(f->ismatch(re, LLVM.name(f)) &&
-                               !ismatch(llvmcall_re, LLVM.name(f)), definitions))
+        fs = collect(filter(f->contains(LLVM.name(f), re) &&
+                               !contains(LLVM.name(f), llvmcall_re), definitions))
         if length(fs) != 1
             error("Could not find single entry-point for $entry_tag (available functions: ",
                   join(map(f->LLVM.name(f), definitions), ", "), ")")
@@ -212,7 +212,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
                     append!(candidate_uses, collect(uses(param)))
                 end
                 while !isempty(candidate_uses)
-                    usepair = shift!(candidate_uses)
+                    usepair = popfirst!(candidate_uses)
                     inst = user(usepair)
 
                     md = metadata(inst)
@@ -337,7 +337,7 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
         if Base.VERSION >= v"0.7.0-DEV.1494"
             add_library_info!(pm, triple(mod))
             add_transform_info!(pm, tm)
-            ccall(:jl_add_optimization_passes, Void,
+            ccall(:jl_add_optimization_passes, Cvoid,
                   (LLVM.API.LLVMPassManagerRef, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level)
 
@@ -348,9 +348,9 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
         else
             add_transform_info!(pm, tm)
             # TLI added by PMB
-            ccall(:LLVMAddLowerGCFramePass, Void,
+            ccall(:LLVMAddLowerGCFramePass, Cvoid,
                   (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
-            ccall(:LLVMAddLowerPTLSPass, Void,
+            ccall(:LLVMAddLowerPTLSPass, Cvoid,
                   (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
 
             always_inliner!(pm) # TODO: set it as the builder's inliner
@@ -442,7 +442,7 @@ function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=f
     # kernels can't return values
     if kernel
         rt = Base.return_types(func, tt)[1]
-        if rt != Void
+        if rt != Nothing
             throw(ArgumentError("$sig is not a valid kernel as it returns $rt"))
         end
     end

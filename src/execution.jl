@@ -2,7 +2,7 @@
 
 export @cuda, nearest_warpsize, cudaconvert
 
-using Base.Iterators: filter
+using Base.Iterators.filter
 
 
 """

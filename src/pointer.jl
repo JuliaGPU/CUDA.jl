@@ -167,7 +167,7 @@ if Base.VERSION >= v"0.6.1"
             ret!(builder)
         end
 
-        call_function(llvm_f, Void, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
+        call_function(llvm_f, Cvoid, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
     end
 else
     @inline Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,

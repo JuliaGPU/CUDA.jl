@@ -9,6 +9,7 @@ using LLVM
 using LLVM.Interop
 
 using Compat
+VERSION >= v"0.7.0-DEV.3382" && using Libdl
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
 isfile(ext) || error("CUDAnative.jl has not been built, please run Pkg.build(\"CUDAnative\").")
@@ -49,15 +50,18 @@ function __init__()
         return
     end
 
+    base_libllvm_version = VERSION >= v"0.7.0-DEV.421" ?
+                           Base.libllvm_version :
+                           VersionNumber(Base.libllvm_version)
     if VERSION != julia_version ||
-        VersionNumber(Base.libllvm_version) != julia_llvm_version ||
+        base_libllvm_version != julia_llvm_version ||
         LLVM.version() != llvm_version ||
         CUDAdrv.version() != cuda_driver_version
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
 
     jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
-                                   cglobal(:jl_LLVMContext, Void)))
+                                   cglobal(:jl_LLVMContext, Cvoid)))
 
     init_jit()
 

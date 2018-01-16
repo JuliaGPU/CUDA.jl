@@ -40,12 +40,12 @@ println(run(benchmark_gpu))
 
 # Entry-point wrappers
 lib = Libdl.dlopen(joinpath(@__DIR__, "reduce.so"))
-setup_cuda(input)    = ccall(Libdl.dlsym(lib, "setup"), Ptr{Void},
+setup_cuda(input)    = ccall(Libdl.dlsym(lib, "setup"), Ptr{Cvoid},
                              (Ptr{Cint}, Csize_t), input, length(input))
 run_cuda(state)      = ccall(Libdl.dlsym(lib, "run"), Cint,
-                             (Ptr{Void},), state)
+                             (Ptr{Cvoid},), state)
 teardown_cuda(state) = ccall(Libdl.dlsym(lib, "teardown"), Void,
-                             (Ptr{Void},), state)
+                             (Ptr{Cvoid},), state)
 
 # Correctness check (not part of verify.jl which is meant to run during testing)
 using Compat

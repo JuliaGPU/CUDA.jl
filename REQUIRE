@@ -2,5 +2,5 @@ julia 0.6
 CUDAdrv 0.7.0
 LLVM 0.5.1
 CUDAapi 0.3.0
-Compat 0.35.0
+Compat 0.43.0
 

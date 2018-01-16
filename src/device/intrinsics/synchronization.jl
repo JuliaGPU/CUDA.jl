@@ -9,7 +9,7 @@ Waits until all threads in the thread block have reached this point and all glob
 shared memory accesses made by these threads prior to `sync_threads()` are visible to all
 threads in the block.
 """
-@inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Void, ())
+@inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
 
 """
     sync_warp(mask::Integer=0xffffffff)
@@ -24,7 +24,7 @@ sync_warp
 if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
     @inline function sync_warp(mask::Integer=0xffffffff)
         @asmcall("bar.warp.sync \$0;", "r", true,
-                 Void, Tuple{UInt32}, convert(UInt32, mask))
+                 Cvoid, Tuple{UInt32}, convert(UInt32, mask))
     end
 else
     @inline sync_warp(mask::Integer=0xffffffff) = nothing
