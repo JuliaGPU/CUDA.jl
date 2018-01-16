@@ -118,9 +118,9 @@ end
     @eval ptx_valid_kernel() = nothing
     @eval ptx_invalid_kernel() = 1
 
-    @test code_ptx(DevNull, ptx_valid_kernel, Tuple{}) == nothing
-    @test code_ptx(DevNull, ptx_invalid_kernel, Tuple{}) == nothing
-    @test_throws ArgumentError code_ptx(DevNull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test CUDAnative.code_ptx(DevNull, ptx_valid_kernel, Tuple{}) == nothing
+    @test CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{}) == nothing
+    @test_throws ArgumentError CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "child functions" begin
@@ -129,7 +129,7 @@ end
     @eval @noinline ptx_child(i) = (sink(i); nothing)
     @eval ptx_parent(i) = ptx_child(i)
 
-    asm = sprint(io->code_ptx(io, ptx_parent, Tuple{Int64}))
+    asm = sprint(io->CUDAnative.code_ptx(io, ptx_parent, Tuple{Int64}))
     @test contains(asm, r"call.uni\s+julia_ptx_child_"m)
 end
 
@@ -137,7 +137,7 @@ end
     @eval @noinline ptx_nonentry(i) = (sink(i); nothing)
     @eval ptx_entry(i) = ptx_nonentry(i)
 
-    asm = sprint(io->code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
+    asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
     @test contains(asm, r"\.visible \.entry ptxcall_ptx_entry_")
     @test !contains(asm, r"\.visible \.func julia_ptx_nonentry_")
     @test contains(asm, r"\.func julia_ptx_nonentry_")
@@ -145,12 +145,12 @@ end
 
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
-    @test_throws ErrorException code_ptx(codegen_ref_nonexisting, Tuple{})
+    @test_throws ErrorException CUDAnative.code_ptx(codegen_ref_nonexisting, Tuple{})
 end
 
 @testset "generic call" begin
     @eval codegen_call_nonexisting() = nonexisting()
-    @test_throws ErrorException code_ptx(codegen_call_nonexisting, Tuple{})
+    @test_throws ErrorException CUDAnative.code_ptx(codegen_call_nonexisting, Tuple{})
 end
 
 
@@ -158,8 +158,8 @@ end
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
     @eval codegen_idempotency() = nothing
-    code_ptx(DevNull, codegen_idempotency, Tuple{})
-    code_ptx(DevNull, codegen_idempotency, Tuple{})
+    CUDAnative.code_ptx(DevNull, codegen_idempotency, Tuple{})
+    CUDAnative.code_ptx(DevNull, codegen_idempotency, Tuple{})
 end
 
 @testset "child function reuse" begin
@@ -172,7 +172,7 @@ end
         return
     end
 
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent1, Tuple{Int}))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent1, Tuple{Int}))
     @test contains(asm, r".func julia_codegen_child_reuse_child_")
 
     @eval function codegen_child_reuse_parent2(i)
@@ -180,7 +180,7 @@ end
         return
     end
 
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_parent2, Tuple{Int}))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent2, Tuple{Int}))
     @test contains(asm, r".func julia_codegen_child_reuse_child_")
 end
 
@@ -193,13 +193,13 @@ end
         codegen_child_reuse_bis_child1(i) + codegen_child_reuse_bis_child2(i)
         return
     end
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent1, Tuple{Int}))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent1, Tuple{Int}))
 
     @eval function codegen_child_reuse_bis_parent2(i)
         codegen_child_reuse_bis_child1(i+1) + codegen_child_reuse_bis_child2(i+1)
         return
     end
-    asm = sprint(io->code_ptx(io, codegen_child_reuse_bis_parent2, Tuple{Int}))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_bis_parent2, Tuple{Int}))
 end
 
 @testset "indirect sysimg function use" begin
@@ -214,7 +214,7 @@ end
         return
     end
 
-    asm = sprint(io->code_ptx(io, codegen_recompile, Tuple{Ptr{Int64}}))
+    asm = sprint(io->CUDAnative.code_ptx(io, codegen_recompile, Tuple{Ptr{Int64}}))
     @test !contains(asm, "jl_throw")
     @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
 end
@@ -232,14 +232,14 @@ end
         return
     end
 
-    code_ptx(DevNull, codegen_recompile_bis_fromptx, Tuple{})
+    CUDAnative.code_ptx(DevNull, codegen_recompile_bis_fromptx, Tuple{})
     @test codegen_recompile_bis_fromhost() == 11
 end
 
 @testset "LLVM intrinsics" begin
     # issue #13 (a): cannot select trunc
     @eval codegen_issue_13(x) = unsafe_trunc(Int, x)
-    code_ptx(DevNull, codegen_issue_13, Tuple{Float64})
+    CUDAnative.code_ptx(DevNull, codegen_issue_13, Tuple{Float64})
 end
 
 end
