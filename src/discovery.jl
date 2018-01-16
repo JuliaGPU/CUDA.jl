@@ -143,8 +143,20 @@ find_cuda_binary(name::String, toolkit_path::Union{String,Nothing}=nothing; kwar
                 locations=(toolkit_path!=nothing ? [toolkit_path] : String[]),
                 kwargs...)
 
+# return a list of valid directories, resolving symlinks and pruning duplicates
+function valid_dirs(dirs)
+    map!(dirs, dirs) do dir
+        if islink(dir)
+            readlink(dir)
+        else
+            dir
+        end
+    end
+    filter(isdir, unique(dirs))
+end
+
 function find_driver()
-    # figure out locations
+    # figure out candidate locations
     dirs = String[]
     ## look for the driver library (in the case LD_LIBRARY_PATH points to the installation)
     libcuda_path = find_cuda_library("cuda")
@@ -166,7 +178,7 @@ function find_driver()
     end
 
     # filter
-    dirs = filter(isdir, unique(dirs))
+    dirs = valid_dirs(dirs)
     if length(dirs) > 1
         warn("Found multiple CUDA driver installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
@@ -181,7 +193,7 @@ function find_driver()
 end
 
 function find_toolkit()
-    # figure out locations
+    # figure out candidate locations
     dirs = String[]
     ## look for environment variables
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
@@ -237,7 +249,7 @@ function find_toolkit()
     end
 
     # filter
-    dirs = filter(isdir, unique(dirs))
+    dirs = valid_dirs(dirs)
     if length(dirs) > 1
         warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
