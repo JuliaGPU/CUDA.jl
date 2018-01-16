@@ -253,7 +253,8 @@ function find_toolkit()
     # filter
     dirs = valid_dirs(dirs)
     if length(dirs) > 1
-        warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "))
+        warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "), "; ",
+             "specify using any of the $(join(envvars, ", ", " or ")) environment variables")
     elseif isempty(dirs)
         warn("Could not find CUDA toolkit; specify using any of the $(join(envvars, ", ", " or ")) environment variables")
         return nothing
