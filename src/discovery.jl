@@ -252,8 +252,14 @@ function find_toolkit()
     end
 
     # filter
-    @show dirs = valid_dirs(dirs)
+    dirs = valid_dirs(dirs)
     filter!(dirs) do dir
+        # filter out system directories that are covered by the default search paths of
+        # `find_binary` and `find_library`
+        if dir == "/usr"
+            return false
+        end
+
         # the toolkit directory should at least contain a "bin" folder
         ispath(joinpath(dir, "bin"))
     end
