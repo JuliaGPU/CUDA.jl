@@ -161,7 +161,7 @@ macro device_code_lowered(ex...)
     @gensym hook
     quote
         buf = Any[]
-        function $hook(func, tt, _)
+        function $hook(func, tt, cap)
             append!(buf, code_lowered(func, tt))
         end
         $(emit_hooked_compilation(hook, ex...))
@@ -181,7 +181,7 @@ macro device_code_typed(ex...)
     @gensym hook
     quote
         buf = Any[]
-        function $hook(func, tt, _)
+        function $hook(func, tt, cap)
             append!(buf, code_typed(func, tt))
         end
         $(emit_hooked_compilation(hook, ex...))
@@ -198,7 +198,7 @@ for every compiled CUDA kernel.
 See also: [`Base.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
-    function hook(func, tt, _; io::IO=STDOUT)
+    function hook(func, tt, cap; io::IO=STDOUT)
         code_warntype(io, func, tt)
     end
     emit_hooked_compilation(hook, ex...)
