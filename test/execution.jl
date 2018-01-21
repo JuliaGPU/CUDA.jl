@@ -25,19 +25,19 @@ end
 @testset "reflection" begin
     @cuda (1,1) exec_dummy()
 
-    @device_code_lowered @cuda (1,1) exec_dummy()
-    @device_code_typed @cuda (1,1) exec_dummy()
-    @grab_output @device_code_warntype @cuda (1,1) exec_dummy()
-    @grab_output @device_code_llvm @cuda (1,1) exec_dummy()
-    @grab_output @device_code_ptx @cuda (1,1) exec_dummy()
-    @grab_output @device_code_sass @cuda (1,1) exec_dummy()
-
     CUDAnative.code_lowered(exec_dummy, Tuple{})
     CUDAnative.code_typed(exec_dummy, Tuple{})
     CUDAnative.code_warntype(DevNull, exec_dummy, Tuple{})
     CUDAnative.code_llvm(DevNull, exec_dummy, Tuple{})
     CUDAnative.code_ptx(DevNull, exec_dummy, Tuple{})
     CUDAnative.code_sass(DevNull, exec_dummy, Tuple{})
+
+    @device_code_lowered @cuda (1,1) exec_dummy()
+    @device_code_typed @cuda (1,1) exec_dummy()
+    @device_code_warntype io=DevNull @cuda (1,1) exec_dummy()
+    @device_code_llvm io=DevNull @cuda (1,1) exec_dummy()
+    @device_code_ptx io=DevNull @cuda (1,1) exec_dummy()
+    @device_code_sass io=DevNull @cuda (1,1) exec_dummy()
 end
 
 
