@@ -9,7 +9,20 @@ source_str(srcs::Vector{String}) = isempty(srcs) ? "anywhere" : "in " * join(src
 target_str(typ::String, dst::String) = "$typ $dst"
 target_str(typ::String, dsts::Vector{String}) = isempty(dsts) ? "no $typ" : "$typ " * join(dsts, ", ", " or ")
 
-# FIXME: CUDA on 32-bit Windows isn't supported
+function resolve(path)
+    if islink(path)
+        dir = dirname(path)
+        resolve(joinpath(dir, readlink(path)))
+    else
+        path
+    end
+end
+
+# return a list of valid directories, resolving symlinks and pruning duplicates
+function valid_dirs(dirs)
+    map!(resolve, dirs, dirs)
+    filter(isdir, unique(dirs))
+end
 
 
 ## generic discovery routines
@@ -61,7 +74,7 @@ function find_library(names::Vector{String};
     end
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
-    path = Libdl.dlpath(name_found)
+    path = resolve(Libdl.dlpath(name_found))
     @debug("Found $name_found library at $path")
     return path
 end
@@ -101,7 +114,7 @@ function find_binary(names::Vector{String};
     if isempty(paths)
         return nothing
     else
-        path = first(paths)
+        path = resolve(first(paths))
         @debug("Found binary at $path")
         return path
     end
@@ -109,6 +122,8 @@ end
 
 
 ## CUDA-specific discovery routines
+
+# FIXME: CUDA on 32-bit Windows isn't supported
 
 const cuda_names = Dict(
     "cuda"      => Compat.Sys.iswindows() ? ["nvcuda"] : ["cuda"],
@@ -144,7 +159,7 @@ find_cuda_binary(name::String, toolkit_path::Union{String,Nothing}=nothing; kwar
                 kwargs...)
 
 function find_driver()
-    # figure out locations
+    # figure out candidate locations
     dirs = String[]
     ## look for the driver library (in the case LD_LIBRARY_PATH points to the installation)
     libcuda_path = find_cuda_library("cuda")
@@ -166,7 +181,7 @@ function find_driver()
     end
 
     # filter
-    dirs = filter(isdir, unique(dirs))
+    dirs = valid_dirs(dirs)
     if length(dirs) > 1
         warn("Found multiple CUDA driver installations: ", join(dirs, ", ", " and "))
     elseif isempty(dirs)
@@ -181,7 +196,7 @@ function find_driver()
 end
 
 function find_toolkit()
-    # figure out locations
+    # figure out candidate locations
     dirs = String[]
     ## look for environment variables
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
@@ -237,9 +252,20 @@ function find_toolkit()
     end
 
     # filter
-    dirs = filter(isdir, unique(dirs))
+    dirs = valid_dirs(dirs)
+    filter!(dirs) do dir
+        # filter out system directories that are covered by the default search paths of
+        # `find_binary` and `find_library`
+        if dir == "/usr"
+            return false
+        end
+
+        # the toolkit directory should at least contain a "bin" folder
+        ispath(joinpath(dir, "bin"))
+    end
     if length(dirs) > 1
-        warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "))
+        warn("Found multiple CUDA toolkit installations: ", join(dirs, ", ", " and "), "; ",
+             "specify using any of the $(join(envvars, ", ", " or ")) environment variables")
     elseif isempty(dirs)
         warn("Could not find CUDA toolkit; specify using any of the $(join(envvars, ", ", " or ")) environment variables")
         return nothing
@@ -296,7 +322,7 @@ function find_host_compiler(toolkit_version=nothing)
 
             # parse the GCC version string
             verstring = chomp(readlines(`$gcc_path --version`)[1])
-            m = match(Regex("^$gcc_name \\(.*\\) ([0-9.]+)"), verstring)
+            m = match(Regex("^$(basename(gcc_path)) \\(.*\\) ([0-9.]+)"), verstring)
             if m === nothing
                 warn("Could not parse GCC version info (\"$verstring\"), skipping this compiler.")
                 continue
