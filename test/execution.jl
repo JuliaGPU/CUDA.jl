@@ -25,34 +25,21 @@ end
 @testset "reflection" begin
     @cuda (1,1) exec_dummy()
 
-    @grab_output CUDAnative.@code_lowered @cuda (1,1) exec_dummy()
-    @grab_output CUDAnative.@code_typed @cuda (1,1) exec_dummy()
-    @grab_output CUDAnative.@code_warntype @cuda (1,1) exec_dummy()
-    @grab_output CUDAnative.@code_llvm @cuda (1,1) exec_dummy()
-    @grab_output CUDAnative.@code_ptx @cuda (1,1) exec_dummy()
-    @grab_output CUDAnative.@code_sass @cuda (1,1) exec_dummy()
+    CUDAnative.code_lowered(exec_dummy, Tuple{})
+    CUDAnative.code_typed(exec_dummy, Tuple{})
+    CUDAnative.code_warntype(DevNull, exec_dummy, Tuple{})
+    CUDAnative.code_llvm(DevNull, exec_dummy, Tuple{})
+    CUDAnative.code_ptx(DevNull, exec_dummy, Tuple{})
+    CUDAnative.code_sass(DevNull, exec_dummy, Tuple{})
 
-    @grab_output CUDAnative.@code_lowered exec_dummy()
-    @grab_output CUDAnative.@code_typed exec_dummy()
-    @grab_output CUDAnative.@code_warntype exec_dummy()
-    @grab_output CUDAnative.@code_llvm exec_dummy()
-    @grab_output CUDAnative.@code_ptx exec_dummy()
-    @grab_output CUDAnative.@code_sass exec_dummy()
-end
+    @device_code_lowered @cuda (1,1) exec_dummy()
+    @device_code_typed @cuda (1,1) exec_dummy()
+    @device_code_warntype io=DevNull @cuda (1,1) exec_dummy()
+    @device_code_llvm io=DevNull @cuda (1,1) exec_dummy()
+    @device_code_ptx io=DevNull @cuda (1,1) exec_dummy()
+    @device_code_sass io=DevNull @cuda (1,1) exec_dummy()
 
-
-@testset "reflection with argument conversion" begin
-    @eval exec_dummy_array(a, i) = (a[1] = i; return nothing)
-
-    a = CuTestArray([1])
-
-    @grab_output CUDAnative.@code_llvm @cuda (1,1) exec_dummy_array(a, 1)
-    @grab_output CUDAnative.@code_ptx @cuda (1,1) exec_dummy_array(a, 1)
-    @grab_output CUDAnative.@code_sass @cuda (1,1) exec_dummy_array(a, 1)
-
-    @grab_output CUDAnative.@code_llvm exec_dummy_array(a, 1)
-    @grab_output CUDAnative.@code_ptx exec_dummy_array(a, 1)
-    @grab_output CUDAnative.@code_sass exec_dummy_array(a, 1)
+    @test_throws ErrorException @device_code_lowered nothing
 end
 
 

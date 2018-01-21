@@ -1,13 +1,5 @@
 # code reflection entry-points
 
-export
-    @code_lowered, @code_typed, @code_warntype,
-    code_llvm, code_ptx, code_sass, @code_llvm, @code_ptx, @code_sass
-
-#
-# code_* replacements
-#
-
 # Return the capability of the current context's device, or a sane fall-back.
 function current_capability()
     fallback = minimum(target_support)
@@ -23,15 +15,22 @@ function current_capability()
     return capability(device(ctx))
 end
 
+
+#
+# code_* replacements
+#
+
 """
     code_llvm([io], f, types; optimize=true, dump_module=false, cap::VersionNumber)
 
-Prints the LLVM IR generated for the method matching the given generic function and type
-signature to `io` which defaults to `STDOUT`. The IR is optimized according to `optimize`
-(defaults to true), and the entire module, including headers and other functions, is dumped
-if `dump_module` is set (defaults to false). The device capability `cap` to generate code
-for defaults to the current active device's capability, or v"2.0" if there is no such active
-context.
+Prints the device LLVM IR generated for the method matching the given generic function and
+type signature to `io` which defaults to `STDOUT`. The IR is optimized according to
+`optimize` (defaults to true), and the entire module, including headers and other functions,
+is dumped if `dump_module` is set (defaults to false). The device capability `cap` to
+generate code for defaults to the current active device's capability, or v"2.0" if there is
+no such active context.
+
+See also: [`@device_code_llvm`](@ref), [`Base.code_llvm`](@ref)
 """
 function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    optimize::Bool=true, dump_module::Bool=false,
@@ -62,6 +61,8 @@ type signature to `io` which defaults to `STDOUT`. The device capability `cap` t
 code for defaults to the current active device's capability, or v"2.0" if there is no such
 active context. The optional `kernel` parameter indicates whether the function in question
 is an entry-point function, or a regular device function.
+
+See also: [`@device_code_ptx`](@ref)
 """
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                   cap::VersionNumber=current_capability(), kernel::Bool=false)
@@ -82,10 +83,10 @@ code_ptx(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
 Prints the SASS code generated for the method matching the given generic function and type
 signature to `io` which defaults to `STDOUT`. The device capability `cap` to generate code
 for defaults to the current active device's capability, or v"2.0" if there is no such active
-context.
-
-Note that the method needs to be a valid entry-point kernel, ie. it should not return any
+context. The method needs to be a valid entry-point kernel, eg. it should not return any
 values.
+
+See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    cap::VersionNumber=current_capability())
@@ -111,42 +112,137 @@ code_sass(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
 
 
 #
-# @code_* replacements
+# @device_code_* functions
 #
 
-function gen_call_with_extracted_types(f, ex)
-    :($f($(esc(ex.args[1])), Base.typesof(cudaconvert.(($(esc.(ex.args[2:end])...),))...)))
+export @device_code_lowered, @device_code_typed, @device_code_warntype,
+       @device_code_llvm, @device_code_ptx, @device_code_sass
+
+function emit_hooked_compilation(inner_hook, ex...)
+    user_code = ex[end]
+    kwargs = ex[1:end-1]
+    quote
+        # wipe the compile cache to force recompilation
+        empty!(CUDAnative.compilecache)
+
+        local kernels = 0
+        function outer_hook(args...)
+            kernels += 1
+            $inner_hook(args...; $(map(esc, kwargs)...))
+        end
+
+        @assert CUDAnative.compile_hook[] == nothing
+        try
+            CUDAnative.compile_hook[] = outer_hook
+            $(esc(user_code))
+        catch ex
+            warn(ex)
+        finally
+            CUDAnative.compile_hook[] = nothing
+        end
+
+        if kernels == 0
+            error("no kernels executed while evaluating the given expression")
+        end
+
+        nothing
+    end
 end
 
-for (fname,kernel_arg) in [(:code_lowered, false), (:code_typed, false), (:code_warntype, false),
-                           (:code_llvm, true), (:code_ptx, true), (:code_sass, false)]
-    # TODO: test the kernel_arg-based behavior
-    @eval begin
-        @doc $"""
-            $fname
-        Extracts the relevant function call from any `@cuda` invocation, evaluates the
-        arguments to the function or macro call, determines their types (taking into account
-        GPU-specific type conversions), and calls $fname on the resulting expression.
-        Can be applied to a pure function call, or a call prefixed with the `@cuda` macro.
-        In that case, kernel code generation conventions are used (wrt. argument conversions,
-        return values, etc).
-        """ macro $(fname)(ex0)
-            if ex0.head == :macrocall
-                # @cuda (...) f()
-                if Base.VERSION >= v"0.7.0-DEV.357"
-                    ex0 = ex0.args[4]
-                else
-                    ex0 = ex0.args[3]
-                end
-                kernel = true
-            else
-                kernel = false
-            end
+"""
+    @device_code_lowered ex
 
-            wrapper(func, types) = $kernel_arg ? $fname(func, types, kernel = kernel) :
-                                                 $fname(func, types)
+Evaluates the expression `ex` and returns the result of [`Base.code_lowered`](@ref) for
+every compiled CUDA kernel.
 
-            gen_call_with_extracted_types(wrapper, ex0)
+See also: [`Base.@code_lowered`](@ref)
+"""
+macro device_code_lowered(ex...)
+    @gensym hook
+    quote
+        buf = Any[]
+        function $hook(func, tt, cap)
+            append!(buf, code_lowered(func, tt))
         end
+        $(emit_hooked_compilation(hook, ex...))
+        buf
     end
+end
+
+"""
+    @device_code_typed ex
+
+Evaluates the expression `ex` and returns the result of [`Base.code_typed`](@ref) for
+every compiled CUDA kernel.
+
+See also: [`Base.@code_typed`](@ref)
+"""
+macro device_code_typed(ex...)
+    @gensym hook
+    quote
+        buf = Any[]
+        function $hook(func, tt, cap)
+            append!(buf, code_typed(func, tt))
+        end
+        $(emit_hooked_compilation(hook, ex...))
+        buf
+    end
+end
+
+"""
+    @device_code_warntype [io::IO=STDOUT] ex
+
+Evaluates the expression `ex` and prints the result of [`Base.code_warntype`](@ref) to `io`
+for every compiled CUDA kernel.
+
+See also: [`Base.@code_warntype`](@ref)
+"""
+macro device_code_warntype(ex...)
+    function hook(func, tt, cap; io::IO=STDOUT)
+        code_warntype(io, func, tt)
+    end
+    emit_hooked_compilation(hook, ex...)
+end
+
+"""
+    @device_code_llvm [io::IO=STDOUT] [optimize::Bool=true] [dump_module::Bool=false] ex
+
+Evaluates the expression `ex` and prints the result of [`Base.code_llvm`](@ref) to `io` for
+every compiled CUDA kernel. The `optimize` keyword argument determines whether the code is
+optimized, and `dump_module` can be used to print the entire LLVM module instead of only the
+entry-point function.
+
+See also: [`Base.@code_llvm`](@ref)
+"""
+macro device_code_llvm(ex...)
+    function hook(func, tt, cap; io::IO=STDOUT, optimize::Bool=true, dump_module::Bool=false)
+        code_llvm(io, func, tt; cap=cap, optimize=optimize, dump_module=dump_module)
+    end
+    emit_hooked_compilation(hook, ex...)
+end
+
+"""
+    @device_code_ptx [io::IO=STDOUT] ex
+
+Evaluates the expression `ex` and prints the result of [`CUDAnative.code_ptx`](@ref) to `io`
+for every compiled CUDA kernel.
+"""
+macro device_code_ptx(ex...)
+    function hook(func, tt, cap; io::IO=STDOUT)
+        code_ptx(io, func, tt; cap=cap)
+    end
+    emit_hooked_compilation(hook, ex...)
+end
+
+"""
+    @device_code_sass [io::IO=STDOUT] ex
+
+Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](@ref) to
+`io` for every compiled CUDA kernel.
+"""
+macro device_code_sass(ex...)
+    function hook(func, tt, cap; io::IO=STDOUT)
+        code_sass(io, func, tt; cap=cap)
+    end
+    emit_hooked_compilation(hook, ex...)
 end
