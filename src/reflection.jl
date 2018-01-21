@@ -125,14 +125,24 @@ function emit_hooked_compilation(inner_hook, ex...)
         # wipe the compile cache to force recompilation
         empty!(CUDAnative.compilecache)
 
-        outer_hook(args...) = $inner_hook(args...; $(map(esc, kwargs)...))
+        local kernels = 0
+        function outer_hook(args...)
+            kernels += 1
+            $inner_hook(args...; $(map(esc, kwargs)...))
+        end
 
         @assert CUDAnative.compile_hook[] == nothing
         try
             CUDAnative.compile_hook[] = outer_hook
             $(esc(user_code))
+        catch ex
+            warn(ex)
         finally
             CUDAnative.compile_hook[] = nothing
+        end
+
+        if kernels == 0
+            error("no kernels executed while evaluating the given expression")
         end
 
         nothing

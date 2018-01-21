@@ -38,6 +38,8 @@ end
     @device_code_llvm io=DevNull @cuda (1,1) exec_dummy()
     @device_code_ptx io=DevNull @cuda (1,1) exec_dummy()
     @device_code_sass io=DevNull @cuda (1,1) exec_dummy()
+
+    @test_throws ErrorException @device_code_lowered nothing
 end
 
 
