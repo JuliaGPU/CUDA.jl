@@ -52,8 +52,7 @@ function main()
 
     ## discover stuff
 
-    driver_path = find_driver()
-    config[:libcuda_path] = find_cuda_library("cuda", driver_path)
+    config[:libcuda_path] = find_cuda_library("cuda")
     config[:libcuda_vendor] = "NVIDIA"
 
     # initializing the library isn't necessary, but flushes out errors that otherwise would
