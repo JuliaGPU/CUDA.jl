@@ -286,12 +286,14 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
     if length(dirs) > 1
         warn("Found multiple libdevice locations: ", join(dirs, ", ", " and "))
     end
+    @debug("Looking $(source_str(dirs)) for libdevice")
 
     # select
     if isempty(dirs)
         return nothing
     end
     dir = first(dirs)
+    @debug("Found libdevice at $dir")
 
     # parse filenames
     libraries = Dict{VersionNumber,String}()
