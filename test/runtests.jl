@@ -35,18 +35,13 @@ macro test_something(ex...)
     end
 end
 
-toolkit = @test_something find_toolkit()
-toolkit_version = find_toolkit_version(toolkit)
+dirs = find_toolkit()
+@test !isempty(dirs)
+ver = find_toolkit_version(dirs)
 
-if haskey(ENV, "CI")
-    find_driver()
-else
-    @test_something find_driver()
-end
-
-@test_something find_cuda_binary("nvcc", toolkit)
-@test_something find_cuda_library("cudart", toolkit)
+@test_something find_cuda_binary("nvcc", dirs)
+@test_something find_cuda_library("cudart", dirs)
 @test_something find_host_compiler()
-@test_something find_host_compiler(toolkit_version)
-@test_something find_toolchain(toolkit)
-@test_something find_toolchain(toolkit, toolkit_version)
+@test_something find_host_compiler(ver)
+@test_something find_toolchain(dirs)
+@test_something find_toolchain(dirs, ver)
