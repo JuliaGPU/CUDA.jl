@@ -56,56 +56,6 @@ function cuda_support(driver_version, toolkit_version)
 end
 
 
-## discovery routines
-
-# find device library bitcode files
-function find_libdevice(targets, parent)
-    @debug("Looking for libdevice in $parent")
-
-    dirs = [joinpath(parent, "libdevice"), joinpath(parent, "nvvm", "libdevice")]
-
-    # filter
-    @trace("Finding libdevice in $dirs")
-    dirs = filter(isdir, unique(dirs))
-    if length(dirs) > 1
-        warn("Found multiple libdevice locations: ", join(dirs, ", ", " and "))
-    elseif isempty(dirs)
-        error("Could not find libdevice")
-    end
-
-    # select
-    dir = first(dirs)
-    @trace("Using libdevice at $dir")
-
-    # parse filenames
-    libraries = Dict{VersionNumber,String}()
-    for target in targets
-        path = joinpath(dir, "libdevice.compute_$(target.major)$(target.minor).10.bc")
-        if isfile(path)
-            libraries[target] = path
-        end
-    end
-    library = nothing
-    let path = joinpath(dir, "libdevice.10.bc")
-        if isfile(path)
-            library = path
-        end
-    end
-
-    # select
-    if library != nothing
-        @debug("Found unified libdevice at $library")
-        return library
-    elseif !isempty(libraries)
-        @debug("Found libdevice for ", join(sort(map(ver->"sm_$(ver.major)$(ver.minor)",
-                                            keys(libraries))), ", ", " and "), " at $dir")
-        return libraries
-    else
-        error("No suitable libdevice found")
-    end
-end
-
-
 ## main
 
 const config_path = joinpath(@__DIR__, "ext.jl")
@@ -151,8 +101,8 @@ function main()
 
     ### CUDA
 
-    toolkit_path = find_toolkit()
-    config[:cuda_toolkit_version] = find_toolkit_version(toolkit_path)
+    toolkit_dirs = find_toolkit()
+    config[:cuda_toolkit_version] = find_toolkit_version(toolkit_dirs)
 
     config[:cuda_driver_version] = CUDAdrv.version()
     cuda_targets, cuda_isas = cuda_support(config[:cuda_driver_version], config[:cuda_toolkit_version])
@@ -166,9 +116,12 @@ function main()
     isempty(config[:target_support]) && error("Your toolchain does not support any PTX ISA")
 
     # discover other CUDA toolkit artifacts
-    config[:libdevice] = find_libdevice(config[:target_support], toolkit_path)
-    config[:cuobjdump] = find_cuda_binary("cuobjdump", toolkit_path)
-    config[:ptxas] = find_cuda_binary("ptxas", toolkit_path)
+    config[:libdevice] = find_libdevice(config[:target_support], toolkit_dirs)
+    config[:libdevice] == nothing && error("Available CUDA toolchain does not provide libdevice")
+    config[:cuobjdump] = find_cuda_binary("cuobjdump", toolkit_dirs)
+    config[:cuobjdump] == nothing && error("Available CUDA toolchain does not provide cuobjdump")
+    config[:ptxas] = find_cuda_binary("ptxas", toolkit_dirs)
+    config[:ptxas] == nothing && error("Available CUDA toolchain does not provide ptxas")
 
 
     ## (re)generate ext.jl
