@@ -1,6 +1,7 @@
 export find_library, find_binary,
        find_cuda_library, find_cuda_binary,
        find_toolkit, find_toolkit_version,
+       find_libdevice,
        find_host_compiler, find_toolchain
 
 # debug print helpers
@@ -260,6 +261,64 @@ function find_toolkit_version(toolkit_dirs)
                             parse(Int, m[:patch]))
     @debug("CUDA toolkit identified as $version")
     return version
+end
+
+"""
+    find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs::Vector{String})
+
+Look for the CUDA device library supporting `targets` in any of the CUDA toolkit directories
+`toolkit_dirs`. On CUDA >= 9.0, a single library unified library is discovered and returned
+as a string. On older toolkits, individual libraries for each of the targets are returned as
+a vector of strings.
+"""
+function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
+    @debug("Request to look $(source_str(toolkit_dirs)) for libdevice $(join(targets, ", "))")
+
+    # figure out locations
+    dirs = String[]
+    for toolkit_dir in toolkit_dirs
+        push!(dirs, joinpath(toolkit_dir, "libdevice"))
+        push!(dirs, joinpath(toolkit_dir, "nvvm", "libdevice"))
+    end
+
+    # filter
+    dirs = valid_dirs(dirs)
+    if length(dirs) > 1
+        warn("Found multiple libdevice locations: ", join(dirs, ", ", " and "))
+    end
+
+    # select
+    if isempty(dirs)
+        return nothing
+    end
+    dir = first(dirs)
+
+    # parse filenames
+    libraries = Dict{VersionNumber,String}()
+    for target in targets
+        path = joinpath(dir, "libdevice.compute_$(target.major)$(target.minor).10.bc")
+        if isfile(path)
+            libraries[target] = path
+        end
+    end
+    library = nothing
+    let path = joinpath(dir, "libdevice.10.bc")
+        if isfile(path)
+            library = path
+        end
+    end
+
+    # select
+    if library != nothing
+        @debug("Found unified libdevice at $library")
+        return library
+    elseif !isempty(libraries)
+        @debug("Found libdevice for ", join(sort(map(ver->"sm_$(ver.major)$(ver.minor)",
+                                            keys(libraries))), ", ", " and "), " at $dir")
+        return libraries
+    else
+        error("No suitable libdevice found")
+    end
 end
 
 function find_host_compiler(toolkit_version=nothing)

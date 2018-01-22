@@ -41,6 +41,7 @@ ver = find_toolkit_version(dirs)
 
 @test_something find_cuda_binary("nvcc", dirs)
 @test_something find_cuda_library("cudart", dirs)
+@test_something find_libdevice([v"3.0"], dirs)
 @test_something find_host_compiler()
 @test_something find_host_compiler(ver)
 @test_something find_toolchain(dirs)
