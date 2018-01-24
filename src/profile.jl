@@ -18,11 +18,9 @@ itself, you need external tools for that.
 macro profile(ex)
     quote
         Profile.start()
-        try
-            $(esc(ex))
-        finally
-            Profile.stop()
-        end
+        local ret = $(esc(ex))
+        Profile.stop()
+        ret
     end
 end
 
