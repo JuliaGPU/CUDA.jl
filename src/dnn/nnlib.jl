@@ -1,5 +1,5 @@
 using NNlib
-import NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, pool, pool_grad, softmax, softmax!, ∇softmax!
+import NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, pool, pool_grad, softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
 using ..CuArrays: CuVecOrMat
 
 const CUDNNFloat = Union{Float16,Float32,Float64}
@@ -13,6 +13,18 @@ function ∇softmax!(out::CuVecOrMat{T}, Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) w
   cudnnSoftmaxBackward(softmax(xs), Δ, out)
   return out
 end
+
+function logsoftmax!(out::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
+  cudnnSoftmaxForward(xs, out, algorithm=CUDNN_SOFTMAX_LOG)
+  return out
+end
+
+function ∇logsoftmax!(out::CuVecOrMat{T}, Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
+  cudnnSoftmaxBackward(logsoftmax(xs), Δ, out, algorithm=CUDNN_SOFTMAX_LOG)
+  return out
+end
+
+∇logsoftmax(Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat = ∇logsoftmax!(similar(xs), Δ, xs)
 
 function conv2d(x::CuArray{T,4}, w::CuArray{T,4};
                 padding=0, stride=1, mode=0, alpha=1) where T<:CUDNNFloat
