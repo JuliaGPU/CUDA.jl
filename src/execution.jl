@@ -29,11 +29,11 @@ cudaconvert(x::Tuple) = cudaconvert.(x)
 world_age() = ccall(:jl_get_tls_world_age, UInt, ())
 
 # slow lookup of local method age
-function method_age(f, tt)
+function method_age(f, tt)::UInt
     for m in Base._methods(f, tt, 1, typemax(UInt))
         return m[3].min_world
     end
-    return -1
+    throw(MethodError(f, tt))
 end
 
 
@@ -95,7 +95,6 @@ const compilecache = Dict{UInt, CuFunction}()
             age = agecache[key1]
         else
             age = method_age(func, $arg_types)
-            age == -1 && throw(MethodError(func, Tuple{$arg_types...}))
             agecache[key1] = age
         end
 
