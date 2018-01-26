@@ -4,15 +4,20 @@ cptr(x,a::CuArray{Float32})=Float32[x]
 cptr(x,a::CuArray{Float16})=Float32[x]
 
 # Conversion between Julia and CUDNN datatypes
-cudnnDataType(::CuArray{Float16})=CUDNN_DATA_HALF
-cudnnDataType(::CuArray{Float32})=CUDNN_DATA_FLOAT
-cudnnDataType(::CuArray{Float64})=CUDNN_DATA_DOUBLE
 cudnnDataType(::Type{Float16})=CUDNN_DATA_HALF
 cudnnDataType(::Type{Float32})=CUDNN_DATA_FLOAT
 cudnnDataType(::Type{Float64})=CUDNN_DATA_DOUBLE
 juliaDataType(a)=(a==CUDNN_DATA_HALF ? Float16 :
                   a==CUDNN_DATA_FLOAT ? Float32 :
                   a==CUDNN_DATA_DOUBLE ? Float64 : error())
+
+tuple_strides(A::Tuple) = _strides((1,), A)
+_strides(out::Tuple{Int}, A::Tuple{}) = ()
+_strides(out::NTuple{N,Int}, A::NTuple{N}) where {N} = out
+function _strides(out::NTuple{M,Int}, A::Tuple) where M
+    Base.@_inline_meta
+    _strides((out..., out[M]*A[M]), A)
+end
 
 # Descriptors
 
@@ -21,35 +26,39 @@ free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
 Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
 Base.unsafe_convert(::Type{Ptr{Void}}, td::TensorDesc) = convert(Ptr{Void}, td.ptr)
 
-function TensorDesc(a::CuArray)
-    sz = Cint.(size(a)) |> reverse |> collect
-    st = Cint.(strides(a)) |> reverse |> collect
+function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(sz)) where N
+    sz = Cint.(size) |> reverse |> collect
+    st = Cint.(strides) |> reverse |> collect
     d = cudnnTensorDescriptor_t[0]
     cudnnCreateTensorDescriptor(d)
-    cudnnSetTensorNdDescriptor(d[1], cudnnDataType(a), length(sz), sz, st)
+    cudnnSetTensorNdDescriptor(d[1], cudnnDataType(T), length(sz), sz, st)
     this = TensorDesc(d[1])
     finalizer(this, free)
     return this
 end
 
+TensorDesc(a::CuArray) = TensorDesc(eltype(a), size(a), strides(a))
+
 mutable struct FilterDesc; ptr; end
 free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
 Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
 
-function FilterDesc(a::CuArray, format=CUDNN_TENSOR_NCHW)
+function FilterDesc(T::Type, size::Tuple; format = CUDNN_TENSOR_NCHW)
     # The only difference of a FilterDescriptor is no strides.
-    sz = Cint.(size(a)) |> reverse |> collect
+    sz = Cint.(size) |> reverse |> collect
     d = cudnnFilterDescriptor_t[0]
     cudnnCreateFilterDescriptor(d)
     CUDNN_VERSION >= 5000 ?
-        cudnnSetFilterNdDescriptor(d[1], cudnnDataType(a), format, length(sz), sz) :
+        cudnnSetFilterNdDescriptor(d[1], cudnnDataType(T), format, length(sz), sz) :
     CUDNN_VERSION >= 4000 ?
-        cudnnSetFilterNdDescriptor_v4(d[1], cudnnDataType(a), format, length(sz), sz) :
-        cudnnSetFilterNdDescriptor(d[1], cudnnDataType(a), length(sz), sz)
+        cudnnSetFilterNdDescriptor_v4(d[1], cudnnDataType(T), format, length(sz), sz) :
+        cudnnSetFilterNdDescriptor(d[1], cudnnDataType(T), length(sz), sz)
     this = FilterDesc(d[1])
     finalizer(this, free)
     return this
 end
+
+FilterDesc(a::CuArray; format = CUDNN_TENSOR_NCHW) = FilterDesc(eltype(a), size(a), format = format)
 
 mutable struct ConvDesc; ptr; end
 free(cd::ConvDesc) = cudnnDestroyConvolutionDescriptor(cd.ptr)
