@@ -39,26 +39,45 @@ end
 
 TensorDesc(a::CuArray) = TensorDesc(eltype(a), size(a), strides(a))
 
-mutable struct FilterDesc; ptr; end
+mutable struct FilterDesc
+  ptr
+end
 free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
 Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
+Base.unsafe_convert(::Type{Ptr{Void}}, fd::FilterDesc)=fd.ptr
+
+function createFilterDesc()
+  d = cudnnFilterDescriptor_t[0]
+  @check cudnnCreateFilterDescriptor(d)
+  return d[]
+end
 
 function FilterDesc(T::Type, size::Tuple; format = CUDNN_TENSOR_NCHW)
     # The only difference of a FilterDescriptor is no strides.
     sz = Cint.(size) |> reverse |> collect
-    d = cudnnFilterDescriptor_t[0]
-    cudnnCreateFilterDescriptor(d)
+    d = createFilterDesc()
     CUDNN_VERSION >= 5000 ?
-        cudnnSetFilterNdDescriptor(d[1], cudnnDataType(T), format, length(sz), sz) :
+        cudnnSetFilterNdDescriptor(d, cudnnDataType(T), format, length(sz), sz) :
     CUDNN_VERSION >= 4000 ?
-        cudnnSetFilterNdDescriptor_v4(d[1], cudnnDataType(T), format, length(sz), sz) :
-        cudnnSetFilterNdDescriptor(d[1], cudnnDataType(T), length(sz), sz)
-    this = FilterDesc(d[1])
+        cudnnSetFilterNdDescriptor_v4(d, cudnnDataType(T), format, length(sz), sz) :
+        cudnnSetFilterNdDescriptor(d, cudnnDataType(T), length(sz), sz)
+    this = FilterDesc(d)
     finalizer(this, free)
     return this
 end
 
 FilterDesc(a::CuArray; format = CUDNN_TENSOR_NCHW) = FilterDesc(eltype(a), size(a), format = format)
+
+function Base.size(f::FilterDesc)
+  typ = Cuint[0]
+  format = Cuint[0]
+  ndims = Cint[0]
+  dims = Vector{Cint}(8)
+  @check ccall((:cudnnGetFilterNdDescriptor,libcudnn), cudnnStatus_t, (Ptr{Void}, Cint, Ptr{UInt32}, Ptr{UInt32}, Ptr{Cint}, Ptr{Cint}),
+    f, 8, typ, format, ndims, dims)
+  @assert ndims[] ≤ 8
+  return (dims[1:ndims[]]...,) |> reverse
+end
 
 mutable struct ConvDesc; ptr; end
 free(cd::ConvDesc) = cudnnDestroyConvolutionDescriptor(cd.ptr)
