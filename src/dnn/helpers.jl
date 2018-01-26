@@ -26,7 +26,7 @@ free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
 Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
 Base.unsafe_convert(::Type{Ptr{Void}}, td::TensorDesc) = convert(Ptr{Void}, td.ptr)
 
-function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(sz)) where N
+function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(size)) where N
     sz = Cint.(size) |> reverse |> collect
     st = Cint.(strides) |> reverse |> collect
     d = cudnnTensorDescriptor_t[0]
