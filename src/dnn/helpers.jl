@@ -18,10 +18,12 @@ juliaDataType(a)=(a==CUDNN_DATA_HALF ? Float16 :
 
 mutable struct TensorDesc; ptr; end
 free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
-Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc)=td.ptr
+Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
+Base.unsafe_convert(::Type{Ptr{Void}}, td::TensorDesc) = convert(Ptr{Void}, td.ptr)
 
-function TensorDesc(a::CuArray, dims=ndims(a))
-    (sz, st) = tensorsize(a, dims)
+function TensorDesc(a::CuArray)
+    sz = Cint.(size(a)) |> reverse |> collect
+    st = Cint.(strides(a)) |> reverse |> collect
     d = cudnnTensorDescriptor_t[0]
     cudnnCreateTensorDescriptor(d)
     cudnnSetTensorNdDescriptor(d[1], cudnnDataType(a), length(sz), sz, st)
@@ -34,9 +36,9 @@ mutable struct FilterDesc; ptr; end
 free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
 Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
 
-function FilterDesc(a::CuArray, dims=ndims(a), format=CUDNN_TENSOR_NCHW)
+function FilterDesc(a::CuArray, format=CUDNN_TENSOR_NCHW)
     # The only difference of a FilterDescriptor is no strides.
-    (sz, st) = tensorsize(a, dims)
+    sz = Cint.(size(a)) |> reverse |> collect
     d = cudnnFilterDescriptor_t[0]
     cudnnCreateFilterDescriptor(d)
     CUDNN_VERSION >= 5000 ?
@@ -84,24 +86,4 @@ function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_
     this = PoolDesc(pd[1])
     finalizer(this, free)
     return this
-end
-
-function tensorsize(a, dims)
-    sz = Cint[reverse(size(a))...]
-    st = Cint[reverse(strides(a))...]
-    if length(sz) == 1 < dims
-        unshift!(sz, 1)
-        unshift!(st, 1)
-    end
-    while length(sz) < dims
-        push!(sz, 1)
-        push!(st, 1)
-    end
-    while length(sz) > dims
-        d = pop!(sz)
-        sz[length(sz)] *= d
-        pop!(st)
-        st[length(st)] = 1
-    end
-    (sz, st)
 end

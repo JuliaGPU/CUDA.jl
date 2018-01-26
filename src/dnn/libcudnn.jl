@@ -94,14 +94,14 @@ function cudnnSoftmaxForward(handle,algo,mode,alpha,xDesc,x,beta,yDesc,y)
     @check ccall((:cudnnSoftmaxForward,libcudnn),cudnnStatus_t,(cudnnHandle_t,cudnnSoftmaxAlgorithm_t,cudnnSoftmaxMode_t,Ptr{Void},cudnnTensorDescriptor_t,Ptr{Void},Ptr{Void},cudnnTensorDescriptor_t,Ptr{Void}),handle,algo,mode,alpha,xDesc,x,beta,yDesc,y)
 end
 
-function cudnnSoftmaxForward(src::CuArray, dest::CuArray=src;
+function cudnnSoftmaxForward(src::CuArray{T,4}, dest::CuArray{T,4}=src;
                              handle=libcudnn_handle[],
                              algorithm=CUDNN_SOFTMAX_ACCURATE, # or CUDNN_SOFTMAX_FAST
                              mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
-                             alpha=1.0, beta=0.0)
+                             alpha=1.0, beta=0.0) where T
     cudnnSoftmaxForward(handle, algorithm, mode,
-                        cptr(alpha, src), TensorDesc(src,4), src,
-                        cptr(beta, dest), TensorDesc(dest,4), dest)
+                        cptr(alpha, src), TensorDesc(src), src,
+                        cptr(beta, dest), TensorDesc(dest), dest)
     return dest
 end
 
@@ -109,15 +109,15 @@ function cudnnSoftmaxBackward(handle,algo,mode,alpha,yDesc,y,dyDesc,dy,beta,dxDe
     @check ccall((:cudnnSoftmaxBackward,libcudnn),cudnnStatus_t,(cudnnHandle_t,cudnnSoftmaxAlgorithm_t,cudnnSoftmaxMode_t,Ptr{Void},cudnnTensorDescriptor_t,Ptr{Void},cudnnTensorDescriptor_t,Ptr{Void},Ptr{Void},cudnnTensorDescriptor_t,Ptr{Void}),handle,algo,mode,alpha,yDesc,y,dyDesc,dy,beta,dxDesc,dx)
 end
 
-function cudnnSoftmaxBackward(src::CuArray, srcDiff::CuArray, destDiff::CuArray=srcDiff;
+function cudnnSoftmaxBackward(src::CuArray{T,4}, srcDiff::CuArray{T,4}, destDiff::CuArray=srcDiff;
                               handle=libcudnn_handle[],
                               algorithm=CUDNN_SOFTMAX_ACCURATE, # or CUDNN_SOFTMAX_FAST
                               mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
-                              alpha=1.0, beta=0.0)
+                              alpha=1.0, beta=0.0) where T
     cudnnSoftmaxBackward(handle, algorithm, mode,
-                         cptr(alpha, src), TensorDesc(src,4), src,
-                         TensorDesc(srcDiff,4), srcDiff,
-                         cptr(beta, destDiff), TensorDesc(destDiff,4), destDiff)
+                         cptr(alpha, src), TensorDesc(src), src,
+                         TensorDesc(srcDiff), srcDiff,
+                         cptr(beta, destDiff), TensorDesc(destDiff), destDiff)
     return destDiff
 end
 

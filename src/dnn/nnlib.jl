@@ -4,23 +4,26 @@ using ..CuArrays: CuVecOrMat
 
 const CUDNNFloat = Union{Float16,Float32,Float64}
 
+reshape4D(x::AbstractVector) = reshape(x, 1, 1, length(x), 1)
+reshape4D(x::AbstractMatrix) = reshape(x, 1, 1, size(x)...)
+
 function softmax!(out::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
-  cudnnSoftmaxForward(xs, out)
+  cudnnSoftmaxForward(reshape4D(xs), reshape4D(out))
   return out
 end
 
 function ∇softmax!(out::CuVecOrMat{T}, Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
-  cudnnSoftmaxBackward(softmax(xs), Δ, out)
+  cudnnSoftmaxBackward(reshape4D(softmax(xs)), reshape4D(Δ), reshape4D(out))
   return out
 end
 
 function logsoftmax!(out::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
-  cudnnSoftmaxForward(xs, out, algorithm=CUDNN_SOFTMAX_LOG)
+  cudnnSoftmaxForward(reshape4D(xs), reshape4D(out), algorithm=CUDNN_SOFTMAX_LOG)
   return out
 end
 
 function ∇logsoftmax!(out::CuVecOrMat{T}, Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
-  cudnnSoftmaxBackward(logsoftmax(xs), Δ, out, algorithm=CUDNN_SOFTMAX_LOG)
+  cudnnSoftmaxBackward(reshape4D(logsoftmax(xs)), reshape4D(Δ), reshape4D(out), algorithm=CUDNN_SOFTMAX_LOG)
   return out
 end
 
