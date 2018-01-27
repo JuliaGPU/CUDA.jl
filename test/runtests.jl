@@ -100,6 +100,7 @@ end
 end
 
 include("blas.jl")
+include("fft.jl")
 include("solver.jl")
 if CuArrays.cudnn_available()
   include("nnlib.jl")
