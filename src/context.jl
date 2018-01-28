@@ -211,3 +211,21 @@ function cache_config!(config::CUfunc_cache)
     @apicall(:cuCtxSetCacheConfig, (CUfunc_cache,), config)
 end
 
+
+## shared memory config
+
+export shmem_config, shmem_config!
+
+@enum(CUsharedconfig, SHARED_MEM_CONFIG_DEFAULT_BANK_SIZE    = 0x00,
+                      SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE  = 0x01,
+                      SHARED_MEM_CONFIG_EIGHT_BYTE_BANK_SIZE = 0x02)
+
+function shmem_config()
+    config = Ref{CUsharedconfig}()
+    @apicall(:cuCtxGetSharedMemConfig, (Ptr{CUsharedconfig},), config)
+    return config[]
+end
+
+function shmem_config!(config::CUsharedconfig)
+    @apicall(:cuCtxSetSharedMemConfig, (CUsharedconfig,), config)
+end

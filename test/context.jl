@@ -69,3 +69,10 @@ cache_config!(CUDAdrv.CACHE_PREFER_L1)
 
 end
 
+
+@testset "shmem config" begin
+
+shmem_config!(CUDAdrv.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE)
+@test shmem_config() == CUDAdrv.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE
+
+end
