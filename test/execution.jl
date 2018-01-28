@@ -97,4 +97,14 @@ let
     end
 end
 
+@testset "attributes" begin
+
+md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
+dummy = CuFunction(md, "dummy")
+
+val = attributes(dummy)[CUDAdrv.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES]
+attributes(dummy)[CUDAdrv.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = val
+
+end
+
 end
