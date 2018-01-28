@@ -190,3 +190,24 @@ The `ctx` parameter defaults to the current active context.
 """
 synchronize(ctx::CuContext=CuCurrentContext()) =
     @apicall(:cuCtxSynchronize, (CuContext_t,), ctx)
+
+
+## cache config
+
+export cache_config, cache_config!
+
+@enum(CUfunc_cache, CACHE_PREFER_NONE   = 0x00,
+                    CACHE_PREFER_SHARED = 0x01,
+                    CACHE_PREFER_L1     = 0x02,
+                    CACHE_PREFER_EQUAL  = 0x03)
+
+function cache_config()
+    config = Ref{CUfunc_cache}()
+    @apicall(:cuCtxGetCacheConfig, (Ptr{CUfunc_cache},), config)
+    return config[]
+end
+
+function cache_config!(config::CUfunc_cache)
+    @apicall(:cuCtxSetCacheConfig, (CUfunc_cache,), config)
+end
+
