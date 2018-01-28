@@ -64,8 +64,8 @@ end
 
 @testset "cache config" begin
 
-cache_config!(CUDAdrv.CACHE_PREFER_L1)
-@test cache_config() == CUDAdrv.CACHE_PREFER_L1
+cache_config!(CUDAdrv.FUNC_CACHE_PREFER_L1)
+@test cache_config() == CUDAdrv.FUNC_CACHE_PREFER_L1
 
 end
 

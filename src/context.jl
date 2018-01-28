@@ -196,10 +196,10 @@ synchronize(ctx::CuContext=CuCurrentContext()) =
 
 export cache_config, cache_config!
 
-@enum(CUfunc_cache, CACHE_PREFER_NONE   = 0x00,
-                    CACHE_PREFER_SHARED = 0x01,
-                    CACHE_PREFER_L1     = 0x02,
-                    CACHE_PREFER_EQUAL  = 0x03)
+@enum(CUfunc_cache, FUNC_CACHE_PREFER_NONE   = 0x00,
+                    FUNC_CACHE_PREFER_SHARED = 0x01,
+                    FUNC_CACHE_PREFER_L1     = 0x02,
+                    FUNC_CACHE_PREFER_EQUAL  = 0x03)
 
 function cache_config()
     config = Ref{CUfunc_cache}()
