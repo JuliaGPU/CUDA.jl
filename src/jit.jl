@@ -152,6 +152,9 @@ function irgen(@nospecialize(func), @nospecialize(tt))
     return mod, entry
 end
 
+# maintain our own "global unique" suffix for disambiguating kernels
+globalUnique = 0
+
 # generate a kernel wrapper to fix & improve argument passing
 function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt))
     entry_ft = eltype(llvmtype(entry_f))
@@ -161,6 +164,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     julia_types = filter(dt->!isghosttype(dt), tt.parameters)
 
     # generate the wrapper function type & def
+    global globalUnique
     function wrapper_type(julia_t, codegen_t)
         if isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
             # we didn't specify a pointer, but codegen passes one anyway.
@@ -174,6 +178,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
     wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
+    replace(wrapper_fn, r"\d+$", globalUnique+=1)
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
