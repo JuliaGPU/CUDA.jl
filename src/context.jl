@@ -190,3 +190,42 @@ The `ctx` parameter defaults to the current active context.
 """
 synchronize(ctx::CuContext=CuCurrentContext()) =
     @apicall(:cuCtxSynchronize, (CuContext_t,), ctx)
+
+
+## cache config
+
+export cache_config, cache_config!
+
+@enum(CUfunc_cache, FUNC_CACHE_PREFER_NONE   = 0x00,
+                    FUNC_CACHE_PREFER_SHARED = 0x01,
+                    FUNC_CACHE_PREFER_L1     = 0x02,
+                    FUNC_CACHE_PREFER_EQUAL  = 0x03)
+
+function cache_config()
+    config = Ref{CUfunc_cache}()
+    @apicall(:cuCtxGetCacheConfig, (Ptr{CUfunc_cache},), config)
+    return config[]
+end
+
+function cache_config!(config::CUfunc_cache)
+    @apicall(:cuCtxSetCacheConfig, (CUfunc_cache,), config)
+end
+
+
+## shared memory config
+
+export shmem_config, shmem_config!
+
+@enum(CUsharedconfig, SHARED_MEM_CONFIG_DEFAULT_BANK_SIZE    = 0x00,
+                      SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE  = 0x01,
+                      SHARED_MEM_CONFIG_EIGHT_BYTE_BANK_SIZE = 0x02)
+
+function shmem_config()
+    config = Ref{CUsharedconfig}()
+    @apicall(:cuCtxGetSharedMemConfig, (Ptr{CUsharedconfig},), config)
+    return config[]
+end
+
+function shmem_config!(config::CUsharedconfig)
+    @apicall(:cuCtxSetSharedMemConfig, (CUsharedconfig,), config)
+end

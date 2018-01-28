@@ -60,3 +60,19 @@ CuContext(pctx) do ctx
 end
 
 end
+
+
+@testset "cache config" begin
+
+cache_config!(CUDAdrv.FUNC_CACHE_PREFER_L1)
+@test cache_config() == CUDAdrv.FUNC_CACHE_PREFER_L1
+
+end
+
+
+@testset "shmem config" begin
+
+shmem_config!(CUDAdrv.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE)
+@test shmem_config() == CUDAdrv.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE
+
+end
