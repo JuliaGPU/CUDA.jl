@@ -10,7 +10,9 @@ describe how to do so, and what to be careful about.
 When optimizing code, it is important to know what to optimize. Luckily, the CUDA toolkit
 ships an excellent profiler, `nvprof`, with `nvpp` as the Eclipse-based UI. The CUDAnative
 compiler is fully compatible with these tools, and generates the required line number
-information to debug performance issues.
+information to debug performance issues. To generate line number information, invoke Julia
+with the command-line option `-g1`. Using `-g2` puts the PTX JIT in debug mode, which
+significantly lowers performance of GPU code and currently does not improve debugging.
 
 Although CUDAnative exports a `@profile` macro, it does not serve the same purpose as
 `Base.@profile`. Rather, it instructs the CUDA profiler to start right before the first
