@@ -2,6 +2,13 @@
 
 export cufunction
 
+if VERSION >= v"0.7.0-DEV.3630"
+    using InteractiveUtils
+    import InteractiveUtils: _dump_function
+else
+    import Base: _dump_function
+end
+
 
 #
 # main code generation functions
@@ -82,10 +89,10 @@ function irgen(@nospecialize(func), @nospecialize(tt))
                                     hooks=hooks)
     end
     mod = parse(LLVM.Module,
-                Base._dump_function(func, tt,
-                                    #=native=#false, #=wrapper=#false, #=strip=#false,
-                                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                                    params),
+                _dump_function(func, tt,
+                               #=native=#false, #=wrapper=#false, #=strip=#false,
+                               #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                               params),
                 jlctx[])
     if !(VERSION >= v"0.7.0-DEV.2513") && !(v"0.6.2" <= VERSION < v"0.7-")
         # NOTE: cgparams weren't passed to emit_function, breaking the module_setup hook
