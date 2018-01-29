@@ -297,7 +297,7 @@ end
 ## type based
 
 function check_type(::Type{Buffer}, T)
-    if isa(T, UnionAll) || T.abstract || !T.isleaftype
+    if isa(T, UnionAll) || T.abstract || !(VERSION<=v"0.7.0-DEV.3475" ? T.isleaftype : isconcretetype(T))
         throw(ArgumentError("cannot represent abstract or non-leaf object"))
     end
     Base.datatype_pointerfree(T) || throw(ArgumentError("cannot handle non-ptrfree objects"))
