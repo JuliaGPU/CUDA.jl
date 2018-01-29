@@ -393,15 +393,13 @@ function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber;
     end
 
     ## launch bounds
-    for (bound_typ,bound_vals) in (:req=>minthreads, :max=>maxthreads)
-        if bound_vals != nothing
-            bound_vals = (bound_vals...,)
-            for (i,bound_dim) in enumerate((:x, :y, :z))
-                if length(bound_vals) >= i
-                    bound = bound_vals[i]
-                    append!(annotations, [MDString("$(bound_typ)ntid$(bound_dim)"),
-                                          ConstantInt(Int32(bound))])
-                end
+    for (typ,vals) in (:req=>minthreads, :max=>maxthreads)
+        if vals != nothing
+            bounds = CUDAdrv.CuDim3(vals)
+            for dim in (:x, :y, :z)
+                bound = getfield(bounds, dim)
+                append!(annotations, [MDString("$(typ)ntid$(dim)"),
+                                      ConstantInt(Int32(bound))])
             end
         end
     end

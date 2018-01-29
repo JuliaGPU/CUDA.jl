@@ -54,7 +54,8 @@ From `CUDAdrv.cudacall`:
 - stream (defaults to the default stream)
 
 From `CUDAnative.cufunction`:
-- minthreads, maxtreads
+- minthreads, maxtreads: specify the expected minimum resp. maximum amount of threads that
+  this kernel will be launched with. unspecified dimensions are assumed to be 1.
 
 The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
 upon first use, and to a certain extent arguments will be converted and managed
