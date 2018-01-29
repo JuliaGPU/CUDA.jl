@@ -380,14 +380,38 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
 end
 
 function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber;
+               minthreads::Union{Nothing,CuDim}=nothing,
+               maxthreads::Union{Nothing,CuDim}=nothing,
                kernel::Bool=true)
-    tm = machine(cap, triple(mod))
+    # property annotations
 
-    # kernel metadata
+    annotations = LLVM.Value[func]
+
+    ## kernel metadata
     if kernel
-        push!(metadata(mod), "nvvm.annotations",
-             MDNode([func, MDString("kernel"), ConstantInt(Int32(1))]))
+        append!(annotations, [MDString("kernel"), ConstantInt(Int32(1))])
     end
+
+    ## launch bounds
+    for (bound_typ,bound_vals) in (:req=>minthreads, :max=>maxthreads)
+        if bound_vals != nothing
+            bound_vals = (bound_vals...,)
+            for (i,bound_dim) in enumerate((:x, :y, :z))
+                if length(bound_vals) >= i
+                    bound = bound_vals[i]
+                    append!(annotations, [MDString("$(bound_typ)ntid$(bound_dim)"),
+                                          ConstantInt(Int32(bound))])
+                end
+            end
+        end
+    end
+
+    push!(metadata(mod), "nvvm.annotations", MDNode(annotations))
+
+
+    # code generation
+
+    tm = machine(cap, triple(mod))
 
     InitializeNVPTXAsmPrinter()
     return String(emit(tm, mod, LLVM.API.LLVMAssemblyFile))
@@ -399,6 +423,8 @@ end
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
 function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber;
+                          minthreads::Union{Nothing,CuDim}=nothing,
+                          maxthreads::Union{Nothing,CuDim}=nothing,
                           kernel::Bool=true)
     ## high-level code generation (Julia AST)
 
@@ -437,7 +463,8 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 
     ## machine code generation (PTX assembly)
 
-    module_asm = mcgen(mod, entry, cap; kernel=kernel)
+    module_asm = mcgen(mod, entry, cap;
+                       minthreads=minthreads, maxthreads=maxthreads, kernel=kernel)
 
     return module_asm, LLVM.name(entry)
 end
@@ -470,7 +497,7 @@ end
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
+function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(func, Core.Function)
 
@@ -485,7 +512,7 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
         compile_hook[](func, tt, cap)
     end
 
-    (module_asm, module_entry) = compile_function(func, tt, cap)
+    (module_asm, module_entry) = compile_function(func, tt, cap; kwargs...)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()

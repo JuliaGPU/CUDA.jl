@@ -4,6 +4,13 @@
 
 @testset "method caching" begin
 
+if VERSION >= v"0.7.0-DEV.3630"
+    using InteractiveUtils
+    import InteractiveUtils: _dump_function
+else
+    import Base: _dump_function
+end
+
 # #17057 fallout
 @eval @noinline post17057_child(i) = sink(i)
 @eval function post17057_parent(arr::Ptr{Int64})
@@ -18,18 +25,18 @@ if VERSION < v"0.7.0-DEV.1669"
     hook_module_activation(ref::Ptr{Cvoid}) = nothing
     hooks = Base.CodegenHooks(module_activation=hook_module_activation)
     params = Base.CodegenParams(cached=false, runtime=false, hooks=hooks)
-    Base._dump_function(post17057_parent, Tuple{Ptr{Int64}},
-                        #=native=#false, #=wrapper=#false, #=strip=#false,
-                        #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                        params)
+    _dump_function(post17057_parent, Tuple{Ptr{Int64}},
+                   #=native=#false, #=wrapper=#false, #=strip=#false,
+                   #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                   params)
 end
 
 # bug 2: default module activation segfaulted on NULL child function if cached=false
 params = Base.CodegenParams(cached=false)
-Base._dump_function(post17057_parent, Tuple{Ptr{Int64}},
-                    #=native=#false, #=wrapper=#false, #=strip=#false,
-                    #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                    params)
+_dump_function(post17057_parent, Tuple{Ptr{Int64}},
+               #=native=#false, #=wrapper=#false, #=strip=#false,
+               #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+               params)
 
 end
 

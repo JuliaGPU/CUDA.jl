@@ -53,8 +53,8 @@ From `CUDAdrv.cudacall`:
 - shmem (defaults to 0)
 - stream (defaults to the default stream)
 
-Additional arguments:
-- none yet
+From `CUDAnative.cufunction`:
+- minthreads, maxtreads
 
 The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
 upon first use, and to a certain extent arguments will be converted and managed
@@ -84,7 +84,7 @@ const compilecache = Dict{UInt, CuFunction}()
     # split kwargs, only some are dealt with by the compiler
     nt = kwargs.parameters[4]
     kws = Base._nt_names(nt)::NTuple{N,Symbol} where {N}
-    compile_kws = kws ∩ (:maxthreads,)
+    compile_kws = Symbol[kws...] ∩ (:minthreads,:maxthreads)    # JuliaLang/julia#25801
     call_kws = setdiff(kws, compile_kws)
     get_kwargs(kws) = Tuple(:($kw=kwargs[$(QuoteNode(kw))]) for kw in kws)
     compile_kwargs = get_kwargs(compile_kws)
@@ -109,6 +109,7 @@ const compilecache = Dict{UInt, CuFunction}()
         end
 
         # compile the function
+        # TODO: include maxthreads/minthreads in the hash?
         ctx = CuCurrentContext()
         key2 = hash(($precomp_key, age, ctx))
         if haskey(compilecache, key2)
