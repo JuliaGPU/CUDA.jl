@@ -187,7 +187,7 @@
 
 @inline pow(x::Float64, y::Float64) = @wrap __nv_pow(x::double, y::double)::double
 @inline pow(x::Float32, y::Float32) = @wrap __nv_powf(x::float, y::float)::float
-@inline fast_pow(x::Float32, y::Float32) = @wrap __nv_fast__powf(x::float, y::float)::float
+@inline fast_pow(x::Float32, y::Float32) = @wrap __nv_fast_powf(x::float, y::float)::float
 @inline pow(x::Float64, y::Int32) =   @wrap __nv_powi(x::double, y::i32)::double
 @inline pow(x::Float32, y::Int32) =   @wrap __nv_powif(x::float, y::i32)::float
 
