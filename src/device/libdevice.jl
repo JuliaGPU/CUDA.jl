@@ -241,6 +241,8 @@
 @inline rem(x::Float64, y::Float64) = @wrap __nv_remainder(x::double, y::double)::double
 @inline rem(x::Float32, y::Float32) = @wrap __nv_remainderf(x::float, y::float)::float
 
+@inline fast_div(x::Float32, y::Float32) = @wrap __nv_fast_fdividef(x::float, y::float)::float
+
 
 ## gamma function
 
