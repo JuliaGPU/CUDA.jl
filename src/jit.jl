@@ -142,7 +142,7 @@ function irgen(@nospecialize(func), @nospecialize(tt))
     # clean up incompatibilities
     for llvmf in functions(mod)
         # only occurs in debug builds
-        delete!(function_attributes(llvmf), EnumAttribute("sspreq"))
+        delete!(function_attributes(llvmf), EnumAttribute("sspreq", 0, jlctx[]))
 
         # make function names safe for ptxas
         # (LLVM ought to do this, see eg. D17738 and D19126), but fails
@@ -293,7 +293,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     end
 
     # early-inline the original entry function into the wrapper
-    push!(function_attributes(entry_f), EnumAttribute("alwaysinline"))
+    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, jlctx[]))
     linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
     ModulePassManager() do pm
         always_inliner!(pm)
