@@ -28,7 +28,7 @@ function emit_shmem(id, llvmtyp, len, align)
 
     @gensym ptr
     quote
-        $ptr = Base.llvmcall(($decl, $def), Ptr{$jltyp}, Tuple{})
+        $ptr = Base.llvmcall($((decl, def)), Ptr{$jltyp}, Tuple{})
         DevicePtr{$jltyp,AS.Shared}($ptr)
     end
 end

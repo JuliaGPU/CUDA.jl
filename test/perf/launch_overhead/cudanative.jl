@@ -23,7 +23,7 @@ function main()
 
         cpu_tic = time_ns()
         record(gpu_tic)
-        @cuda (len,1) kernel_dummy(pointer(gpu_arr))
+        @cuda threads=len kernel_dummy(pointer(gpu_arr))
         record(gpu_toc)
         synchronize(gpu_toc)
         cpu_toc = time_ns()

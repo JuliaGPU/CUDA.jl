@@ -5,5 +5,5 @@ function hello_world()
     return
 end
 
-@cuda (2,2) hello_world()
+@cuda blocks=2 threads=2 hello_world()
 synchronize()

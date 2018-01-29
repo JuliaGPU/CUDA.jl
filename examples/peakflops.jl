@@ -39,11 +39,11 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
     blocks = len ÷ threads
 
     # warm-up
-    @cuda (1, 1) kernel_100fma(d_a, d_b, d_c, d_out)
+    @cuda kernel_100fma(d_a, d_b, d_c, d_out)
     synchronize(ctx)
 
     secs = CUDAdrv.@elapsed begin
-        @cuda (blocks, threads) kernel_100fma(d_a, d_b, d_c, d_out)
+        @cuda blocks=blocks threads=threads kernel_100fma(d_a, d_b, d_c, d_out)
     end
     flopcount = 200*len
     flops = flopcount / secs

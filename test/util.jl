@@ -31,7 +31,7 @@ macro on_device(ex)
                 return nothing
             end
 
-            @cuda (1,1) $kernel_fn()
+            @cuda $kernel_fn()
             synchronize()
         end
     end)

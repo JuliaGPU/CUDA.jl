@@ -32,8 +32,8 @@ d_b = CuArray(b)
 d_c = similar(d_a)  # output array
 
 # run the kernel and fetch results
-# syntax: @cuda (dims...) kernel(args...)
-@cuda (1,12) kernel_vadd(d_a, d_b, d_c)
+# syntax: @cuda [kwargs...] kernel(args...)
+@cuda threads=12 kernel_vadd(d_a, d_b, d_c)
 
 # CUDAdrv functionality: download data
 # this synchronizes the device
@@ -73,7 +73,7 @@ feature, and where the use came from:
 julia> foo(i) = (print("can't do this"); return nothing)
 foo (generic function with 1 method)
 
-julia> @cuda (1,1) foo(1)
+julia> @cuda foo(1)
 ERROR: error compiling foo: error compiling print: generic call to unsafe_write requires the runtime language feature
 ```
 
