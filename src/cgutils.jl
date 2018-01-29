@@ -107,12 +107,11 @@ macro wrap(call, attrs="")
     julia_argtypes = (jltypes[t] for t in argtypes)
     julia_args = (:(convert($argtype, $(esc(arg)))) for (arg, argtype) in zip(args, julia_argtypes))
 
+    dest = ("""declare $llvm_ret_typ @$intrinsic($llvm_declargs)""",
+            """$llvm_ret_asgn call $llvm_ret_typ @$intrinsic($llvm_defargs)
+                ret $llvm_ret""")
     return quote
-        Base.llvmcall(
-            ($"""declare $llvm_ret_typ @$intrinsic($llvm_declargs)""",
-             $"""$llvm_ret_asgn call $llvm_ret_typ @$intrinsic($llvm_defargs)
-                 ret $llvm_ret"""),
-            $julia_ret_typ, Tuple{$(julia_argtypes...)}, $(julia_args...))
+        Base.llvmcall($dest, $julia_ret_typ, Tuple{$(julia_argtypes...)}, $(julia_args...))
     end
 end
 
