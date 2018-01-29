@@ -95,7 +95,7 @@
 
 @inline exp10(x::Float64) = @wrap __nv_exp10(x::double)::double
 @inline exp10(x::Float32) = @wrap __nv_exp10f(x::float)::float
-@inline fast_exp10(x::Float32) = @wrap __nv_exp10f(x::float)::float
+@inline fast_exp10(x::Float32) = @wrap __nv_fast_exp10f(x::float)::float
 
 @inline expm1(x::Float64) = @wrap __nv_expm1(x::double)::double
 @inline expm1(x::Float32) = @wrap __nv_expm1f(x::float)::float
