@@ -34,13 +34,6 @@ let
 
     # different launch syntaxes
     CUDAdrv.launch(dummy, 1, 1, 0, CuDefaultStream(), ())
-
-    # each should also accept CuDim3's directly
-    let dim = CUDAdrv.CuDim3(1)
-        cudacall(dummy, (); threads=dim)
-        cudacall(dummy, (); blocks=dim)
-        CUDAdrv.launch(dummy, dim, dim, 0, CuDefaultStream(), ())
-    end
 end
 
 let

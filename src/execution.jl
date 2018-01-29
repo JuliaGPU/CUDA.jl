@@ -23,7 +23,6 @@ struct CuDim3
     z::Cuint
 end
 
-CuDim3(dims::CuDim3)              = dims
 CuDim3(dims::Integer)             = CuDim3(dims,    Cuint(1), Cuint(1))
 CuDim3(dims::NTuple{1,<:Integer}) = CuDim3(dims[1], Cuint(1), Cuint(1))
 CuDim3(dims::NTuple{2,<:Integer}) = CuDim3(dims[1], dims[2],  Cuint(1))
@@ -31,8 +30,7 @@ CuDim3(dims::NTuple{3,<:Integer}) = CuDim3(dims[1], dims[2],  dims[3])
 
 # Type alias for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3((len, 2))`)
-const CuDim = Union{CuDim3,
-                    Integer,
+const CuDim = Union{Integer,
                     Tuple{Integer},
                     Tuple{Integer, Integer},
                     Tuple{Integer, Integer, Integer}}
