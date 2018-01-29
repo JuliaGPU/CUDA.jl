@@ -81,6 +81,15 @@ const compilecache = Dict{UInt, CuFunction}()
     arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
     arg_types = argspec
 
+    # split kwargs, only some are dealt with by the compiler
+    nt = kwargs.parameters[4]
+    kws = Base._nt_names(nt)::NTuple{N,Symbol} where {N}
+    compile_kws = kws ∩ (:maxthreads,)
+    call_kws = setdiff(kws, compile_kws)
+    get_kwargs(kws) = Tuple(:($kw=kwargs[$(QuoteNode(kw))]) for kw in kws)
+    compile_kwargs = get_kwargs(compile_kws)
+    call_kwargs = get_kwargs(call_kws)
+
     # filter out ghost arguments
     real_args = map(t->!isghosttype(t), arg_types)
     real_arg_types = map(x->x[2], filter(x->x[1], zip(real_args, arg_types)))
@@ -105,14 +114,15 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(compilecache, key2)
             cuda_fun = compilecache[key2]
         else
-            cuda_fun, _ = cufunction(device(ctx), func, Tuple{$arg_types...})
+            cuda_fun, _ = cufunction(device(ctx), func, Tuple{$arg_types...};
+                                     $(compile_kwargs...))
             compilecache[key2] = cuda_fun
         end
 
         # call the kernel
         Profile.@launch begin
             cudacall(cuda_fun, Tuple{$(real_arg_types...)}, $(real_arg_exprs...);
-                     kwargs...)
+                     $(call_kwargs...))
         end
     end
 end
