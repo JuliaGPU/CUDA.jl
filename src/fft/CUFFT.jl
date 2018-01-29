@@ -2,6 +2,7 @@ module FFT
 # FFT interface for CuArrays
 
 using CuArrays
+using CuArrays: libcufft
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!,
     plan_rfft, plan_brfft, plan_inv, normalization,
     Plan, ScaledPlan
@@ -9,16 +10,6 @@ import Base: show, *, convert, unsafe_convert, size, strides, ndims, A_mul_B!
 import Base.Sys: WORD_SIZE
 
 include("libcufft_types.jl")
-
-if is_windows()
-    const libcufft = Libdl.find_library([string("cufft", WORD_SIZE, "_75"),
-      string("cufft", WORD_SIZE, "_70"), string("cufft", WORD_SIZE, "_65")],
-      [joinpath(ENV["CUDA_PATH"], "bin")])
-else
-    const libcufft = Libdl.find_library(["libcufft", "cufft"], ["/usr/lib", "/usr/local/cuda"])
-end
-
-isempty(libcufft) && error("Cannot load libcufft")
 
 const cufftNumber = Union{cufftDoubleReal,cufftReal,cufftDoubleComplex,cufftComplex}
 # note trailing s to deconflict w/ header file
