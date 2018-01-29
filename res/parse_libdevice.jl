@@ -6,12 +6,12 @@ using Compat
 import Compat.String
 
 function parse_intrinsics(cb)
-    fn = joinpath(@__DIR__, "..", "src", "intrinsics.jl")
+    fn = joinpath(@__DIR__, "..", "src", "device", "libdevice.jl")
     open(fn) do f
         for ln in eachline(f)
             m = match(r"@wrap ([\w.]+\(.+?\)::\w+)", ln)
             if m != nothing
-                cb(m.captures[1])
+                cb(replace(m.captures[1], r"\w+::", "::"))
             end
         end
     end
