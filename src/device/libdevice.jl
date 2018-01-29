@@ -4,18 +4,21 @@
 
 @inline cos(x::Float64) = @wrap __nv_cos(x::double)::double
 @inline cos(x::Float32) = @wrap __nv_cosf(x::float)::float
+@inline fast_cos(x::Float32) = @wrap __nv_fast_cosf(x::float)::float
 
 @inline cospi(x::Float64) = @wrap __nv_cospi(x::double)::double
 @inline cospi(x::Float32) = @wrap __nv_cospif(x::float)::float
 
 @inline sin(x::Float64) = @wrap __nv_sin(x::double)::double
 @inline sin(x::Float32) = @wrap __nv_sinf(x::float)::float
+@inline fast_sin(x::Float32) = @wrap __nv_fast_sinf(x::float)::float
 
 @inline sinpi(x::Float64) = @wrap __nv_sinpi(x::double)::double
 @inline sinpi(x::Float32) = @wrap __nv_sinpif(x::float)::float
 
 @inline tan(x::Float64) = @wrap __nv_tan(x::double)::double
 @inline tan(x::Float32) = @wrap __nv_tanf(x::float)::float
+@inline fast_tan(x::Float32) = @wrap __nv_fast_tanf(x::float)::float
 
 
 ## inverse trigonometric
@@ -61,15 +64,18 @@
 
 @inline log(x::Float64) = @wrap __nv_log(x::double)::double
 @inline log(x::Float32) = @wrap __nv_logf(x::float)::float
+@inline fast_log(x::Float32) = @wrap __nv_fast_logf(x::float)::float
 
 @inline log10(x::Float64) = @wrap __nv_log10(x::double)::double
 @inline log10(x::Float32) = @wrap __nv_log10f(x::float)::float
+@inline fast_log10(x::Float32) = @wrap __nv_fast_log10f(x::float)::float
 
 @inline log1p(x::Float64) = @wrap __nv_log1p(x::double)::double
 @inline log1p(x::Float32) = @wrap __nv_log1pf(x::float)::float
 
 @inline log2(x::Float64) = @wrap __nv_log2(x::double)::double
 @inline log2(x::Float32) = @wrap __nv_log2f(x::float)::float
+@inline fast_log2(x::Float32) = @wrap __nv_fast_log2f(x::float)::float
 
 @inline logb(x::Float64) = @wrap __nv_logb(x::double)::double
 @inline logb(x::Float32) = @wrap __nv_logbf(x::float)::float
@@ -82,12 +88,14 @@
 
 @inline exp(x::Float64) = @wrap __nv_exp(x::double)::double
 @inline exp(x::Float32) = @wrap __nv_expf(x::float)::float
+@inline fast_exp(x::Float32) = @wrap __nv_fast_expf(x::float)::float
 
 @inline exp2(x::Float64) = @wrap __nv_exp2(x::double)::double
 @inline exp2(x::Float32) = @wrap __nv_exp2f(x::float)::float
 
 @inline exp10(x::Float64) = @wrap __nv_exp10(x::double)::double
 @inline exp10(x::Float32) = @wrap __nv_exp10f(x::float)::float
+@inline fast_exp10(x::Float32) = @wrap __nv_exp10f(x::float)::float
 
 @inline expm1(x::Float64) = @wrap __nv_expm1(x::double)::double
 @inline expm1(x::Float32) = @wrap __nv_expm1f(x::float)::float
@@ -179,6 +187,7 @@
 
 @inline pow(x::Float64, y::Float64) = @wrap __nv_pow(x::double, y::double)::double
 @inline pow(x::Float32, y::Float32) = @wrap __nv_powf(x::float, y::float)::float
+@inline fast_pow(x::Float32, y::Float32) = @wrap __nv_fast__powf(x::float, y::float)::float
 @inline pow(x::Float64, y::Int32) =   @wrap __nv_powi(x::double, y::i32)::double
 @inline pow(x::Float32, y::Int32) =   @wrap __nv_powif(x::float, y::i32)::float
 
