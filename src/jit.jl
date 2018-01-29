@@ -387,13 +387,17 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     tm = machine(cap, triple(mod))
 
     # GPU code is _very_ sensitive to register pressure and local memory usage,
-    # so forcibly inline every function into the entry-point.
-    # FIXME: this is much too coarse. use a proper inliner tuned for GPUs,
-    #        or at-least have a way to opt-out of this optimization
-    for f in functions(mod)
-        if f != entry && !isdeclaration(f)
-            push!(function_attributes(f), EnumAttribute("alwaysinline"))
+    # so forcibly inline every function definition into the entry point
+    # and internalize all other functions (enabling ABI-breaking optimizations).
+    # FIXME: this is too coarse. use a proper inliner tuned for GPUs
+    no_inline = EnumAttribute("noinline", 0, jlctx[])
+    always_inline = EnumAttribute("alwaysinline", 0, jlctx[])
+    for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
+        attrs = function_attributes(f)
+        if !(no_inline in collect(attrs))
+            push!(attrs, always_inline)
         end
+        linkage!(f, LLVM.API.LLVMInternalLinkage)
     end
     ModulePassManager() do pm
         always_inliner!(pm)
@@ -401,8 +405,6 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     end
 
     ModulePassManager() do pm
-        internalize!(pm, [LLVM.name(entry)])    # NOTE: not necessary, given above inliner
-
         if Base.VERSION >= v"0.7.0-DEV.1494"
             add_library_info!(pm, triple(mod))
             add_transform_info!(pm, tm)
