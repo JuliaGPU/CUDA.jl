@@ -22,9 +22,15 @@ end
 @test_throws MethodError @cuda exec_dummy(1)
 
 
-@testset "reflection" begin
+@testset "compilation params" begin
     @cuda exec_dummy()
 
+    @test_throws CuError @cuda threads=2 maxthreads=1 exec_dummy()
+    @cuda threads=2 exec_dummy()
+end
+
+
+@testset "reflection" begin
     CUDAnative.code_lowered(exec_dummy, Tuple{})
     CUDAnative.code_typed(exec_dummy, Tuple{})
     CUDAnative.code_warntype(DevNull, exec_dummy, Tuple{})

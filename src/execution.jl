@@ -53,13 +53,16 @@ Affecting the kernel launch:
 - shmem (defaults to 0)
 - stream (defaults to the default stream)
 
-Affecting the kernel execution:
+Affecting the kernel compilation:
 - minthreads: the required number of threads in a thread block.
 - maxthreads: the maximum number of threads in a thread block.
 - blocks_per_sm: a minimum number of thread blocks to be scheduled on a single
   multiprocessor.
 - maxregs: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
+
+Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
+different compilation parameters. New code will be generated automatically.
 
 The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
 upon first use, and to a certain extent arguments will be converted and managed
@@ -109,9 +112,8 @@ const compilecache = Dict{UInt, CuFunction}()
         end
 
         # compile the function
-        # TODO: include maxthreads/minthreads in the hash?
         ctx = CuCurrentContext()
-        key2 = hash(($precomp_key, age, ctx))
+        key2 = hash(($precomp_key, age, ctx, ($(compile_kwargs...),)))
         if haskey(compilecache, key2)
             cuda_fun = compilecache[key2]
         else
