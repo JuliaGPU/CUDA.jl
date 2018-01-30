@@ -94,6 +94,8 @@ end
     @test contains(ir, "nvvm.annotations")
     @test !contains(ir, "maxntid")
     @test !contains(ir, "reqntid")
+    @test !contains(ir, "minctasm")
+    @test !contains(ir, "maxnreg")
 
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
                                          dump_module=true, kernel=true, maxthreads=42))
@@ -106,6 +108,14 @@ end
     @test contains(ir, "reqntidx\", i32 42")
     @test contains(ir, "reqntidy\", i32 1")
     @test contains(ir, "reqntidz\", i32 1")
+
+    ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
+                                         dump_module=true, kernel=true, blocks_per_sm=42))
+    @test contains(ir, "minctasm\", i32 42")
+
+    ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
+                                         dump_module=true, kernel=true, maxregs=42))
+    @test contains(ir, "maxnreg\", i32 42")
 end
 end
 
@@ -176,6 +186,16 @@ end
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
                                          kernel=true, minthreads=42))
     @test contains(asm, ".reqntid 42, 1, 1")
+
+    asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
+                                         kernel=true, blocks_per_sm=42))
+    @test contains(asm, ".minnctapersm 42")
+
+    if CUDAnative.llvm_version >= v"4.0"
+        asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
+                                             kernel=true, maxregs=42))
+        @test contains(asm, ".maxnreg 42")
+    end
 end
 end
 

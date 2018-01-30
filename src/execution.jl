@@ -47,15 +47,19 @@ High-level interface for calling functions on a GPU, queues a kernel launch on t
 context. The `@cuda` macro should prefix a kernel invocation, with one of the following
 arguments in the `kwargs` position:
 
-From `CUDAdrv.cudacall`:
+Affecting the kernel launch:
 - threads (defaults to 1)
 - blocks (defaults to 1)
 - shmem (defaults to 0)
 - stream (defaults to the default stream)
 
-From `CUDAnative.cufunction`:
-- minthreads, maxtreads: specify the expected minimum resp. maximum amount of threads that
-  this kernel will be launched with. unspecified dimensions are assumed to be 1.
+Affecting the kernel execution:
+- minthreads: the required number of threads in a thread block.
+- maxthreads: the maximum number of threads in a thread block.
+- blocks_per_sm: a minimum number of thread blocks to be scheduled on a single
+  multiprocessor.
+- maxregs: the maximum number of registers to be allocated to a single thread (only
+  supported on LLVM 4.0+)
 
 The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
 upon first use, and to a certain extent arguments will be converted and managed
@@ -83,7 +87,8 @@ const compilecache = Dict{UInt, CuFunction}()
     arg_types = argspec
 
     # split kwargs, only some are dealt with by the compiler
-    compile_kwargs, call_kwargs = gen_take_kwargs(kwargs, :minthreads, :maxthreads)
+    compile_kwargs, call_kwargs =
+        gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs)
 
     # filter out ghost arguments
     real_args = map(t->!isghosttype(t), arg_types)

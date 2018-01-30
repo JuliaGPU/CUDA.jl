@@ -162,7 +162,9 @@ end
 # promote a function to a kernel
 function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt);
                          minthreads::Union{Nothing,CuDim}=nothing,
-                         maxthreads::Union{Nothing,CuDim}=nothing)
+                         maxthreads::Union{Nothing,CuDim}=nothing,
+                         blocks_per_sm::Union{Nothing,Integer}=nothing,
+                         maxregs::Union{Nothing,Integer}=nothing)
     kernel = wrap_entry!(mod, entry_f, tt);
 
 
@@ -173,7 +175,7 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
     ## kernel metadata
     append!(annotations, [MDString("kernel"), ConstantInt(Int32(1))])
 
-    ## launch bounds
+    ## expected CTA sizes
     for (typ,vals) in (:req=>minthreads, :max=>maxthreads)
         if vals != nothing
             bounds = CUDAdrv.CuDim3(vals)
@@ -184,6 +186,15 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
             end
         end
     end
+
+    if blocks_per_sm != nothing
+        append!(annotations, [MDString("minctasm"), ConstantInt(Int32(blocks_per_sm))])
+    end
+
+    if maxregs != nothing
+        append!(annotations, [MDString("maxnreg"), ConstantInt(Int32(maxregs))])
+    end
+
 
     push!(metadata(mod), "nvvm.annotations", MDNode(annotations))
 
