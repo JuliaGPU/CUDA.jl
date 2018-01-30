@@ -40,7 +40,7 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
 
     mod, entry = irgen(func, tt)
     if kernel
-        entry = wrap_entry!(mod, entry, tt)
+        entry = promote_kernel!(mod, entry, tt)
     end
     if optimize
         optimize!(mod, entry, cap)

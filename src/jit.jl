@@ -159,6 +159,38 @@ function irgen(@nospecialize(func), @nospecialize(tt))
     return mod, entry
 end
 
+# promote a function to a kernel
+function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt);
+                         minthreads::Union{Nothing,CuDim}=nothing,
+                         maxthreads::Union{Nothing,CuDim}=nothing)
+    kernel = wrap_entry!(mod, entry_f, tt);
+
+
+    # property annotations TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
+
+    annotations = LLVM.Value[kernel]
+
+    ## kernel metadata
+    append!(annotations, [MDString("kernel"), ConstantInt(Int32(1))])
+
+    ## launch bounds
+    for (typ,vals) in (:req=>minthreads, :max=>maxthreads)
+        if vals != nothing
+            bounds = CUDAdrv.CuDim3(vals)
+            for dim in (:x, :y, :z)
+                bound = getfield(bounds, dim)
+                append!(annotations, [MDString("$(typ)ntid$(dim)"),
+                                      ConstantInt(Int32(bound))])
+            end
+        end
+    end
+
+    push!(metadata(mod), "nvvm.annotations", MDNode(annotations))
+
+
+    return kernel
+end
+
 # maintain our own "global unique" suffix for disambiguating kernels
 globalUnique = 0
 
@@ -379,36 +411,7 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     end
 end
 
-function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber;
-               minthreads::Union{Nothing,CuDim}=nothing,
-               maxthreads::Union{Nothing,CuDim}=nothing,
-               kernel::Bool=true)
-    # property annotations
-
-    annotations = LLVM.Value[func]
-
-    ## kernel metadata
-    if kernel
-        append!(annotations, [MDString("kernel"), ConstantInt(Int32(1))])
-    end
-
-    ## launch bounds
-    for (typ,vals) in (:req=>minthreads, :max=>maxthreads)
-        if vals != nothing
-            bounds = CUDAdrv.CuDim3(vals)
-            for dim in (:x, :y, :z)
-                bound = getfield(bounds, dim)
-                append!(annotations, [MDString("$(typ)ntid$(dim)"),
-                                      ConstantInt(Int32(bound))])
-            end
-        end
-    end
-
-    push!(metadata(mod), "nvvm.annotations", MDNode(annotations))
-
-
-    # code generation
-
+function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber)
     tm = machine(cap, triple(mod))
 
     InitializeNVPTXAsmPrinter()
@@ -436,7 +439,7 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 
     mod, entry = irgen(func, tt)
     if kernel
-        entry = wrap_entry!(mod, entry, tt)
+        entry = promote_kernel!(mod, entry, tt)
     end
     @trace("Module entry point: ", LLVM.name(entry))
 
@@ -461,8 +464,7 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 
     ## machine code generation (PTX assembly)
 
-    module_asm = mcgen(mod, entry, cap;
-                       minthreads=minthreads, maxthreads=maxthreads, kernel=kernel)
+    module_asm = mcgen(mod, entry, cap)
 
     return module_asm, LLVM.name(entry)
 end
