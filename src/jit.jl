@@ -142,7 +142,7 @@ function irgen(@nospecialize(func), @nospecialize(tt))
     # clean up incompatibilities
     for llvmf in functions(mod)
         # only occurs in debug builds
-        delete!(function_attributes(llvmf), EnumAttribute("sspreq"))
+        delete!(function_attributes(llvmf), EnumAttribute("sspreq", 0, jlctx[]))
 
         # make function names safe for ptxas
         # (LLVM ought to do this, see eg. D17738 and D19126), but fails
@@ -293,7 +293,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     end
 
     # early-inline the original entry function into the wrapper
-    push!(function_attributes(entry_f), EnumAttribute("alwaysinline"))
+    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, jlctx[]))
     linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
     ModulePassManager() do pm
         always_inliner!(pm)
@@ -386,9 +386,30 @@ end
 function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     tm = machine(cap, triple(mod))
 
+    # GPU code is _very_ sensitive to register pressure and local memory usage,
+    # so forcibly inline every function definition into the entry point
+    # and internalize all other functions (enabling ABI-breaking optimizations).
+    # FIXME: this is too coarse. use a proper inliner tuned for GPUs
     ModulePassManager() do pm
-        internalize!(pm, [LLVM.name(entry)])
+        if VERSION >= v"0.7.0-DEV.3650"
+            no_inline = EnumAttribute("noinline", 0, jlctx[])
+            always_inline = EnumAttribute("alwaysinline", 0, jlctx[])
+            for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
+                attrs = function_attributes(f)
+                if !(no_inline in collect(attrs))
+                    push!(attrs, always_inline)
+                end
+                linkage!(f, LLVM.API.LLVMInternalLinkage)
+            end
+            always_inliner!(pm)
+        else
+            # bugs and missing features prevent this from working on older Julia versions
+            internalize!(pm, [LLVM.name(entry)])
+        end
+        run!(pm, mod)
+    end
 
+    ModulePassManager() do pm
         if Base.VERSION >= v"0.7.0-DEV.1494"
             add_library_info!(pm, triple(mod))
             add_transform_info!(pm, tm)
