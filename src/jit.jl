@@ -390,17 +390,22 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     # so forcibly inline every function definition into the entry point
     # and internalize all other functions (enabling ABI-breaking optimizations).
     # FIXME: this is too coarse. use a proper inliner tuned for GPUs
-    no_inline = EnumAttribute("noinline", 0, jlctx[])
-    always_inline = EnumAttribute("alwaysinline", 0, jlctx[])
-    for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
-        attrs = function_attributes(f)
-        if !(no_inline in collect(attrs))
-            push!(attrs, always_inline)
-        end
-        linkage!(f, LLVM.API.LLVMInternalLinkage)
-    end
     ModulePassManager() do pm
-        always_inliner!(pm)
+        if VERSION >= v"0.7.0-DEV.3650"
+            no_inline = EnumAttribute("noinline", 0, jlctx[])
+            always_inline = EnumAttribute("alwaysinline", 0, jlctx[])
+            for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
+                attrs = function_attributes(f)
+                if !(no_inline in collect(attrs))
+                    push!(attrs, always_inline)
+                end
+                linkage!(f, LLVM.API.LLVMInternalLinkage)
+            end
+            always_inliner!(pm)
+        else
+            # bugs and missing features prevent this from working on older Julia versions
+            internalize!(pm, [LLVM.name(entry)])
+        end
         run!(pm, mod)
     end
 
