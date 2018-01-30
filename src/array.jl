@@ -95,6 +95,11 @@ cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global},
 
 # Utils
 
+cuzeros(T::Type, dims...) = fill!(CuArray{T}(dims...), 0)
+cuones(T::Type, dims...) = fill!(CuArray{T}(dims...), 1)
+cuzeros(dims...) = cuzeros(Float32, dims...)
+cuones(dims...) = cuones(Float32, dims...)
+
 Base.show(io::IO, ::Type{CuArray{T,N}}) where {T,N} =
   print(io, "CuArray{$T,$N}")
 

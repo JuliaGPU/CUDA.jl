@@ -5,7 +5,7 @@ module CuArrays
 using CUDAdrv, CUDAnative
 import CUDAnative: cudaconvert
 
-export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
+export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones
 
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 isfile(ext) || error("CuArrays.jl has not been built, please run Pkg.build(\"CuArrays\").")
