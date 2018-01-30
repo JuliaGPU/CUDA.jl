@@ -216,7 +216,7 @@ See also: [`Base.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
     function hook(func, tt, cap; io::IO=STDOUT, optimize::Bool=true, dump_module::Bool=false)
-        code_llvm(io, func, tt; cap=cap, optimize=optimize, dump_module=dump_module)
+        code_llvm(io, func, tt; kernel=true, cap=cap, optimize=optimize, dump_module=dump_module)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -229,7 +229,7 @@ for every compiled CUDA kernel.
 """
 macro device_code_ptx(ex...)
     function hook(func, tt, cap; io::IO=STDOUT)
-        code_ptx(io, func, tt; cap=cap)
+        code_ptx(io, func, tt; kernel=true, cap=cap)
     end
     emit_hooked_compilation(hook, ex...)
 end
