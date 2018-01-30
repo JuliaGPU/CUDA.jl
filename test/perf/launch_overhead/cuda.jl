@@ -9,17 +9,24 @@ const ITERATIONS = 5000
 
 # TODO: api-trace shows some attribute fetches, where do they come from?
 
+const dev = CuDevice(0)
+const ctx = CuContext(dev)
+
+const mod = CuModuleFile("cuda.ptx")
+const fun = CuFunction(mod, "kernel_dummy")
+
+function benchmark(gpu_buf)
+    cudacall(fun, (Ptr{Float32},), gpu_buf; threads=1)
+    return
+end
+
+
 function main()
-    dev = CuDevice(0)
-    ctx = CuContext(dev)
-
-    mod = CuModuleFile("cuda.ptx")
-    fun = CuFunction(mod, "kernel_dummy")
-
     cpu_time = Vector{Float64}(ITERATIONS)
     gpu_time = Vector{Float64}(ITERATIONS)
 
     gpu_buf = Mem.alloc(len*sizeof(Float32))
+    @code_warntype benchmark(gpu_buf)
     for i in 1:ITERATIONS
         i == ITERATIONS-4 && CUDAdrv.Profile.start()
 
@@ -27,7 +34,7 @@ function main()
 
         cpu_tic = time_ns()
         record(gpu_tic)
-        cudacall(fun, (Ptr{Float32},), gpu_buf; threads=1)
+        benchmark(gpu_buf)
         record(gpu_toc)
         synchronize(gpu_toc)
         cpu_toc = time_ns()

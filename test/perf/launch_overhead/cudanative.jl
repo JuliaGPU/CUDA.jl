@@ -12,18 +12,25 @@ end
 const len = 1000
 const ITERATIONS = 5000
 
+function benchmark(gpu_buf)
+    @cuda threads=len kernel_dummy(Base.unsafe_convert(Ptr{Float32}, gpu_buf))
+    return
+end
+
 function main()    
     cpu_time = Vector{Float64}(ITERATIONS)
     gpu_time = Vector{Float64}(ITERATIONS)
 
     gpu_buf = Mem.alloc(len*sizeof(Float32))
+    @code_warntype benchmark(gpu_buf)
     for i in 1:ITERATIONS
         i == ITERATIONS-4 && CUDAdrv.Profile.start()
+
         gpu_tic, gpu_toc = CuEvent(), CuEvent()
 
         cpu_tic = time_ns()
         record(gpu_tic)
-        @cuda threads=len kernel_dummy(Base.unsafe_convert(Ptr{Float32}, gpu_buf))
+        benchmark(gpu_buf)
         record(gpu_toc)
         synchronize(gpu_toc)
         cpu_toc = time_ns()
