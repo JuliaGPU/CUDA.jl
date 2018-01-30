@@ -19,7 +19,7 @@ function main()
     cpu_time = Vector{Float64}(ITERATIONS)
     gpu_time = Vector{Float64}(ITERATIONS)
 
-    gpu_arr = CuArray{Float32}(len)
+    gpu_buf = Mem.alloc(len*sizeof(Float32))
     for i in 1:ITERATIONS
         i == ITERATIONS-4 && CUDAdrv.Profile.start()
 
@@ -27,7 +27,7 @@ function main()
 
         cpu_tic = time_ns()
         record(gpu_tic)
-        cudacall(fun, len, 1, (Ptr{Float32},), pointer(gpu_arr))
+        cudacall(fun, (Ptr{Float32},), gpu_buf; threads=1)
         record(gpu_toc)
         synchronize(gpu_toc)
         cpu_toc = time_ns()
@@ -36,6 +36,7 @@ function main()
         gpu_time[i] = CUDAdrv.elapsed(gpu_tic, gpu_toc)*1000000
     end
     CUDAdrv.Profile.stop()
+    Mem.free(gpu_buf)
 
     @printf("CPU time: %.2fus\n", median(cpu_time))
     @printf("GPU time: %.2fus\n", median(gpu_time))
