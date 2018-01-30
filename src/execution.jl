@@ -23,7 +23,6 @@ struct CuDim3
     z::Cuint
 end
 
-CuDim3(dims::CuDim3)              = dims
 CuDim3(dims::Integer)             = CuDim3(dims,    Cuint(1), Cuint(1))
 CuDim3(dims::NTuple{1,<:Integer}) = CuDim3(dims[1], Cuint(1), Cuint(1))
 CuDim3(dims::NTuple{2,<:Integer}) = CuDim3(dims[1], dims[2],  Cuint(1))
@@ -31,47 +30,39 @@ CuDim3(dims::NTuple{3,<:Integer}) = CuDim3(dims[1], dims[2],  dims[3])
 
 # Type alias for conveniently specifying the dimensions
 # (e.g. `(len, 2)` instead of `CuDim3((len, 2))`)
-const CuDim = Union{CuDim3,
-                    Integer,
+const CuDim = Union{Integer,
                     Tuple{Integer},
                     Tuple{Integer, Integer},
                     Tuple{Integer, Integer, Integer}}
 
 """
-    launch(f::CuFunction, griddim::CuDim, blockdim::CuDim, args...;
+    launch(f::CuFunction, blocks::CuDim, threads::CuDim, args...;
            shmem=0, stream=CuDefaultStream())
-    launch(f::CuFunction, griddim::CuDim, blockdim::CuDim, shmem::Int, stream::CuStream, args...)
+    launch(f::CuFunction, blocks::CuDim, threads::CuDim, shmem::Int, stream::CuStream, args...)
 
-Low-level call to launch a CUDA function `f` on the GPU, using `griddim` and `blockdim` as
+Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
 respectively the grid and block configuration. Dynamic shared memory is allocated according
 to `shmem`, and the kernel is launched on stream `stream`.
 
 Arguments to a kernel should either be bitstype, in which case they will be copied to the
 internal kernel parameter buffer, or a pointer to device memory.
 
-Both a version with and without keyword arguments is provided, the latter being slightly
-faster, but not providing default values for the `shmem` and `stream` arguments.
-
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
-@inline function launch(f::CuFunction, griddim::CuDim, blockdim::CuDim,
+@inline function launch(f::CuFunction, blocks::CuDim, threads::CuDim,
                         shmem::Int, stream::CuStream,
                         args...)
-    griddim = CuDim3(griddim)
-    blockdim = CuDim3(blockdim)
-    (griddim.x>0 && griddim.y>0 && griddim.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
-    (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
+    blocks = CuDim3(blocks)
+    threads = CuDim3(threads)
+    (blocks.x>0 && blocks.y>0 && blocks.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
+    (threads.x>0 && threads.y>0 && threads.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
 
-    _launch(f, griddim, blockdim, shmem, stream, args...)
+    _launch(f, blocks, threads, shmem, stream, args...)
 end
-
-@inline launch(f::CuFunction, griddim::CuDim, blockdim::CuDim, args...;
-               shmem::Int=0, stream::CuStream=CuDefaultStream()) =
-    launch(f, griddim, blockdim, shmem, stream, args...)
 
 # we need a generated function to get an args array,
 # without having to inspect the types at runtime
-@generated function _launch(f::CuFunction, griddim::CuDim3, blockdim::CuDim3,
+@generated function _launch(f::CuFunction, blocks::CuDim3, threads::CuDim3,
                             shmem::Int, stream::CuStream,
                             args::NTuple{N,Any}) where N
     all(isbits, args.parameters) || throw(ArgumentError("Arguments to kernel should be bitstype."))
@@ -110,8 +101,8 @@ end
             Ptr{Ptr{Cvoid}},        # kernel parameters
             Ptr{Ptr{Cvoid}}),       # extra parameters
             f,
-            griddim.x, griddim.y, griddim.z,
-            blockdim.x, blockdim.y, blockdim.z,
+            blocks.x, blocks.y, blocks.z,
+            threads.x, threads.y, threads.z,
             shmem, stream, kernelParams, C_NULL)
         )
     )
@@ -120,11 +111,8 @@ end
 end
 
 """
-    cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim, types, values;
-             shmem=0, stream=CuDefaultStream())
-    cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-             shmem::Integer, stream::CuStream,
-             types, values)
+    cudacall(f::CuFunction, types, values...;
+             blocks::CuDim, threads::CuDim, shmem=0, stream=CuDefaultStream())
 
 `ccall`-like interface for launching a CUDA function `f` on a GPU.
 
@@ -138,54 +126,36 @@ For example:
     c = zeros(Float32, 10)
     cd = CuArray(c)
 
-    cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+    cudacall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd;
+             threads=10)
     c = Array(cd)
 
-The `griddim` and `blockdim` arguments control the launch configuration, and should both
+The `blocks` and `threads` arguments control the launch configuration, and should both
 consist of either an integer, or a tuple of 1 to 3 integers (omitted dimensions default to
-1).
-
-Both a version with and without keyword arguments is provided, the latter being slightly
-faster, but not providing default values for the `shmem` and `stream` arguments. In
-addition, the `types` argument can contain both a tuple of types, and a tuple type, again
-the former being slightly faster.
+1). The `types` argument can contain both a tuple of types, and a tuple type, the latter
+being slightly faster.
 """
-@inline cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                 typespec::Union{NTuple{N,DataType},Type}, values::Vararg{Any,N};
-                 shmem::Integer=0, stream::CuStream=CuDefaultStream()) where {N} =
-    cudacall(f, griddim, blockdim, shmem, stream, typespec, values...)
+cudacall
 
-# kwargs are slow, so we provide versions of cudacall with all arguments specified
-#
-# in addition, we support both providing a tuple of types, and a tuple type,
-# but we always pass a tuple type to the generated function backing `cudacall`
-# as that gives it access to the actual types (a tuple of types yields `NTuple{N,Datatype}`)
-#
-# the most efficient combo is to use `cudacall` without kwargs, specifying a tuple type
-# (this is what eg. CUDAnative.jl does)
-
-@inline function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                          shmem::Integer, stream::CuStream,
-                          types::NTuple{N,DataType}, values::Vararg{Any,N}) where N
-    tt = Tuple{types...}
+@inline function cudacall(f::CuFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
+                          kwargs...) where N
     # this cannot be inferred properly (because types only contains `DataType`s),
     # which results in the call `@generated _cudacall` getting expanded upon first use
-    _cudacall(f, griddim, blockdim, shmem, stream, tt, values)
+    _cudacall(f, Tuple{types...}, values; kwargs...)
 end
 
-@inline function cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                          shmem::Integer, stream::CuStream,
-                          tt::Type, values::Vararg{Any,N}) where N
+@inline function cudacall(f::CuFunction, tt::Type, values::Vararg{Any,N};
+                          kwargs...) where N
     # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
     # which means the generated function can be expanded earlier
-    _cudacall(f, griddim, blockdim, shmem, stream, tt, values)
+    _cudacall(f, tt, values; kwargs...)
 end
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function _cudacall(f::CuFunction, griddim::CuDim, blockdim::CuDim,
-                              shmem::Integer, stream::CuStream,
-                              tt, args::NTuple{N,Any}) where N
+@generated function _cudacall(f::CuFunction, tt::Type, args::NTuple{N,Any};
+                              blocks::CuDim=1, threads::CuDim=1,
+                              shmem::Integer=0, stream::CuStream=CuDefaultStream()) where N
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     ex = Expr(:block)
@@ -208,7 +178,7 @@ end
         end
     end
 
-    push!(ex.args, :(launch(f, griddim, blockdim, shmem, stream, ($(arg_ptrs...),))))
+    push!(ex.args, :(launch(f, blocks, threads, shmem, stream, ($(arg_ptrs...),))))
 
     return ex
 end

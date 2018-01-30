@@ -24,28 +24,16 @@ let
     dummy = CuFunction(md, "dummy")
 
     # different cudacall syntaxes
-    cudacall(dummy, 1, 1, ())
-    cudacall(dummy, 1, 1, 0, CuDefaultStream(), ())
-    cudacall(dummy, 1, 1, (); shmem=0, stream=CuDefaultStream())
-    cudacall(dummy, 1, 1, Tuple{})
-    cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{})
-    cudacall(dummy, 1, 1, Tuple{}; shmem=0, stream=CuDefaultStream())
-    ## this one is wrong, but used to trigger an overflow
-    @test_throws MethodError cudacall(dummy, 1, 1, CuDefaultStream(), 0, Tuple{})
-    ## bug in NTuple usage
-    cudacall(dummy, 1, 1, 0, CuDefaultStream(), Tuple{Tuple{Int64},Int64}, (1,), 1)
+    cudacall(dummy, Tuple{})
+    cudacall(dummy, Tuple{}; threads=1)
+    cudacall(dummy, Tuple{}; threads=1, blocks=1)
+    cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0)
+    cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
+    cudacall(dummy, ())
+    cudacall(dummy, (); threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
 
     # different launch syntaxes
-    CUDAdrv.launch(dummy, 1, 1, ())
-    CUDAdrv.launch(dummy, 1, 1, (); shmem=0)
-    CUDAdrv.launch(dummy, 1, 1, (); stream=CuDefaultStream())
-    CUDAdrv.launch(dummy, 1, 1, (); shmem=0, stream=CuDefaultStream())
-
-    # each should also accept CuDim3's directly
-    let dim = CUDAdrv.CuDim3(1)
-        cudacall(dummy, dim, dim, ())
-        CUDAdrv.launch(dummy, dim, dim, ())
-    end
+    CUDAdrv.launch(dummy, 1, 1, 0, CuDefaultStream(), ())
 end
 
 let
@@ -64,7 +52,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vadd, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        cudacall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
         c = Array(cd)
         @test c ≈ a+b
     end
@@ -73,7 +61,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vsub, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        cudacall(vsub, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
         c = Array(cd)
         @test c ≈ a-b
     end
@@ -82,7 +70,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vmul, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        cudacall(vmul, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
         c = Array(cd)
         @test c ≈ a.*b
     end
@@ -91,7 +79,7 @@ let
     let
         c = zeros(Float32, 10)
         cd = CuArray(c)
-        cudacall(vdiv, 10, 1, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd)
+        cudacall(vdiv, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
         c = Array(cd)
         @test c ≈ a./b
     end
