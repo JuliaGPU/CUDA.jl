@@ -34,13 +34,13 @@ See also: [`@device_code_llvm`](@ref), [`Base.code_llvm`](@ref)
 """
 function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    optimize::Bool=true, dump_module::Bool=false,
-                   cap::VersionNumber=current_capability(), kernel::Bool=false)
+                   cap::VersionNumber=current_capability(), kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=kernel)
 
     mod, entry = irgen(func, tt)
     if kernel
-        entry = promote_kernel!(mod, entry, tt)
+        entry = promote_kernel!(mod, entry, tt; kwargs...)
     end
     if optimize
         optimize!(mod, entry, cap)
@@ -65,11 +65,11 @@ is an entry-point function, or a regular device function.
 See also: [`@device_code_ptx`](@ref)
 """
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
-                  cap::VersionNumber=current_capability(), kernel::Bool=false)
+                  cap::VersionNumber=current_capability(), kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=kernel)
 
-    ptx,_ = compile_function(func, tt, cap; kernel=kernel)
+    ptx,_ = compile_function(func, tt, cap; kernel=kernel, kwargs...)
     # TODO: this code contains all the functions in the call chain,
     #       is it possible to implement `dump_module`?
     print(io, ptx)
@@ -89,11 +89,11 @@ values.
 See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
-                   cap::VersionNumber=current_capability())
+                   cap::VersionNumber=current_capability(), kwargs...)
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=true)
 
-    ptx,_ = compile_function(func, tt, cap)
+    ptx,_ = compile_function(func, tt, cap; kwargs...)
 
     fn = tempname()
     gpu = "sm_$(cap.major)$(cap.minor)"
@@ -120,23 +120,21 @@ export @device_code_lowered, @device_code_typed, @device_code_warntype,
 
 function emit_hooked_compilation(inner_hook, ex...)
     user_code = ex[end]
-    kwargs = ex[1:end-1]
+    user_kwargs = ex[1:end-1]
     quote
         # wipe the compile cache to force recompilation
         empty!(CUDAnative.compilecache)
 
         local kernels = 0
-        function outer_hook(args...)
+        function outer_hook(args...; kwargs...)
             kernels += 1
-            $inner_hook(args...; $(map(esc, kwargs)...))
+            $inner_hook(args...; $(map(esc, user_kwargs)...), kwargs...)
         end
 
         @assert CUDAnative.compile_hook[] == nothing
         try
             CUDAnative.compile_hook[] = outer_hook
             $(esc(user_code))
-        catch ex
-            warn(ex)
         finally
             CUDAnative.compile_hook[] = nothing
         end
@@ -205,44 +203,45 @@ macro device_code_warntype(ex...)
 end
 
 """
-    @device_code_llvm [io::IO=STDOUT] [optimize::Bool=true] [dump_module::Bool=false] ex
+    @device_code_llvm [io::IO=STDOUT, ...] ex
 
 Evaluates the expression `ex` and prints the result of [`Base.code_llvm`](@ref) to `io` for
-every compiled CUDA kernel. The `optimize` keyword argument determines whether the code is
-optimized, and `dump_module` can be used to print the entire LLVM module instead of only the
-entry-point function.
+every compiled CUDA kernel. For other supported keywords, see
+[`CUDAnative.code_llvm`](@ref).
 
 See also: [`Base.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
-    function hook(func, tt, cap; io::IO=STDOUT, optimize::Bool=true, dump_module::Bool=false)
-        code_llvm(io, func, tt; kernel=true, cap=cap, optimize=optimize, dump_module=dump_module)
+    function hook(func, tt, cap; io::IO=STDOUT, kwargs...)
+        code_llvm(io, func, tt; kernel=true, cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
 
 """
-    @device_code_ptx [io::IO=STDOUT] ex
+    @device_code_ptx [io::IO=STDOUT, ...] ex
 
 Evaluates the expression `ex` and prints the result of [`CUDAnative.code_ptx`](@ref) to `io`
-for every compiled CUDA kernel.
+for every compiled CUDA kernel. For other supported keywords, see
+[`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    function hook(func, tt, cap; io::IO=STDOUT)
-        code_ptx(io, func, tt; kernel=true, cap=cap)
+    function hook(func, tt, cap; io::IO=STDOUT, kwargs...)
+        code_ptx(io, func, tt; kernel=true, cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
 
 """
-    @device_code_sass [io::IO=STDOUT] ex
+    @device_code_sass [io::IO=STDOUT, ...] ex
 
 Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](@ref) to
-`io` for every compiled CUDA kernel.
+`io` for every compiled CUDA kernel. For other supported keywords, see
+[`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(func, tt, cap; io::IO=STDOUT)
-        code_sass(io, func, tt; cap=cap)
+    function hook(func, tt, cap; io::IO=STDOUT, kwargs...)
+        code_sass(io, func, tt; cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end

@@ -83,13 +83,7 @@ const compilecache = Dict{UInt, CuFunction}()
     arg_types = argspec
 
     # split kwargs, only some are dealt with by the compiler
-    nt = kwargs.parameters[4]
-    kws = Base._nt_names(nt)::NTuple{N,Symbol} where {N}
-    compile_kws = Symbol[kws...] ∩ (:minthreads,:maxthreads)    # JuliaLang/julia#25801
-    call_kws = setdiff(kws, compile_kws)
-    get_kwargs(kws) = Tuple(:($kw=kwargs[$(QuoteNode(kw))]) for kw in kws)
-    compile_kwargs = get_kwargs(compile_kws)
-    call_kwargs = get_kwargs(call_kws)
+    compile_kwargs, call_kwargs = gen_take_kwargs(kwargs, :minthreads, :maxthreads)
 
     # filter out ghost arguments
     real_args = map(t->!isghosttype(t), arg_types)

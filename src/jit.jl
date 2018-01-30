@@ -424,9 +424,7 @@ end
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
 function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber;
-                          minthreads::Union{Nothing,CuDim}=nothing,
-                          maxthreads::Union{Nothing,CuDim}=nothing,
-                          kernel::Bool=true)
+                          kernel::Bool=true, kwargs...)
     ## high-level code generation (Julia AST)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
@@ -439,7 +437,7 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 
     mod, entry = irgen(func, tt)
     if kernel
-        entry = promote_kernel!(mod, entry, tt)
+        entry = promote_kernel!(mod, entry, tt; kwargs...)
     end
     @trace("Module entry point: ", LLVM.name(entry))
 
@@ -493,7 +491,7 @@ function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=f
     end
 end
 
-# (func::Function, tt::Type, cap::VersionNumber)
+# (func::Function, tt::Type, cap::VersionNumber; kwargs...)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
@@ -509,7 +507,7 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwarg
     cap = maximum(compat_caps)
 
     if compile_hook[] != nothing
-        compile_hook[](func, tt, cap)
+        compile_hook[](func, tt, cap; kwargs...)
     end
 
     (module_asm, module_entry) = compile_function(func, tt, cap; kwargs...)

@@ -25,6 +25,7 @@ macro trace(ex...)
     esc(:(@debug $(ex...)))
 end
 
+include("utils.jl")
 include("cgutils.jl")
 include("pointer.jl")
 
