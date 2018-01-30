@@ -159,6 +159,49 @@ function irgen(@nospecialize(func), @nospecialize(tt))
     return mod, entry
 end
 
+# promote a function to a kernel
+function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt);
+                         minthreads::Union{Nothing,CuDim}=nothing,
+                         maxthreads::Union{Nothing,CuDim}=nothing,
+                         blocks_per_sm::Union{Nothing,Integer}=nothing,
+                         maxregs::Union{Nothing,Integer}=nothing)
+    kernel = wrap_entry!(mod, entry_f, tt);
+
+
+    # property annotations TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
+
+    annotations = LLVM.Value[kernel]
+
+    ## kernel metadata
+    append!(annotations, [MDString("kernel"), ConstantInt(Int32(1))])
+
+    ## expected CTA sizes
+    for (typ,vals) in (:req=>minthreads, :max=>maxthreads)
+        if vals != nothing
+            bounds = CUDAdrv.CuDim3(vals)
+            for dim in (:x, :y, :z)
+                bound = getfield(bounds, dim)
+                append!(annotations, [MDString("$(typ)ntid$(dim)"),
+                                      ConstantInt(Int32(bound))])
+            end
+        end
+    end
+
+    if blocks_per_sm != nothing
+        append!(annotations, [MDString("minctasm"), ConstantInt(Int32(blocks_per_sm))])
+    end
+
+    if maxregs != nothing
+        append!(annotations, [MDString("maxnreg"), ConstantInt(Int32(maxregs))])
+    end
+
+
+    push!(metadata(mod), "nvvm.annotations", MDNode(annotations))
+
+
+    return kernel
+end
+
 # maintain our own "global unique" suffix for disambiguating kernels
 globalUnique = 0
 
@@ -379,15 +422,8 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     end
 end
 
-function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber;
-               kernel::Bool=true)
+function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber)
     tm = machine(cap, triple(mod))
-
-    # kernel metadata
-    if kernel
-        push!(metadata(mod), "nvvm.annotations",
-             MDNode([func, MDString("kernel"), ConstantInt(Int32(1))]))
-    end
 
     InitializeNVPTXAsmPrinter()
     return String(emit(tm, mod, LLVM.API.LLVMAssemblyFile))
@@ -399,7 +435,7 @@ end
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
 function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber;
-                          kernel::Bool=true)
+                          kernel::Bool=true, kwargs...)
     ## high-level code generation (Julia AST)
 
     sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
@@ -412,7 +448,7 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 
     mod, entry = irgen(func, tt)
     if kernel
-        entry = wrap_entry!(mod, entry, tt)
+        entry = promote_kernel!(mod, entry, tt; kwargs...)
     end
     @trace("Module entry point: ", LLVM.name(entry))
 
@@ -437,7 +473,7 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 
     ## machine code generation (PTX assembly)
 
-    module_asm = mcgen(mod, entry, cap; kernel=kernel)
+    module_asm = mcgen(mod, entry, cap)
 
     return module_asm, LLVM.name(entry)
 end
@@ -466,11 +502,11 @@ function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=f
     end
 end
 
-# (func::Function, tt::Type, cap::VersionNumber)
+# (func::Function, tt::Type, cap::VersionNumber; kwargs...)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
+function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(func, Core.Function)
 
@@ -482,10 +518,10 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt))
     cap = maximum(compat_caps)
 
     if compile_hook[] != nothing
-        compile_hook[](func, tt, cap)
+        compile_hook[](func, tt, cap; kwargs...)
     end
 
-    (module_asm, module_entry) = compile_function(func, tt, cap)
+    (module_asm, module_entry) = compile_function(func, tt, cap; kwargs...)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()

@@ -41,44 +41,57 @@ isghosttype(dt) = !dt.mutable && sizeof(dt) == 0
 
 
 """
-    @cuda (gridDim::CuDim, blockDim::CuDim, [shmem::Int], [stream::CuStream]) func(args...)
+    @cuda [kwargs...] func(args...)
 
 High-level interface for calling functions on a GPU, queues a kernel launch on the current
-context. The `gridDim` and `blockDim` arguments represent the launch configuration, the
-optional `shmem` parameter specifies how much bytes of dynamic shared memory should be
-allocated (defaulting to 0), while the optional `stream` parameter indicates on which stream
-the launch should be scheduled.
+context. The `@cuda` macro should prefix a kernel invocation, with one of the following
+arguments in the `kwargs` position:
+
+Affecting the kernel launch:
+- threads (defaults to 1)
+- blocks (defaults to 1)
+- shmem (defaults to 0)
+- stream (defaults to the default stream)
+
+Affecting the kernel compilation:
+- minthreads: the required number of threads in a thread block.
+- maxthreads: the maximum number of threads in a thread block.
+- blocks_per_sm: a minimum number of thread blocks to be scheduled on a single
+  multiprocessor.
+- maxregs: the maximum number of registers to be allocated to a single thread (only
+  supported on LLVM 4.0+)
+
+Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
+different compilation parameters. New code will be generated automatically.
 
 The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
 upon first use, and to a certain extent arguments will be converted and managed
 automatically (see [`cudaconvert`](@ref)). Finally, a call to `cudacall` is performed,
 scheduling the compiled function for execution on the GPU.
 """
-macro cuda(config::Expr, callexpr::Expr)
-    # sanity checks
-    if config.head != :tuple || !(2 <= length(config.args) <= 4)
-        throw(ArgumentError("first argument to @cuda should be a tuple (gridDim, blockDim, [shmem], [stream])"))
+macro cuda(ex...)
+    if length(ex) > 0 && ex[1].head == :tuple
+        error("The tuple argument to @cuda has been replaced by keywords: `@cuda threads=... fun(args...)`")
     end
-    if callexpr.head != :call
+    call = ex[end]
+    kwargs = ex[1:end-1]
+    if call.head != :call
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    # handle optional arguments and forward the call
-    # NOTE: we duplicate the CUDAdrv's default values of these arguments,
-    #       because the kwarg version of `cudacall` is too slow
-    stream = length(config.args)==4 ? esc(pop!(config.args)) : :(CuDefaultStream())
-    shmem  = length(config.args)==3 ? esc(pop!(config.args)) : :(0)
-    dims = esc(config)
-    args = :(cudaconvert.(($(map(esc, callexpr.args)...),)))
-    return :(_cuda($dims, $shmem, $stream, $args...))
+    return :(_cuda(cudaconvert.(($(map(esc, call.args)...),))...;
+                   $(map(esc, kwargs)...)))
 end
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
-@generated function _cuda(dims::Tuple{CuDim, CuDim}, shmem, stream,
-                          func::Core.Function, argspec...)
+@generated function _cuda(func::Core.Function, argspec...; kwargs...)
     arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
     arg_types = argspec
+
+    # split kwargs, only some are dealt with by the compiler
+    compile_kwargs, call_kwargs =
+        gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs)
 
     # filter out ghost arguments
     real_args = map(t->!isghosttype(t), arg_types)
@@ -100,18 +113,19 @@ const compilecache = Dict{UInt, CuFunction}()
 
         # compile the function
         ctx = CuCurrentContext()
-        key2 = hash(($precomp_key, age, ctx))
+        key2 = hash(($precomp_key, age, ctx, ($(compile_kwargs...),)))
         if haskey(compilecache, key2)
             cuda_fun = compilecache[key2]
         else
-            cuda_fun, _ = cufunction(device(ctx), func, Tuple{$arg_types...})
+            cuda_fun, _ = cufunction(device(ctx), func, Tuple{$arg_types...};
+                                     $(compile_kwargs...))
             compilecache[key2] = cuda_fun
         end
 
         # call the kernel
         Profile.@launch begin
-            cudacall(cuda_fun, dims[1], dims[2], shmem, stream,
-                     Tuple{$(real_arg_types...)}, $(real_arg_exprs...))
+            cudacall(cuda_fun, Tuple{$(real_arg_types...)}, $(real_arg_exprs...);
+                     $(call_kwargs...))
         end
     end
 end

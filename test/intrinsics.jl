@@ -10,7 +10,7 @@
         return nothing
     end
 
-    @cuda (1, 1) kernel_math_log10(buf, Float32(100))
+    @cuda kernel_math_log10(buf, Float32(100))
     val = Array(buf)
     @test val[1] ≈ 2.0
 end
@@ -106,7 +106,7 @@ end
     a = rand(Float32, n)
     d_a = CuTestArray(a)
 
-    @cuda (1, n, n*sizeof(Float32)) kernel_shmem_dynamic_typed(d_a, n)
+    @cuda threads=n shmem=n*sizeof(Float32) kernel_shmem_dynamic_typed(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
@@ -127,7 +127,7 @@ end
         a = rand(T, n)
         d_a = CuTestArray(a)
 
-        @cuda (1, n, n*sizeof(T)) kernel_shmem_dynamic_typevar(d_a, n)
+        @cuda threads=n shmem=n*sizeof(T) kernel_shmem_dynamic_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
     end
 end
@@ -142,7 +142,7 @@ end
 
     n = 32
     T = typeof((0f0, 0f0, 0f0))
-    @cuda (1, 1, n*sizeof(T)) kernel_shmem_dynamic_alignment((0f0, 0f0, 0f0), n)
+    @cuda shmem=n*sizeof(T) kernel_shmem_dynamic_alignment((0f0, 0f0, 0f0), n)
 end
 
 end
@@ -169,7 +169,7 @@ end
     a = rand(Float32, n)
     d_a = CuTestArray(a)
 
-    @cuda (1, n) kernel_shmem_static_typed(d_a, n)
+    @cuda threads=n kernel_shmem_static_typed(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
@@ -193,7 +193,7 @@ end
         a = rand(T, n)
         d_a = CuTestArray(a)
 
-        @cuda (1, n) kernel_shmem_static_typevar(d_a, n)
+        @cuda threads=n kernel_shmem_static_typevar(d_a, n)
         @test reverse(a) == Array(d_a)
     end
 end
@@ -206,7 +206,7 @@ end
         return
     end
 
-    @cuda (1, 1) kernel_shmem_static_alignment((0f0, 0f0, 0f0))
+    @cuda kernel_shmem_static_alignment((0f0, 0f0, 0f0))
 end
 
 end
@@ -242,7 +242,7 @@ end
     b = rand(Float32, n)
     d_b = CuTestArray(b)
 
-    @cuda (1, n, 2*n*sizeof(Float32)) kernel_shmem_dynamic_multi_homogeneous(d_a, d_b, n)
+    @cuda threads=n shmem=2*n*sizeof(Float32) kernel_shmem_dynamic_multi_homogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
 end
@@ -273,7 +273,7 @@ end
     b = rand(Int64, n)
     d_b = CuTestArray(b)
 
-    @cuda (1, n, n*sizeof(Float32) + n*sizeof(Int64)) kernel_shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
+    @cuda threads=n shmem=(n*sizeof(Float32) + n*sizeof(Int64)) kernel_shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
 end
@@ -315,7 +315,7 @@ types = [Int32, Int64, Float32, Float64, AddableTuple]
         d_a = CuTestArray(a)
 
         threads = nearest_warpsize(dev, n)
-        @cuda (1, threads) kernel_shuffle_down(d_a, n)
+        @cuda threads=threads kernel_shuffle_down(d_a, n)
 
         a[1:n÷2] += a[n÷2+1:end]
         @test a == Array(d_a)
@@ -354,7 +354,7 @@ end
 
     len = 4
     for i in 1:len
-        @cuda (1,len) kernel_vote_ballot(d_a, i)
+        @cuda threads=len kernel_vote_ballot(d_a, i)
         @test Array(d_a) == [2^(i-1)]
     end
 end
@@ -371,13 +371,13 @@ end
         return nothing
     end
 
-    @cuda (1,2) kernel_vote_any(d_a, 1)
+    @cuda threads=2 kernel_vote_any(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda (1,2) kernel_vote_any(d_a, 2)
+    @cuda threads=2 kernel_vote_any(d_a, 2)
     @test Array(d_a) == [1]
 
-    @cuda (1,2) kernel_vote_any(d_a, 3)
+    @cuda threads=2 kernel_vote_any(d_a, 3)
     @test Array(d_a) == [0]
 end
 
@@ -393,13 +393,13 @@ end
         return nothing
     end
 
-    @cuda (1,2) kernel_vote_all(d_a, 1)
+    @cuda threads=2 kernel_vote_all(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda (1,2) kernel_vote_all(d_a, 2)
+    @cuda threads=2 kernel_vote_all(d_a, 2)
     @test Array(d_a) == [0]
 
-    @cuda (1,2) kernel_vote_all(d_a, 3)
+    @cuda threads=2 kernel_vote_all(d_a, 3)
     @test Array(d_a) == [0]
 end
 

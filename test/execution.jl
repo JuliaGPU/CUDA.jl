@@ -18,13 +18,19 @@ end
 
 @testset "@cuda" begin
 
-@test_throws UndefVarError @cuda (1,1) exec_undefined_kernel()
-@test_throws MethodError @cuda (1,1) exec_dummy(1)
+@test_throws UndefVarError @cuda exec_undefined_kernel()
+@test_throws MethodError @cuda exec_dummy(1)
+
+
+@testset "compilation params" begin
+    @cuda exec_dummy()
+
+    @test_throws CuError @cuda threads=2 maxthreads=1 exec_dummy()
+    @cuda threads=2 exec_dummy()
+end
 
 
 @testset "reflection" begin
-    @cuda (1,1) exec_dummy()
-
     CUDAnative.code_lowered(exec_dummy, Tuple{})
     CUDAnative.code_typed(exec_dummy, Tuple{})
     CUDAnative.code_warntype(DevNull, exec_dummy, Tuple{})
@@ -32,31 +38,25 @@ end
     CUDAnative.code_ptx(DevNull, exec_dummy, Tuple{})
     CUDAnative.code_sass(DevNull, exec_dummy, Tuple{})
 
-    @device_code_lowered @cuda (1,1) exec_dummy()
-    @device_code_typed @cuda (1,1) exec_dummy()
-    @device_code_warntype io=DevNull @cuda (1,1) exec_dummy()
-    @device_code_llvm io=DevNull @cuda (1,1) exec_dummy()
-    @device_code_ptx io=DevNull @cuda (1,1) exec_dummy()
-    @device_code_sass io=DevNull @cuda (1,1) exec_dummy()
+    @device_code_lowered @cuda exec_dummy()
+    @device_code_typed @cuda exec_dummy()
+    @device_code_warntype io=DevNull @cuda exec_dummy()
+    @device_code_llvm io=DevNull @cuda exec_dummy()
+    @device_code_ptx io=DevNull @cuda exec_dummy()
+    @device_code_sass io=DevNull @cuda exec_dummy()
 
     @test_throws ErrorException @device_code_lowered nothing
 end
 
 
-@testset "dimensions" begin
-    @cuda (1,1) exec_dummy()
-    @test_throws ArgumentError @cuda (0,0) exec_dummy()
-end
-
-
 @testset "shared memory" begin
-    @cuda (1,1,1) exec_dummy()
+    @cuda shmem=1 exec_dummy()
 end
 
 
 @testset "streams" begin
     s = CuStream()
-    @cuda (1,1,1,s) exec_dummy()
+    @cuda stream=s exec_dummy()
 end
 
 
@@ -66,16 +66,16 @@ end
         exec_external_dummy() = return nothing
     end
     import ...KernelModule
-    @cuda (1,1) KernelModule.exec_external_dummy()
+    @cuda KernelModule.exec_external_dummy()
     @eval begin
         using ...KernelModule
-        @cuda (1,1) exec_external_dummy()
+        @cuda exec_external_dummy()
     end
 
     @eval module WrapperModule
         using CUDAnative
         @eval exec_dummy() = return nothing
-        wrapper() = @cuda (1,1) exec_dummy()
+        wrapper() = @cuda exec_dummy()
     end
     WrapperModule.wrapper()
 end
@@ -83,13 +83,13 @@ end
 
 @testset "return values" begin
     @eval exec_return_int_inner() = return 1
-    @test_throws ArgumentError @cuda (1,1) exec_return_int_inner()
+    @test_throws ArgumentError @cuda exec_return_int_inner()
 
     @eval function exec_return_int_outer()
         exec_return_int_inner()
         return nothing
     end
-    @cuda (1,1) exec_return_int_outer()
+    @cuda exec_return_int_outer()
 end
 
 
@@ -97,7 +97,7 @@ end
     @eval @noinline exec_devfun_child(i) = sink(i)
     @eval exec_devfun_parent() = (exec_devfun_child(1); return nothing)
 
-    @cuda (1,1) exec_devfun_parent()
+    @cuda exec_devfun_parent()
 end
 
 end
@@ -126,8 +126,8 @@ len = prod(dims)
     input_dev = Mem.upload(input)
     output_dev = Mem.alloc(input)
 
-    @cuda (1,len) exec_pass_ptr(Base.unsafe_convert(Ptr{Float32}, input_dev),
-                                Base.unsafe_convert(Ptr{Float32}, output_dev))
+    @cuda threads=len exec_pass_ptr(Base.unsafe_convert(Ptr{Float32}, input_dev),
+                                    Base.unsafe_convert(Ptr{Float32}, output_dev))
     Mem.download!(output, output_dev)
     @test input ≈ output
 end
@@ -151,8 +151,8 @@ end
     arr_dev = Mem.upload(arr)
     val_dev = Mem.upload(val)
 
-    @cuda (1,len) exec_pass_scalar(Base.unsafe_convert(Ptr{Float32}, arr_dev),
-                                   Base.unsafe_convert(Ptr{Float32}, val_dev))
+    @cuda threads=len exec_pass_scalar(Base.unsafe_convert(Ptr{Float32}, arr_dev),
+                                       Base.unsafe_convert(Ptr{Float32}, val_dev))
     @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
 end
 
@@ -178,8 +178,8 @@ end
     arr_dev = Mem.upload(arr)
     val_dev = Mem.upload(val)
 
-    @cuda (1,len) exec_pass_scalar_devfun(Base.unsafe_convert(Ptr{Float32}, arr_dev),
-                                          Base.unsafe_convert(Ptr{Float32}, val_dev))
+    @cuda threads=len exec_pass_scalar_devfun(Base.unsafe_convert(Ptr{Float32}, arr_dev),
+                                              Base.unsafe_convert(Ptr{Float32}, val_dev))
     @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
 end
 
@@ -199,7 +199,7 @@ end
     keeps = (true,)
     d_out = Mem.alloc(Int)
 
-    @cuda (1,1) exec_pass_tuples(keeps, Base.unsafe_convert(Ptr{Int}, d_out))
+    @cuda exec_pass_tuples(keeps, Base.unsafe_convert(Ptr{Int}, d_out))
     @test Mem.download(Int, d_out) == [1]
 end
 
@@ -212,7 +212,7 @@ end
     x1 = CuTestArray([1])
     x2 = CuTestArray([2])
 
-    @cuda (1,1) exec_pass_tuples((x1, x2))
+    @cuda exec_pass_tuples((x1, x2))
     @test Array(x1) == [2]
 end
 
@@ -237,10 +237,10 @@ end
 
         return nothing
     end
-    @cuda (1,len) exec_pass_ghost(ExecGhost(),
-                                  Base.unsafe_convert(Ptr{Float32}, d_a),
-                                  Base.unsafe_convert(Ptr{Float32}, d_b),
-                                  Base.unsafe_convert(Ptr{Float32}, d_c))
+    @cuda threads=len exec_pass_ghost(ExecGhost(),
+                                      Base.unsafe_convert(Ptr{Float32}, d_a),
+                                      Base.unsafe_convert(Ptr{Float32}, d_b),
+                                      Base.unsafe_convert(Ptr{Float32}, d_c))
     Mem.download!(c, d_c)
     @test a+b == c
 
@@ -253,9 +253,9 @@ end
 
         return nothing
     end
-    @cuda (1,len) exec_pass_ghost_aggregate(ExecGhost(),
-                                            Base.unsafe_convert(Ptr{Float32}, d_c),
-                                            (42,))
+    @cuda threads=len exec_pass_ghost_aggregate(ExecGhost(),
+                                                Base.unsafe_convert(Ptr{Float32}, d_c),
+                                                (42,))
 
     Mem.download!(c, d_c)
     @test all(val->val==42, c)
@@ -273,7 +273,7 @@ end
     buf = Mem.upload([0f0])
     x = ComplexF32(2,2)
 
-    @cuda (1, 1) exec_pass_immutables(Base.unsafe_convert(Ptr{Float32}, buf), x)
+    @cuda exec_pass_immutables(Base.unsafe_convert(Ptr{Float32}, buf), x)
     @test Mem.download(Float32, buf) == [imag(x)]
 end
 
@@ -283,12 +283,12 @@ end
 
     @eval exec_265(ptr) = (unsafe_store!(ptr, 1); return nothing)
 
-    @cuda (1,1) exec_265(Base.unsafe_convert(Ptr{Int}, buf))
+    @cuda exec_265(Base.unsafe_convert(Ptr{Int}, buf))
     @test Mem.download(Int, buf) == [1]
 
     @eval exec_265(ptr) = (unsafe_store!(ptr, 2); return nothing)
 
-    @cuda (1,1) exec_265(Base.unsafe_convert(Ptr{Int}, buf))
+    @cuda exec_265(Base.unsafe_convert(Ptr{Int}, buf))
     @test Mem.download(Int, buf) == [2]
 end
 
@@ -298,7 +298,7 @@ end
 
 @testset "profile" begin
 
-CUDAnative.@profile @cuda (1,1) exec_dummy()
+CUDAnative.@profile @cuda exec_dummy()
 
 end
 

@@ -16,5 +16,5 @@ function memset(a, val)
     return nothing
 end
 
-@cuda (1,11) memset(a, 0f0)
+@cuda threads=11 memset(a, 0f0)
 synchronize()

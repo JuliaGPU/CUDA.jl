@@ -99,8 +99,8 @@ function gpu_reduce(op::Function, input::CuVector{T}, output::CuVector{T}) where
         throw(ArgumentError("output array too small, should be at least $blocks elements"))
     end
 
-    @cuda (blocks,threads) reduce_grid(op, input, output, Int32(len))
-    @cuda (1,1024) reduce_grid(op, output, output, Int32(blocks))
+    @cuda blocks=blocks threads=threads reduce_grid(op, input, output, Int32(len))
+    @cuda threads=1024 reduce_grid(op, output, output, Int32(blocks))
 
     return
 end

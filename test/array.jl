@@ -72,7 +72,7 @@ end
     input_dev = CuTestArray(input)
     output_dev = CuTestArray(input)
 
-    @cuda (1,len) array_copy(input_dev, output_dev)
+    @cuda threads=len array_copy(input_dev, output_dev)
     output = Array(output_dev)
     @test input ≈ output
 end
@@ -94,7 +94,7 @@ end
     input_dev = CuTestArray(input)
     output_dev = CuTestArray(Float32[0])
 
-    @cuda (1, 1) array_iteration(input_dev, output_dev)
+    @cuda array_iteration(input_dev, output_dev)
     output = Array(output_dev)
     @test sum(input) ≈ output[1]
 end
@@ -143,7 +143,7 @@ end
         sub[i] = i
     end
 
-    @cuda (100, 1) array_view(array_dev)
+    @cuda threads=100 array_view(array_dev)
     @test array == Array(array_dev)
 end
 
