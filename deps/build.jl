@@ -127,7 +127,7 @@ function main()
     ## (re)generate ext.jl
 
     function globals(mod)
-        all_names = names(mod, true)
+        all_names = names(mod, all=true)
         filter(name-> !any(name .== [module_name(mod), Symbol("#eval"), :eval]), all_names)
     end
 
