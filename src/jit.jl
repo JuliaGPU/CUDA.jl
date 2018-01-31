@@ -505,7 +505,7 @@ function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=f
 
     # emulate some of the specsig logic from codegen.cppto detect non-native CC functions
     # TODO: also do this for device functions (#87)
-    isconcrete(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
+    isconcretetype(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
     m.isva && throw(ArgumentError("invalid device function $sig: is a varargs function"))
 
     # kernels can't return values
