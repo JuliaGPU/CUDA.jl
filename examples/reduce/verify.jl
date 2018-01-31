@@ -1,5 +1,4 @@
-using Compat
-using Compat.Test
+using Test
 
 include("reduce.jl")
 

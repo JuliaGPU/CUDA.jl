@@ -2,9 +2,6 @@
 
 # Script to parse and compare the libdevice PDF manual against our list of intrinsics
 
-using Compat
-import Compat.String
-
 function parse_intrinsics(cb)
     fn = joinpath(@__DIR__, "..", "src", "device", "libdevice.jl")
     open(fn) do f

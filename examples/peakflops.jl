@@ -1,7 +1,6 @@
 using CUDAdrv, CUDAnative
 
-using Compat
-using Compat.Test
+using Test
 
 "Dummy kernel doing 100 FMAs."
 function kernel_100fma(a, b, c, out)

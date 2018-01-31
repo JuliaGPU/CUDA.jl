@@ -69,8 +69,7 @@ cpu_accumulate!(+, cpu_a)
 gpu_a = CuArray(a)
 @cuda blocks=cols threads=rows shmem=cols*rows*sizeof(eltype(a)) gpu_accumulate!(+, gpu_a)
 
-using Compat
-using Compat.Test
+using Test
 
 @test cpu_a ≈ Array(gpu_a)
 

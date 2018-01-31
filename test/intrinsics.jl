@@ -25,7 +25,7 @@ end
     _, out = @grab_output @on_device @cuprintf("")
     @test out == ""
 
-    endline = Compat.Sys.iswindows() ? "\r\n" : "\n"
+    endline = Sys.iswindows() ? "\r\n" : "\n"
 
     _, out = @grab_output @on_device @cuprintf("Testing...\n")
     @test out == "Testing...$endline"

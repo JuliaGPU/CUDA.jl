@@ -48,8 +48,7 @@ teardown_cuda(state) = ccall(Libdl.dlsym(lib, "teardown"), Void,
                              (Ptr{Cvoid},), state)
 
 # Correctness check (not part of verify.jl which is meant to run during testing)
-using Compat
-using Compat.Test
+using Test
 let
     cuda_state = setup_cuda(input)
     cuda_val = run_cuda(cuda_state)
