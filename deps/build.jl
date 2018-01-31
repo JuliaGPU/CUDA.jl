@@ -128,7 +128,7 @@ function main()
 
     function globals(mod)
         all_names = names(mod, all=true)
-        filter(name-> !any(name .== [module_name(mod), Symbol("#eval"), :eval]), all_names)
+        filter(name-> !any(name .== [nameof(mod), Symbol("#eval"), :eval]), all_names)
     end
 
     if isfile(previous_config_path)

@@ -222,7 +222,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
     wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
-    replace(wrapper_fn, r"\d+$", globalUnique+=1)
+    replace(wrapper_fn, r"\d+$" => (globalUnique+=1))
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
