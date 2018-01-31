@@ -1,7 +1,6 @@
 using CUDAdrv, CUDAnative
 
-using Compat
-using Compat.Test
+using Test
 
 function kernel_vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x

@@ -3,6 +3,7 @@
 # CUDAdrv.jl version
 
 using CUDAdrv
+using InteractiveUtils
 
 const len = 1000
 const ITERATIONS = 5000

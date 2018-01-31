@@ -97,7 +97,6 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
 
     # calculate size of dynamic shared memory
     shmem = 2 * sum(threads) * sizeof(Float32)
-    info("launch blocks=$blocks threads=$threads shmem=$shmem")
 
     @cuda blocks=blocks threads=threads shmem=shmem pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
 
@@ -110,7 +109,6 @@ const n = 10000
 const lat = rand(Float32, n) .* 45
 const lon = rand(Float32, n) .* -120
 
-using Compat
-using Compat.Test
+using Test
 
 @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)

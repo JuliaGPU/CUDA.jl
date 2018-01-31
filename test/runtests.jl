@@ -1,7 +1,6 @@
 using CUDAnative, CUDAdrv
 
-using Compat
-using Compat.Test
+using Test
 
 import LLVM
 

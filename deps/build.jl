@@ -127,8 +127,8 @@ function main()
     ## (re)generate ext.jl
 
     function globals(mod)
-        all_names = names(mod, true)
-        filter(name-> !any(name .== [module_name(mod), Symbol("#eval"), :eval]), all_names)
+        all_names = names(mod, all=true)
+        filter(name-> !any(name .== [nameof(mod), Symbol("#eval"), :eval]), all_names)
     end
 
     if isfile(previous_config_path)

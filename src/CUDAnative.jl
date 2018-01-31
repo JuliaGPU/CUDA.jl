@@ -8,7 +8,6 @@ using CUDAdrv
 using LLVM
 using LLVM.Interop
 
-using Compat
 VERSION >= v"0.7.0-DEV.3382" && using Libdl
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")

@@ -71,7 +71,7 @@ mutable struct CuTestArray{T,N}
         buf = Mem.alloc(len*sizeof(T))
 
         obj = new{T,N}(buf, shape)
-        @compat finalizer(unsafe_free!, obj)
+        finalizer(unsafe_free!, obj)
         return obj
     end
 end
