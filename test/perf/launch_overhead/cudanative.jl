@@ -3,6 +3,7 @@
 # CUDAnative.jl version
 
 using CUDAdrv, CUDAnative
+using InteractiveUtils
 
 function kernel_dummy(ptr)
     Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)

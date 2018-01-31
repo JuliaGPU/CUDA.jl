@@ -1,5 +1,7 @@
 # code reflection entry-points
 
+using InteractiveUtils
+
 # Return the capability of the current context's device, or a sane fall-back.
 function current_capability()
     fallback = minimum(target_support)
