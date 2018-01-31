@@ -68,6 +68,7 @@ end
 end
 
 @testset "Concat" begin
+  testf(vcat, ones(5), zeros(5))
   testf(hcat, rand(3, 3), rand(3, 3))
   testf(vcat, rand(3, 3), rand(3, 3))
 end
@@ -97,6 +98,17 @@ end
   @test collect(x)[] == 1
   x /= 2
   @test collect(x)[] == 0.5
+end
+
+@testset "Slices" begin
+  x = cu([1:10;])
+  y = x[6:10]
+  @test x.buf == y.buf
+  @test collect(y) == [6, 7, 8, 9, 10]
+  CuArrays._setindex!(y, -1f0, 3)
+  @test collect(y) == [6, 7, -1, 9, 10]
+  @test collect(x) == [1, 2, 3, 4, 5, 6, 7, -1, 9, 10]
+  @test collect(cu(eye(5))*y) == collect(y)
 end
 
 include("blas.jl")
