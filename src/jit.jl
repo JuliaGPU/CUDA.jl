@@ -2,13 +2,6 @@
 
 export cufunction
 
-if VERSION >= v"0.7.0-DEV.3630"
-    using InteractiveUtils
-    import InteractiveUtils: _dump_function
-else
-    import Base: _dump_function
-end
-
 
 #
 # main code generation functions
@@ -53,8 +46,19 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(@nospecialize(func), @nospecialize(tt))
-    # collect all modules of IR
+function irgen(@nospecialize(f), @nospecialize(tt))
+    # get the method instance
+    isa(f, Core.Builtin) && throw(ArgumentError("argument is not a generic function"))
+    world = typemax(UInt)
+    meth = which(f, tt)
+    sig_tt = Tuple{typeof(f), tt.parameters...}
+    (ti, env) = ccall(:jl_type_intersection_with_env, Any,
+                      (Any, Any), sig_tt, meth.sig)::SimpleVector
+    meth = Base.func_for_method_checked(meth, ti)
+    linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
+                  (Any, Any, Any, UInt), meth, ti, env, world)
+
+    # set-up the compiler interface
     function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         module_setup(LLVM.Module(ref))
@@ -69,36 +73,26 @@ function irgen(@nospecialize(func), @nospecialize(tt))
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(dependencies, LLVM.Module(ref))
     end
-    if VERSION >= v"0.7.0-DEV.1669"
-        params = Base.CodegenParams(cached=false,
-                                    track_allocations=false,
-                                    code_coverage=false,
-                                    static_alloc=false,
-                                    prefer_specsig=true,
-                                    module_setup=hook_module_setup,
-                                    module_activation=hook_module_activation,
-                                    raise_exception=hook_raise_exception)
-    else
-        hooks = Base.CodegenHooks(module_setup=hook_module_setup,
-                                  module_activation=hook_module_activation,
-                                  raise_exception=hook_raise_exception)
-        params = Base.CodegenParams(cached=false,
-                                    track_allocations=false,
-                                    code_coverage=false,
-                                    static_alloc=false,
-                                    hooks=hooks)
-    end
-    mod = parse(LLVM.Module,
-                _dump_function(func, tt,
-                               #=native=#false, #=wrapper=#false, #=strip=#false,
-                               #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-                               params),
-                jlctx[])
-    if !(VERSION >= v"0.7.0-DEV.2513") && !(v"0.6.2" <= VERSION < v"0.7-")
-        # NOTE: cgparams weren't passed to emit_function, breaking the module_setup hook
-        # NOTE: when removing this, there's no need to re-parse the _dump_function output,
-        #       and we can use the first module passed to module_setup
-        module_setup(mod)
+    params = Base.CodegenParams(cached=false,
+                                track_allocations=false,
+                                code_coverage=false,
+                                static_alloc=false,
+                                prefer_specsig=true,
+                                module_setup=hook_module_setup,
+                                module_activation=hook_module_activation,
+                                raise_exception=hook_raise_exception)
+
+    # get the code
+    mod = let
+        ref = ccall(:jl_get_llvmf_defn, LLVM.API.LLVMValueRef,
+                    (Any, UInt, Bool, Bool, Base.CodegenParams),
+                    linfo, world, #=wrapper=#false, #=optimize=#false, params)
+        if ref == C_NULL
+            error("could not compile the specified method")
+        end
+
+        llvmf = LLVM.Function(ref)
+        LLVM.parent(llvmf)
     end
 
     # the main module should contain a single jlcall_ function definition,
