@@ -68,6 +68,7 @@ end
 end
 
 @testset "Concat" begin
+  testf(vcat, ones(5), zeros(5))
   testf(hcat, rand(3, 3), rand(3, 3))
   testf(vcat, rand(3, 3), rand(3, 3))
 end

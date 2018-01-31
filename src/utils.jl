@@ -72,14 +72,15 @@ Base.map!(f, y::CuArray, x1::CuArray, x2::CuArray) =
 
 # Concatenation
 
-@generated function nindex(i::Int, ls::NTuple{N}) where N
+@generated function nindex(i::T, ls::NTuple{N,T}) where {N,T}
+  na = one(i)
   quote
     Base.@_inline_meta
-    $(foldr((n, els) -> :(i ≤ ls[$n] ? ($n, i) : (i -= ls[$n]; $els)), :(-1, -1), 1:N))
+    $(foldr((n, els) -> :(i ≤ ls[$n] ? ($n, i) : (i -= ls[$n]; $els)), :($na, $na), one(i):i(N)))
   end
 end
 
-function catindex(dim, I::NTuple{N}, shapes) where N
+@inline function catindex(dim, I::NTuple{N}, shapes) where N
   @inbounds x, i = nindex(I[dim], getindex.(shapes, dim))
   x, ntuple(n -> n == dim ? i : I[n], Val{N})
 end
@@ -87,7 +88,7 @@ end
 function _cat(dim, dest, xs...)
   function kernel(dim, dest, xs)
     I = @cuindex dest
-    n, I′ = catindex(dim, I, size.(xs))
+    @inbounds n, I′ = catindex(dim, Int.(I), size.(xs))
     @inbounds dest[I...] = xs[n][I′...]
     return
   end
