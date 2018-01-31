@@ -87,8 +87,10 @@ end
 
     # root the argument boxes to the array of pointers,
     # keeping them alive across the call to `cuLaunchKernel`
-    if VERSION >= v"0.7.0-DEV.1850"
+    if v"0.7.0-DEV.1850" <= VERSION < v"0.7.0-DEV.3466"
         push!(ex.args, :(Base.@gc_preserve $(arg_refs...) kernelParams))
+    elseif VERSION >= v"0.7.0-DEV.3466"
+        push!(ex.args, :(Base.GC.@preserve $(arg_refs...) kernelParams))
     end
 
     push!(ex.args, :(
@@ -173,8 +175,10 @@ end
 
         # root the cconverted argument to the pointer,
         # keeping them alive across the call to `launch`
-        if VERSION >= v"0.7.0-DEV.1850"
+        if v"0.7.0-DEV.1850" <= VERSION < v"0.7.0-DEV.3466"
             push!(ex.args, :(Base.@gc_preserve $(converted_arg) $(arg_ptrs[i])))
+        elseif VERSION >= v"0.7.0-DEV.3466"
+            push!(ex.args, :(Base.GC.@preserve $(converted_arg) $(arg_ptrs[i])))
         end
     end
 
