@@ -20,7 +20,7 @@ mutable struct CuEvent
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
-        @compat finalizer(unsafe_destroy!, obj)
+        finalizer(unsafe_destroy!, obj)
         return obj
     end 
 end

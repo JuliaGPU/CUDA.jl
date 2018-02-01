@@ -46,7 +46,7 @@ CuContext(pctx) do ctx
     @test CUDAdrv.isvalid(ctx)
     @test isactive(pctx)
 end
-gc()
+GC.gc()
 @test !isactive(pctx)
 
 CuContext(pctx) do ctx

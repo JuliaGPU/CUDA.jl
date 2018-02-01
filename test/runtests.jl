@@ -1,7 +1,7 @@
 using CUDAdrv
 
-using Compat
-using Compat.Test
+using Test
+import Pkg
 
 @testset "CUDAdrv" begin
 
@@ -19,7 +19,7 @@ if CUDAdrv.configured
                 dev = newdev
             end
         end
-        info("Testing using device $(name(dev))")
+        @info "Testing using device $(name(dev))"
         global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
         @testset "API wrappers" begin

@@ -30,7 +30,6 @@ module Profile
 using CUDAdrv
 import CUDAdrv: @apicall
 
-using Compat
 
 """
     start()

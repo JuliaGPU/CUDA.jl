@@ -1,7 +1,6 @@
 using CUDAdrv
 
-using Compat
-using Compat.Test
+using Test
 
 dev = CuDevice(0)
 ctx = CuContext(dev)

@@ -52,7 +52,7 @@ mutable struct CuModule
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
-        @compat finalizer(unsafe_unload!, obj)
+        finalizer(unsafe_unload!, obj)
         return obj
     end
 end
