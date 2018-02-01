@@ -70,6 +70,7 @@ automatically (see [`cudaconvert`](@ref)). Finally, a call to `cudacall` is perf
 scheduling the compiled function for execution on the GPU.
 """
 macro cuda(ex...)
+    # sanity checks
     if length(ex) > 0 && ex[1].head == :tuple
         error("The tuple argument to @cuda has been replaced by keywords: `@cuda threads=... fun(args...)`")
     end
@@ -79,8 +80,19 @@ macro cuda(ex...)
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    return :(_cuda(cudaconvert.(($(map(esc, call.args)...),))...;
-                   $(map(esc, kwargs)...)))
+    # decode the call and assign arguments to variables
+    f = call.args[1]
+    args = call.args[2:end]
+    syms = Tuple(gensym() for arg in args)
+
+    # convert the arguments, and call _cuda while keeping the original arguments alive
+    ex = Expr(:block)
+    append!(ex.args, :($sym = $(esc(arg))) for (sym,arg) in zip(syms, args))
+    push!(ex.args,
+        :(GC.@preserve($(syms...),
+                       _cuda($(esc(f)), cudaconvert.(($(syms...),))...;
+                             $(map(esc, kwargs)...)))))
+    return ex
 end
 
 const agecache = Dict{UInt, UInt}()
