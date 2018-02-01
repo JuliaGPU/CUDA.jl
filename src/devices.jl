@@ -185,7 +185,7 @@ function Base.length(::DeviceSet)
     return count_ref[]
 end
 
-Compat.IteratorSize(::DeviceSet) = Base.HasLength()
+Base.IteratorSize(::DeviceSet) = Base.HasLength()
 
 
 ## convenience attribute getters

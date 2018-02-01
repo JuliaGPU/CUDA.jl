@@ -51,7 +51,7 @@ mutable struct CuContext
         # this prevents contexts from getting collected, requiring the user to destroy it.
         ctx = get!(context_instances, handle) do
             obj = new(handle, owned, true)
-            @compat finalizer(unsafe_destroy!, obj)
+            finalizer(unsafe_destroy!, obj)
             return obj
         end
 
@@ -110,7 +110,7 @@ function destroy!(ctx::CuContext)
     return
 end
 
-Base.deepcopy_internal(::CuContext, ::ObjectIdDict) =
+Base.deepcopy_internal(::CuContext, ::IdDict) =
     error("CuContext cannot be copied")
 
 function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)

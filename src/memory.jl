@@ -7,7 +7,6 @@ module Mem
 using CUDAdrv
 import CUDAdrv: @apicall, CuStream_t
 
-using Compat
 
 
 ## buffer type

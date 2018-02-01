@@ -34,7 +34,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
         Mem.retain(buf)
 
         obj = new{T,N}(buf, shape)
-        @compat finalizer(unsafe_free!, obj)
+        finalizer(unsafe_free!, obj)
         return obj
     end
     function CuArray{T,N}(shape::NTuple{N,Int}, buf::Mem.Buffer) where {T,N}
@@ -43,7 +43,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
         Mem.retain(buf)
 
         obj = new{T, N}(buf, shape)
-        @compat finalizer(unsafe_free!, obj)
+        finalizer(unsafe_free!, obj)
         return obj
     end
 end

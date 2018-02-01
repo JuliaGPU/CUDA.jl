@@ -40,7 +40,7 @@ function CuContext(pctx::CuPrimaryContext)
     handle = Ref{CuContext_t}()
     @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, pctx.dev)
     ctx = CuContext(handle[], false)    # CuContext shouldn't manage this ctx
-    @compat finalizer((ctx)->begin
+    finalizer((ctx)->begin
         @trace("Finalizing derived CuContext object at $(Base.pointer_from_objref(ctx)))")
         @assert isvalid(ctx)    # not owned by CuContext, so shouldn't have been invalidated
         @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)

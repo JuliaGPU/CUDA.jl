@@ -8,7 +8,7 @@ try throw(nothing) end
 @test length(CUDAdrv.context_instances) == 1
 destroy!(ctx)
 for i in 1:50
-    gc()
+    GC.gc()
 end
 if length(CUDAdrv.context_instances) > 0
     for (handle, object) in CUDAdrv.context_instances

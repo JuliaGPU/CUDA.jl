@@ -83,31 +83,24 @@ end
 
     # generate an array with pointers
     arg_ptrs = [:(Base.unsafe_convert(Ptr{Cvoid}, $(arg_refs[i]))) for i in 1:N]
-    push!(ex.args, :(kernelParams = [$(arg_ptrs...)]))
 
-    # root the argument boxes to the array of pointers,
-    # keeping them alive across the call to `cuLaunchKernel`
-    if v"0.7.0-DEV.1850" <= VERSION < v"0.7.0-DEV.3466"
-        push!(ex.args, :(Base.@gc_preserve $(arg_refs...) kernelParams))
-    elseif VERSION >= v"0.7.0-DEV.3466"
-        push!(ex.args, :(Base.GC.@preserve $(arg_refs...) kernelParams))
-    end
-
-    push!(ex.args, :(
-        @apicall(:cuLaunchKernel, (
-            CuFunction_t,           # function
-            Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
-            Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
-            Cuint,                  # shared memory bytes,
-            CuStream_t,             # stream
-            Ptr{Ptr{Cvoid}},        # kernel parameters
-            Ptr{Ptr{Cvoid}}),       # extra parameters
-            f,
-            blocks.x, blocks.y, blocks.z,
-            threads.x, threads.y, threads.z,
-            shmem, stream, kernelParams, C_NULL)
-        )
-    )
+    append!(ex.args, (quote
+        GC.@preserve $(arg_refs...) begin
+            kernelParams = [$(arg_ptrs...)]
+            @apicall(:cuLaunchKernel, (
+                CuFunction_t,           # function
+                Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
+                Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
+                Cuint,                  # shared memory bytes,
+                CuStream_t,             # stream
+                Ptr{Ptr{Cvoid}},        # kernel parameters
+                Ptr{Ptr{Cvoid}}),       # extra parameters
+                f,
+                blocks.x, blocks.y, blocks.z,
+                threads.x, threads.y, threads.z,
+                shmem, stream, kernelParams, C_NULL)
+        end
+    end).args)
 
     return ex
 end
@@ -165,24 +158,20 @@ end
 
     # convert the argument values to match the kernel's signature (specified by the user)
     # (this mimics `lower-ccall` in julia-syntax.scm)
-
+    converted_args = Vector{Symbol}(uninitialized, N)
     arg_ptrs = Vector{Symbol}(uninitialized, N)
     for i in 1:N
-        converted_arg = gensym()
+        converted_args[i] = gensym()
         arg_ptrs[i] = gensym()
-        push!(ex.args, :($converted_arg = Base.cconvert($(types[i]), args[$i])))
-        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $converted_arg)))
-
-        # root the cconverted argument to the pointer,
-        # keeping them alive across the call to `launch`
-        if v"0.7.0-DEV.1850" <= VERSION < v"0.7.0-DEV.3466"
-            push!(ex.args, :(Base.@gc_preserve $(converted_arg) $(arg_ptrs[i])))
-        elseif VERSION >= v"0.7.0-DEV.3466"
-            push!(ex.args, :(Base.GC.@preserve $(converted_arg) $(arg_ptrs[i])))
-        end
+        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
+        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
     end
 
-    push!(ex.args, :(launch(f, blocks, threads, shmem, stream, ($(arg_ptrs...),))))
+    append!(ex.args, (quote
+        GC.@preserve $(converted_args...) begin
+            launch(f, blocks, threads, shmem, stream, ($(arg_ptrs...),))
+        end
+    end).args)
 
     return ex
 end

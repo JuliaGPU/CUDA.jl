@@ -38,7 +38,7 @@ mutable struct CuLink
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx, options, optionKeys, optionVals)
-        @compat finalizer(unsafe_destroy!, obj)
+        finalizer(unsafe_destroy!, obj)
         return obj
     end
 end
