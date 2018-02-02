@@ -5,7 +5,7 @@ export Mem
 module Mem
 
 using CUDAdrv
-import CUDAdrv: @apicall, CuStream_t
+import CUDAdrv: @apicall, CuStream_t, CuDevice_t
 
 
 
@@ -143,6 +143,10 @@ function transfer end
 
 ## pointer-based
 
+@enum(CUmem_attach, ATTACH_GLOBAL = 0x01,
+                    ATTACH_HOST   = 0x02)
+                    #ATTACH_SINGLE = 0x04) # Defined but not valid
+
 """
     alloc(bytes::Integer)
 
@@ -151,12 +155,36 @@ Allocate `bytesize` bytes of memory.
 Note that, contrary to the CUDA API, zero-size allocations are permitted. Such allocations
 will point to the null pointer, and are not attached to a valid context.
 """
-function alloc(bytesize::Integer)
+function alloc(bytesize::Integer, managed=false; flags::CUmem_attach=ATTACH_GLOBAL)
     bytesize == 0 && return Buffer(C_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{Ptr{Cvoid}}()
-    @apicall(:cuMemAlloc, (Ptr{Ptr{Cvoid}}, Csize_t), ptr_ref, bytesize)
+    if !managed
+        @apicall(:cuMemAlloc, (Ptr{Ptr{Cvoid}}, Csize_t), ptr_ref, bytesize)
+    else
+        @apicall(:cuMemAllocManaged, (Ptr{Ptr{Cvoid}}, Csize_t, Cuint), ptr_ref, bytesize, flags)
+    end
     return Buffer(ptr_ref[], bytesize, CuCurrentContext())
+end
+
+function prefetch(buf::Buffer, bytes=buf.bytesize; stream::CuStream=CuDefaultStream())
+    bytes > buf.bytesize && throw(BoundsError(buf, bytes))
+    dev = device(buf.ctx)
+    @apicall(:cuMemPrefetchAsync, (Ptr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
+             buf, bytes, dev, stream)
+end
+
+@enum(CUmem_advise, ADVISE_SET_READ_MOSTLY          = 0x01,
+                    ADVISE_UNSET_READ_MOSTLY        = 0x02,
+                    ADVISE_SET_PREFERRED_LOCATION   = 0x03,
+                    ADVISE_UNSET_PREFERRED_LOCATION = 0x04,
+                    ADVISE_SET_ACCESSED_BY          = 0x05,
+                    ADVISE_UNSET_ACCESSED_BY        = 0x06)
+
+function advise(buf::Buffer, advice::CUmem_advise, bytes=buf.bytesize, device=device(buf.ctx))
+    bytes > buf.bytesize && throw(BoundsError(buf, bytes))
+    @apicall(:cuMemAdvise, (Ptr{Cvoid}, Csize_t, Cuint, CuDevice_t),
+             buf, bytes, advice, device)
 end
 
 function free(buf::Buffer)
