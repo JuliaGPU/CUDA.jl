@@ -104,7 +104,8 @@ function dotest3(X::AbstractArray{T,N},region) where {T <: Real,N}
     @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 end
 
-@testset for (rtype,ctype) in [(Float32,Complex64), (Float64,Complex128)]
+
+@testset "FFT" for (rtype,ctype) in [(Float32,Complex64), (Float64,Complex128)]
 
 @testset "1D FFT" begin
     dims = (N1,)
@@ -230,3 +231,44 @@ end
 end
 
 end # testset FFT
+
+# integer array arguments
+function dotest5(X::AbstractArray{T,N}) where {T <: Complex,N}
+    fftw_X = fft(X)
+    d_X = CuArray(X)
+    p = plan_fft(d_X)
+    d_Y = p * d_X
+    Y = collect(d_Y)
+    @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+    d_Y = fft(d_X)
+    Y = collect(d_Y)
+    @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+end
+
+function dotest5(X::AbstractArray{T,N}) where {T <: Real,N}
+    fftw_X = rfft(X)
+    d_X = CuArray(X)
+    p = plan_rfft(d_X)
+    d_Y = p * d_X
+    Y = collect(d_Y)
+    @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+    d_Y = rfft(d_X)
+    Y = collect(d_Y)
+    @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+end
+
+@testset "Int FFT" for (rtype,ctype) in [(Int32,Complex{Int32}), (Int64,Complex{Int64})]
+
+@testset "1D FFT" begin
+    dims = (N1,)
+    X = rand(ctype, dims)
+    dotest5(X)
+end
+
+@testset "1D real FFT" begin
+    X = rand(rtype, N1)
+    dotest5(X)
+end
+
+
+end # testset int FFT

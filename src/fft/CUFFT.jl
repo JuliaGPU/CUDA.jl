@@ -20,6 +20,8 @@ const cufftSingle = Union{cufftReal,cufftComplex}
 const cufftTypeDouble = Union{Type{cufftDoubleReal},Type{cufftDoubleComplex}}
 const cufftTypeSingle = Union{Type{cufftReal},Type{cufftComplex}}
 
+include("genericfft.jl")
+
 # K is a flag for forward/backward
 # also used as an alias for r2c/c2r
 
