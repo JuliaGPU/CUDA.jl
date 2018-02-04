@@ -15,7 +15,8 @@ realfloat(x::CuArray{T}) where {T<:Real} = copy1(typeof(cufftfloat(zero(T))), x)
 
 function copy1(::Type{T}, x) where T
     y = CuArray{T}(map(length, indices(x)))
-    copy!(y, x)
+    #copy!(y, x)
+    y .= broadcast(xi->convert(T,xi),x)
 end
 
 # promote to a complex floating-point type (out-of-place only),
