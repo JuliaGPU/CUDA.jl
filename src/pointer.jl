@@ -238,5 +238,5 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
 end
 
 @inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}
-    split_pointer_invocation(unsafe_cached_load, p, CachedLoadPointers, args...)
+    recurse_pointer_invocation(unsafe_cached_load, p, CachedLoadPointers, args...)
 end

@@ -195,6 +195,8 @@ end
     call_function(llvm_f, val, Tuple{val, sub}, :( (val, sub) ))
 end
 
+# split the invocation of a function `op` on a value `val` with non-struct eltype
+# into multiple smaller invocations on byte-sized partial values.
 @generated function split_value_invocation(op::Function, val, args...)
     # TODO: control of lower-limit
 
@@ -225,6 +227,8 @@ end
     return ex
 end
 
+# split the invocation of a function `op` on a value `val`
+# by invoking the function on each of its fields
 @generated function recurse_value_invocation(op::Function, val, args...)
     ex = quote
         Base.@_inline_meta
@@ -245,11 +249,10 @@ end
     return ex
 end
 
-# split the invocation of a function `op` on a pointer `ptr` into multiple smaller
-# invocations on any supported pointer as listed in `supported_ptrs`.
+# split the invocation of a function `op` on a pointer `ptr` with non-struct eltype
+# into multiple smaller invocations on any supported pointer as listed in `supported_ptrs`.
 @generated function split_pointer_invocation(op::Function, ptr, ::Type{supported_ptrs},
                                              args...) where {supported_ptrs}
-    # TODO: if there's fields, no need to load the entire value
     T = eltype(ptr)
     elsize(x) = Core.sizeof(eltype(x))
     supported_ptrs = reverse(Base.uniontypes(supported_ptrs))
@@ -289,5 +292,35 @@ end
     end
 
     push!(ex.args, :( out ))
+    return ex
+end
+
+# split the invocation of a function `op` on a pointer `ptr`
+# by invoking the function on a pointer to each of its fields
+@generated function recurse_pointer_invocation(op::Function, ptr, ::Type{supported_ptrs},
+                                               args...) where {supported_ptrs}
+    T = eltype(ptr)
+
+    ex = quote
+        Base.@_inline_meta
+    end
+
+    fields = fieldnames(T)
+    if isempty(fields)
+        push!(ex.args, :( split_pointer_invocation(op, ptr, supported_ptrs, args...) ))
+    else
+        ctor = Expr(:new, T)
+        for (i,field) in enumerate(fields)
+            field_typ = fieldtype(T, i)
+            field_offset = fieldoffset(T, i)
+            field_ptr_typ = :($(ptr.name.wrapper){$field_typ})
+            # NOTE: this ctor is a leap of faith
+            subptr = :(convert($field_ptr_typ, ptr+$field_offset))
+            push!(ctor.args, :(
+                recurse_pointer_invocation(op, $subptr, supported_ptrs, args...) ))
+        end
+        push!(ex.args, ctor)
+    end
+
     return ex
 end
