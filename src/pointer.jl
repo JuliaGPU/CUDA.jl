@@ -98,8 +98,8 @@ Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
 Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
-@generated function Base.unsafe_load(p::DevicePtr{T,A}, i::I=1,
-                                     ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
+@generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
+                                     ::Type{Val{align}}=Val(1)) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -129,11 +129,11 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
         ret!(builder, val)
     end
 
-    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(I)))))
+    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
 end
 
-@generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::I=1,
-                                       ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
+@generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
+                                       ::Type{Val{align}}=Val(1)) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -164,7 +164,7 @@ end
         ret!(builder)
     end
 
-    call_function(llvm_f, Cvoid, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
+    call_function(llvm_f, Cvoid, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(i)))))
 end
 
 ## loading through the texture cache
@@ -172,9 +172,9 @@ end
 # TODO: aren't there more caching options?
 #       https://devtalk.nvidia.com/default/topic/938474/8-0-rc-has-new-global-load-intrinsics-with-explicit-cache-modifiers/
 
-@generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::I=1,
-                                       ::Type{Val{align}}=Val{1}) where
-                                      {align,I<:Integer,T<:Union{Integer,AbstractFloat}}
+@generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1,
+                                       ::Type{Val{align}}=Val(1)) where
+                                      {align,T<:Union{Integer,AbstractFloat}}
     # NOTE: we can't `ccall(..., llvmcall)`, because
     #       1) Julia passes pointer arguments as plain integers
     #       2) we need to addrspacecast the pointer argument
@@ -226,7 +226,7 @@ end
         ret!(builder, val)
     end
 
-    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(I)))))
+    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
 end
 
 @inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}

@@ -14,7 +14,7 @@ Also beware that it is an untyped, and unforgiving `printf` implementation. Type
 to match, eg. printing a 64-bit Julia integer requires the `%ld` formatting string.
 """
 macro cuprintf(fmt::String, args...)
-    fmt_val = Val{Symbol(fmt)}()
+    fmt_val = Val(Symbol(fmt))
     return :(_cuprintf($fmt_val, $(map(esc, args)...)))
 end
 
