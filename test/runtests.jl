@@ -35,6 +35,7 @@ if CUDAnative.configured
         else
             include("codegen_device.jl")
             include("execution.jl")
+            include("pointer_device.jl")
             include("array.jl")
             include("intrinsics.jl")
 
