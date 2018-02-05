@@ -132,16 +132,19 @@ end
 
 # generalization of word-based primitives
 
-## extract a word from a value
-@generated function extract_word(val, ::Val{i}) where {i}
-    T_int32 = LLVM.Int32Type(jlctx[])
+## extract bits from a larger value
+@inline function extract_word(val, ::Val{i}) where {i}
+    extract_value(val, UInt32, Val(32*(i-1)))
+end
+@generated function extract_value(val, ::Type{sub}, ::Val{offset}) where {sub, offset}
+    T_val = convert(LLVMType, val)
+    T_sub = convert(LLVMType, sub)
 
     bytes = Core.sizeof(val)
-    T_val = convert(LLVMType, val)
     T_int = LLVM.IntType(8*bytes, jlctx[])
 
     # create function
-    llvm_f, _ = create_function(T_int32, [T_val])
+    llvm_f, _ = create_function(T_sub, [T_val])
     mod = LLVM.parent(llvm_f)
 
     # generate IR
@@ -150,9 +153,9 @@ end
         position!(builder, entry)
 
         equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
-        shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, 32*(i-1)))
+        shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, offset))
         # extracted = and!(builder, shifted, 2^32-1)
-        extracted = trunc!(builder, shifted, T_int32, "word$i")
+        extracted = trunc!(builder, shifted, T_sub)
 
         ret!(builder, extracted)
     end
@@ -160,19 +163,19 @@ end
     call_function(llvm_f, UInt32, Tuple{val}, :( (val,) ))
 end
 
-## insert a word into a value
-@inline function insert_word(out, word::UInt32, ::Val{i}) where {i}
-    insert_value(out, word, Val(32*(i-1)))
+## insert bits into a larger value
+@inline function insert_word(val, word::UInt32, ::Val{i}) where {i}
+    insert_value(val, word, Val(32*(i-1)))
 end
-@generated function insert_value(out, val, ::Val{offset}) where {offset}
-    T_out = convert(LLVMType, out)
+@generated function insert_value(val, sub, ::Val{offset}) where {offset}
     T_val = convert(LLVMType, val)
+    T_sub = convert(LLVMType, sub)
 
-    bytes = Core.sizeof(out)
+    bytes = Core.sizeof(val)
     T_out_int = LLVM.IntType(8*bytes, jlctx[])
 
     # create function
-    llvm_f, _ = create_function(T_out, [T_out, T_val])
+    llvm_f, _ = create_function(T_val, [T_val, T_sub])
     mod = LLVM.parent(llvm_f)
 
     # generate IR
@@ -184,12 +187,12 @@ end
         ext = zext!(builder, parameters(llvm_f)[2], T_out_int)
         shifted = shl!(builder, ext, LLVM.ConstantInt(T_out_int, offset))
         inserted = or!(builder, equiv, shifted)
-        orig = bitcast!(builder, inserted, T_out)
+        orig = bitcast!(builder, inserted, T_val)
 
         ret!(builder, orig)
     end
 
-    call_function(llvm_f, out, Tuple{out, val}, :( (out, val) ))
+    call_function(llvm_f, val, Tuple{val, sub}, :( (val, sub) ))
 end
 
 @generated function split_value_invocation(op::Function, val, args...)
