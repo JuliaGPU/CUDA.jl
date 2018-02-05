@@ -166,3 +166,69 @@ end
 
     call_function(llvm_f, Cvoid, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
 end
+
+## loading through the texture cache
+
+# TODO: aren't there more caching options?
+#       https://devtalk.nvidia.com/default/topic/938474/8-0-rc-has-new-global-load-intrinsics-with-explicit-cache-modifiers/
+
+@generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::I=1,
+                                       ::Type{Val{align}}=Val{1}) where
+                                      {align,I<:Integer,T<:Union{Integer,AbstractFloat}}
+    # NOTE: we can't `ccall(..., llvmcall)`, because
+    #       1) Julia passes pointer arguments as plain integers
+    #       2) we need to addrspacecast the pointer argument
+
+    eltyp = convert(LLVMType, T)
+
+    T_int = convert(LLVMType, Int)
+    T_int32 = LLVM.IntType(32, jlctx[])
+    T_ptr = convert(LLVMType, Ptr{T})
+
+    T_actual_ptr = LLVM.PointerType(eltyp)
+    T_actual_ptr_as = LLVM.PointerType(eltyp, convert(Int, AS.Global))
+
+    # create a function
+    param_types = [T_ptr, T_int]
+    llvm_f, _ = create_function(eltyp, param_types)
+
+    # create the intrinsic
+    intrinsic_name = let
+        class = if isa(eltyp, LLVM.IntegerType)
+            :i
+        elseif isa(eltyp, LLVM.FloatingPointType)
+            :f
+        else
+            error("Cannot handle $eltyp argument to unsafe_cached_load")
+        end
+        width = sizeof(T)*8
+        typ = Symbol(class, width)
+        "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
+    end
+    mod = LLVM.parent(llvm_f)
+    intrinsic_typ = LLVM.FunctionType(eltyp, [T_actual_ptr_as, T_int32])
+    intrinsic = LLVM.Function(mod, intrinsic_name, intrinsic_typ)
+
+    # generate IR
+    Builder(jlctx[]) do builder
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
+        position!(builder, entry)
+
+        if VERSION >= v"0.7.0-DEV.1704"
+            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+        else
+            ptr = parameters(llvm_f)[1]
+        end
+
+        ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
+        ptr_with_as = addrspacecast!(builder, ptr, T_actual_ptr_as)
+        val = call!(builder, intrinsic, [ptr_with_as, ConstantInt(T_int32, align)])
+        ret!(builder, val)
+    end
+
+    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(I)))))
+end
+
+@inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}
+    recurse_invocation(unsafe_cached_load, p, args...)
+end
