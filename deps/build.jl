@@ -88,13 +88,8 @@ function main()
     ### julia
 
     config[:julia_version] = VERSION
-    if config[:julia_version] == v"0.6.1"
-        warn("Julia 0.6.1 is not supported, please use 0.6.0 or 0.6.1+ (see #124)")
-    end
 
-    config[:julia_llvm_version] = VERSION >= v"0.7.0-DEV.421" ?
-                                    Base.libllvm_version :
-                                    VersionNumber(Base.libllvm_version)
+    config[:julia_llvm_version] = Base.libllvm_version
     if config[:julia_llvm_version] != config[:llvm_version]
         error("LLVM $(config[:llvm_version]) incompatible with Julia's LLVM $(config[:julia_llvm_version])")
     end

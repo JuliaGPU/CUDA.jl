@@ -4,12 +4,7 @@
 
 @testset "method caching" begin
 
-if VERSION >= v"0.7.0-DEV.3630"
-    using InteractiveUtils
-    import InteractiveUtils: _dump_function
-else
-    import Base: _dump_function
-end
+import InteractiveUtils: _dump_function
 
 # #17057 fallout
 @eval @noinline post17057_child(i) = sink(i)

@@ -119,17 +119,15 @@ end
 end
 end
 
-if Base.VERSION >= v"0.6.1"
-    @testset "LLVM D32593" begin
-        @eval struct llvm_D32593_struct
-            foo::Float32
-            bar::Float32
-        end
-
-        @eval llvm_D32593(arr) = arr[1].foo
-
-        CUDAnative.code_llvm(DevNull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
+@testset "LLVM D32593" begin
+    @eval struct llvm_D32593_struct
+        foo::Float32
+        bar::Float32
     end
+
+    @eval llvm_D32593(arr) = arr[1].foo
+
+    CUDAnative.code_llvm(DevNull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
 end
 
 @testset "julia calling convention" begin

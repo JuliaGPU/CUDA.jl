@@ -126,8 +126,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
 
     # link in dependent modules
     for dep in dependencies
-        if !(VERSION >= v"0.7.0-DEV.2513") && !(v"0.6.2" <= VERSION < v"0.7-")
-            # NOTE: see above
+        if VERSION < v"0.7.0-DEV.2513"
             module_setup(dep)
         end
         link!(mod, dep)
