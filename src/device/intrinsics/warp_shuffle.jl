@@ -55,10 +55,10 @@ end
 
 for name in ["_up", "_down", "_xor", ""]
     fname = Symbol("shfl$name")
-    @eval @inline $fname(src, args...) = recurse_invocation($fname, src, args...)
+    @eval @inline $fname(src, args...) = recurse_value_invocation($fname, src, args...)
 
     fname_sync = Symbol("$(fname)_sync")
-    @eval @inline $fname_sync(src, args...) = recurse_invocation($fname, src, args...)
+    @eval @inline $fname_sync(src, args...) = recurse_value_invocation($fname, src, args...)
 end
 
 

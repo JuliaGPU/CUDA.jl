@@ -189,7 +189,7 @@ end
     call_function(llvm_f, val, Tuple{val, UInt32}, :( (val, word) ))
 end
 
-@generated function split_invocation(op::Function, val, args...)
+@generated function split_value_invocation(op::Function, val, args...)
     # TODO: control of lower-limit
 
     ex = quote
@@ -219,22 +219,53 @@ end
     return ex
 end
 
-@generated function recurse_invocation(op::Function, val, args...)
+@generated function recurse_value_invocation(op::Function, val, args...)
     ex = quote
         Base.@_inline_meta
     end
 
     fields = fieldnames(val)
     if isempty(fields)
-        push!(ex.args, :( split_invocation(op, val, args...) ))
+        push!(ex.args, :( split_value_invocation(op, val, args...) ))
     else
         ctor = Expr(:new, val)
         for field in fields
-            push!(ctor.args, :( recurse_invocation(op, getfield(val, $(QuoteNode(field))),
-                                                   args...) ))
+            push!(ctor.args, :(
+                recurse_value_invocation(op, getfield(val, $(QuoteNode(field))), args...) ))
         end
         push!(ex.args, ctor)
     end
 
+    return ex
+end
+
+@generated function split_pointer_invocation(op::Function, ptr, ::Type{supported_ptr},
+                                             args...) where {supported_ptr}
+    # TODO: perform larger supported sub-operations (or does LLVM merge?)
+    # TODO: if there's fields, no need to load the entire value
+    T = eltype(ptr)
+    U = eltype(supported_ptr)
+
+    ex = quote
+        Base.@_inline_meta
+    end
+
+    # perform the operation
+    words = Symbol[]
+    for i in 1:Core.sizeof(T)÷Core.sizeof(U)
+        word = Symbol("word$i")
+        offset = (i-1) * Core.sizeof(U)
+        subptr = :(convert($supported_ptr, ptr+$offset))
+        push!(ex.args, :( $word = op($subptr, args...)) )
+        push!(words, word)
+    end
+
+    # reassemble
+    push!(ex.args, :( out = zero($T) ))
+    for (i,word) in enumerate(words)
+        push!(ex.args, :( out = insert_word(out, $word, Val($i)) ))
+    end
+
+    push!(ex.args, :( out ))
     return ex
 end

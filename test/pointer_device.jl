@@ -2,7 +2,7 @@
 
 @testset "unsafe_load & unsafe_store!" begin
 
-@testset for T in (Int8, UInt16, Int32, UInt32, Int64, UInt64,
+@testset for T in (Int8, UInt16, Int32, UInt32, Int64, UInt64, Int128,
                    Float32,Float64),
              cached in (false, true)
     d_a = Mem.upload(ones(T))
