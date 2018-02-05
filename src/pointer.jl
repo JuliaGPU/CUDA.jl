@@ -99,7 +99,7 @@ Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
 @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
-                                     ::Type{Val{align}}=Val{1}) where {T,A,align}
+                                     ::Val{align}=Val(1)) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -133,7 +133,7 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 end
 
 @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
-                                       ::Type{Val{align}}=Val{1}) where {T,A,align}
+                                       ::Val{align}=Val(1)) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -180,7 +180,7 @@ const UncachedOperands = Union{Int8,  UInt8,
                                Float64}
 
 @generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1,
-                                       ::Type{Val{align}}=Val{1}) where
+                                       ::Val{align}=Val(1)) where
                                       {T<:UncachedOperands,align}
     # NOTE: we can't `ccall(..., llvmcall)`, because
     #       1) Julia passes pointer arguments as plain integers

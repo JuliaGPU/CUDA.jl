@@ -53,7 +53,7 @@ macro cuStaticSharedMem(typ, dims)
     global shmem_id
     id = shmem_id::Int += 1
 
-    return :(generate_static_shmem(Val{$id}, $(esc(typ)), Val{$(esc(dims))}))
+    return :(generate_static_shmem(Val($id), $(esc(typ)), Val($(esc(dims)))))
 end
 
 # types with known corresponding LLVM type
@@ -88,8 +88,7 @@ function emit_static_shmem(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer})
     end
 end
 
-@generated function generate_static_shmem(::Type{Val{ID}}, ::Type{T},
-                                          ::Type{Val{D}}) where {ID,T,D}
+@generated function generate_static_shmem(::Val{ID}, ::Type{T}, ::Val{D}) where {ID,T,D}
     return emit_static_shmem(ID, T, tuple(D...))
 end
 
@@ -116,7 +115,7 @@ macro cuDynamicSharedMem(typ, dims, offset=0)
     global shmem_id
     id = shmem_id::Int += 1
 
-    return :(generate_dynamic_shmem(Val{$id}, $(esc(typ)), $(esc(dims)), $(esc(offset))))
+    return :(generate_dynamic_shmem(Val($id), $(esc(typ)), $(esc(dims)), $(esc(offset))))
 end
 
 # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
@@ -151,8 +150,7 @@ function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol},
     end
 end
 
-@generated function generate_dynamic_shmem(::Type{Val{ID}}, ::Type{T}, dims,
-                                           offset) where {ID,T}
+@generated function generate_dynamic_shmem(::Val{ID}, ::Type{T}, dims, offset) where {ID,T}
     return emit_dynamic_shmem(ID, T, :(dims), :(offset))
 end
 

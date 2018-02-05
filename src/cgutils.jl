@@ -200,7 +200,7 @@ end
     words = Symbol[]
     for i in 1:Core.sizeof(val)÷4
         word = Symbol("word$i")
-        push!(ex.args, :( $word = extract_word(val, Val{$i}()) ))
+        push!(ex.args, :( $word = extract_word(val, Val($i)) ))
         push!(words, word)
     end
 
@@ -212,7 +212,7 @@ end
     # reassemble
     push!(ex.args, :( out = zero(val) ))
     for (i,word) in enumerate(words)
-        push!(ex.args, :( out = insert_word(out, $word, Val{$i}()) ))
+        push!(ex.args, :( out = insert_word(out, $word, Val($i)) ))
     end
 
     push!(ex.args, :( out ))

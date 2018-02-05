@@ -75,13 +75,13 @@ cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global},
 @inline function Base.getindex(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = datatype_align(T)
-    Base.unsafe_load(pointer(A), index, Val{align})::T
+    Base.unsafe_load(pointer(A), index, Val(align))::T
 end
 
 @inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = datatype_align(T)
-    Base.unsafe_store!(pointer(A), x, index, Val{align})
+    Base.unsafe_store!(pointer(A), x, index, Val(align))
 end
 
 Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
