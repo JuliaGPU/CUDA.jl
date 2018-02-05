@@ -99,7 +99,7 @@ Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
 @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
-                                     ::Type{Val{align}}=Val(1)) where {T,A,align}
+                                     ::Type{Val{align}}=Val{1}) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -133,7 +133,7 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 end
 
 @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
-                                       ::Type{Val{align}}=Val(1)) where {T,A,align}
+                                       ::Type{Val{align}}=Val{1}) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -173,7 +173,7 @@ end
 #       https://devtalk.nvidia.com/default/topic/938474/8-0-rc-has-new-global-load-intrinsics-with-explicit-cache-modifiers/
 
 @generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1,
-                                       ::Type{Val{align}}=Val(1)) where
+                                       ::Type{Val{align}}=Val{1}) where
                                       {align,T<:Union{Integer,AbstractFloat}}
     # NOTE: we can't `ccall(..., llvmcall)`, because
     #       1) Julia passes pointer arguments as plain integers
