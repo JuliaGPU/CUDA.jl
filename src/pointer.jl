@@ -169,8 +169,7 @@ end
 
 ## loading through the texture cache
 
-# TODO: aren't there more caching options?
-#       https://devtalk.nvidia.com/default/topic/938474/8-0-rc-has-new-global-load-intrinsics-with-explicit-cache-modifiers/
+# NOTE: CUDA 8.0 supports more caching modifiers, but those aren't supported by LLVM yet
 
 # operand types supported by llvm.nvvm.ldg.global
 const CachedLoadOperands = Union{UInt8, UInt16, UInt32, UInt64,
