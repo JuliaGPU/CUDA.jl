@@ -172,9 +172,16 @@ end
 # TODO: aren't there more caching options?
 #       https://devtalk.nvidia.com/default/topic/938474/8-0-rc-has-new-global-load-intrinsics-with-explicit-cache-modifiers/
 
+const UncachedOperands = Union{Int8,  UInt8,
+                               Int16, UInt16,
+                               Int32, UInt32,
+                               Int64, UInt64,
+                               Float32,
+                               Float64}
+
 @generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1,
                                        ::Type{Val{align}}=Val{1}) where
-                                      {align,T<:Union{Integer,AbstractFloat}}
+                                      {T<:UncachedOperands,align}
     # NOTE: we can't `ccall(..., llvmcall)`, because
     #       1) Julia passes pointer arguments as plain integers
     #       2) we need to addrspacecast the pointer argument
@@ -229,6 +236,7 @@ end
     call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
 end
 
-@inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}
-    recurse_invocation(unsafe_cached_load, p, args...)
-end
+# TODO: extend the recurse/split_invocation infrastructure to work with pointers
+# @inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}
+#     recurse_invocation(unsafe_cached_load, p, args...)
+# end
