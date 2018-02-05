@@ -172,9 +172,14 @@ end
 # TODO: aren't there more caching options?
 #       https://devtalk.nvidia.com/default/topic/938474/8-0-rc-has-new-global-load-intrinsics-with-explicit-cache-modifiers/
 
+# operand types supported by llvm.nvvm.ldg.global
 const CachedLoadOperands = Union{UInt8, UInt16, UInt32, UInt64,
                                  Int8, Int16, Int32, Int64,
                                  Float32, Float64}
+
+# containing DevicePtr types
+const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
+                                 for T in Base.uniontypes(CachedLoadOperands))...}
 
 @generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1,
                                        ::Val{align}=Val(1)) where
@@ -234,5 +239,5 @@ const CachedLoadOperands = Union{UInt8, UInt16, UInt32, UInt64,
 end
 
 @inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}
-    split_pointer_invocation(unsafe_cached_load, p, DevicePtr{UInt32,AS.Global}, args...)
+    split_pointer_invocation(unsafe_cached_load, p, CachedLoadPointers, args...)
 end

@@ -161,15 +161,18 @@ end
 end
 
 ## insert a word into a value
-@generated function insert_word(val, word::UInt32, ::Val{i}) where {i}
-    T_int32 = LLVM.Int32Type(jlctx[])
-
-    bytes = Core.sizeof(val)
+@inline function insert_word(out, word::UInt32, ::Val{i}) where {i}
+    insert_value(out, word, Val(32*(i-1)))
+end
+@generated function insert_value(out, val, ::Val{offset}) where {offset}
+    T_out = convert(LLVMType, out)
     T_val = convert(LLVMType, val)
-    T_int = LLVM.IntType(8*bytes, jlctx[])
+
+    bytes = Core.sizeof(out)
+    T_out_int = LLVM.IntType(8*bytes, jlctx[])
 
     # create function
-    llvm_f, _ = create_function(T_val, [T_val, T_int32])
+    llvm_f, _ = create_function(T_out, [T_out, T_val])
     mod = LLVM.parent(llvm_f)
 
     # generate IR
@@ -177,16 +180,16 @@ end
         entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
-        equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
-        ext = zext!(builder, parameters(llvm_f)[2], T_int)
-        shifted = shl!(builder, ext, LLVM.ConstantInt(T_int, 32*(i-1)))
+        equiv = bitcast!(builder, parameters(llvm_f)[1], T_out_int)
+        ext = zext!(builder, parameters(llvm_f)[2], T_out_int)
+        shifted = shl!(builder, ext, LLVM.ConstantInt(T_out_int, offset))
         inserted = or!(builder, equiv, shifted)
-        orig = bitcast!(builder, inserted, T_val)
+        orig = bitcast!(builder, inserted, T_out)
 
         ret!(builder, orig)
     end
 
-    call_function(llvm_f, val, Tuple{val, UInt32}, :( (val, word) ))
+    call_function(llvm_f, out, Tuple{out, val}, :( (out, val) ))
 end
 
 @generated function split_value_invocation(op::Function, val, args...)
@@ -239,31 +242,47 @@ end
     return ex
 end
 
-@generated function split_pointer_invocation(op::Function, ptr, ::Type{supported_ptr},
-                                             args...) where {supported_ptr}
-    # TODO: perform larger supported sub-operations (or does LLVM merge?)
+# split the invocation of a function `op` on a pointer `ptr` into multiple smaller
+# invocations on any supported pointer as listed in `supported_ptrs`.
+@generated function split_pointer_invocation(op::Function, ptr, ::Type{supported_ptrs},
+                                             args...) where {supported_ptrs}
     # TODO: if there's fields, no need to load the entire value
     T = eltype(ptr)
-    U = eltype(supported_ptr)
+    elsize(x) = Core.sizeof(eltype(x))
+    supported_ptrs = reverse(Base.uniontypes(supported_ptrs))
 
     ex = quote
         Base.@_inline_meta
     end
 
+    # disassemble
+    vals = Tuple{Symbol,Int,Type}[]
+    offset = 0
+    while offset < Core.sizeof(T)
+        val = Symbol("value.$(length(vals)+1)")
+
+        # greedy selection of next pointer type
+        remaining = Core.sizeof(T)-offset
+        valid = filter(ptr->elsize(ptr)<=remaining, supported_ptrs)
+        if isempty(valid)
+            error("Cannot partition $T into values of $supported_typs")
+        end
+        ptr = first(sort(collect(valid); by=elsize, rev=true))
+
+        push!(vals, (val, offset, ptr))
+        offset += elsize(ptr)
+    end
+
     # perform the operation
-    words = Symbol[]
-    for i in 1:Core.sizeof(T)÷Core.sizeof(U)
-        word = Symbol("word$i")
-        offset = (i-1) * Core.sizeof(U)
-        subptr = :(convert($supported_ptr, ptr+$offset))
-        push!(ex.args, :( $word = op($subptr, args...)) )
-        push!(words, word)
+    for (val, offset, ptr) in vals
+        subptr = :(convert($ptr, ptr+$offset))
+        push!(ex.args, :( $val = op($subptr, args...)) )
     end
 
     # reassemble
     push!(ex.args, :( out = zero($T) ))
-    for (i,word) in enumerate(words)
-        push!(ex.args, :( out = insert_word(out, $word, Val($i)) ))
+    for (val, offset, ptr) in vals
+        push!(ex.args, :( out = insert_value(out, $val, Val($offset)) ))
     end
 
     push!(ex.args, :( out ))
