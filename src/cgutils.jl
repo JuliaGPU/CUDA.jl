@@ -128,3 +128,113 @@ Base.@pure function datatype_align(::Type{T}) where {T}
     field = T.layout + sizeof(UInt32)
     unsafe_load(convert(Ptr{UInt16}, field)) & convert(Int16, 2^9-1)
 end
+
+
+# generalization of word-based primitives
+
+## extract a word from a value
+@generated function extract_word(val, ::Val{i}) where {i}
+    T_int32 = LLVM.Int32Type(jlctx[])
+
+    bytes = Core.sizeof(val)
+    T_val = convert(LLVMType, val)
+    T_int = LLVM.IntType(8*bytes, jlctx[])
+
+    # create function
+    llvm_f, _ = create_function(T_int32, [T_val])
+    mod = LLVM.parent(llvm_f)
+
+    # generate IR
+    Builder(jlctx[]) do builder
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
+        position!(builder, entry)
+
+        equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
+        shifted = lshr!(builder, equiv, LLVM.ConstantInt(T_int, 32*(i-1)))
+        # extracted = and!(builder, shifted, 2^32-1)
+        extracted = trunc!(builder, shifted, T_int32, "word$i")
+
+        ret!(builder, extracted)
+    end
+
+    call_function(llvm_f, UInt32, Tuple{val}, :( (val,) ))
+end
+
+## insert a word into a value
+@generated function insert_word(val, word::UInt32, ::Val{i}) where {i}
+    T_int32 = LLVM.Int32Type(jlctx[])
+
+    bytes = Core.sizeof(val)
+    T_val = convert(LLVMType, val)
+    T_int = LLVM.IntType(8*bytes, jlctx[])
+
+    # create function
+    llvm_f, _ = create_function(T_val, [T_val, T_int32])
+    mod = LLVM.parent(llvm_f)
+
+    # generate IR
+    Builder(jlctx[]) do builder
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
+        position!(builder, entry)
+
+        equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
+        ext = zext!(builder, parameters(llvm_f)[2], T_int)
+        shifted = shl!(builder, ext, LLVM.ConstantInt(T_int, 32*(i-1)))
+        inserted = or!(builder, equiv, shifted)
+        orig = bitcast!(builder, inserted, T_val)
+
+        ret!(builder, orig)
+    end
+
+    call_function(llvm_f, val, Tuple{val, UInt32}, :( (val, word) ))
+end
+
+@generated function split_invocation(op::Function, val, args...)
+    # TODO: control of lower-limit
+
+    ex = quote
+        Base.@_inline_meta
+    end
+
+    # disassemble into words
+    words = Symbol[]
+    for i in 1:Core.sizeof(val)÷4
+        word = Symbol("word$i")
+        push!(ex.args, :( $word = extract_word(val, Val{$i}()) ))
+        push!(words, word)
+    end
+
+    # perform the operation
+    for word in words
+        push!(ex.args, :( $word = op($word, args...)) )
+    end
+
+    # reassemble
+    push!(ex.args, :( out = zero(val) ))
+    for (i,word) in enumerate(words)
+        push!(ex.args, :( out = insert_word(out, $word, Val{$i}()) ))
+    end
+
+    push!(ex.args, :( out ))
+    return ex
+end
+
+@generated function recurse_invocation(op::Function, val, args...)
+    ex = quote
+        Base.@_inline_meta
+    end
+
+    fields = fieldnames(val)
+    if isempty(fields)
+        push!(ex.args, :( split_invocation(op, val, args...) ))
+    else
+        ctor = Expr(:new, val)
+        for field in fields
+            push!(ctor.args, :( recurse_invocation(op, getfield(val, $(QuoteNode(field))),
+                                                   args...) ))
+        end
+        push!(ex.args, ctor)
+    end
+
+    return ex
+end
