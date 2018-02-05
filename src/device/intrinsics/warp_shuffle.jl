@@ -141,16 +141,16 @@ end
 
 # aggregates (recurse into fields)
 
-@generated function shuffle_aggregate(op::Function, val::T, args...) where T
+@generated function shuffle_aggregate(op::Function, val, args...)
     ex = quote
         Base.@_inline_meta
     end
 
-    fields = fieldnames(T)
+    fields = fieldnames(val)
     if isempty(fields)
         push!(ex.args, :( shuffle_primitive(op, val, args...) ))
     else
-        ctor = Expr(:new, T)
+        ctor = Expr(:new, val)
         for field in fields
             push!(ctor.args, :( shuffle_aggregate(op, getfield(val, $(QuoteNode(field))),
                                                   args...) ))
