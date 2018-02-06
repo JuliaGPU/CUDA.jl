@@ -38,6 +38,7 @@ using Base.Test, GPUArrays.TestSuite
     TestSuite.run_gpuinterface(CuArray)
     TestSuite.run_base(CuArray)
     TestSuite.run_blas(CuArray)
+    TestSuite.run_fft(CuArray)
     TestSuite.run_construction(CuArray)
     TestSuite.run_linalg(CuArray)
     TestSuite.run_mapreduce(CuArray)
