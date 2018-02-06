@@ -59,7 +59,7 @@ end
 
 @testset "Indexing" begin
   testf(x -> x[1:2, 2], rand(2,3))
-  # testf(x -> x[[2,1], :], rand(2,3))
+  testf(x -> x[[2,1], :], rand(2,3))
 end
 
 @testset "PermuteDims" begin
