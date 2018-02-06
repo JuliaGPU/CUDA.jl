@@ -38,6 +38,7 @@ using Base.Test, GPUArrays.TestSuite
     TestSuite.run_gpuinterface(CuArray)
     TestSuite.run_base(CuArray)
     TestSuite.run_blas(CuArray)
+    TestSuite.run_fft(CuArray)
     TestSuite.run_construction(CuArray)
     TestSuite.run_linalg(CuArray)
     TestSuite.run_mapreduce(CuArray)
@@ -112,6 +113,7 @@ end
 end
 
 include("blas.jl")
+include("fft.jl")
 include("solver.jl")
 if CuArrays.cudnn_available()
   include("nnlib.jl")

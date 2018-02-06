@@ -24,6 +24,7 @@ function main()
 
     config[:libcublas] = CUDAapi.find_cuda_library("cublas", toolkit)
     config[:libcusolver] = CUDAapi.find_cuda_library("cusolver", toolkit)
+    config[:libcufft] = CUDAapi.find_cuda_library("cufft", toolkit)
 
     config[:libcudnn] = CUDAapi.find_cuda_library("cudnn", toolkit)
     if config[:libcudnn] == nothing

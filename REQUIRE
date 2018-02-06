@@ -5,3 +5,4 @@ CUDAapi 0.3
 NNlib
 GPUArrays
 Adapt
+AbstractFFTs

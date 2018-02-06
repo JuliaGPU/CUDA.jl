@@ -32,6 +32,7 @@ Because `CuArray` is an `AbstractArray`, it doesn't have much of a learning curv
 * Reduction over dimensions (`reducedim(+, xs, 3)`, `sum(x -> x^2, xs, 1)` etc)
 * Reduction to scalar (`reduce(*, 1, xs)`, `sum(xs)` etc)
 * Various BLAS operations (matrix\*matrix, matrix\*vector)
+* FFTs, using the AbstractFFTs API
 
 We welcome issues or PRs for functionality not on this list.
 

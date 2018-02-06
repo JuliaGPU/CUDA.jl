@@ -14,6 +14,7 @@ if !configured
     # default (non-functional) values for critical variables,
     # making it possible to _load_ the package at all times.
     const libcublas = nothing
+    const libcufft = nothing
     const libcusolver = nothing
     const libcudnn = nothing
 end
@@ -27,6 +28,7 @@ include("reduction.jl")
 
 include("blas/CUBLAS.jl")
 include("solver/CUSOLVER.jl")
+include("fft/CUFFT.jl")
 include("gpuarray_interface.jl")
 
 cudnn_available() = libcudnn ≠ nothing
