@@ -147,9 +147,12 @@ function transfer end
     alloc(bytes::Integer)
 
 Allocate `bytesize` bytes of memory.
+
+Note that, contrary to the CUDA API, zero-size allocations are permitted. Such allocations
+will point to the null pointer, and are not attached to a valid context.
 """
 function alloc(bytesize::Integer)
-    bytesize == 0 && throw(ArgumentError("invalid amount of memory requested"))
+    bytesize == 0 && return Buffer(C_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     @apicall(:cuMemAlloc, (Ptr{Ptr{Cvoid}}, Csize_t), ptr_ref, bytesize)
@@ -157,7 +160,9 @@ function alloc(bytesize::Integer)
 end
 
 function free(buf::Buffer)
-    @apicall(:cuMemFree, (Ptr{Cvoid},), buf.ptr)
+    if buf.ptr != C_NULL
+        @apicall(:cuMemFree, (Ptr{Cvoid},), buf.ptr)
+    end
     return
 end
 

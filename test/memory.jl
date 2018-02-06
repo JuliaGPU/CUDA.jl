@@ -77,7 +77,10 @@ let
     @test_throws ArgumentError Mem.alloc(Integer, 1)    # abstract
     # TODO: can we test for the third case?
     #       !abstract && leaftype seems to imply UnionAll nowadays...
-    @test_throws ArgumentError Mem.alloc(Int, 0)
+
+    # zero-width allocations should be permitted
+    null = Mem.alloc(Int, 0)
+    Mem.free(null)
 
     # double-free should throw (we rely on it for CuArray finalizer tests)
     x = Mem.alloc(1)
