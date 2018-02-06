@@ -3,7 +3,7 @@ module FFT
 
 using ..CuArrays: libcufft, configured, CuArray
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!,
-    plan_rfft, plan_brfft, plan_inv, normalization,
+    plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft,
     Plan, ScaledPlan
 import Base: show, *, convert, unsafe_convert, size, strides, ndims, A_mul_B!
 import Base.Sys: WORD_SIZE
