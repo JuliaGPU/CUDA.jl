@@ -137,9 +137,10 @@ function complete(link::CuLink)
     @static if CUDAapi.DEBUG
         options = decode(link.optionKeys, link.optionVals)
         if isempty(options[INFO_LOG_BUFFER])
-            @debug("JIT info log is empty")
+            @debug """JIT info log is empty"""
         else
-            @debug("JIT info log: ", CUDAapi.repr_indented(options[INFO_LOG_BUFFER]))
+            @debug """JIT info log:
+                      $(options[INFO_LOG_BUFFER])"""
         end
     end
 

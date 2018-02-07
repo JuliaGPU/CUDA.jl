@@ -44,9 +44,10 @@ mutable struct CuModule
         @static if CUDAapi.DEBUG
             options = decode(optionKeys, optionVals)
             if isempty(options[INFO_LOG_BUFFER])
-                @debug("JIT info log is empty")
+                @debug """JIT info log is empty"""
             else
-                @debug("JIT info log: ", CUDAapi.repr_indented(options[INFO_LOG_BUFFER]; abbrev=false))
+                @debug """JIT info log:
+                          $(options[INFO_LOG_BUFFER])"""
             end
         end
 
