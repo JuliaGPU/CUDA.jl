@@ -1,7 +1,5 @@
 @testset "device arrays" begin
 
-############################################################################################
-
 @testset "constructors" begin
     # inner constructors
     let
@@ -49,10 +47,6 @@
     end
 end
 
-
-
-############################################################################################
-
 @testset "basics" begin     # argument passing, get and setindex, length
     dims = (16, 16)
     len = prod(dims)
@@ -99,8 +93,6 @@ end
     @test sum(input) ≈ output[1]
 end
 
-############################################################################################
-
 @testset "bounds checking" begin
     @eval function array_oob_1d(array)
         return array[1]
@@ -118,10 +110,6 @@ end
     ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2,AS.Global,false},)))
     @test !contains(ir, "trap")
 end
-
-
-
-############################################################################################
 
 @testset "views" begin
     @eval function array_view(array)
@@ -147,9 +135,6 @@ end
     @test array == Array(array_dev)
 end
 
-############################################################################################
-
-
 @testset "bug: non-Int index to unsafe_load" begin
     @eval function array_load_index(a)
         return a[UInt64(1)]
@@ -160,6 +145,23 @@ end
     dp = CUDAnative.DevicePtr(p)
     da = CUDAnative.CuDeviceArray(1, dp)
     array_load_index(da)
+end
+
+@testset "cached access" begin
+    @eval function array_cached_load(a, b, i)
+        b[i] = Cached(a)[i]
+        return nothing
+    end
+
+    buf = IOBuffer()
+
+    a = CuTestArray([0])
+    b = CuTestArray([0])
+    @device_code_ptx io=buf @cuda array_cached_load(a, b, 1)
+    @test Array(a) == Array(b)
+
+    asm = String(buf)
+    @test contains(asm, "ld.global.nc")
 end
 
 end

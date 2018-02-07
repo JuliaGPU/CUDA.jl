@@ -1,7 +1,7 @@
 # Contiguous on-device arrays
 
 export
-    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError
+    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError, Cached
 
 
 ## construction
@@ -36,6 +36,9 @@ end
 
 const CuDeviceVector = CuDeviceArray{T,1,A,C} where {T,A,C}
 const CuDeviceMatrix = CuDeviceArray{T,2,A,C} where {T,A,C}
+
+@inline Cached(::Type{CuDeviceArray{T,N,A,C}}) where {T,N,A,C}          = CuDeviceArray{T,N,A,true}
+@inline Cached(a::T)                           where {T<:CuDeviceArray} = Cached(T)(a.shape, a.ptr)
 
 # outer constructors, non-parameterized
 CuDeviceArray(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
@@ -74,10 +77,16 @@ cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global},
 
 ## indexing
 
-@inline function Base.getindex(A::CuDeviceArray{T}, index::Integer) where {T}
-    @boundscheck checkbounds(A, index)
+@inline function Base.getindex(a::CuDeviceArray{T}, index::Integer) where {T}
+    @boundscheck checkbounds(a, index)
     align = datatype_align(T)
-    Base.unsafe_load(pointer(A), index, Val(align))::T
+    Base.unsafe_load(pointer(a), index, Val(align))::T
+end
+
+@inline function Base.getindex(a::CuDeviceArray{T,N,A,true}, index::Integer) where {T,N,A}
+    @boundscheck checkbounds(a, index)
+    align = datatype_align(T)
+    unsafe_cached_load(pointer(a), index, Val(align))::T
 end
 
 @inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Integer) where {T}
