@@ -51,7 +51,10 @@ function main()
 
     ## discover stuff
 
-    config[:libcuda_path] = find_cuda_library("cuda")
+    # NOTE: on macOS, the driver is part of the toolkit
+    toolkit_dirs = find_toolkit()
+
+    config[:libcuda_path] = find_cuda_library("cuda", toolkit_dirs)
     if config[:libcuda_path] == nothing
         error("Could not find CUDA driver library")
     end
