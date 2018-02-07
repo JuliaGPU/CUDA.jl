@@ -108,14 +108,14 @@ end
 
     # NOTE: these tests verify that bounds checking is _disabled_ (see #4)
 
-    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_1d, (CuDeviceArray{Int,1,AS.Global},)))
+    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_1d, (CuDeviceArray{Int,1,AS.Global,false},)))
     @test !contains(ir, "trap")
 
     @eval function array_oob_2d(array)
         return array[1, 1]
     end
 
-    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2,AS.Global},)))
+    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2,AS.Global,false},)))
     @test !contains(ir, "trap")
 end
 
