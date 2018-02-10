@@ -547,6 +547,18 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwarg
     cuda_mod = CuModule(module_asm, jit_options)
     cuda_fun = CuFunction(cuda_mod, module_entry)
 
+    @debug begin
+        attr = attributes(cuda_fun)
+        bin_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_BINARY_VERSION],10)...)
+        ptx_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_PTX_VERSION],10)...)
+        regs = attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
+        local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
+        shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
+        constant_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_CONST_SIZE_BYTES]
+        """Compiled $func to PTX $ptx_ver for SM $bin_ver using $regs registers.
+           Memory usage: $local_mem B local, $shared_mem B shared, $constant_mem B constant"""
+    end
+
     return cuda_fun, cuda_mod
 end
 
