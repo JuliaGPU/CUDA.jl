@@ -1,7 +1,7 @@
 # Code generation utility functions
 
 # how to map primitive Julia types to LLVM data types
-const llvmtypes = Dict{Type,Symbol}(
+const llvmtypes = IdDict{Type,Symbol}(
     Nothing => :void,
     Int8    => :i8,
     Int16   => :i16,

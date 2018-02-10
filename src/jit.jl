@@ -53,7 +53,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     meth = which(f, tt)
     sig_tt = Tuple{typeof(f), tt.parameters...}
     (ti, env) = ccall(:jl_type_intersection_with_env, Any,
-                      (Any, Any), sig_tt, meth.sig)::SimpleVector
+                      (Any, Any), sig_tt, meth.sig)::Core.SimpleVector
     meth = Base.func_for_method_checked(meth, ti)
     linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
                   (Any, Any, Any, UInt), meth, ti, env, world)
@@ -539,16 +539,25 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwarg
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
-    if CUDAapi.DEBUG || Base.JLOptions().debug_level >= 1
+    if Base.JLOptions().debug_level == 1
         jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
-    end
-    if CUDAapi.DEBUG || Base.JLOptions().debug_level >= 2
-        # TODO: detect cuda-gdb
-        # FIXME: this conflicts with GENERATE_LINE_INFO (see the verbose PTX JIT log)
+    elseif Base.JLOptions().debug_level >= 2
         jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
     end
     cuda_mod = CuModule(module_asm, jit_options)
     cuda_fun = CuFunction(cuda_mod, module_entry)
+
+    @debug begin
+        attr = attributes(cuda_fun)
+        bin_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_BINARY_VERSION],10)...)
+        ptx_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_PTX_VERSION],10)...)
+        regs = attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
+        local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
+        shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
+        constant_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_CONST_SIZE_BYTES]
+        """Compiled $func to PTX $ptx_ver for SM $bin_ver using $regs registers.
+           Memory usage: $local_mem B local, $shared_mem B shared, $constant_mem B constant"""
+    end
 
     return cuda_fun, cuda_mod
 end
