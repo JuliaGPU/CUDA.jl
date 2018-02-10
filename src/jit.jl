@@ -53,7 +53,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     meth = which(f, tt)
     sig_tt = Tuple{typeof(f), tt.parameters...}
     (ti, env) = ccall(:jl_type_intersection_with_env, Any,
-                      (Any, Any), sig_tt, meth.sig)::SimpleVector
+                      (Any, Any), sig_tt, meth.sig)::Core.SimpleVector
     meth = Base.func_for_method_checked(meth, ti)
     linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
                   (Any, Any, Any, UInt), meth, ti, env, world)
