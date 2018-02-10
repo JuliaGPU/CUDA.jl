@@ -539,12 +539,9 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwarg
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
-    if CUDAapi.DEBUG || Base.JLOptions().debug_level >= 1
+    if Base.JLOptions().debug_level == 1
         jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
-    end
-    if CUDAapi.DEBUG || Base.JLOptions().debug_level >= 2
-        # TODO: detect cuda-gdb
-        # FIXME: this conflicts with GENERATE_LINE_INFO (see the verbose PTX JIT log)
+    elseif Base.JLOptions().debug_level >= 2
         jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
     end
     cuda_mod = CuModule(module_asm, jit_options)
