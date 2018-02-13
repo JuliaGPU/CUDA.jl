@@ -1,5 +1,7 @@
 using NNlib
-import NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, pool, pool_grad, softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
+import NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, pool2d, pool2d_grad,
+  conv3d, conv3d_grad_x, conv3d_grad_w, pool3d, pool3d_grad,  
+  softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
 using ..CuArrays: CuVecOrMat
 
 const CUDNNFloat = Union{Float16,Float32,Float64}
