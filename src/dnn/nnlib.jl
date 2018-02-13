@@ -35,7 +35,19 @@ function conv2d(x::CuArray{T,4}, w::CuArray{T,4};
   cudnnConvolutionForward(y, x, w, padding=padding, stride=stride, mode=mode, alpha=alpha)
 end
 
+function conv3d(x::CuArray{T,5}, w::CuArray{T,5};
+                padding=0, stride=1, mode=0, alpha=1) where T<:CUDNNFloat
+  y = similar(x, NNlib.cdims(w, x, padding=padding, stride=stride))
+  cudnnConvolutionForward(y, x, w, padding=padding, stride=stride, mode=mode, alpha=alpha)
+end
+
 function conv2d_grad_w(x::CuArray{T,4}, w::CuArray{T,4}, dy::CuArray{T,4};
+                padding=0, stride=1, mode=0, alpha=1) where T<:CUDNNFloat
+  dw = similar(w)
+  cudnnConvolutionBackwardFilter(dw, x, w, dy, padding=padding, stride=stride, mode=mode, alpha=alpha)
+end
+
+function conv3d_grad_w(x::CuArray{T,5}, w::CuArray{T,5}, dy::CuArray{T,5};
                 padding=0, stride=1, mode=0, alpha=1) where T<:CUDNNFloat
   dw = similar(w)
   cudnnConvolutionBackwardFilter(dw, x, w, dy, padding=padding, stride=stride, mode=mode, alpha=alpha)
@@ -47,12 +59,29 @@ function conv2d_grad_x(x::CuArray{T,4}, w::CuArray{T,4}, dy::CuArray{T,4};
   cudnnConvolutionBackwardData(dx, x, w, dy, padding=padding, stride=stride, mode=mode, alpha=alpha)
 end
 
-function pool(x::CuArray{T,4}; window=2, padding=0, stride=window, mode=0, alpha=1) where T<:CUDNNFloat
+function conv3d_grad_x(x::CuArray{T,5}, w::CuArray{T,5}, dy::CuArray{T,5};
+                padding=0, stride=1, mode=0, alpha=1) where T<:CUDNNFloat
+  dx = similar(x)
+  cudnnConvolutionBackwardData(dx, x, w, dy, padding=padding, stride=stride, mode=mode, alpha=alpha)
+end
+
+function pool2d(x::CuArray{T,4}; window=2, padding=0, stride=window, mode=0, alpha=1) where T<:CUDNNFloat
   y = similar(x, NNlib.pdims(x))
   cudnnPoolingForward(y, x, window=window, padding=padding, stride=stride, mode=mode, alpha=alpha)
 end
 
-function pool_grad(x::CuArray{T,4}, y::CuArray{T,4}, dy::CuArray{T,4};
+function pool3d(x::CuArray{T,5}; window=2, padding=0, stride=window, mode=0, alpha=1) where T<:CUDNNFloat
+  y = similar(x, NNlib.pdims(x))
+  cudnnPoolingForward(y, x, window=window, padding=padding, stride=stride, mode=mode, alpha=alpha)
+end
+
+function pool2d_grad(x::CuArray{T,4}, y::CuArray{T,4}, dy::CuArray{T,4};
+                   window=2, padding=0, stride=window, mode=0, alpha=1) where T<:CUDNNFloat
+  dx = similar(x)
+  cudnnPoolingBackward(dx, dy, x, y, window=window, padding=padding, stride=stride, mode=mode, alpha=alpha)
+end
+
+function pool3d_grad(x::CuArray{T,5}, y::CuArray{T,5}, dy::CuArray{T,5};
                    window=2, padding=0, stride=window, mode=0, alpha=1) where T<:CUDNNFloat
   dx = similar(x)
   cudnnPoolingBackward(dx, dy, x, y, window=window, padding=padding, stride=stride, mode=mode, alpha=alpha)
