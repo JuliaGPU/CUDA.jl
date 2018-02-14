@@ -76,6 +76,11 @@ end
 Base.collect(x::CuArray{T,N}) where {T,N} =
   copy!(Array{T,N}(size(x)), x)
 
+function Base.deepcopy_internal(x::CuArray, dict::ObjectIdDict)
+  haskey(dict, x) && return dict[x]::typeof(x)
+  return dict[x] = copy(x)
+end
+
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 Base.convert(::Type{CuArray{T,N}}, xs::DenseArray{T,N}) where {T,N} =
