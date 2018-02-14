@@ -25,13 +25,10 @@ function alloc(bytes)
   pid = poolidx(bytes)
   pl = pool(pid)
   isempty(pl) || return pop!(pl)
-  gc(false)
-  isempty(pl) || return pop!(pl)
   try
     Mem.alloc(poolsize(pid))
   catch e
     e == CUDAdrv.CuError(2) || rethrow()
-    clearpool()
     gc()
     isempty(pl) || return pop!(pl)
     clearpool()
