@@ -17,17 +17,16 @@ function llvm_support(version)
     haskey(targets(), "nvptx") ||
         error("Your LLVM does not support the NVPTX back-end. Fix this, and rebuild LLVM.jl and CUDAnative.jl")
 
-    target_support = CUDAapi.devices_for_llvm(version)
-    @trace("LLVM target support: ", join(target_support, ", "))
+    target_support = sort(collect(CUDAapi.devices_for_llvm(version)))
 
     ptx_support = CUDAapi.isas_for_llvm(version)
-    @trace("LLVM ISA support: ", join(ptx_support, ", "))
     if VERSION >= v"0.7.0-DEV.1959"
         # JuliaLang/julia#23817 includes a patch with PTX ISA 6.0 support
         push!(ptx_support, v"6.0")
     end
-    @trace("LLVM PTX support: ", join(ptx_support, ", "))
+    ptx_support = sort(collect(ptx_support))
 
+    @trace("LLVM support", targets=target_support, isas=ptx_support)
     return target_support, ptx_support
 end
 
@@ -44,14 +43,13 @@ function cuda_support(driver_version, toolkit_version)
 
     driver_target_support = CUDAapi.devices_for_cuda(driver_version)
     toolkit_target_support = CUDAapi.devices_for_cuda(toolkit_version)
-    target_support = driver_target_support ∩ toolkit_target_support
-    @trace("CUDA target support: ", join(target_support, ", "))
+    target_support = sort(collect(driver_target_support ∩ toolkit_target_support))
 
     driver_ptx_support = CUDAapi.isas_for_cuda(driver_version)
     toolkit_ptx_support = CUDAapi.isas_for_cuda(toolkit_version)
-    ptx_support = driver_ptx_support ∩ toolkit_ptx_support
-    @trace("CUDA PTX support: ", join(ptx_support, ", "))
+    ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
 
+    @trace("CUDA support", targets=target_support, isas=ptx_support)
     return target_support, ptx_support
 end
 
@@ -103,12 +101,12 @@ function main()
     cuda_targets, cuda_isas = cuda_support(config[:cuda_driver_version], config[:cuda_toolkit_version])
 
     config[:target_support] = sort(collect(llvm_targets ∩ cuda_targets))
-    @debug("Supported device targets: $(join(sort(config[:target_support]), ", "))")
     isempty(config[:target_support]) && error("Your toolchain does not support any device target")
 
     config[:ptx_support] = sort(collect(llvm_isas ∩ cuda_isas))
-    @debug("Supported PTX ISAs: $(join(sort(config[:ptx_support]), ", "))")
     isempty(config[:target_support]) && error("Your toolchain does not support any PTX ISA")
+
+    @debug("CUDAnative support", targets=config[:target_support], isas=config[:ptx_support])
 
     # discover other CUDA toolkit artifacts
     config[:libdevice] = find_libdevice(config[:target_support], toolkit_dirs)
