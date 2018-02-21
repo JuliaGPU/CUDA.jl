@@ -84,16 +84,35 @@ end
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 Base.convert(::Type{CuArray{T,N}}, xs::Array{T,N}) where {T,N} =
-    copy!(CuArray{T,N}(size(xs)), xs)
+  copy!(CuArray{T,N}(size(xs)), xs)
 
 Base.convert(::Type{CuArray{T}}, xs::Array{T,N}) where {T,N} =
-    copy!(CuArray{T}(size(xs)), xs)
+  copy!(CuArray{T}(size(xs)), xs)
 
 Base.convert(::Type{CuArray}, xs::Array{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
 
-Base.convert(T::Type{<:CuArray}, xs::Array) =
-  convert(T, convert(AbstractArray{eltype(T)}, xs))
+# Generic methods
+
+Base.convert(::Type{CuArray{T,N}}, xs::AbstractArray{T,N}) where {T,N} =
+  isbits(xs) ?
+    (CuArray{T,N}(size(xs)) .= xs) :
+    convert(CuArray{T,N}, collect(xs))
+
+Base.convert(::Type{CuArray{T,N}}, xs::AbstractArray{S,N}) where {S,T,N} =
+  convert(CuArray{T,N}, (x -> T(x)).(xs))
+
+Base.convert(::Type{CuArray{T}}, xs::AbstractArray) where T =
+  convert(CuArray{T,ndims(xs)},xs)
+
+Base.convert(::Type{CuArray}, xs::AbstractArray) = convert(CuArray{eltype(xs)}, xs)
+
+# Work around GPUArrays ambiguity
+Base.convert(AT::Type{CuArray{T1,N}}, A::DenseArray{T2, N}) where {T1, T2, N} =
+  invoke(convert, Tuple{Type{CuArray{T1,N}},AbstractArray{T2,N}}, AT, A)
+
+Base.convert(AT::Type{CuArray{T1}}, A::DenseArray{T2, N}) where {T1, T2, N} =
+  invoke(convert, Tuple{Type{CuArray{T1}},AbstractArray{T2,N}}, AT, A)
 
 # Interop with CUDAnative device array
 
