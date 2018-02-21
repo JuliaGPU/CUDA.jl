@@ -15,6 +15,8 @@ end
 using CuArrays
 using Base.Test
 
+srand(1)
+
 import CUDAdrv
 ## pick the most recent device
 global dev = nothing
