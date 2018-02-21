@@ -55,13 +55,13 @@ end
 
 # Interop with CPU array
 
-function Base.copy!(dst::CuArray{T}, src::DenseArray{T}) where T
+function Base.copy!(dst::CuArray{T}, src::Array{T}) where T
     @assert length(dst) == length(src)
     Mem.upload!(unsafe_buffer(dst), src)
     return dst
 end
 
-function Base.copy!(dst::DenseArray{T}, src::CuArray{T}) where T
+function Base.copy!(dst::Array{T}, src::CuArray{T}) where T
     @assert length(dst) == length(src)
     Mem.download!(dst, unsafe_buffer(src))
     return dst
@@ -83,16 +83,16 @@ end
 
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
-Base.convert(::Type{CuArray{T,N}}, xs::DenseArray{T,N}) where {T,N} =
+Base.convert(::Type{CuArray{T,N}}, xs::Array{T,N}) where {T,N} =
     copy!(CuArray{T,N}(size(xs)), xs)
 
-Base.convert(::Type{CuArray{T}}, xs::DenseArray{T,N}) where {T,N} =
+Base.convert(::Type{CuArray{T}}, xs::Array{T,N}) where {T,N} =
     copy!(CuArray{T}(size(xs)), xs)
 
-Base.convert(::Type{CuArray}, xs::DenseArray{T,N}) where {T,N} =
+Base.convert(::Type{CuArray}, xs::Array{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
 
-Base.convert(T::Type{<:CuArray}, xs::DenseArray) =
+Base.convert(T::Type{<:CuArray}, xs::Array) =
   convert(T, convert(AbstractArray{eltype(T)}, xs))
 
 # Interop with CUDAnative device array
