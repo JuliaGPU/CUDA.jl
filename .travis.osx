@@ -1,11 +1,11 @@
-#!/bin/bash -ex
+#!/bin/bash -uxe
 
 brew update
 
 # upgrade Bash to version 4, for associative array support
 if [[ ${BASH_VERSINFO[$1]} < 4 ]]; then
     brew install bash
-    /usr/local/bin/bash -ex $0
+    /usr/local/bin/bash -uxe $0
     exit $?
 fi
 
@@ -14,15 +14,13 @@ installers["7.5"]="http://developer.download.nvidia.com/compute/cuda/7.5/Prod/lo
 installers["8.0"]="https://developer.nvidia.com/compute/cuda/8.0/Prod2/local_installers/cuda_8.0.61_mac-dmg"
 
 installer=${installers[$CUDA]}
-if [[ -n "$installer" ]]; then
-    brew install llvm --with-clang
+wget -O cuda.dmg "$installer"
 
-    wget -O cuda.dmg "$installer"
+brew install p7zip
+7z x cuda.dmg
 
-    brew install p7zip
-    7z x cuda.dmg
+brew install gnu-tar
+sudo gtar -x --skip-old-files -f CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/Resources/payload/cuda_mac_installer_tk.tar.gz -C /
+rm -rf CUDAMacOSXInstaller
 
-    brew install gnu-tar
-    sudo gtar -x --skip-old-files -f CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/Resources/payload/cuda_mac_installer_tk.tar.gz -C /
-    rm -rf CUDAMacOSXInstaller
-fi
+brew install llvm --with-clang
