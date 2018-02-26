@@ -30,7 +30,7 @@ info("Testing using device $(CUDAdrv.name(dev))")
 CuArrays.allowscalar(false)
 
 function testf(f, xs...)
-  @test collect(f(cu.(xs)...)) ≈ collect(f(xs...))
+  collect(f(cu.(xs)...)) ≈ collect(f(xs...))
 end
 
 using Base.Test, GPUArrays.TestSuite
@@ -56,43 +56,43 @@ end
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
-  testf(vec, rand(5,3))
+  @test testf(vec, rand(5,3))
 end
 
 @testset "Indexing" begin
-  testf(x -> x[1:2, 2], rand(2,3))
-  testf(x -> x[[2,1], :], rand(2,3))
+  @test testf(x -> x[1:2, 2], rand(2,3))
+  @test testf(x -> x[[2,1], :], rand(2,3))
 end
 
 @testset "PermuteDims" begin
-  testf(x -> permutedims(x, (2, 1)), rand(2, 3))
-  testf(x -> permutedims(x, (2, 1, 3)), rand(4, 5, 6))
-  testf(x -> permutedims(x, (3, 1, 2)), rand(4, 5, 6))
+  @test testf(x -> permutedims(x, (2, 1)), rand(2, 3))
+  @test testf(x -> permutedims(x, (2, 1, 3)), rand(4, 5, 6))
+  @test testf(x -> permutedims(x, (3, 1, 2)), rand(4, 5, 6))
 end
 
 @testset "Concat" begin
-  testf(vcat, ones(5), zeros(5))
-  testf(hcat, rand(3, 3), rand(3, 3))
-  testf(vcat, rand(3, 3), rand(3, 3))
+  @test testf(vcat, ones(5), zeros(5))
+  @test testf(hcat, rand(3, 3), rand(3, 3))
+  @test testf(vcat, rand(3, 3), rand(3, 3))
 end
 
 @testset "Broadcast" begin
-  testf((x)       -> fill!(x, 1),  rand(3,3))
-  testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
-  #testf((x)       -> sin.(x),      rand(2, 3))
-  testf((x)       -> 2x,      rand(2, 3))
-  testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
-  testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
+  @test testf((x)       -> fill!(x, 1),  rand(3,3))
+  @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
+  #@test testf((x)       -> sin.(x),      rand(2, 3))
+  @test testf((x)       -> 2x,      rand(2, 3))
+  @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
+  @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
 end
 
 @testset "Reduce" begin
-  testf(x -> sum(x, 1), rand(2, 3))
-  testf(x -> sum(x, 2), rand(2, 3))
-  testf(x -> sum(x -> x^2, x, 1), rand(2, 3))
-  testf(x -> prod(x, 2), rand(2, 3))
+  @test testf(x -> sum(x, 1), rand(2, 3))
+  @test testf(x -> sum(x, 2), rand(2, 3))
+  @test testf(x -> sum(x -> x^2, x, 1), rand(2, 3))
+  @test testf(x -> prod(x, 2), rand(2, 3))
 
-  testf(x -> sum(x), rand(2, 3))
-  testf(x -> prod(x), rand(2, 3))
+  @test testf(x -> sum(x), rand(2, 3))
+  @test testf(x -> prod(x), rand(2, 3))
 end
 
 @testset "0D" begin
@@ -114,9 +114,9 @@ end
   @test collect(cu(eye(5))*y) == collect(y)
 end
 
-include("blas.jl")
-include("fft.jl")
-include("solver.jl")
+# include("blas.jl")
+# include("fft.jl")
+# include("solver.jl")
 if CuArrays.cudnn_available()
   include("nnlib.jl")
 end

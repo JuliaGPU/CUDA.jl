@@ -18,17 +18,17 @@ k = 13
   CuArrays.BLAS.blascopy!(m,A,1,B,1)
   @test collect(A) == collect(B)
 
-  testf(scale!, rand(T, 6, 9, 3), rand())
-  testf(dot, rand(T, m), rand(T, m))
-  testf(At_mul_B, rand(T, m), rand(T, m))
-  testf(Ac_mul_B, rand(T, m), rand(T, m))
-  testf(norm, rand(T, m))
-  testf(BLAS.asum, rand(T, m))
-  testf(BLAS.axpy!, rand(), rand(T, m), rand(T, m))
+  @test testf(scale!, rand(T, 6, 9, 3), rand())
+  @test testf(dot, rand(T, m), rand(T, m))
+  @test testf(At_mul_B, rand(T, m), rand(T, m))
+  @test testf(Ac_mul_B, rand(T, m), rand(T, m))
+  @test testf(norm, rand(T, m))
+  @test testf(BLAS.asum, rand(T, m))
+  @test testf(BLAS.axpy!, rand(), rand(T, m), rand(T, m))
 
   if T <: Real
-    testf(indmin, rand(T, m))
-    testf(indmax, rand(T, m))
+    @test testf(indmin, rand(T, m))
+    @test testf(indmax, rand(T, m))
   end
 end
 
@@ -38,9 +38,9 @@ end # level 1 testset
 
 @testset for T in [Float32, Float64, Complex64, Complex128]
   # gemv
-  testf(*, rand(T, m, n), rand(T, n))
-  testf(At_mul_B, rand(T, m, n), rand(T, m))
-  testf(Ac_mul_B, rand(T, m, n), rand(T, m))
+  @test testf(*, rand(T, m, n), rand(T, n))
+  @test testf(At_mul_B, rand(T, m, n), rand(T, m))
+  @test testf(Ac_mul_B, rand(T, m, n), rand(T, m))
 end
 
 @testset "gbmv!" begin
