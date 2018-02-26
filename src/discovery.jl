@@ -437,7 +437,7 @@ function find_host_compiler(toolkit_version=nothing)
     elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: discovery of all compilers, and version matching against the toolkit
-        clang_path = find_binary("clang")
+        clang_path = find_binary(["clang"])
         if clang_path == nothing
             error("Could not find clang")
         end
