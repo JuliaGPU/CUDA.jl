@@ -2,6 +2,8 @@ using NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, maxpool2d, avgpool2d, pool2d,
   conv3d, conv3d_grad_x, conv3d_grad_w, maxpool3d, avgpool3d, pool3d, pool3d_grad,
   softmax, ∇softmax, logsoftmax, ∇logsoftmax
 
+info("Testing CuArrays/CUDNN")
+
 @testset "NNlib" begin
   testf(conv2d, rand(100, 100, 3, 1), rand(2, 2, 3, 4))
   testf(conv2d_grad_x, rand(100, 100, 3, 1), rand(2, 2, 3, 4), rand(99, 99, 4, 1))
