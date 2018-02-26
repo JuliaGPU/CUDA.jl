@@ -1,25 +1,28 @@
-using NNlib: conv2d, conv2d_grad_x, conv2d_grad_w, maxpool2d, avgpool2d, pool2d, pool2d_grad,
-  conv3d, conv3d_grad_x, conv3d_grad_w, maxpool3d, avgpool3d, pool3d, pool3d_grad,
+using NNlib: conv, ∇conv_data, ∇conv_filter,
+  maxpool, meanpool, ∇maxpool, ∇meanpool,
   softmax, ∇softmax, logsoftmax, ∇logsoftmax
 
 info("Testing CuArrays/CUDNN")
 
+
 @testset "NNlib" begin
-  testf(conv2d, rand(100, 100, 3, 1), rand(2, 2, 3, 4))
-  testf(conv2d_grad_x, rand(100, 100, 3, 1), rand(2, 2, 3, 4), rand(99, 99, 4, 1))
-  testf(conv2d_grad_w, rand(100, 100, 3, 1), rand(2, 2, 3, 4), rand(99, 99, 4, 1))
+  testf(conv, rand(10, 10, 3, 1), rand(2, 2, 3, 4))
+  testf(∇conv_data, rand(9, 9, 4, 1), rand(10, 10, 3, 1), rand(2, 2, 3, 4))
+  testf(∇conv_filter, rand(9, 9, 4, 1), rand(10, 10, 3, 1), rand(2, 2, 3, 4))
 
-  testf(conv3d, rand(100, 100, 100, 3, 1), rand(2, 2, 2, 3, 4))
-  testf(conv3d_grad_x, rand(100, 100, 100, 3, 1), rand(2, 2, 2, 3, 4), rand(99, 99, 99, 4, 1))
-  testf(conv3d_grad_w, rand(100, 100, 100, 3, 1), rand(2, 2, 2, 3, 4), rand(99, 99, 99, 4, 1))
+  testf(conv, rand(10, 10, 10, 3, 1), rand(2, 2, 2, 3, 4))
+  testf(∇conv_data, rand(9, 9, 9, 4, 1), rand(10, 10, 10, 3, 1), rand(2, 2, 2, 3, 4))
+  testf(∇conv_filter, rand(9, 9, 9, 4, 1), rand(10, 10, 10, 3, 1), rand(2, 2, 2, 3, 4))
 
-  testf(x -> maxpool2d(x, 2), rand(100, 100, 3, 1))
-  testf(x -> avgpool2d(x, 2), rand(100, 100, 3, 1))
-  testf((x, dy) -> pool2d_grad(x, pool2d(x), dy), rand(100, 100, 3, 1), rand(50, 50, 3, 1))
+  testf(x -> maxpool(x, (2,2)), rand(10, 10, 3, 1))
+  testf(x -> meanpool(x, (2,2)), rand(10, 10, 3, 1))
+  testf((x, dy) -> ∇maxpool(dy, maxpool(x, (2,2)), x, (2,2)), rand(10, 10, 3, 1), rand(5, 5, 3, 1))
+  testf((x, dy) -> ∇meanpool(dy, meanpool(x, (2,2)), x, (2,2)), rand(10, 10, 3, 1), rand(5, 5, 3, 1))
 
-  testf(x -> maxpool3d(x, 2), rand(100, 100, 100, 3, 1))
-  testf(x -> avgpool3d(x, 2), rand(100, 100, 100, 3, 1))
-  testf((x, dy) -> pool3d_grad(x, pool3d(x), dy), rand(100, 100, 100, 3, 1), rand(50, 50, 50, 3, 1))
+  testf(x -> maxpool(x, (2,2,2)), rand(10, 10, 10, 3, 1))
+  testf(x -> meanpool(x, (2,2,2)), rand(10, 10, 10, 3, 1))
+  testf((x, dy) -> ∇maxpool(dy, maxpool(x, (2,2,2)), x, (2,2,2)), rand(10, 10, 10, 3, 1), rand(5, 5, 5, 3, 1))
+  testf((x, dy) -> ∇meanpool(dy, meanpool(x, (2,2,2)), x, (2,2,2)), rand(10, 10, 10, 3, 1), rand(5, 5, 5, 3, 1))
 
   for dims in [(5,5), (5,)]
     testf(softmax, rand(dims))
