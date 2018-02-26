@@ -152,6 +152,8 @@ adapt_(::Type{<:CuArray}, xs::AbstractArray) =
 adapt_(::Type{<:CuArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
   isbits(xs) ? xs : convert(CuArray{T}, xs)
 
+adapt_(::Type{<:Array}, xs::CuArray) = collect(xs)
+
 cu(xs) = adapt(CuArray{Float32}, xs)
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
