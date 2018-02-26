@@ -22,5 +22,3 @@ brew install p7zip
 brew install gnu-tar
 sudo gtar -x --skip-old-files -f CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/Resources/payload/cuda_mac_installer_tk.tar.gz -C /
 rm -rf CUDAMacOSXInstaller
-
-# brew install llvm --with-clang
