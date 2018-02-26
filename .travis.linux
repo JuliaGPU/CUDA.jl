@@ -1,0 +1,17 @@
+#!/bin/bash -ex
+
+declare -A installers
+installers["6.5"]="http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_6.5-19_amd64.deb"
+installers["7.0"]="http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_7.0-28_amd64.deb"
+installers["7.5"]="http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_7.5-18_amd64.deb"
+installers["8.0"]="http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_8.0.61-1_amd64.deb"
+
+installer=${installers[$CUDA]}
+if [[ -n "$installer" ]]; then
+    wget -O cuda.deb "$installer"
+    sudo dpkg -i cuda.deb
+
+    sudo apt-get update
+    suffix=${CUDA/./-}
+    sudo apt-get install -y cuda-drivers cuda-core-$suffix cuda-cudart-dev-$suffix cuda-cufft-dev-$suffix
+fi
