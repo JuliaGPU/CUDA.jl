@@ -45,6 +45,6 @@ matrix:
       dist: trusty
       julia: nightly
 
-before_install:
+install:
   - if [[ $TRAVIS_OS_NAME == "linux" ]]; then ./.travis.linux; fi
   - if [[ $TRAVIS_OS_NAME == "osx" ]];   then ./.travis.osx;   fi
