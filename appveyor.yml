@@ -23,7 +23,7 @@ environment:
       CUDA: 8.0
 
 install:
-  - .\appveyor.ps1
+  - powershell .\appveyor.ps1
 
 build_script:
   # convert from shallow to complete for Pkg.clone to work

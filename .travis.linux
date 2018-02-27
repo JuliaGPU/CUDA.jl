@@ -8,7 +8,9 @@ installers["8.0"]="http://developer.download.nvidia.com/compute/cuda/repos/ubunt
 
 installer=${installers[$CUDA]}
 wget -O cuda.deb "$installer"
+
 sudo dpkg -i cuda.deb
+rm cuda.deb
 
 sudo apt-get update
 suffix=${CUDA/./-}

@@ -20,6 +20,7 @@ wget -O cuda.dmg "$installer"
 
 brew install p7zip
 7z x cuda.dmg
+rm cuda.dmg
 
 brew install gnu-tar
 sudo gtar -x --skip-old-files -f CUDAMacOSXInstaller/CUDAMacOSXInstaller.app/Contents/Resources/payload/cuda_mac_installer_tk.tar.gz -C /
