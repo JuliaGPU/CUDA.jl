@@ -12,7 +12,6 @@ $julia_installer = $julia_installers.Get_Item($env:JULIA)
 Invoke-WebRequest $julia_installer -OutFile julia.exe
 
 .\julia.exe /S /D=C:\julia
-Remove-Item julia.exe
 
 
 # CUDA
@@ -25,4 +24,3 @@ $cuda_installer = $cuda_installers.Get_Item($env:CUDA)
 Invoke-WebRequest $cuda_installer -OutFile cuda.exe
 
 .\cuda.exe -s "compiler_$env:CUDA" "cudart_$env:CUDA"
-Remove-Item cuda.exe

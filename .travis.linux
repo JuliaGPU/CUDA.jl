@@ -10,7 +10,6 @@ installer=${installers[$CUDA]}
 wget -O cuda.deb "$installer"
 
 sudo dpkg -i cuda.deb
-rm cuda.deb
 
 sudo apt-get update
 suffix=${CUDA/./-}
