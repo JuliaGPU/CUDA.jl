@@ -1,4 +1,5 @@
 Set-PSDebug -Trace 1
+$ErrorActionPreference = "Stop"
 
 
 # Julia
@@ -10,7 +11,7 @@ $julia_installers.Add('nightly', 'https://julialangnightlies-s3.julialang.org/bi
 $julia_installer = $julia_installers.Get_Item($env:JULIA)
 Invoke-WebRequest $julia_installer -OutFile julia.exe
 
-julia.exe /S /D=C:\julia
+.\julia.exe /S /D=C:\julia
 Remove-Item julia.exe
 
 
@@ -23,5 +24,5 @@ $cuda_installers.Add('9.0', 'https://developer.nvidia.com/compute/cuda/9.0/prod/
 $cuda_installer = $cuda_installers.Get_Item($env:CUDA)
 Invoke-WebRequest $cuda_installer -OutFile cuda.exe
 
-cuda.exe -s "compiler_$env:CUDA" "cudart_$env:CUDA"
+.\cuda.exe -s "compiler_$env:CUDA" "cudart_$env:CUDA"
 Remove-Item cuda.exe
