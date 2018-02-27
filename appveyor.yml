@@ -18,8 +18,8 @@ environment:
       CUDA: 8.0
     - JULIA: 0.6
       CUDA: 9.0
-    - JULIA: 0.6
-      CUDA: 9.1
+    #- JULIA: 0.6
+    #  CUDA: 9.1
     # nightly
     - JULIA: nightly
       CUDA: 8.0
