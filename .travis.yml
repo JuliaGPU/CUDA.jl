@@ -1,34 +1,50 @@
 language: julia
 
 sudo: required
-dist: trusty
 
 notifications:
   email: false
 
-os:
-- linux
-
-julia:
-  - 0.6
-  - nightly
+julia: 0.6
 
 env:
   global:
     - DEBUG=true
-  matrix:
-    - CUDA_VERSION=6.5
-      CUDA_BUILD=6.5-19
-    - CUDA_VERSION=7.0
-      CUDA_BUILD=7.0-28
-    - CUDA_VERSION=7.5
-      CUDA_BUILD=7.5-18
-    - CUDA_VERSION=8.0
-      CUDA_BUILD=8.0.61-1
 
-before_install:
-  - wget "http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1404/x86_64/cuda-repo-ubuntu1404_${CUDA_BUILD}_amd64.deb";
-    sudo dpkg -i cuda-repo-ubuntu1404_${CUDA_BUILD}_amd64.deb;
-    sudo apt-get update;
-    export CUDA_NAME=${CUDA_VERSION/./-};
-    sudo apt-get install -y cuda-drivers cuda-core-${CUDA_NAME} cuda-cudart-dev-${CUDA_NAME} cuda-cufft-dev-${CUDA_NAME};
+matrix:
+  include:
+    # linux builds
+    - env: CUDA=6.5
+      os: linux
+      dist: trusty
+    - env: CUDA=7.0
+      os: linux
+      dist: trusty
+    - env: CUDA=7.5
+      os: linux
+      dist: trusty
+    - env: CUDA=8.0
+      os: linux
+      dist: trusty
+    # osx builds
+    - env: CUDA=7.5
+      os: osx
+      osx_image: xcode7.3
+    - env: CUDA=8.0
+      os: osx
+      osx_image: xcode7.3
+    - env: CUDA=9.0
+      os: osx
+      osx_image: xcode7.3
+    - env: CUDA=9.1
+      os: osx
+      osx_image: xcode7.3
+    # julia nightly
+    - env: CUDA=8.0
+      os: linux
+      dist: trusty
+      julia: nightly
+
+install:
+  - if [[ $TRAVIS_OS_NAME == "linux" ]]; then ./.travis.linux; fi
+  - if [[ $TRAVIS_OS_NAME == "osx" ]];   then ./.travis.osx;   fi

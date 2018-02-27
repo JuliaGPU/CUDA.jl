@@ -286,12 +286,14 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
     if length(dirs) > 1
         warn("Found multiple libdevice locations: ", join(dirs, ", ", " and "))
     end
+    @debug("Looking $(source_str(dirs)) for libdevice")
 
     # select
     if isempty(dirs)
         return nothing
     end
     dir = first(dirs)
+    @debug("Found libdevice at $dir")
 
     # parse filenames
     libraries = Dict{VersionNumber,String}()
@@ -435,7 +437,7 @@ function find_host_compiler(toolkit_version=nothing)
     elseif Compat.Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: discovery of all compilers, and version matching against the toolkit
-        clang_path = find_binary("clang")
+        clang_path = find_binary(["clang"])
         if clang_path == nothing
             error("Could not find clang")
         end
