@@ -13,26 +13,17 @@ environment:
   global:
     DEBUG: true
   matrix:
-    - JULIA_URL: "https://julialang-s3.julialang.org/bin/winnt/x64/0.6/julia-0.6-latest-win64.exe"
-      CUDA_VERSION: 8.0
-      CUDA_BUILD: 8.0.44
-    - JULIA_URL: "https://julialangnightlies-s3.julialang.org/bin/winnt/x64/julia-latest-win64.exe"
-      CUDA_VERSION: 8.0
-      CUDA_BUILD: 8.0.44
-    - JULIA_URL: "https://julialang-s3.julialang.org/bin/winnt/x64/0.6/julia-0.6-latest-win64.exe"
-      CUDA_VERSION: 9.0
-      CUDA_BUILD: 9.0.176
-    - JULIA_URL: "https://julialangnightlies-s3.julialang.org/bin/winnt/x64/julia-latest-win64.exe"
-      CUDA_VERSION: 9.0
-      CUDA_BUILD: 9.0.176
+    # CUDA versions
+    - JULIA: 0.6
+      CUDA: 8.0
+    - JULIA: 0.6
+      CUDA: 9.0
+    # nightly
+    - JULIA: nightly
+      CUDA: 8.0
 
 install:
-  # Julia
-  - appveyor DownloadFile %JULIA_URL% -FileName julia-installer.exe
-  - julia-installer.exe /S /D=C:\julia
-  # CUDA
-  - appveyor DownloadFile https://developer.nvidia.com/compute/cuda/%CUDA_VERSION%/prod/local_installers/cuda_%CUDA_BUILD%_windows-exe -FileName cuda_%CUDA_BUILD%_windows.exe
-  - cuda_%CUDA_BUILD%_windows.exe -s compiler_%CUDA_VERSION% cudart_%CUDA_VERSION%
+  - .\appveyor.ps1
 
 build_script:
   # convert from shallow to complete for Pkg.clone to work
