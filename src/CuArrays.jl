@@ -24,7 +24,6 @@ include("array.jl")
 include("utils.jl")
 include("indexing.jl")
 include("broadcast.jl")
-include("reduction.jl")
 
 include("blas/CUBLAS.jl")
 include("solver/CUSOLVER.jl")
