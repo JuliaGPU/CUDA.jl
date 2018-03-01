@@ -13,6 +13,7 @@ if Base.JLOptions().check_bounds == 1
 end
 
 using CuArrays
+using CuArrays: @fix
 using Base.Test
 
 srand(1)
@@ -83,6 +84,11 @@ end
   @test testf((x)       -> 2x,      rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
+end
+
+@testset "Broadcast Fix" begin
+  @test testf(x -> @fix(log.(x)), rand(3,3))
+  @test testf((x,xs) -> @fix(log.(x.+xs)), 1, rand(3,3))
 end
 
 @testset "Reduce" begin

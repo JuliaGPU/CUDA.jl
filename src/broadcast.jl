@@ -67,3 +67,32 @@ end
 
 Base.Broadcast._containertype(::Type{<:RowVector{<:Any,<:CuArray}}) = CuArray
 cudaconvert(x::RowVector{<:Any,<:CuArray}) = RowVector(cudaconvert(x.vec))
+
+# Broadcast function fixes
+
+import NNlib: @fix, _cufunc
+
+_cufunc(f,x::CuArray,xs...) = cufunc(f)
+
+cufunc(x) = x
+
+libdevice = :[
+  cos, cospi, sin, sinpi, tan, acos, asin, atan, atan2,
+  cosh, sinh, tanh, acosh, asinh, atanh,
+  log, log10, log1p, log2, logb, ilogb,
+  exp, exp2, exp10, expm1, ldexp,
+  erf, erfinv, erfc, erfcinv, erfcx,
+  brev, clz, ffs, byte_perm, popc,
+  isfinite, isinf, isnan, nearbyint,
+  nextafter, signbit, copysign, abs,
+  sqrt, rsqrt, cbrt, rcbrt, pow,
+  ceil, floor, min, max, saturate,
+  lgamma, tgamma,
+  j0, j1, jn, y0, y1, yn,
+  normcdf, normcdfinv, hypot,
+  fma, sad, dim, mul24, mul64hi, hadd, rhadd, scalbn].args
+
+for f in libdevice
+  isdefined(Base, f) || continue
+  @eval cufunc(::typeof(Base.$f)) = CUDAnative.$f
+end
