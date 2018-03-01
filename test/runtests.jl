@@ -86,9 +86,17 @@ end
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
 end
 
+using ForwardDiff: Dual
+using NNlib
+
 @testset "Broadcast Fix" begin
   @test testf(x -> @fix(log.(x)), rand(3,3))
   @test testf((x,xs) -> @fix(log.(x.+xs)), 1, rand(3,3))
+  @test testf(x -> @fix(logσ.(x)), rand(5))
+
+  f(x) = @fix logσ.(x)
+  ds = Dual.(rand(5),1)
+  @test f(ds) ≈ collect(f(CuArray(ds)))
 end
 
 @testset "Reduce" begin

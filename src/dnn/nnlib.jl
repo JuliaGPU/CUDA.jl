@@ -2,7 +2,33 @@ using NNlib
 import NNlib: conv!, ∇conv_filter!, ∇conv_data!,
   maxpool!, meanpool!, ∇maxpool!, ∇meanpool!,
   softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
-using ..CuArrays: CuVecOrMat
+import ..CuArrays: CuVecOrMat, @cufunc, cufunc
+using CUDAnative
+
+# Activation functions
+@cufunc σ(x) = ifelse(x < -80, zero(x), one(x) / (one(x) + exp(-x)))
+
+@cufunc function logσ(x)
+  max_v = max(zero(x), -x)
+  z = exp(-max_v) + exp(-x-max_v)
+  -(max_v + log(z))
+end
+
+@cufunc elu(x, α = one(x)) =
+  ifelse(x ≥ 0, x/1, α * (exp(x) - one(x)))
+
+# TODO: make @cufunc recognise its own definitions
+cufunc(::typeof(swish)) = x -> x * cufunc(σ)(x)
+
+@cufunc function selu(x)
+  λ = oftype(x/1, 1.0507009873554804934193349852946)
+  α = oftype(x/1, 1.6732632423543772848170429916717)
+  λ * ifelse(x > 0, x/1, α * (exp(x) - 1))
+end
+
+@cufunc softplus(x) = log1p(exp(x))
+
+# Softmax
 
 const CUDNNFloat = Union{Float16,Float32,Float64}
 
@@ -30,6 +56,8 @@ function ∇logsoftmax!(out::CuVecOrMat{T}, Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}
 end
 
 ∇logsoftmax(Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat = ∇logsoftmax!(similar(xs), Δ, xs)
+
+# Convolution
 
 function conv!(y::A, x::A, w::A;
                pad=0, stride=1, mode=0, alpha=1) where A<:CuArray{<:CUDNNFloat}

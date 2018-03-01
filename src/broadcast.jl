@@ -86,7 +86,7 @@ libdevice = :[
   isfinite, isinf, isnan, nearbyint,
   nextafter, signbit, copysign, abs,
   sqrt, rsqrt, cbrt, rcbrt, pow,
-  ceil, floor, min, max, saturate,
+  ceil, floor, saturate,
   lgamma, tgamma,
   j0, j1, jn, y0, y1, yn,
   normcdf, normcdfinv, hypot,
@@ -104,6 +104,17 @@ using MacroTools
 function replace_device(ex)
   MacroTools.postwalk(ex) do x
     x in libdevice ? :(CUDAnative.$x) : x
+  end
+end
+
+macro cufunc(ex)
+  def = MacroTools.splitdef(ex)
+  f = def[:name]
+  def[:name] = Symbol(:cu, f)
+  def[:body] = replace_device(def[:body])
+  quote
+    $(esc(MacroTools.combinedef(def)))
+    CuArrays.cufunc(::typeof($(esc(f)))) = $(esc(def[:name]))
   end
 end
 
