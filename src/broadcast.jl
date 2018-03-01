@@ -96,3 +96,25 @@ for f in libdevice
   isdefined(Base, f) || continue
   @eval cufunc(::typeof(Base.$f)) = CUDAnative.$f
 end
+
+# ForwardDiff Integration
+
+using MacroTools
+
+function replace_device(ex)
+  MacroTools.postwalk(ex) do x
+    x in libdevice ? :(CUDAnative.$x) : x
+  end
+end
+
+using ForwardDiff: Dual, value, partials, unary_dual_definition
+using DiffRules
+
+for f in libdevice
+  if haskey(DiffRules.DEFINED_DIFFRULES, (:Base,f,1))
+    diffrule = DiffRules.DEFINED_DIFFRULES[(:Base,f,1)]
+    DiffRules.DEFINED_DIFFRULES[(:CUDAnative,f,1)] =
+      (args...) -> replace_device(diffrule(args...))
+    eval(unary_dual_definition(:CUDAnative, f))
+  end
+end

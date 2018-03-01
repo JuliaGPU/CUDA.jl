@@ -6,3 +6,5 @@ NNlib
 GPUArrays
 Adapt
 AbstractFFTs
+MacroTools
+ForwardDiff
