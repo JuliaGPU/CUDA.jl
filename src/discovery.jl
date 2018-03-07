@@ -286,38 +286,35 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
     # filter
     dirs = valid_dirs(dirs)
     @debug("Looking $(source_str(dirs)) for libdevice")
-    isempty(dirs) && return nothing
 
-    # select
-    dir = first(dirs)
-    @debug("Found libdevice at $dir")
+    for dir in dirs
+        # parse filenames
+        libraries = Dict{VersionNumber,String}()
+        for target in targets
+            path = joinpath(dir, "libdevice.compute_$(target.major)$(target.minor).10.bc")
+            if isfile(path)
+                libraries[target] = path
+            end
+        end
+        library = nothing
+        let path = joinpath(dir, "libdevice.10.bc")
+            if isfile(path)
+                library = path
+            end
+        end
 
-    # parse filenames
-    libraries = Dict{VersionNumber,String}()
-    for target in targets
-        path = joinpath(dir, "libdevice.compute_$(target.major)$(target.minor).10.bc")
-        if isfile(path)
-            libraries[target] = path
+        # select
+        if library != nothing
+            @debug("Found unified libdevice at $library")
+            return library
+        elseif !isempty(libraries)
+            @debug("Found libdevice for ", join(sort(map(ver->"sm_$(ver.major)$(ver.minor)",
+                                                keys(libraries))), ", ", " and "), " at $dir")
+            return libraries
         end
     end
-    library = nothing
-    let path = joinpath(dir, "libdevice.10.bc")
-        if isfile(path)
-            library = path
-        end
-    end
 
-    # select
-    if library != nothing
-        @debug("Found unified libdevice at $library")
-        return library
-    elseif !isempty(libraries)
-        @debug("Found libdevice for ", join(sort(map(ver->"sm_$(ver.major)$(ver.minor)",
-                                            keys(libraries))), ", ", " and "), " at $dir")
-        return libraries
-    else
-        return nothing
-    end
+    return nothing
 end
 
 function find_host_compiler(toolkit_version=nothing)
