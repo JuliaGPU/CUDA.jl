@@ -238,6 +238,7 @@ function find_toolkit()
         end
         append!(dirs, basedirs)
         push!(dirs, "/usr/lib/nvidia-cuda-toolkit")
+        push!(dirs, "/usr/share/cuda")
     end
 
     # filter
@@ -277,21 +278,17 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
     # figure out locations
     dirs = String[]
     for toolkit_dir in toolkit_dirs
+        push!(dirs, toolkit_dir)
         push!(dirs, joinpath(toolkit_dir, "libdevice"))
         push!(dirs, joinpath(toolkit_dir, "nvvm", "libdevice"))
     end
 
     # filter
     dirs = valid_dirs(dirs)
-    if length(dirs) > 1
-        warn("Found multiple libdevice locations: ", join(dirs, ", ", " and "))
-    end
     @debug("Looking $(source_str(dirs)) for libdevice")
+    isempty(dirs) && return nothing
 
     # select
-    if isempty(dirs)
-        return nothing
-    end
     dir = first(dirs)
     @debug("Found libdevice at $dir")
 
@@ -319,7 +316,7 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
                                             keys(libraries))), ", ", " and "), " at $dir")
         return libraries
     else
-        error("No suitable libdevice found")
+        return nothing
     end
 end
 
