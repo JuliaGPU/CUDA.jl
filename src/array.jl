@@ -69,7 +69,7 @@ end
 
 function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
     @assert length(dst) == length(src)
-    Mem.transfer!(unsafe_buffer(dst), unsafe_buffer(src))
+    Mem.transfer!(unsafe_buffer(dst), unsafe_buffer(src), sizeof(src))
     return dst
 end
 
