@@ -329,7 +329,7 @@ function find_host_compiler(toolkit_version=nothing)
 
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
-        gcc_names = [ "gcc" ]
+        gcc_names = [ "gcc", "cuda-gcc" ]
         for major in 3:7
             push!(gcc_names, "gcc-$major")
             for minor in 0:9
