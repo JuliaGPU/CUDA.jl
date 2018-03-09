@@ -238,6 +238,7 @@ function find_toolkit()
         end
         append!(dirs, basedirs)
         push!(dirs, "/usr/lib/nvidia-cuda-toolkit")
+        push!(dirs, "/usr/share/cuda")
     end
 
     # filter
@@ -277,50 +278,43 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
     # figure out locations
     dirs = String[]
     for toolkit_dir in toolkit_dirs
+        push!(dirs, toolkit_dir)
         push!(dirs, joinpath(toolkit_dir, "libdevice"))
         push!(dirs, joinpath(toolkit_dir, "nvvm", "libdevice"))
     end
 
     # filter
     dirs = valid_dirs(dirs)
-    if length(dirs) > 1
-        warn("Found multiple libdevice locations: ", join(dirs, ", ", " and "))
-    end
     @debug("Looking $(source_str(dirs)) for libdevice")
 
-    # select
-    if isempty(dirs)
-        return nothing
-    end
-    dir = first(dirs)
-    @debug("Found libdevice at $dir")
+    for dir in dirs
+        # parse filenames
+        libraries = Dict{VersionNumber,String}()
+        for target in targets
+            path = joinpath(dir, "libdevice.compute_$(target.major)$(target.minor).10.bc")
+            if isfile(path)
+                libraries[target] = path
+            end
+        end
+        library = nothing
+        let path = joinpath(dir, "libdevice.10.bc")
+            if isfile(path)
+                library = path
+            end
+        end
 
-    # parse filenames
-    libraries = Dict{VersionNumber,String}()
-    for target in targets
-        path = joinpath(dir, "libdevice.compute_$(target.major)$(target.minor).10.bc")
-        if isfile(path)
-            libraries[target] = path
+        # select
+        if library != nothing
+            @debug("Found unified libdevice at $library")
+            return library
+        elseif !isempty(libraries)
+            @debug("Found libdevice for ", join(sort(map(ver->"sm_$(ver.major)$(ver.minor)",
+                                                keys(libraries))), ", ", " and "), " at $dir")
+            return libraries
         end
     end
-    library = nothing
-    let path = joinpath(dir, "libdevice.10.bc")
-        if isfile(path)
-            library = path
-        end
-    end
 
-    # select
-    if library != nothing
-        @debug("Found unified libdevice at $library")
-        return library
-    elseif !isempty(libraries)
-        @debug("Found libdevice for ", join(sort(map(ver->"sm_$(ver.major)$(ver.minor)",
-                                            keys(libraries))), ", ", " and "), " at $dir")
-        return libraries
-    else
-        error("No suitable libdevice found")
-    end
+    return nothing
 end
 
 function find_host_compiler(toolkit_version=nothing)
