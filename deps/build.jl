@@ -49,7 +49,11 @@ function cuda_support(driver_version, toolkit_version)
     toolkit_ptx_support = CUDAapi.isas_for_cuda(toolkit_version)
     ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
 
-    @trace("CUDA support", targets=target_support, isas=ptx_support)
+    @trace("CUDA driver support", version=driver_version,
+           targets=driver_target_support, isas=driver_ptx_support)
+    @trace("CUDA toolkit support", version=toolkit_version,
+           targets=toolkit_target_support, isas=toolkit_ptx_support)
+
     return target_support, ptx_support
 end
 
