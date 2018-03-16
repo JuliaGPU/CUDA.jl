@@ -133,9 +133,6 @@ end
 @testset "julia calling convention" begin
     @eval codegen_specsig_va(Is...) = nothing
     @test_throws ArgumentError CUDAnative.code_llvm(devnull, codegen_specsig_va, Tuple{})
-
-    @eval codegen_specsig_nonleaf(x) = nothing
-    @test_throws ArgumentError CUDAnative.code_llvm(devnull, codegen_specsig_nonleaf, Tuple{Real})
 end
 
 end

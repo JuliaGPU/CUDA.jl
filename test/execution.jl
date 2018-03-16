@@ -292,6 +292,18 @@ end
     @test Mem.download(Int, buf) == [2]
 end
 
+
+@testset "non-isbits arguments" begin
+    @eval exec_pass_nonbits_unused(T, i) = (sink(i); return)
+    @cuda exec_pass_nonbits_unused(Int, 1)
+
+    @eval exec_pass_nonbits_specialized(T, i) = (sink(unsafe_trunc(T,i)); return)
+    @cuda exec_pass_nonbits_specialized(Int, 1.)
+
+    @eval exec_pass_nonbits_used(i) = (sink(unsafe_trunc(Int,i)); return)
+    @test_throws ArgumentError @cuda exec_pass_nonbits_used(big"1")
+end
+
 end
 
 ############################################################################################

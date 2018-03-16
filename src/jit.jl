@@ -206,10 +206,13 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     # filter out ghost types, which don't occur in the LLVM function signatures
     julia_types = filter(dt->!isghosttype(dt), tt.parameters)
 
-    # generate the wrapper function type & def
+    # generate the wrapper function type & definition
     global globalUnique
     function wrapper_type(julia_t, codegen_t)
-        if isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
+        if !julia_t.isbitstype
+            # don't pass jl_value_t by value; it's an opaque structure
+            return codegen_t
+        elseif isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
             # we didn't specify a pointer, but codegen passes one anyway.
             # make the wrapper accept the underlying value instead.
             return eltype(codegen_t)
@@ -475,6 +478,20 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
     # optimize the IR (otherwise the IR isn't necessarily compatible)
     optimize!(mod, entry, cap)
 
+    # make sure any non-isbits arguments are unused
+    real_arg_i = 0
+    for (arg_i,dt) in enumerate(tt.parameters)
+        isghosttype(dt) && continue
+        real_arg_i += 1
+
+        if !dt.isbitstype
+            param = parameters(entry)[real_arg_i]
+            if !isempty(uses(param))
+                throw(ArgumentError("Passing and using non-bitstype argument $arg_i of type $dt"))
+            end
+        end
+    end
+
     # validate generated IR
     errors = validate_ir(mod)
     if !isempty(errors)
@@ -502,9 +519,8 @@ function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=f
     length(ms)!=1 && throw(ArgumentError("no unique matching method for $sig"))
     m = first(ms)
 
-    # emulate some of the specsig logic from codegen.cppto detect non-native CC functions
+    # emulate some of the specsig logic from codegen.cpp to detect non-native CC functions
     # TODO: also do this for device functions (#87)
-    isconcretetype(tt) || throw(ArgumentError("invalid call to device function $sig: passing abstract arguments"))
     m.isva && throw(ArgumentError("invalid device function $sig: is a varargs function"))
 
     # kernels can't return values
