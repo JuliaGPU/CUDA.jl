@@ -127,7 +127,7 @@ end
 
     @eval llvm_D32593(arr) = arr[1].foo
 
-    CUDAnative.code_llvm(DevNull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global,false}})
+    CUDAnative.code_llvm(DevNull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
 end
 
 @testset "julia calling convention" begin

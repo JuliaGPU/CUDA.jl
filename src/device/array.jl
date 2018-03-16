@@ -1,7 +1,7 @@
 # Contiguous on-device arrays
 
 export
-    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError, Cached
+    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError
 
 
 ## construction
@@ -11,38 +11,33 @@ export
     CuDeviceArray{T}(dims, ptr)
     CuDeviceArray{T,A}(dims, ptr)
     CuDeviceArray{T,A,N}(dims, ptr)
-    CuDeviceArray{T,A,N,C}(dims, ptr)
 
 Construct an `N`-dimensional dense CUDA device array with element type `T` wrapping a
 pointer, where `N` is determined from the length of `dims` and `T` is determined from the
 type of `ptr`. `dims` may be a single scalar, or a tuple of integers corresponding to the
 lengths in each dimension). If the rank `N` is supplied explicitly as in `Array{T,N}(dims)`,
 then it must match the length of `dims`. The same applies to the element type `T`, which
-should match the type of the pointer `ptr`. The `C` param indicates whether accesses should
-be cached, defaulting to false.
+should match the type of the pointer `ptr`.
 """
 CuDeviceArray
 
 # NOTE: we can't support the typical `tuple or series of integer` style construction,
 #       because we're currently requiring a trailing pointer argument.
 
-struct CuDeviceArray{T,N,A,C} <: AbstractArray{T,N}
+struct CuDeviceArray{T,N,A} <: AbstractArray{T,N}
     shape::NTuple{N,Int}
     ptr::DevicePtr{T,A}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    CuDeviceArray{T,N,A,C}(shape::NTuple{N,Int}, ptr::DevicePtr{T,A}) where {T,A,N,C} = new(shape,ptr)
+    CuDeviceArray{T,N,A}(shape::NTuple{N,Int}, ptr::DevicePtr{T,A}) where {T,A,N} = new(shape,ptr)
 end
 
-const CuDeviceVector = CuDeviceArray{T,1,A,C} where {T,A,C}
-const CuDeviceMatrix = CuDeviceArray{T,2,A,C} where {T,A,C}
-
-@inline Cached(::Type{CuDeviceArray{T,N,A,C}}) where {T,N,A,C}          = CuDeviceArray{T,N,A,true}
-@inline Cached(a::T)                           where {T<:CuDeviceArray} = Cached(T)(a.shape, a.ptr)
+const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
+const CuDeviceMatrix = CuDeviceArray{T,2,A} where {T,A}
 
 # outer constructors, non-parameterized
-CuDeviceArray(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-CuDeviceArray(len::Integer,              p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
+CuDeviceArray(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A})                where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
+CuDeviceArray(len::Integer,              p::DevicePtr{T,A})                where {T,A}   = CuDeviceVector{T,A}((len,), p)
 
 # outer constructors, partially parameterized
 CuDeviceArray{T}(dims::NTuple{N,<:Integer},   p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
@@ -51,8 +46,8 @@ CuDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} =
 CuDeviceVector{T}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
 
 # outer constructors, fully parameterized
-CuDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A,false}(Int.(dims), p)
-CuDeviceVector{T,A}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A,false}((Int(len),), p)
+CuDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(Int.(dims), p)
+CuDeviceVector{T,A}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((Int(len),), p)
 
 
 ## getters
@@ -77,16 +72,10 @@ cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global},
 
 ## indexing
 
-@inline function Base.getindex(a::CuDeviceArray{T}, index::Integer) where {T}
-    @boundscheck checkbounds(a, index)
+@inline function Base.getindex(A::CuDeviceArray{T}, index::Integer) where {T}
+    @boundscheck checkbounds(A, index)
     align = datatype_align(T)
-    Base.unsafe_load(pointer(a), index, Val(align))::T
-end
-
-@inline function Base.getindex(a::CuDeviceArray{T,N,A,true}, index::Integer) where {T,N,A}
-    @boundscheck checkbounds(a, index)
-    align = datatype_align(T)
-    unsafe_cached_load(pointer(a), index, Val(align))::T
+    Base.unsafe_load(pointer(A), index, Val(align))::T
 end
 
 @inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Integer) where {T}
