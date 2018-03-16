@@ -92,6 +92,10 @@ See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    cap::VersionNumber=current_capability(), kwargs...)
+    if ptxas === nothing || cuobjdump === nothing
+        error("Your CUDA installation does not provide ptxas or cuobjdump, both of which are required for code_sass")
+    end
+
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=true)
 

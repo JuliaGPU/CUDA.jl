@@ -127,12 +127,12 @@ function main()
     @debug("CUDAnative support", targets=config[:target_support], isas=config[:ptx_support])
 
     # discover other CUDA toolkit artifacts
+    ## required
     config[:libdevice] = find_libdevice(config[:target_support], toolkit_dirs)
     config[:libdevice] == nothing && error("Available CUDA toolchain does not provide libdevice")
+    ## optional
     config[:cuobjdump] = find_cuda_binary("cuobjdump", toolkit_dirs)
-    config[:cuobjdump] == nothing && error("Available CUDA toolchain does not provide cuobjdump")
     config[:ptxas] = find_cuda_binary("ptxas", toolkit_dirs)
-    config[:ptxas] == nothing && error("Available CUDA toolchain does not provide ptxas")
 
     config[:configured] = true
 
