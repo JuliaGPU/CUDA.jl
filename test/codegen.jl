@@ -197,6 +197,8 @@ end
 end
 end
 
+@testset "IR validation" begin
+@info "The next couple of warnings are expected"
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
     @test_throws ErrorException CUDAnative.code_ptx(codegen_ref_nonexisting, Tuple{})
@@ -206,7 +208,7 @@ end
     @eval codegen_call_nonexisting() = nonexisting()
     @test_throws ErrorException CUDAnative.code_ptx(codegen_call_nonexisting, Tuple{})
 end
-
+end
 
 @testset "idempotency" begin
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
