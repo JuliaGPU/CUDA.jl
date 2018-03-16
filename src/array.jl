@@ -228,5 +228,5 @@ end
 
     Transfer a device array `src` to host, returning an `Array`.
     """
-    Base.Array(src::CuArray{T,N}) where {T,N} = $copyfun(Array{T,N}(uninitialized, size(src)), src)
+    Base.Array(src::CuArray{T,N}) where {T,N} = $copyfun(Array{T,N}(undef, size(src)), src)
 end

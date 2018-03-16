@@ -83,7 +83,7 @@ let
 
         copy!(gpu, cpu)
 
-        cpu_back = Array{Float32}(uninitialized, 10)
+        cpu_back = Array{Float32}(undef, 10)
         copy!(cpu_back, gpu)
         @assert cpu == cpu_back
     end
@@ -107,7 +107,7 @@ let
 
         copy!(gpu, cpuv1)
         
-        cpu_back = Array{Float32}(uninitialized, 10, 10, 3)
+        cpu_back = Array{Float32}(undef, 10, 10, 3)
         copy!(cpu_back, gpu)
         @assert cpuv1 == cpu_back
 

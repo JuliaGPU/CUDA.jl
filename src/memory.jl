@@ -326,7 +326,7 @@ Download `count` objects of type `T` from the device at `src`, returning a vecto
 """
 function download(::Type{T}, src::Buffer, count::Integer=1,
                   stream::CuStream=CuDefaultStream(); async::Bool=false) where {T}
-    dst = Vector{T}(uninitialized, count)
+    dst = Vector{T}(undef, count)
     download!(dst, src, stream; async=async)
     return dst
 end
