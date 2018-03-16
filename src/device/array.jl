@@ -1,7 +1,7 @@
 # Contiguous on-device arrays
 
 export
-    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError
+    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError, ldg
 
 
 ## construction
@@ -82,6 +82,24 @@ end
     @boundscheck checkbounds(A, index)
     align = datatype_align(T)
     Base.unsafe_store!(pointer(A), x, index, Val(align))
+end
+
+"""
+    ldg(A, i)
+
+Index the array `A` with the linear index `i`, but loads the value through the read-only
+texture cache for improved cache behavior. You should make sure the array `A`, or any
+aliased instance, is not written to for the duration of the current kernel.
+
+This function can only be used on devices with compute capability 3.5 or higher.
+
+See also: [`Base.getindex`](@ref)
+"""
+@inline function ldg(A::CuDeviceArray{T}, index::Integer) where {T}
+    # FIXME: this only works on sm_35+, but we can't verify that for now
+    @boundscheck checkbounds(A, index)
+    align = datatype_align(T)
+    unsafe_cached_load(pointer(A), index, Val(align))::T
 end
 
 Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
