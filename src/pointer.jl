@@ -98,8 +98,8 @@ Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
 Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
-@generated function Base.unsafe_load(p::DevicePtr{T,A}, i::I=1,
-                                     ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
+@generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
+                                     ::Val{align}=Val(1)) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -129,11 +129,11 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
         ret!(builder, val)
     end
 
-    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(I)))))
+    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
 end
 
-@generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::I=1,
-                                       ::Type{Val{align}}=Val{1}) where {T,A,align,I<:Integer}
+@generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
+                                       ::Val{align}=Val(1)) where {T,A,align}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -164,5 +164,79 @@ end
         ret!(builder)
     end
 
-    call_function(llvm_f, Cvoid, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(I)))))
+    call_function(llvm_f, Cvoid, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(i)))))
+end
+
+## loading through the texture cache
+
+# NOTE: CUDA 8.0 supports more caching modifiers, but those aren't supported by LLVM yet
+
+# operand types supported by llvm.nvvm.ldg.global
+const CachedLoadOperands = Union{UInt8, UInt16, UInt32, UInt64,
+                                 Int8, Int16, Int32, Int64,
+                                 Float32, Float64}
+
+# containing DevicePtr types
+const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
+                                 for T in Base.uniontypes(CachedLoadOperands))...}
+
+@generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1,
+                                       ::Val{align}=Val(1)) where
+                                      {T<:CachedLoadOperands,align}
+    # NOTE: we can't `ccall(..., llvmcall)`, because
+    #       1) Julia passes pointer arguments as plain integers
+    #       2) we need to addrspacecast the pointer argument
+
+    eltyp = convert(LLVMType, T)
+
+    T_int = convert(LLVMType, Int)
+    T_int32 = LLVM.IntType(32, jlctx[])
+    T_ptr = convert(LLVMType, Ptr{T})
+
+    T_actual_ptr = LLVM.PointerType(eltyp)
+    T_actual_ptr_as = LLVM.PointerType(eltyp, convert(Int, AS.Global))
+
+    # create a function
+    param_types = [T_ptr, T_int]
+    llvm_f, _ = create_function(eltyp, param_types)
+
+    # create the intrinsic
+    intrinsic_name = let
+        class = if isa(eltyp, LLVM.IntegerType)
+            :i
+        elseif isa(eltyp, LLVM.FloatingPointType)
+            :f
+        else
+            error("Cannot handle $eltyp argument to unsafe_cached_load")
+        end
+        width = sizeof(T)*8
+        typ = Symbol(class, width)
+        "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
+    end
+    mod = LLVM.parent(llvm_f)
+    intrinsic_typ = LLVM.FunctionType(eltyp, [T_actual_ptr_as, T_int32])
+    intrinsic = LLVM.Function(mod, intrinsic_name, intrinsic_typ)
+
+    # generate IR
+    Builder(jlctx[]) do builder
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
+        position!(builder, entry)
+
+        if VERSION >= v"0.7.0-DEV.1704"
+            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+        else
+            ptr = parameters(llvm_f)[1]
+        end
+
+        ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
+        ptr_with_as = addrspacecast!(builder, ptr, T_actual_ptr_as)
+        val = call!(builder, intrinsic, [ptr_with_as, ConstantInt(T_int32, align)])
+        ret!(builder, val)
+    end
+
+    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
+end
+
+@inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}
+    recurse_pointer_invocation(unsafe_cached_load, p, CachedLoadPointers, args...)
 end

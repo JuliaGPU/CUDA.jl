@@ -6,4 +6,5 @@ plain, dense fashion. This is the device-counterpart to CUDAdrv's `CuArray`, and
 
 ```@docs
 CUDAnative.CuDeviceArray
+CUDAnative.ldg
 ```

@@ -12,12 +12,11 @@
 * Use LLVM's linker with `InternalizeLinkedSymbols` when linking libdevice
   (simplifies code in jit.jl)
 
-* Pass 'Val{T}()' instead of 'Val{T}', easier on the compiler
-
 
 ## CUDA support/interfacing
 
 * ReadOnlyArray --> `getindex` does `__ldg`
+
 
 
 # Ideas
