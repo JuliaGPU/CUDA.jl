@@ -33,7 +33,7 @@ function validate_ir!(errors::Vector{>:InvalidIRError}, inst::LLVM.CallInst)
     dest_f = called_value(inst)
     dest_fn = LLVM.name(dest_f)
 
-    runtime = Libdl.dlopen("lib" * Base.julia_exename())
+    runtime = Libdl.dlopen("lib" * replace(Base.julia_exename(), ".exe", ""))
     if isa(dest_f, GlobalValue)
         if isdeclaration(dest_f) && intrinsic_id(dest_f) == 0 && !(dest_fn in special_fns)
             if Libdl.dlsym_e(runtime, dest_fn) != C_NULL
