@@ -21,8 +21,10 @@ macro grab_output(ex)
 end
 
 # Run some code on-device, returning captured standard output
+counter = 0
 macro on_device(ex)
-    @gensym kernel_fn
+    global counter
+    kernel_fn = Symbol("#kernel_$(counter+=1)#")
     esc(quote
         let
             @eval function $kernel_fn()
