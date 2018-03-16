@@ -5,7 +5,7 @@ include("reduce.jl")
 ctx = CuCurrentContext()
 dev = device(ctx)
 if capability(dev) < v"3.0"
-    warn("this example requires a newer GPU")
+    @warn("this example requires a newer GPU")
     exit(0)
 end
 

@@ -23,7 +23,7 @@ for example in examples
         @testset $id begin
             file = $example
             cmd = julia_cmd(`$file`)
-            @test success(pipeline(cmd, stderr=STDERR))
+            @test success(pipeline(cmd, stderr=stderr))
         end
     end
 end

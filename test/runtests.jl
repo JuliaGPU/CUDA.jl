@@ -14,7 +14,7 @@ include("pointer.jl")
 if LLVM.configured
     include("codegen.jl")
 else
-    warn("LLVM.jl has not been configured; skipping CUDAnative codegen tests.")
+    @warn("LLVM.jl has not been configured; skipping CUDAnative codegen tests.")
 end
 
 if CUDAnative.configured
@@ -27,11 +27,11 @@ if CUDAnative.configured
                 dev = newdev
             end
         end
-        info("Testing using device $(name(dev))")
+        @info("Testing using device $(name(dev))")
         global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
 
         if capability(dev) < v"2.0"
-            warn("native execution not supported on SM < 2.0")
+            @warn("native execution not supported on SM < 2.0")
         else
             include("codegen_device.jl")
             include("execution.jl")
@@ -43,12 +43,12 @@ if CUDAnative.configured
             if "Documenter" in keys(Pkg.installed())
                 include("documentation.jl")
             else
-                warn("Documenter.jl not installed, skipping CUDAnative documentation tests.")
+                @warn("Documenter.jl not installed, skipping CUDAnative documentation tests.")
             end
         end
     end
 else
-    warn("CUDAnative.jl has not been configured; skipping CUDAnative execution tests.")
+    @warn("CUDAnative.jl has not been configured; skipping CUDAnative execution tests.")
 end
 
 end

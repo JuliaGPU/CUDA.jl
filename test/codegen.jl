@@ -14,8 +14,8 @@
     @test contains(ir, "define void @julia_llvm_valid_kernel")
     @test !contains(ir, "define %jl_value_t* @jlcall_")
 
-    @test CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}) == nothing
-    @test_throws ArgumentError CUDAnative.code_llvm(DevNull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}) == nothing
+    @test_throws ArgumentError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "exceptions" begin
@@ -127,15 +127,15 @@ end
 
     @eval llvm_D32593(arr) = arr[1].foo
 
-    CUDAnative.code_llvm(DevNull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
+    CUDAnative.code_llvm(devnull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
 end
 
 @testset "julia calling convention" begin
     @eval codegen_specsig_va(Is...) = nothing
-    @test_throws ArgumentError CUDAnative.code_llvm(DevNull, codegen_specsig_va, Tuple{})
+    @test_throws ArgumentError CUDAnative.code_llvm(devnull, codegen_specsig_va, Tuple{})
 
     @eval codegen_specsig_nonleaf(x) = nothing
-    @test_throws ArgumentError CUDAnative.code_llvm(DevNull, codegen_specsig_nonleaf, Tuple{Real})
+    @test_throws ArgumentError CUDAnative.code_llvm(devnull, codegen_specsig_nonleaf, Tuple{Real})
 end
 
 end
@@ -149,9 +149,9 @@ end
     @eval ptx_valid_kernel() = nothing
     @eval ptx_invalid_kernel() = 1
 
-    @test CUDAnative.code_ptx(DevNull, ptx_valid_kernel, Tuple{}) == nothing
-    @test CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{}) == nothing
-    @test_throws ArgumentError CUDAnative.code_ptx(DevNull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test CUDAnative.code_ptx(devnull, ptx_valid_kernel, Tuple{}) == nothing
+    @test CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}) == nothing
+    @test_throws ArgumentError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "child functions" begin
@@ -214,8 +214,8 @@ end
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
     @eval codegen_idempotency() = nothing
-    CUDAnative.code_ptx(DevNull, codegen_idempotency, Tuple{})
-    CUDAnative.code_ptx(DevNull, codegen_idempotency, Tuple{})
+    CUDAnative.code_ptx(devnull, codegen_idempotency, Tuple{})
+    CUDAnative.code_ptx(devnull, codegen_idempotency, Tuple{})
 end
 
 @testset "child function reuse" begin
@@ -288,14 +288,14 @@ end
         return
     end
 
-    CUDAnative.code_ptx(DevNull, codegen_recompile_bis_fromptx, Tuple{})
+    CUDAnative.code_ptx(devnull, codegen_recompile_bis_fromptx, Tuple{})
     @test codegen_recompile_bis_fromhost() == 11
 end
 
 @testset "LLVM intrinsics" begin
     # issue #13 (a): cannot select trunc
     @eval codegen_issue_13(x) = unsafe_trunc(Int, x)
-    CUDAnative.code_ptx(DevNull, codegen_issue_13, Tuple{Float64})
+    CUDAnative.code_ptx(devnull, codegen_issue_13, Tuple{Float64})
 end
 
 end

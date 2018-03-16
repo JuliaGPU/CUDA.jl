@@ -45,8 +45,8 @@ const default_context = Ref{CuContext}()
 const jlctx = Ref{LLVM.Context}()
 function __init__()
     if !configured
-        warn("CUDAnative.jl has not been successfully built, and will not work properly.")
-        warn("Please run Pkg.build(\"CUDAnative\") and restart Julia.")
+        @warn("CUDAnative.jl has not been successfully built, and will not work properly.")
+        @warn("Please run Pkg.build(\"CUDAnative\") and restart Julia.")
         return
     end
 
@@ -60,7 +60,7 @@ function __init__()
     init_jit()
 
     if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
+        @warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
     else
         # instantiate a default device and context;
         # this will be implicitly used through `CuCurrentContext`

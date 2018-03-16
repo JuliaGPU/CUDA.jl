@@ -33,17 +33,17 @@ end
 @testset "reflection" begin
     CUDAnative.code_lowered(exec_dummy, Tuple{})
     CUDAnative.code_typed(exec_dummy, Tuple{})
-    CUDAnative.code_warntype(DevNull, exec_dummy, Tuple{})
-    CUDAnative.code_llvm(DevNull, exec_dummy, Tuple{})
-    CUDAnative.code_ptx(DevNull, exec_dummy, Tuple{})
-    CUDAnative.code_sass(DevNull, exec_dummy, Tuple{})
+    CUDAnative.code_warntype(devnull, exec_dummy, Tuple{})
+    CUDAnative.code_llvm(devnull, exec_dummy, Tuple{})
+    CUDAnative.code_ptx(devnull, exec_dummy, Tuple{})
+    CUDAnative.code_sass(devnull, exec_dummy, Tuple{})
 
     @device_code_lowered @cuda exec_dummy()
     @device_code_typed @cuda exec_dummy()
-    @device_code_warntype io=DevNull @cuda exec_dummy()
-    @device_code_llvm io=DevNull @cuda exec_dummy()
-    @device_code_ptx io=DevNull @cuda exec_dummy()
-    @device_code_sass io=DevNull @cuda exec_dummy()
+    @device_code_warntype io=devnull @cuda exec_dummy()
+    @device_code_llvm io=devnull @cuda exec_dummy()
+    @device_code_ptx io=devnull @cuda exec_dummy()
+    @device_code_sass io=devnull @cuda exec_dummy()
 
     @test_throws ErrorException @device_code_lowered nothing
 end

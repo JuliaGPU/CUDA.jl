@@ -87,7 +87,7 @@ function CuTestArray(src::Array{T,N}) where {T,N}
     return dst
 end
 function Base.Array(src::CuTestArray{T,N}) where {T,N}
-    dst = Array{T,N}(uninitialized, src.shape)
+    dst = Array{T,N}(undef, src.shape)
     Mem.download!(pointer(dst), src.buf, prod(src.shape) * sizeof(T))
     return dst
 end

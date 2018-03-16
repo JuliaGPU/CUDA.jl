@@ -8,8 +8,8 @@
     @eval sass_valid_kernel() = nothing
     @eval sass_invalid_kernel() = 1
 
-    @test CUDAnative.code_sass(DevNull, sass_valid_kernel, Tuple{}) == nothing
-    @test_throws ArgumentError CUDAnative.code_sass(DevNull, sass_invalid_kernel, Tuple{})
+    @test CUDAnative.code_sass(devnull, sass_valid_kernel, Tuple{}) == nothing
+    @test_throws ArgumentError CUDAnative.code_sass(devnull, sass_invalid_kernel, Tuple{})
 end
 
 end
