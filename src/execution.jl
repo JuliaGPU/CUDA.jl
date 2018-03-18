@@ -77,13 +77,17 @@ macro cuda(ex...)
     f = call.args[1]
     args = call.args[2:end]
     syms = Tuple(gensym() for arg in args)
+    arg_no_splat = map(x-> Meta.isexpr(x, :(...)) ? x.args[1] : x, args)
+    syms_splat = map(syms, args) do s, arg
+         Meta.isexpr(arg, :(...)) ? Expr(:(...), s) : s
+    end
 
     # convert the arguments, and call _cuda while keeping the original arguments alive
     ex = Expr(:block)
-    append!(ex.args, :($sym = $(esc(arg))) for (sym,arg) in zip(syms, args))
+    append!(ex.args, :($sym = $(esc(arg))) for (sym,arg) in zip(syms, arg_no_splat))
     push!(ex.args,
         :(GC.@preserve($(syms...),
-                       _cuda($(esc(f)), cudaconvert.(($(syms...),))...;
+                       _cuda($(esc(f)), cudaconvert.(($(syms_splat...),))...;
                              $(map(esc, kwargs)...)))))
     return ex
 end
