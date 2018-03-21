@@ -26,7 +26,7 @@ end
     code_llvm([io], f, types; optimize=true, dump_module=false, cap::VersionNumber)
 
 Prints the device LLVM IR generated for the method matching the given generic function and
-type signature to `io` which defaults to `STDOUT`. The IR is optimized according to
+type signature to `io` which defaults to `stdout`. The IR is optimized according to
 `optimize` (defaults to true), and the entire module, including headers and other functions,
 is dumped if `dump_module` is set (defaults to false). The device capability `cap` to
 generate code for defaults to the current active device's capability, or v"2.0" if there is
@@ -53,13 +53,13 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
         show(io, entry)
     end
 end
-code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) = code_llvm(STDOUT, func, types; kwargs...)
+code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) = code_llvm(stdout, func, types; kwargs...)
 
 """
     code_ptx([io], f, types; cap::VersionNumber, kernel::Bool=false)
 
 Prints the PTX assembly generated for the method matching the given generic function and
-type signature to `io` which defaults to `STDOUT`. The device capability `cap` to generate
+type signature to `io` which defaults to `stdout`. The device capability `cap` to generate
 code for defaults to the current active device's capability, or v"2.0" if there is no such
 active context. The optional `kernel` parameter indicates whether the function in question
 is an entry-point function, or a regular device function.
@@ -77,13 +77,13 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
     print(io, ptx)
 end
 code_ptx(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
-    code_ptx(STDOUT, func, types; kwargs...)
+    code_ptx(stdout, func, types; kwargs...)
 
 """
     code_sass([io], f, types, cap::VersionNumber)
 
 Prints the SASS code generated for the method matching the given generic function and type
-signature to `io` which defaults to `STDOUT`. The device capability `cap` to generate code
+signature to `io` which defaults to `stdout`. The device capability `cap` to generate code
 for defaults to the current active device's capability, or v"2.0" if there is no such active
 context. The method needs to be a valid entry-point kernel, eg. it should not return any
 values.
@@ -114,7 +114,7 @@ function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
     end
 end
 code_sass(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
-    code_sass(STDOUT, func, types; kwargs...)
+    code_sass(stdout, func, types; kwargs...)
 
 
 #
@@ -194,7 +194,7 @@ macro device_code_typed(ex...)
 end
 
 """
-    @device_code_warntype [io::IO=STDOUT] ex
+    @device_code_warntype [io::IO=stdout] ex
 
 Evaluates the expression `ex` and prints the result of [`Base.code_warntype`](@ref) to `io`
 for every compiled CUDA kernel.
@@ -202,14 +202,14 @@ for every compiled CUDA kernel.
 See also: [`Base.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
-    function hook(func, tt, cap; io::IO=STDOUT)
+    function hook(func, tt, cap; io::IO=stdout)
         code_warntype(io, func, tt)
     end
     emit_hooked_compilation(hook, ex...)
 end
 
 """
-    @device_code_llvm [io::IO=STDOUT, ...] ex
+    @device_code_llvm [io::IO=stdout, ...] ex
 
 Evaluates the expression `ex` and prints the result of [`Base.code_llvm`](@ref) to `io` for
 every compiled CUDA kernel. For other supported keywords, see
@@ -218,35 +218,35 @@ every compiled CUDA kernel. For other supported keywords, see
 See also: [`Base.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
-    function hook(func, tt, cap; io::IO=STDOUT, kwargs...)
+    function hook(func, tt, cap; io::IO=stdout, kwargs...)
         code_llvm(io, func, tt; kernel=true, cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
 
 """
-    @device_code_ptx [io::IO=STDOUT, ...] ex
+    @device_code_ptx [io::IO=stdout, ...] ex
 
 Evaluates the expression `ex` and prints the result of [`CUDAnative.code_ptx`](@ref) to `io`
 for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    function hook(func, tt, cap; io::IO=STDOUT, kwargs...)
+    function hook(func, tt, cap; io::IO=stdout, kwargs...)
         code_ptx(io, func, tt; kernel=true, cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
 
 """
-    @device_code_sass [io::IO=STDOUT, ...] ex
+    @device_code_sass [io::IO=stdout, ...] ex
 
 Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](@ref) to
 `io` for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(func, tt, cap; io::IO=STDOUT, kwargs...)
+    function hook(func, tt, cap; io::IO=stdout, kwargs...)
         code_sass(io, func, tt; cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
