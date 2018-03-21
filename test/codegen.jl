@@ -11,8 +11,8 @@
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{}; optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
-    @test contains(ir, "define void @julia_llvm_valid_kernel")
-    @test !contains(ir, "define %jl_value_t* @jlcall_")
+    @test occursin("define void @julia_llvm_valid_kernel", ir)
+    @test !occursin("define %jl_value_t* @jlcall_", ir)
 
     @test CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}) == nothing
     @test_throws ArgumentError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
@@ -23,10 +23,10 @@ end
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_exception, Tuple{}))
 
     # exceptions should get lowered to a plain trap...
-    @test contains(ir, "llvm.trap")
+    @test occursin("llvm.trap", ir)
     # not a jl_throw referencing a jl_value_t representing the exception
-    @test !contains(ir, "jl_value_t")
-    @test !contains(ir, "jl_throw")
+    @test !occursin("jl_value_t", ir)
+    @test !occursin("jl_throw", ir)
 end
 
 @testset "sysimg" begin
@@ -38,7 +38,7 @@ end
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, Tuple{Ptr{Int},Int}))
-    @test !contains(ir, "jlsys_")
+    @test !occursin("jlsys_", ir)
 end
 
 @testset "child functions" begin
@@ -47,7 +47,7 @@ end
     @eval codegen_parent(i) = codegen_child(i)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, Tuple{Int}))
-    @test contains(ir, r"call .+ @julia_codegen_child_")
+    @test occursin(r"call .+ @julia_codegen_child_", ir)
 end
 
 @testset "JuliaLang/julia#21121" begin
@@ -61,7 +61,7 @@ end
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_tuple_leak, Tuple{}))
-    @test !contains(ir, "inttoptr")
+    @test !occursin("inttoptr", ir)
 end
 
 @testset "kernel functions" begin
@@ -79,43 +79,43 @@ end
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}))
-    @test contains(ir, Regex("@julia_codegen_aggregates_\\d+\\($typename( addrspace\\(\\d+\\))?\\*"))
+    @test occursin(Regex("@julia_codegen_aggregates_\\d+\\($typename( addrspace\\(\\d+\\))?\\*"), ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}; kernel=true))
-    @test contains(ir, Regex("@ptxcall_codegen_aggregates_\\d+\\($typename\\)"))
+    @test occursin(Regex("@ptxcall_codegen_aggregates_\\d+\\($typename\\)"), ir)
 end
 
 @testset "property_annotations" begin
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{}; dump_module=true))
-    @test !contains(ir, "nvvm.annotations")
+    @test !occursin("nvvm.annotations", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
                                          dump_module=true, kernel=true))
-    @test contains(ir, "nvvm.annotations")
-    @test !contains(ir, "maxntid")
-    @test !contains(ir, "reqntid")
-    @test !contains(ir, "minctasm")
-    @test !contains(ir, "maxnreg")
+    @test occursin("nvvm.annotations", ir)
+    @test !occursin("maxntid", ir)
+    @test !occursin("reqntid", ir)
+    @test !occursin("minctasm", ir)
+    @test !occursin("maxnreg", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
                                          dump_module=true, kernel=true, maxthreads=42))
-    @test contains(ir, "maxntidx\", i32 42")
-    @test contains(ir, "maxntidy\", i32 1")
-    @test contains(ir, "maxntidz\", i32 1")
+    @test occursin("maxntidx\", i32 42", ir)
+    @test occursin("maxntidy\", i32 1", ir)
+    @test occursin("maxntidz\", i32 1", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
                                          dump_module=true, kernel=true, minthreads=42))
-    @test contains(ir, "reqntidx\", i32 42")
-    @test contains(ir, "reqntidy\", i32 1")
-    @test contains(ir, "reqntidz\", i32 1")
+    @test occursin("reqntidx\", i32 42", ir)
+    @test occursin("reqntidy\", i32 1", ir)
+    @test occursin("reqntidz\", i32 1", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
                                          dump_module=true, kernel=true, blocks_per_sm=42))
-    @test contains(ir, "minctasm\", i32 42")
+    @test occursin("minctasm\", i32 42", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{};
                                          dump_module=true, kernel=true, maxregs=42))
-    @test contains(ir, "maxnreg\", i32 42")
+    @test occursin("maxnreg\", i32 42", ir)
 end
 end
 
@@ -161,7 +161,7 @@ end
     @eval ptx_parent(i) = ptx_child(i)
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_parent, Tuple{Int64}))
-    @test contains(asm, r"call.uni\s+julia_ptx_child_"m)
+    @test occursin(r"call.uni\s+julia_ptx_child_"m, asm)
 end
 
 @testset "kernel functions" begin
@@ -169,30 +169,30 @@ end
     @eval ptx_entry(i) = ptx_nonentry(i)
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
-    @test contains(asm, r"\.visible \.entry ptxcall_ptx_entry_")
-    @test !contains(asm, r"\.visible \.func julia_ptx_nonentry_")
-    @test contains(asm, r"\.func julia_ptx_nonentry_")
+    @test occursin(r"\.visible \.entry ptxcall_ptx_entry_", asm)
+    @test !occursin(r"\.visible \.func julia_ptx_nonentry_", asm)
+    @test occursin(r"\.func julia_ptx_nonentry_", asm)
 
 @testset "property_annotations" begin
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
-    @test !contains(asm, "maxntid")
+    @test !occursin("maxntid", asm)
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
                                          kernel=true, maxthreads=42))
-    @test contains(asm, ".maxntid 42, 1, 1")
+    @test occursin(".maxntid 42, 1, 1", asm)
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
                                          kernel=true, minthreads=42))
-    @test contains(asm, ".reqntid 42, 1, 1")
+    @test occursin(".reqntid 42, 1, 1", asm)
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
                                          kernel=true, blocks_per_sm=42))
-    @test contains(asm, ".minnctapersm 42")
+    @test occursin(".minnctapersm 42", asm)
 
     if CUDAnative.llvm_version >= v"4.0"
         asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
                                              kernel=true, maxregs=42))
-        @test contains(asm, ".maxnreg 42")
+        @test occursin(".maxnreg 42", asm)
     end
 end
 end
@@ -229,7 +229,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent1, Tuple{Int}))
-    @test contains(asm, r".func julia_codegen_child_reuse_child_")
+    @test occursin(r".func julia_codegen_child_reuse_child_", asm)
 
     @eval function codegen_child_reuse_parent2(i)
         codegen_child_reuse_child(i+1)
@@ -237,7 +237,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent2, Tuple{Int}))
-    @test contains(asm, r".func julia_codegen_child_reuse_child_")
+    @test occursin(r".func julia_codegen_child_reuse_child_", asm)
 end
 
 @testset "child function reuse bis" begin
@@ -271,8 +271,8 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, codegen_recompile, Tuple{Ptr{Int64}}))
-    @test !contains(asm, "jl_throw")
-    @test !contains(asm, "jl_invoke")   # forced recompilation should still not invoke
+    @test !occursin("jl_throw", asm)
+    @test !occursin("jl_invoke", asm)   # forced recompilation should still not invoke
 end
 
 @testset "compile for host after PTX" begin
