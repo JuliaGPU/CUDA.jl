@@ -160,7 +160,7 @@ end
     @device_code_ptx io=buf @cuda array_cached_load(a, b, 1)
     @test Array(a) == Array(b)
 
-    asm = String(buf)
+    asm = String(take!(copy(buf)))
     @test occursin("ld.global.nc", asm)
 end
 
