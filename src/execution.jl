@@ -15,14 +15,7 @@ input object `x` as-is.
 For `CuArray` objects, a corresponding `CuDeviceArray` object in global space is returned,
 which implements GPU-compatible array functionality.
 """
-function cudaconvert(x::T) where {T}
-    if T.layout == C_NULL || !Base.datatype_pointerfree(T)
-        error("don't know how to handle argument of type $T")
-    end
-
-    return x
-end
-
+cudaconvert(x) = x
 cudaconvert(x::Tuple) = cudaconvert.(x)
 
 # fast lookup of global world age
@@ -37,7 +30,7 @@ function method_age(f, tt)::UInt
 end
 
 
-isghosttype(dt) = !dt.mutable && sizeof(dt) == 0
+isghosttype(dt) = dt.isconcretetype && sizeof(dt) == 0
 
 
 """
@@ -107,8 +100,17 @@ const compilecache = Dict{UInt, CuFunction}()
 
     # filter out ghost arguments
     real_args = map(t->!isghosttype(t), arg_types)
-    real_arg_types = map(x->x[2], filter(x->x[1], zip(real_args, arg_types)))
-    real_arg_exprs = map(x->x[2], filter(x->x[1], zip(real_args, arg_exprs)))
+    real_arg_types =               Type[x[1] for x in zip(arg_types, real_args) if x[2]]
+    real_arg_exprs = Union{Expr,Symbol}[x[1] for x in zip(arg_exprs, real_args) if x[2]]
+
+    # replace non-isbits arguments (they should be unused, or compilation will fail).
+    # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
+    for (i,dt) in enumerate(real_arg_types)
+        if !dt.isbitstype
+            real_arg_types[i] = Ptr{Void}
+            real_arg_exprs[i] = :(convert(Ptr{Void}, UInt(0xDEADBEEF)))
+        end
+    end
 
     precomp_key = hash(tuple(func, arg_types...))  # precomputable part of the keys
     quote
