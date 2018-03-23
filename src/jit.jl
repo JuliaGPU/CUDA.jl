@@ -125,12 +125,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     end
 
     # link in dependent modules
-    for dep in dependencies
-        if VERSION < v"0.7.0-DEV.2513"
-            module_setup(dep)
-        end
-        link!(mod, dep)
-    end
+    link!.(Ref(mod), dependencies)
 
     # clean up incompatibilities
     for llvmf in functions(mod)
@@ -387,49 +382,30 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     # and internalize all other functions (enabling ABI-breaking optimizations).
     # FIXME: this is too coarse. use a proper inliner tuned for GPUs
     ModulePassManager() do pm
-        if VERSION >= v"0.7.0-DEV.3650"
-            no_inline = EnumAttribute("noinline", 0, jlctx[])
-            always_inline = EnumAttribute("alwaysinline", 0, jlctx[])
-            for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
-                attrs = function_attributes(f)
-                if !(no_inline in collect(attrs))
-                    push!(attrs, always_inline)
-                end
-                linkage!(f, LLVM.API.LLVMInternalLinkage)
+        no_inline = EnumAttribute("noinline", 0, jlctx[])
+        always_inline = EnumAttribute("alwaysinline", 0, jlctx[])
+        for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
+            attrs = function_attributes(f)
+            if !(no_inline in collect(attrs))
+                push!(attrs, always_inline)
             end
-            always_inliner!(pm)
-        else
-            # bugs and missing features prevent this from working on older Julia versions
-            internalize!(pm, [LLVM.name(entry)])
+            linkage!(f, LLVM.API.LLVMInternalLinkage)
         end
+        always_inliner!(pm)
         run!(pm, mod)
     end
 
     ModulePassManager() do pm
-        if Base.VERSION >= v"0.7.0-DEV.1494"
-            add_library_info!(pm, triple(mod))
-            add_transform_info!(pm, tm)
-            ccall(:jl_add_optimization_passes, Cvoid,
-                  (LLVM.API.LLVMPassManagerRef, Cint),
-                  LLVM.ref(pm), Base.JLOptions().opt_level)
+        add_library_info!(pm, triple(mod))
+        add_transform_info!(pm, tm)
+        ccall(:jl_add_optimization_passes, Cvoid,
+              (LLVM.API.LLVMPassManagerRef, Cint),
+              LLVM.ref(pm), Base.JLOptions().opt_level)
 
-            # CUDAnative's JIT internalizes non-inlined child functions, making it possible
-            # to rewrite them (whereas the Julia JIT caches those functions exactly);
-            # this opens up some more optimization opportunities
-            dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
-        else
-            add_transform_info!(pm, tm)
-            # TLI added by PMB
-            ccall(:LLVMAddLowerGCFramePass, Cvoid,
-                  (LLVM.API.LLVMPassManagerRef,), LLVM.ref(pm))
-            ccall(:LLVMAddLowerPTLSPass, Cvoid,
-                  (LLVM.API.LLVMPassManagerRef, Cint), LLVM.ref(pm), 0)
-
-            always_inliner!(pm) # TODO: set it as the builder's inliner
-            PassManagerBuilder() do pmb
-                populate!(pm, pmb)
-            end
-        end
+        # CUDAnative's JIT internalizes non-inlined child functions, making it possible
+        # to rewrite them (whereas the Julia JIT caches those functions exactly);
+        # this opens up some more optimization opportunities
+        dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
 
         global_optimizer!(pm)
         global_dce!(pm)

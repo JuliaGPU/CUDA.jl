@@ -116,11 +116,7 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
         entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
-        if VERSION >= v"0.7.0-DEV.1704"
-            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        else
-            ptr = parameters(llvm_f)[1]
-        end
+        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
         ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
@@ -150,11 +146,7 @@ end
         entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
-        if VERSION >= v"0.7.0-DEV.1704"
-            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        else
-            ptr = parameters(llvm_f)[1]
-        end
+        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
         ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
         ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
@@ -222,11 +214,7 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
         entry = BasicBlock(llvm_f, "entry", jlctx[])
         position!(builder, entry)
 
-        if VERSION >= v"0.7.0-DEV.1704"
-            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        else
-            ptr = parameters(llvm_f)[1]
-        end
+        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
         ptr_with_as = addrspacecast!(builder, ptr, T_actual_ptr_as)

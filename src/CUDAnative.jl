@@ -8,7 +8,7 @@ using CUDAdrv
 using LLVM
 using LLVM.Interop
 
-VERSION >= v"0.7.0-DEV.3382" && using Libdl
+using Libdl
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
 isfile(ext) || error("CUDAnative.jl has not been built, please run Pkg.build(\"CUDAnative\").")

@@ -15,16 +15,10 @@ function emit_shmem(id, llvmtyp, len, align)
     jltyp = jltypes[llvmtyp]
 
     decl = """$var = external addrspace(3) global [$len x $llvmtyp], align $align"""
-    if VERSION >= v"0.7.0-DEV.1704"
-        def = """%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
-                 %3 = ptrtoint $llvmtyp* %2 to i64
-                 ret i64 %3"""
-    else
-        def = """%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
-                 %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
-                 ret $llvmtyp* %2"""
-    end
+    def = """%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
+             %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
+             %3 = ptrtoint $llvmtyp* %2 to i64
+             ret i64 %3"""
 
     @gensym ptr
     quote
