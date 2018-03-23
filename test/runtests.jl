@@ -43,7 +43,7 @@ if CUDAnative.configured
         end
     end
 else
-    @warn("CUDAnative.jl has not been configured; skipping CUDAnative execution tests.")
+    @warn("CUDAnative.jl has not been configured; skipping on-device tests.")
 end
 
 end
