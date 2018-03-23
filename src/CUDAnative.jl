@@ -16,6 +16,7 @@ include(ext)
 if !configured
     # default (non-functional) values for critical variables,
     # making it possible to _load_ the package at all times.
+    const target_support = [v"2.0"]
     const cuda_driver_version = v"5.5"
 end
 
@@ -44,6 +45,9 @@ const default_device = Ref{CuDevice}()
 const default_context = Ref{CuContext}()
 const jlctx = Ref{LLVM.Context}()
 function __init__()
+    jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
+                                   cglobal(:jl_LLVMContext, Cvoid)))
+
     if !configured
         @warn("CUDAnative.jl has not been successfully built, and will not work properly.")
         @warn("Please run Pkg.build(\"CUDAnative\") and restart Julia.")
@@ -53,9 +57,6 @@ function __init__()
     if CUDAdrv.version() != cuda_driver_version
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
-
-    jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
-                                   cglobal(:jl_LLVMContext, Cvoid)))
 
     init_jit()
 
