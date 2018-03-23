@@ -33,11 +33,11 @@ if CUDAnative.configured
         if capability(dev) < v"2.0"
             @warn("native execution not supported on SM < 2.0")
         else
-            include("codegen_device.jl")
-            include("execution.jl")
-            include("pointer_device.jl")
-            include("array.jl")
-            include("intrinsics.jl")
+            include("device/codegen.jl")
+            include("device/execution.jl")
+            include("device/pointer.jl")
+            include("device/array.jl")
+            include("device/intrinsics.jl")
 
             include("examples.jl")
             if "Documenter" in keys(Pkg.installed())
