@@ -10,12 +10,7 @@ include("util.jl")
 
 include("base.jl")
 include("pointer.jl")
-
-if LLVM.configured
-    include("codegen.jl")
-else
-    @warn("LLVM.jl has not been configured; skipping CUDAnative codegen tests.")
-end
+include("codegen.jl")
 
 if CUDAnative.configured
     @test length(devices()) > 0
