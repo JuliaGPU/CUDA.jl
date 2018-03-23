@@ -87,7 +87,7 @@ function read_ext(path)
 end
 
 function main()
-    ispath(config_path) && mv(config_path, previous_config_path; remove_destination=true)
+    ispath(config_path) && mv(config_path, previous_config_path; force=true)
     config = Dict{Symbol,Any}(:configured => false)
     write_ext(config, config_path)
 
@@ -145,7 +145,7 @@ function main()
 
         if config == previous_config
             @info "CUDAnative.jl has already been built for this toolchain, no need to rebuild"
-            mv(previous_config_path, config_path; remove_destination=true)
+            mv(previous_config_path, config_path; force=true)
             return
         end
     end
