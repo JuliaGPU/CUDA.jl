@@ -12,8 +12,8 @@ end
 
 function __init__()
     if !configured
-        warn("CUDAdrv.jl has not been successfully built, and will not work properly.")
-        warn("Please run Pkg.build(\"CUDAdrv\") and restart Julia.")
+        @warn """CUDAdrv.jl has not been successfully built, and will not work properly.
+                 Please run Pkg.build(\"CUDAdrv\") and restart Julia."""
         return
     end
 
@@ -24,7 +24,7 @@ function __init__()
     end
 
     if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
+        @warn "Running under rr, which is incompatible with CUDA; disabling initialization."
     else
         init()
     end
