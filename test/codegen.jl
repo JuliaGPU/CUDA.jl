@@ -186,7 +186,7 @@ end
                                          kernel=true, blocks_per_sm=42))
     @test occursin(".minnctapersm 42", asm)
 
-    if CUDAnative.llvm_version >= v"4.0"
+    if LLVM.version() >= v"4.0"
         asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
                                              kernel=true, maxregs=42))
         @test occursin(".maxnreg 42", asm)

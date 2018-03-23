@@ -98,25 +98,23 @@ function main()
 
     LLVM.libllvm_system && error("CUDAnative.jl requires LLVM.jl to be built against Julia's LLVM library, not a system-provided one")
 
-    config[:llvm_version] = LLVM.version()
-    llvm_targets, llvm_isas = llvm_support(config[:llvm_version])
+    llvm_version = LLVM.version()
+    llvm_targets, llvm_isas = llvm_support(llvm_version)
 
     ### julia
 
-    config[:julia_version] = VERSION
-
-    config[:julia_llvm_version] = Base.libllvm_version
-    if config[:julia_llvm_version] != config[:llvm_version]
-        error("LLVM $(config[:llvm_version]) incompatible with Julia's LLVM $(config[:julia_llvm_version])")
+    julia_llvm_version = Base.libllvm_version
+    if julia_llvm_version != llvm_version
+        error("LLVM $llvm_version incompatible with Julia's LLVM $julia_llvm_version")
     end
 
     ### CUDA
 
     toolkit_dirs = find_toolkit()
-    config[:cuda_toolkit_version] = find_toolkit_version(toolkit_dirs)
+    cuda_toolkit_version = find_toolkit_version(toolkit_dirs)
 
     config[:cuda_driver_version] = CUDAdrv.version()
-    cuda_targets, cuda_isas = cuda_support(config[:cuda_driver_version], config[:cuda_toolkit_version])
+    cuda_targets, cuda_isas = cuda_support(config[:cuda_driver_version], cuda_toolkit_version)
 
     config[:target_support] = sort(collect(llvm_targets ∩ cuda_targets))
     isempty(config[:target_support]) && error("Your toolchain does not support any device target")
