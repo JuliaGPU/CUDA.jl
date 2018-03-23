@@ -49,8 +49,8 @@ function __init__()
                                    cglobal(:jl_LLVMContext, Cvoid)))
 
     if !configured
-        @warn("CUDAnative.jl has not been successfully built, and will not work properly.")
-        @warn("Please run Pkg.build(\"CUDAnative\") and restart Julia.")
+        @warn """CUDAnative.jl has not been successfully built, and will not work properly.
+                 Please run Pkg.build(\"CUDAnative\") and restart Julia."""
         return
     end
 
