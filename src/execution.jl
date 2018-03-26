@@ -73,17 +73,28 @@ macro cuda(ex...)
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
-    # decode the call and assign arguments to variables
+    # decode the call
     f = call.args[1]
     args = call.args[2:end]
-    syms = Tuple(gensym() for arg in args)
+    splats = map(arg -> Meta.isexpr(arg, :(...)), args)
+    args = map(args, splats) do arg, splat
+        splat ? arg.args[1] : arg
+    end
+
+    # assign arguments to variables
+    vars = Tuple(gensym() for arg in args)
+    ex = Expr(:block)
+    map(vars, args) do var,arg
+        push!(ex.args, :($var = $(esc(arg))))
+    end
 
     # convert the arguments, and call _cuda while keeping the original arguments alive
-    ex = Expr(:block)
-    append!(ex.args, :($sym = $(esc(arg))) for (sym,arg) in zip(syms, args))
+    var_exprs = map(vars, args, splats) do var, arg, splat
+         splat ? Expr(:(...), var) : var
+    end
     push!(ex.args,
-        :(GC.@preserve($(syms...),
-                       _cuda($(esc(f)), cudaconvert.(($(syms...),))...;
+        :(GC.@preserve($(vars...),
+                       _cuda($(esc(f)), cudaconvert.(($(var_exprs...),))...;
                              $(map(esc, kwargs)...)))))
     return ex
 end
