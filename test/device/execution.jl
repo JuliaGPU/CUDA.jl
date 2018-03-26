@@ -304,6 +304,29 @@ end
     @test_throws ArgumentError @cuda exec_pass_nonbits_used(big"1")
 end
 
+
+@testset "splatting" begin
+    @eval function exec_splat(out, a, b)
+        unsafe_store!(out, a+b)
+        return
+    end
+
+    out = [0]
+    out_dev = Mem.upload(out)
+    out_ptr = Base.unsafe_convert(Ptr{eltype(out)}, out_dev)
+
+    @cuda exec_splat(out_ptr, 1, 2)
+    @test Mem.download(eltype(out), out_dev)[1] == 3
+
+    all_splat = (out_ptr, 3, 4)
+    @cuda exec_splat(all_splat...)
+    @test Mem.download(eltype(out), out_dev)[1] == 7
+
+    partial_splat = (5, 6)
+    @cuda exec_splat(out_ptr, partial_splat...)
+    @test Mem.download(eltype(out), out_dev)[1] == 11
+end
+
 end
 
 ############################################################################################
