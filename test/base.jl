@@ -1,11 +1,9 @@
 @testset "base" begin
 
-@test_throws (VERSION >= v"0.7.0-DEV.1729" ? LoadError : ErrorException) eval(
-    quote
-        foo = :bar
-        CUDAdrv.@apicall(foo, ())
-    end
-)
+@test_throws LoadError @eval begin
+    foo = :bar
+    CUDAdrv.@apicall(foo, ())
+end
 
 @test_throws ErrorException CUDAdrv.@apicall(:cuNonexisting, ())
 

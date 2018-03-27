@@ -63,11 +63,7 @@ Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
 Add PTX code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, code::String)
-    data = if VERSION >= v"0.7.0-DEV.3244"
-        unsafe_wrap(Vector{UInt8}, code)
-    else
-        Vector{UInt8}(code)
-    end
+    data = unsafe_wrap(Vector{UInt8}, code)
 
     # there shouldn't be any embedded NULLs
     checked_data = Base.unsafe_convert(Cstring, data)
