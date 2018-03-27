@@ -72,17 +72,11 @@ end
         x::Int
     end
 
-    if VERSION >= v"0.7.0-DEV.1704"
-        typename = "{ i64 }"
-    else
-        typename = "%Aggregate(\\.\\d+)?"
-    end
-
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}))
-    @test occursin(Regex("@julia_codegen_aggregates_\\d+\\($typename( addrspace\\(\\d+\\))?\\*"), ir)
+    @test occursin(Regex("@julia_codegen_aggregates_\\d+\\({ i64 }( addrspace\\(\\d+\\))?\\*"), ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}; kernel=true))
-    @test occursin(Regex("@ptxcall_codegen_aggregates_\\d+\\($typename\\)"), ir)
+    @test occursin(Regex("@ptxcall_codegen_aggregates_\\d+\\({ i64 }\\)"), ir)
 end
 
 @testset "property_annotations" begin
