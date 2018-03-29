@@ -46,7 +46,7 @@ include("init.jl")
 include("defs.jl")
 include("error.jl")
 include("wrappers.jl")
-include("hl.jl")
+include("highlevel.jl")
 
 const _rng = Ref{RNG}()
 
