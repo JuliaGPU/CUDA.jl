@@ -44,6 +44,7 @@ using ..CuArrays: CuArray
 
 include("init.jl")
 include("defs.jl")
+include("error.jl")
 include("wrappers.jl")
 include("hl.jl")
 
