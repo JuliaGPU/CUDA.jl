@@ -1,20 +1,24 @@
+function destroy_generator(rng::RNG)
+    @check ccall((:curandDestroyGenerator, libcurand),
+                curandStatus_t, (Ptr{Void},), rng.ptr)
+end
+
 function create_generator(rng_type::Int=CURAND_RNG_PSEUDO_DEFAULT)
     aptr = Ptr{Void}[0]
     @check ccall((:curandCreateGenerator, libcurand),
                 curandStatus_t, (Ptr{Void}, Cint), aptr, rng_type)
-    return RNG(aptr[1], rng_type)
+    r = RNG(aptr[1], rng_type)
+    finalizer(r, destroy_generator)
+    return r
 end
 
 function create_generator_host(rng_type::Int=CURAND_RNG_PSEUDO_DEFAULT)
     aptr = Ptr{Void}[0]
     @check ccall((:curandCreateGeneratorHost, libcurand),
                 curandStatus_t, (Ptr{Void}, Cint), aptr, rng_type)
-    return RNG(aptr[1], rng_type)
-end
-
-function destroy_generator(rng::RNG)
-    @check ccall((:curandDestroyGenerator, libcurand),
-                curandStatus_t, (Ptr{Void},), rng.ptr)
+    r = RNG(aptr[1], rng_type)
+    finalizer(r, destroy_generator)
+    return r
 end
 
 function get_version()

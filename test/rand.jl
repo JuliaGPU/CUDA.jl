@@ -33,6 +33,4 @@ curand_logn(n, m, sd)
 curand_poisson(rng, n, lambda)
 curand_poisson(n, lambda)
 
-destroy_generator(rng)
-
 println("ok.")
