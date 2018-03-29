@@ -3,7 +3,7 @@ using CuArrays.CURAND
 using Base.Test
 
 # smoke tests for high-level API
-rng = create_generator()
+rng = CURAND.create_generator()
 n = 10
 n = 10
 m = 5.
