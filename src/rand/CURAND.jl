@@ -40,8 +40,12 @@ export create_generator,
        generate_poisson,
        generate_seeds
 
+using ..CuArrays: CuArray
 
-include("core.jl")
+include("init.jl")
+include("defs.jl")
+include("wrappers.jl")
+include("hl.jl")
 
 const _rng = Ref{RNG}()
 
