@@ -89,7 +89,7 @@ function generate(rng::RNG, n::UInt)
     arr = CuArray{UInt32}(sz)
     statuscheck(ccall((:curandGenerate, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{UInt32}, Csize_t),
-                      rng.ptr, arr.ptr.ptr, n))
+                      rng.ptr, arr, n))
     return arr
 end
 
@@ -106,7 +106,7 @@ function generate_long_long(rng::RNG, n::UInt)
     arr = CuArray{UInt64}(sz)
     statuscheck(ccall((:curandGenerateLongLong, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{Culonglong}, Csize_t),
-                      rng.ptr, arr.ptr.ptr, n))
+                      rng.ptr, arr, n))
     return arr
 end
 
@@ -116,7 +116,7 @@ function generate_uniform(rng::RNG, n::UInt)
     arr = CuArray{Float32}(sz)
     statuscheck(ccall((:curandGenerateUniform, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{Float32}, Csize_t),
-                      rng.ptr, arr.ptr.ptr, n))
+                      rng.ptr, arr, n))
     return arr
 end
 
@@ -125,7 +125,7 @@ function generate_uniform_double(rng::RNG, n::UInt)
     arr = CuArray{Float64}(sz)
     statuscheck(ccall((:curandGenerateUniformDouble, libcurand),
                       curandStatus_t, (Ptr{Void}, Ptr{Float64}, Csize_t),
-                      rng.ptr, arr.ptr.ptr, n))
+                      rng.ptr, arr, n))
     return arr
 end
 
@@ -136,7 +136,7 @@ function generate_normal(rng::RNG, n::UInt, mean::Float32, stddev::Float32)
     statuscheck(ccall((:curandGenerateNormal, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float32}, Csize_t, Cfloat, Cfloat),
-                      rng.ptr, arr.ptr.ptr, n, mean, stddev))
+                      rng.ptr, arr, n, mean, stddev))
     return arr
 end
 
@@ -146,7 +146,7 @@ function generate_normal_double(rng::RNG, n::UInt, mean::Float64, stddev::Float6
     statuscheck(ccall((:curandGenerateNormalDouble, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float64}, Csize_t, Cdouble, Cdouble),
-                      rng.ptr, arr.ptr.ptr, n, mean, stddev))
+                      rng.ptr, arr, n, mean, stddev))
     return arr
 end
 
@@ -158,7 +158,7 @@ function generate_log_normal(rng::RNG, n::UInt, mean::Float32, stddev::Float32)
     statuscheck(ccall((:curandGenerateLogNormal, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float32}, Csize_t, Cfloat, Cfloat),
-                      rng.ptr, arr.ptr.ptr, n, mean, stddev))
+                      rng.ptr, arr, n, mean, stddev))
     return arr
 end
 
@@ -168,7 +168,7 @@ function generate_log_normal_double(rng::RNG, n::UInt, mean::Float64, stddev::Fl
     statuscheck(ccall((:curandGenerateLogNormalDouble, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Float64}, Csize_t, Cdouble, Cdouble),
-                      rng.ptr, arr.ptr.ptr, n, mean, stddev))
+                      rng.ptr, arr, n, mean, stddev))
     return arr
 end
 
@@ -194,7 +194,7 @@ function generate_poisson(rng::RNG, n::UInt, lambda::Float64)
     statuscheck(ccall((:curandGeneratePoisson, libcurand),
                       curandStatus_t,
                       (Ptr{Void}, Ptr{Cuint}, Csize_t, Cdouble),
-                      rng.ptr, arr.ptr.ptr, n, lambda))
+                      rng.ptr, arr, n, lambda))
     return arr
 end
 

@@ -43,4 +43,11 @@ export create_generator,
 
 include("core.jl")
 
+const _rng = Ref{RNG}()
+
+function __init__()
+    _rng[] = create_generator()
+    atexit(() -> destroy_generator(_rng[]))
+end
+
 end # module

@@ -1,5 +1,5 @@
 
-using CURAND
+using CuArrays.CURAND
 using Base.Test
 
 # smoke tests for high-level API
