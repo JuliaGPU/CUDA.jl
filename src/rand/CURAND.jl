@@ -40,9 +40,8 @@ export create_generator,
        generate_poisson,
        generate_seeds
 
-using ..CuArrays: CuArray
+using ..CuArrays: CuArray, libcurand
 
-include("init.jl")
 include("defs.jl")
 include("error.jl")
 include("wrappers.jl")
