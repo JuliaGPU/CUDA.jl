@@ -40,39 +40,6 @@ include("execution.jl")
 include("reflection.jl")
 include("irvalidation.jl")
 
-const initialized = Ref{Bool}(false)
-const default_device = Ref{CuDevice}()
-const default_context = Ref{CuContext}()
-const jlctx = Ref{LLVM.Context}()
-function __init__()
-    jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
-                                   cglobal(:jl_LLVMContext, Cvoid)))
-
-    if !configured
-        @warn """CUDAnative.jl has not been successfully built, and will not work properly.
-                 Please run Pkg.build(\"CUDAnative\") and restart Julia."""
-        return
-    end
-
-    if CUDAdrv.version() != cuda_driver_version
-        error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
-    end
-
-    init_jit()
-
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        @warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
-    else
-        # instantiate a default device and context;
-        # this will be implicitly used through `CuCurrentContext`
-        # NOTE: although these conceptually match what the primary context is for,
-        #       we don't use that because it is refcounted separately
-        #       and might confuse / be confused by user operations
-        #       (eg. calling `unsafe_reset!` on a primary context)
-        initialized[] = true
-        default_device[] = CuDevice(0)
-        default_context[] = CuContext(default_device[])
-    end
-end
+include("init.jl")
 
 end
