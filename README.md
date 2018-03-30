@@ -1,9 +1,12 @@
 # CuArrays
 
 [![][buildbot-julia06-img]][buildbot-julia06-url]
+[![codecov][codecov-img]][codecov-url]
 
 [buildbot-julia06-img]: http://ci.maleadt.net/shields/build.php?builder=CuArrays-julia06-x86-64bit&name=julia%200.6
 [buildbot-julia06-url]: http://ci.maleadt.net/shields/url.php?builder=CuArrays-julia06-x86-64bit
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CuArrays.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/JuliaGPU/CuArrays.jl
 
 CuArrays provides a fully-functional GPU array, which can give significant speedups over normal arrays without code changes. CuArrays are implemented fully in Julia, making the implementation [elegant and extremely generic](http://mikeinnes.github.io/2017/08/24/cudanative.html).
 
