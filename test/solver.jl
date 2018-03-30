@@ -187,9 +187,10 @@ k = 1
         h_U            = collect(d_U)
         h_Vt           = collect(d_Vt)
         svda           = svdfact(A,thin=false)
-        @test h_U ≈ svda[:U]
+        @test abs.(h_U'h_U) ≈ eye(elty, m)
+        @test abs.(h_U[:,1:n]'svda[:U][:,1:10]) ≈ eye(elty, n)
         @test h_S ≈ svdvals(A)
-        @test h_Vt ≈ svda[:Vt]
+        @test abs.(h_Vt*svda[:Vt]') ≈ eye(elty, n)
     end
 
     @testset "qr" begin
