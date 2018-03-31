@@ -134,5 +134,6 @@ end
 if CuArrays.cudnn_available()
   include("nnlib.jl")
 end
+include("rand.jl")
 
 end
