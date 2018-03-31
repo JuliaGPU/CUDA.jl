@@ -128,12 +128,12 @@ end
   @test collect(cu(eye(5))*y) == collect(y)
 end
 
-# include("blas.jl")
-# include("fft.jl")
-# include("solver.jl")
 if CuArrays.cudnn_available()
   include("nnlib.jl")
 end
+include("blas.jl")
+include("solver.jl")
+include("fft.jl")
 include("rand.jl")
 
 end
