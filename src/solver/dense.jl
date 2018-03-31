@@ -1,17 +1,17 @@
+using LinearAlgebra: BlasInt, checksquare
+using LinearAlgebra.LAPACK: chkargsok
 
-#potrf 
+# po
+## potrf
 for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :Float32),
                             (:cusolverDnDpotrf_bufferSize, :cusolverDnDpotrf, :Float64),
                             (:cusolverDnCpotrf_bufferSize, :cusolverDnCpotrf, :ComplexF32),
                             (:cusolverDnZpotrf_bufferSize, :cusolverDnZpotrf, :ComplexF64))
     @eval begin
-        function potrf!(uplo::Char,
+        function LinearAlgebra.LAPACK.potrf!(uplo::Char,
                         A::CuMatrix{$elty})
-            cuuplo = cublasfill(uplo)
-            n = size(A, 1)
-            if size(A, 2) != n
-                throw(DimensionMismatch("Cholesky factorization is only possible for square matrices!"))
-            end
+            cuuplo  = cublasfill(uplo)
+            n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
             @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
@@ -26,18 +26,45 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
                           Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{Cint}),
                          libcusolver_handle_dense[], cuuplo, n, A, lda, buffer,
                          bufSize[], devinfo)
-            info = _getindex(devinfo, 1)
-            if info < 0
-                throw(ArgumentError("The $(-info)th parameter is wrong"))
-            elseif info > 0
-                throw(LinearAlgebra.SingularException(info))
-            end
-            A
+            info = BlasInt(_getindex(devinfo, 1))
+            chkargsok(info)
+            A, info
         end
     end
 end
 
-#getrf 
+## potrs
+for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
+                     (:cusolverDnDpotrs, :Float64),
+                     (:cusolverDnCpotrs, :ComplexF32),
+                     (:cusolverDnZpotrs, :ComplexF64))
+    @eval begin
+        function LinearAlgebra.LAPACK.potrs!(uplo::Char,
+                        A::CuMatrix{$elty},
+                        B::CuVecOrMat{$elty})
+            cuuplo = cublasfill(uplo)
+            n = checksquare(A)
+            if size(B, 1) != n
+                throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
+            end
+            nrhs = size(B,2)
+            lda  = max(1, stride(A, 2))
+            ldb  = max(1, stride(B, 2))
+
+            devinfo = CuArray{Cint}(1)
+            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
+                         (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
+                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{Cint}),
+                         libcusolver_handle_dense[], cuuplo, n, nrhs, A, lda, B,
+                         ldb, devinfo)
+            info = _getindex(devinfo, 1)
+            chkargsok(BlasInt(info))
+            B
+        end
+    end
+end
+
+#getrf
 for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :Float32),
                             (:cusolverDnDgetrf_bufferSize, :cusolverDnDgetrf, :Float64),
                             (:cusolverDnCgetrf_bufferSize, :cusolverDnCgetrf, :ComplexF32),
@@ -137,42 +164,6 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                 throw(LinearAlgebra.SingularException(info))
             end
             A, devipiv
-        end
-    end
-end
-
-#potrs
-for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
-                     (:cusolverDnDpotrs, :Float64),
-                     (:cusolverDnCpotrs, :ComplexF32),
-                     (:cusolverDnZpotrs, :ComplexF64))
-    @eval begin
-        function potrs!(uplo::Char,
-                        A::CuMatrix{$elty},
-                        B::CuVecOrMat{$elty})
-            cuuplo = cublasfill(uplo)
-            n = size(A, 1)
-            if size(A, 2) != n
-                throw(DimensionMismatch("Cholesky factorization is only possible for square matrices!"))
-            end
-            if size(B, 1) != n
-                throw(DimensionMismatch("first dimension of B, $(size(B,1)), must match second dimension of A, $n"))
-            end
-            nrhs = size(B,2)
-            lda  = max(1, stride(A, 2))
-            ldb  = max(1, stride(B, 2))
-
-            devinfo = CuArray{Cint}(1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{Cint}),
-                         libcusolver_handle_dense[], cuuplo, n, nrhs, A, lda, B,
-                         ldb, devinfo)
-            info = _getindex(devinfo, 1)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
-            B
         end
     end
 end
