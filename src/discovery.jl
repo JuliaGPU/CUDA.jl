@@ -184,14 +184,14 @@ The behavior of this function can be overridden by defining the `CUDA_PATH`, `CU
 function find_toolkit()
     # look for environment variables to override discovery
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
-    envvars_set = filter(var -> haskey(ENV, var), envvars)
-    if length(envvars_set) > 0
-        envvals = unique(map(var->ENV[var], envvars_set))
-        if length(envvals) > 1
-            warn("Multiple CUDA environment variables set to different values: $(join(envvars_set, ", ", " and "))")
+    envdict = Dict(Symbol(var) => ENV[var] for var in envvars if haskey(ENV, var))
+    if length(envdict) > 0
+        if length(unique(values(envdict))) > 1
+            @warn "Multiple CUDA environment variables set to different values" envdict...
         end
-        @debug("Considering CUDA toolkit at $(envvals...) based on environment variables $(join(envvars_set, ", "))")
-        return envvals
+
+        @debug "Looking for CUDA toolkit via environment variables" envdict...
+        return values(envdict)
     end
 
     dirs = String[]
@@ -200,10 +200,11 @@ function find_toolkit()
     nvcc_path = find_cuda_binary("nvcc")
     if nvcc_path != nothing
         nvcc_dir = dirname(nvcc_path)
-        if contains(basename(nvcc_dir), r"^bin(32|64)?$")
+        if occursin(r"^bin(32|64)?$", basename(nvcc_dir))
             nvcc_dir = dirname(nvcc_dir)
         end
-        @debug("Considering CUDA toolkit at $nvcc_dir based on nvcc at $nvcc_path")
+
+        @debug "Looking for CUDA toolkit via nvcc binary" path=nvcc_path dir=nvcc_dir
         push!(dirs, nvcc_dir)
     end
 
@@ -211,34 +212,39 @@ function find_toolkit()
     libcudart_path = find_cuda_library("cudart")
     if libcudart_path != nothing
         libcudart_dir = dirname(libcudart_path)
-        if contains(basename(libcudart_dir), r"^(lib|bin)(32|64)?$")
+        if occursin(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
             libcudart_dir = dirname(libcudart_dir)
         end
-        @debug("Considering CUDA toolkit at $libcudart_dir based on libcudart at $libcudart_path")
+
+        @debug "Looking for CUDA toolkit via CUDA runtime library" path=libcudart_path dir=libcudart_dir
         push!(dirs, libcudart_dir)
     end
 
     # look in default installation directories
+    default_dirs = []
     if Compat.Sys.iswindows()
         # CUDA versions are installed in separate directories under a single base dir
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)" ]
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
-        @debug("Considering default CUDA installation directory at $basedir")
         if isdir(basedir)
             entries = map(dir -> joinpath(basedir, dir), readdir(basedir))
             reverse!(entries) # we want to search starting from the newest CUDA version
-            @debug("Considering CUDA toolkits at $(join(entries, ", ")) based on default installation directory")
-            append!(dirs, entries)
+            append!(default_dirs, entries)
         end
     else
         # CUDA versions are installed in unversioned dirs, or suffixed with the version
         basedirs = ["/usr/local/cuda", "/opt/cuda"]
         for dir in basedirs
-            append!(dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
+            append!(default_dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
         end
-        append!(dirs, basedirs)
-        push!(dirs, "/usr/lib/nvidia-cuda-toolkit")
-        push!(dirs, "/usr/share/cuda")
+        append!(default_dirs, basedirs)
+        push!(default_dirs, "/usr/lib/nvidia-cuda-toolkit")
+        push!(default_dirs, "/usr/share/cuda")
+    end
+    default_dirs = valid_dirs(default_dirs)
+    if !isempty(default_dirs)
+        @debug "Looking for CUDA toolkit via default installation directories" dirs=default_dirs
+        append!(dirs, default_dirs)
     end
 
     # filter
@@ -305,11 +311,10 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
 
         # select
         if library != nothing
-            @debug("Found unified libdevice at $library")
+            @debug("Found unified device library", library)
             return library
         elseif !isempty(libraries)
-            @debug("Found libdevice for ", join(sort(map(ver->"sm_$(ver.major)$(ver.minor)",
-                                                keys(libraries))), ", ", " and "), " at $dir")
+            @debug("Found multiple device libraries", libraries)
             return libraries
         end
     end
@@ -320,7 +325,6 @@ end
 function find_host_compiler(toolkit_version=nothing)
     if !(Compat.Sys.iswindows() || Compat.Sys.isapple())
         # Unix-like platforms: find compatible GCC binary
-
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
         gcc_names = [ "gcc", "cuda-gcc" ]
