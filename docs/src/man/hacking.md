@@ -91,25 +91,19 @@ define i32 @_Z8__balloti(i32 %a) #0 {
 }
 ```
 
-Finally, cleaning this code up we end up with the following `llvmcall` invocation:
+Finally, we use LLVM.jl's `@asmcall` macro to inline this assembly and call it:
 
 ```julia
-ballot_asm = """{
-   .reg .pred %p1;
-   setp.ne.u32 %p1, \$1, 0;
-   vote.ballot.b32 \$0, %p1;
-}"""
-
-function ballot(pred::Bool)
-    return Base.llvmcall(
-        """%2 = call i32 asm sideeffect "$ballot_asm", "=r,r"(i32 %0)
-           ret i32 %2""",
+function vote_ballot(pred::Bool)
+    return @asmcall(
+        """{
+               .reg .pred %p1;
+               setp.ne.u32 %p1, \$1, 0;
+               vote.ballot.b32 \$0, %p1;
+           }""", "=r,r", true,
         UInt32, Tuple{Int32}, convert(Int32, pred))
 end
 ```
-
-In the future, we will use LLVM.jl to properly embed inline assembly instead of this
-string-based hackery.
 
 
 ### Other functionality

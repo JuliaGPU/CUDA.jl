@@ -42,18 +42,24 @@ c = Array(d_c)
 @test a+b ≈ c
 ```
 
-This code is executed in a default, global context for the first device in your system. The
-compiler queries the context through `CuCurrentContext`, which implies you can easily switch
-contexts (using a different device, or supplying different flags) by activating a different
-one:
+This code is executed in a default, global context for the first device in your
+system. Similar to `cudaSetDevice`, you can switch devices by calling
+CUDAnative's `device!` function:
 
 ```julia
-dev = CuDevice(0)
-CuContext(dev) do ctx
-    # allocate things in this context
-    @cuda ...
+# change the active device
+device!(1)
+
+# the same, but only temporarily
+device!(2) do
+    # ...
 end
 ```
+
+Contrary to CUDA however, a context for the first device is always initialized
+when loading the package. If you want to avoid this, launch Julia with the
+environment variable `CUDANATIVE_INITIALIZE` set to `false`.
+
 
 
 ## Julia support
