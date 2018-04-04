@@ -151,8 +151,8 @@ const cuda_versions = Dict(
                     v"6.0", v"6.5",
                     v"7.0", v"7.5",
                     v"8.0",
-                    v"9.0", v"9.1"],
-    "cudnn"     => [v"1.0", v"2.0", v"3.0", v"4.0", v"5.0", v"5.1", v"6.0", v"7.0"]
+                    v"9.0", v"9.1", v"9.2"],
+    "cudnn"     => [v"1.0", v"2.0", v"3.0", v"4.0", v"5.0", v"5.1", v"6.0", v"7.0", v"7.1"]
 )
 
 # simplified find_library/find_binary entry-points,
