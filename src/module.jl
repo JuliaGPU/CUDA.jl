@@ -25,7 +25,8 @@ mutable struct CuModule
         handle_ref = Ref{CuModule_t}()
 
         options[ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-        @static if CUDAapi.DEBUG
+        if Base.JLOptions().debug_level >= 2
+            # TODO: this should happen if @debug, not if -g
             options[INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
             options[LOG_VERBOSE] = true
         end
@@ -41,7 +42,8 @@ mutable struct CuModule
             rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
         end
 
-        @static if CUDAapi.DEBUG
+        if Base.JLOptions().debug_level >= 2
+            # TODO: this should happen if @debug, not if -g
             options = decode(optionKeys, optionVals)
             if isempty(options[INFO_LOG_BUFFER])
                 @debug """JIT info log is empty"""

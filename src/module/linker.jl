@@ -24,10 +24,12 @@ mutable struct CuLink
 
         options = Dict{CUjit_option,Any}()
         options[ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-        @static if CUDAapi.DEBUG
+        if Base.JLOptions().debug_level == 1
             options[GENERATE_LINE_INFO] = true
+        elseif Base.JLOptions().debug_level >= 2
             options[GENERATE_DEBUG_INFO] = true
 
+            # TODO: this should happen if @debug, not if -g
             options[INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
             options[LOG_VERBOSE] = true
         end
@@ -130,7 +132,8 @@ function complete(link::CuLink)
         rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
     end
 
-    @static if CUDAapi.DEBUG
+    if Base.JLOptions().debug_level >= 2
+        # TODO: this should happen if @debug, not if -g
         options = decode(link.optionKeys, link.optionVals)
         if isempty(options[INFO_LOG_BUFFER])
             @debug """JIT info log is empty"""
