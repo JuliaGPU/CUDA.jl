@@ -38,7 +38,7 @@ function cuda_support(driver_version, toolkit_version)
     toolkit_version = VersionNumber(toolkit_version.major, toolkit_version.minor)
     if toolkit_version > driver_version
         error("CUDA $(toolkit_version.major).$(toolkit_version.minor) is not supported by ",
-              "your driver (which supports up to $(driver_version.major).$(driver_version.minor)")
+              "your driver (which supports up to $(driver_version.major).$(driver_version.minor))")
     end
 
     driver_target_support = CUDAapi.devices_for_cuda(driver_version)
