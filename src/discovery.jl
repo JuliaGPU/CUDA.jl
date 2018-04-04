@@ -4,12 +4,6 @@ export find_library, find_binary,
        find_libdevice,
        find_host_compiler, find_toolchain
 
-# debug print helpers
-source_str(src::String) = "in $src"
-source_str(srcs::Vector{String}) = isempty(srcs) ? "anywhere" : "in " * join(srcs, ", ", " or ")
-target_str(typ::String, dst::String) = "$typ $dst"
-target_str(typ::String, dsts::Vector{String}) = isempty(dsts) ? "no $typ" : "$typ " * join(dsts, ", ", " or ")
-
 function resolve(path)
     if islink(path)
         dir = dirname(path)
@@ -85,6 +79,7 @@ function find_library(names::Vector{String};
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
     path = resolve(Libdl.dlpath(name_found))
+    @debug "Found library $name_found at $path"
     return path
 end
 
@@ -128,6 +123,7 @@ function find_binary(names::Vector{String};
         return nothing
     else
         path = resolve(first(paths))
+        @debug "Found binary $(basename(path)) at $(dirname(path))"
         return path
     end
 end
@@ -188,7 +184,7 @@ function find_toolkit()
             @warn "Multiple CUDA environment variables set to different values" envdict...
         end
 
-        @debug "Looking for CUDA toolkit via environment variables" envdict...
+        @trace "Looking for CUDA toolkit via environment variables" envdict...
         return values(envdict)
     end
 
@@ -202,7 +198,7 @@ function find_toolkit()
             nvcc_dir = dirname(nvcc_dir)
         end
 
-        @debug "Looking for CUDA toolkit via nvcc binary" path=nvcc_path dir=nvcc_dir
+        @trace "Looking for CUDA toolkit via nvcc binary" path=nvcc_path dir=nvcc_dir
         push!(dirs, nvcc_dir)
     end
 
@@ -214,7 +210,7 @@ function find_toolkit()
             libcudart_dir = dirname(libcudart_dir)
         end
 
-        @debug "Looking for CUDA toolkit via CUDA runtime library" path=libcudart_path dir=libcudart_dir
+        @trace "Looking for CUDA toolkit via CUDA runtime library" path=libcudart_path dir=libcudart_dir
         push!(dirs, libcudart_dir)
     end
 
@@ -241,19 +237,21 @@ function find_toolkit()
     end
     default_dirs = valid_dirs(default_dirs)
     if !isempty(default_dirs)
-        @debug "Looking for CUDA toolkit via default installation directories" dirs=default_dirs
+        @trace "Looking for CUDA toolkit via default installation directories" dirs=default_dirs
         append!(dirs, default_dirs)
     end
 
     # filter
-    return valid_dirs(dirs)
+    dirs = valid_dirs(dirs)
+    @debug "Found CUDA toolkit at $(join(dirs, ", "))"
+    return dirs
 end
 
 # figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
 function find_toolkit_version(toolkit_dirs)
     nvcc_path = find_cuda_binary("nvcc", toolkit_dirs)
     if nvcc_path == nothing
-        error("CUDA toolkit $(source_str(toolkit_dirs)) doesn't contain nvcc")
+        error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain nvcc")
     end
 
     # parse the nvcc version string
@@ -264,7 +262,7 @@ function find_toolkit_version(toolkit_dirs)
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
                             parse(Int, m[:patch]))
-    @debug("CUDA toolkit identified as $version")
+    @debug "CUDA toolkit identified as $version"
     return version
 end
 
@@ -277,7 +275,7 @@ as a string. On older toolkits, individual libraries for each of the targets are
 a vector of strings.
 """
 function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
-    @debug("Request to look $(source_str(toolkit_dirs)) for libdevice $(join(targets, ", "))")
+    @trace "Request to look for libdevice $(join(targets, ", "))" locations=toolkit_dirs
 
     # figure out locations
     dirs = String[]
@@ -289,7 +287,7 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
 
     # filter
     dirs = valid_dirs(dirs)
-    @debug("Looking $(source_str(dirs)) for libdevice")
+    @trace "Look for libdevice $(join(targets, ", "))" locations=dirs
 
     for dir in dirs
         # parse filenames
@@ -309,10 +307,10 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
 
         # select
         if library != nothing
-            @debug("Found unified device library", library)
+            @debug "Found unified device library at $library"
             return library
         elseif !isempty(libraries)
-            @debug("Found multiple device libraries", libraries)
+            @debug "Found split device libraries at $(join(libraries, ", "))"
             return libraries
         end
     end
@@ -351,7 +349,7 @@ function find_host_compiler(toolkit_version=nothing)
                 continue
             end
             gcc_ver = VersionNumber(m.captures[1])
-            @debug("Found GCC $gcc_ver at $gcc_path")
+            @trace "Found GCC $gcc_ver at $gcc_path"
 
             if toolkit_version == nothing || gcc_supported(gcc_ver, toolkit_version)
                 push!(gcc_possibilities, (gcc_path, gcc_ver))
@@ -380,7 +378,7 @@ function find_host_compiler(toolkit_version=nothing)
                 tmpfile = tempname() # TODO: do this with a pipe
                 run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
                 msvc_path = readlines(tmpfile)[end]
-                @debug("Considering MSVC at $msvc_path located with vswhere")
+                @trace "Considering MSVC at $msvc_path located with vswhere"
                 push!(msvc_paths, msvc_path)
             end
         end
@@ -391,7 +389,7 @@ function find_host_compiler(toolkit_version=nothing)
                 val = ENV[var]
                 msvc_path = joinpath(dirname(dirname(dirname(val))), "VC", "bin", arch, "cl.exe")
                 if isfile(msvc_path)
-                    @debug("Considering MSVC at $msvc_path located with environment variable $var")
+                    @trace "Considering MSVC at $msvc_path located with environment variable $var"
                     push!(msvc_paths, msvc_path)
                 end
             end
@@ -442,8 +440,8 @@ function find_host_compiler(toolkit_version=nothing)
 
         host_compiler, host_version = clang_path, clang_ver
     end
-    @debug("Selected host compiler version $host_version at $host_compiler")
 
+    @debug "Selected host compiler version $host_version at $host_compiler"
     return host_compiler, host_version
 end
 
@@ -458,7 +456,7 @@ function find_toolchain(toolkit_dirs, toolkit_version=find_toolkit_version(toolk
     # find the CUDA compiler
     nvcc_path = find_cuda_binary("nvcc", toolkit_dirs)
     if nvcc_path == nothing
-        error("CUDA toolkit $(source_str(toolkit_dirs)) doesn't contain nvcc")
+        error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain nvcc")
     end
     nvcc_version = toolkit_version
 
