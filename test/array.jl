@@ -64,6 +64,15 @@ let
 
         @test Base.unsafe_convert(Ptr{Int}, Base.cconvert(Ptr{Int}, a)) == C_NULL
     end
+    let
+        a = CuArray([1])
+        b = convert(CuArray, a)
+        @test a === b
+
+        c = convert(CuArray, [1])
+        @test a !== c
+        @test convert(Array, a) == convert(Array, c)
+    end
 
     # copy: size mismatches
     let

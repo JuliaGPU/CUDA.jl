@@ -98,6 +98,8 @@ Base.sizeof(a::CuArray{T}) where {T} = Base.elsize(a) * length(a)
 
 ## conversions
 
+Base.convert(::Type{T}, a::AbstractArray) where {T<:CuArray} = a isa T ? a : T(a)
+
 Base.cconvert(::Type{Ptr{T}}, a::CuArray{T}) where {T} = a.buf
 
 
