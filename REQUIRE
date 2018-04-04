@@ -1,2 +1,3 @@
 julia 0.6
-Compat 0.46.0
+Compat 0.62.0
+MicroLogging
