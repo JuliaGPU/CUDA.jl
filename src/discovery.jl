@@ -42,7 +42,7 @@ function find_library(names::Vector{String};
                       locations::Vector{String}=String[],
                       versions::Vector{VersionNumber}=VersionNumber[],
                       word_size::Int=Sys.WORD_SIZE)
-    @debug("Request to look $(source_str(locations)) for $(target_str("library", names))")
+    @trace "Request to look for library $(join(names, ", "))" locations
 
     # figure out names
     all_names = String[]
@@ -77,7 +77,7 @@ function find_library(names::Vector{String};
         end
     end
 
-    @debug("Looking $(source_str(locations)) for $(target_str("library", names))")
+    @trace "Looking for library $(join(all_names, ", "))" locations=all_locations
     name_found = Libdl.find_library(all_names, all_locations)
     if isempty(name_found)
         return nothing
@@ -85,7 +85,6 @@ function find_library(names::Vector{String};
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
     path = resolve(Libdl.dlpath(name_found))
-    @debug("Found $name_found library at $path")
     return path
 end
 
@@ -97,7 +96,7 @@ subdirectories of `locations`, and finally PATH.
 """
 function find_binary(names::Vector{String};
                      locations::Vector{String}=String[])
-    @debug("Request to look $(source_str(locations)) for $(target_str("binary", names))")
+    @trace "Request to look for binary $(join(names, ", "))" locations
 
     # figure out names
     all_names = String[]
@@ -119,7 +118,7 @@ function find_binary(names::Vector{String};
         append!(all_locations, dirs)
     end
 
-    @debug("Looking $(source_str(all_locations)) for $(target_str("binary", all_names))")
+    @trace "Looking for binary $(join(all_names, ", "))" locations=all_locations
     paths = [joinpath(location, name) for name in all_names, location in all_locations]
     try
         paths = filter(ispath, paths)
@@ -129,7 +128,6 @@ function find_binary(names::Vector{String};
         return nothing
     else
         path = resolve(first(paths))
-        @debug("Found binary at $path")
         return path
     end
 end
