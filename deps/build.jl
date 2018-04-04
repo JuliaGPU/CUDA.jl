@@ -40,7 +40,6 @@ function main()
     end
 
     if isfile(previous_config_path)
-        @debug("Checking validity of existing ext.jl...")
         @eval module Previous; include($previous_config_path); end
         previous_config = Dict{Symbol,Any}(name => getfield(Previous, name)
                                            for name in globals(Previous))
