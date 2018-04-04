@@ -4,11 +4,6 @@ using Compat
 using Compat.Test
 
 
-## logging
-
-@debug("test")
-
-
 ## properties
 
 @test !CUDAapi.gcc_supported(v"5.0", v"5.5")

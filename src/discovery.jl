@@ -185,7 +185,7 @@ function find_toolkit()
         end
 
         @trace "Looking for CUDA toolkit via environment variables" envdict...
-        return values(envdict)
+        return collect(values(envdict))
     end
 
     dirs = String[]
