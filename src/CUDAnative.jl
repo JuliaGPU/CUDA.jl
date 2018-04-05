@@ -20,11 +20,6 @@ if !configured
     const cuda_driver_version = v"5.5"
 end
 
-# FIXME: replace with an additional log level when we depend on 0.7+
-macro trace(ex...)
-    esc(:(@debug $(ex...)))
-end
-
 include("utils.jl")
 include("cgutils.jl")
 include("pointer.jl")
