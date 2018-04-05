@@ -81,27 +81,36 @@ macro cuda(ex...)
         splat ? arg.args[1] : arg
     end
 
+    # generate a wrapper function that returns nothing
+    params = Tuple(gensym("param") for _ in args)
+    code = quote
+        function kernel($(params...))
+            # TODO: call-site inlining, and get rid of `inner_f`
+            $(esc(f))($(params...))
+            return nothing
+        end
+    end
+
     # assign arguments to variables
     vars = Tuple(gensym() for arg in args)
-    ex = Expr(:block)
     map(vars, args) do var,arg
-        push!(ex.args, :($var = $(esc(arg))))
+        push!(code.args, :($var = $(esc(arg))))
     end
 
     # convert the arguments, and call _cuda while keeping the original arguments alive
     var_exprs = map(vars, args, splats) do var, arg, splat
          splat ? Expr(:(...), var) : var
     end
-    push!(ex.args,
+    push!(code.args,
         :(GC.@preserve($(vars...),
-                       _cuda($(esc(f)), cudaconvert.(($(var_exprs...),))...;
+                       _cuda(kernel, $(esc(f)), cudaconvert.(($(var_exprs...),))...;
                              $(map(esc, kwargs)...)))))
-    return ex
+    return code
 end
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
-@generated function _cuda(f::Core.Function, args...; kwargs...)
+@generated function _cuda(f::Core.Function, inner_f::Core.Function, args...; kwargs...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
@@ -139,7 +148,7 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(agecache, key1)
             age = agecache[key1]
         else
-            age = method_age(f, $t)
+            age = method_age(inner_f, $t)
             agecache[key1] = age
         end
 
@@ -150,7 +159,7 @@ const compilecache = Dict{UInt, CuFunction}()
             cuda_f = compilecache[key2]
         else
             cuda_f, _ = cufunction(device(ctx), f, $tt;
-                                   $(compile_kwargs...))
+                                   inner_f=inner_f, $(compile_kwargs...))
             compilecache[key2] = cuda_f
         end
 

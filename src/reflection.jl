@@ -156,6 +156,14 @@ function emit_hooked_compilation(inner_hook, ex...)
     end
 end
 
+# NOTE: these hooks take both a `f` and an inner `f`, because of how `@cuda`/`_cuda` work:
+#       kernels are automatically wrapper in a function returning nothing, for usability.
+#
+#       Julia-level reflection (lowered/typed/warntype) skips these wrapper, because we
+#       can't do call-site inlining and the kernel wrapper would hide any meaningful code.
+#
+#       at the LLVM level, we inline everything so there's no need to hide the wrapper.
+
 """
     @device_code_lowered ex
 
@@ -165,13 +173,15 @@ every compiled CUDA kernel.
 See also: [`Base.@code_lowered`](@ref)
 """
 macro device_code_lowered(ex...)
-    @gensym hook
     quote
         buf = Any[]
-        function $hook(func, tt, cap)
-            append!(buf, code_lowered(func, tt))
+        function hook(f, inner_f, tt, cap)
+            if inner_f != nothing
+                f = inner_f
+            end
+            append!(buf, code_lowered(f, tt))
         end
-        $(emit_hooked_compilation(hook, ex...))
+        $(emit_hooked_compilation(:hook, ex...))
         buf
     end
 end
@@ -185,13 +195,15 @@ every compiled CUDA kernel.
 See also: [`Base.@code_typed`](@ref)
 """
 macro device_code_typed(ex...)
-    @gensym hook
     quote
         buf = Any[]
-        function $hook(func, tt, cap)
-            append!(buf, code_typed(func, tt))
+        function hook(f, inner_f, tt, cap)
+            if inner_f != nothing
+                f = inner_f
+            end
+            append!(buf, code_typed(f, tt))
         end
-        $(emit_hooked_compilation(hook, ex...))
+        $(emit_hooked_compilation(:hook, ex...))
         buf
     end
 end
@@ -205,8 +217,11 @@ for every compiled CUDA kernel.
 See also: [`Base.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
-    function hook(func, tt, cap; io::IO=stdout)
-        code_warntype(io, func, tt)
+    function hook(f, inner_f, tt, cap; io::IO=stdout)
+        if inner_f != nothing
+            f = inner_f
+        end
+        code_warntype(io, f, tt)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -221,8 +236,8 @@ every compiled CUDA kernel. For other supported keywords, see
 See also: [`Base.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
-    function hook(func, tt, cap; io::IO=stdout, kwargs...)
-        code_llvm(io, func, tt; kernel=true, cap=cap, kwargs...)
+    function hook(f, inner_f, tt, cap; io::IO=stdout, kwargs...)
+        code_llvm(io, f, tt; kernel=true, cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -235,8 +250,8 @@ for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    function hook(func, tt, cap; io::IO=stdout, kwargs...)
-        code_ptx(io, func, tt; kernel=true, cap=cap, kwargs...)
+    function hook(f, inner_f, tt, cap; io::IO=stdout, kwargs...)
+        code_ptx(io, f, tt; kernel=true, cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -249,8 +264,9 @@ Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(func, tt, cap; io::IO=stdout, kwargs...)
-        code_sass(io, func, tt; cap=cap, kwargs...)
+    function hook(f, inner_f, tt, cap; io::IO=stdout, kwargs...)
+        # we have inlined every function using LLVM, so don't hide the kernel wrapper.
+        code_sass(io, f, tt; cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end

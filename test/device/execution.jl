@@ -81,18 +81,6 @@ end
 end
 
 
-@testset "return values" begin
-    @eval exec_return_int_inner() = return 1
-    @test_throws ArgumentError @cuda exec_return_int_inner()
-
-    @eval function exec_return_int_outer()
-        exec_return_int_inner()
-        return nothing
-    end
-    @cuda exec_return_int_outer()
-end
-
-
 @testset "calling device function" begin
     @eval @noinline exec_devfun_child(i) = sink(i)
     @eval exec_devfun_parent() = (exec_devfun_child(1); return nothing)
