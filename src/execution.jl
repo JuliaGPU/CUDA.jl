@@ -101,29 +101,35 @@ end
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
-@generated function _cuda(func::Core.Function, argspec...; kwargs...)
-    arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
-    arg_types = argspec
+@generated function _cuda(f::Core.Function, args...; kwargs...)
+    # we're in a generated function, so `args` are really types.
+    # destructure into more appropriately-named variables
+    t = args
+    args = Tuple(:( args[$i] ) for i in 1:length(args))
 
     # split kwargs, only some are dealt with by the compiler
     compile_kwargs, call_kwargs =
         gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs)
 
-    # filter out ghost arguments
-    real_args = map(t->!isghosttype(t), arg_types)
-    real_arg_types =               Type[x[1] for x in zip(arg_types, real_args) if x[2]]
-    real_arg_exprs = Union{Expr,Symbol}[x[1] for x in zip(arg_exprs, real_args) if x[2]]
+    # filter out ghost arguments that shouldn't be passed
+    to_pass = map(!isghosttype, t)
+    call_t =                  Type[x[1] for x in zip(t,    to_pass) if x[2]]
+    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
 
     # replace non-isbits arguments (they should be unused, or compilation will fail).
     # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
-    for (i,dt) in enumerate(real_arg_types)
+    for (i,dt) in enumerate(call_t)
         if !dt.isbitstype
-            real_arg_types[i] = Ptr{Void}
-            real_arg_exprs[i] = :(convert(Ptr{Void}, UInt(0xDEADBEEF)))
+            call_t[i] = Ptr{Void}
+            call_args[i] = :(convert(Ptr{Void}, UInt(0xDEADBEEF)))
         end
     end
 
-    precomp_key = hash(tuple(func, arg_types...))  # precomputable part of the keys
+    # finalize types
+    tt = Base.to_tuple_type(t)
+    call_tt = Base.to_tuple_type(call_t)
+
+    precomp_key = hash((f,t))  # precomputable part of the keys
     quote
         Base.@_inline_meta
 
@@ -132,7 +138,7 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(agecache, key1)
             age = agecache[key1]
         else
-            age = method_age(func, $arg_types)
+            age = method_age(f, $t)
             agecache[key1] = age
         end
 
@@ -140,16 +146,16 @@ const compilecache = Dict{UInt, CuFunction}()
         ctx = CuCurrentContext()
         key2 = hash(($precomp_key, age, ctx, ($(compile_kwargs...),)))
         if haskey(compilecache, key2)
-            cuda_fun = compilecache[key2]
+            cuda_f = compilecache[key2]
         else
-            cuda_fun, _ = cufunction(device(ctx), func, Tuple{$arg_types...};
-                                     $(compile_kwargs...))
-            compilecache[key2] = cuda_fun
+            cuda_f, _ = cufunction(device(ctx), f, $tt;
+                                   $(compile_kwargs...))
+            compilecache[key2] = cuda_f
         end
 
         # call the kernel
         Profile.@launch begin
-            cudacall(cuda_fun, Tuple{$(real_arg_types...)}, $(real_arg_exprs...);
+            cudacall(cuda_f, $call_tt, $(call_args...);
                      $(call_kwargs...))
         end
     end
