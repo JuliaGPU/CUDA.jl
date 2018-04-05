@@ -75,7 +75,7 @@ function __init__()
         #       eg. select the most powerful device,
         #       or skip devices without free memory
         dev = CuDevice(0)
-        @debug "Using default device 0: $(CUDAdrv.name(dev))"
+        @debug "Using default device 0" name=CUDAdrv.name(dev)
         device!(dev)
     end
 
