@@ -91,13 +91,16 @@ values.
 See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
-                   cap::VersionNumber=current_capability(), kwargs...)
+                   cap::VersionNumber=current_capability(), kernel::Bool=true, kwargs...)
+    if !kernel
+        error("Can only generate SASS code for kernel functions")
+    end
     if ptxas === nothing || cuobjdump === nothing
         error("Your CUDA installation does not provide ptxas or cuobjdump, both of which are required for code_sass")
     end
 
     tt = Base.to_tuple_type(types)
-    check_invocation(func, tt; kernel=true)
+    check_invocation(func, tt; kernel=kernel)
 
     ptx,_ = compile_function(func, tt, cap; kwargs...)
 
