@@ -415,7 +415,7 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     end
 end
 
-function mcgen(mod::LLVM.Module, func::LLVM.Function, cap::VersionNumber)
+function mcgen(mod::LLVM.Module, f::LLVM.Function, cap::VersionNumber)
     tm = machine(cap, triple(mod))
 
     InitializeNVPTXAsmPrinter()
@@ -427,21 +427,23 @@ end
 #
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
-function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNumber;
+function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumber;
                           kernel::Bool=true, kwargs...)
     ## high-level code generation (Julia AST)
 
-    sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
-    @debug("(Re)compiling $sig for capability $cap")
+    fn = "$(typeof(f).name.mt.name)($(join(tt.parameters, ", ")))"
+    @debug "(Re)compiling function" f tt cap
+    @debug("(Re)compiling $fn for capability $cap")
 
-    check_invocation(func, tt; kernel=kernel)
+    check_invocation(f, tt; kernel=kernel)
+    sig = Base.signature_type(f, tt)
 
 
     ## low-level code generation (LLVM IR)
 
-    mod, entry = irgen(func, tt)
+    mod, entry = irgen(f, tt)
     if kernel
-        entry = promote_kernel!(mod, entry, tt; kwargs...)
+        entry = promote_kernel!(mod, entry, sig; kwargs...)
     end
     @trace("Module entry point: ", LLVM.name(entry))
 
@@ -456,7 +458,7 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 
     # make sure any non-isbits arguments are unused
     real_arg_i = 0
-    for (arg_i,dt) in enumerate(tt.parameters)
+    for (arg_i,dt) in enumerate(sig.parameters)
         isghosttype(dt) && continue
         real_arg_i += 1
 
@@ -472,9 +474,9 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
     errors = validate_ir(mod)
     if !isempty(errors)
         for e in errors
-            @warn("Encountered incompatible LLVM IR for $sig at capability $cap: ", e)
+            @warn("Encountered incompatible LLVM IR for $fn at capability $cap: ", e)
         end
-        error("LLVM IR generated for $sig at capability $cap is not compatible")
+        error("LLVM IR generated for $fn at capability $cap is not compatible")
     end
 
 
@@ -486,35 +488,35 @@ function compile_function(@nospecialize(func), @nospecialize(tt), cap::VersionNu
 end
 
 # check validity of a function invocation, specified by the generic function and a tupletype
-function check_invocation(@nospecialize(func), @nospecialize(tt); kernel::Bool=false)
-    sig = "$(typeof(func).name.mt.name)($(join(tt.parameters, ", ")))"
+function check_invocation(@nospecialize(f), @nospecialize(tt); kernel::Bool=false)
+    fn = "$(typeof(f).name.mt.name)($(join(tt.parameters, ", ")))"
 
     # get the method
-    ms = Base.methods(func, tt)
-    isempty(ms)   && throw(ArgumentError("no method found for $sig"))
-    length(ms)!=1 && throw(ArgumentError("no unique matching method for $sig"))
+    ms = Base.methods(f, tt)
+    isempty(ms)   && throw(ArgumentError("no method found for $fn"))
+    length(ms)!=1 && throw(ArgumentError("no unique matching method for $fn"))
     m = first(ms)
 
     # emulate some of the specsig logic from codegen.cpp to detect non-native CC functions
     # TODO: also do this for device functions (#87)
-    m.isva && throw(ArgumentError("invalid device function $sig: is a varargs function"))
+    m.isva && throw(ArgumentError("invalid device function $fn: is a varargs function"))
 
     # kernels can't return values
     if kernel
-        rt = Base.return_types(func, tt)[1]
+        rt = Base.return_types(f, tt)[1]
         if rt != Nothing
-            throw(ArgumentError("$sig is not a valid kernel as it returns $rt"))
+            throw(ArgumentError("$fn is not a valid kernel as it returns $rt"))
         end
     end
 end
 
-# (func::Function, tt::Type, cap::VersionNumber; kwargs...)
+# (f::Function, tt::Type, cap::VersionNumber; kwargs...)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwargs...)
+function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
-    @assert isa(func, Core.Function)
+    @assert isa(f, Core.Function)
 
     # select a capability level
     dev_cap = capability(dev)
@@ -524,10 +526,10 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwarg
     cap = maximum(compat_caps)
 
     if compile_hook[] != nothing
-        compile_hook[](func, tt, cap; kwargs...)
+        compile_hook[](f, tt, cap; kwargs...)
     end
 
-    (module_asm, module_entry) = compile_function(func, tt, cap; kwargs...)
+    (module_asm, module_entry) = compile_function(f, tt, cap; kwargs...)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
@@ -547,7 +549,7 @@ function cufunction(dev::CuDevice, @nospecialize(func), @nospecialize(tt); kwarg
         local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
         shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
         constant_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_CONST_SIZE_BYTES]
-        """Compiled $func to PTX $ptx_ver for SM $bin_ver using $regs registers.
+        """Compiled $f to PTX $ptx_ver for SM $bin_ver using $regs registers.
            Memory usage: $local_mem B local, $shared_mem B shared, $constant_mem B constant"""
     end
 
