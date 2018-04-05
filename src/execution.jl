@@ -57,10 +57,11 @@ Affecting the kernel compilation:
 Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
 different compilation parameters. New code will be generated automatically.
 
-The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
-upon first use, and to a certain extent arguments will be converted and managed
-automatically (see [`cudaconvert`](@ref)). Finally, a call to `cudacall` is performed,
-scheduling the compiled function for execution on the GPU.
+The `func` argument should be a valid Julia function. Its return values will be ignored, by
+means of a wrapper. The function will be compiled to a CUDA function upon first use, and to
+a certain extent arguments will be converted and managed automatically (see
+[`cudaconvert`](@ref)). Finally, a call to `cudacall` is performed, scheduling the compiled
+function for execution on the GPU.
 """
 macro cuda(ex...)
     # sanity checks
