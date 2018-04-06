@@ -105,15 +105,16 @@ const compilecache = Dict{UInt, CuFunction}()
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
-    args = Tuple(:( args[$i] ) for i in 1:length(args))
+    sig = (f, t...)
+    args = (:f, (:( args[$i] ) for i in 1:length(args))...)
 
     # split kwargs, only some are dealt with by the compiler
     compile_kwargs, call_kwargs =
         gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs)
 
     # filter out ghost arguments that shouldn't be passed
-    to_pass = map(!isghosttype, t)
-    call_t =                  Type[x[1] for x in zip(t,    to_pass) if x[2]]
+    to_pass = map(!isghosttype, sig)
+    call_t =                  Type[x[1] for x in zip(sig,  to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
 
     # replace non-isbits arguments (they should be unused, or compilation will fail).
@@ -129,7 +130,7 @@ const compilecache = Dict{UInt, CuFunction}()
     tt = Base.to_tuple_type(t)
     call_tt = Base.to_tuple_type(call_t)
 
-    precomp_key = hash((f,t))  # precomputable part of the keys
+    precomp_key = hash(sig)  # precomputable part of the keys
     quote
         Base.@_inline_meta
 
