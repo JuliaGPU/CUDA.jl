@@ -95,11 +95,11 @@ function irgen(@nospecialize(f), @nospecialize(tt))
         LLVM.parent(llvmf)
     end
 
-    # the main module should contain a single jlcall_ function definition,
+    # the main module should contain a single jfptr_ function definition,
     # e.g. jlcall_kernel_vadd_62977
     definitions = filter(f->!isdeclaration(f), functions(mod))
     wrapper = let
-        fs = collect(filter(f->startswith(LLVM.name(f), "jlcall_"), definitions))
+        fs = collect(filter(f->startswith(LLVM.name(f), "jfptr_"), definitions))
         @assert length(fs) == 1
         fs[1]
     end
@@ -107,7 +107,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     # the jlcall wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
     entry_tag = let
-        m = match(r"jlcall_(.+)_\d+", LLVM.name(wrapper))
+        m = match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))
         @assert m != nothing
         m.captures[1]
     end
