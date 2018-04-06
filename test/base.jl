@@ -11,7 +11,6 @@ import InteractiveUtils: _dump_function
 @eval function post17057_parent(arr::Ptr{Int64})
     i = post17057_child(0)
     unsafe_store!(arr, i, i)
-    return nothing
 end
 
 # bug: default module activation segfaulted on NULL child function if cached=false

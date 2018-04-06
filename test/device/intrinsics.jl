@@ -7,7 +7,6 @@
 
     @eval function kernel_math_log10(a, i)
         a[1] = CUDAnative.log10(i)
-        return nothing
     end
 
     @cuda kernel_math_log10(buf, Float32(100))
@@ -99,8 +98,6 @@ end
         s[t] = d[t]
         sync_threads()
         d[t] = s[tr]
-
-        return nothing
     end
 
     a = rand(Float32, n)
@@ -119,8 +116,6 @@ end
         s[t] = d[t]
         sync_threads()
         d[t] = s[tr]
-
-        return nothing
     end
 
     for T in types
@@ -137,7 +132,6 @@ end
     @eval function kernel_shmem_dynamic_alignment(v0::T, n) where {T}
         shared = CUDAnative.@cuDynamicSharedMem(T, n)
         @inbounds shared[Cuint(1)] = v0
-        return
     end
 
     n = 32
@@ -162,8 +156,6 @@ end
         s2[t] = 2*d[t]
         sync_threads()
         d[t] = s[tr]
-
-        return nothing
     end
 
     a = rand(Float32, n)
@@ -185,8 +177,6 @@ end
         s2[t] = d[t]
         sync_threads()
         d[t] = s[tr]
-
-        return nothing
     end
 
     for T in types
@@ -203,7 +193,6 @@ end
     @eval function kernel_shmem_static_alignment(v0::T) where {T}
         shared = CUDAnative.@cuStaticSharedMem(T, 32)
         @inbounds shared[Cuint(1)] = v0
-        return
     end
 
     @cuda kernel_shmem_static_alignment((0f0, 0f0, 0f0))
@@ -232,8 +221,6 @@ end
         sb[t] = b[t]
         sync_threads()
         b[t] = sb[tr]
-
-        return nothing
     end
 
     a = rand(Float32, n)
@@ -263,8 +250,6 @@ end
         sb[t] = b[t]
         sync_threads()
         b[t] = sb[tr]
-
-        return nothing
     end
 
     a = rand(Float32, n)
@@ -307,7 +292,6 @@ types = [Int32, Int64, Float32, Float64, AddableTuple]
         if t <= n
             d[t] += shfl_down(d[t], unsafe_trunc(UInt32, n÷2))
         end
-        return nothing
     end
 
     for T in types
@@ -348,8 +332,6 @@ end
         if threadIdx().x == 1
             a[1] = vote
         end
-
-        return nothing
     end
 
     len = 4
@@ -367,8 +349,6 @@ end
         if threadIdx().x == 1
             a[1] = vote
         end
-
-        return nothing
     end
 
     @cuda threads=2 kernel_vote_any(d_a, 1)
@@ -389,8 +369,6 @@ end
         if threadIdx().x == 1
             a[1] = vote
         end
-
-        return nothing
     end
 
     @cuda threads=2 kernel_vote_all(d_a, 1)

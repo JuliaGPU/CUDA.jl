@@ -32,6 +32,34 @@ end
 
 isghosttype(dt) = dt.isconcretetype && sizeof(dt) == 0
 
+# generate Kernel wrapper functions that ignore return values
+#
+# FIXME: we cannot use an ordinary splat for this, because that generates dynamic calls
+#        for certain types of arguments.
+#
+#        we also can't generate wrappers with a known amount of arguments, because `@cuda`
+#        supports splatting and doesn't know the inner function argument count
+
+struct Kernel{F} <: Core.Function
+    f::F
+end
+
+for i in 0:13
+    params = Tuple(Symbol("param$j") for j in 1:i)
+    @eval begin
+        function (k::Kernel)($(params...))
+            # TODO: call-site inlining; we now need to keep track of the inner function
+            #       for reflection usability reasons (look for `inner_f` in reflection.jl)
+            (k.f)($(params...))
+            return nothing
+        end
+    end
+end
+
+@generated function (::Kernel{F})(params...) where {F}
+    @safe_fatal "invalid kernel call; too many arguments" kernel=F argc=length(params)
+end
+
 
 """
     @cuda [kwargs...] func(args...)
@@ -57,10 +85,11 @@ Affecting the kernel compilation:
 Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
 different compilation parameters. New code will be generated automatically.
 
-The `func` argument should be a valid Julia function. It will be compiled to a CUDA function
-upon first use, and to a certain extent arguments will be converted and managed
-automatically (see [`cudaconvert`](@ref)). Finally, a call to `cudacall` is performed,
-scheduling the compiled function for execution on the GPU.
+The `func` argument should be a valid Julia function. Its return values will be ignored, by
+means of a wrapper. The function will be compiled to a CUDA function upon first use, and to
+a certain extent arguments will be converted and managed automatically (see
+[`cudaconvert`](@ref)). Finally, a call to `cudacall` is performed, scheduling the compiled
+function for execution on the GPU.
 """
 macro cuda(ex...)
     # sanity checks
@@ -83,25 +112,26 @@ macro cuda(ex...)
 
     # assign arguments to variables
     vars = Tuple(gensym() for arg in args)
-    ex = Expr(:block)
+    code = Expr(:block)
     map(vars, args) do var,arg
-        push!(ex.args, :($var = $(esc(arg))))
+        push!(code.args, :($var = $(esc(arg))))
     end
 
     # convert the arguments, and call _cuda while keeping the original arguments alive
     var_exprs = map(vars, args, splats) do var, arg, splat
          splat ? Expr(:(...), var) : var
     end
-    push!(ex.args,
+    push!(code.args,
         :(GC.@preserve($(vars...),
-                       _cuda($(esc(f)), cudaconvert.(($(var_exprs...),))...;
+                       _cuda(Kernel($(esc(f))), $(esc(f)),
+                             cudaconvert.(($(var_exprs...),))...;
                              $(map(esc, kwargs)...)))))
-    return ex
+    return code
 end
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
-@generated function _cuda(f::Core.Function, args...; kwargs...)
+@generated function _cuda(f::Core.Function, inner_f::Core.Function, args...; kwargs...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
@@ -139,7 +169,7 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(agecache, key1)
             age = agecache[key1]
         else
-            age = method_age(f, $t)
+            age = method_age(inner_f, $t)
             agecache[key1] = age
         end
 
@@ -149,8 +179,7 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(compilecache, key2)
             cuda_f = compilecache[key2]
         else
-            cuda_f, _ = cufunction(device(ctx), f, $tt;
-                                   $(compile_kwargs...))
+            cuda_f, _ = cufunction(device(ctx), f, inner_f, $tt; $(compile_kwargs...))
             compilecache[key2] = cuda_f
         end
 

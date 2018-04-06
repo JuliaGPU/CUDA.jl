@@ -2,12 +2,12 @@
 
 ############################################################################################
 
-@eval exec_dummy() = return nothing
+@eval exec_dummy() = nothing
 
 @testset "cufunction" begin
-    @test_throws UndefVarError cufunction(exec_undefined_kernel, ())
+    @test_throws UndefVarError cufunction(exec_undefined_kernel, exec_undefined_kernel, ())
 
-    cufunction(dev, exec_dummy, Tuple{})
+    cufunction(dev, exec_dummy, exec_dummy, Tuple{})
 
     # NOTE: other cases are going to be covered by tests below,
     #       as @cuda internally uses cufunction
@@ -63,7 +63,7 @@ end
 @testset "external kernels" begin
     @eval module KernelModule
         export exec_external_dummy
-        exec_external_dummy() = return nothing
+        exec_external_dummy() = nothing
     end
     import ...KernelModule
     @cuda KernelModule.exec_external_dummy()
@@ -74,28 +74,16 @@ end
 
     @eval module WrapperModule
         using CUDAnative
-        @eval exec_dummy() = return nothing
+        @eval exec_dummy() = nothing
         wrapper() = @cuda exec_dummy()
     end
     WrapperModule.wrapper()
 end
 
 
-@testset "return values" begin
-    @eval exec_return_int_inner() = return 1
-    @test_throws ArgumentError @cuda exec_return_int_inner()
-
-    @eval function exec_return_int_outer()
-        exec_return_int_inner()
-        return nothing
-    end
-    @cuda exec_return_int_outer()
-end
-
-
 @testset "calling device function" begin
     @eval @noinline exec_devfun_child(i) = sink(i)
-    @eval exec_devfun_parent() = (exec_devfun_child(1); return nothing)
+    @eval exec_devfun_parent() = exec_devfun_child(1)
 
     @cuda exec_devfun_parent()
 end
@@ -116,8 +104,6 @@ len = prod(dims)
 
         val = unsafe_load(input, i)
         unsafe_store!(output, val, i)
-
-        return nothing
     end
 
     input = round.(rand(Float32, dims) * 100)
@@ -141,8 +127,6 @@ end
             val = unsafe_load(a, i)
             unsafe_store!(x, val)
         end
-
-        return nothing
     end
 
     arr = round.(rand(Float32, dims) * 100)
@@ -165,8 +149,6 @@ end
             val = exec_pass_scalar_devfun_child(a, i)
             unsafe_store!(x, val)
         end
-
-        return nothing
     end
     @eval function exec_pass_scalar_devfun_child(a, i)
         return unsafe_load(a, i)
@@ -193,7 +175,6 @@ end
         else
             unsafe_store!(out, 2)
         end
-        nothing
     end
 
     keeps = (true,)
@@ -206,7 +187,6 @@ end
 @testset "tuple of arrays" begin
     @eval function exec_pass_tuples(xs)
         xs[1][1] = xs[2][1]
-        nothing
     end
 
     x1 = CuTestArray([1])
@@ -234,8 +214,6 @@ end
     @eval function exec_pass_ghost(ghost, a, b, c)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         unsafe_store!(c, unsafe_load(a,i)+unsafe_load(b,i), i)
-
-        return nothing
     end
     @cuda threads=len exec_pass_ghost(ExecGhost(),
                                       Base.unsafe_convert(Ptr{Float32}, d_a),
@@ -250,8 +228,6 @@ end
     @eval function exec_pass_ghost_aggregate(ghost, out, aggregate)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         unsafe_store!(out, aggregate[1], i)
-
-        return nothing
     end
     @cuda threads=len exec_pass_ghost_aggregate(ExecGhost(),
                                                 Base.unsafe_convert(Ptr{Float32}, d_c),
@@ -267,7 +243,6 @@ end
 
     @eval function exec_pass_immutables(ptr, b)
         unsafe_store!(ptr, imag(b))
-        return nothing
     end
 
     buf = Mem.upload([0f0])
@@ -281,12 +256,12 @@ end
 @testset "automatic recompilation" begin
     buf = Mem.alloc(Int)
 
-    @eval exec_265(ptr) = (unsafe_store!(ptr, 1); return nothing)
+    @eval exec_265(ptr) = unsafe_store!(ptr, 1)
 
     @cuda exec_265(Base.unsafe_convert(Ptr{Int}, buf))
     @test Mem.download(Int, buf) == [1]
 
-    @eval exec_265(ptr) = (unsafe_store!(ptr, 2); return nothing)
+    @eval exec_265(ptr) = unsafe_store!(ptr, 2)
 
     @cuda exec_265(Base.unsafe_convert(Ptr{Int}, buf))
     @test Mem.download(Int, buf) == [2]
@@ -294,13 +269,13 @@ end
 
 
 @testset "non-isbits arguments" begin
-    @eval exec_pass_nonbits_unused(T, i) = (sink(i); return)
+    @eval exec_pass_nonbits_unused(T, i) = sink(i)
     @cuda exec_pass_nonbits_unused(Int, 1)
 
-    @eval exec_pass_nonbits_specialized(T, i) = (sink(unsafe_trunc(T,i)); return)
+    @eval exec_pass_nonbits_specialized(T, i) = sink(unsafe_trunc(T,i))
     @cuda exec_pass_nonbits_specialized(Int, 1.)
 
-    @eval exec_pass_nonbits_used(i) = (sink(unsafe_trunc(Int,i)); return)
+    @eval exec_pass_nonbits_used(i) = sink(unsafe_trunc(Int,i))
     @test_throws ArgumentError @cuda exec_pass_nonbits_used(big"1")
 end
 
@@ -308,7 +283,6 @@ end
 @testset "splatting" begin
     @eval function exec_splat(out, a, b)
         unsafe_store!(out, a+b)
-        return
     end
 
     out = [0]
@@ -336,7 +310,6 @@ end
 
     @eval function (self::exec_object_inner)(a)
         a[1] = self.val
-        return
     end
 
     @eval function exec_object_outer(a, val)
@@ -354,7 +327,6 @@ end
        function exec_closure_inner(a)
             # captures `val`
             a[1] = val
-            return
        end
        @cuda exec_closure_inner(a)
     end

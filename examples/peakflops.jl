@@ -16,8 +16,6 @@ function kernel_100fma(a, b, c, out)
     end
 
     @inbounds out[i] = CUDAnative.fma(a_val, b_val, c_val)
-
-    return nothing
 end
 
 function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))

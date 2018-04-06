@@ -57,8 +57,6 @@ end
         if i <= length(input)
             output[i] = Float64(input[i])   # force conversion upon setindex!
         end
-
-        return nothing
     end
 
     input = round.(rand(Float32, dims) * 100)
@@ -80,7 +78,6 @@ end
             acc += elem
         end
         output[1] = acc
-        return nothing
     end
 
     input = round.(rand(Float32, dims) * 100)
@@ -119,8 +116,6 @@ end
         if i <= length(sub)
             sub[i] = i
         end
-
-        return nothing
     end
 
     array = zeros(Int64, 100)
@@ -150,7 +145,6 @@ end
 @testset "ldg" begin
     @eval function array_cached_load(a, b, i)
         b[i] = ldg(a, i)
-        return nothing
     end
 
     buf = IOBuffer()

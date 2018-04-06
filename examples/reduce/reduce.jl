@@ -77,8 +77,6 @@ function reduce_grid(op::Function, input::CuDeviceVector{T}, output::CuDeviceVec
     if threadIdx().x == UInt32(1)
         @inbounds output[blockIdx().x] = val
     end
-
-    return
 end
 
 """
@@ -101,8 +99,6 @@ function gpu_reduce(op::Function, input::CuVector{T}, output::CuVector{T}) where
 
     @cuda blocks=blocks threads=threads reduce_grid(op, input, output, Int32(len))
     @cuda threads=1024 reduce_grid(op, output, output, Int32(blocks))
-
-    return
 end
 
 
