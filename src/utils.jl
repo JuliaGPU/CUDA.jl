@@ -31,8 +31,17 @@ macro trace(ex...)
     esc(:(@debug $(ex...)))
 end
 
+# fatal versions to `@error`, including a safe version for compile-time errors
+# (to be used instead of `error`, which _emits_ an error)
+macro fatal(ex...)
+    esc(quote
+        @error $(ex...)
+        error("Fatal error occurred")
+    end)
+end
+
 # define safe loggers for use in generated functions (where task switches are not allowed)
-for level in [:trace, :debug, :info, :warn, :error]
+for level in [:trace, :debug, :info, :warn, :error, :fatal]
     @eval begin
         macro $(Symbol("safe_$level"))(ex...)
             macrocall = :(@placeholder $(ex...))
