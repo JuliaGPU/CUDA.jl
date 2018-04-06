@@ -29,8 +29,6 @@ macro on_device(ex)
         let
             @eval function $kernel_fn()
                 $ex
-
-                return nothing
             end
 
             @cuda $kernel_fn()

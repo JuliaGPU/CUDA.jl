@@ -13,7 +13,6 @@ a = CuArray{Float32}(10)
 function memset(a, val)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     a[i] = val
-    return nothing
 end
 
 @cuda threads=11 memset(a, 0f0)

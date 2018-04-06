@@ -5,17 +5,13 @@
 using CUDAdrv, CUDAnative
 using InteractiveUtils
 
-function kernel_dummy(ptr)
-    Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)
-    return
-end
+kernel_dummy(ptr) = Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)
 
 const len = 1000
 const ITERATIONS = 5000
 
 function benchmark(gpu_buf)
     @cuda threads=len kernel_dummy(Base.unsafe_convert(Ptr{Float32}, gpu_buf))
-    return
 end
 
 function main()    

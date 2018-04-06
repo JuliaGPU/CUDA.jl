@@ -5,7 +5,7 @@
 @testset "LLVM IR" begin
 
 @testset "basic reflection" begin
-    @eval llvm_valid_kernel() = nothing
+    @eval llvm_valid_kernel() = return
     @eval llvm_invalid_kernel() = 1
 
     ir = sprint(io->CUDAnative.code_llvm(io, llvm_valid_kernel, Tuple{}; optimize=false, dump_module=true))
@@ -34,7 +34,6 @@ end
 
     @eval function codegen_call_sysimg(a,i)
         Base.pointerset(a, 0, mod1(i,10), 8)
-        return
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_call_sysimg, Tuple{Ptr{Int},Int}))
@@ -43,7 +42,7 @@ end
 
 @testset "child functions" begin
     # we often test using `@noinline sink` child functions, so test whether these survive
-    @eval @noinline codegen_child(i) = (sink(i); nothing)
+    @eval @noinline codegen_child(i) = sink(i)
     @eval codegen_parent(i) = codegen_child(i)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, Tuple{Int}))
@@ -56,8 +55,6 @@ end
         sync_threads()
         weight_matrix[1, 16] *= 2
         sync_threads()
-
-        return
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_tuple_leak, Tuple{}))
@@ -148,16 +145,19 @@ end
 @testset "child functions" begin
     # we often test using @noinline child functions, so test whether these survive
     # (despite not having side-effects)
-    @eval @noinline ptx_child(i) = (sink(i); nothing)
-    @eval ptx_parent(i) = ptx_child(i)
+    @eval @noinline ptx_child(i) = sink(i)
+    @eval function ptx_parent(i)
+        ptx_child(i)
+        return
+    end
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_parent, Tuple{Int64}))
     @test occursin(r"call.uni\s+julia_ptx_child_"m, asm)
 end
 
 @testset "kernel functions" begin
-    @eval @noinline ptx_nonentry(i) = (sink(i); nothing)
-    @eval ptx_entry(i) = ptx_nonentry(i)
+    @eval @noinline ptx_nonentry(i) = sink(i)
+    @eval ptx_entry(i) = (ptx_nonentry(i); nothing)
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
     @test occursin(r"\.visible \.entry ptxcall_ptx_entry_", asm)
@@ -213,7 +213,7 @@ end
     # bug: depending on a child function from multiple parents resulted in
     #      the child only being present once
 
-    @eval @noinline codegen_child_reuse_child(i) = (sink(i); nothing)
+    @eval @noinline codegen_child_reuse_child(i) = sink(i)
     @eval function codegen_child_reuse_parent1(i)
         codegen_child_reuse_child(i)
         return
@@ -285,7 +285,10 @@ end
 
 @testset "LLVM intrinsics" begin
     # issue #13 (a): cannot select trunc
-    @eval codegen_issue_13(x) = unsafe_trunc(Int, x)
+    @eval function codegen_issue_13(x)
+        unsafe_trunc(Int, x)
+        return
+    end
     CUDAnative.code_ptx(devnull, codegen_issue_13, Tuple{Float64})
 end
 
