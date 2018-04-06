@@ -32,6 +32,34 @@ end
 
 isghosttype(dt) = dt.isconcretetype && sizeof(dt) == 0
 
+# generate Kernel wrapper functions that ignore return values
+#
+# FIXME: we cannot use an ordinary splat for this, because that generates dynamic calls
+#        for certain types of arguments.
+#
+#        we also can't generate wrappers with a known amount of arguments, because `@cuda`
+#        supports splatting and doesn't know the inner function argument count
+
+struct Kernel{F} <: Core.Function
+    f::F
+end
+
+for i in 0:13
+    params = Tuple(Symbol("param$j") for j in 1:i)
+    @eval begin
+        function (k::Kernel)($(params...))
+            # TODO: call-site inlining; we now need to keep track of the inner function
+            #       for reflection usability reasons (look for `inner_f` in reflection.jl)
+            (k.f)($(params...))
+            return nothing
+        end
+    end
+end
+
+@generated function (::Kernel{F})(params...) where {F}
+    @safe_fatal "invalid kernel call; too many arguments" kernel=F argc=length(params)
+end
+
 
 """
     @cuda [kwargs...] func(args...)
@@ -82,18 +110,9 @@ macro cuda(ex...)
         splat ? arg.args[1] : arg
     end
 
-    # generate a wrapper function that returns nothing
-    params = Tuple(gensym("param") for _ in args)
-    code = quote
-        function kernel($(params...))
-            # TODO: call-site inlining, and get rid of `inner_f`
-            $(esc(f))($(params...))
-            return nothing
-        end
-    end
-
     # assign arguments to variables
     vars = Tuple(gensym() for arg in args)
+    code = Expr(:block)
     map(vars, args) do var,arg
         push!(code.args, :($var = $(esc(arg))))
     end
@@ -104,7 +123,8 @@ macro cuda(ex...)
     end
     push!(code.args,
         :(GC.@preserve($(vars...),
-                       _cuda(kernel, $(esc(f)), cudaconvert.(($(var_exprs...),))...;
+                       _cuda(Kernel($(esc(f))), $(esc(f)),
+                             cudaconvert.(($(var_exprs...),))...;
                              $(map(esc, kwargs)...)))))
     return code
 end
