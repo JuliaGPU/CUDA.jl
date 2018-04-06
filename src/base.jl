@@ -119,6 +119,7 @@ struct CuError <: Exception
 end
 
 # ccall wrapper for calling functions in NVIDIA libraries
+const apicall_hook = Ref{Union{Nothing,Function}}(nothing)
 macro apicall(funspec, argtypes, args...)
     isa(funspec, QuoteNode) || error("first argument to @apicall should be a symbol")
     fun = funspec.value
@@ -133,6 +134,9 @@ macro apicall(funspec, argtypes, args...)
     configured || return :(error("CUDAdrv.jl has not been configured."))
 
     return quote
+        # NOTE: this hook is used by CUDAnative.jl to initialize upon the first API call
+        apicall_hook[] !== nothing && apicall_hook[]($funspec)
+
         status = ccall(($(QuoteNode(api_fun)), libcuda), Cint,
                        $(esc(argtypes)), $(map(esc, args)...))
 
