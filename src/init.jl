@@ -6,11 +6,28 @@ export device!
 const initialized = Ref{Bool}(false)
 const device_contexts = Dict{CuDevice,CuContext}()
 
-# NOTE: we differ from CUDA in that we always set-up a context for device 0,
-#       in order to avoid having to check for an active context with every call.
-#       maybe allocation this context is too expensive though?
-
 # FIXME: support for flags (see `cudaSetDeviceFlags`)
+
+const device_apicalls = Set{Symbol}([
+    # these API calls should not initialize the API,
+    # as they are commonly used to determine the most appropriate device
+    :cuDeviceGet,
+    :cuDeviceGetAttribute,
+    :cuDeviceGetCount,
+    :cuDeviceGetName,
+    :cuDeviceTotalMem
+])
+
+function init_device(apicall)
+    apicall in device_apicalls && return
+
+    # NOTE: we could do something smarter here,
+    #       eg. select the most powerful device,
+    #       or skip devices without free memory
+    dev = CuDevice(0)
+    @debug "Initializing CUDA for device 0 after API call" name=CUDAdrv.name(dev) apicall
+    device!(dev)
+end
 
 """
     device!(dev)
@@ -20,13 +37,17 @@ specified by integer id, or as a `CuDevice`. This is intended to be a low-cost o
 only performing significant work when calling it for the first time for each device.
 """
 function device!(dev::CuDevice)
+    if !initialized[]
+        initialized[] = true
+        CUDAdrv.apicall_hook[] = nothing
+    end
+
     # NOTE: although these conceptually match what the primary context is for,
     #       we don't use that because it is refcounted separately
     #       and might confuse / be confused by user operations
     #       (eg. calling `unsafe_reset!` on a primary context)
     if haskey(device_contexts, dev)
         ctx = device_contexts[dev]
-        initialized[] = true
         activate(ctx)
     else
         device_contexts[dev] = CuContext(dev)
@@ -51,7 +72,6 @@ function device!(f::Function, dev::CuDevice)
 end
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
-
 const jlctx = Ref{LLVM.Context}()
 function __init__()
     jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
@@ -67,17 +87,6 @@ function __init__()
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
 
-    INITIALIZE = parse(Bool, get(ENV, "CUDANATIVE_INITIALIZE", "true"))
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        @warn("Running under rr, which is incompatible with CUDA; disabling initialization.")
-    elseif INITIALIZE
-        # NOTE: we could do something smarter here,
-        #       eg. select the most powerful device,
-        #       or skip devices without free memory
-        dev = CuDevice(0)
-        @debug "Using default device 0" name=CUDAdrv.name(dev)
-        device!(dev)
-    end
-
+    CUDAdrv.apicall_hook[] = init_device
     init_jit()
 end

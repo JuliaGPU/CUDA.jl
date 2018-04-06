@@ -56,10 +56,6 @@ device!(2) do
 end
 ```
 
-Contrary to CUDA however, a context for the first device is always initialized
-when loading the package. If you want to avoid this, launch Julia with the
-environment variable `CUDANATIVE_INITIALIZE` set to `false`.
-
 
 
 ## Julia support
