@@ -8,18 +8,25 @@ const device_contexts = Dict{CuDevice,CuContext}()
 
 # FIXME: support for flags (see `cudaSetDeviceFlags`)
 
-const device_apicalls = Set{Symbol}([
-    # these API calls should not initialize the API,
-    # as they are commonly used to determine the most appropriate device
+# API calls that are allowed without lazily initializing the CUDA library
+#
+# this list isn't meant to be complete (ie. many other API calls are actually allowed
+# without setting-up a context), and only serves to make multi-device applications possible.
+#
+# feel free to open a PR adding additional API calls, if you have a specific use for them.
+const preinit_apicalls = Set{Symbol}([
+    # device calls, commonly used to determine the most appropriate device
     :cuDeviceGet,
     :cuDeviceGetAttribute,
     :cuDeviceGetCount,
     :cuDeviceGetName,
-    :cuDeviceTotalMem
+    :cuDeviceTotalMem,
+    # context calls, for testing
+    :cuCtxGetCurrent
 ])
 
 function init_device(apicall)
-    apicall in device_apicalls && return
+    apicall in preinit_apicalls && return
 
     # NOTE: we could do something smarter here,
     #       eg. select the most powerful device,

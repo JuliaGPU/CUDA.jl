@@ -15,19 +15,28 @@ include("codegen.jl")
 if CUDAnative.configured
     @test length(devices()) > 0
     if length(devices()) > 0
+        # the API shouldn't have been initialized
+        @test isnull(CuCurrentContext())
+
+        # now cause initialization
+        Mem.alloc(1)
+        @test !isnull(CuCurrentContext())
+        @test device(CuCurrentContext()) == CuDevice(0)
+
+        device!(CuDevice(0))
+        device!(CuDevice(0)) do
+            nothing
+        end
+
         # test the device selection functionality
         if length(devices()) > 1
-            @test device(CuCurrentContext()) == CuDevice(0)     # default device is 0
             device!(1) do
                 @test device(CuCurrentContext()) == CuDevice(1)
             end
             @test device(CuCurrentContext()) == CuDevice(0)
+
             device!(1)
             @test device(CuCurrentContext()) == CuDevice(1)
-        end
-        device!(CuDevice(0))
-        device!(CuDevice(0)) do
-            nothing
         end
 
         # pick most recent device (based on compute capability)
