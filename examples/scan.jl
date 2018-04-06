@@ -67,7 +67,7 @@ cpu_a = copy(a)
 cpu_accumulate!(+, cpu_a)
 
 gpu_a = CuArray(a)
-@cuda blocks=cols threads=rows shmem=cols*rows*sizeof(eltype(a)) gpu_accumulate!(+, gpu_a)
+@cuda blocks=cols threads=rows shmem=2*rows*sizeof(eltype(a)) gpu_accumulate!(+, gpu_a)
 
 using Test
 
