@@ -99,7 +99,11 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     # e.g. jlcall_kernel_vadd_62977
     definitions = filter(f->!isdeclaration(f), functions(mod))
     wrapper = let
-        fs = collect(filter(f->startswith(LLVM.name(f), "jfptr_"), definitions))
+        fs = if VERSION >= v"0.7.0-DEV.4747"
+            collect(filter(f->startswith(LLVM.name(f), "jfptr_"), definitions))
+        else
+            collect(filter(f->startswith(LLVM.name(f), "jlcall_"), definitions))
+        end
         @assert length(fs) == 1
         fs[1]
     end
@@ -107,7 +111,11 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     # the jlcall wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
     entry_tag = let
-        m = match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))
+        m = if VERSION >= v"0.7.0-DEV.4747"
+            match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))
+        else
+            match(r"jlcall_(.+)_\d+", LLVM.name(wrapper))
+        end
         @assert m != nothing
         m.captures[1]
     end
