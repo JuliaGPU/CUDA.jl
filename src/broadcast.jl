@@ -19,7 +19,7 @@ end
 
 @inline function _broadcast!(f, C::AbstractArray, keeps, Idefaults, A, Bs)
     blk, thr = cudims(C)
-    @cuda (blk, thr) broadcast_kernel(f, C, keeps, Idefaults, A, Bs)
+    @cuda blocks=blk threads=thr broadcast_kernel(f, C, keeps, Idefaults, A, Bs)
     return C
 end
 

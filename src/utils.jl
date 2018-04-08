@@ -26,7 +26,7 @@ function Base.fill!(xs::CuArray, x)
     return
   end
   blk, thr = cudims(xs)
-  @cuda (blk, thr) kernel(xs, convert(eltype(xs), x))
+  @cuda blocks=blk threads=thr kernel(xs, convert(eltype(xs), x))
   return xs
 end
 
@@ -42,7 +42,7 @@ function Base.permutedims!(dest::CuArray, src::CuArray, perm::NTuple)
     return
   end
   blk, thr = cudims(dest)
-  @cuda (blk, thr) kernel(dest, src, perm)
+  @cuda blocks=blk threads=thr kernel(dest, src, perm)
   return dest
 end
 
@@ -102,7 +102,7 @@ function _cat(dim, dest, xs...)
   end
   xs = growdims.(dim, xs)
   blk, thr = cudims(dest)
-  @cuda (blk, thr) kernel(dim, dest, xs)
+  @cuda blocks=blk threads=thr kernel(dim, dest, xs)
   return dest
 end
 

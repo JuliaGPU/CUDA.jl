@@ -57,8 +57,8 @@ GPUArrays.local_memory(dev::CUDAdrv.CuDevice) = CUDAdrv.attribute(dev, CUDAdrv.T
 
 
 function GPUArrays._gpu_call(f, A::CuArray, args::Tuple, blocks_threads::Tuple{T, T}) where T <: NTuple{N, Integer} where N
-    blocks, threads = blocks_threads
-    @cuda (blocks, threads) f(CuKernelState(), args...)
+    blk, thr = blocks_threads
+    @cuda blocks=blk threads=thr f(CuKernelState(), args...)
 end
 
 # Save reinterpret and reshape implementation use this in GPUArrays
