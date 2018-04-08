@@ -21,17 +21,15 @@ macro grab_output(ex)
 end
 
 # Run some code on-device, returning captured standard output
-counter = 0
 macro on_device(ex)
-    global counter
-    kernel_fn = Symbol("#kernel_$(counter+=1)#")
+    @gensym kernel
     esc(quote
         let
-            @eval function $kernel_fn()
+            @eval function $kernel()
                 $ex
             end
 
-            @cuda $kernel_fn()
+            @cuda $kernel()
             synchronize()
         end
     end)
