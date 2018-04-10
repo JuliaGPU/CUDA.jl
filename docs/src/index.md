@@ -53,7 +53,7 @@ properly! Some common issues:
   supported by CUDAdrv.jl, and is only intended to be used when compiling C or C++ code to
   be linked with `libcuda.so` at a time when that library isn't available yet. Unless you
   purposefully added the stub libraries to the search path, please run the build script with
-  `DEBUG=1` and file a bug report.
+  `JULIA_DEBUG=CUDAdrv` and file a bug report.
 
 Even if the build fails, CUDAdrv.jl should always be loadable. This simplifies use by
 downstream packages, until there is proper language support for conditional modules. You can

@@ -16,6 +16,9 @@ destroy!(ctx)
 
 ```
 
+To enable debug logging, launch Julia with the `JULIA_DEBUG` environment
+variable set to `CUDAdrv`.
+
 ```@meta
 DocTestSetup = quote
     using CUDAdrv
@@ -39,6 +42,7 @@ relations, API calls might randomly fail, eg. in the case of a missing context d
 with a `INVALID_CONTEXT` or `CONTEXT_IS_DESTROYED` error message.
 
 If this seems to be the case, re-run with `TRACE=1` and file a bug report.
+
 
 ## Arrays
 
@@ -95,6 +99,7 @@ CuArray: `d_A[2,4]` will fail. This is not supported because host/device memory 
 are relatively slow, and you don't want to write code that (on the host side) makes use of
 individual elements in a device array. If you want to inspect the values in a device array,
 first use `copy!` to copy it to host memory.
+
 
 ## Modules and custom kernels
 
@@ -206,9 +211,11 @@ MyCudaModule.finit()
 destroy!(ctx)
 ```
 
+
+
 # Other notes
 
-## Notes on memory
+## Memory storage order
 
 Julia convention is that matrices are stored in column-major order, whereas C (and CUDA) use
 row-major. For efficiency this wrapper avoids reordering memory, so that the linear sequence
@@ -218,26 +225,3 @@ what you want.
 However, for the purposes of linear algebra, this effectively means that one is storing the
 transpose of matrices on the GPU. Keep this in mind when manipulating code on your GPU
 kernels.
-
-
-
-## Troubleshooting
-
-You can enable verbose logging using two environment variables:
-
-* `DEBUG`: if set, enable additional (possibly costly) run-time checks, and some more
-  verbose output
-* `TRACE`: if set, the `DEBUG` level will be activated, in addition with a trace of every
-  call to the underlying library
-
-In order to avoid run-time cost for checking the log level, these flags are implemented by
-means of global constants. As a result, you **need to run Julia with precompilation
-disabled** if you want to modify these flags:
-
-```
-$ TRACE=1 julia --compilecache=no examples/vadd.jl
-TRACE: CUDAdrv.jl is running in trace mode, this will generate a lot of additional output
-...
-```
-
-Enabling colors with `--color=yes` is also recommended as it color-codes the output.
