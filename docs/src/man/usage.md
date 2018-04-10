@@ -56,6 +56,9 @@ device!(2) do
 end
 ```
 
+To enable debug logging, launch Julia with the `JULIA_DEBUG` environment
+variable set to `CUDAnative`.
+
 
 
 ## Julia support

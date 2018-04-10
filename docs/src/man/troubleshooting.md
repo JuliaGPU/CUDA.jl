@@ -1,7 +1,7 @@
 # Troubleshooting
 
-To increase logging verbosity of the CUDAnative compiler (and related packages),
-launch Julia with the `DEBUG` environment variable set to `true`.
+To increase logging verbosity of the CUDAnative compiler, launch Julia with the
+`JULIA_DEBUG` environment variable set to `CUDAnative`.
 
 
 ## `code_*` alternatives
