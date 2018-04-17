@@ -28,12 +28,12 @@ blocks = gpus
 threads = len ÷ blocks
 
 for (gpu,dev) in enumerate(devices())
-    @info "Allocating slice $gpu on device $(name(dev))"
+    @debug "Allocating slice $gpu on device $(name(dev))"
     device!(dev)
     @cuda blocks=blocks÷gpus threads=threads vadd(gpu, d_a, d_b, d_c)
 end
 
-@info "Synchronizing devices"
+@debug "Synchronizing devices"
 for dev in devices()
     # NOTE: normally you'd use events and wait for them
     device!(dev)

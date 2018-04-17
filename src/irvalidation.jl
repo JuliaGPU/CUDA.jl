@@ -16,8 +16,6 @@ function validate_ir!(errors::Vector{>:InvalidIRError}, mod::LLVM.Module)
 end
 
 function validate_ir!(errors::Vector{>:InvalidIRError}, f::LLVM.Function)
-    @trace("Validating $(LLVM.name(f))")
-
     for bb in blocks(f), inst in instructions(bb)
         if isa(inst, LLVM.CallInst)
             validate_ir!(errors, inst)
