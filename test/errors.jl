@@ -9,8 +9,8 @@ let
     showerror(io, ex)
     str = String(take!(io))
 
-    @test contains(str, "0")
-    @test contains(str, "no error")
+    @test occursin("0", str)
+    @test occursin("no error", str)
 end
 
 let
@@ -20,7 +20,7 @@ let
     showerror(io, ex)
     str = String(take!(io))
 
-    @test contains(str, "foobar")
+    @test occursin("foobar", str)
 end
 
 end

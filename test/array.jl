@@ -80,9 +80,9 @@ let
         ad = CuArray{Float32}(5)
         bd = CuArray{Float32}(10)
 
-        @test_throws ArgumentError copy!(ad, a)
-        @test_throws ArgumentError copy!(a, ad)
-        @test_throws ArgumentError copy!(ad, bd)
+        @test_throws ArgumentError copyto!(ad, a)
+        @test_throws ArgumentError copyto!(a, ad)
+        @test_throws ArgumentError copyto!(ad, bd)
     end
 
     # copy to and from device
@@ -90,10 +90,10 @@ let
         cpu = rand(Float32, 10)
         gpu = CuArray{Float32}(10)
 
-        copy!(gpu, cpu)
+        copyto!(gpu, cpu)
 
         cpu_back = Array{Float32}(undef, 10)
-        copy!(cpu_back, gpu)
+        copyto!(cpu_back, gpu)
         @assert cpu == cpu_back
     end
 
@@ -114,21 +114,21 @@ let
         
         cpuv1 = view(cpu, :, :, 1:3)
 
-        copy!(gpu, cpuv1)
+        copyto!(gpu, cpuv1)
         
         cpu_back = Array{Float32}(undef, 10, 10, 3)
-        copy!(cpu_back, gpu)
+        copyto!(cpu_back, gpu)
         @assert cpuv1 == cpu_back
 
         cpuv1 .= 0
-        copy!(cpuv1, gpu)
+        copyto!(cpuv1, gpu)
         @assert cpuv1 == cpu[:,:,1:3]
 
         cpuv2 = view(cpu, 1:3, :, :) # correct length, not contiguous
-        @test_throws ArgumentError copy!(gpu, cpuv2)
+        @test_throws ArgumentError copyto!(gpu, cpuv2)
      
         cpuv3 = view(cpu, :, :, 1:4) # wrong dimensions, but contiguous
-        @test_throws ArgumentError copy!(gpu, cpuv3)
+        @test_throws ArgumentError copyto!(gpu, cpuv3)
 
     end
 
@@ -153,8 +153,8 @@ let
 
     # printing
     let gpu = CuArray([42])
-        show(DevNull, gpu)
-        show(DevNull, "text/plain", gpu)
+        show(devnull, gpu)
+        show(devnull, "text/plain", gpu)
     end
 
     # finalizers

@@ -102,7 +102,7 @@ function main()
         previous_config = read_ext(previous_config_path)
 
         if config == previous_config
-            info("CUDAdrv.jl has already been built for this toolchain, no need to rebuild")
+            @info "CUDAdrv.jl has already been built for this toolchain, no need to rebuild"
             mv(previous_config_path, config_path; force=true)
             return
         end

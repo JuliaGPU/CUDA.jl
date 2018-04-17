@@ -58,7 +58,7 @@ end
     # TODO: test with valid object code
     # NOTE: apparently, on Windows cuLinkAddData! _does_ accept object data containing \0
     if !Sys.iswindows()
-        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN add_data!(link, "vadd_parent", Vector{UInt8}("\0"))
+        @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN add_data!(link, "vadd_parent", UInt8[0])
     end
 end
 
