@@ -130,6 +130,6 @@ function Base.unsafe_view(A::CuDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) whe
     return CuDeviceArray(len, ptr)
 end
 
-Base.start(x::CuDeviceArray) = Cuint(1)
-Base.next(x::CuDeviceArray, state::Cuint) = x[state], state + Cuint(1)
-Base.done(x::CuDeviceArray, state::Cuint) = state > length(x)
+Base.start(x::CuDeviceArray) = 1
+Base.next(x::CuDeviceArray, state::Int) = x[state], state + 1
+Base.done(x::CuDeviceArray, state::Int) = state > length(x)

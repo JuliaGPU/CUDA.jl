@@ -16,11 +16,11 @@ using CUDAdrv, CUDAnative
 
 # Reduce a value across a warp
 @inline function reduce_warp(op::Function, val::T)::T where {T}
-    offset = CUDAnative.warpsize() ÷ UInt32(2)
+    offset = CUDAnative.warpsize() ÷ 2
     # TODO: this can be unrolled if warpsize is known...
     while offset > 0
         val = op(val, shfl_down(val, offset))
-        offset ÷= UInt32(2)
+        offset ÷= 2
     end
     return val
 end
@@ -31,8 +31,8 @@ end
     shared = @cuStaticSharedMem(T, 32)
 
     # TODO: use fldmod1 (JuliaGPU/CUDAnative.jl#28)
-    wid  = div(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
-    lane = rem(threadIdx().x-UInt32(1), CUDAnative.warpsize()) + UInt32(1)
+    wid  = div(threadIdx().x-1, CUDAnative.warpsize()) + 1
+    lane = rem(threadIdx().x-1, CUDAnative.warpsize()) + 1
 
     # each warp performs partial reduction
     val = reduce_warp(op, val)
@@ -65,7 +65,7 @@ function reduce_grid(op::Function, input::CuDeviceVector{T}, output::CuDeviceVec
 
     # reduce multiple elements per thread (grid-stride loop)
     # TODO: step range (see JuliaGPU/CUDAnative.jl#12)
-    i = (blockIdx().x-UInt32(1)) * blockDim().x + threadIdx().x
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     step = blockDim().x * gridDim().x
     while i <= len
         @inbounds val = op(val, input[i])
@@ -74,7 +74,7 @@ function reduce_grid(op::Function, input::CuDeviceVector{T}, output::CuDeviceVec
 
     val = reduce_block(op, val)
 
-    if threadIdx().x == UInt32(1)
+    if threadIdx().x == 1
         @inbounds output[blockIdx().x] = val
     end
 end
@@ -97,8 +97,8 @@ function gpu_reduce(op::Function, input::CuVector{T}, output::CuVector{T}) where
         throw(ArgumentError("output array too small, should be at least $blocks elements"))
     end
 
-    @cuda blocks=blocks threads=threads reduce_grid(op, input, output, Int32(len))
-    @cuda threads=1024 reduce_grid(op, output, output, Int32(blocks))
+    @cuda blocks=blocks threads=threads reduce_grid(op, input, output, len)
+    @cuda threads=1024 reduce_grid(op, output, output, blocks)
 end
 
 

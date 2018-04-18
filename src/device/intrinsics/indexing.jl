@@ -42,22 +42,22 @@ for dim in (:x, :y, :z)
     # Thread index
     fn = Symbol("threadIdx_$dim")
     intr = Symbol("tid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_block_size[dim]-1))) + UInt32(1)
+    @eval @inline $fn() = Int(_index($(Val(intr)), $(Val(0:max_block_size[dim]-1)))) + 1
 
     # Block size (#threads per block)
     fn = Symbol("blockDim_$dim")
     intr = Symbol("ntid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_block_size[dim])))
+    @eval @inline $fn() = Int(_index($(Val(intr)), $(Val(1:max_block_size[dim]))))
 
     # Block index
     fn = Symbol("blockIdx_$dim")
     intr = Symbol("ctaid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_grid_size[dim]-1))) + UInt32(1)
+    @eval @inline $fn() = Int(_index($(Val(intr)), $(Val(0:max_grid_size[dim]-1)))) + 1
 
     # Grid size (#blocks per grid)
     fn = Symbol("gridDim_$dim")
     intr = Symbol("nctaid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim])))
+    @eval @inline $fn() = Int(_index($(Val(intr)), $(Val(1:max_grid_size[dim]))))
 end
 
 """

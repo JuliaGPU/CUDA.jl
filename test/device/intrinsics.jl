@@ -51,10 +51,18 @@ end
     _, out = @grab_output @on_device @cuprintf("Testing...\n")
     @test out == "Testing...$endline"
 
+    # narrow integer
+    _, out = @grab_output @on_device @cuprintf("Testing %d...\n", Int32(42))
+    @test out == "Testing 42...$endline"
+
+    # wide integer
     _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
     @test out == "Testing 42...$endline"
 
-    _, out = @grab_output @on_device @cuprintf("Testing %u %u...\n", blockIdx().x, threadIdx().x)
+    integer = Int == Int32 ? "%d" : "%ld"
+
+    _, out = @grab_output @on_device @cuprintf($"Testing $integer $integer...\n",
+                                               blockIdx().x, threadIdx().x)
     @test out == "Testing 1 1...$endline"
 
     _, out = @grab_output @on_device begin

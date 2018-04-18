@@ -17,6 +17,8 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
                            ("",      :idx,  UInt32(0x1f)))
     fname = Symbol("shfl$name")
 
+    # FIXME: usage of unsafe_trunc...
+
     # "two packed values specifying a mask for logically splitting warps into sub-segments
     # and an upper bound for clamping the source lane index"
     pack_expr = :(((convert(UInt32, $ws - width)) << 8) | $mask)
@@ -33,7 +35,9 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
             @inline $fname_sync(val::UInt32, src::Integer, width::Integer=$ws,
                                 threadmask::UInt32=0xffffffff) =
                 @asmcall($"$instruction \$0, \$1, \$2, \$3, \$4;", "=r,r,r,r,r", true,
-                         UInt32, NTuple{4,UInt32}, val, src, $pack_expr, threadmask)
+                         UInt32, NTuple{4,UInt32},
+                         val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, $pack_expr),
+                         threadmask)
 
             @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
                 $fname_sync(val, src, width)
@@ -45,7 +49,8 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
             export $fname
             @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
                 ccall($"$intrinsic", llvmcall, UInt32,
-                      (UInt32, UInt32, UInt32), val, convert(UInt32, src), $pack_expr)
+                      (UInt32, UInt32, UInt32),
+                      val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, $pack_expr))
         end
     end
 end
