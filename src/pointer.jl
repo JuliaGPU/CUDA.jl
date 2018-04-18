@@ -182,7 +182,7 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
-    T_int32 = LLVM.IntType(32, jlctx[])
+    T_int32 = LLVM.Int32Type(jlctx[])
     T_ptr = convert(LLVMType, Ptr{T})
 
     T_actual_ptr = LLVM.PointerType(eltyp)
