@@ -33,29 +33,31 @@ export
     call_function(llvm_f, UInt32)
 end
 
-for dim in (:x, :y, :z)
-    # TODO: range per intrinsic & device
-    range = 0:typemax(Int32)
+# TODO: look these up for the current device (using contextual dispatch).
+#       for now, these values are based on the Volta V100 GPU.
+const max_block_size = (x=1024, y=1024, z=1024)
+const max_grid_size  = (x=2147483647, y=65535, z=65535)
 
+for dim in (:x, :y, :z)
     # Thread index
     fn = Symbol("threadIdx_$dim")
     intr = Symbol("tid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(range))) + UInt32(1)
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_block_size[dim]-1))) + UInt32(1)
 
     # Block size (#threads per block)
     fn = Symbol("blockDim_$dim")
     intr = Symbol("ntid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(range)))
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_block_size[dim])))
 
     # Block index
     fn = Symbol("blockIdx_$dim")
     intr = Symbol("ctaid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(range))) + UInt32(1)
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_grid_size[dim]-1))) + UInt32(1)
 
     # Grid size (#blocks per grid)
     fn = Symbol("gridDim_$dim")
     intr = Symbol("nctaid.$dim")
-    @eval @inline $fn() = _index($(Val(intr)), $(Val(range)))
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim])))
 end
 
 """
