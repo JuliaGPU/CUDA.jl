@@ -140,7 +140,9 @@ function emit_hooked_compilation(inner_hook, ex...)
             $inner_hook(args...; $(map(esc, user_kwargs)...), kwargs...)
         end
 
-        @assert CUDAnative.compile_hook[] == nothing
+        if CUDAnative.compile_hook[] != nothing
+            error("Chaining multiple @device_code calls is unsupported")
+        end
         try
             CUDAnative.compile_hook[] = outer_hook
             $(esc(user_code))
