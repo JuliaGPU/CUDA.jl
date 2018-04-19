@@ -10,7 +10,7 @@
 
 CuArrays provides a fully-functional GPU array, which can give significant speedups over normal arrays without code changes. CuArrays are implemented fully in Julia, making the implementation [elegant and extremely generic](http://mikeinnes.github.io/2017/08/24/cudanative.html).
 
-Note that you need to **build Julia 0.6 from source** and have CUDA available to use this package.
+Note that you need to **build Julia 0.6 from source** and have CUDA available to use this package – please see the [CUDAnative.jl](https://github.com/JuliaGPU/CUDAnative.jl) instructions for more details.
 
 ```julia
 Pkg.add("CuArrays")
