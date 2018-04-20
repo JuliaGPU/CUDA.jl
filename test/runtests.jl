@@ -75,6 +75,8 @@ end
   @test testf(vcat, ones(5), zeros(5))
   @test testf(hcat, rand(3, 3), rand(3, 3))
   @test testf(vcat, rand(3, 3), rand(3, 3))
+  @test testf(hcat, rand(3), rand(3))
+  @test testf(cat, 4, rand(3, 4), rand(3, 4))
 end
 
 @testset "Broadcast" begin
