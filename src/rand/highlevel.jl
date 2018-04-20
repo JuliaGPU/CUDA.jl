@@ -1,7 +1,7 @@
 # uniform
 """Generate n uniformly distributed numbers"""
 curand(rng::RNG, ::Type{Float32}, n::Int) = generate_uniform(rng, UInt(n))
-curand(::Type{Float32}, n::Int) = curand(_rng[], Float64, n)
+curand(::Type{Float32}, n::Int) = curand(_rng[], Float32, n)
 
 curand(rng::RNG, ::Type{Float64}, n::Int) = generate_uniform_double(rng, UInt(n))
 curand(::Type{Float64}, n::Int) = curand(_rng[], Float64, n)
