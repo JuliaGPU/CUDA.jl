@@ -51,10 +51,18 @@ end
     _, out = @grab_output @on_device @cuprintf("Testing...\n")
     @test out == "Testing...$endline"
 
+    # narrow integer
+    _, out = @grab_output @on_device @cuprintf("Testing %d...\n", Int32(42))
+    @test out == "Testing 42...$endline"
+
+    # wide integer
     _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
     @test out == "Testing 42...$endline"
 
-    _, out = @grab_output @on_device @cuprintf("Testing %u %u...\n", blockIdx().x, threadIdx().x)
+    integer = Int == Int32 ? "%d" : "%ld"
+
+    _, out = @grab_output @on_device @cuprintf($"Testing $integer $integer...\n",
+                                               blockIdx().x, threadIdx().x)
     @test out == "Testing 1 1...$endline"
 
     _, out = @grab_output @on_device begin
@@ -80,7 +88,6 @@ end
 @testset "shared memory" begin
 
 n = 1024
-types = [Int32, Int64, Float32, Float64]
 
 @testset "constructors" begin
     # static
@@ -129,24 +136,21 @@ end
     @test reverse(a) == Array(d_a)
 end
 
-@testset "parametrically typed" begin
-    @eval function kernel_shmem_dynamic_typevar(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        tr = n-t+1
+@eval function kernel_shmem_dynamic_typevar(d::CuDeviceArray{T}, n) where {T}
+    t = threadIdx().x
+    tr = n-t+1
 
-        s = @cuDynamicSharedMem(T, n)
-        s[t] = d[t]
-        sync_threads()
-        d[t] = s[tr]
-    end
+    s = @cuDynamicSharedMem(T, n)
+    s[t] = d[t]
+    sync_threads()
+    d[t] = s[tr]
+end
+@testset "parametrically typed" for T in [Int32, Int64, Float32, Float64]
+    a = rand(T, n)
+    d_a = CuTestArray(a)
 
-    for T in types
-        a = rand(T, n)
-        d_a = CuTestArray(a)
-
-        @cuda threads=n shmem=n*sizeof(T) kernel_shmem_dynamic_typevar(d_a, n)
-        @test reverse(a) == Array(d_a)
-    end
+    @cuda threads=n shmem=n*sizeof(T) kernel_shmem_dynamic_typevar(d_a, n)
+    @test reverse(a) == Array(d_a)
 end
 
 @testset "alignment" begin
@@ -187,27 +191,24 @@ end
     @test reverse(a) == Array(d_a)
 end
 
-@testset "parametrically typed" begin
-    @eval function kernel_shmem_static_typevar(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        tr = n-t+1
+@eval function kernel_shmem_static_typevar(d::CuDeviceArray{T}, n) where {T}
+    t = threadIdx().x
+    tr = n-t+1
 
-        s = @cuStaticSharedMem(T, 1024)
-        s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
+    s = @cuStaticSharedMem(T, 1024)
+    s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
 
-        s[t] = d[t]
-        s2[t] = d[t]
-        sync_threads()
-        d[t] = s[tr]
-    end
+    s[t] = d[t]
+    s2[t] = d[t]
+    sync_threads()
+    d[t] = s[tr]
+end
+@testset "parametrically typed" for T in [Int32, Int64, Float32, Float64]
+    a = rand(T, n)
+    d_a = CuTestArray(a)
 
-    for T in types
-        a = rand(T, n)
-        d_a = CuTestArray(a)
-
-        @cuda threads=n kernel_shmem_static_typevar(d_a, n)
-        @test reverse(a) == Array(d_a)
-    end
+    @cuda threads=n kernel_shmem_static_typevar(d_a, n)
+    @test reverse(a) == Array(d_a)
 end
 
 @testset "alignment" begin
@@ -306,26 +307,22 @@ end
 @eval Base.:(+)(a::AddableTuple, b::AddableTuple) = AddableTuple(a.x+b.x)
 
 n = 14
-types = [Int32, Int64, Float32, Float64, AddableTuple]
 
-@testset "down" begin
-    @eval function kernel_shuffle_down(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        if t <= n
-            d[t] += shfl_down(d[t], unsafe_trunc(UInt32, n÷2))
-        end
+@eval function kernel_shuffle_down(d::CuDeviceArray{T}, n) where {T}
+    t = threadIdx().x
+    if t <= n
+        d[t] += shfl_down(d[t], n÷2)
     end
+end
+@testset "down" for T in [Int32, Int64, Float32, Float64, AddableTuple]
+    a = T[T(i) for i in 1:n]
+    d_a = CuTestArray(a)
 
-    for T in types
-        a = T[T(i) for i in 1:n]
-        d_a = CuTestArray(a)
+    threads = nearest_warpsize(dev, n)
+    @cuda threads=threads kernel_shuffle_down(d_a, n)
 
-        threads = nearest_warpsize(dev, n)
-        @cuda threads=threads kernel_shuffle_down(d_a, n)
-
-        a[1:n÷2] += a[n÷2+1:end]
-        @test a == Array(d_a)
-    end
+    a[1:n÷2] += a[n÷2+1:end]
+    @test a == Array(d_a)
 end
 
 end

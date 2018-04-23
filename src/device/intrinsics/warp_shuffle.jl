@@ -10,16 +10,16 @@ const ws = Int32(32)
 
 # primitive intrinsics
 
+# "two packed values specifying a mask for logically splitting warps into sub-segments
+# and an upper bound for clamping the source lane index"
+@inline pack(width::UInt32, mask::UInt32)::UInt32 = (convert(UInt32, ws - width) << 8) | mask
+
 # NOTE: CUDA C disagrees with PTX on how shuffles are called
 for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
                            ("_down", :down, UInt32(0x1f)),
                            ("_xor",  :bfly, UInt32(0x1f)),
                            ("",      :idx,  UInt32(0x1f)))
     fname = Symbol("shfl$name")
-
-    # "two packed values specifying a mask for logically splitting warps into sub-segments
-    # and an upper bound for clamping the source lane index"
-    pack_expr = :(((convert(UInt32, $ws - width)) << 8) | $mask)
 
     if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
         instruction = Symbol("shfl.sync.$mode.b32")
@@ -30,10 +30,17 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
         @eval begin
             export $fname_sync, $fname
 
-            @inline $fname_sync(val::UInt32, src::Integer, width::Integer=$ws,
+            @inline $fname_sync(val::UInt32, src::UInt32, width::UInt32=$ws,
                                 threadmask::UInt32=0xffffffff) =
                 @asmcall($"$instruction \$0, \$1, \$2, \$3, \$4;", "=r,r,r,r,r", true,
-                         UInt32, NTuple{4,UInt32}, val, src, $pack_expr, threadmask)
+                         UInt32, NTuple{4,UInt32},
+                         val, src, pack(width, $mask), threadmask)
+
+            # FIXME: replace this with a checked conversion once we have exceptions
+            @inline $fname_sync(val::UInt32, src::Integer, width::Integer=$ws,
+                                threadmask::UInt32=0xffffffff) =
+                $fname_sync(val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, width),
+                            threadmask)
 
             @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
                 $fname_sync(val, src, width)
@@ -43,9 +50,14 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
 
         @eval begin
             export $fname
-            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
+            @inline $fname(val::UInt32, src::UInt32, width::UInt32=$ws) =
                 ccall($"$intrinsic", llvmcall, UInt32,
-                      (UInt32, UInt32, UInt32), val, convert(UInt32, src), $pack_expr)
+                      (UInt32, UInt32, UInt32),
+                      val, src, pack(width, $mask))
+
+            # FIXME: replace this with a checked conversion once we have exceptions
+            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
+                $fname(val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, width))
         end
     end
 end
