@@ -67,7 +67,7 @@ end
 
 # fallback for unknown types
 function emit_static_shmem(id::Integer, jltyp::Type, shape::NTuple{N,<:Integer}) where N
-    if !isbits(jltyp)
+    if !isbitstype(jltyp)
         error("cuStaticSharedMem: non-isbits type '$jltyp' is not supported")
     end
 
@@ -130,7 +130,7 @@ end
 
 # fallback for unknown types
 function emit_dynamic_shmem(id::Integer, jltyp::Type, shape::Union{Expr,Symbol}, offset)
-    if !isbits(jltyp)
+    if !isbitstype(jltyp)
         error("cuDynamicSharedMem: non-isbits type '$jltyp' is not supported")
     end
 

@@ -212,7 +212,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     # generate the wrapper function type & definition
     global globalUnique
     function wrapper_type(julia_t, codegen_t)
-        if !julia_t.isbitstype
+        if !isbitstype(julia_t)
             # don't pass jl_value_t by value; it's an opaque structure
             return codegen_t
         elseif isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
@@ -470,7 +470,7 @@ function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumbe
         isghosttype(dt) && continue
         real_arg_i += 1
 
-        if !dt.isbitstype
+        if !isbitstype(dt)
             param = parameters(entry)[real_arg_i]
             if !isempty(uses(param))
                 throw(ArgumentError("Passing and using non-bitstype argument $arg_i of type $dt"))

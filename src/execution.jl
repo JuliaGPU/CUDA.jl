@@ -150,7 +150,7 @@ const compilecache = Dict{UInt, CuFunction}()
     # replace non-isbits arguments (they should be unused, or compilation will fail).
     # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
     for (i,dt) in enumerate(call_t)
-        if !dt.isbitstype
+        if !isbitstype(dt)
             call_t[i] = Ptr{Cvoid}
             call_args[i] = :C_NULL
         end
