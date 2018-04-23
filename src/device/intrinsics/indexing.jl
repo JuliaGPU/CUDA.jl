@@ -4,22 +4,60 @@ export
     threadIdx, blockDim, blockIdx, gridDim,
     warpsize
 
+@generated function _index(::Val{name}, ::Val{range}) where {name, range}
+    T_int32 = LLVM.Int32Type(jlctx[])
+
+    # create function
+    llvm_f, _ = create_function(T_int32)
+    mod = LLVM.parent(llvm_f)
+
+    # generate IR
+    Builder(jlctx[]) do builder
+        entry = BasicBlock(llvm_f, "entry", jlctx[])
+        position!(builder, entry)
+
+        # call the indexing intrinsic
+        intr_typ = LLVM.FunctionType(T_int32)
+        intr = LLVM.Function(mod, "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
+        idx = call!(builder, intr)
+
+        # attach range metadata
+        range_metadata = MDNode([ConstantInt(Int32(range.start), jlctx[]),
+                                 ConstantInt(Int32(range.stop), jlctx[])],
+                                jlctx[])
+        metadata(idx)[LLVM.MD_range] = range_metadata
+
+        ret!(builder, idx)
+    end
+
+    call_function(llvm_f, UInt32)
+end
+
+# TODO: look these up for the current device (using contextual dispatch).
+#       for now, these values are based on the Volta V100 GPU.
+const max_block_size = (x=1024, y=1024, z=1024)
+const max_grid_size  = (x=2147483647, y=65535, z=65535)
+
 for dim in (:x, :y, :z)
     # Thread index
     fn = Symbol("threadIdx_$dim")
-    @eval @inline $fn() = (ccall($"llvm.nvvm.read.ptx.sreg.tid.$dim", llvmcall, UInt32, ()))+UInt32(1)
+    intr = Symbol("tid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_block_size[dim]-1))) + UInt32(1)
 
     # Block size (#threads per block)
     fn = Symbol("blockDim_$dim")
-    @eval @inline $fn() =  ccall($"llvm.nvvm.read.ptx.sreg.ntid.$dim", llvmcall, UInt32, ())
+    intr = Symbol("ntid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_block_size[dim])))
 
     # Block index
     fn = Symbol("blockIdx_$dim")
-    @eval @inline $fn() = (ccall($"llvm.nvvm.read.ptx.sreg.ctaid.$dim", llvmcall, UInt32, ()))+UInt32(1)
+    intr = Symbol("ctaid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(0:max_grid_size[dim]-1))) + UInt32(1)
 
     # Grid size (#blocks per grid)
     fn = Symbol("gridDim_$dim")
-    @eval @inline $fn() =  ccall($"llvm.nvvm.read.ptx.sreg.nctaid.$dim", llvmcall, UInt32, ())
+    intr = Symbol("nctaid.$dim")
+    @eval @inline $fn() = _index($(Val(intr)), $(Val(1:max_grid_size[dim])))
 end
 
 """

@@ -2,6 +2,28 @@
 
 ############################################################################################
 
+@testset "indexing" begin
+    for dim in (:x, :y, :z)
+        @on_device threadIdx().$dim
+        @on_device blockDim().$dim
+        @on_device blockIdx().$dim
+        @on_device gridDim().$dim
+    end
+
+    if VERSION >= v"0.7.0-DEV.4901"
+        @testset "range metadata" begin
+            @eval codegen_indexing() = threadIdx().x
+            ir = sprint(io->CUDAnative.code_llvm(io, codegen_indexing, Tuple{}))
+
+            @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
+        end
+    end
+end
+
+
+
+############################################################################################
+
 @testset "math" begin
     buf = CuTestArray(Float32[0])
 
