@@ -311,7 +311,7 @@ n = 14
 @eval function kernel_shuffle_down(d::CuDeviceArray{T}, n) where {T}
     t = threadIdx().x
     if t <= n
-        d[t] += shfl_down(d[t], unsafe_trunc(UInt32, n÷2))
+        d[t] += shfl_down(d[t], n÷2)
     end
 end
 @testset "down" for T in [Int32, Int64, Float32, Float64, AddableTuple]
