@@ -65,7 +65,7 @@ end
 @generated function _launch(f::CuFunction, blocks::CuDim3, threads::CuDim3,
                             shmem::Int, stream::CuStream,
                             args::NTuple{N,Any}) where N
-    all(isbits, args.parameters) || throw(ArgumentError("Arguments to kernel should be bitstype."))
+    all(isbitstype, args.parameters) || throw(ArgumentError("Arguments to kernel should be bitstype."))
 
     ex = Expr(:block)
     push!(ex.args, :(Base.@_inline_meta))

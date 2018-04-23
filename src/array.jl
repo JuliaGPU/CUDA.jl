@@ -49,7 +49,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
 end
 
 function check_type(::Type{CuArray}, ::Type{T}) where {T}
-    if !isbits(T)
+    if !isbitstype(T)
         # non-isbits types results in an array with references to CPU objects
         throw(ArgumentError("CuArray with non-bit element type not supported"))
     elseif (sizeof(T) == 0)
