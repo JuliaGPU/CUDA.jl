@@ -189,15 +189,18 @@ end
 end
 
 @testset "IR validation" begin
-@info "The next couple of warnings are expected"
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
-    @test_throws ErrorException CUDAnative.code_ptx(codegen_ref_nonexisting, Tuple{})
+    @test_logs (:warn, "Encountered incompatible LLVM IR for codegen_ref_nonexisting()") match_mode=:any (
+        @test_throws ErrorException CUDAnative.code_ptx(codegen_ref_nonexisting, Tuple{})
+    )
 end
 
 @testset "generic call" begin
     @eval codegen_call_nonexisting() = nonexisting()
-    @test_throws ErrorException CUDAnative.code_ptx(codegen_call_nonexisting, Tuple{})
+    @test_logs (:warn, "Encountered incompatible LLVM IR for codegen_call_nonexisting()") match_mode=:any (
+        @test_throws ErrorException CUDAnative.code_ptx(codegen_call_nonexisting, Tuple{})
+    )
 end
 end
 

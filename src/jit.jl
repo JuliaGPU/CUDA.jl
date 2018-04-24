@@ -482,7 +482,7 @@ function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumbe
     errors = validate_ir(mod)
     if !isempty(errors)
         for e in errors
-            @warn("Encountered incompatible LLVM IR for $fn at capability $cap: ", e)
+            @warn("Encountered incompatible LLVM IR for $fn", e)
         end
         error("LLVM IR generated for $fn at capability $cap is not compatible")
     end
