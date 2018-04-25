@@ -75,10 +75,8 @@ end
   @test testf(vcat, ones(5), zeros(5))
   @test testf(hcat, rand(3, 3), rand(3, 3))
   @test testf(vcat, rand(3, 3), rand(3, 3))
-  s = copy(Base.GLOBAL_RNG)
   @test testf(hcat, rand(3), rand(3))
   @test testf(cat, 4, rand(3, 4), rand(3, 4))
-  copy!(Base.GLOBAL_RNG, s)
 end
 
 @testset "Broadcast" begin
