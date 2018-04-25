@@ -89,7 +89,7 @@ function growdims(dim, x)
   if ndims(x) >= dim
     x
   else
-    reshape(x, size(x)..., ones(Int, dim-ndims(x))...)
+    reshape(x, size.((x,), 1:dim)...)
   end
 end
 
