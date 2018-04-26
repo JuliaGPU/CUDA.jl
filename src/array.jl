@@ -132,7 +132,7 @@ function Base.copyto!(dst::CuArray{T}, src::Array{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
-    Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
+    Mem.upload!(dst.buf, pointer(src), sizeof(src))
     return dst
 end
 
@@ -146,7 +146,7 @@ function Base.copyto!(dst::Array{T}, src::CuArray{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
-    Mem.download!(pointer(dst), src.buf, length(src) * sizeof(T))
+    Mem.download!(pointer(dst), src.buf, sizeof(src))
     return dst
 end
 
@@ -160,7 +160,7 @@ function Base.copyto!(dst::CuArray{T}, src::CuArray{T}) where T
     if length(dst) != length(src)
         throw(ArgumentError("Inconsistent array length."))
     end
-    Mem.transfer!(dst.buf, src.buf, length(src) * sizeof(T))
+    Mem.transfer!(dst.buf, src.buf, sizeof(src))
     return dst
 end
 
@@ -177,7 +177,7 @@ function Base.copyto!(dst::CuArray{T}, src::SubArray{T,N,<:DenseArray,I,true}) w
     if any(strides(src) .!= strides(parent(src)))
         throw(ArgumentError("Transfers from an array view require contiguous memory layout."))
     end
-    Mem.upload!(dst.buf, pointer(src), length(src) * sizeof(T))
+    Mem.upload!(dst.buf, pointer(src), sizeof(src))
     return dst
 end
 
@@ -198,7 +198,7 @@ function Base.copyto!(dst::SubArray{T,N,<:DenseArray,I,true}, src::CuArray{T}) w
     if any(strides(dst) .!= strides(parent(dst)))
         throw(ArgumentError("Transfers to an array view require contiguous memory layout."))
     end
-    Mem.download!(pointer(dst), src.buf, length(src) * sizeof(T))
+    Mem.download!(pointer(dst), src.buf, sizeof(src))
     return dst
 end
 
