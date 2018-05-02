@@ -159,10 +159,11 @@ end
 ## context properties
 
 """
+    device()
     device(ctx::Cucontext)
 
-Returns the device for the current context. The `ctx` parameter is to make sure that the
-current context is really active, and hence the returned device is valid.
+Returns the device for the current context. The optional `ctx` parameter is to make sure
+that the current context is really active, and hence the returned device is valid.
 """
 function device(ctx::CuContext)
     if CuCurrentContext() != ctx
@@ -170,6 +171,9 @@ function device(ctx::CuContext)
         error("context should be active")
     end
 
+    return device()
+end
+function device()
     # TODO: cuCtxGetDevice returns the device ordinal, but as a CUDevice*?
     #       This can't be right...
     device_ref = Ref{Cint}()
