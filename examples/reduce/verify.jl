@@ -2,9 +2,7 @@ using Test
 
 include("reduce.jl")
 
-ctx = CuCurrentContext()
-dev = device(ctx)
-if capability(dev) < v"3.0"
+if capability(device()) < v"3.0"
     @warn("this example requires a newer GPU")
     exit(0)
 end

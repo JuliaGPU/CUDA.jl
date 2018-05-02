@@ -2,57 +2,59 @@
 
 # inner constructors
 
-generic_null = CUDAnative.DevicePtr{Cvoid,AS.Generic}(C_NULL)
-global_null = CUDAnative.DevicePtr{Cvoid,AS.Global}(C_NULL)
-local_null = CUDAnative.DevicePtr{Cvoid,AS.Local}(C_NULL)
+voidptr_a = Ptr{Cvoid}(Int(0xDEADBEEF))
+generic_voidptr_a = CUDAnative.DevicePtr{Cvoid,AS.Generic}(voidptr_a)
+global_voidptr_a = CUDAnative.DevicePtr{Cvoid,AS.Global}(voidptr_a)
+local_voidptr_a = CUDAnative.DevicePtr{Cvoid,AS.Local}(voidptr_a)
 
-C_NONNULL = Ptr{Cvoid}(1)
-generic_nonnull = CUDAnative.DevicePtr{Cvoid,AS.Generic}(C_NONNULL)
-global_nonnull = CUDAnative.DevicePtr{Cvoid,AS.Global}(C_NONNULL)
-local_nonnull = CUDAnative.DevicePtr{Cvoid,AS.Local}(C_NONNULL)
+voidptr_b = Ptr{Cvoid}(Int(0xCAFEBABE))
+generic_voidptr_b = CUDAnative.DevicePtr{Cvoid,AS.Generic}(voidptr_b)
+global_voidptr_b = CUDAnative.DevicePtr{Cvoid,AS.Global}(voidptr_b)
+local_voidptr_b = CUDAnative.DevicePtr{Cvoid,AS.Local}(voidptr_b)
 
-C_ONE = Ptr{Int}(1)
-generic_one = CUDAnative.DevicePtr{Int,AS.Generic}(C_ONE)
-global_one = CUDAnative.DevicePtr{Int,AS.Global}(C_ONE)
-local_one = CUDAnative.DevicePtr{Int,AS.Local}(C_ONE)
+intptr_b = convert(Ptr{Int}, voidptr_b)
+generic_intptr_b = CUDAnative.DevicePtr{Int,AS.Generic}(intptr_b)
+global_intptr_b = CUDAnative.DevicePtr{Int,AS.Global}(intptr_b)
+local_intptr_b = CUDAnative.DevicePtr{Int,AS.Local}(intptr_b)
 
 # outer constructors
-@test CUDAnative.DevicePtr{Cvoid}(C_NULL) == generic_null
-@test CUDAnative.DevicePtr(C_NULL) == generic_null
+@test CUDAnative.DevicePtr{Cvoid}(voidptr_a) == generic_voidptr_a
+@test CUDAnative.DevicePtr(voidptr_a) == generic_voidptr_a
 
 # getters
-@test eltype(generic_null) == Cvoid
-@test addrspace(generic_null) == AS.Generic
-@test isnull(generic_null)
-@test !isnull(generic_nonnull)
+@test eltype(generic_voidptr_a) == Cvoid
+@test eltype(global_intptr_b) == Int
+@test addrspace(generic_voidptr_a) == AS.Generic
+@test addrspace(global_voidptr_a) == AS.Global
+@test addrspace(local_voidptr_a) == AS.Local
 
 # comparisons
-@test generic_null != generic_one
-@test generic_null != global_null
-@test local_null != global_null
+@test generic_voidptr_a != global_voidptr_a
+@test generic_voidptr_a != generic_intptr_b
 
 
 @testset "conversions" begin
 
 # between regular and device pointers
 
-@test_throws InexactError convert(Ptr{Cvoid}, generic_null)
-@test_throws InexactError convert(CUDAnative.DevicePtr{Cvoid}, C_NULL)
+@test_throws InexactError convert(Ptr{Cvoid}, generic_voidptr_a)
+@test_throws InexactError convert(CUDAnative.DevicePtr{Cvoid}, voidptr_a)
 
-@test Base.unsafe_convert(Ptr{Cvoid}, generic_null) == C_NULL
+@test Base.unsafe_convert(Ptr{Cvoid}, generic_voidptr_a) == voidptr_a
 
 
 # between device pointers
 
-@test_throws InexactError convert(typeof(local_null), global_null) == local_null
-@test convert(typeof(generic_null), generic_null) == generic_null
-@test convert(typeof(global_null), global_null) == global_null
-@test Base.unsafe_convert(typeof(local_null), global_null) == local_null
+@test_throws InexactError convert(typeof(local_voidptr_a), global_voidptr_a)
+@test convert(typeof(generic_voidptr_a), generic_voidptr_a) == generic_voidptr_a
+@test convert(typeof(global_voidptr_a), global_voidptr_a) == global_voidptr_a
+@test Base.unsafe_convert(typeof(local_voidptr_a), global_voidptr_a) == local_voidptr_a
 
-@test convert(typeof(global_null), global_one) == global_nonnull
-@test convert(typeof(generic_null), global_one) == generic_nonnull
-@test convert(typeof(global_null), generic_one) == global_nonnull
-@test convert(CUDAnative.DevicePtr{Cvoid}, global_one) == global_nonnull
+@test convert(typeof(global_voidptr_a), global_intptr_b) == global_voidptr_b
+@test convert(typeof(generic_voidptr_a), global_intptr_b) == generic_voidptr_b
+@test convert(typeof(global_voidptr_a), generic_intptr_b) == global_voidptr_b
+
+@test convert(CUDAnative.DevicePtr{Cvoid}, global_intptr_b) == global_voidptr_b
 
 end
 

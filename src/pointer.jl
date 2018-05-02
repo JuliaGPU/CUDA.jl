@@ -45,7 +45,6 @@ DevicePtr(ptr::Ptr{T})              where {T} = DevicePtr{T,AS.Generic}(ptr)
 
 Base.pointer(p::DevicePtr) = p.ptr
 
-Base.isnull(p::DevicePtr) = (pointer(p) == C_NULL)
 Base.eltype(::Type{<:DevicePtr{T}}) where {T} = T
 
 addrspace(x::DevicePtr) = addrspace(typeof(x))

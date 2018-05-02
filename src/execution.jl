@@ -164,6 +164,8 @@ const compilecache = Dict{UInt, CuFunction}()
     quote
         Base.@_inline_meta
 
+        CUDAnative.maybe_initialize("@cuda")
+
         # look-up the method age
         key1 = hash(($precomp_key, world_age()))
         if haskey(agecache, key1)
