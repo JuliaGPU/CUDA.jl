@@ -123,21 +123,17 @@ end
 """
     CuCurrentContext()
 
-Return the current context, or a NULL context if there is no active context (see
-[`isnull`](@ref)).
+Return the current context, or `nothing` if there is no active context.
 """
 function CuCurrentContext()
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxGetCurrent, (Ptr{CuContext_t},), handle_ref)
-    CuContext(handle_ref[], false)
+    if handle_ref[] == C_NULL
+        return nothing
+    else
+        return CuContext(handle_ref[], false)
+    end
 end
-
-"""
-    isnull(ctx::CuContext)
-
-Indicates whether the current context is an invalid NULL context.
-"""
-Base.isnull(ctx::CuContext) = (ctx.handle == C_NULL)
 
 """
     activate(ctx::CuContext)

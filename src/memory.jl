@@ -20,8 +20,6 @@ end
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
 
-Base.isnull(buf::Buffer) = (buf.ptr == C_NULL)
-
 function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
     return Mem.Buffer(buf.ptr+bytes, buf.bytesize-bytes, buf.ctx)

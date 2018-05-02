@@ -12,6 +12,8 @@ include("base.jl")
 if CUDAdrv.configured
     @test length(devices()) > 0
     if length(devices()) > 0
+        @test CuCurrentContext() == nothing
+
         # pick most recent device (based on compute capability)
         global dev = nothing
         for newdev in devices()
@@ -20,7 +22,9 @@ if CUDAdrv.configured
             end
         end
         @info "Testing using device $(name(dev))"
+
         global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
+        @test CuCurrentContext() != nothing
 
         @testset "API wrappers" begin
             include("errors.jl")
