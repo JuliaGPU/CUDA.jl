@@ -16,11 +16,11 @@ if CUDAnative.configured
     @test length(devices()) > 0
     if length(devices()) > 0
         # the API shouldn't have been initialized
-        @test isnull(CuCurrentContext())
+        @test CuCurrentContext() == nothing
 
         # now cause initialization
         Mem.alloc(1)
-        @test !isnull(CuCurrentContext())
+        @test CuCurrentContext() != nothing
         @test device(CuCurrentContext()) == CuDevice(0)
 
         device!(CuDevice(0))

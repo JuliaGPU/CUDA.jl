@@ -10,7 +10,7 @@ function current_capability()
     end
 
     ctx = CuCurrentContext()
-    if isnull(ctx)
+    if ctx == nothing
         return fallback
     end
 

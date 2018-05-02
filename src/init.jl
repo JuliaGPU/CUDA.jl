@@ -74,7 +74,9 @@ function device!(f::Function, dev::CuDevice)
         device!(dev)
         f()
     finally
-        isnull(old_ctx) || activate(old_ctx)
+        if old_ctx != nothing
+            activate(old_ctx)
+        end
     end
 end
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
