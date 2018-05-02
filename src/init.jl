@@ -25,14 +25,20 @@ const preinit_apicalls = Set{Symbol}([
     :cuCtxGetCurrent
 ])
 
-function init_device(apicall)
+function maybe_initialize(apicall)
+    initialized[] && return
     apicall in preinit_apicalls && return
+    @debug "Initializing CUDA after call to $apicall"
+    initialize()
+end
 
+function initialize(dev = CuDevice(0))
     # NOTE: we could do something smarter here,
     #       eg. select the most powerful device,
     #       or skip devices without free memory
-    dev = CuDevice(0)
-    @debug "Initializing CUDA for device 0 after API call" name=CUDAdrv.name(dev) apicall
+    initialized[] = true
+    CUDAdrv.apicall_hook[] = nothing
+
     device!(dev)
 end
 
@@ -96,6 +102,6 @@ function __init__()
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
     end
 
-    CUDAdrv.apicall_hook[] = init_device
+    CUDAdrv.apicall_hook[] = maybe_initialize
     init_jit()
 end
