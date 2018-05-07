@@ -481,10 +481,9 @@ function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumbe
     # validate generated IR
     errors = validate_ir(mod)
     if !isempty(errors)
-        for e in errors
-            @warn("Encountered incompatible LLVM IR for $fn", e)
-        end
-        error("LLVM IR generated for $fn at capability $cap is not compatible")
+        # TODO: when on LLVM 6.0, use debug info to find the source location
+        @debug "Incompatible LLVM IR generated" errors
+        error("LLVM IR generated for $fn is not GPU compatible, try inspecting with `@device_code_...` macros")
     end
 
 
