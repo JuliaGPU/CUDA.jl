@@ -60,5 +60,5 @@ higher (`julia -g2`).
 
 We do however support emitting line number information, which is useful for other CUDA tools
 like `cuda-memcheck`. The functionality (which corresponds with `nvcc -lineinfo`) is enabled
-when the Julia debug info level is 1 (the default value) or higher. It can be disabled by
-passing `-g0` instead.
+when the Julia debug info level is 1 (the default value). It can be disabled by passing `-g0`
+instead.
