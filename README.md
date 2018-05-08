@@ -32,9 +32,7 @@ CUDAnative is a registered package, and can be installed using the Julia package
 Pkg.add("CUDAnative")
 ```
 
-The package only works with Julia 0.6, which **you need to have built from source**. Refer
-to [the documentation][docs-stable-url] for more information on how to install or use this
-package.
+**NOTE**: the current version of this package requires Julia 0.7. Only older versions of this package, v0.6.x or older, work with Julia 0.6, and require a source-build of Julia.
 
 
 License
