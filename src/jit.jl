@@ -531,7 +531,10 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @no
     cap = maximum(compat_caps)
 
     if compile_hook[] != nothing
+        global globalUnique
+        previous_globalUnique = globalUnique
         compile_hook[](f, inner_f, tt, cap; kwargs...)
+        globalUnique = previous_globalUnique
     end
 
     (module_asm, module_entry) = compile_function(f, tt, cap; kwargs...)
