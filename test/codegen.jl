@@ -121,11 +121,6 @@ end
     CUDAnative.code_llvm(devnull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
 end
 
-@testset "julia calling convention" begin
-    @eval codegen_specsig_va(Is...) = nothing
-    @test_throws ArgumentError CUDAnative.code_llvm(devnull, codegen_specsig_va, Tuple{})
-end
-
 end
 
 

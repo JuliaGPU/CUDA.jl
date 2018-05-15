@@ -505,10 +505,6 @@ function check_invocation(@nospecialize(f), @nospecialize(tt); kernel::Bool=fals
     length(ms)!=1 && throw(ArgumentError("no unique matching method for $fn"))
     m = first(ms)
 
-    # emulate some of the specsig logic from codegen.cpp to detect non-native CC functions
-    # TODO: also do this for device functions (#87)
-    m.isva && throw(ArgumentError("invalid device function $fn: is a varargs function"))
-
     # kernels can't return values
     if kernel
         rt = Base.return_types(f, tt)[1]
