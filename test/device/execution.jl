@@ -184,18 +184,6 @@ end
     @test Mem.download(Int, d_out) == [1]
 end
 
-@testset "tuple of arrays" begin
-    @eval function exec_pass_tuples(xs)
-        xs[1][1] = xs[2][1]
-    end
-
-    x1 = CuTestArray([1])
-    x2 = CuTestArray([2])
-
-    @cuda exec_pass_tuples((x1, x2))
-    @test Array(x1) == [2]
-end
-
 
 @testset "ghost function parameters" begin
     # bug: ghost type function parameters are elided by the compiler
@@ -334,6 +322,57 @@ end
     a = CuTestArray([1.])
     exec_closure_outer(a, 2.)
     @test Array(a) == [2.]
+end
+
+@testset "conversions" begin
+    @eval struct Host   end
+    @eval struct Device end
+
+    @eval CUDAnative.cudaconvert(a::Host) = Device()
+
+    Base.convert(::Type{Int}, ::Host)   = 1
+    Base.convert(::Type{Int}, ::Device) = 2
+
+    out = [0]
+
+    # convert arguments
+    out_dev = Mem.upload(out)
+    let arg = Host()
+        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @eval exec_convert_plain(arg, out) = unsafe_store!(out, convert(Int, arg))
+        @cuda exec_convert_plain(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @test Mem.download(eltype(out), out_dev) ≈ [2]
+    end
+
+    # convert tuples
+    out_dev = Mem.upload(out)
+    let arg = (Host(),)
+        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @eval exec_convert_tuple(arg, out) = unsafe_store!(out, convert(Int, arg[1]))
+        @cuda exec_convert_tuple(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @test Mem.download(eltype(out), out_dev) ≈ [2]
+    end
+
+    # convert named tuples
+    out_dev = Mem.upload(out)
+    let arg = (a=Host(),)
+        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @eval exec_convert_namedtuple(arg, out) = unsafe_store!(out, convert(Int, arg.a))
+        @cuda exec_convert_namedtuple(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @test Mem.download(eltype(out), out_dev) ≈ [2]
+    end
+
+    # don't convert structs
+    out_dev = Mem.upload(out)
+    @eval struct Nested
+        a::Host
+    end
+    let arg = Nested(Host())
+        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @eval exec_convert_namedtuple(arg, out) = unsafe_store!(out, convert(Int, arg.a))
+        @cuda exec_convert_namedtuple(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @test Mem.download(eltype(out), out_dev) ≈ [1]
+    end
 end
 
 end

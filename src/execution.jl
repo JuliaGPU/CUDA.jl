@@ -17,6 +17,9 @@ which implements GPU-compatible array functionality.
 """
 cudaconvert(x) = x
 cudaconvert(x::Tuple) = cudaconvert.(x)
+@generated function cudaconvert(x::NamedTuple)
+    Expr(:tuple, (:($f=cudaconvert(x.$f)) for f in fieldnames(x))...)
+end
 
 # fast lookup of global world age
 world_age() = ccall(:jl_get_tls_world_age, UInt, ())
