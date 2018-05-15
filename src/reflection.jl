@@ -179,7 +179,7 @@ macro device_code_lowered(ex...)
     quote
         buf = Any[]
         function hook(f, inner_f, tt, cap)
-            if inner_f != nothing
+            if inner_f !== nothing
                 f = inner_f
             end
             append!(buf, code_lowered(f, tt))
@@ -201,7 +201,7 @@ macro device_code_typed(ex...)
     quote
         buf = Any[]
         function hook(f, inner_f, tt, cap)
-            if inner_f != nothing
+            if inner_f !== nothing
                 f = inner_f
             end
             append!(buf, code_typed(f, tt))
@@ -221,7 +221,7 @@ See also: [`Base.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
     function hook(f, inner_f, tt, cap; io::IO=stdout)
-        if inner_f != nothing
+        if inner_f !== nothing
             f = inner_f
         end
         code_warntype(io, f, tt)
