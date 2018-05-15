@@ -45,6 +45,10 @@ end
     @device_code_ptx io=devnull @cuda exec_dummy()
     @device_code_sass io=devnull @cuda exec_dummy()
 
+    mktempdir() do dir
+        @device_code dir=dir @cuda exec_dummy()
+    end
+
     @test_throws ErrorException @device_code_lowered nothing
 end
 

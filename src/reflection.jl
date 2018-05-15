@@ -125,7 +125,8 @@ code_sass(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
 #
 
 export @device_code_lowered, @device_code_typed, @device_code_warntype,
-       @device_code_llvm, @device_code_ptx, @device_code_sass
+       @device_code_llvm, @device_code_ptx, @device_code_sass,
+       @device_code
 
 function emit_hooked_compilation(inner_hook, ex...)
     user_code = ex[end]
@@ -271,4 +272,36 @@ macro device_code_sass(ex...)
         code_sass(io, f, tt; cap=cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
+end
+
+"""
+    @device_code dir::AbstractString=... [...] ex
+
+Evaluates the expression `ex` and dumps all intermediate forms of code to the directory
+`dir`.
+"""
+macro device_code(ex...)
+    only(xs) = (@assert length(xs) == 1; first(xs))
+    function hook(f, inner_f, tt, cap; dir::AbstractString, kwargs...)
+        fn = "$(typeof(inner_f).name.mt.name)_$(globalUnique+1)"
+        open(joinpath(dir, "$fn.lowered.jl"), "w") do io
+            code = only(code_lowered(inner_f !== nothing ? inner_f : f, tt; kwargs...))
+            println(io, code)
+        end
+        open(joinpath(dir, "$fn.typed.jl"), "w") do io
+            code = only(code_typed(inner_f !== nothing ? inner_f : f, tt; kwargs...))
+            println(io, code)
+        end
+        open(joinpath(dir, "$fn.ll"), "w") do io
+            code_llvm(io, f, tt; kernel=true, cap=cap, dump_module=true, kwargs...)
+        end
+        open(joinpath(dir, "$fn.ptx"), "w") do io
+            code_ptx(io, f, tt; kernel=true, cap=cap, kwargs...)
+        end
+        open(joinpath(dir, "$fn.sass"), "w") do io
+            code_sass(io, f, tt; cap=cap, kwargs...)
+        end
+    end
+    emit_hooked_compilation(hook, ex...)
+
 end

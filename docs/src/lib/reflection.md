@@ -26,4 +26,5 @@ CUDAnative.@device_code_warntype
 CUDAnative.@device_code_llvm
 CUDAnative.@device_code_ptx
 CUDAnative.@device_code_sass
+CUDAnative.@device_code
 ```

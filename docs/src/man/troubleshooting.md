@@ -53,6 +53,9 @@ define void @julia_foo_35907({ [1 x i64], { i64 } }, i64) local_unnamed_addr {
 }
 ```
 
+If you want to dump all forms of generated code to disk, for further inspection,
+have a look at the `@device_code` macro instead.
+
 
 ## Debug info and line-number information
 
