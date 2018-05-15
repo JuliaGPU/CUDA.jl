@@ -301,7 +301,7 @@ end
     end
 
     @eval function (self::exec_object_inner)(a)
-        a[1] = self.val
+        unsafe_store!(a, self.val)
     end
 
     @eval function exec_object_outer(a, val)
@@ -309,23 +309,29 @@ end
        @cuda inner(a)
     end
 
-    a = CuTestArray([1.])
-    exec_object_outer(a, 2.)
-    @test Array(a) == [2.]
+    a = [1.]
+    a_dev = Mem.upload(a)
+
+    exec_object_outer(Base.unsafe_convert(Ptr{Float64}, a_dev), 2.)
+
+    @test Mem.download(eltype(a), a_dev) ≈ [2.]
 end
 
 @testset "closures" begin
-    @eval function exec_closure_outer(a, val)
+    @eval function exec_closure_outer(a_dev, val)
        function exec_closure_inner(a)
             # captures `val`
-            a[1] = val
+            unsafe_store!(a, val)
        end
-       @cuda exec_closure_inner(a)
+       @cuda exec_closure_inner(Base.unsafe_convert(Ptr{Float64}, a_dev))
     end
 
-    a = CuTestArray([1.])
-    exec_closure_outer(a, 2.)
-    @test Array(a) == [2.]
+    a = [1.]
+    a_dev = Mem.upload(a)
+
+    exec_closure_outer(a_dev, 2.)
+
+    @test Mem.download(eltype(a), a_dev) ≈ [2.]
 end
 
 @testset "conversions" begin
