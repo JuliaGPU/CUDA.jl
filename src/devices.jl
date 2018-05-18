@@ -172,12 +172,9 @@ devices() = DeviceSet()
 
 Base.eltype(::DeviceSet) = CuDevice
 
-Base.start(::DeviceSet) = 0
-
-Base.next(::DeviceSet, state) =
-    (CuDevice(state), state+1)
-
-Base.done(iter::DeviceSet, state) = state == Base.length(iter)
+function Base.iterate(iter::DeviceSet, i=1)
+    i >= length(iter) + 1 ? nothing : (CuDevice(i-1), i+1)
+end
 
 function Base.length(::DeviceSet)
     count_ref = Ref{Cint}()
