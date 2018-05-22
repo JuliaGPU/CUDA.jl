@@ -25,4 +25,11 @@ $cuda_installers.Add('9.2', 'https://developer.nvidia.com/compute/cuda/9.2/Prod/
 $cuda_installer = $cuda_installers.Get_Item($env:CUDA)
 Start-FileDownload $cuda_installer -FileName cuda.exe
 
-.\cuda.exe -s "compiler_$env:CUDA" "cudart_$env:CUDA"
+$cuda_components = @{}
+$cuda_components.Add('8.0', @("compiler_8.0", "cudart_8.0"))
+$cuda_components.Add('9.0', @("compiler_9.0", "cudart_9.0"))
+$cuda_components.Add('9.1', @("nvcc_9.1", "cudart_9.1"))
+$cuda_components.Add('9.2', @("nvcc_9.2", "cudart_9.2"))
+
+$components = $cuda_components.Get_Item($env:CUDA)
+.\cuda.exe -s @components | Out-Null
