@@ -19,7 +19,8 @@ const cuda_gcc_db = Dict(
     v"7.5" => lowest:v"4.9",    # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
     v"8.0" => lowest:v"6-",     # (__GNUC__ > 5)                                          && #error
     v"9.0" => lowest:v"7-",     # (__GNUC__ > 6)                                          && #error
-    v"9.1" => lowest:v"7-"      # (__GNUC__ > 6)                                          && #error
+    v"9.1" => lowest:v"7-",     # (__GNUC__ > 6)                                          && #error
+    v"9.2" => lowest:v"8-",     # (__GNUC__ > 7)                                          && #error
 )
 
 function gcc_supported(gcc::VersionNumber, toolkit::VersionNumber)
@@ -35,7 +36,7 @@ end
 
 # Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
 #
-# NOTE: plain integers, because from MSVC 14.1 on the number increases monolithically
+# NOTE: plain integers, because from MSVC 14.1 on the number increases monotonically
 #       https://blogs.msdn.microsoft.com/vcblog/2016/10/05/visual-c-compiler-version/
 const cuda_msvc_db = Dict(
     v"5.5"     => 1500:1700,  # (_MSC_VER < 1500 || _MSC_VER > 1700) && #error
@@ -46,7 +47,8 @@ const cuda_msvc_db = Dict(
     v"8.0"     => 1600:1900,  # (_MSC_VER < 1600 || _MSC_VER > 1900) && #error
     v"9.0"     => 1600:1910,  # (_MSC_VER < 1600 || _MSC_VER > 1910) && #error
     v"9.0.176" => 1600:1911,  # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
-    v"9.1"     => 1600:1911   # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
+    v"9.1"     => 1600:1911,  # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
+    v"9.2"     => 1600:1913,  # (_MSC_VER < 1600 || _MSC_VER > 1913) && #error
 )
 
 function msvc_supported(msvc::VersionNumber, toolkit::VersionNumber)
@@ -83,7 +85,8 @@ const dev_cuda_db = Dict(
     v"6.0" => v"8.0":highest,
     v"6.1" => v"8.0":highest,
     v"6.2" => v"8.0":highest,
-    v"7.0" => v"9.0":highest
+    v"7.0" => v"9.0":highest,
+    v"7.2" => v"9.2":highest,
 )
 
 function devices_for_cuda(ver::VersionNumber)
@@ -121,7 +124,9 @@ const isa_cuda_db = Dict(
     v"4.2" => v"7.0":highest,   # driver 346
     v"4.3" => v"7.5":highest,   # driver 351
     v"5.0" => v"8.0":highest,   # driver 361
-    v"6.0" => v"9.0":highest    # driver 384
+    v"6.0" => v"9.0":highest,   # driver 384
+    v"6.1" => v"9.1":highest,   # driver 387
+    v"6.2" => v"9.2":highest,   # driver 396
 )
 
 function isas_for_cuda(ver::VersionNumber)
@@ -150,7 +155,9 @@ const dev_llvm_db = Dict(
     v"5.3" => v"3.7":highest,
     v"6.0" => v"3.9":highest,
     v"6.1" => v"3.9":highest,
-    v"6.2" => v"3.9":highest
+    v"6.2" => v"3.9":highest,
+    v"7.0" => v"6.0":highest,
+    v"7.2" => v"7.0":highest,
 )
 
 function devices_for_llvm(ver::VersionNumber)
@@ -176,7 +183,8 @@ const isa_llvm_db = Dict(
     v"4.2" => v"3.7":highest,
     v"4.3" => v"3.9":highest,
     v"5.0" => v"3.9":highest,
-    v"6.0" => v"6.0":highest
+    v"6.0" => v"6.0":highest,
+    v"6.1" => v"7.0":highest,
 )
 
 function isas_for_llvm(ver::VersionNumber)
