@@ -69,32 +69,40 @@ actual_alloc = 0
 actual_free = 0
 amount_alloc = 0
 amount_free = 0
+alloc_1 = 0
+alloc_2 = 0
+alloc_3 = 0
+alloc_4 = 0
 
 function __init_memory__()
   create_pools(30) # up to 512 MiB
 
-  delay = MIN_DELAY
-  @schedule begin
-    while true
-      if scan()
-        delay = MIN_DELAY
-      else
-        delay = min(delay*2, MAX_DELAY)
+  if parse(Bool, get(ENV, "CUARRAYS_MANAGED_POOL", "true"))
+    Core.println("Managing pool")
+    delay = MIN_DELAY
+    @schedule begin
+      while true
+        if scan()
+          delay = MIN_DELAY
+        else
+          delay = min(delay*2, MAX_DELAY)
+        end
+
+        reclaim()
+
+        sleep(delay)
       end
-
-      reclaim()
-
-      sleep(delay)
     end
   end
 
   atexit(()->begin
-    Core.println("req_alloc = $(req_alloc)")
-    Core.println("req_free = $(req_free)")
-    Core.println("actual_alloc = $(actual_alloc)")
-    Core.println("actual_free = $(actual_free)")
-    Core.println("amount_alloc = $(amount_alloc)")
-    Core.println("amount_free = $(amount_free)")
+    Core.println("req_alloc: $req_alloc")
+    Core.println("req_free: $req_free")
+    Core.println("actual_alloc: $actual_alloc")
+    Core.println("actual_free: $actual_free")
+    Core.println("amount_alloc: $amount_alloc")
+    Core.println("amount_free: $amount_free")
+    Core.println("alloc types: $alloc_1 $alloc_2 $alloc_3 $alloc_4")
   end)
 end
 
@@ -183,7 +191,7 @@ end
 ## interface
 
 function alloc(bytes)
-  global req_alloc, actual_alloc, amount_alloc
+  global req_alloc, alloc_1, alloc_2, alloc_3, alloc_4, actual_alloc, amount_alloc
   req_alloc += 1
 
   pid = poolidx(bytes)
@@ -195,12 +203,14 @@ function alloc(bytes)
   lock(lock_pools) do
     # 1. find an unused buffer in our pool
     buf = if !isempty(avail)
+      alloc_1 += 1
       pop!(avail)
     else
       try
         # 2. didn't have one, so allocate a new buffer
-        actual_alloc += 1
         buf = Mem.alloc(poolsize(pid))
+        alloc_2 += 1
+        actual_alloc += 1
         amount_alloc += poolsize(pid)
         buf
       catch e
@@ -208,11 +218,14 @@ function alloc(bytes)
         # 3. that failed; make Julia collect objects and check do 1. again
         gc(true) # full collection
         if !isempty(avail)
+          alloc_3 += 1
           buf = pop!(avail)
         else
           # 4. didn't have one, so reclaim all other unused buffers and do 2. again
           reclaim(true)
           buf = Mem.alloc(poolsize(pid))
+          alloc_4 += 1
+          actual_alloc += 1
           amount_alloc += poolsize(pid)
           buf
         end
