@@ -26,7 +26,7 @@ const lock_pools = ReentrantLock()
 ## core pool management
 
 const pools_used = Vector{Set{Mem.Buffer}}()
-const pools_free = Vector{Vector{Mem.Buffer}}()
+const pools_avail = Vector{Vector{Mem.Buffer}}()
 
 poolidx(n) = ceil(Int, log2(n))+1
 poolsize(idx) = 2^(idx-1)
@@ -41,7 +41,7 @@ function create_pools(idx)
       push!(pool_usage, 1)
       push!(pool_history, initial_usage)
       push!(pools_used, Set{Mem.Buffer}())
-      push!(pools_free, Vector{Mem.Buffer}())
+      push!(pools_avail, Vector{Mem.Buffer}())
     end
   end
 end
@@ -62,6 +62,14 @@ const pool_history = Vector{NTuple{USAGE_WINDOW,Float64}}()
 const MIN_DELAY = 1.0
 const MAX_DELAY = 5.0
 
+# debug stats
+req_alloc = 0
+req_free = 0
+actual_alloc = 0
+actual_free = 0
+amount_alloc = 0
+amount_free = 0
+
 function __init_memory__()
   create_pools(30) # up to 512 MiB
 
@@ -81,13 +89,12 @@ function __init_memory__()
   end
 
   atexit(()->begin
-    Core.println("call_reclaim = $(call_reclaim)")
-    Core.println("call_alloc = $(call_alloc)")
-    Core.println("call_dealloc = $(call_dealloc)")
-    Core.println("stat_free = $(stat_free)")
-    Core.println("stat_alloc = $(stat_alloc)")
-    Core.println("mem_free = $(mem_free)")
-    Core.println("mem_alloc = $(mem_alloc)")
+    Core.println("req_alloc = $(req_alloc)")
+    Core.println("req_free = $(req_free)")
+    Core.println("actual_alloc = $(actual_alloc)")
+    Core.println("actual_free = $(actual_free)")
+    Core.println("amount_alloc = $(amount_alloc)")
+    Core.println("amount_free = $(amount_free)")
   end)
 end
 
@@ -96,19 +103,19 @@ end
 # returns a boolean indicating whether any pool is active, i.e. allocs or deallocs.
 # this can be a false negative.
 function scan()
-  gc(false) # quick, incremental scan
+  gc(false) # quick, incremental collection
 
   lock(lock_pools) do
     active = false
 
     @inbounds for pid in 1:length(pool_history)
-      nfree = length(pools_free[pid])
       nused = length(pools_used[pid])
+      navail = length(pools_avail[pid])
       history = pool_history[pid]
 
-      if nfree+nused > 0
+      if nused+navail > 0
         usage = pool_usage[pid]
-        current_usage = nused / (nfree + nused)
+        current_usage = nused / (nused + navail)
 
         if any(usage->usage != current_usage, history)
           # shift the history window with the recorded usage
@@ -134,37 +141,36 @@ end
 
 # reclaim free objects
 function reclaim(full::Bool=false)
-  global call_reclaim, stat_free, mem_free
-  call_reclaim += 1
+  global actual_free, amount_free
 
   lock(lock_pools) do
     if full
       # reclaim all currently unused buffers
-      for (pid, pl) in enumerate(pools_free)
+      for (pid, pl) in enumerate(pools_avail)
         for buf in pl
-          stat_free += 1
+          actual_free += 1
           Mem.free(buf)
-          mem_free += poolsize(pid)
+          amount_free += poolsize(pid)
         end
         empty!(pl)
       end
     else
       # only reclaim really unused buffers
       @inbounds for pid in 1:length(pool_usage)
-        nfree = length(pools_free[pid])
         nused = length(pools_used[pid])
+        navail = length(pools_avail[pid])
         recent_usage = (pool_history[pid]..., pool_usage[pid])
 
-        if nfree > 0
+        if navail > 0
           # reclaim as much as the usage allows
-          reclaimable = floor(Int, (1-maximum(recent_usage))*(nfree+nused))
-          @assert reclaimable <= nfree
+          reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
+          @assert reclaimable <= navail
 
           while reclaimable > 0
-            buf = pop!(pools_free[pid])
-            stat_free += 1
+            buf = pop!(pools_avail[pid])
+            actual_free += 1
             Mem.free(buf)
-            mem_free += poolsize(pid)
+            amount_free += poolsize(pid)
             reclaimable -= 1
           end
         end
@@ -173,50 +179,41 @@ function reclaim(full::Bool=false)
   end
 end
 
-# debug stats
-call_reclaim = 0
-call_alloc = 0
-call_dealloc = 0
-stat_free = 0
-stat_alloc = 0
-mem_alloc = 0
-mem_free = 0
-
 
 ## interface
 
 function alloc(bytes)
-  global call_alloc, stat_alloc, mem_alloc
-  call_alloc += 1
+  global req_alloc, actual_alloc, amount_alloc
+  req_alloc += 1
 
   pid = poolidx(bytes)
   create_pools(pid)
 
-  @inbounds free = pools_free[pid]
   @inbounds used = pools_used[pid]
+  @inbounds avail = pools_avail[pid]
 
   lock(lock_pools) do
     # 1. find an unused buffer in our pool
-    buf = if !isempty(free)
-      pop!(free)
+    buf = if !isempty(avail)
+      pop!(avail)
     else
       try
         # 2. didn't have one, so allocate a new buffer
-        stat_alloc += 1
+        actual_alloc += 1
         buf = Mem.alloc(poolsize(pid))
-        mem_alloc += poolsize(pid)
+        amount_alloc += poolsize(pid)
         buf
       catch e
         e == CUDAdrv.CuError(2) || rethrow()
         # 3. that failed; make Julia collect objects and check do 1. again
-        gc(true)
-        if !isempty(free)
-          buf = pop!(free)
+        gc(true) # full collection
+        if !isempty(avail)
+          buf = pop!(avail)
         else
           # 4. didn't have one, so reclaim all other unused buffers and do 2. again
           reclaim(true)
           buf = Mem.alloc(poolsize(pid))
-          mem_alloc += poolsize(pid)
+          amount_alloc += poolsize(pid)
           buf
         end
       end
@@ -224,7 +221,7 @@ function alloc(bytes)
 
     push!(used, buf)
 
-    current_usage = length(used) / (length(free) + length(used))
+    current_usage = length(used) / (length(avail) + length(used))
     pool_usage[pid] = max(pool_usage[pid], current_usage)
 
     buf
@@ -232,20 +229,20 @@ function alloc(bytes)
 end
 
 function dealloc(buf, bytes)
-  global call_dealloc
-  call_dealloc += 1
+  global req_free
+  req_free += 1
 
   pid = poolidx(bytes)
 
   @inbounds used = pools_used[pid]
-  @inbounds free = pools_free[pid]
+  @inbounds avail = pools_avail[pid]
 
   lock(lock_pools) do
     delete!(used, buf)
 
-    push!(free, buf)
+    push!(avail, buf)
 
-    current_usage = length(used) / (length(free) + length(used))
+    current_usage = length(used) / (length(used) + length(avail))
     pool_usage[pid] = max(pool_usage[pid], current_usage)
   end
 

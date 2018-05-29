@@ -5,6 +5,8 @@ module CuArrays
 using CUDAdrv, CUDAnative
 import CUDAnative: cudaconvert
 
+using MicroLogging
+
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones
 
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
