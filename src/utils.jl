@@ -85,6 +85,14 @@ end
   x, ntuple(n -> n == dim ? i : I[n], Val{N})
 end
 
+function growdims(dim, x)
+  if ndims(x) >= dim
+    x
+  else
+    reshape(x, size.((x,), 1:dim)...)
+  end
+end
+
 function _cat(dim, dest, xs...)
   function kernel(dim, dest, xs)
     I = @cuindex dest
@@ -92,6 +100,7 @@ function _cat(dim, dest, xs...)
     @inbounds dest[I...] = xs[n][I′...]
     return
   end
+  xs = growdims.(dim, xs)
   blk, thr = cudims(dest)
   @cuda (blk, thr) kernel(dim, dest, xs)
   return dest

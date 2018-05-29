@@ -1147,6 +1147,7 @@ end
 end
 
 @testset "getrf_batched!" begin
+    srand(1)
     @testset for elty in [Float32, Float64, Complex64, Complex128]
         local k
         # generate matrices
