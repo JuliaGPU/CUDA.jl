@@ -1,29 +1,29 @@
-# pooled gpu memory allocator
+# dynamic memory pool allocator
 #
 # this allocator sits between CuArray constructors
 # and the actual memory allocation in CUDAdrv.Mem
 #
-# the core design is pretty simple:
-# - bin allocations according to their size (see `poolidx`)
-# - when requested memory, check for previously allocated memory that has been released
-# - conversely, when released memory, put it aside for future use
+# the core design is a pretty simple:
+# - bin allocations into multiple pools according to their size (see `poolidx`)
+# - when requested memory, check the pool for unused memory, or allocate dynamically
+# - conversely, when released memory, put it in the appropriate pool for future use
 #
-# to avoid consuming all available memory, and/or trashing the Julia GC when running out:
-# - keep track of free and used memory, in order to determine the usage of each pool
+# to avoid memory hogging and/or trashing the Julia GC:
+# - keep track of used and available memory, in order to determine the usage of each pool
 # - keep track of each pool's usage, as well as a window of previous usages
 # - regularly release memory from underused pools (see `reclaim(false)`)
 #
-# improvements:
+# possible improvements:
 # - pressure: have the `reclaim` background task reclaim more aggressively,
 #             and call it from the failure cascade in `alloc`
 # - context management: either switch contexts when performing memory operations,
 #                       or just use unified memory for all allocations.
 # - per-device pools
 
-const lock_pools = ReentrantLock()
+const pool_lock = ReentrantLock()
 
 
-## core pool management
+## infrastructure
 
 const pools_used = Vector{Set{Mem.Buffer}}()
 const pools_avail = Vector{Vector{Mem.Buffer}}()
@@ -33,10 +33,11 @@ poolsize(idx) = 2^(idx-1)
 
 function create_pools(idx)
   if length(pool_usage) >= idx
+    # fast-path without taking a lock
     return
   end
 
-  lock(lock_pools) do
+  lock(pool_lock) do
     while length(pool_usage) < idx
       push!(pool_usage, 1)
       push!(pool_history, initial_usage)
@@ -47,7 +48,7 @@ function create_pools(idx)
 end
 
 
-## memory management
+## management
 
 const USAGE_WINDOW = 5
 const initial_usage = Tuple(1 for _ in 1:USAGE_WINDOW)
@@ -63,22 +64,28 @@ const MIN_DELAY = 1.0
 const MAX_DELAY = 5.0
 
 # debug stats
-req_alloc = 0
-req_free = 0
-actual_alloc = 0
-actual_free = 0
-amount_alloc = 0
-amount_free = 0
-alloc_1 = 0
-alloc_2 = 0
-alloc_3 = 0
-alloc_4 = 0
+mutable struct PoolStats
+  req_alloc::Int
+  req_free::Int
+
+  actual_alloc::Int
+  actual_free::Int
+
+  amount_alloc::Int
+  amount_free::Int
+
+  alloc_1::Int
+  alloc_2::Int
+  alloc_3::Int
+  alloc_4::Int
+end
+const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 function __init_memory__()
   create_pools(30) # up to 512 MiB
 
-  if parse(Bool, get(ENV, "CUARRAYS_MANAGED_POOL", "true"))
-    Core.println("Managing pool")
+  managed = parse(Bool, get(ENV, "CUARRAYS_MANAGED_POOL", "true"))
+  if managed
     delay = MIN_DELAY
     @schedule begin
       while true
@@ -95,25 +102,28 @@ function __init_memory__()
     end
   end
 
-  atexit(()->begin
-    Core.println("req_alloc: $req_alloc")
-    Core.println("req_free: $req_free")
-    Core.println("actual_alloc: $actual_alloc")
-    Core.println("actual_free: $actual_free")
-    Core.println("amount_alloc: $amount_alloc")
-    Core.println("amount_free: $amount_free")
-    Core.println("alloc types: $alloc_1 $alloc_2 $alloc_3 $alloc_4")
-  end)
+  verbose = haskey(ENV, "CUARRAYS_MANAGED_POOL")
+  if verbose
+    println("Managing pool: ", managed ? "yes" : "no")
+    atexit(()->begin
+      Core.println("""
+        Pool statistics:
+         - requested alloc/free: $(pool_stats.req_alloc) $(pool_stats.req_free)
+         - actual alloc/free: $(pool_stats.actual_alloc) $(pool_stats.actual_free)
+         - amount alloc/free: $(pool_stats.amount_alloc) $(pool_stats.amount_free)
+         - alloc types: $(pool_stats.alloc_1) $(pool_stats.alloc_2) $(pool_stats.alloc_3) $(pool_stats.alloc_4)""")
+    end)
+  end
+
 end
 
 # scan every pool and manage the usage history
 #
-# returns a boolean indicating whether any pool is active, i.e. allocs or deallocs.
-# this can be a false negative.
+# returns a boolean indicating whether any pool is active (this can be a false negative)
 function scan()
   gc(false) # quick, incremental collection
 
-  lock(lock_pools) do
+  lock(pool_lock) do
     active = false
 
     @inbounds for pid in 1:length(pool_history)
@@ -149,16 +159,14 @@ end
 
 # reclaim free objects
 function reclaim(full::Bool=false)
-  global actual_free, amount_free
-
-  lock(lock_pools) do
+  lock(pool_lock) do
     if full
       # reclaim all currently unused buffers
       for (pid, pl) in enumerate(pools_avail)
         for buf in pl
-          actual_free += 1
+          pool_stats.actual_free += 1
           Mem.free(buf)
-          amount_free += poolsize(pid)
+          pool_stats.amount_free += poolsize(pid)
         end
         empty!(pl)
       end
@@ -176,9 +184,9 @@ function reclaim(full::Bool=false)
 
           while reclaimable > 0
             buf = pop!(pools_avail[pid])
-            actual_free += 1
+            pool_stats.actual_free += 1
             Mem.free(buf)
-            amount_free += poolsize(pid)
+            pool_stats.amount_free += poolsize(pid)
             reclaimable -= 1
           end
         end
@@ -191,8 +199,7 @@ end
 ## interface
 
 function alloc(bytes)
-  global req_alloc, alloc_1, alloc_2, alloc_3, alloc_4, actual_alloc, amount_alloc
-  req_alloc += 1
+  pool_stats.req_alloc += 1
 
   pid = poolidx(bytes)
   create_pools(pid)
@@ -200,33 +207,33 @@ function alloc(bytes)
   @inbounds used = pools_used[pid]
   @inbounds avail = pools_avail[pid]
 
-  lock(lock_pools) do
+  lock(pool_lock) do
     # 1. find an unused buffer in our pool
     buf = if !isempty(avail)
-      alloc_1 += 1
+      pool_stats.alloc_1 += 1
       pop!(avail)
     else
       try
         # 2. didn't have one, so allocate a new buffer
         buf = Mem.alloc(poolsize(pid))
-        alloc_2 += 1
-        actual_alloc += 1
-        amount_alloc += poolsize(pid)
+        pool_stats.alloc_2 += 1
+        pool_stats.actual_alloc += 1
+        pool_stats.amount_alloc += poolsize(pid)
         buf
       catch e
         e == CUDAdrv.CuError(2) || rethrow()
         # 3. that failed; make Julia collect objects and check do 1. again
         gc(true) # full collection
         if !isempty(avail)
-          alloc_3 += 1
+          pool_stats.alloc_3 += 1
           buf = pop!(avail)
         else
           # 4. didn't have one, so reclaim all other unused buffers and do 2. again
           reclaim(true)
           buf = Mem.alloc(poolsize(pid))
-          alloc_4 += 1
-          actual_alloc += 1
-          amount_alloc += poolsize(pid)
+          pool_stats.alloc_4 += 1
+          pool_stats.actual_alloc += 1
+          pool_stats.amount_alloc += poolsize(pid)
           buf
         end
       end
@@ -242,15 +249,14 @@ function alloc(bytes)
 end
 
 function dealloc(buf, bytes)
-  global req_free
-  req_free += 1
+  pool_stats.req_free += 1
 
   pid = poolidx(bytes)
 
   @inbounds used = pools_used[pid]
   @inbounds avail = pools_avail[pid]
 
-  lock(lock_pools) do
+  lock(pool_lock) do
     delete!(used, buf)
 
     push!(avail, buf)
