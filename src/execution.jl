@@ -84,6 +84,7 @@ Affecting the kernel compilation:
   multiprocessor.
 - maxregs: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
+- name: an identifier that will be used for the kernel (useful for profiling, debugging, ...)
 
 Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
 different compilation parameters. New code will be generated automatically.
@@ -143,7 +144,7 @@ const compilecache = Dict{UInt, CuFunction}()
 
     # split kwargs, only some are dealt with by the compiler
     compile_kwargs, call_kwargs =
-        gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs)
+        gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name)
 
     # filter out ghost arguments that shouldn't be passed
     to_pass = map(!isghosttype, sig)

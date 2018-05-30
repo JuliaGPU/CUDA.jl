@@ -160,11 +160,16 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
                          minthreads::Union{Nothing,CuDim}=nothing,
                          maxthreads::Union{Nothing,CuDim}=nothing,
                          blocks_per_sm::Union{Nothing,Integer}=nothing,
-                         maxregs::Union{Nothing,Integer}=nothing)
-    kernel = wrap_entry!(mod, entry_f, tt);
+                         maxregs::Union{Nothing,Integer}=nothing,
+                         name::Union{Nothing,String}=nothing)
+    if name === nothing
+        name = replace(LLVM.name(entry_f)[7:end], r"_\d+$" => "")
+    end
+    kernel = wrap_entry!(mod, entry_f, tt, name)
 
 
-    # property annotations TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
+    # property annotations
+    # TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
 
     annotations = LLVM.Value[kernel]
 
@@ -202,7 +207,7 @@ end
 globalUnique = 0
 
 # generate a kernel wrapper to fix & improve argument passing
-function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt))
+function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt), name)
     entry_ft = eltype(llvmtype(entry_f))
     @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
 
@@ -226,8 +231,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
-    wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
-    wrapper_fn = replace(wrapper_fn, r"\d+$" => (globalUnique+=1))
+    wrapper_fn = "ptxcall_$(name)_$(globalUnique+=1)"
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
@@ -519,7 +523,7 @@ const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @nospecialize(tt);
-                    kwargs...)
+                    name=nothing, kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(f, Core.Function)
 
@@ -537,7 +541,16 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @no
         globalUnique = previous_globalUnique
     end
 
-    (module_asm, module_entry) = compile_function(f, tt, cap; kwargs...)
+    if name === nothing
+        # if the user didn't specify a compiler kernel name,
+        # try to figure one out from the inner function
+        fn = String(typeof(inner_f).name.mt.name)
+        if !occursin('#', fn)
+            name = fn
+        end
+    end
+
+    (module_asm, module_entry) = compile_function(f, tt, cap; name=name, kwargs...)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
