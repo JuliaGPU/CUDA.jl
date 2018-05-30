@@ -5,13 +5,13 @@
 #
 # the core design is pretty simple:
 # - bin allocations according to their size (see `poolidx`)
-# - when requested memory, check for previously allocated memory that has been released.
-# - conversely, when released memory, put it aside for future use.
+# - when requested memory, check for previously allocated memory that has been released
+# - conversely, when released memory, put it aside for future use
 #
-# to avoid consuming all available memory, and/or trashing the Julia GPU when running out:
+# to avoid consuming all available memory, and/or trashing the Julia GC when running out:
 # - keep track of free and used memory, in order to determine the usage of each pool
-# - keep track of each pool's usage, as well as a window of previous usages.
-# - regularly release memory from underused pools (see `reclaim(false)`).
+# - keep track of each pool's usage, as well as a window of previous usages
+# - regularly release memory from underused pools (see `reclaim(false)`)
 #
 # improvements:
 # - pressure: have the `reclaim` background task reclaim more aggressively,
