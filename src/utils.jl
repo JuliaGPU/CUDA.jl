@@ -1,14 +1,4 @@
-# take some kwargs off of a splatted list
-@inline function take_kwargs(wanted_kws...; kwargs...)
-    return _take_kwargs(Val(wanted_kws); kwargs...)
-end
-
-@generated function _take_kwargs(::Val{wanted_kws}; kwargs...) where {wanted_kws}
-    wanted_kwargs, remaining_kwargs = gen_take_kwargs(kwargs, wanted_kws...)
-    quote
-        ($wanted_kwargs...,), ($remaining_kwargs...,)
-    end
-end
+# keyword argument forwarding
 
 function gen_take_kwargs(kwargs, wanted_kws...)
     nt = kwargs.parameters[4]
@@ -20,6 +10,15 @@ function gen_take_kwargs(kwargs, wanted_kws...)
     get_kwargs(kws) = Tuple(:($kw=kwargs[$(QuoteNode(kw))]) for kw in kws)
     get_kwargs(wanted_kws), get_kwargs(remaining_kws)
 end
+
+@generated function _take_kwargs(::Val{wanted_kws}; kwargs...) where {wanted_kws}
+    wanted_kwargs, remaining_kwargs = gen_take_kwargs(kwargs, wanted_kws...)
+    quote
+        ($(wanted_kwargs...),), ($(remaining_kwargs...),)
+    end
+end
+
+@inline take_kwargs(wanted_kws...; kwargs...) = _take_kwargs(Val(wanted_kws); kwargs...)
 
 
 # logging
