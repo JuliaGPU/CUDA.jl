@@ -5,9 +5,9 @@
 @eval exec_dummy() = nothing
 
 @testset "cufunction" begin
-    @test_throws UndefVarError cufunction(exec_undefined_kernel, exec_undefined_kernel, ())
+    @test_throws UndefVarError cufunction(exec_undefined_kernel, ())
 
-    cufunction(dev, exec_dummy, exec_dummy, Tuple{})
+    cufunction(dev, exec_dummy, Tuple{})
 
     # NOTE: other cases are going to be covered by tests below,
     #       as @cuda internally uses cufunction

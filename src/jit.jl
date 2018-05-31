@@ -48,7 +48,11 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(@nospecialize(f), @nospecialize(tt))
+# maintain our own "global unique" suffix for disambiguating kernels
+globalUnique = 0
+
+function irgen(@nospecialize(f), @nospecialize(tt), @nospecialize(inner_f=f);
+               alias::Union{Nothing,String}=nothing)
     # get the method instance
     isa(f, Core.Builtin) && throw(ArgumentError("argument is not a generic function"))
     world = typemax(UInt)
@@ -154,6 +158,26 @@ function irgen(@nospecialize(f), @nospecialize(tt))
         end
     end
 
+    # rename the entry point
+    llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
+    ## add a friendlier alias
+    if alias === nothing
+        # if the user didn't specify a friendly kernel name,
+        # try to figure one out from the inner function
+        alias = String(typeof(inner_f).name.mt.name)
+    end
+    if startswith(alias, '#')
+        alias = "anonymous"
+    else
+        alias = safe_fn(alias)
+    end
+    llvmfn = replace(llvmfn, r"_.+" => "_$alias")
+    ## append a global unique counter
+    global globalUnique
+    globalUnique += 1
+    llvmfn *= "_$globalUnique"
+    LLVM.name!(entry, llvmfn)
+
     return mod, entry
 end
 
@@ -162,12 +186,8 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
                          minthreads::Union{Nothing,CuDim}=nothing,
                          maxthreads::Union{Nothing,CuDim}=nothing,
                          blocks_per_sm::Union{Nothing,Integer}=nothing,
-                         maxregs::Union{Nothing,Integer}=nothing,
-                         name::Union{Nothing,String}=nothing)
-    if name === nothing
-        name = replace(LLVM.name(entry_f)[7:end], r"_\d+$" => "")
-    end
-    kernel = wrap_entry!(mod, entry_f, tt, name)
+                         maxregs::Union{Nothing,Integer}=nothing)
+    kernel = wrap_entry!(mod, entry_f, tt)
 
 
     # property annotations
@@ -205,11 +225,8 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
     return kernel
 end
 
-# maintain our own "global unique" suffix for disambiguating kernels
-globalUnique = 0
-
 # generate a kernel wrapper to fix & improve argument passing
-function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt), name)
+function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt))
     entry_ft = eltype(llvmtype(entry_f))
     @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
 
@@ -233,7 +250,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
-    wrapper_fn = "ptxcall_$(name)_$(globalUnique+=1)"
+    wrapper_fn = replace(LLVM.name(entry_f), r"^.+?_"=>"ptxcall_") # change the CC tag
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
@@ -441,8 +458,15 @@ end
 #
 # The `kernel` argument indicates whether we are compiling a kernel entry-point function,
 # in which case extra metadata needs to be attached.
-function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumber;
-                          kernel::Bool=true, kwargs...)
+function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumber,
+                          @nospecialize(inner_f=f); kernel::Bool=true, kwargs...)
+    # split kwargs
+    irgen_kwargs, kwargs = take_kwargs(:alias; kwargs...)
+    promote_kwargs, kwargs = take_kwargs(:minthreads, :maxthreads, :blocks_per_sm, :maxregs;
+                                         kwargs...)
+    isempty(kwargs) || error("Unsupported keyword arguments: $(join(Base._nt_names.(kwargs), ", "))")
+
+
     ## high-level code generation (Julia AST)
 
     fn = full_fn(f, tt)
@@ -454,10 +478,12 @@ function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumbe
 
     ## low-level code generation (LLVM IR)
 
-    mod, entry = irgen(f, tt)
+    mod, entry = irgen(f, tt, inner_f; irgen_kwargs...)
+
     if kernel
-        entry = promote_kernel!(mod, entry, sig; kwargs...)
+        entry = promote_kernel!(mod, entry, sig; promote_kwargs...)
     end
+
     @trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary
@@ -519,12 +545,12 @@ function check_invocation(@nospecialize(f), @nospecialize(tt); kernel::Bool=fals
     end
 end
 
-# (f::Function, tt::Type, cap::VersionNumber; kwargs...)
+# (f::Function, tt::Type, cap::VersionNumber)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @nospecialize(tt);
-                    name=nothing, kwargs...)
+function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt),
+                    @nospecialize(inner_f=f); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(f, Core.Function)
 
@@ -538,22 +564,12 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @no
     if compile_hook[] != nothing
         global globalUnique
         previous_globalUnique = globalUnique
-        compile_hook[](f, inner_f, tt, cap; kwargs...)
+        compile_hook[](f, inner_f, tt, cap)
         globalUnique = previous_globalUnique
     end
 
-    if name === nothing
-        # if the user didn't specify a compiler kernel name,
-        # try to figure one out from the inner function
-        fn = String(typeof(inner_f).name.mt.name)
-        if occursin('#', fn)
-            name = "anonymous"
-        else
-            name = safe_fn(fn)
-        end
-    end
-
-    (module_asm, module_entry) = compile_function(f, tt, cap; name=name, kwargs...)
+    (module_asm, module_entry) =
+        compile_function(f, tt, cap, inner_f; kwargs...)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()

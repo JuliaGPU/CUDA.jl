@@ -37,12 +37,18 @@ See also: [`@device_code_llvm`](@ref), [`Base.code_llvm`](@ref)
 function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    optimize::Bool=true, dump_module::Bool=false,
                    cap::VersionNumber=current_capability(), kernel::Bool=false, kwargs...)
+    # split kwargs
+    irgen_kwargs, kwargs = take_kwargs(:alias; kwargs...)
+    promote_kwargs, kwargs = take_kwargs(:minthreads, :maxthreads, :blocks_per_sm, :maxregs;
+                                         kwargs...)
+    isempty(kwargs) || error("Unsupported keyword arguments: $(join(Base._nt_names.(kwargs), ", "))")
+
     tt = Base.to_tuple_type(types)
     check_invocation(func, tt; kernel=kernel)
 
-    mod, entry = irgen(func, tt)
+    mod, entry = irgen(func, tt; irgen_kwargs...)
     if kernel
-        entry = promote_kernel!(mod, entry, tt; kwargs...)
+        entry = promote_kernel!(mod, entry, tt; promote_kwargs...)
     end
     if optimize
         optimize!(mod, entry, cap)
@@ -53,7 +59,8 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
         show(io, entry)
     end
 end
-code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) = code_llvm(stdout, func, types; kwargs...)
+code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
+    code_llvm(stdout, func, types; kwargs...)
 
 """
     code_ptx([io], f, types; cap::VersionNumber, kernel::Bool=false)
@@ -136,9 +143,9 @@ function emit_hooked_compilation(inner_hook, ex...)
         empty!(CUDAnative.compilecache)
 
         local kernels = 0
-        function outer_hook(args...; kwargs...)
+        function outer_hook(args...)
             kernels += 1
-            $inner_hook(args...; $(map(esc, user_kwargs)...), kwargs...)
+            $inner_hook(args...; $(map(esc, user_kwargs)...))
         end
 
         if CUDAnative.compile_hook[] != nothing
@@ -220,11 +227,11 @@ for every compiled CUDA kernel.
 See also: [`Base.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
-    function hook(f, inner_f, tt, cap; io::IO=stdout)
+    function hook(f, inner_f, tt, cap; io::IO=stdout, kwargs...)
         if inner_f !== nothing
             f = inner_f
         end
-        code_warntype(io, f, tt)
+        code_warntype(io, f, tt; kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -282,24 +289,24 @@ Evaluates the expression `ex` and dumps all intermediate forms of code to the di
 """
 macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
-    function hook(f, inner_f, tt, cap; dir::AbstractString, kwargs...)
+    function hook(f, inner_f, tt, cap; dir::AbstractString)
         fn = "$(typeof(inner_f).name.mt.name)_$(globalUnique+1)"
         open(joinpath(dir, "$fn.lowered.jl"), "w") do io
-            code = only(code_lowered(inner_f !== nothing ? inner_f : f, tt; kwargs...))
+            code = only(code_lowered(inner_f !== nothing ? inner_f : f, tt))
             println(io, code)
         end
         open(joinpath(dir, "$fn.typed.jl"), "w") do io
-            code = only(code_typed(inner_f !== nothing ? inner_f : f, tt; kwargs...))
+            code = only(code_typed(inner_f !== nothing ? inner_f : f, tt))
             println(io, code)
         end
         open(joinpath(dir, "$fn.ll"), "w") do io
-            code_llvm(io, f, tt; kernel=true, cap=cap, dump_module=true, kwargs...)
+            code_llvm(io, f, tt; kernel=true, cap=cap, dump_module=true)
         end
         open(joinpath(dir, "$fn.ptx"), "w") do io
-            code_ptx(io, f, tt; kernel=true, cap=cap, kwargs...)
+            code_ptx(io, f, tt; kernel=true, cap=cap)
         end
         open(joinpath(dir, "$fn.sass"), "w") do io
-            code_sass(io, f, tt; cap=cap, kwargs...)
+            code_sass(io, f, tt; cap=cap)
         end
     end
     emit_hooked_compilation(hook, ex...)

@@ -84,7 +84,8 @@ Affecting the kernel compilation:
   multiprocessor.
 - maxregs: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
-- name: an identifier that will be used for the kernel (useful for profiling, debugging, ...)
+- alias: an identifier that will be used for naming the kernel in generated code
+  (useful for profiling, debugging, ...)
 
 Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
 different compilation parameters. New code will be generated automatically.
@@ -136,15 +137,16 @@ end
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
 @generated function _cuda(f::Core.Function, inner_f::Core.Function, args...; kwargs...)
+    # split kwargs
+    # NOTE: can't take from remaining kwargs because it's an Expr, not a NamedTuple
+    compile_kwargs, call_kwargs =
+        gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :alias)
+
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
     sig = (f, t...)
     args = (:f, (:( args[$i] ) for i in 1:length(args))...)
-
-    # split kwargs, only some are dealt with by the compiler
-    compile_kwargs, call_kwargs =
-        gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name)
 
     # filter out ghost arguments that shouldn't be passed
     to_pass = map(!isghosttype, sig)
@@ -185,7 +187,7 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(compilecache, key2)
             cuda_f = compilecache[key2]
         else
-            cuda_f, _ = cufunction(device(ctx), f, inner_f, $tt; $(compile_kwargs...))
+            cuda_f, _ = cufunction(device(ctx), f, $tt, inner_f; $(compile_kwargs...))
             compilecache[key2] = cuda_f
         end
 
