@@ -2,6 +2,55 @@
 
 export cufunction
 
+struct CompilerContext
+    # core invocation
+    f::Core.Function
+    tt::DataType
+    cap::VersionNumber
+    kernel::Bool
+
+    # optional properties
+    alias::Union{Nothing,String}
+    minthreads::Union{Nothing,CuDim}
+    maxthreads::Union{Nothing,CuDim}
+    blocks_per_sm::Union{Nothing,Integer}
+    maxregs::Union{Nothing,Integer}
+
+    # hacks
+    inner_f::Union{Nothing,Core.Function}
+
+    CompilerContext(f, tt, cap, kernel; inner_f=nothing, alias=nothing,
+                    minthreads=nothing, maxthreads=nothing, blocks_per_sm=nothing, maxregs=nothing) =
+        new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs, inner_f)
+end
+
+struct CompilerError <: Exception
+    ctx::CompilerContext
+    message::String
+    meta::Dict
+end
+
+compiler_error(ctx::CompilerContext, message="unknown error"; kwargs...) =
+    throw(CompilerError(ctx, message, kwargs))
+
+function Base.showerror(io::IO, err::CompilerError)
+    ctx = err.ctx
+    fn = typeof(coalesce(ctx.inner_f, ctx.f)).name.mt.name
+    args = join(ctx.tt.parameters, ", ")
+    print(io, "could not compile $fn($args) for GPU; $(err.message)")
+    if haskey(err.meta, :errors) && isa(err.meta[:errors], Vector{UnsupportedIRError})
+        for suberr in err.meta[:errors]
+            print(io, "\n- ")
+            Base.showerror(io, suberr)
+        end
+        print(io, "\nTry inspecting generated code with the @device_code_... macros")
+    else
+        for (key,val) in err.meta
+            print(io, "\n- $key = $val")
+        end
+    end
+end
+
 
 #
 # main code generation functions
@@ -46,12 +95,15 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     call!(builder, trap)
 end
 
-function irgen(@nospecialize(f), @nospecialize(tt))
+# maintain our own "global unique" suffix for disambiguating kernels
+globalUnique = 0
+
+function irgen(ctx::CompilerContext)
     # get the method instance
-    isa(f, Core.Builtin) && throw(ArgumentError("argument is not a generic function"))
+    isa(ctx.f, Core.Builtin) && compiler_error(ctx, "function is not a generic function")
     world = typemax(UInt)
-    meth = which(f, tt)
-    sig_tt = Tuple{typeof(f), tt.parameters...}
+    meth = which(ctx.f, ctx.tt)
+    sig_tt = Tuple{typeof(ctx.f), ctx.tt.parameters...}
     (ti, env) = ccall(:jl_type_intersection_with_env, Any,
                       (Any, Any), sig_tt, meth.sig)::Core.SimpleVector
     meth = Base.func_for_method_checked(meth, ti)
@@ -88,7 +140,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
                     (Any, UInt, Bool, Bool, Base.CodegenParams),
                     linfo, world, #=wrapper=#false, #=optimize=#false, params)
         if ref == C_NULL
-            error("could not compile the specified method")
+            compiler_error(ctx, "the Julia compiler could not generate LLVM IR")
         end
 
         llvmf = LLVM.Function(ref)
@@ -99,11 +151,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     # e.g. jlcall_kernel_vadd_62977
     definitions = filter(f->!isdeclaration(f), functions(mod))
     wrapper = let
-        fs = if VERSION >= v"0.7.0-DEV.4747"
-            collect(filter(f->startswith(LLVM.name(f), "jfptr_"), definitions))
-        else
-            collect(filter(f->startswith(LLVM.name(f), "jlcall_"), definitions))
-        end
+        fs = collect(filter(f->startswith(LLVM.name(f), "jfptr_"), definitions))
         @assert length(fs) == 1
         fs[1]
     end
@@ -111,11 +159,7 @@ function irgen(@nospecialize(f), @nospecialize(tt))
     # the jlcall wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
     entry_tag = let
-        m = if VERSION >= v"0.7.0-DEV.4747"
-            match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))
-        else
-            match(r"jlcall_(.+)_\d+", LLVM.name(wrapper))
-        end
+        m = match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))
         @assert m != nothing
         m.captures[1]
     end
@@ -126,8 +170,8 @@ function irgen(@nospecialize(f), @nospecialize(tt))
         fs = collect(filter(f->occursin(re, LLVM.name(f)) &&
                                !occursin(llvmcall_re, LLVM.name(f)), definitions))
         if length(fs) != 1
-            error("Could not find single entry-point for $entry_tag (available functions: ",
-                  join(map(f->LLVM.name(f), definitions), ", "), ")")
+            compiler_error(f, tt, cap, "could not find single entry-point";
+                           entry=>entry_tag, available=>[LLVM.name.(definitions)])
         end
         fs[1]
     end
@@ -152,19 +196,33 @@ function irgen(@nospecialize(f), @nospecialize(tt))
         end
     end
 
+    # rename the entry point
+    llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
+    ## add a friendlier alias
+    alias = coalesce(ctx.alias, String(typeof(coalesce(ctx.inner_f, ctx.f)).name.mt.name))
+    if startswith(alias, '#')
+        alias = "anonymous"
+    else
+        alias = safe_fn(alias)
+    end
+    llvmfn = replace(llvmfn, r"_.+" => "_$alias")
+    ## append a global unique counter
+    global globalUnique
+    globalUnique += 1
+    llvmfn *= "_$globalUnique"
+    LLVM.name!(entry, llvmfn)
+
     return mod, entry
 end
 
 # promote a function to a kernel
-function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt);
-                         minthreads::Union{Nothing,CuDim}=nothing,
-                         maxthreads::Union{Nothing,CuDim}=nothing,
-                         blocks_per_sm::Union{Nothing,Integer}=nothing,
-                         maxregs::Union{Nothing,Integer}=nothing)
-    kernel = wrap_entry!(mod, entry_f, tt);
+# FIXME: sig vs tt (code_llvm vs cufunction)
+function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
+    kernel = wrap_entry!(ctx, mod, entry_f)
 
 
-    # property annotations TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
+    # property annotations
+    # TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
 
     annotations = LLVM.Value[kernel]
 
@@ -172,7 +230,7 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
     append!(annotations, [MDString("kernel"), ConstantInt(Int32(1))])
 
     ## expected CTA sizes
-    for (typ,vals) in (:req=>minthreads, :max=>maxthreads)
+    for (typ,vals) in (:req=>ctx.minthreads, :max=>ctx.maxthreads)
         if vals != nothing
             bounds = CUDAdrv.CuDim3(vals)
             for dim in (:x, :y, :z)
@@ -183,12 +241,12 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
         end
     end
 
-    if blocks_per_sm != nothing
-        append!(annotations, [MDString("minctasm"), ConstantInt(Int32(blocks_per_sm))])
+    if ctx.blocks_per_sm != nothing
+        append!(annotations, [MDString("minctasm"), ConstantInt(Int32(ctx.blocks_per_sm))])
     end
 
-    if maxregs != nothing
-        append!(annotations, [MDString("maxnreg"), ConstantInt(Int32(maxregs))])
+    if ctx.maxregs != nothing
+        append!(annotations, [MDString("maxnreg"), ConstantInt(Int32(ctx.maxregs))])
     end
 
 
@@ -198,16 +256,14 @@ function promote_kernel!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize
     return kernel
 end
 
-# maintain our own "global unique" suffix for disambiguating kernels
-globalUnique = 0
-
 # generate a kernel wrapper to fix & improve argument passing
-function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt))
+function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
     entry_ft = eltype(llvmtype(entry_f))
     @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
 
     # filter out ghost types, which don't occur in the LLVM function signatures
-    julia_types = filter(dt->!isghosttype(dt), tt.parameters)
+    sig = Base.signature_type(ctx.f, ctx.tt)
+    julia_types = filter(dt->!isghosttype(dt), sig.parameters)
 
     # generate the wrapper function type & definition
     global globalUnique
@@ -226,8 +282,7 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
     wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
-    wrapper_fn = "ptxcall" * LLVM.name(entry_f)[6:end]
-    wrapper_fn = replace(wrapper_fn, r"\d+$" => (globalUnique+=1))
+    wrapper_fn = replace(LLVM.name(entry_f), r"^.+?_"=>"ptxcall_") # change the CC tag
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
@@ -303,14 +358,14 @@ function wrap_entry!(mod::LLVM.Module, entry_f::LLVM.Function, @nospecialize(tt)
 end
 
 const libdevices = Dict{String, LLVM.Module}()
-function link_libdevice!(mod::LLVM.Module, cap::VersionNumber)
+function link_libdevice!(ctx::CompilerContext, mod::LLVM.Module)
     CUDAnative.configured || return
 
     # find libdevice
     path = if isa(libdevice, Dict)
         # select the most recent & compatible library
         vers = keys(CUDAnative.libdevice)
-        compat_vers = Set(ver for ver in vers if ver <= cap)
+        compat_vers = Set(ver for ver in vers if ver <= ctx.cap)
         isempty(compat_vers) && error("No compatible CUDA device library available")
         ver = maximum(compat_vers)
         path = libdevice[ver]
@@ -382,8 +437,8 @@ function machine(cap::VersionNumber, triple::String)
 end
 
 # Optimize a bitcode module according to a certain device capability.
-function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
-    tm = machine(cap, triple(mod))
+function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
+    tm = machine(ctx.cap, triple(mod))
 
     # GPU code is _very_ sensitive to register pressure and local memory usage,
     # so forcibly inline every function definition into the entry point
@@ -423,8 +478,8 @@ function optimize!(mod::LLVM.Module, entry::LLVM.Function, cap::VersionNumber)
     end
 end
 
-function mcgen(mod::LLVM.Module, f::LLVM.Function, cap::VersionNumber)
-    tm = machine(cap, triple(mod))
+function mcgen(ctx::CompilerContext, mod::LLVM.Module, f::LLVM.Function)
+    tm = machine(ctx.cap, triple(mod))
 
     InitializeNVPTXAsmPrinter()
     return String(emit(tm, mod, LLVM.API.LLVMAssemblyFile))
@@ -432,40 +487,36 @@ end
 
 # Compile a function to PTX, returning the assembly and an entry point.
 # Not to be used directly, see `cufunction` instead.
-#
-# The `kernel` argument indicates whether we are compiling a kernel entry-point function,
-# in which case extra metadata needs to be attached.
-function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumber;
-                          kernel::Bool=true, kwargs...)
+function compile_function(ctx::CompilerContext)
     ## high-level code generation (Julia AST)
 
-    fn = "$(typeof(f).name.mt.name)($(join(tt.parameters, ", ")))"
-    @debug "(Re)compiling function" f tt cap
-    @debug("(Re)compiling $fn for capability $cap")
+    @debug "(Re)compiling function" ctx
 
-    check_invocation(f, tt; kernel=kernel)
-    sig = Base.signature_type(f, tt)
+    validate_invocation(ctx)
 
 
     ## low-level code generation (LLVM IR)
 
-    mod, entry = irgen(f, tt)
-    if kernel
-        entry = promote_kernel!(mod, entry, sig; kwargs...)
+    mod, entry = irgen(ctx)
+
+    if ctx.kernel
+        entry = promote_kernel!(ctx, mod, entry)
     end
+
     @trace("Module entry point: ", LLVM.name(entry))
 
     # link libdevice, if it might be necessary
     # TODO: should be more find-grained -- only matching functions actually in this libdevice
     if any(f->isdeclaration(f) && intrinsic_id(f)==0, functions(mod))
-        link_libdevice!(mod, cap)
+        link_libdevice!(ctx, mod)
     end
 
     # optimize the IR (otherwise the IR isn't necessarily compatible)
-    optimize!(mod, entry, cap)
+    optimize!(ctx, mod, entry)
 
     # make sure any non-isbits arguments are unused
     real_arg_i = 0
+    sig = Base.signature_type(ctx.f, ctx.tt)
     for (arg_i,dt) in enumerate(sig.parameters)
         isghosttype(dt) && continue
         real_arg_i += 1
@@ -473,7 +524,8 @@ function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumbe
         if !isbitstype(dt)
             param = parameters(entry)[real_arg_i]
             if !isempty(uses(param))
-                throw(ArgumentError("Passing and using non-bitstype argument $arg_i of type $dt"))
+                compiler_error(ctx, "passing and using non-bitstype argument";
+                               argument=arg_i, argument_type=dt)
             end
         end
     end
@@ -481,45 +533,22 @@ function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumbe
     # validate generated IR
     errors = validate_ir(mod)
     if !isempty(errors)
-        for e in errors
-            @warn("Encountered incompatible LLVM IR for $fn", e)
-        end
-        error("LLVM IR generated for $fn at capability $cap is not compatible")
+        compiler_error(ctx, "unsupported LLVM IR"; errors=errors)
     end
 
 
     ## machine code generation (PTX assembly)
 
-    module_asm = mcgen(mod, entry, cap)
+    module_asm = mcgen(ctx, mod, entry)
 
     return module_asm, LLVM.name(entry)
 end
 
-# check validity of a function invocation, specified by the generic function and a tupletype
-function check_invocation(@nospecialize(f), @nospecialize(tt); kernel::Bool=false)
-    fn = "$(typeof(f).name.mt.name)($(join(tt.parameters, ", ")))"
-
-    # get the method
-    ms = Base.methods(f, tt)
-    isempty(ms)   && throw(ArgumentError("no method found for $fn"))
-    length(ms)!=1 && throw(ArgumentError("no unique matching method for $fn"))
-    m = first(ms)
-
-    # kernels can't return values
-    if kernel
-        rt = Base.return_types(f, tt)[1]
-        if rt != Nothing
-            throw(ArgumentError("$fn is not a valid kernel as it returns $rt"))
-        end
-    end
-end
-
-# (f::Function, tt::Type, cap::VersionNumber; kwargs...)
+# (::CompilerContext)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @nospecialize(tt);
-                    kwargs...)
+function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(f, Core.Function)
 
@@ -530,14 +559,16 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @no
         error("Device capability v$dev_cap not supported by available toolchain")
     cap = maximum(compat_caps)
 
+    ctx = CompilerContext(f, tt, cap, true; kwargs...)
+
     if compile_hook[] != nothing
         global globalUnique
         previous_globalUnique = globalUnique
-        compile_hook[](f, inner_f, tt, cap; kwargs...)
+        compile_hook[](ctx)
         globalUnique = previous_globalUnique
     end
 
-    (module_asm, module_entry) = compile_function(f, tt, cap; kwargs...)
+    (module_asm, module_entry) = compile_function(ctx)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
@@ -565,12 +596,6 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @no
 end
 
 function init_jit()
-    llvm_args = [
-        # Program name; can be left blank.
-        "",
-        # Enable generation of FMA instructions to mimic behavior of nvcc.
-        "--nvptx-fma-level=1",
-    ]
-    LLVM.API.LLVMParseCommandLineOptions(Int32(length(llvm_args)),
-        [Base.unsafe_convert(Cstring, llvm_arg) for llvm_arg in llvm_args], C_NULL)
+    # enable generation of FMA instructions to mimic behavior of nvcc
+    LLVM.clopts("--nvptx-fma-level=1")
 end

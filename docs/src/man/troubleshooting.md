@@ -4,54 +4,50 @@ To increase logging verbosity of the CUDAnative compiler, launch Julia with the
 `JULIA_DEBUG` environment variable set to `CUDAnative`.
 
 
-## `code_*` alternatives
+## LLVM IR generated for ... is not GPU compatible
 
-CUDAnative provides alternatives to Base's `code_llvm` and `code_native` to
-inspect generated device code:
+Not all of Julia is supported by CUDAnative. Several commonly-used features,
+like strings or exceptions, will not compile to GPU code, because of their
+interactions with the CPU-only runtime library.
 
-```julia
-julia> foo(a, i) = (a[1] = i; return nothing)
-foo (generic function with 1 method)
+When not using GPU-incompatible language features, you might still run into this
+compiler error when your code contains type instabilities or other dynamic
+behavior. These are often easily spotted by prefixing the failing function call
+with one of several `@device_code` macros.
 
-julia> a = CuArray{Int}(1)
-
-julia> @device_code_llvm @cuda foo(a, 1)
-
-; Function Attrs: nounwind
-define void @ptxcall_foo_1({ [1 x i64], { i64 } }, i64) local_unnamed_addr {
-...
-}
-
-julia> @device_code_ptx @cuda foo(a, 1)
-.visible .entry ptxcall_foo_3(
-        .param .align 8 .b8 ptxcall_foo_3_param_0[16],
-        .param .u64 ptxcall_foo_3_param_1
-)
-{
-...
-}
-
-julia> @device_code_sass foo(a, 1)
-        code for sm_20
-                Function : ptxcall_foo_5
-...
-```
-
-Non-macro versions of these reflection entry-points are available as well (ie. `code_llvm`,
-etc), but as there's type conversions happening behind the scenes you will need to take care
-and perform those conversions manually:
+For example, say we define and execute the following kernel:
 
 ```julia
-julia> CUDAnative.code_llvm(foo, (CuArray{Int,1},Int))
-ERROR: error compiling foo: ...
+julia> kernel(a) = @inbounds a[threadId().x] = 0
+kernel (generic function with 1 method)
 
-julia> CUDAnative.code_llvm(foo, (CuDeviceArray{Int,1,AS.Global},Int))
-
-; Function Attrs: nounwind
-define void @julia_foo_35907({ [1 x i64], { i64 } }, i64) local_unnamed_addr {
-...
-}
+julia> @cuda kernel(CuArray([1]))
+ERROR: LLVM IR generated for Kernel(CuDeviceArray{Int64,1,CUDAnative.AS.Global}) is not GPU compatible
 ```
+
+When running with `JULIA_DEBUG=CUDAnative`, you will get to see the actual
+incompatible IR constructs. Prefixing our kernel invocation with
+`@device_code_warntype` reveals our issue:
+
+```julia
+julia> @device_code_warntype @cuda kernel(CuArray([1]))
+Variables:
+  a::CuDeviceArray{Int64,1,CUDAnative.AS.Global}
+  val<optimized out>
+
+Body:
+  begin
+      Core.SSAValue(1) = (Main.threadId)()::ANY
+      Core.SSAValue(2) = (Base.getproperty)(Core.SSAValue(1), :x)::ANY
+      (Base.setindex!)(a::CuDeviceArray{Int64,1,CUDAnative.AS.Global}, 0, Core.SSAValue(2))::ANY
+      return 0
+  end::Int64
+ERROR: LLVM IR generated for Kernel(CuDeviceArray{Int64,1,CUDAnative.AS.Global}) is not GPU compatible
+```
+
+Because of a typo, the call to `threadId` is untyped and returns `Any` (it
+should have been `threadIdx`). In the future, we expect to be able to catch such
+errors automatically.
 
 If you want to dump all forms of generated code to disk, for further inspection,
 have a look at the `@device_code` macro instead.
@@ -67,5 +63,5 @@ higher (`julia -g2`).
 
 We do however support emitting line number information, which is useful for other CUDA tools
 like `cuda-memcheck`. The functionality (which corresponds with `nvcc -lineinfo`) is enabled
-when the Julia debug info level is 1 (the default value) or higher. It can be disabled by
-passing `-g0` instead.
+when the Julia debug info level is 1 (the default value). It can be disabled by passing `-g0`
+instead.

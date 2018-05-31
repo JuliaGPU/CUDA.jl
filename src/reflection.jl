@@ -38,14 +38,15 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
                    optimize::Bool=true, dump_module::Bool=false,
                    cap::VersionNumber=current_capability(), kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    check_invocation(func, tt; kernel=kernel)
+    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
+    validate_invocation(ctx)
 
-    mod, entry = irgen(func, tt)
+    mod, entry = irgen(ctx)
     if kernel
-        entry = promote_kernel!(mod, entry, tt; kwargs...)
+        entry = promote_kernel!(ctx, mod, entry)
     end
     if optimize
-        optimize!(mod, entry, cap)
+        optimize!(ctx, mod, entry)
     end
     if dump_module
         show(io, mod)
@@ -53,7 +54,8 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
         show(io, entry)
     end
 end
-code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) = code_llvm(stdout, func, types; kwargs...)
+code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
+    code_llvm(stdout, func, types; kwargs...)
 
 """
     code_ptx([io], f, types; cap::VersionNumber, kernel::Bool=false)
@@ -69,9 +71,10 @@ See also: [`@device_code_ptx`](@ref)
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                   cap::VersionNumber=current_capability(), kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    check_invocation(func, tt; kernel=kernel)
+    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
+    validate_invocation(ctx)
 
-    ptx,_ = compile_function(func, tt, cap; kernel=kernel, kwargs...)
+    ptx,_ = compile_function(ctx)
     # TODO: this code contains all the functions in the call chain,
     #       is it possible to implement `dump_module`?
     print(io, ptx)
@@ -100,9 +103,10 @@ function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
     end
 
     tt = Base.to_tuple_type(types)
-    check_invocation(func, tt; kernel=kernel)
+    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
+    validate_invocation(ctx)
 
-    ptx,_ = compile_function(func, tt, cap; kwargs...)
+    ptx,_ = compile_function(ctx)
 
     fn = tempname()
     gpu = "sm_$(cap.major)$(cap.minor)"
@@ -136,9 +140,9 @@ function emit_hooked_compilation(inner_hook, ex...)
         empty!(CUDAnative.compilecache)
 
         local kernels = 0
-        function outer_hook(args...; kwargs...)
+        function outer_hook(ctx)
             kernels += 1
-            $inner_hook(args...; $(map(esc, user_kwargs)...), kwargs...)
+            $inner_hook(ctx; $(map(esc, user_kwargs)...))
         end
 
         if CUDAnative.compile_hook[] != nothing
@@ -178,11 +182,8 @@ See also: [`Base.@code_lowered`](@ref)
 macro device_code_lowered(ex...)
     quote
         buf = Any[]
-        function hook(f, inner_f, tt, cap)
-            if inner_f !== nothing
-                f = inner_f
-            end
-            append!(buf, code_lowered(f, tt))
+        function hook(ctx::CompilerContext)
+            append!(buf, code_lowered(coalesce(ctx.inner_f, ctx.f), ctx.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -200,11 +201,8 @@ See also: [`Base.@code_typed`](@ref)
 macro device_code_typed(ex...)
     quote
         buf = Any[]
-        function hook(f, inner_f, tt, cap)
-            if inner_f !== nothing
-                f = inner_f
-            end
-            append!(buf, code_typed(f, tt))
+        function hook(ctx::CompilerContext)
+            append!(buf, code_typed(coalesce(ctx.inner_f, ctx.f), ctx.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -220,11 +218,8 @@ for every compiled CUDA kernel.
 See also: [`Base.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
-    function hook(f, inner_f, tt, cap; io::IO=stdout)
-        if inner_f !== nothing
-            f = inner_f
-        end
-        code_warntype(io, f, tt)
+    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
+        code_warntype(io, coalesce(ctx.inner_f, ctx.f), ctx.tt; kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -239,8 +234,8 @@ every compiled CUDA kernel. For other supported keywords, see
 See also: [`Base.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
-    function hook(f, inner_f, tt, cap; io::IO=stdout, kwargs...)
-        code_llvm(io, f, tt; kernel=true, cap=cap, kwargs...)
+    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
+        code_llvm(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -253,8 +248,8 @@ for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    function hook(f, inner_f, tt, cap; io::IO=stdout, kwargs...)
-        code_ptx(io, f, tt; kernel=true, cap=cap, kwargs...)
+    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
+        code_ptx(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -267,9 +262,9 @@ Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(f, inner_f, tt, cap; io::IO=stdout, kwargs...)
+    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
         # we have inlined every function using LLVM, so don't hide the kernel wrapper.
-        code_sass(io, f, tt; cap=cap, kwargs...)
+        code_sass(io, ctx.f, ctx.tt; cap=ctx.cap, kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -282,26 +277,25 @@ Evaluates the expression `ex` and dumps all intermediate forms of code to the di
 """
 macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
-    function hook(f, inner_f, tt, cap; dir::AbstractString, kwargs...)
-        fn = "$(typeof(inner_f).name.mt.name)_$(globalUnique+1)"
+    function hook(ctx::CompilerContext; dir::AbstractString)
+        fn = "$(typeof(coalesce(ctx.inner_f, ctx.f)).name.mt.name)_$(globalUnique+1)"
         open(joinpath(dir, "$fn.lowered.jl"), "w") do io
-            code = only(code_lowered(inner_f !== nothing ? inner_f : f, tt; kwargs...))
+            code = only(code_lowered(coalesce(ctx.inner_f, ctx.f), ctx.tt))
             println(io, code)
         end
         open(joinpath(dir, "$fn.typed.jl"), "w") do io
-            code = only(code_typed(inner_f !== nothing ? inner_f : f, tt; kwargs...))
+            code = only(code_typed(coalesce(ctx.inner_f, ctx.f), ctx.tt))
             println(io, code)
         end
         open(joinpath(dir, "$fn.ll"), "w") do io
-            code_llvm(io, f, tt; kernel=true, cap=cap, dump_module=true, kwargs...)
+            code_llvm(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap, dump_module=true)
         end
         open(joinpath(dir, "$fn.ptx"), "w") do io
-            code_ptx(io, f, tt; kernel=true, cap=cap, kwargs...)
+            code_ptx(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap)
         end
         open(joinpath(dir, "$fn.sass"), "w") do io
-            code_sass(io, f, tt; cap=cap, kwargs...)
+            code_sass(io, ctx.f, ctx.tt; cap=ctx.cap)
         end
     end
     emit_hooked_compilation(hook, ex...)
-
 end
