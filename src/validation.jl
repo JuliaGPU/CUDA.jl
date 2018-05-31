@@ -33,6 +33,7 @@ UnsupportedIRError(kind) = UnsupportedIRError(kind, nothing)
 function Base.showerror(io::IO, err::UnsupportedIRError)
     print(io, "unsupported $(err.kind)")
     if err.kind == RUNTIME_FUNCTION || err.kind == UNKNOWN_FUNCTION
+        # TODO: when on LLVM 6.0, use debug info to find the source location
         print(io, " (", err.meta[1], ")")
     end
 end
