@@ -217,9 +217,8 @@ end
 
 # promote a function to a kernel
 # FIXME: sig vs tt (code_llvm vs cufunction)
-function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function,
-                         @nospecialize(sig))
-    kernel = wrap_entry!(ctx, mod, entry_f, sig)
+function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
+    kernel = wrap_entry!(ctx, mod, entry_f)
 
 
     # property annotations
@@ -258,12 +257,12 @@ function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.F
 end
 
 # generate a kernel wrapper to fix & improve argument passing
-function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function,
-                     @nospecialize(sig))
+function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
     entry_ft = eltype(llvmtype(entry_f))
     @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
 
     # filter out ghost types, which don't occur in the LLVM function signatures
+    sig = Base.signature_type(ctx.f, ctx.tt)
     julia_types = filter(dt->!isghosttype(dt), sig.parameters)
 
     # generate the wrapper function type & definition
@@ -494,7 +493,6 @@ function compile_function(ctx::CompilerContext)
     @debug "(Re)compiling function" ctx
 
     validate_invocation(ctx)
-    sig = Base.signature_type(ctx.f, ctx.tt)
 
 
     ## low-level code generation (LLVM IR)
@@ -502,7 +500,7 @@ function compile_function(ctx::CompilerContext)
     mod, entry = irgen(ctx)
 
     if ctx.kernel
-        entry = promote_kernel!(ctx, mod, entry, sig)
+        entry = promote_kernel!(ctx, mod, entry)
     end
 
     @trace("Module entry point: ", LLVM.name(entry))
@@ -518,6 +516,7 @@ function compile_function(ctx::CompilerContext)
 
     # make sure any non-isbits arguments are unused
     real_arg_i = 0
+    sig = Base.signature_type(ctx.f, ctx.tt)
     for (arg_i,dt) in enumerate(sig.parameters)
         isghosttype(dt) && continue
         real_arg_i += 1
