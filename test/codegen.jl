@@ -70,10 +70,10 @@ end
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}))
-    @test occursin(Regex("@julia_codegen_aggregates_\\d+\\({ i64 }( addrspace\\(\\d+\\))?\\*"), ir)
+    @test occursin(r"@julia_codegen_aggregates_\d+\({ i64 }( addrspace\(\d+\))?\*", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_aggregates, Tuple{Aggregate}; kernel=true))
-    @test occursin(Regex("@ptxcall_codegen_aggregates_\\d+\\({ i64 }\\)"), ir)
+    @test occursin(r"@ptxcall_codegen_aggregates_\d+\({ i64 }\)", ir)
 end
 
 @testset "property_annotations" begin
