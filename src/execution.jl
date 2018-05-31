@@ -187,7 +187,8 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(compilecache, key2)
             cuda_f = compilecache[key2]
         else
-            cuda_f, _ = cufunction(device(ctx), f, $tt, inner_f; $(compile_kwargs...))
+            cuda_f, _ = cufunction(device(ctx), f, $tt;
+                                   inner_f=inner_f, $(compile_kwargs...))
             compilecache[key2] = cuda_f
         end
 

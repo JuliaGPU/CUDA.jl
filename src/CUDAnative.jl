@@ -33,7 +33,7 @@ include("jit.jl")
 include("profile.jl")
 include("execution.jl")
 include("reflection.jl")
-include("irvalidation.jl")
+include("validation.jl")
 
 include("init.jl")
 

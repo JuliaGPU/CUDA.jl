@@ -268,7 +268,7 @@ end
     @cuda exec_pass_nonbits_specialized(Int, 1.)
 
     @eval exec_pass_nonbits_used(i) = sink(unsafe_trunc(Int,i))
-    @test_throws ArgumentError @cuda exec_pass_nonbits_used(big"1")
+    @test_throws CUDAnative.CompilerError @cuda exec_pass_nonbits_used(big"1")
 end
 
 

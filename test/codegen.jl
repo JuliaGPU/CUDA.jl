@@ -15,7 +15,7 @@
     @test !occursin("define %jl_value_t* @jlcall_", ir)
 
     @test CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}) == nothing
-    @test_throws ArgumentError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test_throws CUDAnative.CompilerError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "exceptions" begin
@@ -156,7 +156,7 @@ end
 
     @test CUDAnative.code_ptx(devnull, ptx_valid_kernel, Tuple{}) == nothing
     @test CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}) == nothing
-    @test_throws ArgumentError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test_throws CUDAnative.CompilerError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "child functions" begin
@@ -208,16 +208,24 @@ end
 @testset "IR validation" begin
 @testset "delayed lookup" begin
     @eval codegen_ref_nonexisting() = nonexisting
-    @test_logs (:warn, "Encountered incompatible LLVM IR for codegen_ref_nonexisting()") match_mode=:any (
-        @test_throws ErrorException CUDAnative.code_ptx(codegen_ref_nonexisting, Tuple{})
-    )
+    try
+         CUDAnative.code_ptx(codegen_ref_nonexisting, Tuple{})
+    catch err
+        @test isa(err, CUDAnative.CompilerError)
+        msg = sprint(io->showerror(io, err))
+        @test occursin("could not compile codegen_ref_nonexisting() for GPU; unsupported LLVM IR", msg)
+    end
 end
 
 @testset "generic call" begin
     @eval codegen_call_nonexisting() = nonexisting()
-    @test_logs (:warn, "Encountered incompatible LLVM IR for codegen_call_nonexisting()") match_mode=:any (
-        @test_throws ErrorException CUDAnative.code_ptx(codegen_call_nonexisting, Tuple{})
-    )
+    try
+         CUDAnative.code_ptx(codegen_call_nonexisting, Tuple{})
+    catch err
+        @test isa(err, CUDAnative.CompilerError)
+        msg = sprint(io->showerror(io, err))
+        @test occursin("could not compile codegen_call_nonexisting() for GPU; unsupported LLVM IR", msg)
+    end
 end
 end
 
