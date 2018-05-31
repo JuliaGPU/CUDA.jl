@@ -25,6 +25,8 @@ function module_setup(mod::LLVM.Module)
                  ConstantInt(DEBUG_METADATA_VERSION())]))
 end
 
+full_fn(f::Core.Function, tt=Tuple{}) = "$(typeof(f).name.mt.name)($(join(tt.parameters, ", ")))"
+
 # make function names safe for PTX
 safe_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]"=>"_")
 safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
@@ -443,9 +445,8 @@ function compile_function(@nospecialize(f), @nospecialize(tt), cap::VersionNumbe
                           kernel::Bool=true, kwargs...)
     ## high-level code generation (Julia AST)
 
-    fn = "$(typeof(f).name.mt.name)($(join(tt.parameters, ", ")))"
+    fn = full_fn(f, tt)
     @debug "(Re)compiling function" f tt cap
-    @debug("(Re)compiling $fn for capability $cap")
 
     check_invocation(f, tt; kernel=kernel)
     sig = Base.signature_type(f, tt)
@@ -501,7 +502,7 @@ end
 
 # check validity of a function invocation, specified by the generic function and a tupletype
 function check_invocation(@nospecialize(f), @nospecialize(tt); kernel::Bool=false)
-    fn = "$(typeof(f).name.mt.name)($(join(tt.parameters, ", ")))"
+    fn = full_fn(f, tt)
 
     # get the method
     ms = Base.methods(f, tt)
@@ -545,8 +546,10 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(inner_f), @no
         # if the user didn't specify a compiler kernel name,
         # try to figure one out from the inner function
         fn = String(typeof(inner_f).name.mt.name)
-        if !occursin('#', fn)
-            name = fn
+        if occursin('#', fn)
+            name = "anonymous"
+        else
+            name = safe_fn(fn)
         end
     end
 
