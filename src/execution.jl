@@ -107,6 +107,30 @@ macro cuda(ex...)
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
 
+    # split keyword arguments into ones affecting the compiler, or affecting the execution
+    compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :alias]
+    call_kws     = [:blocks, :threads, :shmem, :stream]
+    compiler_kwargs = []
+    call_kwargs = []
+    for kwarg in kwargs
+        if Meta.isexpr(kwarg, :(=))
+            key,val = kwarg.args
+            if isa(key, Symbol)
+                if key in compiler_kws
+                    push!(compiler_kwargs, kwarg)
+                elseif key in call_kws
+                    push!(call_kwargs, kwarg)
+                else
+                    throw(ArgumentError("unknown keyword argument '$key'"))
+                end
+            else
+                throw(ArgumentError("non-symbolic keyword '$key'"))
+            end
+        else
+            throw(ArgumentError("non-keyword argument like option '$kwarg'"))
+        end
+    end
+
     # decode the call
     f = call.args[1]
     args = call.args[2:end]
@@ -129,19 +153,19 @@ macro cuda(ex...)
     push!(code.args,
         :(GC.@preserve($(vars...),
                        _cuda(Kernel($(esc(f))), $(esc(f)),
-                             cudaconvert.(($(var_exprs...),))...;
-                             $(map(esc, kwargs)...)))))
+                             ($(map(esc, compiler_kwargs)...),),
+                             ($(map(esc, call_kwargs)...),),
+                             cudaconvert.(($(var_exprs...),))...,
+                             )
+                       )
+         ))
     return code
 end
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
-@generated function _cuda(f::Core.Function, inner_f::Core.Function, args...; kwargs...)
-    # split kwargs
-    # NOTE: can't take from remaining kwargs because it's an Expr, not a NamedTuple
-    compile_kwargs, call_kwargs =
-        gen_take_kwargs(kwargs, :minthreads, :maxthreads, :blocks_per_sm, :maxregs, :alias)
-
+@generated function _cuda(f::Core.Function, inner_f::Core.Function,
+                          compile_kwargs, call_kwargs, args...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
@@ -153,7 +177,7 @@ const compilecache = Dict{UInt, CuFunction}()
     call_t =                  Type[x[1] for x in zip(sig,  to_pass) if x[2]]
     call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
 
-    # replace non-isbits arguments (they should be unused, or compilation will fail).
+    # replace non-isbits arguments (they should be unused, or compilation would have failed)
     # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
     for (i,dt) in enumerate(call_t)
         if !isbitstype(dt)
@@ -183,19 +207,17 @@ const compilecache = Dict{UInt, CuFunction}()
 
         # compile the function
         ctx = CuCurrentContext()
-        key2 = hash(($precomp_key, age, ctx, ($(compile_kwargs...),)))
+        key2 = hash(($precomp_key, age, ctx, compile_kwargs))
         if haskey(compilecache, key2)
             cuda_f = compilecache[key2]
         else
-            cuda_f, _ = cufunction(device(ctx), f, $tt;
-                                   inner_f=inner_f, $(compile_kwargs...))
+            cuda_f, _ = cufunction(device(ctx), f, $tt; inner_f=inner_f, compile_kwargs...)
             compilecache[key2] = cuda_f
         end
 
         # call the kernel
         Profile.@launch begin
-            cudacall(cuda_f, $call_tt, $(call_args...);
-                     $(call_kwargs...))
+            cudacall(cuda_f, $call_tt, $(call_args...); call_kwargs...)
         end
     end
 end
