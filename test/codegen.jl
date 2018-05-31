@@ -121,6 +121,28 @@ end
     CUDAnative.code_llvm(devnull, llvm_D32593, Tuple{CuDeviceVector{llvm_D32593_struct,AS.Global}})
 end
 
+@testset "kernel names" begin
+    @eval codegen_regular() = nothing
+    @eval codegen_closure = ()->nothing
+
+    function test_name(f, name; kwargs...)
+        code = sprint(io->CUDAnative.code_llvm(io, f, Tuple{}; kwargs...))
+        @test occursin(name, code)
+    end
+
+    test_name(codegen_regular, "julia_codegen_regular")
+    test_name(codegen_regular, "julia_codegen_renamed"; alias="codegen_renamed")
+
+    test_name(codegen_regular, "ptxcall_codegen_regular"; kernel=true)
+    test_name(codegen_regular, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
+
+    test_name(codegen_closure, "julia_anonymous")
+    test_name(codegen_closure, "julia_codegen_renamed"; alias="codegen_renamed")
+
+    test_name(codegen_closure, "ptxcall_anonymous"; kernel=true)
+    test_name(codegen_closure, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
+end
+
 end
 
 
@@ -288,6 +310,28 @@ end
         return
     end
     CUDAnative.code_ptx(devnull, codegen_issue_13, Tuple{Float64})
+end
+
+@testset "kernel names" begin
+    @eval codegen_regular() = nothing
+    @eval codegen_closure = ()->nothing
+
+    function test_name(f, name; kwargs...)
+        code = sprint(io->CUDAnative.code_ptx(io, f, Tuple{}; kwargs...))
+        @test occursin(name, code)
+    end
+
+    test_name(codegen_regular, "julia_codegen_regular")
+    test_name(codegen_regular, "julia_codegen_renamed"; alias="codegen_renamed")
+
+    test_name(codegen_regular, "ptxcall_codegen_regular"; kernel=true)
+    test_name(codegen_regular, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
+
+    test_name(codegen_closure, "julia_anonymous")
+    test_name(codegen_closure, "julia_codegen_renamed"; alias="codegen_renamed")
+
+    test_name(codegen_closure, "ptxcall_anonymous"; kernel=true)
+    test_name(codegen_closure, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
 end
 
 end
