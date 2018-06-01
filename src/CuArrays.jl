@@ -42,6 +42,8 @@ function __init__()
         warn("Please run Pkg.build(\"CuArrays\") and restart Julia.")
         return
     end
+
+    __init_memory__()
 end
 
 end # module
