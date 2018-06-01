@@ -104,10 +104,9 @@ function __init_memory__()
 
   verbose = haskey(ENV, "CUARRAYS_MANAGED_POOL")
   if verbose
-    println("Managing pool: ", managed ? "yes" : "no")
     atexit(()->begin
       Core.println("""
-        Pool statistics:
+        Pool statistics (managed: $(managed ? "yes" : "no")):
          - requested alloc/free: $(pool_stats.req_alloc) $(pool_stats.req_free)
          - actual alloc/free: $(pool_stats.actual_alloc) $(pool_stats.actual_free)
          - amount alloc/free: $(pool_stats.amount_alloc) $(pool_stats.amount_free)
