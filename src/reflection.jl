@@ -183,7 +183,7 @@ macro device_code_lowered(ex...)
     quote
         buf = Any[]
         function hook(ctx::CompilerContext)
-            append!(buf, code_lowered(coalesce(ctx.inner_f, ctx.f), ctx.tt))
+            append!(buf, code_lowered(something(ctx.inner_f, ctx.f), ctx.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -202,7 +202,7 @@ macro device_code_typed(ex...)
     quote
         buf = Any[]
         function hook(ctx::CompilerContext)
-            append!(buf, code_typed(coalesce(ctx.inner_f, ctx.f), ctx.tt))
+            append!(buf, code_typed(something(ctx.inner_f, ctx.f), ctx.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -219,7 +219,7 @@ See also: [`Base.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
     function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
-        code_warntype(io, coalesce(ctx.inner_f, ctx.f), ctx.tt; kwargs...)
+        code_warntype(io, something(ctx.inner_f, ctx.f), ctx.tt; kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -278,13 +278,13 @@ Evaluates the expression `ex` and dumps all intermediate forms of code to the di
 macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
     function hook(ctx::CompilerContext; dir::AbstractString)
-        fn = "$(typeof(coalesce(ctx.inner_f, ctx.f)).name.mt.name)_$(globalUnique+1)"
+        fn = "$(typeof(something(ctx.inner_f, ctx.f)).name.mt.name)_$(globalUnique+1)"
         open(joinpath(dir, "$fn.lowered.jl"), "w") do io
-            code = only(code_lowered(coalesce(ctx.inner_f, ctx.f), ctx.tt))
+            code = only(code_lowered(something(ctx.inner_f, ctx.f), ctx.tt))
             println(io, code)
         end
         open(joinpath(dir, "$fn.typed.jl"), "w") do io
-            code = only(code_typed(coalesce(ctx.inner_f, ctx.f), ctx.tt))
+            code = only(code_typed(something(ctx.inner_f, ctx.f), ctx.tt))
             println(io, code)
         end
         open(joinpath(dir, "$fn.ll"), "w") do io

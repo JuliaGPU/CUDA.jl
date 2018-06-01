@@ -35,7 +35,7 @@ compiler_error(ctx::CompilerContext, message="unknown error"; kwargs...) =
 
 function Base.showerror(io::IO, err::CompilerError)
     ctx = err.ctx
-    fn = typeof(coalesce(ctx.inner_f, ctx.f)).name.mt.name
+    fn = typeof(something(ctx.inner_f, ctx.f)).name.mt.name
     args = join(ctx.tt.parameters, ", ")
     print(io, "could not compile $fn($args) for GPU; $(err.message)")
     if haskey(err.meta, :errors) && isa(err.meta[:errors], Vector{UnsupportedIRError})
@@ -199,7 +199,7 @@ function irgen(ctx::CompilerContext)
     # rename the entry point
     llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
     ## add a friendlier alias
-    alias = coalesce(ctx.alias, String(typeof(coalesce(ctx.inner_f, ctx.f)).name.mt.name))
+    alias = something(ctx.alias, String(typeof(something(ctx.inner_f, ctx.f)).name.mt.name))
     if startswith(alias, '#')
         alias = "anonymous"
     else
