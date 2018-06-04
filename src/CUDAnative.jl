@@ -29,7 +29,7 @@ include(joinpath("device", "intrinsics.jl"))
 include(joinpath("device", "array.jl"))
 include(joinpath("device", "libdevice.jl"))
 
-include("jit.jl")
+include("compiler.jl")
 include("execution.jl")
 include("reflection.jl")
 include("validation.jl")
