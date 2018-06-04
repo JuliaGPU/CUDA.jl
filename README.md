@@ -10,7 +10,7 @@ CUDAnative.jl
 **Code coverage** (of host code): [![][coverage-img]][coverage-url]
 
 [buildbot-julia07-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAnative-julia07-x86-64bit&name=julia%200.7
-[buildbot-julia07-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-juliad07-x86-64bit
+[buildbot-julia07-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-julia07-x86-64bit
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: http://juliagpu.github.io/CUDAnative.jl/stable
