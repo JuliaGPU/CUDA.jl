@@ -35,7 +35,7 @@ end
 
 isghosttype(dt) = dt.isconcretetype && sizeof(dt) == 0
 
-# generate Kernel wrapper functions that ignore return values
+# generate kernel wrapper functions that ignore return values
 #
 # FIXME: we cannot use an ordinary splat for this, because that generates dynamic calls
 #        for certain types of arguments.
@@ -43,14 +43,14 @@ isghosttype(dt) = dt.isconcretetype && sizeof(dt) == 0
 #        we also can't generate wrappers with a known amount of arguments, because `@cuda`
 #        supports splatting and doesn't know the inner function argument count
 
-struct Kernel{F} <: Core.Function
+struct KernelWrapper{F} <: Core.Function
     f::F
 end
 
 for i in 0:13
     params = Tuple(Symbol("param$j") for j in 1:i)
     @eval begin
-        function (k::Kernel)($(params...))
+        function (k::KernelWrapper)($(params...))
             # TODO: call-site inlining; we now need to keep track of the inner function
             #       for reflection usability reasons (look for `inner_f` in reflection.jl)
             (k.f)($(params...))
@@ -59,7 +59,7 @@ for i in 0:13
     end
 end
 
-@generated function (::Kernel{F})(params...) where {F}
+@generated function (::KernelWrapper{F})(params...) where {F}
     @safe_fatal "invalid kernel call; too many arguments" kernel=F argc=length(params)
 end
 
@@ -152,7 +152,7 @@ macro cuda(ex...)
     end
     push!(code.args,
         :(GC.@preserve($(vars...),
-                       _cuda(Kernel($(esc(f))), $(esc(f)),
+                       _cuda(KernelWrapper($(esc(f))), $(esc(f)),
                              ($(map(esc, compiler_kwargs)...),),
                              ($(map(esc, call_kwargs)...),),
                              cudaconvert.(($(var_exprs...),))...,
