@@ -30,10 +30,11 @@ include(joinpath("device", "array.jl"))
 include(joinpath("device", "libdevice.jl"))
 
 include("jit.jl")
-include("profile.jl")
 include("execution.jl")
 include("reflection.jl")
 include("validation.jl")
+
+include("deprecated.jl")
 
 include("init.jl")
 

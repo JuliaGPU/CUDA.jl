@@ -216,9 +216,7 @@ const compilecache = Dict{UInt, CuFunction}()
         end
 
         # call the kernel
-        Profile.@launch begin
-            cudacall(cuda_f, $call_tt, $(call_args...); call_kwargs...)
-        end
+        cudacall(cuda_f, $call_tt, $(call_args...); call_kwargs...)
     end
 end
 
