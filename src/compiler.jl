@@ -37,11 +37,12 @@ function Base.showerror(io::IO, err::CompilerError)
     ctx = err.ctx
     fn = typeof(something(ctx.inner_f, ctx.f)).name.mt.name
     args = join(ctx.tt.parameters, ", ")
-    print(io, "could not compile $fn($args) for GPU; $(err.message)")
+    print(io, "could not compile $fn($args) for GPU; $(err.message)\n")
     if haskey(err.meta, :errors) && isa(err.meta[:errors], Vector{UnsupportedIRError})
         for suberr in err.meta[:errors]
-            print(io, "\n- ")
-            Base.showerror(io, suberr)
+            print(io, "\nReason: ")
+            Base.showerror(io, suberr, suberr.compiletrace)
+            println(io)
         end
         print(io, "\nTry inspecting generated code with the @device_code_... macros")
     else
