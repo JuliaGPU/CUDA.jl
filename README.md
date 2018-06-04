@@ -3,16 +3,14 @@ CUDAnative.jl
 
 *Support for compiling and executing native Julia kernels on CUDA hardware.*
 
-**Build status**: [![][buildbot-juliadev-img]][buildbot-juliadev-url]
+**Build status**: [![][buildbot-julia07-img]][buildbot-julia07-url]
 
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
 
 **Code coverage** (of host code): [![][coverage-img]][coverage-url]
 
-[buildbot-julia06-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAnative-julia06-x86-64bit&name=julia%200.6
-[buildbot-julia06-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-julia06-x86-64bit
-[buildbot-juliadev-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAnative-juliadev-x86-64bit&name=julia%20dev
-[buildbot-juliadev-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-juliadev-x86-64bit
+[buildbot-julia07-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAnative-julia07-x86-64bit&name=julia%200.7
+[buildbot-julia07-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-juliad07-x86-64bit
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: http://juliagpu.github.io/CUDAnative.jl/stable
