@@ -59,7 +59,7 @@ end
     _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
     @test out == "Testing 42...$endline"
 
-    integer = Int == Int32 ? "%d" : "%ld"
+    integer = Int == Int32 ? "%d" : (Sys.iswindows() ? "%lld" : "%ld")
 
     _, out = @grab_output @on_device @cuprintf($"Testing $integer $integer...\n",
                                                blockIdx().x, threadIdx().x)
