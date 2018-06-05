@@ -13,6 +13,9 @@
                 cl, tl = get_summary(process_folder());
                 println("(", cl/tl*100, "%) covered");
                 Codecov.submit_local(process_folder(), ".")'
+    # documentation
+    - julia -e 'using Pkg; Pkg.add("Documenter")'
+    - julia docs/make.jl
 
 variables:
   package: 'CUDAnative'
