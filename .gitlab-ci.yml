@@ -1,0 +1,16 @@
+.test_template: &test_definition
+  script:
+    - julia -e 'using InteractiveUtils; versioninfo()'
+    # actual testing
+    # TODO: `Pkg.build(); Pkg.test(; coverage=true)` once that works
+    - julia -e "using Pkg;
+                Pkg.develop(\"$CI_PROJECT_DIR\");
+                Pkg.build(\"$package\");
+                Pkg.test(\"$package\"; coverage=true)"
+
+variables:
+  package: 'CUDAapi'
+
+test:0.7:
+  image: juliagpu/julia:v0.7
+  <<: *test_definition
