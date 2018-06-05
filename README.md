@@ -3,24 +3,16 @@ CUDAdrv.jl
 
 *A Julia wrapper for the CUDA driver API.*
 
-**Build status**: [![][buildbot-julia06-img]][buildbot-julia06-url] [![][buildbot-juliadev-img]][buildbot-juliadev-url]
+**Build status**: [![pipeline status](https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/pipeline.svg)](https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master)
+
+**Code coverage**: [![coverage report](https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/coverage.svg)](https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master)
 
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
-
-**Code coverage**: [![][coverage-img]][coverage-url]
-
-[buildbot-julia06-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAdrv-julia06-x86-64bit&name=julia%200.6
-[buildbot-julia06-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAdrv-julia06-x86-64bit
-[buildbot-juliadev-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAdrv-juliadev-x86-64bit&name=julia%20dev
-[buildbot-juliadev-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAdrv-juliadev-x86-64bit
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: http://juliagpu.github.io/CUDAdrv.jl/stable
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: http://juliagpu.github.io/CUDAdrv.jl/latest
-
-[coverage-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/coverage.svg
-[coverage-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
 
 This package aims to provide high-level wrappers for the functionality exposed by the CUDA
 driver API, and is meant for users who need high- or low-level access to the CUDA toolkit or
