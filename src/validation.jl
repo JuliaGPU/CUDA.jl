@@ -46,6 +46,7 @@ function backtrace(inst)
 
     depth = 0
     stack = StackTraces.StackFrame[]
+    VERSION >= v"0.7.0-alpha.37" || return stack
     while LLVM.API.LLVMGetSourceLocation(LLVM.ref(inst), depth, name, filename, line, col) == 1
         frame = StackTraces.StackFrame(replace(unsafe_string(name[]), r";$"=>""), unsafe_string(filename[]), line[])
         push!(stack, frame)

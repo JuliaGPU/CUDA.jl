@@ -215,7 +215,9 @@ end
         msg = sprint(io->showerror(io, err))
         @test occursin("could not compile codegen_ref_nonexisting() for GPU; unsupported LLVM IR", msg)
         @test occursin("Reason: unsupported call to the Julia runtime", msg)
-        @test occursin(r"\[1\] codegen_ref_nonexisting at .*codegen.jl", msg)
+        if VERSION >= v"0.7.0-alpha.37"
+            @test occursin(r"\[1\] codegen_ref_nonexisting at .*codegen.jl", msg)
+        end
     end
 end
 
@@ -228,7 +230,9 @@ end
         msg = sprint(io->showerror(io, err))
         @test occursin("could not compile codegen_call_nonexisting() for GPU; unsupported LLVM IR", msg)
         @test occursin("Reason: unsupported call to the Julia runtime", msg)
-        @test occursin(r"\[1\] codegen_call_nonexisting at .*codegen.jl", msg)
+        if VERSION >= v"0.7.0-alpha.37"
+            @test occursin(r"\[1\] codegen_call_nonexisting at .*codegen.jl", msg)
+        end
     end
 end
 
@@ -240,8 +244,10 @@ end
     catch err
         @test isa(err, CUDAnative.CompilerError)
         msg = sprint(io->showerror(io, err))
-        @test occursin(r"\[1\] codegen_call_inner at .*codegen.jl", msg)
-        @test occursin(r"\[2\] codegen_call_outer at .*codegen.jl", msg)
+        if VERSION >= v"0.7.0-alpha.37"
+            @test occursin(r"\[1\] codegen_call_inner at .*codegen.jl", msg)
+            @test occursin(r"\[2\] codegen_call_outer at .*codegen.jl", msg)
+        end
     end
 end
 end
