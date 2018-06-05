@@ -16,6 +16,7 @@
     # documentation
     - julia -e 'using Pkg; Pkg.add("Documenter")'
     - julia docs/make.jl
+  coverage: '/\(\d+.\d+\%\) covered/'
 
 variables:
   package: 'CUDAnative'
