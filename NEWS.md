@@ -1,7 +1,7 @@
 CUDAnative v1.0 release notes
 =============================
 
-This document describes major features and changes to CUDAnative.
+This document describes major features and user-facing changes to CUDAnative.
 
 
 New features
