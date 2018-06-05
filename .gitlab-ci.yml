@@ -1,0 +1,18 @@
+.test_template: &test_definition
+  script:
+    - julia -e 'using InteractiveUtils; versioninfo()'
+    # actual testing
+    - julia -e "using Pkg; pkg\"develop $CI_PROJECT_DIR\""
+    - julia -e "using Pkg; pkg\"build $CI_PROJECT_NAME\""
+    - julia -e "using Pkg; pkg\"test --coverage $CI_PROJECT_NAME\""
+    # coverage (CI/CD settings: enable Simplecov regex parsing,
+    #                           add CODECOV_TOKEN secret variable)
+    - julia -e 'using Pkg; pkg"add Coverage"'
+    - julia -e 'using Coverage;
+                cl, tl = get_summary(process_folder());
+                println("(", cl/tl*100, "%) covered");
+                Codecov.submit_local(process_folder(), ".")'
+
+test:dev:
+  image: juliagpu/julia:dev
+  <<: *test_definition
