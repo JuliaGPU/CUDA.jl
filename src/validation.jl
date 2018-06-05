@@ -25,6 +25,7 @@ const UNKNOWN_FUNCTION = "call to an unknown function"
 
 struct UnsupportedIRError <: Exception
     kind::String
+    compiletrace::StackTraces.StackTrace
     meta::Any
 end
 
@@ -33,9 +34,29 @@ UnsupportedIRError(kind) = UnsupportedIRError(kind, nothing)
 function Base.showerror(io::IO, err::UnsupportedIRError)
     print(io, "unsupported $(err.kind)")
     if err.kind == RUNTIME_FUNCTION || err.kind == UNKNOWN_FUNCTION
-        # TODO: when on LLVM 6.0, use debug info to find the source location
-        print(io, " (", err.meta[1], ")")
+        print(io, " (", err.meta, ")")
     end
+end
+
+function backtrace(inst)
+    name = Ref{Cstring}()
+    filename = Ref{Cstring}()
+    line = Ref{Cuint}()
+    col = Ref{Cuint}()
+
+    depth = 0
+    stack = StackTraces.StackFrame[]
+    while LLVM.API.LLVMGetSourceLocation(LLVM.ref(inst), depth, name, filename, line, col) == 1
+        frame = StackTraces.StackFrame(replace(unsafe_string(name[]), r";$"=>""), unsafe_string(filename[]), line[])
+        push!(stack, frame)
+        depth += 1
+    end
+
+    if last(stack).func == :KernelWrapper
+        pop!(stack)
+    end
+
+    stack
 end
 
 function validate_ir!(errors::Vector{>:UnsupportedIRError}, mod::LLVM.Module)
@@ -64,10 +85,11 @@ function validate_ir!(errors::Vector{>:UnsupportedIRError}, inst::LLVM.CallInst)
     runtime = Libdl.dlopen(lib)
     if isa(dest_f, GlobalValue)
         if isdeclaration(dest_f) && intrinsic_id(dest_f) == 0 && !(dest_fn in special_fns)
+            compiletrace = backtrace(inst)
             if Libdl.dlsym_e(runtime, dest_fn) != C_NULL
-                push!(errors, UnsupportedIRError(RUNTIME_FUNCTION, (dest_fn, inst)))
+                push!(errors, UnsupportedIRError(RUNTIME_FUNCTION, compiletrace, dest_fn))
             else
-                push!(errors, UnsupportedIRError(UNKNOWN_FUNCTION, (dest_f, inst)))
+                push!(errors, UnsupportedIRError(UNKNOWN_FUNCTION, compiletrace, dest_f))
             end
         end
     elseif isa(dest_f, InlineAsm)
