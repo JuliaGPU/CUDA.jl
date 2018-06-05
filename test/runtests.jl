@@ -43,11 +43,6 @@ if CUDAdrv.configured
         include("gc.jl")
 
         include("examples.jl")
-        if "Documenter" in keys(Pkg.installed())
-            include("documentation.jl")
-        else
-            @warn "Documenter.jl not installed, skipping documentation tests."
-        end
     end
 else
     @warn "CUDAdrv.jl has not been configured; skipping most tests."
