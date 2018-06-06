@@ -3,11 +3,17 @@ CUDAdrv.jl
 
 *A Julia wrapper for the CUDA driver API.*
 
-**Build status**: [![pipeline status](https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/pipeline.svg)](https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master)
+**Build status**: [![][gitlab-img]][gitlab-url]
 
-**Code coverage**: [![coverage report](https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/coverage.svg)](https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master)
+**Code coverage**: [![][codecov-img]][codecov-url]
 
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master
+
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: http://juliagpu.github.io/CUDAdrv.jl/stable
