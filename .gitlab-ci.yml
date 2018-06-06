@@ -49,11 +49,25 @@ coverage:
                 Codecov.submit_local(process_folder(), ".")'
   coverage: '/\(\d+.\d+\%\) covered/'
 
+# Documenter.jl's `deploydocs` really is only made to work with Travis,
+# so we need to fake quite a bit of environment in order for it to work.
+# TODO: create an unconditional `deploydocs`, and pick when to deploy in here.
 documentation:
   stage: postprocess
   image: juliagpu/julia:dev
+  variables:
+    DOCUMENTER_DEBUG: "true"
+    TRAVIS_REPO_SLUG: "github.com/JuliaGPU/CUDAnative.jl.git"
+    TRAVIS_BRANCH: $CI_COMMIT_REF_NAME
+    TRAVIS_TAG: $CI_COMMIT_TAG
   dependencies:
     - test:dev
   script:
+    # gitlab-ce#15280
+    - apt update && apt install -y jq
+    - export PR_ID=$(curl -s "http://gitlab.ca/api/v4/projects/${CI_PROJECT_ID}/merge_requests?private_token=${OAUTH_TOKEN}&state=opened" | jq -r ".[]|select(.sha == \"$CI_COMMIT_SHA\")|.iid")
+    - export TRAVIS_PULL_REQUEST=$(if [ "$PR_ID" == "" ]; then echo "false"; else echo "true"; fi)
+
+    - apt install -y openssh-client && mkdir /root/.ssh
     - julia -e 'using Pkg; Pkg.add("Documenter")'
     - julia docs/make.jl
