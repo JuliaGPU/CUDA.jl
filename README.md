@@ -10,7 +10,7 @@ CUDAnative.jl
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
 
 [gitlab-img]: https://gitlab.com/JuliaGPU/CUDAnative.jl/badges/master/pipeline.svg
-[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAnative.jl/commits/master
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAnative.jl/pipelines
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl
