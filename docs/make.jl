@@ -1,7 +1,5 @@
 using Documenter, CUDAnative
 
-const test = haskey(ENV, "TEST")    # are we running as part of the test suite?
-
 makedocs(
     modules = [CUDAnative],
     format = :html,
@@ -25,10 +23,10 @@ makedocs(
             ]
         ]
     ],
-    doctest = test
+    doctest = true
 )
 
-test || deploydocs(
+deploydocs(
     repo = "github.com/JuliaGPU/CUDAnative.jl.git",
     julia = "0.6",
     # no need to build anything here, re-use output of `makedocs`

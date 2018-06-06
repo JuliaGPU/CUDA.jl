@@ -3,22 +3,23 @@ CUDAnative.jl
 
 *Support for compiling and executing native Julia kernels on CUDA hardware.*
 
-**Build status**: [![][buildbot-julia07-img]][buildbot-julia07-url]
+**Build status**: [![][gitlab-img]][gitlab-url]
+
+**Code coverage** (of host code): [![][codecov-img]][codecov-url]
 
 **Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
 
-**Code coverage** (of host code): [![][coverage-img]][coverage-url]
+[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAnative.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAnative.jl/commits/master
 
-[buildbot-julia07-img]: http://ci.maleadt.net/shields/build.php?builder=CUDAnative-julia07-x86-64bit&name=julia%200.7
-[buildbot-julia07-url]: http://ci.maleadt.net/shields/url.php?builder=CUDAnative-julia07-x86-64bit
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: http://juliagpu.github.io/CUDAnative.jl/stable
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: http://juliagpu.github.io/CUDAnative.jl/latest
 
-[coverage-img]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl/coverage.svg
-[coverage-url]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl
 
 
 Installation
