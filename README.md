@@ -5,7 +5,7 @@ CUDAapi.jl
 
 **Build status**: [![][gitlab-img]][gitlab-url] [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url]
 
-**Code coverage**: [![coverage report](https://gitlab.com/JuliaGPU/CUDAapi.jl/badges/master/coverage.svg)](https://gitlab.com/JuliaGPU/CUDAapi.jl/commits/master)
+**Code coverage**: [![][codecov-img]][codecov-url]
 
 [gitlab-img]: https://gitlab.com/JuliaGPU/CUDAapi.jl/badges/master/pipeline.svg
 [gitlab-url]: https://gitlab.com/JuliaGPU/CUDAapi.jl/commits/master
@@ -15,6 +15,9 @@ CUDAapi.jl
 
 [appveyor-img]: https://ci.appveyor.com/api/projects/status/e41yic5p5ru018mf/branch/master?svg=true
 [appveyor-url]: https://ci.appveyor.com/project/maleadt/cudaapi-jl
+
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAapi.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAapi.jl
 
 
 This package provides some reusable functionality for programming against CUDA or NVIDIA
