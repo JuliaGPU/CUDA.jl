@@ -1,10 +1,11 @@
 # CuArrays
 
-[![][buildbot-julia06-img]][buildbot-julia06-url]
-[![codecov][codecov-img]][codecov-url]
+[![][gitlab-img]][gitlab-url]
+[![][codecov-img]][codecov-url]
 
-[buildbot-julia06-img]: http://ci.maleadt.net/shields/build.php?builder=CuArrays-julia06-x86-64bit&name=julia%200.6
-[buildbot-julia06-url]: http://ci.maleadt.net/shields/url.php?builder=CuArrays-julia06-x86-64bit
+[gitlab-img]: https://gitlab.com/JuliaGPU/CuArrays.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CuArrays.jl/commits/master
+
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CuArrays.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CuArrays.jl
 
