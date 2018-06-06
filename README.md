@@ -4,7 +4,7 @@
 [![][codecov-img]][codecov-url]
 
 [gitlab-img]: https://gitlab.com/JuliaGPU/CuArrays.jl/badges/master/pipeline.svg
-[gitlab-url]: https://gitlab.com/JuliaGPU/CuArrays.jl/commits/master
+[gitlab-url]: https://gitlab.com/JuliaGPU/CuArrays.jl/pipelines
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CuArrays.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CuArrays.jl
