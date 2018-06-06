@@ -7,6 +7,13 @@
                 Pkg.resolve();
                 Pkg.build(\"$package\");
                 Pkg.test(\"$package\"; coverage=true)"
+    # coverage
+    - julia -e 'Pkg.add("Coverage")'
+    - julia -e 'using Coverage;
+                cl, tl = get_summary(process_folder());
+                println("(", cl/tl*100, "%) covered");
+                Codecov.submit_local(process_folder(), ".")'
+  coverage: '/\(\d+.\d+\%\) covered/'
 
 .test_template: &pkg3_test_definition
   script:
@@ -17,6 +24,13 @@
                 Pkg.develop(\"$CI_PROJECT_DIR\");
                 Pkg.build(\"$package\");
                 Pkg.test(\"$package\"; coverage=true)"
+    # coverage
+    - julia -e 'using Pkg; Pkg.add("Coverage")'
+    - julia -e 'using Coverage;
+                cl, tl = get_summary(process_folder());
+                println("(", cl/tl*100, "%) covered");
+                Codecov.submit_local(process_folder(), ".")'
+  coverage: '/\(\d+.\d+\%\) covered/'
 
 variables:
   package: 'CUDAapi'
