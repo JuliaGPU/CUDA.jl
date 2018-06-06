@@ -1,0 +1,65 @@
+before_script:
+  - julia -e 'versioninfo()'
+
+variables:
+  JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia/"
+  JULIA_PKGDIR: "$CI_PROJECT_DIR/.julia/"
+  package: 'CUDAapi'
+
+stages:
+  - test
+  - postprocess
+
+
+## testing
+
+.test_template: &pkg2_test_template
+  script:
+    - julia -e "Pkg.init();
+                symlink(\"$CI_PROJECT_DIR\", joinpath(Pkg.dir(), \"$package\"));
+                Pkg.resolve();
+                Pkg.build(\"$package\");
+                Pkg.test(\"$package\"; coverage=true)"
+
+.test_template: &pkg3_test_template
+  script:
+    - mkdir $JULIA_DEPOT_PATH # Pkg3.jl#325
+    - julia -e "using Pkg;
+                Pkg.develop(\"$CI_PROJECT_DIR\");
+                Pkg.build(\"$package\");
+                Pkg.test(\"$package\"; coverage=true)"
+  artifacts:
+    paths:
+      - .julia/
+      - src/*.cov
+
+test:v0.6:
+  stage: test
+  image: juliagpu/julia:v0.6
+  <<: *pkg2_test_template
+
+test:v0.7:
+  stage: test
+  image: juliagpu/julia:v0.7
+  <<: *pkg3_test_template
+
+test:dev:
+  stage: test
+  image: juliagpu/julia:dev
+  <<: *pkg3_test_template
+
+
+## post-processing
+
+coverage:
+  stage: postprocess
+  image: juliagpu/julia:v0.7
+  dependencies:
+    - test:v0.7
+  script:
+    - julia -e 'using Pkg; Pkg.add("Coverage")'
+    - julia -e 'using Coverage;
+                cl, tl = get_summary(process_folder());
+                println("(", cl/tl*100, "%) covered");
+                Codecov.submit_local(process_folder(), ".")'
+  coverage: '/\(\d+.\d+\%\) covered/'
