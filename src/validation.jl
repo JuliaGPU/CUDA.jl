@@ -31,6 +31,10 @@ end
 
 UnsupportedIRError(kind) = UnsupportedIRError(kind, nothing)
 
+# implement comparison, eg. for `unique(UnsupportedIRError[])`
+Base.:(==)(x::UnsupportedIRError, y::UnsupportedIRError) =
+    x.kind == y.kind && x.compiletrace == y.compiletrace && x.meta == y.meta
+
 function Base.showerror(io::IO, err::UnsupportedIRError)
     print(io, "unsupported $(err.kind)")
     if err.kind == RUNTIME_FUNCTION || err.kind == UNKNOWN_FUNCTION

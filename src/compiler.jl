@@ -545,7 +545,7 @@ function compile_function(ctx::CompilerContext)
     end
 
     # validate generated IR
-    errors = validate_ir(mod)
+    errors = unique(validate_ir(mod))
     if !isempty(errors)
         compiler_error(ctx, "unsupported LLVM IR"; errors=errors)
     end
