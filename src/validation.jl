@@ -57,7 +57,7 @@ function backtrace(inst)
         depth += 1
     end
 
-    if last(stack).func == :KernelWrapper
+    if !isempty(stack) && last(stack).func == :KernelWrapper
         pop!(stack)
     end
 
