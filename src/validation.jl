@@ -38,7 +38,7 @@ Base.:(==)(x::UnsupportedIRError, y::UnsupportedIRError) =
 function Base.showerror(io::IO, err::UnsupportedIRError)
     print(io, "unsupported $(err.kind)")
     if err.kind == RUNTIME_FUNCTION || err.kind == UNKNOWN_FUNCTION
-        print(io, " (", err.meta, ")")
+        print(io, " (", LLVM.name(err.meta), ")")
     end
 end
 
@@ -92,7 +92,7 @@ function validate_ir!(errors::Vector{>:UnsupportedIRError}, inst::LLVM.CallInst)
         if isdeclaration(dest_f) && intrinsic_id(dest_f) == 0 && !(dest_fn in special_fns)
             compiletrace = backtrace(inst)
             if Libdl.dlsym_e(runtime, dest_fn) != C_NULL
-                push!(errors, UnsupportedIRError(RUNTIME_FUNCTION, compiletrace, dest_fn))
+                push!(errors, UnsupportedIRError(RUNTIME_FUNCTION, compiletrace, dest_f))
             else
                 push!(errors, UnsupportedIRError(UNKNOWN_FUNCTION, compiletrace, dest_f))
             end
