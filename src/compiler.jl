@@ -483,6 +483,11 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
 
+        # FIXME: see #195
+        PassManagerBuilder() do pmb
+            populate!(pm, pmb)
+        end
+
         run!(pm, mod)
     end
 end
@@ -520,7 +525,7 @@ function compile_function(ctx::CompilerContext)
         link_libdevice!(ctx, mod)
     end
 
-    # optimize the IR (otherwise the IR isn't necessarily compatible)
+    # optimize the IR
     optimize!(ctx, mod, entry)
 
     # make sure any non-isbits arguments are unused
