@@ -217,7 +217,8 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
 
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
         ptr_with_as = addrspacecast!(builder, ptr, T_actual_ptr_as)
-        val = call!(builder, intrinsic, [ptr_with_as, ConstantInt(Int32(align))])
+        val = call!(builder, intrinsic,
+                    [ptr_with_as, ConstantInt(Int32(align), JuliaContext())])
         ret!(builder, val)
     end
 

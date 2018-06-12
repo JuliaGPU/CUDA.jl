@@ -70,9 +70,9 @@ function module_setup(mod::LLVM.Module)
 
     # add debug info metadata
     push!(metadata(mod), "llvm.module.flags",
-         MDNode([ConstantInt(Int32(1)),    # llvm::Module::Error
+         MDNode([ConstantInt(Int32(1), JuliaContext()),    # llvm::Module::Error
                  MDString("Debug Info Version"),
-                 ConstantInt(DEBUG_METADATA_VERSION())]))
+                 ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext())]))
 end
 
 # make function names safe for PTX
@@ -228,7 +228,7 @@ function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.F
     annotations = LLVM.Value[kernel]
 
     ## kernel metadata
-    append!(annotations, [MDString("kernel"), ConstantInt(Int32(1))])
+    append!(annotations, [MDString("kernel"), ConstantInt(Int32(1), JuliaContext())])
 
     ## expected CTA sizes
     for (typ,vals) in (:req=>ctx.minthreads, :max=>ctx.maxthreads)
@@ -237,17 +237,19 @@ function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.F
             for dim in (:x, :y, :z)
                 bound = getfield(bounds, dim)
                 append!(annotations, [MDString("$(typ)ntid$(dim)"),
-                                      ConstantInt(Int32(bound))])
+                                      ConstantInt(Int32(bound), JuliaContext())])
             end
         end
     end
 
     if ctx.blocks_per_sm != nothing
-        append!(annotations, [MDString("minctasm"), ConstantInt(Int32(ctx.blocks_per_sm))])
+        append!(annotations, [MDString("minctasm"),
+                              ConstantInt(Int32(ctx.blocks_per_sm), JuliaContext())])
     end
 
     if ctx.maxregs != nothing
-        append!(annotations, [MDString("maxnreg"), ConstantInt(Int32(ctx.maxregs))])
+        append!(annotations, [MDString("maxnreg"),
+                              ConstantInt(Int32(ctx.maxregs), JuliaContext())])
     end
 
 
@@ -409,7 +411,7 @@ function link_libdevice!(ctx::CompilerContext, mod::LLVM.Module)
 
         # 5. run NVVMReflect pass
         push!(metadata(mod), "nvvm-reflect-ftz",
-              MDNode([ConstantInt(Int32(1))]))
+              MDNode([ConstantInt(Int32(1), JuliaContext())]))
 
         # 6. run standard optimization pipeline
         #
