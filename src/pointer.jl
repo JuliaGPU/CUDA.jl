@@ -111,8 +111,8 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
     llvm_f, _ = create_function(eltyp, param_types)
 
     # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvm_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
         ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
@@ -138,11 +138,11 @@ end
 
     # create a function
     param_types = [T_ptr, eltyp, T_int]
-    llvm_f, _ = create_function(LLVM.VoidType(jlctx[]), param_types)
+    llvm_f, _ = create_function(LLVM.VoidType(JuliaContext()), param_types)
 
     # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvm_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
         ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
@@ -181,7 +181,7 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
-    T_int32 = LLVM.Int32Type(jlctx[])
+    T_int32 = LLVM.Int32Type(JuliaContext())
     T_ptr = convert(LLVMType, Ptr{T})
 
     T_actual_ptr = LLVM.PointerType(eltyp)
@@ -209,15 +209,16 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
     intrinsic = LLVM.Function(mod, intrinsic_name, intrinsic_typ)
 
     # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvm_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
         ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
         ptr_with_as = addrspacecast!(builder, ptr, T_actual_ptr_as)
-        val = call!(builder, intrinsic, [ptr_with_as, ConstantInt(T_int32, align)])
+        val = call!(builder, intrinsic,
+                    [ptr_with_as, ConstantInt(Int32(align), JuliaContext())])
         ret!(builder, val)
     end
 

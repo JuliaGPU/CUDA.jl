@@ -1,4 +1,4 @@
 julia 0.7-
 CUDAdrv 0.8.3
-LLVM 0.9.10
+LLVM 0.9.11
 CUDAapi 0.4.0

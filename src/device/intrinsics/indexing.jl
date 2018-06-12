@@ -5,15 +5,15 @@ export
     warpsize
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
-    T_int32 = LLVM.Int32Type(jlctx[])
+    T_int32 = LLVM.Int32Type(JuliaContext())
 
     # create function
     llvm_f, _ = create_function(T_int32)
     mod = LLVM.parent(llvm_f)
 
     # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvm_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
         # call the indexing intrinsic
@@ -22,9 +22,9 @@ export
         idx = call!(builder, intr)
 
         # attach range metadata
-        range_metadata = MDNode([ConstantInt(Int32(range.start), jlctx[]),
-                                 ConstantInt(Int32(range.stop), jlctx[])],
-                                jlctx[])
+        range_metadata = MDNode([ConstantInt(Int32(range.start), JuliaContext()),
+                                 ConstantInt(Int32(range.stop), JuliaContext())],
+                                JuliaContext())
         metadata(idx)[LLVM.MD_range] = range_metadata
 
         ret!(builder, idx)
