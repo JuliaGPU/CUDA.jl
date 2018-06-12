@@ -14,7 +14,13 @@ function emit_shmem(id, llvmtyp, len, align)
     var = Symbol("@shmem", id)
     jltyp = jltypes[llvmtyp]
 
-    decl = """$var = external addrspace(3) global [$len x $llvmtyp], align $align"""
+    decl = if len > 0
+        # static shared memory
+        """$var = internal addrspace(3) global [$len x $llvmtyp] zeroinitializer, align $align"""
+    else
+        # dynamic shared memory
+        """$var = external addrspace(3) global [$len x $llvmtyp], align $align"""
+    end
     def = """%1 = getelementptr inbounds [$len x $llvmtyp], [$len x $llvmtyp] addrspace(3)* $var, i64 0, i64 0
              %2 = addrspacecast $llvmtyp addrspace(3)* %1 to $llvmtyp addrspace(0)*
              %3 = ptrtoint $llvmtyp* %2 to i64

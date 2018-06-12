@@ -279,20 +279,26 @@ macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
     function hook(ctx::CompilerContext; dir::AbstractString)
         fn = "$(typeof(something(ctx.inner_f, ctx.f)).name.mt.name)_$(globalUnique+1)"
+        mkpath(dir)
+
         open(joinpath(dir, "$fn.lowered.jl"), "w") do io
             code = only(code_lowered(something(ctx.inner_f, ctx.f), ctx.tt))
             println(io, code)
         end
+
         open(joinpath(dir, "$fn.typed.jl"), "w") do io
             code = only(code_typed(something(ctx.inner_f, ctx.f), ctx.tt))
             println(io, code)
         end
+
         open(joinpath(dir, "$fn.ll"), "w") do io
             code_llvm(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap, dump_module=true)
         end
+
         open(joinpath(dir, "$fn.ptx"), "w") do io
             code_ptx(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap)
         end
+
         open(joinpath(dir, "$fn.sass"), "w") do io
             code_sass(io, ctx.f, ctx.tt; cap=ctx.cap)
         end

@@ -466,7 +466,15 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
               (LLVM.API.LLVMPassManagerRef, Cint),
               LLVM.ref(pm), Base.JLOptions().opt_level)
 
-        # CUDAnative's JIT internalizes non-inlined child functions, making it possible
+        # NVPTX's target machine info enables runtime unrolling,
+        # but Julia's pass sequence only invokes the simple unroller.
+        loop_unroll!(pm)
+        instruction_combining!(pm)  # clean-up redundancy
+        licm!(pm)                   # the inner runtime check might be outer loop invariant
+
+        cfgsimplification!(pm)
+
+        # CUDAnative's compiler internalizes non-inlined child functions, making it possible
         # to rewrite them (whereas the Julia JIT caches those functions exactly);
         # this opens up some more optimization opportunities
         dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
@@ -474,6 +482,11 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         global_optimizer!(pm)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
+
+        # FIXME: see #195
+        PassManagerBuilder() do pmb
+            populate!(pm, pmb)
+        end
 
         run!(pm, mod)
     end
@@ -512,7 +525,7 @@ function compile_function(ctx::CompilerContext)
         link_libdevice!(ctx, mod)
     end
 
-    # optimize the IR (otherwise the IR isn't necessarily compatible)
+    # optimize the IR
     optimize!(ctx, mod, entry)
 
     # make sure any non-isbits arguments are unused
@@ -532,7 +545,7 @@ function compile_function(ctx::CompilerContext)
     end
 
     # validate generated IR
-    errors = validate_ir(mod)
+    errors = unique(validate_ir(mod))
     if !isempty(errors)
         compiler_error(ctx, "unsupported LLVM IR"; errors=errors)
     end
