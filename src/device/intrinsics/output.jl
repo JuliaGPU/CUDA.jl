@@ -24,9 +24,9 @@ end
 
     # TODO: needs to adhere to C vararg promotion (short -> int, float -> double, etc.)
 
-    T_void = LLVM.VoidType(jlctx[])
-    T_int32 = LLVM.Int32Type(jlctx[])
-    T_pint8 = LLVM.PointerType(LLVM.Int8Type(jlctx[]))
+    T_void = LLVM.VoidType(JuliaContext())
+    T_int32 = LLVM.Int32Type(JuliaContext())
+    T_pint8 = LLVM.PointerType(LLVM.Int8Type(JuliaContext()))
 
     # create functions
     param_types = LLVMType[convert.(LLVMType, arg_types)...]
@@ -34,8 +34,8 @@ end
     mod = LLVM.parent(llvm_f)
 
     # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvm_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
         str = globalstring_ptr!(builder, String(fmt))
@@ -44,7 +44,7 @@ end
         if isempty(argspec)
             buffer = LLVM.PointerNull(T_pint8)
         else
-            argtypes = LLVM.StructType("vprintf_args", jlctx[])
+            argtypes = LLVM.StructType("vprintf_args", JuliaContext())
             elements!(argtypes, param_types)
 
             args = alloca!(builder, argtypes, "args")

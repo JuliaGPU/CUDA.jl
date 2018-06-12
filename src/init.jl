@@ -87,11 +87,7 @@ function device!(f::Function, dev::CuDevice)
 end
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
-const jlctx = Ref{LLVM.Context}()
 function __init__()
-    jlctx[] = LLVM.Context(convert(LLVM.API.LLVMContextRef,
-                                   cglobal(:jl_LLVMContext, Cvoid)))
-
     if !configured
         @warn """CUDAnative.jl has not been successfully built, and will not work properly.
                  Please run Pkg.build(\"CUDAnative\") and restart Julia."""

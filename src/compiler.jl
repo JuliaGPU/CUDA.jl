@@ -183,7 +183,7 @@ function irgen(ctx::CompilerContext)
     # clean up incompatibilities
     for llvmf in functions(mod)
         # only occurs in debug builds
-        delete!(function_attributes(llvmf), EnumAttribute("sspreq", 0, jlctx[]))
+        delete!(function_attributes(llvmf), EnumAttribute("sspreq", 0, JuliaContext()))
 
         # make function names safe for ptxas
         # (LLVM ought to do this, see eg. D17738 and D19126), but fails
@@ -260,7 +260,7 @@ end
 # generate a kernel wrapper to fix & improve argument passing
 function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
     entry_ft = eltype(llvmtype(entry_f))
-    @assert return_type(entry_ft) == LLVM.VoidType(jlctx[])
+    @assert return_type(entry_ft) == LLVM.VoidType(JuliaContext())
 
     # filter out ghost types, which don't occur in the LLVM function signatures
     sig = Base.signature_type(ctx.f, ctx.tt)
@@ -284,12 +284,12 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
     wrapper_fn = replace(LLVM.name(entry_f), r"^.+?_"=>"ptxcall_") # change the CC tag
-    wrapper_ft = LLVM.FunctionType(LLVM.VoidType(jlctx[]), wrapper_types)
+    wrapper_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
     # emit IR performing the "conversions"
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(wrapper_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(wrapper_f, "entry", JuliaContext())
         position!(builder, entry)
 
         wrapper_args = Vector{LLVM.Value}()
@@ -348,7 +348,7 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
     end
 
     # early-inline the original entry function into the wrapper
-    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, jlctx[]))
+    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
     linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
     ModulePassManager() do pm
         always_inliner!(pm)
@@ -377,7 +377,7 @@ function link_libdevice!(ctx::CompilerContext, mod::LLVM.Module)
     # load the library, once
     if !haskey(libdevices, path)
         open(path) do io
-            libdevice_mod = parse(LLVM.Module, read(io), jlctx[])
+            libdevice_mod = parse(LLVM.Module, read(io), JuliaContext())
             name!(libdevice_mod, "libdevice")
             libdevices[path] = libdevice_mod
         end
@@ -446,8 +446,8 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     # and internalize all other functions (enabling ABI-breaking optimizations).
     # FIXME: this is too coarse. use a proper inliner tuned for GPUs
     ModulePassManager() do pm
-        no_inline = EnumAttribute("noinline", 0, jlctx[])
-        always_inline = EnumAttribute("alwaysinline", 0, jlctx[])
+        no_inline = EnumAttribute("noinline", 0, JuliaContext())
+        always_inline = EnumAttribute("alwaysinline", 0, JuliaContext())
         for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
             attrs = function_attributes(f)
             if !(no_inline in collect(attrs))

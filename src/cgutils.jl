@@ -141,15 +141,15 @@ end
     T_sub = convert(LLVMType, sub)
 
     bytes = Core.sizeof(val)
-    T_int = LLVM.IntType(8*bytes, jlctx[])
+    T_int = LLVM.IntType(8*bytes, JuliaContext())
 
     # create function
     llvm_f, _ = create_function(T_sub, [T_val])
     mod = LLVM.parent(llvm_f)
 
     # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvm_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
         equiv = bitcast!(builder, parameters(llvm_f)[1], T_int)
@@ -172,15 +172,15 @@ end
     T_sub = convert(LLVMType, sub)
 
     bytes = Core.sizeof(val)
-    T_out_int = LLVM.IntType(8*bytes, jlctx[])
+    T_out_int = LLVM.IntType(8*bytes, JuliaContext())
 
     # create function
     llvm_f, _ = create_function(T_val, [T_val, T_sub])
     mod = LLVM.parent(llvm_f)
 
     # generate IR
-    Builder(jlctx[]) do builder
-        entry = BasicBlock(llvm_f, "entry", jlctx[])
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
         equiv = bitcast!(builder, parameters(llvm_f)[1], T_out_int)
