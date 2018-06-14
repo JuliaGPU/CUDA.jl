@@ -50,6 +50,11 @@ end
     end
 
     @test_throws ErrorException @device_code_lowered nothing
+
+    # make sure kernel name aliases are preserved in the generated code
+    @test occursin("ptxcall_exec_dummy", sprint(io->(@device_code_llvm io=io @cuda exec_dummy())))
+    @test occursin("ptxcall_exec_dummy", sprint(io->(@device_code_ptx io=io @cuda exec_dummy())))
+    @test occursin("ptxcall_exec_dummy", sprint(io->(@device_code_sass io=io @cuda exec_dummy())))
 end
 
 

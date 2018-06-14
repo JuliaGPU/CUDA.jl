@@ -40,9 +40,12 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
     validate_invocation(ctx)
-
+    code_llvm(io, ctx; optimize=optimize, dump_module=dump_module)
+end
+function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
+                   dump_module::Bool=false)
     mod, entry = irgen(ctx)
-    if kernel
+    if ctx.kernel
         entry = promote_kernel!(ctx, mod, entry)
     end
     if optimize
@@ -73,7 +76,9 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
     validate_invocation(ctx)
-
+    code_ptx(io, ctx)
+end
+function code_ptx(io::IO, ctx::CompilerContext)
     ptx,_ = compile_function(ctx)
     # TODO: this code contains all the functions in the call chain,
     #       is it possible to implement `dump_module`?
@@ -95,21 +100,23 @@ See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    cap::VersionNumber=current_capability(), kernel::Bool=true, kwargs...)
-    if !kernel
+    tt = Base.to_tuple_type(types)
+    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
+    validate_invocation(ctx)
+    code_sass(io, ctx)
+end
+function code_sass(io::IO, ctx::CompilerContext)
+    if !ctx.kernel
         error("Can only generate SASS code for kernel functions")
     end
     if ptxas === nothing || cuobjdump === nothing
         error("Your CUDA installation does not provide ptxas or cuobjdump, both of which are required for code_sass")
     end
 
-    tt = Base.to_tuple_type(types)
-    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    validate_invocation(ctx)
-
     ptx,_ = compile_function(ctx)
 
     fn = tempname()
-    gpu = "sm_$(cap.major)$(cap.minor)"
+    gpu = "sm_$(ctx.cap.major)$(ctx.cap.minor)"
     # NOTE: this might not match what is being executed, due to the PTX->SASS conversion
     #       by the driver possibly not matching what `ptxas` (part of the toolkit) does.
     # TODO: see how `nvvp` extracts SASS code when doing PC sampling, and copy that.
@@ -234,9 +241,7 @@ every compiled CUDA kernel. For other supported keywords, see
 See also: [`Base.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
-    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
-        code_llvm(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap, kwargs...)
-    end
+    hook(ctx::CompilerContext; io::IO=stdout, kwargs...) = code_llvm(io, ctx; kwargs...)
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -248,9 +253,7 @@ for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
-        code_ptx(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap, kwargs...)
-    end
+    hook(ctx::CompilerContext; io::IO=stdout, kwargs...) = code_ptx(io, ctx; kwargs...)
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -262,10 +265,7 @@ Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
-        # we have inlined every function using LLVM, so don't hide the kernel wrapper.
-        code_sass(io, ctx.f, ctx.tt; cap=ctx.cap, kwargs...)
-    end
+    hook(ctx::CompilerContext; io::IO=stdout, kwargs...) = code_sass(io, ctx; kwargs...)
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -292,15 +292,15 @@ macro device_code(ex...)
         end
 
         open(joinpath(dir, "$fn.ll"), "w") do io
-            code_llvm(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap, dump_module=true)
+            code_llvm(io, ctx; dump_module=true)
         end
 
         open(joinpath(dir, "$fn.ptx"), "w") do io
-            code_ptx(io, ctx.f, ctx.tt; kernel=ctx.kernel, cap=ctx.cap)
+            code_ptx(io, ctx)
         end
 
         open(joinpath(dir, "$fn.sass"), "w") do io
-            code_sass(io, ctx.f, ctx.tt; cap=ctx.cap)
+            code_sass(io, ctx)
         end
     end
     emit_hooked_compilation(hook, ex...)
