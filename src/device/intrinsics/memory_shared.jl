@@ -16,14 +16,14 @@ pointing to a statically-allocated piece of shared memory. The type should be st
 inferable and the dimensions should be constant, or an error will be thrown and the
 generator function will be called dynamically.
 """
-macro cuStaticSharedMem(T, shape)
+macro cuStaticSharedMem(T, dims)
     global shmem_id
     id = shmem_id::Int += 1
 
     quote
-        len = prod($(esc(shape)))
+        len = prod($(esc(dims)))
         ptr = _shmem(Val($id), $(esc(T)), Val(len))
-        CuDeviceArray($(esc(shape)), DevicePtr{$(esc(T)), AS.Shared}(ptr))
+        CuDeviceArray($(esc(dims)), DevicePtr{$(esc(T)), AS.Shared}(ptr))
     end
 end
 
@@ -40,16 +40,16 @@ Optionally, an offset parameter indicating how many bytes to add to the base sha
 pointer can be specified. This is useful when dealing with a heterogeneous buffer of dynamic
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
-macro cuDynamicSharedMem(T, shape, offset=0)
+macro cuDynamicSharedMem(T, dims, offset=0)
     global shmem_id
     id = shmem_id::Int += 1
 
     # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
 
     quote
-        len = prod($(esc(shape)))
+        len = prod($(esc(dims)))
         ptr = _shmem(Val($id), $(esc(T))) + $(esc(offset))
-        CuDeviceArray($(esc(shape)), DevicePtr{$(esc(T)), AS.Shared}(ptr))
+        CuDeviceArray($(esc(dims)), DevicePtr{$(esc(T)), AS.Shared}(ptr))
     end
 end
 
