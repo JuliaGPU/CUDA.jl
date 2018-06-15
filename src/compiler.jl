@@ -485,11 +485,6 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
 
-        # FIXME: see #195
-        PassManagerBuilder() do pmb
-            populate!(pm, pmb)
-        end
-
         run!(pm, mod)
     end
 end
