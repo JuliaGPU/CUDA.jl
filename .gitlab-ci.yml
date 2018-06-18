@@ -30,7 +30,7 @@ stages:
 
 test:dev:
   stage: test
-  image: juliagpu/julia:dev
+  image: juliagpu/julia:dev-cuda
   <<: *pkg3_test_template
 
 
@@ -38,7 +38,7 @@ test:dev:
 
 coverage:
   stage: postprocess
-  image: juliagpu/julia:dev
+  image: juliagpu/julia:dev-cuda
   dependencies:
     - test:dev
   script:
@@ -54,7 +54,7 @@ coverage:
 # TODO: create an unconditional `deploydocs`, and pick when to deploy in here.
 documentation:
   stage: postprocess
-  image: juliagpu/julia:dev
+  image: juliagpu/julia:dev-cuda
   variables:
     DOCUMENTER_DEBUG: "true"
     TRAVIS_REPO_SLUG: "github.com/JuliaGPU/CUDAnative.jl.git"
