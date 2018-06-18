@@ -114,9 +114,16 @@ function find_binary(names::Vector{String};
     end
 
     @trace "Looking for binary $(join(all_names, ", "))" locations=all_locations
-    paths = [joinpath(location, name) for name in all_names, location in all_locations]
-    try
-        paths = filter(ispath, paths)
+    all_paths = [joinpath(location, name) for name in all_names, location in all_locations]
+    paths = String[]
+    for path in all_paths
+        try
+            if ispath(path)
+                push!(paths, path)
+            end
+        catch
+            # some system disallow `stat` on certain paths
+        end
     end
 
     if isempty(paths)
