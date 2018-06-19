@@ -9,7 +9,7 @@ mutable struct CuArray{T,N} <: GPUArray{T,N}
   function CuArray{T,N}(buf::Mem.Buffer, offset::Integer, dims::NTuple{N,Integer}) where {T,N}
     xs = new{T,N}(buf, offset, dims)
     Mem.retain(buf)
-    finalizer(xs, unsafe_free!)
+    finalizer(unsafe_free!, xs)
     return xs
   end
 end

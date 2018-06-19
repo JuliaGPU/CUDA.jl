@@ -33,7 +33,7 @@ function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer}
     cudnnCreateTensorDescriptor(d)
     cudnnSetTensorNdDescriptor(d[1], cudnnDataType(T), length(sz), sz, st)
     this = TensorDesc(d[1])
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end
 
@@ -62,7 +62,7 @@ function FilterDesc(T::Type, size::Tuple; format = CUDNN_TENSOR_NCHW)
         cudnnSetFilterNdDescriptor_v4(d, cudnnDataType(T), format, length(sz), sz) :
         cudnnSetFilterNdDescriptor(d, cudnnDataType(T), length(sz), sz)
     this = FilterDesc(d)
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end
 
@@ -99,7 +99,7 @@ function ConvDesc(T, N, padding, stride, upscale, mode)
     CUDNN_VERSION >= 3000 ? cudnnSetConvolutionNdDescriptor_v3(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
     cudnnSetConvolutionNdDescriptor(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode)
     this = ConvDesc(cd[1])
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end
 
@@ -112,6 +112,6 @@ function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_
     cudnnCreatePoolingDescriptor(pd)
     cudnnSetPoolingNdDescriptor(pd[1],mode,maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
     this = PoolDesc(pd[1])
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end

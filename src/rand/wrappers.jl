@@ -8,7 +8,7 @@ function create_generator(rng_type::Int=CURAND_RNG_PSEUDO_DEFAULT)
     @check ccall((:curandCreateGenerator, libcurand),
                 curandStatus_t, (Ptr{Nothing}, Cint), aptr, rng_type)
     r = RNG(aptr[1], rng_type)
-    finalizer(r, destroy_generator)
+    finalizer(destroy_generator, r)
     return r
 end
 
@@ -17,7 +17,7 @@ function create_generator_host(rng_type::Int=CURAND_RNG_PSEUDO_DEFAULT)
     @check ccall((:curandCreateGeneratorHost, libcurand),
                 curandStatus_t, (Ptr{Nothing}, Cint), aptr, rng_type)
     r = RNG(aptr[1], rng_type)
-    finalizer(r, destroy_generator)
+    finalizer(destroy_generator, r)
     return r
 end
 

@@ -40,7 +40,7 @@ mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
                                        ) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
         p = new(plan, size(X), sizey, xtype, region)
-        finalizer(p, destroy_plan)
+        finalizer(destroy_plan, p)
         p
     end
 end
@@ -60,7 +60,7 @@ mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
                                        ) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
         p = new(plan, size(X), sizey, xtype, region)
-        finalizer(p, destroy_plan)
+        finalizer(destroy_plan, p)
         p
     end
 end

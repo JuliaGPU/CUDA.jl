@@ -1,3 +1,5 @@
+import Base.GC: gc
+
 # dynamic memory pool allocator
 #
 # this allocator sits between CuArray constructors
