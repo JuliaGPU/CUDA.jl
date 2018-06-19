@@ -25,10 +25,10 @@ mutable struct CuModule
         handle_ref = Ref{CuModule_t}()
 
         options[ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-        if Base.JLOptions().debug_level >= 2
-            # TODO: this should happen if @debug, not if -g
+        @debug begin
             options[INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
             options[LOG_VERBOSE] = true
+            "JIT compiling code" # FIXME: remove this useless message
         end
         optionKeys, optionVals = encode(options)
 
@@ -42,14 +42,13 @@ mutable struct CuModule
             rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
         end
 
-        if Base.JLOptions().debug_level >= 2
-            # TODO: this should happen if @debug, not if -g
+        @debug begin
             options = decode(optionKeys, optionVals)
             if isempty(options[INFO_LOG_BUFFER])
-                @debug """JIT info log is empty"""
+                """JIT info log is empty"""
             else
-                @debug """JIT info log:
-                          $(options[INFO_LOG_BUFFER])"""
+                """JIT info log:
+                   $(options[INFO_LOG_BUFFER])"""
             end
         end
 
