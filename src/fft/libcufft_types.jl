@@ -22,8 +22,8 @@ const CUFFT_STATUS_NOT_SUPPORTED  = 16  # Operation is not supported for paramet
 const cufftReal = Float32
 const cufftDoubleReal = Float64
 
-const cufftComplex = Complex64
-const cufftDoubleComplex = Complex128
+const cufftComplex = ComplexF32
+const cufftDoubleComplex = ComplexF64
 
 # CUFFT transform directions
 const CUFFT_FORWARD = -1 # Forward FFT

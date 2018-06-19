@@ -9,7 +9,7 @@ n = 10
 l = 13
 k = 1
 
-@testset for elty in [Float32, Float64, Complex64, Complex128]
+@testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "potrf!" begin
         A    = rand(elty,n,n)
         A    = A*A' #posdef

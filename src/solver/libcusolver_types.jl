@@ -54,6 +54,6 @@ const cusolverRfHandle_t = Ptr{cusolverRfContext}
 const cuComplex = Complex{Float32}
 const cuDoubleComplex = Complex{Float64}
 
-const CusolverFloat = Union{Float64,Float32,Complex128,Complex64}
+const CusolverFloat = Union{Float64,Float32,ComplexF64,ComplexF32}
 const CusolverReal = Union{Float64,Float32}
-const CusolverComplex = Union{Complex128,Complex64}
+const CusolverComplex = Union{ComplexF64,ComplexF32}

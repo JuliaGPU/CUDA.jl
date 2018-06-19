@@ -12,7 +12,7 @@ k = 13
 
 @testset "Level 1" begin
 
-@testset for T in [Float32, Float64, Complex64, Complex128]
+@testset for T in [Float32, Float64, ComplexF32, ComplexF64]
   A = CuArray(rand(T, m))
   B = CuArray{T}(m)
   CuArrays.BLAS.blascopy!(m,A,1,B,1)
@@ -36,7 +36,7 @@ end # level 1 testset
 
 @testset "Level 2" begin
 
-@testset for T in [Float32, Float64, Complex64, Complex128]
+@testset for T in [Float32, Float64, ComplexF32, ComplexF64]
   # gemv
   @test testf(*, rand(T, m, n), rand(T, n))
   @test testf(At_mul_B, rand(T, m, n), rand(T, m))
@@ -44,7 +44,7 @@ end # level 1 testset
 end
 
 @testset "gbmv!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = convert(elty,2)
         beta = convert(elty,3)
@@ -88,7 +88,7 @@ end
 end
 
 @testset "gbmv" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = convert(elty,2)
         # bands
@@ -112,7 +112,7 @@ end
 end
 
 @testset "symv!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = convert(elty,2)
         beta = convert(elty,3)
@@ -137,7 +137,7 @@ end
 end
 
 @testset "symv" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate symmetric matrix
         A = rand(elty,m,m)
         A = A + A.'
@@ -157,7 +157,7 @@ end
 end
 
 @testset "hemv!" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # parameters
         alpha = convert(elty,2)
         beta = convert(elty,3)
@@ -182,7 +182,7 @@ end
 end
 
 @testset "hemv" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # generate hermitian matrix
         A = rand(elty,m,m)
         A = A + A.'
@@ -261,7 +261,7 @@ end
 end
 
 @testset "hbmv!" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # parameters
         alpha = rand(elty)
         beta = rand(elty)
@@ -291,7 +291,7 @@ end
 end
 
 @testset "hbmv" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # parameters
         alpha = rand(elty)
         beta = rand(elty)
@@ -320,7 +320,7 @@ end
 end
 
 @testset "tbmv!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         # restrict to 3 bands
@@ -344,7 +344,7 @@ end
 end
 
 @testset "tbmv" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         # restrict to 3 bands
@@ -368,7 +368,7 @@ end
 end
 
 @testset "tbsv!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         # restrict to 3 bands
@@ -392,7 +392,7 @@ end
 end
 
 @testset "tbsv" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         # restrict to 3 bands
@@ -416,7 +416,7 @@ end
 end
 
 @testset "trmv!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         A = triu(A)
@@ -435,7 +435,7 @@ end
 end
 
 @testset "trmv" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         A = triu(A)
@@ -454,7 +454,7 @@ end
 end
 
 @testset "trsv!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         A = triu(A)
@@ -473,7 +473,7 @@ end
 end
 
 @testset "trsv" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate triangular matrix
         A = rand(elty,m,m)
         A = triu(A)
@@ -492,7 +492,7 @@ end
 end
 
 @testset "ger!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # construct matrix and vectors
         A = rand(elty,m,n)
         x = rand(elty,m)
@@ -512,7 +512,7 @@ end
 end
 
 @testset "syr!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # construct matrix and vector
         A = rand(elty,m,m)
         A = A + A.'
@@ -533,7 +533,7 @@ end
 end
 
 @testset "her!" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         local m = 2
         # construct matrix and vector
         A = rand(elty,m,m)
@@ -555,7 +555,7 @@ end
 end
 
 @testset "her2!" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         local m = 2
         # construct matrix and vector
         A = rand(elty,m,m)
@@ -579,7 +579,7 @@ end
 end
 
 @testset "gemm!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = rand(elty)
         beta = rand(elty)
@@ -607,7 +607,7 @@ end
 end
 
 @testset "gemm" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,k)
         B = rand(elty,k,n)
@@ -627,7 +627,7 @@ end
 end
 
 @testset "gemm_batched!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = rand(elty)
         beta = rand(elty)
@@ -656,7 +656,7 @@ end
 end
 
 @testset "gemm_batched" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = [rand(elty,m,k) for i in 1:10]
         B = [rand(elty,k,n) for i in 1:10]
@@ -678,7 +678,7 @@ end
 end
 
 @testset "symm!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = rand(elty)
         beta = rand(elty)
@@ -701,7 +701,7 @@ end
 end
 
 @testset "symm" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,m)
         A = A + A.'
@@ -719,7 +719,7 @@ end
 end
 
 @testset "syrk!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,k)
         C = rand(elty,m,m)
@@ -742,7 +742,7 @@ end
 end
 
 @testset "syrk" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,k)
         # move to device
@@ -759,7 +759,7 @@ end
 end
 
 @testset "herk!" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,k)
         C = rand(elty,m,m)
@@ -781,7 +781,7 @@ end
 end
 
 @testset "herk" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,k)
         # move to device
@@ -798,7 +798,7 @@ end
 end
 
 @testset "syr2k!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         #local m = 3
         #local k = 1
         # generate parameters
@@ -827,7 +827,7 @@ end
 end
 
 @testset "syr2k" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameters
         alpha = rand(elty)
         # generate matrices
@@ -849,7 +849,7 @@ end
 end
 
 @testset "her2k!" begin
-    @testset for (elty1, elty2) in [(Complex64, Float32), (Complex128, Float64)]
+    @testset for (elty1, elty2) in [(ComplexF32, Float32), (ComplexF64, Float64)]
         # generate parameters
         alpha = rand(elty1)
         beta = rand(elty2)
@@ -875,7 +875,7 @@ end
 end
 
 @testset "her2k" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,k)
         B = rand(elty,m,k)
@@ -894,7 +894,7 @@ end
 end
 
 @testset "trmm!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         # generate matrices
@@ -916,7 +916,7 @@ end
 end
 
 @testset "trmm" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         # generate matrices
@@ -936,7 +936,7 @@ end
 end
 
 @testset "trsm!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         # generate matrices
@@ -956,7 +956,7 @@ end
 end
 
 @testset "trsm" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         # generate matrices
@@ -976,7 +976,7 @@ end
 end
 
 @testset "trsm_batched!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         # generate matrices
@@ -1003,7 +1003,7 @@ end
 end
 
 @testset "trsm_batched" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         # generate matrices
@@ -1029,7 +1029,7 @@ end
 end
 
 @testset "hemm!" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # generate parameters
         alpha = rand(elty)
         beta  = rand(elty)
@@ -1053,7 +1053,7 @@ end
 end
 
 @testset "hemm" begin
-    @testset for elty in [Complex64, Complex128]
+    @testset for elty in [ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         # generate matrices
@@ -1074,7 +1074,7 @@ end
 end
 
 @testset "geam!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameters
         alpha = rand(elty)
         beta  = rand(elty)
@@ -1126,7 +1126,7 @@ end
 end
 
 @testset "geam" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate parameter
         alpha = rand(elty)
         beta  = rand(elty)
@@ -1148,7 +1148,7 @@ end
 
 @testset "getrf_batched!" begin
     srand(1)
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         local k
         # generate matrices
         A = [rand(elty,m,m) for i in 1:10]
@@ -1206,7 +1206,7 @@ end
 end
 
 @testset "getrf_batched" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         local k
         # generate matrices
         A = [rand(elty,m,m) for i in 1:10]
@@ -1236,7 +1236,7 @@ end
 end
 
 @testset "getri_batched" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = [rand(elty,m,m) for i in 1:10]
         # move to device
@@ -1261,7 +1261,7 @@ end
 end
 
 @testset "matinv_batched" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = [rand(elty,m,m) for i in 1:10]
         # move to device
@@ -1279,7 +1279,7 @@ end
 end
 
 @testset "geqrf_batched!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = [rand(elty,m,n) for i in 1:10]
         # move to device
@@ -1306,7 +1306,7 @@ end
 end
 
 @testset "geqrf_batched" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = [rand(elty,m,n) for i in 1:10]
         # move to device
@@ -1333,7 +1333,7 @@ end
 end
 
 @testset "gels_batched!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = [rand(elty,n,n) for i in 1:10]
         C = [rand(elty,n,k) for i in 1:10]
@@ -1354,7 +1354,7 @@ end
 end
 
 @testset "gels_batched" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = [rand(elty,n,n) for i in 1:10]
         C = [rand(elty,n,k) for i in 1:10]
@@ -1375,7 +1375,7 @@ end
 end
 
 @testset "dgmm!" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,n)
         C = rand(elty,m,n)
@@ -1399,7 +1399,7 @@ end
 end
 
 @testset "dgmm" begin
-    @testset for elty in [Float32, Float64, Complex64, Complex128]
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,n)
         X = rand(elty,m)

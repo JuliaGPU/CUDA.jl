@@ -58,9 +58,9 @@ const cublasHandle_t = Ptr{cublasContext}
 const cuComplex = Complex{Float32}
 const cuDoubleComplex = Complex{Float64}
 # complex types from Base/linalg.jl
-const CublasFloat = Union{Float64,Float32,Complex128,Complex64}
+const CublasFloat = Union{Float64,Float32,ComplexF64,ComplexF32}
 const CublasReal = Union{Float64,Float32}
-const CublasComplex = Union{Complex128,Complex64}
+const CublasComplex = Union{ComplexF64,ComplexF32}
 # FP16 (cuda_fp16.h) in cuda
 const __half = Float16
 struct __half2
