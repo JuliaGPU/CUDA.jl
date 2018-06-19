@@ -23,11 +23,11 @@ end
     return C
 end
 
-using Base.Broadcast: map_newindexer, _broadcast_eltype, broadcast_indices,
-    check_broadcast_indices
-
-Base.Broadcast.broadcast_indices(::Type{CuArray}, A::Ref) = ()
-Base.Broadcast.broadcast_indices(::Type{CuArray}, A) = indices(A)
+# using Base.Broadcast: map_newindexer, _broadcast_eltype, broadcast_indices,
+#     check_broadcast_indices
+#
+# Base.Broadcast.broadcast_indices(::Type{CuArray}, A::Ref) = ()
+# Base.Broadcast.broadcast_indices(::Type{CuArray}, A) = indices(A)
 
 # TODO: computed eltype broadcast?
 @inline function broadcast_t(f, T, shape, A, Bs::Vararg{Any,N}) where N
@@ -39,29 +39,29 @@ end
 
 # Called by Base broadcasting mechanisms (in place and out of place)
 
-Base.Broadcast._containertype(::Type{<:CuArray}) = CuArray
-Base.Broadcast.promote_containertype(::Type{Any}, ::Type{CuArray}) = CuArray
-Base.Broadcast.promote_containertype(::Type{CuArray}, ::Type{Any}) = CuArray
+# Base.Broadcast._containertype(::Type{<:CuArray}) = CuArray
+# Base.Broadcast.promote_containertype(::Type{Any}, ::Type{CuArray}) = CuArray
+# Base.Broadcast.promote_containertype(::Type{CuArray}, ::Type{Any}) = CuArray
 
-@inline function Base.Broadcast.broadcast_c!(f, ::Type{CuArray}, ::Type, C, A, Bs::Vararg{Any,N}) where N
-    shape = indices(C)
-    @boundscheck check_broadcast_indices(shape, A, Bs...)
-    keeps, Idefaults = map_newindexer(shape, A, Bs)
-    _broadcast!(f, C, keeps, Idefaults, A, Bs)
-end
-
-@inline function Base.Broadcast.broadcast_c(f, ::Type{CuArray}, A, Bs...)
-    T = _broadcast_eltype(f, A, Bs...)
-    shape = broadcast_indices(A, Bs...)
-    iter = CartesianRange(shape)
-    if isleaftype(T)
-        return broadcast_t(f, T, shape, A, Bs...)
-    end
-    if isempty(iter)
-        return similar(CuArray{T}, shape)
-    end
-    return broadcast_t(f, Any, shape, A, Bs...)
-end
+# @inline function Base.Broadcast.broadcast_c!(f, ::Type{CuArray}, ::Type, C, A, Bs::Vararg{Any,N}) where N
+#     shape = indices(C)
+#     @boundscheck check_broadcast_indices(shape, A, Bs...)
+#     keeps, Idefaults = map_newindexer(shape, A, Bs)
+#     _broadcast!(f, C, keeps, Idefaults, A, Bs)
+# end
+#
+# @inline function Base.Broadcast.broadcast_c(f, ::Type{CuArray}, A, Bs...)
+#     T = _broadcast_eltype(f, A, Bs...)
+#     shape = broadcast_indices(A, Bs...)
+#     iter = CartesianRange(shape)
+#     if isleaftype(T)
+#         return broadcast_t(f, T, shape, A, Bs...)
+#     end
+#     if isempty(iter)
+#         return similar(CuArray{T}, shape)
+#     end
+#     return broadcast_t(f, Any, shape, A, Bs...)
+# end
 
 # Hacky interop
 

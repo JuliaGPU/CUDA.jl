@@ -133,16 +133,16 @@ cuones(dims...) = cuones(Float32, dims...)
 Base.show(io::IO, ::Type{CuArray{T,N}}) where {T,N} =
   print(io, "CuArray{$T,$N}")
 
-function Base.showarray(io::IO, X::CuArray, repr::Bool = true; header = true)
-  if repr
-    print(io, "CuArray(")
-    Base.showarray(io, collect(X), true)
-    print(io, ")")
-  else
-    header && println(io, summary(X), ":")
-    Base.showarray(io, collect(X), false, header = false)
-  end
-end
+# function Base.showarray(io::IO, X::CuArray, repr::Bool = true; header = true)
+#   if repr
+#     print(io, "CuArray(")
+#     Base.showarray(io, collect(X), true)
+#     print(io, ")")
+#   else
+#     header && println(io, summary(X), ":")
+#     Base.showarray(io, collect(X), false, header = false)
+#   end
+# end
 
 import Adapt: adapt, adapt_
 
