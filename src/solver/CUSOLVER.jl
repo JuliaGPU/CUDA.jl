@@ -1,7 +1,7 @@
 module CUSOLVER
 
 using ..CuArrays
-const cudaStream_t = Ptr{Void}
+const cudaStream_t = Ptr{Nothing}
 
 using ..CuArrays: libcusolver, configured, _getindex
 

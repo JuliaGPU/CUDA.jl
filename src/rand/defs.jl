@@ -60,10 +60,10 @@ const CURAND_POISSON = 13
 const curandStatus_t = UInt32
 
 mutable struct RNG
-    ptr::Ptr{Void}
+    ptr::Ptr{Nothing}
     rng_type::Int
 end
 
 mutable struct DiscreteDistribution
-    ptr::Ptr{Void}
+    ptr::Ptr{Nothing}
 end

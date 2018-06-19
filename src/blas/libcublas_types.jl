@@ -52,7 +52,7 @@ const cublasAtomicsMode_t = UInt32
 const CUBLAS_ATOMICS_NOT_ALLOWED = 0
 const CUBLAS_ATOMICS_ALLOWED = 1
 # end enum cublasAtomicsMode_t
-const cublasContext = Void
+const cublasContext = Nothing
 const cublasHandle_t = Ptr{cublasContext}
 # complex numbers in cuda
 const cuComplex = Complex{Float32}

@@ -29,7 +29,7 @@ unsafe_buffer(xs::CuArray) =
   Mem.Buffer(xs.buf.ptr+xs.offset, sizeof(xs), xs.buf.ctx)
 
 Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = unsafe_buffer(x)
-Base.cconvert(::Type{Ptr{Void}}, x::CuArray) = unsafe_buffer(x)
+Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = unsafe_buffer(x)
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)

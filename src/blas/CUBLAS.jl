@@ -11,7 +11,7 @@ include("libcublas_types.jl")
 include("error.jl")
 
 # Typedef needed by libcublas
-const cudaStream_t = Ptr{Void}
+const cudaStream_t = Ptr{Nothing}
 
 include("libcublas.jl")
 

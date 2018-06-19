@@ -24,7 +24,7 @@ end
 mutable struct TensorDesc; ptr; end
 free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
 Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
-Base.unsafe_convert(::Type{Ptr{Void}}, td::TensorDesc) = convert(Ptr{Void}, td.ptr)
+Base.unsafe_convert(::Type{Ptr{Nothing}}, td::TensorDesc) = convert(Ptr{Nothing}, td.ptr)
 
 function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(size)) where N
     sz = Cint.(size) |> reverse |> collect
@@ -44,7 +44,7 @@ mutable struct FilterDesc
 end
 free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
 Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
-Base.unsafe_convert(::Type{Ptr{Void}}, fd::FilterDesc)=fd.ptr
+Base.unsafe_convert(::Type{Ptr{Nothing}}, fd::FilterDesc)=fd.ptr
 
 function createFilterDesc()
   d = cudnnFilterDescriptor_t[0]
@@ -73,7 +73,7 @@ function Base.size(f::FilterDesc)
   format = Cuint[0]
   ndims = Cint[0]
   dims = Vector{Cint}(8)
-  @check ccall((:cudnnGetFilterNdDescriptor,libcudnn), cudnnStatus_t, (Ptr{Void}, Cint, Ptr{UInt32}, Ptr{UInt32}, Ptr{Cint}, Ptr{Cint}),
+  @check ccall((:cudnnGetFilterNdDescriptor,libcudnn), cudnnStatus_t, (Ptr{Nothing}, Cint, Ptr{UInt32}, Ptr{UInt32}, Ptr{Cint}, Ptr{Cint}),
     f, 8, typ, format, ndims, dims)
   @assert ndims[] ≤ 8
   return (dims[1:ndims[]]...,) |> reverse

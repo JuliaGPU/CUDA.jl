@@ -235,7 +235,7 @@ unsafe_convert(::Type{cufftHandle_t}, p::CuFFTPlan) = p.plan
 convert(::Type{cufftHandle_t}, p::CuFFTPlan) = p.plan
 
 destroy_plan(plan::CuFFTPlan) =
-    ccall((:cufftDestroy,libcufft), Void, (cufftHandle_t,), plan.plan)
+    ccall((:cufftDestroy,libcufft), Nothing, (cufftHandle_t,), plan.plan)
 
 function assert_applicable(p::CuFFTPlan{T,K}, X::CuArray{T}) where {T,K}
     (size(X) == p.sz) ||
