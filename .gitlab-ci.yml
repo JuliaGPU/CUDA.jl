@@ -28,7 +28,7 @@ stages:
 
 test:v0.6:
   stage: test
-  image: juliagpu/julia:v0.6
+  image: juliagpu/julia:v0.6-cuda
   <<: *pkg2_test_template
 
 
@@ -36,7 +36,7 @@ test:v0.6:
 
 coverage:
   stage: postprocess
-  image: juliagpu/julia:v0.6
+  image: juliagpu/julia:v0.6-cuda
   dependencies:
     - test:v0.6
   script:
