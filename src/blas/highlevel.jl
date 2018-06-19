@@ -1,4 +1,6 @@
-import Base: A_mul_B!, At_mul_B!, A_mul_Bt!, Ac_mul_B!, A_mul_Bc!, At_mul_Bt!, Ac_mul_Bc!, At_mul_Bt!
+import LinearAlgebra
+import LinearAlgebra: A_mul_B!, At_mul_B!, A_mul_Bt!, Ac_mul_B!, A_mul_Bc!, At_mul_Bt!, Ac_mul_Bc!, At_mul_Bt!,
+  scale!, norm
 
 cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1:2), size(M, t=='N' ? 2:1))
 
@@ -10,38 +12,38 @@ CublasArray{T<:CublasFloat} = CuArray{T}
 #
 ###########
 
-Base.scale!(x::CuArray{T}, k::Number) where T<:CublasFloat =
+scale!(x::CuArray{T}, k::Number) where T<:CublasFloat =
   scal!(length(x), convert(eltype(x), k), x, 1)
 
 # Work around ambiguity with GPUArrays wrapper
-Base.scale!(x::CuArray{T}, k::Real) where T<:CublasFloat =
+scale!(x::CuArray{T}, k::Real) where T<:CublasFloat =
   invoke(scale!, Tuple{typeof(x), Number}, x, k)
 
-function Base.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
+function BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dot(n, DX, 1, DY, 1)
 end
-function Base.BLAS.dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function BLAS.dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dotc(n, DX, 1, DY, 1)
 end
-function Base.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
-    Base.BLAS.dotc(DX, DY)
+function BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
+    BLAS.dotc(DX, DY)
 end
-function Base.BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dotu(n, DX, 1, DY, 1)
 end
 
-Base.At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = Base.BLAS.dot(x, y)
+Base.At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = BLAS.dot(x, y)
 
-Base.norm(x::CublasArray) = nrm2(x)
-Base.BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
+norm(x::CublasArray) = nrm2(x)
+BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
 
-function Base.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where T<:CublasFloat
+function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where T<:CublasFloat
     length(x)==length(y) || throw(DimensionMismatch(""))
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end

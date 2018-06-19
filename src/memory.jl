@@ -89,7 +89,7 @@ function __init_memory__()
   managed = parse(Bool, get(ENV, "CUARRAYS_MANAGED_POOL", "true"))
   if managed
     delay = MIN_DELAY
-    @schedule begin
+    @async begin
       while true
         if scan()
           delay = MIN_DELAY

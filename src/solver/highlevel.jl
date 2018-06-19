@@ -1,4 +1,5 @@
-import Base: qr, qrfact, qrfact!, getindex, A_mul_B!
+import LinearAlgebra: Factorization, qr, qrfact, qrfact!, A_mul_B!
+import Base: getindex
 export qrq!
 
 # QR factorization

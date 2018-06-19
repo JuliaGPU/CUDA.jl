@@ -224,9 +224,9 @@ end
 
 function axpy!(alpha::Ta,
                x::CuArray{T},
-               rx::Union{UnitRange{Ti},Range{Ti}},
+               rx::Union{UnitRange{Ti},AbstractRange{Ti}},
                y::CuArray{T},
-               ry::Union{UnitRange{Ti},Range{Ti}}) where {T<:CublasFloat,Ta<:Number,Ti<:Integer}
+               ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:CublasFloat,Ta<:Number,Ti<:Integer}
     length(rx)==length(ry) || throw(DimensionMismatch(""))
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
