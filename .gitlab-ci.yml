@@ -28,12 +28,12 @@ stages:
 
 test:v0.7:
   stage: test
-  image: juliagpu/julia:v0.7
+  image: juliagpu/julia:v0.7-cuda
   <<: *pkg3_test_template
 
 test:dev:
   stage: test
-  image: juliagpu/julia:dev
+  image: juliagpu/julia:dev-cuda
   <<: *pkg3_test_template
 
 
@@ -41,7 +41,7 @@ test:dev:
 
 coverage:
   stage: postprocess
-  image: juliagpu/julia:v0.7
+  image: juliagpu/julia:v0.7-cuda
   dependencies:
     - test:v0.7
   script:
@@ -54,7 +54,7 @@ coverage:
 
 documentation:
   stage: postprocess
-  image: juliagpu/julia:v0.7
+  image: juliagpu/julia:v0.7-cuda
   dependencies:
     - test:v0.7
   script:
