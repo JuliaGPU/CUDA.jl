@@ -3,7 +3,7 @@
 #   plan_bfft does not need separate testing since it is used by plan_ifft
 
 using CuArrays.FFT
-using FFTW, Base.Test
+using FFTW, Test
 
 
 const N1 = 8

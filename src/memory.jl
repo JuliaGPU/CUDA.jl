@@ -30,7 +30,7 @@ const pool_lock = ReentrantLock()
 const pools_used = Vector{Set{Mem.Buffer}}()
 const pools_avail = Vector{Vector{Mem.Buffer}}()
 
-poolidx(n) = ceil(Int, log2(n))+1
+poolidx(n) = ceil(Int, digits=log2(n))+1
 poolsize(idx) = 2^(idx-1)
 
 function create_pools(idx)
@@ -86,7 +86,7 @@ const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 function __init_memory__()
   create_pools(30) # up to 512 MiB
 
-  managed = parse(Bool, get(ENV, "CUARRAYS_MANAGED_POOL", "true"))
+  managed = Meta.parse(Bool, get(ENV, "CUARRAYS_MANAGED_POOL", "true"))
   if managed
     delay = MIN_DELAY
     @async begin

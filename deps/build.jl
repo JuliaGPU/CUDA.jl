@@ -13,7 +13,7 @@ function write_ext(config)
 end
 
 function main()
-    ispath(config_path) && mv(config_path, previous_config_path; remove_destination=true)
+    ispath(config_path) && mv(config_path, previous_config_path; force=true)
     config = Dict{Symbol,Any}(:configured => false)
     write_ext(config)
 
@@ -35,8 +35,8 @@ function main()
     ## (re)generate ext.jl
 
     function globals(mod)
-        all_names = names(mod, true)
-        filter(name-> !any(name .== [module_name(mod), Symbol("#eval"), :eval]), all_names)
+        all_names = names(mod, all=true)
+        filter(name-> !any(name .== [nameof(mod), Symbol("#eval"), :eval]), all_names)
     end
 
     if isfile(previous_config_path)
@@ -46,7 +46,7 @@ function main()
 
         if config == previous_config
             info("CuArrays.jl has already been built for this toolchain, no need to rebuild")
-            mv(previous_config_path, config_path; remove_destination=true)
+            mv(previous_config_path, config_path; force=true)
             return
         end
     end

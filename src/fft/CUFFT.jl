@@ -118,7 +118,7 @@ function _mkplan(xtype, xdims, region)
 
     else
         rsz = (length(sz) > 1) ? rsz = reverse(sz) : sz
-        if ((region...) == ((1:nrank)...))
+        if ((region...,) == ((1:nrank)...,))
             # handle simple case ... simply! (for robustness)
             @check ccall((:cufftPlanMany,libcufft),cufftStatus_t,
                          (Ptr{cufftHandle_t}, Cint, Ptr{Cint}, # rank, dims
@@ -405,7 +405,7 @@ function plan_rfft(X::CuArray{T,N}, region) where {T<:cufftReals,N}
     ydims = collect(size(X))
     ydims[region[1]] = div(ydims[region[1]],2)+1
 
-    rCuFFTPlan{T,K,inplace,N}(pp, X, (ydims...), region, xtype)
+    rCuFFTPlan{T,K,inplace,N}(pp, X, (ydims...,), region, xtype)
 end
 
 function plan_brfft(X::CuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
@@ -415,9 +415,9 @@ function plan_brfft(X::CuArray{T,N}, d::Integer, region::Any) where {T<:cufftCom
     ydims = collect(size(X))
     ydims[region[1]] = d
 
-    pp = _mkplan(xtype, (ydims...), region)
+    pp = _mkplan(xtype, (ydims...,), region)
 
-    rCuFFTPlan{T,K,inplace,N}(pp, X, (ydims...), region, xtype)
+    rCuFFTPlan{T,K,inplace,N}(pp, X, (ydims...,), region, xtype)
 end
 
 # FIXME: plan_inv methods allocate needlessly (to provide type parameters)

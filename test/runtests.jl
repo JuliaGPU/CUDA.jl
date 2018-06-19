@@ -14,7 +14,7 @@ end
 
 using CuArrays
 using CuArrays: @fix
-using Base.Test
+using Test
 
 srand(1)
 
@@ -34,7 +34,7 @@ function testf(f, xs...)
   collect(f(cu.(xs)...)) ≈ collect(f(xs...))
 end
 
-using Base.Test, GPUArrays.TestSuite
+using Test, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite: $(CUDAnative.default_device[])" begin

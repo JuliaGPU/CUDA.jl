@@ -213,10 +213,10 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
                        dy::CuArray{$elty},
                        incy::Integer)
             @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Ptr{$elty},
+                         (cublasHandle_t, Cint, Ref{$elty}, Ptr{$elty},
                           Cint, Ptr{$elty},
                           Cint),
-                         libcublas_handle[], n, &alpha, dx, incx, dy, incy)
+                         libcublas_handle[], n, alpha, dx, incx, dy, incy)
             dy
         end
     end

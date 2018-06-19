@@ -1,6 +1,6 @@
 using CuArrays
 using CuArrays.CUSOLVER
-using Base.Test
+using Test
 
 @testset "cuSolver" begin
 

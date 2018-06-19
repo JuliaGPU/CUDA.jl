@@ -2,13 +2,13 @@ using Base.Cartesian
 
 function cudims(n::Integer)
   threads = 256
-  ceil(Int, n / threads), threads
+  ceil(Int, digits=n / threads), threads
 end
 
 cudims(a::AbstractArray) = cudims(length(a))
 
 @inline ind2sub_(a::AbstractArray{T,0}, i) where T = ()
-@inline ind2sub_(a, i) = ind2sub(a, i)
+@inline ind2sub_(a, i) = LinearIndices(a, i)
 
 macro cuindex(A)
   quote
@@ -54,7 +54,7 @@ allequal(x, y, z...) = x == y && allequal(y, z...)
 
 function Base.map!(f, y::CuArray, xs::CuArray...)
   @assert allequal(size.((y, xs...))...)
-  return y .= f.(xs...)
+  return y .= f.(xs...,)
 end
 
 function Base.map(f, y::CuArray, xs::CuArray...)
