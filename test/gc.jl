@@ -1,8 +1,11 @@
 @testset "gc" begin
 
-# clear exception_in_transit, which can hold a reference to objects
-# (this works around JuliaLang/julia#20784)
-try throw(nothing) end
+try
+    throw(nothing)
+catch
+    # clear exception_in_transit, which can hold a reference to objects
+    # (this works around JuliaLang/julia#20784)
+end
 
 # test outstanding contexts
 @test length(CUDAdrv.context_instances) == 1
