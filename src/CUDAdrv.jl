@@ -2,8 +2,6 @@ __precompile__()
 
 module CUDAdrv
 
-using CUDAapi
-
 using Printf
 
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
