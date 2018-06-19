@@ -2,7 +2,6 @@ __precompile__()
 
 module CUDAnative
 
-using CUDAapi
 using CUDAdrv
 
 using LLVM
