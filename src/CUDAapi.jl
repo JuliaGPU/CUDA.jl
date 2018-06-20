@@ -2,13 +2,8 @@ __precompile__()
 
 module CUDAapi
 
-using Compat
-if VERSION >= v"0.7-"
-    using Libdl
-    using Logging
-else
-    using MicroLogging
-end
+using Libdl
+using Logging
 
 # FIXME: replace with an additional log level when we depend on 0.7+
 macro trace(ex...)
@@ -22,11 +17,7 @@ include("discovery.jl")
 function __init__()
     DEBUG = parse(Bool, get(ENV, "DEBUG", "false"))
     if DEBUG
-        if VERSION >= v"0.7-"
-            global_logger(ConsoleLogger(global_logger().stream, Logging.Debug))
-        else
-            configure_logging(min_level=:debug)
-        end
+        global_logger(ConsoleLogger(global_logger().stream, Logging.Debug))
     end
 end
 

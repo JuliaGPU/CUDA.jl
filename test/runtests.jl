@@ -1,7 +1,6 @@
 using CUDAapi
 
-using Compat
-using Compat.Test
+using Test
 
 
 ## properties
@@ -17,14 +16,14 @@ CUDAapi.isas_for_llvm(v"5.0")
 ## discovery
 
 # generic
-find_binary([Compat.Sys.iswindows() ? "CHKDSK" : "true"])
-find_library([Compat.Sys.iswindows() ? "NTDLL" : "c"])
+find_binary([Sys.iswindows() ? "CHKDSK" : "true"])
+find_library([Sys.iswindows() ? "NTDLL" : "c"])
 
 # CUDA
 
 macro test_something(ex...)
     quote
-        rv = $(ex...)
+        rv = $(ex...,)
         @test rv != nothing
         rv
     end

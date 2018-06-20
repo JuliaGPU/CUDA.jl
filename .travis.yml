@@ -5,7 +5,7 @@ sudo: required
 notifications:
   email: false
 
-julia: 0.6
+julia: 0.7
 
 env:
   global:
