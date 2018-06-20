@@ -12,13 +12,13 @@ notifications:
 environment:
   matrix:
     # CUDA versions
-    - JULIA: 0.6
+    - JULIA: 0.7
       CUDA: 8.0
-    - JULIA: 0.6
+    - JULIA: 0.7
       CUDA: 9.0
-    - JULIA: 0.6
+    - JULIA: 0.7
       CUDA: 9.1
-    - JULIA: 0.6
+    - JULIA: 0.7
       CUDA: 9.2
     # nightly
     - JULIA: nightly
@@ -28,12 +28,12 @@ install:
   - powershell .\appveyor.ps1
 
 build_script:
-  # convert from shallow to complete for Pkg.clone to work
-  - IF EXIST .git\shallow (git fetch --unshallow)
-  - C:\julia\bin\julia -e "versioninfo();
-                           Pkg.clone(pwd(), \"CUDAapi\");
-                           Pkg.build(\"CUDAapi\")"
+  - C:\julia\bin\julia -e "using InteractiveUtils;
+                           versioninfo();
+                           using Pkg;
+                           Pkg.instantiate();
+                           Pkg.build()"
 
 test_script:
   - C:\julia\bin\julia -e "ENV[\"DEBUG\"] = \"true\";
-                           Pkg.test(\"CUDAapi\")"
+                           Pkg.test()"
