@@ -2,13 +2,8 @@ __precompile__()
 
 module CUDAapi
 
-using Compat
-if VERSION >= v"0.7-"
-    using Libdl
-    using Logging
-else
-    using MicroLogging
-end
+using Libdl
+using Logging
 
 # FIXME: replace with an additional log level when we depend on 0.7+
 macro trace(ex...)

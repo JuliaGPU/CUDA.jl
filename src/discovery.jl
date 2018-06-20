@@ -40,7 +40,7 @@ function find_library(names::Vector{String};
 
     # figure out names
     all_names = String[]
-    if Compat.Sys.iswindows()
+    if Sys.iswindows()
         # priority goes to the `names` argument, as per `Libdl.find_library`
         for name in names
             for version in versions
@@ -61,7 +61,7 @@ function find_library(names::Vector{String};
     all_locations = String[]
     for location in locations
         push!(all_locations, location)
-        if Compat.Sys.iswindows()
+        if Sys.iswindows()
             push!(all_locations, joinpath(location, "bin"))
         else
             push!(all_locations, joinpath(location, "lib"))
@@ -95,7 +95,7 @@ function find_binary(names::Vector{String};
 
     # figure out names
     all_names = String[]
-    if Compat.Sys.iswindows()
+    if Sys.iswindows()
         all_names = ["$name.exe" for name in names]
     else
         all_names = names
@@ -108,7 +108,7 @@ function find_binary(names::Vector{String};
         push!(all_locations, joinpath(location, "bin"))
     end
     let path = ENV["PATH"]
-        dirs = split(path, Compat.Sys.iswindows() ? ';' : ':')
+        dirs = split(path, Sys.iswindows() ? ';' : ':')
         filter!(path->!isempty(path), dirs)
         append!(all_locations, dirs)
     end
@@ -141,8 +141,8 @@ end
 # FIXME: CUDA on 32-bit Windows isn't supported
 
 const cuda_names = Dict(
-    "cuda"      => Compat.Sys.iswindows() ? ["nvcuda"] : ["cuda"],
-    "nvml"      => Compat.Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"]
+    "cuda"      => Sys.iswindows() ? ["nvcuda"] : ["cuda"],
+    "nvml"      => Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"]
 )
 
 const cuda_versions = Dict(
@@ -223,7 +223,7 @@ function find_toolkit()
 
     # look in default installation directories
     default_dirs = []
-    if Compat.Sys.iswindows()
+    if Sys.iswindows()
         # CUDA versions are installed in separate directories under a single base dir
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)" ]
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
@@ -326,7 +326,7 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
 end
 
 function find_host_compiler(toolkit_version=nothing)
-    if !(Compat.Sys.iswindows() || Compat.Sys.isapple())
+    if !(Sys.iswindows() || Sys.isapple())
         # Unix-like platforms: find compatible GCC binary
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
@@ -369,7 +369,7 @@ function find_host_compiler(toolkit_version=nothing)
         end
         sort!(gcc_possibilities; rev=true, lt=(a, b) -> a[2]<b[2])
         host_compiler, host_version = gcc_possibilities[1]
-    elseif Compat.Sys.iswindows()
+    elseif Sys.iswindows()
         # Windows: search for MSVC in default locations
 
         # discover Visual Studio installations
@@ -435,7 +435,7 @@ function find_host_compiler(toolkit_version=nothing)
         end
 
         host_compiler, host_version = msvc_path, msvc_ver
-    elseif Compat.Sys.isapple()
+    elseif Sys.isapple()
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: discovery of all compilers, and version matching against the toolkit
         clang_path = find_binary(["clang"])
