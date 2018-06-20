@@ -1,9 +1,9 @@
 before_script:
-  - julia -e 'using InteractiveUtils; versioninfo()'
+  - julia -e 'using InteractiveUtils;
+              versioninfo()'
 
 variables:
   JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia/"
-  package: 'CUDAdrv'
 
 stages:
   - test
@@ -12,13 +12,14 @@ stages:
 
 ## testing
 
-.test_template: &pkg3_test_template
+.test_template: &test_template
   script:
     - mkdir $JULIA_DEPOT_PATH # Pkg3.jl#325
     - julia -e "using Pkg;
-                Pkg.develop(\"$CI_PROJECT_DIR\");
-                Pkg.build(\"$package\");
-                Pkg.test(\"$package\"; coverage=true)"
+                cd(\"$CI_PROJECT_DIR\");
+                Pkg.instantiate();
+                Pkg.build();
+                Pkg.test(; coverage=true);"
   artifacts:
     paths:
       - .julia/
@@ -29,12 +30,12 @@ stages:
 test:v0.7:
   stage: test
   image: juliagpu/julia:v0.7-cuda
-  <<: *pkg3_test_template
+  <<: *test_template
 
 test:dev:
   stage: test
   image: juliagpu/julia:dev-cuda
-  <<: *pkg3_test_template
+  <<: *test_template
 
 
 ## post-processing
@@ -45,7 +46,8 @@ coverage:
   dependencies:
     - test:v0.7
   script:
-    - julia -e 'using Pkg; Pkg.add("Coverage")'
+    - julia -e 'using Pkg;
+                Pkg.add("Coverage")'
     - julia -e 'using Coverage;
                 cl, tl = get_summary(process_folder());
                 println("(", cl/tl*100, "%) covered");
@@ -58,5 +60,6 @@ documentation:
   dependencies:
     - test:v0.7
   script:
-    - julia -e 'using Pkg; Pkg.add("Documenter")'
+    - julia -e 'using Pkg;
+                Pkg.add("Documenter")'
     - julia docs/make.jl
