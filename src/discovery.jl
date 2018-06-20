@@ -407,7 +407,7 @@ function find_host_compiler(toolkit_version=nothing)
         msvc_list = Dict{VersionNumber,String}()
         for path in msvc_paths
             tmpfile = tempname() # TODO: do this with a pipe
-            if !success(pipeline(`$path`, stdout=DevNull, stderr=tmpfile))
+            if !success(pipeline(`$path`, stdout=devnull, stderr=tmpfile))
                 warn("Could not execute $path")
                 continue
             end
@@ -442,7 +442,7 @@ function find_host_compiler(toolkit_version=nothing)
         if clang_path == nothing
             error("Could not find clang")
         end
-        clang_ver_str = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, readstring(`$clang_path --version`))[1]
+        clang_ver_str = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, read(`$clang_path --version`, String))[1]
         clang_ver = VersionNumber(clang_ver_str)
 
         host_compiler, host_version = clang_path, clang_ver
