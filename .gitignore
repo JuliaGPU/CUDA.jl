@@ -1,4 +1,3 @@
-.project
-devel
-.gdb_history
-.ipynb_checkpoints
+*.jl.*.cov
+*.jl.mem
+Manifest.toml
