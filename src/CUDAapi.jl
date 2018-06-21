@@ -14,11 +14,4 @@ include("util.jl")
 include("compatibility.jl")
 include("discovery.jl")
 
-function __init__()
-    DEBUG = parse(Bool, get(ENV, "DEBUG", "false"))
-    if DEBUG
-        global_logger(ConsoleLogger(global_logger().stream, Logging.Debug))
-    end
-end
-
 end

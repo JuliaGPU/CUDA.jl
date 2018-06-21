@@ -9,7 +9,7 @@ julia: 0.7
 
 env:
   global:
-    - DEBUG=true
+    - JULIA_DEBUG=CUDAapi
 
 matrix:
   include:
