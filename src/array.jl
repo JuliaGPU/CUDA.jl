@@ -39,6 +39,8 @@ CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
 
 CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float32,N}(dims)
 
+(::Type{T})(::UndefInitializer, dims...) where T<:CuArray = T(dims...)
+
 (T::Type{<:CuArray})(dims::Integer...) = T(dims)
 
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
