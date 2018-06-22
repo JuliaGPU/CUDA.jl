@@ -72,6 +72,10 @@ cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global},
 
 ## indexing
 
+# TODO: arrays as allocated by the CUDA APIs are 256-byte aligned. we should keep track of
+#       this information, because it enables optimizations like Load Store Vectorization
+#       (cfr. shared memory and its wider-than-datatype alignment)
+
 @inline function Base.getindex(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = datatype_align(T)
