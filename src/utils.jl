@@ -8,7 +8,7 @@ end
 cudims(a::AbstractArray) = cudims(length(a))
 
 @inline ind2sub_(a::AbstractArray{T,0}, i) where T = ()
-@inline ind2sub_(a, i) = LinearIndices(a, i)
+@inline ind2sub_(a, i) = Tuple(CartesianIndices(a)[i])
 
 macro cuindex(A)
   quote
