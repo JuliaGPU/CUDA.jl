@@ -12,7 +12,7 @@ if Base.JLOptions().check_bounds == 1
   exit()
 end
 
-using CuArrays
+using CuArrays, CUDAnative, CUDAdrv
 using CuArrays: @fix
 using Test
 
@@ -34,10 +34,10 @@ function testf(f, xs...)
   collect(f(cu.(xs)...)) ≈ collect(f(xs...))
 end
 
-using Test, GPUArrays.TestSuite
+using GPUArrays, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
-@testset "GPUArray Testsuite: $(CUDAnative.default_device[])" begin
+@testset "GPUArray Testsuite" begin
     TestSuite.run_gpuinterface(CuArray)
     TestSuite.run_base(CuArray)
     TestSuite.run_blas(CuArray)
