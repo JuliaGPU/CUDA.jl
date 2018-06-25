@@ -301,7 +301,7 @@ macro device_code(ex...)
         end
 
         open(joinpath(dir, "$fn.ll"), "w") do io
-            code_llvm(io, ctx; dump_module=true)
+            code_llvm(io, ctx; dump_module=true, strip_ir_metadata=false)
         end
 
         open(joinpath(dir, "$fn.ptx"), "w") do io
