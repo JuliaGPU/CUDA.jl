@@ -23,33 +23,42 @@ end
 #
 
 """
-    code_llvm([io], f, types; optimize=true, dump_module=false, cap::VersionNumber)
+    code_llvm([io], f, types; optimize=true, cap::VersionNumber, kernel=true,
+                              dump_module=false, strip_ir_metadata=true)
 
 Prints the device LLVM IR generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`. The IR is optimized according to
-`optimize` (defaults to true), and the entire module, including headers and other functions,
-is dumped if `dump_module` is set (defaults to false). The device capability `cap` to
-generate code for defaults to the current active device's capability, or v"2.0" if there is
-no such active context.
+`optimize` (defaults to true), which includes entry-point specific optimizations if `kernel`
+is set (defaults to false). The device capability `cap` to generate code for defaults to the
+current active device's capability, or v"2.0" if there is no such active context. The entire
+module, including headers and other functions, is dumped if `dump_module` is set (defaults
+to false). Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to
+true).
 
 See also: [`@device_code_llvm`](@ref), [`Base.code_llvm`](@ref)
 """
 function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
-                   optimize::Bool=true, dump_module::Bool=false,
-                   cap::VersionNumber=current_capability(), kernel::Bool=false, kwargs...)
+                   optimize::Bool=true, cap::VersionNumber=current_capability(),
+                   dump_module::Bool=false, strip_ir_metadata::Bool=true,
+                   kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
     validate_invocation(ctx)
-    code_llvm(io, ctx; optimize=optimize, dump_module=dump_module)
+    code_llvm(io, ctx; optimize=optimize, dump_module=dump_module,
+              strip_ir_metadata=strip_ir_metadata)
 end
 function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
-                   dump_module::Bool=false)
+                   dump_module::Bool=false, strip_ir_metadata::Bool=true)
     mod, entry = irgen(ctx)
     if ctx.kernel
         entry = promote_kernel!(ctx, mod, entry)
     end
     if optimize
         optimize!(ctx, mod, entry)
+    end
+    if strip_ir_metadata
+        # FIXME: use a/Julia's modified ASM printer to add source location comments
+        strip_debuginfo!(mod)
     end
     if dump_module
         show(io, mod)
@@ -61,7 +70,7 @@ code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
     code_llvm(stdout, func, types; kwargs...)
 
 """
-    code_ptx([io], f, types; cap::VersionNumber, kernel::Bool=false)
+    code_ptx([io], f, types; cap::VersionNumber, kernel=false)
 
 Prints the PTX assembly generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`. The device capability `cap` to generate
