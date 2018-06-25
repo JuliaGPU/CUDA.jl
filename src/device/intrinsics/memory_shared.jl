@@ -56,7 +56,6 @@ end
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function _shmem(::Val{id}, ::Type{T}, ::Val{len}=Val(0)) where {id,T,len}
     eltyp = convert(LLVMType, T)
-    align = datatype_align(T)
 
     T_ptr = convert(LLVMType, Ptr{T})
     T_actual_ptr = LLVM.PointerType(eltyp)
@@ -67,7 +66,7 @@ end
     # create the global variable
     mod = LLVM.parent(llvm_f)
     gv_typ = LLVM.ArrayType(eltyp, len)
-    gv = GlobalVariable(mod, gv_typ, "shmem$id", 3)
+    gv = GlobalVariable(mod, gv_typ, "shmem$id", #=addrspace=# 3)
     if len > 0
         # static shared memory should be demoted to local variables, whenever possible.
         # this is done by the NVPTX ASM printer:
@@ -80,7 +79,9 @@ end
         linkage!(gv, LLVM.API.LLVMInternalLinkage)
         initializer!(gv, null(gv_typ))
     end
-    alignment!(gv, align)
+    # by requesting a larger-than-datatype alignment, we might be able to vectorize.
+    # we pick 16 bytes since this is the largest transaction size as supported by PTX.
+    alignment!(gv, Base.max(16, datatype_align(T)))
 
     # generate IR
     Builder(JuliaContext()) do builder
