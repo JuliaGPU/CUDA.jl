@@ -474,16 +474,38 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         instruction_combining!(pm)  # clean-up redundancy
         licm!(pm)                   # the inner runtime check might be outer loop invariant
 
+        # the above loop unroll pass might have unrolled regular, non-runtime nested loops.
+        # that code still needs to be optimized (arguably, multiple unroll passes should be
+        # scheduled by the Julia optimizer). do so here, instead of re-optimizing entirely.
+        early_csemem_ssa!(pm) # TODO: gvn instead? see NVPTXTargetMachine.cpp::addEarlyCSEOrGVNPass
+        dead_store_elimination!(pm)
+
+        # NOTE: if an optimization is missing, try scheduling an entirely new optimization
+        # to see which passes need to be added to the list above
+        #     LLVM.clopts("-print-after-all", "-filter-print-funcs=$(LLVM.name(entry))")
+        #     ModulePassManager() do pm
+        #         add_library_info!(pm, triple(mod))
+        #         add_transform_info!(pm, tm)
+        #         PassManagerBuilder() do pmb
+        #             populate!(pm, pmb)
+        #         end
+        #         run!(pm, mod)
+        #     end
+
         cfgsimplification!(pm)
 
-        # CUDAnative's compiler internalizes non-inlined child functions, making it possible
-        # to rewrite them (whereas the Julia JIT caches those functions exactly);
-        # this opens up some more optimization opportunities
+
+        ## IPO
+
+        # we compile a module containing the entire call graph,
+        # so perform some interprocedural optimizations.
+
         dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
 
         global_optimizer!(pm)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
+
 
         run!(pm, mod)
     end
