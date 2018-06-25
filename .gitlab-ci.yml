@@ -4,7 +4,6 @@ before_script:
 
 variables:
   JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia/"
-  JULIA_LOAD_PATH: "@:"
 
 stages:
   - test
@@ -22,15 +21,16 @@ stages:
                 Pkg.test(; coverage=true);"
   artifacts:
     paths:
+      - Manifest.toml
       - .julia/
       - deps/ext.jl
       - src/*.cov
       - src/*/*.cov # gitlab-runner#2620
 
-# test:v0.7:
-#   stage: test
-#   image: juliagpu/julia:v0.7-cuda
-#   <<: *test_template
+test:v0.7:
+  stage: test
+  image: juliagpu/julia:v0.7-cuda
+  <<: *test_template
 
 test:dev:
   stage: test
