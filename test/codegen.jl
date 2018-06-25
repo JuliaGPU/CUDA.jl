@@ -14,6 +14,9 @@
     @test occursin("define void @julia_llvm_valid_kernel", ir)
     @test !occursin("define %jl_value_t* @jlcall_", ir)
 
+    # there should be no debug metadata
+    @test !occursin("!dbg", ir)
+
     @test CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}) == nothing
     @test_throws CUDAnative.CompilerError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
