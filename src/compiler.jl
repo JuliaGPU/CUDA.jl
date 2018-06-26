@@ -48,17 +48,7 @@ function Base.showerror(io::IO, err::CompilerError)
     for (key,val) in err.meta
         print(io, "\n- $key = $val")
     end
-    show_compiletrace(io, err.bt)
-end
-
-function show_compiletrace(io::IO, bt::StackTraces.StackTrace)
-    if !isempty(bt)
-        if last(bt).func == :KernelWrapper
-            pop!(bt)
-        end
-        Base.show_backtrace(io, bt)
-        println(io)
-    end
+    Base.show_backtrace(io, err.bt)
 end
 
 
@@ -99,6 +89,26 @@ end
 
 # maintain our own "global unique" suffix for disambiguating kernels
 globalUnique = 0
+
+# generate a pseudo-backtrace from a stack of methods being emitted
+function backtrace(ctx::CompilerContext, method_stack::Vector{Core.MethodInstance})
+    bt = StackTraces.StackFrame[]
+    for method_instance in method_stack
+        # wrapping the kernel doesn't trigger another emit_function,
+        # so manually get a hold of the inner function.
+        method = if method_instance.def.name == :KernelWrapper
+            @assert ctx.inner_f != nothing
+            tt = method_instance.specTypes.parameters[2:end]
+            which(ctx.inner_f, tt)
+        else
+            method_instance.def
+        end
+
+        frame = StackTraces.StackFrame(method.name, method.file, method.line)
+        pushfirst!(bt, frame)
+    end
+    bt
+end
 
 function irgen(ctx::CompilerContext)
     # get the method instance

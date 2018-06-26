@@ -37,10 +37,11 @@ function Base.showerror(io::IO, err::InvalidIRError)
         if kind == RUNTIME_FUNCTION || kind == UNKNOWN_FUNCTION
             print(io, " (", LLVM.name(meta), ")")
         end
-        show_compiletrace(io, bt)
+        Base.show_backtrace(io, bt)
     end
 end
 
+# generate a pseudo-backtrace from LLVM IR instruction debug information
 function backtrace(inst)
     name = Ref{Cstring}()
     filename = Ref{Cstring}()
@@ -48,15 +49,21 @@ function backtrace(inst)
     col = Ref{Cuint}()
 
     depth = 0
-    stack = StackTraces.StackFrame[]
-    VERSION >= v"0.7.0-alpha.37" || return stack
+    bt = StackTraces.StackFrame[]
+    VERSION >= v"0.7.0-alpha.37" || return bt
     while LLVM.API.LLVMGetSourceLocation(LLVM.ref(inst), depth, name, filename, line, col) == 1
         frame = StackTraces.StackFrame(replace(unsafe_string(name[]), r";$"=>""), unsafe_string(filename[]), line[])
-        push!(stack, frame)
+        push!(bt, frame)
         depth += 1
     end
 
-    stack
+    # wrapping the kernel _does_ trigger a new debug info frame,
+    # so just get rid of the wrapper frame.
+    if !isempty(bt) && last(bt).func == :KernelWrapper
+        pop!(bt)
+    end
+
+    bt
 end
 
 function validate_ir!(errors::Vector{IRError}, mod::LLVM.Module)
