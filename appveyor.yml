@@ -10,6 +10,7 @@ notifications:
     on_build_status_changed: false
 
 environment:
+  JULIA_DEBUG: "CUDAapi"
   matrix:
     # CUDA versions
     - JULIA: 0.7
@@ -35,5 +36,5 @@ build_script:
                            Pkg.build()"
 
 test_script:
-  - C:\julia\bin\julia -e "ENV[\"DEBUG\"] = \"true\";
+  - C:\julia\bin\julia -e "using Pkg;
                            Pkg.test()"

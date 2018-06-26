@@ -2,6 +2,15 @@ Set-PSDebug -Trace 1
 $ErrorActionPreference = "Stop"
 
 
+# If there's a newer build queued for the same PR, cancel this one
+
+if ($env:APPVEYOR_PULL_REQUEST_NUMBER -and $env:APPVEYOR_BUILD_NUMBER -ne ((Invoke-RestMethod `
+        https://ci.appveyor.com/api/projects/$env:APPVEYOR_ACCOUNT_NAME/$env:APPVEYOR_PROJECT_SLUG/history?recordsNumber=50).builds | `
+        Where-Object pullRequestId -eq $env:APPVEYOR_PULL_REQUEST_NUMBER)[0].buildNumber) { `
+    throw "There are newer queued builds for this pull request, failing early."
+}
+
+
 # Julia
 
 $julia_installers = @{}

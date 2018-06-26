@@ -4,7 +4,6 @@ before_script:
 
 variables:
   JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia/"
-  JULIA_LOAD_PATH: "@:"
 
 stages:
   - test
@@ -22,6 +21,7 @@ stages:
                 Pkg.test(; coverage=true);"
   artifacts:
     paths:
+      - Manifest.toml
       - .julia/
       - src/*.cov
 
