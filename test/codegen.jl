@@ -159,7 +159,7 @@ end
 
     @test CUDAnative.code_ptx(devnull, ptx_valid_kernel, Tuple{}) == nothing
     @test CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}) == nothing
-    @test_throws CUDAnative.CompilerError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test_throws CUDAnative.AbstractCompilerError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true)
 end
 
 @testset "child functions" begin
@@ -204,53 +204,6 @@ end
         asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64};
                                              kernel=true, maxregs=42))
         @test occursin(".maxnreg 42", asm)
-    end
-end
-end
-
-@testset "IR validation" begin
-@testset "delayed lookup" begin
-    @eval codegen_ref_nonexisting() = nonexisting
-    try
-         CUDAnative.code_ptx(codegen_ref_nonexisting, Tuple{})
-    catch err
-        @test isa(err, CUDAnative.CompilerError)
-        msg = sprint(io->showerror(io, err))
-        @test occursin("could not compile codegen_ref_nonexisting() for GPU; unsupported LLVM IR", msg)
-        @test occursin("Reason: unsupported call to the Julia runtime", msg)
-        if VERSION >= v"0.7.0-alpha.37"
-            @test occursin(r"\[1\] codegen_ref_nonexisting at .*codegen.jl", msg)
-        end
-    end
-end
-
-@testset "generic call" begin
-    @eval codegen_call_nonexisting() = nonexisting()
-    try
-         CUDAnative.code_ptx(codegen_call_nonexisting, Tuple{})
-    catch err
-        @test isa(err, CUDAnative.CompilerError)
-        msg = sprint(io->showerror(io, err))
-        @test occursin("could not compile codegen_call_nonexisting() for GPU; unsupported LLVM IR", msg)
-        @test occursin("Reason: unsupported call to the Julia runtime", msg)
-        if VERSION >= v"0.7.0-alpha.37"
-            @test occursin(r"\[1\] codegen_call_nonexisting at .*codegen.jl", msg)
-        end
-    end
-end
-
-@testset "compile traces" begin
-    @eval codegen_call_inner() = error()
-    @eval codegen_call_outer() = codegen_call_inner()
-    try
-         CUDAnative.code_ptx(codegen_call_outer, Tuple{})
-    catch err
-        @test isa(err, CUDAnative.CompilerError)
-        msg = sprint(io->showerror(io, err))
-        if VERSION >= v"0.7.0-alpha.37"
-            @test occursin(r"\[1\] codegen_call_inner at .*codegen.jl", msg)
-            @test occursin(r"\[2\] codegen_call_outer at .*codegen.jl", msg)
-        end
     end
 end
 end
@@ -366,6 +319,47 @@ end
 
     test_name(codegen_closure, "ptxcall_anonymous"; kernel=true)
     test_name(codegen_closure, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
+end
+
+end
+
+
+############################################################################################
+
+
+@testset "errors" begin
+
+# validation happens in compile_function, which is called by code_ptx
+
+@testset "recursion" begin
+    @eval @noinline error_recurse_outer(i) = i > 0 ? i : error_recurse_inner(i)
+    @eval @noinline error_recurse_inner(i) = i < 0 ? i : error_recurse_outer(i)
+
+    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_ptx(error_recurse_outer, Tuple{Int})) do msg
+        occursin("recursion is not supported", msg) &&
+        occursin("[1] error_recurse_outer", msg) &&
+        occursin("[2] error_recurse_inner", msg) &&
+        occursin("[3] error_recurse_outer", msg)
+    end
+end
+
+@testset "non-isbits arguments" begin
+    @eval error_use_nonbits(i) = sink(unsafe_trunc(Int,i))
+
+    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_ptx(error_use_nonbits, Tuple{BigInt})) do msg
+        occursin("passing and using non-bitstype argument", msg) &&
+        occursin("BigInt", msg)
+    end
+end
+
+@testset "invalid LLVM IR" begin
+    @eval @noinline error_invalid_ir(i) = println(i)
+
+    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.code_ptx(error_invalid_ir, Tuple{Int})) do msg
+        occursin("invalid LLVM IR", msg) &&
+        occursin("[1] println", msg) &&
+        occursin("[2] error_invalid_ir", msg)
+    end
 end
 
 end

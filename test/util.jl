@@ -1,6 +1,25 @@
 # NOTE: all kernel function definitions are prefixed with @eval to force toplevel definition,
 #       avoiding boxing as seen in https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
 
+# @test_throw, with additional testing for the exception message
+macro test_throws_message(f, typ, ex...)
+    quote
+        msg = ""
+        @test_throws $(esc(typ)) try
+            $(esc(ex...))
+        catch err
+            msg = sprint(showerror, err)
+            rethrow()
+        end
+
+        if !$(esc(f))(msg)
+            # @test should return its result, but doesn't
+            @error "Failed to validate error message\n$msg"
+        end
+        @test $(esc(f))(msg)
+    end
+end
+
 # NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
 macro grab_output(ex)
     quote

@@ -24,31 +24,40 @@ struct CompilerContext
         new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs, inner_f)
 end
 
-struct CompilerError <: Exception
-    ctx::CompilerContext
-    message::String
-    meta::Dict
-end
-
-compiler_error(ctx::CompilerContext, message="unknown error"; kwargs...) =
-    throw(CompilerError(ctx, message, kwargs))
-
-function Base.showerror(io::IO, err::CompilerError)
-    ctx = err.ctx
+function signature(ctx::CompilerContext)
     fn = typeof(something(ctx.inner_f, ctx.f)).name.mt.name
     args = join(ctx.tt.parameters, ", ")
-    print(io, "could not compile $fn($args) for GPU; $(err.message)\n")
-    if haskey(err.meta, :errors) && isa(err.meta[:errors], Vector{UnsupportedIRError})
-        for suberr in err.meta[:errors]
-            print(io, "\nReason: ")
-            Base.showerror(io, suberr, suberr.compiletrace)
-            println(io)
+    return "$fn($(join(ctx.tt.parameters, ", ")))"
+end
+
+abstract type AbstractCompilerError <: Exception end
+
+struct CompilerError <: AbstractCompilerError
+    ctx::CompilerContext
+    message::String
+    bt::StackTraces.StackTrace
+    meta::Dict
+
+    CompilerError(ctx::CompilerContext, message="unknown error",
+                  bt=StackTraces.StackTrace(); kwargs...) =
+        new(ctx, message, bt, kwargs)
+end
+
+function Base.showerror(io::IO, err::CompilerError)
+    print(io, "CompilerError: could not compile $(signature(err.ctx)); $(err.message)")
+    for (key,val) in err.meta
+        print(io, "\n- $key = $val")
+    end
+    show_compiletrace(io, err.bt)
+end
+
+function show_compiletrace(io::IO, bt::StackTraces.StackTrace)
+    if !isempty(bt)
+        if last(bt).func == :KernelWrapper
+            pop!(bt)
         end
-        print(io, "\nTry inspecting generated code with the @device_code_... macros")
-    else
-        for (key,val) in err.meta
-            print(io, "\n- $key = $val")
-        end
+        Base.show_backtrace(io, bt)
+        println(io)
     end
 end
 
@@ -93,7 +102,7 @@ globalUnique = 0
 
 function irgen(ctx::CompilerContext)
     # get the method instance
-    isa(ctx.f, Core.Builtin) && compiler_error(ctx, "function is not a generic function")
+    isa(ctx.f, Core.Builtin) && throw(CompilerError(ctx, "function is not a generic function"))
     world = typemax(UInt)
     meth = which(ctx.f, ctx.tt)
     sig_tt = Tuple{typeof(ctx.f), ctx.tt.parameters...}
@@ -118,6 +127,24 @@ function irgen(ctx::CompilerContext)
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(dependencies, LLVM.Module(ref))
     end
+    method_stack = Vector{Core.MethodInstance}()
+    function hook_emit_function(method, code, world)
+        push!(method_stack, method)
+        if method in method_stack[1:end-1]
+            # convert the method stack to a pseudo-backtrace
+            bt = StackTraces.StackFrame[]
+            for method in method_stack
+                frame = StackTraces.StackFrame(method.def.name, method.def.file, method.def.line)
+                pushfirst!(bt, frame)
+            end
+
+            throw(CompilerError(ctx, "recursion is not supported", bt))
+        end
+    end
+    function hook_emitted_function(method, code, world)
+        @assert last(method_stack) == method
+        pop!(method_stack)
+    end
     params = Base.CodegenParams(cached=false,
                                 track_allocations=false,
                                 code_coverage=false,
@@ -125,7 +152,9 @@ function irgen(ctx::CompilerContext)
                                 prefer_specsig=true,
                                 module_setup=hook_module_setup,
                                 module_activation=hook_module_activation,
-                                raise_exception=hook_raise_exception)
+                                raise_exception=hook_raise_exception,
+                                emit_function=hook_emit_function,
+                                emitted_function=hook_emitted_function)
 
     # get the code
     mod = let
@@ -133,7 +162,7 @@ function irgen(ctx::CompilerContext)
                     (Any, UInt, Bool, Bool, Base.CodegenParams),
                     linfo, world, #=wrapper=#false, #=optimize=#false, params)
         if ref == C_NULL
-            compiler_error(ctx, "the Julia compiler could not generate LLVM IR")
+            throw(CompilerError(ctx, "the Julia compiler could not generate LLVM IR"))
         end
 
         llvmf = LLVM.Function(ref)
@@ -163,8 +192,8 @@ function irgen(ctx::CompilerContext)
         fs = collect(filter(f->occursin(re, LLVM.name(f)) &&
                                !occursin(llvmcall_re, LLVM.name(f)), definitions))
         if length(fs) != 1
-            compiler_error(f, tt, cap, "could not find single entry-point";
-                           entry=>entry_tag, available=>[LLVM.name.(definitions)])
+            throw(CompilerError(f, tt, cap, "could not find single entry-point";
+                                entry=>entry_tag, available=>[LLVM.name.(definitions)]))
         end
         fs[1]
     end
@@ -549,17 +578,14 @@ function compile_function(ctx::CompilerContext)
         if !isbitstype(dt)
             param = parameters(entry)[real_arg_i]
             if !isempty(uses(param))
-                compiler_error(ctx, "passing and using non-bitstype argument";
-                               argument=arg_i, argument_type=dt)
+                throw(CompilerError(ctx, "passing and using non-bitstype argument";
+                                    argument=arg_i, argument_type=dt))
             end
         end
     end
 
     # validate generated IR
-    errors = unique(validate_ir(mod))
-    if !isempty(errors)
-        compiler_error(ctx, "unsupported LLVM IR"; errors=errors)
-    end
+    validate_ir(ctx, mod)
 
 
     ## machine code generation (PTX assembly)
