@@ -329,19 +329,27 @@ end
 
 @testset "errors" begin
 
-# validation happens in compile_function, which is called by code_ptx
+# some validation happens in the emit_function hook, which is called by code_llvm
 
 @testset "recursion" begin
     @eval @noinline error_recurse_outer(i) = i > 0 ? i : error_recurse_inner(i)
     @eval @noinline error_recurse_inner(i) = i < 0 ? i : error_recurse_outer(i)
 
-    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_ptx(error_recurse_outer, Tuple{Int})) do msg
+    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_llvm(error_recurse_outer, Tuple{Int})) do msg
         occursin("recursion is not supported", msg) &&
         occursin("[1] error_recurse_outer", msg) &&
         occursin("[2] error_recurse_inner", msg) &&
         occursin("[3] error_recurse_outer", msg)
     end
 end
+
+@testset "base intrinsics" begin
+    @eval @noinline error_base_intrinsics(i) = sin(i)
+
+    @test_logs (:warn, "calls to Base intrinsics might be GPU incompatible") CUDAnative.code_llvm(devnull, error_base_intrinsics, Tuple{Int})
+end
+
+# some validation happens in compile_function, which is called by code_ptx
 
 @testset "non-isbits arguments" begin
     @eval error_use_nonbits(i) = sink(unsafe_trunc(Int,i))

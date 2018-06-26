@@ -110,6 +110,14 @@ function backtrace(ctx::CompilerContext, method_stack::Vector{Core.MethodInstanc
     bt
 end
 
+# NOTE: we use an exception to be able to display a stack trace using the logging framework
+struct MethodSubstitutionWarning <: Exception
+    original::Method
+    substitute::Method
+end
+Base.showerror(io::IO, err::MethodSubstitutionWarning) =
+    print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
+
 function irgen(ctx::CompilerContext)
     # get the method instance
     isa(ctx.f, Core.Builtin) && throw(CompilerError(ctx, "function is not a generic function"))
@@ -138,17 +146,32 @@ function irgen(ctx::CompilerContext)
         push!(dependencies, LLVM.Module(ref))
     end
     method_stack = Vector{Core.MethodInstance}()
-    function hook_emit_function(method, code, world)
-        push!(method_stack, method)
-        if method in method_stack[1:end-1]
-            # convert the method stack to a pseudo-backtrace
-            bt = StackTraces.StackFrame[]
-            for method in method_stack
-                frame = StackTraces.StackFrame(method.def.name, method.def.file, method.def.line)
-                pushfirst!(bt, frame)
-            end
+    function hook_emit_function(method_instance, code, world)
+        push!(method_stack, method_instance)
 
-            throw(CompilerError(ctx, "recursion is not supported", bt))
+        # check for recursion
+        if method_instance in method_stack[1:end-1]
+            throw(CompilerError(ctx, "recursion is not supported", backtrace(ctx, method_stack)))
+        end
+
+        # check for Base methods that exist in CUDAnative too
+        # FIXME: this might be too coarse
+        function module_path(method)
+            modules = [method.module]
+            while !(parentmodule(last(modules)) in modules)
+                push!(modules, parentmodule(last(modules)))
+            end
+            modules
+        end
+        if Base in module_path(method_instance.def) && isdefined(CUDAnative, method_instance.def.name)
+            substitute_function = getfield(CUDAnative, method_instance.def.name)
+            tt = Tuple{method_instance.specTypes.parameters[2:end]...}
+            if hasmethod(substitute_function, tt)
+                method_instance′ = which(substitute_function, tt)
+                if CUDAnative in module_path(method_instance′)
+                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method_instance.def, method_instance′), backtrace(ctx, method_stack))
+                end
+            end
         end
     end
     function hook_emitted_function(method, code, world)
