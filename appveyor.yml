@@ -32,11 +32,9 @@ build_script:
   - C:\julia\bin\julia -e "using InteractiveUtils;
                            versioninfo();
                            using Pkg;
-                           pushfirst!(LOAD_PATH, pwd());
                            Pkg.instantiate();
                            Pkg.build()"
 
 test_script:
   - C:\julia\bin\julia -e "using Pkg;
-                           pushfirst!(LOAD_PATH, pwd());
                            Pkg.test()"

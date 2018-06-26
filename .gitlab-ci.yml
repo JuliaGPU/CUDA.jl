@@ -16,12 +16,12 @@ stages:
   script:
     - mkdir $JULIA_DEPOT_PATH # Pkg3.jl#325
     - julia -e "using Pkg;
-                pushfirst!(LOAD_PATH, pwd());
                 Pkg.instantiate();
                 Pkg.build();
                 Pkg.test(; coverage=true);"
   artifacts:
     paths:
+      - Manifest.toml
       - .julia/
       - src/*.cov
 
@@ -45,7 +45,6 @@ coverage:
     - test:v0.7
   script:
     - julia -e 'using Pkg;
-                pushfirst!(LOAD_PATH, pwd());
                 Pkg.add("Coverage")'
     - julia -e 'using Coverage;
                 cl, tl = get_summary(process_folder());
