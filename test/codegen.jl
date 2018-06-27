@@ -331,6 +331,7 @@ end
 
 # some validation happens in the emit_function hook, which is called by code_llvm
 
+if VERSION >= v"0.7.0-beta.48"
 @testset "recursion" begin
     @eval @noinline error_recurse_outer(i) = i > 0 ? i : error_recurse_inner(i)
     @eval @noinline error_recurse_inner(i) = i < 0 ? i : error_recurse_outer(i)
@@ -342,11 +343,14 @@ end
         occursin("[3] error_recurse_outer", msg)
     end
 end
+end
 
+if VERSION >= v"0.7.0-beta.48"
 @testset "base intrinsics" begin
     @eval @noinline error_base_intrinsics(i) = sin(i)
 
     @test_logs (:warn, "calls to Base intrinsics might be GPU incompatible") CUDAnative.code_llvm(devnull, error_base_intrinsics, Tuple{Int})
+end
 end
 
 # some validation happens in compile_function, which is called by code_ptx

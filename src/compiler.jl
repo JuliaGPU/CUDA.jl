@@ -178,16 +178,22 @@ function irgen(ctx::CompilerContext)
         @assert last(method_stack) == method
         pop!(method_stack)
     end
-    params = Base.CodegenParams(cached=false,
-                                track_allocations=false,
-                                code_coverage=false,
-                                static_alloc=false,
-                                prefer_specsig=true,
-                                module_setup=hook_module_setup,
-                                module_activation=hook_module_activation,
-                                raise_exception=hook_raise_exception,
-                                emit_function=hook_emit_function,
-                                emitted_function=hook_emitted_function)
+    params = let
+        kwargs = Dict(
+                :cached             => false,
+                :track_allocations  => false,
+                :code_coverage      => false,
+                :static_alloc       => false,
+                :prefer_specsig     => true,
+                :module_setup       => hook_module_setup,
+                :module_activation  => hook_module_activation,
+                :raise_exception    => hook_raise_exception)
+        if VERSION >= v"0.7.0-beta.48"
+            kwargs[:emit_function]    = hook_emit_function
+            kwargs[:emitted_function] = hook_emitted_function
+        end
+        Base.CodegenParams(;kwargs...)
+    end
 
     # get the code
     mod = let
