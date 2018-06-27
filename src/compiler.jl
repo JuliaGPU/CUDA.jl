@@ -24,32 +24,31 @@ struct CompilerContext
         new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs, inner_f)
 end
 
-struct CompilerError <: Exception
-    ctx::CompilerContext
-    message::String
-    meta::Dict
-end
-
-compiler_error(ctx::CompilerContext, message="unknown error"; kwargs...) =
-    throw(CompilerError(ctx, message, kwargs))
-
-function Base.showerror(io::IO, err::CompilerError)
-    ctx = err.ctx
+function signature(ctx::CompilerContext)
     fn = typeof(something(ctx.inner_f, ctx.f)).name.mt.name
     args = join(ctx.tt.parameters, ", ")
-    print(io, "could not compile $fn($args) for GPU; $(err.message)\n")
-    if haskey(err.meta, :errors) && isa(err.meta[:errors], Vector{UnsupportedIRError})
-        for suberr in err.meta[:errors]
-            print(io, "\nReason: ")
-            Base.showerror(io, suberr, suberr.compiletrace)
-            println(io)
-        end
-        print(io, "\nTry inspecting generated code with the @device_code_... macros")
-    else
-        for (key,val) in err.meta
-            print(io, "\n- $key = $val")
-        end
+    return "$fn($(join(ctx.tt.parameters, ", ")))"
+end
+
+abstract type AbstractCompilerError <: Exception end
+
+struct CompilerError <: AbstractCompilerError
+    ctx::CompilerContext
+    message::String
+    bt::StackTraces.StackTrace
+    meta::Dict
+
+    CompilerError(ctx::CompilerContext, message="unknown error",
+                  bt=StackTraces.StackTrace(); kwargs...) =
+        new(ctx, message, bt, kwargs)
+end
+
+function Base.showerror(io::IO, err::CompilerError)
+    print(io, "CompilerError: could not compile $(signature(err.ctx)); $(err.message)")
+    for (key,val) in err.meta
+        print(io, "\n- $key = $val")
     end
+    Base.show_backtrace(io, err.bt)
 end
 
 
@@ -91,9 +90,37 @@ end
 # maintain our own "global unique" suffix for disambiguating kernels
 globalUnique = 0
 
+# generate a pseudo-backtrace from a stack of methods being emitted
+function backtrace(ctx::CompilerContext, method_stack::Vector{Core.MethodInstance})
+    bt = StackTraces.StackFrame[]
+    for method_instance in method_stack
+        # wrapping the kernel doesn't trigger another emit_function,
+        # so manually get a hold of the inner function.
+        method = if method_instance.def.name == :KernelWrapper
+            @assert ctx.inner_f != nothing
+            tt = method_instance.specTypes.parameters[2:end]
+            which(ctx.inner_f, tt)
+        else
+            method_instance.def
+        end
+
+        frame = StackTraces.StackFrame(method.name, method.file, method.line)
+        pushfirst!(bt, frame)
+    end
+    bt
+end
+
+# NOTE: we use an exception to be able to display a stack trace using the logging framework
+struct MethodSubstitutionWarning <: Exception
+    original::Method
+    substitute::Method
+end
+Base.showerror(io::IO, err::MethodSubstitutionWarning) =
+    print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
+
 function irgen(ctx::CompilerContext)
     # get the method instance
-    isa(ctx.f, Core.Builtin) && compiler_error(ctx, "function is not a generic function")
+    isa(ctx.f, Core.Builtin) && throw(CompilerError(ctx, "function is not a generic function"))
     world = typemax(UInt)
     meth = which(ctx.f, ctx.tt)
     sig_tt = Tuple{typeof(ctx.f), ctx.tt.parameters...}
@@ -118,14 +145,55 @@ function irgen(ctx::CompilerContext)
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         push!(dependencies, LLVM.Module(ref))
     end
-    params = Base.CodegenParams(cached=false,
-                                track_allocations=false,
-                                code_coverage=false,
-                                static_alloc=false,
-                                prefer_specsig=true,
-                                module_setup=hook_module_setup,
-                                module_activation=hook_module_activation,
-                                raise_exception=hook_raise_exception)
+    method_stack = Vector{Core.MethodInstance}()
+    function hook_emit_function(method_instance, code, world)
+        push!(method_stack, method_instance)
+
+        # check for recursion
+        if method_instance in method_stack[1:end-1]
+            throw(CompilerError(ctx, "recursion is currently not supported", backtrace(ctx, method_stack)))
+        end
+
+        # check for Base methods that exist in CUDAnative too
+        # FIXME: this might be too coarse
+        function module_path(method)
+            modules = [method.module]
+            while !(parentmodule(last(modules)) in modules)
+                push!(modules, parentmodule(last(modules)))
+            end
+            modules
+        end
+        if Base in module_path(method_instance.def) && isdefined(CUDAnative, method_instance.def.name)
+            substitute_function = getfield(CUDAnative, method_instance.def.name)
+            tt = Tuple{method_instance.specTypes.parameters[2:end]...}
+            if hasmethod(substitute_function, tt)
+                method_instance′ = which(substitute_function, tt)
+                if CUDAnative in module_path(method_instance′)
+                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method_instance.def, method_instance′), backtrace(ctx, method_stack))
+                end
+            end
+        end
+    end
+    function hook_emitted_function(method, code, world)
+        @assert last(method_stack) == method
+        pop!(method_stack)
+    end
+    params = let
+        kwargs = Dict(
+                :cached             => false,
+                :track_allocations  => false,
+                :code_coverage      => false,
+                :static_alloc       => false,
+                :prefer_specsig     => true,
+                :module_setup       => hook_module_setup,
+                :module_activation  => hook_module_activation,
+                :raise_exception    => hook_raise_exception)
+        if VERSION >= v"0.7.0-beta.48"
+            kwargs[:emit_function]    = hook_emit_function
+            kwargs[:emitted_function] = hook_emitted_function
+        end
+        Base.CodegenParams(;kwargs...)
+    end
 
     # get the code
     mod = let
@@ -133,7 +201,7 @@ function irgen(ctx::CompilerContext)
                     (Any, UInt, Bool, Bool, Base.CodegenParams),
                     linfo, world, #=wrapper=#false, #=optimize=#false, params)
         if ref == C_NULL
-            compiler_error(ctx, "the Julia compiler could not generate LLVM IR")
+            throw(CompilerError(ctx, "the Julia compiler could not generate LLVM IR"))
         end
 
         llvmf = LLVM.Function(ref)
@@ -163,8 +231,8 @@ function irgen(ctx::CompilerContext)
         fs = collect(filter(f->occursin(re, LLVM.name(f)) &&
                                !occursin(llvmcall_re, LLVM.name(f)), definitions))
         if length(fs) != 1
-            compiler_error(f, tt, cap, "could not find single entry-point";
-                           entry=>entry_tag, available=>[LLVM.name.(definitions)])
+            throw(CompilerError(f, tt, cap, "could not find single entry-point";
+                                entry=>entry_tag, available=>[LLVM.name.(definitions)]))
         end
         fs[1]
     end
@@ -549,17 +617,15 @@ function compile_function(ctx::CompilerContext)
         if !isbitstype(dt)
             param = parameters(entry)[real_arg_i]
             if !isempty(uses(param))
-                compiler_error(ctx, "passing and using non-bitstype argument";
-                               argument=arg_i, argument_type=dt)
+                throw(CompilerError(ctx, "passing and using non-bitstype argument";
+                                    argument=arg_i, argument_type=dt))
             end
         end
     end
 
-    # validate generated IR
-    errors = unique(validate_ir(mod))
-    if !isempty(errors)
-        compiler_error(ctx, "unsupported LLVM IR"; errors=errors)
-    end
+    # check generated IR
+    validate_ir(ctx, mod)
+    verify(mod)
 
 
     ## machine code generation (PTX assembly)
@@ -620,7 +686,7 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs..
     return cuda_fun, cuda_mod
 end
 
-function init_jit()
+function __init_compiler__()
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("--nvptx-fma-level=1")
 end
