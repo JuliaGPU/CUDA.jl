@@ -617,8 +617,9 @@ function compile_function(ctx::CompilerContext)
         end
     end
 
-    # validate generated IR
+    # check generated IR
     validate_ir(ctx, mod)
+    verify(mod)
 
 
     ## machine code generation (PTX assembly)
