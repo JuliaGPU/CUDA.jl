@@ -262,9 +262,11 @@ function find_toolkit_version(toolkit_dirs)
     end
 
     # parse the nvcc version string
-    re = r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b"
-    m = match(re, read(`$nvcc_path --version`, String))
-    m != nothing || error("Could not get version from nvcc")
+    verstr = withenv("LANG"=>"C") do
+        read(`$nvcc_path --version`, String)
+    end
+    m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
+    m != nothing || error("could not parse NVCC version info (\"$verstr\")")
 
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
@@ -349,10 +351,12 @@ function find_host_compiler(toolkit_version=nothing)
             end
 
             # parse the GCC version string
-            verstring = chomp(readlines(`$gcc_path --version`)[1])
-            m = match(Regex("^$(basename(gcc_path)) \\(.*\\) ([0-9.]+)"), verstring)
+            verstr = withenv("LANG" => "C") do
+                readlines(`$gcc_path --version`)[1]
+            end
+            m = match(Regex("^$(basename(gcc_path)) \\(.*\\) ([0-9.]+)"), verstr)
             if m === nothing
-                warn("Could not parse GCC version info (\"$verstring\"), skipping this compiler.")
+                warn("Could not parse GCC version info (\"$verstr\"), skipping this compiler.")
                 continue
             end
             gcc_ver = VersionNumber(m.captures[1])
@@ -411,9 +415,18 @@ function find_host_compiler(toolkit_version=nothing)
                 warn("Could not execute $path")
                 continue
             end
-            ver_str = match(r"Version\s+(\d+(\.\d+)?(\.\d+)?)"i, read(tmpfile, String))[1]
-            ver = VersionNumber(ver_str)
-            msvc_list[ver] = path
+            verstr = read(tmpfile, String)
+            m = match(r"Version\s+(\d+(\.\d+)?(\.\d+)?)"i, verstr)
+            if m === nothing
+                # depending on the locale, this regex might not match
+                m = match(r"\b(\d+(\.\d+)?(\.\d+)?)\b"i, verstr)
+            end
+            if m === nothing
+                warn("Could not parse Visual Studio version info (\"$verstr\"), skipping this compiler.")
+                continue
+            end
+            msvc_ver = VersionNumber(m.captures[1])
+            msvc_list[msvc_ver] = path
         end
 
         # check compiler compatibility
