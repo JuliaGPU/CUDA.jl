@@ -151,7 +151,7 @@ function irgen(ctx::CompilerContext)
 
         # check for recursion
         if method_instance in method_stack[1:end-1]
-            throw(CompilerError(ctx, "recursion is not supported", backtrace(ctx, method_stack)))
+            throw(CompilerError(ctx, "recursion is currently not supported", backtrace(ctx, method_stack)))
         end
 
         # check for Base methods that exist in CUDAnative too

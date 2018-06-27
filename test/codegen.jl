@@ -337,7 +337,7 @@ if VERSION >= v"0.7.0-beta.48"
     @eval @noinline error_recurse_inner(i) = i < 0 ? i : error_recurse_outer(i)
 
     @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_llvm(error_recurse_outer, Tuple{Int})) do msg
-        occursin("recursion is not supported", msg) &&
+        occursin("recursion is currently not supported", msg) &&
         occursin("[1] error_recurse_outer", msg) &&
         occursin("[2] error_recurse_inner", msg) &&
         occursin("[3] error_recurse_outer", msg)
