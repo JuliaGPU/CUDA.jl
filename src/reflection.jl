@@ -2,21 +2,6 @@
 
 using InteractiveUtils
 
-# Return the capability of the current context's device, or a sane fall-back.
-function current_capability()
-    fallback = minimum(target_support)
-    if !initialized[]
-        return fallback
-    end
-
-    ctx = CuCurrentContext()
-    if ctx == nothing
-        return fallback
-    end
-
-    return capability(device(ctx))
-end
-
 
 #
 # code_* replacements

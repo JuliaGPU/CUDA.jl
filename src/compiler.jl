@@ -643,14 +643,7 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs..
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     @assert isa(f, Core.Function)
 
-    # select a capability level
-    dev_cap = capability(dev)
-    compat_caps = filter(cap -> cap <= dev_cap, target_support)
-    isempty(compat_caps) &&
-        error("Device capability v$dev_cap not supported by available toolchain")
-    cap = maximum(compat_caps)
-
-    ctx = CompilerContext(f, tt, cap, true; kwargs...)
+    ctx = CompilerContext(f, tt, supported_capability(dev), true; kwargs...)
 
     if compile_hook[] != nothing
         global globalUnique
