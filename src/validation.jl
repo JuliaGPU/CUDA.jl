@@ -31,9 +31,9 @@ const RUNTIME_FUNCTION = "call to the Julia runtime"
 const UNKNOWN_FUNCTION = "call to an unknown function"
 
 function Base.showerror(io::IO, err::InvalidIRError)
-    println(io, "InvalidIRError: compiling $(signature(err.ctx)) resulted in invalid LLVM IR")
+    print(io, "InvalidIRError: compiling $(signature(err.ctx)) resulted in invalid LLVM IR")
     for (kind, bt, meta) in err.errors
-        print(io, "Reason: unsupported $kind")
+        print(io, "\nReason: unsupported $kind")
         if kind == RUNTIME_FUNCTION || kind == UNKNOWN_FUNCTION
             print(io, " (", LLVM.name(meta), ")")
         end
