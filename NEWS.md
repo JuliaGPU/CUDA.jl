@@ -54,6 +54,9 @@ Changes
     anymore. Although this might require more registers, it allows LLVM to
     simplify code ([#182]).
 
+  * Better error messages, showing backtraces into GPU code (#189) and detecting
+    common pitfalls like recursion or use of Base intrinsics (#210).
+
 
 Deprecations
 ------------
