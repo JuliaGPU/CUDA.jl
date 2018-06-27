@@ -405,6 +405,12 @@ function find_host_compiler(toolkit_version=nothing)
                 end
             end
         end
+        ## look in PATH as well
+        let msvc_path = Sys.which("cl.exe")
+            if msvc_path !== nothing
+                push!(msvc_paths, msvc_path)
+            end
+        end
         isempty(msvc_paths) && error("No Visual Studio installation found")
 
         # find MSVC versions
