@@ -679,7 +679,7 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs..
     return cuda_fun, cuda_mod
 end
 
-function init_jit()
+function __init_compiler__()
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("--nvptx-fma-level=1")
 end

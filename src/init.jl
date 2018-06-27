@@ -99,5 +99,5 @@ function __init__()
     end
 
     CUDAdrv.apicall_hook[] = maybe_initialize
-    init_jit()
+    __init_compiler__()
 end
