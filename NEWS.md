@@ -57,6 +57,10 @@ Changes
   * Better error messages, showing backtraces into GPU code (#189) and detecting
     common pitfalls like recursion or use of Base intrinsics (#210).
 
+  * IR debug information is now stripped from `@device_code_llvm` (and
+    `CUDAnative.code_llvm`) by default. Use the `strip_ir_metadata` (cfr. Base)
+    keyword argument to disable this.
+
 
 Deprecations
 ------------
