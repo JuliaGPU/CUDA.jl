@@ -360,7 +360,7 @@ if VERSION >= v"0.7.0-beta.48"
     @test haskey(record.kwargs, :exception)
     err,bt = record.kwargs[:exception]
     err_msg = sprint(showerror, err)
-    @test ismatch(r"You called sin(.+) in Base.Math .+, maybe you intended to call sin(.+) in CUDAnative .+ instead?", err_msg)
+    @test occursin(r"You called sin(.+) in Base.Math .+, maybe you intended to call sin(.+) in CUDAnative .+ instead?", err_msg)
     bt_msg = sprint(Base.show_backtrace, bt)
     @test occursin("[1] sin", bt_msg)
     @test occursin("[2] error_base_intrinsics", bt_msg)
