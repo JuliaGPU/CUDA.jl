@@ -27,6 +27,8 @@ end
 # Device pointer
 #
 
+export unsafe_cached_load
+
 struct DevicePtr{T,A}
     ptr::Ptr{T}
 
@@ -97,6 +99,23 @@ Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
 Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
+function tbaa_make_child(name::String, constant::Bool=false; ctx::LLVM.Context=JuliaContext())
+    tbaa_root = MDNode([MDString("ptxtbaa", ctx)], ctx)
+    tbaa_struct_type =
+        MDNode([MDString("ptxtbaa_$name", ctx),
+                tbaa_root,
+                LLVM.ConstantInt(0, ctx)], ctx)
+    tbaa_access_tag =
+        MDNode([tbaa_struct_type,
+                tbaa_struct_type,
+                LLVM.ConstantInt(0, ctx),
+                LLVM.ConstantInt(constant ? 1 : 0, ctx)], ctx)
+
+    return tbaa_access_tag
+end
+
+tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.name.name)))
+
 @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
                                      ::Val{align}=Val(1)) where {T,A,align}
     eltyp = convert(LLVMType, T)
@@ -119,9 +138,14 @@ Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
         ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
-        val = load!(builder, ptr_with_as)
-        alignment!(val, align)
-        ret!(builder, val)
+        ld = load!(builder, ptr_with_as)
+
+        if A != AS.Generic
+            metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+        end
+        alignment!(ld, align)
+
+        ret!(builder, ld)
     end
 
     call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
@@ -150,8 +174,13 @@ end
         ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
         ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
         val = parameters(llvm_f)[2]
-        inst = store!(builder, val, ptr_with_as)
-        alignment!(inst, align)
+        st = store!(builder, val, ptr_with_as)
+
+        if A != AS.Generic
+            metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+        end
+        alignment!(st, align)
+
         ret!(builder)
     end
 
@@ -217,9 +246,12 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
 
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
         ptr_with_as = addrspacecast!(builder, ptr, T_actual_ptr_as)
-        val = call!(builder, intrinsic,
-                    [ptr_with_as, ConstantInt(Int32(align), JuliaContext())])
-        ret!(builder, val)
+        ld = call!(builder, intrinsic,
+                   [ptr_with_as, ConstantInt(Int32(align), JuliaContext())])
+
+        metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global)
+
+        ret!(builder, ld)
     end
 
     call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
