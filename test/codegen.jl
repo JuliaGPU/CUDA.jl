@@ -146,6 +146,32 @@ end
     test_name(codegen_closure, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
 end
 
+@testset "PTX TBAA" begin
+    @eval codegen_load(ptr) = unsafe_load(ptr)
+    @eval codegen_store(ptr) = unsafe_store!(ptr, 0)
+
+    for f in (codegen_load, codegen_store)
+        ir = sprint(io->CUDAnative.code_llvm(io, f,
+                                             Tuple{CUDAnative.DevicePtr{Float32,AS.Global}};
+                                             dump_module=true))
+        @test occursin("ptxtbaa_global", ir)
+
+        # no TBAA on generic pointers
+        ir = sprint(io->CUDAnative.code_llvm(io, f,
+                                             Tuple{CUDAnative.DevicePtr{Float32,AS.Generic}};
+                                             dump_module=true))
+        @test !occursin("ptxtbaa", ir)
+    end
+
+
+    @eval codegen_cached_load(ptr) = unsafe_cached_load(ptr)
+
+    ir = sprint(io->CUDAnative.code_llvm(io, codegen_cached_load,
+                                         Tuple{CUDAnative.DevicePtr{Float32,AS.Global}};
+                                         dump_module=true))
+    @test occursin("ptxtbaa_global", ir)
+end
+
 end
 
 
