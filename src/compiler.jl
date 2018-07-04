@@ -156,20 +156,16 @@ function irgen(ctx::CompilerContext)
 
         # check for Base methods that exist in CUDAnative too
         # FIXME: this might be too coarse
-        function module_path(method)
-            modules = [method.module]
-            while !(parentmodule(last(modules)) in modules)
-                push!(modules, parentmodule(last(modules)))
-            end
-            modules
-        end
-        if Base in module_path(method_instance.def) && isdefined(CUDAnative, method_instance.def.name)
-            substitute_function = getfield(CUDAnative, method_instance.def.name)
+        method = method_instance.def
+        if first(fullname(method.module)) == :Base &&
+           isdefined(CUDAnative, method_instance.def.name)
+            substitute_function = getfield(CUDAnative, method.name)
             tt = Tuple{method_instance.specTypes.parameters[2:end]...}
             if hasmethod(substitute_function, tt)
-                method_instance′ = which(substitute_function, tt)
-                if CUDAnative in module_path(method_instance′)
-                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method_instance.def, method_instance′), backtrace(ctx, method_stack))
+                method′ = which(substitute_function, tt)
+                fullname(method′.module)
+                if first(fullname(method′.module)) == :CUDAnative
+                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method, method′), backtrace(ctx, method_stack))
                 end
             end
         end

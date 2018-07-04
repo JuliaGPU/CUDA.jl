@@ -359,7 +359,7 @@ end
 
 if VERSION >= v"0.7.0-beta.48"
 @testset "recursion" begin
-    @eval @noinline error_recurse_outer(i) = i > 0 ? i : error_recurse_inner(i)
+    @eval error_recurse_outer(i) = i > 0 ? i : error_recurse_inner(i)
     @eval @noinline error_recurse_inner(i) = i < 0 ? i : error_recurse_outer(i)
 
     @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_llvm(error_recurse_outer, Tuple{Int})) do msg
@@ -373,7 +373,7 @@ end
 
 if VERSION >= v"0.7.0-beta.48"
 @testset "base intrinsics" begin
-    @eval @noinline error_base_intrinsics(i) = sin(i)
+    @eval error_base_intrinsics(i) = sin(i)
 
     # NOTE: we don't use test_logs in order to test all of the warning (exception, backtrace)
     logs, _ = Test.collect_test_logs() do
