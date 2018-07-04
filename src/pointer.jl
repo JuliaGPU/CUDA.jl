@@ -27,6 +27,8 @@ end
 # Device pointer
 #
 
+export unsafe_cached_load
+
 struct DevicePtr{T,A}
     ptr::Ptr{T}
 

@@ -21,9 +21,9 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
 
     @test Mem.download(T, d_a) != Mem.download(T, d_b)
     if cached
-        @on_device Base.unsafe_store!($ptr_b, CUDAnative.unsafe_cached_load($ptr_a))
+        @on_device unsafe_store!($ptr_b, unsafe_cached_load($ptr_a))
     else
-        @on_device Base.unsafe_store!($ptr_b, CUDAnative.unsafe_load($ptr_a))
+        @on_device unsafe_store!($ptr_b, unsafe_load($ptr_a))
     end
     @test Mem.download(T, d_a) == Mem.download(T, d_b)
 end
