@@ -4,6 +4,7 @@ before_script:
 
 variables:
   JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia/"
+  JULIA_LOAD_PATH: "@.:"
 
 stages:
   - test
