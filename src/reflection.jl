@@ -55,25 +55,27 @@ code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
     code_llvm(stdout, func, types; kwargs...)
 
 """
-    code_ptx([io], f, types; cap::VersionNumber, kernel=false)
+    code_ptx([io], f, types; cap::VersionNumber, kernel=false, strip_ir_metadata=true)
 
 Prints the PTX assembly generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`. The device capability `cap` to generate
 code for defaults to the current active device's capability, or v"2.0" if there is no such
 active context. The optional `kernel` parameter indicates whether the function in question
-is an entry-point function, or a regular device function.
+is an entry-point function, or a regular device function. Finally, setting
+`strip_ir_metadata` removes all debug metadata (defaults to true).
 
 See also: [`@device_code_ptx`](@ref)
 """
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
-                  cap::VersionNumber=current_capability(), kernel::Bool=false, kwargs...)
+                  cap::VersionNumber=current_capability(), kernel::Bool=false,
+                  strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
     validate_invocation(ctx)
     code_ptx(io, ctx)
 end
-function code_ptx(io::IO, ctx::CompilerContext)
-    ptx,_ = compile_function(ctx)
+function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
+    ptx,_ = compile_function(ctx; strip_ir_metadata=strip_ir_metadata)
     # TODO: this code contains all the functions in the call chain,
     #       is it possible to implement `dump_module`?
     print(io, ptx)

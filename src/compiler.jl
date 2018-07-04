@@ -495,6 +495,7 @@ function machine(cap::VersionNumber, triple::String)
         feat = ""
     end
     tm = TargetMachine(t, triple, cpu, feat)
+    asm_verbosity!(tm, true)
 
     return tm
 end
@@ -580,7 +581,9 @@ end
 
 # Compile a function to PTX, returning the assembly and an entry point.
 # Not to be used directly, see `cufunction` instead.
-function compile_function(ctx::CompilerContext)
+# FIXME: this pipeline should be partially reusable from eg. code_llvm
+#        also, does the kernel argument belong in the compiler context?
+function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
     ## high-level code generation (Julia AST)
 
     @debug "(Re)compiling function" ctx
@@ -626,6 +629,10 @@ function compile_function(ctx::CompilerContext)
     # check generated IR
     validate_ir(ctx, mod)
     verify(mod)
+
+    if strip_ir_metadata
+        strip_debuginfo!(mod)
+    end
 
 
     ## machine code generation (PTX assembly)
