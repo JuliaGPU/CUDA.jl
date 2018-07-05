@@ -15,10 +15,10 @@ stages:
 .test_template: &test_template
   script:
     - mkdir $JULIA_DEPOT_PATH # Pkg3.jl#325
-    - julia -e "using Pkg;
-                Pkg.instantiate();
-                Pkg.build();
-                Pkg.test(; coverage=true);"
+    - julia --project-e "using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build();
+                          Pkg.test(; coverage=true);"
   artifacts:
     paths:
       - Manifest.toml
@@ -44,10 +44,10 @@ coverage:
   dependencies:
     - test:v0.7
   script:
-    - julia -e 'using Pkg;
-                Pkg.add("Coverage")'
-    - julia -e 'using Coverage;
-                cl, tl = get_summary(process_folder());
-                println("(", cl/tl*100, "%) covered");
-                Codecov.submit_local(process_folder(), ".")'
+    - julia --project -e 'using Pkg;
+                          Pkg.add("Coverage")'
+    - julia --project -e 'using Coverage;
+                          cl, tl = get_summary(process_folder());
+                          println("(", cl/tl*100, "%) covered");
+                          Codecov.submit_local(process_folder(), ".")'
   coverage: '/\(\d+.\d+\%\) covered/'

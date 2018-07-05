@@ -29,12 +29,12 @@ install:
   - powershell .\appveyor.ps1
 
 build_script:
-  - C:\julia\bin\julia -e "using InteractiveUtils;
-                           versioninfo();
-                           using Pkg;
-                           Pkg.instantiate();
-                           Pkg.build()"
+  - C:\julia\bin\julia --project -e "using InteractiveUtils;
+                                     versioninfo();
+                                     using Pkg;
+                                     Pkg.instantiate();
+                                     Pkg.build()"
 
 test_script:
-  - C:\julia\bin\julia -e "using Pkg;
-                           Pkg.test()"
+  - C:\julia\bin\julia --project -e "using Pkg;
+                                     Pkg.test()"
