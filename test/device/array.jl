@@ -71,9 +71,8 @@ end
 
 @testset "iteration" begin     # argument passing, get and setindex, length
     dims = (16, 16)
-    @eval function array_iteration(input::CuDeviceArray{Float32}, output::CuDeviceArray{Float32})
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        acc = 0f0
+    @eval function array_iteration(input::CuDeviceArray{T}, output::CuDeviceArray{T}) where {T}
+        acc = zero(T)
         for elem in input
             acc += elem
         end
