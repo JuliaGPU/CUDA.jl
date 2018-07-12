@@ -267,10 +267,10 @@ end
 
 @testset "non-isbits arguments" begin
     @eval exec_pass_nonbits_unused(T, i) = sink(i)
-    @cuda exec_pass_nonbits_unused(Int, 1)
+    @test_broken @cuda exec_pass_nonbits_unused(Int, 1)
 
     @eval exec_pass_nonbits_specialized(T, i) = sink(unsafe_trunc(T,i))
-    @cuda exec_pass_nonbits_specialized(Int, 1.)
+    @test_broken @cuda exec_pass_nonbits_specialized(Int, 1.)
 end
 
 
