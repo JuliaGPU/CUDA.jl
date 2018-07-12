@@ -15,7 +15,7 @@ using CUDAdrv, CUDAnative
 #
 
 # Reduce a value across a warp
-@inline function reduce_warp(op::Function, val::T)::T where {T}
+@inline function reduce_warp(op::F, val::T)::T where {F<:Function,T}
     offset = CUDAnative.warpsize() ÷ 2
     # TODO: this can be unrolled if warpsize is known...
     while offset > 0
@@ -26,7 +26,7 @@ using CUDAdrv, CUDAnative
 end
 
 # Reduce a value across a block, using shared memory for communication
-@inline function reduce_block(op::Function, val::T)::T where {T}
+@inline function reduce_block(op::F, val::T)::T where {F<:Function,T}
     # shared mem for 32 partial sums
     shared = @cuStaticSharedMem(T, 32)
 
@@ -57,8 +57,8 @@ end
 end
 
 # Reduce an array across a complete grid
-function reduce_grid(op::Function, input::CuDeviceVector{T}, output::CuDeviceVector{T},
-                     len::Integer) where {T}
+function reduce_grid(op::F, input::CuDeviceVector{T}, output::CuDeviceVector{T},
+                     len::Integer) where {F<:Function,T}
 
     # TODO: neutral element depends on the operator (see Base's 2 and 3 argument `reduce`)
     val = zero(T)
