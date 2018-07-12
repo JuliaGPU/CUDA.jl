@@ -42,6 +42,8 @@ DevicePtr{T}(ptr::Ptr{T}) where {T} = DevicePtr{T,AS.Generic}(ptr)
 # outer constructors, non-parameterized
 DevicePtr(ptr::Ptr{T})              where {T} = DevicePtr{T,AS.Generic}(ptr)
 
+Base.show(io::IO, dp::DevicePtr{T,AS}) where {T,AS} = print(io, AS.name.name, " Device", pointer(dp))
+
 
 ## getters
 
