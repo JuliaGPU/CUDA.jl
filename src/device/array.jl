@@ -127,13 +127,16 @@ Base.show(io::IO, a::CuDeviceArray) =
 
 Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
 
-function Base.unsafe_view(A::CuDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
-    Base.@_inline_meta
+@inline function Base.unsafe_view(A::CuDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
     ptr = pointer(A) + (I[1].start-1)*sizeof(T)
     len = I[1].stop - I[1].start + 1
     return CuDeviceArray(len, ptr)
 end
 
-function Base.iterate(x::CuDeviceArray, i=1)
-    i >= length(x) + 1 ? nothing : (x[i], i+1)
+@inline function Base.iterate(A::CuDeviceArray, i=1)
+    if (i % UInt) - 1 < length(A)
+        (@inbounds A[i], i + 1)
+    else
+        nothing
+    end
 end
