@@ -15,7 +15,7 @@ stages:
 .test_template: &test_template
   script:
     - mkdir $JULIA_DEPOT_PATH # Pkg3.jl#325
-    - julia --project-e "using Pkg;
+    - julia --project -e "using Pkg;
                           Pkg.instantiate();
                           Pkg.build();
                           Pkg.test(; coverage=true);"
