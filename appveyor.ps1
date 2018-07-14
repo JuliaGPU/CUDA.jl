@@ -14,7 +14,7 @@ if ($env:APPVEYOR_PULL_REQUEST_NUMBER -and $env:APPVEYOR_BUILD_NUMBER -ne ((Invo
 # Julia
 
 $julia_installers = @{}
-$julia_installers.Add('0.7',     'https://julialang-s3.julialang.org/bin/winnt/x64/0.7/julia-0.7.0-alpha-win64.exe')
+$julia_installers.Add('0.7',     'https://julialang-s3.julialang.org/bin/winnt/x64/0.7/julia-0.7.0-beta2-win64.exe')
 $julia_installers.Add('nightly', 'https://julialangnightlies-s3.julialang.org/bin/winnt/x64/julia-latest-win64.exe')
 
 $julia_installer = $julia_installers.Get_Item($env:JULIA)
