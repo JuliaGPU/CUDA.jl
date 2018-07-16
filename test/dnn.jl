@@ -39,4 +39,13 @@ end
   @test testf(CuArrays.CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
 end
 
+@testset "Convolution WorkSpace Size" begin
+  x = cu(rand(10, 10, 3, 1));
+  y = cu(rand(9, 9, 4, 1));
+  w = cu(rand(2, 2, 3, 4));
+  @test CuArrays.CUDNN.cudnnGetConvolutionForwardWorkspaceSize(y, x, w, algo = 1) == 492
+  @test CuArrays.CUDNN.cudnnGetConvolutionBackwardFilterWorkspaceSize(w, x, w, y, algo = 1) == 2452
+  @test CuArrays.CUDNN.cudnnGetConvolutionBackwardDataWorkspaceSize(x, x, w, y, algo = 1) == 2784
+end
+
 end
