@@ -76,7 +76,7 @@ function Base.copyto!(
     d_offset = d_offset
     s_offset = s_offset - 1
     buf = Mem.view(source.buf, s_offset*sizeof(T))
-    CUDAdrv.Mem.download(Ref(dest, d_offset), buf, sizeof(T) * (amount))
+    CUDAdrv.Mem.download!(Ref(dest, d_offset), buf, sizeof(T) * (amount))
     dest
 end
 
@@ -88,7 +88,7 @@ function Base.copyto!(
     d_offset = d_offset - 1
     s_offset = s_offset
     buf = Mem.view(dest.buf, s_offset*sizeof(T))
-    CUDAdrv.Mem.upload(buf, Ref(source, s_offset), sizeof(T) * (amount))
+    CUDAdrv.Mem.upload!(buf, Ref(source, s_offset), sizeof(T) * (amount))
     dest
 end
 
@@ -102,6 +102,6 @@ function Base.copyto!(
     s_ptr = source.ptr
     dptr = d_ptr + (sizeof(T) * d_offset)
     sptr = s_ptr + (sizeof(T) * s_offset)
-    CUDAdrv.Mem.transfer(sptr, dptr, sizeof(T) * (amount))
+    CUDAdrv.Mem.transfer!(sptr, dptr, sizeof(T) * (amount))
     dest
 end
