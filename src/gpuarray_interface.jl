@@ -14,6 +14,8 @@ end
 
 @inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
 
+GPUArrays.blas_module(::CuArray) = CuArrays.BLAS
+GPUArrays.blasbuffer(x::CuArray) = x
 
 """
 Blocks until all operations are finished on `A`
@@ -38,7 +40,7 @@ for (i, sym) in enumerate((:x, :y, :z))
 end
 
 # devices() = CUDAdrv.devices()
-GPUArrays.device(A::CuArray) = CUDAnative.default_device[]
+GPUArrays.device(A::CuArray) = CUDAdrv.device(CUDAdrv.CuCurrentContext())
 GPUArrays.is_gpu(dev::CUDAdrv.CuDevice) = true
 GPUArrays.name(dev::CUDAdrv.CuDevice) = string("CU ", CUDAdrv.name(dev))
 GPUArrays.threads(dev::CUDAdrv.CuDevice) = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
