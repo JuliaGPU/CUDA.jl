@@ -20,6 +20,8 @@ CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
+Base.elsize(::CuArray{T}) where T = sizeof(T)
+
 function unsafe_free!(xs::CuArray)
   Mem.release(xs.buf) && dealloc(xs.buf, prod(xs.dims)*sizeof(eltype(xs)))
   return
