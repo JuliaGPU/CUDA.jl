@@ -1,30 +1,14 @@
-using Base.Cartesian
+# using Base.Cartesian
 using LinearAlgebra: Transpose
-using Base.Broadcast: Broadcasted, BroadcastStyle, ArrayStyle
+import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle
+
+cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.axes, map(cudaconvert, bc.args), bc.axes)
+cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), e.keeps, ex.defaults)
+cudaconvert(x::Transpose{<:Any,<:CuArray}) = Transpose(cudaconvert(x.vec))
 
 BroadcastStyle(::Type{<:CuArray}) = ArrayStyle{CuArray}()
-
-cudaconvert(b::Broadcasted{S}) where S = Broadcasted{S}(b.axes, cudaconvert.(b.args))
-
-function broadcast_kernel(out, bc)
-  I = @cuindex out
-  @inbounds out[I...] = bc[I...]
-end
-
-@inline function Base.copy(bc::Broadcasted{ArrayStyle{CuArray}})
-  bc = Broadcast.flatten(bc)
-  T = Broadcast.combine_eltypes(bc.f, bc.args)
-  isconcretetype(T) || error("Broadcast output type $T is not concrete")
-  out = similar(bc, T)
-  blk, thr = cudims(out)
-  @cuda blocks=blk threads=thr broadcast_kernel(out, bc)
-  return out
-end
-
-# Hacky interop
-
 BroadcastStyle(::Type{<:Transpose{<:Any,<:CuArray}}) = ArrayStyle{CuArray}()
-cudaconvert(x::Transpose{<:Any,<:CuArray}) = Transpose(cudaconvert(x.vec))
+Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{ET}) where ET = similar(CuArray{ET}, axes(bc))
 
 # Broadcast function fixes
 
@@ -51,6 +35,7 @@ libdevice = :[
   fma, sad, dim, mul24, mul64hi, hadd, rhadd, scalbn].args
 
 for f in libdevice
+  # TODO use Broadcast.broadcasted(::ArrayStyle{<:CuArray}, ::typeof(f), args...)
   isdefined(Base, f) || continue
   @eval cufunc(::typeof(Base.$f)) = CUDAnative.$f
 end

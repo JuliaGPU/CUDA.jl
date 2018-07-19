@@ -41,10 +41,10 @@ CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
 
 CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float32,N}(dims)
 
-(::Type{T})(::UndefInitializer, dims...) where T<:CuArray = T(dims...)
-
 (T::Type{<:CuArray})(dims::Integer...) = T(dims)
 
+Base.similar(a::CuArray{T,N}) where {T,N} = CuArray{T,N}(size(a))
+Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(dims)
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} =
   CuArray{T,N}(dims)
 
@@ -134,19 +134,7 @@ cuones(T::Type, dims...) = fill!(CuArray{T}(dims...), 1)
 cuzeros(dims...) = cuzeros(Float32, dims...)
 cuones(dims...) = cuones(Float32, dims...)
 
-Base.show(io::IO, ::Type{CuArray{T,N}}) where {T,N} =
-  print(io, "CuArray{$T,$N}")
-
-# function Base.showarray(io::IO, X::CuArray, repr::Bool = true; header = true)
-#   if repr
-#     print(io, "CuArray(")
-#     Base.showarray(io, collect(X), true)
-#     print(io, ")")
-#   else
-#     header && println(io, summary(X), ":")
-#     Base.showarray(io, collect(X), false, header = false)
-#   end
-# end
+Base.show(io::IO, X::CuArray) = Base.show(io, collect(X))
 
 import Adapt: adapt, adapt_
 
