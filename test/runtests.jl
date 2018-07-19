@@ -13,7 +13,7 @@ if Base.JLOptions().check_bounds == 1
   exit()
 end
 
-using CuArrays, CUDAnative, CUDAdrv
+using CuArrays, CUDAnative
 using CuArrays: @fix
 using Test
 
