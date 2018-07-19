@@ -184,6 +184,8 @@ const CUDNN_ACTIVATION_SIGMOID = (UInt32)(0)
 const CUDNN_ACTIVATION_RELU = (UInt32)(1)
 const CUDNN_ACTIVATION_TANH = (UInt32)(2)
 const CUDNN_ACTIVATION_CLIPPED_RELU = (UInt32)(3)
+const CUDNN_ACTIVATION_ELU = (UInt32)(4)
+const CUDNN_ACTIVATION_IDENTITY = (UInt32)(5)
 # end enum cudnnActivationMode_t
 
 # begin enum cudnnLRNMode_t
