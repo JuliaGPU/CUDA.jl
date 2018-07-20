@@ -2,7 +2,7 @@
 using LinearAlgebra: Transpose
 import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle
 
-cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.axes, map(cudaconvert, bc.args), bc.axes)
+cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
 cudaconvert(x::Transpose{<:Any,<:CuArray}) = Transpose(cudaconvert(x.vec))
 
