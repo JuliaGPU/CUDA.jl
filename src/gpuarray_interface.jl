@@ -36,7 +36,7 @@ for (i, sym) in enumerate((:x, :y, :z))
         )
         fname = Symbol(string(f, '_', sym))
         cufun = Symbol(string(fcu, '_', sym))
-        @eval GPUArrays.$fname(::CuKernelState)::Cuint = CUDAnative.$cufun()
+        @eval GPUArrays.$fname(::CuKernelState) = CUDAnative.$cufun()
     end
 end
 
