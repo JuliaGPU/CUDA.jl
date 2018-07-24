@@ -5,8 +5,9 @@ Base.similar(::Type{<:CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = Cu
 #Abstract GPU interface
 struct CuKernelState end
 
-@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{C}) where {T, N, C}
-    CUDAnative.generate_static_shmem(Val{C}, T, Val{N})
+@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{id}) where {T, N, id}
+    ptr = CUDAnative._shmem(Val(id), T, Val(N))
+    CuDeviceArray(N, DevicePtr{T, CUDAnative.AS.Shared}(ptr))
 end
 
 (::Type{GPUArrays.AbstractDeviceArray})(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
