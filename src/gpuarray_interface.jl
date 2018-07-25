@@ -90,7 +90,7 @@ function Base.copyto!(
     amount == 0 && return dest
     d_offset = d_offset - 1
     s_offset = s_offset
-    buf = Mem.view(dest.buf, s_offset*sizeof(T))
+    buf = Mem.view(dest.buf, d_offset*sizeof(T))
     CUDAdrv.Mem.upload!(buf, Ref(source, s_offset), sizeof(T) * (amount))
     dest
 end
