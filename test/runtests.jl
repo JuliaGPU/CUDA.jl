@@ -83,7 +83,7 @@ end
 @testset "Broadcast" begin
   @test testf((x)       -> fill!(x, 1),  rand(3,3))
   @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
-  #@test testf((x)       -> sin.(x),      rand(2, 3))
+  @test testf((x)       -> sin.(x),      rand(2, 3))
   @test testf((x)       -> 2x,      rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
@@ -93,8 +93,8 @@ using ForwardDiff: Dual
 using NNlib
 
 @testset "Broadcast Fix" begin
-  @test testf(x -> @fix(log.(x)), rand(3,3))
-  @test testf((x,xs) -> @fix(log.(x.+xs)), 1, rand(3,3))
+  @test testf(x -> log.(x), rand(3,3))
+  @test testf((x,xs) -> log.(x.+xs), 1, rand(3,3))
   @test testf(x -> @fix(logσ.(x)), rand(5))
 
   f(x) = @fix logσ.(x)
