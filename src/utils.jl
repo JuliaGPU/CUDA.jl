@@ -113,5 +113,5 @@ function Base.cat_t(dims::Integer, T::Type, x::CuArray, xs::CuArray...)
   _cat(dims, dest, x, xs...)
 end
 
-Base.vcat(xs::CuArray...) = cat(1, xs...)
-Base.hcat(xs::CuArray...) = cat(2, xs...)
+Base.vcat(xs::CuArray...) = cat(xs..., dims=1)
+Base.hcat(xs::CuArray...) = cat(xs..., dims=2)
