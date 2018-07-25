@@ -76,9 +76,7 @@ function Base.copyto!(
         source::CuArray{T}, s_offset::Integer, amount::Integer
     ) where T
     amount == 0 && return dest
-    d_offset = d_offset
-    s_offset = s_offset - 1
-    buf = Mem.view(source.buf, s_offset*sizeof(T))
+    buf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
     CUDAdrv.Mem.download!(Ref(dest, d_offset), buf, sizeof(T) * (amount))
     dest
 end
@@ -88,9 +86,7 @@ function Base.copyto!(
         source::Array{T}, s_offset::Integer, amount::Integer
     ) where T
     amount == 0 && return dest
-    d_offset = d_offset - 1
-    s_offset = s_offset
-    buf = Mem.view(dest.buf, d_offset*sizeof(T))
+    buf = Mem.view(unsafe_buffer(dest), (d_offset - 1) * sizeof(T))
     CUDAdrv.Mem.upload!(buf, Ref(source, s_offset), sizeof(T) * (amount))
     dest
 end
@@ -99,12 +95,9 @@ function Base.copyto!(
         dest::CuArray{T}, d_offset::Integer,
         source::CuArray{T}, s_offset::Integer, amount::Integer
     ) where T
-    d_offset = d_offset - 1
-    s_offset = s_offset - 1
-    d_ptr = dest.ptr
-    s_ptr = source.ptr
-    dptr = d_ptr + (sizeof(T) * d_offset)
-    sptr = s_ptr + (sizeof(T) * s_offset)
-    CUDAdrv.Mem.transfer!(sptr, dptr, sizeof(T) * (amount))
+    amount == 0 && return dest
+    sbuf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
+    dbuf = Mem.view(unsafe_buffer(dest),   (d_offset - 1) * sizeof(T))
+    CUDAdrv.Mem.transfer!(sbuf, dbuf, sizeof(T) * (amount))
     dest
 end
