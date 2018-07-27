@@ -249,7 +249,7 @@ function irgen(ctx::CompilerContext)
     # clean up incompatibilities
     for llvmf in functions(mod)
         # only occurs in debug builds
-        delete!(function_attributes(llvmf), EnumAttribute("sspreq", 0, JuliaContext()))
+        delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
 
         # make function names safe for ptxas
         # (LLVM ought to do this, see eg. D17738 and D19126), but fails
