@@ -438,42 +438,51 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
     return wrapper_f
 end
 
-const libdevices = Dict{String, LLVM.Module}()
-function link_libdevice!(ctx::CompilerContext, mod::LLVM.Module)
+function find_libdevice(cap)
     CUDAnative.configured || return
+    global libdevice
 
-    # find libdevice
-    path = if isa(libdevice, Dict)
+    if isa(libdevice, Dict)
         # select the most recent & compatible library
         vers = keys(CUDAnative.libdevice)
-        compat_vers = Set(ver for ver in vers if ver <= ctx.cap)
+        compat_vers = Set(ver for ver in vers if ver <= cap)
         isempty(compat_vers) && error("No compatible CUDA device library available")
         ver = maximum(compat_vers)
         path = libdevice[ver]
     else
         libdevice
     end
+end
 
-    # load the library, once
-    if !haskey(libdevices, path)
+const libdevices = Dict{String, LLVM.Module}()
+function load_libdevice(ctx::CompilerContext)
+    path = find_libdevice(ctx.cap)
+
+    get!(libdevices, path) do
         open(path) do io
-            libdevice_mod = parse(LLVM.Module, read(io), JuliaContext())
-            name!(libdevice_mod, "libdevice")
-            libdevices[path] = libdevice_mod
+            libdevice = parse(LLVM.Module, read(io), JuliaContext())
+            name!(libdevice, "libdevice")
+            libdevice
         end
     end
-    libdevice_mod = LLVM.Module(libdevices[path])
+end
 
+function link_libdevice!(ctx::CompilerContext, mod::LLVM.Module, libdevice::LLVM.Module)
     # override libdevice's triple and datalayout to avoid warnings
-    triple!(libdevice_mod, triple(mod))
-    datalayout!(libdevice_mod, datalayout(mod))
+    triple!(libdevice, triple(mod))
+    datalayout!(libdevice, datalayout(mod))
 
     # 1. save list of external functions
-    exports = map(LLVM.name, functions(mod))
-    filter!(fn->!haskey(functions(libdevice_mod), fn), exports)
+    exports = String[]
+    for f in functions(mod)
+        fn = LLVM.name(f)
+        if !haskey(functions(libdevice), fn)
+            push!(exports, fn)
+        end
+    end
 
     # 2. link with libdevice
-    link!(mod, libdevice_mod)
+    link!(mod, libdevice)
 
     ModulePassManager() do pm
         # 3. internalize all functions not in list from (1)
@@ -629,10 +638,14 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     @trace("Module entry point: ", LLVM.name(entry))
 
-    # link libdevice, if it might be necessary
-    # TODO: should be more find-grained -- only matching functions actually in this libdevice
-    if any(f->isdeclaration(f) && intrinsic_id(f)==0, functions(mod))
-        link_libdevice!(ctx, mod)
+    # link libdevice, if it is necessary
+    libdevice = load_libdevice(ctx)
+    for f in functions(mod)
+        if isdeclaration(f) && intrinsic_id(f)==0 && haskey(functions(libdevice), LLVM.name(f))
+            libdevice_copy = LLVM.Module(libdevice)
+            link_libdevice!(ctx, mod, libdevice_copy)
+            break
+        end
     end
 
     # optimize the IR
