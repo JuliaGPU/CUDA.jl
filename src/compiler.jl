@@ -123,9 +123,9 @@ function irgen(ctx::CompilerContext)
     isa(ctx.f, Core.Builtin) && throw(CompilerError(ctx, "function is not a generic function"))
     world = typemax(UInt)
     meth = which(ctx.f, ctx.tt)
-    sig_tt = Tuple{typeof(ctx.f), ctx.tt.parameters...}
+    sig = Base.signature_type(ctx.f, ctx.tt)::Type
     (ti, env) = ccall(:jl_type_intersection_with_env, Any,
-                      (Any, Any), sig_tt, meth.sig)::Core.SimpleVector
+                      (Any, Any), sig, meth.sig)::Core.SimpleVector
     meth = Base.func_for_method_checked(meth, ti)
     linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
                   (Any, Any, Any, UInt), meth, ti, env, world)
@@ -174,22 +174,16 @@ function irgen(ctx::CompilerContext)
         @assert last(method_stack) == method
         pop!(method_stack)
     end
-    params = let
-        kwargs = Dict(
-                :cached             => false,
-                :track_allocations  => false,
-                :code_coverage      => false,
-                :static_alloc       => false,
-                :prefer_specsig     => true,
-                :module_setup       => hook_module_setup,
-                :module_activation  => hook_module_activation,
-                :raise_exception    => hook_raise_exception)
-        if VERSION >= v"0.7.0-beta.48"
-            kwargs[:emit_function]    = hook_emit_function
-            kwargs[:emitted_function] = hook_emitted_function
-        end
-        Base.CodegenParams(;kwargs...)
-    end
+    params = Base.CodegenParams(cached             = false,
+                                track_allocations  = false,
+                                code_coverage      = false,
+                                static_alloc       = false,
+                                prefer_specsig     = true,
+                                module_setup       = hook_module_setup,
+                                module_activation  = hook_module_activation,
+                                raise_exception    = hook_raise_exception,
+                                emit_function      = hook_emit_function,
+                                emitted_function   = hook_emitted_function)
 
     # get the code
     mod = let
@@ -206,35 +200,51 @@ function irgen(ctx::CompilerContext)
 
     # the main module should contain a single jfptr_ function definition,
     # e.g. jlcall_kernel_vadd_62977
-    definitions = filter(f->!isdeclaration(f), functions(mod))
-    wrapper = let
-        fs = collect(filter(f->startswith(LLVM.name(f), "jfptr_"), definitions))
-        @assert length(fs) == 1
-        fs[1]
+    definitions = LLVM.Function[]
+    for llvmf in functions(mod)
+        if !isdeclaration(llvmf)
+            push!(definitions, llvmf)
+        end
     end
+    wrapper = nothing
+    for llvmf in definitions
+        if startswith(LLVM.name(llvmf), "jfptr_")
+            @assert wrapper == nothing
+            wrapper = llvmf
+        end
+    end
+    @assert wrapper != nothing
 
     # the jlcall wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
     entry_tag = let
-        m = match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))
-        @assert m != nothing
+        m = match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))::RegexMatch
         m.captures[1]
     end
     unsafe_delete!(mod, wrapper)
     entry = let
         re = Regex("julia_$(entry_tag)_\\d+")
         llvmcall_re = Regex("julia_$(entry_tag)_\\d+u\\d+")
-        fs = collect(filter(f->occursin(re, LLVM.name(f)) &&
-                               !occursin(llvmcall_re, LLVM.name(f)), definitions))
-        if length(fs) != 1
+        entrypoints = LLVM.Function[]
+        for llvmf in definitions
+            if llvmf != wrapper
+                llvmfn = LLVM.name(llvmf)
+                if occursin(re, llvmfn) && !occursin(llvmcall_re, llvmfn)
+                    push!(entrypoints, llvmf)
+                end
+            end
+        end
+        if length(entrypoints) != 1
             throw(CompilerError(f, tt, cap, "could not find single entry-point";
                                 entry=>entry_tag, available=>[LLVM.name.(definitions)]))
         end
-        fs[1]
+        entrypoints[1]
     end
 
     # link in dependent modules
-    link!.(Ref(mod), dependencies)
+    for dep in dependencies
+        link!(mod, dep)
+    end
 
     # clean up incompatibilities
     for llvmf in functions(mod)
@@ -256,7 +266,7 @@ function irgen(ctx::CompilerContext)
     # rename the entry point
     llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
     ## add a friendlier alias
-    alias = something(ctx.alias, String(typeof(something(ctx.inner_f, ctx.f)).name.mt.name))
+    alias = something(ctx.alias, String(typeof(something(ctx.inner_f, ctx.f)).name.mt.name))::String
     if startswith(alias, '#')
         alias = "anonymous"
     else
@@ -287,14 +297,20 @@ function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.F
     append!(annotations, [MDString("kernel"), ConstantInt(Int32(1), JuliaContext())])
 
     ## expected CTA sizes
-    for (typ,vals) in (:req=>ctx.minthreads, :max=>ctx.maxthreads)
-        if vals != nothing
-            bounds = CUDAdrv.CuDim3(vals)
-            for dim in (:x, :y, :z)
-                bound = getfield(bounds, dim)
-                append!(annotations, [MDString("$(typ)ntid$(dim)"),
-                                      ConstantInt(Int32(bound), JuliaContext())])
-            end
+    if ctx.minthreads != nothing
+        bounds = CUDAdrv.CuDim3(ctx.minthreads)
+        for dim in (:x, :y, :z)
+            bound = getfield(bounds, dim)
+            append!(annotations, [MDString("reqntid$dim"),
+                                  ConstantInt(Int32(bound), JuliaContext())])
+        end
+    end
+    if ctx.maxthreads != nothing
+        bounds = CUDAdrv.CuDim3(ctx.maxthreads)
+        for dim in (:x, :y, :z)
+            bound = getfield(bounds, dim)
+            append!(annotations, [MDString("maxntid$dim"),
+                                  ConstantInt(Int32(bound), JuliaContext())])
         end
     end
 
@@ -315,29 +331,34 @@ function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.F
     return kernel
 end
 
+function wrapper_type(julia_t::Type, codegen_t::LLVMType)::LLVMType
+    if !isbitstype(julia_t)
+        # don't pass jl_value_t by value; it's an opaque structure
+        return codegen_t
+    elseif isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
+        # we didn't specify a pointer, but codegen passes one anyway.
+        # make the wrapper accept the underlying value instead.
+        return eltype(codegen_t)
+    else
+        return codegen_t
+    end
+end
+
 # generate a kernel wrapper to fix & improve argument passing
 function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
-    entry_ft = eltype(llvmtype(entry_f))
+    entry_ft = eltype(llvmtype(entry_f)::LLVM.PointerType)::LLVM.FunctionType
     @assert return_type(entry_ft) == LLVM.VoidType(JuliaContext())
 
     # filter out ghost types, which don't occur in the LLVM function signatures
-    sig = Base.signature_type(ctx.f, ctx.tt)
-    julia_types = filter(dt->!isghosttype(dt), sig.parameters)
-
-    # generate the wrapper function type & definition
-    global globalUnique
-    function wrapper_type(julia_t, codegen_t)
-        if !isbitstype(julia_t)
-            # don't pass jl_value_t by value; it's an opaque structure
-            return codegen_t
-        elseif isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
-            # we didn't specify a pointer, but codegen passes one anyway.
-            # make the wrapper accept the underlying value instead.
-            return eltype(codegen_t)
-        else
-            return codegen_t
+    sig = Base.signature_type(ctx.f, ctx.tt)::Type
+    julia_types = Type[]
+    for dt::Type in sig.parameters
+        if !isghosttype(dt)
+            push!(julia_types, dt)
         end
     end
+
+    # generate the wrapper function type & definition
     wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
@@ -346,7 +367,7 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
     # emit IR performing the "conversions"
-    Builder(JuliaContext()) do builder
+    let builder = Builder(JuliaContext())
         entry = BasicBlock(wrapper_f, "entry", JuliaContext())
         position!(builder, entry)
 
@@ -403,6 +424,7 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         call!(builder, entry_f, wrapper_args)
 
         ret!(builder)
+        dispose(builder)
     end
 
     # early-inline the original entry function into the wrapper
@@ -504,10 +526,17 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     # so forcibly inline every function definition into the entry point
     # and internalize all other functions (enabling ABI-breaking optimizations).
     # FIXME: this is too coarse. use a proper inliner tuned for GPUs
-    ModulePassManager() do pm
+    let pm = ModulePassManager()
+        definitions = LLVM.Function[]
+        for f in functions(mod)
+            if f!=entry && !isdeclaration(f)
+                push!(definitions, f)
+            end
+        end
+
         no_inline = EnumAttribute("noinline", 0, JuliaContext())
         always_inline = EnumAttribute("alwaysinline", 0, JuliaContext())
-        for f in filter(f->f!=entry && !isdeclaration(f), functions(mod))
+        for f in definitions
             attrs = function_attributes(f)
             if !(no_inline in collect(attrs))
                 push!(attrs, always_inline)
@@ -515,10 +544,12 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
             linkage!(f, LLVM.API.LLVMInternalLinkage)
         end
         always_inliner!(pm)
+
         run!(pm, mod)
+        dispose(pm)
     end
 
-    ModulePassManager() do pm
+    let pm = ModulePassManager()
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
         ccall(:jl_add_optimization_passes, Cvoid,
@@ -565,6 +596,7 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
 
 
         run!(pm, mod)
+        dispose(pm)
     end
 end
 
@@ -608,7 +640,7 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     # make sure any non-isbits arguments are unused
     real_arg_i = 0
-    sig = Base.signature_type(ctx.f, ctx.tt)
+    sig = Base.signature_type(ctx.f, ctx.tt)::Type
     for (arg_i,dt) in enumerate(sig.parameters)
         isghosttype(dt) && continue
         real_arg_i += 1
