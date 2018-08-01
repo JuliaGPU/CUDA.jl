@@ -19,58 +19,6 @@ macro cuindex(A)
   end
 end
 
-function Base.fill!(xs::CuArray, x)
-  function kernel(xs, x)
-    I = @cuindex xs
-    xs[I...] = x
-    return
-  end
-  blk, thr = cudims(xs)
-  @cuda blocks=blk threads=thr kernel(xs, convert(eltype(xs), x))
-  return xs
-end
-
-Base.fill(::Type{CuArray}, x, dims) = fill!(CuArray{typeof(x)}(dims), x)
-
-genperm(I::NTuple{N}, perm::NTuple{N}) where N =
-  ntuple(d->I[perm[d]], Val{N})
-
-function Base.permutedims!(dest::CuArray, src::CuArray, perm::NTuple)
-  function kernel(dest, src, perm)
-    I = @cuindex src
-    @inbounds dest[genperm(I, perm)...] = src[I...]
-    return
-  end
-  blk, thr = cudims(dest)
-  @cuda blocks=blk threads=thr kernel(dest, src, perm)
-  return dest
-end
-
-Base.permutedims!(dest::CuArray, src::CuArray, perm) =
-  permutedims!(dest, src, (perm...,))
-
-allequal(x) = true
-allequal(x, y, z...) = x == y && allequal(y, z...)
-
-function Base.map!(f, y::CuArray, xs::CuArray...)
-  @assert allequal(size.((y, xs...))...)
-  return y .= f.(xs...,)
-end
-
-function Base.map(f, y::CuArray, xs::CuArray...)
-  @assert allequal(size.((y, xs...))...)
-  return f.(y, xs...)
-end
-
-# Break ambiguities with base
-Base.map!(f, y::CuArray) =
-  invoke(map!, Tuple{Any,CuArray,Vararg{CuArray}}, f, y)
-Base.map!(f, y::CuArray, x::CuArray) =
-  invoke(map!, Tuple{Any,CuArray,Vararg{CuArray}}, f, y, x)
-Base.map!(f, y::CuArray, x1::CuArray, x2::CuArray) =
-  invoke(map!, Tuple{Any,CuArray,Vararg{CuArray}}, f, y, x1, x2)
-
-# Concatenation
 
 @generated function nindex(i::T, ls::NTuple{N,T}) where {N,T}
   na = one(i)
