@@ -24,7 +24,7 @@ Blocks until all operations are finished on `A`
 function GPUArrays.synchronize(A::CuArray)
     # fallback is a noop, for backends not needing synchronization. This
     # makes it easier to write generic code that also works for AbstractArrays
-    CUDAdrv.synchronize(CUDAnative.default_context[])
+    CUDAdrv.synchronize()
 end
 
 for (i, sym) in enumerate((:x, :y, :z))
