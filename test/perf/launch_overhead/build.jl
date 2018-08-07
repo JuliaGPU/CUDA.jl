@@ -10,5 +10,5 @@ cd(@__DIR__) do
     toolchain = CUDAapi.find_toolchain(toolkit)
     flags = `-ccbin=$(toolchain.host_compiler) -arch=sm_$(cap.major)$(cap.minor)`
     run(`$nvcc $flags -ptx -o cuda.ptx cuda.cu`)
-    run(`$nvcc $flags -lcuda -o cuda cuda.c`)
+    run(`$nvcc $flags -lm -lcuda -o cuda cuda.c`)
 end

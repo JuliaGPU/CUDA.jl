@@ -2,7 +2,6 @@ using CUDAnative, CUDAdrv
 import LLVM
 
 using Test
-import Pkg
 
 @testset "CUDAnative" begin
 

@@ -3,23 +3,24 @@
 # CUDAnative.jl version
 
 using CUDAdrv, CUDAnative
-using InteractiveUtils
+
+using Statistics
+using Printf
 
 kernel_dummy(ptr) = Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)
 
 const len = 1000
-const ITERATIONS = 5000
+const ITERATIONS = 100
 
 function benchmark(gpu_buf)
     @cuda threads=len kernel_dummy(Base.unsafe_convert(Ptr{Float32}, gpu_buf))
 end
 
 function main()    
-    cpu_time = Vector{Float64}(ITERATIONS)
-    gpu_time = Vector{Float64}(ITERATIONS)
+    cpu_time = Vector{Float64}(undef, ITERATIONS)
+    gpu_time = Vector{Float64}(undef, ITERATIONS)
 
     gpu_buf = Mem.alloc(len*sizeof(Float32))
-    @code_warntype benchmark(gpu_buf)
     for i in 1:ITERATIONS
         i == ITERATIONS-4 && CUDAdrv.Profile.start()
 
@@ -38,8 +39,11 @@ function main()
     CUDAdrv.Profile.stop()
     Mem.free(gpu_buf)
 
-    @printf("CPU time: %.2fus\n", median(cpu_time))
-    @printf("GPU time: %.2fus\n", median(gpu_time))
+    popfirst!(cpu_time)
+    popfirst!(gpu_time)
+
+    @printf("CPU time: %.2f ± %.2f us\n", mean(cpu_time), std(cpu_time))
+    @printf("GPU time: %.2f ± %.2f us\n", mean(gpu_time), std(gpu_time))
 end
 
 main()

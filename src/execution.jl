@@ -218,7 +218,6 @@ const compilecache = Dict{UInt, CuFunction}()
         ctx = CuCurrentContext()
         key2 = hash(($precomp_key, age, ctx, compile_kwargs))
         if !haskey(compilecache, key2)
-            # NOTE: get! doesn't work here, because closures + @generated
             try
                 compilecache[key2], _ =
                     cufunction(device(ctx), f, $tt; inner_f=inner_f, compile_kwargs...)

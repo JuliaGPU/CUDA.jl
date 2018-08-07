@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <time.h>
+#include <math.h>
 
 #include <cuda.h>
 #include <cudaProfiler.h>
@@ -17,32 +18,7 @@ void __check(CUresult err, const char *file, const int line) {
 }
 
 const size_t len = 1000;
-const size_t ITERATIONS = 5000;
-
-float median(float x[], int n) {
-  float temp;
-  int i, j;
-  // the following two loops sort the array x in ascending order
-  for (i = 0; i < n - 1; i++) {
-    for (j = i + 1; j < n; j++) {
-      if (x[j] < x[i]) {
-        // swap elements
-        temp = x[i];
-        x[i] = x[j];
-        x[j] = temp;
-      }
-    }
-  }
-
-  if (n % 2 == 0) {
-    // if there is an even number of elements, return mean of the two elements
-    // in the middle
-    return ((x[n / 2] + x[n / 2 - 1]) / 2.0);
-  } else {
-    // else return the element in the middle
-    return x[n / 2];
-  }
-}
+const size_t ITERATIONS = 100;
 
 int main(int argc, char **argv) {
   check(cuInit(0x0));
@@ -94,8 +70,27 @@ int main(int argc, char **argv) {
   }
   check(cuProfilerStop());
 
-  printf("CPU time: %.2fus\n", median(cpu_time, ITERATIONS));
-  printf("GPU time: %.2fus\n", median(gpu_time, ITERATIONS));
+  double mean_cpu = 0;
+  double mean_gpu = 0;
+  int i;
+  for (i = 1; i < ITERATIONS ; ++i) {
+      mean_cpu += cpu_time[i];
+      mean_gpu += gpu_time[i];
+  }
+  mean_cpu /= (ITERATIONS-1);
+  mean_gpu /= (ITERATIONS-1);
+
+  double std_cpu = 0;
+  double std_gpu = 0;
+  for (i = 1; i < ITERATIONS ; ++i ) {
+      std_cpu += pow((cpu_time[i] - mean_cpu), 2);
+      std_gpu += pow((gpu_time[i] - mean_gpu), 2);
+  }
+  std_cpu = sqrt(std_cpu / (ITERATIONS-1));
+  std_gpu = sqrt(std_gpu / (ITERATIONS-1));
+
+  printf("CPU time: %.2f +/- %.2f us\n", mean_cpu, std_cpu);
+  printf("GPU time: %.2f +/- %.2f us\n", mean_gpu, std_gpu);
 
   return 0;
 }
