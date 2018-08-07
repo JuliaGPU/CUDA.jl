@@ -1,3 +1,23 @@
+environment:
+  matrix:
+  - julia_version: 0.7
+  - julia_version: latest
+  # CUDA versions
+  - julia_version: 0.7
+    cuda_version: 8.0
+  - julia_version: 0.7
+    cuda_version: 9.0
+  - julia_version: 0.7
+    cuda_version: 9.1
+  - julia_version: 0.7
+    cuda_version: 9.2
+  # nightly
+  - julia_version: latest
+    cuda_version: 8.0
+
+platform:
+  - x64
+
 branches:
   only:
     - master
@@ -9,32 +29,14 @@ notifications:
     on_build_failure: false
     on_build_status_changed: false
 
-environment:
-  JULIA_DEBUG: "CUDAapi"
-  matrix:
-    # CUDA versions
-    - JULIA: 0.7
-      CUDA: 8.0
-    - JULIA: 0.7
-      CUDA: 9.0
-    - JULIA: 0.7
-      CUDA: 9.1
-    - JULIA: 0.7
-      CUDA: 9.2
-    # nightly
-    - JULIA: nightly
-      CUDA: 8.0
-
 install:
   - powershell .\appveyor.ps1
+  - ps: iex ((new-object net.webclient).DownloadString("https://raw.githubusercontent.com/JuliaCI/Appveyor.jl/version-1/bin/install.ps1"))
 
 build_script:
-  - C:\julia\bin\julia --project -e "using InteractiveUtils;
-                                     versioninfo();
-                                     using Pkg;
-                                     Pkg.instantiate();
-                                     Pkg.build()"
+  - echo "%JL_BUILD_SCRIPT%"
+  - C:\julia\bin\julia -e "%JL_BUILD_SCRIPT%"
 
 test_script:
-  - C:\julia\bin\julia --project -e "using Pkg;
-                                     Pkg.test()"
+  - echo "%JL_TEST_SCRIPT%"
+  - C:\julia\bin\julia -e "%JL_TEST_SCRIPT%"
