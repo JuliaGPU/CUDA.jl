@@ -72,7 +72,7 @@ function Base.size(f::FilterDesc)
   typ = Cuint[0]
   format = Cuint[0]
   ndims = Cint[0]
-  dims = Vector{Cint}(8)
+  dims = Vector{Cint}(undef, 8)
   @check ccall((:cudnnGetFilterNdDescriptor,libcudnn), cudnnStatus_t, (Ptr{Nothing}, Cint, Ptr{UInt32}, Ptr{UInt32}, Ptr{Cint}, Ptr{Cint}),
     f, 8, typ, format, ndims, dims)
   @assert ndims[] ≤ 8

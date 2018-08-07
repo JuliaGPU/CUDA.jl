@@ -29,7 +29,7 @@ function main()
 
     config[:libcudnn] = CUDAapi.find_cuda_library("cudnn", toolkit)
     if config[:libcudnn] == nothing
-      warn("could not find CUDNN, its functionality will be unavailable")
+      @warn("could not find CUDNN, its functionality will be unavailable")
     end
 
     ## (re)generate ext.jl
@@ -45,7 +45,7 @@ function main()
                                            for name in globals(Previous))
 
         if config == previous_config
-            info("CuArrays.jl has already been built for this toolchain, no need to rebuild")
+            @info("CuArrays.jl has already been built for this toolchain, no need to rebuild")
             mv(previous_config_path, config_path; force=true)
             return
         end

@@ -2,7 +2,7 @@ using NNlib: conv, ∇conv_data, ∇conv_filter,
   maxpool, meanpool, ∇maxpool, ∇meanpool,
   softmax, ∇softmax, logsoftmax, ∇logsoftmax
 
-info("Testing CuArrays/CUDNN")
+@info("Testing CuArrays/CUDNN")
 
 
 @testset "NNlib" begin

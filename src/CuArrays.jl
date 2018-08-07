@@ -38,8 +38,8 @@ end
 
 function __init__()
     if !configured
-        warn("CuArrays.jl has not been successfully built, and will not work properly.")
-        warn("Please run Pkg.build(\"CuArrays\") and restart Julia.")
+        @warn("CuArrays.jl has not been successfully built, and will not work properly.")
+        @warn("Please run Pkg.build(\"CuArrays\") and restart Julia.")
         return
     end
 

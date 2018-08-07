@@ -10,7 +10,7 @@ struct CuKernelState end
     CuDeviceArray(N, DevicePtr{T, CUDAnative.AS.Shared}(ptr))
 end
 
-(::Type{GPUArrays.AbstractDeviceArray})(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
+GPUArrays.AbstractDeviceArray(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
 
 
 @inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()

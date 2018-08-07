@@ -27,8 +27,8 @@ k = 13
   @test testf(BLAS.axpy!, rand(), rand(T, m), rand(T, m))
 
   if T <: Real
-    @test testf(indmin, rand(T, m))
-    @test testf(indmax, rand(T, m))
+    @test testf(argmin, rand(T, m))
+    @test testf(argmax, rand(T, m))
   end
 end
 
@@ -267,7 +267,7 @@ end
         beta = rand(elty)
         # generate Hermitian matrix
         A = rand(elty,m,m)
-        A = A + ctranspose(A)
+        A = A + adjoint(A)
         # restrict to 3 bands
         nbands = 3
         @test m >= 1+nbands
@@ -297,7 +297,7 @@ end
         beta = rand(elty)
         # generate Hermitian matrix
         A = rand(elty,m,m)
-        A = A + ctranspose(A)
+        A = A + adjoint(A)
         # restrict to 3 bands
         nbands = 3
         @test m >= 1+nbands
@@ -1035,7 +1035,7 @@ end
         beta  = rand(elty)
         # generate matrices
         A = rand(elty,m,m)
-        A = A + ctranspose(A)
+        A = A + adjoint(A)
         @test ishermitian(A)
         B = rand(elty,m,n)
         C = rand(elty,m,n)
@@ -1058,7 +1058,7 @@ end
         alpha = rand(elty)
         # generate matrices
         A = rand(elty,m,m)
-        A = A + ctranspose(A)
+        A = A + adjoint(A)
         @test ishermitian(A)
         B = rand(elty,m,n)
         # move to device
