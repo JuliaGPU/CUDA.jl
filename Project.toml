@@ -4,3 +4,9 @@ uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
 [deps]
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
