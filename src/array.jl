@@ -52,7 +52,7 @@ Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
 function Base._reshape(parent::CuArray, dims::Dims)
-  n = Base._length(parent)
+  n = length(parent)
   prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
   return CuArray{eltype(parent),length(dims)}(parent.buf, parent.offset, dims)
 end
