@@ -1,7 +1,6 @@
 using CUDAdrv
 
 using Test
-import Pkg
 
 @testset "CUDAdrv" begin
 
