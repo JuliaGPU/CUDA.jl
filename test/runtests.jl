@@ -16,6 +16,8 @@ end
 using CuArrays, CUDAnative
 using CuArrays: @fix
 using Test
+using Random
+using LinearAlgebra
 
 srand(1)
 
@@ -23,17 +25,19 @@ import CUDAdrv
 ## pick the most recent device
 global dev = nothing
 for newdev in CUDAdrv.devices()
+  global dev
     if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
         dev = newdev
     end
 end
-info("Testing using device $(CUDAdrv.name(dev))")
+@info("Testing using device $(CUDAdrv.name(dev))")
 
 CuArrays.allowscalar(false)
 
 function testf(f, xs...)
   collect(f(cu.(xs)...)) ≈ collect(f(xs...))
 end
+
 
 using GPUArrays, GPUArrays.TestSuite
 
