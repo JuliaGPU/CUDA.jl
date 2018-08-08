@@ -30,10 +30,16 @@ test:v0.7:
   image: juliagpu/julia:v0.7-cuda
   <<: *test_template
 
+test:v1.0:
+  stage: test
+  image: juliagpu/julia:v1.0-cuda
+  <<: *test_template
+
 test:dev:
   stage: test
   image: juliagpu/julia:dev-cuda
   <<: *test_template
+  allow_failure: true
 
 
 ## post-processing
