@@ -1,10 +1,9 @@
 before_script:
-  - julia -e 'versioninfo()'
+  - julia -e 'using InteractiveUtils;
+              versioninfo()'
 
 variables:
   JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia/"
-  JULIA_PKGDIR: "$CI_PROJECT_DIR/.julia/"
-  package: 'CuArrays'
 
 stages:
   - test
@@ -13,42 +12,34 @@ stages:
 
 ## testing
 
-.test_template: &pkg2_test_template
-  script:
-    - julia -e "Pkg.init();
-                symlink(\"$CI_PROJECT_DIR\", joinpath(Pkg.dir(), \"$package\"));
-                Pkg.resolve();
-                Pkg.build(\"$package\");
-                Pkg.test(\"$package\"; coverage=true)"
-
-.test_template: &pkg3_test_template
+.test_template: &test_template
   script:
     - mkdir $JULIA_DEPOT_PATH # Pkg3.jl#325
-    - julia -e "using Pkg;
-                cd(\"$CI_PROJECT_DIR\");
-                Pkg.instantiate();
-                Pkg.build();
-                Pkg.test(; coverage=true);"
+    - julia --project -e "using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build();
+                          Pkg.test(; coverage=true);"
   artifacts:
     paths:
       - .julia/
       - src/*.cov
       - src/*/*.cov # gitlab-runner#2620
 
-test:v0.6:
-  stage: test
-  image: juliagpu/julia:v0.6-cuda
-  <<: *pkg2_test_template
-
 test:v0.7:
   stage: test
   image: juliagpu/julia:v0.7-cuda
-  <<: *pkg3_test_template
+  <<: *test_template
+
+test:v1.0:
+  stage: test
+  image: juliagpu/julia:v1.0-cuda
+  <<: *test_template
 
 test:dev:
   stage: test
   image: juliagpu/julia:dev-cuda
-  <<: *pkg3_test_template
+  <<: *test_template
+  allow_failure: true
 
 
 ## post-processing
@@ -59,9 +50,10 @@ coverage:
   dependencies:
     - test:v0.7
   script:
-    - julia -e 'using Pkg; Pkg.add("Coverage")'
-    - julia -e 'using Coverage;
-                cl, tl = get_summary(process_folder());
-                println("(", cl/tl*100, "%) covered");
-                Codecov.submit_local(process_folder(), ".")'
+    - julia --project -e 'using Pkg;
+                          Pkg.add("Coverage")'
+    - julia --project -e 'using Coverage;
+                          cl, tl = get_summary(process_folder());
+                          println("(", cl/tl*100, "%) covered");
+                          Codecov.submit_local(process_folder(), ".")'
   coverage: '/\(\d+.\d+\%\) covered/'
