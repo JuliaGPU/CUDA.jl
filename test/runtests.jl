@@ -19,7 +19,7 @@ using Test
 using Random
 using LinearAlgebra
 
-srand(1)
+Random.seed!(1)
 
 import CUDAdrv
 ## pick the most recent device
