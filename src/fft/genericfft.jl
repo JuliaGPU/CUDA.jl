@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 cufftfloat(x) = _cufftfloat(float(x))
 _cufftfloat(::Type{T}) where {T<:cufftReals} = T
 _cufftfloat(::Type{Float16}) = Float32

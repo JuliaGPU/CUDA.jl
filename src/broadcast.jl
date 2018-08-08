@@ -8,10 +8,6 @@ cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(c
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
 cudaconvert(x::Transpose{<:Any,<:CuArray}) = Transpose(cudaconvert(x.vec))
 
-BroadcastStyle(::Type{<:CuArray}) = CuStyle()
-BroadcastStyle(::Type{<:Transpose{<:Any,<:CuArray}}) = CuStyle()
-Base.similar(bc::Broadcasted{CuStyle}, ::Type{ET}) where ET = similar(CuArray{ET}, axes(bc))
-
 import NNlib: @fix, _cufunc
 
 _cufunc(f,x::CuArray,xs...) = cufunc(f)
@@ -38,7 +34,7 @@ for f in libdevice
   isdefined(Base, f) || continue
   @eval begin
     cufunc(::typeof(Base.$f)) = CUDAnative.$f
-    @inline preprocess(dest, bc::Broadcasted{CuStyle,<:Any,typeof(Base.$f)}) = Broadcasted{CuStyle}(CUDAnative.$f, preprocess_args(dest, bc.args), bc.axes)
+    @inline preprocess(dest::CuArray, bc::Broadcasted{Nothing,<:Any,typeof(Base.$f)}) = Broadcasted{CuStyle}(CUDAnative.$f, preprocess_args(dest, bc.args), bc.axes)
   end
 end
 
