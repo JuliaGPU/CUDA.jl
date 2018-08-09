@@ -12,6 +12,8 @@ end
 
 GPUArrays.AbstractDeviceArray(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
 
+GPUArrays.unpack_buffer(a::CuArray) = a
+
 
 @inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
 
@@ -77,7 +79,7 @@ function Base.copyto!(
     ) where T
     amount == 0 && return dest
     buf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
-    CUDAdrv.Mem.download!(Ref(dest, d_offset), buf, sizeof(T) * (amount))
+    CUDAdrv.Mem.download!(Ref(dest, d_offset), buf, sizeof(T) * amount) # TODO: sizeof(source)
     dest
 end
 
@@ -87,7 +89,7 @@ function Base.copyto!(
     ) where T
     amount == 0 && return dest
     buf = Mem.view(unsafe_buffer(dest), (d_offset - 1) * sizeof(T))
-    CUDAdrv.Mem.upload!(buf, Ref(source, s_offset), sizeof(T) * (amount))
+    CUDAdrv.Mem.upload!(buf, Ref(source, s_offset), sizeof(T) * amount) # TODO: sizeof(source)
     dest
 end
 

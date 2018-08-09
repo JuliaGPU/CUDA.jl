@@ -16,7 +16,7 @@ k = 13
   A = CuArray(rand(T, m))
   B = CuArray{T}(m)
   CuArrays.BLAS.blascopy!(m,A,1,B,1)
-  @test collect(A) == collect(B)
+  @test Array(A) == Array(B)
 
   @test testf(scale!, rand(T, 6, 9, 3), rand())
   @test testf(dot, rand(T, m), rand(T, m))
@@ -64,7 +64,7 @@ end
         d_y = CuArray(y)
         CuArrays.BLAS.gbmv!('N',m,kl,ku,alpha,d_Ab,d_x,beta,d_y)
         BLAS.gbmv!('N',m,kl,ku,alpha,Ab,x,beta,y)
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
         # test y = alpha*A.'*x + beta*y
         x = rand(elty,n)
@@ -73,7 +73,7 @@ end
         d_y = CuArray(y)
         CuArrays.BLAS.gbmv!('T',m,kl,ku,alpha,d_Ab,d_y,beta,d_x)
         BLAS.gbmv!('T',m,kl,ku,alpha,Ab,y,beta,x)
-        h_x = collect(d_x)
+        h_x = Array(d_x)
         @test x ≈ h_x
         # test y = alpha*A'*x + beta*y
         x = rand(elty,n)
@@ -82,7 +82,7 @@ end
         d_y = CuArray(y)
         CuArrays.BLAS.gbmv!('C',m,kl,ku,alpha,d_Ab,d_y,beta,d_x)
         BLAS.gbmv!('C',m,kl,ku,alpha,Ab,y,beta,x)
-        h_x = collect(d_x)
+        h_x = Array(d_x)
         @test x ≈ h_x
     end
 end
@@ -106,7 +106,7 @@ end
         d_y = CuArrays.BLAS.gbmv('N',m,kl,ku,alpha,d_Ab,d_x)
         y = zeros(elty,m)
         y = BLAS.gbmv('N',m,kl,ku,alpha,Ab,x)
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -131,7 +131,7 @@ end
         # execute on device
         CuArrays.BLAS.symv!('U',alpha,d_A,d_x,beta,d_y)
         # compare results
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -151,7 +151,7 @@ end
         # execute on device
         d_y = CuArrays.BLAS.symv('U',d_A,d_x)
         # compare results
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -176,7 +176,7 @@ end
         # execute on device
         CuArrays.BLAS.hemv!('U',alpha,d_A,d_x,beta,d_y)
         # compare results
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -196,7 +196,7 @@ end
         # execute on device
         d_y = CuArrays.BLAS.hemv('U',d_A,d_x)
         # compare results
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -226,7 +226,7 @@ end
         CuArrays.BLAS.sbmv!('U',nbands,alpha,d_AB,d_x,beta,d_y)
         y = alpha*(A*x) + beta*y
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -255,7 +255,7 @@ end
         d_y = CuArrays.BLAS.sbmv('U',nbands,d_AB,d_x)
         y = A*x
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -285,7 +285,7 @@ end
         CuArrays.BLAS.hbmv!('U',nbands,alpha,d_AB,d_x,beta,d_y)
         y = alpha*(A*x) + beta*y
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -314,7 +314,7 @@ end
         d_y = CuArrays.BLAS.hbmv('U',nbands,d_AB,d_x)
         y = A*x
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -338,7 +338,7 @@ end
         CuArrays.BLAS.tbmv!('U','N','N',nbands,d_AB,d_x)
         x = A*x
         # compare
-        h_x = collect(d_x)
+        h_x = Array(d_x)
         @test x ≈ h_x
     end
 end
@@ -362,7 +362,7 @@ end
         d_y = CuArrays.BLAS.tbmv!('U','N','N',nbands,d_AB,d_x)
         y = A*x
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -386,7 +386,7 @@ end
         CuArrays.BLAS.tbsv!('U','N','N',nbands,d_AB,d_x)
         x = A\x
         # compare
-        h_x = collect(d_x)
+        h_x = Array(d_x)
         @test x ≈ h_x
     end
 end
@@ -410,7 +410,7 @@ end
         d_y = CuArrays.BLAS.tbsv('U','N','N',nbands,d_AB,d_x)
         y = A\x
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -429,7 +429,7 @@ end
         CuArrays.BLAS.trmv!('U','N','N',d_A,d_x)
         x = A*x
         # compare
-        h_x = collect(d_x)
+        h_x = Array(d_x)
         @test x ≈ h_x
     end
 end
@@ -448,7 +448,7 @@ end
         d_y = CuArrays.BLAS.trmv('U','N','N',d_A,d_x)
         y = A*x
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -467,7 +467,7 @@ end
         CuArrays.BLAS.trsv!('U','N','N',d_A,d_x)
         x = A\x
         # compare
-        h_x = collect(d_x)
+        h_x = Array(d_x)
         @test x ≈ h_x
     end
 end
@@ -486,7 +486,7 @@ end
         d_y = CuArrays.BLAS.trsv('U','N','N',d_A,d_x)
         y = A\x
         # compare
-        h_y = collect(d_y)
+        h_y = Array(d_y)
         @test y ≈ h_y
     end
 end
@@ -506,7 +506,7 @@ end
         CuArrays.BLAS.ger!(alpha,d_x,d_y,d_A)
         A = (alpha*x)*y' + A
         # move to host and compare
-        h_A = collect(d_A)
+        h_A = Array(d_A)
         @test A ≈ h_A
     end
 end
@@ -525,7 +525,7 @@ end
         CuArrays.BLAS.syr!('U',alpha,d_x,d_A)
         A = (alpha*x)*x.' + A
         # move to host and compare upper triangles
-        h_A = collect(d_A)
+        h_A = Array(d_A)
         A = triu(A)
         h_A = triu(h_A)
         @test A ≈ h_A
@@ -547,7 +547,7 @@ end
         CuArrays.BLAS.her!('U',alpha,d_x,d_A)
         A = (alpha*x)*x' + A
         # move to host and compare upper triangles
-        h_A = collect(d_A)
+        h_A = Array(d_A)
         A = triu(A)
         h_A = triu(h_A)
         @test A ≈ h_A
@@ -571,7 +571,7 @@ end
         CuArrays.BLAS.her2!('U',alpha,d_x,d_y,d_A)
         A = (alpha*x)*y' + y*(alpha*x)' + A
         # move to host and compare upper triangles
-        h_A = collect(d_A)
+        h_A = Array(d_A)
         A = triu(A)
         h_A = triu(h_A)
         @test A ≈ h_A
@@ -596,8 +596,8 @@ end
         # C = (alpha*A)*B + beta*C
         CuArrays.BLAS.gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
         mul!(d_C2, d_A, d_B)
-        h_C1 = collect(d_C1)
-        h_C2 = collect(d_C2)
+        h_C1 = Array(d_C1)
+        h_C2 = Array(d_C2)
         C1 = (alpha*A)*B + beta*C1
         C2 = A*B
         # compare
@@ -619,8 +619,8 @@ end
         C = A*B
         C2 = d_A * d_B
         # compare
-        h_C = collect(d_C)
-        h_C2 = collect(C2)
+        h_C = Array(d_C)
+        h_C2 = Array(C2)
         @test C ≈ h_C
         @test C ≈ h_C2
     end
@@ -648,7 +648,7 @@ end
         CuArrays.BLAS.gemm_batched!('N','N',alpha,d_A,d_B,beta,d_C)
         for i in 1:length(d_C)
             C[i] = (alpha*A[i])*B[i] + beta*C[i]
-            h_C = collect(d_C[i])
+            h_C = Array(d_C[i])
             #compare
             @test C[i] ≈ h_C
         end
@@ -671,7 +671,7 @@ end
         d_C = CuArrays.BLAS.gemm_batched('N','N',d_A,d_B)
         for i in 1:length(A)
             C = A[i]*B[i]
-            h_C = collect(d_C[i])
+            h_C = Array(d_C[i])
             @test C ≈ h_C
         end
     end
@@ -695,7 +695,7 @@ end
         CuArrays.BLAS.symm!('L','U',alpha,d_A,d_B,beta,d_C)
         C = (alpha*A)*B + beta*C
         # compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -713,7 +713,7 @@ end
         d_C = CuArrays.BLAS.symm('L','U',d_A,d_B)
         C = A*B
         # compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -735,7 +735,7 @@ end
         C = (alpha*A)*A.' + beta*C
         C = triu(C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(C)
         @test C ≈ h_C
     end
@@ -752,7 +752,7 @@ end
         C = A*A.'
         C = triu(C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(C)
         @test C ≈ h_C
     end
@@ -774,7 +774,7 @@ end
         C = alpha*(A*A') + beta*C
         C = triu(C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(C)
         @test C ≈ h_C
     end
@@ -791,7 +791,7 @@ end
         C = A*A'
         C = triu(C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(C)
         @test C ≈ h_C
     end
@@ -819,7 +819,7 @@ end
         CuArrays.BLAS.syr2k!('U','N',alpha,d_A,d_B,beta,d_C)
         # move back to host and compare
         C = triu(C)
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(h_C)
 
         @test C ≈ h_C
@@ -842,7 +842,7 @@ end
         d_C = CuArrays.BLAS.syr2k('U','N',alpha,d_A,d_B)
         # move back to host and compare
         C = triu(C)
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(h_C)
         @test C ≈ h_C
     end
@@ -868,7 +868,7 @@ end
         CuArrays.BLAS.her2k!('U','N',alpha,d_A,d_B,beta,d_C)
         # move back to host and compare
         C = triu(C)
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(h_C)
         @test C ≈ h_C
     end
@@ -887,7 +887,7 @@ end
         d_C = CuArrays.BLAS.her2k('U','N',d_A,d_B)
         # move back to host and compare
         C = triu(C)
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         h_C = triu(h_C)
         @test C ≈ h_C
     end
@@ -910,7 +910,7 @@ end
         C = alpha*A*B
         CuArrays.BLAS.trmm!('L','U','N','N',alpha,d_A,d_B,d_C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -930,7 +930,7 @@ end
         C = alpha*A*B
         d_C = CuArrays.BLAS.trmm('L','U','N','N',alpha,d_A,d_B)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -950,7 +950,7 @@ end
         C = alpha*(A\B)
         CuArrays.BLAS.trsm!('L','U','N','N',alpha,d_A,d_B)
         # move to host and compare
-        h_C = collect(d_B)
+        h_C = Array(d_B)
         @test C ≈ h_C
     end
 end
@@ -970,7 +970,7 @@ end
         C = alpha*(A\B)
         d_C = CuArrays.BLAS.trsm('L','U','N','N',alpha,d_A,d_B)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -995,7 +995,7 @@ end
         # move to host and compare
         for i in 1:length(d_B)
             C = alpha*(A[i]\B[i])
-            h_C = collect(d_B[i])
+            h_C = Array(d_B[i])
             #compare
             @test C ≈ h_C
         end
@@ -1022,7 +1022,7 @@ end
         # move to host and compare
         for i in 1:length(d_C)
             C = alpha*(A[i]\B[i])
-            h_C = collect(d_C[i])
+            h_C = Array(d_C[i])
             @test C ≈ h_C
         end
     end
@@ -1047,7 +1047,7 @@ end
         C = alpha*(A*B) + beta*C
         CuArrays.BLAS.hemm!('L','L',alpha,d_A,d_B,beta,d_C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -1068,7 +1068,7 @@ end
         C = alpha*(A*B)
         d_C = CuArrays.BLAS.hemm('L','U',alpha,d_A,d_B)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -1090,7 +1090,7 @@ end
         C = alpha*A + beta*B
         CuArrays.BLAS.geam!('N','N',alpha,d_A,beta,d_B,d_C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
 
         #test in place versions too
@@ -1099,14 +1099,14 @@ end
         C = alpha*C + beta*B
         CuArrays.BLAS.geam!('N','N',alpha,d_C,beta,d_B,d_C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
         C = rand(elty,m,n)
         d_C = CuArray(C)
         C = alpha*A + beta*C
         CuArrays.BLAS.geam!('N','N',alpha,d_A,beta,d_C,d_C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
 
         #test setting C to zero
@@ -1115,7 +1115,7 @@ end
         alpha = zero(elty)
         beta  = zero(elty)
         CuArrays.BLAS.geam!('N','N',alpha,d_A,beta,d_B,d_C)
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test h_C ≈ zeros(elty,m,n)
 
         # bounds checking
@@ -1141,7 +1141,7 @@ end
         C = alpha*A + beta*B
         d_C = CuArrays.BLAS.geam('N','N',alpha,d_A,beta,d_B)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
@@ -1158,10 +1158,10 @@ end
             push!(d_A,CuArray(A[i]))
         end
         pivot, info = CuArrays.BLAS.getrf_batched!(d_A, false)
-        h_info = collect(info)
+        h_info = Array(info)
         for As in 1:length(d_A)
             C   = lufact!(copy(A[As]), Val{false}) # lufact(A[As],pivot=false)
-            h_A = collect(d_A[As])
+            h_A = Array(d_A[As])
             #reconstruct L,U
             dL = eye(elty,m)
             dU = zeros(elty,(m,m))
@@ -1178,11 +1178,11 @@ end
             d_A[ i ] = CuArray(A[i])
         end
         pivot, info = CuArrays.BLAS.getrf_batched!(d_A, true)
-        h_info = collect(info)
-        h_pivot = collect(pivot)
+        h_info = Array(info)
+        h_pivot = Array(pivot)
         for As in 1:length(d_A)
             C   = lufact(A[As])
-            h_A = collect(d_A[As])
+            h_A = Array(d_A[As])
             #reconstruct L,U
             dL = eye(elty,m)
             dU = zeros(elty,(m,m))
@@ -1216,10 +1216,10 @@ end
             push!(d_A,CuArray(A[i]))
         end
         pivot, info, d_B = CuArrays.BLAS.getrf_batched(d_A, false)
-        h_info = collect(info)
+        h_info = Array(info)
         for Bs in 1:length(d_B)
             C   = lufact!(copy(A[Bs]),Val{false}) # lufact(A[Bs],pivot=false)
-            h_B = collect(d_B[Bs])
+            h_B = Array(d_B[Bs])
             #reconstruct L,U
             dL = eye(elty,m)
             dU = zeros(elty,(m,m))
@@ -1245,15 +1245,15 @@ end
             push!(d_A,CuArray(A[i]))
         end
         pivot, info = CuArrays.BLAS.getrf_batched!(d_A, true)
-        h_info = collect(info)
+        h_info = Array(info)
         for Cs in 1:length(h_info)
             @test h_info[Cs] == 0
         end
         pivot, info, d_C = CuArrays.BLAS.getri_batched(d_A, pivot)
-        h_info = collect(info)
+        h_info = Array(info)
         for Cs in 1:length(d_C)
             C   = inv(A[Cs])
-            h_C = collect(d_C[Cs])
+            h_C = Array(d_C[Cs])
             @test h_info[Cs] == 0
             @test C ≈ h_C rtol=1e-2
         end
@@ -1272,7 +1272,7 @@ end
         info, d_C = CuArrays.BLAS.matinv_batched(d_A)
         for Cs in 1:length(d_C)
             C   = inv(A[Cs])
-            h_C = collect(d_C[Cs])
+            h_C = Array(d_C[Cs])
             @test C ≈ h_C
         end
     end
@@ -1290,8 +1290,8 @@ end
         tau, d_A = CuArrays.BLAS.geqrf_batched!(d_A)
         for As in 1:length(d_A)
             C   = qrfact(A[As])
-            h_A = collect(d_A[As])
-            h_tau = collect(tau[As])
+            h_A = Array(d_A[As])
+            h_tau = Array(tau[As])
             # build up Q
             Q = eye(elty,min(m,n))
             for i in 1:min(m,n)
@@ -1317,8 +1317,8 @@ end
         tau, d_B = CuArrays.BLAS.geqrf_batched!(d_A)
         for Bs in 1:length(d_B)
             C   = qrfact(A[Bs])
-            h_B = collect(d_B[Bs])
-            h_tau = collect(tau[Bs])
+            h_B = Array(d_B[Bs])
+            h_tau = Array(tau[Bs])
             # build up Q
             Q = eye(elty,min(m,n))
             for i in 1:min(m,n)
@@ -1347,7 +1347,7 @@ end
         d_A, d_C, info = CuArrays.BLAS.gels_batched!('N',d_A, d_C)
         for Cs in 1:length(d_C)
             X = A[Cs]\C[Cs]
-            h_C = collect(d_C[Cs])
+            h_C = Array(d_C[Cs])
             @test X ≈ h_C rtol=1e-2
         end
     end
@@ -1368,7 +1368,7 @@ end
         d_B, d_D, info = CuArrays.BLAS.gels_batched('N',d_A, d_C)
         for Ds in 1:length(d_D)
             X = A[Ds]\C[Ds]
-            h_D = collect(d_D[Ds])
+            h_D = Array(d_D[Ds])
             @test X ≈ h_D rtol=1e-2
         end
     end
@@ -1388,7 +1388,7 @@ end
         C = diagm(X) * A
         CuArrays.BLAS.dgmm!('L',d_A,d_X,d_C)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
         # bounds checking
         @test_throws DimensionMismatch CuArrays.BLAS.dgmm!('R',d_A,d_X,d_C)
@@ -1410,7 +1410,7 @@ end
         C = diagm(X) * A
         d_C = CuArrays.BLAS.dgmm('L',d_A,d_X)
         # move to host and compare
-        h_C = collect(d_C)
+        h_C = Array(d_C)
         @test C ≈ h_C
     end
 end
