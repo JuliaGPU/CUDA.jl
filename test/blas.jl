@@ -595,7 +595,7 @@ end
         d_C2 = CuArray(C2)
         # C = (alpha*A)*B + beta*C
         CuArrays.BLAS.gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
-        A_mul_B!(d_C2, d_A, d_B)
+        mul!(d_C2, d_A, d_B)
         h_C1 = collect(d_C1)
         h_C2 = collect(d_C2)
         C1 = (alpha*A)*B + beta*C1

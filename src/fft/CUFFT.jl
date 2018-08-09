@@ -9,6 +9,8 @@ import Base: show, *, convert, unsafe_convert, size, strides, ndims
 import LinearAlgebra: A_mul_B!
 import Base.Sys: WORD_SIZE
 
+using LinearAlgebra
+
 include("libcufft_types.jl")
 include("error.jl")
 

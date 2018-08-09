@@ -5,6 +5,8 @@ const cudaStream_t = Ptr{Nothing}
 
 using ..CuArrays: libcusolver, configured, _getindex
 
+import LinearAlgebra
+
 import Base.one
 import Base.zero
 

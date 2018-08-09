@@ -4,6 +4,8 @@ import Base: one, zero
 using CUDAdrv
 using ..CuArrays: CuArray, CuVector, CuMatrix, CuVecOrMat, libcublas, configured
 
+using LinearAlgebra
+
 const BlasChar = Char
 
 include("util.jl")
