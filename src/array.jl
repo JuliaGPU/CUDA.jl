@@ -23,10 +23,10 @@ CuArray
 
 mutable struct CuArray{T,N} <: AbstractArray{T,N}
     buf::Mem.Buffer
-    shape::NTuple{N,Int}
+    shape::Dims{N}
 
     # inner constructors (exact types, ie. Int not <:Integer)
-    function CuArray{T,N}(shape::NTuple{N,Int}) where {T,N}
+    function CuArray{T,N}(shape::Dims{N}) where {T,N}
         check_type(CuArray, T)
 
         len = prod(shape)
@@ -37,7 +37,7 @@ mutable struct CuArray{T,N} <: AbstractArray{T,N}
         finalizer(unsafe_free!, obj)
         return obj
     end
-    function CuArray{T,N}(shape::NTuple{N,Int}, buf::Mem.Buffer) where {T,N}
+    function CuArray{T,N}(shape::Dims{N}, buf::Mem.Buffer) where {T,N}
         check_type(CuArray, T)
 
         Mem.retain(buf)
