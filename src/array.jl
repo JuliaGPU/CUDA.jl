@@ -78,7 +78,7 @@ function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
 end
 
 Base.collect(x::CuArray{T,N}) where {T,N} =
-  copy!(Array{T,N}(size(x)), x)
+  copy!(Array{T,N}(undef, size(x)), x)
 
 function Base.deepcopy_internal(x::CuArray, dict::IdDict)
   haskey(dict, x) && return dict[x]::typeof(x)
