@@ -81,7 +81,7 @@ end
   @test testf(hcat, rand(3, 3), rand(3, 3))
   @test testf(vcat, rand(3, 3), rand(3, 3))
   @test testf(hcat, rand(3), rand(3))
-  @test testf(cat, 4, rand(3, 4), rand(3, 4))
+  @test testf((a,b) -> cat(a,b; dims=4), rand(3, 4), rand(3, 4))
 end
 
 @testset "Broadcast" begin
@@ -110,10 +110,10 @@ using NNlib
 end
 
 @testset "Reduce" begin
-  @test testf(x -> sum(x, 1), rand(2, 3))
-  @test testf(x -> sum(x, 2), rand(2, 3))
-  @test testf(x -> sum(x -> x^2, x, 1), rand(2, 3))
-  @test testf(x -> prod(x, 2), rand(2, 3))
+  @test testf(x -> sum(x, dims=1), rand(2, 3))
+  @test testf(x -> sum(x, dims=2), rand(2, 3))
+  @test testf(x -> sum(x -> x^2, x, dims=1), rand(2, 3))
+  @test testf(x -> prod(x, dims=2), rand(2, 3))
 
   @test testf(x -> sum(x), rand(2, 3))
   @test testf(x -> prod(x), rand(2, 3))
@@ -135,7 +135,7 @@ end
   CuArrays._setindex!(y, -1f0, 3)
   @test collect(y) == [6, 7, -1, 9, 10]
   @test collect(x) == [1, 2, 3, 4, 5, 6, 7, -1, 9, 10]
-  @test collect(cu(eye(5))*y) == collect(y)
+  @test collect(CuMatrix{eltype(y)}(I, 5, 5)*y) == collect(y)
 end
 
 if CuArrays.cudnn_available()
