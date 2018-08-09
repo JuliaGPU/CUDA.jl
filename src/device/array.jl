@@ -25,11 +25,11 @@ CuDeviceArray
 #       because we're currently requiring a trailing pointer argument.
 
 struct CuDeviceArray{T,N,A} <: AbstractArray{T,N}
-    shape::NTuple{N,Int}
+    shape::Dims{N}
     ptr::DevicePtr{T,A}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    CuDeviceArray{T,N,A}(shape::NTuple{N,Int}, ptr::DevicePtr{T,A}) where {T,A,N} = new(shape,ptr)
+    CuDeviceArray{T,N,A}(shape::Dims{N}, ptr::DevicePtr{T,A}) where {T,A,N} = new(shape,ptr)
 end
 
 const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
