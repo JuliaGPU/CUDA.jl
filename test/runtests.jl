@@ -34,8 +34,8 @@ end
 
 CuArrays.allowscalar(false)
 
-function testf(f, xs...)
-  collect(f(cu.(xs)...)) ≈ collect(f(xs...))
+function testf(f, xs...; ref=f)
+  collect(f(cu.(xs)...)) ≈ collect(ref(xs...))
 end
 
 
@@ -85,20 +85,23 @@ end
 end
 
 @testset "Broadcast" begin
-  @test testf((x)       -> fill!(x, 1),  rand(3,3))
-  @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
-  @test testf((x)       -> sin.(x),      rand(2, 3))
-  @test testf((x)       -> 2x,      rand(2, 3))
-  @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
-  @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
+  @test testf((x)       -> fill!(x, 1),       rand(3,3))
+  @test testf((x, y)    -> map(+, x, y),      rand(2, 3), rand(2, 3))
+  @test testf((x)      -> CUDAnative.sin.(x), rand(2, 3);
+              ref=(x)  -> sin.(x))
+  @test testf((x)       -> 2x,                rand(2, 3))
+  @test testf((x, y)    -> x .+ y,            rand(2, 3), rand(1, 3))
+  @test testf((z, x, y) -> z .= x .+ y,       rand(2, 3), rand(2, 3), rand(2))
 end
 
 using ForwardDiff: Dual
 using NNlib
 
 @testset "Broadcast Fix" begin
-  @test testf(x -> log.(x), rand(3,3))
-  @test testf((x,xs) -> log.(x.+xs), 1, rand(3,3))
+  @test testf(x -> CUDAnative.log.(x), rand(3,3);
+              ref=x -> log.(x))
+  @test testf((x,xs) -> CUDAnative.log.(x.+xs), 1, rand(3,3);
+              ref=(x,xs) -> log.(x.+xs))
   @test testf(x -> @fix(logσ.(x)), rand(5))
 
   f(x) = @fix logσ.(x)
