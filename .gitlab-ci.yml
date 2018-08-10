@@ -1,59 +1,16 @@
-before_script:
-  - julia -e 'using InteractiveUtils;
-              versioninfo()'
-
 variables:
-  JULIA_DEPOT_PATH: "$CI_PROJECT_DIR/.julia/"
+  CI_IMAGE_TAG: '-cuda'
 
 stages:
   - test
   - postprocess
 
-
-## testing
-
-.test_template: &test_template
-  script:
-    - mkdir $JULIA_DEPOT_PATH # Pkg3.jl#325
-    - julia --project -e "using Pkg;
-                          Pkg.instantiate();
-                          Pkg.build();
-                          Pkg.test(; coverage=true);"
-  artifacts:
-    paths:
-      - Manifest.toml
-      - .julia/
-      - src/*.cov
-
-test:v0.7:
-  stage: test
-  image: juliagpu/julia:v0.7-cuda
-  <<: *test_template
-
-test:v1.0:
-  stage: test
-  image: juliagpu/julia:v1.0-cuda
-  <<: *test_template
+include:
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/common.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/test_v0.7.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/test_v1.0.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/test_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/postprocess_coverage.yml'
 
 test:dev:
-  stage: test
-  image: juliagpu/julia:dev-cuda
-  <<: *test_template
   allow_failure: true
-
-
-## post-processing
-
-coverage:
-  stage: postprocess
-  image: juliagpu/julia:v0.7-cuda
-  dependencies:
-    - test:v0.7
-  script:
-    - julia --project -e 'using Pkg;
-                          Pkg.add("Coverage")'
-    - julia --project -e 'using Coverage;
-                          cl, tl = get_summary(process_folder());
-                          println("(", cl/tl*100, "%) covered");
-                          Codecov.submit_local(process_folder(), ".")'
-  coverage: '/\(\d+.\d+\%\) covered/'
