@@ -19,19 +19,19 @@ mutable struct CuLink
     optionKeys::Vector{CUjit_option}
     optionVals::Vector{Ptr{Cvoid}}
 
-    function CuLink()
+    function CuLink(options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
         handle_ref = Ref{CuLinkState_t}()
 
-        options = Dict{CUjit_option,Any}()
         options[ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+        @debug begin
+            options[INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+            options[LOG_VERBOSE] = true
+            "JIT compiling code" # FIXME: remove this useless message
+        end
         if Base.JLOptions().debug_level == 1
             options[GENERATE_LINE_INFO] = true
         elseif Base.JLOptions().debug_level >= 2
             options[GENERATE_DEBUG_INFO] = true
-
-            # TODO: this should happen if @debug, not if -g
-            options[INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-            options[LOG_VERBOSE] = true
         end
         optionKeys, optionVals = encode(options)
 
@@ -132,14 +132,13 @@ function complete(link::CuLink)
         rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
     end
 
-    if Base.JLOptions().debug_level >= 2
-        # TODO: this should happen if @debug, not if -g
+    @debug begin
         options = decode(link.optionKeys, link.optionVals)
         if isempty(options[INFO_LOG_BUFFER])
-            @debug """JIT info log is empty"""
+            """JIT info log is empty"""
         else
-            @debug """JIT info log:
-                      $(options[INFO_LOG_BUFFER])"""
+            """JIT info log:
+               $(options[INFO_LOG_BUFFER])"""
         end
     end
 
