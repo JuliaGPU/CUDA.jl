@@ -22,7 +22,7 @@ if CUDAdrv.configured
         end
         @info "Testing using device $(name(dev))"
 
-        global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
+        global ctx = CuContext(dev)
         @test CuCurrentContext() != nothing
 
         @testset "API wrappers" begin
