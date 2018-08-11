@@ -100,6 +100,6 @@ function Base.copyto!(
     amount == 0 && return dest
     sbuf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
     dbuf = Mem.view(unsafe_buffer(dest),   (d_offset - 1) * sizeof(T))
-    CUDAdrv.Mem.transfer!(sbuf, dbuf, sizeof(T) * (amount))
+    CUDAdrv.Mem.transfer!(dbuf, sbuf, sizeof(T) * (amount))
     dest
 end

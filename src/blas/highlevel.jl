@@ -34,8 +34,6 @@ function BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,Com
     dotu(n, DX, 1, DY, 1)
 end
 
-Base.At_mul_B(x::CuVector{T}, y::CuVector{T}) where T<:CublasReal = BLAS.dot(x, y)
-
 norm(x::CublasArray) = nrm2(x)
 BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
 
@@ -44,8 +42,8 @@ function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where 
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
 
-Base.indmin(xs::CublasArray{<:CublasReal}) = iamin(xs)
-Base.indmax(xs::CublasArray{<:CublasReal}) = iamax(xs)
+Base.argmin(xs::CublasArray{<:CublasReal}) = iamin(xs)
+Base.argmax(xs::CublasArray{<:CublasReal}) = iamax(xs)
 
 ############
 #

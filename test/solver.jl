@@ -196,16 +196,12 @@ k = 1
     @testset "qr" begin
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
-        d_q            = qrq!(d_A)
-        h_q            = collect(d_q)
-        q              = qrfact!(A)
-        @test h_q ≈ Array(q[:Q])
+        F              = qr(d_A)
+        @test F.Q'*A ≈ F.R
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
-        d_q            = qrq!(d_A)
-        h_q            = collect(d_q)
-        q              = qrfact!(A)
-        @test h_q ≈ Array(q[:Q])
+        F              = qr(d_A)
+        @test F.Q'*A ≈ F.R
         CuArrays.allowscalar(true)
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
@@ -217,10 +213,9 @@ k = 1
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_q, d_r       = qr(d_A)
-        h_q, h_r       = collect(d_q), collect(d_r)
         q, r           = qr(A)
-        @test h_q ≈ q
-        @test h_r ≈ r
+        @test collect(d_q) ≈ collect(q)
+        @test collect(d_r) ≈ collect(r)
         CuArrays.allowscalar(false)
     end
 
