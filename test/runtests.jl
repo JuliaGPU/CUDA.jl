@@ -46,7 +46,7 @@ if CUDAnative.configured
             end
         end
         @info("Testing using device $(name(dev))")
-        global ctx = CuContext(dev, CUDAdrv.SCHED_BLOCKING_SYNC)
+        device!(dev)
 
         if capability(dev) < v"2.0"
             @warn("native execution not supported on SM < 2.0")
