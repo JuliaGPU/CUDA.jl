@@ -34,4 +34,4 @@ rfft(x::CuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(
 plan_rfft(x::CuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
 
 *(p::Plan{T}, x::CuArray) where {T} = p * copy1(T, x)
-*(p::ScaledPlan, x::CuArray) = scale!(p.p * x, p.scale)
+*(p::ScaledPlan, x::CuArray) = rmul!(p.p * x, p.scale)

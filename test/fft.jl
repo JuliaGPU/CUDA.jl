@@ -3,7 +3,7 @@
 #   plan_bfft does not need separate testing since it is used by plan_ifft
 
 using CuArrays.FFT
-using FFTW, Base.Test
+using FFTW, Test
 
 
 const N1 = 8
@@ -105,7 +105,7 @@ function dotest3(X::AbstractArray{T,N},region) where {T <: Real,N}
 end
 
 
-@testset "FFT" for (rtype,ctype) in [(Float32,Complex64), (Float64,Complex128)]
+@testset "FFT" for (rtype,ctype) in [(Float32,ComplexF32), (Float64,ComplexF64)]
 
 @testset "1D FFT" begin
     dims = (N1,)

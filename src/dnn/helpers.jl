@@ -24,7 +24,7 @@ end
 mutable struct TensorDesc; ptr; end
 free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
 Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
-Base.unsafe_convert(::Type{Ptr{Void}}, td::TensorDesc) = convert(Ptr{Void}, td.ptr)
+Base.unsafe_convert(::Type{Ptr{Nothing}}, td::TensorDesc) = convert(Ptr{Nothing}, td.ptr)
 
 function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(size)) where N
     sz = Cint.(size) |> reverse |> collect
@@ -33,7 +33,7 @@ function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer}
     cudnnCreateTensorDescriptor(d)
     cudnnSetTensorNdDescriptor(d[1], cudnnDataType(T), length(sz), sz, st)
     this = TensorDesc(d[1])
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end
 
@@ -44,7 +44,7 @@ mutable struct FilterDesc
 end
 free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
 Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
-Base.unsafe_convert(::Type{Ptr{Void}}, fd::FilterDesc)=fd.ptr
+Base.unsafe_convert(::Type{Ptr{Nothing}}, fd::FilterDesc)=fd.ptr
 
 function createFilterDesc()
   d = cudnnFilterDescriptor_t[0]
@@ -62,7 +62,7 @@ function FilterDesc(T::Type, size::Tuple; format = CUDNN_TENSOR_NCHW)
         cudnnSetFilterNdDescriptor_v4(d, cudnnDataType(T), format, length(sz), sz) :
         cudnnSetFilterNdDescriptor(d, cudnnDataType(T), length(sz), sz)
     this = FilterDesc(d)
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end
 
@@ -72,8 +72,8 @@ function Base.size(f::FilterDesc)
   typ = Cuint[0]
   format = Cuint[0]
   ndims = Cint[0]
-  dims = Vector{Cint}(8)
-  @check ccall((:cudnnGetFilterNdDescriptor,libcudnn), cudnnStatus_t, (Ptr{Void}, Cint, Ptr{UInt32}, Ptr{UInt32}, Ptr{Cint}, Ptr{Cint}),
+  dims = Vector{Cint}(undef, 8)
+  @check ccall((:cudnnGetFilterNdDescriptor,libcudnn), cudnnStatus_t, (Ptr{Nothing}, Cint, Ptr{UInt32}, Ptr{UInt32}, Ptr{Cint}, Ptr{Cint}),
     f, 8, typ, format, ndims, dims)
   @assert ndims[] ≤ 8
   return (dims[1:ndims[]]...,) |> reverse
@@ -99,7 +99,7 @@ function ConvDesc(T, N, padding, stride, upscale, mode)
     CUDNN_VERSION >= 3000 ? cudnnSetConvolutionNdDescriptor_v3(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
     cudnnSetConvolutionNdDescriptor(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode)
     this = ConvDesc(cd[1])
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end
 
@@ -112,6 +112,6 @@ function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_
     cudnnCreatePoolingDescriptor(pd)
     cudnnSetPoolingNdDescriptor(pd[1],mode,maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
     this = PoolDesc(pd[1])
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end

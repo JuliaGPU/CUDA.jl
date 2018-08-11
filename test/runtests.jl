@@ -1,43 +1,48 @@
 # Pkg.test runs with --check_bounds=1, forcing all bounds checks.
 # This is incompatible with CUDAnative (see JuliaGPU/CUDAnative.jl#98)
 if Base.JLOptions().check_bounds == 1
+  file = @__FILE__
   run(```
     $(Base.julia_cmd())
     --color=$(Base.have_color ? "yes" : "no")
-    --compilecache=$(Bool(Base.JLOptions().use_compilecache) ? "yes" : "no")
+    --compiled-modules=$(Bool(Base.JLOptions().use_compiled_modules) ? "yes" : "no")
     --startup-file=$(Base.JLOptions().startupfile != 2 ? "yes" : "no")
     --code-coverage=$(["none", "user", "all"][1+Base.JLOptions().code_coverage])
-    $(@__FILE__)
+    $(file)
     ```)
   exit()
 end
 
-using CuArrays
+using CuArrays, CUDAnative
 using CuArrays: @fix
-using Base.Test
+using Test
+using Random
+using LinearAlgebra
 
-srand(1)
+Random.seed!(1)
 
 import CUDAdrv
 ## pick the most recent device
 global dev = nothing
 for newdev in CUDAdrv.devices()
+  global dev
     if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
         dev = newdev
     end
 end
-info("Testing using device $(CUDAdrv.name(dev))")
+@info("Testing using device $(CUDAdrv.name(dev))")
 
 CuArrays.allowscalar(false)
 
-function testf(f, xs...)
-  collect(f(cu.(xs)...)) ≈ collect(f(xs...))
+function testf(f, xs...; ref=f)
+  collect(f(cu.(xs)...)) ≈ collect(ref(xs...))
 end
 
-using Base.Test, GPUArrays.TestSuite
+
+using GPUArrays, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
-@testset "GPUArray Testsuite: $(CUDAnative.default_device[])" begin
+@testset "GPUArray Testsuite" begin
     TestSuite.run_gpuinterface(CuArray)
     TestSuite.run_base(CuArray)
     TestSuite.run_blas(CuArray)
@@ -76,24 +81,27 @@ end
   @test testf(hcat, rand(3, 3), rand(3, 3))
   @test testf(vcat, rand(3, 3), rand(3, 3))
   @test testf(hcat, rand(3), rand(3))
-  @test testf(cat, 4, rand(3, 4), rand(3, 4))
+  @test testf((a,b) -> cat(a,b; dims=4), rand(3, 4), rand(3, 4))
 end
 
 @testset "Broadcast" begin
-  @test testf((x)       -> fill!(x, 1),  rand(3,3))
-  @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
-  #@test testf((x)       -> sin.(x),      rand(2, 3))
-  @test testf((x)       -> 2x,      rand(2, 3))
-  @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
-  @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
+  @test testf((x)       -> fill!(x, 1),       rand(3,3))
+  @test testf((x, y)    -> map(+, x, y),      rand(2, 3), rand(2, 3))
+  @test testf((x)      -> CUDAnative.sin.(x), rand(2, 3);
+              ref=(x)  -> sin.(x))
+  @test testf((x)       -> 2x,                rand(2, 3))
+  @test testf((x, y)    -> x .+ y,            rand(2, 3), rand(1, 3))
+  @test testf((z, x, y) -> z .= x .+ y,       rand(2, 3), rand(2, 3), rand(2))
 end
 
 using ForwardDiff: Dual
 using NNlib
 
 @testset "Broadcast Fix" begin
-  @test testf(x -> @fix(log.(x)), rand(3,3))
-  @test testf((x,xs) -> @fix(log.(x.+xs)), 1, rand(3,3))
+  @test testf(x -> CUDAnative.log.(x), rand(3,3);
+              ref=x -> log.(x))
+  @test testf((x,xs) -> CUDAnative.log.(x.+xs), 1, rand(3,3);
+              ref=(x,xs) -> log.(x.+xs))
   @test testf(x -> @fix(logσ.(x)), rand(5))
 
   f(x) = @fix logσ.(x)
@@ -102,10 +110,10 @@ using NNlib
 end
 
 @testset "Reduce" begin
-  @test testf(x -> sum(x, 1), rand(2, 3))
-  @test testf(x -> sum(x, 2), rand(2, 3))
-  @test testf(x -> sum(x -> x^2, x, 1), rand(2, 3))
-  @test testf(x -> prod(x, 2), rand(2, 3))
+  @test testf(x -> sum(x, dims=1), rand(2, 3))
+  @test testf(x -> sum(x, dims=2), rand(2, 3))
+  @test testf(x -> sum(x -> x^2, x, dims=1), rand(2, 3))
+  @test testf(x -> prod(x, dims=2), rand(2, 3))
 
   @test testf(x -> sum(x), rand(2, 3))
   @test testf(x -> prod(x), rand(2, 3))
@@ -127,7 +135,7 @@ end
   CuArrays._setindex!(y, -1f0, 3)
   @test collect(y) == [6, 7, -1, 9, 10]
   @test collect(x) == [1, 2, 3, 4, 5, 6, 7, -1, 9, 10]
-  @test collect(cu(eye(5))*y) == collect(y)
+  @test collect(CuMatrix{eltype(y)}(I, 5, 5)*y) == collect(y)
 end
 
 if CuArrays.cudnn_available()

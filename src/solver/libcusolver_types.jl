@@ -13,7 +13,7 @@ const CUSOLVER_STATUS_EXECUTION_FAILED          = 5
 const CUSOLVER_STATUS_INTERNAL_ERROR            = 6
 const CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED = 7
 
-const csrqrInfo_t = Ptr{Void}
+const csrqrInfo_t = Ptr{Nothing}
 
 # refactorization types
 
@@ -42,11 +42,11 @@ const CUSOLVER_UNIT_DIAGONAL_STORED_U           = 1
 const CUSOLVER_UNIT_DIAGONAL_ASSUMED_L          = 2
 const CUSOLVER_UNIT_DIAGONAL_ASSUMED_U          = 3
 
-const cusolverDnContext = Void
+const cusolverDnContext = Nothing
 const cusolverDnHandle_t = Ptr{cusolverDnContext}
-const cusolverSpContext = Void
+const cusolverSpContext = Nothing
 const cusolverSpHandle_t = Ptr{cusolverSpContext}
-const cusolverRfContext = Void
+const cusolverRfContext = Nothing
 const cusolverRfHandle_t = Ptr{cusolverRfContext}
 
 #complex numbers
@@ -54,6 +54,6 @@ const cusolverRfHandle_t = Ptr{cusolverRfContext}
 const cuComplex = Complex{Float32}
 const cuDoubleComplex = Complex{Float64}
 
-const CusolverFloat = Union{Float64,Float32,Complex128,Complex64}
+const CusolverFloat = Union{Float64,Float32,ComplexF64,ComplexF32}
 const CusolverReal = Union{Float64,Float32}
-const CusolverComplex = Union{Complex128,Complex64}
+const CusolverComplex = Union{ComplexF64,ComplexF32}

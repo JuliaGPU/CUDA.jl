@@ -1,9 +1,11 @@
 module CUSOLVER
 
 using ..CuArrays
-const cudaStream_t = Ptr{Void}
+const cudaStream_t = Ptr{Nothing}
 
 using ..CuArrays: libcusolver, configured, _getindex
+
+import LinearAlgebra
 
 import Base.one
 import Base.zero

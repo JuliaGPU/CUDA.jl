@@ -2,8 +2,8 @@
 #potrf 
 for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :Float32),
                             (:cusolverDnDpotrf_bufferSize, :cusolverDnDpotrf, :Float64),
-                            (:cusolverDnCpotrf_bufferSize, :cusolverDnCpotrf, :Complex64),
-                            (:cusolverDnZpotrf_bufferSize, :cusolverDnZpotrf, :Complex128))
+                            (:cusolverDnCpotrf_bufferSize, :cusolverDnCpotrf, :ComplexF32),
+                            (:cusolverDnZpotrf_bufferSize, :cusolverDnZpotrf, :ComplexF64))
     @eval begin
         function potrf!(uplo::BlasChar,
                         A::CuMatrix{$elty})
@@ -40,8 +40,8 @@ end
 #getrf 
 for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :Float32),
                             (:cusolverDnDgetrf_bufferSize, :cusolverDnDgetrf, :Float64),
-                            (:cusolverDnCgetrf_bufferSize, :cusolverDnCgetrf, :Complex64),
-                            (:cusolverDnZgetrf_bufferSize, :cusolverDnZgetrf, :Complex128))
+                            (:cusolverDnCgetrf_bufferSize, :cusolverDnCgetrf, :ComplexF32),
+                            (:cusolverDnZgetrf_bufferSize, :cusolverDnZgetrf, :ComplexF64))
     @eval begin
         function getrf!(A::CuMatrix{$elty})
             m,n     = size(A)
@@ -74,8 +74,8 @@ end
 #geqrf 
 for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :Float32),
                             (:cusolverDnDgeqrf_bufferSize, :cusolverDnDgeqrf, :Float64),
-                            (:cusolverDnCgeqrf_bufferSize, :cusolverDnCgeqrf, :Complex64),
-                            (:cusolverDnZgeqrf_bufferSize, :cusolverDnZgeqrf, :Complex128))
+                            (:cusolverDnCgeqrf_bufferSize, :cusolverDnCgeqrf, :ComplexF32),
+                            (:cusolverDnZgeqrf_bufferSize, :cusolverDnZgeqrf, :ComplexF64))
     @eval begin
         function geqrf!(A::CuMatrix{$elty})
             m, n    = size(A)
@@ -105,8 +105,8 @@ end
 #sytrf 
 for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :Float32),
                             (:cusolverDnDsytrf_bufferSize, :cusolverDnDsytrf, :Float64),
-                            (:cusolverDnCsytrf_bufferSize, :cusolverDnCsytrf, :Complex64),
-                            (:cusolverDnZsytrf_bufferSize, :cusolverDnZsytrf, :Complex128))
+                            (:cusolverDnCsytrf_bufferSize, :cusolverDnCsytrf, :ComplexF32),
+                            (:cusolverDnZsytrf_bufferSize, :cusolverDnZsytrf, :ComplexF64))
     @eval begin
         function sytrf!(uplo::BlasChar,
                         A::CuMatrix{$elty})
@@ -144,8 +144,8 @@ end
 #potrs
 for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
                      (:cusolverDnDpotrs, :Float64),
-                     (:cusolverDnCpotrs, :Complex64),
-                     (:cusolverDnZpotrs, :Complex128))
+                     (:cusolverDnCpotrs, :ComplexF32),
+                     (:cusolverDnZpotrs, :ComplexF64))
     @eval begin
         function potrs!(uplo::BlasChar,
                         A::CuMatrix{$elty},
@@ -180,8 +180,8 @@ end
 #getrs
 for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
                      (:cusolverDnDgetrs, :Float64),
-                     (:cusolverDnCgetrs, :Complex64),
-                     (:cusolverDnZgetrs, :Complex128))
+                     (:cusolverDnCgetrs, :ComplexF32),
+                     (:cusolverDnZgetrs, :ComplexF64))
     @eval begin
         function getrs!(trans::BlasChar,
                         A::CuMatrix{$elty},
@@ -217,8 +217,8 @@ end
 #ormqr 
 for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :Float32),
                              (:cusolverDnDormqr_bufferSize, :cusolverDnDormqr, :Float64),
-                             (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :Complex64),
-                             (:cusolverDnZunmqr_bufferSize, :cusolverDnZunmqr, :Complex128))    @eval begin
+                             (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :ComplexF32),
+                             (:cusolverDnZunmqr_bufferSize, :cusolverDnZunmqr, :ComplexF64))    @eval begin
         function ormqr!(side::BlasChar,
                         trans::BlasChar,
                         A::CuMatrix{$elty},
@@ -273,8 +273,8 @@ end
 #orgqr 
 for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :Float32),
                              (:cusolverDnDorgqr_bufferSize, :cusolverDnDorgqr, :Float64),
-                             (:cusolverDnCungqr_bufferSize, :cusolverDnCungqr, :Complex64),
-                             (:cusolverDnZungqr_bufferSize, :cusolverDnZungqr, :Complex128))
+                             (:cusolverDnCungqr_bufferSize, :cusolverDnCungqr, :ComplexF32),
+                             (:cusolverDnZungqr_bufferSize, :cusolverDnZungqr, :ComplexF64))
     @eval begin
         function orgqr!(A::CuMatrix{$elty}, tau::CuVector{$elty})
             m = size(A , 1)
@@ -309,8 +309,8 @@ end
 #gebrd
 for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSgebrd, :Float32, :Float32),
                                     (:cusolverDnDgebrd_bufferSize, :cusolverDnDgebrd, :Float64, :Float64),
-                                    (:cusolverDnCgebrd_bufferSize, :cusolverDnCgebrd, :Complex64, :Float32),
-                                    (:cusolverDnZgebrd_bufferSize, :cusolverDnZgebrd, :Complex128, :Float64))
+                                    (:cusolverDnCgebrd_bufferSize, :cusolverDnCgebrd, :ComplexF32, :Float32),
+                                    (:cusolverDnZgebrd_bufferSize, :cusolverDnZgebrd, :ComplexF64, :Float64))
     @eval begin
         function gebrd!(A::CuMatrix{$elty})
             m, n    = size(A)
@@ -343,8 +343,8 @@ end
 
 for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSgesvd, :Float32, :Float32),
                                     (:cusolverDnDgesvd_bufferSize, :cusolverDnDgesvd, :Float64, :Float64),
-                                    (:cusolverDnCgesvd_bufferSize, :cusolverDnCgesvd, :Complex64, :Float32),
-                                    (:cusolverDnZgesvd_bufferSize, :cusolverDnZgesvd, :Complex128, :Float64))
+                                    (:cusolverDnCgesvd_bufferSize, :cusolverDnCgesvd, :ComplexF32, :Float32),
+                                    (:cusolverDnZgesvd_bufferSize, :cusolverDnZgesvd, :ComplexF64, :Float64))
     @eval begin
         function gesvd!(jobu::BlasChar,
                         jobvt::BlasChar,

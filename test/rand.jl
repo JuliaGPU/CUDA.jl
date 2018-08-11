@@ -1,6 +1,6 @@
 
 using CuArrays.CURAND
-using Base.Test
+using Test
 
 # smoke tests for high-level API
 rng = CURAND.create_generator()

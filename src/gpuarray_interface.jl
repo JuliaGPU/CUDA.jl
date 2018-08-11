@@ -3,17 +3,22 @@ import GPUArrays
 Base.similar(::Type{<:CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = CuArray{T, N}(size)
 
 #Abstract GPU interface
-immutable CuKernelState end
+struct CuKernelState end
 
-@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{C}) where {T, N, C}
-    CUDAnative.generate_static_shmem(Val{C}, T, Val{N})
+@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{id}) where {T, N, id}
+    ptr = CUDAnative._shmem(Val(id), T, Val(N))
+    CuDeviceArray(N, DevicePtr{T, CUDAnative.AS.Shared}(ptr))
 end
 
-(::Type{GPUArrays.AbstractDeviceArray})(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
+GPUArrays.AbstractDeviceArray(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
+
+GPUArrays.unpack_buffer(a::CuArray) = a
 
 
 @inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
 
+GPUArrays.blas_module(::CuArray) = CuArrays.BLAS
+GPUArrays.blasbuffer(x::CuArray) = x
 
 """
 Blocks until all operations are finished on `A`
@@ -21,7 +26,7 @@ Blocks until all operations are finished on `A`
 function GPUArrays.synchronize(A::CuArray)
     # fallback is a noop, for backends not needing synchronization. This
     # makes it easier to write generic code that also works for AbstractArrays
-    CUDAdrv.synchronize(CUDAnative.default_context[])
+    CUDAdrv.synchronize()
 end
 
 for (i, sym) in enumerate((:x, :y, :z))
@@ -33,12 +38,12 @@ for (i, sym) in enumerate((:x, :y, :z))
         )
         fname = Symbol(string(f, '_', sym))
         cufun = Symbol(string(fcu, '_', sym))
-        @eval GPUArrays.$fname(::CuKernelState)::Cuint = CUDAnative.$cufun()
+        @eval GPUArrays.$fname(::CuKernelState) = CUDAnative.$cufun()
     end
 end
 
 # devices() = CUDAdrv.devices()
-GPUArrays.device(A::CuArray) = CUDAnative.default_device[]
+GPUArrays.device(A::CuArray) = CUDAdrv.device(CUDAdrv.CuCurrentContext())
 GPUArrays.is_gpu(dev::CUDAdrv.CuDevice) = true
 GPUArrays.name(dev::CUDAdrv.CuDevice) = string("CU ", CUDAdrv.name(dev))
 GPUArrays.threads(dev::CUDAdrv.CuDevice) = CUDAdrv.attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK)
@@ -57,8 +62,8 @@ GPUArrays.local_memory(dev::CUDAdrv.CuDevice) = CUDAdrv.attribute(dev, CUDAdrv.T
 
 
 function GPUArrays._gpu_call(f, A::CuArray, args::Tuple, blocks_threads::Tuple{T, T}) where T <: NTuple{N, Integer} where N
-    blocks, threads = blocks_threads
-    @cuda (blocks, threads) f(CuKernelState(), args...)
+    blk, thr = blocks_threads
+    @cuda blocks=blk threads=thr f(CuKernelState(), args...)
 end
 
 # Save reinterpret and reshape implementation use this in GPUArrays
@@ -68,40 +73,33 @@ end
 
 # Additional copy methods
 
-function Base.copy!{T}(
+function Base.copyto!(
         dest::Array{T}, d_offset::Integer,
         source::CuArray{T}, s_offset::Integer, amount::Integer
-    )
+    ) where T
     amount == 0 && return dest
-    d_offset = d_offset
-    s_offset = s_offset - 1
-    buf = Mem.view(source.buf, s_offset*sizeof(T))
-    CUDAdrv.Mem.download(Ref(dest, d_offset), buf, sizeof(T) * (amount))
+    buf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
+    CUDAdrv.Mem.download!(Ref(dest, d_offset), buf, sizeof(T) * amount) # TODO: sizeof(source)
     dest
 end
 
-function Base.copy!{T}(
+function Base.copyto!(
         dest::CuArray{T}, d_offset::Integer,
         source::Array{T}, s_offset::Integer, amount::Integer
-    )
+    ) where T
     amount == 0 && return dest
-    d_offset = d_offset - 1
-    s_offset = s_offset
-    buf = Mem.view(dest.buf, s_offset*sizeof(T))
-    CUDAdrv.Mem.upload(buf, Ref(source, s_offset), sizeof(T) * (amount))
+    buf = Mem.view(unsafe_buffer(dest), (d_offset - 1) * sizeof(T))
+    CUDAdrv.Mem.upload!(buf, Ref(source, s_offset), sizeof(T) * amount) # TODO: sizeof(source)
     dest
 end
 
-function Base.copy!{T}(
+function Base.copyto!(
         dest::CuArray{T}, d_offset::Integer,
         source::CuArray{T}, s_offset::Integer, amount::Integer
-    )
-    d_offset = d_offset - 1
-    s_offset = s_offset - 1
-    d_ptr = dest.ptr
-    s_ptr = source.ptr
-    dptr = d_ptr + (sizeof(T) * d_offset)
-    sptr = s_ptr + (sizeof(T) * s_offset)
-    CUDAdrv.Mem.transfer(sptr, dptr, sizeof(T) * (amount))
+    ) where T
+    amount == 0 && return dest
+    sbuf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
+    dbuf = Mem.view(unsafe_buffer(dest),   (d_offset - 1) * sizeof(T))
+    CUDAdrv.Mem.transfer!(sbuf, dbuf, sizeof(T) * (amount))
     dest
 end
