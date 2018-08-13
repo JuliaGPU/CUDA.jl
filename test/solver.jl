@@ -23,7 +23,7 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.potrf!('U',d_A)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
-        @test_throws Base.LinAlg.SingularException CUSOLVER.potrf!('U',d_A)
+        @test_throws LinearAlgebra.SingularException CUSOLVER.potrf!('U',d_A)
     end
     @testset "potrs!" begin
         A     = rand(elty,n,n)
@@ -52,11 +52,11 @@ k = 1
         d_A,d_ipiv = CUSOLVER.getrf!(d_A)
         h_A        = collect(d_A)
         h_ipiv     = collect(d_ipiv)
-        alu        = Base.LinAlg.LU(h_A, convert(Vector{Int},h_ipiv), zero(Int))
+        alu        = LinearAlgebra.LU(h_A, convert(Vector{Int},h_ipiv), zero(Int))
         @test A ≈ full(alu)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
-        @test_throws Base.LinAlg.SingularException CUSOLVER.getrf!(d_A)
+        @test_throws LinearAlgebra.SingularException CUSOLVER.getrf!(d_A)
     end
 
     @testset "getrs!" begin
@@ -84,7 +84,7 @@ k = 1
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
         h_A       = collect(d_A)
         h_tau     = collect(d_tau)
-        qra       = Base.LinAlg.QR(h_A, h_tau)
+        qra       = LinearAlgebra.QR(h_A, h_tau)
         @test A ≈ full(qra)
     end
 
@@ -159,7 +159,7 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.sytrf!('U',d_A)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
-        @test_throws Base.LinAlg.SingularException CUSOLVER.sytrf!('U',d_A)
+        @test_throws LinearAlgebra.SingularException CUSOLVER.sytrf!('U',d_A)
     end
 
     @testset "gebrd!" begin

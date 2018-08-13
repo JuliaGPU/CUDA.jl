@@ -30,7 +30,7 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
             if info < 0
                 throw(ArgumentError("The $(-info)th parameter is wrong"))
             elseif info > 0
-                throw(Base.LinAlg.SingularException(info))
+                throw(LinearAlgebra.SingularException(info))
             end
             A
         end
@@ -64,7 +64,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
             elseif info > 0
-                throw(Base.LinAlg.SingularException(info))
+                throw(LinearAlgebra.SingularException(info))
             end
             A, devipiv
         end
@@ -134,7 +134,7 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
             elseif info > 0
-                throw(Base.LinAlg.SingularException(info))
+                throw(LinearAlgebra.SingularException(info))
             end
             A, devipiv
         end
