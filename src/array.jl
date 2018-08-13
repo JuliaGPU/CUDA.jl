@@ -6,6 +6,7 @@ mutable struct CuArray{T,N} <: GPUArray{T,N}
   buf::Mem.Buffer
   offset::Int
   dims::NTuple{N,Int}
+
   function CuArray{T,N}(buf::Mem.Buffer, offset::Integer, dims::NTuple{N,Integer}) where {T,N}
     xs = new{T,N}(buf, offset, dims)
     Mem.retain(buf)
@@ -134,7 +135,9 @@ cuones(T::Type, dims...) = fill!(CuArray{T}(dims...), 1)
 cuzeros(dims...) = cuzeros(Float32, dims...)
 cuones(dims...) = cuones(Float32, dims...)
 
-Base.show(io::IO, X::CuArray) = Base.show(io, collect(X))
+Base.show(io::IO, x::CuArray) = show(io, collect(x))
+Base.show(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, LinearAlgebra.adjoint(collect(x.parent)))
+Base.show(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, LinearAlgebra.transpose(collect(x.parent)))
 
 import Adapt: adapt, adapt_
 

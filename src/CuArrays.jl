@@ -7,6 +7,8 @@ import CUDAnative: cudaconvert
 
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones
 
+import LinearAlgebra
+
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 isfile(ext) || error("CuArrays.jl has not been built, please run Pkg.build(\"CuArrays\").")
 include(ext)
