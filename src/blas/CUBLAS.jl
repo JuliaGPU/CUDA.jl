@@ -7,8 +7,6 @@ using LinearAlgebra
 
 using ..CuArrays: CuArray, CuVector, CuMatrix, CuVecOrMat, libcublas, configured
 
-const BlasChar = Char
-
 include("util.jl")
 include("libcublas_types.jl")
 include("error.jl")
