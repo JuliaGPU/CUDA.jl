@@ -137,12 +137,12 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
                         incx::Integer,
                         DY::CuArray{$elty},
                         incy::Integer)
-            result = Array{$elty}(undef, 1)
+            result = Ref{$elty}()
             @check ccall(($(string(fname)), libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{$elty}, Cint,
                           Ptr{$elty}, Cint, Ptr{$elty}),
                          libcublas_handle[], n, DX, incx, DY, incy, result)
-            return result[1]
+            return result[]
         end
     end
 end
@@ -157,12 +157,12 @@ for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
         function nrm2(n::Integer,
                       X::CuArray{$elty},
                       incx::Integer)
-            result = Array{$ret_type}(undef, 1)
+            result = Ref{$ret_type}()
             @check ccall(($(string(fname)), libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{$elty}, Cint,
                           Ptr{$ret_type}),
                          libcublas_handle[], n, X, incx, result)
-            return result[1]
+            return result[]
         end
     end
 end
@@ -180,12 +180,12 @@ for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
         function asum(n::Integer,
                       X::CuArray{$elty},
                       incx::Integer)
-            result = Array{$ret_type}(undef, 1)
+            result = Ref{$ret_type}()
             @check ccall(($(string(fname)), libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{$elty}, Cint,
                           Ptr{$ret_type}),
                          libcublas_handle[], n, X, incx, result)
-            return result[1]
+            return result[]
         end
     end
 end
@@ -246,12 +246,12 @@ for (fname, elty) in ((:cublasIdamax_v2,:Float64),
         function iamax(n::Integer,
                        dx::CuArray{$elty},
                        incx::Integer)
-            result = Array{Cint}(undef, 1)
+            result = Ref{Cint}()
             @check ccall(($(string(fname)), libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{$elty}, Cint,
                           Ptr{Cint}),
                          libcublas_handle[], n, dx, incx, result)
-            return result[1]
+            return result[]
         end
     end
 end
@@ -267,12 +267,12 @@ for (fname, elty) in ((:cublasIdamin_v2,:Float64),
         function iamin(n::Integer,
                        dx::CuArray{$elty},
                        incx::Integer)
-            result = Array{Cint}(undef, 1)
+            result = Ref{Cint}()
             @check ccall(($(string(fname)), libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{$elty}, Cint,
                           Ptr{Cint}),
                          libcublas_handle[], n, dx, incx, result)
-            return result[1]
+            return result[]
         end
     end
 end
