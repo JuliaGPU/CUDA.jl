@@ -18,7 +18,7 @@ k = 13
   CuArrays.BLAS.blascopy!(m,A,1,B,1)
   @test Array(A) == Array(B)
 
-  @test testf(scale!, rand(T, 6, 9, 3), rand())
+  @test testf(rmul!, rand(T, 6, 9, 3), rand())
   @test testf(dot, rand(T, m), rand(T, m))
   @test testf(*, transpose(rand(T, m)), rand(T, m))
   @test testf(*, rand(T, m)', rand(T, m))
