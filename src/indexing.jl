@@ -10,7 +10,7 @@ end
 Base.IndexStyle(::Type{<:CuArray}) = IndexLinear()
 
 function _getindex(xs::CuArray{T}, i::Integer) where T
-  buf = Mem.view(unsafe_buffer(xs), (i-1)*sizeof(T))
+  buf = Mem.view(buffer(xs), (i-1)*sizeof(T))
   return Mem.download(T, buf)[1]
 end
 
@@ -24,7 +24,7 @@ function Base.getindex(xs::CuArray{T}, i::UnitRange) where T
 end
 
 function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
-  buf = Mem.view(unsafe_buffer(xs), (i-1)*sizeof(T))
+  buf = Mem.view(buffer(xs), (i-1)*sizeof(T))
   Mem.upload!(buf, T[v])
 end
 

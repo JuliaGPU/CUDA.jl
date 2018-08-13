@@ -28,11 +28,21 @@ function unsafe_free!(xs::CuArray)
   return
 end
 
-unsafe_buffer(xs::CuArray) =
-  Mem.Buffer(xs.buf.ptr+xs.offset, sizeof(xs), xs.buf.ctx)
+"""
+  buffer(array::CuArray [, index])
 
-Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = unsafe_buffer(x)
-Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = unsafe_buffer(x)
+Get the native address of a CuArray, optionally at a given location `index`.
+Equivalent of `Base.pointer` on `Array`s.
+"""
+function buffer(xs::CuArray, index=1)
+  extra_offset = (index-1) * Base.elsize(xs)
+  Mem.Buffer(xs.buf.ptr + xs.offset + extra_offset,
+             sizeof(xs) - extra_offset,
+             xs.buf.ctx)
+end
+
+Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = buffer(x)
+Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = buffer(x)
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)
@@ -60,26 +70,22 @@ end
 
 # Interop with CPU array
 
-function Base.copy!(dst::CuArray{T}, src::Array{T}) where T
-    @assert length(dst) == length(src)
-    Mem.upload!(unsafe_buffer(dst), src)
-    return dst
+function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
+    Mem.upload!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
+    return dest
 end
 
-function Base.copy!(dst::Array{T}, src::CuArray{T}) where T
-    @assert length(dst) == length(src)
-    Mem.download!(dst, unsafe_buffer(src))
-    return dst
+function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
+    Mem.download!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
+    return dest
 end
 
-function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
-    @assert length(dst) == length(src)
-    Mem.transfer!(unsafe_buffer(dst), unsafe_buffer(src), sizeof(src))
-    return dst
+function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
+    Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), sizeof(src), n*sizeof(T))
+    return dest
 end
 
-Base.collect(x::CuArray{T,N}) where {T,N} =
-  copy!(Array{T,N}(undef, size(x)), x)
+Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
 function Base.deepcopy_internal(x::CuArray, dict::IdDict)
   haskey(dict, x) && return dict[x]::typeof(x)
@@ -89,10 +95,10 @@ end
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 Base.convert(::Type{CuArray{T,N}}, xs::Array{T,N}) where {T,N} =
-  copy!(CuArray{T,N}(size(xs)), xs)
+  copyto!(CuArray{T,N}(size(xs)), xs)
 
 Base.convert(::Type{CuArray{T}}, xs::Array{T,N}) where {T,N} =
-  copy!(CuArray{T}(size(xs)), xs)
+  copyto!(CuArray{T}(size(xs)), xs)
 
 Base.convert(::Type{CuArray}, xs::Array{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
