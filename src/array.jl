@@ -81,7 +81,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) w
 end
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
-    Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), sizeof(src), n*sizeof(T))
+    Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
     return dest
 end
 

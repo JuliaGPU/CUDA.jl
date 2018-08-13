@@ -1,5 +1,6 @@
 module CUSOLVER
 
+import CUDAdrv
 using CUDAdrv: CuContext, CuDevice
 using CUDAnative
 
