@@ -53,7 +53,7 @@ k = 1
         h_A        = collect(d_A)
         h_ipiv     = collect(d_ipiv)
         alu        = LinearAlgebra.LU(h_A, convert(Vector{Int},h_ipiv), zero(Int))
-        @test A ≈ full(alu)
+        @test A ≈ Array(alu)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
         @test_throws LinearAlgebra.SingularException CUSOLVER.getrf!(d_A)
@@ -85,7 +85,7 @@ k = 1
         h_A       = collect(d_A)
         h_tau     = collect(d_tau)
         qra       = LinearAlgebra.QR(h_A, h_tau)
-        @test A ≈ full(qra)
+        @test A ≈ Array(qra)
     end
 
     @testset "ormqr!" begin
@@ -96,8 +96,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ Array(qr[:Q])*B
+        F          = qr!(A)
+        @test h_B  ≈ Array(F.Q)*B
         A          = rand(elty, n, m)
         d_A        = CuArray(A)
         d_A, d_tau = CUSOLVER.geqrf!(d_A)
@@ -105,8 +105,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ Array(qr[:Q])*B
+        F          = qr!(A)
+        @test h_B  ≈ Array(F.Q)*B
         A          = rand(elty, m, n)
         d_A        = CuArray(A)
         d_A, d_tau = CUSOLVER.geqrf!(d_A)
@@ -114,8 +114,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ B*Array(qr[:Q])
+        F          = qr!(A)
+        @test h_B  ≈ B*Array(F.Q)
         A          = rand(elty, n, m)
         d_A        = CuArray(A)
         d_A, d_tau = CUSOLVER.geqrf!(d_A)
@@ -123,8 +123,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ B*Array(qr[:Q])
+        F          = qr!(A)
+        @test h_B  ≈ B*Array(F.Q)
     end
 
     @testset "orgqr!" begin
@@ -133,15 +133,15 @@ k = 1
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
         d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
         h_Q       = collect(d_Q)
-        qr        = qrfact!(A)
-        @test h_Q ≈ Array(qr[:Q])
+        F         = qr!(A)
+        @test h_Q ≈ Array(F.Q)
         A         = rand(elty,m,n)
         d_A       = CuArray(A)
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
         d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
         h_Q       = collect(d_Q)
-        qr        = qrfact!(A)
-        @test h_Q ≈ Array(qr[:Q])
+        F         = qr!(A)
+        @test h_Q ≈ Array(F.Q)
     end
 
     @testset "sytrf!" begin
