@@ -36,11 +36,10 @@ function initialize(dev = CuDevice(0))
     # NOTE: we could do something smarter here,
     #       eg. select the most powerful device,
     #       or skip devices without free memory
-    initialized[] = true
-    CUDAdrv.apicall_hook[] = nothing
-
     device!(dev)
 end
+
+const device!_listeners = Set{Function}()
 
 """
     device!(dev)
@@ -48,6 +47,9 @@ end
 Sets `dev` as the current active device for the calling host thread. Devices can be
 specified by integer id, or as a `CuDevice`. This is intended to be a low-cost operation,
 only performing significant work when calling it for the first time for each device.
+
+If your library or code needs to perform an action when the active device changes, add a
+callback of the signature `(::CuDevice, ::CuContext)` to the `device!_listeners` set.
 """
 function device!(dev::CuDevice)
     if !initialized[]
@@ -64,6 +66,10 @@ function device!(dev::CuDevice)
         activate(ctx)
     else
         device_contexts[dev] = CuContext(dev)
+    end
+
+    for listener in device!_listeners
+        listener(dev, device_contexts[dev])
     end
 end
 device!(dev::Integer) = device!(CuDevice(dev))
