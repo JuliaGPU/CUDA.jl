@@ -34,7 +34,7 @@ function LinearAlgebra.BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{
     dotu(n, DX, 1, DY, 1)
 end
 
-norm(x::CublasArray) = nrm2(x)
+LinearAlgebra.norm(x::CublasArray) = nrm2(x)
 LinearAlgebra.BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where T<:CublasFloat
