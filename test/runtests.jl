@@ -17,10 +17,17 @@ if CUDAnative.configured
         # the API shouldn't have been initialized
         @test CuCurrentContext() == nothing
 
+        device_callbacked = nothing
+        device_callback = (dev, ctx) -> begin
+            device_callbacked = dev
+        end
+        push!(CUDAnative.device!_listeners, device_callback)
+
         # now cause initialization
         Mem.alloc(1)
         @test CuCurrentContext() != nothing
         @test device(CuCurrentContext()) == CuDevice(0)
+        @test device_callbacked == CuDevice(0)
 
         device!(CuDevice(0))
         device!(CuDevice(0)) do
