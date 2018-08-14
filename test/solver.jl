@@ -200,25 +200,24 @@ k = 1
         d_A            = CuArray(A)
         d_F            = qr(d_A)
         d_RR           = d_F.Q'*d_A
-        @test d_RR[1:n,:] ≈ d_F.R atol=tol
-        @test norm(d_RR[n+1:end,:]) < tol
+        @test d_RR[1:n,:] ≈ d_F.R atol=tol*norm(A)
+        @test norm(d_RR[n+1:end,:]) < tol*norm(A)
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_F            = qr(d_A)
-        @test d_F.Q'*d_A ≈ d_F.R atol=tol
+        @test d_F.Q'*d_A ≈ d_F.R atol=tol*norm(A)
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
-        d_F            = qr(d_A) # FixMe! Use iteration protocol when implemented
-        h_q, h_r       = Array(d_F.Q), Array(d_F.R)
+        h_q, h_r       = qr(d_A)
         q, r           = qr(A)
-        @test h_q ≈ Array(q)
-        @test h_r ≈ Array(r)
+        @test Array(h_q) ≈ Array(q)
+        @test Array(h_r) ≈ Array(r)
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
-        d_F            = qr(d_A) # FixMe! Use iteration protocol when implemented
+        h_q, h_r       = qr(d_A) # FixMe! Use iteration protocol when implemented
         q, r           = qr(A)
-        @test Array(d_F.Q) ≈ Array(q)
-        @test Array(d_F.R) ≈ Array(r)
+        @test Array(h_q) ≈ Array(q)
+        @test Array(h_r) ≈ Array(r)
     end
 
 end

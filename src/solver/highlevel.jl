@@ -33,6 +33,12 @@ function Base.getproperty(A::CuQR, d::Symbol)
     end
 end
 
+# iteration for destructuring into components
+Base.iterate(S::CuQR) = (S.Q, Val(:R))
+Base.iterate(S::CuQR, ::Val{:R}) = (S.R, Val(:done))
+Base.iterate(S::CuQR, ::Val{:done}) = nothing
+
+# Apply changes Q from the left
 LinearAlgebra.lmul!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
     ormqr!('L', 'N', A.factors, A.τ, B)
 LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Real, S<:CuMatrix} =
