@@ -21,6 +21,17 @@ using LinearAlgebra
 
 Random.seed!(1)
 
+import CUDAdrv
+## pick the most recent device
+global dev = nothing
+for newdev in CUDAdrv.devices()
+  global dev
+    if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
+        dev = newdev
+    end
+end
+@info("Testing using device $(CUDAdrv.name(dev))")
+
 CuArrays.allowscalar(false)
 
 function testf(f, xs...; ref=f)
@@ -28,26 +39,21 @@ function testf(f, xs...; ref=f)
 end
 
 
-@testset "GPUArrays" begin
-
-using GPUArrays
-using GPUArrays.TestSuite
-
-TestSuite.test_gpuinterface(CuArray)
-TestSuite.test_base(CuArray)
-TestSuite.test_blas(CuArray)
-#TestSuite.test_broadcasting(CuArray)
-TestSuite.test_construction(CuArray)
-TestSuite.test_fft(CuArray)
-TestSuite.test_linalg(CuArray)
-TestSuite.test_mapreduce(CuArray)
-TestSuite.test_indexing(CuArray)
-TestSuite.test_random(CuArray)
-
-end
-
+using GPUArrays, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
+@testset "GPUArray Testsuite" begin
+    TestSuite.test_gpuinterface(CuArray)
+    TestSuite.test_base(CuArray)
+    TestSuite.test_blas(CuArray)
+    TestSuite.test_fft(CuArray)
+    TestSuite.test_construction(CuArray)
+    TestSuite.test_linalg(CuArray)
+    TestSuite.test_mapreduce(CuArray)
+    CuArrays.allowscalar(true)
+    TestSuite.test_indexing(CuArray)
+    CuArrays.allowscalar(false)
+end
 
 @testset "Array" begin
   xs = CuArray(2, 3)
