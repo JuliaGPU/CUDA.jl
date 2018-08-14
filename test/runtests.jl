@@ -43,15 +43,15 @@ using GPUArrays, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite" begin
-    TestSuite.run_gpuinterface(CuArray)
-    TestSuite.run_base(CuArray)
-    TestSuite.run_blas(CuArray)
-    TestSuite.run_fft(CuArray)
-    TestSuite.run_construction(CuArray)
-    TestSuite.run_linalg(CuArray)
-    TestSuite.run_mapreduce(CuArray)
+    TestSuite.test_gpuinterface(CuArray)
+    TestSuite.test_base(CuArray)
+    TestSuite.test_blas(CuArray)
+    TestSuite.test_fft(CuArray)
+    TestSuite.test_construction(CuArray)
+    TestSuite.test_linalg(CuArray)
+    TestSuite.test_mapreduce(CuArray)
     CuArrays.allowscalar(true)
-    TestSuite.run_indexing(CuArray)
+    TestSuite.test_indexing(CuArray)
     CuArrays.allowscalar(false)
 end
 
