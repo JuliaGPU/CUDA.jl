@@ -21,6 +21,17 @@ using LinearAlgebra
 
 Random.seed!(1)
 
+import CUDAdrv
+## pick the most recent device
+global dev = nothing
+for newdev in CUDAdrv.devices()
+  global dev
+    if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
+        dev = newdev
+    end
+end
+@info("Testing using device $(CUDAdrv.name(dev))")
+
 CuArrays.allowscalar(false)
 
 function testf(f, xs...; ref=f)
@@ -125,6 +136,12 @@ end
   @test collect(y) == [6, 7, -1, 9, 10]
   @test collect(x) == [1, 2, 3, 4, 5, 6, 7, -1, 9, 10]
   @test collect(CuMatrix{eltype(y)}(I, 5, 5)*y) == collect(y)
+end
+
+@testset "$f! with diagonal $d" for (f, f!) in ((triu, triu!), (tril, tril!)),
+                                          d in -2:2
+  A = randn(10, 10)
+  @test f(A, d) == Array(f!(CuArray(A), d))
 end
 
 if CuArrays.cudnn_available()

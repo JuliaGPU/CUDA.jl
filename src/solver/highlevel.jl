@@ -20,6 +20,7 @@ Base.size(A::CuQR) = size(A.factors)
 Base.size(A::CuQRPackedQ, dim::Integer) = 0 < dim ? (dim <= 2 ? size(A.factors, 1) : 1) : throw(BoundsError())
 Base.convert(::Type{CuMatrix}, A::CuQRPackedQ) = orgqr!(copy(A.factors), A.τ)
 Base.convert(::Type{CuArray}, A::CuQRPackedQ) = convert(CuMatrix, A)
+Base.Matrix(A::CuQRPackedQ) = Matrix(CuMatrix(A))
 
 function Base.getproperty(A::CuQR, d::Symbol)
     m, n = size(getfield(A, :factors))
@@ -34,7 +35,9 @@ end
 
 LinearAlgebra.lmul!(A::CuQRPackedQ{T,S}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
     ormqr!('L', 'N', A.factors, A.τ, B)
-LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Real, S<:CuMatrix} =
+    ormqr!('L', 'T', parent(adjA).factors, parent(adjA).τ, B)
+LinearAlgebra.lmul!(adjA::Adjoint{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Complex, S<:CuMatrix} =
     ormqr!('L', 'C', parent(adjA).factors, parent(adjA).τ, B)
 LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) where {T<:Number, S<:CuMatrix} =
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)

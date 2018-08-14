@@ -194,31 +194,31 @@ k = 1
     end
 
     @testset "qr" begin
+        tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
+
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
         d_F            = qr(d_A)
         d_RR           = d_F.Q'*d_A
-        @test d_RR[1:n,:] ≈ d_F.R atol=min(m, n)*eps(real(elty))
-        @test norm(d_RR[n+1:end,:]) < min(m, n)*eps(real(elty))
+        @test d_RR[1:n,:] ≈ d_F.R atol=tol
+        @test norm(d_RR[n+1:end,:]) < tol
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_F            = qr(d_A)
-        @test d_F.Q'*d_A ≈ d_F.R atol=min(m, n)*eps(real(elty))
-        CuArrays.allowscalar(true)
+        @test d_F.Q'*d_A ≈ d_F.R atol=tol
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
         d_F            = qr(d_A) # FixMe! Use iteration protocol when implemented
-        h_q, h_r       = collect(d_F.Q), collect(d_F.R)
+        h_q, h_r       = Array(d_F.Q), Array(d_F.R)
         q, r           = qr(A)
-        @test h_q ≈ q
-        @test h_r ≈ r
+        @test h_q ≈ Array(q)
+        @test h_r ≈ Array(r)
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_F            = qr(d_A) # FixMe! Use iteration protocol when implemented
         q, r           = qr(A)
-        @test collect(d_F.Q) ≈ collect(q)
-        @test collect(d_F.R) ≈ collect(r)
-        CuArrays.allowscalar(false)
+        @test Array(d_F.Q) ≈ Array(q)
+        @test Array(d_F.R) ≈ Array(r)
     end
 
 end
