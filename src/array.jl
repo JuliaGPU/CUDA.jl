@@ -44,9 +44,13 @@ Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = buffer(x)
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)
+# This constructor is to avoid ambiguity with constructor in GPUArrays
+CuArray{T,0}(::Tuple{}) where T = CuArray{T,0}(alloc(sizeof(T)), ())
 
 CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(dims)
+# This constructor is to avoid ambiguity with constructor in GPUArrays
+CuArray{T}(::Tuple{}) where T = CuArray{T,0}()
 
 CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float32,N}(dims)
 
