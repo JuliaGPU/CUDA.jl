@@ -196,26 +196,28 @@ k = 1
     @testset "qr" begin
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
-        F              = qr(d_A)
-        @test F.Q'*A ≈ F.R
+        d_F            = qr(d_A)
+        d_RR           = d_F.Q'*d_A
+        @test d_RR[1:n,:] ≈ d_F.R atol=min(m, n)*eps(real(elty))
+        @test norm(d_RR[n+1:end,:]) < min(m, n)*eps(real(elty))
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
-        F              = qr(d_A)
-        @test F.Q'*A ≈ F.R
+        d_F            = qr(d_A)
+        @test d_F.Q'*d_A ≈ d_F.R atol=min(m, n)*eps(real(elty))
         CuArrays.allowscalar(true)
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
-        d_q, d_r       = qr(d_A)
-        h_q, h_r       = collect(d_q), collect(d_r)
+        d_F            = qr(d_A) # FixMe! Use iteration protocol when implemented
+        h_q, h_r       = collect(d_F.Q), collect(d_F.R)
         q, r           = qr(A)
         @test h_q ≈ q
         @test h_r ≈ r
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
-        d_q, d_r       = qr(d_A)
+        d_F            = qr(d_A) # FixMe! Use iteration protocol when implemented
         q, r           = qr(A)
-        @test collect(d_q) ≈ collect(q)
-        @test collect(d_r) ≈ collect(r)
+        @test collect(d_F.Q) ≈ collect(q)
+        @test collect(d_F.R) ≈ collect(r)
         CuArrays.allowscalar(false)
     end
 
