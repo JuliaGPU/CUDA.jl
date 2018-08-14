@@ -33,6 +33,13 @@ function __init__()
     end
     push!(CUDAnative.device!_listeners, callback)
 
+    # a device might be active already
+    existing_ctx = CUDAdrv.CuCurrentContext()
+    if existing_ctx !== nothing
+        dev = device(existing_ctx)
+        callback(dev, existing_ctx)
+    end
+
     # deinitialize when exiting
     atexit() do
         libcublas_handle[] = C_NULL
