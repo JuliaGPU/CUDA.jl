@@ -5,6 +5,8 @@ module CuArrays
 using CUDAdrv, CUDAnative
 import CUDAnative: cudaconvert
 
+using GPUArrays
+
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones
 
 import LinearAlgebra

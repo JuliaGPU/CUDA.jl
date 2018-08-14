@@ -1,5 +1,3 @@
-using GPUArrays
-
 import CUDAnative: DevicePtr
 
 mutable struct CuArray{T,N} <: GPUArray{T,N}

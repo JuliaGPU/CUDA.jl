@@ -1,11 +1,4 @@
-const _allowscalar = Ref(true)
-
-allowscalar(flag = true) = (_allowscalar[] = flag)
-
-function assertscalar(op = "Operation")
-  _allowscalar[] || error("$op is disabled")
-  return
-end
+import GPUArrays: allowscalar, @allowscalar
 
 Base.IndexStyle(::Type{<:CuArray}) = IndexLinear()
 
@@ -15,7 +8,6 @@ function _getindex(xs::CuArray{T}, i::Integer) where T
 end
 
 function Base.getindex(xs::CuArray{T}, i::Integer) where T
-  ndims(xs) > 0 && assertscalar("scalar getindex")
   _getindex(xs, i)
 end
 
@@ -29,7 +21,6 @@ function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
 end
 
 function Base.setindex!(xs::CuArray{T}, v::T, i::Integer) where T
-  assertscalar("scalar setindex!")
   _setindex!(xs, v, i)
 end
 
