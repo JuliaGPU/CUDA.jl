@@ -1,7 +1,7 @@
 using Base.Cartesian
 
 function cudims(n::Integer)
-  threads = 256
+  threads = min(n, 256)
   ceil(Int, n / threads), threads
 end
 
