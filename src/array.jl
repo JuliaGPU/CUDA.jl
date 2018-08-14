@@ -145,9 +145,9 @@ Base.show(io::IO, x::CuArray) = show(io, collect(x))
 Base.show(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, LinearAlgebra.adjoint(collect(x.parent)))
 Base.show(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, LinearAlgebra.transpose(collect(x.parent)))
 
-Base.show(io::IO, ::MIME"text/plain", x::CuArray) = show(io, collect(x))
-Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, LinearAlgebra.adjoint(collect(x.parent)))
-Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, LinearAlgebra.transpose(collect(x.parent)))
+Base.show(io::IO, ::MIME"text/plain", x::CuArray) = show(io, MIME"text/plain"(), collect(x))
+Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, MIME"text/plain"(), LinearAlgebra.adjoint(collect(x.parent)))
+Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, MIME"text/plain"(), LinearAlgebra.transpose(collect(x.parent)))
 
 import Adapt: adapt, adapt_
 
