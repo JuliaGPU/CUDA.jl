@@ -1,12 +1,11 @@
 # using Base.Cartesian
-using LinearAlgebra: Transpose
 import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle, preprocess, preprocess_args
 
 const CuStyle = ArrayStyle{CuArray}
 
 cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
-cudaconvert(x::Transpose{<:Any,<:CuArray}) = Transpose(cudaconvert(x.vec))
+cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.vec))
 
 import NNlib: @fix, _cufunc
 
@@ -14,7 +13,7 @@ _cufunc(f,x::CuArray,xs...) = cufunc(f)
 cufunc(x) = x
 
 libdevice = :[
-  cos, cospi, sin, sinpi, tan, acos, asin, atan, atan,
+  cos, cospi, sin, sinpi, tan, acos, asin, atan,
   cosh, sinh, tanh, acosh, asinh, atanh,
   log, log10, log1p, log2, logb, ilogb,
   exp, exp2, exp10, expm1, ldexp,

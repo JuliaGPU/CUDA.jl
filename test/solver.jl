@@ -23,7 +23,7 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.potrf!('U',d_A)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
-        @test_throws Base.LinAlg.SingularException CUSOLVER.potrf!('U',d_A)
+        @test_throws LinearAlgebra.SingularException CUSOLVER.potrf!('U',d_A)
     end
     @testset "potrs!" begin
         A     = rand(elty,n,n)
@@ -52,11 +52,11 @@ k = 1
         d_A,d_ipiv = CUSOLVER.getrf!(d_A)
         h_A        = collect(d_A)
         h_ipiv     = collect(d_ipiv)
-        alu        = Base.LinAlg.LU(h_A, convert(Vector{Int},h_ipiv), zero(Int))
-        @test A ≈ full(alu)
+        alu        = LinearAlgebra.LU(h_A, convert(Vector{Int},h_ipiv), zero(Int))
+        @test A ≈ Array(alu)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
-        @test_throws Base.LinAlg.SingularException CUSOLVER.getrf!(d_A)
+        @test_throws LinearAlgebra.SingularException CUSOLVER.getrf!(d_A)
     end
 
     @testset "getrs!" begin
@@ -84,8 +84,8 @@ k = 1
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
         h_A       = collect(d_A)
         h_tau     = collect(d_tau)
-        qra       = Base.LinAlg.QR(h_A, h_tau)
-        @test A ≈ full(qra)
+        qra       = LinearAlgebra.QR(h_A, h_tau)
+        @test A ≈ Array(qra)
     end
 
     @testset "ormqr!" begin
@@ -96,8 +96,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ Array(qr[:Q])*B
+        F          = qr!(A)
+        @test h_B  ≈ Array(F.Q)*B
         A          = rand(elty, n, m)
         d_A        = CuArray(A)
         d_A, d_tau = CUSOLVER.geqrf!(d_A)
@@ -105,8 +105,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('L', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ Array(qr[:Q])*B
+        F          = qr!(A)
+        @test h_B  ≈ Array(F.Q)*B
         A          = rand(elty, m, n)
         d_A        = CuArray(A)
         d_A, d_tau = CUSOLVER.geqrf!(d_A)
@@ -114,8 +114,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ B*Array(qr[:Q])
+        F          = qr!(A)
+        @test h_B  ≈ B*Array(F.Q)
         A          = rand(elty, n, m)
         d_A        = CuArray(A)
         d_A, d_tau = CUSOLVER.geqrf!(d_A)
@@ -123,8 +123,8 @@ k = 1
         d_B        = CuArray(B)
         d_B        = CUSOLVER.ormqr!('R', 'N', d_A, d_tau, d_B)
         h_B        = collect(d_B)
-        qr         = qrfact!(A)
-        @test h_B  ≈ B*Array(qr[:Q])
+        F          = qr!(A)
+        @test h_B  ≈ B*Array(F.Q)
     end
 
     @testset "orgqr!" begin
@@ -133,15 +133,15 @@ k = 1
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
         d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
         h_Q       = collect(d_Q)
-        qr        = qrfact!(A)
-        @test h_Q ≈ Array(qr[:Q])
+        F         = qr!(A)
+        @test h_Q ≈ Array(F.Q)
         A         = rand(elty,m,n)
         d_A       = CuArray(A)
         d_A,d_tau = CUSOLVER.geqrf!(d_A)
         d_Q       = CUSOLVER.orgqr!(d_A, d_tau)
         h_Q       = collect(d_Q)
-        qr        = qrfact!(A)
-        @test h_Q ≈ Array(qr[:Q])
+        F         = qr!(A)
+        @test h_Q ≈ Array(F.Q)
     end
 
     @testset "sytrf!" begin
@@ -159,7 +159,7 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.sytrf!('U',d_A)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
-        @test_throws Base.LinAlg.SingularException CUSOLVER.sytrf!('U',d_A)
+        @test_throws LinearAlgebra.SingularException CUSOLVER.sytrf!('U',d_A)
     end
 
     @testset "gebrd!" begin
@@ -186,42 +186,38 @@ k = 1
         h_S            = collect(d_S)
         h_U            = collect(d_U)
         h_Vt           = collect(d_Vt)
-        svda           = svdfact(A,thin=false)
-        @test abs.(h_U'h_U) ≈ eye(elty, m)
-        @test abs.(h_U[:,1:n]'svda[:U][:,1:10]) ≈ eye(elty, n)
+        F              = svd(A, full=true)
+        @test abs.(h_U'h_U) ≈ Matrix(one(elty)*I, m, m)
+        @test abs.(h_U[:,1:n]'F.U[:,1:10]) ≈ Matrix(one(elty)*I, n, n)
         @test h_S ≈ svdvals(A)
-        @test abs.(h_Vt*svda[:Vt]') ≈ eye(elty, n)
+        @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
     end
 
     @testset "qr" begin
+        tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
+
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
-        d_q            = qrq!(d_A)
-        h_q            = collect(d_q)
-        q              = qrfact!(A)
-        @test h_q ≈ Array(q[:Q])
+        d_F            = qr(d_A)
+        d_RR           = d_F.Q'*d_A
+        @test d_RR[1:n,:] ≈ d_F.R atol=tol*norm(A)
+        @test norm(d_RR[n+1:end,:]) < tol*norm(A)
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
-        d_q            = qrq!(d_A)
-        h_q            = collect(d_q)
-        q              = qrfact!(A)
-        @test h_q ≈ Array(q[:Q])
-        CuArrays.allowscalar(true)
+        d_F            = qr(d_A)
+        @test d_F.Q'*d_A ≈ d_F.R atol=tol*norm(A)
         A              = rand(elty, m, n)
         d_A            = CuArray(A)
-        d_q, d_r       = qr(d_A)
-        h_q, h_r       = collect(d_q), collect(d_r)
+        h_q, h_r       = qr(d_A)
         q, r           = qr(A)
-        @test h_q ≈ q
-        @test h_r ≈ r
+        @test Array(h_q) ≈ Array(q)
+        @test Array(h_r) ≈ Array(r)
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
-        d_q, d_r       = qr(d_A)
-        h_q, h_r       = collect(d_q), collect(d_r)
+        h_q, h_r       = qr(d_A) # FixMe! Use iteration protocol when implemented
         q, r           = qr(A)
-        @test h_q ≈ q
-        @test h_r ≈ r
-        CuArrays.allowscalar(false)
+        @test Array(h_q) ≈ Array(q)
+        @test Array(h_r) ≈ Array(r)
     end
 
 end

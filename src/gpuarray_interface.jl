@@ -1,6 +1,8 @@
 import GPUArrays
 
 Base.similar(::Type{<:CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = CuArray{T, N}(size)
+# This constructor is to avoid ambiguity with constructor in GPUArrays
+Base.similar(::Type{<:CuArray}, ::Type{T}, ::Tuple{}) where {T} = CuArray{T,0}()
 
 #Abstract GPU interface
 struct CuKernelState end
@@ -69,37 +71,4 @@ end
 # Save reinterpret and reshape implementation use this in GPUArrays
 function GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray{ET}, size::NTuple{N, Integer}) where {T, ET, N}
     CuArray{T, N}(A.buf, size)
-end
-
-# Additional copy methods
-
-function Base.copyto!(
-        dest::Array{T}, d_offset::Integer,
-        source::CuArray{T}, s_offset::Integer, amount::Integer
-    ) where T
-    amount == 0 && return dest
-    buf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
-    CUDAdrv.Mem.download!(Ref(dest, d_offset), buf, sizeof(T) * amount) # TODO: sizeof(source)
-    dest
-end
-
-function Base.copyto!(
-        dest::CuArray{T}, d_offset::Integer,
-        source::Array{T}, s_offset::Integer, amount::Integer
-    ) where T
-    amount == 0 && return dest
-    buf = Mem.view(unsafe_buffer(dest), (d_offset - 1) * sizeof(T))
-    CUDAdrv.Mem.upload!(buf, Ref(source, s_offset), sizeof(T) * amount) # TODO: sizeof(source)
-    dest
-end
-
-function Base.copyto!(
-        dest::CuArray{T}, d_offset::Integer,
-        source::CuArray{T}, s_offset::Integer, amount::Integer
-    ) where T
-    amount == 0 && return dest
-    sbuf = Mem.view(unsafe_buffer(source), (s_offset - 1) * sizeof(T))
-    dbuf = Mem.view(unsafe_buffer(dest),   (d_offset - 1) * sizeof(T))
-    CUDAdrv.Mem.transfer!(sbuf, dbuf, sizeof(T) * (amount))
-    dest
 end

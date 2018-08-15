@@ -43,15 +43,15 @@ using GPUArrays, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite" begin
-    TestSuite.run_gpuinterface(CuArray)
-    TestSuite.run_base(CuArray)
-    TestSuite.run_blas(CuArray)
-    TestSuite.run_fft(CuArray)
-    TestSuite.run_construction(CuArray)
-    TestSuite.run_linalg(CuArray)
-    TestSuite.run_mapreduce(CuArray)
+    TestSuite.test_gpuinterface(CuArray)
+    TestSuite.test_base(CuArray)
+    TestSuite.test_blas(CuArray)
+    TestSuite.test_fft(CuArray)
+    TestSuite.test_construction(CuArray)
+    TestSuite.test_linalg(CuArray)
+    TestSuite.test_mapreduce(CuArray)
     CuArrays.allowscalar(true)
-    TestSuite.run_indexing(CuArray)
+    TestSuite.test_indexing(CuArray)
     CuArrays.allowscalar(false)
 end
 
@@ -136,6 +136,12 @@ end
   @test collect(y) == [6, 7, -1, 9, 10]
   @test collect(x) == [1, 2, 3, 4, 5, 6, 7, -1, 9, 10]
   @test collect(CuMatrix{eltype(y)}(I, 5, 5)*y) == collect(y)
+end
+
+@testset "$f! with diagonal $d" for (f, f!) in ((triu, triu!), (tril, tril!)),
+                                          d in -2:2
+  A = randn(10, 10)
+  @test f(A, d) == Array(f!(CuArray(A), d))
 end
 
 if CuArrays.cudnn_available()

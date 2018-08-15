@@ -1,11 +1,10 @@
-using GPUArrays
-
 import CUDAnative: DevicePtr
 
 mutable struct CuArray{T,N} <: GPUArray{T,N}
   buf::Mem.Buffer
   offset::Int
   dims::NTuple{N,Int}
+
   function CuArray{T,N}(buf::Mem.Buffer, offset::Integer, dims::NTuple{N,Integer}) where {T,N}
     xs = new{T,N}(buf, offset, dims)
     Mem.retain(buf)
@@ -27,17 +26,31 @@ function unsafe_free!(xs::CuArray)
   return
 end
 
-unsafe_buffer(xs::CuArray) =
-  Mem.Buffer(xs.buf.ptr+xs.offset, sizeof(xs), xs.buf.ctx)
+"""
+  buffer(array::CuArray [, index])
 
-Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = unsafe_buffer(x)
-Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = unsafe_buffer(x)
+Get the native address of a CuArray, optionally at a given location `index`.
+Equivalent of `Base.pointer` on `Array`s.
+"""
+function buffer(xs::CuArray, index=1)
+  extra_offset = (index-1) * Base.elsize(xs)
+  Mem.Buffer(xs.buf.ptr + xs.offset + extra_offset,
+             sizeof(xs) - extra_offset,
+             xs.buf.ctx)
+end
+
+Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = buffer(x)
+Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = buffer(x)
 
 CuArray{T,N}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(alloc(prod(dims)*sizeof(T)), dims)
+# This constructor is to avoid ambiguity with constructor in GPUArrays
+CuArray{T,0}(::Tuple{}) where T = CuArray{T,0}(alloc(sizeof(T)), ())
 
 CuArray{T}(dims::NTuple{N,Integer}) where {T,N} =
   CuArray{T,N}(dims)
+# This constructor is to avoid ambiguity with constructor in GPUArrays
+CuArray{T}(::Tuple{}) where T = CuArray{T,0}()
 
 CuArray(dims::NTuple{N,Integer}) where N = CuArray{Float32,N}(dims)
 
@@ -59,26 +72,22 @@ end
 
 # Interop with CPU array
 
-function Base.copy!(dst::CuArray{T}, src::Array{T}) where T
-    @assert length(dst) == length(src)
-    Mem.upload!(unsafe_buffer(dst), src)
-    return dst
+function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
+    Mem.upload!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
+    return dest
 end
 
-function Base.copy!(dst::Array{T}, src::CuArray{T}) where T
-    @assert length(dst) == length(src)
-    Mem.download!(dst, unsafe_buffer(src))
-    return dst
+function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
+    Mem.download!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
+    return dest
 end
 
-function Base.copy!(dst::CuArray{T}, src::CuArray{T}) where T
-    @assert length(dst) == length(src)
-    Mem.transfer!(unsafe_buffer(dst), unsafe_buffer(src), sizeof(src))
-    return dst
+function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
+    Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
+    return dest
 end
 
-Base.collect(x::CuArray{T,N}) where {T,N} =
-  copy!(Array{T,N}(undef, size(x)), x)
+Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
 function Base.deepcopy_internal(x::CuArray, dict::IdDict)
   haskey(dict, x) && return dict[x]::typeof(x)
@@ -88,10 +97,10 @@ end
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 Base.convert(::Type{CuArray{T,N}}, xs::Array{T,N}) where {T,N} =
-  copy!(CuArray{T,N}(size(xs)), xs)
+  copyto!(CuArray{T,N}(size(xs)), xs)
 
 Base.convert(::Type{CuArray{T}}, xs::Array{T,N}) where {T,N} =
-  copy!(CuArray{T}(size(xs)), xs)
+  copyto!(CuArray{T}(size(xs)), xs)
 
 Base.convert(::Type{CuArray}, xs::Array{T,N}) where {T,N} =
   convert(CuArray{T,N}, xs)
@@ -134,7 +143,13 @@ cuones(T::Type, dims...) = fill!(CuArray{T}(dims...), 1)
 cuzeros(dims...) = cuzeros(Float32, dims...)
 cuones(dims...) = cuones(Float32, dims...)
 
-Base.show(io::IO, X::CuArray) = Base.show(io, collect(X))
+Base.show(io::IO, x::CuArray) = show(io, collect(x))
+Base.show(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, LinearAlgebra.adjoint(collect(x.parent)))
+Base.show(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, LinearAlgebra.transpose(collect(x.parent)))
+
+Base.show(io::IO, ::MIME"text/plain", x::CuArray) = show(io, MIME"text/plain"(), collect(x))
+Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, MIME"text/plain"(), LinearAlgebra.adjoint(collect(x.parent)))
+Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, MIME"text/plain"(), LinearAlgebra.transpose(collect(x.parent)))
 
 import Adapt: adapt, adapt_
 
@@ -149,3 +164,43 @@ adapt_(::Type{<:Array}, xs::CuArray) = collect(xs)
 cu(xs) = adapt(CuArray{Float32}, xs)
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
+
+# Generic linear algebra routines
+
+
+
+function LinearAlgebra.tril!(A::CuMatrix{T}, d::Integer = 0) where T
+    function kernel!(_A, _d)
+        li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+        m, n = size(_A)
+        if 0 < li <= m*n
+            i, j = Tuple(CartesianIndices(_A)[li])
+            if i < j - _d
+                _A[i, j] = 0
+            end
+        end
+        return nothing
+    end
+
+    blk, thr = cudims(A)
+    @cuda blocks=blk threads=thr kernel!(A, d)
+    return A
+end
+
+function LinearAlgebra.triu!(A::CuMatrix{T}, d::Integer = 0) where T
+    function kernel!(_A, _d)
+        li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+        m, n = size(_A)
+        if 0 < li <= m*n
+            i, j = Tuple(CartesianIndices(_A)[li])
+            if j < i + _d
+                _A[i, j] = 0
+            end
+        end
+        return nothing
+    end
+
+    blk, thr = cudims(A)
+    @cuda blocks=blk threads=thr kernel!(A, d)
+    return A
+end

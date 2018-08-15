@@ -5,7 +5,7 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
                             (:cusolverDnCpotrf_bufferSize, :cusolverDnCpotrf, :ComplexF32),
                             (:cusolverDnZpotrf_bufferSize, :cusolverDnZpotrf, :ComplexF64))
     @eval begin
-        function potrf!(uplo::BlasChar,
+        function potrf!(uplo::Char,
                         A::CuMatrix{$elty})
             cuuplo = cublasfill(uplo)
             n = size(A, 1)
@@ -30,7 +30,7 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
             if info < 0
                 throw(ArgumentError("The $(-info)th parameter is wrong"))
             elseif info > 0
-                throw(Base.LinAlg.SingularException(info))
+                throw(LinearAlgebra.SingularException(info))
             end
             A
         end
@@ -64,7 +64,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
             elseif info > 0
-                throw(Base.LinAlg.SingularException(info))
+                throw(LinearAlgebra.SingularException(info))
             end
             A, devipiv
         end
@@ -108,7 +108,7 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                             (:cusolverDnCsytrf_bufferSize, :cusolverDnCsytrf, :ComplexF32),
                             (:cusolverDnZsytrf_bufferSize, :cusolverDnZsytrf, :ComplexF64))
     @eval begin
-        function sytrf!(uplo::BlasChar,
+        function sytrf!(uplo::Char,
                         A::CuMatrix{$elty})
             cuuplo = cublasfill(uplo)
             n      = size(A, 1)
@@ -134,7 +134,7 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
             elseif info > 0
-                throw(Base.LinAlg.SingularException(info))
+                throw(LinearAlgebra.SingularException(info))
             end
             A, devipiv
         end
@@ -147,7 +147,7 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
                      (:cusolverDnCpotrs, :ComplexF32),
                      (:cusolverDnZpotrs, :ComplexF64))
     @eval begin
-        function potrs!(uplo::BlasChar,
+        function potrs!(uplo::Char,
                         A::CuMatrix{$elty},
                         B::CuVecOrMat{$elty})
             cuuplo = cublasfill(uplo)
@@ -183,7 +183,7 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
                      (:cusolverDnCgetrs, :ComplexF32),
                      (:cusolverDnZgetrs, :ComplexF64))
     @eval begin
-        function getrs!(trans::BlasChar,
+        function getrs!(trans::Char,
                         A::CuMatrix{$elty},
                         ipiv::CuVector{Cint},
                         B::CuVecOrMat{$elty})
@@ -219,8 +219,8 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                              (:cusolverDnDormqr_bufferSize, :cusolverDnDormqr, :Float64),
                              (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :ComplexF32),
                              (:cusolverDnZunmqr_bufferSize, :cusolverDnZunmqr, :ComplexF64))    @eval begin
-        function ormqr!(side::BlasChar,
-                        trans::BlasChar,
+        function ormqr!(side::Char,
+                        trans::Char,
                         A::CuMatrix{$elty},
                         tau::CuVector{$elty},
                         C::CuVecOrMat{$elty})
@@ -346,8 +346,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
                                     (:cusolverDnCgesvd_bufferSize, :cusolverDnCgesvd, :ComplexF32, :Float32),
                                     (:cusolverDnZgesvd_bufferSize, :cusolverDnZgesvd, :ComplexF64, :Float64))
     @eval begin
-        function gesvd!(jobu::BlasChar,
-                        jobvt::BlasChar,
+        function gesvd!(jobu::Char,
+                        jobvt::Char,
                         A::CuMatrix{$elty})
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
@@ -365,7 +365,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             Vt      = CuArray{$elty}(n, n)
             ldvt    = max(1, stride(Vt, 2))
             @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, BlasChar, BlasChar, Cint,
+                         (cusolverDnHandle_t, Cuchar, Cuchar, Cint,
                           Cint, Ptr{$elty}, Cint, Ptr{$relty}, Ptr{$elty},
                           Cint, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
                           Ptr{$relty}, Ptr{Cint}), libcusolver_handle_dense[],

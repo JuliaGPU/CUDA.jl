@@ -6,7 +6,7 @@ import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!,
     plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft,
     Plan, ScaledPlan
 import Base: show, *, convert, unsafe_convert, size, strides, ndims
-import LinearAlgebra: A_mul_B!
+import LinearAlgebra: mul!
 import Base.Sys: WORD_SIZE
 
 using LinearAlgebra
@@ -468,7 +468,7 @@ end
 
 size(p::CuFFTPlan) = p.sz
 
-function A_mul_B!(y::CuArray{Ty}, p::CuFFTPlan{T,K,false}, x::CuArray{T}
+function mul!(y::CuArray{Ty}, p::CuFFTPlan{T,K,false}, x::CuArray{T}
                   ) where {Ty,T,K}
     assert_applicable(p,x,y)
     unsafe_execute!(p,x,y)
@@ -485,7 +485,7 @@ function *(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::CuArray{T,N}
            ) where {T<:cufftReals,N}
     @assert p.xtype ∈ [CUFFT_R2C,CUFFT_D2Z]
     y = CuArray{complex(T),N}(p.osz)
-    A_mul_B!(y,p,x)
+    mul!(y,p,x)
     y
 end
 
@@ -493,13 +493,13 @@ function *(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::CuArray{T,N}
            ) where {T<:cufftComplexes,N}
     @assert p.xtype ∈ [CUFFT_C2R,CUFFT_Z2D]
     y = CuArray{real(T),N}(p.osz)
-    A_mul_B!(y,p,x)
+    mul!(y,p,x)
     y
 end
 
 function *(p::cCuFFTPlan{T,K,false,N}, x::CuArray{T,N}) where {T,K,N}
     y = CuArray{T,N}(p.osz)
-    A_mul_B!(y,p,x)
+    mul!(y,p,x)
     y
 end
 

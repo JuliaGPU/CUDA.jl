@@ -18,10 +18,10 @@ k = 13
   CuArrays.BLAS.blascopy!(m,A,1,B,1)
   @test Array(A) == Array(B)
 
-  @test testf(scale!, rand(T, 6, 9, 3), rand())
+  @test testf(rmul!, rand(T, 6, 9, 3), rand())
   @test testf(dot, rand(T, m), rand(T, m))
-  @test testf(At_mul_B, rand(T, m), rand(T, m))
-  @test testf(Ac_mul_B, rand(T, m), rand(T, m))
+  @test testf(*, transpose(rand(T, m)), rand(T, m))
+  @test testf(*, rand(T, m)', rand(T, m))
   @test testf(norm, rand(T, m))
   @test testf(BLAS.asum, rand(T, m))
   @test testf(BLAS.axpy!, rand(), rand(T, m), rand(T, m))
@@ -39,8 +39,8 @@ end # level 1 testset
 @testset for T in [Float32, Float64, ComplexF32, ComplexF64]
   # gemv
   @test testf(*, rand(T, m, n), rand(T, n))
-  @test testf(At_mul_B, rand(T, m, n), rand(T, m))
-  @test testf(Ac_mul_B, rand(T, m, n), rand(T, m))
+  @test testf(*, transpose(rand(T, m, n)), rand(T, m))
+  @test testf(*, rand(T, m, n)', rand(T, m))
 end
 
 @testset "gbmv!" begin
@@ -66,7 +66,7 @@ end
         BLAS.gbmv!('N',m,kl,ku,alpha,Ab,x,beta,y)
         h_y = Array(d_y)
         @test y ≈ h_y
-        # test y = alpha*A.'*x + beta*y
+        # test y = alpha*transpose(A)*x + beta*y
         x = rand(elty,n)
         d_x = CuArray(x)
         y = rand(elty,m)
@@ -118,7 +118,7 @@ end
         beta = convert(elty,3)
         # generate symmetric matrix
         A = rand(elty,m,m)
-        A = A + A.'
+        A = A + transpose(A)
         # generate vectors
         x = rand(elty,m)
         y = rand(elty,m)
@@ -140,7 +140,7 @@ end
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate symmetric matrix
         A = rand(elty,m,m)
-        A = A + A.'
+        A = A + transpose(A)
         # generate vectors
         x = rand(elty,m)
         # copy to device
@@ -185,7 +185,7 @@ end
     @testset for elty in [ComplexF32, ComplexF64]
         # generate hermitian matrix
         A = rand(elty,m,m)
-        A = A + A.'
+        A = A + A'
         # generate vectors
         x = rand(elty,m)
         # copy to device
@@ -515,7 +515,7 @@ end
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # construct matrix and vector
         A = rand(elty,m,m)
-        A = A + A.'
+        A = A + transpose(A)
         x = rand(elty,m)
         alpha = convert(elty,2)
         # move to device
@@ -523,7 +523,7 @@ end
         d_x = CuArray(x)
         # perform rank one update
         CuArrays.BLAS.syr!('U',alpha,d_x,d_A)
-        A = (alpha*x)*x.' + A
+        A = (alpha*x)*transpose(x) + A
         # move to host and compare upper triangles
         h_A = Array(d_A)
         A = triu(A)
@@ -684,7 +684,7 @@ end
         beta = rand(elty)
         # generate matrices
         A = rand(elty,m,m)
-        A = A + A.'
+        A = A + transpose(A)
         B = rand(elty,m,n)
         C = rand(elty,m,n)
         # move to device
@@ -704,7 +704,7 @@ end
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,m)
-        A = A + A.'
+        A = A + transpose(A)
         B = rand(elty,m,n)
         # move to device
         d_A = CuArray(A)
@@ -723,16 +723,16 @@ end
         # generate matrices
         A = rand(elty,m,k)
         C = rand(elty,m,m)
-        C = C + C.'
+        C = C + transpose(C)
         # parameters
         alpha = rand(elty)
         beta = rand(elty)
         # move to device
         d_A = CuArray(A)
         d_C = CuArray(C)
-        # C = (alpha*A)*A.' + beta*C
+        # C = (alpha*A)*transpose(A) + beta*C
         CuArrays.BLAS.syrk!('U','N',alpha,d_A,beta,d_C)
-        C = (alpha*A)*A.' + beta*C
+        C = (alpha*A)*transpose(A) + beta*C
         C = triu(C)
         # move to host and compare
         h_C = Array(d_C)
@@ -747,9 +747,9 @@ end
         A = rand(elty,m,k)
         # move to device
         d_A = CuArray(A)
-        # C = A*A.'
+        # C = A*transpose(A)
         d_C = CuArrays.BLAS.syrk('U','N',d_A)
-        C = A*A.'
+        C = A*transpose(A)
         C = triu(C)
         # move to host and compare
         h_C = Array(d_C)
@@ -808,14 +808,14 @@ end
         A = rand(elty,m,k)
         B = rand(elty,m,k)
         C = rand(elty,m,m)
-        C = C + C.'
+        C = C + transpose(C)
         # move to device
         d_A = CuArray(A)
         d_B = CuArray(B)
         d_C = CuArray(C)
         # compute
-        #C = alpha*(A*B.') + conj(alpha)*(B*A.') + beta*C
-        C = alpha*(A*B.' + B*A.') + beta*C
+        #C = alpha*(A*transpose(B)) + conj(alpha)*(B*transpose(A)) + beta*C
+        C = alpha*(A*transpose(B) + B*transpose(A)) + beta*C
         CuArrays.BLAS.syr2k!('U','N',alpha,d_A,d_B,beta,d_C)
         # move back to host and compare
         C = triu(C)
@@ -837,8 +837,8 @@ end
         d_A = CuArray(A)
         d_B = CuArray(B)
         # compute
-        #C = alpha*(A*B.') + conj(alpha)*(B*A.') + beta*C
-        C = alpha*(A*B.' + B*A.')
+        #C = alpha*(A*transpose(B)) + conj(alpha)*(B*transpose(A)) + beta*C
+        C = alpha*(A*transpose(B) + B*transpose(A))
         d_C = CuArrays.BLAS.syr2k('U','N',alpha,d_A,d_B)
         # move back to host and compare
         C = triu(C)
@@ -1147,7 +1147,7 @@ end
 end
 
 @testset "getrf_batched!" begin
-    srand(1)
+    Random.seed!(1)
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         local k
         # generate matrices
@@ -1160,10 +1160,10 @@ end
         pivot, info = CuArrays.BLAS.getrf_batched!(d_A, false)
         h_info = Array(info)
         for As in 1:length(d_A)
-            C   = lufact!(copy(A[As]), Val{false}) # lufact(A[As],pivot=false)
+            C   = lu!(copy(A[As]), Val(false)) # lu(A[As],pivot=false)
             h_A = Array(d_A[As])
             #reconstruct L,U
-            dL = eye(elty,m)
+            dL = Matrix(one(elty)*I, m, m)
             dU = zeros(elty,(m,m))
             k = h_info[As]
             if( k >= 0 )
@@ -1171,8 +1171,8 @@ end
                 dU += triu(h_A,k)
             end
             #compare
-            @test C[:L] ≈ dL rtol=1e-2
-            @test C[:U] ≈ dU rtol=1e-2
+            @test C.L ≈ dL rtol=1e-2
+            @test C.U ≈ dU rtol=1e-2
         end
         for i in 1:length(A)
             d_A[ i ] = CuArray(A[i])
@@ -1181,10 +1181,10 @@ end
         h_info = Array(info)
         h_pivot = Array(pivot)
         for As in 1:length(d_A)
-            C   = lufact(A[As])
+            C   = lu(A[As])
             h_A = Array(d_A[As])
             #reconstruct L,U
-            dL = eye(elty,m)
+            dL = Matrix(one(elty)*I, m, m)
             dU = zeros(elty,(m,m))
             k = h_info[As]
             if( k >= 0 )
@@ -1192,15 +1192,15 @@ end
                 dU += triu(h_A,k)
             end
             #compare pivots
-            @test length(setdiff(h_pivot[:,As],C[:p])) == 0
+            @test length(setdiff(h_pivot[:,As],C.p)) == 0
             #make device pivot matrix
-            P = eye(m)
+            P = Matrix(1.0*I, m, m)
             for row in 1:m
                 temp = copy(P[row,:])
                 P[row,:] = P[h_pivot[row,As],:]
                 P[h_pivot[row,As],:] = temp
             end
-            @test inv(P)*dL*dU ≈ inv(C[:P]) * C[:L] * C[:U]
+            @test inv(P)*dL*dU ≈ inv(C.P) * C.L * C.U
         end
     end
 end
@@ -1218,10 +1218,10 @@ end
         pivot, info, d_B = CuArrays.BLAS.getrf_batched(d_A, false)
         h_info = Array(info)
         for Bs in 1:length(d_B)
-            C   = lufact!(copy(A[Bs]),Val{false}) # lufact(A[Bs],pivot=false)
+            C   = lu!(copy(A[Bs]),Val(false)) # lu(A[Bs],pivot=false)
             h_B = Array(d_B[Bs])
             #reconstruct L,U
-            dL = eye(elty,m)
+            dL = Matrix(one(elty)*I, m, m)
             dU = zeros(elty,(m,m))
             k = h_info[Bs]
             if( h_info[Bs] >= 0 )
@@ -1229,8 +1229,8 @@ end
                 dL += tril(h_B,-k-1)
             end
             #compare
-            @test C[:L]≈dL rtol=1e-2
-            @test C[:U]≈dU rtol=1e-2
+            @test C.L ≈ dL rtol=1e-2
+            @test C.U ≈ dU rtol=1e-2
         end
     end
 end
@@ -1289,18 +1289,18 @@ end
         end
         tau, d_A = CuArrays.BLAS.geqrf_batched!(d_A)
         for As in 1:length(d_A)
-            C   = qrfact(A[As])
+            C   = qr(A[As])
             h_A = Array(d_A[As])
             h_tau = Array(tau[As])
             # build up Q
-            Q = eye(elty,min(m,n))
+            Q = Matrix(one(elty)*I, min(m,n), min(m,n))
             for i in 1:min(m,n)
                 v = zeros(elty,m)
                 v[i] = one(elty)
                 v[i+1:m] = h_A[i+1:m,i]
-                Q *= eye(elty,m) - h_tau[i] * v * v'
+                Q *= I - h_tau[i] * v * v'
             end
-            @test Q ≈ full(C[:Q]) rtol=1e-2
+            @test Q ≈ Array(C.Q) rtol=1e-2
         end
     end
 end
@@ -1316,18 +1316,18 @@ end
         end
         tau, d_B = CuArrays.BLAS.geqrf_batched!(d_A)
         for Bs in 1:length(d_B)
-            C   = qrfact(A[Bs])
+            C   = qr(A[Bs])
             h_B = Array(d_B[Bs])
             h_tau = Array(tau[Bs])
             # build up Q
-            Q = eye(elty,min(m,n))
+            Q = Matrix(one(elty)*I, min(m,n), min(m,n))
             for i in 1:min(m,n)
                 v = zeros(elty,m)
                 v[i] = one(elty)
                 v[i+1:m] = h_B[i+1:m,i]
-                Q *= eye(elty,m) - h_tau[i] * v * v'
+                Q *= I - h_tau[i] * v * v'
             end
-            @test Q ≈ full(C[:Q]) rtol=1e-2
+            @test Q ≈ Array(C.Q) rtol=1e-2
         end
     end
 end
@@ -1379,22 +1379,22 @@ end
         # generate matrices
         A = rand(elty,m,n)
         C = rand(elty,m,n)
-        X = rand(elty,m)
+        x = rand(elty,m)
         # move to device
         d_A = CuArray(A)
         d_C = CuArray(C)
-        d_X = CuArray(X)
+        d_x = CuArray(x)
         # compute
-        C = diagm(X) * A
-        CuArrays.BLAS.dgmm!('L',d_A,d_X,d_C)
+        C = diagm(0 => x) * A
+        CuArrays.BLAS.dgmm!('L', d_A, d_x, d_C)
         # move to host and compare
         h_C = Array(d_C)
         @test C ≈ h_C
         # bounds checking
-        @test_throws DimensionMismatch CuArrays.BLAS.dgmm!('R',d_A,d_X,d_C)
+        @test_throws DimensionMismatch CuArrays.BLAS.dgmm!('R', d_A, d_x, d_C)
         A = rand(elty,m,m)
         d_A = CuArray(A)
-        @test_throws DimensionMismatch CuArrays.BLAS.dgmm!('L',d_A,d_X,d_C)
+        @test_throws DimensionMismatch CuArrays.BLAS.dgmm!('L', d_A, d_x, d_C)
     end
 end
 
@@ -1402,13 +1402,13 @@ end
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # generate matrices
         A = rand(elty,m,n)
-        X = rand(elty,m)
+        x = rand(elty,m)
         # move to device
         d_A = CuArray(A)
-        d_X = CuArray(X)
+        d_x = CuArray(x)
         # compute
-        C = diagm(X) * A
-        d_C = CuArrays.BLAS.dgmm('L',d_A,d_X)
+        C = diagm(0 => x) * A
+        d_C = CuArrays.BLAS.dgmm('L', d_A, d_x)
         # move to host and compare
         h_C = Array(d_C)
         @test C ≈ h_C
