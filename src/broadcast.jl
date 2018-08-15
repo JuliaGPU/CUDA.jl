@@ -29,11 +29,10 @@ libdevice = :[
   fma, sad, dim, mul24, mul64hi, hadd, rhadd, scalbn].args
 
 for f in libdevice
-  # TODO use Broadcast.broadcasted(::ArrayStyle{<:CuArray}, ::typeof(f), args...)
   isdefined(Base, f) || continue
   @eval begin
     cufunc(::typeof(Base.$f)) = CUDAnative.$f
-    @inline preprocess(dest::CuArray, bc::Broadcasted{Nothing,<:Any,typeof(Base.$f)}) = Broadcasted{CuStyle}(CUDAnative.$f, preprocess_args(dest, bc.args), bc.axes)
+    @inline preprocess(dest::CuArray, bc::Broadcasted{Nothing,<:Any,typeof(Base.$f)}) = Broadcasted{Nothing}(CUDAnative.$f, preprocess_args(dest, bc.args), bc.axes)
   end
 end
 
