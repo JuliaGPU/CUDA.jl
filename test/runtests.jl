@@ -38,7 +38,6 @@ function testf(f, xs...; ref=f)
   collect(f(cu.(xs)...)) ≈ collect(ref(xs...))
 end
 
-
 using GPUArrays, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
@@ -53,6 +52,19 @@ using GPUArrays, GPUArrays.TestSuite
     CuArrays.allowscalar(true)
     TestSuite.test_indexing(CuArray)
     CuArrays.allowscalar(false)
+end
+
+@testset "Showing" begin
+  io = IOBuffer()
+  A = CuArray([1])
+
+  show(io, MIME("text/plain"), A)
+  seekstart(io)
+  @test String(take!(io)) == "1-element CuArray{Int64,1}:\n 1"
+
+  show(io, MIME("text/plain"), A')
+  seekstart(io)
+  @test String(take!(io)) == "1×1 Adjoint{Int64,CuArray{Int64,1}}:\n 1"
 end
 
 @testset "Array" begin
