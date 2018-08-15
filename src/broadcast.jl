@@ -61,6 +61,9 @@ macro cufunc(ex)
   def[:body] = replace_device(def[:body])
   quote
     $(esc(MacroTools.combinedef(def)))
+    @inline function Base.Broadcast.preprocess(dest::CuArrays.CuArray, bc::Base.Broadcast.Broadcasted{Nothing,<:Any,typeof($(esc(f)))})
+      Base.Broadcast.Broadcasted{Nothing}($(esc(def[:name])), Base.Broadcast.preprocess_args(dest, bc.args), bc.axes)
+    end
     CuArrays.cufunc(::typeof($(esc(f)))) = $(esc(def[:name]))
   end
 end

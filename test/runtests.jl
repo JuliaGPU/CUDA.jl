@@ -14,7 +14,6 @@ if Base.JLOptions().check_bounds == 1
 end
 
 using CuArrays, CUDAnative
-using CuArrays: @fix
 using Test
 using Random
 using LinearAlgebra
@@ -117,11 +116,14 @@ using NNlib
 @testset "Broadcast Fix" begin
   @test testf(x -> log.(x), rand(3,3))
   @test testf((x,xs) -> log.(x.+xs), 1, rand(3,3))
-  @test testf(x -> @fix(logσ.(x)), rand(5))
 
-  f(x) = @fix logσ.(x)
-  ds = Dual.(rand(5),1)
-  @test f(ds) ≈ collect(f(CuArray(ds)))
+  if CuArrays.cudnn_available()
+    @test testf(x -> logσ.(x), rand(5))
+
+    f(x) = CuArrays.@fix logσ.(x)
+    ds = Dual.(rand(5),1)
+    @test f(ds) ≈ collect(f(CuArray(ds)))
+  end
 end
 
 @testset "Reduce" begin
