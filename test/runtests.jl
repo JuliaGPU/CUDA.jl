@@ -94,6 +94,12 @@ end
   @test testf((z, x, y) -> z .= x .+ y,       rand(2, 3), rand(2, 3), rand(2))
 end
 
+# https://github.com/JuliaGPU/CUDAnative.jl/issues/223
+@testset "Ref Broadcast" begin
+  foobar(idx, A) = A[idx]
+  @test CuArray([42]) == foobar.(CuArray([1]), Base.RefValue(CuArray([42])))
+end
+
 using ForwardDiff: Dual
 using NNlib
 

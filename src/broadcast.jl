@@ -1,12 +1,21 @@
-# using Base.Cartesian
 import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle, preprocess, preprocess_args
 
-const CuStyle = ArrayStyle{CuArray}
-
+# GPUArrays.jl defines broadcast for us and we only need to ensure that Broadcast/Extruded gets converted
+# to variants that are valid on the GPU, as an example we need to convert CuArray to CuDeviceArray
 cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
 cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.vec))
 
+# Ref{CuArray} is invalid for GPU codegen
+# see https://github.com/JuliaGPU/CUDAnative.jl/issues/223
+# so we do a read only broadcast ref
+struct CuRefValue{T} <: Ref{T}
+  x::T
+end
+Base.getindex(r::CuRefValue) = r.x
+cudaconvert(r::Ref) = CuRefValue(cudaconvert(r[]))
+
+# Until we can use Cassette to do this translation for use we **try** to do some manually fixing
 import NNlib: @fix, _cufunc
 
 _cufunc(f,x::CuArray,xs...) = cufunc(f)
@@ -37,7 +46,6 @@ for f in libdevice
 end
 
 # ForwardDiff Integration
-
 using MacroTools
 
 function replace_device(ex)
