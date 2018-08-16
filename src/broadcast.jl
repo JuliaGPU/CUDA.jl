@@ -1,12 +1,21 @@
-# using Base.Cartesian
 import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle, preprocess, preprocess_args
 
-const CuStyle = ArrayStyle{CuArray}
-
+# GPUArrays.jl defines broadcast for us and we only need to ensure that Broadcast/Extruded gets converted
+# to variants that are valid on the GPU, as an example we need to convert CuArray to CuDeviceArray
 cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
 cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.vec))
 
+# Ref{CuArray} is invalid for GPU codegen
+# see https://github.com/JuliaGPU/CUDAnative.jl/issues/223
+# so we do a read only broadcast ref
+struct CuRefValue{T} <: Ref{T}
+  x::T
+end
+Base.getindex(r::CuRefValue) = r.x
+cudaconvert(r::Ref) = CuRefValue(cudaconvert(r[]))
+
+# Until we can use Cassette to do this translation for use we **try** to do some manually fixing
 import NNlib: @fix, _cufunc
 
 _cufunc(f,x::CuArray,xs...) = cufunc(f)
@@ -29,16 +38,14 @@ libdevice = :[
   fma, sad, dim, mul24, mul64hi, hadd, rhadd, scalbn].args
 
 for f in libdevice
-  # TODO use Broadcast.broadcasted(::ArrayStyle{<:CuArray}, ::typeof(f), args...)
   isdefined(Base, f) || continue
   @eval begin
     cufunc(::typeof(Base.$f)) = CUDAnative.$f
-    @inline preprocess(dest::CuArray, bc::Broadcasted{Nothing,<:Any,typeof(Base.$f)}) = Broadcasted{CuStyle}(CUDAnative.$f, preprocess_args(dest, bc.args), bc.axes)
+    @inline preprocess(dest::CuArray, bc::Broadcasted{Nothing,<:Any,typeof(Base.$f)}) = Broadcasted{Nothing}(CUDAnative.$f, preprocess_args(dest, bc.args), bc.axes)
   end
 end
 
 # ForwardDiff Integration
-
 using MacroTools
 
 function replace_device(ex)
@@ -54,6 +61,9 @@ macro cufunc(ex)
   def[:body] = replace_device(def[:body])
   quote
     $(esc(MacroTools.combinedef(def)))
+    @inline function Base.Broadcast.preprocess(dest::CuArrays.CuArray, bc::Base.Broadcast.Broadcasted{Nothing,<:Any,typeof($(esc(f)))})
+      Base.Broadcast.Broadcasted{Nothing}($(esc(def[:name])), Base.Broadcast.preprocess_args(dest, bc.args), bc.axes)
+    end
     CuArrays.cufunc(::typeof($(esc(f)))) = $(esc(def[:name]))
   end
 end

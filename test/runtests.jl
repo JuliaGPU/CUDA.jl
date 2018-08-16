@@ -14,7 +14,6 @@ if Base.JLOptions().check_bounds == 1
 end
 
 using CuArrays, CUDAnative
-using CuArrays: @fix
 using Test
 using Random
 using LinearAlgebra
@@ -34,10 +33,9 @@ end
 
 CuArrays.allowscalar(false)
 
-function testf(f, xs...; ref=f)
-  collect(f(cu.(xs)...)) ≈ collect(ref(xs...))
+function testf(f, xs...)
+  collect(f(cu.(xs)...)) ≈ collect(f(xs...))
 end
-
 
 using GPUArrays, GPUArrays.TestSuite
 
@@ -53,6 +51,19 @@ using GPUArrays, GPUArrays.TestSuite
     CuArrays.allowscalar(true)
     TestSuite.test_indexing(CuArray)
     CuArrays.allowscalar(false)
+end
+
+@testset "Showing" begin
+  io = IOBuffer()
+  A = CuArray([1])
+
+  show(io, MIME("text/plain"), A)
+  seekstart(io)
+  @test String(take!(io)) == "1-element CuArray{Int64,1}:\n 1"
+
+  show(io, MIME("text/plain"), A')
+  seekstart(io)
+  @test String(take!(io)) == "1×1 Adjoint{Int64,CuArray{Int64,1}}:\n 1"
 end
 
 @testset "Array" begin
@@ -85,28 +96,34 @@ end
 end
 
 @testset "Broadcast" begin
-  @test testf((x)       -> fill!(x, 1),       rand(3,3))
-  @test testf((x, y)    -> map(+, x, y),      rand(2, 3), rand(2, 3))
-  @test testf((x)      -> CUDAnative.sin.(x), rand(2, 3);
-              ref=(x)  -> sin.(x))
-  @test testf((x)       -> 2x,                rand(2, 3))
-  @test testf((x, y)    -> x .+ y,            rand(2, 3), rand(1, 3))
-  @test testf((z, x, y) -> z .= x .+ y,       rand(2, 3), rand(2, 3), rand(2))
+  @test testf((x)       -> fill!(x, 1),  rand(3,3))
+  @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
+  @test testf((x)       -> sin.(x),      rand(2, 3))
+  @test testf((x)       -> 2x,      rand(2, 3))
+  @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
+  @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
+end
+
+# https://github.com/JuliaGPU/CUDAnative.jl/issues/223
+@testset "Ref Broadcast" begin
+  foobar(idx, A) = A[idx]
+  @test CuArray([42]) == foobar.(CuArray([1]), Base.RefValue(CuArray([42])))
 end
 
 using ForwardDiff: Dual
 using NNlib
 
 @testset "Broadcast Fix" begin
-  @test testf(x -> CUDAnative.log.(x), rand(3,3);
-              ref=x -> log.(x))
-  @test testf((x,xs) -> CUDAnative.log.(x.+xs), 1, rand(3,3);
-              ref=(x,xs) -> log.(x.+xs))
-  @test testf(x -> @fix(logσ.(x)), rand(5))
+  @test testf(x -> log.(x), rand(3,3))
+  @test testf((x,xs) -> log.(x.+xs), 1, rand(3,3))
 
-  f(x) = @fix logσ.(x)
-  ds = Dual.(rand(5),1)
-  @test f(ds) ≈ collect(f(CuArray(ds)))
+  if CuArrays.cudnn_available()
+    @test testf(x -> logσ.(x), rand(5))
+
+    f(x) = CuArrays.@fix logσ.(x)
+    ds = Dual.(rand(5),1)
+    @test f(ds) ≈ collect(f(CuArray(ds)))
+  end
 end
 
 @testset "Reduce" begin
