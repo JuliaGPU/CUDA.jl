@@ -13,93 +13,52 @@ if Base.JLOptions().check_bounds == 1
   exit()
 end
 
-using CuArrays, CUDAnative
+using CuArrays
+
+using CUDAnative
+import CUDAdrv
+
 using Test
 using Random
 using LinearAlgebra
 
+
 Random.seed!(1)
-
-import CUDAdrv
-## pick the most recent device
-global dev = nothing
-for newdev in CUDAdrv.devices()
-  global dev
-    if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
-        dev = newdev
-    end
-end
-@info("Testing using device $(CUDAdrv.name(dev))")
-
 CuArrays.allowscalar(false)
 
-function testf(f, xs...)
-  collect(f(cu.(xs)...)) ≈ collect(f(xs...))
-end
+testf(f, xs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...)
 
 using GPUArrays, GPUArrays.TestSuite
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite" begin
-    TestSuite.test_gpuinterface(CuArray)
-    TestSuite.test_base(CuArray)
-    TestSuite.test_blas(CuArray)
-    TestSuite.test_fft(CuArray)
     TestSuite.test_construction(CuArray)
-    TestSuite.test_linalg(CuArray)
-    TestSuite.test_mapreduce(CuArray)
-    CuArrays.allowscalar(true)
+    TestSuite.test_gpuinterface(CuArray)
     TestSuite.test_indexing(CuArray)
-    CuArrays.allowscalar(false)
-end
-
-@testset "Showing" begin
-  io = IOBuffer()
-  A = CuArray([1])
-
-  show(io, MIME("text/plain"), A)
-  seekstart(io)
-  @test String(take!(io)) == "1-element CuArray{Int64,1}:\n 1"
-
-  show(io, MIME("text/plain"), A')
-  seekstart(io)
-  @test String(take!(io)) == "1×1 Adjoint{Int64,CuArray{Int64,1}}:\n 1"
+    TestSuite.test_io(CuArray)
+    TestSuite.test_base(CuArray)
+    #TestSuite.test_vectors(CuArray)
+    TestSuite.test_mapreduce(CuArray)
+    #TestSuite.test_broadcasting(CuArray)
+    TestSuite.test_linalg(CuArray)
+    TestSuite.test_fft(CuArray)
+    TestSuite.test_blas(CuArray)
+    TestSuite.test_random(CuArray)
 end
 
 @testset "Array" begin
   xs = CuArray(2, 3)
-  @test xs isa CuArray{Float32, 2}
-  @test size(xs) == (2, 3)
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
   @test testf(vec, rand(5,3))
 end
 
-@testset "Indexing" begin
-  @test testf(x -> x[1:2, 2], rand(2,3))
-  @test testf(x -> x[[2,1], :], rand(2,3))
-end
-
-@testset "PermuteDims" begin
-  @test testf(x -> permutedims(x, (2, 1)), rand(2, 3))
-  @test testf(x -> permutedims(x, (2, 1, 3)), rand(4, 5, 6))
-  @test testf(x -> permutedims(x, (3, 1, 2)), rand(4, 5, 6))
-end
-
-@testset "Concat" begin
-  @test testf(vcat, ones(5), zeros(5))
-  @test testf(hcat, rand(3, 3), rand(3, 3))
-  @test testf(vcat, rand(3, 3), rand(3, 3))
-  @test testf(hcat, rand(3), rand(3))
-  @test testf((a,b) -> cat(a,b; dims=4), rand(3, 4), rand(3, 4))
-end
-
 @testset "Broadcast" begin
   @test testf((x)       -> fill!(x, 1),  rand(3,3))
   @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
   @test testf((x)       -> sin.(x),      rand(2, 3))
-  @test testf((x)       -> 2x,      rand(2, 3))
+  @test testf((x)       -> 2x,           rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
 end
@@ -115,7 +74,7 @@ using NNlib
 
 @testset "Broadcast Fix" begin
   @test testf(x -> log.(x), rand(3,3))
-  @test testf((x,xs) -> log.(x.+xs), 1, rand(3,3))
+  @test testf((x,xs) -> log.(x.+xs), Ref(1), rand(3,3))
 
   if CuArrays.cudnn_available()
     @test testf(x -> logσ.(x), rand(5))
