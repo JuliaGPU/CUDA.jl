@@ -13,29 +13,20 @@ if Base.JLOptions().check_bounds == 1
   exit()
 end
 
-using CuArrays, CUDAnative
+using CuArrays
+
+using CUDAnative
+import CUDAdrv
+
 using Test
 using Random
 using LinearAlgebra
 
+
 Random.seed!(1)
-
-import CUDAdrv
-## pick the most recent device
-global dev = nothing
-for newdev in CUDAdrv.devices()
-  global dev
-    if dev == nothing || CUDAdrv.capability(newdev) > CUDAdrv.capability(dev)
-        dev = newdev
-    end
-end
-@info("Testing using device $(CUDAdrv.name(dev))")
-
 CuArrays.allowscalar(false)
 
-function testf(f, xs...)
-  collect(f(cu.(xs)...)) ≈ collect(f(xs...))
-end
+testf(f, xs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...)
 
 using GPUArrays, GPUArrays.TestSuite
 
@@ -67,7 +58,7 @@ end
   @test testf((x)       -> fill!(x, 1),  rand(3,3))
   @test testf((x, y)    -> map(+, x, y), rand(2, 3), rand(2, 3))
   @test testf((x)       -> sin.(x),      rand(2, 3))
-  @test testf((x)       -> 2x,      rand(2, 3))
+  @test testf((x)       -> 2x,           rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
 end
@@ -83,7 +74,7 @@ using NNlib
 
 @testset "Broadcast Fix" begin
   @test testf(x -> log.(x), rand(3,3))
-  @test testf((x,xs) -> log.(x.+xs), 1, rand(3,3))
+  @test testf((x,xs) -> log.(x.+xs), Ref(1), rand(3,3))
 
   if CuArrays.cudnn_available()
     @test testf(x -> logσ.(x), rand(5))
