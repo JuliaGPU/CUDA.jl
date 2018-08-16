@@ -12,8 +12,6 @@ using CUDAnative
 function kernel_vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     c[i] = a[i] + b[i]
-
-    return nothing
 end
 
 ```
@@ -22,7 +20,7 @@ Using the `@cuda` macro, you can launch the kernel on a GPU of your choice:
 
 ```julia
 using CUDAdrv, CUDAnative
-using Base.Test
+using Test
 
 # CUDAdrv functionality: generate and upload data
 a = round.(rand(Float32, (3, 4)) * 100)

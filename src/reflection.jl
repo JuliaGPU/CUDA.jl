@@ -20,7 +20,7 @@ module, including headers and other functions, is dumped if `dump_module` is set
 to false). Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to
 true).
 
-See also: [`@device_code_llvm`](@ref), [`Base.code_llvm`](@ref)
+See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
 """
 function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
                    optimize::Bool=true, cap::VersionNumber=current_capability(),
@@ -177,10 +177,10 @@ end
 """
     @device_code_lowered ex
 
-Evaluates the expression `ex` and returns the result of [`Base.code_lowered`](@ref) for
-every compiled CUDA kernel.
+Evaluates the expression `ex` and returns the result of
+[`InteractiveUtils.code_lowered`](@ref) for every compiled CUDA kernel.
 
-See also: [`Base.@code_lowered`](@ref)
+See also: [`InteractiveUtils.@code_lowered`](@ref)
 """
 macro device_code_lowered(ex...)
     quote
@@ -196,10 +196,10 @@ end
 """
     @device_code_typed ex
 
-Evaluates the expression `ex` and returns the result of [`Base.code_typed`](@ref) for
-every compiled CUDA kernel.
+Evaluates the expression `ex` and returns the result of
+[`InteractiveUtils.code_typed`](@ref) for every compiled CUDA kernel.
 
-See also: [`Base.@code_typed`](@ref)
+See also: [`InteractiveUtils.@code_typed`](@ref)
 """
 macro device_code_typed(ex...)
     quote
@@ -215,10 +215,10 @@ end
 """
     @device_code_warntype [io::IO=stdout] ex
 
-Evaluates the expression `ex` and prints the result of [`Base.code_warntype`](@ref) to `io`
-for every compiled CUDA kernel.
+Evaluates the expression `ex` and prints the result of
+[`InteractiveUtils.code_warntype`](@ref) to `io` for every compiled CUDA kernel.
 
-See also: [`Base.@code_warntype`](@ref)
+See also: [`InteractiveUtils.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
     function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
@@ -230,11 +230,11 @@ end
 """
     @device_code_llvm [io::IO=stdout, ...] ex
 
-Evaluates the expression `ex` and prints the result of [`Base.code_llvm`](@ref) to `io` for
-every compiled CUDA kernel. For other supported keywords, see
+Evaluates the expression `ex` and prints the result of [`InteractiveUtils.code_llvm`](@ref)
+to `io` for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_llvm`](@ref).
 
-See also: [`Base.@code_llvm`](@ref)
+See also: [`InteractiveUtils.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
     hook(ctx::CompilerContext; io::IO=stdout, kwargs...) = code_llvm(io, ctx; kwargs...)
