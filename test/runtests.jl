@@ -53,19 +53,6 @@ using GPUArrays, GPUArrays.TestSuite
     CuArrays.allowscalar(false)
 end
 
-@testset "Showing" begin
-  io = IOBuffer()
-  A = CuArray([1])
-
-  show(io, MIME("text/plain"), A)
-  seekstart(io)
-  @test String(take!(io)) == "1-element CuArray{Int64,1}:\n 1"
-
-  show(io, MIME("text/plain"), A')
-  seekstart(io)
-  @test String(take!(io)) == "1×1 Adjoint{Int64,CuArray{Int64,1}}:\n 1"
-end
-
 @testset "Array" begin
   xs = CuArray(2, 3)
   @test xs isa CuArray{Float32, 2}
