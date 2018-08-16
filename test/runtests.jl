@@ -48,38 +48,15 @@ using GPUArrays, GPUArrays.TestSuite
     TestSuite.test_construction(CuArray)
     TestSuite.test_linalg(CuArray)
     TestSuite.test_mapreduce(CuArray)
-    CuArrays.allowscalar(true)
     TestSuite.test_indexing(CuArray)
-    CuArrays.allowscalar(false)
 end
 
 @testset "Array" begin
   xs = CuArray(2, 3)
-  @test xs isa CuArray{Float32, 2}
-  @test size(xs) == (2, 3)
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
   @test testf(vec, rand(5,3))
-end
-
-@testset "Indexing" begin
-  @test testf(x -> x[1:2, 2], rand(2,3))
-  @test testf(x -> x[[2,1], :], rand(2,3))
-end
-
-@testset "PermuteDims" begin
-  @test testf(x -> permutedims(x, (2, 1)), rand(2, 3))
-  @test testf(x -> permutedims(x, (2, 1, 3)), rand(4, 5, 6))
-  @test testf(x -> permutedims(x, (3, 1, 2)), rand(4, 5, 6))
-end
-
-@testset "Concat" begin
-  @test testf(vcat, ones(5), zeros(5))
-  @test testf(hcat, rand(3, 3), rand(3, 3))
-  @test testf(vcat, rand(3, 3), rand(3, 3))
-  @test testf(hcat, rand(3), rand(3))
-  @test testf((a,b) -> cat(a,b; dims=4), rand(3, 4), rand(3, 4))
 end
 
 @testset "Broadcast" begin
