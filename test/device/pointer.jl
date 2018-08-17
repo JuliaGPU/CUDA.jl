@@ -28,6 +28,24 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
     @test Mem.download(T, d_a) == Mem.download(T, d_b)
 end
 
+@testset "indexing" begin
+    @eval function issue_221(src, dst)
+        unsafe_store!(dst, CUDAnative.unsafe_cached_load(src, 4))
+    end
+
+    T = Complex{Int8}
+
+    src = Mem.upload([T(1) T(9); T(3) T(4)])
+    dst = Mem.upload([0])
+
+    @cuda issue_221(
+        CUDAnative.DevicePtr{T,AS.Global}(Ptr{T}(src.ptr)),
+        CUDAnative.DevicePtr{T,AS.Global}(Ptr{T}(dst.ptr))
+    )
+
+    @test Mem.download(T, src, 4)[4] == Mem.download(T, dst)[1]
+end
+
 end
 
 end
