@@ -11,12 +11,6 @@
 
 CuArrays provides a fully-functional GPU array, which can give significant speedups over normal arrays without code changes. CuArrays are implemented fully in Julia, making the implementation [elegant and extremely generic](http://mikeinnes.github.io/2017/08/24/cudanative.html).
 
-Note that you need to **build Julia 0.6 from source** and have CUDA available to use this package – please see the [CUDAnative.jl](https://github.com/JuliaGPU/CUDAnative.jl) instructions for more details.
-
-```julia
-Pkg.add("CuArrays")
-```
-
 ## Features
 
 ```julia
@@ -47,16 +41,3 @@ julia> CuArrays.allowscalar(false)
 julia> xs[5]
 ERROR: getindex is disabled
 ```
-
-## Current Limitations
-
-When broadcasting, watch out for errors like:
-
-```julia
-julia> sin.(cos.(xs))
-ERROR: CUDA error: invalid program counter (code #718, ERROR_INVALID_PC)
-```
-
-A current limitation of CUDAnative means that you'll need to restart Julia and use `CUDAnative.sin`, `CUDAnative.cos` etc in this case.
-
-There is currently no support for strided arrays or views, though these are planned.
