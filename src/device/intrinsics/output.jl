@@ -2,6 +2,22 @@
 
 export @cuprintf
 
+@generated function promote_c_argument(arg)
+    # > When a function with a variable-length argument list is called, the variable
+    # > arguments are passed using C's old ``default argument promotions.'' These say that
+    # > types char and short int are automatically promoted to int, and type float is
+    # > automatically promoted to double. Therefore, varargs functions will never receive
+    # > arguments of type char, short int, or float.
+
+    if arg == Cchar || arg == Cshort
+        return :(Cint(arg))
+    elseif arg == Cfloat
+        return :(Cdouble(arg))
+    else
+        return :(arg)
+    end
+end
+
 """
 Print a formatted string in device context on the host standard output:
 
@@ -15,14 +31,13 @@ to match, eg. printing a 64-bit Julia integer requires the `%ld` formatting stri
 """
 macro cuprintf(fmt::String, args...)
     fmt_val = Val(Symbol(fmt))
-    return :(_cuprintf($fmt_val, $(map(esc, args)...)))
+
+    return :(_cuprintf($fmt_val, $(map(arg -> :(promote_c_argument($arg)), esc.(args))...)))
 end
 
 @generated function _cuprintf(::Val{fmt}, argspec...) where {fmt}
     arg_exprs = [:( argspec[$i] ) for i in 1:length(argspec)]
     arg_types = [argspec...]
-
-    # TODO: needs to adhere to C vararg promotion (short -> int, float -> double, etc.)
 
     T_void = LLVM.VoidType(JuliaContext())
     T_int32 = LLVM.Int32Type(JuliaContext())
@@ -44,10 +59,10 @@ end
         if isempty(argspec)
             buffer = LLVM.PointerNull(T_pint8)
         else
-            argtypes = LLVM.StructType("vprintf_args", JuliaContext())
+            argtypes = LLVM.StructType("printf_args", JuliaContext())
             elements!(argtypes, param_types)
 
-            args = alloca!(builder, argtypes, "args")
+            args = alloca!(builder, argtypes)
             for (i, param) in enumerate(parameters(llvm_f))
                 p = struct_gep!(builder, args, i-1)
                 store!(builder, param, p)
