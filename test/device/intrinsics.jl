@@ -70,6 +70,17 @@ end
         @cuprintf("bar\n")
     end
     @test out == "foobar$endline"
+
+    # c argument promotions
+    @eval function issue_231(A)
+        @cuprintf("%f %f\n", A[1], A[1])
+    end
+    x = CuTestArray(ones(2, 2))
+    _, out = @grab_output begin
+        @cuda issue_231(x)
+        synchronize()
+    end
+    @test out == "1.000000 1.000000$endline"
 end
 
 end
