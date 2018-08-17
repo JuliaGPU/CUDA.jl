@@ -202,6 +202,9 @@ end
 function alloc(bytes)
   pool_stats.req_alloc += 1
 
+  # 0-byte allocations shouldn't hit the pool
+  bytes == 0 && return Mem.alloc(0)
+
   pid = poolidx(bytes)
   create_pools(pid)
 
