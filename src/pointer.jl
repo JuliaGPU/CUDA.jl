@@ -259,6 +259,6 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
     call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
 end
 
-@inline function unsafe_cached_load(p::DevicePtr{T,AS.Global}, args...) where {T}
-    recurse_pointer_invocation(unsafe_cached_load, p, CachedLoadPointers, args...)
-end
+@inline unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1, args...) where {T} =
+    recurse_pointer_invocation(unsafe_cached_load, p+sizeof(T)*Int(i-one(i)),
+                               CachedLoadPointers, 1, args...)
