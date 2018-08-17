@@ -46,6 +46,10 @@ using GPUArrays, GPUArrays.TestSuite
     TestSuite.test_random(CuArray)
 end
 
+@testset "Memory" begin
+  CuArrays.alloc(0)
+end
+
 @testset "Array" begin
   xs = CuArray(2, 3)
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
