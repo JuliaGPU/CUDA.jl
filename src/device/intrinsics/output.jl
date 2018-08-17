@@ -59,10 +59,10 @@ end
         if isempty(argspec)
             buffer = LLVM.PointerNull(T_pint8)
         else
-            argtypes = LLVM.StructType("vprintf_args", JuliaContext())
+            argtypes = LLVM.StructType("printf_args", JuliaContext())
             elements!(argtypes, param_types)
 
-            args = alloca!(builder, argtypes, "args")
+            args = alloca!(builder, argtypes)
             for (i, param) in enumerate(parameters(llvm_f))
                 p = struct_gep!(builder, args, i-1)
                 store!(builder, param, p)
