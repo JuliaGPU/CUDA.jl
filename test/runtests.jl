@@ -84,7 +84,7 @@ using NNlib
   if CuArrays.cudnn_available()
     @test testf(x -> logσ.(x), rand(5))
 
-    f(x) = CuArrays.@fix logσ.(x)
+    f(x) = logσ.(x)
     ds = Dual.(rand(5),1)
     @test f(ds) ≈ collect(f(CuArray(ds)))
   end
