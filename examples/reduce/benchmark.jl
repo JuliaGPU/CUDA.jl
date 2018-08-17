@@ -1,23 +1,36 @@
 # EXCLUDE FROM TESTING
-# this example requires BenchmarkTools, which can be hard to install
 
 using BenchmarkTools
+BenchmarkTools.DEFAULT_PARAMETERS.seconds = 10
+BenchmarkTools.DEFAULT_PARAMETERS.gcsample = true
+
 include("reduce.jl")
 
-ctx = CuCurrentContext()
-dev = device(ctx)
-@assert(capability(dev) >= v"3.0", "this example requires a newer GPU")
+CUDAnative.initialize()
+const dev = device()
+const cap = capability(dev)
+@assert(cap >= v"3.0", "this example requires a newer GPU")
 
 len = 10^7
 input = ones(Int32, len)
+
+
+## CPU
+
+benchmark_cpu = @benchmarkable begin
+        reduce(+, input)
+    end
+
+@show run(benchmark_cpu)
+
 
 
 ## CUDAnative
 
 # PTX generation
 open(joinpath(@__DIR__, "reduce.jl.ptx"), "w") do f
-    code_ptx(f, reduce_grid, Tuple{typeof(+), CuDeviceVector{Int32,AS.Global},
-                                   CuDeviceVector{Int32,AS.Global}, Int32};
+    CUDAnative.code_ptx(f, reduce_grid, Tuple{typeof(+), CuDeviceVector{Int32,AS.Global},
+                                              CuDeviceVector{Int32,AS.Global}, Int32};
                         cap=v"6.1.0")
 end
 
@@ -30,13 +43,24 @@ benchmark_gpu = @benchmarkable begin
         gpu_output = similar(gpu_input)
     ) teardown=(
         gpu_input = nothing;
-        gpu_output = nothing;
-        gc()
+        gpu_output = nothing
     )
-println(run(benchmark_gpu))
+
+@show run(benchmark_gpu)
 
 
 ## CUDA
+
+using CUDAapi
+
+cd(@__DIR__) do
+    toolkit = CUDAapi.find_toolkit()
+    nvcc = CUDAapi.find_cuda_binary("nvcc", toolkit)
+    toolchain = CUDAapi.find_toolchain(toolkit)
+    flags = `-ccbin=$(toolchain.host_compiler) -arch=sm_$(cap.major)$(cap.minor)`
+    run(`$nvcc $flags -ptx -o reduce.cu.ptx reduce.cu`)
+    run(`$nvcc $flags -shared --compiler-options '-fPIC' -o reduce.so reduce.cu`)
+end
 
 # Entry-point wrappers
 lib = Libdl.dlopen(joinpath(@__DIR__, "reduce.so"))
@@ -64,4 +88,5 @@ benchmark_cuda = @benchmarkable begin
     ) teardown=(
         teardown_cuda(state)
     )
-println(run(benchmark_cuda))
+
+@show run(benchmark_cuda)

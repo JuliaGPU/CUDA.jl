@@ -1,2 +1,2 @@
-reduce.so
-
+*.so
+*.ptx
