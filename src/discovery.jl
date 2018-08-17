@@ -461,8 +461,13 @@ function find_host_compiler(toolkit_version=nothing)
         if clang_path == nothing
             error("Could not find clang")
         end
-        clang_ver_str = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, read(`$clang_path --version`, String))[1]
-        clang_ver = VersionNumber(clang_ver_str)
+        verstr = read(`$clang_path --version`, String)
+        m = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, verstr)
+        if m === nothing
+            warn("Could not parse Clang version info (\"$verstr\"), skipping this compiler.")
+            continue
+        end
+        clang_ver = VersionNumber(m[1])
 
         host_compiler, host_version = clang_path, clang_ver
     end
