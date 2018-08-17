@@ -78,7 +78,7 @@ function find_library(names::Vector{String};
     end
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
-    path = resolve(Libdl.dlpath(name_found))
+    path = Libdl.dlpath(name_found)
     @debug "Found library $name_found at $path"
     return path
 end
@@ -129,7 +129,7 @@ function find_binary(names::Vector{String};
     if isempty(paths)
         return nothing
     else
-        path = resolve(first(paths))
+        path = first(paths)
         @debug "Found binary $(basename(path)) at $(dirname(path))"
         return path
     end
