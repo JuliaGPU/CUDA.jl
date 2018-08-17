@@ -356,7 +356,7 @@ function find_host_compiler(toolkit_version=nothing)
             end
             m = match(Regex("^$(basename(gcc_path)) \\(.*\\) ([0-9.]+)"), verstr)
             if m === nothing
-                warn("Could not parse GCC version info (\"$verstr\"), skipping this compiler.")
+                @warn "Could not parse GCC version info (\"$verstr\"), skipping this compiler."
                 continue
             end
             gcc_ver = VersionNumber(m.captures[1])
@@ -418,7 +418,7 @@ function find_host_compiler(toolkit_version=nothing)
         for path in msvc_paths
             tmpfile = tempname() # TODO: do this with a pipe
             if !success(pipeline(`$path`, stdout=devnull, stderr=tmpfile))
-                warn("Could not execute $path")
+                @warn "Could not execute $path"
                 continue
             end
             verstr = read(tmpfile, String)
@@ -428,7 +428,7 @@ function find_host_compiler(toolkit_version=nothing)
                 m = match(r"\b(\d+(\.\d+)?(\.\d+)?)\b"i, verstr)
             end
             if m === nothing
-                warn("Could not parse Visual Studio version info (\"$verstr\"), skipping this compiler.")
+                @warn "Could not parse Visual Studio version info (\"$verstr\"), skipping this compiler."
                 continue
             end
             msvc_ver = VersionNumber(m.captures[1])
@@ -464,7 +464,7 @@ function find_host_compiler(toolkit_version=nothing)
         verstr = read(`$clang_path --version`, String)
         m = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, verstr)
         if m === nothing
-            warn("Could not parse Clang version info (\"$verstr\"), skipping this compiler.")
+            @warn "Could not parse Clang version info (\"$verstr\"), skipping this compiler."
             continue
         end
         clang_ver = VersionNumber(m[1])
