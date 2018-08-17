@@ -78,7 +78,7 @@ function find_library(names::Vector{String};
     end
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
-    path = resolve(Libdl.dlpath(name_found))
+    path = Libdl.dlpath(name_found)
     @debug "Found library $name_found at $path"
     return path
 end
@@ -129,7 +129,7 @@ function find_binary(names::Vector{String};
     if isempty(paths)
         return nothing
     else
-        path = resolve(first(paths))
+        path = first(paths)
         @debug "Found binary $(basename(path)) at $(dirname(path))"
         return path
     end
@@ -356,7 +356,7 @@ function find_host_compiler(toolkit_version=nothing)
             end
             m = match(Regex("^$(basename(gcc_path)) \\(.*\\) ([0-9.]+)"), verstr)
             if m === nothing
-                warn("Could not parse GCC version info (\"$verstr\"), skipping this compiler.")
+                @warn "Could not parse GCC version info (\"$verstr\"), skipping this compiler."
                 continue
             end
             gcc_ver = VersionNumber(m.captures[1])
@@ -418,7 +418,7 @@ function find_host_compiler(toolkit_version=nothing)
         for path in msvc_paths
             tmpfile = tempname() # TODO: do this with a pipe
             if !success(pipeline(`$path`, stdout=devnull, stderr=tmpfile))
-                warn("Could not execute $path")
+                @warn "Could not execute $path"
                 continue
             end
             verstr = read(tmpfile, String)
@@ -428,7 +428,7 @@ function find_host_compiler(toolkit_version=nothing)
                 m = match(r"\b(\d+(\.\d+)?(\.\d+)?)\b"i, verstr)
             end
             if m === nothing
-                warn("Could not parse Visual Studio version info (\"$verstr\"), skipping this compiler.")
+                @warn "Could not parse Visual Studio version info (\"$verstr\"), skipping this compiler."
                 continue
             end
             msvc_ver = VersionNumber(m.captures[1])
@@ -461,8 +461,12 @@ function find_host_compiler(toolkit_version=nothing)
         if clang_path == nothing
             error("Could not find clang")
         end
-        clang_ver_str = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, read(`$clang_path --version`, String))[1]
-        clang_ver = VersionNumber(clang_ver_str)
+        verstr = read(`$clang_path --version`, String)
+        m = match(r"version\s+(\d+(\.\d+)?(\.\d+)?)"i, verstr)
+        if m === nothing
+            error("Could not parse Clang version info (\"$verstr\")")
+        end
+        clang_ver = VersionNumber(m[1])
 
         host_compiler, host_version = clang_path, clang_ver
     end
