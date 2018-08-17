@@ -61,6 +61,7 @@ end
   @test testf((x)       -> 2x,           rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
+  @test CuArray([1,2,3]) .+ CuArray([1.0,2.0,3.0]) == CuArray([2,4,6])
 end
 
 # https://github.com/JuliaGPU/CUDAnative.jl/issues/223

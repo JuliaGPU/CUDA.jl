@@ -1,5 +1,11 @@
 import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle, preprocess, preprocess_args
 
+BroadcastStyle(::Type{<:CuArray}) = ArrayStyle{CuArray}()
+
+function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}) where T
+    similar(CuArray, T, axes(bc))
+end
+
 # GPUArrays.jl defines broadcast for us and we only need to ensure that Broadcast/Extruded gets converted
 # to variants that are valid on the GPU, as an example we need to convert CuArray to CuDeviceArray
 cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
