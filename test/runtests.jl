@@ -56,6 +56,9 @@ end
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
   @test testf(vec, rand(5,3))
+  # Check that allowscalar works
+  @test_throws ErrorException xs[1]
+  @test_throws ErrorException xs[1] = 1
 end
 
 @testset "Broadcast" begin
