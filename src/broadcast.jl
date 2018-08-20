@@ -1,4 +1,4 @@
-import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle, preprocess, preprocess_args
+import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle
 
 BroadcastStyle(::Type{<:CuArray}) = ArrayStyle{CuArray}()
 
@@ -10,7 +10,7 @@ end
 # to variants that are valid on the GPU, as an example we need to convert CuArray to CuDeviceArray
 cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
-cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.vec))
+cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.parent))
 
 # Ref{CuArray} is invalid for GPU codegen
 # see https://github.com/JuliaGPU/CUDAnative.jl/issues/223
@@ -25,8 +25,8 @@ cudaconvert(r::Ref) = CuRefValue(cudaconvert(r[]))
 
 cufunc(f) = f
 
-@inline preprocess(dest::CuArray, bc::Broadcasted{Nothing}) =
-  Broadcasted{Nothing}(cufunc(bc.f), preprocess_args(dest, bc.args), bc.axes)
+Broadcast.broadcasted(::ArrayStyle{CuArray}, f, args...) =
+  Broadcasted{ArrayStyle{CuArray}}(cufunc(f), args, nothing)
 
 libdevice = :[
   cos, cospi, sin, sinpi, tan, acos, asin, atan,
