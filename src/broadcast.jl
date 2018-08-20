@@ -1,4 +1,4 @@
-import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle, preprocess, preprocess_args
+import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle
 
 BroadcastStyle(::Type{<:CuArray}) = ArrayStyle{CuArray}()
 
@@ -25,8 +25,8 @@ cudaconvert(r::Ref) = CuRefValue(cudaconvert(r[]))
 
 cufunc(f) = f
 
-@inline preprocess(dest::CuArray, bc::Broadcasted{Nothing}) =
-  Broadcasted{Nothing}(cufunc(bc.f), preprocess_args(dest, bc.args), bc.axes)
+Broadcast.broadcasted(::ArrayStyle{CuArray}, f, args...) =
+  Broadcasted{ArrayStyle{CuArray}}(cufunc(f), args, nothing)
 
 libdevice = :[
   cos, cospi, sin, sinpi, tan, acos, asin, atan,
