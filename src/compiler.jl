@@ -375,8 +375,10 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         # perform argument conversions
         codegen_types = parameters(entry_ft)
         wrapper_params = parameters(wrapper_f)
+        param_index = 0
         for (julia_t, codegen_t, wrapper_t, wrapper_param) in
             zip(julia_types, codegen_types, wrapper_types, wrapper_params)
+            param_index += 1
             if codegen_t != wrapper_t
                 # the wrapper argument doesn't match the kernel parameter type.
                 # this only happens when codegen wants to pass a pointer.
@@ -417,6 +419,9 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
                 end
             else
                 push!(wrapper_args, wrapper_param)
+                for attr in collect(parameter_attributes(entry_f, param_index))
+                    push!(parameter_attributes(wrapper_f, param_index), attr)
+                end
             end
         end
 

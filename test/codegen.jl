@@ -172,6 +172,13 @@ end
     @test occursin("ptxtbaa_global", ir)
 end
 
+@testset "tracked pointers" begin
+    @eval codegen_tracked_ptr(a) = (a[1] = 1; nothing)
+
+    # this used to throw an LLVM assertion (#223)
+    CUDAnative.code_llvm(devnull, codegen_tracked_ptr, Tuple{Vector{Int}}; kernel=true)
+end
+
 end
 
 
