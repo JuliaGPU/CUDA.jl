@@ -32,9 +32,6 @@ function method_age(f, tt)::UInt
     throw(MethodError(f, tt))
 end
 
-
-isghosttype(dt) = dt.isconcretetype && sizeof(dt) == 0
-
 # generate kernel wrapper functions that ignore return values
 #
 # FIXME: we cannot use an ordinary splat for this, because that generates dynamic calls
