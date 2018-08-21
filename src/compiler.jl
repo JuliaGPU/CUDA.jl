@@ -629,7 +629,7 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     @debug "(Re)compiling function" ctx
 
-    validate_invocation(ctx)
+    check_method(ctx)
 
 
     ## low-level code generation (LLVM IR)
@@ -655,24 +655,10 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
     # optimize the IR
     optimize!(ctx, mod, entry)
 
-    # make sure any non-isbits arguments are unused
-    real_arg_i = 0
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
-    for (arg_i,dt) in enumerate(sig.parameters)
-        isghosttype(dt) && continue
-        real_arg_i += 1
-
-        if !isbitstype(dt)
-            param = parameters(entry)[real_arg_i]
-            if !isempty(uses(param))
-                throw(CompilerError(ctx, "passing and using non-bitstype argument";
-                                    argument=arg_i, argument_type=dt))
-            end
-        end
-    end
+    check_invocation(ctx, entry)
 
     # check generated IR
-    validate_ir(ctx, mod)
+    check_ir(ctx, mod)
     verify(mod)
 
     if strip_ir_metadata
