@@ -364,6 +364,8 @@ function find_host_compiler(toolkit_version=nothing)
 
             if toolkit_version == nothing || gcc_supported(gcc_ver, toolkit_version)
                 push!(gcc_possibilities, (gcc_path, gcc_ver))
+            elseif toolkit_version != nothing
+                @warn "Ignoring $gcc_path v$gcc_ver which isn't supported by CUDA $toolkit_version"
             end
         end
 
@@ -442,6 +444,8 @@ function find_host_compiler(toolkit_version=nothing)
                 if msvc_supported(ver, toolkit_version)
                     msvc_path, msvc_ver = msvc_list[ver], ver
                     break
+                else
+                    @warn "Ignoring $msvc_path v$msvc_ver which isn't supported by CUDA $toolkit_version"
                 end
             end
             if msvc_ver == nothing
