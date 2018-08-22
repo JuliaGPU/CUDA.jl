@@ -25,7 +25,13 @@ function generic_matmatmul!(C::AbstractVecOrMat{R}, A::AbstractVecOrMat{T}, B::A
         end
     end
 
-    @cuda threads=size(C) kernel(C, A, B)
+    max_threads = 256
+    threads_x = min(max_threads, size(C,1))
+    threads_y = min(max_threads ÷ threads_x, size(C,2))
+    threads = (threads_x, threads_y)
+    blocks = ceil.(Int, (size(C,1), size(C,2)) ./ threads)
+
+    @cuda threads=threads blocks=blocks kernel(C, A, B)
 
     C
 end
