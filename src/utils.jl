@@ -49,12 +49,11 @@ end
 
 # return the capability of the current context's device, or a sane fall-back
 function current_capability()
-    ctx = CuCurrentContext()
-    if ctx == nothing
+    if initialized[]
+        return supported_capability(device())
+    else
         # newer devices tend to support cleaner code (higher-level instructions, etc)
         # so target the most recent device as supported by this toolchain
         return maximum(target_support)
     end
-
-    return supported_capability(device(ctx))
 end
