@@ -2,6 +2,23 @@
 
 ############################################################################################
 
+@testset "LLVM" begin
+
+@testset "invariant tuple passing" begin
+    @eval function kernel(ptr, x)
+        i = CUDAnative.threadIdx_x()
+        @inbounds unsafe_store!(ptr, x[i], 1)
+    end
+
+    buf = Mem.alloc(Float64)
+    @cuda kernel(convert(Ptr{Float64}, buf.ptr), (1., 2., ))
+    @test Mem.download(Float64, buf) == [1.]
+end
+
+end
+
+############################################################################################
+
 @testset "SASS" begin
 
 @testset "basic reflection" begin
