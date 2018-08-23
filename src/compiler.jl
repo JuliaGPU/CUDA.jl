@@ -375,8 +375,10 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         # perform argument conversions
         codegen_types = parameters(entry_ft)
         wrapper_params = parameters(wrapper_f)
+        param_index = 0
         for (julia_t, codegen_t, wrapper_t, wrapper_param) in
             zip(julia_types, codegen_types, wrapper_types, wrapper_params)
+            param_index += 1
             if codegen_t != wrapper_t
                 # the wrapper argument doesn't match the kernel parameter type.
                 # this only happens when codegen wants to pass a pointer.
@@ -417,6 +419,9 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
                 end
             else
                 push!(wrapper_args, wrapper_param)
+                for attr in collect(parameter_attributes(entry_f, param_index))
+                    push!(parameter_attributes(wrapper_f, param_index), attr)
+                end
             end
         end
 
@@ -624,7 +629,7 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     @debug "(Re)compiling function" ctx
 
-    validate_invocation(ctx)
+    check_method(ctx)
 
 
     ## low-level code generation (LLVM IR)
@@ -650,24 +655,10 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
     # optimize the IR
     optimize!(ctx, mod, entry)
 
-    # make sure any non-isbits arguments are unused
-    real_arg_i = 0
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
-    for (arg_i,dt) in enumerate(sig.parameters)
-        isghosttype(dt) && continue
-        real_arg_i += 1
-
-        if !isbitstype(dt)
-            param = parameters(entry)[real_arg_i]
-            if !isempty(uses(param))
-                throw(CompilerError(ctx, "passing and using non-bitstype argument";
-                                    argument=arg_i, argument_type=dt))
-            end
-        end
-    end
+    check_invocation(ctx, entry)
 
     # check generated IR
-    validate_ir(ctx, mod)
+    check_ir(ctx, mod)
     verify(mod)
 
     if strip_ir_metadata

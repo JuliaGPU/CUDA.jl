@@ -1,7 +1,6 @@
 ## validation of properties and code
 
-# check validity of a function invocation
-function validate_invocation(@nospecialize(ctx::CompilerContext))
+function check_method(ctx::CompilerContext)
     # get the method
     ms = Base.methods(ctx.f, ctx.tt)
     isempty(ms)   && throw(CompilerError(ctx, "no method found"))
@@ -13,6 +12,24 @@ function validate_invocation(@nospecialize(ctx::CompilerContext))
         rt = Base.return_types(ctx.f, ctx.tt)[1]
         if rt != Nothing
             throw(CompilerError(ctx, "kernel returns a value of type $rt"))
+        end
+    end
+end
+
+function check_invocation(ctx::CompilerContext, entry::LLVM.Function)
+    # make sure any non-isbits arguments are unused
+    real_arg_i = 0
+    sig = Base.signature_type(ctx.f, ctx.tt)::Type
+    for (arg_i,dt) in enumerate(sig.parameters)
+        isghosttype(dt) && continue
+        real_arg_i += 1
+
+        if !isbitstype(dt)
+            param = parameters(entry)[real_arg_i]
+            if !isempty(uses(param))
+                throw(CompilerError(ctx, "passing and using non-bitstype argument";
+                                    argument=arg_i, argument_type=dt))
+            end
         end
     end
 end
@@ -66,17 +83,17 @@ function backtrace(inst)
     bt
 end
 
-function validate_ir!(errors::Vector{IRError}, mod::LLVM.Module)
+function check_ir!(errors::Vector{IRError}, mod::LLVM.Module)
     for f in functions(mod)
-        validate_ir!(errors, f)
+        check_ir!(errors, f)
     end
     return errors
 end
 
-function validate_ir!(errors::Vector{IRError}, f::LLVM.Function)
+function check_ir!(errors::Vector{IRError}, f::LLVM.Function)
     for bb in blocks(f), inst in instructions(bb)
         if isa(inst, LLVM.CallInst)
-            validate_ir!(errors, inst)
+            check_ir!(errors, inst)
         end
     end
 
@@ -85,7 +102,7 @@ end
 
 const special_fns = ["vprintf", "__nvvm_reflect"]
 
-function validate_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
+function check_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
     dest_f = called_value(inst)
     dest_fn = LLVM.name(dest_f)
     lib = first(filter(lib->startswith(lib, "libjulia"), map(path->splitdir(path)[2], Libdl.dllist())))
@@ -106,8 +123,8 @@ function validate_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
     errors
 end
 
-function validate_ir(ctx, args...)
-    errors = validate_ir!(IRError[], args...)
+function check_ir(ctx, args...)
+    errors = check_ir!(IRError[], args...)
 
     unique!(errors)
     if !isempty(errors)
