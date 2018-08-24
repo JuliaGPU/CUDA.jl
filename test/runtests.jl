@@ -39,7 +39,7 @@ using GPUArrays, GPUArrays.TestSuite
     TestSuite.test_base(CuArray)
     #TestSuite.test_vectors(CuArray)
     TestSuite.test_mapreduce(CuArray)
-    #TestSuite.test_broadcasting(CuArray)
+    TestSuite.test_broadcasting(CuArray)
     TestSuite.test_linalg(CuArray)
     TestSuite.test_fft(CuArray)
     TestSuite.test_blas(CuArray)
