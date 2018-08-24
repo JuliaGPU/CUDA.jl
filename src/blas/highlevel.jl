@@ -133,15 +133,15 @@ LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::LinearAlgebra.Adjoint{<
     gemm_wrapper!(C, 'N', 'T', A, parent(adjB))
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'N', 'C', A, parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, CuMatrix{}}, adjB::LinearAlgebra.Adjoint{<:Any, CuMatrix{}}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB))
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix}, adjB::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}) where {T<:Real} =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB))
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix, adjA::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB))
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T <: CublasFloat =
     gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB))
