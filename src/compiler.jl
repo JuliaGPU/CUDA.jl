@@ -431,6 +431,29 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         dispose(builder)
     end
 
+    # HACK: get rid of invariant.load attributes on loads from pointer arguments,
+    #       since storing to a stack slot violates the semantics of that attribute.
+    for param in parameters(entry_f)
+        if isa(llvmtype(param), LLVM.PointerType)
+            # collect all uses of the pointer
+            worklist = Vector{LLVM.Instruction}(user.(collect(uses(param))))
+            while !isempty(worklist)
+                value = popfirst!(worklist)
+
+                # remove the invariant.load attribute
+                md = metadata(value)
+                if haskey(md, LLVM.MD_invariant_load)
+                    delete!(md, LLVM.MD_invariant_load)
+                end
+
+                # recurse on the output of some instructions
+                if isa(value, LLVM.BitCastInst) || isa(value, LLVM.GetElementPtrInst)
+                    append!(worklist, user.(collect(uses(value))))
+                end
+            end
+        end
+    end
+
     # early-inline the original entry function into the wrapper
     push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
     linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
