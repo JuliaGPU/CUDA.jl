@@ -1,5 +1,8 @@
 import GPUArrays
 
+struct CuArrayBackend <: GPUArrays.GPUBackend end
+GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
+
 Base.similar(::Type{<:CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = CuArray{T, N}(size)
 # This constructor is to avoid ambiguity with constructor in GPUArrays
 Base.similar(::Type{<:CuArray}, ::Type{T}, ::Tuple{}) where {T} = CuArray{T,0}()
@@ -63,8 +66,9 @@ GPUArrays.global_memory(dev::CUDAdrv.CuDevice) = CUDAdrv.totalmem(dev)
 GPUArrays.local_memory(dev::CUDAdrv.CuDevice) = CUDAdrv.attribute(dev, CUDAdrv.TOTAL_CONSTANT_MEMORY)
 
 
-function GPUArrays._gpu_call(f, A::CuArray, args::Tuple, blocks_threads::Tuple{T, T}) where T <: NTuple{N, Integer} where N
+function GPUArrays._gpu_call(::CuArrayBackend, f, A, args::Tuple, blocks_threads::Tuple{T, T}) where T <: NTuple{N, Integer} where N
     blk, thr = blocks_threads
+    @info "$f, $(map(typeof, args))"
     @cuda blocks=blk threads=thr f(CuKernelState(), args...)
 end
 
