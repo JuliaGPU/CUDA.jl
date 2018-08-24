@@ -8,7 +8,10 @@ end
 
 # GPUArrays.jl defines broadcast for us and we only need to ensure that Broadcast/Extruded gets converted
 # to variants that are valid on the GPU, as an example we need to convert CuArray to CuDeviceArray
-cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
+cudaconvert_ctor(f) = f
+cudaconvert_ctor(::Type{T}) where T = (x...) -> T(x...)
+cudaconvert(bc::Broadcasted{Style}) where Style =
+  Broadcasted{Style}(cudaconvert_ctor(bc.f), map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
 cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.parent))
 
