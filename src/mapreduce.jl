@@ -30,7 +30,7 @@ function mapreducedim_kernel_parallel(f, op, R::CuDeviceArray{T}, A::CuDeviceArr
         Ri = Ri_base + (blockIdx().x - 1) * blockDim().y + threadIdx().y
         Ri > Rlength && return
         RI = Tuple(CartesianIndices(R)[Ri])
-        S = @cuStaticSharedMem(T, 1024)
+        S = @cuStaticSharedMem(T, 512)
         Si_folded_base = (threadIdx().y - 1) * blockDim().x
         Si_folded = Si_folded_base + threadIdx().x
         # serial reduction of A into S by Slength ÷ xthreads
@@ -46,7 +46,7 @@ function mapreducedim_kernel_parallel(f, op, R::CuDeviceArray{T}, A::CuDeviceArr
             end
         end
         # block-parallel reduction of S to S[1] by xthreads
-        reduce_block(view(S, (Si_folded_base + 1):1024), op)
+        reduce_block(view(S, (Si_folded_base + 1):512), op)
         # reduce S[1] into R
         threadIdx().x == 1 && (R[Ri] = op(R[Ri], S[Si_folded]))
     end
@@ -56,8 +56,8 @@ function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
     Rlength = length(R)
     Ssize = ifelse.(size(R) .== 1, size(A), 1)
     Slength = prod(Ssize)
-    outer_thr = min(nextpow(2, Rlength ÷ 512 + 1), 1024)
-    inner_thr = min(1024 ÷ outer_thr, Slength)
+    outer_thr = min(nextpow(2, Rlength ÷ 512 + 1), 512)
+    inner_thr = min(512 ÷ outer_thr, Slength)
     if inner_thr < 8 # we can saturate the GPU with serial reduction
         range = ifelse.(length.(axes(R)) .== 1, axes(A), nothing)
         blk, thr = cudims(R)
