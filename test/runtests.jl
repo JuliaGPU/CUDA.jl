@@ -69,6 +69,7 @@ end
   @test testf((x)       -> 2x,           rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
+  @test (CuArray{Ptr{Cvoid}}(1) .= C_NULL) == CuArray([C_NULL])
   @test CuArray([1,2,3]) .+ CuArray([1.0,2.0,3.0]) == CuArray([2,4,6])
 
   @eval struct Whatever{T}

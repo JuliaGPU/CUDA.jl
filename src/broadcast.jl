@@ -22,7 +22,7 @@ struct CuRefValue{T} <: Ref{T}
   x::T
 end
 Base.getindex(r::CuRefValue) = r.x
-cudaconvert(r::Ref) = CuRefValue(cudaconvert(r[]))
+cudaconvert(r::Base.RefValue) = CuRefValue(cudaconvert(r[]))
 
 # Until we can use Cassette to do this translation for use we **try** to do some manually fixing
 
