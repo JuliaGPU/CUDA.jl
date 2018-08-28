@@ -17,9 +17,6 @@ end
 
 GPUArrays.AbstractDeviceArray(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
 
-GPUArrays.unpack_buffer(a::CuArray) = a
-
-
 @inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
 
 GPUArrays.blas_module(::CuArray) = CuArrays.BLAS
