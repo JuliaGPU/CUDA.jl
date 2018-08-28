@@ -20,14 +20,17 @@ function LinearAlgebra.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{F
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dot(n, DX, 1, DY, 1)
 end
+
 function LinearAlgebra.BLAS.dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
     dotc(n, DX, 1, DY, 1)
 end
+
 function LinearAlgebra.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     dotc(DX, DY)
 end
+
 function LinearAlgebra.BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
@@ -115,30 +118,30 @@ function gemm_wrapper!(C::CuVecOrMat{T}, tA::Char, tB::Char,
 end
 
 # Mutating
-LinearAlgebra.mul!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}) where T = gemm_wrapper!(C, 'N', 'N', A, B)
-LinearAlgebra.mul!(C::CuMatrix, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix}, B::CuMatrix) =
+LinearAlgebra.mul!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}) where T<:CublasFloat = gemm_wrapper!(C, 'N', 'N', A, B)
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     gemm_wrapper!(C, 'T', 'N', parent(trA), B)
-LinearAlgebra.mul!(C::CuMatrix, A::CuMatrix, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix}) =
+LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'N', 'T', A, parent(trB))
-LinearAlgebra.mul!(C::CuMatrix, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix}) =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB))
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'N', parent(adjA), B)
-LinearAlgebra.mul!(C::CuMatrix, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix}, B::CuMatrix) =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     gemm_wrapper!(C, 'C', 'N', parent(adjA), B)
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'N', 'T', A, parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix, A::CuMatrix, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix}) =
+LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'N', 'C', A, parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, CuMatrix{}}, adjB::LinearAlgebra.Adjoint{<:Any, CuMatrix{}}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix}) =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix}, adjB::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}) where {T<:Real} =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix}) =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix, adjA::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix}) where {T<:Real} =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB))
-LinearAlgebra.mul!(C::CuMatrix, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix}) =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T <: CublasFloat =
     gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB))

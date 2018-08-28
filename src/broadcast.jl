@@ -14,6 +14,7 @@ cudaconvert(bc::Broadcasted{Style}) where Style =
   Broadcasted{Style}(cudaconvert_ctor(bc.f), map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
 cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.parent))
+cudaconvert(x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = LinearAlgebra.Adjoint(cudaconvert(x.parent))
 
 # Ref{CuArray} is invalid for GPU codegen
 # see https://github.com/JuliaGPU/CUDAnative.jl/issues/223
