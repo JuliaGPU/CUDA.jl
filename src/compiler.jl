@@ -404,31 +404,6 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
                 end
                 store!(builder, wrapper_param, ptr)
                 push!(wrapper_args, ptr)
-
-                # Julia marks parameters as TBAA immutable;
-                # this is incompatible with us storing to a stack slot, so clear TBAA
-                # TODO: tag with alternative information (eg. TBAA, or invariant groups)
-                entry_params = collect(parameters(entry_f))
-                candidate_uses = []
-                for param in entry_params
-                    append!(candidate_uses, collect(uses(param)))
-                end
-                while !isempty(candidate_uses)
-                    usepair = popfirst!(candidate_uses)
-                    inst = user(usepair)
-
-                    md = metadata(inst)
-                    if haskey(md, LLVM.MD_tbaa)
-                        delete!(md, LLVM.MD_tbaa)
-                    end
-
-                    # follow along certain pointer operations
-                    if isa(inst, LLVM.GetElementPtrInst) ||
-                       isa(inst, LLVM.BitCastInst) ||
-                       isa(inst, LLVM.AddrSpaceCastInst)
-                        append!(candidate_uses, collect(uses(inst)))
-                    end
-                end
             else
                 push!(wrapper_args, wrapper_param)
                 for attr in collect(parameter_attributes(entry_f, param_index))
@@ -443,9 +418,12 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         dispose(builder)
     end
 
-    # HACK: get rid of invariant.load attributes on loads from pointer arguments,
-    #       since storing to a stack slot violates the semantics of that attribute.
-    for param in parameters(entry_f)
+    # HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
+    #       since storing to a stack slot violates the semantics of those attributes.
+    # TODO: can we emit a wrapper that doesn't violate all of Julia's metadata?
+    params = collect(parameters(entry_f))
+    while !isempty(params)
+        param = popfirst!(params)
         if isa(llvmtype(param), LLVM.PointerType)
             # collect all uses of the pointer
             worklist = Vector{LLVM.Instruction}(user.(collect(uses(param))))
@@ -457,10 +435,18 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
                 if haskey(md, LLVM.MD_invariant_load)
                     delete!(md, LLVM.MD_invariant_load)
                 end
+                if haskey(md, LLVM.MD_tbaa)
+                    delete!(md, LLVM.MD_tbaa)
+                end
 
                 # recurse on the output of some instructions
-                if isa(value, LLVM.BitCastInst) || isa(value, LLVM.GetElementPtrInst)
+                if isa(value, LLVM.BitCastInst) ||
+                   isa(value, LLVM.GetElementPtrInst) ||
+                   isa(value, LLVM.AddrSpaceCastInst)
                     append!(worklist, user.(collect(uses(value))))
+                elseif isa(value, LLVM.CallInst)
+                    called_f = called_value(value)
+                    append!(params, parameters(called_f))
                 end
             end
         end
