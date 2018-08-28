@@ -198,7 +198,7 @@ function irgen(ctx::CompilerContext)
     end
 
     # the main module should contain a single jfptr_ function definition,
-    # e.g. jlcall_kernel_vadd_62977
+    # e.g. jfptr_kernel_vadd_62977
     definitions = LLVM.Function[]
     for llvmf in functions(mod)
         if !isdeclaration(llvmf)
@@ -214,7 +214,7 @@ function irgen(ctx::CompilerContext)
     end
     @assert wrapper != nothing
 
-    # the jlcall wrapper function should point us to the actual entry-point,
+    # the jfptr wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
     entry_tag = let
         m = match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))::RegexMatch
@@ -250,10 +250,22 @@ function irgen(ctx::CompilerContext)
         # only occurs in debug builds
         delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
 
+        # dependent modules might have brought in other jfptr wrappers, delete them
+        llvmfn = LLVM.name(llvmf)
+        if startswith(llvmfn, "jfptr_") && isempty(uses(llvmf))
+            unsafe_delete!(mod, llvmf)
+            continue
+        end
+
+        # llvmcall functions aren't to be called, so mark them internal (cleans up the IR)
+        if startswith(llvmfn, "jl_llvmcall")
+            linkage!(llvmf, LLVM.API.LLVMInternalLinkage)
+            continue
+        end
+
         # make function names safe for ptxas
         # (LLVM ought to do this, see eg. D17738 and D19126), but fails
         # TODO: fix all globals?
-        llvmfn = LLVM.name(llvmf)
         if !isdeclaration(llvmf)
             llvmfn′ = safe_fn(llvmf)
             if llvmfn != llvmfn′
