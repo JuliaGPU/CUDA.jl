@@ -1,16 +1,36 @@
-# using Base.Cartesian
-import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle, preprocess, preprocess_args
+import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle
 
-const CuStyle = ArrayStyle{CuArray}
+BroadcastStyle(::Type{<:CuArray}) = ArrayStyle{CuArray}()
 
-cudaconvert(bc::Broadcasted{Style}) where Style = Broadcasted{Style}(bc.f, map(cudaconvert, bc.args), bc.axes)
+function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}) where T
+    similar(CuArray, T, axes(bc))
+end
+
+# GPUArrays.jl defines broadcast for us and we only need to ensure that Broadcast/Extruded gets converted
+# to variants that are valid on the GPU, as an example we need to convert CuArray to CuDeviceArray
+cudaconvert_ctor(f) = f
+cudaconvert_ctor(::Type{T}) where T = (x...) -> T(x...)
+cudaconvert(bc::Broadcasted{Style}) where Style =
+  Broadcasted{Style}(cudaconvert_ctor(bc.f), map(cudaconvert, bc.args), bc.axes)
 cudaconvert(ex::Extruded) = Extruded(cudaconvert(ex.x), ex.keeps, ex.defaults)
-cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.vec))
+cudaconvert(x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = LinearAlgebra.Transpose(cudaconvert(x.parent))
+cudaconvert(x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = LinearAlgebra.Adjoint(cudaconvert(x.parent))
 
-import NNlib: @fix, _cufunc
+# Ref{CuArray} is invalid for GPU codegen
+# see https://github.com/JuliaGPU/CUDAnative.jl/issues/223
+# so we do a read only broadcast ref
+struct CuRefValue{T} <: Ref{T}
+  x::T
+end
+Base.getindex(r::CuRefValue) = r.x
+cudaconvert(r::Base.RefValue) = CuRefValue(cudaconvert(r[]))
 
-_cufunc(f,x::CuArray,xs...) = cufunc(f)
-cufunc(x) = x
+# Until we can use Cassette to do this translation for use we **try** to do some manually fixing
+
+cufunc(f) = f
+
+Broadcast.broadcasted(::ArrayStyle{CuArray}, f, args...) =
+  Broadcasted{ArrayStyle{CuArray}}(cufunc(f), args, nothing)
 
 libdevice = :[
   cos, cospi, sin, sinpi, tan, acos, asin, atan,
@@ -29,15 +49,9 @@ libdevice = :[
   fma, sad, dim, mul24, mul64hi, hadd, rhadd, scalbn].args
 
 for f in libdevice
-  # TODO use Broadcast.broadcasted(::ArrayStyle{<:CuArray}, ::typeof(f), args...)
   isdefined(Base, f) || continue
-  @eval begin
-    cufunc(::typeof(Base.$f)) = CUDAnative.$f
-    @inline preprocess(dest::CuArray, bc::Broadcasted{Nothing,<:Any,typeof(Base.$f)}) = Broadcasted{CuStyle}(CUDAnative.$f, preprocess_args(dest, bc.args), bc.axes)
-  end
+  @eval cufunc(::typeof(Base.$f)) = CUDAnative.$f
 end
-
-# ForwardDiff Integration
 
 using MacroTools
 
@@ -58,6 +72,7 @@ macro cufunc(ex)
   end
 end
 
+# ForwardDiff Integration
 using ForwardDiff: Dual, value, partials, unary_dual_definition
 using DiffRules
 

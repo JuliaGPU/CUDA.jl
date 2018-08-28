@@ -143,13 +143,9 @@ cuones(T::Type, dims...) = fill!(CuArray{T}(dims...), 1)
 cuzeros(dims...) = cuzeros(Float32, dims...)
 cuones(dims...) = cuones(Float32, dims...)
 
-Base.show(io::IO, x::CuArray) = show(io, collect(x))
-Base.show(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, LinearAlgebra.adjoint(collect(x.parent)))
-Base.show(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, LinearAlgebra.transpose(collect(x.parent)))
-
-Base.show(io::IO, ::MIME"text/plain", x::CuArray) = show(io, MIME"text/plain"(), collect(x))
-Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = show(io, MIME"text/plain"(), LinearAlgebra.adjoint(collect(x.parent)))
-Base.show(io::IO, ::MIME"text/plain", x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = show(io, MIME"text/plain"(), LinearAlgebra.transpose(collect(x.parent)))
+Base.print_array(io::IO, x::CuArray) = Base.print_array(io, collect(x))
+Base.print_array(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.adjoint(collect(x.parent)))
+Base.print_array(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.transpose(collect(x.parent)))
 
 import Adapt: adapt, adapt_
 

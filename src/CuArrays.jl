@@ -28,6 +28,7 @@ include("array.jl")
 include("utils.jl")
 include("indexing.jl")
 include("broadcast.jl")
+include("matmul.jl")
 include("mapreduce.jl")
 
 include("blas/CUBLAS.jl")
