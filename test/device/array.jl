@@ -96,7 +96,8 @@ end
 
     ir = sprint(io->CUDAnative.code_llvm(io, array_oob_1d, (CuDeviceArray{Int,1,AS.Global},)))
     @test occursin("trap", ir)
-    @test !occursin("throw_boundserror", ir)
+    @test !occursin("julia_throw_boundserror", ir)
+    @test occursin("ptx_throw_boundserror", ir)
 
     @eval function array_oob_2d(array)
         return array[1, 1]
@@ -104,7 +105,8 @@ end
 
     ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2,AS.Global},)))
     @test occursin("trap", ir)
-    @test !occursin("throw_boundserror", ir)
+    @test !occursin("julia_throw_boundserror", ir)
+    @test occursin("ptx_throw_boundserror", ir)
 end
 
 @testset "views" begin
