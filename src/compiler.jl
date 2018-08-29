@@ -296,11 +296,50 @@ function irgen(ctx::CompilerContext)
 
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
+        add!(pm, ModulePass("BoundsCheckRemoval", remove_boundscheck!))
         always_inliner!(pm)
         run!(pm, mod)
     end
 
     return mod, entry
+end
+
+# HACK
+function remove_boundscheck!(mod::LLVM.Module)
+    ctx = LLVM.context(mod)
+
+    trap = if haskey(functions(mod), "llvm.trap")
+        functions(mod)["llvm.trap"]
+    else
+        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
+    end
+
+    changed = false
+    for f in collect(functions(mod))
+        fn = LLVM.name(f)
+        if startswith(fn, "julia_throw_boundserror")
+            ft = eltype(llvmtype(f))
+            f′ = LLVM.Function(mod, "dummy_"*fn[7:end], ft)
+
+            let builder = Builder(ctx)
+                entry = BasicBlock(f′, "entry", ctx)
+                position!(builder, entry)
+                # TODO: call cuprintf
+                call!(builder, trap)
+                ret!(builder)
+            end
+            linkage!(f′, LLVM.API.LLVMInternalLinkage)
+            push!(function_attributes(f′), EnumAttribute("alwaysinline", 0, ctx))
+            replace_uses!(f, f′)
+
+            @assert isempty(uses(f))
+            unsafe_delete!(mod, f)
+
+            changed = true
+        end
+    end
+
+    return changed
 end
 
 # promote a function to a kernel
