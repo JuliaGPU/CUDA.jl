@@ -290,6 +290,16 @@ function irgen(ctx::CompilerContext)
     llvmfn *= "_$globalUnique"
     LLVM.name!(entry, llvmfn)
 
+    if ctx.kernel
+        entry = promote_kernel!(ctx, mod, entry)
+    end
+
+    # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
+    ModulePassManager() do pm
+        always_inliner!(pm)
+        run!(pm, mod)
+    end
+
     return mod, entry
 end
 
@@ -420,10 +430,8 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
 
     # HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
     #       since storing to a stack slot violates the semantics of those attributes.
-    # TODO: can we emit a wrapper that doesn't violate all of Julia's metadata?
-    params = collect(parameters(entry_f))
-    while !isempty(params)
-        param = popfirst!(params)
+    # TODO: can we emit a wrapper that doesn't violate Julia's metadata?
+    for param in parameters(entry_f)
         if isa(llvmtype(param), LLVM.PointerType)
             # collect all uses of the pointer
             worklist = Vector{LLVM.Instruction}(user.(collect(uses(param))))
@@ -444,10 +452,11 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
                    isa(value, LLVM.GetElementPtrInst) ||
                    isa(value, LLVM.AddrSpaceCastInst)
                     append!(worklist, user.(collect(uses(value))))
-                elseif isa(value, LLVM.CallInst)
-                    called_f = called_value(value)
-                    append!(params, parameters(called_f))
                 end
+
+                # IMPORTANT NOTE: if we ever want to inline functions at the LLVM level,
+                # we need to recurse into call instructions here, and strip metadata from
+                # called functions (see CUDAnative.jl#238).
             end
         end
     end
@@ -455,10 +464,6 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
     # early-inline the original entry function into the wrapper
     push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
     linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
-    ModulePassManager() do pm
-        always_inliner!(pm)
-        run!(pm, mod)
-    end
 
     return wrapper_f
 end
@@ -556,33 +561,6 @@ end
 function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     tm = machine(ctx.cap, triple(mod))
 
-    # GPU code is _very_ sensitive to register pressure and local memory usage,
-    # so forcibly inline every function definition into the entry point
-    # and internalize all other functions (enabling ABI-breaking optimizations).
-    # FIXME: this is too coarse. use a proper inliner tuned for GPUs
-    let pm = ModulePassManager()
-        definitions = LLVM.Function[]
-        for f in functions(mod)
-            if f!=entry && !isdeclaration(f)
-                push!(definitions, f)
-            end
-        end
-
-        no_inline = EnumAttribute("noinline", 0, JuliaContext())
-        always_inline = EnumAttribute("alwaysinline", 0, JuliaContext())
-        for f in definitions
-            attrs = function_attributes(f)
-            if !(no_inline in collect(attrs))
-                push!(attrs, always_inline)
-            end
-            linkage!(f, LLVM.API.LLVMInternalLinkage)
-        end
-        always_inliner!(pm)
-
-        run!(pm, mod)
-        dispose(pm)
-    end
-
     let pm = ModulePassManager()
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
@@ -656,10 +634,6 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
     ## low-level code generation (LLVM IR)
 
     mod, entry = irgen(ctx)
-
-    if ctx.kernel
-        entry = promote_kernel!(ctx, mod, entry)
-    end
 
     @trace("Module entry point: ", LLVM.name(entry))
 

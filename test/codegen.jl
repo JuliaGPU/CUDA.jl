@@ -49,7 +49,7 @@ end
     @eval codegen_parent(i) = codegen_child(i)
 
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_parent, Tuple{Int}))
-    @test_broken occursin(r"call .+ @julia_codegen_child_", ir)
+    @test occursin(r"call .+ @julia_codegen_child_", ir)
 end
 
 @testset "JuliaLang/julia#21121" begin
