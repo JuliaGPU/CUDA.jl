@@ -556,33 +556,6 @@ end
 function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     tm = machine(ctx.cap, triple(mod))
 
-    # GPU code is _very_ sensitive to register pressure and local memory usage,
-    # so forcibly inline every function definition into the entry point
-    # and internalize all other functions (enabling ABI-breaking optimizations).
-    # FIXME: this is too coarse. use a proper inliner tuned for GPUs
-    let pm = ModulePassManager()
-        definitions = LLVM.Function[]
-        for f in functions(mod)
-            if f!=entry && !isdeclaration(f)
-                push!(definitions, f)
-            end
-        end
-
-        no_inline = EnumAttribute("noinline", 0, JuliaContext())
-        always_inline = EnumAttribute("alwaysinline", 0, JuliaContext())
-        for f in definitions
-            attrs = function_attributes(f)
-            if !(no_inline in collect(attrs))
-                push!(attrs, always_inline)
-            end
-            linkage!(f, LLVM.API.LLVMInternalLinkage)
-        end
-        always_inliner!(pm)
-
-        run!(pm, mod)
-        dispose(pm)
-    end
-
     let pm = ModulePassManager()
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
