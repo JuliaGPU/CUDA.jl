@@ -101,12 +101,14 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     return Array(rowresult_gpu)
 end
 
-
-# generate reasonable data
-const n = 10000
-const lat = rand(Float32, n) .* 45
-const lon = rand(Float32, n) .* -120
-
 using Test
 
-@test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)
+# generate reasonable data
+function main(n = 10000)
+    lat = rand(Float32, n) .* 45
+    lon = rand(Float32, n) .* -120
+
+
+    @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)
+end
+main()
