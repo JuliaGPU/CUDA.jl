@@ -313,26 +313,33 @@ function remove_throw!(mod::LLVM.Module)
     exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
     exit = InlineAsm(exit_ft, "exit;", "", true)
 
+    # use a cache to merge identical invocations to identical throw functions
+    # and avoid a proliferation of global strings
+    cache = Dict{Tuple{String, LLVM.FunctionType}, LLVM.Function}()
+
     changed = false
     for f in collect(functions(mod))
         fn = LLVM.name(f)
+        ft = eltype(llvmtype(f))
 
         # FIXME: this is coarse
         re = r"julia_throw_(.+)_\d+"
         m = match(re, fn)
         if m != nothing
             ex = m.captures[1]
-            fn′ = "ptx_"*fn[7:end]
 
             # create a function that prints the exception name, and exits
-            ft = eltype(llvmtype(f))
-            f′ = LLVM.Function(mod, fn′, ft)
-            let builder = Builder(ctx)
-                entry = BasicBlock(f′, "entry", ctx)
-                position!(builder, entry)
-                cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
-                call!(builder, exit)
-                ret!(builder)
+            f′ = get!(cache, (ex, ft)) do
+                fn′ = "ptx_"*fn[7:end]
+                f′ = LLVM.Function(mod, fn′, ft)
+                let builder = Builder(ctx)
+                    entry = BasicBlock(f′, "entry", ctx)
+                    position!(builder, entry)
+                    cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
+                    #call!(builder, exit)   # CUDAnative.jl/#4
+                    ret!(builder)
+                end
+                f′
             end
 
             # replace the original function
