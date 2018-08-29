@@ -430,10 +430,8 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
 
     # HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
     #       since storing to a stack slot violates the semantics of those attributes.
-    # TODO: can we emit a wrapper that doesn't violate all of Julia's metadata?
-    params = collect(parameters(entry_f))
-    while !isempty(params)
-        param = popfirst!(params)
+    # TODO: can we emit a wrapper that doesn't violate Julia's metadata?
+    for param in parameters(entry_f)
         if isa(llvmtype(param), LLVM.PointerType)
             # collect all uses of the pointer
             worklist = Vector{LLVM.Instruction}(user.(collect(uses(param))))
@@ -454,10 +452,11 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
                    isa(value, LLVM.GetElementPtrInst) ||
                    isa(value, LLVM.AddrSpaceCastInst)
                     append!(worklist, user.(collect(uses(value))))
-                elseif isa(value, LLVM.CallInst)
-                    called_f = called_value(value)
-                    append!(params, parameters(called_f))
                 end
+
+                # IMPORTANT NOTE: if we ever want to inline functions at the LLVM level,
+                # we need to recurse into call instructions here, and strip metadata from
+                # called functions (see CUDAnative.jl#238).
             end
         end
     end
