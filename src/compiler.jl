@@ -347,6 +347,32 @@ function remove_throw!(mod::LLVM.Module)
             @assert isempty(uses(f))
             unsafe_delete!(mod, f)
 
+            # remove calls to `trap` that may follow the bounds check function
+            for value in uses(f′)
+                use = user(value)
+                if isa(use, LLVM.CallInst)
+                    block = LLVM.parent(use)
+                    instrs = collect(instructions(block))
+
+                    # find the throw
+                    index = findfirst(instrs, use)
+                    @assert index != nothing
+
+                    # check if succeeded by a trap
+                    if index+1 <= length(instrs)
+                        call = instrs[index+1]
+                        if isa(call, LLVM.CallInst) &&
+                           LLVM.name(called_value(call)) == "llvm.trap"
+                            # the block should be terminated by an `unreachable`,
+                            # or we can't safely remove the call to `trap`
+                            @assert isa(instrs[index+2], LLVM.UnreachableInst)
+
+                            unsafe_delete!(block, call)
+                        end
+                    end
+                end
+            end
+
             changed = true
         end
     end
