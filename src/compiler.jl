@@ -290,6 +290,16 @@ function irgen(ctx::CompilerContext)
     llvmfn *= "_$globalUnique"
     LLVM.name!(entry, llvmfn)
 
+    if ctx.kernel
+        entry = promote_kernel!(ctx, mod, entry)
+    end
+
+    # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
+    ModulePassManager() do pm
+        always_inliner!(pm)
+        run!(pm, mod)
+    end
+
     return mod, entry
 end
 
@@ -455,10 +465,6 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
     # early-inline the original entry function into the wrapper
     push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
     linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
-    ModulePassManager() do pm
-        always_inliner!(pm)
-        run!(pm, mod)
-    end
 
     return wrapper_f
 end
@@ -629,10 +635,6 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
     ## low-level code generation (LLVM IR)
 
     mod, entry = irgen(ctx)
-
-    if ctx.kernel
-        entry = promote_kernel!(ctx, mod, entry)
-    end
 
     @trace("Module entry point: ", LLVM.name(entry))
 

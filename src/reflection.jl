@@ -35,9 +35,6 @@ end
 function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
                    dump_module::Bool=false, strip_ir_metadata::Bool=true)
     mod, entry = irgen(ctx)
-    if ctx.kernel
-        entry = promote_kernel!(ctx, mod, entry)
-    end
     if optimize
         optimize!(ctx, mod, entry)
     end
