@@ -205,7 +205,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_parent, Tuple{Int64}))
-    @test_broken occursin(r"call.uni\s+julia_ptx_child_"m, asm)
+    @test occursin(r"call.uni\s+julia_ptx_child_"m, asm)
 end
 
 @testset "kernel functions" begin
@@ -215,7 +215,7 @@ end
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
     @test occursin(r"\.visible \.entry ptxcall_ptx_entry_", asm)
     @test !occursin(r"\.visible \.func julia_ptx_nonentry_", asm)
-    @test_broken occursin(r"\.func julia_ptx_nonentry_", asm)
+    @test occursin(r"\.func julia_ptx_nonentry_", asm)
 
 @testset "property_annotations" begin
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
@@ -260,7 +260,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent1, Tuple{Int}))
-    @test_broken occursin(r".func julia_codegen_child_reuse_child_", asm)
+    @test occursin(r".func julia_codegen_child_reuse_child_", asm)
 
     @eval function codegen_child_reuse_parent2(i)
         codegen_child_reuse_child(i+1)
@@ -268,7 +268,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, codegen_child_reuse_parent2, Tuple{Int}))
-    @test_broken occursin(r".func julia_codegen_child_reuse_child_", asm)
+    @test occursin(r".func julia_codegen_child_reuse_child_", asm)
 end
 
 @testset "child function reuse bis" begin

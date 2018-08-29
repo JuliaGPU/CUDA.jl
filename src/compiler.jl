@@ -603,6 +603,7 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     let pm = ModulePassManager()
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
+        internalize!(pm, [LLVM.name(entry)])
         ccall(:jl_add_optimization_passes, Cvoid,
               (LLVM.API.LLVMPassManagerRef, Cint),
               LLVM.ref(pm), Base.JLOptions().opt_level)
