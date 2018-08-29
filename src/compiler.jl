@@ -304,33 +304,39 @@ function irgen(ctx::CompilerContext)
     return mod, entry
 end
 
-# HACK: this pass removes `julia_throw_*` functions and replaces them with a `trap`
+# HACK: this pass replaces `julia_throw_*` functions with a simple print & exit
+#
+# this should be removed with a Cassette-style replacement of the `throw` builtin
 function remove_throw!(mod::LLVM.Module)
     ctx = LLVM.context(mod)
 
-    # TODO: exit instead of trap?
-    trap = if haskey(functions(mod), "llvm.trap")
-        functions(mod)["llvm.trap"]
-    else
-        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
-    end
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit = InlineAsm(exit_ft, "exit;", "", true)
 
     changed = false
     for f in collect(functions(mod))
         fn = LLVM.name(f)
-        if startswith(fn, "julia_throw_")   # FIXME: this is coarse
-            ft = eltype(llvmtype(f))
-            f′ = LLVM.Function(mod, "ptx_"*fn[7:end], ft)
 
+        # FIXME: this is coarse
+        re = r"julia_throw_(.+)_\d+"
+        m = match(re, fn)
+        if m != nothing
+            ex = m.captures[1]
+            fn′ = "ptx_"*fn[7:end]
+
+            # create a function that prints the exception name, and exits
+            ft = eltype(llvmtype(f))
+            f′ = LLVM.Function(mod, fn′, ft)
             let builder = Builder(ctx)
                 entry = BasicBlock(f′, "entry", ctx)
                 position!(builder, entry)
-                # TODO: call cuprintf
-                call!(builder, trap)
+                cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
+                call!(builder, exit)
                 ret!(builder)
             end
-            replace_uses!(f, f′)
 
+            # replace the original function
+            replace_uses!(f, f′)
             @assert isempty(uses(f))
             unsafe_delete!(mod, f)
 

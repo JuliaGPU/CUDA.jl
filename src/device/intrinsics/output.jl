@@ -2,6 +2,8 @@
 
 export @cuprintf
 
+const cuprintf_endline = Sys.iswindows() ? "\r\n" : "\n"
+
 @generated function promote_c_argument(arg)
     # > When a function with a variable-length argument list is called, the variable
     # > arguments are passed using C's old ``default argument promotions.'' These say that
