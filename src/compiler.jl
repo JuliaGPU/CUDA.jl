@@ -331,7 +331,7 @@ function remove_throw!(mod::LLVM.Module)
 
     # use a cache to merge identical invocations to identical throw functions
     # and avoid a proliferation of global strings
-    cache = Dict{Tuple{String, LLVM.FunctionType}, LLVM.Function}()
+    cache = Dict{String, LLVM.Function}()
 
     changed = false
 
@@ -343,25 +343,38 @@ function remove_throw!(mod::LLVM.Module)
         # FIXME: this is coarse
         re = r"julia_throw_(.+)_\d+"
         m = match(re, fn)
-        if m != nothing
+        if m != nothing && return_type(ft) == LLVM.VoidType(ctx)
             ex = m.captures[1]
 
             # create a function that prints the exception name, and exits
-            f′ = get!(cache, (ex, ft)) do
-                fn′ = "ptx_"*fn[7:end]
-                f′ = LLVM.Function(mod, fn′, ft)
+            f′ = get!(cache, ex) do
+                fn′ = "ptx_$ex"
+                ft′ = LLVM.FunctionType(LLVM.VoidType(ctx))
+                f′ = LLVM.Function(mod, fn′, ft′)
                 let builder = Builder(ctx)
                     entry = BasicBlock(f′, "entry", ctx)
                     position!(builder, entry)
+
                     cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
                     call!(builder, trap)
                     ret!(builder)
+
+                    dispose(builder)
                 end
                 f′
             end
 
-            # replace the original function
-            replace_uses!(f, f′)
+            # replace uses of the original function
+            for use in uses(f)
+                call = user(use)
+                @assert isa(call, LLVM.CallInst)
+                let builder = Builder(ctx)
+                    position!(builder, call)
+                    call!(builder, f′)
+                    dispose(builder)
+                end
+                unsafe_delete!(LLVM.parent(call), call)
+            end
             @assert isempty(uses(f))
             unsafe_delete!(mod, f)
 
