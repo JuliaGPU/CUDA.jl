@@ -313,7 +313,7 @@ function irgen(ctx::CompilerContext)
     return mod, entry
 end
 
-# HACK: this pass replaces `julia_throw_*` functions with a simple print & trap
+# HACK: this pass replaces `julia_throw_*` void functions with a simple print & trap
 #
 # this is necessary even though we already have a `raise_exception` hook that just prints,
 # as many `throw_...` functions are now `@noinline` which means their arguments survive and
@@ -432,9 +432,7 @@ function fixup_controlflow!(bb::LLVM.BasicBlock)
                 predecessors = LLVM.BasicBlock[]
                 for bb′ in blocks(f), inst in instructions(bb′)
                     if isa(inst, LLVM.BrInst)
-                        targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
-                                         operands(inst))
-                        if bb in targets
+                        if bb in successors(inst)
                             push!(predecessors, bb′)
                         end
                     end
