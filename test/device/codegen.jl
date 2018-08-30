@@ -34,6 +34,46 @@ end
     @test Mem.download(Int, out_buf, 2) == (_a .+ 1)[1:2]
 end
 
+
+@testset "ptxas-compatible control flow" begin
+    @eval @noinline throw_some() = throw(42)
+
+    @eval @inbounds function device_codegen_cfg_gpu_kernel(input, output, n)
+        i = threadIdx().x
+
+        temp = @cuStaticSharedMem(Int, 1)
+        if i == 1
+            1 <= n || throw_some()
+            temp[1] = input
+        end
+        sync_threads()
+
+        1 <= n || throw_some()
+        unsafe_store!(output, temp[1], i)
+    end
+
+    function device_codegen_cfg_gpu(input)
+        output = Mem.alloc(Int, 2)
+
+        @cuda threads=2 device_codegen_cfg_gpu_kernel(input, convert(Ptr{eltype(input)}, output.ptr), 99)
+
+        return Mem.download(Int, output, 2)
+    end
+
+    function device_codegen_cfg_cpu(input)
+        output = zeros(eltype(input), 2)
+
+        for j in 1:2
+            @inbounds output[j] = input
+        end
+
+        return output
+    end
+
+    input = rand(1:100)
+    @test device_codegen_cfg_cpu(input) == device_codegen_cfg_gpu(input)
+end
+
 end
 
 ############################################################################################
