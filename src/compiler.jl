@@ -306,6 +306,7 @@ function irgen(ctx::CompilerContext)
         add!(pm, ModulePass("ThrowRemoval", remove_throw!))
         add!(pm, FunctionPass("ControlFlowFixup", fixup_controlflow!))
         always_inliner!(pm)
+        verifier!(pm)
         run!(pm, mod)
     end
 
