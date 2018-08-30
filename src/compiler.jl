@@ -78,16 +78,20 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     mod = LLVM.parent(fun)
     ctx = context(mod)
 
-    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-    exit = InlineAsm(exit_ft, "exit;", "", true)
+    trap = if haskey(functions(mod), "llvm.trap")
+        functions(mod)["llvm.trap"]
+    else
+        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
+    end
 
-    builder = Builder(ctx)
-    position!(builder, insblock)
+    Builder(ctx) do builder
+        position!(builder, insblock)
 
-    cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline")
-    #call!(builder, exit)   # CUDAnative.jl/#4
+        cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline")
+        call!(builder, trap)
 
-    ret!(builder)
+        ret!(builder)
+    end
 end
 
 # maintain our own "global unique" suffix for disambiguating kernels
@@ -300,6 +304,7 @@ function irgen(ctx::CompilerContext)
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
         add!(pm, ModulePass("ThrowRemoval", remove_throw!))
+        add!(pm, FunctionPass("ControlFlowFixup", fixup_controlflow!))
         always_inliner!(pm)
         run!(pm, mod)
     end
@@ -309,12 +314,19 @@ end
 
 # HACK: this pass replaces `julia_throw_*` functions with a simple print & exit
 #
-# this should be removed with a Cassette-style replacement of the `throw` builtin
+# this is necessary because, even though we already have a `raise_exception` hook, many
+# `throw_...` functions are `@noinline` which means their arguments survive and may cause GC
+# allocations.
+#
+# TODO: replace with a Cassette-style overdub of the `throw` builtin
 function remove_throw!(mod::LLVM.Module)
     ctx = LLVM.context(mod)
 
-    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-    exit = InlineAsm(exit_ft, "exit;", "", true)
+    trap = if haskey(functions(mod), "llvm.trap")
+        functions(mod)["llvm.trap"]
+    else
+        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
+    end
 
     # use a cache to merge identical invocations to identical throw functions
     # and avoid a proliferation of global strings
@@ -341,7 +353,7 @@ function remove_throw!(mod::LLVM.Module)
                     entry = BasicBlock(f′, "entry", ctx)
                     position!(builder, entry)
                     cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
-                    #call!(builder, exit)   # CUDAnative.jl/#4
+                    call!(builder, trap)
                     ret!(builder)
                 end
                 f′
@@ -356,58 +368,68 @@ function remove_throw!(mod::LLVM.Module)
         end
     end
 
-    # remove control flow that ptxas can't handle
-    for f′ in values(cache)
-        for value in uses(f′)
-            # find callers of the throw function
-            caller = user(value)
-            @assert isa(caller, LLVM.CallInst)
-            throw_block = LLVM.parent(caller)
+    return changed
+end
 
-            # locate it in the block of instructions
-            instrs = collect(instructions(throw_block))
-            index = findfirst(isequal(caller), instrs)
-            @assert index != nothing
+# HACK: this pass removes control flow that confuses `ptxas`
+function fixup_controlflow!(f::LLVM.Function)
+    ctx = LLVM.context(f)
 
-            # remove the `trap` instruction that follows the throw
-            # TODO: where does this trap come from? not from `raise_exception`...
-            @assert index+1 <= length(instrs)
-            let trap = instrs[index+1]
-                @assert isa(trap, LLVM.CallInst) &&
-                        LLVM.name(called_value(trap)) == "llvm.trap"
-                unsafe_delete!(throw_block, trap)
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit = InlineAsm(exit_ft, "exit;", "", true)
+
+    changed = false
+
+    for bb in blocks(f)
+        # replace calls to trap with calls to exit
+        for inst in instructions(bb)
+            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
+                # TODO: replace with exit?
+                unsafe_delete!(bb, inst)
+                changed = true
             end
-            deleteat!(instrs, index+1)
+        end
 
-            # remove the `unreachable` terminating the throw block with a fallthrough branch
-            # NOTE: this is bad for performance
-            @assert index+1 <= length(instrs)
-            let unreachable = instrs[index+1]
-                @assert isa(unreachable, LLVM.UnreachableInst)
-                ## find the conditional branch that led to this block
-                parent_function = LLVM.parent(throw_block)
-                fallthrough = nothing
-                for block in blocks(parent_function), instruction in instructions(block)
-                    if isa(instruction, LLVM.BrInst)
-                        targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
-                                         operands(instruction))
-                        if throw_block in targets
-                            other_targets = filter(target -> target != throw_block,
-                                                   targets)
-                            @assert length(collect(other_targets)) == 1
-                            fallthrough = first(other_targets)
-                        end
+        # replace `unreachable` terminators with fall through branches
+        unreachable = terminator(bb)
+        if isa(unreachable, LLVM.UnreachableInst)
+            # find the predecessors to this block
+            predecessors = LLVM.BasicBlock[]
+            for bb′ in blocks(f), inst in instructions(bb′)
+                if isa(inst, LLVM.BrInst)
+                    targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
+                                     operands(inst))
+                    if bb in targets
+                        push!(predecessors, bb′)
                     end
                 end
-                @assert fallthrough !== nothing
-                ## replace the terminator
-                let builder = Builder(ctx)
-                    position!(builder, unreachable)
-                    br!(builder, fallthrough)
-                end
-                unsafe_delete!(throw_block, unreachable)
             end
-            deleteat!(instrs, index+1)
+
+            # find a fall through target
+            if length(predecessors) == 1
+                predecessor = first(predecessors)
+                br = terminator(predecessor)
+
+                # find the targets this branch
+                targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx), operands(br))
+                other_targets = filter(target -> target != bb,
+                                       targets)
+                if length(collect(other_targets)) == 1
+                    fallthrough = first(other_targets)
+
+                    # replace the unreachable
+                    let builder = Builder(ctx)
+                        position!(builder, unreachable)
+                        br!(builder, fallthrough)
+                    end
+                    unsafe_delete!(bb, unreachable)
+                    changed = true
+                else
+                    @warn "unreachable control flow with $(length(collect(other_targets)))-way branching predecessor"
+                end
+            elseif length(predecessors) > 1
+                @warn "unreachable control flow with multiple predecessors"
+            end
         end
     end
 
