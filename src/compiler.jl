@@ -371,6 +371,8 @@ function remove_throw!(mod::LLVM.Module)
 end
 
 # HACK: this pass removes control flow that confuses `ptxas`
+#
+# TODO: do this with structured CFG with LLVM?
 function fixup_controlflow!(f::LLVM.Function)
     ctx = LLVM.context(f)
 
@@ -380,16 +382,22 @@ function fixup_controlflow!(f::LLVM.Function)
     changed = false
 
     for bb in blocks(f)
-        # replace calls to trap with calls to exit
+        # remove calls to `trap`
         for inst in instructions(bb)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
-                # TODO: replace with exit?
+                # replace with call to `exit`
+                # FIXME: this still confuses `ptxas`
+                #Builder(ctx) do builder
+                #    position!(builder, inst)
+                #    call!(builder, exit)
+                #end
+
                 unsafe_delete!(bb, inst)
                 changed = true
             end
         end
 
-        # replace `unreachable` terminators with fall through branches
+        # remove `unreachable `terminators
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
