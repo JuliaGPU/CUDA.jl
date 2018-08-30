@@ -71,20 +71,23 @@ safe_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]"=>"_")
 safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
+# NOTE: we remove `throw_...` functions in the ThrowRemoval pass, but that relies on
+#       function names, which is fragile. Remove them here as well, to be safe.
 function raise_exception(insblock::BasicBlock, ex::Value)
     fun = LLVM.parent(insblock)
     mod = LLVM.parent(fun)
     ctx = context(mod)
 
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit = InlineAsm(exit_ft, "exit;", "", true)
+
     builder = Builder(ctx)
     position!(builder, insblock)
 
-    trap = if haskey(functions(mod), "llvm.trap")
-        functions(mod)["llvm.trap"]
-    else
-        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
-    end
-    call!(builder, trap)
+    cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline")
+    #call!(builder, exit)   # CUDAnative.jl/#4
+
+    ret!(builder)
 end
 
 # maintain our own "global unique" suffix for disambiguating kernels
@@ -318,6 +321,8 @@ function remove_throw!(mod::LLVM.Module)
     cache = Dict{Tuple{String, LLVM.FunctionType}, LLVM.Function}()
 
     changed = false
+
+    # replace invocations of `throw_...` functions with a simpler, GPU-compatible alternative
     for f in collect(functions(mod))
         fn = LLVM.name(f)
         ft = eltype(llvmtype(f))
@@ -347,33 +352,62 @@ function remove_throw!(mod::LLVM.Module)
             @assert isempty(uses(f))
             unsafe_delete!(mod, f)
 
-            # remove calls to `trap` that may follow the bounds check function
-            for value in uses(f′)
-                use = user(value)
-                if isa(use, LLVM.CallInst)
-                    block = LLVM.parent(use)
-                    instrs = collect(instructions(block))
+            changed = true
+        end
+    end
 
-                    # find the throw
-                    index = findfirst(instrs, use)
-                    @assert index != nothing
+    # remove control flow that ptxas can't handle
+    for f′ in values(cache)
+        for value in uses(f′)
+            # find callers of the throw function
+            caller = user(value)
+            @assert isa(caller, LLVM.CallInst)
+            throw_block = LLVM.parent(caller)
 
-                    # check if succeeded by a trap
-                    if index+1 <= length(instrs)
-                        call = instrs[index+1]
-                        if isa(call, LLVM.CallInst) &&
-                           LLVM.name(called_value(call)) == "llvm.trap"
-                            # the block should be terminated by an `unreachable`,
-                            # or we can't safely remove the call to `trap`
-                            @assert isa(instrs[index+2], LLVM.UnreachableInst)
+            # locate it in the block of instructions
+            instrs = collect(instructions(throw_block))
+            index = findfirst(isequal(caller), instrs)
+            @assert index != nothing
 
-                            unsafe_delete!(block, call)
+            # remove the `trap` instruction that follows the throw
+            # TODO: where does this trap come from? not from `raise_exception`...
+            @assert index+1 <= length(instrs)
+            let trap = instrs[index+1]
+                @assert isa(trap, LLVM.CallInst) &&
+                        LLVM.name(called_value(trap)) == "llvm.trap"
+                unsafe_delete!(throw_block, trap)
+            end
+            deleteat!(instrs, index+1)
+
+            # remove the `unreachable` terminating the throw block with a fallthrough branch
+            # NOTE: this is bad for performance
+            @assert index+1 <= length(instrs)
+            let unreachable = instrs[index+1]
+                @assert isa(unreachable, LLVM.UnreachableInst)
+                ## find the conditional branch that led to this block
+                parent_function = LLVM.parent(throw_block)
+                fallthrough = nothing
+                for block in blocks(parent_function), instruction in instructions(block)
+                    if isa(instruction, LLVM.BrInst)
+                        targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
+                                         operands(instruction))
+                        if throw_block in targets
+                            other_targets = filter(target -> target != throw_block,
+                                                   targets)
+                            @assert length(collect(other_targets)) == 1
+                            fallthrough = first(other_targets)
                         end
                     end
                 end
+                @assert fallthrough !== nothing
+                ## replace the terminator
+                let builder = Builder(ctx)
+                    position!(builder, unreachable)
+                    br!(builder, fallthrough)
+                end
+                unsafe_delete!(throw_block, unreachable)
             end
-
-            changed = true
+            deleteat!(instrs, index+1)
         end
     end
 
