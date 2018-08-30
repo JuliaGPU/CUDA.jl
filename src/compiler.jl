@@ -385,6 +385,9 @@ end
 
 # HACK: this pass removes control flow that confuses `ptxas`
 #
+# basically, we only want a single exit from a function. exiting (ret, trap, exit) from
+# divergent branches causes ptxas to emit invalid code.
+#
 # TODO: do this with structured CFG with LLVM?
 function fixup_controlflow!(f::LLVM.Function)
     ctx = LLVM.context(f)
@@ -395,11 +398,14 @@ function fixup_controlflow!(f::LLVM.Function)
     changed = false
 
     # remove `noreturn` attributes
+    #
+    # when calling a `noreturn` function, LLVM places an `unreachable` after the call.
+    # this leads to an early `ret` from the function.
     attrs = function_attributes(f)
     delete!(attrs, EnumAttribute("noreturn", 0, ctx))
 
     for bb in blocks(f)
-        # remove calls to `trap`
+        # remove calls to `trap`, for obvious reasons.
         for inst in instructions(bb)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
                 # replace with call to `exit`
@@ -415,7 +421,10 @@ function fixup_controlflow!(f::LLVM.Function)
             end
         end
 
-        # remove `unreachable `terminators
+        # remove `unreachable `terminators.
+        #
+        # at this point, the optimizer hasn't run, so these hints are placed there by Julia.
+        # this happens e.g. with exceptions, and cannot be controlled by a compiler hook.
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -465,8 +474,15 @@ function fixup_controlflow!(f::LLVM.Function)
                         unreachable!(builder)
                     else
                         # this block has no predecessors, so we can't fall through
+                        #
+                        # a block without predecessors is either never called,
+                        # or the only block in a function.
                         ft = eltype(llvmtype(f))
                         if return_type(ft) == LLVM.VoidType(ctx)
+                            # even though returning can lead to invalid control flow,
+                            # it mostly happens with functions that just throw,
+                            # and leaving the unreachable there would make the optimizer
+                            # place another after the call.
                             ret!(builder)
                         else
                             unreachable!(builder)
