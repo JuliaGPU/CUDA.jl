@@ -394,42 +394,56 @@ function fixup_controlflow!(f::LLVM.Function)
         # replace `unreachable` terminators with fall through branches
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
-            # find the predecessors to this block
-            predecessors = LLVM.BasicBlock[]
-            for bb′ in blocks(f), inst in instructions(bb′)
-                if isa(inst, LLVM.BrInst)
-                    targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
-                                     operands(inst))
-                    if bb in targets
-                        push!(predecessors, bb′)
+            unsafe_delete!(bb, unreachable)
+            changed = true
+
+            try
+                terminator(bb)
+                # the basic-block is still terminated properly, nothing to do
+                # (this can happen with `ret; unreachable`)
+                # TODO: `unreachable; unreachable`
+            catch ex
+                isa(ex, UndefRefError) || rethrow(ex)
+
+                Builder(ctx) do builder
+                    position!(builder, bb)
+
+                    # find the predecessors to this block
+                    predecessors = LLVM.BasicBlock[]
+                    for bb′ in blocks(f), inst in instructions(bb′)
+                        if isa(inst, LLVM.BrInst)
+                            targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
+                                             operands(inst))
+                            if bb in targets
+                                push!(predecessors, bb′)
+                            end
+                        end
+                    end
+
+                    # find a fall through target
+                    if length(predecessors) == 1
+                        predecessor = first(predecessors)
+                        br = terminator(predecessor)
+
+                        # find the targets this branch
+                        targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx), operands(br))
+                        other_targets = filter(target -> target != bb,
+                                               targets)
+                        if length(collect(other_targets)) == 1
+                            fallthrough = first(other_targets)
+                            br!(builder, fallthrough)
+                        else
+                            @warn "unreachable control flow with $(length(collect(other_targets)))-way branching predecessor"
+                            unreachable!(builder)
+                        end
+                    elseif length(predecessors) > 1
+                        @warn "unreachable control flow with multiple predecessors"
+                        unreachable!(builder)
+                    else
+                        # a block without predecessors, this'll get optimized away anyway
+                        unreachable!(builder)
                     end
                 end
-            end
-
-            # find a fall through target
-            if length(predecessors) == 1
-                predecessor = first(predecessors)
-                br = terminator(predecessor)
-
-                # find the targets this branch
-                targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx), operands(br))
-                other_targets = filter(target -> target != bb,
-                                       targets)
-                if length(collect(other_targets)) == 1
-                    fallthrough = first(other_targets)
-
-                    # replace the unreachable
-                    let builder = Builder(ctx)
-                        position!(builder, unreachable)
-                        br!(builder, fallthrough)
-                    end
-                    unsafe_delete!(bb, unreachable)
-                    changed = true
-                else
-                    @warn "unreachable control flow with $(length(collect(other_targets)))-way branching predecessor"
-                end
-            elseif length(predecessors) > 1
-                @warn "unreachable control flow with multiple predecessors"
             end
         end
     end
