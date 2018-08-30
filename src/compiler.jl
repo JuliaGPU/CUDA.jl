@@ -313,11 +313,11 @@ function irgen(ctx::CompilerContext)
     return mod, entry
 end
 
-# HACK: this pass replaces `julia_throw_*` functions with a simple print & exit
+# HACK: this pass replaces `julia_throw_*` functions with a simple print & trap
 #
-# this is necessary because, even though we already have a `raise_exception` hook, many
-# `throw_...` functions are `@noinline` which means their arguments survive and may cause GC
-# allocations.
+# this is necessary even though we already have a `raise_exception` hook that just prints,
+# as many `throw_...` functions are now `@noinline` which means their arguments survive and
+# may cause GC allocations.
 #
 # TODO: replace with a Cassette-style overdub of the `throw` builtin
 function remove_throw!(mod::LLVM.Module)
@@ -329,13 +329,9 @@ function remove_throw!(mod::LLVM.Module)
         LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
     end
 
-    # use a cache to merge identical invocations to identical throw functions
-    # and avoid a proliferation of global strings
-    cache = Dict{String, LLVM.Function}()
-
     changed = false
 
-    # replace invocations of `throw_...` functions with a simpler, GPU-compatible alternative
+    # NOTE: module pass, since we delete functions
     for f in collect(functions(mod))
         fn = LLVM.name(f)
         ft = eltype(llvmtype(f))
@@ -347,8 +343,10 @@ function remove_throw!(mod::LLVM.Module)
             ex = m.captures[1]
 
             # create a function that prints the exception name, and exits
-            f′ = get!(cache, ex) do
-                fn′ = "ptx_$ex"
+            fn′ = "ptx_throw_$ex"
+            f′ = if haskey(functions(mod), fn′)
+                functions(mod)[fn′]
+            else
                 ft′ = LLVM.FunctionType(LLVM.VoidType(ctx))
                 f′ = LLVM.Function(mod, fn′, ft′)
                 let builder = Builder(ctx)
