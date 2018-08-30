@@ -25,8 +25,8 @@ end
     @eval codegen_exception() = throw(DivideError())
     ir = sprint(io->CUDAnative.code_llvm(io, codegen_exception, Tuple{}))
 
-    # exceptions should get lowered to a plain trap...
-    @test occursin("llvm.trap", ir)
+    # plain exceptions should get lowered to cuprintf (see `raise_exception`)
+    @test occursin("vprintf", ir)
     # not a jl_throw referencing a jl_value_t representing the exception
     @test !occursin("jl_value_t", ir)
     @test !occursin("jl_throw", ir)
