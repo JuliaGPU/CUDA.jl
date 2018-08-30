@@ -304,7 +304,7 @@ function irgen(ctx::CompilerContext)
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
         add!(pm, ModulePass("ThrowRemoval", remove_throw!))
-        add!(pm, FunctionPass("ControlFlowFixup", fixup_controlflow!))
+        add!(pm, BasicBlockPass("ControlFlowFixup", fixup_controlflow!))
         always_inliner!(pm)
         verifier!(pm)
         run!(pm, mod)
@@ -386,88 +386,87 @@ end
 # HACK: this pass removes control flow that confuses `ptxas`
 #
 # TODO: do this with structured CFG with LLVM?
-function fixup_controlflow!(f::LLVM.Function)
-    ctx = LLVM.context(f)
+function fixup_controlflow!(bb::LLVM.BasicBlock)
+    f = LLVM.parent(bb)
+    ctx = LLVM.context(bb)
 
     exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
     exit = InlineAsm(exit_ft, "exit;", "", true)
 
     changed = false
 
-    for bb in blocks(f)
-        # remove calls to `trap`
-        for inst in instructions(bb)
-            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
-                # replace with call to `exit`
-                # FIXME: this still confuses `ptxas`
-                #let builder = Builder(ctx)
-                #    position!(builder, inst)
-                #    call!(builder, exit)
-                #    dispose(builder)
-                #end
+    # remove calls to `trap`
+    for inst in instructions(bb)
+        if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
+            # replace with call to `exit`
+            # FIXME: this still confuses `ptxas`
+            #let builder = Builder(ctx)
+            #    position!(builder, inst)
+            #    call!(builder, exit)
+            #    dispose(builder)
+            #end
 
-                unsafe_delete!(bb, inst)
-                changed = true
-            end
-        end
-
-        # remove `unreachable `terminators
-        unreachable = terminator(bb)
-        if isa(unreachable, LLVM.UnreachableInst)
-            unsafe_delete!(bb, unreachable)
+            unsafe_delete!(bb, inst)
             changed = true
+        end
+    end
 
-            try
-                terminator(bb)
-                # the basic-block is still terminated properly, nothing to do
-                # (this can happen with `ret; unreachable`)
-                # TODO: `unreachable; unreachable`
-            catch ex
-                isa(ex, UndefRefError) || rethrow(ex)
+    # remove `unreachable `terminators
+    unreachable = terminator(bb)
+    if isa(unreachable, LLVM.UnreachableInst)
+        unsafe_delete!(bb, unreachable)
+        changed = true
 
-                let builder = Builder(ctx)
-                    position!(builder, bb)
+        try
+            terminator(bb)
+            # the basic-block is still terminated properly, nothing to do
+            # (this can happen with `ret; unreachable`)
+            # TODO: `unreachable; unreachable`
+        catch ex
+            isa(ex, UndefRefError) || rethrow(ex)
 
-                    # find the predecessors to this block
-                    predecessors = LLVM.BasicBlock[]
-                    for bb′ in blocks(f), inst in instructions(bb′)
-                        if isa(inst, LLVM.BrInst)
-                            targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
-                                             operands(inst))
-                            if bb in targets
-                                push!(predecessors, bb′)
-                            end
+            let builder = Builder(ctx)
+                position!(builder, bb)
+
+                # find the predecessors to this block
+                predecessors = LLVM.BasicBlock[]
+                for bb′ in blocks(f), inst in instructions(bb′)
+                    if isa(inst, LLVM.BrInst)
+                        targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx),
+                                         operands(inst))
+                        if bb in targets
+                            push!(predecessors, bb′)
                         end
                     end
-
-                    # find the fall through successors
-                    if length(predecessors) == 1
-                        predecessor = first(predecessors)
-                        br = terminator(predecessor)
-
-                        # find the other successors
-                        targets = successors(br)
-                        if length(targets) == 2
-                            for target in targets
-                                if target != bb
-                                    br!(builder, target)
-                                    break
-                                end
-                            end
-                        else
-                            @warn "unreachable control flow with $(length(targets))-way branching predecessor"
-                            unreachable!(builder)
-                        end
-                    elseif length(predecessors) > 1
-                        @warn "unreachable control flow with multiple predecessors"
-                        unreachable!(builder)
-                    else
-                        # this block has no predecessors, and will get optimized away
-                        unreachable!(builder)
-                    end
-
-                    dispose(builder)
                 end
+
+                # find the fall through successors
+                if length(predecessors) == 1
+                    predecessor = first(predecessors)
+                    br = terminator(predecessor)
+
+                    # find the other successors
+                    targets = successors(br)
+                    if length(targets) == 2
+                        for target in targets
+                            if target != bb
+                                br!(builder, target)
+                                break
+                            end
+                        end
+                    else
+                        @warn "unreachable control flow with $(length(targets))-way branching predecessor"
+                        unreachable!(builder)
+                    end
+                elseif length(predecessors) > 1
+                    @warn "unreachable control flow with multiple predecessors"
+                    unreachable!(builder)
+                else
+                    # this block has no predecessors, and will get optimized away
+                    unreachable!(builder)
+                end
+
+                dispose(builder)
             end
         end
     end
