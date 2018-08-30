@@ -89,8 +89,6 @@ function raise_exception(insblock::BasicBlock, ex::Value)
 
         cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline")
         call!(builder, trap)
-
-        ret!(builder)
     end
 end
 
