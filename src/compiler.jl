@@ -418,27 +418,26 @@ function fixup_controlflow!(f::LLVM.Function)
                         end
                     end
 
-                    # find a fall through target
+                    # find the fall through successors
                     if length(predecessors) == 1
                         predecessor = first(predecessors)
                         br = terminator(predecessor)
 
-                        # find the targets this branch
-                        targets = filter(x->llvmtype(x) == LLVM.LabelType(ctx), operands(br))
-                        other_targets = filter(target -> target != bb,
-                                               targets)
-                        if length(collect(other_targets)) == 1
-                            fallthrough = first(other_targets)
+                        # find the other successors
+                        targets = collect(successors(br))
+                        filter!(target -> target != bb, targets)
+                        if length(targets) == 1
+                            fallthrough = first(targets)
                             br!(builder, fallthrough)
                         else
-                            @warn "unreachable control flow with $(length(collect(other_targets)))-way branching predecessor"
+                            @warn "unreachable control flow with $(length(targets))-way branching predecessor"
                             unreachable!(builder)
                         end
                     elseif length(predecessors) > 1
                         @warn "unreachable control flow with multiple predecessors"
                         unreachable!(builder)
                     else
-                        # a block without predecessors, this'll get optimized away anyway
+                        # this block has no predecessors, and will get optimized away
                         unreachable!(builder)
                     end
                 end
