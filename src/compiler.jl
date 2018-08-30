@@ -424,11 +424,14 @@ function fixup_controlflow!(f::LLVM.Function)
                         br = terminator(predecessor)
 
                         # find the other successors
-                        targets = collect(successors(br))
-                        filter!(target -> target != bb, targets)
-                        if length(targets) == 1
-                            fallthrough = first(targets)
-                            br!(builder, fallthrough)
+                        targets = successors(br)
+                        if length(targets) == 2
+                            for target in targets
+                                if target != bb
+                                    br!(builder, target)
+                                    break
+                                end
+                            end
                         else
                             @warn "unreachable control flow with $(length(targets))-way branching predecessor"
                             unreachable!(builder)
