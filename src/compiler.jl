@@ -84,11 +84,13 @@ function raise_exception(insblock::BasicBlock, ex::Value)
         LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
     end
 
-    Builder(ctx) do builder
+    let builder = Builder(ctx)
         position!(builder, insblock)
 
         cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline")
         call!(builder, trap)
+
+        dispose(builder)
     end
 end
 
@@ -387,9 +389,10 @@ function fixup_controlflow!(f::LLVM.Function)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
                 # replace with call to `exit`
                 # FIXME: this still confuses `ptxas`
-                #Builder(ctx) do builder
+                #let builder = Builder(ctx)
                 #    position!(builder, inst)
                 #    call!(builder, exit)
+                #    dispose(builder)
                 #end
 
                 unsafe_delete!(bb, inst)
@@ -411,7 +414,7 @@ function fixup_controlflow!(f::LLVM.Function)
             catch ex
                 isa(ex, UndefRefError) || rethrow(ex)
 
-                Builder(ctx) do builder
+                let builder = Builder(ctx)
                     position!(builder, bb)
 
                     # find the predecessors to this block
@@ -451,6 +454,8 @@ function fixup_controlflow!(f::LLVM.Function)
                         # this block has no predecessors, and will get optimized away
                         unreachable!(builder)
                     end
+
+                    dispose(builder)
                 end
             end
         end
@@ -580,6 +585,7 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         call!(builder, entry_f, wrapper_args)
 
         ret!(builder)
+
         dispose(builder)
     end
 
