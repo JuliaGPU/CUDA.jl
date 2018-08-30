@@ -573,10 +573,19 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         dispose(builder)
     end
 
-    # HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
-    #       since storing to a stack slot violates the semantics of those attributes.
-    # TODO: can we emit a wrapper that doesn't violate Julia's metadata?
-    for param in parameters(entry_f)
+    # early-inline the original entry function into the wrapper
+    fixup_metadata!(entry_f)
+    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
+    linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
+
+    return wrapper_f
+end
+
+# HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
+#       since storing to a stack slot violates the semantics of those attributes.
+# TODO: can we emit a wrapper that doesn't violate Julia's metadata?
+function fixup_metadata!(f::LLVM.Function)
+    for param in parameters(f)
         if isa(llvmtype(param), LLVM.PointerType)
             # collect all uses of the pointer
             worklist = Vector{LLVM.Instruction}(user.(collect(uses(param))))
@@ -605,12 +614,6 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
             end
         end
     end
-
-    # early-inline the original entry function into the wrapper
-    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
-    linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
-
-    return wrapper_f
 end
 
 function find_libdevice(cap)
