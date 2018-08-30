@@ -108,15 +108,6 @@ end
 
 Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
 
-# bounds checking is currently broken due to a PTX assembler issue (see #4)
-Base.checkbounds(::CuDeviceArray, I...) = nothing
-
-# replace boundserror-with-arguments to a non-allocating, argumentless version
-# TODO: can this be fixed by stack-allocating immutables with heap references?
-struct CuBoundsError <: Exception end
-@inline Base.throw_boundserror(A::CuDeviceArray, I) =
-    (Base.@_noinline_meta; throw(CuBoundsError()))
-
 
 ## other
 

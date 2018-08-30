@@ -71,20 +71,27 @@ safe_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]"=>"_")
 safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
+# NOTE: we remove `throw_...` functions in the ThrowRemoval pass, but that relies on
+#       function names, which is fragile. Remove them here as well, to be safe.
 function raise_exception(insblock::BasicBlock, ex::Value)
     fun = LLVM.parent(insblock)
     mod = LLVM.parent(fun)
     ctx = context(mod)
-
-    builder = Builder(ctx)
-    position!(builder, insblock)
 
     trap = if haskey(functions(mod), "llvm.trap")
         functions(mod)["llvm.trap"]
     else
         LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
     end
-    call!(builder, trap)
+
+    let builder = Builder(ctx)
+        position!(builder, insblock)
+
+        cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline")
+        call!(builder, trap)
+
+        dispose(builder)
+    end
 end
 
 # maintain our own "global unique" suffix for disambiguating kernels
@@ -296,18 +303,205 @@ function irgen(ctx::CompilerContext)
 
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
+        add!(pm, ModulePass("ThrowRemoval", remove_throw!))
+        add!(pm, FunctionPass("ControlFlowFixup", fixup_controlflow!))
         always_inliner!(pm)
+        verifier!(pm)
         run!(pm, mod)
     end
 
     return mod, entry
 end
 
+# HACK: this pass replaces `julia_throw_*` void functions with a simple print & trap
+#
+# this is necessary even though we already have a `raise_exception` hook that just prints,
+# as many `throw_...` functions are now `@noinline` which means their arguments survive and
+# may cause GC allocations.
+#
+# TODO: replace with a Cassette-style overdub of the `throw` builtin
+function remove_throw!(mod::LLVM.Module)
+    ctx = LLVM.context(mod)
+
+    trap = if haskey(functions(mod), "llvm.trap")
+        functions(mod)["llvm.trap"]
+    else
+        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
+    end
+
+    changed = false
+
+    # NOTE: module pass, since we delete functions
+    for f in collect(functions(mod))
+        fn = LLVM.name(f)
+        ft = eltype(llvmtype(f))
+
+        # FIXME: this is coarse
+        re = r"julia_throw_(.+)_\d+"
+        m = match(re, fn)
+        if m != nothing && return_type(ft) == LLVM.VoidType(ctx)
+            ex = m.captures[1]
+
+            # create a function that prints the exception name, and exits
+            fn′ = "ptx_throw_$ex"
+            f′ = if haskey(functions(mod), fn′)
+                functions(mod)[fn′]
+            else
+                ft′ = LLVM.FunctionType(LLVM.VoidType(ctx))
+                f′ = LLVM.Function(mod, fn′, ft′)
+                let builder = Builder(ctx)
+                    entry = BasicBlock(f′, "entry", ctx)
+                    position!(builder, entry)
+
+                    cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
+                    call!(builder, trap)
+                    ret!(builder)
+
+                    dispose(builder)
+                end
+                f′
+            end
+
+            # replace uses of the original function
+            for use in uses(f)
+                call = user(use)
+                @assert isa(call, LLVM.CallInst)
+                let builder = Builder(ctx)
+                    position!(builder, call)
+                    call!(builder, f′)
+                    dispose(builder)
+                end
+                unsafe_delete!(LLVM.parent(call), call)
+            end
+            @assert isempty(uses(f))
+            unsafe_delete!(mod, f)
+
+            changed = true
+        end
+    end
+
+    return changed
+end
+
+# HACK: this pass removes control flow that confuses `ptxas`
+#
+# basically, we only want a single exit from a function. exiting (ret, trap, exit) from
+# divergent branches causes ptxas to emit invalid code.
+#
+# TODO: do this with structured CFG with LLVM?
+function fixup_controlflow!(f::LLVM.Function)
+    ctx = LLVM.context(f)
+
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit = InlineAsm(exit_ft, "exit;", "", true)
+
+    changed = false
+
+    # remove `noreturn` attributes
+    #
+    # when calling a `noreturn` function, LLVM places an `unreachable` after the call.
+    # this leads to an early `ret` from the function.
+    attrs = function_attributes(f)
+    delete!(attrs, EnumAttribute("noreturn", 0, ctx))
+
+    for bb in blocks(f)
+        # remove calls to `trap`, for obvious reasons.
+        for inst in instructions(bb)
+            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
+                # replace with call to `exit`
+                # FIXME: this still confuses `ptxas`, `brkpt` seems to work but that's fragile
+                #let builder = Builder(ctx)
+                #    position!(builder, inst)
+                #    call!(builder, exit)
+                #    dispose(builder)
+                #end
+
+                unsafe_delete!(bb, inst)
+                changed = true
+            end
+        end
+
+        # remove `unreachable `terminators.
+        #
+        # at this point, the optimizer hasn't run, so these hints are placed there by Julia.
+        # this happens e.g. with exceptions, and cannot be controlled by a compiler hook.
+        unreachable = terminator(bb)
+        if isa(unreachable, LLVM.UnreachableInst)
+            unsafe_delete!(bb, unreachable)
+            changed = true
+
+            try
+                terminator(bb)
+                # the basic-block is still terminated properly, nothing to do
+                # (this can happen with `ret; unreachable`)
+                # TODO: `unreachable; unreachable`
+            catch ex
+                isa(ex, UndefRefError) || rethrow(ex)
+
+                let builder = Builder(ctx)
+                    position!(builder, bb)
+
+                    # find the predecessors to this block
+                    predecessors = LLVM.BasicBlock[]
+                    for bb′ in blocks(f), inst in instructions(bb′)
+                        if isa(inst, LLVM.BrInst)
+                            if bb in successors(inst)
+                                push!(predecessors, bb′)
+                            end
+                        end
+                    end
+
+                    # find the fall through successors
+                    if length(predecessors) == 1
+                        predecessor = first(predecessors)
+                        br = terminator(predecessor)
+
+                        # find the other successors
+                        targets = successors(br)
+                        if length(targets) == 2
+                            for target in targets
+                                if target != bb
+                                    br!(builder, target)
+                                    break
+                                end
+                            end
+                        else
+                            @warn "unreachable control flow with $(length(targets))-way branching predecessor"
+                            unreachable!(builder)
+                        end
+                    elseif length(predecessors) > 1
+                        @warn "unreachable control flow with multiple predecessors"
+                        unreachable!(builder)
+                    else
+                        # this block has no predecessors, so we can't fall through
+                        #
+                        # a block without predecessors is either never called,
+                        # or the only block in a function.
+                        ft = eltype(llvmtype(f))
+                        if return_type(ft) == LLVM.VoidType(ctx)
+                            # even though returning can lead to invalid control flow,
+                            # it mostly happens with functions that just throw,
+                            # and leaving the unreachable there would make the optimizer
+                            # place another after the call.
+                            ret!(builder)
+                        else
+                            unreachable!(builder)
+                        end
+                    end
+
+                    dispose(builder)
+                end
+            end
+        end
+    end
+
+    return changed
+end
+
 # promote a function to a kernel
 # FIXME: sig vs tt (code_llvm vs cufunction)
 function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
     kernel = wrap_entry!(ctx, mod, entry_f)
-
 
     # property annotations
     # TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
@@ -425,13 +619,23 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
         call!(builder, entry_f, wrapper_args)
 
         ret!(builder)
+
         dispose(builder)
     end
 
-    # HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
-    #       since storing to a stack slot violates the semantics of those attributes.
-    # TODO: can we emit a wrapper that doesn't violate Julia's metadata?
-    for param in parameters(entry_f)
+    # early-inline the original entry function into the wrapper
+    fixup_metadata!(entry_f)
+    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
+    linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
+
+    return wrapper_f
+end
+
+# HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
+#       since storing to a stack slot violates the semantics of those attributes.
+# TODO: can we emit a wrapper that doesn't violate Julia's metadata?
+function fixup_metadata!(f::LLVM.Function)
+    for param in parameters(f)
         if isa(llvmtype(param), LLVM.PointerType)
             # collect all uses of the pointer
             worklist = Vector{LLVM.Instruction}(user.(collect(uses(param))))
@@ -460,12 +664,6 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
             end
         end
     end
-
-    # early-inline the original entry function into the wrapper
-    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
-    linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
-
-    return wrapper_f
 end
 
 function find_libdevice(cap)
@@ -564,6 +762,7 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     let pm = ModulePassManager()
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
+        internalize!(pm, [LLVM.name(entry)])
         ccall(:jl_add_optimization_passes, Cvoid,
               (LLVM.API.LLVMPassManagerRef, Cint),
               LLVM.ref(pm), Base.JLOptions().opt_level)
