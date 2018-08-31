@@ -81,6 +81,7 @@ mutable struct PoolStats
   actual_alloc::Int
   actual_free::Int
 
+  cuda_time::Float64
   total_time::Float64
 
   # internal stats
@@ -89,7 +90,7 @@ mutable struct PoolStats
   alloc_3::Int
   alloc_4::Int
 end
-const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 Base.copy(stats::PoolStats) =
   PoolStats((getfield(stats, field) for field in fieldnames(stats))...)
 
@@ -170,34 +171,36 @@ end
 # reclaim free objects
 function reclaim(full::Bool=false)
   lock(pool_lock) do
-    if full
-      # reclaim all currently unused buffers
-      for (pid, pl) in enumerate(pools_avail)
-        for buf in pl
-          pool_stats.actual_nfree += 1
-          Mem.free(buf)
-          pool_stats.actual_free += poolsize(pid)
-        end
-        empty!(pl)
-      end
-    else
-      # only reclaim really unused buffers
-      @inbounds for pid in 1:length(pool_usage)
-        nused = length(pools_used[pid])
-        navail = length(pools_avail[pid])
-        recent_usage = (pool_history[pid]..., pool_usage[pid])
-
-        if navail > 0
-          # reclaim as much as the usage allows
-          reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
-          @assert reclaimable <= navail
-
-          while reclaimable > 0
-            buf = pop!(pools_avail[pid])
+    pool_stats.total_time += Base.@elapsed begin
+      if full
+        # reclaim all currently unused buffers
+        for (pid, pl) in enumerate(pools_avail)
+          for buf in pl
             pool_stats.actual_nfree += 1
-            Mem.free(buf)
+            pool_stats.cuda_time += Base.@elapsed Mem.free(buf)
             pool_stats.actual_free += poolsize(pid)
-            reclaimable -= 1
+          end
+          empty!(pl)
+        end
+      else
+        # only reclaim really unused buffers
+        @inbounds for pid in 1:length(pool_usage)
+          nused = length(pools_used[pid])
+          navail = length(pools_avail[pid])
+          recent_usage = (pool_history[pid]..., pool_usage[pid])
+
+          if navail > 0
+            # reclaim as much as the usage allows
+            reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
+            @assert reclaimable <= navail
+
+            while reclaimable > 0
+              buf = pop!(pools_avail[pid])
+              pool_stats.actual_nfree += 1
+              pool_stats.cuda_time += Base.@elapsed Mem.free(buf)
+              pool_stats.actual_free += poolsize(pid)
+              reclaimable -= 1
+            end
           end
         end
       end
@@ -211,7 +214,7 @@ end
 function alloc(bytes)
   # 0-byte allocations shouldn't hit the pool
   bytes == 0 && return Mem.alloc(0)
-  buf = nothing
+  buf = Ref{Mem.Buffer}()
 
   pool_stats.req_nalloc += 1
   pool_stats.req_alloc += bytes
@@ -224,44 +227,46 @@ function alloc(bytes)
 
     lock(pool_lock) do
       # 1. find an unused buffer in our pool
-      buf = if !isempty(avail)
+      if !isempty(avail)
         pool_stats.alloc_1 += 1
-        pop!(avail)
+        buf[] = pop!(avail)
       else
         try
           # 2. didn't have one, so allocate a new buffer
-          buf = Mem.alloc(poolsize(pid))
+          pool_stats.cuda_time += Base.@elapsed begin
+            buf[] = Mem.alloc(poolsize(pid))
+          end
           pool_stats.alloc_2 += 1
           pool_stats.actual_nalloc += 1
           pool_stats.actual_alloc += poolsize(pid)
-          buf
         catch e
           e == CUDAdrv.CuError(2) || rethrow()
           # 3. that failed; make Julia collect objects and check do 1. again
           gc(true) # full collection
           if !isempty(avail)
             pool_stats.alloc_3 += 1
-            buf = pop!(avail)
+            buf[] = pop!(avail)
           else
             # 4. didn't have one, so reclaim all other unused buffers and do 2. again
             reclaim(true)
-            buf = Mem.alloc(poolsize(pid))
+            pool_stats.cuda_time += Base.@elapsed begin
+              buf[] = Mem.alloc(poolsize(pid))
+            end
             pool_stats.alloc_4 += 1
             pool_stats.actual_nalloc += 1
             pool_stats.actual_alloc += poolsize(pid)
-            buf
           end
         end
       end
 
-      push!(used, buf)
+      push!(used, buf[])
 
       current_usage = length(used) / (length(avail) + length(used))
       pool_usage[pid] = max(pool_usage[pid], current_usage)
     end
   end
 
-  buf
+  buf[]
 end
 
 function dealloc(buf, bytes)
@@ -321,18 +326,19 @@ macro time(ex)
         local gpu_mem_stats1 = copy(pool_stats)
 
         local cpu_time = (cpu_time1 - cpu_time0) / 1e9
-        local gpu_mem_time = gpu_mem_stats1.total_time - gpu_mem_stats0.total_time
+        local gpu_gc_time = gpu_mem_stats1.cuda_time - gpu_mem_stats0.cuda_time
+        local gpu_lib_time = gpu_mem_stats1.cuda_time - gpu_mem_stats0.cuda_time
         local gpu_alloc_count = gpu_mem_stats1.req_nalloc - gpu_mem_stats0.req_nalloc
         local gpu_alloc_size = gpu_mem_stats1.req_alloc - gpu_mem_stats0.req_alloc
         local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
-        local cpu_mem_time = cpu_mem_stats.total_time
+        local cpu_gc_time = cpu_mem_stats.total_time / 1e9
         local cpu_alloc_count = Base.gc_alloc_count(cpu_mem_stats)
         local cpu_alloc_size = cpu_mem_stats.allocd
 
         Printf.@printf("%10.6f seconds", cpu_time)
-        for (typ, gctime, bytes, allocs) in
-            (("CPU", cpu_mem_time, cpu_alloc_size, cpu_alloc_count),
-              ("GPU", gpu_mem_time, gpu_alloc_size, gpu_alloc_count))
+        for (typ, gctime, libtime, bytes, allocs) in
+            (("CPU", cpu_gc_time, 0, cpu_alloc_size, cpu_alloc_count),
+             ("GPU", gpu_gc_time, gpu_lib_time, gpu_alloc_size, gpu_alloc_count))
           if bytes != 0 || allocs != 0
               allocs, ma = Base.prettyprint_getunits(allocs, length(Base._cnt_units), Int64(1000))
               if ma == 1
@@ -343,6 +349,9 @@ macro time(ex)
               print(Base.format_bytes(bytes))
               if gctime > 0
                   Printf.@printf(", %.2f%% gc time", 100*gctime/cpu_time)
+                if libtime > 0
+                    Printf.@printf(" of which %.2f%% spent allocating", 100*libtime/gctime)
+                end
               end
               print(")")
           elseif gctime > 0
