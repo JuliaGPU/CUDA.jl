@@ -28,22 +28,11 @@ CuArrays.allowscalar(false)
 
 testf(f, xs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...)
 
-using GPUArrays, GPUArrays.TestSuite
+using GPUArrays
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite" begin
-    TestSuite.test_construction(CuArray)
-    TestSuite.test_gpuinterface(CuArray)
-    TestSuite.test_indexing(CuArray)
-    TestSuite.test_io(CuArray)
-    TestSuite.test_base(CuArray)
-    #TestSuite.test_vectors(CuArray)
-    TestSuite.test_mapreduce(CuArray)
-    TestSuite.test_broadcasting(CuArray)
-    TestSuite.test_linalg(CuArray)
-    TestSuite.test_fft(CuArray)
-    TestSuite.test_blas(CuArray)
-    TestSuite.test_random(CuArray)
+  GPUArrays.test(CuArray)
 end
 
 @testset "Memory" begin
