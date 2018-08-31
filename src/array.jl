@@ -161,9 +161,8 @@ cu(xs) = adapt(CuArray{Float32}, xs)
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
+
 # Generic linear algebra routines
-
-
 
 function LinearAlgebra.tril!(A::CuMatrix{T}, d::Integer = 0) where T
     function kernel!(_A, _d)
