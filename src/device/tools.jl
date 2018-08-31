@@ -1,4 +1,4 @@
-# Code generation utility functions
+# Tools for implementing device functionality
 
 # how to map primitive Julia types to LLVM data types
 const llvmtypes = IdDict{Type,Symbol}(
