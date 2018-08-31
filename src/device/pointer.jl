@@ -1,11 +1,10 @@
-# Device pointer with address space information
+# Pointers with address space information
 
 #
 # Address spaces
 #
 
-export
-    AS, addrspace
+export AS, addrspace
 
 abstract type AddressSpace end
 
@@ -42,7 +41,8 @@ DevicePtr{T}(ptr::Ptr{T}) where {T} = DevicePtr{T,AS.Generic}(ptr)
 # outer constructors, non-parameterized
 DevicePtr(ptr::Ptr{T})              where {T} = DevicePtr{T,AS.Generic}(ptr)
 
-Base.show(io::IO, dp::DevicePtr{T,AS}) where {T,AS} = print(io, AS.name.name, " Device", pointer(dp))
+Base.show(io::IO, dp::DevicePtr{T,AS}) where {T,AS} =
+    print(io, AS.name.name, " Device", pointer(dp))
 
 
 ## getters

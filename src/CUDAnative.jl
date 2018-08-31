@@ -18,12 +18,12 @@ if !configured
 end
 
 include("utils.jl")
-include("pointer.jl")
-include("cgutils.jl")
 
 # needs to be loaded _before_ the compiler infrastructure, because of generated functions
-include(joinpath("device", "intrinsics.jl"))
+include(joinpath("device", "tools.jl"))
+include(joinpath("device", "pointer.jl"))
 include(joinpath("device", "array.jl"))
+include(joinpath("device", "intrinsics.jl"))
 include(joinpath("device", "libdevice.jl"))
 
 include("compiler.jl")
