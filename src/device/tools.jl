@@ -1,21 +1,5 @@
 # Tools for implementing device functionality
 
-# how to map primitive Julia types to LLVM data types
-const llvmtypes = IdDict{Type,Symbol}(
-    Nothing => :void,
-    Int8    => :i8,
-    Int16   => :i16,
-    Int32   => :i32,
-    Int64   => :i64,
-    UInt8   => :i8,
-    UInt16  => :i16,
-    UInt32  => :i32,
-    UInt64  => :i64,
-    Float32 => :float,
-    Float64 => :double
-)
-const LLVMTypes = Union{keys(llvmtypes)...}     # for dispatch
-
 # the inverse, ie. which Julia types map a given LLVM types
 const jltypes = Dict{Symbol,Type}(
     :void   => Nothing,
