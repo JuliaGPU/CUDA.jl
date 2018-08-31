@@ -1,7 +1,5 @@
 import GPUArrays: allowscalar, @allowscalar
 
-Base.IndexStyle(::Type{<:CuArray}) = IndexLinear()
-
 function _getindex(xs::CuArray{T}, i::Integer) where T
   buf = Mem.view(buffer(xs), (i-1)*sizeof(T))
   return Mem.download(T, buf)[1]
