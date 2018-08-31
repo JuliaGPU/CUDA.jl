@@ -119,14 +119,16 @@ end
 end
 
 @testset "Slices" begin
-  x = cu([1:10;])
-  y = x[6:10]
-  @test x.buf == y.buf
-  @test collect(y) == [6, 7, 8, 9, 10]
-  CuArrays._setindex!(y, -1f0, 3)
-  @test collect(y) == [6, 7, -1, 9, 10]
-  @test collect(x) == [1, 2, 3, 4, 5, 6, 7, -1, 9, 10]
-  @test collect(CuMatrix{eltype(y)}(I, 5, 5)*y) == collect(y)
+  @test testf(rand(5)) do x
+    y = x[2:4]
+    y .= 1
+    x
+  end
+  @test testf(rand(5)) do x
+    y = view(x, 2:4)
+    y .= 1
+    x
+  end
 end
 
 @testset "$f! with diagonal $d" for (f, f!) in ((triu, triu!), (tril, tril!)),
