@@ -1,4 +1,4 @@
-## validation of properties and code
+# validation of properties and code
 
 function check_method(ctx::CompilerContext)
     # get the method

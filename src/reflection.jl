@@ -36,7 +36,7 @@ function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
                    dump_module::Bool=false, strip_ir_metadata::Bool=true)
     mod, entry = irgen(ctx)
     if optimize
-        optimize!(ctx, mod, entry)
+        entry = optimize!(ctx, mod, entry)
     end
     if strip_ir_metadata
         # FIXME: use a/Julia's modified ASM printer to add source location comments

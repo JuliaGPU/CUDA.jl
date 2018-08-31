@@ -29,7 +29,6 @@ include(joinpath("device", "libdevice.jl"))
 include("compiler.jl")
 include("execution.jl")
 include("reflection.jl")
-include("validation.jl")
 
 include("deprecated.jl")
 
