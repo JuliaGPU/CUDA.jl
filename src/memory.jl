@@ -67,21 +67,27 @@ const MAX_DELAY = 5.0
 
 # debug stats
 mutable struct PoolStats
+  # allocation requests
+  req_nalloc::Int
+  req_nfree::Int
+  ## in bytes
   req_alloc::Int
-  req_free::Int
+  user_free::Int
 
+  # actual allocations
+  actual_nalloc::Int
+  actual_nfree::Int
+  ## in bytes
   actual_alloc::Int
   actual_free::Int
 
-  amount_alloc::Int
-  amount_free::Int
-
+  # internal stats
   alloc_1::Int
   alloc_2::Int
   alloc_3::Int
   alloc_4::Int
 end
-const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 function __init_memory__()
   create_pools(30) # up to 512 MiB
@@ -109,9 +115,8 @@ function __init_memory__()
     atexit(()->begin
       Core.println("""
         Pool statistics (managed: $(managed ? "yes" : "no")):
-         - requested alloc/free: $(pool_stats.req_alloc) $(pool_stats.req_free)
-         - actual alloc/free: $(pool_stats.actual_alloc) $(pool_stats.actual_free)
-         - amount alloc/free: $(pool_stats.amount_alloc) $(pool_stats.amount_free)
+         - requested alloc/free: $(pool_stats.req_nalloc)/$(pool_stats.req_nfree) ($(pool_stats.req_nlloc)/$(pool_stats.req_free) bytes)
+         - actual alloc/free: $(pool_stats.actual_nalloc)/$(pool_stats.actual_nfree) ($(pool_stats.actual_alloc)/$(pool_stats.actual_free) bytes)
          - alloc types: $(pool_stats.alloc_1) $(pool_stats.alloc_2) $(pool_stats.alloc_3) $(pool_stats.alloc_4)""")
     end)
   end
@@ -165,9 +170,9 @@ function reclaim(full::Bool=false)
       # reclaim all currently unused buffers
       for (pid, pl) in enumerate(pools_avail)
         for buf in pl
-          pool_stats.actual_free += 1
+          pool_stats.actual_nfree += 1
           Mem.free(buf)
-          pool_stats.amount_free += poolsize(pid)
+          pool_stats.actual_free += poolsize(pid)
         end
         empty!(pl)
       end
@@ -185,9 +190,9 @@ function reclaim(full::Bool=false)
 
           while reclaimable > 0
             buf = pop!(pools_avail[pid])
-            pool_stats.actual_free += 1
+            pool_stats.actual_nfree += 1
             Mem.free(buf)
-            pool_stats.amount_free += poolsize(pid)
+            pool_stats.actual_free += poolsize(pid)
             reclaimable -= 1
           end
         end
@@ -200,10 +205,10 @@ end
 ## interface
 
 function alloc(bytes)
-  pool_stats.req_alloc += 1
-
   # 0-byte allocations shouldn't hit the pool
   bytes == 0 && return Mem.alloc(0)
+  pool_stats.req_nalloc += 1
+  pool_stats.req_alloc += bytes
 
   pid = poolidx(bytes)
   create_pools(pid)
@@ -221,8 +226,8 @@ function alloc(bytes)
         # 2. didn't have one, so allocate a new buffer
         buf = Mem.alloc(poolsize(pid))
         pool_stats.alloc_2 += 1
-        pool_stats.actual_alloc += 1
-        pool_stats.amount_alloc += poolsize(pid)
+        pool_stats.actual_nalloc += 1
+        pool_stats.actual_alloc += poolsize(pid)
         buf
       catch e
         e == CUDAdrv.CuError(2) || rethrow()
@@ -236,8 +241,8 @@ function alloc(bytes)
           reclaim(true)
           buf = Mem.alloc(poolsize(pid))
           pool_stats.alloc_4 += 1
-          pool_stats.actual_alloc += 1
-          pool_stats.amount_alloc += poolsize(pid)
+          pool_stats.actual_nalloc += 1
+          pool_stats.actual_alloc += poolsize(pid)
           buf
         end
       end
@@ -253,7 +258,11 @@ function alloc(bytes)
 end
 
 function dealloc(buf, bytes)
-  pool_stats.req_free += 1
+  pool_stats.req_nfree += 1
+
+  # 0-byte allocations shouldn't hit the pool
+  bytes == 0 && return Mem.alloc(0)
+  pool_stats.user_free += bytes
 
   pid = poolidx(bytes)
 
@@ -270,4 +279,21 @@ function dealloc(buf, bytes)
   end
 
   return
+end
+
+
+## utility macros
+
+macro allocated(ex)
+    quote
+        let
+            local f
+            function f()
+                b0 = pool_stats.req_alloc
+                $(esc(ex))
+                pool_stats.req_alloc - b0
+            end
+            f()
+        end
+    end
 end
