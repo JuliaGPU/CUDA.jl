@@ -81,13 +81,17 @@ mutable struct PoolStats
   actual_alloc::Int
   actual_free::Int
 
+  total_time::Float64
+
   # internal stats
   alloc_1::Int
   alloc_2::Int
   alloc_3::Int
   alloc_4::Int
 end
-const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+Base.copy(stats::PoolStats) =
+  PoolStats((getfield(stats, field) for field in fieldnames(stats))...)
 
 function __init_memory__()
   create_pools(30) # up to 512 MiB
@@ -207,75 +211,79 @@ end
 function alloc(bytes)
   # 0-byte allocations shouldn't hit the pool
   bytes == 0 && return Mem.alloc(0)
+  buf = nothing
+
   pool_stats.req_nalloc += 1
   pool_stats.req_alloc += bytes
+  pool_stats.total_time += Base.@elapsed begin
+    pid = poolidx(bytes)
+    create_pools(pid)
 
-  pid = poolidx(bytes)
-  create_pools(pid)
+    @inbounds used = pools_used[pid]
+    @inbounds avail = pools_avail[pid]
 
-  @inbounds used = pools_used[pid]
-  @inbounds avail = pools_avail[pid]
-
-  lock(pool_lock) do
-    # 1. find an unused buffer in our pool
-    buf = if !isempty(avail)
-      pool_stats.alloc_1 += 1
-      pop!(avail)
-    else
-      try
-        # 2. didn't have one, so allocate a new buffer
-        buf = Mem.alloc(poolsize(pid))
-        pool_stats.alloc_2 += 1
-        pool_stats.actual_nalloc += 1
-        pool_stats.actual_alloc += poolsize(pid)
-        buf
-      catch e
-        e == CUDAdrv.CuError(2) || rethrow()
-        # 3. that failed; make Julia collect objects and check do 1. again
-        gc(true) # full collection
-        if !isempty(avail)
-          pool_stats.alloc_3 += 1
-          buf = pop!(avail)
-        else
-          # 4. didn't have one, so reclaim all other unused buffers and do 2. again
-          reclaim(true)
+    lock(pool_lock) do
+      # 1. find an unused buffer in our pool
+      buf = if !isempty(avail)
+        pool_stats.alloc_1 += 1
+        pop!(avail)
+      else
+        try
+          # 2. didn't have one, so allocate a new buffer
           buf = Mem.alloc(poolsize(pid))
-          pool_stats.alloc_4 += 1
+          pool_stats.alloc_2 += 1
           pool_stats.actual_nalloc += 1
           pool_stats.actual_alloc += poolsize(pid)
           buf
+        catch e
+          e == CUDAdrv.CuError(2) || rethrow()
+          # 3. that failed; make Julia collect objects and check do 1. again
+          gc(true) # full collection
+          if !isempty(avail)
+            pool_stats.alloc_3 += 1
+            buf = pop!(avail)
+          else
+            # 4. didn't have one, so reclaim all other unused buffers and do 2. again
+            reclaim(true)
+            buf = Mem.alloc(poolsize(pid))
+            pool_stats.alloc_4 += 1
+            pool_stats.actual_nalloc += 1
+            pool_stats.actual_alloc += poolsize(pid)
+            buf
+          end
         end
       end
+
+      push!(used, buf)
+
+      current_usage = length(used) / (length(avail) + length(used))
+      pool_usage[pid] = max(pool_usage[pid], current_usage)
     end
-
-    push!(used, buf)
-
-    current_usage = length(used) / (length(avail) + length(used))
-    pool_usage[pid] = max(pool_usage[pid], current_usage)
-
-    buf
   end
+
+  buf
 end
 
 function dealloc(buf, bytes)
-  pool_stats.req_nfree += 1
-
   # 0-byte allocations shouldn't hit the pool
   bytes == 0 && return Mem.alloc(0)
+
+  pool_stats.req_nfree += 1
   pool_stats.user_free += bytes
+  pool_stats.total_time += Base.@elapsed begin
+    pid = poolidx(bytes)
 
-  pid = poolidx(bytes)
+    @inbounds used = pools_used[pid]
+    @inbounds avail = pools_avail[pid]
 
-  @inbounds used = pools_used[pid]
-  @inbounds avail = pools_avail[pid]
+    lock(pool_lock) do
+      delete!(used, buf)
 
-  lock(pool_lock) do
-    delete!(used, buf)
+      push!(avail, buf)
 
-    push!(avail, buf)
-
-    current_usage = length(used) / (length(used) + length(avail))
-    pool_usage[pid] = max(pool_usage[pid], current_usage)
+      current_usage = length(used) / (length(used) + length(avail))
+      pool_usage[pid] = max(pool_usage[pid], current_usage)
+    end
   end
 
   return
@@ -283,6 +291,8 @@ end
 
 
 ## utility macros
+
+using Printf
 
 macro allocated(ex)
     quote
@@ -295,5 +305,52 @@ macro allocated(ex)
             end
             f()
         end
+    end
+end
+
+macro time(ex)
+    quote
+        local gpu_mem_stats0 = copy(pool_stats)
+        local cpu_mem_stats0 = Base.gc_num()
+        local cpu_time0 = time_ns()
+
+        local val = $(esc(ex))
+
+        local cpu_time1 = time_ns()
+        local cpu_mem_stats1 = Base.gc_num()
+        local gpu_mem_stats1 = copy(pool_stats)
+
+        local cpu_time = (cpu_time1 - cpu_time0) / 1e9
+        local gpu_mem_time = gpu_mem_stats1.total_time - gpu_mem_stats0.total_time
+        local gpu_alloc_count = gpu_mem_stats1.req_nalloc - gpu_mem_stats0.req_nalloc
+        local gpu_alloc_size = gpu_mem_stats1.req_alloc - gpu_mem_stats0.req_alloc
+        local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
+        local cpu_mem_time = cpu_mem_stats.total_time
+        local cpu_alloc_count = Base.gc_alloc_count(cpu_mem_stats)
+        local cpu_alloc_size = cpu_mem_stats.allocd
+
+        Printf.@printf("%10.6f seconds", cpu_time)
+        for (typ, gctime, bytes, allocs) in
+            (("CPU", cpu_mem_time, cpu_alloc_size, cpu_alloc_count),
+              ("GPU", gpu_mem_time, gpu_alloc_size, gpu_alloc_count))
+          if bytes != 0 || allocs != 0
+              allocs, ma = Base.prettyprint_getunits(allocs, length(Base._cnt_units), Int64(1000))
+              if ma == 1
+                  Printf.@printf(" (%d%s %s allocation%s: ", allocs, Base._cnt_units[ma], typ, allocs==1 ? "" : "s")
+              else
+                  Printf.@printf(" (%.2f%s %s allocations: ", allocs, Base._cnt_units[ma], typ)
+              end
+              print(Base.format_bytes(bytes))
+              if gctime > 0
+                  Printf.@printf(", %.2f%% gc time", 100*gctime/cpu_time)
+              end
+              print(")")
+          elseif gctime > 0
+              Printf.@printf(", %.2f%% %s gc time", 100*gctime/cpu_time, typ)
+          end
+        end
+        println()
+
+        val
     end
 end
