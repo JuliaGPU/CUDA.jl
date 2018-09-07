@@ -41,18 +41,24 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
 
         cfgsimplification!(pm)
 
+        run!(pm, mod)
+        dispose(pm)
+    end
 
-        ## IPO
-
-        # we compile a module containing the entire call graph,
-        # so perform some interprocedural optimizations.
-
+    # we compile a module containing the entire call graph,
+    # so perform some interprocedural optimizations.
+    #
+    # for some reason, these passes need to be distinct from the regular optimization chain,
+    # or certain values (such as the constant arrays used to populare llvm.compiler.user ad
+    # part of the LateLowerGCFrame pass) aren't collected properly.
+    #
+    # these might not always be safe, as Julia's IR metadata isn't designed for IPO.
+    let pm = ModulePassManager()
         dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
 
         global_optimizer!(pm)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
-
 
         run!(pm, mod)
         dispose(pm)
