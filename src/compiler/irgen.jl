@@ -273,47 +273,54 @@ function remove_throw!(mod::LLVM.Module)
         fn = LLVM.name(f)
         ft = eltype(llvmtype(f))
 
-        # FIXME: this is coarse
-        re = r"julia_throw_(.+)_\d+"
-        m = match(re, fn)
-        if m != nothing && return_type(ft) == LLVM.VoidType(ctx)
-            ex = m.captures[1]
+        for re in [# common exceptions as defined in the runtime
+                   r"jl_(bounds_error)_.+",
+                   # user-code throw functions
+                   # FIXME: this is coarse
+                   r"julia_throw_(.+)_\d+"]
+            m = match(re, fn)
+            if m != nothing && return_type(ft) == LLVM.VoidType(ctx)
+                ex = m.captures[1]
 
-            # create a function that prints the exception name, and exits
-            fn′ = "ptx_throw_$ex"
-            f′ = if haskey(functions(mod), fn′)
-                functions(mod)[fn′]
-            else
-                ft′ = LLVM.FunctionType(LLVM.VoidType(ctx))
-                f′ = LLVM.Function(mod, fn′, ft′)
-                let builder = Builder(ctx)
-                    entry = BasicBlock(f′, "entry", ctx)
-                    position!(builder, entry)
+                # create a function that prints the exception name, and exits
+                fn′ = "ptx_throw_$ex"
+                f′ = if haskey(functions(mod), fn′)
+                    functions(mod)[fn′]
+                else
+                    ft′ = LLVM.FunctionType(LLVM.VoidType(ctx))
+                    f′ = LLVM.Function(mod, fn′, ft′)
+                    let builder = Builder(ctx)
+                        entry = BasicBlock(f′, "entry", ctx)
+                        position!(builder, entry)
 
-                    cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
-                    call!(builder, trap)
-                    ret!(builder)
+                        desc = replace(ex, '_'=>' ')
+                        cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
+                        call!(builder, trap)
+                        ret!(builder)
 
-                    dispose(builder)
+                        dispose(builder)
+                    end
+                    f′
                 end
-                f′
-            end
 
-            # replace uses of the original function
-            for use in uses(f)
-                call = user(use)
-                @assert isa(call, LLVM.CallInst)
-                let builder = Builder(ctx)
-                    position!(builder, call)
-                    call!(builder, f′)
-                    dispose(builder)
+                # replace uses of the original function
+                for use in uses(f)
+                    call = user(use)
+                    @assert isa(call, LLVM.CallInst)
+                    let builder = Builder(ctx)
+                        position!(builder, call)
+                        call!(builder, f′)
+                        dispose(builder)
+                    end
+                    unsafe_delete!(LLVM.parent(call), call)
                 end
-                unsafe_delete!(LLVM.parent(call), call)
-            end
-            @assert isempty(uses(f))
-            unsafe_delete!(mod, f)
 
-            changed = true
+                # remove the original function or declaration
+                @assert isempty(uses(f))
+                unsafe_delete!(mod, f)
+
+                changed = true
+            end
         end
     end
 
