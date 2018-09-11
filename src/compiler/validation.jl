@@ -177,15 +177,17 @@ function check_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
         # let's assume it's valid ASM
     elseif isa(dest, ConstantExpr)
         # detect calls to literal pointers
-        # FIXME: properly inspect ConstantExpr through the LLVM APIs
-        str = sprint(io->print(io, dest))
-        re = r"inttoptr \(\w+ (\d+) to"
-        m = match(re, str)
-        if m != nothing
-            ptr = convert(Ptr{Cvoid}, parse(Int, m.captures[1]))
-            frames = ccall(:jl_lookup_code_address, Any, (Ptr{Cvoid}, Cint,), ptr, 0)
+        # FIXME: can we detect these properly?
+        if occursin("inttoptr", string(dest))
+            # extract the literal pointer
+            ptr_arg = first(operands(dest))
+            @assert isa(ptr_arg, ConstantInt)
+            ptr_val = convert(Int, ptr_arg)
+            ptr = Ptr{Cvoid}(ptr_val)
 
+            # look it up in the Julia JIT cache
             bt = backtrace(inst)
+            frames = ccall(:jl_lookup_code_address, Any, (Ptr{Cvoid}, Cint,), ptr, 0)
             if length(frames) >= 1
                 length(frames) > 1 && @warn "unexpected debug frame count, please file an issue"
                 fn, file, line, linfo, fromC, inlined, ip = last(frames)
