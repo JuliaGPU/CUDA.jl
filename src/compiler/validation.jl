@@ -14,6 +14,8 @@ function check_method(ctx::CompilerContext)
             throw(CompilerError(ctx, "kernel returns a value of type $rt"))
         end
     end
+
+    return
 end
 
 function check_invocation(ctx::CompilerContext, entry::LLVM.Function)
@@ -32,6 +34,8 @@ function check_invocation(ctx::CompilerContext, entry::LLVM.Function)
             end
         end
     end
+
+    return
 end
 
 
@@ -59,9 +63,14 @@ function Base.showerror(io::IO, err::InvalidIRError)
         end
         Base.show_backtrace(io, bt)
     end
+    return
 end
 
 # generate a pseudo-backtrace from LLVM IR instruction debug information
+#
+# this works by looking up the debug information of the instruction, and inspecting the call
+# sites of the containing function. if there's only one, repeat the process from that call.
+# finally, the debug information is converted to a Julia stack trace.
 function backtrace(inst, bt = StackTraces.StackFrame[])
     name = Ref{Cstring}()
     filename = Ref{Cstring}()
@@ -71,7 +80,8 @@ function backtrace(inst, bt = StackTraces.StackFrame[])
     # look up the debug information from the current instruction
     depth = 0
     while LLVM.API.LLVMGetSourceLocation(LLVM.ref(inst), depth, name, filename, line, col) == 1
-        frame = StackTraces.StackFrame(replace(unsafe_string(name[]), r";$"=>""), unsafe_string(filename[]), line[])
+        frame = StackTraces.StackFrame(replace(unsafe_string(name[]), r";$"=>""),
+                                       unsafe_string(filename[]), line[])
         push!(bt, frame)
         depth += 1
     end
@@ -105,13 +115,24 @@ function backtrace(inst, bt = StackTraces.StackFrame[])
         end
     end
 
-    bt
+    return bt
+end
+
+function check_ir(ctx, args...)
+    errors = check_ir!(IRError[], args...)
+    unique!(errors)
+    if !isempty(errors)
+        throw(InvalidIRError(ctx, errors))
+    end
+
+    return
 end
 
 function check_ir!(errors::Vector{IRError}, mod::LLVM.Module)
     for f in functions(mod)
         check_ir!(errors, f)
     end
+
     return errors
 end
 
@@ -125,7 +146,7 @@ function check_ir!(errors::Vector{IRError}, f::LLVM.Function)
     return errors
 end
 
-const special_fns = ["vprintf", "__nvvm_reflect"]
+const special_fns = ("vprintf", "__nvvm_reflect")
 
 const libjulia = Ref{Ptr{Cvoid}}(C_NULL)
 
@@ -176,14 +197,5 @@ function check_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
         end
     end
 
-    errors
-end
-
-function check_ir(ctx, args...)
-    errors = check_ir!(IRError[], args...)
-
-    unique!(errors)
-    if !isempty(errors)
-        throw(InvalidIRError(ctx, errors))
-    end
+    return errors
 end
