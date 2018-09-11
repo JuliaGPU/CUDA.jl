@@ -46,13 +46,16 @@ end
 
 const RUNTIME_FUNCTION = "call to the Julia runtime"
 const UNKNOWN_FUNCTION = "call to an unknown function"
+const POINTER_FUNCTION = "call through a literal pointer"
 
 function Base.showerror(io::IO, err::InvalidIRError)
     print(io, "InvalidIRError: compiling $(signature(err.ctx)) resulted in invalid LLVM IR")
     for (kind, bt, meta) in err.errors
         print(io, "\nReason: unsupported $kind")
-        if kind == RUNTIME_FUNCTION || kind == UNKNOWN_FUNCTION
-            print(io, " (", LLVM.name(meta), ")")
+        if meta != nothing
+            if kind == RUNTIME_FUNCTION || kind == UNKNOWN_FUNCTION || kind == POINTER_FUNCTION
+                print(io, " (call to ", meta, ")")
+            end
         end
         Base.show_backtrace(io, bt)
     end
@@ -124,22 +127,53 @@ end
 
 const special_fns = ["vprintf", "__nvvm_reflect"]
 
+const libjulia = Ref{Ptr{Cvoid}}(C_NULL)
+
 function check_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
-    dest_f = called_value(inst)
-    dest_fn = LLVM.name(dest_f)
-    lib = first(filter(lib->startswith(lib, "libjulia"), map(path->splitdir(path)[2], Libdl.dllist())))
-    runtime = Libdl.dlopen(lib)
-    if isa(dest_f, GlobalValue)
-        if isdeclaration(dest_f) && intrinsic_id(dest_f) == 0 && !(dest_fn in special_fns)
+    dest = called_value(inst)
+    if isa(dest, LLVM.Function)
+        fn = LLVM.name(dest)
+
+        # detect calls to undefined functions
+        if isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
+            # figure out if the function lives in the Julia runtime library
+            if libjulia[] == C_NULL
+                paths = filter(Libdl.dllist()) do path
+                    name = splitdir(path)[2]
+                    startswith(name, "libjulia")
+                end
+                libjulia[] = Libdl.dlopen(first(paths))
+            end
+
             bt = backtrace(inst)
-            if Libdl.dlsym_e(runtime, dest_fn) != C_NULL
-                push!(errors, (RUNTIME_FUNCTION, bt, dest_f))
+            if Libdl.dlsym_e(libjulia[], fn) != C_NULL
+                push!(errors, (RUNTIME_FUNCTION, bt, LLVM.name(dest)))
             else
-                push!(errors, (UNKNOWN_FUNCTION, bt, dest_f))
+                push!(errors, (UNKNOWN_FUNCTION, bt, LLVM.name(dest)))
             end
         end
-    elseif isa(dest_f, InlineAsm)
+    elseif isa(dest, InlineAsm)
         # let's assume it's valid ASM
+    elseif isa(dest, ConstantExpr)
+        # detect calls to literal pointers
+        # FIXME: properly inspect ConstantExpr through the LLVM APIs
+        str = sprint(io->print(io, dest))
+        re = r"inttoptr \(\w+ (\d+) to"
+        m = match(re, str)
+        if m != nothing
+            ptr = convert(Ptr{Cvoid}, parse(Int, m.captures[1]))
+            frames = ccall(:jl_lookup_code_address, Any, (Ptr{Cvoid}, Cint,), ptr, 0)
+
+            bt = backtrace(inst)
+            if length(frames) >= 1
+                length(frames) > 1 && @warn "unexpected debug frame count, please file an issue"
+                fn, file, line, linfo, fromC, inlined, ip = last(frames)
+                push!(errors, (POINTER_FUNCTION, bt, fn))
+            else
+                fn, file, line, linfo, fromC, inlined, ip = last(frames)
+                push!(errors, (POINTER_FUNCTION, bt, nothing))
+            end
+        end
     end
 
     errors
