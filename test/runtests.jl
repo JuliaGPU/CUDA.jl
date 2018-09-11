@@ -22,6 +22,19 @@ using Test
 using Random
 using LinearAlgebra
 
+macro grab_output(ex)
+    quote
+        mktemp() do fname, fout
+            ret = nothing
+            open(fname, "w") do fout
+                redirect_stdout(fout) do
+                    ret = $(esc(ex))
+                end
+            end
+            ret, read(fname, String)
+        end
+    end
+end
 
 Random.seed!(1)
 CuArrays.allowscalar(false)
@@ -37,6 +50,12 @@ end
 
 @testset "Memory" begin
   CuArrays.alloc(0)
+
+  @test (CuArrays.@allocated CuArray{Int32}()) == 4
+
+  ret, out = @grab_output CuArrays.@time CuArray{Int32}()
+  @test isa(ret, CuArray{Int32})
+  @test occursin("1 GPU allocation: 4 bytes", out)
 end
 
 @testset "Array" begin
@@ -45,6 +64,7 @@ end
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
   @test testf(vec, rand(5,3))
+
   # Check that allowscalar works
   @test_throws ErrorException xs[1]
   @test_throws ErrorException xs[1] = 1

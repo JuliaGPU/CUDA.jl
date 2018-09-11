@@ -92,7 +92,7 @@ mutable struct PoolStats
 end
 const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 Base.copy(stats::PoolStats) =
-  PoolStats((getfield(stats, field) for field in fieldnames(stats))...)
+  PoolStats((getfield(stats, field) for field in fieldnames(PoolStats))...)
 
 function __init_memory__()
   create_pools(30) # up to 512 MiB
