@@ -22,32 +22,40 @@ using Test
 using Random
 using LinearAlgebra
 
+macro grab_output(ex)
+    quote
+        mktemp() do fname, fout
+            ret = nothing
+            open(fname, "w") do fout
+                redirect_stdout(fout) do
+                    ret = $(esc(ex))
+                end
+            end
+            ret, read(fname, String)
+        end
+    end
+end
 
 Random.seed!(1)
 CuArrays.allowscalar(false)
 
 testf(f, xs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...)
 
-using GPUArrays, GPUArrays.TestSuite
+using GPUArrays
 
 @testset "CuArrays" begin
 @testset "GPUArray Testsuite" begin
-    TestSuite.test_construction(CuArray)
-    TestSuite.test_gpuinterface(CuArray)
-    TestSuite.test_indexing(CuArray)
-    TestSuite.test_io(CuArray)
-    TestSuite.test_base(CuArray)
-    #TestSuite.test_vectors(CuArray)
-    TestSuite.test_mapreduce(CuArray)
-    TestSuite.test_broadcasting(CuArray)
-    TestSuite.test_linalg(CuArray)
-    TestSuite.test_fft(CuArray)
-    TestSuite.test_blas(CuArray)
-    TestSuite.test_random(CuArray)
+  GPUArrays.test(CuArray)
 end
 
 @testset "Memory" begin
   CuArrays.alloc(0)
+
+  @test (CuArrays.@allocated CuArray{Int32}()) == 4
+
+  ret, out = @grab_output CuArrays.@time CuArray{Int32}()
+  @test isa(ret, CuArray{Int32})
+  @test occursin("1 GPU allocation: 4 bytes", out)
 end
 
 @testset "Array" begin
@@ -56,6 +64,7 @@ end
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
   @test testf(vec, rand(5,3))
+
   # Check that allowscalar works
   @test_throws ErrorException xs[1]
   @test_throws ErrorException xs[1] = 1
@@ -119,14 +128,16 @@ end
 end
 
 @testset "Slices" begin
-  x = cu([1:10;])
-  y = x[6:10]
-  @test x.buf == y.buf
-  @test collect(y) == [6, 7, 8, 9, 10]
-  CuArrays._setindex!(y, -1f0, 3)
-  @test collect(y) == [6, 7, -1, 9, 10]
-  @test collect(x) == [1, 2, 3, 4, 5, 6, 7, -1, 9, 10]
-  @test collect(CuMatrix{eltype(y)}(I, 5, 5)*y) == collect(y)
+  @test testf(rand(5)) do x
+    y = x[2:4]
+    y .= 1
+    x
+  end
+  @test testf(rand(5)) do x
+    y = view(x, 2:4)
+    y .= 1
+    x
+  end
 end
 
 @testset "$f! with diagonal $d" for (f, f!) in ((triu, triu!), (tril, tril!)),
