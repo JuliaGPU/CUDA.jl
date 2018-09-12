@@ -26,8 +26,6 @@ end
 # Device pointer
 #
 
-export unsafe_cached_load
-
 struct DevicePtr{T,A}
     ptr::Ptr{T}
 
@@ -191,7 +189,11 @@ end
 
 ## loading through the texture cache
 
+export unsafe_cached_load
+
 # NOTE: CUDA 8.0 supports more caching modifiers, but those aren't supported by LLVM yet
+
+# TODO: this functionality should throw <sm_32
 
 # operand types supported by llvm.nvvm.ldg.global
 const CachedLoadOperands = Union{UInt8, UInt16, UInt32, UInt64,
