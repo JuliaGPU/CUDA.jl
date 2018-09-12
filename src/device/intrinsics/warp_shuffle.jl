@@ -7,6 +7,8 @@
 # TODO: these functions should dispatch based on the actual warp size
 const ws = Int32(32)
 
+# TODO: this functionality should throw <sm_30
+
 
 # primitive intrinsics
 
