@@ -412,12 +412,23 @@ end
 end
 
 @testset "invalid LLVM IR" begin
-    @eval @noinline error_invalid_ir(i) = println(i)
+    @eval error_invalid_ir(i) = println(i)
 
     @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.code_ptx(error_invalid_ir, Tuple{Int})) do msg
         occursin("invalid LLVM IR", msg) &&
+        occursin(CUDAnative.RUNTIME_FUNCTION, msg) &&
         occursin("[1] println", msg) &&
         occursin("[2] error_invalid_ir", msg)
+    end
+end
+
+@testset "invalid LLVM IR (ccall)" begin
+    @eval error_ccall(p) = (unsafe_store!(p, ccall(:time, Cint, ())); nothing)
+
+    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.code_ptx(error_ccall, Tuple{Ptr{Int}})) do msg
+        occursin("invalid LLVM IR", msg) &&
+        occursin(CUDAnative.POINTER_FUNCTION, msg) &&
+        occursin("[1] error_ccall", msg)
     end
 end
 
