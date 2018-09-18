@@ -234,6 +234,7 @@ function irgen(ctx::CompilerContext)
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
         add!(pm, ModulePass("ThrowRemoval", remove_throw!))
+        cfgsimplification!(pm) # makes it easier to find fallthrough control flow
         add!(pm, FunctionPass("ControlFlowFixup", fixup_controlflow!))
         always_inliner!(pm)
         verifier!(pm)
@@ -394,6 +395,8 @@ function fixup_controlflow!(f::LLVM.Function)
                         br = terminator(predecessor)
 
                         # find the other successors
+                        # NOTE: we've run CFG simplification, so we don't need to handle
+                        #       strange IR constructs here.
                         targets = successors(br)
                         if length(targets) == 2
                             for target in targets
