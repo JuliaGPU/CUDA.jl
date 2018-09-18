@@ -14,16 +14,13 @@ struct CompilerContext
     blocks_per_sm::Union{Nothing,Integer}
     maxregs::Union{Nothing,Integer}
 
-    # hacks
-    inner_f::Union{Nothing,Core.Function}
-
-    CompilerContext(f, tt, cap, kernel; inner_f=nothing, alias=nothing,
+    CompilerContext(f, tt, cap, kernel; alias=nothing,
                     minthreads=nothing, maxthreads=nothing, blocks_per_sm=nothing, maxregs=nothing) =
-        new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs, inner_f)
+        new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs)
 end
 
 function signature(ctx::CompilerContext)
-    fn = typeof(something(ctx.inner_f, ctx.f)).name.mt.name
+    fn = typeof(ctx.f).name.mt.name
     args = join(ctx.tt.parameters, ", ")
     return "$fn($(join(ctx.tt.parameters, ", ")))"
 end

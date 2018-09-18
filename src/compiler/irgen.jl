@@ -42,16 +42,7 @@ end
 function backtrace(ctx::CompilerContext, method_stack::Vector{Core.MethodInstance})
     bt = StackTraces.StackFrame[]
     for method_instance in method_stack
-        # wrapping the kernel doesn't trigger another emit_function,
-        # so manually get a hold of the inner function.
-        method = if method_instance.def.name == :KernelWrapper
-            @assert ctx.inner_f != nothing
-            tt = method_instance.specTypes.parameters[2:end]
-            which(ctx.inner_f, tt)
-        else
-            method_instance.def
-        end
-
+        method = method_instance.def
         frame = StackTraces.StackFrame(method.name, method.file, method.line)
         pushfirst!(bt, frame)
     end
@@ -225,7 +216,7 @@ function irgen(ctx::CompilerContext)
     # rename the entry point
     llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
     ## add a friendlier alias
-    alias = something(ctx.alias, String(typeof(something(ctx.inner_f, ctx.f)).name.mt.name))::String
+    alias = something(ctx.alias, String(typeof(ctx.f).name.mt.name))::String
     if startswith(alias, '#')
         alias = "anonymous"
     else

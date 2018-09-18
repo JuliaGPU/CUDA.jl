@@ -89,13 +89,7 @@ function backtrace(inst, bt = StackTraces.StackFrame[])
     # move up the call chain
     f = LLVM.parent(LLVM.parent(inst))
     callers = uses(f)
-    if isempty(callers)
-        # wrapping the kernel _does_ trigger a new debug info frame,
-        # so just get rid of the wrapper frame.
-        if !isempty(bt) && last(bt).func == :KernelWrapper
-            pop!(bt)
-        end
-    else
+    if !isempty(callers)
         # figure out the call sites of this instruction
         call_sites = unique(callers) do call
             # there could be multiple calls, originating from the same source location
