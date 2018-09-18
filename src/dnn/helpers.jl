@@ -29,10 +29,10 @@ Base.unsafe_convert(::Type{Ptr{Nothing}}, td::TensorDesc) = convert(Ptr{Nothing}
 function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(size)) where N
     sz = Cint.(size) |> reverse |> collect
     st = Cint.(strides) |> reverse |> collect
-    d = cudnnTensorDescriptor_t[0]
+    d = Ref{cudnnTensorDescriptor_t}()
     cudnnCreateTensorDescriptor(d)
-    cudnnSetTensorNdDescriptor(d[1], cudnnDataType(T), length(sz), sz, st)
-    this = TensorDesc(d[1])
+    cudnnSetTensorNdDescriptor(d[], cudnnDataType(T), length(sz), sz, st)
+    this = TensorDesc(d[])
     finalizer(free, this)
     return this
 end
@@ -47,7 +47,7 @@ Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
 Base.unsafe_convert(::Type{Ptr{Nothing}}, fd::FilterDesc)=fd.ptr
 
 function createFilterDesc()
-  d = cudnnFilterDescriptor_t[0]
+  d = Ref{cudnnFilterDescriptor_t}()
   @check cudnnCreateFilterDescriptor(d)
   return d[]
 end
@@ -69,9 +69,9 @@ end
 FilterDesc(a::CuArray; format = CUDNN_TENSOR_NCHW) = FilterDesc(eltype(a), size(a), format = format)
 
 function Base.size(f::FilterDesc)
-  typ = Cuint[0]
-  format = Cuint[0]
-  ndims = Cint[0]
+  typ = Ref{Cuint}()
+  format = Ref{Cuint}()
+  ndims = Ref{Cint}()
   dims = Vector{Cint}(undef, 8)
   @check ccall((:cudnnGetFilterNdDescriptor,libcudnn), cudnnStatus_t, (Ptr{Nothing}, Cint, Ptr{UInt32}, Ptr{UInt32}, Ptr{Cint}, Ptr{Cint}),
     f, 8, typ, format, ndims, dims)
@@ -93,12 +93,12 @@ pdsize(w, nd)=Cint[reverse(psize(w,nd))...]
 psize(w, nd)=(isa(w,Integer)  ? fill(w,nd) : length(w) != nd ? error("Dimension mismatch") : w)
 
 function ConvDesc(T, N, padding, stride, upscale, mode)
-    cd = cudnnConvolutionDescriptor_t[0]
+    cd = Ref{cudnnConvolutionDescriptor_t}()
     cudnnCreateConvolutionDescriptor(cd)
-    CUDNN_VERSION >= 4000 ? cudnnSetConvolutionNdDescriptor(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
-    CUDNN_VERSION >= 3000 ? cudnnSetConvolutionNdDescriptor_v3(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
-    cudnnSetConvolutionNdDescriptor(cd[1],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode)
-    this = ConvDesc(cd[1])
+    CUDNN_VERSION >= 4000 ? cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
+    CUDNN_VERSION >= 3000 ? cudnnSetConvolutionNdDescriptor_v3(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode,cudnnDataType(T)) :
+    cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(upscale,N),mode)
+    this = ConvDesc(cd[])
     finalizer(free, this)
     return this
 end
@@ -108,10 +108,10 @@ free(pd::PoolDesc)=cudnnDestroyPoolingDescriptor(pd.ptr)
 Base.unsafe_convert(::Type{cudnnPoolingDescriptor_t}, pd::PoolDesc)=pd.ptr
 
 function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_PROPAGATE_NAN)
-    pd = cudnnPoolingDescriptor_t[0]
+    pd = Ref{cudnnPoolingDescriptor_t}()
     cudnnCreatePoolingDescriptor(pd)
-    cudnnSetPoolingNdDescriptor(pd[1],mode,maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
-    this = PoolDesc(pd[1])
+    cudnnSetPoolingNdDescriptor(pd[],mode,maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
+    this = PoolDesc(pd[])
     finalizer(free, this)
     return this
 end
