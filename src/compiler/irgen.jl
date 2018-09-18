@@ -32,7 +32,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     let builder = Builder(ctx)
         position!(builder, insblock)
 
-        cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline")
+        cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline during kernel execution")
         call!(builder, trap)
 
         dispose(builder)
@@ -301,7 +301,7 @@ function remove_throw!(mod::LLVM.Module)
                         position!(builder, entry)
 
                         desc = replace(ex, '_'=>' ')
-                        cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline")
+                        cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline during kernel execution")
                         call!(builder, trap)
                         ret!(builder)
 
