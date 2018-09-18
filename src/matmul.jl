@@ -24,6 +24,8 @@ function generic_matmatmul!(C::AbstractVecOrMat{R}, A::AbstractVecOrMat{T}, B::A
             end
             C[i,j] = Ctmp
         end
+
+        return
     end
 
     max_threads = 256
@@ -52,6 +54,7 @@ function generic_rmul!(X::CuArray, s::Number)
     function kernel(X, s)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         @inbounds X[i] *= s
+        return
     end
     @cuda blocks=length(X) kernel(X, s)
     X
@@ -64,6 +67,7 @@ function generic_lmul!(s::Number, X::CuArray)
     function kernel(s, X)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         @inbounds X[i] = s*X[i]
+        return
     end
     @cuda blocks=length(X) kernel(s, X)
     X
