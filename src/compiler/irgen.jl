@@ -300,7 +300,7 @@ function remove_throw!(mod::LLVM.Module)
                 # replace uses of the original function
                 for use in uses(f)
                     call = user(use)
-                    @compiler_assert isa(call, LLVM.CallInst) ctx
+                    @assert isa(call, LLVM.CallInst)
                     let builder = Builder(ctx)
                         position!(builder, call)
                         call!(builder, f′)
@@ -310,8 +310,9 @@ function remove_throw!(mod::LLVM.Module)
                 end
 
                 # remove the original function or declaration
-                @compiler_assert isempty(uses(f)) ctx
+                @assert isempty(uses(f))
                 unsafe_delete!(mod, f)
+
 
                 changed = true
             end
