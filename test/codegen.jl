@@ -360,6 +360,15 @@ end
     test_name(codegen_closure, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
 end
 
+@testset "exception arguments" begin
+    @eval function codegen_exception_arguments(a)
+        unsafe_store!(a, trunc(Int, unsafe_load(a)))
+        return
+    end
+
+    CUDAnative.code_ptx(codegen_exception_arguments, Tuple{Ptr{Float64}})
+end
+
 end
 
 

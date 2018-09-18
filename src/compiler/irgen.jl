@@ -17,6 +17,7 @@ safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
 # NOTE: we remove `throw_...` functions in the ThrowRemoval pass, but that relies on
 #       function names, which is fragile. Remove them here as well, to be safe.
+const exception_arguments = Vector{LLVM.Value}()
 function raise_exception(insblock::BasicBlock, ex::Value)
     fun = LLVM.parent(insblock)
     mod = LLVM.parent(fun)
@@ -36,6 +37,9 @@ function raise_exception(insblock::BasicBlock, ex::Value)
 
         dispose(builder)
     end
+
+    # mark arguments that passed to `throw` for removal, as they are often GC-allocated.
+    push!(exception_arguments, ex)
 end
 
 # generate a pseudo-backtrace from a stack of methods being emitted
@@ -214,6 +218,15 @@ function irgen(ctx::CompilerContext)
             end
         end
     end
+
+    # HACK: remove unused arguments to exception functions
+    for val in exception_arguments
+        if isa(val, LLVM.Instruction) && isempty(uses(val))
+            bb = LLVM.parent(val)
+            unsafe_delete!(bb, val)
+        end
+    end
+    empty!(exception_arguments)
 
     # rename the entry point
     llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
