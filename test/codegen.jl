@@ -18,7 +18,7 @@
     @test !occursin("!dbg", ir)
 
     @test CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}) == nothing
-    @test_throws CUDAnative.CompilerError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test_throws CUDAnative.KernelError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "exceptions" begin
@@ -195,7 +195,7 @@ end
 
     @test CUDAnative.code_ptx(devnull, ptx_valid_kernel, Tuple{}) == nothing
     @test CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}) == nothing
-    @test_throws CUDAnative.AbstractCompilerError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true)
+    @test_throws CUDAnative.KernelError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true)
 end
 
 @testset "child functions" begin
@@ -375,7 +375,7 @@ if VERSION >= v"0.7.0-beta.48"
     @eval error_recurse_outer(i) = i > 0 ? i : error_recurse_inner(i)
     @eval @noinline error_recurse_inner(i) = i < 0 ? i : error_recurse_outer(i)
 
-    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_llvm(error_recurse_outer, Tuple{Int})) do msg
+    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_llvm(error_recurse_outer, Tuple{Int})) do msg
         occursin("recursion is currently not supported", msg) &&
         occursin("[1] error_recurse_outer", msg) &&
         occursin("[2] error_recurse_inner", msg) &&
@@ -411,7 +411,7 @@ end
 @testset "non-isbits arguments" begin
     @eval error_use_nonbits(i) = sink(unsafe_trunc(Int,i))
 
-    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_ptx(error_use_nonbits, Tuple{BigInt})) do msg
+    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_ptx(error_use_nonbits, Tuple{BigInt})) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("BigInt", msg)
     end

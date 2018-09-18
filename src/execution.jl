@@ -131,15 +131,6 @@ macro cuda(ex...)
     return code
 end
 
-# a wrapper exception that prints some useful pointers to the correct IO stream
-struct CompilationFailure <: Exception
-    inner::AbstractCompilerError
-end
-function Base.showerror(io::IO, err::CompilationFailure)
-    println(io, "GPU compilation failed, try inspecting generated code with any of the @device_code_... macros")
-    Base.showerror(io, err.inner)
-end
-
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
 @generated function _cuda(f::Core.Function, compile_kwargs, call_kwargs, args...)
@@ -186,15 +177,8 @@ const compilecache = Dict{UInt, CuFunction}()
         ctx = CuCurrentContext()
         key2 = hash(($precomp_key, age, ctx, compile_kwargs))
         if !haskey(compilecache, key2)
-            try
-                compilecache[key2], _ =
-                    cufunction(device(ctx), f, $tt; compile_kwargs...)
-            catch err
-                if isa(err, AbstractCompilerError)
-                    rethrow(CompilationFailure(err))
-                end
-                rethrow()
-            end
+            compilecache[key2], _ =
+                cufunction(device(ctx), f, $tt; compile_kwargs...)
         end
         cuda_f = compilecache[key2]
 

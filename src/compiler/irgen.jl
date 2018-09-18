@@ -59,7 +59,7 @@ Base.showerror(io::IO, err::MethodSubstitutionWarning) =
 
 function irgen(ctx::CompilerContext)
     # get the method instance
-    isa(ctx.f, Core.Builtin) && throw(CompilerError(ctx, "function is not a generic function"))
+    isa(ctx.f, Core.Builtin) && throw(KernelError(ctx, "function is not a generic function"))
     world = typemax(UInt)
     meth = which(ctx.f, ctx.tt)
     sig = Base.signature_type(ctx.f, ctx.tt)::Type
@@ -90,7 +90,8 @@ function irgen(ctx::CompilerContext)
 
         # check for recursion
         if method_instance in method_stack[1:end-1]
-            throw(CompilerError(ctx, "recursion is currently not supported", backtrace(ctx, method_stack)))
+            throw(KernelError(ctx, "recursion is currently not supported";
+                              bt=backtrace(ctx, method_stack)))
         end
 
         # check for Base methods that exist in CUDAnative too
@@ -109,7 +110,7 @@ function irgen(ctx::CompilerContext)
         end
     end
     function hook_emitted_function(method, code, world)
-        @assert last(method_stack) == method
+        @compiler_assert last(method_stack) == method ctx
         pop!(method_stack)
     end
     params = Base.CodegenParams(cached             = false,
@@ -129,7 +130,7 @@ function irgen(ctx::CompilerContext)
                     (Any, UInt, Bool, Bool, Base.CodegenParams),
                     linfo, world, #=wrapper=#false, #=optimize=#false, params)
         if ref == C_NULL
-            throw(CompilerError(ctx, "the Julia compiler could not generate LLVM IR"))
+            throw(InternalCompilerError(ctx, "the Julia compiler could not generate LLVM IR"))
         end
 
         llvmf = LLVM.Function(ref)
@@ -147,11 +148,11 @@ function irgen(ctx::CompilerContext)
     wrapper = nothing
     for llvmf in definitions
         if startswith(LLVM.name(llvmf), "jfptr_")
-            @assert wrapper == nothing
+            @compiler_assert wrapper == nothing ctx first=wrapper second=llvmf
             wrapper = llvmf
         end
     end
-    @assert wrapper != nothing
+    @compiler_assert wrapper != nothing ctx
 
     # the jfptr wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
@@ -173,8 +174,9 @@ function irgen(ctx::CompilerContext)
             end
         end
         if length(entrypoints) != 1
-            throw(CompilerError(f, tt, cap, "could not find single entry-point";
-                                entry=>entry_tag, available=>[LLVM.name.(definitions)]))
+            throw(InternalCompilerError(ctx, "could not find single entry-point";
+                                        entry=>entry_tag,
+                                        available=>[LLVM.name.(definitions)]))
         end
         entrypoints[1]
     end
@@ -297,7 +299,7 @@ function remove_throw!(mod::LLVM.Module)
                 # replace uses of the original function
                 for use in uses(f)
                     call = user(use)
-                    @assert isa(call, LLVM.CallInst)
+                    @compiler_assert isa(call, LLVM.CallInst) ctx
                     let builder = Builder(ctx)
                         position!(builder, call)
                         call!(builder, f′)
@@ -307,7 +309,7 @@ function remove_throw!(mod::LLVM.Module)
                 end
 
                 # remove the original function or declaration
-                @assert isempty(uses(f))
+                @compiler_assert isempty(uses(f)) ctx
                 unsafe_delete!(mod, f)
 
                 changed = true

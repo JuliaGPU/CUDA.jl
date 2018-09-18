@@ -3,15 +3,18 @@
 function check_method(ctx::CompilerContext)
     # get the method
     ms = Base.methods(ctx.f, ctx.tt)
-    isempty(ms)   && throw(CompilerError(ctx, "no method found"))
-    length(ms)!=1 && throw(CompilerError(ctx, "no unique matching method"))
+    isempty(ms)   && throw(KernelError(ctx, "no method found"))
+    length(ms)!=1 && throw(KernelError(ctx, "no unique matching method"))
     m = first(ms)
 
     # kernels can't return values
     if ctx.kernel
         rt = Base.return_types(ctx.f, ctx.tt)[1]
         if rt != Nothing
-            throw(CompilerError(ctx, "kernel returns a value of type $rt"))
+            throw(KernelError(ctx, "kernel returns a value of type `$rt`",
+                """Make sure your kernel function ends in `return`, `return nothing` or `nothing`.
+                   If the returned value is of type `Union{}`, your Julia code probably throws an exception.
+                   Inspect the code with `@device_code_warntype` for more details."""))
         end
     end
 
@@ -29,8 +32,9 @@ function check_invocation(ctx::CompilerContext, entry::LLVM.Function)
         if !isbitstype(dt)
             param = parameters(entry)[real_arg_i]
             if !isempty(uses(param))
-                throw(CompilerError(ctx, "passing and using non-bitstype argument";
-                                    argument=arg_i, argument_type=dt))
+                throw(KernelError(ctx, "passing and using non-bitstype argument",
+                    """Argument $arg_i to your kernel function is of type $dt.
+                       That type is not isbits, and such arguments are only allowed when they are unused by the kernel."""))
             end
         end
     end
@@ -43,7 +47,7 @@ end
 
 const IRError = Tuple{String, StackTraces.StackTrace, Any} # kind, bt, meta
 
-struct InvalidIRError <: AbstractCompilerError
+struct InvalidIRError <: Exception
     ctx::CompilerContext
     errors::Vector{IRError}
 end
@@ -113,7 +117,7 @@ function backtrace(inst, bt = StackTraces.StackFrame[])
 end
 
 function check_ir(ctx, args...)
-    errors = check_ir!(IRError[], args...)
+    errors = check_ir!(ctx, IRError[], args...)
     unique!(errors)
     if !isempty(errors)
         throw(InvalidIRError(ctx, errors))
@@ -122,18 +126,18 @@ function check_ir(ctx, args...)
     return
 end
 
-function check_ir!(errors::Vector{IRError}, mod::LLVM.Module)
+function check_ir!(ctx, errors::Vector{IRError}, mod::LLVM.Module)
     for f in functions(mod)
-        check_ir!(errors, f)
+        check_ir!(ctx, errors, f)
     end
 
     return errors
 end
 
-function check_ir!(errors::Vector{IRError}, f::LLVM.Function)
+function check_ir!(ctx, errors::Vector{IRError}, f::LLVM.Function)
     for bb in blocks(f), inst in instructions(bb)
         if isa(inst, LLVM.CallInst)
-            check_ir!(errors, inst)
+            check_ir!(ctx, errors, inst)
         end
     end
 
@@ -144,7 +148,7 @@ const special_fns = ("vprintf", "__nvvm_reflect")
 
 const libjulia = Ref{Ptr{Cvoid}}(C_NULL)
 
-function check_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
+function check_ir!(ctx, errors::Vector{IRError}, inst::LLVM.CallInst)
     dest = called_value(inst)
     if isa(dest, LLVM.Function)
         fn = LLVM.name(dest)
@@ -175,7 +179,7 @@ function check_ir!(errors::Vector{IRError}, inst::LLVM.CallInst)
         if occursin("inttoptr", string(dest))
             # extract the literal pointer
             ptr_arg = first(operands(dest))
-            @assert isa(ptr_arg, ConstantInt)
+            @compiler_assert isa(ptr_arg, ConstantInt) ctx
             ptr_val = convert(Int, ptr_arg)
             ptr = Ptr{Cvoid}(ptr_val)
 

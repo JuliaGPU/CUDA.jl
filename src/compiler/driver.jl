@@ -8,7 +8,7 @@ const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 # Main entry point for compiling a Julia function + argtypes to a callable CUDA function
 function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
-    @assert isa(f, Core.Function)
+    isa(f, Core.Function) || throw(ArgumentError("Kernel argument to `cufunction` should be a function."))
 
     ctx = CompilerContext(f, tt, supported_capability(dev), true; kwargs...)
 

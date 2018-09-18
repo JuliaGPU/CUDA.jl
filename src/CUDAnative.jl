@@ -5,6 +5,7 @@ using CUDAdrv
 using LLVM
 using LLVM.Interop
 
+using Pkg
 using Libdl
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
