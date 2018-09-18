@@ -50,6 +50,7 @@ function mapreducedim_kernel_parallel(f, op, R::CuDeviceArray{T}, A::CuDeviceArr
         # reduce S[1] into R
         threadIdx().x == 1 && (R[Ri] = op(R[Ri], S[Si_folded]))
     end
+    return
 end
 
 function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
