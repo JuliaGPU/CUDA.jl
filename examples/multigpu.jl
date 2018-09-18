@@ -5,6 +5,7 @@ using Test
 function vadd(gpu, a, b, c)
     i = threadIdx().x + blockDim().x * ((blockIdx().x-1) + (gpu-1) * gridDim().x)
     c[i] = a[i] + b[i]
+    return
 end
 
 gpus = Int(length(devices()))

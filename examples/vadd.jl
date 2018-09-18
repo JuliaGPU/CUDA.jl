@@ -5,6 +5,7 @@ using Test
 function vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     c[i] = a[i] + b[i]
+    return
 end
 
 dims = (3,4)

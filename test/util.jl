@@ -42,6 +42,7 @@ macro on_device(ex)
         let
             @eval function $kernel()
                 $ex
+                return
             end
 
             @cuda $kernel()

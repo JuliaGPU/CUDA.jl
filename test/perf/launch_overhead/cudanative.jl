@@ -7,7 +7,10 @@ using CUDAdrv, CUDAnative
 using Statistics
 using Printf
 
-kernel_dummy(ptr) = Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)
+function kernel_dummy(ptr)
+    Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)
+    return
+end
 
 const len = 1000
 const ITERATIONS = 100

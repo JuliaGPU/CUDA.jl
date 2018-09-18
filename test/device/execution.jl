@@ -2,7 +2,7 @@
 
 ############################################################################################
 
-@eval exec_dummy() = nothing
+@eval exec_dummy() = return
 
 @testset "cufunction" begin
     @test_throws UndefVarError cufunction(exec_undefined_kernel, ())
@@ -72,7 +72,7 @@ end
 @testset "external kernels" begin
     @eval module KernelModule
         export exec_external_dummy
-        exec_external_dummy() = nothing
+        exec_external_dummy() = return
     end
     import ...KernelModule
     @cuda KernelModule.exec_external_dummy()
@@ -83,7 +83,7 @@ end
 
     @eval module WrapperModule
         using CUDAnative
-        @eval exec_dummy() = nothing
+        @eval exec_dummy() = return
         wrapper() = @cuda exec_dummy()
     end
     WrapperModule.wrapper()
@@ -92,7 +92,10 @@ end
 
 @testset "calling device function" begin
     @eval @noinline exec_devfun_child(i) = sink(i)
-    @eval exec_devfun_parent() = exec_devfun_child(1)
+    @eval function exec_devfun_parent()
+        exec_devfun_child(1)
+        return
+    end
 
     @cuda exec_devfun_parent()
 end
@@ -113,6 +116,8 @@ len = prod(dims)
 
         val = unsafe_load(input, i)
         unsafe_store!(output, val, i)
+
+        return
     end
 
     input = round.(rand(Float32, dims) * 100)
@@ -136,6 +141,7 @@ end
             val = unsafe_load(a, i)
             unsafe_store!(x, val)
         end
+        return
     end
 
     arr = round.(rand(Float32, dims) * 100)
@@ -158,6 +164,7 @@ end
             val = exec_pass_scalar_devfun_child(a, i)
             unsafe_store!(x, val)
         end
+        return
     end
     @eval function exec_pass_scalar_devfun_child(a, i)
         return unsafe_load(a, i)
@@ -184,6 +191,7 @@ end
         else
             unsafe_store!(out, 2)
         end
+        return
     end
 
     keeps = (true,)
@@ -211,6 +219,7 @@ end
     @eval function exec_pass_ghost(ghost, a, b, c)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         unsafe_store!(c, unsafe_load(a,i)+unsafe_load(b,i), i)
+        return
     end
     @cuda threads=len exec_pass_ghost(ExecGhost(),
                                       Base.unsafe_convert(Ptr{Float32}, d_a),
@@ -225,6 +234,7 @@ end
     @eval function exec_pass_ghost_aggregate(ghost, out, aggregate)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         unsafe_store!(out, aggregate[1], i)
+        return
     end
     @cuda threads=len exec_pass_ghost_aggregate(ExecGhost(),
                                                 Base.unsafe_convert(Ptr{Float32}, d_c),
@@ -240,6 +250,7 @@ end
 
     @eval function exec_pass_immutables(ptr, b)
         unsafe_store!(ptr, imag(b))
+        return
     end
 
     buf = Mem.upload([0f0])
@@ -253,12 +264,18 @@ end
 @testset "automatic recompilation" begin
     buf = Mem.alloc(Int)
 
-    @eval exec_265(ptr) = unsafe_store!(ptr, 1)
+    @eval function exec_265(ptr)
+        unsafe_store!(ptr, 1)
+        return
+    end
 
     @cuda exec_265(Base.unsafe_convert(Ptr{Int}, buf))
     @test Mem.download(Int, buf) == [1]
 
-    @eval exec_265(ptr) = unsafe_store!(ptr, 2)
+    @eval function exec_265(ptr)
+        unsafe_store!(ptr, 2)
+        return
+    end
 
     @cuda exec_265(Base.unsafe_convert(Ptr{Int}, buf))
     @test Mem.download(Int, buf) == [2]
@@ -266,10 +283,16 @@ end
 
 
 @testset "non-isbits arguments" begin
-    @eval exec_pass_nonbits_unused(T, i) = sink(i)
+    @eval function exec_pass_nonbits_unused(T, i)
+        sink(i)
+        return
+    end
     @cuda exec_pass_nonbits_unused(Int, 1)
 
-    @eval exec_pass_nonbits_specialized(T, i) = sink(unsafe_trunc(T,i))
+    @eval function exec_pass_nonbits_specialized(T, i)
+        sink(unsafe_trunc(T,i))
+        return
+    end
     @cuda exec_pass_nonbits_specialized(Int, 1.)
 end
 
@@ -277,6 +300,7 @@ end
 @testset "splatting" begin
     @eval function exec_splat(out, a, b)
         unsafe_store!(out, a+b)
+        return
     end
 
     out = [0]
@@ -304,6 +328,7 @@ end
 
     @eval function (self::exec_object_inner)(a)
         unsafe_store!(a, self.val)
+        return
     end
 
     @eval function exec_object_outer(a, val)
@@ -324,6 +349,7 @@ end
        function exec_closure_inner(a)
             # captures `val`
             unsafe_store!(a, val)
+            return
        end
        @cuda exec_closure_inner(Base.unsafe_convert(Ptr{Float64}, a_dev))
     end
@@ -351,7 +377,10 @@ end
     out_dev = Mem.upload(out)
     let arg = Host()
         @test Mem.download(eltype(out), out_dev) ≈ [0]
-        @eval exec_convert_plain(arg, out) = unsafe_store!(out, convert(Int, arg))
+        @eval function exec_convert_plain(arg, out)
+            unsafe_store!(out, convert(Int, arg))
+            return
+        end
         @cuda exec_convert_plain(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [2]
     end
@@ -360,7 +389,10 @@ end
     out_dev = Mem.upload(out)
     let arg = (Host(),)
         @test Mem.download(eltype(out), out_dev) ≈ [0]
-        @eval exec_convert_tuple(arg, out) = unsafe_store!(out, convert(Int, arg[1]))
+        @eval function exec_convert_tuple(arg, out)
+            unsafe_store!(out, convert(Int, arg[1]))
+            return
+        end
         @cuda exec_convert_tuple(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [2]
     end
@@ -369,7 +401,10 @@ end
     out_dev = Mem.upload(out)
     let arg = (a=Host(),)
         @test Mem.download(eltype(out), out_dev) ≈ [0]
-        @eval exec_convert_namedtuple(arg, out) = unsafe_store!(out, convert(Int, arg.a))
+        @eval function exec_convert_namedtuple(arg, out)
+            unsafe_store!(out, convert(Int, arg.a))
+            return
+        end
         @cuda exec_convert_namedtuple(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [2]
     end
@@ -381,7 +416,10 @@ end
     end
     let arg = Nested(Host())
         @test Mem.download(eltype(out), out_dev) ≈ [0]
-        @eval exec_convert_namedtuple(arg, out) = unsafe_store!(out, convert(Int, arg.a))
+        @eval function exec_convert_namedtuple(arg, out)
+            unsafe_store!(out, convert(Int, arg.a))
+            return
+        end
         @cuda exec_convert_namedtuple(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [1]
     end

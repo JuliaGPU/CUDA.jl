@@ -8,6 +8,7 @@
     @eval function device_codegen_invariant(ptr, x)
         i = CUDAnative.threadIdx_x()
         @inbounds unsafe_store!(ptr, x[i], 1)
+        return
     end
 
     buf = Mem.alloc(Float64)
@@ -28,6 +29,7 @@ end
         i = threadIdx().x
         blockIdx().x
         @inbounds out[i,1] = a[i] + b[i][1]
+        return
     end
 
     @cuda threads=2 device_codegen_nested_tbaa(CuDeviceArray((2,1), CUDAnative.DevicePtr(convert(Ptr{Int}, out_buf.ptr))), a, b)
@@ -36,7 +38,10 @@ end
 
 
 @testset "ptxas-compatible control flow" begin
-    @eval @noinline throw_some() = throw(42)
+    @eval @noinline function throw_some()
+        throw(42)
+        return
+    end
 
     @eval @inbounds function device_codegen_cfg_gpu_kernel(input, output, n)
         i = threadIdx().x
@@ -50,6 +55,8 @@ end
 
         1 <= n || throw_some()
         unsafe_store!(output, temp[1], i)
+
+        return
     end
 
     function device_codegen_cfg_gpu(input)
@@ -81,7 +88,7 @@ end
 @testset "SASS" begin
 
 @testset "basic reflection" begin
-    @eval sass_valid_kernel() = nothing
+    @eval sass_valid_kernel() = return
     @eval sass_invalid_kernel() = 1
 
     @test CUDAnative.code_sass(devnull, sass_valid_kernel, Tuple{}) == nothing

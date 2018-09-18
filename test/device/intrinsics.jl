@@ -29,6 +29,7 @@ end
 
     @eval function kernel_math_log10(a, i)
         a[1] = CUDAnative.log10(i)
+        return
     end
 
     @cuda kernel_math_log10(buf, Float32(100))
@@ -74,6 +75,7 @@ end
     # c argument promotions
     @eval function issue_231(A)
         @cuprintf("%f %f\n", A[1], A[1])
+        return
     end
     x = CuTestArray(ones(2, 2))
     _, out = @grab_output begin
@@ -138,6 +140,8 @@ end
         s[t] = d[t]
         sync_threads()
         d[t] = s[tr]
+
+        return
     end
 
     a = rand(Float32, n)
@@ -155,6 +159,8 @@ end
     s[t] = d[t]
     sync_threads()
     d[t] = s[tr]
+
+    return
 end
 @testset "parametrically typed" for T in [Int32, Int64, Float32, Float64]
     a = rand(T, n)
@@ -169,6 +175,7 @@ end
     @eval function kernel_shmem_dynamic_alignment(v0::T, n) where {T}
         shared = CUDAnative.@cuDynamicSharedMem(T, n)
         @inbounds shared[Cuint(1)] = v0
+        return
     end
 
     n = 32
@@ -193,6 +200,8 @@ end
         s2[t] = 2*d[t]
         sync_threads()
         d[t] = s[tr]
+
+        return
     end
 
     a = rand(Float32, n)
@@ -213,6 +222,8 @@ end
     s2[t] = d[t]
     sync_threads()
     d[t] = s[tr]
+
+    return
 end
 @testset "parametrically typed" for T in [Int32, Int64, Float32, Float64]
     a = rand(T, n)
@@ -227,6 +238,7 @@ end
     @eval function kernel_shmem_static_alignment(v0::T) where {T}
         shared = CUDAnative.@cuStaticSharedMem(T, 32)
         @inbounds shared[Cuint(1)] = v0
+        return
     end
 
     @cuda kernel_shmem_static_alignment((0f0, 0f0, 0f0))
@@ -255,6 +267,8 @@ end
         sb[t] = b[t]
         sync_threads()
         b[t] = sb[tr]
+
+        return
     end
 
     a = rand(Float32, n)
@@ -284,6 +298,8 @@ end
         sb[t] = b[t]
         sync_threads()
         b[t] = sb[tr]
+
+        return
     end
 
     a = rand(Float32, n)
@@ -324,6 +340,7 @@ n = 14
     if t <= n
         d[t] += shfl_down(d[t], n÷2)
     end
+    return
 end
 @testset "down" for T in [Int32, Int64, Float32, Float64, AddableTuple]
     a = T[T(i) for i in 1:n]
@@ -362,6 +379,7 @@ end
         if threadIdx().x == 1
             a[1] = vote
         end
+        return
     end
 
     len = 4
@@ -379,6 +397,7 @@ end
         if threadIdx().x == 1
             a[1] = vote
         end
+        return
     end
 
     @cuda threads=2 kernel_vote_any(d_a, 1)
@@ -399,6 +418,7 @@ end
         if threadIdx().x == 1
             a[1] = vote
         end
+        return
     end
 
     @cuda threads=2 kernel_vote_all(d_a, 1)
