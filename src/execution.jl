@@ -32,34 +32,6 @@ function method_age(f, tt)::UInt
     throw(MethodError(f, tt))
 end
 
-# generate kernel wrapper functions that ignore return values
-#
-# FIXME: we cannot use an ordinary splat for this, because that generates dynamic calls
-#        for certain types of arguments.
-#
-#        we also can't generate wrappers with a known amount of arguments, because `@cuda`
-#        supports splatting and doesn't know the inner function argument count
-
-struct KernelWrapper{F} <: Core.Function
-    f::F
-end
-
-for i in 0:13
-    params = Tuple(Symbol("param$j") for j in 1:i)
-    @eval begin
-        function (k::KernelWrapper)($(params...))
-            # TODO: call-site inlining; we now need to keep track of the inner function
-            #       for reflection usability reasons (look for `inner_f` in reflection.jl)
-            (k.f)($(params...))
-            return nothing
-        end
-    end
-end
-
-@generated function (::KernelWrapper{F})(params...) where {F}
-    @safe_fatal "invalid kernel call; too many arguments" kernel=F argc=length(params)
-end
-
 
 """
     @cuda [kwargs...] func(args...)
@@ -149,7 +121,7 @@ macro cuda(ex...)
     end
     push!(code.args,
         :(GC.@preserve($(vars...),
-                       _cuda(KernelWrapper($(esc(f))), $(esc(f)),
+                       _cuda($(esc(f)),
                              ($(map(esc, compiler_kwargs)...),),
                              ($(map(esc, call_kwargs)...),),
                              cudaconvert.(($(var_exprs...),))...,
@@ -159,19 +131,9 @@ macro cuda(ex...)
     return code
 end
 
-# a wrapper exception that prints some useful pointers to the correct IO stream
-struct CompilationFailure <: Exception
-    inner::AbstractCompilerError
-end
-function Base.showerror(io::IO, err::CompilationFailure)
-    println(io, "GPU compilation failed, try inspecting generated code with any of the @device_code_... macros")
-    Base.showerror(io, err.inner)
-end
-
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, CuFunction}()
-@generated function _cuda(f::Core.Function, inner_f::Core.Function,
-                          compile_kwargs, call_kwargs, args...)
+@generated function _cuda(f::Core.Function, compile_kwargs, call_kwargs, args...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
@@ -207,7 +169,7 @@ const compilecache = Dict{UInt, CuFunction}()
         if haskey(agecache, key1)
             age = agecache[key1]
         else
-            age = method_age(inner_f, $t)
+            age = method_age(f, $t)
             agecache[key1] = age
         end
 
@@ -215,15 +177,8 @@ const compilecache = Dict{UInt, CuFunction}()
         ctx = CuCurrentContext()
         key2 = hash(($precomp_key, age, ctx, compile_kwargs))
         if !haskey(compilecache, key2)
-            try
-                compilecache[key2], _ =
-                    cufunction(device(ctx), f, $tt; inner_f=inner_f, compile_kwargs...)
-            catch err
-                if isa(err, AbstractCompilerError)
-                    rethrow(CompilationFailure(err))
-                end
-                rethrow()
-            end
+            compilecache[key2], _ =
+                cufunction(device(ctx), f, $tt; compile_kwargs...)
         end
         cuda_f = compilecache[key2]
 

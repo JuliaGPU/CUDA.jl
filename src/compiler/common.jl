@@ -14,40 +14,79 @@ struct CompilerContext
     blocks_per_sm::Union{Nothing,Integer}
     maxregs::Union{Nothing,Integer}
 
-    # hacks
-    inner_f::Union{Nothing,Core.Function}
-
-    CompilerContext(f, tt, cap, kernel; inner_f=nothing, alias=nothing,
+    CompilerContext(f, tt, cap, kernel; alias=nothing,
                     minthreads=nothing, maxthreads=nothing, blocks_per_sm=nothing, maxregs=nothing) =
-        new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs, inner_f)
+        new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs)
 end
 
 function signature(ctx::CompilerContext)
-    fn = typeof(something(ctx.inner_f, ctx.f)).name.mt.name
+    fn = typeof(ctx.f).name.mt.name
     args = join(ctx.tt.parameters, ", ")
     return "$fn($(join(ctx.tt.parameters, ", ")))"
 end
 
 
-abstract type AbstractCompilerError <: Exception end
-
-struct CompilerError <: AbstractCompilerError
+struct KernelError <: Exception
     ctx::CompilerContext
     message::String
+    help::Union{Nothing,String}
     bt::StackTraces.StackTrace
-    meta::Dict
 
-    CompilerError(ctx::CompilerContext, message="unknown error",
-                  bt=StackTraces.StackTrace(); kwargs...) =
-        new(ctx, message, bt, kwargs)
+    KernelError(ctx::CompilerContext, message::String, help=nothing;
+                bt=StackTraces.StackTrace()) =
+        new(ctx, message, help, bt)
 end
 
-function Base.showerror(io::IO, err::CompilerError)
-    print(io, "CompilerError: could not compile $(signature(err.ctx)); $(err.message)")
-    for (key,val) in err.meta
-        print(io, "\n- $key = $val")
-    end
+function Base.showerror(io::IO, err::KernelError)
+    println(io, "GPU compilation of $(signature(err.ctx)) failed")
+    println(io, "KernelError: $(err.message)")
+    println(io)
+    println(io, something(err.help, "Try inspecting the generated code with any of the @device_code_... macros."))
     Base.show_backtrace(io, err.bt)
+end
+
+
+struct InternalCompilerError <: Exception
+    ctx::CompilerContext
+    message::String
+    meta::Dict
+    InternalCompilerError(ctx, message; kwargs...) = new(ctx, message, kwargs)
+end
+
+function Base.showerror(io::IO, err::InternalCompilerError)
+    println(io, """CUDAnative.jl encountered an unexpected internal compiler error.
+                   Please file an issue attaching the following information, including the backtrace,
+                   as well as a reproducible example (if possible).""")
+
+    println(io, "\nInternalCompilerError: $(err.message)")
+
+    println(io, "\nCompiler invocation:")
+    for field in fieldnames(CompilerContext)
+        println(io, " - $field = $(repr(getfield(err.ctx, field)))")
+    end
+
+    if !isempty(err.meta)
+        println(io, "\nAdditional information:")
+        for (key,val) in err.meta
+            println(io, " - $key = $(repr(val))")
+        end
+    end
+
+    println(io, "\nInstalled packages:")
+    for (pkg,ver) in Pkg.installed()
+        println(io, " - $pkg = $ver")
+    end
+
+    println(io)
+    versioninfo(io)
+end
+
+macro compiler_assert(ex, ctx, kwargs...)
+    msg = "$ex, at $(__source__.file):$(__source__.line)"
+    return :($(esc(ex)) ? $(nothing)
+                        : throw(InternalCompilerError($(esc(ctx)), $msg;
+                                                      $(map(esc, kwargs)...)))
+            )
 end
 
 

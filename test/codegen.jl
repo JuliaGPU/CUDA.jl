@@ -18,7 +18,7 @@
     @test !occursin("!dbg", ir)
 
     @test CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}) == nothing
-    @test_throws CUDAnative.CompilerError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
+    @test_throws CUDAnative.KernelError CUDAnative.code_llvm(devnull, llvm_invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
 @testset "exceptions" begin
@@ -66,7 +66,7 @@ end
 
 @testset "kernel functions" begin
 @testset "wrapper function aggregate rewriting" begin
-    @eval codegen_aggregates(x) = nothing
+    @eval codegen_aggregates(x) = return
 
     @eval struct Aggregate
         x::Int
@@ -125,8 +125,8 @@ end
 end
 
 @testset "kernel names" begin
-    @eval codegen_regular() = nothing
-    @eval codegen_closure = ()->nothing
+    @eval codegen_regular() = return
+    @eval codegen_closure = ()->return
 
     function test_name(f, name; kwargs...)
         code = sprint(io->CUDAnative.code_llvm(io, f, Tuple{}; kwargs...))
@@ -173,7 +173,10 @@ end
 end
 
 @testset "tracked pointers" begin
-    @eval codegen_tracked_ptr(a) = (a[1] = 1; nothing)
+    @eval function codegen_tracked_ptr(a)
+        a[1] = 1
+        return
+    end
 
     # this used to throw an LLVM assertion (#223)
     CUDAnative.code_llvm(devnull, codegen_tracked_ptr, Tuple{Vector{Int}}; kernel=true)
@@ -187,12 +190,12 @@ end
 @testset "PTX assembly" begin
 
 @testset "basic reflection" begin
-    @eval ptx_valid_kernel() = nothing
+    @eval ptx_valid_kernel() = return
     @eval ptx_invalid_kernel() = 1
 
     @test CUDAnative.code_ptx(devnull, ptx_valid_kernel, Tuple{}) == nothing
     @test CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}) == nothing
-    @test_throws CUDAnative.AbstractCompilerError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true)
+    @test_throws CUDAnative.KernelError CUDAnative.code_ptx(devnull, ptx_invalid_kernel, Tuple{}; kernel=true)
 end
 
 @testset "child functions" begin
@@ -210,7 +213,10 @@ end
 
 @testset "kernel functions" begin
     @eval @noinline ptx_nonentry(i) = sink(i)
-    @eval ptx_entry(i) = (ptx_nonentry(i); nothing)
+    @eval function ptx_entry(i)
+        ptx_nonentry(i)
+        return
+    end
 
     asm = sprint(io->CUDAnative.code_ptx(io, ptx_entry, Tuple{Int64}; kernel=true))
     @test occursin(r"\.visible \.entry ptxcall_ptx_entry_", asm)
@@ -244,7 +250,7 @@ end
 @testset "idempotency" begin
     # bug: generate code twice for the same kernel (jl_to_ptx wasn't idempotent)
 
-    @eval codegen_idempotency() = nothing
+    @eval codegen_idempotency() = return
     CUDAnative.code_ptx(devnull, codegen_idempotency, Tuple{})
     CUDAnative.code_ptx(devnull, codegen_idempotency, Tuple{})
 end
@@ -369,7 +375,7 @@ if VERSION >= v"0.7.0-beta.48"
     @eval error_recurse_outer(i) = i > 0 ? i : error_recurse_inner(i)
     @eval @noinline error_recurse_inner(i) = i < 0 ? i : error_recurse_outer(i)
 
-    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_llvm(error_recurse_outer, Tuple{Int})) do msg
+    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_llvm(error_recurse_outer, Tuple{Int})) do msg
         occursin("recursion is currently not supported", msg) &&
         occursin("[1] error_recurse_outer", msg) &&
         occursin("[2] error_recurse_inner", msg) &&
@@ -405,7 +411,7 @@ end
 @testset "non-isbits arguments" begin
     @eval error_use_nonbits(i) = sink(unsafe_trunc(Int,i))
 
-    @test_throws_message(CUDAnative.CompilerError, CUDAnative.code_ptx(error_use_nonbits, Tuple{BigInt})) do msg
+    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_ptx(error_use_nonbits, Tuple{BigInt})) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("BigInt", msg)
     end

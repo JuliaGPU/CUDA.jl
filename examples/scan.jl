@@ -52,6 +52,8 @@ function gpu_accumulate!(op::Function, data::CuDeviceMatrix{T}) where {T}
         # write back results
         data[row,col] = shmem[row]
     end
+
+    return
 end
 
 rows = 5

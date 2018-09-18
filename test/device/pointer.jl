@@ -31,6 +31,7 @@ end
 @testset "indexing" begin
     @eval function issue_221(src, dst)
         unsafe_store!(dst, CUDAnative.unsafe_cached_load(src, 4))
+        return
     end
 
     T = Complex{Int8}

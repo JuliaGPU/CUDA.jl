@@ -77,6 +77,8 @@ function reduce_grid(op::F, input::CuDeviceVector{T}, output::CuDeviceVector{T},
     if threadIdx().x == 1
         @inbounds output[blockIdx().x] = val
     end
+
+    return
 end
 
 """

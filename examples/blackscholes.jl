@@ -81,6 +81,8 @@ function blackscholes_kernel(sptprice::AbstractArray{Float32},
         call = sptprice[i] * NofXd1 - c1
         out[i] = call - futureValue + sptprice[i]
     end
+
+    return
 end
 
 

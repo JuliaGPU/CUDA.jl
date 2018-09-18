@@ -134,7 +134,7 @@ end
 # generate a kernel wrapper to fix & improve argument passing
 function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
     entry_ft = eltype(llvmtype(entry_f)::LLVM.PointerType)::LLVM.FunctionType
-    @assert return_type(entry_ft) == LLVM.VoidType(JuliaContext())
+    @compiler_assert return_type(entry_ft) == LLVM.VoidType(JuliaContext()) ctx
 
     # filter out ghost types, which don't occur in the LLVM function signatures
     sig = Base.signature_type(ctx.f, ctx.tt)::Type
@@ -170,8 +170,8 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
             if codegen_t != wrapper_t
                 # the wrapper argument doesn't match the kernel parameter type.
                 # this only happens when codegen wants to pass a pointer.
-                @assert isa(codegen_t, LLVM.PointerType)
-                @assert eltype(codegen_t) == wrapper_t
+                @compiler_assert isa(codegen_t, LLVM.PointerType) ctx
+                @compiler_assert eltype(codegen_t) == wrapper_t ctx
 
                 # copy the argument value to a stack slot, and reference it.
                 ptr = alloca!(builder, wrapper_t)
