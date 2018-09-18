@@ -4,25 +4,25 @@ function destroy_generator(rng::RNG)
 end
 
 function create_generator(rng_type::Int=CURAND_RNG_PSEUDO_DEFAULT)
-    aptr = Ptr{Nothing}[0]
+    aptr = Ref{Ptr{Nothing}}()
     @check ccall((:curandCreateGenerator, libcurand),
                 curandStatus_t, (Ptr{Nothing}, Cint), aptr, rng_type)
-    r = RNG(aptr[1], rng_type)
+    r = RNG(aptr[], rng_type)
     finalizer(destroy_generator, r)
     return r
 end
 
 function create_generator_host(rng_type::Int=CURAND_RNG_PSEUDO_DEFAULT)
-    aptr = Ptr{Nothing}[0]
+    aptr = Ref{Ptr{Nothing}}()
     @check ccall((:curandCreateGeneratorHost, libcurand),
                 curandStatus_t, (Ptr{Nothing}, Cint), aptr, rng_type)
-    r = RNG(aptr[1], rng_type)
+    r = RNG(aptr[], rng_type)
     finalizer(destroy_generator, r)
     return r
 end
 
 function get_version()
-    ver = Ref{Cint}(0)
+    ver = Ref{Cint}()
     @check ccall((:curandGetVersion, libcurand),
                  curandStatus_t, (Ref{Cint},), ver)
     return ver[]
@@ -146,10 +146,10 @@ end
 # Poisson
 """Construct the histogram array for a Poisson distribution."""
 function create_poisson_distribtion(lambda::Float64)
-    aptr = Ptr{Nothing}[0]
+    aptr = Ref{Ptr{Nothing}}()
     @check ccall((:curandCreatePoissonDistribution, libcurand),
                  curandStatus_t, (Cdouble, Ptr{Nothing}), lambda, aptr)
-    return DiscreteDistribution(aptr[1])
+    return DiscreteDistribution(aptr[])
 end
 
 """Destroy the histogram array for a discrete distribution (e.g. Poisson)."""

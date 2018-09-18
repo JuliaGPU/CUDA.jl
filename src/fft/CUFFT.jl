@@ -104,7 +104,7 @@ function _mkplan(xtype, xdims, region)
     csz[1] = div(sz[1],2) + 1
     batch = prod(xdims) ÷ prod(sz)
 
-    pp = Cint[0]
+    pp = Ref{cufftHandle_t}()
     if (nrank == 1) && (batch == 1)
         @check ccall((:cufftPlan1d,libcufft),cufftStatus_t,
                      (Ptr{cufftHandle_t}, Cint, cufftType, Cint),
@@ -229,7 +229,7 @@ function _mkplan(xtype, xdims, region)
                          xtype, batch)
         end
     end
-    pp[1]
+    pp[]
 end
 
 # this is used implicitly in the unsafe_execute methods below:
