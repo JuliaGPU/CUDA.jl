@@ -425,6 +425,30 @@ end
     end
 end
 
+@testset "argument count" begin
+    val = [0]
+    val_dev = Mem.upload(val)
+    ptr = Base.unsafe_convert(Ptr{Int}, val_dev)
+    for i in (1, 10, 20, 35)
+        f = Symbol("exec_$(i)arg")
+        variables = ('a':'z'..., 'A':'Z'...)
+        params = [Symbol(variables[j]) for j in 1:i]
+        # generate a kernel
+        body = quote
+            function $f($(params...))
+                unsafe_store!($ptr, $(Expr(:call, :+, params...)))
+                return
+            end
+        end
+        eval(body)
+        args = [j for j in 1:i]
+        call = Expr(:call, f, args...)
+        cudacall = :(@cuda $call)
+        eval(cudacall)
+        @test Mem.download(eltype(val), val_dev)[1] == sum(args)
+    end
+end
+
 end
 
 ############################################################################################
