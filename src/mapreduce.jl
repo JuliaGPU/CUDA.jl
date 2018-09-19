@@ -54,11 +54,15 @@ function mapreducedim_kernel_parallel(f, op, R::CuDeviceArray{T}, A::CuDeviceArr
 end
 
 function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
+    dev = CUDAdrv.device()
+    max_thr = min(attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK),
+                  floor(Int, attribute(dev, CUDAdrv.MAX_SHARED_MEMORY_PER_BLOCK)/512))
+
     Rlength = length(R)
     Ssize = ifelse.(size(R) .== 1, size(A), 1)
     Slength = prod(Ssize)
-    outer_thr = min(nextpow(2, Rlength ÷ 512 + 1), 512)
-    inner_thr = min(512 ÷ outer_thr, Slength)
+    outer_thr = min(nextpow(2, Rlength ÷ 512 + 1), 512, max_thr)
+    inner_thr = min(512 ÷ outer_thr, Slength, max_thr)
     if inner_thr < 8 # we can saturate the GPU with serial reduction
         range = ifelse.(length.(axes(R)) .== 1, axes(A), nothing)
         blk, thr = cudims(R)
