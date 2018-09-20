@@ -160,28 +160,25 @@ function irgen(ctx::CompilerContext)
 
     # the jfptr wrapper function should point us to the actual entry-point,
     # e.g. julia_kernel_vadd_62984
+    # FIXME: Julia's globalUnique starting with `-` is probably a bug.
     entry_tag = let
-        m = match(r"jfptr_(.+)_\d+", LLVM.name(wrapper))::RegexMatch
+        m = match(r"^jfptr_(.+)_[-\d]+$", LLVM.name(wrapper))
+        @compiler_assert m != nothing ctx name=LLVM.name(wrapper)
         m.captures[1]
     end
     unsafe_delete!(mod, wrapper)
     entry = let
-        re = Regex("julia_$(entry_tag)_\\d+")
-        llvmcall_re = Regex("julia_$(entry_tag)_\\d+u\\d+")
+        re = Regex("^julia_$(entry_tag)_[-\\d]+\$")
         entrypoints = LLVM.Function[]
         for llvmf in definitions
             if llvmf != wrapper
                 llvmfn = LLVM.name(llvmf)
-                if occursin(re, llvmfn) && !occursin(llvmcall_re, llvmfn)
+                if occursin(re, llvmfn)
                     push!(entrypoints, llvmf)
                 end
             end
         end
-        if length(entrypoints) != 1
-            throw(InternalCompilerError(ctx, "could not find single entry-point";
-                                        entry=>entry_tag,
-                                        available=>[LLVM.name.(definitions)]))
-        end
+        @compiler_assert length(entrypoints) == 1 ctx functions=Tuple(LLVM.name.(definitions)) tag=entry_tag entrypoints=Tuple(LLVM.name.(entrypoints))
         entrypoints[1]
     end
 
