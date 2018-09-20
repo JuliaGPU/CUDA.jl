@@ -87,8 +87,7 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     # calculate launch configuration
     # NOTE: we want our launch configuration to be as square as possible,
     #       because that minimizes shared memory usage
-    ctx = CuCurrentContext()
-    dev = device(ctx)
+    dev = device()
     total_threads = min(n, attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK))
     threads_x = floor(Int, sqrt(total_threads))
     threads_y = total_threads ÷ threads_x
