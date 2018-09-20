@@ -366,7 +366,7 @@ end
         return
     end
 
-    CUDAnative.code_ptx(codegen_exception_arguments, Tuple{Ptr{Float64}})
+    CUDAnative.code_ptx(devnull, codegen_exception_arguments, Tuple{Ptr{Float64}})
 end
 
 end
