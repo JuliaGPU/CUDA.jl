@@ -71,23 +71,17 @@ const context_instances = Dict{CuContext_t,CuContext}()
 
 isvalid(ctx::CuContext) = ctx.valid
 function invalidate!(ctx::CuContext)
-    @trace("Invalidating CuContext object at $(Base.pointer_from_objref(ctx))")
     ctx.valid = false
     nothing
 end
 
 function unsafe_destroy!(ctx::CuContext)
-    @trace("Finalizing CuContext object at $(Base.pointer_from_objref(ctx))")
-    if !ctx.owned
-        @trace("Not destroying context $ctx because we don't own it")
-    elseif isvalid(ctx)
+    # finalizers do not respect _any_ oder during process teardown 
+    # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
+    # TODO: can we check this only happens during teardown?
+    if ctx.owned && isvalid(ctx)
         @apicall(:cuCtxDestroy, (CuContext_t,), ctx)
         invalidate!(ctx)
-    else
-        # this is due to finalizers not respecting _any_ order during process teardown
-        # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
-        # TODO: can we check this only happens during teardown?
-        @trace("Not destroying context $ctx because of out-of-order finalizer run")
     end
 end
 

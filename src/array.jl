@@ -61,12 +61,7 @@ const CuVector{T} = CuArray{T,1}
 const CuMatrix{T} = CuArray{T,2}
 
 function unsafe_free!(a::CuArray)
-    if !Mem.release(a.buf)
-        @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because pointer is held by another object")
-    elseif !isvalid(a.buf.ctx)
-        @trace("Skipping finalizer for CuArray object at $(Base.pointer_from_objref(a))) because context is no longer valid")
-    else
-        @trace("Finalizing CuArray object at $(Base.pointer_from_objref(a))")
+    if Mem.release(a.buf) && isvalid(a.buf.ctx)
         Mem.free(a.buf)
     end
 end

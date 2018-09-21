@@ -1,5 +1,7 @@
 # Basic library functionality
 
+# TODO: put error here to avoid need for forward decl
+
 #
 # API versioning
 #

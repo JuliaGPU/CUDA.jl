@@ -1,5 +1,3 @@
-__precompile__()
-
 module CUDAdrv
 
 using Printf
@@ -15,11 +13,6 @@ if !configured
     const libcuda_path = nothing
 end
 const libcuda = libcuda_path
-
-# FIXME: replace with an additional log level when we depend on 0.7+
-macro trace(ex...)
-    esc(:(@debug $(ex...)))
-end
 
 include("base.jl")
 

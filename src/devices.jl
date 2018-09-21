@@ -28,9 +28,7 @@ Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
 Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
 Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
 
-function Base.show(io::IO, ::MIME"text/plain", dev::CuDevice)
-    print(io, "CuDevice($(dev.ordinal)): $(name(dev))")
-end
+Base.show(io::IO, dev::CuDevice) = print(io, "CuDevice($(dev.ordinal)): $(name(dev))")
 
 """
     name(dev::CuDevice)
