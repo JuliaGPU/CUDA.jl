@@ -2,11 +2,6 @@
 
 using Logging
 
-# FIXME: replace with an additional log level
-macro trace(ex...)
-    esc(:(@debug $(ex...)))
-end
-
 # fatal versions to `@error`, including a safe version for compile-time errors
 # (to be used instead of `error`, which _emits_ an error)
 macro fatal(ex...)

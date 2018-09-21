@@ -62,8 +62,6 @@ function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     mod, entry = irgen(ctx)
 
-    @trace("Module entry point: ", LLVM.name(entry))
-
     # link libdevice, if it is necessary
     libdevice = load_libdevice(ctx)
     for f in functions(mod)
