@@ -1,4 +1,4 @@
-import ..BLAS: cublasfill, cublasop, cublasside, cublasFillMode_t, cublasOperation_t, cublasSideMode_t
+import ..CUBLAS: cublasfill, cublasop, cublasside, cublasFillMode_t, cublasOperation_t, cublasSideMode_t
 
 #enum cusolverStatus_t
 #error messages from CUSOLVER

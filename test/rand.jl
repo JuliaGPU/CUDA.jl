@@ -1,6 +1,6 @@
+@testset "cuRAND" begin
 
 using CuArrays.CURAND
-using Test
 
 # smoke tests for high-level API
 rng = CURAND.create_generator()
@@ -33,4 +33,4 @@ curand_logn(n, m, sd)
 curand_poisson(rng, n, lambda)
 curand_poisson(n, lambda)
 
-println("ok.")
+end

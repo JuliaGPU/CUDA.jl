@@ -1,4 +1,4 @@
-module FFT
+module CUFFT
 # FFT interface for CuArrays
 
 using ..CuArrays: libcufft, configured, CuArray

@@ -1,8 +1,6 @@
-using CuArrays
-using CuArrays.CUSOLVER
-using Test
+@testset "cuSOLVER" begin
 
-@testset "cuSolver" begin
+using CuArrays.CUSOLVER
 
 m = 15
 n = 10
