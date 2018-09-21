@@ -22,15 +22,14 @@ function main()
 
     toolkit = CUDAapi.find_toolkit()
 
-    config[:libcublas]   = CUDAapi.find_cuda_library("cublas", toolkit)
-    config[:libcusolver] = CUDAapi.find_cuda_library("cusolver", toolkit)
-    config[:libcufft]    = CUDAapi.find_cuda_library("cufft", toolkit)
-    config[:libcurand]   = CUDAapi.find_cuda_library("curand", toolkit)
-
-    config[:libcudnn] = CUDAapi.find_cuda_library("cudnn", toolkit)
-    if config[:libcudnn] == nothing
-      @warn("could not find CUDNN, its functionality will be unavailable")
+    for name in ("cublas", "cusolver", "cufft", "curand", "cudnn")
+        lib = Symbol("lib$name")
+        config[lib] = CUDAapi.find_cuda_library(name, toolkit)
+        if config[lib] == nothing
+            @warn "could not find $name, its functionality will be unavailable"
+        end
     end
+
 
     ## (re)generate ext.jl
 

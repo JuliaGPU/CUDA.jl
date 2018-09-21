@@ -31,16 +31,13 @@ include("broadcast.jl")
 include("matmul.jl")
 include("mapreduce.jl")
 
-include("blas/CUBLAS.jl")
-include("solver/CUSOLVER.jl")
-include("fft/CUFFT.jl")
-include("rand/CURAND.jl")
 include("gpuarray_interface.jl")
 
-cudnn_available() = libcudnn ≠ nothing
-if cudnn_available()
-  include("dnn/CUDNN.jl")
-end
+libcublas !== nothing   && include("blas/CUBLAS.jl")
+libcusolver !== nothing && include("solver/CUSOLVER.jl")
+libcufft !== nothing    && include("fft/CUFFT.jl")
+libcurand !== nothing   && include("rand/CURAND.jl")
+libcudnn !== nothing    && include("dnn/CUDNN.jl")
 
 function __init__()
     if !configured
