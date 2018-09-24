@@ -29,7 +29,6 @@ functionality useful for application programmers.
 Usage
 -----
 
-
 ### Compatibility
 
 The file `src/compatibility.jl` contains hard-coded databases with software and hardware
@@ -41,3 +40,20 @@ compatibility information that cannot be queried from APIs.
 The file `src/discovery.jl` defines helper methods for discovering the NVIDIA driver and
 CUDA toolkit, as well as some more generic methods to find libraries and binaries relative
 to eg. the location of the driver or toolkit.
+
+
+
+Maintenance
+-----------
+
+### CUDA version update
+
+When a new version of CUDA is released, CUDAapi.jl needs to be updated
+accordingly:
+
+- `discovery.jl`: update the `cuda_versions` dictionary
+- `compatibility.jl`: update each `_db` variable (refer to the comments for more
+  info)
+- `appveyor.yml`: add the version to the CI roster
+- `appveyor.ps1`: provide a link to the installer, and list the components that
+  need to be installed

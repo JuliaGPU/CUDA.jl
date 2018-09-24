@@ -13,6 +13,7 @@ $cuda_installers.Add('10.0', 'https://developer.nvidia.com/compute/cuda/10.0/Pro
 $cuda_installer = $cuda_installers.Get_Item($env:cuda_version)
 Start-FileDownload $cuda_installer -FileName cuda.exe
 
+# Source: NVIDIA CUDA Installation Guide for Microsoft Windows
 $cuda_components = @{}
 $cuda_components.Add('8.0', @("compiler_8.0", "cudart_8.0"))
 $cuda_components.Add('9.0', @("compiler_9.0", "cudart_9.0"))
