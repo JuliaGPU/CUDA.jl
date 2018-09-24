@@ -16,7 +16,7 @@ struct CuDevice
 
     # CuDevice is just an integer, but we need (?) to call cuDeviceGet to make sure this
     # integer is valid. to avoid ambiguity, add a bogus argument (cfr. `checkbounds`)
-    CuDevice(::Type{Bool}, handle::Cint) = new(handle)
+    CuDevice(::Type{Bool}, handle::CuDevice_t) = new(handle)
 end
 
 function CuDevice(ordinal::Integer)
