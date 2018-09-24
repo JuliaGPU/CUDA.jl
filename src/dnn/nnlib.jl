@@ -80,6 +80,9 @@ function ∇conv_data!(dx::A, dy::A, x::A, w::A;
   cudnnConvolutionBackwardData(dx, x, w, dy, padding=pad, stride=stride, mode=mode, alpha=alpha)
 end
 
+function ∇conv_bias!(db::A, dy::A; alpha = 1, beta = 0) where A<:CuArray{<:CUDNNFloat}
+  cudnnConvolutionBackwardBias(db, dy, alpha=alpha, beta=beta)
+end
 
 maxpool!(y::A, x::A, k; pad=map(_->0,k), stride=k) where A<:CuArray{<:CUDNNFloat} =
   cudnnPoolingForward(y, x, window=k, padding=pad, stride=stride, mode=0)
