@@ -137,62 +137,104 @@ function cudnnSoftmaxBackward(src::CuArray{T,4}, srcDiff::CuArray{T,4}, destDiff
     return destDiff
 end
 
-function cudnnConvolutionBiasActivationForward(handle, alpha1, xDesc, x, wDesc, w, convDesc, algo, workSpace, workSpaceSizeInBytes, alpha2, biasDesc, bias, activationDesc, yDesc, y)
-    @check ccall((:cudnnConvolutionBiasActivationForward, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionFwdAlgo_t, Ptr{Nothing}, Csize_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ptr{Nothing}), handle, alpha1, xDesc, x, wDesc, w, convDesc, algo, workSpace, workSpaceSizeInBytes, alpha2, yDesc, y, biasDesc, bias, activationDesc, yDesc, y)
+function cudnnConvolutionBiasActivationForward(handle, alpha1, xDesc, x, wDesc, w, convDesc, algo, workspace, workspace_size, alpha2, biasDesc, bias, activationDesc, yDesc, y)
+    @check ccall((:cudnnConvolutionBiasActivationForward, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionFwdAlgo_t, Ptr{Nothing}, Csize_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ptr{Nothing}), handle, alpha1, xDesc, x, wDesc, w, convDesc, algo, workspace, workspace_size, alpha2, yDesc, y, biasDesc, bias, activationDesc, yDesc, y)
 end
 
 function cudnnConvolutionBiasActivationForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, bias::CuArray{T,N};
-                                               handle=libcudnn_handle[], alpha1=1, workSpace=C_NULL, workSpaceSizeInBytes=0,
+                                               handle=libcudnn_handle[], alpha1=1, workspace=C_NULL, workspace_size=0,
                                                algo=0, alpha2=0, padding=0, stride=1, upscale=1, mode=0,
                                                activationMode=CUDNN_ACTIVATION_IDENTITY, activationCoeff=0.0,
                                                activationReluNanOpt=CUDNN_NOT_PROPAGATE_NAN) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
     ad = ActivationDesc(activationMode, T(activationCoeff), activationReluNanOpt)
-    cudnnConvolutionBiasActivationForward(handle,Ref(T(alpha1)),TensorDesc(x),x,FilterDesc(w),w,cd,algo,workSpace,
-        workSpaceSizeInBytes,Ref(T(alpha2)),TensorDesc(bias),bias,ad,TensorDesc(y),y)
+    cudnnConvolutionBiasActivationForward(handle,Ref(T(alpha1)),TensorDesc(x),x,FilterDesc(w),w,cd,algo,workspace,
+        workspace_size,Ref(T(alpha2)),TensorDesc(bias),bias,ad,TensorDesc(y),y)
     return y
 end
 
-function cudnnConvolutionForward(handle, alpha, xDesc, x, wDesc, w, convDesc, algo, workSpace, workSpaceSizeInBytes, beta, yDesc, y)
-    @check ccall((:cudnnConvolutionForward, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionFwdAlgo_t, Ptr{Nothing}, Cint, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}), handle, alpha, xDesc, x, wDesc, w, convDesc, algo, workSpace, workSpaceSizeInBytes, beta, yDesc, y)
+function cudnnConvolutionForward(handle, alpha, xDesc, x, wDesc, w, convDesc, algo, workspace, workspace_size, beta, yDesc, y)
+    workspace = workspace == nothing ? C_NULL : workspace
+    @check ccall((:cudnnConvolutionForward, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionFwdAlgo_t, Ptr{Nothing}, Cint, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}), handle, alpha, xDesc, x, wDesc, w, convDesc, algo, workspace, workspace_size, beta, yDesc, y)
 end
 
 function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N};
-                                 handle=libcudnn_handle[], algo=0, workSpace=C_NULL, workSpaceSizeInBytes=0,
+                                 handle=libcudnn_handle[], algo=0, workspace=C_NULL, workspace_size=0,
                                  alpha=1, beta=0, padding=0, stride=1, upscale=1, mode=0) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
     cudnnConvolutionForward(
-      handle,Ref(T(alpha)),TensorDesc(x),x,FilterDesc(w),w,cd,algo,workSpace,
-      workSpaceSizeInBytes,Ref(T(beta)),TensorDesc(y),y)
+      handle,Ref(T(alpha)),TensorDesc(x),x,FilterDesc(w),w,cd,algo,workspace,
+      workspace_size,Ref(T(beta)),TensorDesc(y),y)
     return y
 end
 
-function cudnnConvolutionBackwardData(handle, alpha, wDesc, w, dyDesc, dy, convDesc, algo, workSpace, workSpaceSizeInBytes, beta, dxDesc, dx)
-    @check ccall((:cudnnConvolutionBackwardData, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionBwdDataAlgo_t, Ptr{Nothing}, Cint, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}), handle, alpha, wDesc, w, dyDesc, dy, convDesc, algo, workSpace, workSpaceSizeInBytes, beta, dxDesc, dx)
+function cudnnGetConvolutionForwardWorkspaceSize(handle, xDesc, wDesc, convDesc, yDesc, algo, workspace_size)
+    @check ccall((:cudnnGetConvolutionForwardWorkspaceSize, libcudnn), cudnnStatus_t, (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnFilterDescriptor_t, cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t, cudnnConvolutionFwdAlgo_t, Ptr{Cint}), handle, xDesc, wDesc, convDesc, yDesc, algo, workspace_size)
+end
+
+function cudnnGetConvolutionForwardWorkspaceSize(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N};
+                                                 handle=libcudnn_handle[], algo=0, padding=0, stride=1,
+                                                 upscale=1, mode=0) where {T,N}
+    cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
+    workspace_size = Ref{Cint}()
+    cudnnGetConvolutionForwardWorkspaceSize(handle, TensorDesc(x), FilterDesc(w), cd, TensorDesc(y), algo, workspace_size)
+    return Int(workspace_size[])
+end
+
+function cudnnConvolutionBackwardData(handle, alpha, wDesc, w, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dxDesc, dx)
+    workspace = workspace == nothing ? C_NULL : workspace
+    @check ccall((:cudnnConvolutionBackwardData, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionBwdDataAlgo_t, Ptr{Nothing}, Cint, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}), handle, alpha, wDesc, w, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dxDesc, dx)
 end
 
 function cudnnConvolutionBackwardData(dx::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
-                                      handle=libcudnn_handle[], algo=0, workSpace=C_NULL, workSpaceSizeInBytes=0,
+                                      handle=libcudnn_handle[], algo=0, workspace=C_NULL, workspace_size=0,
                                       alpha=1, beta=0, padding=0, stride=1, upscale=1, mode=0) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
     cudnnConvolutionBackwardData(
-        handle,Ref(T(alpha)),FilterDesc(w),w,TensorDesc(dy),dy,cd,algo,workSpace,
-        workSpaceSizeInBytes,Ref(T(beta)),TensorDesc(dx),dx)
+        handle,Ref(T(alpha)),FilterDesc(w),w,TensorDesc(dy),dy,cd,algo,workspace,
+        workspace_size,Ref(T(beta)),TensorDesc(dx),dx)
     return dx
 end
 
-function cudnnConvolutionBackwardFilter(handle, alpha, xDesc, x, dyDesc, dy, convDesc, algo, workSpace, workSpaceSizeInBytes, beta, dwDesc, dw)
-    @check ccall((:cudnnConvolutionBackwardFilter, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionBwdFilterAlgo_t, Ptr{Nothing}, Cint, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}), handle, alpha, xDesc, x, dyDesc, dy, convDesc, algo, workSpace, workSpaceSizeInBytes, beta, dwDesc, dw)
+function cudnnGetConvolutionBackwardDataWorkspaceSize(handle, wDesc, dyDesc, convDesc, dxDesc, algo, workspace_size)
+    @check ccall((:cudnnGetConvolutionBackwardDataWorkspaceSize, libcudnn), cudnnStatus_t, (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t, cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t, cudnnConvolutionFwdAlgo_t, Ptr{Cint}), handle, wDesc, dyDesc, convDesc, dxDesc, algo, workspace_size)
+end
+
+function cudnnGetConvolutionBackwardDataWorkspaceSize(dx::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
+                                                      handle=libcudnn_handle[], algo=0, padding=0, stride=1,
+                                                      upscale=1, mode=0) where {T,N}
+    cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
+    workspace_size = Ref{Cint}()
+    cudnnGetConvolutionBackwardDataWorkspaceSize(handle, FilterDesc(w), TensorDesc(dy), cd, TensorDesc(dx), algo, workspace_size)
+    return Int(workspace_size[])
+end
+
+function cudnnConvolutionBackwardFilter(handle, alpha, xDesc, x, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dwDesc, dw)
+    workspace = workspace == nothing ? C_NULL : workspace
+    @check ccall((:cudnnConvolutionBackwardFilter, libcudnn), cudnnStatus_t, (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnTensorDescriptor_t, Ptr{Nothing}, cudnnConvolutionDescriptor_t, cudnnConvolutionBwdFilterAlgo_t, Ptr{Nothing}, Cint, Ptr{Nothing}, cudnnFilterDescriptor_t, Ptr{Nothing}), handle, alpha, xDesc, x, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dwDesc, dw)
 end
 
 function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
-                                        handle=libcudnn_handle[], algo=0, workSpace=C_NULL, workSpaceSizeInBytes=0,
+                                        handle=libcudnn_handle[], algo=0, workspace=C_NULL, workspace_size=0,
                                         alpha=1, beta=0, padding=0, stride=1, upscale=1, mode=0) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
     cudnnConvolutionBackwardFilter(
-        handle,Ref(T(alpha)),TensorDesc(x),x,TensorDesc(dy),dy,cd,algo,workSpace,
-        workSpaceSizeInBytes,Ref(T(beta)),FilterDesc(dw),dw)
+        handle,Ref(T(alpha)),TensorDesc(x),x,TensorDesc(dy),dy,cd,algo,workspace,
+        workspace_size,Ref(T(beta)),FilterDesc(dw),dw)
     return dw
+end
+
+function cudnnGetConvolutionBackwardFilterWorkspaceSize(handle, xDesc, dyDesc, convDesc, dwDesc, algo, workspace_size)
+    @check ccall((:cudnnGetConvolutionBackwardFilterWorkspaceSize, libcudnn), cudnnStatus_t, (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t, cudnnConvolutionDescriptor_t, cudnnFilterDescriptor_t, cudnnConvolutionFwdAlgo_t, Ptr{Cint}), handle, xDesc, dyDesc, convDesc, dwDesc, algo, workspace_size)
+end
+
+function cudnnGetConvolutionBackwardFilterWorkspaceSize(dw::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
+                                                        handle=libcudnn_handle[], algo=0, padding=0, stride=1,
+                                                        upscale=1, mode=0) where {T,N}
+    cd = ConvDesc(T, N-2, padding, stride, upscale, mode)
+    workspace_size = Ref{Cint}()
+    cudnnGetConvolutionBackwardFilterWorkspaceSize(handle, TensorDesc(x), TensorDesc(dy), cd, FilterDesc(dw), algo, workspace_size)
+    return Int(workspace_size[])
 end
 
 function cudnnConvolutionBackwardBias(handle, alpha, dyDesc, dy, beta, dbDesc, db)
