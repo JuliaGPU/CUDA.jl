@@ -125,6 +125,6 @@ function ActivationDesc(mode, coeff, reluNanOpt=CUDNN_NOT_PROPAGATE_NAN)
     cudnnCreateActivationDescriptor(ad)
     cudnnSetActivationDescriptor(ad[],mode,reluNanOpt,coeff)
     this = ActivationDesc(ad[])
-    finalizer(this, free)
+    finalizer(free, this)
     return this
 end
