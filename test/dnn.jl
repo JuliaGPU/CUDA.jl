@@ -1,6 +1,7 @@
 @testset "cuDNN" begin
 
 @testset "NNlib" begin
+  using NNlib
   using NNlib: ∇conv_data, ∇conv_filter,
                maxpool, meanpool, ∇maxpool, ∇meanpool,
                softmax, ∇softmax, logsoftmax, ∇logsoftmax
