@@ -12,15 +12,17 @@ const CuDevice_t = Cint
 Get a handle to a compute device.
 """
 struct CuDevice
-    ordinal::Cint
     handle::CuDevice_t
 
-    function CuDevice(i::Integer)
-        ordinal = convert(Cint, i)
-        handle_ref = Ref{CuDevice_t}()
-        @apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), handle_ref, ordinal)
-        new(ordinal, handle_ref[])
-    end
+    # CuDevice is just an integer, but we need (?) to call cuDeviceGet to make sure this
+    # integer is valid. to avoid ambiguity, add a bogus argument (cfr. `checkbounds`)
+    CuDevice(::Type{Bool}, handle::Cint) = new(handle)
+end
+
+function CuDevice(ordinal::Integer)
+    device_ref = Ref{CuDevice_t}()
+    @apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), device_ref, ordinal)
+    CuDevice(Bool, device_ref[])
 end
 
 Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
@@ -28,7 +30,7 @@ Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
 Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
 Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
 
-Base.show(io::IO, dev::CuDevice) = print(io, "CuDevice($(dev.ordinal)): $(name(dev))")
+Base.show(io::IO, dev::CuDevice) = print(io, "CuDevice($(dev.handle)): $(name(dev))")
 
 """
     name(dev::CuDevice)

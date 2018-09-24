@@ -168,11 +168,9 @@ function device(ctx::CuContext)
     return device()
 end
 function device()
-    # TODO: cuCtxGetDevice returns the device ordinal, but as a CUDevice*?
-    #       This can't be right...
-    device_ref = Ref{Cint}()
+    device_ref = Ref{CuDevice_t}()
     @apicall(:cuCtxGetDevice, (Ptr{Cint},), device_ref)
-    return CuDevice(device_ref[])
+    return CuDevice(Bool, device_ref[])
 end
 
 """
