@@ -1,4 +1,3 @@
-
 module CURAND
 
 export curand,

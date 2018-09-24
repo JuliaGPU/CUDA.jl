@@ -44,7 +44,8 @@ testf(f, xs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...)
 using GPUArrays
 
 @testset "CuArrays" begin
-@testset "GPUArray Testsuite" begin
+
+@testset "GPUArrays test suite" begin
   GPUArrays.test(CuArray)
 end
 
@@ -100,7 +101,7 @@ using NNlib
   @test testf(x -> log.(x), rand(3,3))
   @test testf((x,xs) -> log.(x.+xs), Ref(1), rand(3,3))
 
-  if CuArrays.cudnn_available()
+  if isdefined(CuArrays, :CUDNN)
     @test testf(x -> logσ.(x), rand(5))
 
     f(x) = logσ.(x)
@@ -146,12 +147,10 @@ end
   @test f(A, d) == Array(f!(CuArray(A), d))
 end
 
-if CuArrays.cudnn_available()
-  include("nnlib.jl")
-end
-include("blas.jl")
-include("solver.jl")
-include("fft.jl")
-include("rand.jl")
+isdefined(CuArrays, :CUDNN)     && include("dnn.jl")
+isdefined(CuArrays, :CUBLAS)    && include("blas.jl")
+isdefined(CuArrays, :CUSOLVER)  && include("solver.jl")
+isdefined(CuArrays, :CUFFT)     && include("fft.jl")
+isdefined(CuArrays, :CURAND)    && include("rand.jl")
 
 end

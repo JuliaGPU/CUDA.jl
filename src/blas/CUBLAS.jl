@@ -1,4 +1,4 @@
-module BLAS
+module CUBLAS
 
 using CUDAdrv
 using CUDAnative

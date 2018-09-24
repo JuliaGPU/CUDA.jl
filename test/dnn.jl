@@ -1,16 +1,15 @@
-using NNlib: conv, ∇conv_data, ∇conv_filter,
-  maxpool, meanpool, ∇maxpool, ∇meanpool,
-  softmax, ∇softmax, logsoftmax, ∇logsoftmax
-
-@info("Testing CuArrays/CUDNN")
-
+@testset "cuDNN" begin
 
 @testset "NNlib" begin
-  @test testf(conv, rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
+  using NNlib: ∇conv_data, ∇conv_filter,
+               maxpool, meanpool, ∇maxpool, ∇meanpool,
+               softmax, ∇softmax, logsoftmax, ∇logsoftmax
+
+  @test testf(NNlib.conv, rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
   @test testf(∇conv_data, rand(Float64, 9, 9, 4, 1), rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
   @test testf(∇conv_filter, rand(Float64, 9, 9, 4, 1), rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
 
-  @test testf(conv, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
+  @test testf(NNlib.conv, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
   @test testf(∇conv_data, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
   @test testf(∇conv_filter, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
 
@@ -30,4 +29,6 @@ using NNlib: conv, ∇conv_data, ∇conv_filter,
     @test testf(logsoftmax, rand(Float64, dims))
     @test testf(∇logsoftmax, rand(Float64, dims), rand(Float64, dims))
   end
+end
+
 end

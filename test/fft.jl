@@ -1,18 +1,18 @@
-# test suite for CuFFT
+@testset "cuFFT" begin
+
 # notes:
 #   plan_bfft does not need separate testing since it is used by plan_ifft
 
-using CuArrays.FFT
-using FFTW, Test
+using CuArrays.CUFFT
+using FFTW
 
+N1 = 8
+N2 = 32
+N3 = 64
+N4 = 8
 
-const N1 = 8
-const N2 = 32
-const N3 = 64
-const N4 = 8
-
-const MYRTOL = 1e-5
-const MYATOL = 1e-8
+MYRTOL = 1e-5
+MYATOL = 1e-8
 
 # out-of-place
 function dotest1(X::AbstractArray{T,N}) where {T <: Complex,N}
@@ -272,3 +272,5 @@ end
 
 
 end # testset int FFT
+
+end
