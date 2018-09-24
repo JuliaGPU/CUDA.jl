@@ -30,9 +30,7 @@ end
     # shared mem for 32 partial sums
     shared = @cuStaticSharedMem(T, 32)
 
-    # TODO: use fldmod1 (JuliaGPU/CUDAnative.jl#28)
-    wid  = div(threadIdx().x-1, CUDAnative.warpsize()) + 1
-    lane = rem(threadIdx().x-1, CUDAnative.warpsize()) + 1
+    wid, lane = fldmod1(threadIdx().x, CUDAnative.warpsize())
 
     # each warp performs partial reduction
     val = reduce_warp(op, val)
