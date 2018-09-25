@@ -59,12 +59,15 @@ end
 
 # Convolution
 
-const convworkspace = [CuVector{UInt8}(1)]
+const _conv_workspace = Ref{CuVector{UInt8}}()
 
-getconvworkspace(bytes) =
-  length(convworkspace[]) ≥ bytes ?
-    convworkspace[] :
-    (convworkspace[] = CuVector{UInt8}(bytes))
+function conv_workspace(bytes)
+  if isassigned(_conv_workspace) && bytes <= length(_conv_workspace[])
+    _conv_workspace[]
+  else
+    _conv_workspace[] = CuVector{UInt8}(bytes)
+  end
+end
 
 function conv!(y::A, x::A, w::A;
                pad = 0, stride = 1, mode = 0,
@@ -73,7 +76,7 @@ function conv!(y::A, x::A, w::A;
   all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in CuArrays")
   if workspace === nothing
     workspace_size = cudnnGetConvolutionForwardWorkspaceSize(y, x, w, padding = pad, stride = stride, algo = algo, mode = mode)
-    workspace = workspace_size != 0 ? getconvworkspace(workspace_size) : workspace
+    workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
@@ -88,7 +91,7 @@ function ∇conv_filter!(dw::A, dy::A, x::A, w::A;
   all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in CuArrays")
   if workspace === nothing
     workspace_size = cudnnGetConvolutionBackwardFilterWorkspaceSize(dw, x, w, dy, padding = pad, stride = stride, algo = algo, mode = mode)
-    workspace = workspace_size != 0 ? getconvworkspace(workspace_size) : workspace
+    workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
@@ -103,7 +106,7 @@ function ∇conv_data!(dx::A, dy::A, x::A, w::A;
   all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in CuArrays")
   if workspace === nothing
     workspace_size = cudnnGetConvolutionBackwardDataWorkspaceSize(dx, x, w, dy, padding = pad, stride = stride, algo = algo, mode = mode)
-    workspace = workspace_size != 0 ? getconvworkspace(workspace_size) : workspace
+    workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
