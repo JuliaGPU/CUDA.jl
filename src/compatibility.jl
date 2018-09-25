@@ -161,6 +161,7 @@ const dev_llvm_db = Dict(
     v"6.2" => v"3.9":highest,
     v"7.0" => v"6.0":highest,
     v"7.2" => v"7.0":highest,
+    v"7.5" => v"8.0":highest,
 )
 
 function devices_for_llvm(ver::VersionNumber)
@@ -188,6 +189,7 @@ const isa_llvm_db = Dict(
     v"5.0" => v"3.9":highest,
     v"6.0" => v"6.0":highest,
     v"6.1" => v"7.0":highest,
+    v"6.3" => v"8.0":highest,
 )
 
 function isas_for_llvm(ver::VersionNumber)
