@@ -51,17 +51,20 @@ function logsoftmax!(out::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
 end
 
 function ∇logsoftmax!(out::CuVecOrMat{T}, Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat
-  cudnnSoftmaxBackward(reshape4D(logsoftmax(xs)), reshape4D(Δ), reshape4D(out), algorithm=CUDNN_SOFTMAX_LOG)
+  cudnnSoftmaxBackward(reshape4D(logsoftmax(xs)), reshape4D(Δ), reshape4D(out);
+                       algorithm=CUDNN_SOFTMAX_LOG)
   return out
 end
 
-∇logsoftmax(Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat = ∇logsoftmax!(similar(xs), Δ, xs)
+∇logsoftmax(Δ::CuVecOrMat{T}, xs::CuVecOrMat{T}) where T<:CUDNNFloat =
+  ∇logsoftmax!(similar(xs), Δ, xs)
 
 # Convolution
 
 const _conv_workspace = Ref{CuVector{UInt8}}()
 
 function conv_workspace(bytes)
+  global _conv_workspace
   if isassigned(_conv_workspace) && bytes <= length(_conv_workspace[])
     _conv_workspace[]
   else
@@ -69,65 +72,69 @@ function conv_workspace(bytes)
   end
 end
 
-function conv!(y::A, x::A, w::A;
-               pad = 0, stride = 1, mode = 0,
-               alpha = 1, dilation = 1, workspace::Union{CuVector, Nothing} = nothing,
-               algo = 0) where A<:CuArray{<:CUDNNFloat}
+function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T};
+               pad=0, stride=1, mode=0, alpha=1, dilation=1,
+               workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in CuArrays")
   if workspace === nothing
-    workspace_size = cudnnGetConvolutionForwardWorkspaceSize(y, x, w, padding = pad, stride = stride, algo = algo, mode = mode)
+    workspace_size =
+      cudnnGetConvolutionForwardWorkspaceSize(y, x, w, padding=pad, stride=stride,
+                                              algo=algo, mode=mode)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
-  cudnnConvolutionForward(y, x, w, padding=pad, stride=stride, mode=mode, alpha=alpha, algo = algo,
-                          workspace=workspace, workspace_size=workspace_size)
+  cudnnConvolutionForward(y, x, w, padding=pad, stride=stride, mode=mode, alpha=alpha,
+                          algo=algo, workspace=workspace, workspace_size=workspace_size)
 end
 
-function ∇conv_filter!(dw::A, dy::A, x::A, w::A;
-                       pad = 0, stride = 1, mode = 0,
-                       alpha = 1, dilation = 1, workspace::Union{CuVector, Nothing} = nothing,
-                       algo = 0) where A<:CuArray{<:CUDNNFloat}
+function ∇conv_filter!(dw::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
+                       pad=0, stride=1, mode=0, alpha=1, dilation=1,
+                       workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in CuArrays")
   if workspace === nothing
-    workspace_size = cudnnGetConvolutionBackwardFilterWorkspaceSize(dw, x, w, dy, padding = pad, stride = stride, algo = algo, mode = mode)
+    workspace_size =
+      cudnnGetConvolutionBackwardFilterWorkspaceSize(dw, x, w, dy, padding=pad,
+                                                     stride=stride, algo=algo, mode=mode)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
-  cudnnConvolutionBackwardFilter(dw, x, w, dy, padding=pad, stride=stride, mode=mode, alpha=alpha, algo = algo,
-                                 workspace=workspace, workspace_size=workspace_size)
+  cudnnConvolutionBackwardFilter(dw, x, w, dy, padding=pad, stride=stride, mode=mode,
+                                 alpha=alpha, algo=algo, workspace=workspace,
+                                 workspace_size=workspace_size)
 end
 
-function ∇conv_data!(dx::A, dy::A, x::A, w::A;
-                     pad = 0, stride = 1, mode = 0,
-                     alpha = 1, dilation = 1, workspace::Union{CuVector, Nothing} = nothing,
-                     algo = 0) where A<:CuArray{<:CUDNNFloat}
+function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
+                     pad=0, stride=1, mode=0, alpha=1, dilation=1,
+                     workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in CuArrays")
   if workspace === nothing
-    workspace_size = cudnnGetConvolutionBackwardDataWorkspaceSize(dx, x, w, dy, padding = pad, stride = stride, algo = algo, mode = mode)
+    workspace_size =
+      cudnnGetConvolutionBackwardDataWorkspaceSize(dx, x, w, dy, padding=pad,stride=stride,
+                                                   algo=algo, mode=mode)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
-  cudnnConvolutionBackwardData(dx, x, w, dy, padding=pad, stride=stride, mode=mode, alpha=alpha, algo = algo,
-                               workspace=workspace, workspace_size=workspace_size)
+  cudnnConvolutionBackwardData(dx, x, w, dy, padding=pad, stride=stride, mode=mode,
+                               alpha=alpha, algo=algo, workspace=workspace,
+                               workspace_size=workspace_size)
 end
 
-function ∇conv_bias!(db::A, dy::A; alpha = 1, beta = 0) where A<:CuArray{<:CUDNNFloat}
+∇conv_bias!(db::CuArray{T}, dy::CuArray{T}; alpha=1, beta=0) where T<:CUDNNFloat =
   cudnnConvolutionBackwardBias(db, dy, alpha=alpha, beta=beta)
-end
 
-maxpool!(y::A, x::A, k; pad=map(_->0,k), stride=k) where A<:CuArray{<:CUDNNFloat} =
+maxpool!(y::CuArray{T}, x::CuArray{T}, k; pad=map(_->0,k), stride=k) where T<:CUDNNFloat =
   cudnnPoolingForward(y, x, window=k, padding=pad, stride=stride, mode=0)
 
-∇maxpool!(dx::A, dy::A, y::A, x::A, k;
-          pad=map(_->0,k), stride=k) where A<:CuArray{<:CUDNNFloat} =
+∇maxpool!(dx::CuArray{T}, dy::CuArray{T}, y::CuArray{T}, x::CuArray{T}, k;
+          pad=map(_->0,k), stride=k) where T<:CUDNNFloat =
   cudnnPoolingBackward(dx, dy, x, y, window=k, padding=pad, stride=stride, mode=0)
 
-meanpool!(y::A, x::A, k; pad=map(_->0,k), stride=k) where A<:CuArray{<:CUDNNFloat} =
+meanpool!(y::CuArray{T}, x::CuArray{T}, k; pad=map(_->0,k), stride=k) where T<:CUDNNFloat =
   cudnnPoolingForward(y, x, window=k, padding=pad, stride=stride, mode=1)
 
-∇meanpool!(dx::A, dy::A, y::A, x::A, k;
-           pad=map(_->0,k), stride=k) where A<:CuArray{<:CUDNNFloat} =
+∇meanpool!(dx::CuArray{T}, dy::CuArray{T}, y::CuArray{T}, x::CuArray{T}, k;
+           pad=map(_->0,k), stride=k) where T<:CUDNNFloat =
   cudnnPoolingBackward(dx, dy, x, y, window=k, padding=pad, stride=stride, mode=1)
