@@ -10,7 +10,7 @@ hardware. It is a work in progress, and only works on very recent versions of Ju
 
 Requirements:
 
-* Julia 0.7
+* Julia 1.0
 * CUDA toolkit
 * NVIDIA driver
 
