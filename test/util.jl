@@ -37,18 +37,17 @@ end
 
 # Run some code on-device, returning captured standard output
 macro on_device(ex)
-    @gensym kernel
-    esc(quote
+    quote
         let
-            @eval function $kernel()
-                $ex
+            function kernel()
+                $(esc(ex))
                 return
             end
 
-            @cuda $kernel()
+            @cuda kernel()
             synchronize()
         end
-    end)
+    end
 end
 
 function julia_cmd(cmd)

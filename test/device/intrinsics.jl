@@ -3,20 +3,26 @@
 ############################################################################################
 
 @testset "indexing" begin
-    for dim in (:x, :y, :z)
-        @on_device threadIdx().$dim
-        @on_device blockDim().$dim
-        @on_device blockIdx().$dim
-        @on_device gridDim().$dim
-    end
+    @on_device threadIdx().x
+    @on_device blockDim().x
+    @on_device blockIdx().x
+    @on_device gridDim().x
 
-    if VERSION >= v"0.7.0-DEV.4901"
-        @testset "range metadata" begin
-            codegen_indexing() = threadIdx().x
-            ir = sprint(io->CUDAnative.code_llvm(io, codegen_indexing, Tuple{}))
+    @on_device threadIdx().y
+    @on_device blockDim().y
+    @on_device blockIdx().y
+    @on_device gridDim().y
 
-            @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
-        end
+    @on_device threadIdx().z
+    @on_device blockDim().z
+    @on_device blockIdx().z
+    @on_device gridDim().z
+
+    @testset "range metadata" begin
+        foobar() = threadIdx().x
+        ir = sprint(io->CUDAnative.code_llvm(io, foobar, Tuple{}))
+
+        @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
     end
 end
 
@@ -60,10 +66,16 @@ end
     _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
     @test out == "Testing 42...$endline"
 
-    integer = Int == Int32 ? "%d" : (Sys.iswindows() ? "%lld" : "%ld")
-
-    _, out = @grab_output @on_device @cuprintf($"Testing $integer $integer...\n",
-                                               blockIdx().x, threadIdx().x)
+    _, out = @grab_output if Int == Int32
+        @on_device @cuprintf("Testing %lld %d...\n",
+                             blockIdx().x, threadIdx().x)
+    elseif Sys.iswindows()
+        @on_device @cuprintf("Testing %lld %lld...\n",
+                             blockIdx().x, threadIdx().x)
+    else
+        @on_device @cuprintf("Testing %ld %ld...\n",
+                             blockIdx().x, threadIdx().x)
+    end
     @test out == "Testing 1 1...$endline"
 
     _, out = @grab_output @on_device begin

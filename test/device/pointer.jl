@@ -18,12 +18,14 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
 
     ptr_a = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(Ptr{T}, d_a))
     ptr_b = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(Ptr{T}, d_b))
-
     @test Mem.download(T, d_a) != Mem.download(T, d_b)
-    if cached && capability(dev) >= v"3.2"
-        @on_device unsafe_store!($ptr_b, unsafe_cached_load($ptr_a))
-    else
-        @on_device unsafe_store!($ptr_b, unsafe_load($ptr_a))
+
+    let ptr_a=ptr_a, ptr_b=ptr_b #JuliaLang/julia#15276
+        if cached && capability(dev) >= v"3.2"
+            @on_device unsafe_store!(ptr_b, unsafe_cached_load(ptr_a))
+        else
+            @on_device unsafe_store!(ptr_b, unsafe_load(ptr_a))
+        end
     end
     @test Mem.download(T, d_a) == Mem.download(T, d_b)
 end
