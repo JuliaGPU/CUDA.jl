@@ -22,7 +22,7 @@ function parse_libdevice(fn, cb)
         for ln in eachline(f)
             if (m = match(r"^\d\.(\d+)\..", ln); m != nothing)
                 number = parse(Int, m.captures[1])
-            elseif ismatch(r"^Prototype:", ln)
+            elseif occursin(r"^Prototype:", ln)
                 next_proto = true
             elseif next_proto
                 cb(chomp(ln), number)

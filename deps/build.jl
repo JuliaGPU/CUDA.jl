@@ -20,10 +20,8 @@ function llvm_support(version)
     target_support = sort(collect(CUDAapi.devices_for_llvm(version)))
 
     ptx_support = CUDAapi.isas_for_llvm(version)
-    if VERSION >= v"0.7.0-DEV.1959"
-        # JuliaLang/julia#23817 includes a patch with PTX ISA 6.0 support
-        push!(ptx_support, v"6.0")
-    end
+    # JuliaLang/julia#23817 includes a patch with PTX ISA 6.0 support
+    push!(ptx_support, v"6.0")
     ptx_support = sort(collect(ptx_support))
 
     @trace("LLVM support", targets=target_support, isas=ptx_support)
