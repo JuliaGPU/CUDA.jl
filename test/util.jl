@@ -60,12 +60,12 @@ function julia_cmd(cmd)
 end
 
 # helper function for sinking a value to prevent the callee from getting optimized away
-@eval @inline sink(i::Int32) =
+@inline sink(i::Int32) =
     Base.llvmcall("""%slot = alloca i32
                      store volatile i32 %0, i32* %slot
                      %value = load volatile i32, i32* %slot
                      ret i32 %value""", Int32, Tuple{Int32}, i)
-@eval @inline sink(i::Int64) =
+@inline sink(i::Int64) =
     Base.llvmcall("""%slot = alloca i64
                      store volatile i64 %0, i64* %slot
                      %value = load volatile i64, i64* %slot
