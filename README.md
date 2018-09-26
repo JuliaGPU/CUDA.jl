@@ -40,15 +40,15 @@ License
 CUDAnative.jl is licensed under the [MIT license](LICENSE.md).
 
 If you use this package in your research, please cite the [following
-paper](https://arxiv.org/abs/1712.03112):
+paper](https://ieeexplore.ieee.org/document/8471188):
 
 ```
 @article{besard:2017,
-  author    = {Tim Besard and Christophe Foket and De Sutter, Bjorn},
+  author    = {Besard, Tim and Foket, Christophe and De Sutter, Bjorn},
   title     = {Effective Extensible Programming: Unleashing {Julia} on {GPUs}},
-  journal   = {arXiv},
-  volume    = {abs/11712.03112},
-  year      = {2017},
-  url       = {http://arxiv.org/abs/1712.03112},
+  journal   = {IEEE Transactions on Parallel and Distributed Systems},
+  year      = {2018},
+  doi       = {10.1109/TPDS.2018.2872064},
+  ISSN      = {1045-9219},
 }
 ```
