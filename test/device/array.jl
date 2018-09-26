@@ -51,7 +51,7 @@ end
     dims = (16, 16)
     len = prod(dims)
 
-    @eval function array_copy(input::CuDeviceArray{Float32}, output::CuDeviceArray{Float32})
+    function kernel(input::CuDeviceArray{Float32}, output::CuDeviceArray{Float32})
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
         if i <= length(input)
@@ -66,14 +66,14 @@ end
     input_dev = CuTestArray(input)
     output_dev = CuTestArray(input)
 
-    @cuda threads=len array_copy(input_dev, output_dev)
+    @cuda threads=len kernel(input_dev, output_dev)
     output = Array(output_dev)
     @test input ≈ output
 end
 
 @testset "iteration" begin     # argument passing, get and setindex, length
     dims = (16, 16)
-    @eval function array_iteration(input::CuDeviceArray{T}, output::CuDeviceArray{T}) where {T}
+    function kernel(input::CuDeviceArray{T}, output::CuDeviceArray{T}) where {T}
         acc = zero(T)
         for elem in input
             acc += elem
@@ -87,36 +87,36 @@ end
     input_dev = CuTestArray(input)
     output_dev = CuTestArray(Float32[0])
 
-    @cuda array_iteration(input_dev, output_dev)
+    @cuda kernel(input_dev, output_dev)
     output = Array(output_dev)
     @test sum(input) ≈ output[1]
 end
 
 @testset "bounds checking" begin
-    @eval function array_oob_1d(array)
+    function oob_1d(array)
         return array[1]
     end
 
-    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_1d, (CuDeviceArray{Int,1,AS.Global},)))
+    ir = sprint(io->CUDAnative.code_llvm(io, oob_1d, (CuDeviceArray{Int,1,AS.Global},)))
     @test !occursin("julia_throw_boundserror", ir)
     @test occursin("ptx_throw_boundserror", ir)
 
-    @eval function array_oob_2d(array)
+    function oob_2d(array)
         return array[1, 1]
     end
 
-    ir = sprint(io->CUDAnative.code_llvm(io, array_oob_2d, (CuDeviceArray{Int,2,AS.Global},)))
+    ir = sprint(io->CUDAnative.code_llvm(io, oob_2d, (CuDeviceArray{Int,2,AS.Global},)))
     @test !occursin("julia_throw_boundserror", ir)
     @test occursin("ptx_throw_boundserror", ir)
 end
 
 @testset "views" begin
-    @eval function array_view(array)
+    function kernel(array)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
-        sub = view(array, 2:length(array)-1)
-        if i <= length(sub)
-            sub[i] = i
+        _sub = view(array, 2:length(array)-1)
+        if i <= length(_sub)
+            _sub[i] = i
         end
 
         return
@@ -130,12 +130,12 @@ end
         sub[i] = i
     end
 
-    @cuda threads=100 array_view(array_dev)
+    @cuda threads=100 kernel(array_dev)
     @test array == Array(array_dev)
 end
 
-@testset "bug: non-Int index to unsafe_load" begin
-    @eval function array_load_index(a)
+@testset "non-Int index to unsafe_load" begin
+    function load_index(a)
         return a[UInt64(1)]
     end
 
@@ -143,11 +143,11 @@ end
     p = pointer(a)
     dp = CUDAnative.DevicePtr(p)
     da = CUDAnative.CuDeviceArray(1, dp)
-    array_load_index(da)
+    load_index(da)
 end
 
 @testset "ldg" begin
-    @eval function array_cached_load(a, b, i)
+    function kernel(a, b, i)
         b[i] = ldg(a, i)
         return
     end
@@ -156,7 +156,7 @@ end
 
     a = CuTestArray([0])
     b = CuTestArray([0])
-    @device_code_ptx io=buf @cuda array_cached_load(a, b, 1)
+    @device_code_ptx io=buf @cuda kernel(a, b, 1)
     @test Array(a) == Array(b)
 
     asm = String(take!(copy(buf)))

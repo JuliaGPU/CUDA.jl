@@ -1,4 +1,4 @@
-@testset "pointer (on device)" begin
+@testset "pointer" begin
 
 @testset "unsafe_load & unsafe_store!" begin
 
@@ -29,7 +29,7 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
 end
 
 @testset "indexing" begin
-    @eval function issue_221(src, dst)
+    function kernel(src, dst)
         unsafe_store!(dst, CUDAnative.unsafe_cached_load(src, 4))
         return
     end
@@ -39,7 +39,7 @@ end
     src = Mem.upload([T(1) T(9); T(3) T(4)])
     dst = Mem.upload([0])
 
-    @cuda issue_221(
+    @cuda kernel(
         CUDAnative.DevicePtr{T,AS.Global}(Ptr{T}(src.ptr)),
         CUDAnative.DevicePtr{T,AS.Global}(Ptr{T}(dst.ptr))
     )
