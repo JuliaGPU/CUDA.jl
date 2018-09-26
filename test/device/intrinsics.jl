@@ -3,20 +3,26 @@
 ############################################################################################
 
 @testset "indexing" begin
-    for dim in (:x, :y, :z)
-        @on_device threadIdx().$dim
-        @on_device blockDim().$dim
-        @on_device blockIdx().$dim
-        @on_device gridDim().$dim
-    end
+    @on_device threadIdx().x
+    @on_device blockDim().x
+    @on_device blockIdx().x
+    @on_device gridDim().x
 
-    if VERSION >= v"0.7.0-DEV.4901"
-        @testset "range metadata" begin
-            @eval codegen_indexing() = threadIdx().x
-            ir = sprint(io->CUDAnative.code_llvm(io, codegen_indexing, Tuple{}))
+    @on_device threadIdx().y
+    @on_device blockDim().y
+    @on_device blockIdx().y
+    @on_device gridDim().y
 
-            @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
-        end
+    @on_device threadIdx().z
+    @on_device blockDim().z
+    @on_device blockIdx().z
+    @on_device gridDim().z
+
+    @testset "range metadata" begin
+        foobar() = threadIdx().x
+        ir = sprint(io->CUDAnative.code_llvm(io, foobar, Tuple{}))
+
+        @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
     end
 end
 
@@ -27,12 +33,12 @@ end
 @testset "math" begin
     buf = CuTestArray(Float32[0])
 
-    @eval function kernel_math_log10(a, i)
+    function kernel(a, i)
         a[1] = CUDAnative.log10(i)
         return
     end
 
-    @cuda kernel_math_log10(buf, Float32(100))
+    @cuda kernel(buf, Float32(100))
     val = Array(buf)
     @test val[1] ≈ 2.0
 end
@@ -60,10 +66,16 @@ end
     _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
     @test out == "Testing 42...$endline"
 
-    integer = Int == Int32 ? "%d" : (Sys.iswindows() ? "%lld" : "%ld")
-
-    _, out = @grab_output @on_device @cuprintf($"Testing $integer $integer...\n",
-                                               blockIdx().x, threadIdx().x)
+    _, out = @grab_output if Int == Int32
+        @on_device @cuprintf("Testing %lld %d...\n",
+                             blockIdx().x, threadIdx().x)
+    elseif Sys.iswindows()
+        @on_device @cuprintf("Testing %lld %lld...\n",
+                             blockIdx().x, threadIdx().x)
+    else
+        @on_device @cuprintf("Testing %ld %ld...\n",
+                             blockIdx().x, threadIdx().x)
+    end
     @test out == "Testing 1 1...$endline"
 
     _, out = @grab_output @on_device begin
@@ -73,13 +85,13 @@ end
     @test out == "foobar$endline"
 
     # c argument promotions
-    @eval function issue_231(A)
+    function kernel(A)
         @cuprintf("%f %f\n", A[1], A[1])
         return
     end
     x = CuTestArray(ones(2, 2))
     _, out = @grab_output begin
-        @cuda issue_231(x)
+        @cuda kernel(x)
         synchronize()
     end
     @test out == "1.000000 1.000000$endline"
@@ -132,7 +144,7 @@ end
 @testset "dynamic shmem" begin
 
 @testset "statically typed" begin
-    @eval function kernel_shmem_dynamic_typed(d, n)
+    function kernel(d, n)
         t = threadIdx().x
         tr = n-t+1
 
@@ -147,40 +159,41 @@ end
     a = rand(Float32, n)
     d_a = CuTestArray(a)
 
-    @cuda threads=n shmem=n*sizeof(Float32) kernel_shmem_dynamic_typed(d_a, n)
+    @cuda threads=n shmem=n*sizeof(Float32) kernel(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
-@eval function kernel_shmem_dynamic_typevar(d::CuDeviceArray{T}, n) where {T}
-    t = threadIdx().x
-    tr = n-t+1
-
-    s = @cuDynamicSharedMem(T, n)
-    s[t] = d[t]
-    sync_threads()
-    d[t] = s[tr]
-
-    return
-end
 @testset "parametrically typed" for T in [Int32, Int64, Float32, Float64]
+    function kernel(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        tr = n-t+1
+
+        s = @cuDynamicSharedMem(T, n)
+        s[t] = d[t]
+        sync_threads()
+        d[t] = s[tr]
+
+        return
+    end
+
     a = rand(T, n)
     d_a = CuTestArray(a)
 
-    @cuda threads=n shmem=n*sizeof(T) kernel_shmem_dynamic_typevar(d_a, n)
+    @cuda threads=n shmem=n*sizeof(T) kernel(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
 @testset "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
-    @eval function kernel_shmem_dynamic_alignment(v0::T, n) where {T}
-        shared = CUDAnative.@cuDynamicSharedMem(T, n)
+    function kernel(v0::T, n) where {T}
+        shared = @cuDynamicSharedMem(T, n)
         @inbounds shared[Cuint(1)] = v0
         return
     end
 
     n = 32
-    T = typeof((0f0, 0f0, 0f0))
-    @cuda shmem=n*sizeof(T) kernel_shmem_dynamic_alignment((0f0, 0f0, 0f0), n)
+    typ = typeof((0f0, 0f0, 0f0))
+    @cuda shmem=n*sizeof(typ) kernel((0f0, 0f0, 0f0), n)
 end
 
 end
@@ -189,7 +202,7 @@ end
 @testset "static shmem" begin
 
 @testset "statically typed" begin
-    @eval function kernel_shmem_static_typed(d, n)
+    function kernel(d, n)
         t = threadIdx().x
         tr = n-t+1
 
@@ -207,41 +220,42 @@ end
     a = rand(Float32, n)
     d_a = CuTestArray(a)
 
-    @cuda threads=n kernel_shmem_static_typed(d_a, n)
+    @cuda threads=n kernel(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
-@eval function kernel_shmem_static_typevar(d::CuDeviceArray{T}, n) where {T}
-    t = threadIdx().x
-    tr = n-t+1
+@testset "parametrically typed" for typ in [Int32, Int64, Float32, Float64]
+    function kernel(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        tr = n-t+1
 
-    s = @cuStaticSharedMem(T, 1024)
-    s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
+        s = @cuStaticSharedMem(T, 1024)
+        s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
 
-    s[t] = d[t]
-    s2[t] = d[t]
-    sync_threads()
-    d[t] = s[tr]
+        s[t] = d[t]
+        s2[t] = d[t]
+        sync_threads()
+        d[t] = s[tr]
 
-    return
-end
-@testset "parametrically typed" for T in [Int32, Int64, Float32, Float64]
-    a = rand(T, n)
+        return
+    end
+
+    a = rand(typ, n)
     d_a = CuTestArray(a)
 
-    @cuda threads=n kernel_shmem_static_typevar(d_a, n)
+    @cuda threads=n kernel(d_a, n)
     @test reverse(a) == Array(d_a)
 end
 
 @testset "alignment" begin
     # bug: used to generate align=12, which is invalid (non pow2)
-    @eval function kernel_shmem_static_alignment(v0::T) where {T}
+    function kernel(v0::T) where {T}
         shared = CUDAnative.@cuStaticSharedMem(T, 32)
         @inbounds shared[Cuint(1)] = v0
         return
     end
 
-    @cuda kernel_shmem_static_alignment((0f0, 0f0, 0f0))
+    @cuda kernel((0f0, 0f0, 0f0))
 end
 
 end
@@ -252,7 +266,7 @@ end
 # common use case 1: dynamic shmem consists of multiple homogeneous arrays
 #                    -> split using `view`
 @testset "homogeneous" begin
-    @eval function kernel_shmem_dynamic_multi_homogeneous(a, b, n)
+    function kernel(a, b, n)
         t = threadIdx().x
         tr = n-t+1
 
@@ -277,7 +291,7 @@ end
     b = rand(Float32, n)
     d_b = CuTestArray(b)
 
-    @cuda threads=n shmem=2*n*sizeof(Float32) kernel_shmem_dynamic_multi_homogeneous(d_a, d_b, n)
+    @cuda threads=n shmem=2*n*sizeof(Float32) kernel(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
 end
@@ -285,7 +299,7 @@ end
 # common use case 2: dynamic shmem consists of multiple heterogeneous arrays
 #                    -> construct using pointer offset
 @testset "heterogeneous" begin
-    @eval function kernel_shmem_dynamic_multi_heterogeneous(a, b, n)
+    function kernel(a, b, n)
         t = threadIdx().x
         tr = n-t+1
 
@@ -308,7 +322,7 @@ end
     b = rand(Int64, n)
     d_b = CuTestArray(b)
 
-    @cuda threads=n shmem=(n*sizeof(Float32) + n*sizeof(Int64)) kernel_shmem_dynamic_multi_heterogeneous(d_a, d_b, n)
+    @cuda threads=n shmem=(n*sizeof(Float32) + n*sizeof(Int64)) kernel(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
     @test reverse(b) == Array(d_b)
 end
@@ -331,23 +345,24 @@ if capability(dev) >= v"3.0"
     y::Int64
     AddableTuple(val) = new(val, val*2)
 end
-@eval Base.:(+)(a::AddableTuple, b::AddableTuple) = AddableTuple(a.x+b.x)
+Base.:(+)(a::AddableTuple, b::AddableTuple) = AddableTuple(a.x+b.x)
 
 n = 14
 
-@eval function kernel_shuffle_down(d::CuDeviceArray{T}, n) where {T}
-    t = threadIdx().x
-    if t <= n
-        d[t] += shfl_down(d[t], n÷2)
-    end
-    return
-end
 @testset "down" for T in [Int32, Int64, Float32, Float64, AddableTuple]
+    function kernel(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        if t <= n
+            d[t] += shfl_down(d[t], n÷2)
+        end
+        return
+    end
+
     a = T[T(i) for i in 1:n]
     d_a = CuTestArray(a)
 
     threads = nearest_warpsize(dev, n)
-    @cuda threads=threads kernel_shuffle_down(d_a, n)
+    @cuda threads=threads kernel(d_a, n)
 
     a[1:n÷2] += a[n÷2+1:end]
     @test a == Array(d_a)
@@ -374,7 +389,7 @@ end
 @testset "ballot" begin
     d_a = CuTestArray(UInt32[0])
 
-    @eval function kernel_vote_ballot(a, i)
+    function kernel(a, i)
         vote = vote_ballot(threadIdx().x == i)
         if threadIdx().x == 1
             a[1] = vote
@@ -384,7 +399,7 @@ end
 
     len = 4
     for i in 1:len
-        @cuda threads=len kernel_vote_ballot(d_a, i)
+        @cuda threads=len kernel(d_a, i)
         @test Array(d_a) == [2^(i-1)]
     end
 end
@@ -392,7 +407,7 @@ end
 @testset "any" begin
     d_a = CuTestArray(UInt32[0])
 
-    @eval function kernel_vote_any(a, i)
+    function kernel(a, i)
         vote = vote_any(threadIdx().x >= i)
         if threadIdx().x == 1
             a[1] = vote
@@ -400,20 +415,20 @@ end
         return
     end
 
-    @cuda threads=2 kernel_vote_any(d_a, 1)
+    @cuda threads=2 kernel(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda threads=2 kernel_vote_any(d_a, 2)
+    @cuda threads=2 kernel(d_a, 2)
     @test Array(d_a) == [1]
 
-    @cuda threads=2 kernel_vote_any(d_a, 3)
+    @cuda threads=2 kernel(d_a, 3)
     @test Array(d_a) == [0]
 end
 
 @testset "all" begin
     d_a = CuTestArray(UInt32[0])
 
-    @eval function kernel_vote_all(a, i)
+    function kernel(a, i)
         vote = vote_all(threadIdx().x >= i)
         if threadIdx().x == 1
             a[1] = vote
@@ -421,13 +436,13 @@ end
         return
     end
 
-    @cuda threads=2 kernel_vote_all(d_a, 1)
+    @cuda threads=2 kernel(d_a, 1)
     @test Array(d_a) == [1]
 
-    @cuda threads=2 kernel_vote_all(d_a, 2)
+    @cuda threads=2 kernel(d_a, 2)
     @test Array(d_a) == [0]
 
-    @cuda threads=2 kernel_vote_all(d_a, 3)
+    @cuda threads=2 kernel(d_a, 3)
     @test Array(d_a) == [0]
 end
 

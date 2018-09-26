@@ -1,4 +1,4 @@
-julia 0.7-beta2
+julia 1.0
 CUDAdrv 0.8.3
 LLVM 0.9.14
 CUDAapi 0.4.0

@@ -189,12 +189,13 @@ function irgen(ctx::CompilerContext)
 
     # clean up incompatibilities
     for llvmf in functions(mod)
+        llvmfn = LLVM.name(llvmf)
+
         # only occurs in debug builds
         delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
 
         # dependent modules might have brought in other jfptr wrappers, delete them
-        llvmfn = LLVM.name(llvmf)
-        if startswith(llvmfn, "jfptr_") && isempty(uses(llvmf))
+        if startswith(LLVM.name(llvmf), "jfptr_") && isempty(uses(llvmf))
             unsafe_delete!(mod, llvmf)
             continue
         end
@@ -205,13 +206,32 @@ function irgen(ctx::CompilerContext)
             continue
         end
 
-        # make function names safe for ptxas
-        # (LLVM ought to do this, see eg. D17738 and D19126), but fails
-        # TODO: fix all globals?
+        # rename functions
         if !isdeclaration(llvmf)
-            llvmfn′ = safe_fn(llvmf)
+            # Julia disambiguates local functions by prefixing with `#\d#`.
+            # since we don't use a global function namespace, get rid of those tags.
+            if occursin(r"^julia_#\d+#", llvmfn)
+                llvmfn′ = replace(llvmfn, r"#\d+#"=>"")
+                if !haskey(functions(mod), llvmfn′)
+                    LLVM.name!(llvmf, llvmfn′)
+                    llvmfn = llvmfn′
+                end
+            end
+
+            # anonymous functions are just named `#\d`, make that somewhat more readable
+            m = match(r"_#(\d+)_", llvmfn)
+            if m !== nothing
+                llvmfn′ = replace(llvmfn, m.match=>"_anonymous$(m.captures[1])_")
+                LLVM.name!(llvmf, llvmfn′)
+                llvmfn = llvmfn′
+            end
+
+            # finally, make function names safe for ptxas
+            # (LLVM should to do this, but fails, see eg. D17738 and D19126)
+            llvmfn′ = safe_fn(llvmfn)
             if llvmfn != llvmfn′
                 LLVM.name!(llvmf, llvmfn′)
+                llvmfn = llvmfn′
             end
         end
     end
@@ -227,14 +247,6 @@ function irgen(ctx::CompilerContext)
 
     # rename the entry point
     llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
-    ## add a friendlier alias
-    alias = something(ctx.alias, String(typeof(ctx.f).name.mt.name))::String
-    if startswith(alias, '#')
-        alias = "anonymous"
-    else
-        alias = safe_fn(alias)
-    end
-    llvmfn = replace(llvmfn, r"_.+" => "_$alias")
     ## append a global unique counter
     global globalUnique
     globalUnique += 1

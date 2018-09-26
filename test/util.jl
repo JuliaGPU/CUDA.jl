@@ -1,6 +1,3 @@
-# NOTE: all kernel function definitions are prefixed with @eval to force toplevel definition,
-#       avoiding boxing as seen in https://github.com/JuliaLang/julia/issues/18077#issuecomment-255215304
-
 # @test_throw, with additional testing for the exception message
 macro test_throws_message(f, typ, ex...)
     quote
@@ -37,18 +34,17 @@ end
 
 # Run some code on-device, returning captured standard output
 macro on_device(ex)
-    @gensym kernel
-    esc(quote
+    quote
         let
-            @eval function $kernel()
-                $ex
+            function kernel()
+                $(esc(ex))
                 return
             end
 
-            @cuda $kernel()
+            @cuda kernel()
             synchronize()
         end
-    end)
+    end
 end
 
 function julia_cmd(cmd)

@@ -1,4 +1,4 @@
-@testset "pointer (on device)" begin
+@testset "pointer" begin
 
 @testset "unsafe_load & unsafe_store!" begin
 
@@ -18,18 +18,20 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
 
     ptr_a = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(Ptr{T}, d_a))
     ptr_b = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(Ptr{T}, d_b))
-
     @test Mem.download(T, d_a) != Mem.download(T, d_b)
-    if cached && capability(dev) >= v"3.2"
-        @on_device unsafe_store!($ptr_b, unsafe_cached_load($ptr_a))
-    else
-        @on_device unsafe_store!($ptr_b, unsafe_load($ptr_a))
+
+    let ptr_a=ptr_a, ptr_b=ptr_b #JuliaLang/julia#15276
+        if cached && capability(dev) >= v"3.2"
+            @on_device unsafe_store!(ptr_b, unsafe_cached_load(ptr_a))
+        else
+            @on_device unsafe_store!(ptr_b, unsafe_load(ptr_a))
+        end
     end
     @test Mem.download(T, d_a) == Mem.download(T, d_b)
 end
 
 @testset "indexing" begin
-    @eval function issue_221(src, dst)
+    function kernel(src, dst)
         unsafe_store!(dst, CUDAnative.unsafe_cached_load(src, 4))
         return
     end
@@ -39,7 +41,7 @@ end
     src = Mem.upload([T(1) T(9); T(3) T(4)])
     dst = Mem.upload([0])
 
-    @cuda issue_221(
+    @cuda kernel(
         CUDAnative.DevicePtr{T,AS.Global}(Ptr{T}(src.ptr)),
         CUDAnative.DevicePtr{T,AS.Global}(Ptr{T}(dst.ptr))
     )

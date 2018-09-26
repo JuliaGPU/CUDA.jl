@@ -7,8 +7,8 @@
 import InteractiveUtils: _dump_function
 
 # #17057 fallout
-@eval @noinline post17057_child(i) = sink(i)
-@eval function post17057_parent(arr::Ptr{Int64})
+@noinline post17057_child(i) = sink(i)
+function post17057_parent(arr::Ptr{Int64})
     i = post17057_child(0)
     unsafe_store!(arr, i, i)
 end
