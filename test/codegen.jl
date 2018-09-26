@@ -367,21 +367,18 @@ end
 
 # some validation happens in the emit_function hook, which is called by code_llvm
 
-if VERSION >= v"0.7.0-beta.48"
 @testset "recursion" begin
-    @eval outer(i) = i > 0 ? i : inner(i)
-    @eval @noinline inner(i) = i < 0 ? i : outer(i)
+    @eval recurse_outer(i) = i > 0 ? i : recurse_inner(i)
+    @eval @noinline recurse_inner(i) = i < 0 ? i : recurse_outer(i)
 
-    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_llvm(devnull, outer, Tuple{Int})) do msg
+    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_llvm(devnull, recurse_outer, Tuple{Int})) do msg
         occursin("recursion is currently not supported", msg) &&
-        occursin("[1] outer", msg) &&
-        occursin("[2] inner", msg) &&
-        occursin("[3] outer", msg)
+        occursin("[1] recurse_outer", msg) &&
+        occursin("[2] recurse_inner", msg) &&
+        occursin("[3] recurse_outer", msg)
     end
 end
-end
 
-if VERSION >= v"0.7.0-beta.48"
 @testset "base intrinsics" begin
     foobar(i) = sin(i)
 
@@ -400,7 +397,6 @@ if VERSION >= v"0.7.0-beta.48"
     bt_msg = sprint(Base.show_backtrace, bt)
     @test occursin("[1] sin", bt_msg)
     @test occursin(r"\[2\] .+foobar", bt_msg)
-end
 end
 
 # some validation happens in compile_function, which is called by code_ptx
