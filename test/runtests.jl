@@ -46,12 +46,7 @@ if CUDAnative.configured
         end
 
         # pick most recent device (based on compute capability)
-        global dev = nothing
-        for newdev in devices()
-            if dev == nothing || capability(newdev) > capability(dev)
-                dev = newdev
-            end
-        end
+        global dev = first(sort(collect(devices()); by=capability))
         @info("Testing using device $(name(dev))")
         device!(dev)
 
