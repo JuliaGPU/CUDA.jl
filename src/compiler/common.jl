@@ -8,15 +8,14 @@ struct CompilerContext
     kernel::Bool
 
     # optional properties
-    alias::Union{Nothing,String}
     minthreads::Union{Nothing,CuDim}
     maxthreads::Union{Nothing,CuDim}
     blocks_per_sm::Union{Nothing,Integer}
     maxregs::Union{Nothing,Integer}
 
-    CompilerContext(f, tt, cap, kernel; alias=nothing,
+    CompilerContext(f, tt, cap, kernel;
                     minthreads=nothing, maxthreads=nothing, blocks_per_sm=nothing, maxregs=nothing) =
-        new(f, tt, cap, kernel, alias, minthreads, maxthreads, blocks_per_sm, maxregs)
+        new(f, tt, cap, kernel, minthreads, maxthreads, blocks_per_sm, maxregs)
 end
 
 function signature(ctx::CompilerContext)

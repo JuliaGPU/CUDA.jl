@@ -133,17 +133,10 @@ end
         @test occursin(name, code)
     end
 
-    test_name(codegen_regular, "julia_codegen_regular")
-    test_name(codegen_regular, "julia_codegen_renamed"; alias="codegen_renamed")
-
-    test_name(codegen_regular, "ptxcall_codegen_regular"; kernel=true)
-    test_name(codegen_regular, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
-
-    test_name(codegen_closure, "julia_anonymous")
-    test_name(codegen_closure, "julia_codegen_renamed"; alias="codegen_renamed")
-
-    test_name(codegen_closure, "ptxcall_anonymous"; kernel=true)
-    test_name(codegen_closure, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
+    test_name(regular, "julia_codegen_regular")
+    test_name(regular, "ptxcall_codegen_regular"; kernel=true)
+    test_name(closure, "julia_anonymous")
+    test_name(closure, "ptxcall_anonymous"; kernel=true)
 end
 
 @testset "PTX TBAA" begin
@@ -347,17 +340,10 @@ end
         @test occursin(name, code)
     end
 
-    test_name(codegen_regular, "julia_codegen_regular")
-    test_name(codegen_regular, "julia_codegen_renamed"; alias="codegen_renamed")
-
-    test_name(codegen_regular, "ptxcall_codegen_regular"; kernel=true)
-    test_name(codegen_regular, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
-
-    test_name(codegen_closure, "julia_anonymous")
-    test_name(codegen_closure, "julia_codegen_renamed"; alias="codegen_renamed")
-
-    test_name(codegen_closure, "ptxcall_anonymous"; kernel=true)
-    test_name(codegen_closure, "ptxcall_codegen_renamed"; kernel=true, alias="codegen_renamed")
+    test_name(regular, "julia_codegen_regular")
+    test_name(regular, "ptxcall_codegen_regular"; kernel=true)
+    test_name(closure, "julia_anonymous")
+    test_name(closure, "ptxcall_anonymous"; kernel=true)
 end
 
 @testset "exception arguments" begin

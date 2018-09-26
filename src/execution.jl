@@ -53,8 +53,6 @@ Affecting the kernel compilation:
   multiprocessor.
 - maxregs: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
-- alias: an identifier that will be used for naming the kernel in generated code
-  (useful for profiling, debugging, ...)
 
 Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
 different compilation parameters. New code will be generated automatically.
@@ -77,7 +75,7 @@ macro cuda(ex...)
     end
 
     # split keyword arguments into ones affecting the compiler, or affecting the execution
-    compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :alias]
+    compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs]
     call_kws     = [:blocks, :threads, :shmem, :stream]
     compiler_kwargs = []
     call_kwargs = []
