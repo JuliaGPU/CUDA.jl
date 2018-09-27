@@ -11,6 +11,10 @@
   @test testf(∇conv_filter, rand(Float64, 9, 9, 4, 1), rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
   @test testf(CuArrays.CUDNN.∇conv_bias!, cu(rand(Float64, 1, 1, 10, 1)), cu(rand(Float64, 10, 10, 10, 1)))
 
+  @test_nowarn NNlib.conv!(cu(zeros(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
+  @test_nowarn NNlib.∇conv_data!(cu(zeros(Float64, 10, 10, 1, 1)), cu(ones(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
+  @test_nowarn NNlib.∇conv_filter!(cu(zeros(Float64, 2, 2, 1, 3)), cu(ones(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
+
   @test testf(NNlib.conv, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
   @test testf(∇conv_data, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
   @test testf(∇conv_filter, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
@@ -37,15 +41,6 @@ end
   @test testf(CuArrays.CUDNN.cudnnAddTensor, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationForward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
-end
-
-@testset "Convolution WorkSpace Size" begin
-  x = cu(rand(10, 10, 3, 1));
-  y = cu(rand(9, 9, 4, 1));
-  w = cu(rand(2, 2, 3, 4));
-  @test CuArrays.CUDNN.cudnnGetConvolutionForwardWorkspaceSize(y, x, w, algo = 1) == 492
-  @test CuArrays.CUDNN.cudnnGetConvolutionBackwardFilterWorkspaceSize(w, x, w, y, algo = 1) == 2452
-  @test CuArrays.CUDNN.cudnnGetConvolutionBackwardDataWorkspaceSize(x, x, w, y, algo = 1) == 2784
 end
 
 end
