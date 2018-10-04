@@ -11,6 +11,10 @@
   @test testf(∇conv_filter, rand(Float64, 9, 9, 4, 1), rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
   @test testf(CuArrays.CUDNN.∇conv_bias!, cu(rand(Float64, 1, 1, 10, 1)), cu(rand(Float64, 10, 10, 10, 1)))
 
+  @test testf(NNlib.conv, rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4); dilation=2)
+  @test testf(∇conv_data, rand(Float64, 8, 8, 4, 1), rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4); dilation=2)
+  @test testf(∇conv_filter, rand(Float64, 8, 8, 4, 1), rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4); dilation=2)
+
   @test_nowarn NNlib.conv!(cu(zeros(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
   @test_nowarn NNlib.∇conv_data!(cu(zeros(Float64, 10, 10, 1, 1)), cu(ones(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
   @test_nowarn NNlib.∇conv_filter!(cu(zeros(Float64, 2, 2, 1, 3)), cu(ones(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
@@ -18,6 +22,10 @@
   @test testf(NNlib.conv, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
   @test testf(∇conv_data, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
   @test testf(∇conv_filter, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
+  
+  @test testf(NNlib.conv, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4); dilation=2)
+  @test testf(∇conv_data, rand(Float64, 8, 8, 8, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4); dilation=2)
+  @test testf(∇conv_filter, rand(Float64, 8, 8, 8, 4, 1), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4); dilation=2)
 
   @test testf(x -> maxpool(x, (2,2)), rand(Float64, 10, 10, 3, 1))
   @test testf(x -> meanpool(x, (2,2)), rand(Float64, 10, 10, 3, 1))

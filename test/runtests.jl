@@ -24,7 +24,7 @@ end
 Random.seed!(1)
 CuArrays.allowscalar(false)
 
-testf(f, xs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...)
+testf(f, xs...; kwargs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 using GPUArrays
 
