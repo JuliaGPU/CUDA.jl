@@ -124,6 +124,12 @@ end
     y .= 1
     x
   end
+  let
+    x = cu([1, 2, 3, 4, 5])
+    y = reshape(view(x, 1:3), 1, 3)
+    y[1:1] = 6
+    @test x[1:1] == cu([6])
+  end
 end
 
 @testset "$f! with diagonal $d" for (f, f!) in ((triu, triu!), (tril, tril!)),
