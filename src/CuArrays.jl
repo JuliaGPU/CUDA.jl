@@ -39,6 +39,8 @@ libcufft !== nothing    && include("fft/CUFFT.jl")
 libcurand !== nothing   && include("rand/CURAND.jl")
 libcudnn !== nothing    && include("dnn/CUDNN.jl")
 
+include("deprecated.jl")
+
 function __init__()
     if !configured
         @warn("CuArrays.jl has not been successfully built, and will not work properly.")
