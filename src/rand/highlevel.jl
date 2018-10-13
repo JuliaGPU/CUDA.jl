@@ -1,49 +1,51 @@
-# uniform
-"""Generate n uniformly distributed numbers"""
-curand(rng::RNG, ::Type{Float32}, n::Int) = generate_uniform(rng, UInt(n))
-curand(::Type{Float32}, n::Int) = curand(_rng[], Float32, n)
+const GLOBAL_RNG = Ref{RNG}()
+function global_rng()
+    if !isassigned(GLOBAL_RNG)
+        GLOBAL_RNG[] = create_generator()
+    end
+    GLOBAL_RNG[]
+end
 
-curand(rng::RNG, ::Type{Float64}, n::Int) = generate_uniform_double(rng, UInt(n))
-curand(::Type{Float64}, n::Int) = curand(_rng[], Float64, n)
-curand(n::Int) = curand(Float64, n)
+"""Generate uniformly distributed numbers"""
+curand(args...; kwargs...)  = rand(global_rng(), args...; kwargs...)
+
+"""Generate normally distributed numbers"""
+curandn(args...; kwargs...) = randn(global_rng(), args...; kwargs...)
+
+"""Generate log-normally distributed numbers"""
+curand_logn(args...; kwargs...) = rand_logn(global_rng(), args...; kwargs...)
+
+"""Generate Poisson distributed numbers"""
+curand_poisson(args...; kwargs...) = rand_poisson(global_rng(), args...; kwargs...)
+
+
+# uniform
+Random.rand(rng::RNG, ::Type{Float32}, dims::Dims) = generate_uniform(rng, prod(dims))
+Random.rand(rng::RNG, ::Type{Float64}, dims::Dims) = generate_uniform_double(rng, prod(dims))
 
 
 # normal
-"""
-Generate n normally distributed numbers with specified mean and
-standard deviation
-"""
-curandn(rng::RNG, ::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
-    generate_normal(rng, UInt(n), mean, stddev)
-curandn(::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
-    curandn(_rng[], Float32, n, mean, stddev)
-
-curandn(rng::RNG, ::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
-    generate_normal_double(rng, UInt(n), mean, stddev)
-curandn(::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
-    curandn(_rng[], Float64, n, mean, stddev)
-curandn(n::Int, mean::Float64, stddev::Float64) =
-    curandn(Float64, n, mean, stddev)
+Random.randn(rng::RNG, ::Type{Float32}, dims::Dims; mean=0, stddev=1) =
+    generate_normal(rng, prod(dims), mean, stddev)
+Random.randn(rng::RNG, ::Type{Float64}, dims::Dims; mean=0, stddev=1) =
+    generate_normal_double(rng, prod(dims), mean, stddev)
+## Base interface
+Random.randn(rng::RNG, T::Type, dims::Dims; kwargs...) = randn(rng, T, dims; kwargs...)
+Random.randn(rng::RNG, T::Type, dim1::Integer, dims::Integer...; kwargs...) =
+    randn(rng, T, Dims((dim1, dims...)); kwargs...)
 
 # log-normal
-"""
-Generate n log-normally distributed numbers with specified mean and
-standard deviation
-"""
-curand_logn(rng::RNG, ::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
-    generate_log_normal(rng, UInt(n), mean, stddev)
-curand_logn(::Type{Float32}, n::Int, mean::Float32, stddev::Float32) =
-    curand_logn(_rng[], Float32, n, mean, stddev)
-
-curand_logn(rng::RNG, ::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
-    generate_log_normal_double(rng, UInt(n), mean, stddev)
-curand_logn(::Type{Float64}, n::Int, mean::Float64, stddev::Float64) =
-    curand_logn(_rng[], Float64, n, mean, stddev)
-curand_logn(n::Int, mean::Float64, stddev::Float64) =
-    curand_logn(Float64, n, mean, stddev)
+rand_logn(rng::RNG, ::Type{Float32}, dims::Dims, mean, stddev) =
+    generate_log_normal(rng, prod(dims), mean, stddev)
+rand_logn(rng::RNG, ::Type{Float64}, dims::Dims, mean, stddev) =
+    generate_log_normal_double(rng, prod(dims), mean, stddev)
+## Base-like typeless invocation
+randn_logn(rng::RNG, dims::Dims, mean, stddev) =
+    randn_logn(rng, Float64, n, mean, stddev)
 
 # poisson
-"""Generate n numbers according to Poisson distribution"""
-curand_poisson(rng::RNG, n::Int, lambda::Float64) =
-    generate_poisson(rng, UInt(n), lambda)
-curand_poisson(n::Int, lambda::Float64) = curand_poisson(_rng[], n, lambda)
+rand_poisson(rng::RNG, ::Type{Cuint}, dims::Dims; lambda=1) =
+    generate_poisson(rng, prod(dims), lambda)
+## Base-like typeless invocation
+rand_poisson(rng::RNG, dims::Integer...; kwargs...) =
+    rand_poisson(rng, Cuint, dims; kwargs...)

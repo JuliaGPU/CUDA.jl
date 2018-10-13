@@ -1,5 +1,24 @@
+const curandGenerator_t = Ptr{Cvoid}
+
+mutable struct RNG <: Random.AbstractRNG
+    ptr::Ptr{Nothing}
+    typ::Int
+end
+
+Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.ptr
+
+
+const curandDiscreteDistribution_t = Ptr{Cvoid}
+
+mutable struct DiscreteDistribution
+    ptr::curandDiscreteDistribution_t
+end
+
+Base.unsafe_convert(::Type{curandDiscreteDistribution_t}, dist::DiscreteDistribution) = dist.ptr
+
 
 # CURAND status codes
+const curandStatus_t = UInt32
 const CURAND_STATUS_SUCCESS = 0
 const CURAND_STATUS_VERSION_MISMATCH = 100
 const CURAND_STATUS_NOT_INITIALIZED = 101
@@ -55,15 +74,3 @@ const CURAND_FAST_REJECTION = 10
 const CURAND_3RD = 11
 const CURAND_DEFINITION = 12
 const CURAND_POISSON = 13
-
-
-const curandStatus_t = UInt32
-
-mutable struct RNG
-    ptr::Ptr{Nothing}
-    rng_type::Int
-end
-
-mutable struct DiscreteDistribution
-    ptr::Ptr{Nothing}
-end
