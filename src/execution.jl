@@ -32,7 +32,7 @@ function method_age(f, tt)::UInt
     throw(MethodError(f, tt))
 end
 
-struct Kernel
+struct Kernel{F}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
@@ -145,10 +145,9 @@ macro cuda(ex...)
         quote
             GC.@preserve $(vars...) begin
                 $cuda_args = cudaconvert.(($(var_exprs...),))
-                $kernel = compile_function($(esc(f)),
-                                           $cuda_args...; $(map(esc, compiler_kwargs)...))
-                launch_kernel($kernel, $(esc(f)),
-                              $cuda_args...; $(map(esc, call_kwargs)...))
+                $kernel = compile_function($(esc(f)), $cuda_args...;
+                                           $(map(esc, compiler_kwargs)...))
+                launch_kernel($kernel, $cuda_args...; $(map(esc, call_kwargs)...))
             end
          end)
     return code
@@ -187,19 +186,19 @@ const compilecache = Dict{UInt, Kernel}()
         key2 = hash(($precomp_key, age, ctx, kwargs))
         if !haskey(compilecache, key2)
             fun, mod = cufunction(device(ctx), f, $tt; kwargs...)
-            kernel = Kernel(ctx, mod, fun)
+            kernel = Kernel{f}(ctx, mod, fun)
             compilecache[key2] = kernel
         end
         kernel = compilecache[key2]
     end
 end
 
-@generated function launch_kernel(kernel, f::Core.Function, args...; call_kwargs...)
+@generated function launch_kernel(kernel::Kernel{F}, args...; call_kwargs...) where F
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
-    sig = (f, t...)
-    args = (:f, (:( args[$i] ) for i in 1:length(args))...)
+    sig = (typeof(F), t...)
+    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out ghost arguments that shouldn't be passed
     to_pass = map(!isghosttype, sig)
