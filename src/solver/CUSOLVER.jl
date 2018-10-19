@@ -10,6 +10,7 @@ const CuStream_t = Ptr{Nothing}
 using ..CuArrays: libcusolver, active_context, _getindex
 
 using LinearAlgebra
+using SparseArrays 
 
 import Base.one
 import Base.zero
@@ -35,6 +36,7 @@ end
 
 include("error.jl")
 include("libcusolver.jl")
+include("sparse.jl")
 include("dense.jl")
 include("highlevel.jl")
 
