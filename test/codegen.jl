@@ -399,7 +399,7 @@ end
     @test occursin(r"\[2\] .+foobar", bt_msg)
 end
 
-# some validation happens in compile_function, which is called by code_ptx
+# some validation happens in `compile`, which is called by `code_ptx`
 
 @testset "non-isbits arguments" begin
     foobar(i) = sink(unsafe_trunc(Int,i))

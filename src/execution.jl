@@ -32,6 +32,12 @@ function method_age(f, tt)::UInt
     throw(MethodError(f, tt))
 end
 
+struct Kernel
+    ctx::CuContext
+    mod::CuModule
+    fun::CuFunction
+end
+
 
 """
     @cuda [kwargs...] func(args...)
@@ -113,25 +119,68 @@ macro cuda(ex...)
         push!(code.args, :($var = $(esc(arg))))
     end
 
-    # convert the arguments, and call _cuda while keeping the original arguments alive
+    # convert the arguments, call the compiler and launch the kernel
+    # while keeping the original arguments alive
     var_exprs = map(vars, args, splats) do var, arg, splat
          splat ? Expr(:(...), var) : var
     end
+    @gensym kernel cuda_args # FIXME: why doesn't `local` work
     push!(code.args,
-        :(GC.@preserve($(vars...),
-                       _cuda($(esc(f)),
-                             ($(map(esc, compiler_kwargs)...),),
-                             ($(map(esc, call_kwargs)...),),
-                             cudaconvert.(($(var_exprs...),))...,
-                             )
-                       )
-         ))
+        quote
+            GC.@preserve $(vars...) begin
+                $cuda_args = cudaconvert.(($(var_exprs...),))
+                $kernel = compile_function($(esc(f)),
+                                           ($(map(esc, compiler_kwargs)...),),
+                                           $cuda_args...)
+                call_kernel($kernel, $(esc(f)),
+                            ($(map(esc, call_kwargs)...),),
+                            $cuda_args...)
+            end
+         end)
     return code
 end
 
 const agecache = Dict{UInt, UInt}()
-const compilecache = Dict{UInt, CuFunction}()
-@generated function _cuda(f::Core.Function, compile_kwargs, call_kwargs, args...)
+const compilecache = Dict{UInt, Kernel}()
+
+@generated function compile_function(f::Core.Function, compile_kwargs, args...)
+    # we're in a generated function, so `args` are really types.
+    # destructure into more appropriately-named variables
+    t = args
+    sig = (f, t...)
+    args = (:f, (:( args[$i] ) for i in 1:length(args))...)
+
+    # finalize types
+    tt = Base.to_tuple_type(t)
+
+    precomp_key = hash(sig)  # precomputable part of the keys
+    quote
+        Base.@_inline_meta
+
+        CUDAnative.maybe_initialize("@cuda")
+
+        # look-up the method age
+        key1 = hash(($precomp_key, world_age()))
+        if haskey(agecache, key1)
+            age = agecache[key1]
+        else
+            age = method_age(f, $t)
+            agecache[key1] = age
+        end
+
+        # compile the function
+        ctx = CuCurrentContext()
+        key2 = hash(($precomp_key, age, ctx, compile_kwargs))
+        if !haskey(compilecache, key2)
+            fun, mod = cufunction(device(ctx), f, $tt; compile_kwargs...)
+            kernel = Kernel(ctx, mod, fun)
+            compilecache[key2] = kernel
+        end
+        kernel = compilecache[key2]
+    end
+end
+
+@generated function call_kernel(kernel, f::Core.Function, call_kwargs, args...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
@@ -153,35 +202,13 @@ const compilecache = Dict{UInt, CuFunction}()
     end
 
     # finalize types
-    tt = Base.to_tuple_type(t)
     call_tt = Base.to_tuple_type(call_t)
 
-    precomp_key = hash(sig)  # precomputable part of the keys
     quote
         Base.@_inline_meta
 
-        CUDAnative.maybe_initialize("@cuda")
-
-        # look-up the method age
-        key1 = hash(($precomp_key, world_age()))
-        if haskey(agecache, key1)
-            age = agecache[key1]
-        else
-            age = method_age(f, $t)
-            agecache[key1] = age
-        end
-
-        # compile the function
-        ctx = CuCurrentContext()
-        key2 = hash(($precomp_key, age, ctx, compile_kwargs))
-        if !haskey(compilecache, key2)
-            compilecache[key2], _ =
-                cufunction(device(ctx), f, $tt; compile_kwargs...)
-        end
-        cuda_f = compilecache[key2]
-
         # call the kernel
-        cudacall(cuda_f, $call_tt, $(call_args...); call_kwargs...)
+        cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
 

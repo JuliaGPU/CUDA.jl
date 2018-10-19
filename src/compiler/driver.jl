@@ -19,7 +19,7 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs..
         globalUnique = previous_globalUnique
     end
 
-    (module_asm, module_entry) = compile_function(ctx)
+    (module_asm, module_entry) = compile(ctx)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
@@ -50,7 +50,7 @@ end
 # Not to be used directly, see `cufunction` instead.
 # FIXME: this pipeline should be partially reusable from eg. code_llvm
 #        also, does the kernel argument belong in the compiler context?
-function compile_function(ctx::CompilerContext; strip_ir_metadata::Bool=false)
+function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)
     ## high-level code generation (Julia AST)
 
     @debug "(Re)compiling function" ctx
