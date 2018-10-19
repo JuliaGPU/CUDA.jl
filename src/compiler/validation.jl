@@ -187,7 +187,7 @@ function check_ir!(ctx, errors::Vector{IRError}, inst::LLVM.CallInst)
             bt = backtrace(inst)
             frames = ccall(:jl_lookup_code_address, Any, (Ptr{Cvoid}, Cint,), ptr, 0)
             if length(frames) >= 1
-                length(frames) > 1 && @warn "unexpected debug frame count, please file an issue"
+                @compiler_assert length(frames) == 1 ctx frames=frames
                 fn, file, line, linfo, fromC, inlined, ip = last(frames)
                 push!(errors, (POINTER_FUNCTION, bt, fn))
             else
