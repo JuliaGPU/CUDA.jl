@@ -146,7 +146,7 @@ macro cuda(ex...)
                 $cuda_args = cudaconvert.(($(var_exprs...),))
                 $kernel = compile_function($(esc(f)), $cuda_args...;
                                            $(map(esc, compiler_kwargs)...))
-                launch_kernel($kernel, $cuda_args...; $(map(esc, call_kwargs)...))
+                $kernel($cuda_args...; $(map(esc, call_kwargs)...))
             end
          end)
     return code
@@ -189,7 +189,7 @@ const compilecache = Dict{UInt, Kernel}()
     end
 end
 
-@generated function launch_kernel(kernel::Kernel{F}, args...; call_kwargs...) where F
+@generated function (kernel::Kernel{F})(args...; call_kwargs...) where F
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
