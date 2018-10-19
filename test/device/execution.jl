@@ -22,6 +22,12 @@ end
 @test_throws MethodError @cuda dummy(1)
 
 
+@testset "low-level interface" begin
+    kernel = CUDAnative.compile_function(dummy)
+    dummy()
+end
+
+
 @testset "compilation params" begin
     @cuda dummy()
 

@@ -166,7 +166,7 @@ kernel to determine the launch configuration:
     GC.@preserve args begin
         kernel_args = cudaconvert.(args)
         kernel = CUDAnative.compile_function(f, kernel_args; compilation_kwargs)
-        kernel(kernel_args; launch_kwargs)
+        kernel(kernel_args...; launch_kwargs)
     end
 """
 macro cuda(ex...)
