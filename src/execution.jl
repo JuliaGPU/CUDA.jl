@@ -1,36 +1,9 @@
 # Native execution support
 
-export @cuda, nearest_warpsize, cudaconvert
-
-using Base.Iterators: filter
+export @cuda, cudaconvert, cufunction, nearest_warpsize
 
 
-"""
-    cudaconvert(x)
-
-This function is called for every argument to be passed to a kernel, allowing it to be
-converted to a GPU-friendly format. By default, the function does nothing and returns the
-input object `x` as-is.
-
-For `CuArray` objects, a corresponding `CuDeviceArray` object in global space is returned,
-which implements GPU-compatible array functionality.
-"""
-cudaconvert(x) = x
-cudaconvert(x::Tuple) = cudaconvert.(x)
-@generated function cudaconvert(x::NamedTuple)
-    Expr(:tuple, (:($f=cudaconvert(x.$f)) for f in fieldnames(x))...)
-end
-
-# fast lookup of global world age
-world_age() = ccall(:jl_get_tls_world_age, UInt, ())
-
-# slow lookup of local method age
-function method_age(f, tt)::UInt
-    for m in Base._methods(f, tt, 1, typemax(UInt))
-        return m[3].min_world
-    end
-    throw(MethodError(f, tt))
-end
+## kernel object and query functions
 
 struct Kernel{F}
     ctx::CuContext
@@ -76,6 +49,9 @@ function registers(k::Kernel)
     attr = attributes(k.fun)
     return attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
 end
+
+
+## helper functions
 
 # split keyword arguments to `@cuda` into ones affecting the compiler, or the execution
 function split_kwargs(kwargs)
@@ -128,6 +104,20 @@ function assign_args!(code, args)
     return vars, var_exprs
 end
 
+# fast lookup of global world age
+world_age() = ccall(:jl_get_tls_world_age, UInt, ())
+
+# slow lookup of local method age
+function method_age(f, tt)::UInt
+    for m in Base._methods(f, tt, 1, typemax(UInt))
+        return m[3].min_world
+    end
+    throw(MethodError(f, tt))
+end
+
+
+## high-level @cuda interface
+
 """
     @cuda [kwargs...] func(args...)
 
@@ -165,7 +155,7 @@ kernel to determine the launch configuration:
     args = ...
     GC.@preserve args begin
         kernel_args = cudaconvert.(args)
-        kernel = CUDAnative.compile_function(f, kernel_args; compilation_kwargs)
+        kernel = CUDAnative.cufunction(f, kernel_args; compilation_kwargs)
         kernel(kernel_args...; launch_kwargs)
     end
 """
@@ -195,7 +185,7 @@ macro cuda(ex...)
         quote
             GC.@preserve $(vars...) begin
                 $kernel_args = cudaconvert.(($(var_exprs...),))
-                $kernel = compile_function($(esc(f)), $kernel_args...;
+                $kernel = cufunction($(esc(f)), $kernel_args...;
                                            $(map(esc, compiler_kwargs)...))
                 $kernel($kernel_args...; $(map(esc, call_kwargs)...))
             end
@@ -203,10 +193,45 @@ macro cuda(ex...)
     return code
 end
 
+
+## APIs for manual compilation
+
+"""
+    cudaconvert(x)
+
+Convert values to a representation that is GPU compatible.
+
+For more information, refer to the documentation of the high-level [`@cuda`](@ref)
+interface.
+
+By default, CUDAnative does only provide a minimal set of conversions for elementary types
+such as tuples. If you need your type to convert before execution on a GPU, be sure to add
+methods to this function.
+
+For the time being, conversions for `CUDAdrv.CuArray` objects are also provided, returning a
+corresponding `CuDeviceArray` object in global memory. This will be deprecated in favor of
+functionality from the CuArrays.jl package.
+"""
+cudaconvert(x) = x
+cudaconvert(x::Tuple) = cudaconvert.(x)
+@generated function cudaconvert(x::NamedTuple)
+    Expr(:tuple, (:($f=cudaconvert(x.$f)) for f in fieldnames(x))...)
+end
+
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, Kernel}()
 
-@generated function compile_function(f::Core.Function, args...; kwargs...)
+"""
+    cufunction(f, args...; kwargs...)
+
+Compile a function invocation for the currently-active GPU, returning a callable kernel
+object.
+
+For more information, and a list of supported keyword arguments, refer to the documentation
+of the high-level [`@cuda`](@ref) interface. If you need an even lower-level interface, use
+[`compile`](@ref).
+"""
+@generated function cufunction(f::Core.Function, args...; kwargs...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
@@ -232,7 +257,7 @@ const compilecache = Dict{UInt, Kernel}()
         ctx = CuCurrentContext()
         key2 = hash(($precomp_key, age, ctx, kwargs))
         if !haskey(compilecache, key2)
-            fun, mod = cufunction(device(ctx), f, $tt; kwargs...)
+            fun, mod = compile(device(ctx), f, $tt; kwargs...)
             kernel = Kernel{f}(ctx, mod, fun)
             compilecache[key2] = kernel
         end
@@ -250,6 +275,12 @@ const compilecache = Dict{UInt, Kernel}()
     end
 end
 
+"""
+    (::kernel)(args...; kwargs...)
+
+Schedule a call to a compiled kernel, passing GPU-compatible arguments in `args`.
+This is a low-level interface, see [`@cuda`](@ref) for more information.
+"""
 @generated function (kernel::Kernel{F})(args...; call_kwargs...) where F
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
@@ -281,6 +312,8 @@ end
     end
 end
 
+
+## other
 
 """
     nearest_warpsize(dev::CuDevice, threads::Integer)

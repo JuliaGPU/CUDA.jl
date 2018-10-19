@@ -1,14 +1,19 @@
 # compiler driver and main interface
 
-export cufunction
-
 # (::CompilerContext)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
-# Main entry point for compiling a Julia function + argtypes to a callable CUDA function
-function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
+"""
+    compile(dev::CuDevice, f, tt; kwargs...)
+
+Compile a function `f` invoked with types `tt` for device `dev`, returning the compiled
+function module respectively of type `CuFuction` and `CuModule`.
+
+For a list of supported keyword arguments, refer to the documentation of [`@cuda`](@ref).
+"""
+function compile(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
-    isa(f, Core.Function) || throw(ArgumentError("Kernel argument to `cufunction` should be a function."))
+    isa(f, Core.Function) || throw(ArgumentError("Kernel argument to `compile` should be a function."))
 
     ctx = CompilerContext(f, tt, supported_capability(dev), true; kwargs...)
 
@@ -35,7 +40,6 @@ function cufunction(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs..
 end
 
 # Compile a function to PTX, returning the assembly and an entry point.
-# Not to be used directly, see `cufunction` instead.
 # FIXME: this pipeline should be partially reusable from eg. code_llvm
 #        also, does the kernel argument belong in the compiler context?
 function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)

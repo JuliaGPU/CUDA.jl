@@ -4,18 +4,6 @@
 
 dummy() = return
 
-@testset "cufunction" begin
-    @test_throws UndefVarError cufunction(exec_undefined_kernel, ())
-
-    cufunction(dev, dummy, Tuple{})
-
-    # NOTE: other cases are going to be covered by tests below,
-    #       as @cuda internally uses cufunction
-end
-
-############################################################################################
-
-
 @testset "@cuda" begin
 
 @test_throws UndefVarError @cuda undefined()
@@ -23,8 +11,9 @@ end
 
 
 @testset "low-level interface" begin
-    kernel = CUDAnative.compile_function(dummy)
-    dummy()
+    k = cufunction(dummy)
+    k()
+    k(; threads=1)
 end
 
 
