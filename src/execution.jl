@@ -35,9 +35,7 @@ function memory(k::Kernel)
     local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
     shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
     constant_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_CONST_SIZE_BYTES]
-    # NOTE: manual NamedTuple construction due to use of protected "local" name
-    fields = (Symbol("local"), Symbol("shared"), Symbol("constant"))
-    return NamedTuple{fields}((local_mem, shared_mem, constant_mem))
+    return (:local=>local_mem, shared=shared_mem, constant=constant_mem)
 end
 
 """
