@@ -161,9 +161,6 @@ const compilecache = Dict{UInt, Kernel}()
     # destructure into more appropriately-named variables
     t = args
     sig = (f, t...)
-    args = (:f, (:( args[$i] ) for i in 1:length(args))...)
-
-    # finalize types
     tt = Base.to_tuple_type(t)
 
     precomp_key = hash(sig)  # precomputable part of the keys
@@ -220,7 +217,6 @@ end
     quote
         Base.@_inline_meta
 
-        # call the kernel
         cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
