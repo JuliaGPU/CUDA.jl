@@ -96,12 +96,6 @@ High-level interface for calling functions on a GPU, queues a kernel launch on t
 context. The `@cuda` macro should prefix a kernel invocation, with one of the following
 arguments in the `kwargs` position:
 
-Affecting the kernel launch:
-- threads (defaults to 1)
-- blocks (defaults to 1)
-- shmem (defaults to 0)
-- stream (defaults to the default stream)
-
 Affecting the kernel compilation:
 - minthreads: the required number of threads in a thread block.
 - maxthreads: the maximum number of threads in a thread block.
@@ -109,6 +103,12 @@ Affecting the kernel compilation:
   multiprocessor.
 - maxregs: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
+
+Affecting the kernel launch:
+- threads (defaults to 1)
+- blocks (defaults to 1)
+- shmem (defaults to 0)
+- stream (defaults to the default stream)
 
 Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
 different compilation parameters. New code will be generated automatically.
@@ -147,8 +147,8 @@ macro cuda(ex...)
                 $cuda_args = cudaconvert.(($(var_exprs...),))
                 $kernel = compile_function($(esc(f)),
                                            $cuda_args...; $(map(esc, compiler_kwargs)...))
-                call_kernel($kernel, $(esc(f)),
-                            $cuda_args...; $(map(esc, call_kwargs)...))
+                launch_kernel($kernel, $(esc(f)),
+                              $cuda_args...; $(map(esc, call_kwargs)...))
             end
          end)
     return code
@@ -194,7 +194,7 @@ const compilecache = Dict{UInt, Kernel}()
     end
 end
 
-@generated function call_kernel(kernel, f::Core.Function, args...; call_kwargs...)
+@generated function launch_kernel(kernel, f::Core.Function, args...; call_kwargs...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
