@@ -14,6 +14,11 @@ dummy() = return
     k = cufunction(dummy)
     k()
     k(; threads=1)
+
+    CUDAnative.version(k)
+    CUDAnative.memory(k)
+    CUDAnative.registers(k)
+    CUDAnative.maxthreads(k)
 end
 
 
