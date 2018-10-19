@@ -38,6 +38,45 @@ struct Kernel{F}
     fun::CuFunction
 end
 
+"""
+    version(k::Kernel)
+
+Queries the PTX and SM versions a kernel was compiled for.
+Returns a named tuple.
+"""
+function version(k::Kernel)
+    attr = attributes(k.fun)
+    binary_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_BINARY_VERSION],10)...)
+    ptx_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_PTX_VERSION],10)...)
+    return (ptx=ptx_ver, binary=binary_ver)
+end
+
+"""
+    memory(k::Kernel)
+
+Queries the local, shared and constant memory usage of a compiled kernel in bytes.
+Returns a named tuple.
+"""
+function memory(k::Kernel)
+    attr = attributes(k.fun)
+    local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
+    shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
+    constant_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_CONST_SIZE_BYTES]
+    # NOTE: manual NamedTuple construction due to use of protected "local" name
+    fields = (Symbol("local"), Symbol("shared"), Symbol("constant"))
+    return NamedTuple{fields}((local_mem, shared_mem, constant_mem))
+end
+
+"""
+    registers(k::Kernel)
+
+Queries the register usage of a kernel.
+"""
+function registers(k::Kernel)
+    attr = attributes(k.fun)
+    return attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
+end
+
 # split keyword arguments to `@cuda` into ones affecting the compiler, or the execution
 function split_kwargs(kwargs)
     compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs]
@@ -186,6 +225,16 @@ const compilecache = Dict{UInt, Kernel}()
             compilecache[key2] = kernel
         end
         kernel = compilecache[key2]
+
+        @debug begin
+            ver = version(kernel)
+            mem = memory(kernel)
+            reg = registers(kernel)
+            """Compiled $f to PTX $(ver.ptx) for SM $(ver.binary) using $reg registers.
+               Memory usage: $(mem.local) B local, $(mem.shared) B shared, $(mem.constant) B constant"""
+        end
+
+        return kernel
     end
 end
 
