@@ -50,6 +50,16 @@ function registers(k::Kernel)
     return attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
 end
 
+"""
+    maxthreads(k::Kernel)
+
+Queries the maximum amount of threads a kernel can use in a single block.
+"""
+function maxthreads(k::Kernel)
+    attr = attributes(k.fun)
+    return attr[CUDAdrv.FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
+end
+
 
 ## helper functions
 
