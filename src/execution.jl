@@ -119,7 +119,7 @@ function assign_args!(code, args)
         push!(code.args, :($var = $(esc(arg))))
     end
 
-    # convert the arguments, call the compiler and launch the kernel
+    # convert the arguments, compile the function and call the kernel
     # while keeping the original arguments alive
     var_exprs = map(vars, args, splats) do var, arg, splat
          splat ? Expr(:(...), var) : var
@@ -131,9 +131,14 @@ end
 """
     @cuda [kwargs...] func(args...)
 
-High-level interface for calling functions on a GPU, queues a kernel launch on the current
-context. The `@cuda` macro should prefix a kernel invocation, with one of the following
-arguments in the `kwargs` position:
+High-level interface for executing code on a GPU. The `@cuda` macro should prefix a call,
+with `func` a callable function or object that should return nothing. It will be compiled to
+a CUDA function upon first use, and to a certain extent arguments will be converted and
+managed automatically (see [`cudaconvert`](@ref)). Finally, a call to `CUDAdrv.cudacall` is
+performed, scheduling a kernel launch on the current CUDA context.
+
+
+There are certain keyword arguments that influence kernel compilation and calling.
 
 Affecting the kernel compilation:
 - minthreads: the required number of threads in a thread block.
@@ -143,7 +148,7 @@ Affecting the kernel compilation:
 - maxregs: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
 
-Affecting the kernel launch:
+Affecting the kernel call:
 - threads (defaults to 1)
 - blocks (defaults to 1)
 - shmem (defaults to 0)
@@ -152,10 +157,17 @@ Affecting the kernel launch:
 Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
 different compilation parameters. New code will be generated automatically.
 
-The `func` argument should be a valid Julia function that should not return anything. It
-will be compiled to a CUDA function upon first use, and to a certain extent arguments will
-be converted and managed automatically (see [`cudaconvert`](@ref)). Finally, a call to
-`CUDAdrv.cudacall` is performed, scheduling the compiled function for execution on the GPU.
+
+The underlying operations (argument conversion, kernel compilation, kernel call) can be
+performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
+kernel to determine the launch configuration:
+
+    args = ...
+    GC.@preserve args begin
+        kernel_args = cudaconvert.(args)
+        kernel = CUDAnative.compile_function(f, kernel_args; compilation_kwargs)
+        kernel(kernel_args; launch_kwargs)
+    end
 """
 macro cuda(ex...)
     # destructure the `@cuda` expression
@@ -178,14 +190,14 @@ macro cuda(ex...)
 
     # convert the arguments, call the compiler and launch the kernel
     # while keeping the original arguments alive
-    @gensym kernel cuda_args # FIXME: why doesn't `local` work
+    @gensym kernel kernel_args # FIXME: why doesn't `local` work
     push!(code.args,
         quote
             GC.@preserve $(vars...) begin
-                $cuda_args = cudaconvert.(($(var_exprs...),))
-                $kernel = compile_function($(esc(f)), $cuda_args...;
+                $kernel_args = cudaconvert.(($(var_exprs...),))
+                $kernel = compile_function($(esc(f)), $kernel_args...;
                                            $(map(esc, compiler_kwargs)...))
-                $kernel($cuda_args...; $(map(esc, call_kwargs)...))
+                $kernel($kernel_args...; $(map(esc, call_kwargs)...))
             end
          end)
     return code
@@ -271,9 +283,9 @@ end
 
 
 """
-Return the nearest number of threads that is a multiple of the warp size of a device:
-
     nearest_warpsize(dev::CuDevice, threads::Integer)
+
+Return the nearest number of threads that is a multiple of the warp size of a device.
 
 This is a common requirement, eg. when using shuffle intrinsics.
 """
