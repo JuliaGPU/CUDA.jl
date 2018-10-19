@@ -146,11 +146,9 @@ macro cuda(ex...)
             GC.@preserve $(vars...) begin
                 $cuda_args = cudaconvert.(($(var_exprs...),))
                 $kernel = compile_function($(esc(f)),
-                                           ($(map(esc, compiler_kwargs)...),),
-                                           $cuda_args...)
+                                           $cuda_args...; $(map(esc, compiler_kwargs)...))
                 call_kernel($kernel, $(esc(f)),
-                            ($(map(esc, call_kwargs)...),),
-                            $cuda_args...)
+                            $cuda_args...; $(map(esc, call_kwargs)...))
             end
          end)
     return code
@@ -159,7 +157,7 @@ end
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, Kernel}()
 
-@generated function compile_function(f::Core.Function, compile_kwargs, args...)
+@generated function compile_function(f::Core.Function, args...; kwargs...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
@@ -186,9 +184,9 @@ const compilecache = Dict{UInt, Kernel}()
 
         # compile the function
         ctx = CuCurrentContext()
-        key2 = hash(($precomp_key, age, ctx, compile_kwargs))
+        key2 = hash(($precomp_key, age, ctx, kwargs))
         if !haskey(compilecache, key2)
-            fun, mod = cufunction(device(ctx), f, $tt; compile_kwargs...)
+            fun, mod = cufunction(device(ctx), f, $tt; kwargs...)
             kernel = Kernel(ctx, mod, fun)
             compilecache[key2] = kernel
         end
@@ -196,7 +194,7 @@ const compilecache = Dict{UInt, Kernel}()
     end
 end
 
-@generated function call_kernel(kernel, f::Core.Function, call_kwargs, args...)
+@generated function call_kernel(kernel, f::Core.Function, args...; call_kwargs...)
     # we're in a generated function, so `args` are really types.
     # destructure into more appropriately-named variables
     t = args
