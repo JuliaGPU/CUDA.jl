@@ -38,6 +38,56 @@ struct Kernel
     fun::CuFunction
 end
 
+# split keyword arguments to `@cuda` into ones affecting the compiler, or the execution
+function split_kwargs(kwargs)
+    compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs]
+    call_kws     = [:blocks, :threads, :shmem, :stream]
+    compiler_kwargs = []
+    call_kwargs = []
+    for kwarg in kwargs
+        if Meta.isexpr(kwarg, :(=))
+            key,val = kwarg.args
+            if isa(key, Symbol)
+                if key in compiler_kws
+                    push!(compiler_kwargs, kwarg)
+                elseif key in call_kws
+                    push!(call_kwargs, kwarg)
+                else
+                    throw(ArgumentError("unknown keyword argument '$key'"))
+                end
+            else
+                throw(ArgumentError("non-symbolic keyword '$key'"))
+            end
+        else
+            throw(ArgumentError("non-keyword argument like option '$kwarg'"))
+        end
+    end
+
+    return compiler_kwargs, call_kwargs
+end
+
+# assign arguments to variables, handle splatting
+function assign_args!(code, args)
+    # handle splatting
+    splats = map(arg -> Meta.isexpr(arg, :(...)), args)
+    args = map(args, splats) do arg, splat
+        splat ? arg.args[1] : arg
+    end
+
+    # assign arguments to variables
+    vars = Tuple(gensym() for arg in args)
+    map(vars, args) do var,arg
+        push!(code.args, :($var = $(esc(arg))))
+    end
+
+    # convert the arguments, call the compiler and launch the kernel
+    # while keeping the original arguments alive
+    var_exprs = map(vars, args, splats) do var, arg, splat
+         splat ? Expr(:(...), var) : var
+    end
+
+    return vars, var_exprs
+end
 
 """
     @cuda [kwargs...] func(args...)
@@ -70,60 +120,26 @@ a certain extent arguments will be converted and managed automatically (see
 function for execution on the GPU.
 """
 macro cuda(ex...)
-    # sanity checks
+    # destructure the `@cuda` expression
     if length(ex) > 0 && ex[1].head == :tuple
         error("The tuple argument to @cuda has been replaced by keywords: `@cuda threads=... fun(args...)`")
     end
     call = ex[end]
     kwargs = ex[1:end-1]
+
+    # destructure the kernel call
     if call.head != :call
         throw(ArgumentError("second argument to @cuda should be a function call"))
     end
-
-    # split keyword arguments into ones affecting the compiler, or affecting the execution
-    compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs]
-    call_kws     = [:blocks, :threads, :shmem, :stream]
-    compiler_kwargs = []
-    call_kwargs = []
-    for kwarg in kwargs
-        if Meta.isexpr(kwarg, :(=))
-            key,val = kwarg.args
-            if isa(key, Symbol)
-                if key in compiler_kws
-                    push!(compiler_kwargs, kwarg)
-                elseif key in call_kws
-                    push!(call_kwargs, kwarg)
-                else
-                    throw(ArgumentError("unknown keyword argument '$key'"))
-                end
-            else
-                throw(ArgumentError("non-symbolic keyword '$key'"))
-            end
-        else
-            throw(ArgumentError("non-keyword argument like option '$kwarg'"))
-        end
-    end
-
-    # decode the call
     f = call.args[1]
     args = call.args[2:end]
-    splats = map(arg -> Meta.isexpr(arg, :(...)), args)
-    args = map(args, splats) do arg, splat
-        splat ? arg.args[1] : arg
-    end
 
-    # assign arguments to variables
-    vars = Tuple(gensym() for arg in args)
-    code = Expr(:block)
-    map(vars, args) do var,arg
-        push!(code.args, :($var = $(esc(arg))))
-    end
+    code = quote end
+    compiler_kwargs, call_kwargs = split_kwargs(kwargs)
+    vars, var_exprs = assign_args!(code, args)
 
     # convert the arguments, call the compiler and launch the kernel
     # while keeping the original arguments alive
-    var_exprs = map(vars, args, splats) do var, arg, splat
-         splat ? Expr(:(...), var) : var
-    end
     @gensym kernel cuda_args # FIXME: why doesn't `local` work
     push!(code.args,
         quote
