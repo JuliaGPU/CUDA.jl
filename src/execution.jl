@@ -135,26 +135,9 @@ a CUDA function upon first use, and to a certain extent arguments will be conver
 managed automatically (see [`cudaconvert`](@ref)). Finally, a call to `CUDAdrv.cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
-
-There are certain keyword arguments that influence kernel compilation and calling.
-
-Affecting the kernel compilation:
-- minthreads: the required number of threads in a thread block.
-- maxthreads: the maximum number of threads in a thread block.
-- blocks_per_sm: a minimum number of thread blocks to be scheduled on a single
-  multiprocessor.
-- maxregs: the maximum number of registers to be allocated to a single thread (only
-  supported on LLVM 4.0+)
-
-Affecting the kernel call:
-- threads (defaults to 1)
-- blocks (defaults to 1)
-- shmem (defaults to 0)
-- stream (defaults to the default stream)
-
-Note that, contrary to with CUDA C, you can invoke the same kernel multiple times with
-different compilation parameters. New code will be generated automatically.
-
+Several keyword arguments are supported that influence kernel compilation and execution. For
+more information, refer to the documentation of respectively [`cufunction`](@ref) and
+[`CUDAnative.Kernel`](@ref)
 
 The underlying operations (argument conversion, kernel compilation, kernel call) can be
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
@@ -208,10 +191,8 @@ end
 """
     cudaconvert(x)
 
-Convert values to a representation that is GPU compatible.
-
-For more information, refer to the documentation of the high-level [`@cuda`](@ref)
-interface.
+Low-level interface to convert values to a representation that is GPU compatible.
+For a higher-level interface, use [`@cuda`](@ref).
 
 By default, CUDAnative does only provide a minimal set of conversions for elementary types
 such as tuples. If you need your type to convert before execution on a GPU, be sure to add
@@ -233,12 +214,20 @@ const compilecache = Dict{UInt, Kernel}()
 """
     cufunction(f, tt=Tuple{}; kwargs...)
 
-Compile a function invocation for the currently-active GPU, returning a callable kernel
-object.
+Low-level interface to compile a function invocation for the currently-active GPU, returning
+a callable kernel object. For a higher-level interface, use [`@cuda`](@ref).
 
-For more information, and a list of supported keyword arguments, refer to the documentation
-of the high-level [`@cuda`](@ref) interface. If you need an even lower-level interface, use
-[`compile`](@ref).
+The following keyword arguments are supported:
+- minthreads: the required number of threads in a thread block.
+- maxthreads: the maximum number of threads in a thread block.
+- blocks_per_sm: a minimum number of thread blocks to be scheduled on a single
+  multiprocessor.
+- maxregs: the maximum number of registers to be allocated to a single thread (only
+  supported on LLVM 4.0+)
+
+The output of this function is automatically cached, i.e. you can simply call `cufunction`
+in a hot path without degrading performance. New code will be generated automatically, when
+when function changes, or when different types or keyword arguments are provided.
 """
 @generated function cufunction(f::Core.Function, tt::Type=Tuple{}; kwargs...)
     tt = Base.to_tuple_type(tt.parameters[1])
@@ -285,8 +274,14 @@ end
 """
     (::kernel)(args...; kwargs...)
 
-Schedule a call to a compiled kernel, passing GPU-compatible arguments in `args`.
-This is a low-level interface, see [`@cuda`](@ref) for more information.
+Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
+For a higher-level interface, use [`@cuda`](@ref).
+
+The following keyword arguments are supported:
+- threads (defaults to 1)
+- blocks (defaults to 1)
+- shmem (defaults to 0)
+- stream (defaults to the default stream)
 """
 @generated function (kernel::Kernel{F})(args...; call_kwargs...) where F
     # we're in a generated function, so `args` are really types.
