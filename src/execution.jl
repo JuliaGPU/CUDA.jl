@@ -264,7 +264,7 @@ when function changes, or when different types or keyword arguments are provided
             mem = memory(kernel)
             reg = registers(kernel)
             """Compiled $f to PTX $(ver.ptx) for SM $(ver.binary) using $reg registers.
-               Memory usage: $(mem.local) B local, $(mem.shared) B shared, $(mem.constant) B constant"""
+               Memory usage: $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, $(Base.format_bytes(mem.constant)) constant"""
         end
 
         return kernel
