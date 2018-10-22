@@ -272,7 +272,7 @@ when function changes, or when different types or keyword arguments are provided
 end
 
 """
-    (::kernel)(args...; kwargs...)
+    (::Kernel)(args...; kwargs...)
 
 Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
 For a higher-level interface, use [`@cuda`](@ref).
@@ -296,7 +296,7 @@ The following keyword arguments are supported:
     # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
     for (i,dt) in enumerate(call_t)
         if !isbitstype(dt)
-            call_t[i] = Ptr{Cvoid}
+            call_t[i] = Ptr{Any}
             call_args[i] = :C_NULL
         end
     end
