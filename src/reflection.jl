@@ -72,7 +72,7 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
     code_ptx(io, ctx)
 end
 function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
-    ptx,_ = compile_function(ctx; strip_ir_metadata=strip_ir_metadata)
+    ptx,_ = compile(ctx; strip_ir_metadata=strip_ir_metadata)
     # TODO: this code contains all the functions in the call chain,
     #       is it possible to implement `dump_module`?
     print(io, ptx)
@@ -106,7 +106,7 @@ function code_sass(io::IO, ctx::CompilerContext)
         error("Your CUDA installation does not provide ptxas or cuobjdump, both of which are required for code_sass")
     end
 
-    ptx,_ = compile_function(ctx)
+    ptx,_ = compile(ctx)
 
     fn = tempname()
     gpu = "sm_$(ctx.cap.major)$(ctx.cap.minor)"
