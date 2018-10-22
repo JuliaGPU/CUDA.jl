@@ -163,7 +163,8 @@ kernel to determine the launch configuration:
     args = ...
     GC.@preserve args begin
         kernel_args = cudaconvert.(args)
-        kernel = CUDAnative.cufunction(f, kernel_args; compilation_kwargs)
+        kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
+        kernel = CUDAnative.cufunction(f, kernel_tt; compilation_kwargs)
         kernel(kernel_args...; launch_kwargs)
     end
 """
@@ -188,13 +189,13 @@ macro cuda(ex...)
 
     # convert the arguments, call the compiler and launch the kernel
     # while keeping the original arguments alive
-    @gensym kernel kernel_args # FIXME: why doesn't `local` work
+    @gensym kernel kernel_args kernel_tt # FIXME: why doesn't `local` work
     push!(code.args,
         quote
             GC.@preserve $(vars...) begin
                 $kernel_args = cudaconvert.(($(var_exprs...),))
-                $kernel = cufunction($(esc(f)), $kernel_args...;
-                                           $(map(esc, compiler_kwargs)...))
+                $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
+                $kernel = cufunction($(esc(f)), $kernel_tt; $(map(esc, compiler_kwargs)...))
                 $kernel($kernel_args...; $(map(esc, call_kwargs)...))
             end
          end)
@@ -230,7 +231,7 @@ const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, Kernel}()
 
 """
-    cufunction(f, args...; kwargs...)
+    cufunction(f, tt=Tuple{}; kwargs...)
 
 Compile a function invocation for the currently-active GPU, returning a callable kernel
 object.
@@ -239,12 +240,10 @@ For more information, and a list of supported keyword arguments, refer to the do
 of the high-level [`@cuda`](@ref) interface. If you need an even lower-level interface, use
 [`compile`](@ref).
 """
-@generated function cufunction(f::Core.Function, args...; kwargs...)
-    # we're in a generated function, so `args` are really types.
-    # destructure into more appropriately-named variables
-    t = args
-    sig = (f, t...)
-    tt = Base.to_tuple_type(t)
+@generated function cufunction(f::Core.Function, tt::Type=Tuple{}; kwargs...)
+    tt = Base.to_tuple_type(tt.parameters[1])
+    sig = Base.signature_type(f, tt)
+    t = Tuple(tt.parameters)
 
     precomp_key = hash(sig)  # precomputable part of the keys
     quote
