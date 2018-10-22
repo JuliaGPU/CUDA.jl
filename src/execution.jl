@@ -5,7 +5,7 @@ export @cuda, cudaconvert, cufunction, nearest_warpsize
 
 ## kernel object and query functions
 
-struct Kernel{F}
+struct Kernel{F,TT}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
@@ -238,7 +238,7 @@ when function changes, or when different types or keyword arguments are provided
     quote
         Base.@_inline_meta
 
-        CUDAnative.maybe_initialize("@cuda")
+        CUDAnative.maybe_initialize("cufunction")
 
         # look-up the method age
         key1 = hash(($precomp_key, world_age()))
@@ -253,8 +253,8 @@ when function changes, or when different types or keyword arguments are provided
         ctx = CuCurrentContext()
         key2 = hash(($precomp_key, age, ctx, kwargs))
         if !haskey(compilecache, key2)
-            fun, mod = compile(device(ctx), f, $tt; kwargs...)
-            kernel = Kernel{f}(ctx, mod, fun)
+            fun, mod = compile(device(ctx), f, tt; kwargs...)
+            kernel = Kernel{f,tt}(ctx, mod, fun)
             compilecache[key2] = kernel
         end
         kernel = compilecache[key2]
@@ -283,17 +283,14 @@ The following keyword arguments are supported:
 - shmem (defaults to 0)
 - stream (defaults to the default stream)
 """
-@generated function (kernel::Kernel{F})(args...; call_kwargs...) where F
-    # we're in a generated function, so `args` are really types.
-    # destructure into more appropriately-named variables
-    t = args
-    sig = (typeof(F), t...)
+@generated function (kernel::Kernel{F,TT})(args...; call_kwargs...) where {F,TT}
+    sig = Base.signature_type(F, TT)
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out ghost arguments that shouldn't be passed
-    to_pass = map(!isghosttype, sig)
-    call_t =                  Type[x[1] for x in zip(sig,  to_pass) if x[2]]
-    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass) if x[2]]
+    to_pass = map(!isghosttype, sig.parameters)
+    call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
+    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
 
     # replace non-isbits arguments (they should be unused, or compilation would have failed)
     # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
