@@ -22,7 +22,7 @@ documentation:
   image: juliagpu/julia:v1.0-cuda
   variables:
     DOCUMENTER_DEBUG: "true"
-    TRAVIS_REPO_SLUG: "github.com/JuliaGPU/CUDAnative.jl.git"
+    TRAVIS_REPO_SLUG: "JuliaGPU/CUDAnative.jl"
     TRAVIS_BRANCH: $CI_COMMIT_REF_NAME
     TRAVIS_TAG: $CI_COMMIT_TAG
   dependencies:
