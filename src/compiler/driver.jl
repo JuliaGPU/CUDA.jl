@@ -9,7 +9,8 @@ const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 Compile a function `f` invoked with types `tt` for device `dev`, returning the compiled
 function module respectively of type `CuFuction` and `CuModule`.
 
-For a list of supported keyword arguments, refer to the documentation of [`@cuda`](@ref).
+For a list of supported keyword arguments, refer to the documentation of
+[`cufunction`](@ref).
 """
 function compile(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
