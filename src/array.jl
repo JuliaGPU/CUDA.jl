@@ -134,7 +134,9 @@ function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) whe
     CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr+a.offset))
 end
 
-cudaconvert(a::CuArray{T,N}) where {T,N} = convert(CuDeviceArray{T,N,AS.Global}, a)
+Adapt.adapt_storage(::CUDAnative.Adaptor, xs::CuArray{T,N}) where {T,N} =
+  convert(CuDeviceArray{T,N,AS.Global}, xs)
+
 
 # Utils
 
@@ -147,17 +149,10 @@ Base.print_array(io::IO, x::CuArray) = Base.print_array(io, collect(x))
 Base.print_array(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.adjoint(collect(x.parent)))
 Base.print_array(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.transpose(collect(x.parent)))
 
-import Adapt: adapt, adapt_
+Adapt.adapt_storage(::CuArray, xs::AbstractArray) = convert(CuArray, xs)
+Adapt.adapt_storage(::CuArray{T}, xs::AbstractArray{<:Real}) where T <: AbstractFloat = convert(CuArray{T}, xs)
+cu(xs) = adapt(CuArray{Float32}(), xs)
 
-adapt_(::Type{<:CuArray}, xs::AbstractArray) =
-  isbits(xs) ? xs : convert(CuArray, xs)
-
-adapt_(::Type{<:CuArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
-  isbits(xs) ? xs : convert(CuArray{T}, xs)
-
-adapt_(::Type{<:Array}, xs::CuArray) = collect(xs)
-
-cu(xs) = adapt(CuArray{Float32}, xs)
 
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
