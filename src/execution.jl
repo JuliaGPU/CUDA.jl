@@ -1,6 +1,6 @@
 # Native execution support
 
-export @cuda, cudaconvert, cufunction, nearest_warpsize
+export @cuda, cufunction, nearest_warpsize
 
 
 ## kernel object and query functions
@@ -124,6 +124,16 @@ function method_age(f, tt)::UInt
 end
 
 
+## adaptors
+
+# Base.RefValue isn't GPU compatible, so provide a compatible alternative
+struct CuRefValue{T} <: Ref{T}
+  x::T
+end
+Base.getindex(r::CuRefValue) = r.x
+Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+
+
 ## high-level @cuda interface
 
 """
@@ -132,8 +142,8 @@ end
 High-level interface for executing code on a GPU. The `@cuda` macro should prefix a call,
 with `func` a callable function or object that should return nothing. It will be compiled to
 a CUDA function upon first use, and to a certain extent arguments will be converted and
-managed automatically (see [`cudaconvert`](@ref)). Finally, a call to `CUDAdrv.cudacall` is
-performed, scheduling a kernel launch on the current CUDA context.
+managed automatically using Adapt.jl. Finally, a call to `CUDAdrv.cudacall` is performed,
+scheduling a kernel launch on the current CUDA context.
 
 Several keyword arguments are supported that influence kernel compilation and execution. For
 more information, refer to the documentation of respectively [`cufunction`](@ref) and
@@ -143,9 +153,11 @@ The underlying operations (argument conversion, kernel compilation, kernel call)
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
 kernel to determine the launch configuration:
 
+    using Adapt
+
     args = ...
     GC.@preserve args begin
-        kernel_args = cudaconvert.(args)
+        kernel_args = Tuple(adapt(CUDAnative.Adaptor(), arg) for arg in kernel_args)
         kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
         kernel = CUDAnative.cufunction(f, kernel_tt; compilation_kwargs)
         kernel(kernel_args...; launch_kwargs)
@@ -176,7 +188,7 @@ macro cuda(ex...)
     push!(code.args,
         quote
             GC.@preserve $(vars...) begin
-                $kernel_args = cudaconvert.(($(var_exprs...),))
+                $kernel_args = Tuple(adapt(Adaptor(), var) for var in ($(var_exprs...),))
                 $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
                 $kernel = cufunction($(esc(f)), $kernel_tt; $(map(esc, compiler_kwargs)...))
                 $kernel($kernel_args...; $(map(esc, call_kwargs)...))
@@ -187,26 +199,6 @@ end
 
 
 ## APIs for manual compilation
-
-"""
-    cudaconvert(x)
-
-Low-level interface to convert values to a representation that is GPU compatible.
-For a higher-level interface, use [`@cuda`](@ref).
-
-By default, CUDAnative does only provide a minimal set of conversions for elementary types
-such as tuples. If you need your type to convert before execution on a GPU, be sure to add
-methods to this function.
-
-For the time being, conversions for `CUDAdrv.CuArray` objects are also provided, returning a
-corresponding `CuDeviceArray` object in global memory. This will be deprecated in favor of
-functionality from the CuArrays.jl package.
-"""
-cudaconvert(x) = x
-cudaconvert(x::Tuple) = cudaconvert.(x)
-@generated function cudaconvert(x::NamedTuple)
-    Expr(:tuple, (:($f=cudaconvert(x.$f)) for f in fieldnames(x))...)
-end
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, Kernel}()

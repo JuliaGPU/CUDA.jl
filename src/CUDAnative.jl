@@ -5,6 +5,9 @@ using CUDAdrv
 using LLVM
 using LLVM.Interop
 
+using Adapt
+struct Adaptor end
+
 using Pkg
 using Libdl
 
