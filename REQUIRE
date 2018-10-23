@@ -1,10 +1,10 @@
-julia 0.7
-CUDAnative 0.8
+julia 1.0
+CUDAnative 0.10
 CUDAdrv 0.8
 CUDAapi 0.4.1
 NNlib
 GPUArrays 0.4.2
-Adapt
+Adapt 0.4
 AbstractFFTs
 MacroTools
 ForwardDiff
