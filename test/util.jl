@@ -100,7 +100,8 @@ function Base.Array(src::CuTestArray{T,N}) where {T,N}
     return dst
 end
 ## conversions
-function CUDAnative.cudaconvert(a::CuTestArray{T,N}) where {T,N}
+using Adapt
+function Adapt.adapt_storage(::CUDAnative.Adaptor, a::CuTestArray{T,N}) where {T,N}
     ptr = Base.unsafe_convert(Ptr{T}, a.buf)
     devptr = CUDAnative.DevicePtr{T,AS.Global}(ptr)
     CuDeviceArray{T,N,AS.Global}(a.shape, devptr)
