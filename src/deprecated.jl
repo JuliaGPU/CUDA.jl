@@ -8,3 +8,5 @@ macro profile(ex)
         end
     end 
 end
+
+@deprecate cudaconvert(x) adapt(CUDAnative.Adaptor, x)
