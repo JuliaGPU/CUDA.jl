@@ -1,5 +1,6 @@
 const GLOBAL_RNG = Ref{RNG}()
 function global_rng()
+    # create the CURAND generator lazily, because it consumes quite a bit of GPU memory
     if !isassigned(GLOBAL_RNG)
         GLOBAL_RNG[] = create_generator()
     end
