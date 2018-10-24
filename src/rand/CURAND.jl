@@ -1,21 +1,18 @@
 module CURAND
 
-export curand,
-       curandn,
-       curand_logn,
-       curand_poisson
-
+using ..GPUArrays
 using ..CuArrays: CuArray, libcurand
 
-include("defs.jl")
+using Random
+
+export curand,
+       curandn,
+       curand_logn, rand_logn!,
+       curand_poisson, rand_poisson!
+
+include("libcurand_defs.jl")
 include("error.jl")
-include("wrappers.jl")
+include("libcurand.jl")
 include("highlevel.jl")
-
-const _rng = Ref{RNG}()
-
-function __init__()
-    _rng[] = create_generator()
-end
 
 end # module
