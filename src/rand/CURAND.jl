@@ -4,10 +4,10 @@ using ..CuArrays: CuArray, libcurand
 
 using Random
 
-export curand,
-       curandn,
-       curand_logn,
-       curand_poisson
+export curand, curand!,
+       curandn, curandn!,
+       curand_logn, curand_logn!,
+       curand_poisson, curand_poisson!
 
 include("libcurand_defs.jl")
 include("error.jl")
