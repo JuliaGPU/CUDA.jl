@@ -7,6 +7,11 @@ function global_rng()
 end
 
 
+# seeding
+
+seed!(rng::RNG=global_rng()) = generate_seeds(rng)
+
+
 # in-place
 
 """Populate an array with uniformly distributed numbers"""
