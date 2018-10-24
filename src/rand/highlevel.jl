@@ -6,6 +6,9 @@ function global_rng()
     GLOBAL_RNG[]
 end
 
+
+# out of place
+
 """Generate uniformly distributed numbers"""
 curand(args...; kwargs...)  = rand(global_rng(), args...; kwargs...)
 
@@ -63,3 +66,37 @@ rand_poisson(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) wh
     rand_poisson(rng, X, Dims((dim1, dims...)); kwargs...)
 ## typeless (prefer Cuint)
 rand_poisson(rng::RNG, dims...; kwargs...) = rand_poisson(rng, Cuint, dims...; kwargs...)
+
+
+# in-place
+
+"""Generate uniformly distributed numbers"""
+curand!(args...; kwargs...)  = rand!(global_rng(), args...; kwargs...)
+
+"""Generate normally distributed numbers"""
+curandn!(args...; kwargs...) = randn!(global_rng(), args...; kwargs...)
+
+"""Generate log-normally distributed numbers"""
+curand_logn!(args...; kwargs...) = rand_logn!(global_rng(), args...; kwargs...)
+
+"""Generate Poisson distributed numbers"""
+curand_poisson!(args...; kwargs...) = rand_poisson!(global_rng(), args...; kwargs...)
+
+# uniform
+Random.rand!(rng::RNG, A::CuArray{Float32}) = generate_uniform(rng, A)
+Random.rand!(rng::RNG, A::CuArray{Float64}) = generate_uniform_double(rng, A)
+
+# normal
+Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = generate_normal(rng, A, mean, stddev)
+Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = generate_normal_double(rng, A, mean, stddev)
+
+# log-normal
+rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = generate_log_normal(rng, A, mean, stddev)
+rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = generate_log_normal_double(rng, A, mean, stddev)
+
+# log-normal
+rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1) = generate_poisson(rng, A, lambda)
+
+# high-performance alternatives for commonly-used functions
+Random.rand!(A::CuArray) = curand!(A)
+Random.randn!(A::CuArray) = curandn!(A)
