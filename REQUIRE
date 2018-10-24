@@ -3,7 +3,7 @@ CUDAnative 0.10
 CUDAdrv 0.8
 CUDAapi 0.4.1
 NNlib
-GPUArrays 0.4.3
+GPUArrays 0.5
 Adapt 0.4
 AbstractFFTs
 MacroTools
