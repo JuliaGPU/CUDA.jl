@@ -7,6 +7,12 @@ function global_rng()
     GLOBAL_RNG[]
 end
 
+# the CURAND RNG can only handle Float32 and Float64 (it actually differs between calls,
+# eg. Poisson is Cuint but CURAND-specific so no fallback needed)
+const CURANDFloat = Union{Float32,Float64}
+array_rng(A::CuArray{<:CURANDFloat}) = global_rng()
+array_rng(A::CuArray) = GPUArrays.global_rng(A)
+
 
 # seeding
 
@@ -16,16 +22,20 @@ seed!(rng::RNG=global_rng()) = generate_seeds(rng)
 # in-place
 
 """Populate an array with uniformly distributed numbers"""
-curand!(args...; kwargs...)  = rand!(global_rng(), args...; kwargs...)
+curand!(A::CuArray; kwargs...) = rand!(array_rng(A), A; kwargs...)
 
 """Populate an array with normally distributed numbers"""
-curandn!(args...; kwargs...) = randn!(global_rng(), args...; kwargs...)
+curandn!(A::CuArray; kwargs...) = randn!(array_rng(A), A; kwargs...)
 
 """Populate an array with log-normally distributed numbers"""
 curand_logn!(args...; kwargs...) = rand_logn!(global_rng(), args...; kwargs...)
 
 """Populate an array with Poisson distributed numbers"""
 curand_poisson!(args...; kwargs...) = rand_poisson!(global_rng(), args...; kwargs...)
+
+# high-performance alternatives for commonly-used functions
+Random.rand!(A::CuArray{<:CURANDFloat}) = curand!(A)
+Random.randn!(A::CuArray{<:CURANDFloat}) = curandn!(A)
 
 # uniform
 Random.rand!(rng::RNG, A::CuArray{Float32}) = generate_uniform(rng, A)
@@ -41,10 +51,6 @@ rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = generate_log_norma
 
 # log-normal
 rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1) = generate_poisson(rng, A, lambda)
-
-# high-performance alternatives for commonly-used functions
-Random.rand!(A::CuArray) = curand!(A)
-Random.randn!(A::CuArray) = curandn!(A)
 
 
 # out of place
