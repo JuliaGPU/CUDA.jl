@@ -5,10 +5,10 @@ using CuArrays.CURAND
 CURAND.seed!()
 
 # in-place
-for (f,T) in ((rand!,Float32), (curand!,Float32),
-              (randn!,Float32), (curandn!,Float32),
-              (curand_logn!,Float32),
-              (curand_poisson!,Cuint)),
+for (f,T) in ((rand!,Float32),
+              (randn!,Float32),
+              (rand_logn!,Float32),
+              (rand_poisson!,Cuint)),
     d in (2, (2,2), (2,2,2))
     A = CuArray{T}(d)
     f(A)
@@ -29,6 +29,18 @@ for (f,T) in ((curand,Float32), (curandn,Float32), (curand_logn,Float32),
     args in ((T, 2), (T, 2, 2), (T, (2, 2)))
     A = f(args...)
     @test eltype(A) == T
+end
+
+# unsupported types that fall back to GPUArrays
+for (f,T) in ((curand,Int64),),
+    args in ((T, 2), (T, 2, 2), (T, (2, 2)))
+    A = f(args...)
+    @test eltype(A) == T
+end
+for (f,T) in ((rand!,Int64),),
+    d in (2, (2,2), (2,2,2))
+    A = CuArray{T}(d)
+    f(A)
 end
 
 end

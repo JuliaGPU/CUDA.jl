@@ -1,13 +1,14 @@
 module CURAND
 
+using ..GPUArrays
 using ..CuArrays: CuArray, libcurand
 
 using Random
 
-export curand, curand!,
-       curandn, curandn!,
-       curand_logn, curand_logn!,
-       curand_poisson, curand_poisson!
+export curand,
+       curandn,
+       curand_logn, rand_logn!,
+       curand_poisson, rand_poisson!
 
 include("libcurand_defs.jl")
 include("error.jl")
