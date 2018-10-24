@@ -46,12 +46,10 @@ end
 """
 Generate 64-bit quasirandom numbers.
 """
-function generate(rng::RNG, n::UInt)
-    sz = Int(n)
-    arr = CuArray{UInt32}(sz)
+function generate(rng::RNG, arr::CuArray, n::UInt)
     @check ccall((:curandGenerate, libcurand),
                  curandStatus_t, (curandGenerator_t, Ptr{UInt32}, Csize_t),
-                 rng, arr, n)
+                 rng, arr, length(arr))
     return arr
 end
 
@@ -63,74 +61,60 @@ Valid RNG types are:
  - CURAND_RNG_QUASI_SOBOL64
  - CURAND_RNG_QUASI_SCRAMBLED_SOBOL64
 """
-function generate_long_long(rng::RNG, n)
-    sz = Int(n)
-    arr = CuArray{UInt64}(sz)
+function generate_long_long(rng::RNG, arr::CuArray)
     @check ccall((:curandGenerateLongLong, libcurand),
                  curandStatus_t, (curandGenerator_t, Ptr{Culonglong}, Csize_t),
-                 rng, arr, n)
+                 rng, arr, length(arr))
     return arr
 end
 
 # uniform
-function generate_uniform(rng::RNG, n)
-    sz = Int(n)
-    arr = CuArray{Float32}(sz)
+function generate_uniform(rng::RNG, arr::CuArray)
     @check ccall((:curandGenerateUniform, libcurand),
                  curandStatus_t, (curandGenerator_t, Ptr{Float32}, Csize_t),
-                 rng, arr, n)
+                 rng, arr, length(arr))
     return arr
 end
 
-function generate_uniform_double(rng::RNG, n)
-    sz = Int(n)
-    arr = CuArray{Float64}(sz)
+function generate_uniform_double(rng::RNG, arr::CuArray)
     @check ccall((:curandGenerateUniformDouble, libcurand),
                  curandStatus_t, (curandGenerator_t, Ptr{Float64}, Csize_t),
-                 rng, arr, n)
+                 rng, arr, length(arr))
     return arr
 end
 
 # normal
-function generate_normal(rng::RNG, n, mean, stddev)
-    sz = Int(n)
-    arr = CuArray{Cfloat}(sz)
+function generate_normal(rng::RNG, arr::CuArray, mean, stddev)
     @check ccall((:curandGenerateNormal, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, Ptr{Cfloat}, Csize_t, Cfloat, Cfloat),
-                 rng, arr, n, mean, stddev)
+                 rng, arr, length(arr), mean, stddev)
     return arr
 end
 
-function generate_normal_double(rng::RNG, n, mean, stddev)
-    sz = Int(n)
-    arr = CuArray{Cdouble}(sz)
+function generate_normal_double(rng::RNG, arr::CuArray, mean, stddev)
     @check ccall((:curandGenerateNormalDouble, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, Ptr{Cdouble}, Csize_t, Cdouble, Cdouble),
-                 rng, arr, n, mean, stddev)
+                 rng, arr, length(arr), mean, stddev)
     return arr
 end
 
 
 # lognormal
-function generate_log_normal(rng::RNG, n, mean, stddev)
-    sz = Int(n)
-    arr = CuArray{Cfloat}(sz)
+function generate_log_normal(rng::RNG, arr::CuArray, mean, stddev)
     @check ccall((:curandGenerateLogNormal, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, Ptr{Cfloat}, Csize_t, Cfloat, Cfloat),
-                 rng, arr, n, mean, stddev)
+                 rng, arr, length(arr), mean, stddev)
     return arr
 end
 
-function generate_log_normal_double(rng::RNG, n, mean, stddev)
-    sz = Int(n)
-    arr = CuArray{Cdouble}(sz)
+function generate_log_normal_double(rng::RNG, arr::CuArray, mean, stddev)
     @check ccall((:curandGenerateLogNormalDouble, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, Ptr{Cdouble}, Csize_t, Cdouble, Cdouble),
-                 rng, arr, n, mean, stddev)
+                 rng, arr, length(arr), mean, stddev)
     return arr
 end
 
@@ -139,24 +123,28 @@ end
 function create_poisson_distribtion(lambda)
     ptr = Ref{curandDiscreteDistribution_t}()
     @check ccall((:curandCreatePoissonDistribution, libcurand),
-                 curandStatus_t, (Cdouble, Ptr{Nothing}), lambda, ptr)
-    return DiscreteDistribution(ptr[])
+                 curandStatus_t,
+                 (Cdouble, Ptr{curandDiscreteDistribution_t}),
+                 lambda, ptr)
+    dist = DiscreteDistribution(ptr[])
+    finalizer(destroy_distribution, dist)
+    return dist
 end
 
 """Destroy the histogram array for a discrete distribution (e.g. Poisson)."""
 function destroy_distribution(dist::DiscreteDistribution)
     @check ccall((:curandDestroyDistribution, libcurand),
-                 curandStatus_t, (curandDiscreteDistribution_t,), dist)
+                 curandStatus_t,
+                 (curandDiscreteDistribution_t,),
+                 dist)
 end
 
 """Generate Poisson-distributed unsigned ints."""
-function generate_poisson(rng::RNG, n, lambda)
-    sz = Int(n)
-    arr = CuArray{Cuint}(sz)
+function generate_poisson(rng::RNG, arr::CuArray, lambda)
     @check ccall((:curandGeneratePoisson, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, Ptr{Cuint}, Csize_t, Cdouble),
-                 rng, arr, n, lambda)
+                 rng, arr, length(arr), lambda)
     return arr
 end
 

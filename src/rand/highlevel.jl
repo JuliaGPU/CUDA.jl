@@ -20,32 +20,46 @@ curand_poisson(args...; kwargs...) = rand_poisson(global_rng(), args...; kwargs.
 
 
 # uniform
-Random.rand(rng::RNG, ::Type{Float32}, dims::Dims) = generate_uniform(rng, prod(dims))
-Random.rand(rng::RNG, ::Type{Float64}, dims::Dims) = generate_uniform_double(rng, prod(dims))
-
+Random.rand(rng::RNG, ::Type{Float32}, dims::Dims) =
+    generate_uniform(rng, CuArray{Float32}(dims))
+Random.rand(rng::RNG, ::Type{Float64}, dims::Dims) =
+    generate_uniform_double(rng, CuArray{Float64}(dims))
+## typeless (prefer Float32)
+Random.rand(rng::RNG, dims::Integer...; kwargs...) = rand(rng, Float32, dims...; kwargs...)
 
 # normal
 Random.randn(rng::RNG, ::Type{Float32}, dims::Dims; mean=0, stddev=1) =
-    generate_normal(rng, prod(dims), mean, stddev)
+    generate_normal(rng, CuArray{Float32}(dims), mean, stddev)
 Random.randn(rng::RNG, ::Type{Float64}, dims::Dims; mean=0, stddev=1) =
-    generate_normal_double(rng, prod(dims), mean, stddev)
-## Base interface
-Random.randn(rng::RNG, T::Type, dims::Dims; kwargs...) = randn(rng, T, dims; kwargs...)
-Random.randn(rng::RNG, T::Type, dim1::Integer, dims::Integer...; kwargs...) =
-    randn(rng, T, Dims((dim1, dims...)); kwargs...)
+    generate_normal_double(rng, CuArray{Float64}(dims), mean, stddev)
+## convenience
+Random.randn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
+    randn(rng, X, dims; kwargs...)
+Random.randn(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    randn(rng, X, Dims((dim1, dims...)); kwargs...)
+## typeless (prefer Float32)
+Random.randn(rng::RNG, dims::Integer...; kwargs...) = randn(rng, Float32, dims...; kwargs...)
 
 # log-normal
-rand_logn(rng::RNG, ::Type{Float32}, dims::Dims, mean, stddev) =
-    generate_log_normal(rng, prod(dims), mean, stddev)
-rand_logn(rng::RNG, ::Type{Float64}, dims::Dims, mean, stddev) =
-    generate_log_normal_double(rng, prod(dims), mean, stddev)
-## Base-like typeless invocation
-randn_logn(rng::RNG, dims::Dims, mean, stddev) =
-    randn_logn(rng, Float64, n, mean, stddev)
+rand_logn(rng::RNG, ::Type{Float32}, dims::Dims; mean=0, stddev=1) =
+    generate_log_normal(rng, CuArray{Float32}(dims), mean, stddev)
+rand_logn(rng::RNG, ::Type{Float64}, dims::Dims; mean=0, stddev=1) =
+    generate_log_normal_double(rng, CuArray{Float64}(dims), mean, stddev)
+## convenience
+rand_logn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
+    rand_logn(rng, X, dims; kwargs...)
+rand_logn(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    rand_logn(rng, X, Dims((dim1, dims...)); kwargs...)
+## typeless (prefer Float32)
+rand_logn(rng::RNG, dims...; kwargs...) = rand_logn(rng, Float32, dims...; kwargs...)
 
 # poisson
 rand_poisson(rng::RNG, ::Type{Cuint}, dims::Dims; lambda=1) =
-    generate_poisson(rng, prod(dims), lambda)
-## Base-like typeless invocation
-rand_poisson(rng::RNG, dims::Integer...; kwargs...) =
-    rand_poisson(rng, Cuint, dims; kwargs...)
+    generate_poisson(rng, CuArray{Cuint}(dims), lambda)
+## convenience
+rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
+    rand_poisson(rng, X, dims; kwargs...)
+rand_poisson(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    rand_poisson(rng, X, Dims((dim1, dims...)); kwargs...)
+## typeless (prefer Cuint)
+rand_poisson(rng::RNG, dims...; kwargs...) = rand_poisson(rng, Cuint, dims...; kwargs...)
