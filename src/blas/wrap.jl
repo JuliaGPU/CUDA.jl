@@ -1335,7 +1335,7 @@ for (mmname, smname, elty) in
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
-            if mA != nA throw(DimensionMistmatch("A must be square")) end
+            if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trmm!")) end
             mC, nC = size(C)
             if mC != m || nC != n throw(DimensionMismatch("trmm!")) end
@@ -1382,7 +1382,7 @@ for (mmname, smname, elty) in
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
-            if mA != nA throw(DimensionMistmatch("A must be square")) end
+            if mA != nA throw(DimensionMismatch("A must be square")) end
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
@@ -1439,7 +1439,7 @@ for (fname, elty) in
             for (As,Bs) in zip(A,B)
                 mA, nA = size(As)
                 m,n = size(Bs)
-                if mA != nA throw(DimensionMistmatch("A must be square")) end
+                if mA != nA throw(DimensionMismatch("A must be square")) end
                 if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm_batched!")) end
             end
             m,n = size(B[1])
