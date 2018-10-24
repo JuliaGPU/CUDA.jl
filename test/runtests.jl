@@ -1,3 +1,16 @@
+# CuArrays development often happens in lockstep with GPUArrays, so try to match branches
+if haskey(ENV, "GITLAB_CI")
+  using Pkg
+  try
+    branch = ENV["CI_COMMIT_REF_NAME"]
+    Pkg.add(PackageSpec(name="GPUArrays", rev=String(branch)))
+    @info "Installed GPUArrays from $branch branch"
+  catch ex
+    @warn "Could not install GPUArrays from same branch as CuArrays, trying master branch" exception=ex
+    Pkg.add(PackageSpec(name="GPUArrays", rev="master"))
+  end
+end
+
 using CuArrays
 
 using CUDAnative
