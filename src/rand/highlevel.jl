@@ -62,38 +62,29 @@ curand_logn(args...; kwargs...) = rand_logn(global_rng(), args...; kwargs...)
 curand_poisson(args...; kwargs...) = rand_poisson(global_rng(), args...; kwargs...)
 
 # uniform
-Random.rand(rng::RNG, ::Type{Float32}, dims::Dims) = randn!(rng, CuArray{Float32}(dims))
-Random.rand(rng::RNG, ::Type{Float64}, dims::Dims) = randn!(rng, CuArray{Float64}(dims))
+Random.rand(rng::RNG, ::Type{X}, dims::Dims) where {X} = rand!(rng, CuArray{X}(dims))
 ## typeless (prefer Float32)
 Random.rand(rng::RNG, dims::Integer...; kwargs...) = rand(rng, Float32, dims...; kwargs...)
 
 # normal
-Random.randn(rng::RNG, ::Type{Float32}, dims::Dims; kwargs...) = randn!(rng, CuArray{Float32}(dims); kwargs...)
-Random.randn(rng::RNG, ::Type{Float64}, dims::Dims; kwargs...) = randn!(rng, CuArray{Float64}(dims); kwargs...)
+Random.randn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = randn!(rng, CuArray{X}(dims); kwargs...)
 ## convenience
-Random.randn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
-    randn(rng, X, dims; kwargs...)
 Random.randn(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
     randn(rng, X, Dims((dim1, dims...)); kwargs...)
 ## typeless (prefer Float32)
 Random.randn(rng::RNG, dims::Integer...; kwargs...) = randn(rng, Float32, dims...; kwargs...)
 
 # log-normal
-rand_logn(rng::RNG, ::Type{Float32}, dims::Dims; kwargs...) = rand_logn!(rng, CuArray{Float32}(dims); kwargs...)
-rand_logn(rng::RNG, ::Type{Float64}, dims::Dims; kwargs...) = rand_logn!(rng, CuArray{Float64}(dims); kwargs...)
+rand_logn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_logn!(rng, CuArray{X}(dims); kwargs...)
 ## convenience
-rand_logn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
-    rand_logn(rng, X, dims; kwargs...)
 rand_logn(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
     rand_logn(rng, X, Dims((dim1, dims...)); kwargs...)
 ## typeless (prefer Float32)
 rand_logn(rng::RNG, dims...; kwargs...) = rand_logn(rng, Float32, dims...; kwargs...)
 
 # poisson
-rand_poisson(rng::RNG, ::Type{Cuint}, dims::Dims; kwargs...) = rand_poisson!(rng, CuArray{Cuint}(dims); kwargs...)
+rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_poisson!(rng, CuArray{X}(dims); kwargs...)
 ## convenience
-rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
-    rand_poisson(rng, X, dims; kwargs...)
 rand_poisson(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
     rand_poisson(rng, X, Dims((dim1, dims...)); kwargs...)
 ## typeless (prefer Cuint)
