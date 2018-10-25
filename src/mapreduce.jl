@@ -63,7 +63,7 @@ function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
 
     parallel_args = (f, op, R, A, CIS, Rlength, Slength)
     GC.@preserve parallel_args begin
-        parallel_kargs = Tuple(adapt(CUDAnative.Adaptor(), arg) for arg in parallel_args)
+        parallel_kargs = cudaconvert.(parallel_args)
         parallel_tt = Tuple{Core.Typeof.(parallel_kargs)...}
         parallel_kernel = cufunction(mapreducedim_kernel_parallel, parallel_tt)
         max_thr = CUDAnative.maxthreads(parallel_kernel)
