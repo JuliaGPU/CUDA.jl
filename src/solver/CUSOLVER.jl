@@ -23,8 +23,9 @@ function dense_handle()
     if _dense_handle[] == C_NULL
         @assert isassigned(active_context) # some other call should have initialized CUDA
         _dense_handle[] = get!(_dense_handles, active_context[]) do
+            context = active_context[]
             handle = cusolverDnCreate()
-            atexit(()->cusolverDnDestroy(handle))
+            atexit(()->CUDAdrv.isvalid(context) && cusolverDnDestroy(handle))
             handle
         end
     end

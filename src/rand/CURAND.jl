@@ -21,8 +21,10 @@ function generator()
     if _generator[] == nothing
         @assert isassigned(active_context) # some other call should have initialized CUDA
         _generator[] = get!(_generators, active_context[]) do
+            context = active_context[]
             generator = create_generator()
-            atexit(()->destroy_generator(generator))
+            # FIXME: crashes
+            #atexit(()->CUDAdrv.isvalid(context) && destroy_generator(generator))
             generator
         end
     end

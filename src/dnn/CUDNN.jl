@@ -13,8 +13,9 @@ function handle()
     if _handle[] == C_NULL
         @assert isassigned(active_context) # some other call should have initialized CUDA
         _handle[] = get!(_handles, active_context[]) do
+            context = active_context[]
             handle = cudnnCreate()
-            atexit(()->cudnnDestroy(handle))
+            atexit(()->CUDAdrv.isvalid(context) && cudnnDestroy(handle))
             handle
         end
     end

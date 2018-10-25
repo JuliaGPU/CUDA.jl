@@ -1,7 +1,7 @@
 # Julia wrapper for header: /usr/local/cuda/include/cusolver.h
 
 #helper functions
-function cusolverDnCreate(handle)
+function cusolverDnCreate()
   handle = Ref{cusolverDnHandle_t}()
   @check ccall( (:cusolverDnCreate, libcusolver), cusolverStatus_t, (Ptr{cusolverDnHandle_t},), handle)
   return handle[]
