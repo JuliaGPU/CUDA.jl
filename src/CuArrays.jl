@@ -34,6 +34,10 @@ include("mapreduce.jl")
 
 include("gpuarray_interface.jl")
 
+# many libraries need to be initialized per-device (per-context, really, but we assume users
+# of CuArrays and/or CUDAnative only use a single context), so keep track of the active one.
+const active_context = Ref{CuContext}()
+
 libcublas !== nothing   && include("blas/CUBLAS.jl")
 libcusolver !== nothing && include("solver/CUSOLVER.jl")
 libcufft !== nothing    && include("fft/CUFFT.jl")
@@ -47,6 +51,24 @@ function __init__()
         @warn("CuArrays.jl has not been successfully built, and will not work properly.")
         @warn("Please run Pkg.build(\"CuArrays\") and restart Julia.")
         return
+    end
+
+    # update the active context when we switch devices
+    callback = (::CuDevice, ctx::CuContext) -> begin
+        active_context[] = ctx
+
+        # wipe the active handles
+        isdefined(CuArrays, :CUBLAS)   && (CUBLAS._handle[] = C_NULL)
+        isdefined(CuArrays, :CUSOLVER) && (CUSOLVER._dense_handle[] = C_NULL)
+        isdefined(CuArrays, :CURAND)   && (CURAND._generator[] = nothing)
+        isdefined(CuArrays, :CUDNN)    && (CUDNN._handle[] = C_NULL)
+    end
+    push!(CUDAnative.device!_listeners, callback)
+
+    # a device might be active already
+    existing_ctx = CUDAdrv.CuCurrentContext()
+    if existing_ctx !== nothing
+        active_context[] = existing_ctx
     end
 
     __init_memory__()

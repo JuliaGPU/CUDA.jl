@@ -6,19 +6,10 @@
 # - functions that take an array will dispatch to either CURAND or GPUArrays
 # - `cu`-prefixed functions are provided for constructing GPU arrays from only an eltype
 
-const GLOBAL_RNG = Ref{RNG}()
-function global_rng()
-    # create the CURAND generator lazily, because it consumes quite a bit of GPU memory
-    if !isassigned(GLOBAL_RNG)
-        GLOBAL_RNG[] = create_generator()
-    end
-    GLOBAL_RNG[]
-end
-
 
 ## seeding
 
-seed!(rng::RNG=global_rng()) = generate_seeds(rng)
+seed!(rng::RNG=generator()) = generate_seeds(rng)
 
 
 ## in-place
@@ -63,18 +54,18 @@ rand_poisson(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) wh
 
 ## functions that dispatch to either CURAND or GPUArrays
 
-uniform_rng(::CuArray{<:Union{Float32,Float64}}) = global_rng()
+uniform_rng(::CuArray{<:Union{Float32,Float64}}) = generator()
 uniform_rng(A::CuArray) = GPUArrays.global_rng(A)
 
-normal_rng(::CuArray{<:Union{Float32,Float64}}) = global_rng()
+normal_rng(::CuArray{<:Union{Float32,Float64}}) = generator()
 normal_rng(::CuArray{T}) where {T} =
     error("CuArrays does not support generating normally distributed numbers of type $T")
 
-logn_rng(::CuArray{<:Union{Float32,Float64}}) = global_rng()
+logn_rng(::CuArray{<:Union{Float32,Float64}}) = generator()
 logn_rng(::CuArray{T}) where {T} =
     error("CuArrays does not support generating lognormally distributed numbers of type $T")
 
-poisson_rng(::CuArray{Cuint}) = global_rng()
+poisson_rng(::CuArray{Cuint}) = generator()
 poisson_rng(::CuArray{T}) where {T} =
     error("CuArrays does not support generating Poisson distributed numbers of type $T")
 
