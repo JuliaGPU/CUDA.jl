@@ -1,6 +1,6 @@
 # Native execution support
 
-export @cuda, cufunction, nearest_warpsize
+export @cuda, cudaconvert, cufunction, nearest_warpsize
 
 
 ## kernel object and query functions
@@ -126,12 +126,21 @@ end
 
 ## adaptors
 
+struct Adaptor end
+
+# device array
+Adapt.adapt_storage(::CUDAnative.Adaptor, a::CuArray{T,N}) where {T,N} =
+    convert(CuDeviceArray{T,N,AS.Global}, a)
+
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
   x::T
 end
 Base.getindex(r::CuRefValue) = r.x
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+
+# convenience function
+cudaconvert(arg) = adapt(Adaptor(), arg)
 
 
 ## high-level @cuda interface
@@ -142,8 +151,8 @@ Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[])
 High-level interface for executing code on a GPU. The `@cuda` macro should prefix a call,
 with `func` a callable function or object that should return nothing. It will be compiled to
 a CUDA function upon first use, and to a certain extent arguments will be converted and
-managed automatically using Adapt.jl. Finally, a call to `CUDAdrv.cudacall` is performed,
-scheduling a kernel launch on the current CUDA context.
+managed automatically using `cudaconvert`. Finally, a call to `CUDAdrv.cudacall` is
+performed, scheduling a kernel launch on the current CUDA context.
 
 Several keyword arguments are supported that influence kernel compilation and execution. For
 more information, refer to the documentation of respectively [`cufunction`](@ref) and
@@ -157,9 +166,9 @@ kernel to determine the launch configuration:
 
     args = ...
     GC.@preserve args begin
-        kernel_args = Tuple(adapt(CUDAnative.Adaptor(), arg) for arg in kernel_args)
+        kernel_args = cudaconvert.(args)
         kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-        kernel = CUDAnative.cufunction(f, kernel_tt; compilation_kwargs)
+        kernel = cufunction(f, kernel_tt; compilation_kwargs)
         kernel(kernel_args...; launch_kwargs)
     end
 """
@@ -188,7 +197,7 @@ macro cuda(ex...)
     push!(code.args,
         quote
             GC.@preserve $(vars...) begin
-                $kernel_args = Tuple(adapt(Adaptor(), var) for var in ($(var_exprs...),))
+                $kernel_args = cudaconvert.(($(var_exprs...),))
                 $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
                 $kernel = cufunction($(esc(f)), $kernel_tt; $(map(esc, compiler_kwargs)...))
                 $kernel($kernel_args...; $(map(esc, call_kwargs)...))
