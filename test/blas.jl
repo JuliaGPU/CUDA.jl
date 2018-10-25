@@ -877,20 +877,25 @@ k = 13
 
         @testset "trsm with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             # generate parameter
-            alpha = rand(elty)
+            α = rand(elty)
             # generate matrices
-            A = rand(elty,m,m)
-            A = triu(A)
-            B = rand(elty,m,n)
+            A  = rand(elty,m,m)
+            Br = rand(elty,m,n)
+            Bl = rand(elty,n,m)
             # move to device
             d_A = CuArray(A)
-            d_B = CuArray(B)
+            d_Br = CuArray(Br)
+            d_Bl = CuArray(Bl)
             # compute
-            C = alpha*(A\B)
-            d_C = CuArrays.CUBLAS.trsm('L','U','N','N',alpha,d_A,d_B)
-            # move to host and compare
-            h_C = Array(d_C)
-            @test C ≈ h_C
+            @testset "adjtype=$adjtype, uplotype=$uplotype" for
+                adjtype in (identity, adjoint, transpose),
+                    uplotype in (UpperTriangular, UnitUpperTriangular, LowerTriangular, UnitLowerTriangular)
+
+                @test adjtype(uplotype(A))\Br ≈ Array(adjtype(uplotype(d_A))\d_Br)
+                @test Bl/adjtype(uplotype(A)) ≈ Array(d_Bl/adjtype(uplotype(d_A)))
+            end
+            # Check also that scaling parameter works
+            @test BLAS.trsm('L','U','N','N',α,A,Br) ≈ Array(CuArrays.CUBLAS.trsm('L','U','N','N',α,d_A,d_Br))
         end
 
         @testset "trsm_batched! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
