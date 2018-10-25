@@ -56,6 +56,9 @@ function __init__()
     # update the active context when we switch devices
     callback = (::CuDevice, ctx::CuContext) -> begin
         active_context[] = ctx
+
+        # wipe the active handles
+        isdefined(CuArrays, :CUBLAS) && (CUBLAS._handle[] = C_NULL)
     end
     push!(CUDAnative.device!_listeners, callback)
 

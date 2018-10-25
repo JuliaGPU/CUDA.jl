@@ -2,8 +2,10 @@
 # Automatically generated using Clang.jl wrap_c, version v0.0.1
 # Manually copied from ../gen to this directory
 
-function cublasCreate_v2(handle)
+function cublasCreate_v2()
+  handle = Ref{cublasHandle_t}()
   @check ccall( (:cublasCreate_v2, libcublas), cublasStatus_t, (Ptr{cublasHandle_t},), handle)
+  handle[]
 end
 function cublasDestroy_v2(handle)
   @check ccall( (:cublasDestroy_v2, libcublas), cublasStatus_t, (cublasHandle_t,), handle)
@@ -12,10 +14,10 @@ function cublasGetVersion_v2(handle, version)
   @check ccall( (:cublasGetVersion_v2, libcublas), cublasStatus_t, (cublasHandle_t, Ptr{Cint}), handle, version)
 end
 function cublasGetStream_v2(handle, streamId)
-  @check ccall( (:cublasGetStream_v2, libcublas), cublasStatus_t, (cublasHandle_t, Ptr{cudaStream_t}), handle, streamId)
+  @check ccall( (:cublasGetStream_v2, libcublas), cublasStatus_t, (cublasHandle_t, Ptr{CuStream_t}), handle, streamId)
 end
 function cublasSetStream_v2(handle, streamId)
-  @check ccall( (:cublasSetStream_v2, libcublas), cublasStatus_t, (cublasHandle_t, cudaStream_t), handle, streamId)
+  @check ccall( (:cublasSetStream_v2, libcublas), cublasStatus_t, (cublasHandle_t, CuStream_t), handle, streamId)
 end
 function cublasGetPointerMode_v2(handle, mode)
   @check ccall( (:cublasGetPointerMode_v2, libcublas), cublasStatus_t, (cublasHandle_t, Ptr{cublasPointerMode_t}), handle, mode)
@@ -42,16 +44,16 @@ function cublasGetMatrix(rows, cols, elemSize, A, lda, B, ldb)
   @check ccall( (:cublasGetMatrix, libcublas), cublasStatus_t, (Cint, Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint), rows, cols, elemSize, A, lda, B, ldb)
 end
 function cublasSetVectorAsync(n, elemSize, hostPtr, incx, devicePtr, incy, stream)
-  @check ccall( (:cublasSetVectorAsync, libcublas), cublasStatus_t, (Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, cudaStream_t), n, elemSize, hostPtr, incx, devicePtr, incy, stream)
+  @check ccall( (:cublasSetVectorAsync, libcublas), cublasStatus_t, (Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, CuStream_t), n, elemSize, hostPtr, incx, devicePtr, incy, stream)
 end
 function cublasGetVectorAsync(n, elemSize, devicePtr, incx, hostPtr, incy, stream)
-  @check ccall( (:cublasGetVectorAsync, libcublas), cublasStatus_t, (Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, cudaStream_t), n, elemSize, devicePtr, incx, hostPtr, incy, stream)
+  @check ccall( (:cublasGetVectorAsync, libcublas), cublasStatus_t, (Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, CuStream_t), n, elemSize, devicePtr, incx, hostPtr, incy, stream)
 end
 function cublasSetMatrixAsync(rows, cols, elemSize, A, lda, B, ldb, stream)
-  @check ccall( (:cublasSetMatrixAsync, libcublas), cublasStatus_t, (Cint, Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, cudaStream_t), rows, cols, elemSize, A, lda, B, ldb, stream)
+  @check ccall( (:cublasSetMatrixAsync, libcublas), cublasStatus_t, (Cint, Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, CuStream_t), rows, cols, elemSize, A, lda, B, ldb, stream)
 end
 function cublasGetMatrixAsync(rows, cols, elemSize, A, lda, B, ldb, stream)
-  @check ccall( (:cublasGetMatrixAsync, libcublas), cublasStatus_t, (Cint, Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, cudaStream_t), rows, cols, elemSize, A, lda, B, ldb, stream)
+  @check ccall( (:cublasGetMatrixAsync, libcublas), cublasStatus_t, (Cint, Cint, Cint, Ptr{Nothing}, Cint, Ptr{Nothing}, Cint, CuStream_t), rows, cols, elemSize, A, lda, B, ldb, stream)
 end
 function cublasXerbla(srName, info)
   ccall( (:cublasXerbla, libcublas), Nothing, (Ptr{UInt8}, Cint), srName, info)
