@@ -9,7 +9,7 @@ end
 
 function destroy_generator(rng::RNG)
     @check ccall((:curandDestroyGenerator, libcurand),
-                 curandStatus_t, (curandGenerator_t,), rng.ptr)
+                 curandStatus_t, (curandGenerator_t,), rng)
 end
 
 function get_version()

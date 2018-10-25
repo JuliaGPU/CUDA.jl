@@ -1,7 +1,7 @@
 const curandGenerator_t = Ptr{Cvoid}
 
 mutable struct RNG <: Random.AbstractRNG
-    ptr::Ptr{Nothing}
+    ptr::curandGenerator_t
     typ::Int
 end
 
