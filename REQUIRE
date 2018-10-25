@@ -1,5 +1,5 @@
 julia 1.0
-CUDAnative 0.10
+CUDAnative 0.10.1
 CUDAdrv 0.8
 CUDAapi 0.4.1
 NNlib

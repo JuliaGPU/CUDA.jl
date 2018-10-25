@@ -1,13 +1,20 @@
-# CuArrays development often happens in lockstep with GPUArrays, so try to match branches
+# CuArrays development often happens in lockstep with other packages, so try to match branches
 if haskey(ENV, "GITLAB_CI")
   using Pkg
-  try
-    branch = ENV["CI_COMMIT_REF_NAME"]
-    Pkg.add(PackageSpec(name="GPUArrays", rev=String(branch)))
-    @info "Installed GPUArrays from $branch branch"
-  catch ex
-    @warn "Could not install GPUArrays from same branch as CuArrays, trying master branch" exception=ex
-    Pkg.add(PackageSpec(name="GPUArrays", rev="master"))
+  function match_package(package, branch)
+    try
+      Pkg.add(PackageSpec(name=package, rev=String(branch)))
+      @info "Installed $package from $branch branch"
+    catch ex
+      @warn "Could not install $package from $branch branch, trying master" exception=ex
+      Pkg.add(PackageSpec(name=package, rev="master"))
+      @info "Installed $package from master branch"
+    end
+  end
+
+  branch = ENV["CI_COMMIT_REF_NAME"]
+  for package in ("GPUArrays", "CUDAnative")
+    match_package(package, branch)
   end
 end
 
