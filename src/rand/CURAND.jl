@@ -1,9 +1,11 @@
 module CURAND
 
-using ..GPUArrays
-using ..CuArrays: CuArray, libcurand
+using CUDAdrv
 
 using Random
+
+using ..GPUArrays
+using ..CuArrays: CuArray, libcurand, active_context
 
 export curand,
        curandn,
@@ -11,6 +13,23 @@ export curand,
        curand_poisson, rand_poisson!
 
 include("libcurand_defs.jl")
+
+const _generators = Dict{CuContext,RNG}()
+const _generator = Ref{Union{Nothing,RNG}}(nothing)
+
+function generator()
+    if _generator[] == nothing
+        @assert isassigned(active_context) # some other call should have initialized CUDA
+        _generator[] = get!(_generators, active_context[]) do
+            generator = create_generator()
+            atexit(()->destroy_generator(generator))
+            generator
+        end
+    end
+
+    return _generator[]::RNG
+end
+
 include("error.jl")
 include("libcurand.jl")
 include("highlevel.jl")

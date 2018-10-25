@@ -59,6 +59,7 @@ function __init__()
 
         # wipe the active handles
         isdefined(CuArrays, :CUBLAS) && (CUBLAS._handle[] = C_NULL)
+        isdefined(CuArrays, :CURAND) && (CURAND._generator[] = nothing)
         isdefined(CuArrays, :CUDNN)  && (CUDNN._handle[] = C_NULL)
     end
     push!(CUDAnative.device!_listeners, callback)
