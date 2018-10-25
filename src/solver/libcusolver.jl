@@ -2,7 +2,9 @@
 
 #helper functions
 function cusolverDnCreate(handle)
+  handle = Ref{cusolverDnHandle_t}()
   @check ccall( (:cusolverDnCreate, libcusolver), cusolverStatus_t, (Ptr{cusolverDnHandle_t},), handle)
+  return handle[]
 end
 function cusolverDnDestroy(handle)
   @check ccall( (:cusolverDnDestroy, libcusolver), cusolverStatus_t, (cusolverDnHandle_t,), handle)
