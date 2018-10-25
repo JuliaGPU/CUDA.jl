@@ -5,7 +5,7 @@ using CUDAdrv: CuContext, CuDevice
 using CUDAnative
 
 using ..CuArrays
-const cudaStream_t = Ptr{Nothing}
+const CuStream_t = Ptr{Nothing}
 
 using ..CuArrays: libcusolver, configured, _getindex
 
