@@ -37,7 +37,7 @@ notifications:
     on_build_status_changed: false
 
 install:
-  - powershell .\appveyor.ps1
+  - powershell .\.appveyor.ps1
   - ps: iex ((new-object net.webclient).DownloadString("https://raw.githubusercontent.com/JuliaCI/Appveyor.jl/version-1/bin/install.ps1"))
 
 build_script:
