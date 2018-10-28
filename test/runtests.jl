@@ -145,10 +145,11 @@ end
     x
   end
   let
-    x = cu([1, 2, 3, 4, 5])
-    y = reshape(view(x, 1:3), 1, 3)
-    y[1:1] = 6
-    @test x[1:1] == cu([6])
+    x = cu(rand(Float32, 5, 4, 3))
+    @test collect(view(x, :, 1:4, 3)) == view(x, :, 1:4, 3)
+    @test_throws BoundsError view(x, :, :, 1:10)
+    @test typeof(view(x, :, 1:4, 3)) <: CuMatrix # contiguous view
+    @test typeof(view(x, 1, 1:4, 3)) <: SubArray # non-contiguous view
   end
 end
 

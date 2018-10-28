@@ -9,7 +9,3 @@ function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
   buf = Mem.view(buffer(xs), (i-1)*sizeof(T))
   Mem.upload!(buf, T[v])
 end
-
-function Base.view(xs::CuArray{T}, i::UnitRange) where T
-  CuVector{T}(xs.buf, xs.offset+(i.start-1)*sizeof(T), (i.stop-i.start+1,))
-end
