@@ -41,12 +41,13 @@ macro grab_output(ex)
     end
 end
 
+using GPUArrays
+import GPUArrays: allowscalar, @allowscalar
+
 Random.seed!(1)
-CuArrays.allowscalar(false)
+allowscalar(false)
 
 testf(f, xs...; kwargs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...; kwargs...)
-
-using GPUArrays
 
 @testset "CuArrays" begin
 
@@ -144,9 +145,8 @@ end
     y .= 1
     x
   end
-  let
-    x = cu(rand(Float32, 5, 4, 3))
-    @test collect(view(x, :, 1:4, 3)) == view(x, :, 1:4, 3)
+  @test testf(x->view(x, :, 1:4, 3), rand(Float32, 5, 4, 3))
+  @allowscalar let x = cu(rand(Float32, 5, 4, 3))
     @test_throws BoundsError view(x, :, :, 1:10)
     @test typeof(view(x, :, 1:4, 3)) <: CuMatrix # contiguous view
     @test typeof(view(x, 1, 1:4, 3)) <: SubArray # non-contiguous view
