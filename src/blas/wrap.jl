@@ -1554,8 +1554,8 @@ for (fname, elty) in
             m,n = size(A[1])
             lda = max(1,stride(A[1],2))
             Aptrs = device_batch(A)
-            info  = CuArray{Cint}(length(A))
-            pivotArray  = Pivot ? CuArray{Int32}((n, length(A))) : C_NULL
+            info  = CuArray{Cint}(undef, length(A))
+            pivotArray  = Pivot ? CuArray{Int32}(undef, (n, length(A))) : C_NULL
             @check ccall(($(string(fname)),libcublas), cublasStatus_t,
                          (cublasHandle_t, Cint, Ptr{Ptr{$elty}}, Cint,
                           Ptr{Cint}, Ptr{Cint}, Cint), handle(), n,

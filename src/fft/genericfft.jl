@@ -14,7 +14,7 @@ complexfloat(x::CuArray{T}) where {T<:Real} = copy1(typeof(complex(cufftfloat(ze
 realfloat(x::CuArray{T}) where {T<:Real} = copy1(typeof(cufftfloat(zero(T))), x)
 
 function copy1(::Type{T}, x) where T
-    y = CuArray{T}(map(length, axes(x)))
+    y = CuArray{T}(undef, map(length, axes(x)))
     #copy!(y, x)
     y .= broadcast(xi->convert(T,xi),x)
 end
