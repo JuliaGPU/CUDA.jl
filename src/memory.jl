@@ -208,6 +208,7 @@ function reclaim(full::Bool=false)
   end
 end
 
+const MAX_POOL = 100*1024^2 # 100 MiB
 
 ## interface
 
@@ -219,6 +220,8 @@ function alloc(bytes)
   pool_stats.req_nalloc += 1
   pool_stats.req_alloc += bytes
   pool_stats.total_time += Base.@elapsed begin
+    bytes > MAX_POOL && return Mem.alloc(bytes)
+
     pid = poolidx(bytes)
     create_pools(pid)
 
