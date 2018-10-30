@@ -22,9 +22,6 @@ include("libcusolver_types.jl")
 
 const _dense_handles = Dict{CuContext,cusolverDnHandle_t}()
 const _dense_handle = Ref{cusolverDnHandle_t}(C_NULL)
-
-const _dense_handles = Dict{CuContext,cusolverDnHandle_t}()
-const _dense_handle = Ref{cusolverDnHandle_t}(C_NULL)
 const _sparse_handles = Dict{CuContext,cusolverSpHandle_t}()
 const _sparse_handle = Ref{cusolverSpHandle_t}(C_NULL)
 
