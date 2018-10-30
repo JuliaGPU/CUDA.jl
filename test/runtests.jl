@@ -44,4 +44,8 @@ isdefined(CuArrays, :CUSOLVER)  && include("solver.jl")
 isdefined(CuArrays, :CUFFT)     && include("fft.jl")
 isdefined(CuArrays, :CURAND)    && include("rand.jl")
 
+if isdefined(CuArrays,:CUSPARSE) && isdefined(CuArrays,:CUSOLVER)
+  include("sparse_solver.jl")
+end
+
 end

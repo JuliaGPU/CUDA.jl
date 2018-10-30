@@ -1,14 +1,14 @@
+@testset "cuSPARSE" begin
+
 using CuArrays.CUSPARSE
-using SparseArrays
 using LinearAlgebra
-using Test
+using SparseArrays
 
 m = 25
 n = 35
 k = 10
 blockdim = 5
 
-@testset "CUSPARSE" begin
 @testset "util" begin
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
