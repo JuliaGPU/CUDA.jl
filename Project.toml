@@ -15,11 +15,12 @@ MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [extras]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test", "FFTW", "Pkg"]
