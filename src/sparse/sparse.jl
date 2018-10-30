@@ -1,6 +1,6 @@
 #utilities
 import Base: Array
-import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \, A_mul_Bt, At_mul_B, At_mul_Bt, Ac_mul_B, At_ldiv_B, Ac_ldiv_B
+import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \
 
 export switch2csr, switch2csc, switch2bsr, switch2hyb
 export axpyi!, axpyi, sctr!, sctr, gthr!, gthr, gthrz!, grthrz, roti!, roti
@@ -1215,13 +1215,6 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
     end
 end
 
-(\)(A::AbstractTriangular,B::CuVector)       = sv2('N',A,B,'O')
-At_ldiv_B(A::AbstractTriangular,B::CuVector) = sv2('T',A,B,'O')
-Ac_ldiv_B(A::AbstractTriangular,B::CuVector) = sv2('C',A,B,'O')
-(\)(A::AbstractTriangular{T,CuSparseMatrixHYB{T}},B::CuVector{T})       where T = sv('N',A,B,'O')
-At_ldiv_B(A::AbstractTriangular{T,CuSparseMatrixHYB{T}},B::CuVector{T}) where T = sv('T',A,B,'O')
-Ac_ldiv_B(A::AbstractTriangular{T,CuSparseMatrixHYB{T}},B::CuVector{T}) where T = sv('C',A,B,'O')
-
 for (fname,elty) in ((:cusparseShybmv, :Float32),
                      (:cusparseDhybmv, :Float64),
                      (:cusparseChybmv, :ComplexF32),
@@ -1304,16 +1297,6 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         end
     end
 end
-
-(*)(A::CuSparseMatrix{T},B::CuMatrix{T})       where T = mm2('N','N',A,B,'O')
-A_mul_Bt(A::CuSparseMatrix{T},B::CuMatrix{T})  where T = mm2('N','T',A,B,'O')
-At_mul_B(A::CuSparseMatrix{T},B::CuMatrix{T})  where T = mm2('T','N',A,B,'O')
-At_mul_Bt(A::CuSparseMatrix{T},B::CuMatrix{T}) where T = mm2('T','T',A,B,'O')
-Ac_mul_B(A::CuSparseMatrix{T},B::CuMatrix{T})  where T = mm2('C','N',A,B,'O')
-
-(*)(A::HermOrSym,B::CuMatrix) = mm('N',A,B,'O')
-At_mul_B(A::HermOrSym,B::CuMatrix) = mm('T',A,B,'O')
-Ac_mul_B(A::HermOrSym,B::CuMatrix) = mm('C',A,B,'O')
 
 for (fname,elty) in ((:cusparseShybsv_analysis, :Float32),
                      (:cusparseDhybsv_analysis, :Float64),
@@ -1766,13 +1749,6 @@ for elty in (:Float32,:Float64,:ComplexF32,:ComplexF64)
     end
 end
 
-(*)(A::CuSparseMatrix,B::CuVector)       = mv('N',A,B,'O')
-At_mul_B(A::CuSparseMatrix,B::CuVector)  = mv('T',A,B,'O')
-Ac_mul_B(A::CuSparseMatrix,B::CuVector)  = mv('C',A,B,'O')
-(*)(A::HermOrSym{T,CuSparseMatrix{T}},B::CuVector{T}) where T = mv('N',A,B,'O')
-At_mul_B(A::HermOrSym{T,CuSparseMatrix{T}},B::CuVector{T}) where T = mv('T',A,B,'O')
-Ac_mul_B(A::HermOrSym{T,CuSparseMatrix{T}},B::CuVector{T}) where T = mv('C',A,B,'O')
-
 """
     sm_analysis(transa::SparseChar, uplo::SparseChar, A::CuSparseMatrix, index::SparseChar)
 
@@ -1979,10 +1955,6 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         end
     end
 end
-
-(\)(A::AbstractTriangular,B::CuMatrix)       = sm('N',A,B,'O')
-At_ldiv_B(A::AbstractTriangular,B::CuMatrix) = sm('T',A,B,'O')
-Ac_ldiv_B(A::AbstractTriangular,B::CuMatrix) = sm('C',A,B,'O')
 
 # bsrsm2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_analysis, :cusparseSbsrsm2_solve, :Float32),
@@ -2212,9 +2184,6 @@ for (fname,elty) in ((:cusparseScsrgeam, :Float32),
         end
     end
 end
-
-(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')
-(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,-one(eltype(A)),B,'O','O','O')
 
 """
     gemm(transa::SparseChar, transb::SparseChar, A::CuSparseMatrix, B::CuSparseMatrix, indexA::SparseChar, indexB::SparseChar, indexC::SparseChar)

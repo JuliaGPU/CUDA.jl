@@ -1,0 +1,30 @@
+(\)(A::AbstractTriangular{<:CuSparseMatrix},B::CuMatrix)       = sm('N',A,B,'O')
+(\)(transA::Transpose{<:Any, AbstractTriangular{<:CuSparseMatrix}}, B::CuMatrix) = sm('T',transA.parent,B,'O')
+(\)(adjA::Adjoint{<:Any, AbstractTriangular{<:CuSparseMatrix}},B::CuMatrix) = sm('C',adjA.parent,B,'O')
+
+(*)(A::CuSparseMatrix,B::CuVector)       = mv('N',A,B,'O')
+(*)(transA::Transpose{<:Any, CuSparseMatrix},B::CuVector)  = mv('T',transA.parent,B,'O')
+(*)(adjA::Adjoint{<:Any, CuSparseMatrix},B::CuVector)  = mv('C',transA.parent,B,'O')
+(*)(A::HermOrSym{T,CuSparseMatrix{T}},B::CuVector{T}) where T = mv('N',A,B,'O')
+(*)(transA::Transpose{<:Any, HermOrSym{T,CuSparseMatrix{T}}},B::CuVector{T}) where T = mv('T',transA.parent,B,'O')
+(*)(adjA::Adjoint{<:Any, HermOrSym{T,CuSparseMatrix{T}}},B::CuVector{T}) where T = mv('C',adjA.parent,B,'O')
+
+(*)(A::CuSparseMatrix{T},B::CuMatrix{T})       where T = mm2('N','N',A,B,'O')
+(*)(A::CuSparseMatrix{T},transB::Transpose{<:Any, CuMatrix{T}})  where T = mm2('N','T',A,transB.parent,'O')
+(*)(transA::Transpose{<:Any, CuSparseMatrix{T}},B::CuMatrix{T})  where T = mm2('T','N',transA.parent,B,'O')
+(*)(transA::Transpose{<:Any, CuSparseMatrix{T}},transB::Transpose{<:Any, CuMatrix{T}}) where T = mm2('T','T',transA.parent,transB.parent,'O')
+(*)(adjA::Adjoint{<:Any, CuSparseMatrix{T}},B::CuMatrix{T})  where T = mm2('C','N',adjA.parent,B,'O')
+
+(*)(A::HermOrSym,B::CuMatrix) = mm('N',A,B,'O')
+(*)(transA::Transpose{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) = mm('T',transA.parent,B,'O')
+(*)(adjA::Adjoint{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) = mm('C',adjA.parent, B,'O')
+
+(\)(A::AbstractTriangular{<:CuSparseMatrix},B::CuVector)       = sv2('N',A,B,'O')
+(\)(transA::Transpose{<:Any, AbstractTriangular{<:CuSparseMatrix}},B::CuVector) = sv2('T',transA.parent,B,'O')
+(\)(adjA::Adjoint{<:Any, AbstractTriangular{T,CuSparseMatrix{T}}},B::CuVector{T}) where T = sv2('C',adjA.parent,B,'O')
+(\)(A::AbstractTriangular{T,CuSparseMatrixHYB{T}},B::CuVector{T})       where T = sv('N',A,B,'O')
+(\)(transA::Transpose{<:Any, AbstractTriangular{T,CuSparseMatrixHYB{T}}},B::CuVector{T}) where T = sv('T',transA.parent,B,'O')
+(\)(adjA::Adjoint{<:Any, AbstractTriangular{T,CuSparseMatrixHYB{T}}},B::CuVector{T}) where T = sv('C',adjA.parent,B,'O')
+
+(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')
+(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,-one(eltype(A)),B,'O','O','O')

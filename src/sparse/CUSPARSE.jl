@@ -9,7 +9,8 @@ const cudaStream_t = Ptr{Nothing}
 
 using ..CuArrays: libcusparse, configured, _getindex
 
-using SparseArrays 
+using SparseArrays
+using LinearAlgebra
 
 import Base.one
 import Base.zero
@@ -58,5 +59,6 @@ function __init__()
 end
 
 include("sparse.jl")
+include("highlevel.jl")
 
 end
