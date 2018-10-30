@@ -56,41 +56,26 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
 ## interop with other arrays
 
-# type and dimensionality specified
-CuArray{T,N}(x::AbstractArray{S,N}) where {T,N,S} = convert(CuArray{T,N}, x)
-
-# type but not dimensionality specified
-CuArray{T}(A::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(A)
-
-# dimensionality but not type specified
-(::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuArray{S,N}(x)
-
-# nothing specified
-CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
-
-
-Base.convert(::Type{CuArray{T,N}}, xs::Array{T,N}) where {T,N} =
-  copyto!(CuArray{T,N}(undef, size(xs)), xs)
-
-Base.convert(::Type{CuArray{T}}, xs::Array{T,N}) where {T,N} =
-  copyto!(CuArray{T}(undef, size(xs)), xs)
-
-Base.convert(::Type{CuArray}, xs::Array{T,N}) where {T,N} =
-  convert(CuArray{T,N}, xs)
-
-
-Base.convert(::Type{CuArray{T,N}}, xs::AbstractArray{T,N}) where {T,N} =
+CuArray{T,N}(xs::AbstractArray{T,N}) where {T,N} =
   isbits(xs) ?
     (CuArray{T,N}(undef, size(xs)) .= xs) :
-    convert(CuArray{T,N}, collect(xs))
+    copyto!(CuArray{T,N}(undef, size(xs)), collect(xs))
 
-Base.convert(::Type{CuArray{T,N}}, xs::AbstractArray{S,N}) where {S,T,N} =
-  convert(CuArray{T,N}, (x -> T(x)).(xs))
+CuArray{T,N}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}((x -> T(x)).(xs))
 
-Base.convert(::Type{CuArray{T}}, xs::AbstractArray) where T =
-  convert(CuArray{T,ndims(xs)}, xs)
+# underspecified constructors
+CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
+(::Type{CuArray{T,N} where T})(x::AbstractArray{S,N}) where {S,N} = CuArray{S,N}(x)
+CuArray(A::AbstractArray{T,N}) where {T,N} = CuArray{T,N}(A)
 
-Base.convert(::Type{CuArray}, xs::AbstractArray) = convert(CuArray{eltype(xs)}, xs)
+# idempotency
+CuArray{T,N}(xs::CuArray{T,N}) where {T,N} = xs
+
+
+## conversions
+
+Base.convert(::Type{T}, x::T) where T <: CuArray = x
+
 
 
 ## interop with C libraries
@@ -154,17 +139,6 @@ function Base.deepcopy_internal(x::CuArray, dict::IdDict)
   haskey(dict, x) && return dict[x]::typeof(x)
   return dict[x] = copy(x)
 end
-
-Base.convert(::Type{T}, x::T) where T <: CuArray = x
-
-# Generic methods
-
-# Work around GPUArrays ambiguity
-Base.convert(AT::Type{CuArray{T1,N}}, A::DenseArray{T2, N}) where {T1, T2, N} =
-  invoke(convert, Tuple{Type{CuArray{T1,N}},AbstractArray{T2,N}}, AT, A)
-
-Base.convert(AT::Type{CuArray{T1}}, A::DenseArray{T2, N}) where {T1, T2, N} =
-  invoke(convert, Tuple{Type{CuArray{T1}},AbstractArray{T2,N}}, AT, A)
 
 
 # Utils
