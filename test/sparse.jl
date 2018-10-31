@@ -1,6 +1,5 @@
 @testset "cuSPARSE" begin
 
-CuArrays.allowscalar(true)
 using CuArrays.CUSPARSE
 using LinearAlgebra
 using SparseArrays
