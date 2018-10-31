@@ -242,23 +242,25 @@ when function changes, or when different types or keyword arguments are provided
         CUDAnative.maybe_initialize("cufunction")
 
         # look-up the method age
-        key1 = hash(($precomp_key, world_age()))
-        if haskey(agecache, key1)
-            age = agecache[key1]
+        key = hash(world_age(), $precomp_key)
+        if haskey(agecache, key)
+            age = agecache[key]
         else
             age = method_age(f, $t)
-            agecache[key1] = age
+            agecache[key] = age
         end
+        key = hash(age, key)
 
         # compile the function
         ctx = CuCurrentContext()
-        key2 = hash(($precomp_key, age, ctx, kwargs))
-        if !haskey(compilecache, key2)
+        key = hash(ctx, key)
+        key = hash(kwargs, key)
+        if !haskey(compilecache, key)
             fun, mod = compile(device(ctx), f, tt; kwargs...)
             kernel = Kernel{f,tt}(ctx, mod, fun)
-            compilecache[key2] = kernel
+            compilecache[key] = kernel
         end
-        kernel = compilecache[key2]
+        kernel = compilecache[key]
 
         @debug begin
             ver = version(kernel)
