@@ -148,6 +148,17 @@ cuones(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 1)
 cuzeros(dims...) = cuzeros(Float32, dims...)
 cuones(dims...) = cuones(Float32, dims...)
 
+# optimized implementation of `fill!` for types that are directly supported by memset
+const MemsetTypes = Dict(1=>UInt8, 2=>UInt16, 4=>UInt32)
+const MemsetCompatTypes = Union{UInt8, Int8,
+                                UInt16, Int16, Float16,
+                                UInt32, Int32, Float32}
+function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
+  y = reinterpret(MemsetTypes[sizeof(T)], convert(T, x))
+  Mem.set!(buffer(A), y, length(A))
+  A
+end
+
 Base.print_array(io::IO, x::CuArray) = Base.print_array(io, collect(x))
 Base.print_array(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.adjoint(collect(x.parent)))
 Base.print_array(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.transpose(collect(x.parent)))
