@@ -10,7 +10,7 @@ for (f,T) in ((rand!,Float32),
               (rand_logn!,Float32),
               (rand_poisson!,Cuint)),
     d in (2, (2,2), (2,2,2))
-    A = CuArray{T}(d)
+    A = CuArray{T}(undef, d)
     f(A)
 end
 
@@ -39,7 +39,7 @@ for (f,T) in ((curand,Int64),),
 end
 for (f,T) in ((rand!,Int64),),
     d in (2, (2,2), (2,2,2))
-    A = CuArray{T}(d)
+    A = CuArray{T}(undef, d)
     f(A)
 end
 

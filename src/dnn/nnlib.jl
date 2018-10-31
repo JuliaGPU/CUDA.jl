@@ -68,7 +68,7 @@ function conv_workspace(bytes)
   if isassigned(_conv_workspace) && bytes <= length(_conv_workspace[])
     _conv_workspace[]
   else
-    _conv_workspace[] = CuVector{UInt8}(bytes)
+    _conv_workspace[] = CuVector{UInt8}(undef, bytes)
   end
 end
 

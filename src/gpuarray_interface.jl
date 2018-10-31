@@ -3,9 +3,6 @@ import GPUArrays
 struct CuArrayBackend <: GPUArrays.GPUBackend end
 GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
 
-Base.similar(::Type{<:CuArray}, ::Type{T}, size::Base.Dims{N}) where {T, N} = CuArray{T, N}(size)
-# This constructor is to avoid ambiguity with constructor in GPUArrays
-Base.similar(::Type{<:CuArray}, ::Type{T}, ::Tuple{}) where {T} = CuArray{T,0}()
 
 #Abstract GPU interface
 struct CuKernelState end

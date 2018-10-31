@@ -426,7 +426,7 @@ end
 # Perhaps use FakeArray types to avoid this.
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
-    X = CuArray{T}(p.sz)
+    X = CuArray{T}(undef, p.sz)
     pp = _mkplan(p.xtype, p.sz, p.region)
     ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(pp, X, p.sz, p.region,
                                                      p.xtype),
@@ -434,7 +434,7 @@ function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
 end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
-    X = CuArray{T}(p.sz)
+    X = CuArray{T}(undef, p.sz)
     pp = _mkplan(p.xtype, p.sz, p.region)
     ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(pp, X, p.sz, p.region,
                                                      p.xtype),
@@ -443,8 +443,8 @@ end
 
 function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
                   ) where {T<:cufftComplexes,N,inplace}
-    X = CuArray{real(T)}(p.osz)
-    Y = CuArray{T}(p.sz)
+    X = CuArray{real(T)}(undef, p.osz)
+    Y = CuArray{T}(undef, p.sz)
     xtype = p.xtype == CUFFT_C2R ? CUFFT_R2C : CUFFT_D2Z
     pp = _mkplan(xtype, p.osz, p.region)
     ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,N}(pp, X, p.sz, p.region,
@@ -454,8 +454,8 @@ end
 
 function plan_inv(p::rCuFFTPlan{T,CUFFT_FORWARD,inplace,N}
                   ) where {T<:cufftReals,N,inplace}
-    X = CuArray{complex(T)}(p.osz)
-    Y = CuArray{T}(p.sz)
+    X = CuArray{complex(T)}(undef, p.osz)
+    Y = CuArray{T}(undef, p.sz)
     xtype = p.xtype == CUFFT_R2C ? CUFFT_C2R : CUFFT_Z2D
     pp = _mkplan(xtype, p.sz, p.region)
     ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,N}(pp, X, p.sz,
@@ -484,7 +484,7 @@ end
 function *(p::rCuFFTPlan{T,CUFFT_FORWARD,false,N}, x::CuArray{T,N}
            ) where {T<:cufftReals,N}
     @assert p.xtype ∈ [CUFFT_R2C,CUFFT_D2Z]
-    y = CuArray{complex(T),N}(p.osz)
+    y = CuArray{complex(T),N}(undef, p.osz)
     mul!(y,p,x)
     y
 end
@@ -492,13 +492,13 @@ end
 function *(p::rCuFFTPlan{T,CUFFT_INVERSE,false,N}, x::CuArray{T,N}
            ) where {T<:cufftComplexes,N}
     @assert p.xtype ∈ [CUFFT_C2R,CUFFT_Z2D]
-    y = CuArray{real(T),N}(p.osz)
+    y = CuArray{real(T),N}(undef, p.osz)
     mul!(y,p,x)
     y
 end
 
 function *(p::cCuFFTPlan{T,K,false,N}, x::CuArray{T,N}) where {T,K,N}
-    y = CuArray{T,N}(p.osz)
+    y = CuArray{T,N}(undef, p.osz)
     mul!(y,p,x)
     y
 end

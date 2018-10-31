@@ -32,10 +32,10 @@ rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1) = generate_poisson(rng, A, 
 
 ## out of place
 
-Random.rand(rng::RNG, ::Type{X}, dims::Dims) where {X} = rand!(rng, CuArray{X}(dims))
-Random.randn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = randn!(rng, CuArray{X}(dims); kwargs...)
-rand_logn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_logn!(rng, CuArray{X}(dims); kwargs...)
-rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_poisson!(rng, CuArray{X}(dims); kwargs...)
+Random.rand(rng::RNG, ::Type{X}, dims::Dims) where {X} = rand!(rng, CuArray{X}(undef, dims))
+Random.randn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = randn!(rng, CuArray{X}(undef, dims); kwargs...)
+rand_logn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_logn!(rng, CuArray{X}(undef, dims); kwargs...)
+rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_poisson!(rng, CuArray{X}(undef, dims); kwargs...)
 
 # specify default types
 Random.rand(rng::RNG, dims::Integer...; kwargs...) = rand(rng, Float32, dims...; kwargs...)
@@ -78,10 +78,10 @@ rand_poisson!(A::CuArray; kwargs...) = rand_poisson!(poisson_rng(A), A; kwargs..
 
 # need to prefix with `cu` to disambiguate from Random functions that return an Array
 # TODO: `@gpu rand` with Cassette
-curand(::Type{X}, args...; kwargs...) where {X} = rand!(CuArray{X}(args...); kwargs...)
-curandn(::Type{X}, args...; kwargs...) where {X} = randn!(CuArray{X}(args...); kwargs...)
-curand_logn(::Type{X}, args...; kwargs...) where {X} = rand_logn!(CuArray{X}(args...); kwargs...)
-curand_poisson(::Type{X}, args...; kwargs...) where {X} = rand_poisson!(CuArray{X}(args...); kwargs...)
+curand(::Type{X}, args...; kwargs...) where {X} = rand!(CuArray{X}(undef, args...); kwargs...)
+curandn(::Type{X}, args...; kwargs...) where {X} = randn!(CuArray{X}(undef, args...); kwargs...)
+curand_logn(::Type{X}, args...; kwargs...) where {X} = rand_logn!(CuArray{X}(undef, args...); kwargs...)
+curand_poisson(::Type{X}, args...; kwargs...) where {X} = rand_poisson!(CuArray{X}(undef, args...); kwargs...)
 
 # specify default types
 curand(args...; kwargs...) where {X} = curand(Float32, args...; kwargs...)

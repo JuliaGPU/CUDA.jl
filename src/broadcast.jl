@@ -3,7 +3,7 @@ import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle
 BroadcastStyle(::Type{<:CuArray}) = ArrayStyle{CuArray}()
 
 function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}) where T
-    similar(CuArray, T, axes(bc))
+    similar(CuArray{T}, axes(bc))
 end
 
 

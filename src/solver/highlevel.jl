@@ -18,8 +18,8 @@ CuQRPackedQ(factors::AbstractMatrix{T}, τ::CuVector{T}) where {T} = CuQRPackedQ
 LinearAlgebra.qr!(A::CuMatrix{T}) where T = CuQR(geqrf!(A::CuMatrix{T})...)
 Base.size(A::CuQR) = size(A.factors)
 Base.size(A::CuQRPackedQ, dim::Integer) = 0 < dim ? (dim <= 2 ? size(A.factors, 1) : 1) : throw(BoundsError())
-Base.convert(::Type{CuMatrix}, A::CuQRPackedQ) = orgqr!(copy(A.factors), A.τ)
-Base.convert(::Type{CuArray}, A::CuQRPackedQ) = convert(CuMatrix, A)
+CuArrays.CuMatrix(A::CuQRPackedQ) = orgqr!(copy(A.factors), A.τ)
+CuArrays.CuArray(A::CuQRPackedQ) = convert(CuMatrix, A)
 Base.Matrix(A::CuQRPackedQ) = Matrix(CuMatrix(A))
 
 function Base.getproperty(A::CuQR, d::Symbol)
@@ -49,7 +49,7 @@ LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) wher
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
 
 function Base.getindex(A::CuQRPackedQ{T, S}, i::Integer, j::Integer) where {T, S}
-    x = CuArray{T}(size(A, 2)) .= 0
+    x = CuArray{T}(undef, size(A, 2)) .= 0
     x[j] = 1
     lmul!(A, x)
     return _getindex(x, i)

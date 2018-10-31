@@ -8,15 +8,15 @@ end
 @testset "Memory" begin
   CuArrays.alloc(0)
 
-  @test (CuArrays.@allocated CuArray{Int32}()) == 4
+  @test (CuArrays.@allocated CuArray{Int32}(undef,1)) == 4
 
-  ret, out = @grab_output CuArrays.@time CuArray{Int32}()
+  ret, out = @grab_output CuArrays.@time CuArray{Int32}(undef, 1)
   @test isa(ret, CuArray{Int32})
   @test occursin("1 GPU allocation: 4 bytes", out)
 end
 
 @testset "Array" begin
-  xs = CuArray(2, 3)
+  xs = CuArray{Int}(undef, 2, 3)
   @test collect(CuArray([1 2; 3 4])) == [1 2; 3 4]
   @test collect(cu[1, 2, 3]) == [1, 2, 3]
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
@@ -35,7 +35,7 @@ end
   @test testf((x)       -> 2x,           rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
-  @test (CuArray{Ptr{Cvoid}}(1) .= C_NULL) == CuArray([C_NULL])
+  @test (CuArray{Ptr{Cvoid}}(undef, 1) .= C_NULL) == CuArray([C_NULL])
   @test CuArray([1,2,3]) .+ CuArray([1.0,2.0,3.0]) == CuArray([2,4,6])
 
   @eval struct Whatever{T}
@@ -76,7 +76,7 @@ end
 end
 
 @testset "0D" begin
-  x = CuArray{Float64}()
+  x = CuArray{Float64}(undef)
   x .= 1
   @test collect(x)[] == 1
   x /= 2
