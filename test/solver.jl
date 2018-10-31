@@ -180,7 +180,7 @@ k = 1
         h_Vt           = collect(d_Vt)
         F              = svd(A, full=true)
         @test abs.(h_U'h_U) ≈ Matrix(one(elty)*I, m, m)
-        @test abs.(h_U[:,1:n]'F.U[:,1:10]) ≈ Matrix(one(elty)*I, n, n)
+        @test abs.(h_U[:,1:n]'F.U[:,1:n]) ≈ Matrix(one(elty)*I, n, n)
         @test h_S ≈ svdvals(A)
         @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
     end
