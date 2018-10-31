@@ -1078,9 +1078,9 @@ end
             h_C = collect(d_C)
             D = alpha * A * B + beta * C
             @test D ≈ h_C
-            d_C = Transpose(d_A) * d_B
+            d_C = transpose(d_A) * d_B
             h_C = collect(d_C)
-            D = Transpose(A) * B
+            D = transpose(A) * B
             @test D ≈ h_C
             d_B = CuArray(rand(elty,k,n))
             @test_throws DimensionMismatch CUSPARSE.mm!('T',alpha,d_A,d_B,beta,d_C,'O')
@@ -1094,9 +1094,9 @@ end
             h_C = collect(d_C)
             D = alpha * A * B + beta * C
             @test D ≈ h_C
-            d_C = Transpose(d_A) * d_B
+            d_C = transpose(d_A) * d_B
             h_C = collect(d_C)
-            D = Transpose(A) * B
+            D = transpose(A) * B
             @test D ≈ h_C
             d_B = CuArray(rand(elty,k,n))
             @test_throws DimensionMismatch CUSPARSE.mm!('T',alpha,d_A,d_B,beta,d_C,'O')
