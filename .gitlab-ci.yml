@@ -34,6 +34,7 @@ documentation:
     - export TRAVIS_PULL_REQUEST=$(if [ "$PR_ID" == "" ]; then echo "false"; else echo "true"; fi)
 
     - apt install -y openssh-client && mkdir /root/.ssh
-    - julia --project -e 'using Pkg;
-                          Pkg.add("Documenter")'
-    - julia --project docs/make.jl
+    - julia --project=docs/ -e 'using Pkg;
+                                Pkg.develop(PackageSpec(path=pwd()));
+                                Pkg.instantiate()'
+    - julia --project=docs/ docs/make.jl
