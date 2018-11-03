@@ -185,6 +185,22 @@ k = 1
         @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
     end
 
+
+    @testset "svd!" begin
+        A              = rand(elty,m,n)
+        d_A            = CuArray(A)
+        d_U, d_S, d_Vt = svd!(d_A)
+        h_S            = collect(d_S)
+        h_U            = collect(d_U)
+        h_Vt           = collect(d_Vt)
+        F              = svd(A, full=true)
+        @test abs.(h_U'h_U) ≈ Matrix(one(elty)*I, m, m)
+        @test abs.(h_U[:,1:n]'F.U[:,1:n]) ≈ Matrix(one(elty)*I, n, n)
+        @test h_S ≈ svdvals(A)
+        @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
+    end
+
+
     @testset "qr" begin
         tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
 
