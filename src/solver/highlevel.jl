@@ -72,12 +72,7 @@ struct CuSVD{T,Tr,M<:AbstractArray{T}} <: LinearAlgebra.Factorization{T}
         new{T,Tr,M}(U, S, Vt)
     end
 end
-CuSVD(U::AbstractArray{T}, S::CuVector{Tr}, Vt::AbstractArray{T}) where {T,Tr} = CuSVD{T,Tr,typeof(U)}(U, S, Vt)
-function CuSVD{T}(U::AbstractArray, S::AbstractVector{Tr}, Vt::AbstractArray) where {T,Tr}
-    CuSVD(convert(AbstractArray{T}, U),
-        convert(CuVector{Tr}, S),
-        convert(AbstractArray{T}, Vt))
-end
+CuSVD(U::CuMatrix{T}, S::CuVector{Tr}, Vt::CuMatrix{T}) where {T,Tr} = CuSVD{T,Tr,typeof(U)}(U, S, Vt)
 
 # iteration for destructuring into components
 Base.iterate(S::CuSVD) = (S.U, Val(:S))
