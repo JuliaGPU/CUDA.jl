@@ -107,3 +107,13 @@ end
   A = randn(10, 10)
   @test f(A, d) == Array(f!(CuArray(A), d))
 end
+
+@testset "Utilities" begin
+  t = @elapsed ret = CuArrays.@sync begin
+    # TODO: do something that takes a while on the GPU
+    #       (need to wrap clock64 in CUDAnative for that)
+    42
+  end
+  @test t >= 0
+  @test ret == 42
+end

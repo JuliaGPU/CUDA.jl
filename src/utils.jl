@@ -63,3 +63,19 @@ end
 
 Base.vcat(xs::CuArray...) = cat(xs..., dims=1)
 Base.hcat(xs::CuArray...) = cat(xs..., dims=2)
+
+
+"""
+    @sync ex
+
+Run expressions and synchronize the GPU afterwards.
+
+This is useful for timing code that executes asynchronously.
+"""
+macro sync(ex)
+    quote
+        local ret = $(esc(ex))
+        CUDAdrv.synchronize()
+        ret
+    end
+end
