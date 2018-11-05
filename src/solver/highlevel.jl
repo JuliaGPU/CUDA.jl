@@ -64,11 +64,11 @@ end
 
 # Singular Value Decomposition
 
-struct CuSVD{T,Tr,M<:AbstractArray{T}} <: LinearAlgebra.Factorization{T}
+struct CuSVD{T,Tr,M<:CuMatrix{T}} <: LinearAlgebra.Factorization{T}
     U::M
     S::CuVector{Tr}
     Vt::M
-    function CuSVD{T,Tr,M}(U, S, Vt) where {T,Tr,M<:AbstractArray{T}}
+    function CuSVD{T,Tr,M}(U, S, Vt) where {T,Tr,M<:CuMatrix{T}}
         new{T,Tr,M}(U, S, Vt)
     end
 end
