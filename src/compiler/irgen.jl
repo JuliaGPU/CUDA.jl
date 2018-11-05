@@ -402,36 +402,55 @@ function fixup_controlflow!(f::LLVM.Function)
                     position!(builder, bb)
 
                     # find the predecessors to this block
-                    predecessors = LLVM.BasicBlock[]
-                    for bb′ in blocks(f), inst in instructions(bb′)
-                        if isa(inst, LLVM.BrInst)
-                            if bb in successors(inst)
-                                push!(predecessors, bb′)
-                            end
-                        end
-                    end
+                    function predecessors(bb)
+                        pred = LLVM.BasicBlock[]
 
-                    # find the fall through successors
-                    if length(predecessors) == 1
-                        predecessor = first(predecessors)
-                        br = terminator(predecessor)
-
-                        # find the other successors
-                        targets = successors(br)
-                        if length(targets) == 2
-                            for target in targets
-                                if target != bb
-                                    br!(builder, target)
-                                    break
+                        for bb′ in blocks(f), inst in instructions(bb′)
+                            if isa(inst, LLVM.BrInst)
+                                if bb in successors(inst) && bb != bb′
+                                    push!(pred, bb′)
                                 end
                             end
+                        end
+
+                        return pred
+                    end
+                    pred = predecessors(bb)
+
+                    # find the fall through successors
+                    if !isempty(pred)
+                        # there might be multiple blocks branching to the unreachable one
+                        branches = map(terminator, pred)
+
+                        # find the other successors
+                        other_succ = LLVM.BasicBlock[]
+                        for br in branches
+                            for target in successors(br)
+                                if target != bb
+                                    push!(other_succ, target)
+                                end
+                            end
+                        end
+
+                        # find all predecessors
+                        all_pred = pred
+                        let all_preds = 0
+                            while all_preds != length(all_pred)
+                                all_preds = length(all_pred)
+                                append!(all_pred,
+                                        Iterators.flatten(map(predecessors, all_pred)))
+                                unique!(all_pred)
+                            end
+                        end
+
+                        # replace the branch if we have a single other successor
+                        unique!(other_succ)
+                        if length(other_succ) == 1 && !(first(other_succ) in all_pred)
+                            br!(builder, first(other_succ))
                         else
-                            @warn "unreachable control flow with $(length(targets))-way branching predecessor"
+                            @warn "unsupported control flow to unreachable code"
                             unreachable!(builder)
                         end
-                    elseif length(predecessors) > 1
-                        @warn "unreachable control flow with multiple predecessors"
-                        unreachable!(builder)
                     else
                         # this block has no predecessors, so we can't fall through
                         #
