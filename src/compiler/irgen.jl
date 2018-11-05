@@ -364,6 +364,8 @@ function fixup_controlflow!(f::LLVM.Function)
     attrs = function_attributes(f)
     delete!(attrs, EnumAttribute("noreturn", 0, ctx))
 
+    pending_terminators = Pair{LLVM.BasicBlock, LLVM.BasicBlock}[]
+
     for bb in blocks(f)
         # remove calls to `trap`, for obvious reasons.
         for inst in instructions(bb)
@@ -385,6 +387,10 @@ function fixup_controlflow!(f::LLVM.Function)
         #
         # at this point, the optimizer hasn't run, so these hints are placed there by Julia.
         # this happens e.g. with exceptions, and cannot be controlled by a compiler hook.
+        #
+        # note that we don't immediately rewrite terminators, but populate a dict and do so
+        # afterwards, because doing so touches control flow in ways that might confuse our
+        # own analysis (which only handles IR patterns as produced by Julia's codegen)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -446,10 +452,10 @@ function fixup_controlflow!(f::LLVM.Function)
                         # replace the branch if we have a single other successor
                         unique!(other_succ)
                         if length(other_succ) == 1 && !(first(other_succ) in all_pred)
-                            br!(builder, first(other_succ))
+                            push!(pending_terminators, bb => first(other_succ))
                         else
-                            @warn "unsupported control flow to unreachable code"
                             unreachable!(builder)
+                            @warn "unsupported control flow to unreachable code"
                         end
                     else
                         # this block has no predecessors, so we can't fall through
@@ -472,6 +478,15 @@ function fixup_controlflow!(f::LLVM.Function)
                 end
             end
         end
+    end
+
+    # apply the pending terminator rewrites
+    for (bb, target) in pending_terminators
+        let builder = Builder(ctx)
+            position!(builder, bb)
+            br!(builder, target)
+        end
+
     end
 
     return changed
