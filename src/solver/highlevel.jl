@@ -64,15 +64,11 @@ end
 
 # Singular Value Decomposition
 
-struct CuSVD{T,Tr,M<:AbstractArray{T}} <: LinearAlgebra.Factorization{T}
-    U::M
+struct CuSVD{T,Tr} <: LinearAlgebra.Factorization{T}
+    U::CuMatrix{T}
     S::CuVector{Tr}
-    Vt::M
-    function CuSVD{T,Tr,M}(U, S, Vt) where {T,Tr,M<:AbstractArray{T}}
-        new{T,Tr,M}(U, S, Vt)
-    end
+    Vt::CuMatrix{T}
 end
-CuSVD(U::CuMatrix{T}, S::CuVector{Tr}, Vt::CuMatrix{T}) where {T,Tr} = CuSVD{T,Tr,typeof(U)}(U, S, Vt)
 
 # iteration for destructuring into components
 Base.iterate(S::CuSVD) = (S.U, Val(:S))
