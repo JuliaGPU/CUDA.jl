@@ -1,3 +1,4 @@
 status = [
   "ci/gitlab/staging"
 ]
+delete_merged_branches = true
