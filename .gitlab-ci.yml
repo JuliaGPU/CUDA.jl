@@ -12,5 +12,23 @@ include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/postprocess_coverage.yml'
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/postprocess_documentation.yml'
 
+test:v1.0:
+  only:
+    - staging
+    - trying
+
 test:dev:
   allow_failure: true
+  only:
+    - staging
+    - trying
+
+documentation:
+  only:
+    - staging
+    - trying
+
+coverage:
+  only:
+    - staging
+    - trying
