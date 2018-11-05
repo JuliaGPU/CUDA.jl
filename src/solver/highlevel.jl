@@ -61,3 +61,23 @@ function Base.show(io::IO, F::CuQR)
     println(io)
     show(io, F.R)
 end
+
+# Singular Value Decomposition
+
+struct CuSVD{T,Tr,M<:AbstractArray{T}} <: LinearAlgebra.Factorization{T}
+    U::M
+    S::CuVector{Tr}
+    Vt::M
+    function CuSVD{T,Tr,M}(U, S, Vt) where {T,Tr,M<:AbstractArray{T}}
+        new{T,Tr,M}(U, S, Vt)
+    end
+end
+CuSVD(U::CuMatrix{T}, S::CuVector{Tr}, Vt::CuMatrix{T}) where {T,Tr} = CuSVD{T,Tr,typeof(U)}(U, S, Vt)
+
+# iteration for destructuring into components
+Base.iterate(S::CuSVD) = (S.U, Val(:S))
+Base.iterate(S::CuSVD, ::Val{:S}) = (S.S, Val(:Vt))
+Base.iterate(S::CuSVD, ::Val{:Vt}) = (S.Vt, Val(:done))
+Base.iterate(S::CuSVD, ::Val{:done}) = nothing
+
+LinearAlgebra.svd!(A::CuMatrix{T}) where T = CuSVD(gesvd!('A','A',A::CuMatrix{T})...)
