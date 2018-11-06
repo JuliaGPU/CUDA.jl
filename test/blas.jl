@@ -623,6 +623,48 @@ k = 13
             end
         end
 
+        @testset "gemm_strided_batched! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            nbatch = 10
+            # generate matrices
+            alpha = rand(elty)
+            beta = rand(elty)
+            A = rand(elty, m, k, nbatch)
+            B = rand(elty, k, n, nbatch)
+            C = rand(elty, m, n, nbatch)
+            # move to device
+            d_A = CuArray{elty, 3}(A)
+            d_B = CuArray{elty, 3}(B)
+            d_C = CuArray{elty, 3}(C)
+
+            CuArrays.CUBLAS.gemm_strided_batched!('N', 'N', alpha, d_A, d_B, beta, d_C)
+
+            for i in 1:nbatch
+                C[:, :, i] = (alpha * A[:, :, i]) * B[:, :, i] + beta * C[:, :, i]
+            end
+            h_C = Array(d_C)
+            @test C ≈ h_C
+        end
+
+        @testset "gemm_strided_batched with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            nbatch = 10
+            # generate matrices
+            A = rand(elty, m, k, nbatch)
+            B = rand(elty, k, n, nbatch)
+            C = zeros(elty, m, n, nbatch)
+            # move to device
+            d_A = CuArray{elty, 3}(A)
+            d_B = CuArray{elty, 3}(B)
+
+            d_C = CuArrays.CUBLAS.gemm_strided_batched('N', 'N', d_A, d_B)
+
+            for i in 1:nbatch
+                C[:, :, i] = A[:, :, i] * B[:, :, i]
+            end
+            h_C = Array(d_C)
+            @test C ≈ h_C
+        end
+
+
         @testset "symm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             # parameters
             alpha = rand(elty)
