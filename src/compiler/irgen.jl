@@ -345,8 +345,10 @@ end
 
 # HACK: this pass removes control flow that confuses `ptxas`
 #
-# basically, we only want a single exit from a function. exiting (ret, trap, exit) from
-# divergent branches causes ptxas to emit invalid code.
+# ideally, we only want a single exit from a function. exiting (ret, trap, exit)
+# from divergent branches causes ptxas to emit invalid code.
+#
+# instead, we hide exits from LLVM and `ptxas` with inline assembly and opaque predicates.
 #
 # TODO: do this with structured CFG with LLVM?
 function fixup_controlflow!(fun::LLVM.Function)
@@ -405,8 +407,8 @@ function fixup_controlflow!(fun::LLVM.Function)
             position!(builder, bb_entry)
             gv_ptr = gep!(builder, gv, [ConstantInt(0, ctx)])
             gv_val = load!(builder, gv_ptr)
-            cond = icmp!(builder, LLVM.API.LLVMIntSGE, gv_val, val)
-            br!(builder, cond, bb_exit, bb_unreachable)
+            predicate = icmp!(builder, LLVM.API.LLVMIntSGE, gv_val, val)
+            br!(builder, predicate, bb_exit, bb_unreachable)
 
             dispose(builder)
         end

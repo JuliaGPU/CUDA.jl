@@ -4,6 +4,9 @@
 #       without mentioning libdevice. Is this implied, by NVCC always using libdevice,
 #       or are there some natively-supported math functions as well?
 
+# yes: https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__DOUBLE.html
+# see /home/tbesard/CUDA/toolkit/current/include/sm_20_intrinsics.h
+
 include(joinpath("intrinsics", "memory_shared.jl"))
 include(joinpath("intrinsics", "indexing.jl"))
 include(joinpath("intrinsics", "synchronization.jl"))
