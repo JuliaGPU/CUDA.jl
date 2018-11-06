@@ -1,246 +1,467 @@
-#custom extenstion of CuArray in CUDArt for sparse vectors/matrices
-#using CSC format for interop with Julia's native sparse functionality
-
-import Base: length, size, ndims, eltype, similar, pointer, stride,
-    copy, convert, reinterpret, show, summary, copyto!, get!, fill!, collect
-import LinearAlgebra: BlasFloat, Hermitian, HermOrSym, issymmetric,
-    ishermitian, istriu, istril, Symmetric, UpperTriangular, LowerTriangular
-import SparseArrays: sparse, SparseMatrixCSC
-
-abstract type AbstractCuSparseArray{Tv, N} <: AbstractSparseArray{Tv, Cint, N} end
-const AbstractCuSparseVector{Tv} = AbstractCuSparseArray{Tv,1}
-const AbstractCuSparseMatrix{Tv} = AbstractCuSparseArray{Tv,2}
-
-mutable struct CuSparseVector{Tv} <: AbstractCuSparseVector{Tv}
-    iPtr::CuVector{Cint}
-    nzVal::CuVector{Tv}
-    dims::NTuple{2,Int}
-    nnz::Cint
-    function CuSparseVector{Tv}(iPtr::CuVector{Cint}, nzVal::CuVector{Tv}, dims::Int, nnz::Cint) where Tv
-        new(iPtr,nzVal,(dims,1),nnz)
-    end
-end
-
-mutable struct CuSparseMatrixCSC{Tv} <: AbstractCuSparseMatrix{Tv}
-    colPtr::CuVector{Cint}
-    rowVal::CuVector{Cint}
-    nzVal::CuVector{Tv}
-    dims::NTuple{2,Int}
-    nnz::Cint
-    function CuSparseMatrixCSC{Tv}(colPtr::CuVector{Cint}, rowVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int}, nnz::Cint) where Tv
-        new(colPtr,rowVal,nzVal,dims,nnz)
-    end
-end
 """
-Container to hold sparse matrices in compressed sparse row (CSR) format on the
-GPU.
-
-**Note**: Most CUSPARSE operations work with CSR formatted matrices, rather
-than CSC.
+convert `SparseChar` {`N`,`T`,`C`} to `cusparseOperation_t`
 """
-mutable struct CuSparseMatrixCSR{Tv} <: AbstractCuSparseMatrix{Tv}
-    rowPtr::CuVector{Cint}
-    colVal::CuVector{Cint}
-    nzVal::CuVector{Tv}
-    dims::NTuple{2,Int}
-    nnz::Cint
-    function CuSparseMatrixCSR{Tv}(rowPtr::CuVector{Cint}, colVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int}, nnz::Cint) where Tv
-        new(rowPtr,colVal,nzVal,dims,nnz)
+function cusparseop(trans::SparseChar)
+    if trans == 'N'
+        return CUSPARSE_OPERATION_NON_TRANSPOSE
     end
+    if trans == 'T'
+        return CUSPARSE_OPERATION_TRANSPOSE
+    end
+    if trans == 'C'
+        return CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE
+    end
+    throw(ArgumentError("unknown cusparse operation $trans"))
 end
 
 """
-Container to hold sparse matrices in block compressed sparse row (BSR) format on
-the GPU. BSR format is also used in Intel MKL, and is suited to matrices that are
-"block" sparse - rare blocks of non-sparse regions.
+convert `SparseChar` {`G`,`S`,`H`,`T`} to `cusparseMatrixType_t`
 """
-mutable struct CuSparseMatrixBSR{Tv} <: AbstractCuSparseMatrix{Tv}
-    rowPtr::CuVector{Cint}
-    colVal::CuVector{Cint}
-    nzVal::CuVector{Tv}
-    dims::NTuple{2,Int}
-    blockDim::Cint
-    dir::SparseChar
-    nnz::Cint
-    function CuSparseMatrixBSR{Tv}(rowPtr::CuVector{Cint}, colVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int},blockDim::Cint, dir::SparseChar, nnz::Cint) where Tv
-        new(rowPtr,colVal,nzVal,dims,blockDim,dir,nnz)
+function cusparsetype(mattype::SparseChar)
+    if mattype == 'G'
+        return CUSPARSE_MATRIX_TYPE_GENERAL
+    end
+    if mattype == 'T'
+        return CUSPARSE_MATRIX_TYPE_TRIANGULAR
+    end
+    if mattype == 'S'
+        return CUSPARSE_MATRIX_TYPE_SYMMETRIC
+    end
+    if mattype == 'H'
+        return CUSPARSE_MATRIX_TYPE_HERMITIAN
+    end
+    throw(ArgumentError("unknown cusparse matrix type $mattype"))
+end
+
+"""
+convert `SparseChar` {`U`,`L`} to `cusparseFillMode_t`
+"""
+function cusparsefill(uplo::SparseChar)
+    if uplo == 'U'
+        return CUSPARSE_FILL_MODE_UPPER
+    end
+    if uplo == 'L'
+        return CUSPARSE_FILL_MODE_LOWER
+    end
+    throw(ArgumentError("unknown cusparse fill mode $uplo"))
+end
+
+"""
+convert `SparseChar` {`U`,`N`} to `cusparseDiagType_t`
+"""
+function cusparsediag(diag::SparseChar)
+    if diag == 'U'
+        return CUSPARSE_DIAG_TYPE_UNIT
+    end
+    if diag == 'N'
+        return CUSPARSE_DIAG_TYPE_NON_UNIT
+    end
+    throw(ArgumentError("unknown cusparse diag mode $diag"))
+end
+
+"""
+convert `SparseChar` {`Z`,`O`} to `cusparseIndexBase_t`
+"""
+function cusparseindex(index::SparseChar)
+    if index == 'Z'
+        return CUSPARSE_INDEX_BASE_ZERO
+    end
+    if index == 'O'
+        return CUSPARSE_INDEX_BASE_ONE
+    end
+    throw(ArgumentError("unknown cusparse index base"))
+end
+
+"""
+convert `SparseChar` {`R`,`C`} to `cusparseDirection_t`
+"""
+function cusparsedir(dir::SparseChar)
+    if dir == 'R'
+        return CUSPARSE_DIRECTION_ROW
+    end
+    if dir == 'C'
+        return CUSPARSE_DIRECTION_COL
+    end
+    throw(ArgumentError("unknown cusparse direction $dir"))
+end
+
+"""
+check that the dimensions of matrix `X` and vector `Y` make sense for a multiplication
+"""
+function chkmvdims(X, n, Y, m)
+    if length(X) != n
+        throw(DimensionMismatch("X must have length $n, but has length $(length(X))"))
+    elseif length(Y) != m
+        throw(DimensionMismatch("Y must have length $m, but has length $(length(Y))"))
     end
 end
 
 """
-Container to hold sparse matrices in NVIDIA's hybrid (HYB) format on the GPU.
-HYB format is an opaque struct, which can be converted to/from using
-CUSPARSE routines.
+check that the dimensions of matrices `X` and `Y` make sense for a multiplication
 """
-const cusparseHybMat_t = Ptr{Cvoid}
-mutable struct CuSparseMatrixHYB{Tv} <: AbstractCuSparseMatrix{Tv}
-    Mat::cusparseHybMat_t
-    dims::NTuple{2,Int}
-    nnz::Cint
-    function CuSparseMatrixHYB{Tv}(Mat::cusparseHybMat_t, dims::NTuple{2,Int}, nnz::Cint) where Tv
-        new(Mat,dims,nnz)
+function chkmmdims( B, C, k, l, m, n )
+    if size(B) != (k,l)
+        throw(DimensionMismatch("B has dimensions $(size(B)) but needs ($k,$l)"))
+    elseif size(C) != (m,n)
+        throw(DimensionMismatch("C has dimensions $(size(C)) but needs ($m,$n)"))
     end
 end
 
 """
-Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
-and `Hermitian` and `Symmetric` versions of these two containers. A function accepting
-this type can make use of performance improvements by only indexing one triangle of the
-matrix if it is guaranteed to be hermitian/symmetric.
+form a `cusparseMatDescr_t` from a `CuSparseMatrix`
 """
-const CompressedSparse{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},HermOrSym{T,CuSparseMatrixCSC{T}},HermOrSym{T,CuSparseMatrixCSR{T}}}
-
-"""
-Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
-[`CuSparseMatrixBSR`](@ref), and [`CuSparseMatrixHYB`](@ref).
-"""
-const CuSparseMatrix{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T}, CuSparseMatrixBSR{T}, CuSparseMatrixHYB{T}}
-
-Hermitian{T}(Mat::CuSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
-
-length(g::CuSparseVector) = prod(g.dims)
-size(g::CuSparseVector) = g.dims
-ndims(g::CuSparseVector) = 1
-length(g::CuSparseMatrix) = prod(g.dims)
-size(g::CuSparseMatrix) = g.dims
-ndims(g::CuSparseMatrix) = 2
-
-function size(g::CuSparseVector, d::Integer)
-    if d == 1
-        return g.dims[d]
-    elseif d > 1
-        return 1
-    else
-        throw(ArgumentError("dimension must be ≥ 1, got $d"))
+function getDescr( A::CuSparseMatrix, index::SparseChar )
+    cuind = cusparseindex(index)
+    typ   = CUSPARSE_MATRIX_TYPE_GENERAL
+    fill  = CUSPARSE_FILL_MODE_LOWER
+    if ishermitian(A)
+        typ  = CUSPARSE_MATRIX_TYPE_HERMITIAN
+        fill = cusparsefill(A.uplo)
+    elseif issymmetric(A)
+        typ  = CUSPARSE_MATRIX_TYPE_SYMMETRIC
+        fill = cusparsefill(A.uplo)
     end
+    cudesc = cusparseMatDescr_t(typ, fill,CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
 end
 
-function size(g::CuSparseMatrix, d::Integer)
-    if d in [1, 2]
-        return g.dims[d]
-    elseif d > 1
-        return 1
-    else
-        throw(ArgumentError("dimension must be ≥ 1, got $d"))
-    end
+function getDescr( A::Symmetric, index::SparseChar )
+    cuind = cusparseindex(index)
+    typ  = CUSPARSE_MATRIX_TYPE_SYMMETRIC
+    fill = cusparsefill(A.uplo)
+    cudesc = cusparseMatDescr_t(typ, fill,CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
 end
 
-issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR})= false
-ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) where T = false
-issymmetric(M::Symmetric{CuSparseMatrixCSC})= true
-ishermitian(M::Hermitian{CuSparseMatrixCSC}) = true
+function getDescr( A::Hermitian, index::SparseChar )
+    cuind = cusparseindex(index)
+    typ  = CUSPARSE_MATRIX_TYPE_HERMITIAN
+    fill = cusparsefill(A.uplo)
+    cudesc = cusparseMatDescr_t(typ, fill,CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+end
 
-for mat_type in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixBSR, :CuSparseMatrixHYB]
+# type conversion
+for (fname,elty) in ((:cusparseScsr2csc, :Float32),
+                     (:cusparseDcsr2csc, :Float64),
+                     (:cusparseCcsr2csc, :ComplexF32),
+                     (:cusparseZcsr2csc, :ComplexF64))
     @eval begin
-        istriu(M::UpperTriangular{$mat_type}) = true
-        istril(M::UpperTriangular{$mat_type}) = false
-        istriu(M::LowerTriangular{$mat_type}) = false 
-        istril(M::LowerTriangular{$mat_type}) = true 
+        function switch2csc(csr::CuSparseMatrixCSR{$elty},inda::SparseChar='O')
+            cuind = cusparseindex(inda)
+            m,n = csr.dims
+            colPtr = cuzeros(Cint, n+1)
+            rowVal = cuzeros(Cint, csr.nnz)
+            nzVal = cuzeros($elty, csr.nnz)
+            @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, Cint, Cint, Cint, Ptr{$elty},
+                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty}, Ptr{Cint},
+                               Ptr{Cint}, cusparseAction_t, cusparseIndexBase_t),
+                               handle(), m, n, csr.nnz, csr.nzVal,
+                               csr.rowPtr, csr.colVal, nzVal, rowVal,
+                               colPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            csc = CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.nnz,csr.dims)
+            csc
+        end
+        function switch2csr(csc::CuSparseMatrixCSC{$elty},inda::SparseChar='O')
+            cuind = cusparseindex(inda)
+            m,n = csc.dims
+            rowPtr = cuzeros(Cint,m+1)
+            colVal = cuzeros(Cint,csc.nnz)
+            nzVal = cuzeros($elty,csc.nnz)
+            @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, Cint, Cint, Cint, Ptr{$elty},
+                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty}, Ptr{Cint},
+                               Ptr{Cint}, cusparseAction_t, cusparseIndexBase_t),
+                               handle(), n, m, csc.nnz, csc.nzVal,
+                               csc.colPtr, csc.rowVal, nzVal, colVal,
+                               rowPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            csr = CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.nnz,csc.dims)
+            csr
+        end
     end
 end
-eltype(g::CuSparseMatrix{T}) where T = T
 
-function collect(Vec::CuSparseVector)
-    SparseVector(Vec.dims[1], collect(Vec.iPtr), collect(Vec.nzVal))
-end
-
-function collect(Mat::CuSparseMatrixCSC)
-    SparseMatrixCSC(Mat.dims[1], Mat.dims[2], collect(Mat.colPtr), collect(Mat.rowVal), collect(Mat.nzVal))
-end
-function collect(Mat::CuSparseMatrixCSR)
-    rowPtr = collect(Mat.rowPtr)
-    colVal = collect(Mat.colVal)
-    nzVal = collect(Mat.nzVal)
-    #construct Is
-    I = similar(colVal)
-    counter = 1
-    for row = 1 : size(Mat)[1], k = rowPtr[row] : (rowPtr[row+1]-1)
-        I[counter] = row
-        counter += 1
+for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
+                     (:cusparseDcsr2bsr, :Float64),
+                     (:cusparseCcsr2bsr, :ComplexF32),
+                     (:cusparseZcsr2bsr, :ComplexF64))
+    @eval begin
+        function switch2bsr(csr::CuSparseMatrixCSR{$elty},
+                            blockDim::Cint,
+                            dir::SparseChar='R',
+                            inda::SparseChar='O',
+                            indc::SparseChar='O')
+            cudir = cusparsedir(dir)
+            cuinda = cusparseindex(inda)
+            cuindc = cusparseindex(indc)
+            m,n = csr.dims
+            nnz = Ref{Cint}(1)
+            mb = div((m + blockDim - 1),blockDim)
+            nb = div((n + blockDim - 1),blockDim)
+            bsrRowPtr = cuzeros(Cint,mb + 1)
+            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            cudescc = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
+            @check ccall((:cusparseXcsr2bsrNnz,libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, cusparseDirection_t, Cint, Cint,
+                               Ptr{cusparseMatDescr_t}, Ptr{Cint},
+                               Ptr{Cint}, Cint, Ptr{cusparseMatDescr_t},
+                               Ptr{Cint}, Ptr{Cint}),
+                              handle(), cudir, m, n, Ref(cudesca), csr.rowPtr,
+                              csr.colVal, blockDim, Ref(cudescc), bsrRowPtr, nnz)
+            bsrNzVal = cuzeros($elty, nnz[] * blockDim * blockDim )
+            bsrColInd = cuzeros(Cint, nnz[])
+            @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, cusparseDirection_t, Cint,
+                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                               Ptr{Cint}, Ptr{Cint}, Cint,
+                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
+                               Ptr{Cint}), handle(), cudir, m, n,
+                               Ref(cudesca), csr.nzVal, csr.rowPtr, csr.colVal,
+                               blockDim, Ref(cudescc), bsrNzVal, bsrRowPtr,
+                               bsrColInd)
+            CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, csr.dims, blockDim, dir, nnz[])
+        end
+        function switch2bsr(csc::CuSparseMatrixCSC{$elty},
+                            blockDim::Cint,
+                            dir::SparseChar='R',
+                            inda::SparseChar='O',
+                            indc::SparseChar='O')
+                switch2bsr(switch2csr(csc),blockDim,dir,inda,indc)
+        end
     end
-    return sparse(I,colVal,nzVal,Mat.dims[1],Mat.dims[2])
 end
 
-summary(g::CuSparseMatrix) = string(g)
-summary(g::CuSparseVector) = string(g)
-
-CuSparseVector(iPtr::Vector{Ti}, nzVal::Vector{T}, dims::Int) where {T<:BlasFloat, Ti<:Integer} = CuSparseVector{T}(CuArray(convert(Vector{Cint},iPtr)), CuArray(nzVal), dims, convert(Cint,length(nzVal)))
-CuSparseVector(iPtr::CuArray{Ti}, nzVal::CuArray{T}, dims::Int) where {T<:BlasFloat, Ti<:Integer} = CuSparseVector{T}(iPtr, nzVal, dims, convert(Cint,length(nzVal)))
-
-CuSparseMatrixCSC(colPtr::Vector{Ti}, rowVal::Vector{Ti}, nzVal::Vector{T}, dims::NTuple{2,Int}) where {T<:BlasFloat,Ti<:Integer} = CuSparseMatrixCSC{T}(CuArray(convert(Vector{Cint},colPtr)), CuArray(convert(Vector{Cint},rowVal)), CuArray(nzVal), dims, convert(Cint,length(nzVal)))
-CuSparseMatrixCSC(colPtr::CuArray{Ti}, rowVal::CuArray{Ti}, nzVal::CuArray{T}, dims::NTuple{2,Int}) where {T<:BlasFloat,Ti<:Integer} = CuSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims, convert(Cint,length(nzVal)))
-CuSparseMatrixCSC(colPtr::CuArray{Ti}, rowVal::CuArray{Ti}, nzVal::CuArray{T}, nnz, dims::NTuple{2,Int}) where {T<:BlasFloat,Ti<:Integer} = CuSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims, nnz)
-
-CuSparseMatrixCSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, dims::NTuple{2,Int}) where T = CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims, convert(Cint,length(nzVal)))
-CuSparseMatrixCSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, nnz, dims::NTuple{2,Int}) where T = CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims, nnz)
-
-CuSparseMatrixBSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, blockDim, dir, nnz, dims::NTuple{2,Int}) where T = CuSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
-
-CuSparseVector(Vec::SparseVector)    = CuSparseVector(Vec.nzind, Vec.nzval, size(Vec)[1])
-CuSparseMatrixCSC(Vec::SparseVector)    = CuSparseMatrixCSC([1], Vec.nzind, Vec.nzval, size(Vec))
-CuSparseVector(Mat::SparseMatrixCSC) = size(Mat,2) == 1 ? CuSparseVector(Mat.rowval, Mat.nzval, size(Mat)[1]) : throw(ArgumentError())
-CuSparseMatrixCSC(Mat::SparseMatrixCSC) = CuSparseMatrixCSC(Mat.colptr, Mat.rowval, Mat.nzval, size(Mat))
-CuSparseMatrixCSR(Mat::SparseMatrixCSC) = switch2csr(CuSparseMatrixCSC(Mat))
-
-similar(Vec::CuSparseVector) = CuSparseVector(copy(Vec.iPtr), similar(Vec.nzVal), Vec.dims[1])
-similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(Mat.rowVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
-similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
-similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.blockDim, Mat.dir, Mat.nnz, Mat.dims)
-
-function copyto!(dst::CuSparseVector, src::CuSparseVector)
-    if dst.dims != src.dims
-        throw(ArgumentError("Inconsistent Sparse Vector size"))
+for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
+                     (:cusparseDbsr2csr, :Float64),
+                     (:cusparseCbsr2csr, :ComplexF32),
+                     (:cusparseZbsr2csr, :ComplexF64))
+    @eval begin
+        function switch2csr(bsr::CuSparseMatrixBSR{$elty},
+                            inda::SparseChar='O',
+                            indc::SparseChar='O')
+            cudir = cusparsedir(bsr.dir)
+            cuinda = cusparseindex(inda)
+            cuindc = cusparseindex(indc)
+            m,n = bsr.dims
+            mb = div(m,bsr.blockDim)
+            nb = div(n,bsr.blockDim)
+            nnz = bsr.nnz * bsr.blockDim * bsr.blockDim
+            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            cudescc = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
+            csrRowPtr = cuzeros(Cint, m + 1)
+            csrColInd = cuzeros(Cint, nnz)
+            csrNzVal  = cuzeros($elty, nnz)
+            @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, cusparseDirection_t, Cint,
+                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                               Ptr{Cint}, Ptr{Cint}, Cint,
+                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
+                               Ptr{Cint}), handle(), cudir, mb, nb,
+                               Ref(cudesca), bsr.nzVal, bsr.rowPtr, bsr.colVal,
+                               bsr.blockDim, Ref(cudescc), csrNzVal, csrRowPtr,
+                               csrColInd)
+            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, convert(Cint,nnz), bsr.dims)
+        end
+        function switch2csc(bsr::CuSparseMatrixBSR{$elty},
+                            inda::SparseChar='O',
+                            indc::SparseChar='O')
+            switch2csc(switch2csr(bsr,inda,indc))
+        end
     end
-    copyto!( dst.iPtr, src.iPtr )
-    copyto!( dst.nzVal, src.nzVal )
-    dst.nnz = src.nnz
-    dst
 end
 
-function copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
-    if dst.dims != src.dims
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
+for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
+                           (:cusparseDcsc2dense, :cusparseDcsr2dense, :Float64),
+                           (:cusparseCcsc2dense, :cusparseCcsr2dense, :ComplexF32),
+                           (:cusparseZcsc2dense, :cusparseZcsr2dense, :ComplexF64))
+    @eval begin
+        function Base.Array(csr::CuSparseMatrixCSR{$elty},ind::SparseChar='O')
+            cuind = cusparseindex(ind)
+            m,n = csr.dims
+            denseA = cuzeros($elty,m,n)
+            lda = max(1,stride(denseA,2))
+            cudesc = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            @check ccall(($(string(rname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, Cint, Cint,
+                               Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty}, Cint),
+                               handle(), m, n, Ref(cudesc), csr.nzVal,
+                               csr.rowPtr, csr.colVal, denseA, lda)
+            denseA
+        end
+        function Base.Array(csc::CuSparseMatrixCSC{$elty},ind::SparseChar='O')
+            cuind = cusparseindex(ind)
+            m,n = csc.dims
+            denseA = cuzeros($elty,m,n)
+            lda = max(1,stride(denseA,2))
+            cudesc = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            @check ccall(($(string(cname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, Cint, Cint,
+                               Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty}, Cint),
+                               handle(), m, n, Ref(cudesc), csc.nzVal,
+                               csc.rowVal, csc.colPtr, denseA, lda)
+            denseA
+        end
+        function Base.Array(hyb::CuSparseMatrixHYB{$elty},ind::SparseChar='O')
+            Array(switch2csr(hyb,ind))
+        end
+        function Base.Array(bsr::CuSparseMatrixBSR{$elty},ind::SparseChar='O')
+            Array(switch2csr(bsr,ind))
+        end
     end
-    copyto!( dst.colPtr, src.colPtr )
-    copyto!( dst.rowVal, src.rowVal )
-    copyto!( dst.nzVal, src.nzVal )
-    dst.nnz = src.nnz
-    dst
 end
 
-function copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
-    if dst.dims != src.dims
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
+for (nname,cname,rname,hname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseSdense2csr, :cusparseSdense2hyb, :Float32),
+                                       (:cusparseDnnz, :cusparseDdense2csc, :cusparseDdense2csr, :cusparseDdense2hyb, :Float64),
+                                       (:cusparseCnnz, :cusparseCdense2csc, :cusparseCdense2csr, :cusparseCdense2hyb, :ComplexF32),
+                                       (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :cusparseZdense2hyb, :ComplexF64))
+    @eval begin
+        function sparse(A::CuMatrix{$elty},fmt::SparseChar='R',ind::SparseChar='O')
+            cuind = cusparseindex(ind)
+            cudir = cusparsedir('R')
+            if( fmt == 'C' )
+                cudir = cusparsedir(fmt)
+            end
+            m,n = size(A)
+            lda = max(1,stride(A,2))
+            cudesc = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            nnzRowCol = cuzeros(Cint, fmt == 'R' ? m : n)
+            nnzTotal = Ref{Cint}(1)
+            @check ccall(($(string(nname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, cusparseDirection_t,
+                               Cint, Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                               Cint, Ptr{Cint}, Ptr{Cint}), handle(),
+                               cudir, m, n, Ref(cudesc), A, lda, nnzRowCol,
+                               nnzTotal)
+            nzVal = cuzeros($elty,nnzTotal[])
+            if(fmt == 'R')
+                rowPtr = cuzeros(Cint,m+1)
+                colInd = cuzeros(Cint,nnzTotal[])
+                @check ccall(($(string(rname)),libcusparse), cusparseStatus_t,
+                                  (cusparseHandle_t, Cint, Cint,
+                                   Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                                   Cint, Ptr{Cint}, Ptr{$elty}, Ptr{Cint},
+                                   Ptr{Cint}), handle(), m, n, Ref(cudesc), A,
+                                   lda, nnzRowCol, nzVal, rowPtr, colInd)
+                return CuSparseMatrixCSR(rowPtr,colInd,nzVal,nnzTotal[],size(A))
+            end
+            if(fmt == 'C')
+                colPtr = cuzeros(Cint,n+1)
+                rowInd = cuzeros(Cint,nnzTotal[])
+                @check ccall(($(string(cname)),libcusparse), cusparseStatus_t,
+                                  (cusparseHandle_t, Cint, Cint,
+                                   Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                                   Cint, Ptr{Cint}, Ptr{$elty}, Ptr{Cint},
+                                   Ptr{Cint}), handle(), m, n, Ref(cudesc), A,
+                                   lda, nnzRowCol, nzVal, rowInd, colPtr)
+                return CuSparseMatrixCSC(colPtr,rowInd,nzVal,nnzTotal[],size(A))
+            end
+            if(fmt == 'B')
+                return switch2bsr(sparse(A,'R',ind),convert(Cint,gcd(m,n)))
+            end
+            if(fmt == 'H')
+                hyb = cusparseHybMat_t[0]
+                @check ccall((:cusparseCreateHybMat,libcusparse), cusparseStatus_t,
+                                  (Ptr{cusparseHybMat_t},), hyb)
+                @check ccall(($(string(hname)),libcusparse), cusparseStatus_t,
+                                  (cusparseHandle_t, Cint, Cint,
+                                   Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                                   Cint, Ptr{Cint}, cusparseHybMat_t,
+                                   Cint, cusparseHybPartition_t),
+                                  handle(), m, n, Ref(cudesc), A, lda, nnzRowCol,
+                                  hyb[1], 0, CUSPARSE_HYB_PARTITION_AUTO)
+                return CuSparseMatrixHYB{$elty}(hyb[1],size(A),nnzTotal[])
+            end
+        end
     end
-    copyto!( dst.rowPtr, src.rowPtr )
-    copyto!( dst.colVal, src.colVal )
-    copyto!( dst.nzVal, src.nzVal )
-    dst.nnz = src.nnz
-    dst
 end
 
-function copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
-    if dst.dims != src.dims
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
+"""
+    switch2hyb(csr::CuSparseMatrixCSR, inda::SparseChar='O')
+
+Convert a `CuSparseMatrixCSR` to the hybrid CUDA storage format.
+"""
+switch2hyb(csr::CuSparseMatrixCSR, inda::SparseChar='O')
+
+"""
+    switch2hyb(csc::CuSparseMatrixCSC, inda::SparseChar='O')
+
+Convert a `CuSparseMatrixCSC` to the hybrid CUDA storage format.
+"""
+switch2hyb(csc::CuSparseMatrixCSC, inda::SparseChar='O')
+
+for (rname,cname,elty) in ((:cusparseScsr2hyb, :cusparseScsc2hyb, :Float32),
+                           (:cusparseDcsr2hyb, :cusparseDcsc2hyb, :Float64),
+                           (:cusparseCcsr2hyb, :cusparseCcsc2hyb, :ComplexF32),
+                           (:cusparseZcsr2hyb, :cusparseZcsc2hyb, :ComplexF64))
+    @eval begin
+        function switch2hyb(csr::CuSparseMatrixCSR{$elty},
+                            inda::SparseChar='O')
+            cuinda = cusparseindex(inda)
+            m,n = csr.dims
+            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            hyb = cusparseHybMat_t[0]
+            @check ccall((:cusparseCreateHybMat,libcusparse), cusparseStatus_t,
+                              (Ptr{cusparseHybMat_t},), hyb)
+            @check ccall(($(string(rname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, Cint, Cint,
+                               Ptr{cusparseMatDescr_t}, Ptr{$elty},
+                               Ptr{Cint}, Ptr{Cint}, cusparseHybMat_t,
+                               Cint, cusparseHybPartition_t), handle(),
+                               m, n, Ref(cudesca), csr.nzVal, csr.rowPtr, csr.colVal,
+                               hyb[1], 0, CUSPARSE_HYB_PARTITION_AUTO)
+            CuSparseMatrixHYB{$elty}(hyb[1], csr.dims, csr.nnz)
+        end
+        function switch2hyb(csc::CuSparseMatrixCSC{$elty},
+                            inda::SparseChar='O')
+            switch2hyb(switch2csr(csc,inda),inda)
+        end
     end
-    copyto!( dst.rowPtr, src.rowPtr )
-    copyto!( dst.colVal, src.colVal )
-    copyto!( dst.nzVal, src.nzVal )
-    dst.dir = src.dir
-    dst.nnz = src.nnz
-    dst
 end
 
-function copyto!(dst::CuSparseMatrixHYB, src::CuSparseMatrixHYB)
-    if dst.dims != src.dims
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
+for (rname,cname,elty) in ((:cusparseShyb2csr, :cusparseShyb2csc, :Float32),
+                           (:cusparseDhyb2csr, :cusparseDhyb2csc, :Float64),
+                           (:cusparseChyb2csr, :cusparseChyb2csc, :ComplexF32),
+                           (:cusparseZhyb2csr, :cusparseZhyb2csc, :ComplexF64))
+    @eval begin
+        function switch2csr(hyb::CuSparseMatrixHYB{$elty},
+                            inda::SparseChar='O')
+            cuinda = cusparseindex(inda)
+            m,n = hyb.dims
+            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            csrRowPtr = cuzeros(Cint, m + 1)
+            csrColInd = cuzeros(Cint, hyb.nnz)
+            csrNzVal = cuzeros($elty, hyb.nnz)
+            @check ccall(($(string(rname)),libcusparse), cusparseStatus_t,
+                              (cusparseHandle_t, Ptr{cusparseMatDescr_t},
+                               cusparseHybMat_t, Ptr{$elty}, Ptr{Cint},
+                               Ptr{Cint}), handle(), Ref(cudesca),
+                               hyb.Mat, csrNzVal, csrRowPtr, csrColInd)
+            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, hyb.nnz, hyb.dims)
+        end
+        function switch2csc(hyb::CuSparseMatrixHYB{$elty},
+                            inda::SparseChar='O')
+            switch2csc(switch2csr(hyb,inda),inda)
+        end
     end
-    dst.Mat = src.Mat
-    dst.nnz = src.nnz
-    dst
 end
 
-copy(Vec::CuSparseVector) = copyto!(similar(Vec),Vec)
-copy(Mat::CuSparseMatrixCSC) = copyto!(similar(Mat),Mat)
-copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat),Mat)
-copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat),Mat)
+"""
+    switch2csr(csr::CuSparseMatrixCSR, inda::SparseChar='O')
+
+Convert a `CuSparseMatrixCSR` to the compressed sparse column format.
+"""
+function switch2csc(csr::CuSparseMatrixCSR, inda::SparseChar='O') end
+
+"""
+    switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O')
+
+Convert a `CuSparseMatrixCSC` to the compressed sparse row format.
+"""
+function switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O') end
+
+"""
+    switch2bsr(csr::CuSparseMatrixCSR, blockDim::Cint, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
+
+Convert a `CuSparseMatrixCSR` to the compressed block sparse row format. `blockDim` sets the block dimension of the compressed sparse blocks and `indc` determines whether the new matrix will be one- or zero-indexed.
+"""
+function switch2bsr(csr::CuSparseMatrixCSR, blockDim::Cint, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O') end

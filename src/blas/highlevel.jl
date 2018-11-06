@@ -48,12 +48,13 @@ end
 Base.argmin(xs::CublasArray{<:CublasReal}) = iamin(xs)
 Base.argmax(xs::CublasArray{<:CublasReal}) = iamax(xs)
 
+
+
 ############
 #
 # BLAS 2
 #
 ############
-
 
 #########
 # GEMV
@@ -81,12 +82,13 @@ LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Transpose{<:Any, CuMatrix{T
 LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(Y, 'T', A.parent, B)
 LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasComplex = gemv_wrapper!(Y, 'C', A.parent, B)
 
+
+
 ############
 #
 # BLAS 3
 #
 ############
-
 
 ########
 # GEMM
@@ -146,9 +148,11 @@ LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T <: CublasFloat =
     gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB))
 
+
 ########
 # TRSM
 ########
+
 # ldiv!
 ## No transpose/adjoint
 LinearAlgebra.ldiv!(A::UpperTriangular{T,CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =

@@ -1,8 +1,9 @@
 module CUDNN
 
-using CUDAdrv
+import CUDAdrv: CUDAdrv, CuContext
 
-using ..CuArrays: CuArray, libcudnn, configured, active_context
+using ..CuArrays
+using ..CuArrays: libcudnn, active_context, configured
 
 include("libcudnn_types.jl")
 

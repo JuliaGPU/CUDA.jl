@@ -168,3 +168,5 @@ const cuDoubleComplex = Complex{Float64}
 const CusparseFloat = Union{Float64,Float32,ComplexF64,ComplexF32}
 const CusparseReal = Union{Float64,Float32}
 const CusparseComplex = Union{ComplexF64,ComplexF32}
+
+const cusparseHybMat_t = Ptr{Cvoid}

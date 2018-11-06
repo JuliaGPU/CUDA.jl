@@ -1,8 +1,10 @@
 # Julia wrapper for header: /usr/local/cuda/include/cusparse.h
 
 #helper functions
-function cusparseCreate(handle)
+function cusparseCreate()
+  handle = Ref{cusparseHandle_t}()
   @check ccall( (:cusparseCreate, libcusparse), cusparseStatus_t, (Ptr{cusparseHandle_t},), handle)
+  handle[]
 end
 function cusparseDestroy(handle)
   @check ccall( (:cusparseDestroy, libcusparse), cusparseStatus_t, (cusparseHandle_t,), handle)
@@ -11,10 +13,10 @@ function cusparseGetVersion(handle, version)
   @check ccall( (:cusparseGetVersion, libcusparse), cusparseStatus_t, (cusparseHandle_t, Ptr{Cint}), handle, version)
 end
 function cusparseSetStream(handle, streamId)
-  @check ccall( (:cusparseSetStream, libcusparse), cusparseStatus_t, (cusparseHandle_t, cudaStream_t), handle, streamId)
+  @check ccall( (:cusparseSetStream, libcusparse), cusparseStatus_t, (cusparseHandle_t, CuStream_t), handle, streamId)
 end
 function cusparseGetStream(handle, streamId)
-  @check ccall( (:cusparseGetStream, libcusparse), cusparseStatus_t, (cusparseHandle_t, Ptr{cudaStream_t}), handle, streamId)
+  @check ccall( (:cusparseGetStream, libcusparse), cusparseStatus_t, (cusparseHandle_t, Ptr{CuStream_t}), handle, streamId)
 end
 function cusparseGetPointerMode(handle, mode)
   @check ccall( (:cusparseGetPointerMode, libcusparse), cusparseStatus_t, (cusparseHandle_t, Ptr{cusparsePointerMode_t}), handle, mode)
