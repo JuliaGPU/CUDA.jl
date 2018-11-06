@@ -374,18 +374,18 @@ function fixup_controlflow!(fun::LLVM.Function)
     else
         opaque_exit = LLVM.Function(mod, opaque_exit_fn, exit_ft)
 
-        entry = LLVM.BasicBlock(opaque_exit, "entry", ctx)
-        exitblock = LLVM.BasicBlock(opaque_exit, "trap", ctx)
-        loopblock = LLVM.BasicBlock(opaque_exit, "loop", ctx)
+        bb_entry = LLVM.BasicBlock(opaque_exit, "entry", ctx)
+        bb_exit = LLVM.BasicBlock(opaque_exit, "exit", ctx)
+        bb_unreachable = LLVM.BasicBlock(opaque_exit, "unreachable", ctx)
 
         let builder = Builder(ctx)
-            position!(builder, exitblock)
+            position!(builder, bb_exit)
             call!(builder, exit)
-            br!(builder, exitblock)
+            br!(builder, bb_unreachable)
 
-            # a dummy block that just loops but will never be executed
-            position!(builder, loopblock)
-            br!(builder, loopblock)
+            # an unreachable block that just loops
+            position!(builder, bb_unreachable)
+            br!(builder, bb_unreachable)
 
             T_int = LLVM.Int32Type(ctx)
             val = LLVM.ConstantInt(T_int, 1)
@@ -399,12 +399,12 @@ function fixup_controlflow!(fun::LLVM.Function)
                 initializer!(gv, val)
             end
 
-            # emit a conditional branch to the trap block
-            position!(builder, entry)
+            # emit a conditional branch to the exit block
+            position!(builder, bb_entry)
             gv_ptr = gep!(builder, gv, [ConstantInt(0, ctx)])
             gv_val = load!(builder, gv_ptr)
             cond = icmp!(builder, LLVM.API.LLVMIntEQ, val, gv_val)
-            br!(builder, cond, exitblock, loopblock)
+            br!(builder, cond, bb_exit, bb_unreachable)
 
             dispose(builder)
         end
@@ -446,14 +446,17 @@ function fixup_controlflow!(fun::LLVM.Function)
         end
     end
 
-    for bb in unreachable_bbs
-        loopblock = LLVM.BasicBlock(fun, "unreachable", ctx)
+    if !isempty(unreachable_bbs)
         let builder = Builder(ctx)
-            position!(builder, loopblock)
-            br!(builder, loopblock)
+            # an unreachable block that just loops
+            bb_unreachable = LLVM.BasicBlock(fun, "opaque_unreachable", ctx)
+            position!(builder, bb_unreachable)
+            br!(builder, bb_unreachable)
 
-            position!(builder, bb)
-            br!(builder, loopblock)
+            for bb in unreachable_bbs
+                position!(builder, bb)
+                br!(builder, bb_unreachable)
+            end
 
             dispose(builder)
         end
