@@ -13,7 +13,7 @@ if haskey(ENV, "GITLAB_CI")
   end
 
   branch = ENV["CI_COMMIT_REF_NAME"]
-  for package in ("GPUArrays", "CUDAnative")
+  for package in ("GPUArrays", "CUDAnative", "NNlib")
     match_package(package, branch)
   end
 end
