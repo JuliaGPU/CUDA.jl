@@ -349,11 +349,9 @@ end
 # divergent branches causes ptxas to emit invalid code.
 #
 # TODO: do this with structured CFG with LLVM?
-function fixup_controlflow!(f::LLVM.Function)
-    ctx = LLVM.context(f)
-
-    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-    exit = InlineAsm(exit_ft, "exit;", "", true)
+function fixup_controlflow!(fun::LLVM.Function)
+    ctx = LLVM.context(fun)
+    mod = LLVM.parent(fun)
 
     changed = false
 
@@ -361,36 +359,76 @@ function fixup_controlflow!(f::LLVM.Function)
     #
     # when calling a `noreturn` function, LLVM places an `unreachable` after the call.
     # this leads to an early `ret` from the function.
-    attrs = function_attributes(f)
+    attrs = function_attributes(fun)
     delete!(attrs, EnumAttribute("noreturn", 0, ctx))
 
-    pending_terminators = Pair{LLVM.BasicBlock, LLVM.BasicBlock}[]
+    # inline assembly to exit a thread, hiding control flow from LLVM
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit = InlineAsm(exit_ft, "exit;", "", true)
 
-    for bb in blocks(f)
-        # remove calls to `trap`, for obvious reasons.
+    # an opaque call to exit, hiding control flow from ptxas
+    funs = functions(mod)
+    opaque_exit_fn = "opaque_exit"
+    if haskey(funs, opaque_exit_fn)
+        opaque_exit = funs[opaque_exit_fn]
+    else
+        opaque_exit = LLVM.Function(mod, opaque_exit_fn, exit_ft)
+
+        entry = LLVM.BasicBlock(opaque_exit, "entry", ctx)
+        exitblock = LLVM.BasicBlock(opaque_exit, "trap", ctx)
+        loopblock = LLVM.BasicBlock(opaque_exit, "loop", ctx)
+
+        let builder = Builder(ctx)
+            position!(builder, exitblock)
+            call!(builder, exit)
+            br!(builder, exitblock)
+
+            # a dummy block that just loops but will never be executed
+            position!(builder, loopblock)
+            br!(builder, loopblock)
+
+            T_int = LLVM.Int32Type(ctx)
+            val = LLVM.ConstantInt(T_int, 1)
+
+            gvs = globals(mod)
+            gv_name = "breaker_of_controlflow"
+            if haskey(gvs, gv_name)
+                gv = gvs[gv_name]
+            else
+                gv = LLVM.GlobalVariable(mod, T_int, gv_name)
+                initializer!(gv, val)
+            end
+
+            # emit a conditional branch to the trap block
+            position!(builder, entry)
+            gv_ptr = gep!(builder, gv, [ConstantInt(0, ctx)])
+            gv_val = load!(builder, gv_ptr)
+            cond = icmp!(builder, LLVM.API.LLVMIntEQ, val, gv_val)
+            br!(builder, cond, exitblock, loopblock)
+
+            dispose(builder)
+        end
+    end
+
+    unreachable_bbs = LLVM.BasicBlock[]
+    for bb in blocks(fun)
+        # replace calls to `trap` with an opaque call to `exit`
         for inst in instructions(bb)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
-                # replace with call to `exit`
-                # FIXME: this still confuses `ptxas`, `brkpt` seems to work but that's fragile
-                #let builder = Builder(ctx)
-                #    position!(builder, inst)
-                #    call!(builder, exit)
-                #    dispose(builder)
-                #end
-
+                let builder = Builder(ctx)
+                    position!(builder, inst)
+                    call!(builder, opaque_exit)
+                    dispose(builder)
+                end
                 unsafe_delete!(bb, inst)
                 changed = true
             end
         end
 
-        # remove `unreachable `terminators.
+        # replace `unreachable `terminators with a call to an infinite loop.
         #
         # at this point, the optimizer hasn't run, so these hints are placed there by Julia.
         # this happens e.g. with exceptions, and cannot be controlled by a compiler hook.
-        #
-        # note that we don't immediately rewrite terminators, but populate a dict and do so
-        # afterwards, because doing so touches control flow in ways that might confuse our
-        # own analysis (which only handles IR patterns as produced by Julia's codegen)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -403,92 +441,23 @@ function fixup_controlflow!(f::LLVM.Function)
                 # TODO: `unreachable; unreachable`
             catch ex
                 isa(ex, UndefRefError) || rethrow(ex)
-
-                let builder = Builder(ctx)
-                    position!(builder, bb)
-
-                    # find the predecessors to this block
-                    function predecessors(bb)
-                        pred = LLVM.BasicBlock[]
-
-                        for bb′ in blocks(f), inst in instructions(bb′)
-                            if isa(inst, LLVM.BrInst)
-                                if bb in successors(inst) && bb != bb′
-                                    push!(pred, bb′)
-                                end
-                            end
-                        end
-
-                        return pred
-                    end
-                    pred = predecessors(bb)
-
-                    # find the fall through successors
-                    if !isempty(pred)
-                        # there might be multiple blocks branching to the unreachable one
-                        branches = map(terminator, pred)
-
-                        # find the other successors
-                        other_succ = LLVM.BasicBlock[]
-                        for br in branches
-                            for target in successors(br)
-                                if target != bb
-                                    push!(other_succ, target)
-                                end
-                            end
-                        end
-
-                        # find all predecessors
-                        all_pred = pred
-                        let all_preds = 0
-                            while all_preds != length(all_pred)
-                                all_preds = length(all_pred)
-                                append!(all_pred,
-                                        Iterators.flatten(map(predecessors, all_pred)))
-                                unique!(all_pred)
-                            end
-                        end
-
-                        # replace the branch if we have a single other successor
-                        unique!(other_succ)
-                        if length(other_succ) == 1 && !(first(other_succ) in all_pred)
-                            push!(pending_terminators, bb => first(other_succ))
-                        else
-                            unreachable!(builder)
-                            @warn "unsupported control flow to unreachable code"
-                        end
-                    else
-                        # this block has no predecessors, so we can't fall through
-                        #
-                        # a block without predecessors is either never called,
-                        # or the only block in a function.
-                        ft = eltype(llvmtype(f))
-                        if return_type(ft) == LLVM.VoidType(ctx)
-                            # even though returning can lead to invalid control flow,
-                            # it mostly happens with functions that just throw,
-                            # and leaving the unreachable there would make the optimizer
-                            # place another after the call.
-                            ret!(builder)
-                        else
-                            unreachable!(builder)
-                        end
-                    end
-
-                    dispose(builder)
-                end
+                push!(unreachable_bbs, bb)
             end
         end
     end
 
-    # apply the pending terminator rewrites
-    for (bb, target) in pending_terminators
+    for bb in unreachable_bbs
+        loopblock = LLVM.BasicBlock(fun, "unreachable", ctx)
         let builder = Builder(ctx)
-            position!(builder, bb)
-            br!(builder, target)
-        end
+            position!(builder, loopblock)
+            br!(builder, loopblock)
 
+            position!(builder, bb)
+            br!(builder, loopblock)
+
+            dispose(builder)
+        end
     end
 
     return changed
 end
-
