@@ -989,6 +989,82 @@ for (fname, elty) in
     end
 end
 
+
+## (GE) general matrix-matrix multiplication strided batched
+for (fname, elty) in
+        ((:cublasDgemmStridedBatched,:Float64),
+         (:cublasSgemmStridedBatched,:Float32),
+         (:cublasZgemmStridedBatched,:ComplexF64),
+         (:cublasCgemmStridedBatched,:ComplexF32))
+    @eval begin
+
+        # cublasStatus_t cublasDgemmStridedBatched(cublasHandle_t handle,
+        #                                   cublasOperation_t transa,
+        #                                   cublasOperation_t transb,
+        #                                   int m, int n, int k,
+        #                                   const double          *alpha,
+        #                                   const double          *A, int lda,
+        #                                   long long int          strideA,
+        #                                   const double          *B, int ldb,
+        #                                   long long int          strideB,
+        #                                   const double          *beta,
+        #                                   double                *C, int ldc,
+        #                                   long long int          strideC,
+        #                                   int batchCount)
+
+        function gemm_strided_batched!(transA::Char,
+                               transB::Char,
+                               alpha::($elty),
+                               A::CuArray{$elty, 3},
+                               B::CuArray{$elty, 3},
+                               beta::($elty),
+                               C::CuArray{$elty, 3})
+           m = size(A, transA == 'N' ? 1 : 2)
+           k = size(A, transA == 'N' ? 2 : 1)
+           n = size(B, transB == 'N' ? 2 : 1)
+
+           @assert size(A, 3) == size(B, 3) == size(C, 3) "Batch size mismatch"
+
+           if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
+               throw(DimensionMismatch(""))
+           end
+           cutransA = cublasop(transA)
+           cutransB = cublasop(transB)
+           lda = max(1,stride(A,2))
+           ldb = max(1,stride(B,2))
+           ldc = max(1,stride(C,2))
+
+           strideA = stride(A, 3)
+           strideB = stride(B, 3)
+           strideC = stride(C, 3)
+           batchCount = size(A, 3)
+           @check ccall(($(string(fname)), libcublas), cublasStatus_t,
+                        (cublasHandle_t, cublasOperation_t,
+                         cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
+                         Ptr{$elty}, Cint, Cint, Ptr{$elty}, Cint, Cint, Ptr{$elty},
+                         Ptr{$elty}, Cint, Cint, Cint),
+                        handle(), cutransA,
+                        cutransB, m, n, k, [alpha], A, lda, strideA, B, ldb, strideB, [beta],
+                        C, ldc, strideC, batchCount)
+           C
+        end
+        function gemm_strided_batched(transA::Char,
+                      transB::Char,
+                      alpha::($elty),
+                      A::CuArray{$elty, 3},
+                      B::CuArray{$elty, 3})
+            C = similar(B, (size(A, 1), size(B, 2), size(A, 3)))
+            gemm_strided_batched!(transA, transB, alpha, A, B, zero($elty), C )
+        end
+        function gemm_strided_batched(transA::Char,
+                      transB::Char,
+                      A::CuArray{$elty, 3},
+                      B::CuArray{$elty, 3})
+            gemm_strided_batched(transA, transB, one($elty), A, B)
+        end
+    end
+end
+
 ## (SY) symmetric matrix-matrix and matrix-vector multiplication
 for (fname, elty) in ((:cublasDsymm_v2,:Float64),
                       (:cublasSsymm_v2,:Float32),
