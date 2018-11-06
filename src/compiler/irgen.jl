@@ -387,23 +387,25 @@ function fixup_controlflow!(fun::LLVM.Function)
             position!(builder, bb_unreachable)
             br!(builder, bb_unreachable)
 
+            # we'll be checking for >= 0 (always being true, but `ptxas` doesn't know that)
             T_int = LLVM.Int32Type(ctx)
-            val = LLVM.ConstantInt(T_int, 1)
+            val = LLVM.ConstantInt(T_int, 0)
 
+            # create a global variable to load a value from
             gvs = globals(mod)
             gv_name = "breaker_of_controlflow"
             if haskey(gvs, gv_name)
                 gv = gvs[gv_name]
             else
                 gv = LLVM.GlobalVariable(mod, T_int, gv_name)
-                initializer!(gv, val)
+                extinit!(gv, true)
             end
 
             # emit a conditional branch to the exit block
             position!(builder, bb_entry)
             gv_ptr = gep!(builder, gv, [ConstantInt(0, ctx)])
             gv_val = load!(builder, gv_ptr)
-            cond = icmp!(builder, LLVM.API.LLVMIntEQ, val, gv_val)
+            cond = icmp!(builder, LLVM.API.LLVMIntSGE, gv_val, val)
             br!(builder, cond, bb_exit, bb_unreachable)
 
             dispose(builder)
