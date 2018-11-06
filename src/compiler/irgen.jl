@@ -255,8 +255,9 @@ function irgen(ctx::CompilerContext)
 
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
-        add!(pm, ModulePass("ThrowRemoval", remove_throw!))
-        add!(pm, FunctionPass("ControlFlowFixup", fixup_controlflow!))
+        add!(pm, ModulePass("ReplaceThrow", replace_throw!))
+        add!(pm, FunctionPass("HideTrap", hide_trap!))
+        add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         always_inliner!(pm)
         verifier!(pm)
         run!(pm, mod)
@@ -265,14 +266,14 @@ function irgen(ctx::CompilerContext)
     return mod, entry
 end
 
-# HACK: this pass replaces `julia_throw_*` void functions with a simple print & trap
+# HACK: this pass replaces `julia_throw_*` void functions with a simple `print` & `trap`
 #
 # this is necessary even though we already have a `raise_exception` hook that just prints,
 # as many `throw_...` functions are now `@noinline` which means their arguments survive and
 # may cause GC allocations.
 #
 # TODO: replace with a Cassette-style overdub of the `throw` builtin
-function remove_throw!(mod::LLVM.Module)
+function replace_throw!(mod::LLVM.Module)
     ctx = LLVM.context(mod)
 
     trap = if haskey(functions(mod), "llvm.trap")
@@ -343,26 +344,18 @@ function remove_throw!(mod::LLVM.Module)
     return changed
 end
 
-# HACK: this pass removes control flow that confuses `ptxas`
+# HACK: this pass removes calls to `trap` and replaces them with a hidden `exit`
 #
-# ideally, we only want a single exit from a function. exiting (ret, trap, exit)
-# from divergent branches causes ptxas to emit invalid code.
+# `trap` causes an illegal instruction error, so we want to get rid of that
 #
-# instead, we hide exits from LLVM and `ptxas` with inline assembly and opaque predicates.
+# in addition, both `trap` and `exit` can confuse `ptxas` which doesn't properly deal with
+# function exits from divergent branches. to avoid that, we "hide" the call to `exit` using
+# an opaque predicate.
 #
 # TODO: do this with structured CFG with LLVM?
-function fixup_controlflow!(fun::LLVM.Function)
+function hide_trap!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
     mod = LLVM.parent(fun)
-
-    changed = false
-
-    # remove `noreturn` attributes
-    #
-    # when calling a `noreturn` function, LLVM places an `unreachable` after the call.
-    # this leads to an early `ret` from the function.
-    attrs = function_attributes(fun)
-    delete!(attrs, EnumAttribute("noreturn", 0, ctx))
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
@@ -381,14 +374,6 @@ function fixup_controlflow!(fun::LLVM.Function)
         bb_unreachable = LLVM.BasicBlock(opaque_exit, "unreachable", ctx)
 
         let builder = Builder(ctx)
-            position!(builder, bb_exit)
-            call!(builder, exit)
-            br!(builder, bb_unreachable)
-
-            # an unreachable block that just loops
-            position!(builder, bb_unreachable)
-            br!(builder, bb_unreachable)
-
             # we'll be checking for >= 0 (always being true, but `ptxas` doesn't know that)
             T_int = LLVM.Int32Type(ctx)
             val = LLVM.ConstantInt(T_int, 0)
@@ -410,11 +395,19 @@ function fixup_controlflow!(fun::LLVM.Function)
             predicate = icmp!(builder, LLVM.API.LLVMIntSGE, gv_val, val)
             br!(builder, predicate, bb_exit, bb_unreachable)
 
+            position!(builder, bb_exit)
+            call!(builder, exit)
+            br!(builder, bb_unreachable)
+
+            position!(builder, bb_unreachable)
+            unreachable!(builder) # will be replaced with a loop in `hide_unreachable!`
+
             dispose(builder)
         end
     end
 
-    unreachable_bbs = LLVM.BasicBlock[]
+    changed = false
+
     for bb in blocks(fun)
         # replace calls to `trap` with an opaque call to `exit`
         for inst in instructions(bb)
@@ -428,11 +421,34 @@ function fixup_controlflow!(fun::LLVM.Function)
                 changed = true
             end
         end
+    end
 
-        # replace `unreachable `terminators with a call to an infinite loop.
-        #
-        # at this point, the optimizer hasn't run, so these hints are placed there by Julia.
-        # this happens e.g. with exceptions, and cannot be controlled by a compiler hook.
+    return changed
+end
+
+# HACK: this pass removes `unreachable` information from LLVM
+#
+# similar to `trap` instructions in the `hide_trap!` pass, `unreachable` instructions makes
+# LLVM restructure control flow in a manner that could confuse `ptxas`.
+#
+# instead, we replace `unreachable` instructions with infinite loops. this does not affect
+# execution, because these blocks aren't supposed to be executed, ever.
+#
+# TODO: do this with structured CFG with LLVM?
+function hide_unreachable!(fun::LLVM.Function)
+    ctx = LLVM.context(fun)
+
+    changed = false
+
+    # remove `noreturn` attributes
+    #
+    # when calling a `noreturn` function, LLVM places an `unreachable` after the call.
+    # this leads to an early `ret` from the function.
+    attrs = function_attributes(fun)
+    delete!(attrs, EnumAttribute("noreturn", 0, ctx))
+
+    worklist = LLVM.BasicBlock[]
+    for bb in blocks(fun)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -445,19 +461,19 @@ function fixup_controlflow!(fun::LLVM.Function)
                 # TODO: `unreachable; unreachable`
             catch ex
                 isa(ex, UndefRefError) || rethrow(ex)
-                push!(unreachable_bbs, bb)
+                push!(worklist, bb)
             end
         end
     end
 
-    if !isempty(unreachable_bbs)
+    if !isempty(worklist)
         let builder = Builder(ctx)
             # an unreachable block that just loops
             bb_unreachable = LLVM.BasicBlock(fun, "opaque_unreachable", ctx)
             position!(builder, bb_unreachable)
             br!(builder, bb_unreachable)
 
-            for bb in unreachable_bbs
+            for bb in worklist
                 position!(builder, bb)
                 br!(builder, bb_unreachable)
             end
