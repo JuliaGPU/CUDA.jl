@@ -45,3 +45,12 @@ const   CUFFT_COMPATIBILITY_FFTW_ASYMMETRIC = 0x02
 const   CUFFT_COMPATIBILITY_FFTW_ALL        = 0x03
 
 const cufftHandle_t = Cint
+
+const cufftNumber = Union{cufftDoubleReal,cufftReal,cufftDoubleComplex,cufftComplex}
+# note trailing s to deconflict w/ header file
+const cufftReals = Union{cufftDoubleReal,cufftReal}
+const cufftComplexes = Union{cufftDoubleComplex,cufftComplex}
+const cufftDouble = Union{cufftDoubleReal,cufftDoubleComplex}
+const cufftSingle = Union{cufftReal,cufftComplex}
+const cufftTypeDouble = Union{Type{cufftDoubleReal},Type{cufftDoubleComplex}}
+const cufftTypeSingle = Union{Type{cufftReal},Type{cufftComplex}}

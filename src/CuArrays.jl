@@ -20,6 +20,7 @@ if !configured
     # making it possible to _load_ the package at all times.
     const libcublas = nothing
     const libcufft = nothing
+    const libcusparse = nothing
     const libcusolver = nothing
     const libcudnn = nothing
 end
@@ -40,6 +41,7 @@ include("gpuarray_interface.jl")
 const active_context = Ref{CuContext}()
 
 libcublas !== nothing   && include("blas/CUBLAS.jl")
+libcusparse !== nothing && include("sparse/CUSPARSE.jl")
 libcusolver !== nothing && include("solver/CUSOLVER.jl")
 libcufft !== nothing    && include("fft/CUFFT.jl")
 libcurand !== nothing   && include("rand/CURAND.jl")

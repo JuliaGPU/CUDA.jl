@@ -22,7 +22,7 @@ function main()
 
     toolkit = CUDAapi.find_toolkit()
 
-    for name in ("cublas", "cusolver", "cufft", "curand", "cudnn")
+    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudnn")
         lib = Symbol("lib$name")
         config[lib] = CUDAapi.find_cuda_library(name, toolkit)
         if config[lib] == nothing

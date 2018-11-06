@@ -27,11 +27,13 @@ function cusolverDnGetStream(handle, streamId)
                (cusolverDnHandle_t, Ptr{CuStream_t}),
                handle, streamId)
 end
-function cusolverSpCreate(handle)
+function cusolverSpCreate()
+  handle = Ref{cusolverSpHandle_t}()
   @check ccall((:cusolverSpCreate, libcusolver),
                cusolverStatus_t,
                (Ptr{cusolverSpHandle_t},),
                handle)
+  return handle[]
 end
 function cusolverSpDestroy(handle)
   @check ccall((:cusolverSpDestroy, libcusolver),

@@ -1,18 +1,22 @@
 module CURAND
 
-using CUDAdrv
+import CUDAdrv: CUDAdrv, CuContext
+
+using ..CuArrays
+using ..CuArrays: libcurand, active_context
+
+using GPUArrays
 
 using Random
-
-using ..GPUArrays
-using ..CuArrays: CuArray, libcurand, active_context
 
 export curand,
        curandn,
        curand_logn, rand_logn!,
        curand_poisson, rand_poisson!
 
-include("libcurand_defs.jl")
+include("libcurand_types.jl")
+include("error.jl")
+include("libcurand.jl")
 
 const _generators = Dict{CuContext,RNG}()
 const _generator = Ref{Union{Nothing,RNG}}(nothing)
@@ -32,8 +36,6 @@ function generator()
     return _generator[]::RNG
 end
 
-include("error.jl")
-include("libcurand.jl")
 include("highlevel.jl")
 
 end # module
