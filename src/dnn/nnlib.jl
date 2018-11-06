@@ -73,7 +73,7 @@ function conv_workspace(bytes)
 end
 
 function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T};
-               pad=0, stride=1, mode=0, alpha=1, dilation=1,
+               pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   if CUDNN_VERSION < 6000
     all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in cuDNN version < 6")
@@ -81,17 +81,17 @@ function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T};
   if workspace === nothing
     workspace_size =
       cudnnGetConvolutionForwardWorkspaceSize(y, x, w, padding=pad, stride=stride, dilation=dilation,
-                                              algo=algo, mode=mode)
+                                              algo=algo, mode=flipkernel)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
-  cudnnConvolutionForward(y, x, w, padding=pad, stride=stride, dilation=dilation, mode=mode, 
+  cudnnConvolutionForward(y, x, w, padding=pad, stride=stride, dilation=dilation, mode=flipkernel, 
 			  alpha=alpha, algo=algo, workspace=workspace, workspace_size=workspace_size)
 end
 
 function ∇conv_filter!(dw::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
-                       pad=0, stride=1, mode=0, alpha=1, dilation=1,
+                       pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                        workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   if CUDNN_VERSION < 6000
     all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in cuDNN version < 6")
@@ -99,18 +99,18 @@ function ∇conv_filter!(dw::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArr
   if workspace === nothing
     workspace_size =
       cudnnGetConvolutionBackwardFilterWorkspaceSize(dw, x, w, dy, padding=pad, stride=stride, 
-					             dilation=dilation, algo=algo, mode=mode)
+					             dilation=dilation, algo=algo, mode=flipkernel)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
   cudnnConvolutionBackwardFilter(dw, x, w, dy, padding=pad, stride=stride, dilation=dilation,
-				 mode=mode, alpha=alpha, algo=algo, workspace=workspace,
+				 mode=flipkernel, alpha=alpha, algo=algo, workspace=workspace,
                                  workspace_size=workspace_size)
 end
 
 function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
-                     pad=0, stride=1, mode=0, alpha=1, dilation=1,
+                     pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                      workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   if CUDNN_VERSION < 6000
     all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in cuDNN version < 6")
@@ -118,13 +118,13 @@ function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray
   if workspace === nothing
     workspace_size =
       cudnnGetConvolutionBackwardDataWorkspaceSize(dx, x, w, dy, padding=pad, stride=stride,
-                                                   dilation=dilation, algo=algo, mode=mode)
+                                                   dilation=dilation, algo=algo, mode=flipkernel)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
   cudnnConvolutionBackwardData(dx, x, w, dy, padding=pad, stride=stride, dilation=dilation,
-			       mode=mode, alpha=alpha, algo=algo, workspace=workspace,
+			       mode=flipkernel, alpha=alpha, algo=algo, workspace=workspace,
                                workspace_size=workspace_size)
 end
 
