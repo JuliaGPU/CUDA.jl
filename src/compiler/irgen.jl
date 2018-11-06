@@ -310,7 +310,7 @@ function replace_throw!(mod::LLVM.Module)
                         position!(builder, entry)
 
                         desc = replace(ex, '_'=>' ')
-                        cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline during kernel execution")
+                        cuprintf!(builder, "ERROR: a $ex exception occurred during kernel execution$cuprintf_endline")
                         call!(builder, trap)
                         ret!(builder)
 
