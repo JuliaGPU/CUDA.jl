@@ -177,6 +177,11 @@ end
     CUDAnative.code_llvm(devnull, kernel, Tuple{Vector{Int}}; kernel=true)
 end
 
+@testset "CUDAnative.jl#278" begin
+    CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int})
+    CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int})
+end
+
 end
 
 
