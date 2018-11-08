@@ -32,7 +32,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     let builder = Builder(ctx)
         position!(builder, insblock)
 
-        cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline during kernel execution")
+        cuprintf!(builder, "ERROR: an unknown exception occurred during kernel execution$cuprintf_endline")
         call!(builder, trap)
 
         dispose(builder)
@@ -255,8 +255,9 @@ function irgen(ctx::CompilerContext)
 
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
-        add!(pm, ModulePass("ThrowRemoval", remove_throw!))
-        add!(pm, FunctionPass("ControlFlowFixup", fixup_controlflow!))
+        add!(pm, ModulePass("ReplaceThrow", replace_throw!))
+        add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
+        add!(pm, FunctionPass("HideTrap", hide_trap!))
         always_inliner!(pm)
         verifier!(pm)
         run!(pm, mod)
@@ -265,14 +266,14 @@ function irgen(ctx::CompilerContext)
     return mod, entry
 end
 
-# HACK: this pass replaces `julia_throw_*` void functions with a simple print & trap
+# HACK: this pass replaces `julia_throw_*` void functions with a simple `print` & `trap`
 #
 # this is necessary even though we already have a `raise_exception` hook that just prints,
 # as many `throw_...` functions are now `@noinline` which means their arguments survive and
 # may cause GC allocations.
 #
-# TODO: replace with a Cassette-style overdub of the `throw` builtin
-function remove_throw!(mod::LLVM.Module)
+# TODO: replace with an early substitution of the `throw` builtin
+function replace_throw!(mod::LLVM.Module)
     ctx = LLVM.context(mod)
 
     trap = if haskey(functions(mod), "llvm.trap")
@@ -309,7 +310,7 @@ function remove_throw!(mod::LLVM.Module)
                         position!(builder, entry)
 
                         desc = replace(ex, '_'=>' ')
-                        cuprintf!(builder, "ERROR: a $ex exception occurred$cuprintf_endline during kernel execution")
+                        cuprintf!(builder, "ERROR: a $ex exception occurred during kernel execution$cuprintf_endline")
                         call!(builder, trap)
                         ret!(builder)
 
@@ -343,17 +344,16 @@ function remove_throw!(mod::LLVM.Module)
     return changed
 end
 
-# HACK: this pass removes control flow that confuses `ptxas`
+# HACK: this pass removes `unreachable` information from LLVM
 #
-# basically, we only want a single exit from a function. exiting (ret, trap, exit) from
-# divergent branches causes ptxas to emit invalid code.
+# `ptxas` is buggy and cannot deal with thread-divergent control flow in the presence of
+# shared memory (see JuliaGPU/CUDAnative.jl#4). avoid that by rewriting control flow to fall
+# through any other block. this is semantically invalid, but the code is unreachable anyhow
+# (and we expect it to be preceded by eg. a noreturn function, or a trap).
 #
-# TODO: do this with structured CFG with LLVM?
-function fixup_controlflow!(f::LLVM.Function)
-    ctx = LLVM.context(f)
-
-    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-    exit = InlineAsm(exit_ft, "exit;", "", true)
+# TODO: can LLVM do this (structured CFG)?
+function hide_unreachable!(fun::LLVM.Function)
+    ctx = LLVM.context(fun)
 
     changed = false
 
@@ -361,30 +361,12 @@ function fixup_controlflow!(f::LLVM.Function)
     #
     # when calling a `noreturn` function, LLVM places an `unreachable` after the call.
     # this leads to an early `ret` from the function.
-    attrs = function_attributes(f)
+    attrs = function_attributes(fun)
     delete!(attrs, EnumAttribute("noreturn", 0, ctx))
 
-    for bb in blocks(f)
-        # remove calls to `trap`, for obvious reasons.
-        for inst in instructions(bb)
-            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
-                # replace with call to `exit`
-                # FIXME: this still confuses `ptxas`, `brkpt` seems to work but that's fragile
-                #let builder = Builder(ctx)
-                #    position!(builder, inst)
-                #    call!(builder, exit)
-                #    dispose(builder)
-                #end
-
-                unsafe_delete!(bb, inst)
-                changed = true
-            end
-        end
-
-        # remove `unreachable `terminators.
-        #
-        # at this point, the optimizer hasn't run, so these hints are placed there by Julia.
-        # this happens e.g. with exceptions, and cannot be controlled by a compiler hook.
+    # scan for unreachable terminators and alternative successors
+    worklist = Pair{LLVM.BasicBlock, Union{Nothing,LLVM.BasicBlock}}[]
+    for bb in blocks(fun)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -397,59 +379,82 @@ function fixup_controlflow!(f::LLVM.Function)
                 # TODO: `unreachable; unreachable`
             catch ex
                 isa(ex, UndefRefError) || rethrow(ex)
-
                 let builder = Builder(ctx)
                     position!(builder, bb)
 
+                    # TODO: move to LLVM.jl
+                    isaTerminatorInst(inst) =
+                        LLVM.API.LLVMIsATerminatorInst(LLVM.ref(inst)) != C_NULL
+
                     # find the predecessors to this block
-                    predecessors = LLVM.BasicBlock[]
-                    for bb′ in blocks(f), inst in instructions(bb′)
-                        if isa(inst, LLVM.BrInst)
-                            if bb in successors(inst)
-                                push!(predecessors, bb′)
-                            end
-                        end
-                    end
-
-                    # find the fall through successors
-                    if length(predecessors) == 1
-                        predecessor = first(predecessors)
-                        br = terminator(predecessor)
-
-                        # find the other successors
-                        targets = successors(br)
-                        if length(targets) == 2
-                            for target in targets
-                                if target != bb
-                                    br!(builder, target)
-                                    break
+                    function predecessors(bb)
+                        pred = LLVM.BasicBlock[]
+                        for bb′ in blocks(fun)
+                            insts = instructions(bb′)
+                            if bb != bb′ && !isempty(insts)
+                                term = last(insts)
+                                if isaTerminatorInst(term) && bb in successors(term)
+                                    push!(pred, bb′)
                                 end
                             end
-                        else
-                            @warn "unreachable control flow with $(length(targets))-way branching predecessor"
-                            unreachable!(builder)
+                            pred
                         end
-                    elseif length(predecessors) > 1
-                        @warn "unreachable control flow with multiple predecessors"
-                        unreachable!(builder)
-                    else
-                        # this block has no predecessors, so we can't fall through
-                        #
-                        # a block without predecessors is either never called,
-                        # or the only block in a function.
-                        ft = eltype(llvmtype(f))
-                        if return_type(ft) == LLVM.VoidType(ctx)
-                            # even though returning can lead to invalid control flow,
-                            # it mostly happens with functions that just throw,
-                            # and leaving the unreachable there would make the optimizer
-                            # place another after the call.
-                            ret!(builder)
+                        return pred
+                    end
+                    pred = predecessors(bb)
+
+                    # find a fallthrough block: recursively look at predecessors and find
+                    # terminators that branch to any block != unreachable block
+                    fallthrough = nothing
+                    while !isempty(pred)
+                        # there might be multiple blocks branching to the unreachable one
+                        branches = map(terminator, pred)
+
+                        # find the other successors
+                        other_succ = LLVM.BasicBlock[]
+                        for br in branches
+                            for target in successors(br)
+                                if target != bb
+                                    push!(other_succ, target)
+                                end
+                            end
+                        end
+
+                        if !isempty(other_succ)
+                            fallthrough = first(other_succ)
+                            break
                         else
-                            unreachable!(builder)
+                            pred = Iterators.flatten(map(predecessors, pred))
                         end
                     end
+                    push!(worklist, bb => fallthrough)
 
                     dispose(builder)
+                end
+            end
+        end
+    end
+
+    # apply the pending terminator rewrites
+    if !isempty(worklist)
+        let builder = Builder(ctx)
+            for (bb, fallthrough) in worklist
+                position!(builder, bb)
+                if fallthrough !== nothing
+                    br!(builder, fallthrough)
+                else
+                    # couldn't find any other successor. this happens with functions
+                    # that only contain a single block, or when the block is dead.
+                    ft = eltype(llvmtype(fun))
+                    if return_type(ft) == LLVM.VoidType(ctx)
+                        # even though returning can lead to invalid control flow,
+                        # it mostly happens with functions that just throw,
+                        # and leaving the unreachable there would make the optimizer
+                        # place another after the call.
+                        ret!(builder)
+                    else
+                        unreachable!(builder)
+                    end
                 end
             end
         end
@@ -458,3 +463,33 @@ function fixup_controlflow!(f::LLVM.Function)
     return changed
 end
 
+# HACK: this pass removes calls to `trap` and replaces them with inline assembly
+#
+# if LLVM knows we're trapping, code is marked `unreachable` (see `hide_unreachable!`).
+function hide_trap!(fun::LLVM.Function)
+    ctx = LLVM.context(fun)
+    mod = LLVM.parent(fun)
+
+    # inline assembly to exit a thread, hiding control flow from LLVM
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit = InlineAsm(exit_ft, "trap;", "", true)
+
+    changed = false
+
+    for bb in blocks(fun)
+        # replace calls to `trap` with inline assembly
+        for inst in instructions(bb)
+            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
+                let builder = Builder(ctx)
+                    position!(builder, inst)
+                    call!(builder, exit)
+                    dispose(builder)
+                end
+                unsafe_delete!(bb, inst)
+                changed = true
+            end
+        end
+    end
+
+    return changed
+end

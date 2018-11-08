@@ -450,4 +450,239 @@ end
 
 ############################################################################################
 
+@testset "shmem divergence bug" begin
+
+@testset "trap" begin
+    function trap()
+        ccall("llvm.trap", llvmcall, Cvoid, ())
+    end
+
+    function kernel(input::Int32, output::Ptr{Int32}, yes::Bool=true)
+        i = threadIdx().x
+
+        temp = @cuStaticSharedMem(Cint, 1)
+        if i == 1
+            yes || trap()
+            temp[1] = input
+        end
+        sync_threads()
+
+        yes || trap()
+        unsafe_store!(output, temp[1], i)
+
+        return nothing
+    end
+
+    input = rand(Cint(1):Cint(100))
+    N = 2
+
+    let output = Mem.alloc(Cint, N)
+        # defaulting to `true` embeds this info in the PTX module,
+        # allowing `ptxas` to emit validly-structured code.
+        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr))
+        @test Mem.download(Cint, output, N) == repeat([input], N)
+    end
+
+    let output = Mem.alloc(Cint, N)
+        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr), true)
+        @test Mem.download(Cint, output, N) == repeat([input], N)
+    end
+end
+
+@testset "unreachable" begin
+    function unreachable()
+        @cuprintf("go home ptxas you're drunk")
+        Base.llvmcall("unreachable", Cvoid, Tuple{})
+    end
+
+    function kernel(input::Int32, output::Ptr{Int32}, yes::Bool=true)
+        i = threadIdx().x
+
+        temp = @cuStaticSharedMem(Cint, 1)
+        if i == 1
+            yes || unreachable()
+            temp[1] = input
+        end
+        sync_threads()
+
+        yes || unreachable()
+        unsafe_store!(output, temp[1], i)
+
+        return nothing
+    end
+
+    input = rand(Cint(1):Cint(100))
+    N = 2
+
+    let output = Mem.alloc(Cint, N)
+        # defaulting to `true` embeds this info in the PTX module,
+        # allowing `ptxas` to emit validly-structured code.
+        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr))
+        @test Mem.download(Cint, output, N) == repeat([input], N)
+    end
+
+    let output = Mem.alloc(Cint, N)
+        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr), true)
+        @test Mem.download(Cint, output, N) == repeat([input], N)
+    end
+end
+
+@testset "mapreduce (full)" begin
+    function mapreduce_gpu(f::Function, op::Function, A::CuTestArray{T, N}; dims = :, init...) where {T, N}
+        OT = Float32
+        v0 =  0.0f0
+
+        threads = 256
+        out = CuTestArray{OT,1}((1,))
+        @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
+        Array(out)[1]
+    end
+
+    function reduce_kernel(f, op, v0::T, A, ::Val{LMEM}, result) where {T, LMEM}
+        tmp_local = @cuStaticSharedMem(T, LMEM)
+        global_index = threadIdx().x
+        acc = v0
+
+        # Loop sequentially over chunks of input vector
+        while global_index <= length(A)
+            element = f(A[global_index])
+            acc = op(acc, element)
+            global_index += blockDim().x
+        end
+
+        # Perform parallel reduction
+        local_index = threadIdx().x - 1
+        @inbounds tmp_local[local_index + 1] = acc
+        sync_threads()
+
+        offset = blockDim().x ÷ 2
+        while offset > 0
+            @inbounds if local_index < offset
+                other = tmp_local[local_index + offset + 1]
+                mine = tmp_local[local_index + 1]
+                tmp_local[local_index + 1] = op(mine, other)
+            end
+            sync_threads()
+            offset = offset ÷ 2
+        end
+
+        if local_index == 0
+            result[blockIdx().x] = @inbounds tmp_local[1]
+        end
+
+        return
+    end
+
+    A = rand(Float32, 1000)
+    dA = CuTestArray(A)
+
+    @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
+end
+
+@testset "mapreduce (full, complex)" begin
+    function mapreduce_gpu(f::Function, op::Function, A::CuTestArray{T, N}; dims = :, init...) where {T, N}
+        OT = Complex{Float32}
+        v0 =  0.0f0+0im
+
+        threads = 256
+        out = CuTestArray{OT,1}((1,))
+        @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
+        Array(out)[1]
+    end
+
+    function reduce_kernel(f, op, v0::T, A, ::Val{LMEM}, result) where {T, LMEM}
+        tmp_local = @cuStaticSharedMem(T, LMEM)
+        global_index = threadIdx().x
+        acc = v0
+
+        # Loop sequentially over chunks of input vector
+        while global_index <= length(A)
+            element = f(A[global_index])
+            acc = op(acc, element)
+            global_index += blockDim().x
+        end
+
+        # Perform parallel reduction
+        local_index = threadIdx().x - 1
+        @inbounds tmp_local[local_index + 1] = acc
+        sync_threads()
+
+        offset = blockDim().x ÷ 2
+        while offset > 0
+            @inbounds if local_index < offset
+                other = tmp_local[local_index + offset + 1]
+                mine = tmp_local[local_index + 1]
+                tmp_local[local_index + 1] = op(mine, other)
+            end
+            sync_threads()
+            offset = offset ÷ 2
+        end
+
+        if local_index == 0
+            result[blockIdx().x] = @inbounds tmp_local[1]
+        end
+
+        return
+    end
+
+    A = rand(Complex{Float32}, 1000)
+    dA = CuTestArray(A)
+
+    @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
+end
+
+@testset "mapreduce (reduced)" begin
+    function mapreduce_gpu(f::Function, op::Function, A::CuTestArray{T, N}) where {T, N}
+        OT = Int
+        v0 = 0
+
+        out = CuTestArray{OT,1}((1,))
+        @cuda threads=64 reduce_kernel(f, op, v0, A, out)
+        Array(out)[1]
+    end
+
+    function reduce_kernel(f, op, v0::T, A, result) where {T}
+        tmp_local = @cuStaticSharedMem(T, 64)
+        acc = v0
+
+        # Loop sequentially over chunks of input vector
+        i = threadIdx().x
+        while i <= length(A)
+            element = f(A[i])
+            acc = op(acc, element)
+            i += blockDim().x
+        end
+
+        # Perform parallel reduction
+        @inbounds tmp_local[threadIdx().x] = acc
+        sync_threads()
+
+        offset = blockDim().x ÷ 2
+        while offset > 0
+            @inbounds if threadIdx().x <= offset
+                other = tmp_local[(threadIdx().x - 1) + offset + 1]
+                mine = tmp_local[threadIdx().x]
+                tmp_local[threadIdx().x] = op(mine, other)
+            end
+            sync_threads()
+            offset = offset ÷ 2
+        end
+
+        if threadIdx().x == 1
+            result[blockIdx().x] = @inbounds tmp_local[1]
+        end
+
+        return
+    end
+
+    A = rand(1:10, 100)
+    dA = CuTestArray(A)
+
+    @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
+end
+
+end
+
+############################################################################################
+
 end

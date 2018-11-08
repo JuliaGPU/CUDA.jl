@@ -284,7 +284,11 @@ macro device_code(ex...)
             println(io, code)
         end
 
-        open(joinpath(dir, "$fn.ll"), "w") do io
+        open(joinpath(dir, "$fn.unopt.ll"), "w") do io
+            code_llvm(io, ctx; dump_module=true, strip_ir_metadata=false, optimize=false)
+        end
+
+        open(joinpath(dir, "$fn.opt.ll"), "w") do io
             code_llvm(io, ctx; dump_module=true, strip_ir_metadata=false)
         end
 
