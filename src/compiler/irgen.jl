@@ -350,6 +350,8 @@ end
 # shared memory (see JuliaGPU/CUDAnative.jl#4). avoid that by rewriting control flow to fall
 # through any other block. this is semantically invalid, but the code is unreachable anyhow
 # (and we expect it to be preceded by eg. a noreturn function, or a trap).
+#
+# TODO: can LLVM do this (structured CFG)?
 function hide_unreachable!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
 
@@ -464,8 +466,6 @@ end
 # HACK: this pass removes calls to `trap` and replaces them with inline assembly
 #
 # if LLVM knows we're trapping, code is marked `unreachable` (see `hide_unreachable!`).
-#
-# TODO: can LLVM do this (structured CFG)?
 function hide_trap!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
     mod = LLVM.parent(fun)
@@ -477,7 +477,7 @@ function hide_trap!(fun::LLVM.Function)
     changed = false
 
     for bb in blocks(fun)
-        # replace calls to `trap` with an opaque call to `exit`
+        # replace calls to `trap` with inline assembly
         for inst in instructions(bb)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
                 let builder = Builder(ctx)
