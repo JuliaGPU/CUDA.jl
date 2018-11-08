@@ -104,6 +104,8 @@ end
     @test typeof(view(x, :, 1:4, 3)) == CuMatrix{Float32}
     @test typeof(view(x, :, :, 1)) == CuMatrix{Float32}
     @test typeof(view(x, :, :, :)) == CuArray{Float32,3}
+    @test typeof(view(x, :)) == CuVector{Float32}
+    @test typeof(view(x, 1:3)) == CuVector{Float32}
 
     # Non-contiguous views should fall back to base's SubArray
     @test typeof(view(x, 1:3, 1:3, 3)) <: SubArray

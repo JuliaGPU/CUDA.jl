@@ -1,7 +1,7 @@
 import Base: view
 
 using Base: ScalarIndex, ViewIndex, Slice, @_inline_meta, @boundscheck, 
-            to_indices, compute_offset1, unsafe_length
+            to_indices, compute_offset1, unsafe_length, _maybe_reshape_parent, index_ndims
 
 struct Contiguous end
 struct NonContiguous end
@@ -24,7 +24,7 @@ function _cuview(A, I, ::Contiguous)
     @_inline_meta
     J = to_indices(A, I)
     @boundscheck checkbounds(A, J...)
-    _cuview(A, J, cuviewlength(J...))
+    _cuview(_maybe_reshape_parent(A, index_ndims(J...)), J, cuviewlength(J...))
 end
 
 # for contiguous views just return a new CuArray
