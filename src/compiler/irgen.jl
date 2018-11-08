@@ -256,7 +256,7 @@ function irgen(ctx::CompilerContext)
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
         add!(pm, ModulePass("ReplaceThrow", replace_throw!))
-        add!(pm, FunctionPass("HideTrap", replace_trap!))
+        add!(pm, FunctionPass("HideTrap", hide_trap!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         always_inliner!(pm)
         verifier!(pm)
@@ -349,15 +349,13 @@ end
 # if LLVM knows we're trapping, the code is deemed `unreachable` which results in possibly
 # divergent control flow (see `hide_unreachable!`).
 # TODO: do this with structured CFG?
-#
-# in addition, `trap` is bad and kills the GPU, so we prefer to `exit`
-function replace_trap!(fun::LLVM.Function)
+function hide_trap!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
     mod = LLVM.parent(fun)
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-    exit = InlineAsm(exit_ft, "exit;", "", true)
+    exit = InlineAsm(exit_ft, "trap;", "", true)
 
     changed = false
 
