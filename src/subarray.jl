@@ -32,4 +32,4 @@ _cuview(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T
     CuArray{T,M}(A.buf, dims, A.offset + compute_offset1(A, 1, I) * sizeof(T))
 
 # fallback to SubArray when the view is not contiguous
-_cuview(A, I::NTuple{N,ViewIndex}, ::NonContiguous) where {N} = invoke(view, Tuple{AbstractArray, typeof(I).parameters...}, A, I...)
+_cuview(A, I, ::NonContiguous) where {N} = invoke(view, Tuple{AbstractArray, typeof(I).parameters...}, A, I...)
