@@ -112,6 +112,8 @@ end
     @test typeof(view(x, 1, :, 3)) <: SubArray
     @test typeof(view(x, 1, 1:4, 3)) <: SubArray
     @test typeof(view(x, :, 1, 1:3)) <: SubArray
+    @test typeof(view(x, :, 1:2:4, 1)) <: SubArray
+    @test typeof(view(x, 1:2:5, 1, 1)) <: SubArray
   end
 end
 
