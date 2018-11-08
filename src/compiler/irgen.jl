@@ -363,15 +363,15 @@ function hide_trap!(fun::LLVM.Function)
 
     # an opaque call to exit, hiding control flow from ptxas
     funs = functions(mod)
-    opaque_exit_fn = "opaque_exit"
-    if haskey(funs, opaque_exit_fn)
-        opaque_exit = funs[opaque_exit_fn]
+    opaque_trap_fn = "opaque_trap"
+    if haskey(funs, opaque_trap_fn)
+        opaque_trap = funs[opaque_trap_fn]
     else
-        opaque_exit = LLVM.Function(mod, opaque_exit_fn, exit_ft)
+        opaque_trap = LLVM.Function(mod, opaque_trap_fn, exit_ft)
 
-        bb_entry = LLVM.BasicBlock(opaque_exit, "entry", ctx)
-        bb_exit = LLVM.BasicBlock(opaque_exit, "exit", ctx)
-        bb_unreachable = LLVM.BasicBlock(opaque_exit, "unreachable", ctx)
+        bb_entry = LLVM.BasicBlock(opaque_trap, "entry", ctx)
+        bb_trap = LLVM.BasicBlock(opaque_trap, "trap", ctx)
+        bb_exit = LLVM.BasicBlock(opaque_trap, "exit", ctx)
 
         let builder = Builder(ctx)
             # we'll be checking for >= 0 (always being true, but `ptxas` doesn't know that)
@@ -393,13 +393,13 @@ function hide_trap!(fun::LLVM.Function)
             gv_ptr = gep!(builder, gv, [ConstantInt(0, ctx)])
             gv_val = load!(builder, gv_ptr)
             predicate = icmp!(builder, LLVM.API.LLVMIntSGE, gv_val, val)
-            br!(builder, predicate, bb_exit, bb_unreachable)
+            br!(builder, predicate, bb_trap, bb_exit)
+
+            position!(builder, bb_trap)
+            call!(builder, exit)
+            br!(builder, bb_exit)
 
             position!(builder, bb_exit)
-            call!(builder, exit)
-            br!(builder, bb_unreachable)
-
-            position!(builder, bb_unreachable)
             unreachable!(builder) # will be replaced with a loop in `hide_unreachable!`
 
             dispose(builder)
@@ -414,7 +414,7 @@ function hide_trap!(fun::LLVM.Function)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
                 let builder = Builder(ctx)
                     position!(builder, inst)
-                    call!(builder, opaque_exit)
+                    call!(builder, opaque_trap)
                     dispose(builder)
                 end
                 unsafe_delete!(bb, inst)
@@ -447,7 +447,7 @@ function hide_unreachable!(fun::LLVM.Function)
     attrs = function_attributes(fun)
     delete!(attrs, EnumAttribute("noreturn", 0, ctx))
 
-    worklist = LLVM.BasicBlock[]
+    worklist = Pair{LLVM.BasicBlock, LLVM.BasicBlock}[]
     for bb in blocks(fun)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
@@ -461,24 +461,85 @@ function hide_unreachable!(fun::LLVM.Function)
                 # TODO: `unreachable; unreachable`
             catch ex
                 isa(ex, UndefRefError) || rethrow(ex)
-                push!(worklist, bb)
+                let builder = Builder(ctx)
+                    position!(builder, bb)
+
+                    # TODO: move to LLVM.jl
+                    isaTerminatorInst(inst) =
+                        LLVM.API.LLVMIsATerminatorInst(LLVM.ref(inst)) != C_NULL
+
+                    # find the predecessors to this block
+                    function predecessors(bb)
+                        pred = LLVM.BasicBlock[]
+                        for bb′ in blocks(fun)
+                            insts = instructions(bb′)
+                            if bb != bb′ && !isempty(insts)
+                                term = last(insts)
+                                if isaTerminatorInst(term) && bb in successors(term)
+                                    push!(pred, bb′)
+                                end
+                            end
+                            pred
+                        end
+                        return pred
+                    end
+                    pred = predecessors(bb)
+
+                    # find a fallthrough block: recursively look at predecessors and find
+                    # terminators that branch to any block != unreachable block
+                    fallthrough = nothing
+                    while !isempty(pred)
+                        # there might be multiple blocks branching to the unreachable one
+                        branches = map(terminator, pred)
+
+                        # find the other successors
+                        other_succ = LLVM.BasicBlock[]
+                        for br in branches
+                            for target in successors(br)
+                                if target != bb
+                                    push!(other_succ, target)
+                                end
+                            end
+                        end
+
+                        if !isempty(other_succ)
+                            fallthrough = first(other_succ)
+                            break
+                        else
+                            pred = Iterators.flatten(map(predecessors, pred))
+                        end
+                    end
+
+                    # redirect control flow. we don't care if this makes sense (the code is
+                    # unreachable), we just want a non-divergent or synchronizing CFG
+                    if fallthrough !== nothing
+                        push!(worklist, bb => fallthrough)
+                    else
+                        # couldn't find any other successor. this happens with functions
+                        # that only contain a single block, or when the block is dead.
+                        ft = eltype(llvmtype(fun))
+                        if return_type(ft) == LLVM.VoidType(ctx)
+                            # even though returning can lead to invalid control flow,
+                            # it mostly happens with functions that just throw,
+                            # and leaving the unreachable there would make the optimizer
+                            # place another after the call.
+                            ret!(builder)
+                        else
+                            unreachable!(builder)
+                        end
+                    end
+
+                    dispose(builder)
+                end
             end
         end
     end
 
-    if !isempty(worklist)
-        let builder = Builder(ctx)
-            # an unreachable block that just loops
-            bb_unreachable = LLVM.BasicBlock(fun, "opaque_unreachable", ctx)
-            position!(builder, bb_unreachable)
-            br!(builder, bb_unreachable)
-
-            for bb in worklist
-                position!(builder, bb)
-                br!(builder, bb_unreachable)
-            end
-
-            dispose(builder)
+    # apply the pending terminator rewrites
+    let builder = Builder(ctx)
+        for (bb, target) in worklist
+            position!(builder, bb)
+            br!(builder, target)
         end
     end
 
