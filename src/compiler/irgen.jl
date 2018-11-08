@@ -256,7 +256,7 @@ function irgen(ctx::CompilerContext)
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
         add!(pm, ModulePass("ReplaceThrow", replace_throw!))
-        add!(pm, FunctionPass("HideTrap", hide_trap!))
+        add!(pm, FunctionPass("HideTrap", replace_trap!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         always_inliner!(pm)
         verifier!(pm)
@@ -344,67 +344,20 @@ function replace_throw!(mod::LLVM.Module)
     return changed
 end
 
-# HACK: this pass removes calls to `trap` and replaces them with a hidden `exit`
+# HACK: this pass removes calls to `trap` and replaces them with inline assembly
 #
-# `trap` causes an illegal instruction error, so we want to get rid of that
+# if LLVM knows we're trapping, the code is deemed `unreachable` which results in possibly
+# divergent control flow (see `hide_unreachable!`).
+# TODO: do this with structured CFG?
 #
-# in addition, both `trap` and `exit` can confuse `ptxas` which doesn't properly deal with
-# function exits from divergent branches. to avoid that, we "hide" the call to `exit` using
-# an opaque predicate.
-#
-# TODO: do this with structured CFG with LLVM?
-function hide_trap!(fun::LLVM.Function)
+# in addition, `trap` is bad and kills the GPU, so we prefer to `exit`
+function replace_trap!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
     mod = LLVM.parent(fun)
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
     exit = InlineAsm(exit_ft, "exit;", "", true)
-
-    # an opaque call to exit, hiding control flow from ptxas
-    funs = functions(mod)
-    opaque_trap_fn = "opaque_trap"
-    if haskey(funs, opaque_trap_fn)
-        opaque_trap = funs[opaque_trap_fn]
-    else
-        opaque_trap = LLVM.Function(mod, opaque_trap_fn, exit_ft)
-
-        bb_entry = LLVM.BasicBlock(opaque_trap, "entry", ctx)
-        bb_trap = LLVM.BasicBlock(opaque_trap, "trap", ctx)
-        bb_exit = LLVM.BasicBlock(opaque_trap, "exit", ctx)
-
-        let builder = Builder(ctx)
-            # we'll be checking for >= 0 (always being true, but `ptxas` doesn't know that)
-            T_int = LLVM.Int32Type(ctx)
-            val = LLVM.ConstantInt(T_int, 0)
-
-            # create a global variable to load a value from
-            gvs = globals(mod)
-            gv_name = "breaker_of_controlflow"
-            if haskey(gvs, gv_name)
-                gv = gvs[gv_name]
-            else
-                gv = LLVM.GlobalVariable(mod, T_int, gv_name)
-                extinit!(gv, true)
-            end
-
-            # emit a conditional branch to the exit block
-            position!(builder, bb_entry)
-            gv_ptr = gep!(builder, gv, [ConstantInt(0, ctx)])
-            gv_val = load!(builder, gv_ptr)
-            predicate = icmp!(builder, LLVM.API.LLVMIntSGE, gv_val, val)
-            br!(builder, predicate, bb_trap, bb_exit)
-
-            position!(builder, bb_trap)
-            call!(builder, exit)
-            br!(builder, bb_exit)
-
-            position!(builder, bb_exit)
-            unreachable!(builder) # will be replaced with a loop in `hide_unreachable!`
-
-            dispose(builder)
-        end
-    end
 
     changed = false
 
@@ -414,7 +367,7 @@ function hide_trap!(fun::LLVM.Function)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
                 let builder = Builder(ctx)
                     position!(builder, inst)
-                    call!(builder, opaque_trap)
+                    call!(builder, exit)
                     dispose(builder)
                 end
                 unsafe_delete!(bb, inst)
@@ -428,13 +381,10 @@ end
 
 # HACK: this pass removes `unreachable` information from LLVM
 #
-# similar to `trap` instructions in the `hide_trap!` pass, `unreachable` instructions makes
-# LLVM restructure control flow in a manner that could confuse `ptxas`.
-#
-# instead, we replace `unreachable` instructions with infinite loops. this does not affect
-# execution, because these blocks aren't supposed to be executed, ever.
-#
-# TODO: do this with structured CFG with LLVM?
+# `ptxas` is buggy and cannot deal with thread-divergent control flow in the presence of
+# shared memory (see JuliaGPU/CUDAnative.jl#4). avoid that by rewriting control flow to fall
+# through any other block. this is semantically invalid, but the code is unreachable anyhow
+# (and we expect it to be preceded by eg. a noreturn function, or a trap).
 function hide_unreachable!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
 
@@ -447,7 +397,8 @@ function hide_unreachable!(fun::LLVM.Function)
     attrs = function_attributes(fun)
     delete!(attrs, EnumAttribute("noreturn", 0, ctx))
 
-    worklist = Pair{LLVM.BasicBlock, LLVM.BasicBlock}[]
+    # scan for unreachable terminators and alternative successors
+    worklist = Pair{LLVM.BasicBlock, Union{Nothing,LLVM.BasicBlock}}[]
     for bb in blocks(fun)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
@@ -509,25 +460,7 @@ function hide_unreachable!(fun::LLVM.Function)
                             pred = Iterators.flatten(map(predecessors, pred))
                         end
                     end
-
-                    # redirect control flow. we don't care if this makes sense (the code is
-                    # unreachable), we just want a non-divergent or synchronizing CFG
-                    if fallthrough !== nothing
-                        push!(worklist, bb => fallthrough)
-                    else
-                        # couldn't find any other successor. this happens with functions
-                        # that only contain a single block, or when the block is dead.
-                        ft = eltype(llvmtype(fun))
-                        if return_type(ft) == LLVM.VoidType(ctx)
-                            # even though returning can lead to invalid control flow,
-                            # it mostly happens with functions that just throw,
-                            # and leaving the unreachable there would make the optimizer
-                            # place another after the call.
-                            ret!(builder)
-                        else
-                            unreachable!(builder)
-                        end
-                    end
+                    push!(worklist, bb => fallthrough)
 
                     dispose(builder)
                 end
@@ -536,10 +469,27 @@ function hide_unreachable!(fun::LLVM.Function)
     end
 
     # apply the pending terminator rewrites
-    let builder = Builder(ctx)
-        for (bb, target) in worklist
-            position!(builder, bb)
-            br!(builder, target)
+    if !isempty(worklist)
+        let builder = Builder(ctx)
+            for (bb, fallthrough) in worklist
+                position!(builder, bb)
+                if fallthrough !== nothing
+                    br!(builder, fallthrough)
+                else
+                    # couldn't find any other successor. this happens with functions
+                    # that only contain a single block, or when the block is dead.
+                    ft = eltype(llvmtype(fun))
+                    if return_type(ft) == LLVM.VoidType(ctx)
+                        # even though returning can lead to invalid control flow,
+                        # it mostly happens with functions that just throw,
+                        # and leaving the unreachable there would make the optimizer
+                        # place another after the call.
+                        ret!(builder)
+                    else
+                        unreachable!(builder)
+                    end
+                end
+            end
         end
     end
 
