@@ -97,8 +97,23 @@ end
   @test testf(x->view(x, :, 1:4, 3), rand(Float32, 5, 4, 3))
   @allowscalar let x = cu(rand(Float32, 5, 4, 3))
     @test_throws BoundsError view(x, :, :, 1:10)
-    @test typeof(view(x, :, 1:4, 3)) <: CuMatrix # contiguous view
-    @test typeof(view(x, 1, 1:4, 3)) <: SubArray # non-contiguous view
+
+    # Contiguous views should return new CuArray
+    @test typeof(view(x, :, 1, 2)) == CuVector{Float32}
+    @test typeof(view(x, 1:4, 1, 2)) == CuVector{Float32}
+    @test typeof(view(x, :, 1:4, 3)) == CuMatrix{Float32}
+    @test typeof(view(x, :, :, 1)) == CuMatrix{Float32}
+    @test typeof(view(x, :, :, :)) == CuArray{Float32,3}
+    @test typeof(view(x, :)) == CuVector{Float32}
+    @test typeof(view(x, 1:3)) == CuVector{Float32}
+
+    # Non-contiguous views should fall back to base's SubArray
+    @test typeof(view(x, 1:3, 1:3, 3)) <: SubArray
+    @test typeof(view(x, 1, :, 3)) <: SubArray
+    @test typeof(view(x, 1, 1:4, 3)) <: SubArray
+    @test typeof(view(x, :, 1, 1:3)) <: SubArray
+    @test typeof(view(x, :, 1:2:4, 1)) <: SubArray
+    @test typeof(view(x, 1:2:5, 1, 1)) <: SubArray
   end
 end
 
