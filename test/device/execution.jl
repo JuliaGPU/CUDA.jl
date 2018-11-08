@@ -685,4 +685,18 @@ end
 
 ############################################################################################
 
+@testset "keyword arguments" begin
+    @eval inner_kwargf(foobar;foo=1, bar=2) = nothing
+
+    @cuda (()->inner_kwargf(42;foo=1,bar=2))()
+
+    @cuda (()->inner_kwargf(42))()
+
+    @cuda (()->inner_kwargf(42;foo=1))()
+
+    @cuda (()->inner_kwargf(42;bar=2))()
+
+    @cuda (()->inner_kwargf(42;bar=2,foo=1))()
+end
+
 end
