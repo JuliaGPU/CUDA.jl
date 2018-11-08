@@ -32,7 +32,7 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     let builder = Builder(ctx)
         position!(builder, insblock)
 
-        cuprintf!(builder, "ERROR: an unknown exception occurred$cuprintf_endline during kernel execution")
+        cuprintf!(builder, "ERROR: an unknown exception occurred during kernel execution$cuprintf_endline")
         call!(builder, trap)
 
         dispose(builder)
