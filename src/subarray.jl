@@ -8,9 +8,10 @@ struct NonContiguous end
 
 # Detect whether the view is contiguous or not
 CuIndexStyle() = Contiguous()
-CuIndexStyle(i1::Colon, I...) = CuIndexStyle(I...)
-CuIndexStyle(i1::AbstractUnitRange, ::ScalarIndex...) = Contiguous()
 CuIndexStyle(I...) = NonContiguous()
+CuIndexStyle(i1::Colon, ::ScalarIndex...) = Contiguous()
+CuIndexStyle(i1::AbstractUnitRange, ::ScalarIndex...) = Contiguous()
+CuIndexStyle(i1::Colon, I...) = CuIndexStyle(I...)
 
 cuviewlength() = ()
 cuviewlength(::Real, I...) = (@_inline_meta; cuviewlength(I...)) # skip scalars
