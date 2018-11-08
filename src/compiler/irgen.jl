@@ -256,8 +256,8 @@ function irgen(ctx::CompilerContext)
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
         add!(pm, ModulePass("ReplaceThrow", replace_throw!))
-        add!(pm, FunctionPass("HideTrap", hide_trap!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
+        add!(pm, FunctionPass("HideTrap", hide_trap!))
         always_inliner!(pm)
         verifier!(pm)
         run!(pm, mod)
@@ -272,7 +272,7 @@ end
 # as many `throw_...` functions are now `@noinline` which means their arguments survive and
 # may cause GC allocations.
 #
-# TODO: replace with a Cassette-style overdub of the `throw` builtin
+# TODO: replace with an early substitution of the `throw` builtin
 function replace_throw!(mod::LLVM.Module)
     ctx = LLVM.context(mod)
 
@@ -336,39 +336,6 @@ function replace_throw!(mod::LLVM.Module)
                 unsafe_delete!(mod, f)
 
 
-                changed = true
-            end
-        end
-    end
-
-    return changed
-end
-
-# HACK: this pass removes calls to `trap` and replaces them with inline assembly
-#
-# if LLVM knows we're trapping, the code is deemed `unreachable` which results in possibly
-# divergent control flow (see `hide_unreachable!`).
-# TODO: do this with structured CFG?
-function hide_trap!(fun::LLVM.Function)
-    ctx = LLVM.context(fun)
-    mod = LLVM.parent(fun)
-
-    # inline assembly to exit a thread, hiding control flow from LLVM
-    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
-    exit = InlineAsm(exit_ft, "trap;", "", true)
-
-    changed = false
-
-    for bb in blocks(fun)
-        # replace calls to `trap` with an opaque call to `exit`
-        for inst in instructions(bb)
-            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
-                let builder = Builder(ctx)
-                    position!(builder, inst)
-                    call!(builder, exit)
-                    dispose(builder)
-                end
-                unsafe_delete!(bb, inst)
                 changed = true
             end
         end
@@ -487,6 +454,39 @@ function hide_unreachable!(fun::LLVM.Function)
                         unreachable!(builder)
                     end
                 end
+            end
+        end
+    end
+
+    return changed
+end
+
+# HACK: this pass removes calls to `trap` and replaces them with inline assembly
+#
+# if LLVM knows we're trapping, code is marked `unreachable` (see `hide_unreachable!`).
+#
+# TODO: can LLVM do this (structured CFG)?
+function hide_trap!(fun::LLVM.Function)
+    ctx = LLVM.context(fun)
+    mod = LLVM.parent(fun)
+
+    # inline assembly to exit a thread, hiding control flow from LLVM
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit = InlineAsm(exit_ft, "trap;", "", true)
+
+    changed = false
+
+    for bb in blocks(fun)
+        # replace calls to `trap` with an opaque call to `exit`
+        for inst in instructions(bb)
+            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
+                let builder = Builder(ctx)
+                    position!(builder, inst)
+                    call!(builder, exit)
+                    dispose(builder)
+                end
+                unsafe_delete!(bb, inst)
+                changed = true
             end
         end
     end
