@@ -94,11 +94,7 @@ end
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
 function __init__()
-    if !configured
-        @warn """CUDAnative.jl has not been successfully built, and will not work properly.
-                 Please run Pkg.build(\"CUDAnative\") and restart Julia."""
-        return
-    end
+    configured || return
 
     if CUDAdrv.version() != cuda_driver_version
         error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
