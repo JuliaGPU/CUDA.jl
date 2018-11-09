@@ -57,6 +57,11 @@ function read_ext(path)
     return config
 end
 
+function build_error(reason)
+    println("$reason.")
+    exit(1)
+end
+
 function main()
     ispath(config_path) && mv(config_path, previous_config_path; force=true)
     config = Dict{Symbol,Any}(:configured => false)
@@ -70,7 +75,7 @@ function main()
 
     config[:libcuda_path] = find_cuda_library("cuda", toolkit_dirs)
     if config[:libcuda_path] == nothing
-        error("Could not find CUDA driver library")
+        build_error("Could not find CUDA driver library")
     end
     config[:libcuda_vendor] = "NVIDIA"
 
@@ -80,13 +85,13 @@ function main()
     if status != 0
         # decode some common errors (as we haven't loaded errors.jl yet)
         if status == -1
-            error("Building against CUDA driver stubs, which is not supported.")
+            build_error("Building against CUDA driver stubs, which is not supported.")
         elseif status == 100
-            error("Initializing CUDA driver failed: no CUDA hardware available (code 100).")
+            build_error("Initializing CUDA driver failed: no CUDA hardware available (code 100).")
         elseif status == 999
-            error("Initializing CUDA driver failed: unknown error (code 999).")
+            build_error("Initializing CUDA driver failed: unknown error (code 999).")
         else
-            error("Initializing CUDA driver failed with code $status.")
+            build_error("Initializing CUDA driver failed with code $status.")
         end
     end
 
@@ -98,11 +103,9 @@ function main()
     ## (re)generate ext.jl
 
     if isfile(previous_config_path)
-        @debug("Checking validity of existing ext.jl...")
         previous_config = read_ext(previous_config_path)
 
         if config == previous_config
-            @info "CUDAdrv.jl has already been built for this toolchain, no need to rebuild"
             mv(previous_config_path, config_path; force=true)
             return
         end
