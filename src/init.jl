@@ -11,11 +11,7 @@ function init(flags::Int=0)
 end
 
 function __init__()
-    if !configured
-        @warn """CUDAdrv.jl has not been successfully built, and will not work properly.
-                 Please run Pkg.build(\"CUDAdrv\") and restart Julia."""
-        return
-    end
+    configured || return
 
     # check validity of CUDA library
     @debug("Checking validity of $(libcuda_path)")
