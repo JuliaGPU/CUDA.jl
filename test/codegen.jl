@@ -177,9 +177,19 @@ end
     CUDAnative.code_llvm(devnull, kernel, Tuple{Vector{Int}}; kernel=true)
 end
 
+if VERSION >= v"1.0.2"
 @testset "CUDAnative.jl#278" begin
+    # codegen idempotency
+    # NOTE: this isn't fixed, but surfaces here due to bad inference of checked_sub
+    # NOTE: with the fix to print_to_string this doesn't error anymore,
+    #       but still have a test to make sure it doesn't regress
     CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int})
     CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int})
+
+    # breaking recursion in print_to_string makes it possible to compile
+    # even in the presence of the above bug
+    CUDAnative.code_llvm(devnull, Base.print_to_string, Tuple{Int,Int})
+end
 end
 
 end
