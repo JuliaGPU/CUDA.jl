@@ -1662,7 +1662,7 @@ end
                 d_x = CuArray(x_)
                 @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
                 @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-                d_y = CuArray(y)
+                d_x = CuArray(x)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A_s * x
@@ -1680,7 +1680,7 @@ end
                 d_x = CuArray(x_)
                 @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
                 @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-                d_y = CuArray(y)
+                d_x = CuArray(x)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A_s * x
@@ -1702,7 +1702,7 @@ end
                 d_x = CuArray(x_)
                 @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
                 @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-                d_y = CuArray(y)
+                d_x = CuArray(x)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A_h * x
@@ -1720,7 +1720,7 @@ end
                 d_x = CuArray(x_)
                 @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
                 @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-                d_y = CuArray(y)
+                d_x = CuArray(x)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A_h * x
@@ -1743,7 +1743,6 @@ end
                 h_z = collect(d_y)
                 z = alpha * A * x + beta * y
                 @test z ≈ h_z
-                d_y = CuArray(y)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A * x
@@ -1759,7 +1758,6 @@ end
                 h_z = collect(d_y)
                 z = alpha * A * x + beta * y
                 @test z ≈ h_z
-                d_y = CuArray(y)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A * x
@@ -1776,7 +1774,6 @@ end
                 h_z = collect(d_y)
                 z = alpha * A * x + beta * y
                 @test z ≈ h_z
-                d_y = CuArray(y)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A * x
@@ -1793,7 +1790,6 @@ end
                 @test z ≈ h_z
                 @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
                 @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-                d_y = CuArray(y)
                 mul!(d_y, d_A, d_x)
                 h_y = collect(d_y)
                 z = A * x
