@@ -2,23 +2,6 @@
 (\)(transA::Transpose{<:Any, <:AbstractTriangular{<:CuSparseMatrix}}, B::CuMatrix) = sm('T',parent(transA),B,'O')
 (\)(adjA::Adjoint{<:Any, <:AbstractTriangular{<:CuSparseMatrix}},B::CuMatrix) = sm('C',parent(adjA),B,'O')
 
-(*)(A::CuSparseMatrix,B::CuVector)       = mv('N',A,B,'O')
-(*)(transA::Transpose{<:Any, <:CuSparseMatrix},B::CuVector)  = mv('T',parent(transA),B,'O')
-(*)(adjA::Adjoint{<:Any, <:CuSparseMatrix},B::CuVector)  = mv('C',parent(transA),B,'O')
-(*)(A::HermOrSym{T,<:CuSparseMatrix{T}},B::CuVector{T}) where T = mv('N',A,B,'O')
-(*)(transA::Transpose{<:Any, <:HermOrSym{T,<:CuSparseMatrix{T}}},B::CuVector{T}) where T = mv('T',parent(transA),B,'O')
-(*)(adjA::Adjoint{<:Any, <:HermOrSym{T,<:CuSparseMatrix{T}}},B::CuVector{T}) where T = mv('C',parent(adjA),B,'O')
-
-(*)(A::CuSparseMatrix{T},B::CuMatrix{T})       where T = mm2('N','N',A,B,'O')
-(*)(A::CuSparseMatrix{T},transB::Transpose{<:Any, CuMatrix{T}})  where T = mm2('N','T',A,parent(transB),'O')
-(*)(transA::Transpose{<:Any, <:CuSparseMatrix{T}},B::CuMatrix{T})  where T = mm2('T','N',parent(transA),B,'O')
-(*)(transA::Transpose{<:Any, <:CuSparseMatrix{T}},transB::Transpose{<:Any, CuMatrix{T}}) where T = mm2('T','T',parent(transA),parent(transB),'O')
-(*)(adjA::Adjoint{<:Any, <:CuSparseMatrix{T}},B::CuMatrix{T})  where T = mm2('C','N',parent(adjA),B,'O')
-
-(*)(A::HermOrSym,B::CuMatrix) = mm('N',A,B,'O')
-(*)(transA::Transpose{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) = mm('T',parent(transA),B,'O')
-(*)(adjA::Adjoint{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) = mm('C',parent(adjA), B,'O')
-
 mul!(C::CuVector{T},A::CuSparseMatrix,B::CuVector) where {T} = mv!('N',one(T),A,B,zero(T),C,'O')
 mul!(C::CuVector{T},transA::Transpose{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('T',one(T),parent(transA),B,zero(T),C,'O')
 mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(transA),B,zero(T),C,'O')
