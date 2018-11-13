@@ -128,10 +128,6 @@ end
 
 struct Adaptor end
 
-# device array
-Adapt.adapt_storage(::CUDAnative.Adaptor, a::CuArray{T,N}) where {T,N} =
-    convert(CuDeviceArray{T,N,AS.Global}, a)
-
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
   x::T

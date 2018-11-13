@@ -1,6 +1,6 @@
 # EXCLUDE FROM TESTING
 
-using CuArrays, CUDAnative, CUDAdrv, CUDAapi
+using CUDAapi, CUDAdrv, CUDAnative, CuArrays
 
 CUDAnative.initialize()
 const dev = device()

@@ -6,7 +6,7 @@
 
 # TODO: make the actual error trap at run time
 
-using CUDAdrv, CUDAnative
+using CUDAdrv, CUDAnative, CuArrays
 
 a = CuArray{Float32}(10)
 

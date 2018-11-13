@@ -14,13 +14,12 @@ function kernel_vadd(a, b, c)
     c[i] = a[i] + b[i]
     return nothing
 end
-
 ```
 
 Using the `@cuda` macro, you can launch the kernel on a GPU of your choice:
 
 ```julia
-using CUDAdrv, CUDAnative
+using CUDAdrv, CUDAnative, CuArrays
 using Test
 
 # CUDAdrv functionality: generate and upload data

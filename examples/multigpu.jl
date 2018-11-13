@@ -1,4 +1,4 @@
-using CUDAdrv, CUDAnative
+using CUDAdrv, CUDAnative, CuArrays
 
 using Test
 
