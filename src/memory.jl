@@ -279,7 +279,10 @@ function dealloc(buf, bytes)
   pool_stats.req_nfree += 1
   pool_stats.user_free += bytes
   pool_stats.total_time += Base.@elapsed begin
+    bytes > MAX_POOL && return Mem.free(buf)
+
     pid = poolidx(bytes)
+    @assert pid <= length(pools_used)
 
     @inbounds used = pools_used[pid]
     @inbounds avail = pools_avail[pid]
