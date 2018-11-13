@@ -109,7 +109,6 @@ function main(n = 10000)
     lat = rand(Float32, n) .* 45
     lon = rand(Float32, n) .* -120
 
-
-    @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)
+    @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon) rtol=1e-2
 end
 main()
