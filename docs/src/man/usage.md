@@ -39,66 +39,28 @@ However, many CUDA API functions implicitly depend on global state, such as the 
 active context. The wrapper needs to model those dependencies in order for objects not to
 get destroyed before any dependent object is. If we fail to model these dependency
 relations, API calls might randomly fail, eg. in the case of a missing context dependency
-with a `INVALID_CONTEXT` or `CONTEXT_IS_DESTROYED` error message.
+with a `INVALID_CONTEXT` or `CONTEXT_IS_DESTROYED` error message. File a bug report if
+that happens.
 
-If this seems to be the case, re-run with `TRACE=1` and file a bug report.
 
+## Device memory
 
-## Arrays
-
-### Device arrays
-
-Device arrays are called `CuArray`s, as opposed to regular (CPU) Julia `Array`s
-
-`CuArray`s can be initialized with regular `Array`s:
+Device memory is represented as `Buffer` objects, which can be allocated or
+initialized from existing arrays:
 
 ```jldoctest
 A   = zeros(Float32,3,4)
-d_A = CuArray(A)
+d_A = Mem.upload(A);
+typeof(d_A)
 
 # output
 
-3×4 Array{Float32,2}:
- 0.0  0.0  0.0  0.0
- 0.0  0.0  0.0  0.0
- 0.0  0.0  0.0  0.0
+CUDAdrv.Mem.Buffer
 ```
 
-The `d_` syntax is a conventional way of reminding yourself that the array is
-allocated on the device.
-
-```@meta
-DocTestSetup = quote
-    using CUDAdrv
-
-    dev = CuDevice(0)
-    ctx = CuContext(dev)
-
-    A   = zeros(Float32,3,4)
-    d_A = CuArray(A)
-end
-```
-
-To copy a device array back to the host, use:
-```jldoctest
-copy!(A, d_A)
-
-# output
-
-3×4 Array{Float32,2}:
- 0.0  0.0  0.0  0.0
- 0.0  0.0  0.0  0.0
- 0.0  0.0  0.0  0.0
-```
-
-You can also invert `d_A` and `A` to copy from host to device.
-
-Most of the typical Julia functions, like `size`, `ndims`, `eltype`, etc.,  work
-on CuArrays. One noteworthy omission is that you can't directly index a
-CuArray: `d_A[2,4]` will fail. This is not supported because host/device memory transfers
-are relatively slow, and you don't want to write code that (on the host side) makes use of
-individual elements in a device array. If you want to inspect the values in a device array,
-first use `copy!` to copy it to host memory.
+A variety of methods are defined to work with buffers, however, these are all
+low-level methods. Use the CuArrays.jl package for a higher-level array
+abstraction.
 
 
 ## Modules and custom kernels
