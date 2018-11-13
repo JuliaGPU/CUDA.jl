@@ -89,7 +89,6 @@ Base.similar(a::CuArray{T}, dims::Dims{N}) where {T,N}     = CuArray{T,N}(dims)
 Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 
 Base.size(a::CuArray) = a.shape
-Base.length(a::CuArray) = prod(a.shape)
 Base.sizeof(a::CuArray{T}) where {T} = Base.elsize(a) * length(a)
 
 
