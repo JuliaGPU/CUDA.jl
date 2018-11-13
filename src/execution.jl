@@ -116,14 +116,14 @@ For example:
     vadd = CuFunction(md, "vadd")
     a = rand(Float32, 10)
     b = rand(Float32, 10)
-    ad = CuArray(a)
-    bd = CuArray(b)
+    ad = Mem.upload(a)
+    bd = Mem.upload(b)
     c = zeros(Float32, 10)
-    cd = CuArray(c)
+    cd = Mem.alloc(c)
 
     cudacall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd;
              threads=10)
-    c = Array(cd)
+    Mem.download!(c, cd)
 
 The `blocks` and `threads` arguments control the launch configuration, and should both
 consist of either an integer, or a tuple of 1 to 3 integers (omitted dimensions default to

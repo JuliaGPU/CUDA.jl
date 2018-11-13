@@ -1,6 +1,6 @@
 # Deprecated functionality
 
-import Base: @deprecate_binding
+import Base: @deprecate_binding, @deprecate_moved
 
 @deprecate devcount() length(devices())
 @deprecate list_devices() map(println, devices())
@@ -8,3 +8,4 @@ import Base: @deprecate_binding
 @deprecate CuPrimaryContext(devnum::Int) CuPrimaryContext(CuDevice(devnum))
 @deprecate reset(pctx::CuPrimaryContext) unsafe_reset!(pctx)
 @deprecate_binding DevicePtr Ptr
+@deprecate_moved CuArray "CuArrays"

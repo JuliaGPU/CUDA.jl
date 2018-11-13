@@ -45,42 +45,42 @@ let
 
     a = rand(Float32, 10)
     b = rand(Float32, 10)
-    ad = CuArray(a)
-    bd = CuArray(b)
+    ad = Mem.upload(a)
+    bd = Mem.upload(b)
 
     # Addition
     let
         c = zeros(Float32, 10)
-        cd = CuArray(c)
+        cd = Mem.alloc(c)
         cudacall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
-        c = Array(cd)
+        Mem.download!(c, cd)
         @test c ≈ a+b
     end
 
     # Subtraction
     let
         c = zeros(Float32, 10)
-        cd = CuArray(c)
+        cd = Mem.alloc(c)
         cudacall(vsub, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
-        c = Array(cd)
+        Mem.download!(c, cd)
         @test c ≈ a-b
     end
 
     # Multiplication
     let
         c = zeros(Float32, 10)
-        cd = CuArray(c)
+        cd = Mem.alloc(c)
         cudacall(vmul, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
-        c = Array(cd)
+        Mem.download!(c, cd)
         @test c ≈ a.*b
     end
 
     # Division
     let
         c = zeros(Float32, 10)
-        cd = CuArray(c)
+        cd = Mem.alloc(c)
         cudacall(vdiv, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
-        c = Array(cd)
+        Mem.download!(c, cd)
         @test c ≈ a./b
     end
 end
