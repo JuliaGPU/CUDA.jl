@@ -388,7 +388,7 @@ function hide_unreachable!(fun::LLVM.Function)
 
                     # find the predecessors to this block
                     function predecessors(bb)
-                        pred = LLVM.BasicBlock[]
+                        pred = BasicBlock[]
                         for bb′ in blocks(fun)
                             insts = instructions(bb′)
                             if bb != bb′ && !isempty(insts)
@@ -411,7 +411,7 @@ function hide_unreachable!(fun::LLVM.Function)
                         branches = map(terminator, pred)
 
                         # find the other successors
-                        other_succ = LLVM.BasicBlock[]
+                        other_succ = BasicBlock[]
                         for br in branches
                             for target in successors(br)
                                 if target != bb
