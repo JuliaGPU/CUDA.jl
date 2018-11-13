@@ -38,7 +38,6 @@ if CUDAdrv.configured
             include("profile.jl")
         end
 
-        include("array.jl")
         include("gc.jl")
 
         include("examples.jl")

@@ -83,7 +83,7 @@ let
     null = Mem.alloc(Int, 0)
     Mem.free(null)
 
-    # double-free should throw (we rely on it for CuArray finalizer tests)
+    # double-free should throw
     x = Mem.alloc(1)
     Mem.free(x)
     @test_throws_cuerror CUDAdrv.ERROR_INVALID_VALUE Mem.free(x)

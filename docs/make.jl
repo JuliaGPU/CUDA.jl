@@ -11,7 +11,6 @@ makedocs(
         ],
         "Library" => [
             "lib/api.md",
-            "lib/array.md"
         ]
     ],
     doctest = true
