@@ -197,7 +197,7 @@ function main(iterations)
                 out = blackscholes_cpu.($sptprice, $strike, $rate,
                                         $volatility, $time)
             end setup=(
-                out = zeros($sptprice)
+                out = nothing
             ) teardown=(
                 checksum($reference, out)
             )
@@ -208,7 +208,7 @@ function main(iterations)
                 out = blackscholes_cpu($sptprice, $strike, $rate,
                                        $volatility, $time)
             end setup=(
-                out = zeros($sptprice)
+                out = nothing
             ) teardown=(
                 checksum($reference, out)
             )
@@ -270,7 +270,7 @@ function main(iterations)
                 rate_dev = CuArrays.CuArray($rate);
                 volatility_dev = CuArrays.CuArray($volatility);
                 time_dev = CuArrays.CuArray($time);
-                out = zeros($sptprice)
+                out = nothing
             ) teardown=(
                 checksum($reference, Array(out))
             )
@@ -287,7 +287,7 @@ function main(iterations)
                 rate_dev = CuArrays.CuArray($rate);
                 volatility_dev = CuArrays.CuArray($volatility);
                 time_dev = CuArrays.CuArray($time);
-                out = zeros($sptprice)
+                out = nothing
             ) teardown=(
                 checksum($reference, Array(out))
             )
