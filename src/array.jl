@@ -163,6 +163,9 @@ Base.print_array(io::IO, x::CuArray) = Base.print_array(io, collect(x))
 Base.print_array(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.adjoint(collect(x.parent)))
 Base.print_array(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.transpose(collect(x.parent)))
 
+# We don't convert isbits types in `adapt`, since they are already
+# considered gpu-compatible.
+
 Adapt.adapt_storage(::Type{<:CuArray}, xs::AbstractArray) =
   isbits(xs) ? xs : convert(CuArray, xs)
 
