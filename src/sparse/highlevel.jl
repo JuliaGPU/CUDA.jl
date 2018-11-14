@@ -20,8 +20,8 @@ mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:HermOrSym{<:Number, <:CuSparseMat
 mul!(C::CuMatrix{T},adjA::Adjoint{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) where {T} = mm!('C',one(T),parent(adjA),B,zero(T),C,'O')
 
 (\)(A::AbstractTriangular{<:CuSparseMatrix},B::CuVector)       = sv2('N',A,B,'O')
-(\)(transA::Transpose{<:Any, AbstractTriangular{<:CuSparseMatrix}},B::CuVector) = sv2('T',parent(transA),B,'O')
-(\)(adjA::Adjoint{<:Any, AbstractTriangular{T,CuSparseMatrix{T}}},B::CuVector{T}) where T = sv2('C',parent(adjA),B,'O')
+(\)(transA::Transpose{<:Any, <:AbstractTriangular{<:CuSparseMatrix}},B::CuVector) = sv2('T',parent(transA),B,'O')
+(\)(adjA::Adjoint{<:Any, <:AbstractTriangular{T,<:CuSparseMatrix{T}}},B::CuVector{T}) where T = sv2('C',parent(adjA),B,'O')
 (\)(A::AbstractTriangular{T,CuSparseMatrixHYB{T}},B::CuVector{T})       where T = sv('N',A,B,'O')
 (\)(transA::Transpose{<:Any, AbstractTriangular{T,CuSparseMatrixHYB{T}}},B::CuVector{T}) where T = sv('T',parent(transA),B,'O')
 (\)(adjA::Adjoint{<:Any, AbstractTriangular{T,CuSparseMatrixHYB{T}}},B::CuVector{T}) where T = sv('C',parent(adjA),B,'O')
