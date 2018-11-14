@@ -1465,6 +1465,340 @@ end
     end
 end
 
+@testset "mm!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,k))
+        B = rand(elty,k,n)
+        C = rand(elty,m,n)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "csr" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = CuSparseMatrixCSR(A)
+            CUSPARSE.mm!('N',alpha,d_A,d_B,beta,d_C,'O')
+            h_D = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_D
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+        @testset "csc" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = CuSparseMatrixCSC(A)
+            CUSPARSE.mm!('N',alpha,d_A,d_B,beta,d_C,'O')
+            h_D = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_D
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+    end
+end
+@testset "mm_symm!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,m))
+        A = A + transpose(A)
+        B = rand(elty,m,n)
+        C = rand(elty,m,n)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "csr" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = Symmetric(CuSparseMatrixCSR(A))
+            CUSPARSE.mm!('N',alpha,d_A,d_B,beta,d_C,'O')
+            h_C = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_C
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+        @testset "csc" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = Symmetric(CuSparseMatrixCSC(A))
+            CUSPARSE.mm!('N',alpha,d_A,d_B,beta,d_C,'O')
+            h_C = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_C
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+    end
+end
+@testset "mm_herm!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,m))
+        A = A + A'
+        B = rand(elty,m,n)
+        C = rand(elty,m,n)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "csr" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = Hermitian(CuSparseMatrixCSR(A))
+            CUSPARSE.mm!('N',alpha,d_A,d_B,beta,d_C,'O')
+            h_C = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_C
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+        @testset "csc" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = Hermitian(CuSparseMatrixCSC(A))
+            CUSPARSE.mm!('N',alpha,d_A,d_B,beta,d_C,'O')
+            h_C = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_C
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+    end
+end
+@testset "mm2!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,k))
+        B = rand(elty,k,n)
+        C = rand(elty,m,n)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "csr" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = CuSparseMatrixCSR(A)
+            CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+            h_D = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_D
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+        @testset "csc" begin
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            d_A = CuSparseMatrixCSC(A)
+            CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+            h_D = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_D
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
+        end
+    end
+end
+@testset "bsrmm2!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,k))
+        B = rand(elty,k,n)
+        C = rand(elty,m,n)
+        alpha = rand(elty)
+        beta = rand(elty)
+        d_B = CuArray(B)
+        d_C = CuArray(C)
+        d_A = CuSparseMatrixCSR(A)
+        d_A = CUSPARSE.switch2bsr(d_A,convert(Cint,blockdim))
+        @test_throws DimensionMismatch CUSPARSE.mm2!('N','T',alpha,d_A,d_B,beta,d_C,'O')
+        @test_throws DimensionMismatch CUSPARSE.mm2!('T','N',alpha,d_A,d_B,beta,d_C,'O')
+        @test_throws DimensionMismatch CUSPARSE.mm2!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+        @test_throws DimensionMismatch CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_B,'O')
+        CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+        h_D = collect(d_C)
+        D = alpha * A * B + beta * C
+        @test D ≈ h_D
+        d_C = CuArray(C)
+        mul!(d_C, d_A, d_B)
+        h_C = collect(d_C)
+        D = A * B
+        @test D ≈ h_C
+    end
+end
+@testset "mv!" begin
+    for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,m))
+        x = rand(elty,m)
+        y = rand(elty,m)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "mv_symm!" begin
+            A_s = A + transpose(A)
+            @testset "csr" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = Symmetric(CuSparseMatrixCSR(A_s))
+                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_y = collect(d_y)
+                z = alpha * A_s * x + beta * y
+                @test z ≈ h_y
+                x_  = rand(elty,n)
+                d_x = CuArray(x_)
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                d_x = CuArray(x)
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A_s * x
+                @test z ≈ h_y
+            end
+            @testset "csc" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = Symmetric(CuSparseMatrixCSC(A_s))
+                mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_y = collect(d_y)
+                z = alpha * A_s * x + beta * y
+                @test z ≈ h_y
+                x_  = rand(elty,n)
+                d_x = CuArray(x_)
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                d_x = CuArray(x)
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A_s * x
+                @test z ≈ h_y
+            end
+        end
+
+        @testset "mv_herm!" begin
+            A_h = A + adjoint(A)
+            @testset "csr" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = Hermitian(CuSparseMatrixCSR(A_h))
+                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_y = collect(d_y)
+                z = alpha * A_h * x + beta * y
+                @test z ≈ h_y
+                x_  = rand(elty,n)
+                d_x = CuArray(x_)
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                d_x = CuArray(x)
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A_h * x
+                @test z ≈ h_y
+            end
+            @testset "csc" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = Hermitian(CuSparseMatrixCSC(A_h))
+                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_y = collect(d_y)
+                z = alpha * A_h * x + beta * y
+                @test z ≈ h_y
+                x_  = rand(elty,n)
+                d_x = CuArray(x_)
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                d_x = CuArray(x)
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A_h * x
+                @test z ≈ h_y
+            end
+        end
+        A = sparse(rand(elty,m,n))
+        x = rand(elty,n)
+        y = rand(elty,m)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "mv!" begin
+            @testset "csr" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = CuSparseMatrixCSR(A)
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_z = collect(d_y)
+                z = alpha * A * x + beta * y
+                @test z ≈ h_z
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A * x
+                @test z ≈ h_y
+            end
+            @testset "csc" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = CuSparseMatrixCSC(A)
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_z = collect(d_y)
+                z = alpha * A * x + beta * y
+                @test z ≈ h_z
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A * x
+                @test z ≈ h_y
+            end
+            @testset "bsr" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = CuSparseMatrixCSR(A)
+                d_A = CUSPARSE.switch2bsr(d_A,convert(Cint,blockdim))
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_z = collect(d_y)
+                z = alpha * A * x + beta * y
+                @test z ≈ h_z
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A * x
+                @test z ≈ h_y
+            end
+            @testset "hyb" begin
+                d_x = CuArray(x)
+                d_y = CuArray(y)
+                d_A = CuSparseMatrixCSR(A)
+                d_A = CUSPARSE.switch2hyb(d_A)
+                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+                h_z = collect(d_y)
+                z = alpha * A * x + beta * y
+                @test z ≈ h_z
+                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+                mul!(d_y, d_A, d_x)
+                h_y = collect(d_y)
+                z = A * x
+                @test z ≈ h_y
+            end
+        end
+    end
+end
+
 @testset "sctr" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         x = sparsevec(rand(1:m,k), rand(elty,k), m)

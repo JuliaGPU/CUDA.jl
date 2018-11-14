@@ -1,5 +1,5 @@
 #utilities
-import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \
+import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \, mul!
 
 export switch2csr, switch2csc, switch2bsr, switch2hyb
 export axpyi!, axpyi, sctr!, sctr, gthr!, gthr, gthrz!, grthrz, roti!, roti
