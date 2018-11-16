@@ -102,8 +102,9 @@ function code_sass(io::IO, ctx::CompilerContext)
     if !ctx.kernel
         error("Can only generate SASS code for kernel functions")
     end
-    if ptxas === nothing || cuobjdump === nothing
-        error("Your CUDA installation does not provide ptxas or cuobjdump, both of which are required for code_sass")
+    # TODO: Fall back to cuobjdump
+    if ptxas === nothing || nvdisam === nothing
+        error("Your CUDA installation does not provide ptxas or nvdisasm, both of which are required for code_sass")
     end
 
     ptx,_ = compile(ctx)
@@ -115,7 +116,7 @@ function code_sass(io::IO, ctx::CompilerContext)
     # TODO: see how `nvvp` extracts SASS code when doing PC sampling, and copy that.
     Base.run(`$ptxas --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
     try
-        print(io, read(`$cuobjdump --dump-sass $fn`, String))
+        print(io, read(`$nvdisam --print-code --print-line-info $fn`, String))
     finally
         rm(fn)
     end
