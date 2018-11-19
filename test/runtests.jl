@@ -1,20 +1,9 @@
-# CuArrays development often happens in lockstep with other packages, so try to match branches
+# development often happens in lockstep with other packages,
+# so check-out the master branch of those packages.
+using Pkg
 if haskey(ENV, "GITLAB_CI")
-  using Pkg
-  function match_package(package, branch)
-    try
-      Pkg.add(PackageSpec(name=package, rev=String(branch)))
-      @info "Installed $package from $branch branch"
-    catch ex
-      @warn "Could not install $package from $branch branch, trying master" exception=ex
-      Pkg.add(PackageSpec(name=package, rev="master"))
-      @info "Installed $package from master branch"
-    end
-  end
-
-  branch = ENV["CI_COMMIT_REF_NAME"]
   for package in ("GPUArrays", "CUDAnative", "NNlib")
-    match_package(package, branch)
+    Pkg.add(PackageSpec(name=package, rev="master"))
   end
 end
 
