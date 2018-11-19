@@ -1,3 +1,12 @@
+# development often happens in lockstep with other packages,
+# so check-out the master branch of those packages.
+using Pkg
+if haskey(ENV, "GITLAB_CI")
+  for package in ("CUDAdrv", "CuArrays", "LLVM")
+    Pkg.add(PackageSpec(name=package, rev="master"))
+  end
+end
+
 using CUDAnative, CUDAdrv
 import LLVM
 
