@@ -22,6 +22,20 @@ function unsafe_free!(xs::CuArray)
   return
 end
 
+# Wrap CuArray around the data at the address given by `pointer`,
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                     p::Ptr{T}, dims::NTuple{N,Int}; own::Bool = false) where {T,N}
+    @assert !own "not implemented yet"
+    buf = CuArrays.Mem.Buffer(
+            convert(Ptr{Cvoid}, p),
+            prod(dims) * sizeof(T),
+            CuArrays.CuCurrentContext())
+
+    # add refcount in advance such that the refcount never drops to zero
+    # TODO: fix me
+    CuArrays.Mem.retain(buf)
+    return CuArrays.CuArray{T, length(dims)}(buf, dims)
+end
 
 ## construction
 

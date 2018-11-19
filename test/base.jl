@@ -13,6 +13,10 @@ end
   ret, out = @grab_output CuArrays.@time CuArray{Int32}(undef, 1)
   @test isa(ret, CuArray{Int32})
   @test occursin("1 GPU allocation: 4 bytes", out)
+
+  ret, out = @grab_output CuArrays.@time Base.unsafe_wrap(CuArray, Ptr{Int32}(12345678), (2, 3))
+  @test isa(ret, CuArray{Int32})
+  @test !occursin("GPU allocation", out)
 end
 
 @testset "Array" begin
