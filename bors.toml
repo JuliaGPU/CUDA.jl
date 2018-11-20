@@ -1,4 +1,4 @@
 status = [
-  "ci/gitlab/trying"
+  "ci/gitlab/%"
 ]
 delete_merged_branches = true
