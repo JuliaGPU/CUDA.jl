@@ -11,8 +11,21 @@ include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/test_dev.yml'
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/postprocess_coverage.yml'
 
+test:v1.0:
+  only:
+    - staging
+    - trying
+
 test:dev:
   allow_failure: true
+  only:
+    - staging
+    - trying
+
+coverage:
+  only:
+    - staging
+    - trying
 
 # Documenter.jl's `deploydocs` really is only made to work with Travis,
 # so we need to fake quite a bit of environment in order for it to work.
@@ -38,3 +51,6 @@ documentation:
                                 Pkg.develop(PackageSpec(path=pwd()));
                                 Pkg.instantiate()'
     - julia --project=docs/ docs/make.jl
+  only:
+    - staging
+    - trying
