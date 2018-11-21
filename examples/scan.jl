@@ -3,7 +3,7 @@
 #
 # Based on http://http.developer.nvidia.com/GPUGems3/gpugems3_ch39.html
 
-using CUDAdrv, CUDAnative
+using CUDAdrv, CUDAnative, CuArrays
 
 function cpu_accumulate!(op::Function, data::Matrix{T}) where {T}
     cols = size(data,2)

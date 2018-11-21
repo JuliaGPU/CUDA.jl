@@ -6,9 +6,9 @@
 
 # TODO: make the actual error trap at run time
 
-using CUDAdrv, CUDAnative
+using CUDAdrv, CUDAnative, CuArrays
 
-a = CuArray{Float32}(10)
+a = CuArray{Float32}(undef, 10)
 
 function memset(a, val)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x

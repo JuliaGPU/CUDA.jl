@@ -1,4 +1,4 @@
-using CUDAdrv, CUDAnative
+using CUDAdrv, CUDAnative, CuArrays
 
 using Test
 
@@ -17,12 +17,12 @@ b = round.(rand(Float32, dims) * 100)
 # FIXME: CuArray doesn't tie in with unified memory yet
 buf_a = Mem.alloc(sizeof(a), true)
 Mem.upload!(buf_a, a)
-d_a = CuArray{Float32,3}(dims, buf_a)
+d_a = CuArray{Float32,3}(buf_a, dims)
 buf_b = Mem.alloc(sizeof(a), true)
 Mem.upload!(buf_b, b)
-d_b = CuArray{Float32,3}(dims, buf_b)
+d_b = CuArray{Float32,3}(buf_b, dims)
 buf_c = Mem.alloc(sizeof(a), true)
-d_c = CuArray{Float32,3}(dims, buf_c)
+d_c = CuArray{Float32,3}(buf_c, dims)
 
 len = prod(dims)
 blocks = gpus

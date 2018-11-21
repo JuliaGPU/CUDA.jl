@@ -1,3 +1,12 @@
+# development often happens in lockstep with other packages,
+# so check-out the master branch of those packages.
+using Pkg
+if haskey(ENV, "GITLAB_CI")
+  for package in ("CUDAdrv", "LLVM")
+    Pkg.add(PackageSpec(name=package, rev="master"))
+  end
+end
+
 using CUDAnative, CUDAdrv
 import LLVM
 
@@ -46,7 +55,7 @@ if CUDAnative.configured
         end
 
         # pick most recent device (based on compute capability)
-        global dev = first(sort(collect(devices()); by=capability))
+        global dev = last(sort(collect(devices()); by=capability))
         @info("Testing using device $(name(dev))")
         device!(dev)
 
@@ -59,7 +68,7 @@ if CUDAnative.configured
             include("device/array.jl")
             include("device/intrinsics.jl")
 
-            include("examples.jl")
+            #include("examples.jl")
         end
     end
 else

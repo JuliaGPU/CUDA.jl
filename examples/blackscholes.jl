@@ -1,6 +1,4 @@
-# EXCLUDE FROM TESTING
-
-using CuArrays, CUDAnative, CUDAdrv, CUDAapi
+using CUDAapi, CUDAdrv, CUDAnative, CuArrays
 
 CUDAnative.initialize()
 const dev = device()
@@ -38,10 +36,10 @@ end
 @inline cndf2(in::AbstractArray{Float32}) = 0.5f0 .+ 0.5f0 .* erf.(0.707106781f0 .* in)
 
 function blackscholes_cpu(sptprice::AbstractArray{Float32},
-                      strike::AbstractArray{Float32},
-                      rate::AbstractArray{Float32},
-                      volatility::AbstractArray{Float32},
-                      time::AbstractArray{Float32})
+                          strike::AbstractArray{Float32},
+                          rate::AbstractArray{Float32},
+                          volatility::AbstractArray{Float32},
+                          time::AbstractArray{Float32})
     logterm = log10.(sptprice ./ strike)
     powterm = .5f0 .* volatility .* volatility
     den = volatility .* sqrt.(time)
@@ -194,10 +192,10 @@ function main(iterations)
     reference = blackscholes_cpu.(sptprice, strike, rate, volatility, time)
 
     let benchmark = @benchmarkable begin
-                out = blackscholes_cpu.($sptprice, $strike, $rate,
-                                        $volatility, $time)
+                out .= blackscholes_cpu.($sptprice, $strike, $rate,
+                                         $volatility, $time)
             end setup=(
-                out = nothing
+                out = similar($strike)
             ) teardown=(
                 checksum($reference, out)
             )
@@ -223,12 +221,12 @@ function main(iterations)
                          time_dev, out, n; blocks=grid, threads=block)
                 synchronize()
             end setup=(
-                sptprice_dev = CUDAdrv.CuArray($sptprice);
-                strike_dev = CUDAdrv.CuArray($strike);
-                rate_dev = CUDAdrv.CuArray($rate);
-                volatility_dev = CUDAdrv.CuArray($volatility);
-                time_dev = CUDAdrv.CuArray($time);
-                out = CUDAdrv.CuArray{Float32}(size($strike));
+                sptprice_dev = CuArray($sptprice);
+                strike_dev = CuArray($strike);
+                rate_dev = CuArray($rate);
+                volatility_dev = CuArray($volatility);
+                time_dev = CuArray($time);
+                out = similar(strike_dev);
 
                 n = size($sptprice, 1);
                 block = min(n, 1024);
@@ -244,12 +242,12 @@ function main(iterations)
                                                                     volatility_dev, time_dev, out)
                 synchronize()
             end setup=(
-                sptprice_dev = CUDAdrv.CuArray($sptprice);
-                strike_dev = CUDAdrv.CuArray($strike);
-                rate_dev = CUDAdrv.CuArray($rate);
-                volatility_dev = CUDAdrv.CuArray($volatility);
-                time_dev = CUDAdrv.CuArray($time);
-                out = CUDAdrv.CuArray{Float32}(size($strike));
+                sptprice_dev = CuArray($sptprice);
+                strike_dev = CuArray($strike);
+                rate_dev = CuArray($rate);
+                volatility_dev = CuArray($volatility);
+                time_dev = CuArray($time);
+                out = similar(strike_dev);
 
                 n = size($sptprice, 1);
                 block = min(n, 1024);
@@ -261,16 +259,16 @@ function main(iterations)
     end
 
     let benchmark = @benchmarkable begin
-                out = blackscholes_gpu.(sptprice_dev, strike_dev, rate_dev,
-                                        volatility_dev, time_dev)
+                out .= blackscholes_gpu.(sptprice_dev, strike_dev, rate_dev,
+                                         volatility_dev, time_dev)
                 synchronize()
             end setup=(
-                sptprice_dev = CuArrays.CuArray($sptprice);
-                strike_dev = CuArrays.CuArray($strike);
-                rate_dev = CuArrays.CuArray($rate);
-                volatility_dev = CuArrays.CuArray($volatility);
-                time_dev = CuArrays.CuArray($time);
-                out = nothing
+                sptprice_dev = CuArray($sptprice);
+                strike_dev = CuArray($strike);
+                rate_dev = CuArray($rate);
+                volatility_dev = CuArray($volatility);
+                time_dev = CuArray($time);
+                out = similar(strike_dev);
             ) teardown=(
                 checksum($reference, Array(out))
             )
@@ -282,11 +280,11 @@ function main(iterations)
                                        volatility_dev, time_dev)
                 synchronize()
             end setup=(
-                sptprice_dev = CuArrays.CuArray($sptprice);
-                strike_dev = CuArrays.CuArray($strike);
-                rate_dev = CuArrays.CuArray($rate);
-                volatility_dev = CuArrays.CuArray($volatility);
-                time_dev = CuArrays.CuArray($time);
+                sptprice_dev = CuArray($sptprice);
+                strike_dev = CuArray($strike);
+                rate_dev = CuArray($rate);
+                volatility_dev = CuArray($volatility);
+                time_dev = CuArray($time);
                 out = nothing
             ) teardown=(
                 checksum($reference, Array(out))
@@ -297,7 +295,7 @@ function main(iterations)
     return timings
 end
 
-function driver()
+function main()
     iterations = 10^7
     timings = main(iterations)
 
@@ -314,7 +312,7 @@ function driver()
     end
 end
 
-driver()
+main()
 
 rm(cuda_source)
 rm(cuda_ptx)

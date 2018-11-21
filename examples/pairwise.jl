@@ -1,6 +1,6 @@
 # calculate pairwise distance between every point in a vector
 
-using CUDAnative, CUDAdrv
+using CUDAdrv, CUDAnative, CuArrays
 
 
 function haversine_cpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float32, radius::Float32)
@@ -82,7 +82,7 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
 
     # allocate
     n = length(lat)
-    rowresult_gpu = CuArray{Float32}(n, n)
+    rowresult_gpu = CuArray{Float32}(undef, n, n)
 
     # calculate launch configuration
     # NOTE: we want our launch configuration to be as square as possible,
@@ -109,7 +109,6 @@ function main(n = 10000)
     lat = rand(Float32, n) .* 45
     lon = rand(Float32, n) .* -120
 
-
-    @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon)
+    @test pairwise_dist_cpu(lat, lon) ≈ pairwise_dist_gpu(lat, lon) rtol=1e-2
 end
 main()
