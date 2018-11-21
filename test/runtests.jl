@@ -1,20 +1,9 @@
-# CuArrays development often happens in lockstep with other packages, so try to match branches
+# development often happens in lockstep with other packages,
+# so check-out the master branch of those packages.
+using Pkg
 if haskey(ENV, "GITLAB_CI")
-  using Pkg
-  function match_package(package, branch)
-    try
-      Pkg.add(PackageSpec(name=package, rev=String(branch)))
-      @info "Installed $package from $branch branch"
-    catch ex
-      @warn "Could not install $package from $branch branch, trying master" exception=ex
-      Pkg.add(PackageSpec(name=package, rev="master"))
-      @info "Installed $package from master branch"
-    end
-  end
-
-  branch = ENV["CI_COMMIT_REF_NAME"]
-  for package in ("GPUArrays", "CUDAnative", "NNlib")
-    match_package(package, branch)
+  for package in ("CUDAapi", "GPUArrays", "CUDAnative", "NNlib")
+    Pkg.add(PackageSpec(name=package, rev="master"))
   end
 end
 
@@ -37,15 +26,12 @@ allowscalar(false)
 @testset "CuArrays" begin
 
 include("base.jl")
-isdefined(CuArrays, :CUDNN)     && include("dnn.jl")
-isdefined(CuArrays, :CUBLAS)    && include("blas.jl")
-isdefined(CuArrays, :CUSPARSE)  && include("sparse.jl")
-isdefined(CuArrays, :CUSOLVER)  && include("solver.jl")
-isdefined(CuArrays, :CUFFT)     && include("fft.jl")
-isdefined(CuArrays, :CURAND)    && include("rand.jl")
-
-if isdefined(CuArrays,:CUSPARSE) && isdefined(CuArrays,:CUSOLVER)
-  include("sparse_solver.jl")
-end
+include("dnn.jl")
+include("blas.jl")
+include("sparse.jl")
+include("solver.jl")
+include("fft.jl")
+include("rand.jl")
+include("sparse_solver.jl")
 
 end

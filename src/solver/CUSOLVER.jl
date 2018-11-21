@@ -1,6 +1,7 @@
 module CUSOLVER
 
 import CUDAdrv: CUDAdrv, CuContext, CuStream_t
+import CUDAapi
 
 using ..CuArrays
 using ..CuArrays: libcusolver, active_context, _getindex
@@ -16,7 +17,6 @@ import CuArrays.CUSPARSE.cusparseMatDescr_t
 
 include("libcusolver_types.jl")
 include("error.jl")
-include("libcusolver.jl")
 
 const _dense_handles = Dict{CuContext,cusolverDnHandle_t}()
 const _dense_handle = Ref{cusolverDnHandle_t}(C_NULL)
@@ -49,8 +49,13 @@ function sparse_handle()
     return _sparse_handle[]
 end
 
+include("libcusolver.jl")
 include("sparse.jl")
 include("dense.jl")
 include("highlevel.jl")
+
+version() = VersionNumber(cusolverGetProperty(CUDAapi.MAJOR_VERSION),
+                          cusolverGetProperty(CUDAapi.MINOR_VERSION),
+                          cusolverGetProperty(CUDAapi.PATCH_LEVEL))
 
 end

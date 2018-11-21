@@ -78,3 +78,12 @@ end
 function cusparseDestroyBsrilu02Info(info)
   @check ccall( (:cusparseDestroyBsrilu02Info, libcusparse), cusparseStatus_t, (bsrilu02Info_t,), info)
 end
+
+function cusparseGetProperty(property::CUDAapi.libraryPropertyType)
+  value_ref = Ref{Cint}()
+  @check ccall((:cusparseGetProperty, libcusparse),
+               cusparseStatus_t,
+               (Cint, Ptr{Cint}),
+               property, value_ref)
+  value_ref[]
+end

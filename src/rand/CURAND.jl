@@ -1,6 +1,7 @@
 module CURAND
 
 import CUDAdrv: CUDAdrv, CuContext
+import CUDAapi
 
 using ..CuArrays
 using ..CuArrays: libcurand, active_context
@@ -16,7 +17,6 @@ export curand,
 
 include("libcurand_types.jl")
 include("error.jl")
-include("libcurand.jl")
 
 const _generators = Dict{CuContext,RNG}()
 const _generator = Ref{Union{Nothing,RNG}}(nothing)
@@ -36,6 +36,11 @@ function generator()
     return _generator[]::RNG
 end
 
+include("libcurand.jl")
 include("highlevel.jl")
 
-end # module
+version() = VersionNumber(curandGetProperty(CUDAapi.MAJOR_VERSION),
+                          curandGetProperty(CUDAapi.MINOR_VERSION),
+                          curandGetProperty(CUDAapi.PATCH_LEVEL))
+
+end

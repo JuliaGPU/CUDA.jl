@@ -75,7 +75,7 @@ end
 function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T};
                pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
-  if CUDNN_VERSION < 6000
+  if version() < v"6"
     all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
   if workspace === nothing
@@ -93,7 +93,7 @@ end
 function ∇conv_filter!(dw::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
                        pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                        workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
-  if CUDNN_VERSION < 6000
+  if version() < v"6"
     all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
   if workspace === nothing
@@ -112,7 +112,7 @@ end
 function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
                      pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                      workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
-  if CUDNN_VERSION < 6000
+  if version() < v"6"
     all(x -> x == 1, dilation) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
   if workspace === nothing

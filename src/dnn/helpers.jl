@@ -56,9 +56,9 @@ function FilterDesc(T::Type, size::Tuple; format = CUDNN_TENSOR_NCHW)
     # The only difference of a FilterDescriptor is no strides.
     sz = Cint.(size) |> reverse |> collect
     d = createFilterDesc()
-    CUDNN_VERSION >= 5000 ?
+    version() >= v"5" ?
         cudnnSetFilterNdDescriptor(d, cudnnDataType(T), format, length(sz), sz) :
-    CUDNN_VERSION >= 4000 ?
+    version() >= v"4" ?
         cudnnSetFilterNdDescriptor_v4(d, cudnnDataType(T), format, length(sz), sz) :
         cudnnSetFilterNdDescriptor(d, cudnnDataType(T), length(sz), sz)
     this = FilterDesc(d)
@@ -95,8 +95,8 @@ psize(w, nd)=(isa(w,Integer)  ? fill(w,nd) : length(w) != nd ? error("Dimension 
 function ConvDesc(T, N, padding, stride, dilation, mode)
     cd = Ref{cudnnConvolutionDescriptor_t}()
     cudnnCreateConvolutionDescriptor(cd)
-    CUDNN_VERSION >= 4000 ? cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T)) :
-    CUDNN_VERSION >= 3000 ? cudnnSetConvolutionNdDescriptor_v3(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T)) :
+    version() >= v"4" ? cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T)) :
+    version() >= v"3" ? cudnnSetConvolutionNdDescriptor_v3(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T)) :
     cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode)
     this = ConvDesc(cd[])
     finalizer(free, this)

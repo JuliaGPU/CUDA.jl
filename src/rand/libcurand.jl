@@ -171,3 +171,12 @@ end
 # TODO: curandGetScrambleConstants32
 # TODO: curandGetDirectionVectors64
 # TODO: curandGetScrambleConstants64
+
+function curandGetProperty(property::CUDAapi.libraryPropertyType)
+  value_ref = Ref{Cint}()
+  @check ccall((:curandGetProperty, libcurand),
+               curandStatus_t,
+               (Cint, Ptr{Cint}),
+               property, value_ref)
+  value_ref[]
+end

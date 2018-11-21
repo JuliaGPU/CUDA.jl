@@ -1,7 +1,9 @@
-@testset "cuSOLVER + cuSPARSE" begin
+@testset "CUSPARSE + CUSOLVER" begin
 
+if isdefined(CuArrays, :CUSPARSE) && isdefined(CuArrays, :CUSOLVER)
 using CuArrays.CUSOLVER
 using CuArrays.CUSPARSE
+
 using LinearAlgebra
 using SparseArrays
 
@@ -120,6 +122,8 @@ k = 1
         x = zeros(elty,m)
         @test_throws DimensionMismatch CUSOLVER.csrlsqvqr!(A,b,x,tol,'O')
     end
+end
+
 end
 
 end

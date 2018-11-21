@@ -462,3 +462,12 @@ function cudnnAddTensor(A::CuArray{T,N}, C::CuArray{T,N}; alpha=1,
     cudnnAddTensor(Ref(T(alpha)), aDesc, A, Ref(T(beta)), cDesc, C)
     return C
 end
+
+function cudnnGetProperty(property::CUDAapi.libraryPropertyType)
+  value_ref = Ref{Cint}()
+  @check ccall((:cudnnGetProperty, libcudnn),
+               cudnnStatus_t,
+               (Cint, Ptr{Cint}),
+               property, value_ref)
+  value_ref[]
+end

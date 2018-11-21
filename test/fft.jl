@@ -1,9 +1,14 @@
-@testset "cuFFT" begin
+@testset "CUFFT" begin
+
+if !isdefined(CuArrays, :CUFFT)
+@warn "Not testing CUFFT"
+else
+using CuArrays.CUFFT
+@info "Testing CUFFT $(CUFFT.version())"
 
 # notes:
 #   plan_bfft does not need separate testing since it is used by plan_ifft
 
-using CuArrays.CUFFT
 using FFTW
 
 N1 = 8
@@ -272,5 +277,7 @@ end
 
 
 end # testset int FFT
+
+end
 
 end

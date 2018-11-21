@@ -89,3 +89,12 @@ function cusolverRfGetStream(handle, streamId)
                (cusolverRfHandle_t, Ptr{CuStream_t}),
                handle, streamId)
 end
+
+function cusolverGetProperty(property::CUDAapi.libraryPropertyType)
+  value_ref = Ref{Cint}()
+  @check ccall((:cusolverGetProperty, libcusolver),
+               cusolverStatus_t,
+               (Cint, Ptr{Cint}),
+               property, value_ref)
+  value_ref[]
+end
