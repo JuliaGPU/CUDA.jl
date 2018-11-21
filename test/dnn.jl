@@ -1,5 +1,8 @@
-@testset "cuDNN" begin
+@testset "CUDNN" begin
 
+if !isdefined(CuArrays, :CUDNN)
+@warn "Not testing CUDNN"
+else
 using CuArrays.CUDNN
 @info "Testing CUDNN $(CUDNN.version())"
 
@@ -60,6 +63,8 @@ end
   @test testf(CuArrays.CUDNN.cudnnAddTensor, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationForward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
+end
+
 end
 
 end

@@ -1,5 +1,8 @@
-@testset "cuSPARSE" begin
+@testset "CUSPARSE" begin
 
+if !isdefined(CuArrays, :CUSPARSE)
+@warn "Not testing CUSPARSE"
+else
 using CuArrays.CUSPARSE
 @info "Testing CUSPARSE $(CUSPARSE.version())"
 
@@ -1860,4 +1863,6 @@ end
     end
 end
 
-end # CUSPARSE testset
+end
+
+end

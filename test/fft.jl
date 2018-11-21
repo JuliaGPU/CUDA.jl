@@ -1,5 +1,8 @@
-@testset "cuFFT" begin
+@testset "CUFFT" begin
 
+if !isdefined(CuArrays, :CUFFT)
+@warn "Not testing CUFFT"
+else
 using CuArrays.CUFFT
 @info "Testing CUFFT $(CUFFT.version())"
 
@@ -274,5 +277,7 @@ end
 
 
 end # testset int FFT
+
+end
 
 end

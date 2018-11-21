@@ -1,5 +1,8 @@
-@testset "cuRAND" begin
+@testset "CURAND" begin
 
+if !isdefined(CuArrays, :CURAND)
+@warn "Not testing CURAND"
+else
 using CuArrays.CURAND
 @info "Testing CURAND $(CURAND.version())"
 
@@ -42,6 +45,8 @@ for (f,T) in ((rand!,Int64),),
     d in (2, (2,2), (2,2,2))
     A = CuArray{T}(undef, d)
     f(A)
+end
+
 end
 
 end

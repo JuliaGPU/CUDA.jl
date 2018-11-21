@@ -26,15 +26,12 @@ allowscalar(false)
 @testset "CuArrays" begin
 
 include("base.jl")
-isdefined(CuArrays, :CUDNN)     && include("dnn.jl")
-isdefined(CuArrays, :CUBLAS)    && include("blas.jl")
-isdefined(CuArrays, :CUSPARSE)  && include("sparse.jl")
-isdefined(CuArrays, :CUSOLVER)  && include("solver.jl")
-isdefined(CuArrays, :CUFFT)     && include("fft.jl")
-isdefined(CuArrays, :CURAND)    && include("rand.jl")
-
-if isdefined(CuArrays,:CUSPARSE) && isdefined(CuArrays,:CUSOLVER)
-  include("sparse_solver.jl")
-end
+include("dnn.jl")
+include("blas.jl")
+include("sparse.jl")
+include("solver.jl")
+include("fft.jl")
+include("rand.jl")
+include("sparse_solver.jl")
 
 end
