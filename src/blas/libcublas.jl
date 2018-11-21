@@ -18,11 +18,13 @@ function cublasDestroy_v2(handle)
                handle)
 end
 
-function cublasGetVersion_v2(handle, version)
+function cublasGetVersion_v2(handle)
+  version = Ref{Cint}()
   @check ccall((:cublasGetVersion_v2, libcublas),
                cublasStatus_t,
                (cublasHandle_t, Ptr{Cint}),
                handle, version)
+  version[]
 end
 
 function cublasGetStream_v2(handle, streamId)
@@ -1911,4 +1913,13 @@ if CUDAdrv.version() ≥ v"7.5"
                      handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
                      strideB, beta, C, ldc, strideC, batchCount)
     end
+end
+
+function cublasGetProperty(property::CUDAapi.libraryPropertyType)
+  value_ref = Ref{Cint}()
+  @check ccall((:cublasGetProperty, libcublas),
+               cublasStatus_t,
+               (Cint, Ptr{Cint}),
+               property, value_ref)
+  value_ref[]
 end

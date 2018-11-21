@@ -1,6 +1,7 @@
 @testset "cuRAND" begin
 
 using CuArrays.CURAND
+@info "Testing CURAND $(CURAND.version())"
 
 CURAND.seed!()
 

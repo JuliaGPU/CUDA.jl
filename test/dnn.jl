@@ -1,5 +1,8 @@
 @testset "cuDNN" begin
 
+using CuArrays.CUDNN
+@info "Testing CUDNN $(CUDNN.version())"
+
 @testset "NNlib" begin
   using NNlib
   using NNlib: ∇conv_data, ∇conv_filter,

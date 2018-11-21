@@ -1,6 +1,8 @@
 @testset "cuSPARSE" begin
 
 using CuArrays.CUSPARSE
+@info "Testing CUSPARSE $(CUSPARSE.version())"
+
 using LinearAlgebra
 using SparseArrays
 

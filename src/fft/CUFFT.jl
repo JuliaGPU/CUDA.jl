@@ -1,5 +1,7 @@
 module CUFFT
 
+import CUDAapi
+
 using ..CuArrays
 using ..CuArrays: libcufft, configured
 
@@ -15,9 +17,14 @@ import LinearAlgebra: mul!
 include("libcufft_types.jl")
 include("error.jl")
 
+include("libcufft.jl")
 include("genericfft.jl")
 include("fft.jl")
 include("wrappers.jl")
 include("highlevel.jl")
 
-end # module
+version() = VersionNumber(cufftGetProperty(CUDAapi.MAJOR_VERSION),
+                          cufftGetProperty(CUDAapi.MINOR_VERSION),
+                          cufftGetProperty(CUDAapi.PATCH_LEVEL))
+
+end

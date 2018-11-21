@@ -1,6 +1,7 @@
 module CUSPARSE
 
 import CUDAdrv: CUDAdrv, CuContext, CuStream_t
+import CUDAapi
 
 using ..CuArrays
 using ..CuArrays: libcusparse, active_context
@@ -22,7 +23,6 @@ export CuSparseMatrixCSC, CuSparseMatrixCSR,
 
 include("libcusparse_types.jl")
 include("error.jl")
-include("libcusparse.jl")
 
 const _handles = Dict{CuContext,cusparseHandle_t}()
 const _handle = Ref{cusparseHandle_t}()
@@ -41,9 +41,14 @@ function handle()
     return _handle[]
 end
 
+include("libcusparse.jl")
 include("array.jl")
 include("util.jl")
 include("wrappers.jl")
 include("highlevel.jl")
+
+version() = VersionNumber(cusparseGetProperty(CUDAapi.MAJOR_VERSION),
+                          cusparseGetProperty(CUDAapi.MINOR_VERSION),
+                          cusparseGetProperty(CUDAapi.PATCH_LEVEL))
 
 end

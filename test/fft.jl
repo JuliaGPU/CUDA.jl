@@ -1,9 +1,11 @@
 @testset "cuFFT" begin
 
+using CuArrays.CUFFT
+@info "Testing CUFFT $(CUFFT.version())"
+
 # notes:
 #   plan_bfft does not need separate testing since it is used by plan_ifft
 
-using CuArrays.CUFFT
 using FFTW
 
 N1 = 8

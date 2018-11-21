@@ -1,6 +1,8 @@
 @testset "cuSOLVER" begin
 
 using CuArrays.CUSOLVER
+@info "Testing CUSOLVER $(CUSOLVER.version())"
+
 using LinearAlgebra
 
 m = 15

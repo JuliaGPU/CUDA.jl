@@ -1,5 +1,8 @@
 @testset "cuBLAS" begin
 
+using CuArrays.CUBLAS
+@info "Testing CUBLAS $(CUBLAS.version())"
+
 using CuArrays.CUBLAS: band, bandex
 
 m = 20
