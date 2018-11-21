@@ -102,8 +102,7 @@ function code_sass(io::IO, ctx::CompilerContext)
     if !ctx.kernel
         error("Can only generate SASS code for kernel functions")
     end
-    # TODO: Fall back to cuobjdump
-    if ptxas === nothing || nvdisam === nothing
+    if ptxas === nothing || nvdisasm === nothing
         error("Your CUDA installation does not provide ptxas or nvdisasm, both of which are required for code_sass")
     end
 
