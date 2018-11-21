@@ -46,7 +46,7 @@ if CUDAnative.configured
         end
 
         # pick most recent device (based on compute capability)
-        global dev = first(sort(collect(devices()); by=capability))
+        global dev = last(sort(collect(devices()); by=capability))
         @info("Testing using device $(name(dev))")
         device!(dev)
 
