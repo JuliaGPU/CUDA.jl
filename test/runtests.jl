@@ -2,7 +2,7 @@
 # so check-out the master branch of those packages.
 using Pkg
 if haskey(ENV, "GITLAB_CI")
-  for package in ("CUDAdrv", "CuArrays", "LLVM")
+  for package in ("CUDAdrv", "LLVM")
     Pkg.add(PackageSpec(name=package, rev="master"))
   end
 end
@@ -68,7 +68,7 @@ if CUDAnative.configured
             include("device/array.jl")
             include("device/intrinsics.jl")
 
-            include("examples.jl")
+            #include("examples.jl")
         end
     end
 else
