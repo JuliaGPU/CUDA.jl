@@ -90,9 +90,13 @@ mutable struct PoolStats
   alloc_3::Int
   alloc_4::Int
 end
-const pool_stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+const stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 Base.copy(stats::PoolStats) =
   PoolStats((getfield(stats, field) for field in fieldnames(PoolStats))...)
+
+# allocation traces
+const pool_traces = Dict{Mem.Buffer, Tuple{Int, Base.StackTraces.StackTrace}}()
+const tracing = parse(Bool, get(ENV, "CUARRAYS_TRACE_POOL", "false"))
 
 function __init_memory__()
   create_pools(30) # up to 512 MiB
@@ -120,12 +124,11 @@ function __init_memory__()
     atexit(()->begin
       Core.println("""
         Pool statistics (managed: $(managed ? "yes" : "no")):
-         - requested alloc/free: $(pool_stats.req_nalloc)/$(pool_stats.req_nfree) ($(pool_stats.req_nlloc)/$(pool_stats.req_free) bytes)
-         - actual alloc/free: $(pool_stats.actual_nalloc)/$(pool_stats.actual_nfree) ($(pool_stats.actual_alloc)/$(pool_stats.actual_free) bytes)
-         - alloc types: $(pool_stats.alloc_1) $(pool_stats.alloc_2) $(pool_stats.alloc_3) $(pool_stats.alloc_4)""")
+         - requested alloc/free: $(stats.req_nalloc)/$(stats.req_nfree) ($(Base.format_bytes(stats.req_nalloc))/$(Base.format_bytes(stats.req_free)))
+         - actual alloc/free: $(stats.actual_nalloc)/$(stats.actual_nfree) ($(Base.format_bytes(stats.actual_alloc))/$(Base.format_bytes(stats.actual_free)))
+         - alloc types: $(stats.alloc_1) $(stats.alloc_2) $(stats.alloc_3) $(stats.alloc_4)""")
     end)
   end
-
 end
 
 # scan every pool and manage the usage history
@@ -171,14 +174,14 @@ end
 # reclaim free objects
 function reclaim(full::Bool=false)
   lock(pool_lock) do
-    pool_stats.total_time += Base.@elapsed begin
+    stats.total_time += Base.@elapsed begin
       if full
         # reclaim all currently unused buffers
         for (pid, pl) in enumerate(pools_avail)
           for buf in pl
-            pool_stats.actual_nfree += 1
-            pool_stats.cuda_time += Base.@elapsed Mem.free(buf)
-            pool_stats.actual_free += poolsize(pid)
+            stats.actual_nfree += 1
+            stats.cuda_time += Base.@elapsed Mem.free(buf)
+            stats.actual_free += poolsize(pid)
           end
           empty!(pl)
         end
@@ -196,9 +199,9 @@ function reclaim(full::Bool=false)
 
             while reclaimable > 0
               buf = pop!(pools_avail[pid])
-              pool_stats.actual_nfree += 1
-              pool_stats.cuda_time += Base.@elapsed Mem.free(buf)
-              pool_stats.actual_free += poolsize(pid)
+              stats.actual_nfree += 1
+              stats.cuda_time += Base.@elapsed Mem.free(buf)
+              stats.actual_free += poolsize(pid)
               reclaimable -= 1
             end
           end
@@ -217,56 +220,81 @@ function alloc(bytes)
   bytes == 0 && return Mem.alloc(0)
   buf = Ref{Mem.Buffer}()
 
-  pool_stats.req_nalloc += 1
-  pool_stats.req_alloc += bytes
-  pool_stats.total_time += Base.@elapsed begin
-    bytes > MAX_POOL && return Mem.alloc(bytes)
+  stats.req_nalloc += 1
+  stats.req_alloc += bytes
+  stats.total_time += Base.@elapsed begin
+    # do we even consider pooling?
+    pooling = bytes <= MAX_POOL
+    if pooling
+      pid = poolidx(bytes)
+      create_pools(pid)
+      alloc_bytes = poolsize(pid)
 
-    pid = poolidx(bytes)
-    create_pools(pid)
-
-    @inbounds used = pools_used[pid]
-    @inbounds avail = pools_avail[pid]
+      @inbounds used = pools_used[pid]
+      @inbounds avail = pools_avail[pid]
+    else
+      alloc_bytes = bytes
+    end
 
     lock(pool_lock) do
       # 1. find an unused buffer in our pool
-      if !isempty(avail)
-        pool_stats.alloc_1 += 1
+      if pooling && !isempty(avail)
+        stats.alloc_1 += 1
         buf[] = pop!(avail)
       else
         try
           # 2. didn't have one, so allocate a new buffer
-          pool_stats.cuda_time += Base.@elapsed begin
-            buf[] = Mem.alloc(poolsize(pid))
+          stats.cuda_time += Base.@elapsed begin
+            buf[] = Mem.alloc(alloc_bytes)
           end
-          pool_stats.alloc_2 += 1
-          pool_stats.actual_nalloc += 1
-          pool_stats.actual_alloc += poolsize(pid)
-        catch e
-          e == CUDAdrv.CuError(2) || rethrow()
-          # 3. that failed; make Julia collect objects and check do 1. again
+          stats.alloc_2 += 1
+          stats.actual_nalloc += 1
+          stats.actual_alloc += alloc_bytes
+        catch ex
+          ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
+          # 3. that failed; make Julia collect objects and check 1. again
           gc(true) # full collection
-          if !isempty(avail)
-            pool_stats.alloc_3 += 1
+          if pooling && !isempty(avail)
+            stats.alloc_3 += 1
             buf[] = pop!(avail)
           else
             # 4. didn't have one, so reclaim all other unused buffers and do 2. again
             reclaim(true)
-            pool_stats.cuda_time += Base.@elapsed begin
-              buf[] = Mem.alloc(poolsize(pid))
+            try
+              stats.cuda_time += Base.@elapsed begin
+                buf[] = Mem.alloc(alloc_bytes)
+              end
+              stats.alloc_4 += 1
+              stats.actual_nalloc += 1
+              stats.actual_alloc += alloc_bytes
+            catch ex
+              ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
+              if tracing
+                @error "Failed to allocate $(Base.format_bytes(bytes)) (requires $(Base.format_bytes(alloc_bytes)) buffer)"
+                for buf in keys(pool_traces)
+                  bytes, bt = pool_traces[buf]
+                  @warn "Outstanding allocation of $(Base.format_bytes(bytes)) (requires $(Base.format_bytes(buf.bytesize)) buffer)" exception=(ex,bt)
+                end
+              end
+              rethrow()
             end
-            pool_stats.alloc_4 += 1
-            pool_stats.actual_nalloc += 1
-            pool_stats.actual_alloc += poolsize(pid)
           end
         end
       end
 
-      push!(used, buf[])
+      if pooling
+        # mark the buffer as used
+        push!(used, buf[])
 
-      current_usage = length(used) / (length(avail) + length(used))
-      pool_usage[pid] = max(pool_usage[pid], current_usage)
+        # update pool usage
+        current_usage = length(used) / (length(avail) + length(used))
+        pool_usage[pid] = max(pool_usage[pid], current_usage)
+      end
     end
+  end
+
+  if tracing
+    pool_traces[buf[]] = (bytes, stacktrace())
   end
 
   buf[]
@@ -276,25 +304,34 @@ function dealloc(buf, bytes)
   # 0-byte allocations shouldn't hit the pool
   bytes == 0 && return Mem.alloc(0)
 
-  pool_stats.req_nfree += 1
-  pool_stats.user_free += bytes
-  pool_stats.total_time += Base.@elapsed begin
-    bytes > MAX_POOL && return Mem.free(buf)
+  stats.req_nfree += 1
+  stats.user_free += bytes
+  stats.total_time += Base.@elapsed begin
+    # was this a pooled buffer?
+    pooling = bytes <= MAX_POOL
+    if pooling
+      pid = poolidx(bytes)
+      @assert pid <= length(pools_used)
 
-    pid = poolidx(bytes)
-    @assert pid <= length(pools_used)
+      @inbounds used = pools_used[pid]
+      @inbounds avail = pools_avail[pid]
 
-    @inbounds used = pools_used[pid]
-    @inbounds avail = pools_avail[pid]
+      lock(pool_lock) do
+        # mark the buffer as available
+        delete!(used, buf)
+        push!(avail, buf)
 
-    lock(pool_lock) do
-      delete!(used, buf)
-
-      push!(avail, buf)
-
-      current_usage = length(used) / (length(used) + length(avail))
-      pool_usage[pid] = max(pool_usage[pid], current_usage)
+        # update pool usage
+        current_usage = length(used) / (length(used) + length(avail))
+        pool_usage[pid] = max(pool_usage[pid], current_usage)
+      end
+    else
+      Mem.free(buf)
     end
+  end
+
+  if tracing
+    delete!(pool_traces, buf)
   end
 
   return
@@ -310,9 +347,9 @@ macro allocated(ex)
         let
             local f
             function f()
-                b0 = pool_stats.req_alloc
+                b0 = stats.req_alloc
                 $(esc(ex))
-                pool_stats.req_alloc - b0
+                stats.req_alloc - b0
             end
             f()
         end
@@ -321,7 +358,7 @@ end
 
 macro time(ex)
     quote
-        local gpu_mem_stats0 = copy(pool_stats)
+        local gpu_mem_stats0 = copy(stats)
         local cpu_mem_stats0 = Base.gc_num()
         local cpu_time0 = time_ns()
 
@@ -329,7 +366,7 @@ macro time(ex)
 
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()
-        local gpu_mem_stats1 = copy(pool_stats)
+        local gpu_mem_stats1 = copy(stats)
 
         local cpu_time = (cpu_time1 - cpu_time0) / 1e9
         local gpu_gc_time = gpu_mem_stats1.cuda_time - gpu_mem_stats0.cuda_time
