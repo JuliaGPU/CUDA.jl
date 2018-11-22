@@ -158,8 +158,6 @@ The underlying operations (argument conversion, kernel compilation, kernel call)
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
 kernel to determine the launch configuration:
 
-    using Adapt
-
     args = ...
     GC.@preserve args begin
         kernel_args = cudaconvert.(args)
