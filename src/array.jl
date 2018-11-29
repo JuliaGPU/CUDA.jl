@@ -2,13 +2,17 @@ import CUDAnative: DevicePtr
 
 mutable struct CuArray{T,N} <: GPUArray{T,N}
   buf::Mem.Buffer
+  own::Bool
+
   dims::Dims{N}
   offset::Int
 
-  function CuArray{T,N}(buf::Mem.Buffer, dims::Dims{N}, offset::Integer=0) where {T,N}
-    xs = new{T,N}(buf, dims, offset)
-    Mem.retain(buf)
-    finalizer(unsafe_free!, xs)
+  function CuArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
+    xs = new{T,N}(buf, own, dims, offset)
+    if own
+      Mem.retain(buf)
+      finalizer(unsafe_free!, xs)
+    end
     return xs
   end
 end
@@ -46,6 +50,28 @@ Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
 
 
+"""
+  unsafe_wrap(::CuArray, pointer{T}, dims; own=false, ctx=CuCurrentContext())
+
+Wrap a `CuArray` object around the data at the address given by `pointer`. The pointer
+element type `T` determines the array element type. `dims` is either an integer (for a 1d
+array) or a tuple of the array dimensions. `own` optionally specified whether Julia should
+take ownership of the memory, calling `free` when the array is no longer referenced. The
+`ctx` argument determines the CUDA context where the data is allocated in.
+"""
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                          p::Ptr{T}, dims::NTuple{N,Int};
+                          own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
+  buf = Mem.Buffer(convert(Ptr{Cvoid}, p), prod(dims) * sizeof(T), ctx)
+  return CuArray{T, length(dims)}(buf, dims; own=own)
+end
+function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+                          p::Ptr{T}, dim::Integer;
+                          own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T}
+  unsafe_wrap(Atype, p, (dim,); own=own, ctx=ctx)
+end
+
+
 ## array interface
 
 Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
@@ -76,6 +102,13 @@ CuArray{T,N}(xs::CuArray{T,N}) where {T,N} = xs
 
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
+function Base._reshape(parent::CuArray, dims::Dims)
+  n = length(parent)
+  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
+  return CuArray{eltype(parent),length(dims)}(parent.buf, dims;
+                                              offset=parent.offset, own=parent.own)
+end
+
 
 
 ## interop with C libraries
@@ -100,40 +133,42 @@ Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = buffer(x)
 ## interop with CUDAnative
 
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-    ptr = Base.unsafe_convert(Ptr{T}, a.buf)
-    CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr+a.offset))
+  ptr = Base.unsafe_convert(Ptr{T}, a.buf)
+  CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr+a.offset))
 end
 
 Adapt.adapt_storage(::CUDAnative.Adaptor, xs::CuArray{T,N}) where {T,N} =
   convert(CuDeviceArray{T,N,AS.Global}, xs)
 
 
-## other
 
-function Base._reshape(parent::CuArray, dims::Dims)
-  n = length(parent)
-  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(parent.buf, dims, parent.offset)
-end
+## interop with CPU array
 
-# Interop with CPU array
+# We don't convert isbits types in `adapt`, since they are already
+# considered GPU-compatible.
+
+Adapt.adapt_storage(::Type{<:CuArray}, xs::AbstractArray) =
+  isbits(xs) ? xs : convert(CuArray, xs)
+
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
+  isbits(xs) ? xs : convert(CuArray{T}, xs)
+
+Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
-    Mem.upload!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
-    return dest
+  Mem.upload!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
+  return dest
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
-    Mem.download!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
-    return dest
+  Mem.download!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
+  return dest
 end
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
-    Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
-    return dest
+  Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
+  return dest
 end
-
-Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
 function Base.deepcopy_internal(x::CuArray, dict::IdDict)
   haskey(dict, x) && return dict[x]::typeof(x)
@@ -141,7 +176,10 @@ function Base.deepcopy_internal(x::CuArray, dict::IdDict)
 end
 
 
-# Utils
+## utilities
+
+cu(xs) = adapt(CuArray{Float32}, xs)
+Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 cuzeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 0)
 cuones(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 1)
@@ -159,59 +197,41 @@ function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
   A
 end
 
-Base.print_array(io::IO, x::CuArray) = Base.print_array(io, collect(x))
-Base.print_array(io::IO, x::LinearAlgebra.Adjoint{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.adjoint(collect(x.parent)))
-Base.print_array(io::IO, x::LinearAlgebra.Transpose{<:Any,<:CuArray}) = Base.print_array(io, LinearAlgebra.transpose(collect(x.parent)))
 
-# We don't convert isbits types in `adapt`, since they are already
-# considered gpu-compatible.
-
-Adapt.adapt_storage(::Type{<:CuArray}, xs::AbstractArray) =
-  isbits(xs) ? xs : convert(CuArray, xs)
-
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
-  isbits(xs) ? xs : convert(CuArray{T}, xs)
-
-cu(xs) = adapt(CuArray{Float32}, xs)
-
-
-Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
-
-
-# Generic linear algebra routines
+## generic linear algebra routines
 
 function LinearAlgebra.tril!(A::CuMatrix{T}, d::Integer = 0) where T
-    function kernel!(_A, _d)
-        li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-        m, n = size(_A)
-        if 0 < li <= m*n
-            i, j = Tuple(CartesianIndices(_A)[li])
-            if i < j - _d
-                _A[i, j] = 0
-            end
-        end
-        return nothing
+  function kernel!(_A, _d)
+    li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    m, n = size(_A)
+    if 0 < li <= m*n
+      i, j = Tuple(CartesianIndices(_A)[li])
+      if i < j - _d
+        _A[i, j] = 0
+      end
     end
+    return nothing
+  end
 
-    blk, thr = cudims(A)
-    @cuda blocks=blk threads=thr kernel!(A, d)
-    return A
+  blk, thr = cudims(A)
+  @cuda blocks=blk threads=thr kernel!(A, d)
+  return A
 end
 
 function LinearAlgebra.triu!(A::CuMatrix{T}, d::Integer = 0) where T
-    function kernel!(_A, _d)
-        li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-        m, n = size(_A)
-        if 0 < li <= m*n
-            i, j = Tuple(CartesianIndices(_A)[li])
-            if j < i + _d
-                _A[i, j] = 0
-            end
-        end
-        return nothing
+  function kernel!(_A, _d)
+    li = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    m, n = size(_A)
+    if 0 < li <= m*n
+      i, j = Tuple(CartesianIndices(_A)[li])
+      if j < i + _d
+        _A[i, j] = 0
+      end
     end
+    return nothing
+  end
 
-    blk, thr = cudims(A)
-    @cuda blocks=blk threads=thr kernel!(A, d)
-    return A
+  blk, thr = cudims(A)
+  @cuda blocks=blk threads=thr kernel!(A, d)
+  return A
 end
