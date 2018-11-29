@@ -1,6 +1,8 @@
 using ForwardDiff: Dual
 using LinearAlgebra
 
+import CUDAdrv
+
 @testset "GPUArrays test suite" begin
   GPUArrays.test(CuArray)
 end
@@ -30,6 +32,18 @@ end
   # Check that allowscalar works
   @test_throws ErrorException xs[1]
   @test_throws ErrorException xs[1] = 1
+
+  # unsafe_wrap
+  ptr = C_NULL
+  buf = CUDAdrv.Mem.Buffer(C_NULL, 2, CuCurrentContext())
+  @test Base.unsafe_wrap(CuArray, C_NULL, 1; own=false).own == false
+  @test Base.unsafe_wrap(CuArray, C_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
+  @test Base.unsafe_wrap(CuArray, C_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
+  @test Base.unsafe_wrap(CuArray{Nothing}, C_NULL, 2)   == CuArray{Nothing,1}(buf, (2,))
+  @test Base.unsafe_wrap(CuArray{Nothing,1}, C_NULL, 2) == CuArray{Nothing,1}(buf, (2,))
+  @test Base.unsafe_wrap(CuArray, C_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2))
+  @test Base.unsafe_wrap(CuArray{Nothing}, C_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
+  @test Base.unsafe_wrap(CuArray{Nothing,2}, C_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
 end
 
 @testset "Broadcast" begin
