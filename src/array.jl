@@ -2,13 +2,17 @@ import CUDAnative: DevicePtr
 
 mutable struct CuArray{T,N} <: GPUArray{T,N}
   buf::Mem.Buffer
+  own::Bool
+
   dims::Dims{N}
   offset::Int
 
-  function CuArray{T,N}(buf::Mem.Buffer, dims::Dims{N}, offset::Integer=0) where {T,N}
-    xs = new{T,N}(buf, dims, offset)
-    Mem.retain(buf)
-    finalizer(unsafe_free!, xs)
+  function CuArray{T,N}(buf::Mem.Buffer, dims::Dims{N}; offset::Integer=0, own::Bool=true) where {T,N}
+    xs = new{T,N}(buf, own, dims, offset)
+    if own
+      Mem.retain(buf)
+      finalizer(unsafe_free!, xs)
+    end
     return xs
   end
 end
@@ -22,20 +26,6 @@ function unsafe_free!(xs::CuArray)
   return
 end
 
-# Wrap CuArray around the data at the address given by `pointer`,
-function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
-                     p::Ptr{T}, dims::NTuple{N,Int}; own::Bool = false) where {T,N}
-    @assert !own "not implemented yet"
-    buf = CuArrays.Mem.Buffer(
-            convert(Ptr{Cvoid}, p),
-            prod(dims) * sizeof(T),
-            CuArrays.CuCurrentContext())
-
-    # add refcount in advance such that the refcount never drops to zero
-    # TODO: fix me
-    CuArrays.Mem.retain(buf)
-    return CuArrays.CuArray{T, length(dims)}(buf, dims)
-end
 
 ## construction
 
@@ -58,6 +48,28 @@ CuArray{T,1}() where {T} = CuArray{T,1}(undef, 0)
 Base.similar(a::CuArray{T,N}) where {T,N} = CuArray{T,N}(undef, size(a))
 Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
+
+
+"""
+  unsafe_wrap(::CuArray, pointer{T}, dims; own=false, ctx=CuCurrentContext())
+
+Wrap a `CuArray` object around the data at the address given by `pointer`. The pointer
+element type `T` determines the array element type. `dims` is either an integer (for a 1d
+array) or a tuple of the array dimensions. `own` optionally specified whether Julia should
+take ownership of the memory, calling `free` when the array is no longer referenced. The
+`ctx` argument determines the CUDA context where the data is allocated in.
+"""
+function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
+                          p::Ptr{T}, dims::NTuple{N,Int};
+                          own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
+    buf = Mem.Buffer(convert(Ptr{Cvoid}, p), prod(dims) * sizeof(T), ctx)
+    return CuArray{T, length(dims)}(buf, dims; own=own)
+end
+function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
+                          p::Ptr{T}, dim::Integer;
+                          own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T}
+  unsafe_wrap(Atype, p, (dim,); own=own, ctx=ctx)
+end
 
 
 ## array interface
@@ -127,7 +139,8 @@ Adapt.adapt_storage(::CUDAnative.Adaptor, xs::CuArray{T,N}) where {T,N} =
 function Base._reshape(parent::CuArray, dims::Dims)
   n = length(parent)
   prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(parent.buf, dims, parent.offset)
+  return CuArray{eltype(parent),length(dims)}(parent.buf, dims;
+                                              offset=parent.offset, own=parent.own)
 end
 
 # Interop with CPU array
