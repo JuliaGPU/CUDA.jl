@@ -35,7 +35,7 @@ end
 
   # unsafe_wrap
   ptr = C_NULL
-  buf = CUDAdrv.Mem.Buffer(C_NULL, 2, CuCurrentContext())
+  buf = CUDAdrv.Mem.Buffer(C_NULL, 2, CUDAdrv.CuCurrentContext())
   @test Base.unsafe_wrap(CuArray, C_NULL, 1; own=false).own == false
   @test Base.unsafe_wrap(CuArray, C_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
   @test Base.unsafe_wrap(CuArray, C_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
