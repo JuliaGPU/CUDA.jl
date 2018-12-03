@@ -14,18 +14,21 @@ env:
 matrix:
   include:
     # linux builds
-    - env: CUDA=6.5
-      os: linux
-      dist: trusty
-    - env: CUDA=7.0
-      os: linux
-      dist: trusty
-    - env: CUDA=7.5
-      os: linux
-      dist: trusty
     - env: CUDA=8.0
       os: linux
-      dist: trusty
+      dist: xenial
+    - env: CUDA=9.0
+      os: linux
+      dist: xenial
+    - env: CUDA=9.1
+      os: linux
+      dist: xenial
+    - env: CUDA=9.2
+      os: linux
+      dist: xenial
+    - env: CUDA=10.0
+      os: linux
+      dist: xenial
     # osx builds
     - env: CUDA=7.5
       os: osx
@@ -42,10 +45,13 @@ matrix:
     - env: CUDA=9.2
       os: osx
       osx_image: xcode7.3
+    - env: CUDA=10.0
+      os: osx
+      osx_image: xcode7.3
     # julia nightly
-    - env: CUDA=8.0
+    - env: CUDA=10.0
       os: linux
-      dist: trusty
+      dist: xenial
       julia: nightly
 
 branches:
