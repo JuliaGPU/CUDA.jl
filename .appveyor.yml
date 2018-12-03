@@ -27,8 +27,8 @@ matrix:
 
 branches:
   only:
-    - master
-    - /release-.*/
+    - staging
+    - trying
 
 notifications:
   - provider: Email

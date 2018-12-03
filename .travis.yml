@@ -48,6 +48,11 @@ matrix:
       dist: trusty
       julia: nightly
 
+branches:
+  only:
+    - staging
+    - trying
+
 install:
   - if [[ $TRAVIS_OS_NAME == "linux" ]]; then ./.travis.linux; fi
   - if [[ $TRAVIS_OS_NAME == "osx" ]];   then ./.travis.osx;   fi
