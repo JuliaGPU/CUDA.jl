@@ -45,9 +45,6 @@ matrix:
     - env: CUDA=9.2
       os: osx
       osx_image: xcode7.3
-    - env: CUDA=10.0
-      os: osx
-      osx_image: xcode7.3
     # julia nightly
     - env: CUDA=10.0
       os: linux
