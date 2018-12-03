@@ -15,10 +15,17 @@ end
 
 # bug: default module activation segfaulted on NULL child function if cached=false
 params = Base.CodegenParams(cached=false)
-_dump_function(post17057_parent, Tuple{Ptr{Int64}},
-               #=native=#false, #=wrapper=#false, #=strip=#false,
-               #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
-               params)
+if VERSION >= v"1.1.0-DEV.762"
+    _dump_function(post17057_parent, Tuple{Ptr{Int64}},
+                   #=native=#false, #=wrapper=#false, #=strip=#false,
+                   #=dump_module=#true, #=syntax=#:att, #=optimize=#false, :none,
+                   params)
+else
+    _dump_function(post17057_parent, Tuple{Ptr{Int64}},
+                   #=native=#false, #=wrapper=#false, #=strip=#false,
+                   #=dump_module=#true, #=syntax=#:att, #=optimize=#false,
+                   params)
+end
 
 end
 
