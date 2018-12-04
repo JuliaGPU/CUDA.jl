@@ -153,6 +153,8 @@ Adapt.adapt_storage(::Type{<:CuArray}, xs::AbstractArray) =
 Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
   isbits(xs) ? xs : convert(CuArray{T}, xs)
 
+Adapt.adapt_storage(::Type{<:Array}, xs::CuArray) = convert(Array, xs)
+
 Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
