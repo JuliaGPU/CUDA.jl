@@ -43,19 +43,28 @@ function find_library(names::Vector{String};
     if Sys.iswindows()
         # priority goes to the `names` argument, as per `Libdl.find_library`
         for name in names
-            for version in versions
-                append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
-                                    "$(name)$(word_size)_$(version.major)"])
-            end
-            # look for unversioned libraries
+            # first look for unversioned libraries, for upgrade resilience
             append!(all_names, ["$(name)$(word_size)", name])
+            for version in versions
+                append!(all_names, ["$(name)$(word_size)_$(version.major)",
+                                    "$(name)$(word_size)_$(version.major)$(version.minor)"])
+            end
+        end
+    elseif Sys.isunix()
+        # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
+        for name in names
+            # first look for unversioned libraries, for upgrade resilience
+            push!(all_names, "lib$(name).$(Libdl.dlext)")
+            for version in versions
+                append!(all_names, ["lib$(name).$(Libdl.dlext).$(version.major)",
+                                    "lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)"])
+            end
         end
     else
+        # let Libdl do all the work
         all_names = ["lib$name" for name in names]
     end
-    # the dual reverse is to put less specific names last,
-    # eg. ["lib9.1", "lib9", "lib9.0", "lib9.0"] => ["lib9.1", "lib9.0", "lib9.0"]
-    all_names = reverse(unique(reverse(all_names)))
+    unique!(all_names)
 
     # figure out locations
     all_locations = String[]
@@ -162,7 +171,7 @@ const cuda_versions = Dict(
                     v"4.0",
                     v"5.0", v"5.1",
                     v"6.0",
-                    v"7.0", v"7.1", v"7.3"]
+                    v"7.0", v"7.1", v"7.3", v"7.4"]
 )
 
 # simplified find_library/find_binary entry-points,
