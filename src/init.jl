@@ -13,9 +13,7 @@ end
 function __init__()
     configured || return
 
-    # check validity of CUDA library
-    @debug("Checking validity of $(libcuda_path)")
-    if version() != libcuda_version
+    if !ispath(libcuda) || version() != libcuda_version
         error("CUDA driver library has changed. Please run Pkg.build(\"CUDAdrv\") and restart Julia.")
     end
 
