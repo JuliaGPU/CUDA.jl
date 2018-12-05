@@ -6,11 +6,11 @@ stages:
   - postprocess
 
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/common.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/test_v1.0.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/postprocess_coverage.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/postprocess_documentation.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/common.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/test_v1.0.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/test_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/coverage_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/dev/documentation_v1.0.yml'
 
 test:v1.0:
   only:
