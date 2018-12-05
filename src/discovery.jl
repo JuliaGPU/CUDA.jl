@@ -43,12 +43,12 @@ function find_library(names::Vector{String};
     if Sys.iswindows()
         # priority goes to the `names` argument, as per `Libdl.find_library`
         for name in names
-            for version in versions
-                append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
-                                    "$(name)$(word_size)_$(version.major)"])
-            end
-            # look for unversioned libraries
+            # first look for unversioned libraries, for upgrade resilience
             append!(all_names, ["$(name)$(word_size)", name])
+            for version in versions
+                append!(all_names, ["$(name)$(word_size)_$(version.major)",
+                                    "$(name)$(word_size)_$(version.major)$(version.minor)"])
+            end
         end
     else
         all_names = ["lib$name" for name in names]
