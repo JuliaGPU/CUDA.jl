@@ -61,11 +61,10 @@ function find_library(names::Vector{String};
             end
         end
     else
+        # let Libdl do all the work
         all_names = ["lib$name" for name in names]
     end
-    # the dual reverse is to put less specific names last,
-    # eg. ["lib9.1", "lib9", "lib9.0", "lib9.0"] => ["lib9.1", "lib9.0", "lib9.0"]
-    all_names = reverse(unique(reverse(all_names)))
+    unique!(all_names)
 
     # figure out locations
     all_locations = String[]
