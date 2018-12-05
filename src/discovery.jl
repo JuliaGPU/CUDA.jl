@@ -50,6 +50,16 @@ function find_library(names::Vector{String};
                                     "$(name)$(word_size)_$(version.major)$(version.minor)"])
             end
         end
+    elseif Sys.isunix()
+        # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
+        for name in names
+            # first look for unversioned libraries, for upgrade resilience
+            push!(all_names, "lib$(name).$(Libdl.dlext)")
+            for version in versions
+                append!(all_names, ["lib$(name).$(Libdl.dlext).$(version.major)",
+                                    "lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)"])
+            end
+        end
     else
         all_names = ["lib$name" for name in names]
     end
