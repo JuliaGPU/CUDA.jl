@@ -56,6 +56,19 @@ function __init__()
         return
     end
 
+    function check_library(name, path)
+        path === nothing && return
+        if !ispath(path)
+            error("$name library has changed. Please run Pkg.build(\"CuArrays\") and restart Julia.")
+        end
+    end
+    check_library("CUBLAS", libcublas)
+    check_library("CUSPARSE", libcusparse)
+    check_library("CUSOLVER", libcusolver)
+    check_library("CUFFT", libcufft)
+    check_library("CURAND", libcurand)
+    check_library("CUDNN", libcudnn)
+
     # update the active context when we switch devices
     callback = (::CuDevice, ctx::CuContext) -> begin
         active_context[] = ctx
