@@ -53,6 +53,7 @@ matrix:
 
 branches:
   only:
+    - master
     - staging
     - trying
 
