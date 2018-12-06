@@ -13,17 +13,19 @@ include:
 
 test:v1.0:
   only:
+    - master
     - staging
     - trying
 
 test:dev:
-  allow_failure: true
   only:
+    - master
     - staging
     - trying
 
 coverage:
   only:
+    - master
     - staging
     - trying
 
@@ -52,5 +54,6 @@ documentation:
                                 Pkg.instantiate()'
     - julia --project=docs/ docs/make.jl
   only:
+    - master
     - staging
     - trying
