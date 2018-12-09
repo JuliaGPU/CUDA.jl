@@ -296,7 +296,7 @@ function cudnnConvolutionBackwardData(alpha, wDesc, w, dyDesc, dy, convDesc, alg
                  workspace_size, beta, dxDesc, dx)
 end
 
-function cudnnConvolutionBackwardData(dx::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
+function cudnnConvolutionBackwardData(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
                                       algo=0, workspace=C_NULL, workspace_size=0,
                                       alpha=1, beta=0, padding=0, stride=1, dilation=1, mode=0) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, dilation, mode)
@@ -315,7 +315,7 @@ function cudnnGetConvolutionBackwardDataWorkspaceSize(wDesc, dyDesc, convDesc, d
                  handle(), wDesc, dyDesc, convDesc, dxDesc, algo, workspace_size)
 end
 
-function cudnnGetConvolutionBackwardDataWorkspaceSize(dx::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
+function cudnnGetConvolutionBackwardDataWorkspaceSize(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
                                                       algo=0, padding=0, stride=1,
                                                       dilation=1, mode=0) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, dilation, mode)
@@ -336,7 +336,7 @@ function cudnnConvolutionBackwardFilter(alpha, xDesc, x, dyDesc, dy, convDesc, a
                  workspace_size, beta, dwDesc, dw)
 end
 
-function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
+function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N};
                                         algo=0, workspace=C_NULL, workspace_size=0,
                                         alpha=1, beta=0, padding=0, stride=1, dilation=1, mode=0) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, dilation, mode)
@@ -355,7 +355,7 @@ function cudnnGetConvolutionBackwardFilterWorkspaceSize(xDesc, dyDesc, convDesc,
                  handle(), xDesc, dyDesc, convDesc, dwDesc, algo, workspace_size)
 end
 
-function cudnnGetConvolutionBackwardFilterWorkspaceSize(dw::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N};
+function cudnnGetConvolutionBackwardFilterWorkspaceSize(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N};
                                                         algo=0, padding=0, stride=1,
                                                         dilation=1, mode=0) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, dilation, mode)
