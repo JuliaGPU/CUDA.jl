@@ -256,19 +256,17 @@ when function changes, or when different types or keyword arguments are provided
         if !haskey(compilecache, key)
             fun, mod = compile(device(ctx), f, tt; kwargs...)
             kernel = Kernel{f,tt}(ctx, mod, fun)
+            @debug begin
+                ver = version(kernel)
+                mem = memory(kernel)
+                reg = registers(kernel)
+                """Compiled $f to PTX $(ver.ptx) for SM $(ver.binary) using $reg registers.
+                   Memory usage: $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, $(Base.format_bytes(mem.constant)) constant"""
+            end
             compilecache[key] = kernel
         end
-        kernel = compilecache[key]
 
-        @debug begin
-            ver = version(kernel)
-            mem = memory(kernel)
-            reg = registers(kernel)
-            """Compiled $f to PTX $(ver.ptx) for SM $(ver.binary) using $reg registers.
-               Memory usage: $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, $(Base.format_bytes(mem.constant)) constant"""
-        end
-
-        return kernel
+        return compilecache[key]
     end
 end
 
