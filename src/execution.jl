@@ -249,6 +249,10 @@ when function changes, or when different types or keyword arguments are provided
         ctx = CuCurrentContext()
         key = hash(ctx, key)
         key = hash(kwargs, key)
+        for nf in 1:nfields(f)
+            # mix in the values of any captured value
+            key = hash(getfield(f, nf), key)
+        end
         if !haskey(compilecache, key)
             fun, mod = compile(device(ctx), f, tt; kwargs...)
             kernel = Kernel{f,tt}(ctx, mod, fun)

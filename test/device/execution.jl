@@ -446,6 +446,40 @@ end
     end
 end
 
+@testset "keyword arguments" begin
+    @eval inner_kwargf(foobar;foo=1, bar=2) = nothing
+
+    @cuda (()->inner_kwargf(42;foo=1,bar=2))()
+
+    @cuda (()->inner_kwargf(42))()
+
+    @cuda (()->inner_kwargf(42;foo=1))()
+
+    @cuda (()->inner_kwargf(42;bar=2))()
+
+    @cuda (()->inner_kwargf(42;bar=2,foo=1))()
+end
+
+@testset "captured values" begin
+    function f(capture::T) where {T}
+        function kernel(ptr)
+            unsafe_store!(ptr, capture)
+            return
+        end
+
+        buf = Mem.alloc(T)
+        @cuda kernel(Base.unsafe_convert(Ptr{T}, buf))
+
+        val = Mem.download(T, buf)[1]
+        Mem.free(buf)
+        return val
+    end
+
+    using Test
+    @test f(1) == 1
+    @test f(2) == 2
+end
+
 end
 
 ############################################################################################
@@ -684,19 +718,5 @@ end
 end
 
 ############################################################################################
-
-@testset "keyword arguments" begin
-    @eval inner_kwargf(foobar;foo=1, bar=2) = nothing
-
-    @cuda (()->inner_kwargf(42;foo=1,bar=2))()
-
-    @cuda (()->inner_kwargf(42))()
-
-    @cuda (()->inner_kwargf(42;foo=1))()
-
-    @cuda (()->inner_kwargf(42;bar=2))()
-
-    @cuda (()->inner_kwargf(42;bar=2,foo=1))()
-end
 
 end
