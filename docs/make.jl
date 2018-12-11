@@ -2,7 +2,7 @@ using Documenter, CUDAdrv
 
 makedocs(
     modules = [CUDAdrv],
-    format = :html,
+    format = Documenter.HTML(),
     sitename = "CUDAdrv.jl",
     pages = [
         "Home"    => "index.md",
@@ -14,13 +14,4 @@ makedocs(
         ]
     ],
     doctest = true
-)
-
-deploydocs(
-    repo = "github.com/JuliaGPU/CUDAdrv.jl.git",
-    julia = "0.6",
-    # no need to build anything here, re-use output of `makedocs`
-    target = "build",
-    deps = nothing,
-    make = nothing
 )

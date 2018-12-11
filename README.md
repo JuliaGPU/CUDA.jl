@@ -3,22 +3,16 @@ CUDAdrv.jl
 
 *A Julia wrapper for the CUDA driver API.*
 
-**Build status**: [![][gitlab-img]][gitlab-url]
-
-**Code coverage**: [![][codecov-img]][codecov-url]
-
-**Documentation**: [![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url]
-
-[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/pipeline.svg
-[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/pipelines
+[![][docs-latest-img]][docs-latest-url] [![][codecov-img]][codecov-url] [![][doi-img]][doi-url]
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
 
-[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-stable-url]: http://juliagpu.github.io/CUDAdrv.jl/stable
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: http://juliagpu.github.io/CUDAdrv.jl/latest
+[docs-latest-url]: https://juliagpu.gitlab.io/CUDAdrv.jl/
+
+[doi-img]: https://zenodo.org/badge/DOI/10.1109/TPDS.2018.2872064.svg
+[doi-url]: https://doi.org/10.1109/TPDS.2018.2872064
 
 This package aims to provide high-level wrappers for the functionality exposed by the CUDA
 driver API, and is meant for users who need high- or low-level access to the CUDA toolkit or
