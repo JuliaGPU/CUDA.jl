@@ -36,3 +36,19 @@ coverage:
     - master
     - staging
     - trying
+
+flux:
+  stage: test
+  image: "juliagpu/julia:v1.0-cuda"
+  script:
+    - mkdir $JULIA_DEPOT_PATH # Pkg.jl#325
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();
+                Pkg.add(PackageSpec(name="Flux", rev="master"));
+                Pkg.test("Flux");'
+  allow_failure: true
+  only:
+    - master
+    - staging
+    - trying
