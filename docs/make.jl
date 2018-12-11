@@ -25,13 +25,3 @@ makedocs(
     ],
     doctest = true
 )
-
-deploydocs(
-    repo = "github.com/JuliaGPU/CUDAnative.jl.git",
-    julia = "",
-    osname = "",
-    # no need to build anything here, re-use output of `makedocs`
-    target = "build",
-    deps = nothing,
-    make = nothing
-)
