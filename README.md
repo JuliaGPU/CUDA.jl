@@ -3,15 +3,13 @@ CUDAnative.jl
 
 *Support for compiling and executing native Julia kernels on CUDA hardware.*
 
-[![][docs-stable-img]][docs-stable-url] [![][docs-latest-img]][docs-latest-url] [![][codecov-img]][codecov-url] [![][doi-img]][doi-url]
+[![][docs-latest-img]][docs-latest-url] [![][codecov-img]][codecov-url] [![][doi-img]][doi-url]
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl
 
-[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-stable-url]: http://juliagpu.github.io/CUDAnative.jl/stable
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: http://juliagpu.github.io/CUDAnative.jl/latest
+[docs-latest-url]: https://juliagpu.gitlab.io/CUDAnative.jl/
 
 [doi-img]: https://zenodo.org/badge/DOI/10.1109/TPDS.2018.2872064.svg
 [doi-url]: https://doi.org/10.1109/TPDS.2018.2872064
