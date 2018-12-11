@@ -6,10 +6,10 @@ stages:
   - postprocess
 
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/common.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/test_v1.0.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v0/postprocess_coverage.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/common.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/test_v1.0.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/test_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/coverage_dev.yml'
 
 test:v1.0:
   only:
@@ -29,30 +29,21 @@ coverage:
     - staging
     - trying
 
-# Documenter.jl's `deploydocs` really is only made to work with Travis,
-# so we need to fake quite a bit of environment in order for it to work.
-# TODO: create an unconditional `deploydocs`, and pick when to deploy in here.
 documentation:
   stage: postprocess
   image: juliagpu/julia:v1.0-cuda
   variables:
     DOCUMENTER_DEBUG: "true"
-    TRAVIS_REPO_SLUG: "JuliaGPU/CUDAnative.jl"
-    TRAVIS_BRANCH: $CI_COMMIT_REF_NAME
-    TRAVIS_TAG: $CI_COMMIT_TAG
-  dependencies:
-    - test:v1.0
   script:
-    # gitlab-ce#15280
-    - apt update && apt install -y jq
-    - export PR_ID=$(curl -s "http://gitlab.ca/api/v4/projects/${CI_PROJECT_ID}/merge_requests?private_token=${OAUTH_TOKEN}&state=opened" | jq -r ".[]|select(.sha == \"$CI_COMMIT_SHA\")|.iid")
-    - export TRAVIS_PULL_REQUEST=$(if [ "$PR_ID" == "" ]; then echo "false"; else echo "true"; fi)
-
-    - apt install -y openssh-client && mkdir /root/.ssh
     - julia --project=docs/ -e 'using Pkg;
                                 Pkg.develop(PackageSpec(path=pwd()));
+                                Pkg.build();
                                 Pkg.instantiate()'
     - julia --project=docs/ docs/make.jl
+    - mv docs/build public
+  artifacts:
+    paths:
+    - public
   only:
     - master
     - staging
