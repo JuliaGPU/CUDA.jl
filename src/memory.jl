@@ -304,7 +304,7 @@ end
 Allocates space for and uploads the contents of an array `src`, returning a Buffer.
 Cannot be executed asynchronously due to the synchronous allocation.
 """
-function upload(src::AbstractArray)
+function upload(src::AbstractArray) # TODO: stream, async
     dst = alloc(src)
     upload!(dst, src)
     return dst
