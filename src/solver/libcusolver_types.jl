@@ -15,6 +15,15 @@ const CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED = 7
 
 const csrqrInfo_t = Ptr{Nothing}
 
+const cusolverEigMode_t = UInt32
+const CUSOLVER_EIG_MODE_NOVECTOR                = 0
+const CUSOLVER_EIG_MODE_VECTOR                  = 1
+
+const cusolverEigType_t = UInt32
+const CUSOLVER_EIG_TYPE_1                       = 1
+const CUSOLVER_EIG_TYPE_2                       = 2
+const CUSOLVER_EIG_TYPE_3                       = 3
+
 # refactorization types
 
 const cusolverRfNumericBoostReport_t = UInt32

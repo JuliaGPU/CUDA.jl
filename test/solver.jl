@@ -190,6 +190,22 @@ k = 1
         @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
     end
 
+    @testset "syevd!" begin
+        A              = rand(elty,m,m)
+        A             += A'
+        d_A            = CuArray(A)
+        local d_W, d_V
+        if( elty <: Complex )
+            d_W, d_V   = CUSOLVER.heevd!('V','U', d_A)
+        else
+            d_W, d_V   = CUSOLVER.syevd!('V','U', d_A)
+        end
+        h_W            = collect(d_W)
+        h_V            = collect(d_V)
+        Eig            = eigen(A)
+        @test Eig.values ≈ h_W
+        @test abs.(Eig.vectors'*h_V) ≈ I
+    end
 
     @testset "svd!" begin
         A              = rand(elty,m,n)
