@@ -227,6 +227,46 @@ k = 1
         Eig            = eigen(A)
         @test Eig.values ≈ h_W
         @test abs.(Eig.vectors'*h_V) ≈ I
+        d_A            = CuArray(A)
+        if( elty <: Complex )
+            d_W   = CUSOLVER.heevd!('N','U', d_A)
+        else
+            d_W   = CUSOLVER.syevd!('N','U', d_A)
+        end
+        h_W            = collect(d_W)
+        @test Eig.values ≈ h_W
+    end
+    
+    @testset "sygvd!" begin
+        A              = rand(elty,m,m)
+        B              = rand(elty,m,m)
+        A             *= A'
+        B             *= B'
+        d_A            = CuArray(A)
+        d_B            = CuArray(B)
+        local d_W, d_VA, d_VB
+        if( elty <: Complex )
+            d_W, d_VA, d_VB = CUSOLVER.hegvd!(1, 'V','U', d_A, d_B)
+        else
+            d_W, d_VA, d_VB = CUSOLVER.sygvd!(1, 'V','U', d_A, d_B)
+        end
+        h_W            = collect(d_W)
+        h_VA           = collect(d_VA)
+        h_VB           = collect(d_VB)
+        Eig            = eigen(Hermitian(A), Hermitian(B))
+        @test Eig.values ≈ h_W
+        @test A*h_VA ≈ B*h_VA*Diagonal(h_W) rtol=1e-4
+        # test normalization condition for eigtype 1
+        @test abs.(h_VA'B*h_VA) ≈ Matrix(one(elty)*I, m, m)
+        d_A            = CuArray(A)
+        d_B            = CuArray(B)
+        if( elty <: Complex )
+            d_W   = CUSOLVER.hegvd!(1, 'N','U', d_A, d_B)
+        else
+            d_W   = CUSOLVER.sygvd!(1, 'N','U', d_A, d_B)
+        end
+        h_W            = collect(d_W)
+        @test Eig.values ≈ h_W
     end
 
     @testset "svd!" begin
