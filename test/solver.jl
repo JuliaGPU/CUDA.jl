@@ -189,6 +189,28 @@ k = 1
         @test h_S ≈ svdvals(A)
         @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
     end
+    
+    @testset "gesvdj!" begin
+        for nm in ((m, n), (n, m))
+            a, b           = nm
+            A              = rand(elty,a,b)
+            d_A            = CuArray(A)
+            d_U, d_S, d_V  = CUSOLVER.gesvdj!('V',1,d_A)
+            h_S            = collect(d_S)
+            h_U            = collect(d_U)
+            h_V            = collect(d_V)
+            F              = svd(A, full=true)
+            s              = min(a, b)
+            t              = max(a, b)
+            @test size(h_V) == (b, s) 
+            @test size(h_U) == (a, s) 
+            tol = elty == Float32 || elty == ComplexF32 ? 1e-4 : 1e-8
+            @test abs.(h_U'*h_U) ≈ Matrix(one(elty)*I, s, s) rtol=tol
+            @test abs.(h_U[:,1:s]'F.U[:,1:s]) ≈ Matrix(one(elty)*I, s, s)
+            @test h_S ≈ svdvals(A)
+            @test abs.(h_V'*h_V) ≈ Matrix(one(elty)*I, s, s)
+        end
+    end
 
     @testset "syevd!" begin
         A              = rand(elty,m,m)

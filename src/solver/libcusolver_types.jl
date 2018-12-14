@@ -14,6 +14,8 @@ const CUSOLVER_STATUS_INTERNAL_ERROR            = 6
 const CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED = 7
 
 const csrqrInfo_t = Ptr{Nothing}
+const gesvdjInfo_t = Ptr{Cvoid}
+const syevjInfo_t = Ptr{Cvoid}
 
 const cusolverEigMode_t = UInt32
 const CUSOLVER_EIG_MODE_NOVECTOR                = 0
