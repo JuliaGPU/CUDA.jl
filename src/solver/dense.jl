@@ -379,6 +379,55 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
     end
 end
 
+for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnSgesvdj, :Float32, :Float32),
+                                    (:cusolverDnDgesvdj_bufferSize, :cusolverDnDgesvdj, :Float64, :Float64),
+                                    (:cusolverDnCgesvdj_bufferSize, :cusolverDnCgesvdj, :ComplexF32, :Float32),
+                                    (:cusolverDnZgesvdj_bufferSize, :cusolverDnZgesvdj, :ComplexF64, :Float64))
+    @eval begin
+        function gesvdj!(jobz::Char,
+                         econ::Int,
+                         A::CuMatrix{$elty};
+                         tol::$relty=eps($relty),
+                         max_sweeps::Int=100)
+            cujobz  = cusolverjob(jobz)
+            m,n     = size(A)
+            lda     = max(1, stride(A, 2))
+            U       = CuArray{$elty}(undef, m, m)
+            ldu     = max(1, stride(U, 2))
+            S       = CuArray{$relty}(undef, min(m, n))
+            V       = CuArray{$elty}(undef, n, n)
+            ldv     = max(1, stride(V, 2))
+            bufSize = Ref{Cint}(0)
+            params  = Ref{gesvdjInfo_t}(C_NULL)
+            cusolverDnCreateGesvdjInfo(params)
+            cusolverDnXgesvdjSetTolerance(params[], tol)
+            cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
+            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
+                         (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
+                          Cint, Ptr{$elty}, Cint, Ptr{$relty}, Ptr{$elty},
+                          Cint, Ptr{$elty}, Cint, Ref{Cint}, gesvdjInfo_t),
+                         dense_handle(), cujobz, Cint(econ), m, n, A, lda,
+                         S, U, ldu, V, ldv, bufSize, params[])
+
+            buffer  = CuArray{$elty}(undef, bufSize[])
+            devinfo = CuArray{Cint}(undef, 1)
+            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
+                         (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
+                          Cint, Ptr{$elty}, Cint, Ptr{$relty}, Ptr{$elty},
+                          Cint, Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{Cint},
+                          gesvdjInfo_t), dense_handle(),
+                         cujobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                         buffer, bufSize[], devinfo, params[])
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
+            end
+            cusolverDnDestroyGesvdjInfo(params[])
+            U, S, V
+        end
+    end
+end
+
 for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSize, :cusolverDnSsyevd, :Float32, :Float32),
                                            (:syevd!, :cusolverDnDsyevd_bufferSize, :cusolverDnDsyevd, :Float64, :Float64),
                                            (:heevd!, :cusolverDnCheevd_bufferSize, :cusolverDnCheevd, :ComplexF32, :Float32),

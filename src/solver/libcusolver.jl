@@ -65,6 +65,30 @@ function cusolverSpDestroyCsrqrInfo(info)
                (csrqrInfo_t,),
                info)
 end
+function cusolverDnCreateGesvdjInfo(info)
+  @check ccall((:cusolverDnCreateGesvdjInfo, libcusolver),
+               cusolverStatus_t,
+               (Ptr{gesvdjInfo_t},),
+               info)
+end
+function cusolverDnDestroyGesvdjInfo(info)
+  @check ccall((:cusolverDnDestroyGesvdjInfo, libcusolver),
+               cusolverStatus_t,
+               (gesvdjInfo_t,),
+               info)
+end
+function cusolverDnXgesvdjSetTolerance(info, tolerance)
+  @check ccall((:cusolverDnXgesvdjSetTolerance, libcusolver),
+               cusolverStatus_t,
+               (gesvdjInfo_t, Float64),
+               info, Float64(tolerance))
+end
+function cusolverDnXgesvdjSetMaxSweeps(info, max_sweeps)
+  @check ccall((:cusolverDnXgesvdjSetMaxSweeps, libcusolver),
+               cusolverStatus_t,
+               (gesvdjInfo_t, Cint),
+               info, Cint(max_sweeps))
+end
 function cusolverRfCreate(handle)
   @check ccall((:cusolverRfCreate, libcusolver),
                cusolverStatus_t,

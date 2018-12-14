@@ -189,6 +189,20 @@ k = 1
         @test h_S ≈ svdvals(A)
         @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
     end
+    
+    @testset "gesvdj!" begin
+        A              = rand(elty,m,n)
+        d_A            = CuArray(A)
+        d_U, d_S, d_V  = CUSOLVER.gesvdj!('V',1,d_A)
+        h_S            = collect(d_S)
+        h_U            = collect(d_U)
+        h_V            = collect(d_V)
+        F              = svd(A, full=true)
+        @test_broken abs.(h_U'h_U) ≈ Matrix(one(elty)*I, m, m) atol=1e-6
+        @test abs.(h_U[:,1:n]'F.U[:,1:n]) ≈ Matrix(one(elty)*I, n, n)
+        @test h_S ≈ svdvals(A)
+        @test abs.(h_V*h_V') ≈ Matrix(one(elty)*I, n, n)
+    end
 
     @testset "syevd!" begin
         A              = rand(elty,m,m)
