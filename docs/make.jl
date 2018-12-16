@@ -2,7 +2,7 @@ using Documenter, CUDAnative
 
 makedocs(
     modules = [CUDAnative],
-    format = Documenter.HTML(),
+    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
     sitename = "CUDAnative.jl",
     pages = [
         "Home"    => "index.md",
