@@ -15,7 +15,6 @@ makedocs(
         "Library" => [
             "lib/compilation.md",
             "lib/reflection.md",
-            "lib/profiling.md",
             "Device Code" => [
                 "lib/device/intrinsics.md",
                 "lib/device/array.md",

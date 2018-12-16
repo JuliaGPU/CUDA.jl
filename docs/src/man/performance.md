@@ -14,7 +14,7 @@ information to debug performance issues. To generate line number information, in
 with the command-line option `-g1`. Using `-g2` puts the PTX JIT in debug mode, which
 significantly lowers performance of GPU code and currently does not improve debugging.
 
-Although CUDAnative exports a `@profile` macro, it does not serve the same purpose as
+CUDAdrv exports a `@profile` macro. However, it does not serve the same purpose as
 `Base.@profile`. Rather, it instructs the CUDA profiler to start right before the first
 kernel launch. This avoids profiling during the time Julia or CUDAnative precompile code,
 and result in a much more compact timeline view. If you want to use this feature, disable

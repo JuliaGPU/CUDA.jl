@@ -28,3 +28,12 @@ CUDAnative.@device_code_ptx
 CUDAnative.@device_code_sass
 CUDAnative.@device_code
 ```
+
+## Version and related queries
+
+```@docs
+CUDAnative.version
+CUDAnative.maxthreads
+CUDAnative.registers
+CUDAnative.memory
+```
