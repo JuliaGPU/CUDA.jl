@@ -136,6 +136,16 @@ Base.getindex(r::CuRefValue) = r.x
 Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
 
 # convenience function
+"""
+    cudaconvert(x)
+
+This function is called for every argument to be passed to a kernel, allowing it to be
+converted to a GPU-friendly format. By default, the function does nothing and returns the
+input object `x` as-is.
+
+Do not add methods to this function, but instead extend the underlying Adapt.jl package and
+register methods for the the `CUDAnative.Adaptor` type.
+"""
 cudaconvert(arg) = adapt(Adaptor(), arg)
 
 
@@ -270,18 +280,6 @@ when function changes, or when different types or keyword arguments are provided
     end
 end
 
-"""
-    (::Kernel)(args...; kwargs...)
-
-Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
-For a higher-level interface, use [`@cuda`](@ref).
-
-The following keyword arguments are supported:
-- threads (defaults to 1)
-- blocks (defaults to 1)
-- shmem (defaults to 0)
-- stream (defaults to the default stream)
-"""
 @generated function (kernel::Kernel{F,TT})(args...; call_kwargs...) where {F,TT}
     sig = Base.signature_type(F, TT)
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)
@@ -310,6 +308,21 @@ The following keyword arguments are supported:
     end
 end
 
+# There doesn't seem to be a way to access the documentation for the call-syntax,
+# so attach it to the type
+"""
+    (::Kernel)(args...; kwargs...)
+
+Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
+For a higher-level interface, use [`@cuda`](@ref).
+
+The following keyword arguments are supported:
+- threads (defaults to 1)
+- blocks (defaults to 1)
+- shmem (defaults to 0)
+- stream (defaults to the default stream)
+"""
+Kernel
 
 ## other
 

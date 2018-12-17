@@ -1,5 +1,0 @@
-# Profiling
-
-```@docs
-CUDAnative.@profile
-```

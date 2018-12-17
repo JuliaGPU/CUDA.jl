@@ -8,18 +8,19 @@ describe how to do so, and what to be careful about.
 ## Profiling
 
 When optimizing code, it is important to know what to optimize. Luckily, the CUDA toolkit
-ships an excellent profiler, `nvprof`, with `nvpp` as the Eclipse-based UI. The CUDAnative
+ships an excellent profiler, `nvprof`, with `nvvp` as the Eclipse-based UI. The CUDAnative
 compiler is fully compatible with these tools, and generates the required line number
 information to debug performance issues. To generate line number information, invoke Julia
-with the command-line option `-g1`. Using `-g2` puts the PTX JIT in debug mode, which
-significantly lowers performance of GPU code and currently does not improve debugging.
+with the command-line option `-g1` (the default option). Using `-g2` puts the PTX JIT in
+debug mode, which significantly lowers performance of GPU code and currently does not
+improve debugging.
 
-Although CUDAnative exports a `@profile` macro, it does not serve the same purpose as
-`Base.@profile`. Rather, it instructs the CUDA profiler to start right before the first
-kernel launch. This avoids profiling during the time Julia or CUDAnative precompile code,
-and result in a much more compact timeline view. If you want to use this feature, disable
-the `nvprof`/`nvvp` option to "Start profiling at application start". As with all Julia
-code, also perform a warm-up iteration without the profiler activated.
+Traces collected with these tools might be very large and sparse, because they capture the
+entire application including e.g. kernel compilation or initial data uploads. To avoid this,
+run the above profilers with the option "Start profiling at application start" disabled
+(`--profile-from-start off` with `nvprof`), make your application perform a warm-up
+iteration, and wrap subsequent iterations with `CUDAdrv.@profile`. This macro instructs any
+active profiler to start collecting information, resulting in much more focused traces.
 
 For true source-level profiling akin to `Base.@profile`, look at `nvvp`'s PC Sampling View
 (requires compute capability >= 5.2, CUDA >= 7.5). In the future, we might have a
