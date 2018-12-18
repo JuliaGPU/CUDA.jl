@@ -56,14 +56,19 @@ function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     mod, entry = irgen(ctx)
 
-    # link libdevice, if it is necessary
-    libdevice = load_libdevice(ctx)
-    for f in functions(mod)
-        if isdeclaration(f) && intrinsic_id(f)==0 && haskey(functions(libdevice), LLVM.name(f))
-            libdevice_copy = LLVM.Module(libdevice)
-            link_libdevice!(ctx, mod, libdevice_copy)
-            break
-        end
+    need_library(lib) = any(f -> isdeclaration(f) &&
+                                 intrinsic_id(f) == 0 &&
+                                 haskey(functions(lib), LLVM.name(f)),
+                            functions(mod))
+
+    libdevice = load_libdevice(ctx.cap)
+    if need_library(libdevice)
+        link_libdevice!(ctx, mod, libdevice)
+    end
+
+    runtime = load_runtime(ctx.cap)
+    if need_library(runtime)
+        link_library!(ctx, mod, runtime)
     end
 
     # optimize the IR

@@ -32,8 +32,9 @@ function raise_exception(insblock::BasicBlock, ex::Value)
     let builder = Builder(ctx)
         position!(builder, insblock)
 
-        cuprintf!(builder, "ERROR: an unknown exception occurred during kernel execution\n")
-        call!(builder, trap)
+        name = globalstring_ptr!(builder, "unknown")
+        name = ptrtoint!(builder, name, Runtime.report_exception.llvm_types[1])
+        call!(builder, Runtime.report_exception, [name])
 
         dispose(builder)
     end
@@ -298,34 +299,15 @@ function replace_throw!(mod::LLVM.Module)
             if m != nothing && return_type(ft) == LLVM.VoidType(ctx)
                 ex = m.captures[1]
 
-                # create a function that prints the exception name, and exits
-                fn′ = "ptx_throw_$ex"
-                f′ = if haskey(functions(mod), fn′)
-                    functions(mod)[fn′]
-                else
-                    ft′ = LLVM.FunctionType(LLVM.VoidType(ctx))
-                    f′ = LLVM.Function(mod, fn′, ft′)
-                    let builder = Builder(ctx)
-                        entry = BasicBlock(f′, "entry", ctx)
-                        position!(builder, entry)
-
-                        desc = replace(ex, '_'=>' ')
-                        cuprintf!(builder, "ERROR: a $ex exception occurred during kernel execution$cuprintf_endline")
-                        call!(builder, trap)
-                        ret!(builder)
-
-                        dispose(builder)
-                    end
-                    f′
-                end
-
-                # replace uses of the original function
+                # replace uses of the original function with a call to the run-time
                 for use in uses(f)
                     call = user(use)
                     @assert isa(call, LLVM.CallInst)
                     let builder = Builder(ctx)
                         position!(builder, call)
-                        call!(builder, f′)
+                        name = globalstring_ptr!(builder, String(ex))
+                        name = ptrtoint!(builder, name, Runtime.report_exception.llvm_types[1])
+                        call!(builder, Runtime.report_exception, [name])
                         dispose(builder)
                     end
                     unsafe_delete!(LLVM.parent(call), call)
