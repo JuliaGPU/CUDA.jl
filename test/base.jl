@@ -48,9 +48,10 @@ end
 end
 
 @testset "Adapt" begin
-  A = rand(3, 3)
-  dA = cu(A)
-  @test adapt(Array, dA) == A
+  A = rand(Float32, 3, 3)
+  dA = CuArray(A)
+  @test adapt(Array, dA) ≈ A
+  @test adapt(CuArray, A) ≈ dA
 end
 
 @testset "Broadcast" begin
