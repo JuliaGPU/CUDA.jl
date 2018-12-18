@@ -12,11 +12,12 @@ function module respectively of type `CuFuction` and `CuModule`.
 For a list of supported keyword arguments, refer to the documentation of
 [`cufunction`](@ref).
 """
-function compile(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
+function compile(dev::CuDevice, @nospecialize(f), @nospecialize(tt);
+                 strip_ir_metadata::Bool=false, kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
     isa(f, Core.Function) || throw(ArgumentError("Kernel argument to `compile` should be a function."))
 
-    ctx = CompilerContext(f, tt, supported_capability(dev), true; kwargs...)
+    ctx = CompilerContext(f, tt, supported_capability(dev), #=kernel=# true; kwargs...)
 
     if compile_hook[] != nothing
         global globalUnique
@@ -25,7 +26,7 @@ function compile(dev::CuDevice, @nospecialize(f), @nospecialize(tt); kwargs...)
         globalUnique = previous_globalUnique
     end
 
-    (module_asm, module_entry) = compile(ctx)
+    (module_asm, module_entry) = compile(ctx; strip_ir_metadata=strip_ir_metadata)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
