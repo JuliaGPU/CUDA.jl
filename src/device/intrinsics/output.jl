@@ -32,7 +32,8 @@ Also beware that it is an untyped, and unforgiving `printf` implementation. Type
 to match, eg. printing a 64-bit Julia integer requires the `%ld` formatting string.
 """
 macro cuprintf(fmt::String, args...)
-    fmt_val = Val(Symbol(fmt))
+    endline = Sys.iswindows() ? "\r\n" : "\n"
+    fmt_val = Val(Symbol(replace(fmt, '\n'=>endline)))
 
     return :(_cuprintf($fmt_val, $(map(arg -> :(promote_c_argument($arg)), esc.(args))...)))
 end
