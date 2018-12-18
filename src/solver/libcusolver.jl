@@ -89,6 +89,30 @@ function cusolverDnXgesvdjSetMaxSweeps(info, max_sweeps)
                (gesvdjInfo_t, Cint),
                info, Cint(max_sweeps))
 end
+function cusolverDnCreateSyevjInfo(info)
+  @check ccall((:cusolverDnCreateSyevjInfo, libcusolver),
+               cusolverStatus_t,
+               (Ptr{syevjInfo_t},),
+               info)
+end
+function cusolverDnDestroySyevjInfo(info)
+  @check ccall((:cusolverDnDestroySyevjInfo, libcusolver),
+               cusolverStatus_t,
+               (syevjInfo_t,),
+               info)
+end
+function cusolverDnXsyevjSetTolerance(info, tolerance)
+  @check ccall((:cusolverDnXsyevjSetTolerance, libcusolver),
+               cusolverStatus_t,
+               (syevjInfo_t, Float64),
+               info, Float64(tolerance))
+end
+function cusolverDnXsyevjSetMaxSweeps(info, max_sweeps)
+  @check ccall((:cusolverDnXsyevjSetMaxSweeps, libcusolver),
+               cusolverStatus_t,
+               (syevjInfo_t, Cint),
+               info, Cint(max_sweeps))
+end
 function cusolverRfCreate(handle)
   @check ccall((:cusolverRfCreate, libcusolver),
                cusolverStatus_t,
