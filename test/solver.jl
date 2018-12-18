@@ -13,6 +13,8 @@ n = 10
 l = 13
 k = 1
 
+@test_throws ArgumentError CUSOLVER.cusolverjob('M')
+
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "Cholesky (po)" begin
         A    = rand(elty,n,n)
@@ -267,6 +269,12 @@ k = 1
         end
         h_W            = collect(d_W)
         @test Eig.values ≈ h_W
+        d_B            = CuArray(rand(elty, m+1, m+1))
+        if( elty <: Complex )
+            @test_throws DimensionMismatch CUSOLVER.hegvd!(1, 'N','U', d_A, d_B)
+        else
+            @test_throws DimensionMismatch CUSOLVER.sygvd!(1, 'N','U', d_A, d_B)
+        end
     end
 
     @testset "svd!" begin
