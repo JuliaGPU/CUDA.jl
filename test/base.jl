@@ -1,5 +1,6 @@
 using ForwardDiff: Dual
 using LinearAlgebra
+using Adapt: adapt
 
 import CUDAdrv
 
@@ -44,6 +45,12 @@ end
   @test Base.unsafe_wrap(CuArray, C_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2))
   @test Base.unsafe_wrap(CuArray{Nothing}, C_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
   @test Base.unsafe_wrap(CuArray{Nothing,2}, C_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
+end
+
+@testset "Adapt" begin
+  A = rand(3, 3)
+  dA = cu(A)
+  @test adapt(Array, dA) == A
 end
 
 @testset "Broadcast" begin
