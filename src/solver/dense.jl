@@ -516,3 +516,59 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
         end
     end
 end
+
+for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSize, :cusolverDnSsygvj, :Float32, :Float32),
+                                           (:sygvj!, :cusolverDnDsygvj_bufferSize, :cusolverDnDsygvj, :Float64, :Float64),
+                                           (:hegvj!, :cusolverDnChegvj_bufferSize, :cusolverDnChegvj, :ComplexF32, :Float32),
+                                           (:hegvj!, :cusolverDnZhegvj_bufferSize, :cusolverDnZhegvj, :ComplexF64, :Float64))
+    @eval begin
+        function $jname(itype::Int,
+                        jobz::Char,
+                        uplo::Char,
+                        A::CuMatrix{$elty},
+                        B::CuMatrix{$elty};
+                        tol::$relty=eps($relty),
+                        max_sweeps::Int=100)
+            cujobz  = cusolverjob(jobz)
+            cuuplo  = cublasfill(uplo)
+            nA, nB  = checksquare(A, B)
+            if nB != nA
+                throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
+            end
+            n       = nA 
+            lda     = max(1, stride(A, 2))
+            ldb     = max(1, stride(B, 2))
+            W       = CuArray{$relty}(undef, n)
+            bufSize = Ref{Cint}(0)
+            params  = Ref{syevjInfo_t}(C_NULL)
+            cusolverDnCreateSyevjInfo(params)
+            cusolverDnXsyevjSetTolerance(params[], tol)
+            cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
+            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
+                         (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
+                          cublasFillMode_t, Cint, Ptr{$elty}, Cint, Ptr{$elty},
+                          Cint, Ptr{$relty}, Ref{Cint}, syevjInfo_t),
+                         dense_handle(), Cint(itype), cujobz, cuuplo, n, A, lda, B,
+                         ldb, W, bufSize, params[])
+            buffer  = CuArray{$elty}(undef, bufSize[])
+            devinfo = CuArray{Cint}(undef, 1)
+            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
+                         (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
+                          cublasFillMode_t, Cint, Ptr{$elty}, Cint, Ptr{$elty},
+                          Cint, Ptr{$relty}, Ptr{$elty}, Cint, Ptr{Cint},
+                          syevjInfo_t), dense_handle(), Cint(itype), cujobz,
+                         cuuplo, n, A, lda, B, ldb, W, buffer, bufSize[],
+                         devinfo, params[])
+            info = _getindex(devinfo, 1)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
+            end
+            cusolverDnDestroySyevjInfo(params[])
+            if jobz == 'N'
+                return W
+            elseif jobz == 'V'
+                return W, A, B
+            end
+        end
+    end
+end
