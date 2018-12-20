@@ -12,6 +12,11 @@ m = 20
 n = 35
 k = 13
 
+@test_throws ArgumentError CUBLAS.cublasop('V')
+@test_throws ArgumentError CUBLAS.cublasfill('V')
+@test_throws ArgumentError CUBLAS.cublasdiag('V')
+@test_throws ArgumentError CUBLAS.cublasside('V')
+
 #################
 # level 1 tests #
 #################
