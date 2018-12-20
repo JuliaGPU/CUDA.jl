@@ -16,13 +16,10 @@ function link_library!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
     link!(mod, lib)
 
     ModulePassManager() do pm
-        # internalize all functions not in list from (1)
+        # internalize all functions that aren't exports
         internalize!(pm, exports)
 
         # eliminate all unused internal functions
-        #
-        # this isn't necessary, as we do the same in optimize! to inline kernel wrappers,
-        # but it results _much_ smaller modules which are easier to handle on optimize=false
         global_optimizer!(pm)
         global_dce!(pm)
         strip_dead_prototypes!(pm)
@@ -99,7 +96,7 @@ function build_runtime(cap)
     mod = LLVM.Module("CUDAnative run-time library", JuliaContext())
     for binding in names(Runtime; all=true)
         value = getfield(Runtime, binding)
-        if value isa Runtime.Function
+        if value isa Runtime.MethodInstance
             # TODO: check return type
             emit_function!(mod, cap, value.def, value.types, value.name)
         end
@@ -127,12 +124,12 @@ function load_runtime(cap)
     end
 end
 
-function LLVM.call!(builder, rt::Runtime.Function, args=LLVM.Value[])
+function LLVM.call!(builder, rt::Runtime.MethodInstance, args=LLVM.Value[])
     bb = position(builder)
     f = LLVM.parent(bb)
     mod = LLVM.parent(f)
 
-    # get or create a function reference
+    # get or create a function prototype
     f = if haskey(functions(mod), rt.name)
         functions(mod)[rt.name]
     else
