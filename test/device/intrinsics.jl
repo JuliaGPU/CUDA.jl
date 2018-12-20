@@ -47,9 +47,7 @@ end
 
 ############################################################################################
 
-@testset "I/O" begin
-
-@testset "printing" begin
+@testset "formatted output" begin
     _, out = @grab_output @on_device @cuprintf("")
     @test out == ""
 
@@ -97,6 +95,18 @@ end
     @test out == "1.000000 1.000000$endline"
 end
 
+
+
+############################################################################################
+
+@testset "assertion" begin
+    function kernel(i)
+        @cuassert i > 0
+        @cuassert i > 0 "test"
+        return
+    end
+
+    @cuda kernel(1)
 end
 
 

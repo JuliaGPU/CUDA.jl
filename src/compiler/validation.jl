@@ -144,7 +144,7 @@ function check_ir!(ctx, errors::Vector{IRError}, f::LLVM.Function)
     return errors
 end
 
-const special_fns = ("vprintf", "__nvvm_reflect")
+const special_fns = ("vprintf", "__assertfail", "malloc", "free", "__nvvm_reflect")
 
 const libjulia = Ref{Ptr{Cvoid}}(C_NULL)
 

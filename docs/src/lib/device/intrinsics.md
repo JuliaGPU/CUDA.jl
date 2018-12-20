@@ -76,3 +76,10 @@ CUDAnative.shfl_xor_sync
 ```@docs
 CUDAnative.@cuprintf
 ```
+
+
+## Assertions
+
+```@docs
+CUDAnative.@cuassert
+```
