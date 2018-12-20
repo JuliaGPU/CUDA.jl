@@ -48,6 +48,9 @@ end
 
   @test collect(cuzeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(cuones(2, 2)) == ones(Float32, 2, 2)
+
+  @test collect(cufill(0, 2, 2)) == zeros(Float32, 2, 2)
+  @test collect(cufill(1, 2, 2)) == ones(Float32, 2, 2)
 end
 
 @testset "Adapt" begin
