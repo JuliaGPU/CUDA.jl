@@ -47,18 +47,6 @@ macro on_device(ex)
     end
 end
 
-function julia_cmd(cmd)
-    return `
-        $(Base.julia_cmd())
-        --color=$(Base.have_color ? "yes" : "no")
-        --compiled-modules=$(Base.JLOptions().use_compiled_modules != 0 ? "yes" : "no")
-        --history-file=no
-        --startup-file=$(Base.JLOptions().startupfile != 2 ? "yes" : "no")
-        --code-coverage=$(["none", "user", "all"][1+Base.JLOptions().code_coverage])
-        $cmd
-    `
-end
-
 # helper function for sinking a value to prevent the callee from getting optimized away
 @inline sink(i::Int32) =
     Base.llvmcall("""%slot = alloca i32
@@ -70,6 +58,20 @@ end
                      store volatile i64 %0, i64* %slot
                      %value = load volatile i64, i64* %slot
                      ret i64 %value""", Int64, Tuple{Int64}, i)
+
+function julia_script(code, args=``)
+    script = "using CUDAnative; import CUDAdrv; $code"
+    withenv("JULIA_LOAD_PATH" => join(LOAD_PATH, ':')) do
+        out = Pipe()
+        err = Pipe()
+        cmd = `$(Base.julia_cmd()) -e $(script) $args`
+        proc = run(pipeline(cmd, stdout=out, stderr=err), wait=false)
+        close(out.in)
+        close(err.in)
+        wait(proc)
+        proc.exitcode, read(out, String), read(err, String)
+    end
+end
 
 # a lightweight CUDA array type for testing purposes
 ## ctor & finalizer

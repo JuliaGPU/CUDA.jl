@@ -6,6 +6,7 @@ include(joinpath("compiler", "optim.jl"))
 include(joinpath("compiler", "validation.jl"))
 include(joinpath("compiler", "rtlib.jl"))
 include(joinpath("compiler", "mcgen.jl"))
+include(joinpath("compiler", "debug.jl"))
 include(joinpath("compiler", "driver.jl"))
 
 function __init_compiler__()

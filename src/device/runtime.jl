@@ -34,11 +34,28 @@ end
 ## exception handling
 
 function ptx_report_exception(ex)
-    @cuprintf("ERROR: a %s exception occurred during kernel execution\n", ex)
+    @cuprintf("""
+        ERROR: a %s exception occurred during kernel execution.
+               Run Julia on debug level 2 for device stack traces.\n""", ex)
     return
 end
 
 const report_exception = instantiate(ptx_report_exception, Nothing, (Ptr{Cchar},))
+
+function ptx_report_exception_name(ex)
+    @cuprintf("ERROR: a %s exception occurred during kernel execution.\n", ex)
+    return
+end
+
+const report_exception_name = instantiate(ptx_report_exception_name, Nothing, (Ptr{Cchar},))
+
+function ptx_report_exception_frame(idx, func, file, line)
+    @cuprintf(" [%i] %s at %s:%i\n", idx, func, file, line)
+    return
+end
+
+const report_exception_frame = instantiate(ptx_report_exception_frame, Nothing,
+                                           (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
 
 
 end

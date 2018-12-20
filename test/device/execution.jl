@@ -484,6 +484,48 @@ end
 
 ############################################################################################
 
+@testset "exceptions" begin
+
+@testset "stack traces at different debug levels" begin
+
+script = """
+    function kernel(ptr, val)
+        unsafe_store!(ptr, Int(val))
+        return
+    end
+
+    buf = CUDAdrv.Mem.alloc(Int, 1)
+    @cuda kernel(Base.unsafe_convert(Ptr{Int}, buf), 1.2)
+    CUDAdrv.Mem.download(Int, buf)
+"""
+
+let (code, out, err) = julia_script(script, `-g0`)
+    @test code == 1
+    @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err)
+    @test isempty(out)
+end
+
+let (code, out, err) = julia_script(script, `-g1`)
+    @test code == 1
+    @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err)
+    @test occursin(r"ERROR: a .+ exception occurred during kernel execution", out)
+    @test occursin(r"Run Julia on debug level 2 for device stack traces", out)
+end
+
+let (code, out, err) = julia_script(script, `-g2`)
+    @test code == 1
+    @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err)
+    @test occursin(r"ERROR: a .+ exception occurred during kernel execution", out)
+    @test occursin("[1] Type at float.jl", out)
+    @test occursin("[2] kernel at none:2", out)
+end
+
+end
+
+end
+
+############################################################################################
+
 @testset "shmem divergence bug" begin
 
 @testset "trap" begin

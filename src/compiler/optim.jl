@@ -27,6 +27,8 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         early_csemem_ssa!(pm) # TODO: gvn instead? see NVPTXTargetMachine.cpp::addEarlyCSEOrGVNPass
         dead_store_elimination!(pm)
 
+        constant_merge!(pm)
+
         # NOTE: if an optimization is missing, try scheduling an entirely new optimization
         # to see which passes need to be added to the list above
         #     LLVM.clopts("-print-after-all", "-filter-print-funcs=$(LLVM.name(entry))")

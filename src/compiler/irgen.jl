@@ -16,26 +16,16 @@ safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
 # NOTE: we remove `throw_...` functions in the ThrowRemoval pass, but that relies on
-#       function names, which is fragile. Remove them here as well, to be safe.
+#       function names which is fragile. Remove actual calls to `jl_throw` here, to be safe.
 const exception_arguments = Vector{LLVM.Value}()
 function raise_exception(insblock::BasicBlock, ex::Value)
     fun = LLVM.parent(insblock)
     mod = LLVM.parent(fun)
     ctx = context(mod)
 
-    trap = if haskey(functions(mod), "llvm.trap")
-        functions(mod)["llvm.trap"]
-    else
-        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
-    end
-
     let builder = Builder(ctx)
         position!(builder, insblock)
-
-        name = globalstring_ptr!(builder, "unknown")
-        name = ptrtoint!(builder, name, Runtime.report_exception.llvm_types[1])
-        call!(builder, Runtime.report_exception, [name])
-
+        emit_exception!(builder, "unknown", ex)
         dispose(builder)
     end
 
@@ -267,21 +257,63 @@ function irgen(ctx::CompilerContext)
     return mod, entry
 end
 
-# HACK: this pass replaces `julia_throw_*` void functions with a simple `print` & `trap`
+# report an exception in a GPU-compatible manner
 #
-# this is necessary even though we already have a `raise_exception` hook that just prints,
-# as many `throw_...` functions are now `@noinline` which means their arguments survive and
-# may cause GC allocations.
-#
-# TODO: replace with an early substitution of the `throw` builtin
-function replace_throw!(mod::LLVM.Module)
+# the exact behavior depends on the debug level. in all cases, a `trap` will be emitted, On
+# debug level 1, the exception name will be printed, and on debug level 2 the individual
+# stack frames (as recovered from the LLVM debug information) will be printed as well.
+function emit_exception!(builder, name, inst)
+    bb = position(builder)
+    fun = LLVM.parent(bb)
+    mod = LLVM.parent(fun)
     ctx = LLVM.context(mod)
+
+    # report the exception
+    if Base.JLOptions().debug_level >= 1
+        name = globalstring_ptr!(builder, name, "exception")
+        name = ptrtoint!(builder, name, Runtime.report_exception.llvm_types[1])
+        if Base.JLOptions().debug_level == 1
+            call!(builder, Runtime.report_exception, [name])
+        else
+            call!(builder, Runtime.report_exception_name, [name])
+        end
+    end
+
+    # report each frame
+    if Base.JLOptions().debug_level >= 2
+        rt = Runtime.report_exception_frame
+        bt = backtrace(inst)
+        for (i,frame) in enumerate(bt)
+            idx = ConstantInt(rt.llvm_types[1], i)
+            func = globalstring_ptr!(builder, String(frame.func), "di_func")
+            func = ptrtoint!(builder, func, rt.llvm_types[2])
+            file = globalstring_ptr!(builder, String(frame.file), "di_file")
+            file = ptrtoint!(builder, file, rt.llvm_types[3])
+            line = ConstantInt(rt.llvm_types[4], frame.line)
+            call!(builder, rt, [idx, func, file, line])
+        end
+    end
 
     trap = if haskey(functions(mod), "llvm.trap")
         functions(mod)["llvm.trap"]
     else
         LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
     end
+    call!(builder, trap)
+end
+
+# HACK: this pass replaces `julia_throw_*` void functions with a PTX-compatible print
+#
+# the actual call to `jl_throw` within these functions has already been replaced by
+# `raise_exception`, but there's two reasons we also replace the containing function
+# (matched by name): because we can discover the exception name from the function name (eg.
+# `jl_throw_foobar`), and because these functions are typically `@noinline` because they
+# contain code that allocates.
+#
+# TODO: replace with an early substitution of the `throw` builtin and let the Julia
+# optimizer get rid of the (now dead) allocations
+function replace_throw!(mod::LLVM.Module)
+    ctx = LLVM.context(mod)
 
     changed = false
 
@@ -305,9 +337,7 @@ function replace_throw!(mod::LLVM.Module)
                     @assert isa(call, LLVM.CallInst)
                     let builder = Builder(ctx)
                         position!(builder, call)
-                        name = globalstring_ptr!(builder, String(ex))
-                        name = ptrtoint!(builder, name, Runtime.report_exception.llvm_types[1])
-                        call!(builder, Runtime.report_exception, [name])
+                        emit_exception!(builder, String(ex), call)
                         dispose(builder)
                     end
                     unsafe_delete!(LLVM.parent(call), call)
