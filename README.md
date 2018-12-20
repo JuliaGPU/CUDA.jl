@@ -54,3 +54,12 @@ julia> CuArrays.allowscalar(false)
 julia> xs[5]
 ERROR: getindex is disabled
 ```
+
+## Tutorials
+
+CuArrays is a great starting point for learning the fundamentals GPU
+programming, because you can initially lean on the high-level
+abstractions and then learn, as needed, how to obtain more
+fine-grained control.  Here are some tutorials to get you started:
+
+- https://juliagpu.gitlab.io/CuArrays.jl/intro.html
