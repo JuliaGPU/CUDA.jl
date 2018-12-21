@@ -35,7 +35,9 @@ macro cuassert(ex, msgs...)
                                         $(Val(__source__.line))))
 end
 
-@generated function cuassert_fail(::Val{msg}, ::Val{file},  ::Val{line}) where
+assert_counter = 0
+
+@generated function cuassert_fail(::Val{msg}, ::Val{file}, ::Val{line}) where
                                  {msg, file, line}
     T_void = LLVM.VoidType(JuliaContext())
     T_int32 = LLVM.Int32Type(JuliaContext())
@@ -50,10 +52,13 @@ end
         entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
-        message = globalstring_ptr!(builder, String(msg), "assert_message")
-        file = globalstring_ptr!(builder, String(file), "assert_file")
+        global assert_counter
+        assert_counter += 1
+
+        message = globalstring_ptr!(builder, String(msg), "assert_message_$(assert_counter)")
+        file = globalstring_ptr!(builder, String(file), "assert_file_$(assert_counter)")
         line = ConstantInt(T_int32, line)
-        func = globalstring_ptr!(builder, "unknown", "assert_function")
+        func = globalstring_ptr!(builder, "unknown", "assert_function_$(assert_counter)")
         charSize = ConstantInt(Csize_t(1), JuliaContext())
 
         # invoke __assertfail and return
