@@ -25,8 +25,8 @@ end
     foobar() = throw(DivideError())
     ir = sprint(io->CUDAnative.code_llvm(io, foobar, Tuple{}))
 
-    # plain exceptions should get lowered to cuprintf (see `raise_exception`)
-    @test occursin("vprintf", ir)
+    # plain exceptions should get lowered to a call to the CUDAnative run-time
+    @test occursin("ptx_report_exception", ir)
     # not a jl_throw referencing a jl_value_t representing the exception
     @test !occursin("jl_value_t", ir)
     @test !occursin("jl_throw", ir)

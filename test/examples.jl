@@ -18,8 +18,10 @@ filter!(file -> readline(file) != "# EXCLUDE FROM TESTING", examples)
 cd(examples_dir) do
     examples = relpath.(examples, Ref(examples_dir))
     @testset for example in examples
-        cmd = julia_cmd(`$example`)
-        @test success(pipeline(cmd, stderr=stderr))
+        withenv("JULIA_LOAD_PATH" => join(LOAD_PATH, ':')) do
+            cmd = `$(Base.julia_cmd()) $example`
+            @test success(pipeline(cmd, stderr=stderr))
+        end
     end
 end
 
