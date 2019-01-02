@@ -1053,7 +1053,7 @@ for (fname, elty) in
                       alpha::($elty),
                       A::CuArray{$elty, 3},
                       B::CuArray{$elty, 3})
-            C = similar(B, (size(A, 1), size(B, 2), size(A, 3)))
+            C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), size(A, 3)))
             gemm_strided_batched!(transA, transB, alpha, A, B, zero($elty), C )
         end
         function gemm_strided_batched(transA::Char,

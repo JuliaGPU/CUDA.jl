@@ -673,6 +673,22 @@ end # level 2 testset
         end
         h_C = Array(d_C)
         @test C ≈ h_C
+        
+        # generate matrices
+        A = rand(elty, k, m, nbatch)
+        B = rand(elty, k, n, nbatch)
+        C = zeros(elty, m, n, nbatch)
+        # move to device
+        d_A = CuArray{elty, 3}(A)
+        d_B = CuArray{elty, 3}(B)
+
+        d_C = CuArrays.CUBLAS.gemm_strided_batched('T', 'N', d_A, d_B)
+
+        for i in 1:nbatch
+            C[:, :, i] = transpose(A[:, :, i]) * B[:, :, i]
+        end
+        h_C = Array(d_C)
+        @test C ≈ h_C
     end
 
 
