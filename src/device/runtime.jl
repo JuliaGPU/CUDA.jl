@@ -36,14 +36,18 @@ end
 function ptx_report_exception(ex)
     @cuprintf("""
         ERROR: a %s exception occurred during kernel execution.
-               Run Julia on debug level 2 for device stack traces.\n""", ex)
+               Run Julia on debug level 2 for device stack traces.
+        """, ex)
     return
 end
 
 const report_exception = instantiate(ptx_report_exception, Nothing, (Ptr{Cchar},))
 
 function ptx_report_exception_name(ex)
-    @cuprintf("ERROR: a %s exception occurred during kernel execution.\n", ex)
+    @cuprintf("""
+        ERROR: a %s exception occurred during kernel execution.
+        Stacktrace:
+        """, ex)
     return
 end
 
