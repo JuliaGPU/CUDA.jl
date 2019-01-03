@@ -1,5 +1,10 @@
 using Documenter, CUDAnative
 
+using Pkg
+if haskey(ENV, "GITLAB_CI")
+  Pkg.add([PackageSpec(name = x; rev = "master") for x in ["CUDAdrv", "LLVM"]])
+end
+
 makedocs(
     modules = [CUDAnative],
     format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
