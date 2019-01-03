@@ -18,6 +18,17 @@
 #' which introduced CUDA using the C++ programming language.
 #' You do not need to read that tutorial, as this one starts from the beginning.
 
+
+
+#+ echo=false
+
+include(joinpath(@__DIR__, "common.jl"))
+nothing
+
+#+
+
+
+
 #' # A simple example on the CPU
 
 #' We'll consider the following demo, a simple calculation on the CPU.
@@ -38,6 +49,7 @@ using Test
 #' A distinguishing feature of this calculation is that every element of `y`
 #' is being updated using the same operation.
 #' This suggests that we might be able to parallelize this.
+
 
 #' ## Parallelization on the CPU
 
@@ -69,7 +81,7 @@ fill!(y, 2)
 parallel_add!(y, x)
 @test all(y .== 3.0f0)
 
-#' Now if I've started julia with `JULIA_NUM_THREADS=4` on a machine with at
+#' Now if I've started Julia with `JULIA_NUM_THREADS=4` on a machine with at
 #' least 4 cores, I get the following:
 
 using BenchmarkTools
@@ -85,6 +97,8 @@ using BenchmarkTools
 #' these would demonstrate scaling that is closer to linear in the number of cores.
 #' Conversely, with small arrays, the parallel version might be slower than
 #' the serial version.
+
+
 
 #' # Your first GPU computation
 
@@ -104,6 +118,7 @@ using BenchmarkTools
 #' ```julia
 #' pkg> test CuArrays
 #' ```
+
 
 #' ## Parallelization on the GPU
 
@@ -144,6 +159,7 @@ end
 #' makes the two competitive with one another.
 #' Depending on your hardware you may get different results.
 
+
 #' ## Writing your first GPU kernel
 
 #' Using the high-level functionality of CuArrays made it easy to perform this
@@ -183,6 +199,7 @@ end
 
 #' That's a *lot* slower than version above based on broadcasting. What happened?
 
+
 #' ## Profiling
 
 #' When you don't get the performance you expect, usually your first step should be
@@ -191,30 +208,48 @@ end
 #' [`nvprof` tool](https://devblogs.nvidia.com/cuda-pro-tip-nvprof-your-handy-universal-gpu-profiler/).
 #' On Unix systems, launch Julia this way:
 #' ```sh
-#' $ nvprof --profile-from-start off /usr/local/bin/julia
+#' $ nvprof --profile-from-start off /path/to/julia
 #' ```
-#' replacing the `/usr/local/bin/julia` with the path to your Julia binary.
+#' replacing the `/path/to/julia` with the path to your Julia binary.
 #' After you've redefined all the necessary variables and methods, you can use
 
-#' ```julia
-#' julia> bench_gpu1!(y_d, x_d)  # run it once to force compilation
-#' julia> CUDAdrv.@profile bench_gpu1!(y_d, x_d)
-#' ```
+#+ term=true
+
+bench_gpu1!(y_d, x_d)  # run it once to force compilation
+CUDAdrv.@profile bench_gpu1!(y_d, x_d)
+
+#+
 
 #' and then quit Julia. I get output like this:
-#' ```sh
-#' ==21904== NVPROF is profiling process 21904, command: /usr/local/julia/julia-1.0/julia /tmp/tim/cuprofile.jl
-#' ==21904== Profiling application: /usr/local/julia/julia-1.0/julia /tmp/tim/cuprofile.jl
-#' ==21904== Profiling result:
-#' Time(%)      Time     Calls       Avg       Min       Max  Name
-#' 100.00%  357.39ms         1  357.39ms  357.39ms  357.39ms  ptxcall_gpu_add1__1
-#'
-#' ==21904== API calls:
-#' Time(%)      Time     Calls       Avg       Min       Max  Name
-#'  99.56%  357.39ms         1  357.39ms  357.39ms  357.39ms  cuCtxSynchronize
-#'   0.30%  1.0910ms         1  1.0910ms  1.0910ms  1.0910ms  cuLaunchKernel
-#'   0.13%  481.99us         2  241.00us     610ns  481.38us  cuCtxGetCurrent
-#' ```
+
+#+ echo=false; wrap=false
+
+code = """
+    using CUDAdrv, CUDAnative, CuArrays
+
+    function gpu_add1!(y, x)
+        for i = 1:length(y)
+            @inbounds y[i] += x[i]
+        end
+        return nothing
+    end
+
+    function bench_gpu1!(y, x)
+        @cuda gpu_add1!(y, x)
+        synchronize()
+    end
+
+    N = 2^20
+    x_d = cufill(1.0f0, N)
+    y_d = cufill(2.0f0, N)
+
+    bench_gpu1!(y_d, x_d)
+    CUDAdrv.@profile bench_gpu1!(y_d, x_d)
+"""
+
+script(code; wrapper=`nvprof --unified-memory-profiling off --profile-from-start off`)
+
+#+
 
 #' You can see that 100% of the time was spent in `ptxcall_gpu_add1__1`,
 #' the name of the kernel that `CUDAnative` assigned when compiling `gpu_add1!`
@@ -224,24 +259,19 @@ end
 #' Like the rest of Julia, you can define a single method and it will be specialized
 #' at compile time for the particular data types you're using.)
 
-#' For further insight, run the profiling with the option
-#' ```julia
-#' $ nvprof --profile-from-start off --print-gpu-trace /usr/local/bin/julia /tmp/cuprofile.jl
-#' ```
-#' where here I've put all the commands I want to run (including the `CUDAdrv.@profile`)
-#' into a script `/tmp/cuprofile.jl`.
-#' Then I see
+#' For further insight, run the profiling with the option `--print-gpu-trace`. You can also
+#' invoke Julia with as argument the path to a file containing all commands you want to run
+#' (including the `CUDAdrv.@profile`):
+#''
 #' ```sh
-#' ==24101== NVPROF is profiling process 24101, command: /usr/local/julia/julia-1.0/julia /tmp/tim/cuprofile.jl
-#' ==24101== Profiling application: /usr/local/julia/julia-1.0/julia /tmp/tim/cuprofile.jl
-#' ==24101== Profiling result:
-#'    Start  Duration            Grid Size      Block Size     Regs*    SSMem*    DSMem*      Size  Throughput           Device   Context    Stream  Name
-#' 19.9962s  357.72ms              (1 1 1)         (1 1 1)        19        0B        0B         -           -   Tesla K20c (0)         1         7  ptxcall_gpu_add1__1 [27]
-#'
-#' Regs: Number of registers used per CUDA thread. This number includes registers used internally by the CUDA driver and/or tools and can be more than what the compiler shows.
-#' SSMem: Static shared memory allocated per CUDA block.
-#' DSMem: Dynamic shared memory allocated per CUDA block.
+#' $ nvprof --profile-from-start off --print-gpu-trace /path/to/julia /path/to/script.jl
 #' ```
+
+#+ echo=false; wrap=false
+
+script(code; wrapper=`nvprof --unified-memory-profiling off --profile-from-start off --print-gpu-trace`)
+
+#+
 
 #' The key thing to note here is the `(1 1 1)` in the "Grid Size" and "Block Size" columns.
 #' These terms will be explained shortly, but for now suffice it to
@@ -249,6 +279,7 @@ end
 #' sequentially.
 #' Of note, sequential processing with GPUs is much slower than with CPUs; where
 #' GPUs shine is with large-scale parallelism.
+
 
 #' ## Writing a parallel GPU kernel
 
@@ -339,6 +370,7 @@ end
 
 #' demonstrating this this computation used multiple blocks and threads.
 
+
 #' ## Printing
 
 #' When debugging, it's not uncommon to want to print some values.
@@ -358,6 +390,7 @@ end
 synchronize()
 
 #' Note that the printed output is generated when running `synchronize`.
+
 
 #' ## Error-handling
 
@@ -410,6 +443,8 @@ end
 #' As a consequence, it's often a good idea to perform your "sanity checks" using
 #' code that runs on the CPU, and only turn over the computation to the GPU once
 #' you've deemed it to be safe.
+
+
 
 #' # Summary
 

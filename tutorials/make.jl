@@ -7,6 +7,8 @@ if haskey(ENV, "GITLAB_CI")
 end
 
 cd(joinpath(@__DIR__, "src")) do
+    rm("../build"; force=true, recursive=true)
+
     # intro tutorial
     weave("intro.jl", out_path="../build", doctype="md2html")
     cp("intro1.png", "../build/intro1.png")
