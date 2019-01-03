@@ -1,6 +1,6 @@
 julia 1.0
 CUDAnative 0.10.1
-CUDAdrv 0.8
+CUDAdrv 1.0.1
 CUDAapi 0.5.3
 NNlib 0.4.3
 GPUArrays 0.5
