@@ -21,15 +21,6 @@ end
 
 ## main
 
-# development often happens in lockstep with other packages,
-# so check-out the master branch of those packages.
-using Pkg
-if haskey(ENV, "GITLAB_CI")
-  for package in ("CUDAapi", "GPUArrays", "CUDAnative", "NNlib", "CUDAdrv")
-    Pkg.add(PackageSpec(name=package, rev="master"))
-  end
-end
-
 config_path = joinpath(@__DIR__, "ext.jl")
 const previous_config_path = config_path * ".bak"
 
