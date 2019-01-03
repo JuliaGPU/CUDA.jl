@@ -68,14 +68,18 @@ Base.hcat(xs::CuArray...) = cat(xs..., dims=2)
 """
     @sync ex
 
-Run expressions and synchronize the GPU afterwards.
+Run expression `ex` and synchronize the GPU afterwards. This is a CPU-friendly
+synchronization, i.e. it performs a blocking synchronization without increasing CPU load. As
+such, this operation is preferred over implicit synchronization (e.g. when performing a
+memory copy) for high-performance applications.
 
-This is useful for timing code that executes asynchronously.
+It is also useful for timing code that executes asynchronously.
 """
 macro sync(ex)
     quote
+        local e = CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC | CUDAdrv.EVENT_DISABLE_TIMING)
         local ret = $(esc(ex))
-        CUDAdrv.synchronize()
+        CUDAdrv.synchronize(e)
         ret
     end
 end

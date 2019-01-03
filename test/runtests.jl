@@ -1,5 +1,13 @@
 using Test
 
+# development often happens in lockstep with other packages,
+# so check-out the master branch of those packages.
+using Pkg
+if haskey(ENV, "GITLAB_CI")
+  Pkg.add([PackageSpec(name = x; rev = "master")
+           for x in ["CUDAapi", "GPUArrays", "CUDAnative", "NNlib", "CUDAdrv"]])
+end
+
 include("util.jl")
 
 using Random
