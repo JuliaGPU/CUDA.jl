@@ -197,14 +197,13 @@ macro cuda(ex...)
 
     # convert the arguments, call the compiler and launch the kernel
     # while keeping the original arguments alive
-    @gensym kernel kernel_args kernel_tt # FIXME: why doesn't `local` work
     push!(code.args,
         quote
             GC.@preserve $(vars...) begin
-                $kernel_args = cudaconvert.(($(var_exprs...),))
-                $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
-                $kernel = cufunction($(esc(f)), $kernel_tt; $(map(esc, compiler_kwargs)...))
-                $kernel($kernel_args...; $(map(esc, call_kwargs)...))
+                local kernel_args = cudaconvert.(($(var_exprs...),))
+                local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
+                local kernel = cufunction($(esc(f)), kernel_tt; $(map(esc, compiler_kwargs)...))
+                kernel(kernel_args...; $(map(esc, call_kwargs)...))
             end
          end)
     return code
