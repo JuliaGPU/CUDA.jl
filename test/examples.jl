@@ -18,10 +18,13 @@ filter!(file -> readline(file) != "# EXCLUDE FROM TESTING", examples)
 cd(examples_dir) do
     examples = relpath.(examples, Ref(examples_dir))
     @testset for example in examples
-        withenv("JULIA_LOAD_PATH" => join(LOAD_PATH, ':')) do
-            cmd = `$(Base.julia_cmd()) $example`
-            @test success(pipeline(cmd, stderr=stderr))
+        cmd = `$(Base.julia_cmd())`
+        if Base.JLOptions().project != C_NULL
+            # --project isn't preserved by julia_cmd()
+            cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
         end
+        cmd = `$cmd $example`
+        @test success(pipeline(cmd, stderr=stderr))
     end
 end
 

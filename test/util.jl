@@ -61,16 +61,19 @@ end
 
 function julia_script(code, args=``)
     script = "using CUDAnative; import CUDAdrv; $code"
-    withenv("JULIA_LOAD_PATH" => join(LOAD_PATH, ':')) do
-        out = Pipe()
-        err = Pipe()
-        cmd = `$(Base.julia_cmd()) -e $(script) $args`
-        proc = run(pipeline(cmd, stdout=out, stderr=err), wait=false)
-        close(out.in)
-        close(err.in)
-        wait(proc)
-        proc.exitcode, read(out, String), read(err, String)
+    out = Pipe()
+    err = Pipe()
+    cmd = `$(Base.julia_cmd()) -e $script`
+    if Base.JLOptions().project != C_NULL
+        # --project isn't preserved by julia_cmd()
+        cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
     end
+    cmd = `$cmd $args`
+    proc = run(pipeline(cmd, stdout=out, stderr=err), wait=false)
+    close(out.in)
+    close(err.in)
+    wait(proc)
+    proc.exitcode, read(out, String), read(err, String)
 end
 
 # a lightweight CUDA array type for testing purposes
