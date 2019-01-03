@@ -4,7 +4,7 @@ function script(code; wrapper=``, args=``)
         write(io, code)
         flush(io)
         withenv("JULIA_LOAD_PATH" => join(LOAD_PATH, ':')) do
-            cmd = `$wrapper $(Base.julia_cmd()) $path $args`
+            cmd = `$wrapper $(Base.julia_cmd()) $args $path`
             # redirect stderr to stdout to have it picked up by Weave.jl
             run(pipeline(ignorestatus(cmd), stderr=stdout))
         end
