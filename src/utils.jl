@@ -74,8 +74,9 @@ This is useful for timing code that executes asynchronously.
 """
 macro sync(ex)
     quote
+        local e = CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC | CUDAdrv.EVENT_DISABLE_TIMING)
         local ret = $(esc(ex))
-        CUDAdrv.synchronize()
+        CUDAdrv.synchronize(e)
         ret
     end
 end

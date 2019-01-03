@@ -25,7 +25,7 @@ end
 # so check-out the master branch of those packages.
 using Pkg
 if haskey(ENV, "GITLAB_CI")
-  for package in ("CUDAapi", "GPUArrays", "CUDAnative", "NNlib")
+  for package in ("CUDAapi", "GPUArrays", "CUDAnative", "NNlib", "CUDAdrv")
     Pkg.add(PackageSpec(name=package, rev="master"))
   end
 end
