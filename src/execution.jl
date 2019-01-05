@@ -275,7 +275,7 @@ when function changes, or when different types or keyword arguments are provided
             compilecache[key] = kernel
         end
 
-        return compilecache[key]
+        return compilecache[key]::Kernel{f,tt}
     end
 end
 
