@@ -15,6 +15,7 @@ const device_contexts = Dict{CuDevice,CuContext}()
 #
 # feel free to open a PR adding additional API calls, if you have a specific use for them.
 const preinit_apicalls = Set{Symbol}([
+    :cuDriverGetVersion,
     # device calls, commonly used to determine the most appropriate device
     :cuDeviceGet,
     :cuDeviceGetAttribute,
