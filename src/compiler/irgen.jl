@@ -250,6 +250,7 @@ function irgen(ctx::CompilerContext)
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         add!(pm, FunctionPass("HideTrap", hide_trap!))
         add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+        add!(pm, ModulePass("LowerPTLS", lower_ptls!))
         always_inliner!(pm)
         verifier!(pm)
         run!(pm, mod)
@@ -546,6 +547,31 @@ function lower_gc_frame!(fun::LLVM.Function)
                 changed = true
             end
         end
+    end
+
+    return changed
+end
+
+# HACK: implement the `julia.ptls_states` intrinsic by returning a dummy pointer,
+#       to avoid inline X86 assembly (should be a proper check and dead code removal)
+function lower_ptls!(mod::LLVM.Module)
+    ctx = LLVM.context(mod)
+
+    changed = false
+
+    if haskey(functions(mod), "julia.ptls_states")
+        ptls_getter = functions(mod)["julia.ptls_states"]
+        ptls_getter_ft = eltype(llvmtype(ptls_getter)::LLVM.PointerType)::LLVM.FunctionType
+        T_pppjlvalue = return_type(ptls_getter_ft)
+
+        for use in uses(ptls_getter)
+            call = user(use)
+            dummy = LLVM.UndefValue(T_pppjlvalue)
+            replace_uses!(call, dummy)
+            unsafe_delete!(LLVM.parent(call), call)
+        end
+
+        unsafe_delete!(mod, ptls_getter)
     end
 
     return changed
