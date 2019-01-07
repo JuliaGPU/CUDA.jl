@@ -249,6 +249,7 @@ function irgen(ctx::CompilerContext)
         add!(pm, ModulePass("ReplaceThrow", replace_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         add!(pm, FunctionPass("HideTrap", hide_trap!))
+        add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
         always_inliner!(pm)
         verifier!(pm)
         run!(pm, mod)
@@ -497,6 +498,51 @@ function hide_trap!(fun::LLVM.Function)
                     dispose(builder)
                 end
                 unsafe_delete!(bb, inst)
+                changed = true
+            end
+        end
+    end
+
+    return changed
+end
+
+# implement the `julia.gc_alloc_obj` intrinsic by calling malloc
+function lower_gc_frame!(fun::LLVM.Function)
+    ctx = LLVM.context(fun)
+    mod = LLVM.parent(fun)
+
+    T_ptr = convert(LLVMType, Any, true)
+    T_csize = LLVM.IntType(sizeof(Csize_t)*8, ctx)
+    malloc = if haskey(functions(mod), "malloc")
+        functions(mod)["malloc"]
+    else
+        LLVM.Function(mod, "malloc", LLVM.FunctionType(T_ptr, [T_csize]))
+    end
+
+    changed = false
+
+    for bb in blocks(fun)
+        # replace calls to `trap` with inline assembly
+        for inst in instructions(bb)
+            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "julia.gc_alloc_obj"
+                # decode the call
+                ops = collect(operands(inst))
+                sz = ops[2]
+
+                # replace with regular malloc
+                let builder = Builder(ctx)
+                    position!(builder, inst)
+                    if width(T_csize) != width(llvmtype(sz))
+                        sz = zext!(builder, sz, T_csize)
+                    end
+                    ptr = call!(builder, malloc, [sz])
+                    ptr = addrspacecast!(builder, ptr, llvmtype(inst))
+                    replace_uses!(inst, ptr)
+                    dispose(builder)
+                end
+
+                unsafe_delete!(LLVM.parent(inst), inst)
+
                 changed = true
             end
         end
