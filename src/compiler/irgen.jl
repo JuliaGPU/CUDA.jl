@@ -514,20 +514,13 @@ function lower_gc_frame!(fun::LLVM.Function)
 
     changed = false
 
-    # get or create the malloc function
-    T_prjlvalue = LLVM.PointerType(eltype(convert(LLVMType, Any, true)), 10)
-    T_size = LLVM.IntType(sizeof(Csize_t)*8, ctx)
-    malloc = if haskey(functions(mod), "malloc")
-        functions(mod)["malloc"]
-    else
-        LLVM.Function(mod, "malloc", LLVM.FunctionType(T_prjlvalue, [T_size]))
-    end
-
     # get or create the Julia intrinsic
     # NOTE: this intrinsic always needs to be there, since the Julia GC lowering pass
     #       relies on it to reconstruct the `jl_value_t*` type
+    T_prjlvalue = LLVM.PointerType(eltype(convert(LLVMType, Any, true)), 10)
     T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
-    alloc_obj_func = if haskey(functions(mod), "julia.gc_alloc_obj")
+    T_size = LLVM.IntType(sizeof(Csize_t)*8, ctx)
+    alloc_obj = if haskey(functions(mod), "julia.gc_alloc_obj")
         functions(mod)["julia.gc_alloc_obj"]
     else
         ft = LLVM.FunctionType(T_prjlvalue, [T_pint8, T_size, T_prjlvalue])
@@ -546,10 +539,17 @@ function lower_gc_frame!(fun::LLVM.Function)
         f
     end
 
+    # get or create the malloc function
+    malloc = if haskey(functions(mod), "malloc")
+        functions(mod)["malloc"]
+    else
+        LLVM.Function(mod, "malloc", LLVM.FunctionType(T_prjlvalue, [T_size]))
+    end
+
     for bb in blocks(fun)
         # replace calls to `trap` with inline assembly
         for inst in instructions(bb)
-            if isa(inst, LLVM.CallInst) && called_value(inst) == alloc_obj_func
+            if isa(inst, LLVM.CallInst) && called_value(inst) == alloc_obj
                 # decode the call
                 ops = collect(operands(inst))
                 sz = ops[2]
@@ -582,21 +582,26 @@ function lower_ptls!(mod::LLVM.Module)
 
     changed = false
 
-    if haskey(functions(mod), "julia.ptls_states")
-        ptls_getter = functions(mod)["julia.ptls_states"]
-        ptls_getter_ft = eltype(llvmtype(ptls_getter)::LLVM.PointerType)::LLVM.FunctionType
-        T_pppjlvalue = return_type(ptls_getter_ft)
-
-        for use in uses(ptls_getter)
-            call = user(use)
-            dummy = LLVM.UndefValue(T_pppjlvalue)
-            replace_uses!(call, dummy)
-            unsafe_delete!(LLVM.parent(call), call)
-        end
-
-        @assert isempty(uses(ptls_getter))
-        unsafe_delete!(mod, ptls_getter)
+    # get or create the Julia intrinsic
+    # NOTE: this intrinsic always needs to be there, since the Julia GC lowering pass
+    #       relies on it to reconstruct the `jl_value_t*` type
+    T_pjlvalue = convert(LLVMType, Any, true)
+    T_ppjlvalue = LLVM.PointerType(T_pjlvalue)
+    T_pppjlvalue = LLVM.PointerType(T_ppjlvalue)
+    ptls_getter = if haskey(functions(mod), "julia.ptls_states")
+        functions(mod)["julia.ptls_states"]
+    else
+        ft = LLVM.FunctionType(T_pppjlvalue)
+        LLVM.Function(mod, "julia.ptls_states", ft)
     end
+
+    for use in uses(ptls_getter)
+        call = user(use)
+        dummy = LLVM.UndefValue(T_pppjlvalue)
+        replace_uses!(call, dummy)
+        unsafe_delete!(LLVM.parent(call), call)
+    end
+    @assert isempty(uses(ptls_getter))
 
     return changed
 end
