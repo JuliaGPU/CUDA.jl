@@ -60,6 +60,7 @@ end
                      ret i64 %value""", Int64, Tuple{Int64}, i)
 
 function julia_script(code, args=``)
+    # FIXME: this doesn't work when the compute mode is set to exclusive
     script = "using CUDAnative; import CUDAdrv; $code"
     out = Pipe()
     err = Pipe()

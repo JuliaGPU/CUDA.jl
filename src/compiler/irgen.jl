@@ -307,7 +307,7 @@ end
 # the actual call to `jl_throw` within these functions has already been replaced by
 # `raise_exception`, but there's two reasons we also replace the containing function
 # (matched by name): because we can discover the exception name from the function name (eg.
-# `jl_throw_foobar`), and because these functions are typically `@noinline` because they
+# `jl_throw_foobar`), and because these functions are typically `@noinline` since they
 # contain code that allocates.
 #
 # TODO: replace with an early substitution of the `throw` builtin and let the Julia
@@ -346,7 +346,6 @@ function replace_throw!(mod::LLVM.Module)
                 # remove the original function or declaration
                 @assert isempty(uses(f))
                 unsafe_delete!(mod, f)
-
 
                 changed = true
             end
