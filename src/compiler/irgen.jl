@@ -512,20 +512,44 @@ function lower_gc_frame!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
     mod = LLVM.parent(fun)
 
-    T_ptr = convert(LLVMType, Any, true)
-    T_csize = LLVM.IntType(sizeof(Csize_t)*8, ctx)
+    changed = false
+
+    # get or create the malloc function
+    T_prjlvalue = LLVM.PointerType(eltype(convert(LLVMType, Any, true)), 10)
+    T_size = LLVM.IntType(sizeof(Csize_t)*8, ctx)
     malloc = if haskey(functions(mod), "malloc")
         functions(mod)["malloc"]
     else
-        LLVM.Function(mod, "malloc", LLVM.FunctionType(T_ptr, [T_csize]))
+        LLVM.Function(mod, "malloc", LLVM.FunctionType(T_prjlvalue, [T_size]))
     end
 
-    changed = false
+    # get or create the Julia intrinsic
+    # NOTE: this intrinsic always needs to be there, since the Julia GC lowering pass
+    #       relies on it to reconstruct the `jl_value_t*` type
+    T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
+    alloc_obj_func = if haskey(functions(mod), "julia.gc_alloc_obj")
+        functions(mod)["julia.gc_alloc_obj"]
+    else
+        ft = LLVM.FunctionType(T_prjlvalue, [T_pint8, T_size, T_prjlvalue])
+        f = LLVM.Function(mod, "julia.gc_alloc_obj", ft)
+        let attrs = function_attributes(f)
+            AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
+            packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
+            push!(attrs, EnumAttribute("allocsize", packed_allocsize, ctx))
+        end
+        let attrs = return_attributes(f)
+            push!(attrs, EnumAttribute("noalias", 0, ctx))
+            push!(attrs, EnumAttribute("nonnull", 0, ctx))
+        end
+        # NOTE: we actually don't need to recreate this intrinsic that faithfully,
+        #       but these attributes might be useful to attach to our own `malloc` too
+        f
+    end
 
     for bb in blocks(fun)
         # replace calls to `trap` with inline assembly
         for inst in instructions(bb)
-            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "julia.gc_alloc_obj"
+            if isa(inst, LLVM.CallInst) && called_value(inst) == alloc_obj_func
                 # decode the call
                 ops = collect(operands(inst))
                 sz = ops[2]
@@ -533,11 +557,10 @@ function lower_gc_frame!(fun::LLVM.Function)
                 # replace with regular malloc
                 let builder = Builder(ctx)
                     position!(builder, inst)
-                    if width(T_csize) != width(llvmtype(sz))
-                        sz = zext!(builder, sz, T_csize)
+                    if width(T_size) != width(llvmtype(sz))
+                        sz = zext!(builder, sz, T_size)
                     end
                     ptr = call!(builder, malloc, [sz])
-                    ptr = addrspacecast!(builder, ptr, llvmtype(inst))
                     replace_uses!(inst, ptr)
                     dispose(builder)
                 end
@@ -571,6 +594,7 @@ function lower_ptls!(mod::LLVM.Module)
             unsafe_delete!(LLVM.parent(call), call)
         end
 
+        @assert isempty(uses(ptls_getter))
         unsafe_delete!(mod, ptls_getter)
     end
 
