@@ -259,62 +259,54 @@ function lower_gc_frame!(fun::LLVM.Function)
 
     changed = false
 
-    # get or create the Julia intrinsic
-    # NOTE: this intrinsic always needs to be there, since the Julia GC lowering pass
-    #       relies on it to reconstruct the `jl_value_t*` type
-    T_prjlvalue = LLVM.PointerType(eltype(convert(LLVMType, Any, true)), 10)
-    T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
-    T_size = LLVM.IntType(sizeof(Csize_t)*8, ctx)
-    alloc_obj = if haskey(functions(mod), "julia.gc_alloc_obj")
-        functions(mod)["julia.gc_alloc_obj"]
-    else
-        ft = LLVM.FunctionType(T_prjlvalue, [T_pint8, T_size, T_prjlvalue])
-        f = LLVM.Function(mod, "julia.gc_alloc_obj", ft)
-        let attrs = function_attributes(f)
-            AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
-            packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
-            push!(attrs, EnumAttribute("allocsize", packed_allocsize, ctx))
+    if haskey(functions(mod), "julia.gc_alloc_obj")
+        alloc_obj = functions(mod)["julia.gc_alloc_obj"]
+        alloc_obj_ft = eltype(llvmtype(alloc_obj))
+        T_prjlvalue = return_type(alloc_obj_ft)
+
+        T_size = LLVM.IntType(sizeof(Csize_t)*8, ctx)
+
+        # get or create the malloc function
+        malloc = if haskey(functions(mod), "malloc")
+            functions(mod)["malloc"]
+        else
+            # should we attach some metadata here? julia.gc_alloc_obj has the following:
+            #let attrs = function_attributes(f)
+            #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
+            #    packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
+            #    push!(attrs, EnumAttribute("allocsize", packed_allocsize, ctx))
+            #end
+            #let attrs = return_attributes(f)
+            #    push!(attrs, EnumAttribute("noalias", 0, ctx))
+            #    push!(attrs, EnumAttribute("nonnull", 0, ctx))
+            #end
+            LLVM.Function(mod, "malloc", LLVM.FunctionType(T_prjlvalue, [T_size]))
         end
-        let attrs = return_attributes(f)
-            push!(attrs, EnumAttribute("noalias", 0, ctx))
-            push!(attrs, EnumAttribute("nonnull", 0, ctx))
-        end
-        # NOTE: we actually don't need to recreate this intrinsic that faithfully,
-        #       but these attributes might be useful to attach to our own `malloc` too
-        f
-    end
 
-    # get or create the malloc function
-    malloc = if haskey(functions(mod), "malloc")
-        functions(mod)["malloc"]
-    else
-        LLVM.Function(mod, "malloc", LLVM.FunctionType(T_prjlvalue, [T_size]))
-    end
+        for use in uses(alloc_obj)
+            call = user(use)
 
-    for bb in blocks(fun)
-        # replace calls to `trap` with inline assembly
-        for inst in instructions(bb)
-            if isa(inst, LLVM.CallInst) && called_value(inst) == alloc_obj
-                # decode the call
-                ops = collect(operands(inst))
-                sz = ops[2]
+            # decode the call
+            ops = collect(operands(call))
+            sz = ops[2]
 
-                # replace with regular malloc
-                let builder = Builder(ctx)
-                    position!(builder, inst)
-                    if width(T_size) != width(llvmtype(sz))
-                        sz = zext!(builder, sz, T_size)
-                    end
-                    ptr = call!(builder, malloc, [sz])
-                    replace_uses!(inst, ptr)
-                    dispose(builder)
+            # replace with regular malloc
+            let builder = Builder(ctx)
+                position!(builder, call)
+                if width(T_size) != width(llvmtype(sz))
+                    sz = zext!(builder, sz, T_size)
                 end
-
-                unsafe_delete!(LLVM.parent(inst), inst)
-
-                changed = true
+                ptr = call!(builder, malloc, [sz])
+                replace_uses!(call, ptr)
+                dispose(builder)
             end
+
+            unsafe_delete!(LLVM.parent(call), call)
+
+            changed = true
         end
+
+        @assert isempty(uses(alloc_obj))
     end
 
     return changed
@@ -327,28 +319,21 @@ function lower_ptls!(mod::LLVM.Module)
 
     changed = false
 
-    # get or create the Julia intrinsic
-    # NOTE: this intrinsic always needs to be there, since the Julia GC lowering pass
-    #       relies on it to reconstruct the `jl_value_t*` type
-    T_pjlvalue = convert(LLVMType, Any, true)
-    T_ppjlvalue = LLVM.PointerType(T_pjlvalue)
-    T_pppjlvalue = LLVM.PointerType(T_ppjlvalue)
-    ptls_getter = if haskey(functions(mod), "julia.ptls_states")
-        functions(mod)["julia.ptls_states"]
-    else
-        ft = LLVM.FunctionType(T_pppjlvalue)
-        LLVM.Function(mod, "julia.ptls_states", ft)
-        changed = true
-    end
+    if haskey(functions(mod), "julia.ptls_states")
+        ptls_getter = functions(mod)["julia.ptls_states"]
+        ptls_getter_ft = eltype(llvmtype(ptls_getter))
+        T_pppjlvalue = return_type(ptls_getter_ft)
 
-    for use in uses(ptls_getter)
-        call = user(use)
-        dummy = LLVM.UndefValue(T_pppjlvalue)
-        replace_uses!(call, dummy)
-        unsafe_delete!(LLVM.parent(call), call)
-        changed = true
-    end
-    @assert isempty(uses(ptls_getter))
+        for use in uses(ptls_getter)
+            call = user(use)
+            dummy = LLVM.UndefValue(T_pppjlvalue)
+            replace_uses!(call, dummy)
+            unsafe_delete!(LLVM.parent(call), call)
+            changed = true
+        end
+
+        @assert isempty(uses(ptls_getter))
+     end
 
     return changed
 end
