@@ -11,6 +11,12 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
         internalize!(pm, [LLVM.name(entry)])
+
+        # NOTE: need to lower here, since the Julia lowering passes rely on the existence of
+        #       unused intrinsics that otherwise get wiped by `link_library!`
+        add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+        add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+
         ccall(:jl_add_optimization_passes, Cvoid,
               (LLVM.API.LLVMPassManagerRef, Cint),
               LLVM.ref(pm), Base.JLOptions().opt_level)
@@ -244,4 +250,105 @@ function fixup_metadata!(f::LLVM.Function)
             end
         end
     end
+end
+
+# implement the `julia.gc_alloc_obj` intrinsic by calling malloc
+function lower_gc_frame!(fun::LLVM.Function)
+    ctx = LLVM.context(fun)
+    mod = LLVM.parent(fun)
+
+    changed = false
+
+    # get or create the Julia intrinsic
+    # NOTE: this intrinsic always needs to be there, since the Julia GC lowering pass
+    #       relies on it to reconstruct the `jl_value_t*` type
+    T_prjlvalue = LLVM.PointerType(eltype(convert(LLVMType, Any, true)), 10)
+    T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
+    T_size = LLVM.IntType(sizeof(Csize_t)*8, ctx)
+    alloc_obj = if haskey(functions(mod), "julia.gc_alloc_obj")
+        functions(mod)["julia.gc_alloc_obj"]
+    else
+        ft = LLVM.FunctionType(T_prjlvalue, [T_pint8, T_size, T_prjlvalue])
+        f = LLVM.Function(mod, "julia.gc_alloc_obj", ft)
+        let attrs = function_attributes(f)
+            AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
+            packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
+            push!(attrs, EnumAttribute("allocsize", packed_allocsize, ctx))
+        end
+        let attrs = return_attributes(f)
+            push!(attrs, EnumAttribute("noalias", 0, ctx))
+            push!(attrs, EnumAttribute("nonnull", 0, ctx))
+        end
+        # NOTE: we actually don't need to recreate this intrinsic that faithfully,
+        #       but these attributes might be useful to attach to our own `malloc` too
+        f
+    end
+
+    # get or create the malloc function
+    malloc = if haskey(functions(mod), "malloc")
+        functions(mod)["malloc"]
+    else
+        LLVM.Function(mod, "malloc", LLVM.FunctionType(T_prjlvalue, [T_size]))
+    end
+
+    for bb in blocks(fun)
+        # replace calls to `trap` with inline assembly
+        for inst in instructions(bb)
+            if isa(inst, LLVM.CallInst) && called_value(inst) == alloc_obj
+                # decode the call
+                ops = collect(operands(inst))
+                sz = ops[2]
+
+                # replace with regular malloc
+                let builder = Builder(ctx)
+                    position!(builder, inst)
+                    if width(T_size) != width(llvmtype(sz))
+                        sz = zext!(builder, sz, T_size)
+                    end
+                    ptr = call!(builder, malloc, [sz])
+                    replace_uses!(inst, ptr)
+                    dispose(builder)
+                end
+
+                unsafe_delete!(LLVM.parent(inst), inst)
+
+                changed = true
+            end
+        end
+    end
+
+    return changed
+end
+
+# HACK: implement the `julia.ptls_states` intrinsic by returning a dummy pointer,
+#       to avoid inline X86 assembly (should be a proper check and dead code removal)
+function lower_ptls!(mod::LLVM.Module)
+    ctx = LLVM.context(mod)
+
+    changed = false
+
+    # get or create the Julia intrinsic
+    # NOTE: this intrinsic always needs to be there, since the Julia GC lowering pass
+    #       relies on it to reconstruct the `jl_value_t*` type
+    T_pjlvalue = convert(LLVMType, Any, true)
+    T_ppjlvalue = LLVM.PointerType(T_pjlvalue)
+    T_pppjlvalue = LLVM.PointerType(T_ppjlvalue)
+    ptls_getter = if haskey(functions(mod), "julia.ptls_states")
+        functions(mod)["julia.ptls_states"]
+    else
+        ft = LLVM.FunctionType(T_pppjlvalue)
+        LLVM.Function(mod, "julia.ptls_states", ft)
+        changed = true
+    end
+
+    for use in uses(ptls_getter)
+        call = user(use)
+        dummy = LLVM.UndefValue(T_pppjlvalue)
+        replace_uses!(call, dummy)
+        unsafe_delete!(LLVM.parent(call), call)
+        changed = true
+    end
+    @assert isempty(uses(ptls_getter))
+
+    return changed
 end
