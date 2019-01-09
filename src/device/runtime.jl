@@ -24,7 +24,7 @@ function Base.getproperty(rt::MethodInstance, field::Symbol)
     if field == :llvm_types
         LLVMType[convert.(LLVMType, typ) for typ in rt.types]
     elseif field == :llvm_return_type
-        convert.(LLVMType, rt.return_type)
+        convert.(LLVMType, rt.return_type, true)
     else
         return getfield(rt, field)
     end
@@ -60,6 +60,23 @@ end
 
 const report_exception_frame = instantiate(ptx_report_exception_frame, Nothing,
                                            (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
+
+
+## GC
+
+function ptx_alloc_obj(sz::Csize_t)
+    ptr = malloc(sz)
+    return unsafe_pointer_to_objref(ptr) # this returns a tracked pointer
+end
+
+const alloc_obj = instantiate(ptx_alloc_obj, Any, (Csize_t,))
+
+# sadly, due to how our runtime is constructed, we create the LLVM function prototype by
+# only looking at the Julia types. When doing `convert(LLVMType, Any)` (aka.
+# `julia_type_to_llvm`), we get a `jl_value_t*` that has lost its `addrspace(10)` tracking
+# information. for now, we just call malloc directly and reconstruct the addrspace manually
+
+const malloc = instantiate(CUDAnative.malloc, Ptr{Cvoid}, (Csize_t,))
 
 
 end

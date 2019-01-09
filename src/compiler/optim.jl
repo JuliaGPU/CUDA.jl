@@ -264,25 +264,7 @@ function lower_gc_frame!(fun::LLVM.Function)
         alloc_obj = functions(mod)["julia.gc_alloc_obj"]
         alloc_obj_ft = eltype(llvmtype(alloc_obj))
         T_prjlvalue = return_type(alloc_obj_ft)
-
-        T_size = LLVM.IntType(sizeof(Csize_t)*8, ctx)
-
-        # get or create the malloc function
-        malloc = if haskey(functions(mod), "malloc")
-            functions(mod)["malloc"]
-        else
-            # should we attach some metadata here? julia.gc_alloc_obj has the following:
-            #let attrs = function_attributes(f)
-            #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
-            #    packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
-            #    push!(attrs, EnumAttribute("allocsize", packed_allocsize, ctx))
-            #end
-            #let attrs = return_attributes(f)
-            #    push!(attrs, EnumAttribute("noalias", 0, ctx))
-            #    push!(attrs, EnumAttribute("nonnull", 0, ctx))
-            #end
-            LLVM.Function(mod, "malloc", LLVM.FunctionType(T_prjlvalue, [T_size]))
-        end
+        T_pjlvalue = convert(LLVMType, Any, true)
 
         for use in uses(alloc_obj)
             call = user(use)
@@ -291,13 +273,12 @@ function lower_gc_frame!(fun::LLVM.Function)
             ops = collect(operands(call))
             sz = ops[2]
 
-            # replace with regular malloc
+            # replace with PTX alloc_obj
             let builder = Builder(ctx)
                 position!(builder, call)
-                if width(T_size) != width(llvmtype(sz))
-                    sz = zext!(builder, sz, T_size)
-                end
-                ptr = call!(builder, malloc, [sz])
+                ptr = call!(builder, Runtime.malloc, [sz])
+                ptr = inttoptr!(builder, ptr, T_pjlvalue)       # FIXME: avoid these and
+                ptr = addrspacecast!(builder, ptr, T_prjlvalue) #        call ptx_alloc_obj
                 replace_uses!(call, ptr)
                 dispose(builder)
             end
