@@ -15,6 +15,7 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         # NOTE: need to lower here, since the Julia lowering passes rely on the existence of
         #       unused intrinsics that otherwise get wiped by `link_library!`
         add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+        aggressive_dce!(pm) # remove dead uses of ptls
         add!(pm, ModulePass("LowerPTLS", lower_ptls!))
 
         ccall(:jl_add_optimization_passes, Cvoid,
@@ -252,7 +253,7 @@ function fixup_metadata!(f::LLVM.Function)
     end
 end
 
-# implement the `julia.gc_alloc_obj` intrinsic by calling malloc
+# lower the `julia.gc_alloc_obj` intrinsic to a call to PTX malloc
 function lower_gc_frame!(fun::LLVM.Function)
     ctx = LLVM.context(fun)
     mod = LLVM.parent(fun)
@@ -312,8 +313,13 @@ function lower_gc_frame!(fun::LLVM.Function)
     return changed
 end
 
-# HACK: implement the `julia.ptls_states` intrinsic by returning a dummy pointer,
-#       to avoid inline X86 assembly (should be a proper check and dead code removal)
+# lower the `julia.ptls_states` intrinsic by removing it, since it is GPU incompatible.
+#
+# this assumes and checks that the TLS is unused, which should be the case for most GPU code
+# after lowering the GC intrinsics to TLS-less code and having run DCE.
+#
+# TODO: maybe don't have Julia emit actual uses of the TLS, but use intrinsics instead,
+#       making it easier to remove or reimplement that functionality hre.
 function lower_ptls!(mod::LLVM.Module)
     ctx = LLVM.context(mod)
 
@@ -321,13 +327,12 @@ function lower_ptls!(mod::LLVM.Module)
 
     if haskey(functions(mod), "julia.ptls_states")
         ptls_getter = functions(mod)["julia.ptls_states"]
-        ptls_getter_ft = eltype(llvmtype(ptls_getter))
-        T_pppjlvalue = return_type(ptls_getter_ft)
 
         for use in uses(ptls_getter)
             call = user(use)
-            dummy = LLVM.UndefValue(T_pppjlvalue)
-            replace_uses!(call, dummy)
+            if !isempty(uses(call))
+                error("Thread local storage is not implemented")
+            end
             unsafe_delete!(LLVM.parent(call), call)
             changed = true
         end
