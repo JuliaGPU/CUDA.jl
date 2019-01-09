@@ -183,12 +183,12 @@ if VERSION >= v"1.0.2"
     # NOTE: this isn't fixed, but surfaces here due to bad inference of checked_sub
     # NOTE: with the fix to print_to_string this doesn't error anymore,
     #       but still have a test to make sure it doesn't regress
-    CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int})
-    CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int})
+    CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int}; optimize=false)
+    CUDAnative.code_llvm(devnull, Base.checked_sub, Tuple{Int,Int}; optimize=false)
 
     # breaking recursion in print_to_string makes it possible to compile
     # even in the presence of the above bug
-    CUDAnative.code_llvm(devnull, Base.print_to_string, Tuple{Int,Int})
+    CUDAnative.code_llvm(devnull, Base.print_to_string, Tuple{Int,Int}; optimize=false)
 end
 end
 
