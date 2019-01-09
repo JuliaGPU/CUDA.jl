@@ -273,8 +273,8 @@ function emit_exception!(builder, name, inst)
 
     # report the exception
     if Base.JLOptions().debug_level >= 1
+
         name = globalstring_ptr!(builder, name, "exception")
-        name = ptrtoint!(builder, name, Runtime.report_exception.llvm_types[1])
         if Base.JLOptions().debug_level == 1
             call!(builder, Runtime.report_exception, [name])
         else
@@ -289,9 +289,7 @@ function emit_exception!(builder, name, inst)
         for (i,frame) in enumerate(bt)
             idx = ConstantInt(rt.llvm_types[1], i)
             func = globalstring_ptr!(builder, String(frame.func), "di_func")
-            func = ptrtoint!(builder, func, rt.llvm_types[2])
             file = globalstring_ptr!(builder, String(frame.file), "di_file")
-            file = ptrtoint!(builder, file, rt.llvm_types[3])
             line = ConstantInt(rt.llvm_types[4], frame.line)
             call!(builder, rt, [idx, func, file, line])
         end

@@ -130,11 +130,26 @@ function LLVM.call!(builder, rt::Runtime.MethodInstance, args=LLVM.Value[])
     mod = LLVM.parent(f)
 
     # get or create a function prototype
-    f = if haskey(functions(mod), rt.name)
-        functions(mod)[rt.name]
+    if haskey(functions(mod), rt.name)
+        f = functions(mod)[rt.name]
+        ft = eltype(llvmtype(f))
     else
         ft = LLVM.FunctionType(rt.llvm_return_type, rt.llvm_types)
         f = LLVM.Function(mod, rt.name, ft)
+    end
+
+    # runtime functions are written in Julia, while we're calling from LLVM,
+    # this often results in argument type mismatches. try to fix some here.
+    for (i,arg) in enumerate(args)
+        if llvmtype(arg) != parameters(ft)[i]
+            if (llvmtype(arg) isa LLVM.PointerType) &&
+               (parameters(ft)[i] isa LLVM.IntegerType)
+                # Julia pointers are passed as integers
+                args[i] = ptrtoint!(builder, args[i], parameters(ft)[i])
+            else
+                error("Don't know how to convert ", arg, " argument to ", parameters(ft)[i])
+            end
+        end
     end
 
     call!(builder, f, args)
