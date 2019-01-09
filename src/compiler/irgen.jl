@@ -246,6 +246,9 @@ function irgen(ctx::CompilerContext)
 
     # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
     ModulePassManager() do pm
+        global global_ctx
+        global_ctx = ctx
+
         add!(pm, ModulePass("ReplaceThrow", replace_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         add!(pm, FunctionPass("HideTrap", hide_trap!))
@@ -313,8 +316,7 @@ end
 # TODO: replace with an early substitution of the `throw` builtin and let the Julia
 # optimizer get rid of the (now dead) allocations
 function replace_throw!(mod::LLVM.Module)
-    ctx = LLVM.context(mod)
-
+    ctx = global_ctx::CompilerContext
     changed = false
 
     # NOTE: module pass, since we delete functions
@@ -328,14 +330,14 @@ function replace_throw!(mod::LLVM.Module)
                    # FIXME: this is coarse
                    r"julia_throw_(.+)_\d+"]
             m = match(re, fn)
-            if m != nothing && return_type(ft) == LLVM.VoidType(ctx)
+            if m != nothing && return_type(ft) == LLVM.VoidType(JuliaContext())
                 ex = m.captures[1]
 
                 # replace uses of the original function with a call to the run-time
                 for use in uses(f)
                     call = user(use)
                     @assert isa(call, LLVM.CallInst)
-                    let builder = Builder(ctx)
+                    let builder = Builder(JuliaContext())
                         position!(builder, call)
                         emit_exception!(builder, String(ex), call)
                         dispose(builder)
@@ -364,8 +366,7 @@ end
 #
 # TODO: can LLVM do this (structured CFG)?
 function hide_unreachable!(fun::LLVM.Function)
-    ctx = LLVM.context(fun)
-
+    ctx = global_ctx::CompilerContext
     changed = false
 
     # remove `noreturn` attributes
@@ -373,7 +374,7 @@ function hide_unreachable!(fun::LLVM.Function)
     # when calling a `noreturn` function, LLVM places an `unreachable` after the call.
     # this leads to an early `ret` from the function.
     attrs = function_attributes(fun)
-    delete!(attrs, EnumAttribute("noreturn", 0, ctx))
+    delete!(attrs, EnumAttribute("noreturn", 0, JuliaContext()))
 
     # scan for unreachable terminators and alternative successors
     worklist = Pair{LLVM.BasicBlock, Union{Nothing,LLVM.BasicBlock}}[]
@@ -390,7 +391,7 @@ function hide_unreachable!(fun::LLVM.Function)
                 # TODO: `unreachable; unreachable`
             catch ex
                 isa(ex, UndefRefError) || rethrow(ex)
-                let builder = Builder(ctx)
+                let builder = Builder(JuliaContext())
                     position!(builder, bb)
 
                     # TODO: move to LLVM.jl
@@ -448,7 +449,7 @@ function hide_unreachable!(fun::LLVM.Function)
 
     # apply the pending terminator rewrites
     if !isempty(worklist)
-        let builder = Builder(ctx)
+        let builder = Builder(JuliaContext())
             for (bb, fallthrough) in worklist
                 position!(builder, bb)
                 if fallthrough !== nothing
@@ -457,7 +458,7 @@ function hide_unreachable!(fun::LLVM.Function)
                     # couldn't find any other successor. this happens with functions
                     # that only contain a single block, or when the block is dead.
                     ft = eltype(llvmtype(fun))
-                    if return_type(ft) == LLVM.VoidType(ctx)
+                    if return_type(ft) == LLVM.VoidType(JuliaContext())
                         # even though returning can lead to invalid control flow,
                         # it mostly happens with functions that just throw,
                         # and leaving the unreachable there would make the optimizer
@@ -478,20 +479,19 @@ end
 #
 # if LLVM knows we're trapping, code is marked `unreachable` (see `hide_unreachable!`).
 function hide_trap!(fun::LLVM.Function)
-    ctx = LLVM.context(fun)
+    ctx = global_ctx::CompilerContext
     mod = LLVM.parent(fun)
+    changed = false
 
     # inline assembly to exit a thread, hiding control flow from LLVM
-    exit_ft = LLVM.FunctionType(LLVM.VoidType(ctx))
+    exit_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()))
     exit = InlineAsm(exit_ft, "trap;", "", true)
-
-    changed = false
 
     for bb in blocks(fun)
         # replace calls to `trap` with inline assembly
         for inst in instructions(bb)
             if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
-                let builder = Builder(ctx)
+                let builder = Builder(JuliaContext())
                     position!(builder, inst)
                     call!(builder, exit)
                     dispose(builder)

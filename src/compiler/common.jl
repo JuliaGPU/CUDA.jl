@@ -18,6 +18,12 @@ struct CompilerContext
         new(f, tt, cap, kernel, minthreads, maxthreads, blocks_per_sm, maxregs)
 end
 
+# global context reference
+# FIXME: thread through `ctx` everywhere (deadlocks the Julia compiler when doing so with
+#        the LLVM passes in CUDAnative)
+global_ctx = nothing
+
+
 function signature(ctx::CompilerContext)
     fn = typeof(ctx.f).name.mt.name
     args = join(ctx.tt.parameters, ", ")

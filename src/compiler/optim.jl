@@ -8,6 +8,9 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     end
 
     let pm = ModulePassManager()
+        global global_ctx
+        global_ctx = ctx
+
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
         internalize!(pm, [LLVM.name(entry)])
@@ -255,9 +258,8 @@ end
 
 # lower the `julia.gc_alloc_obj` intrinsic to a call to PTX malloc
 function lower_gc_frame!(fun::LLVM.Function)
-    ctx = LLVM.context(fun)
+    ctx = global_ctx::CompilerContext
     mod = LLVM.parent(fun)
-
     changed = false
 
     if haskey(functions(mod), "julia.gc_alloc_obj")
@@ -274,7 +276,7 @@ function lower_gc_frame!(fun::LLVM.Function)
             sz = ops[2]
 
             # replace with PTX alloc_obj
-            let builder = Builder(ctx)
+            let builder = Builder(JuliaContext())
                 position!(builder, call)
                 ptr = call!(builder, Runtime.malloc, [sz])
                 ptr = inttoptr!(builder, ptr, T_pjlvalue)       # FIXME: avoid these and
@@ -288,7 +290,7 @@ function lower_gc_frame!(fun::LLVM.Function)
             changed = true
         end
 
-        @assert isempty(uses(alloc_obj))
+        @compiler_assert isempty(uses(alloc_obj)) ctx
     end
 
     return changed
@@ -302,8 +304,7 @@ end
 # TODO: maybe don't have Julia emit actual uses of the TLS, but use intrinsics instead,
 #       making it easier to remove or reimplement that functionality hre.
 function lower_ptls!(mod::LLVM.Module)
-    ctx = LLVM.context(mod)
-
+    ctx = global_ctx::CompilerContext
     changed = false
 
     if haskey(functions(mod), "julia.ptls_states")
@@ -318,7 +319,7 @@ function lower_ptls!(mod::LLVM.Module)
             changed = true
         end
 
-        @assert isempty(uses(ptls_getter))
+        @compiler_assert isempty(uses(ptls_getter)) ctx
      end
 
     return changed
