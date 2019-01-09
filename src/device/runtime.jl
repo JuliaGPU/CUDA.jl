@@ -23,7 +23,7 @@ struct MethodInstance
     llvm_types::Union{Nothing, Function}
 end
 
-instantiate(def, return_type, types; llvm_return_type=nothing, llvm_types=nothing,
+instantiate(def, return_type, types, llvm_return_type=nothing, llvm_types=nothing;
             name=String(typeof(def).name.mt.name)) =
     MethodInstance(def, name, return_type, types, llvm_return_type, llvm_types)
 
@@ -80,18 +80,26 @@ const report_exception_frame = instantiate(ptx_report_exception_frame, Nothing,
 
 ## GC
 
+@enum AddressSpace begin
+    Generic         = 1
+    Tracked         = 10
+    Derived         = 11
+    CalleeRooted    = 12
+    Loaded          = 13
+end
+
 # LLVM type of a tracked pointer
 function T_prjlvalue()
     T_pjlvalue = convert(LLVMType, Any, true)
-    LLVM.PointerType(eltype(T_pjlvalue), 10)
+    LLVM.PointerType(eltype(T_pjlvalue), Tracked)
 end
 
 function ptx_alloc_obj(sz::Csize_t)
     ptr = malloc(sz)
-    return unsafe_pointer_to_objref(ptr) # this returns a tracked pointer
+    return unsafe_pointer_to_objref(ptr)
 end
 
-const alloc_obj = instantiate(ptx_alloc_obj, Any, (Csize_t,); llvm_return_type=T_prjlvalue)
+const alloc_obj = instantiate(ptx_alloc_obj, Any, (Csize_t,), T_prjlvalue)
 
 
 end
