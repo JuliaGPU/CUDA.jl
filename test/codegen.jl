@@ -193,9 +193,9 @@ end
 end
 
 @testset "GC and TLS lowering" begin
-    # NOTE: this is a common pattern in Julia 0.7, where the throw is outlined to avoid a
-    #       GC frame in the calling code. However, that also means we typically can't trust
-    #       LLVM to optimize allocations away, so we need to support them.
+    # NOTE: this is a common pattern in Julia 0.7, where the throw is outlined to avoid a GC
+    #       frame in the calling code. However, that also means we typically can't rely on
+    #       LLVM to be able to optimize allocations away, so we need to support them.
     @noinline custom_throw(x) = throw(x)
     function kernel(i)
         if i > 0
