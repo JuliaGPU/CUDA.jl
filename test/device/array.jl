@@ -108,6 +108,19 @@ end
     ir = sprint(io->CUDAnative.code_llvm(io, oob_2d, (CuDeviceArray{Int,2,AS.Global},)))
     @test !occursin("julia_throw_boundserror", ir)
     @test occursin("ptx_report_exception", ir)
+
+    @testset "#313" begin
+        function kernel(dest)
+            dest[1] = 1
+            nothing
+        end
+        tt = Tuple{SubArray{Float64,2,CuDeviceArray{Float64,2,AS.Global},
+                            Tuple{UnitRange{Int64},UnitRange{Int64}},false}}
+
+        ir = sprint(io->CUDAnative.code_llvm(io, kernel, tt))
+        @test !occursin("jl_invoke", ir)
+        CUDAnative.code_ptx(devnull, kernel, tt)
+    end
 end
 
 @testset "views" begin
