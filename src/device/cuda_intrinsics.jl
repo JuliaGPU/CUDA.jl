@@ -7,11 +7,11 @@
 # yes: https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__DOUBLE.html
 # see /home/tbesard/CUDA/toolkit/current/include/sm_20_intrinsics.h
 
-include(joinpath("intrinsics", "memory_shared.jl"))
-include(joinpath("intrinsics", "indexing.jl"))
-include(joinpath("intrinsics", "synchronization.jl"))
-include(joinpath("intrinsics", "warp_vote.jl"))
-include(joinpath("intrinsics", "warp_shuffle.jl"))
-include(joinpath("intrinsics", "output.jl"))
-include(joinpath("intrinsics", "assertion.jl"))
-include(joinpath("intrinsics", "memory_dynamic.jl"))
+include(joinpath("cuda_intrinsics", "memory_shared.jl"))
+include(joinpath("cuda_intrinsics", "indexing.jl"))
+include(joinpath("cuda_intrinsics", "synchronization.jl"))
+include(joinpath("cuda_intrinsics", "warp_vote.jl"))
+include(joinpath("cuda_intrinsics", "warp_shuffle.jl"))
+include(joinpath("cuda_intrinsics", "output.jl"))
+include(joinpath("cuda_intrinsics", "assertion.jl"))
+include(joinpath("cuda_intrinsics", "memory_dynamic.jl"))
