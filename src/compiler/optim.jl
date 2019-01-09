@@ -15,8 +15,7 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         add_transform_info!(pm, tm)
         internalize!(pm, [LLVM.name(entry)])
 
-        # NOTE: need to lower here, since the Julia lowering passes rely on the existence of
-        #       unused intrinsics that otherwise get wiped by `link_library!`
+        # lower intrinsics
         add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
         aggressive_dce!(pm) # remove dead uses of ptls
         add!(pm, ModulePass("LowerPTLS", lower_ptls!))
@@ -278,9 +277,7 @@ function lower_gc_frame!(fun::LLVM.Function)
             # replace with PTX alloc_obj
             let builder = Builder(JuliaContext())
                 position!(builder, call)
-                ptr = call!(builder, Runtime.malloc, [sz])
-                ptr = inttoptr!(builder, ptr, T_pjlvalue)       # FIXME: avoid these and
-                ptr = addrspacecast!(builder, ptr, T_prjlvalue) #        call ptx_alloc_obj
+                ptr = call!(builder, Runtime.alloc_obj, [sz])
                 replace_uses!(call, ptr)
                 dispose(builder)
             end

@@ -66,13 +66,13 @@ function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)
         link_libdevice!(ctx, mod, libdevice)
     end
 
+    # optimize the IR
+    entry = optimize!(ctx, mod, entry)
+
     runtime = load_runtime(ctx.cap)
     if need_library(runtime)
         link_library!(ctx, mod, runtime)
     end
-
-    # optimize the IR
-    entry = optimize!(ctx, mod, entry)
 
     check_invocation(ctx, entry)
 

@@ -10,23 +10,39 @@ using LLVM
 
 struct MethodInstance
     def::Function
+    name::String
+
     return_type::Type
     types::Tuple
-    name::String
+
+    # LLVM types cannot be cached, so we can't put them in the method instance.
+    # the actual types are constructed upon accessing them based on a sentinel value:
+    #  - nothing: construct the LLVM type based on its Julia counterparts
+    #  - function: call this generator to get the type (when more control is needed)
+    llvm_return_type::Union{Nothing, Function}
+    llvm_types::Union{Nothing, Function}
 end
 
-instantiate(def, return_type, types, name=String(typeof(def).name.mt.name)) =
-    MethodInstance(def, return_type, types, name)
+instantiate(def, return_type, types; llvm_return_type=nothing, llvm_types=nothing,
+            name=String(typeof(def).name.mt.name)) =
+    MethodInstance(def, name, return_type, types, llvm_return_type, llvm_types)
 
 function Base.getproperty(rt::MethodInstance, field::Symbol)
-    # overloaded field accessor to get LLVM types (this only works at run-time,
-    # ie. after the method instance has been constructed and precompiled)
+    value = getfield(rt, field)
     if field == :llvm_types
-        LLVMType[convert.(LLVMType, typ) for typ in rt.types]
+        if value == nothing
+            LLVMType[convert.(LLVMType, typ) for typ in rt.types]
+        else
+            value()
+        end
     elseif field == :llvm_return_type
-        convert.(LLVMType, rt.return_type, true)
+        if value == nothing
+            convert.(LLVMType, rt.return_type)
+        else
+            value()
+        end
     else
-        return getfield(rt, field)
+        return value
     end
 end
 
@@ -64,19 +80,18 @@ const report_exception_frame = instantiate(ptx_report_exception_frame, Nothing,
 
 ## GC
 
+# LLVM type of a tracked pointer
+function T_prjlvalue()
+    T_pjlvalue = convert(LLVMType, Any, true)
+    LLVM.PointerType(eltype(T_pjlvalue), 10)
+end
+
 function ptx_alloc_obj(sz::Csize_t)
     ptr = malloc(sz)
     return unsafe_pointer_to_objref(ptr) # this returns a tracked pointer
 end
 
-const alloc_obj = instantiate(ptx_alloc_obj, Any, (Csize_t,))
-
-# sadly, due to how our runtime is constructed, we create the LLVM function prototype by
-# only looking at the Julia types. When doing `convert(LLVMType, Any)` (aka.
-# `julia_type_to_llvm`), we get a `jl_value_t*` that has lost its `addrspace(10)` tracking
-# information. for now, we just call malloc directly and reconstruct the addrspace manually
-
-const malloc = instantiate(CUDAnative.malloc, Ptr{Cvoid}, (Csize_t,))
+const alloc_obj = instantiate(ptx_alloc_obj, Any, (Csize_t,); llvm_return_type=T_prjlvalue)
 
 
 end

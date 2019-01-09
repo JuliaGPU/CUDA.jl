@@ -192,25 +192,6 @@ if VERSION >= v"1.0.2"
 end
 end
 
-@testset "GC and TLS lowering" begin
-    # NOTE: this is a common pattern in Julia 0.7, where the throw is outlined to avoid a GC
-    #       frame in the calling code. However, that also means we typically can't rely on
-    #       LLVM to be able to optimize allocations away, so we need to support them.
-    @noinline custom_throw(x) = throw(x)
-    function kernel(i)
-        if i > 0
-            custom_throw(BoundsError())
-        end
-        nothing
-    end
-
-    ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Int};
-                                         kernel=true, dump_module=true))
-    @test occursin("@malloc", ir)
-    @test !occursin("@jl_gc_", ir)
-    @test !occursin("ptls", ir)
-end
-
 end
 
 
@@ -389,6 +370,19 @@ end
     end
 
     CUDAnative.code_ptx(devnull, kernel, Tuple{Ptr{Float64}})
+end
+
+@testset "GC and TLS lowering" begin
+    # common pattern in Julia 0.7: outlined throw to avoid a GC frame in the calling code
+    @noinline custom_throw(x) = throw(x)
+    function kernel(i)
+        if i > 0
+            custom_throw(BoundsError())
+        end
+        nothing
+    end
+
+    CUDAnative.code_ptx(devnull, kernel, Tuple{Int})
 end
 
 end
