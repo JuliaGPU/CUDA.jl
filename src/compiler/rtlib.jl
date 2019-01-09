@@ -92,7 +92,7 @@ function emit_function!(mod, cap, f, types, name)
 end
 
 function build_runtime(cap)
-    @debug "Building CUDAnative run-time library for device capability $cap"
+    @info "Building CUDAnative run-time library for your device, this might take a while..."
     mod = LLVM.Module("CUDAnative run-time library", JuliaContext())
     for binding in names(Runtime; all=true)
         value = getfield(Runtime, binding)
