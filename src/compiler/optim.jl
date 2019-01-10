@@ -255,12 +255,20 @@ function fixup_metadata!(f::LLVM.Function)
     end
 end
 
-# lower the `julia.gc_alloc_obj` intrinsic to a call to PTX malloc
+# lower object allocations to to PTX malloc
+#
+# this is a PoC implementation that is very simple: allocate, and never free. it also runs
+# _before_ Julia's GC lowering passes, so we don't get to use the results of its analyses.
+# when we ever implement a more potent GC, we will need those results, but the relevant pass
+# is currently very architecture/CPU specific: hard-coded pool sizes, TLS references, etc.
+# such IR is hard to clean-up, so we probably will need to have the GC lowering pass emit
+# lower-level intrinsics which then can be lowered to architecture-specific code.
 function lower_gc_frame!(fun::LLVM.Function)
     ctx = global_ctx::CompilerContext
     mod = LLVM.parent(fun)
     changed = false
 
+    # plain alloc
     if haskey(functions(mod), "julia.gc_alloc_obj")
         alloc_obj = functions(mod)["julia.gc_alloc_obj"]
         alloc_obj_ft = eltype(llvmtype(alloc_obj))
@@ -288,6 +296,19 @@ function lower_gc_frame!(fun::LLVM.Function)
         end
 
         @compiler_assert isempty(uses(alloc_obj)) ctx
+    end
+
+    # we don't care about write barriers
+    if haskey(functions(mod), "julia.write_barrier")
+        barrier = functions(mod)["julia.write_barrier"]
+
+        for use in uses(barrier)
+            call = user(use)
+            unsafe_delete!(LLVM.parent(call), call)
+            changed = true
+        end
+
+        @compiler_assert isempty(uses(barrier)) ctx
     end
 
     return changed
