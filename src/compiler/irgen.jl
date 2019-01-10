@@ -360,7 +360,9 @@ end
 # through any other block. this is semantically invalid, but the code is unreachable anyhow
 # (and we expect it to be preceded by eg. a noreturn function, or a trap).
 #
-# TODO: can LLVM do this (structured CFG)?
+# TODO: can LLVM do this with structured CFGs? It seems to have some support, but seemingly
+#       only to prevent introducing non-structureness during optimization (ie. the front-end
+#       is still responsible for generating structured control flow).
 function hide_unreachable!(fun::LLVM.Function)
     ctx = global_ctx::CompilerContext
     changed = false
