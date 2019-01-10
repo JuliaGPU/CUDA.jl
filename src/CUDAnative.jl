@@ -28,7 +28,7 @@ include(joinpath("device", "pointer.jl"))
 include(joinpath("device", "array.jl"))
 include(joinpath("device", "libdevice.jl"))
 include(joinpath("device", "cuda_intrinsics.jl"))
-include(joinpath("device", "julia_intrinsics.jl"))
+include(joinpath("device", "runtime_intrinsics.jl"))
 
 include("compiler.jl")
 include("execution.jl")

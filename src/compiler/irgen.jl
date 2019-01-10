@@ -274,15 +274,15 @@ function emit_exception!(builder, name, inst)
 
         name = globalstring_ptr!(builder, name, "exception")
         if Base.JLOptions().debug_level == 1
-            call!(builder, Runtime.report_exception, [name])
+            call!(builder, Runtime.get(:report_exception), [name])
         else
-            call!(builder, Runtime.report_exception_name, [name])
+            call!(builder, Runtime.get(:report_exception_name), [name])
         end
     end
 
     # report each frame
     if Base.JLOptions().debug_level >= 2
-        rt = Runtime.report_exception_frame
+        rt = Runtime.get(:report_exception_frame)
         bt = backtrace(inst)
         for (i,frame) in enumerate(bt)
             idx = ConstantInt(rt.llvm_types[1], i)

@@ -81,61 +81,25 @@ end
 # CUDAnative run-time library
 #
 
-function emit_function!(mod, cap, f, types, name)
-    tt = Base.to_tuple_type(types)
-    ctx = CompilerContext(f, tt, cap, #= kernel =# false)
-    new_mod, entry = irgen(ctx)
-    entry = optimize!(ctx, new_mod, entry)
-    LLVM.name!(entry, name)
+# remove existing runtime libraries globally,
+# so any change to CUDAnative triggers recompilation
+rm(joinpath(@__DIR__, "..", "..", "deps", "runtime"); recursive=true, force=true)
 
-    link!(mod, new_mod)
-end
 
-function build_runtime(cap)
-    @info "Building CUDAnative run-time library for your device, this might take a while..."
-    mod = LLVM.Module("CUDAnative run-time library", JuliaContext())
-    for binding in names(Runtime; all=true)
-        value = getfield(Runtime, binding)
-        if value isa Runtime.MethodInstance
-            # TODO: check return type
-            emit_function!(mod, cap, value.def, value.types, value.name)
-        end
-    end
-    mod
-end
+## higher-level functionality to work with runtime functions
 
-function load_runtime(cap)
-    name = "cudanative.$(cap.major)$(cap.minor).bc"
-    path = joinpath(@__DIR__, "..", "..", "deps", "runtime", name)
-    mkpath(dirname(path))
-
-    get!(libcache, path) do
-        if ispath(path)
-            open(path) do io
-                parse(LLVM.Module, read(io), JuliaContext())
-            end
-        else
-            lib = build_runtime(cap)
-            open(path, "w") do io
-                write(io, lib)
-            end
-            lib
-        end
-    end
-end
-
-function LLVM.call!(builder, rt::Runtime.MethodInstance, args=LLVM.Value[])
+function LLVM.call!(builder, rt::Runtime.RuntimeMethodInstance, args=LLVM.Value[])
     bb = position(builder)
     f = LLVM.parent(bb)
     mod = LLVM.parent(f)
 
     # get or create a function prototype
-    if haskey(functions(mod), rt.name)
-        f = functions(mod)[rt.name]
+    if haskey(functions(mod), rt.llvm_name)
+        f = functions(mod)[rt.llvm_name]
         ft = eltype(llvmtype(f))
     else
         ft = LLVM.FunctionType(rt.llvm_return_type, rt.llvm_types)
-        f = LLVM.Function(mod, rt.name, ft)
+        f = LLVM.Function(mod, rt.llvm_name, ft)
     end
 
     # runtime functions are written in Julia, while we're calling from LLVM,
@@ -155,6 +119,46 @@ function LLVM.call!(builder, rt::Runtime.MethodInstance, args=LLVM.Value[])
     call!(builder, f, args)
 end
 
-# remove existing runtime libraries globally,
-# so any change to CUDAnative triggers recompilation
-rm(joinpath(@__DIR__, "..", "..", "deps", "runtime"); recursive=true, force=true)
+
+## functionality to build the runtime library
+
+function emit_function!(mod, cap, f, types, name)
+    tt = Base.to_tuple_type(types)
+    ctx = CompilerContext(f, tt, cap, #= kernel =# false)
+    new_mod, entry = irgen(ctx)
+    entry = optimize!(ctx, new_mod, entry)
+    LLVM.name!(entry, name)
+
+    link!(mod, new_mod)
+end
+
+function build_runtime(cap)
+    mod = LLVM.Module("CUDAnative run-time library", JuliaContext())
+
+    for method in values(Runtime.methods)
+        emit_function!(mod, cap, method.def, method.types, method.llvm_name)
+    end
+
+    mod
+end
+
+function load_runtime(cap)
+    name = "cudanative.$(cap.major)$(cap.minor).bc"
+    path = joinpath(@__DIR__, "..", "..", "deps", "runtime", name)
+    mkpath(dirname(path))
+
+    get!(libcache, path) do
+        if ispath(path)
+            open(path) do io
+                parse(LLVM.Module, read(io), JuliaContext())
+            end
+        else
+            @info "Building the CUDAnative run-time library for your sm_$(cap.major)$(cap.minor) device, this might take a while..."
+            lib = build_runtime(cap)
+            open(path, "w") do io
+                write(io, lib)
+            end
+            lib
+        end
+    end
+end
