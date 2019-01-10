@@ -130,6 +130,7 @@ function check_ir!(ctx, errors::Vector{IRError}, inst::LLVM.CallInst)
     elseif isa(dest, ConstantExpr)
         # detect calls to literal pointers
         # FIXME: can we detect these properly?
+        # FIXME: jl_apply_generic and jl_invoke also have such arguments
         if occursin("inttoptr", string(dest))
             # extract the literal pointer
             ptr_arg = first(operands(dest))
