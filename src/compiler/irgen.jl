@@ -311,6 +311,9 @@ end
 #
 # TODO: replace with an early substitution of the `throw` builtin and let the Julia
 # optimizer get rid of the (now dead) allocations
+#
+# TODO: this pass should now be unnecessary since we support allocations. however, it will
+#       need several runtime intrinsics before that actually works.
 function replace_throw!(mod::LLVM.Module)
     ctx = global_ctx::CompilerContext
     changed = false
