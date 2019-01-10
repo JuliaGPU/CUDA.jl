@@ -26,3 +26,15 @@ cufunc(::typeof(swish)) = x -> x * cufunc(σ)(x)
 end
 
 @cufunc softplus(x) = log1p(exp(x))
+
+if !@isdefined CUDNN
+  function conv!(y::CuArray, x::CuArray, w::CuArray; kw...)
+    error("CUDNN is not installed.")
+  end
+  function softmax!(out::CuVecOrMat, xs::CuVecOrMat)
+    error("CUDNN is not installed.")
+  end
+  function logsoftmax!(out::CuVecOrMat, xs::CuVecOrMat)
+    error("CUDNN is not installed.")
+  end
+end
