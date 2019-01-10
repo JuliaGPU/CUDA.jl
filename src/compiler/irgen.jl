@@ -21,9 +21,8 @@ const exception_arguments = Vector{LLVM.Value}()
 function raise_exception(insblock::BasicBlock, ex::Value)
     fun = LLVM.parent(insblock)
     mod = LLVM.parent(fun)
-    ctx = context(mod)
 
-    let builder = Builder(ctx)
+    let builder = Builder(JuliaContext())
         position!(builder, insblock)
         emit_exception!(builder, "unknown", ex)
         dispose(builder)
@@ -269,7 +268,6 @@ function emit_exception!(builder, name, inst)
     bb = position(builder)
     fun = LLVM.parent(bb)
     mod = LLVM.parent(fun)
-    ctx = LLVM.context(mod)
 
     # report the exception
     if Base.JLOptions().debug_level >= 1
@@ -298,7 +296,7 @@ function emit_exception!(builder, name, inst)
     trap = if haskey(functions(mod), "llvm.trap")
         functions(mod)["llvm.trap"]
     else
-        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(ctx)))
+        LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(JuliaContext())))
     end
     call!(builder, trap)
 end
