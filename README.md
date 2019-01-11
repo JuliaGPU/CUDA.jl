@@ -10,6 +10,13 @@
 
 CuArrays provides a fully-functional GPU array, which can give significant speedups over normal arrays without code changes. CuArrays are implemented fully in Julia, making the implementation [elegant and extremely generic](http://mikeinnes.github.io/2017/08/24/cudanative.html).
 
+Documentation for this package is sparse, and for many of the array operations you should
+refer to the official Julia documentation. The following resources can be useful to get a
+better understanding of the characteristics and performance trade offs that come with GPU
+arrays:
+
+- Introductory tutorial on [GPU programming with Julia](https://juliagpu.gitlab.io/CuArrays.jl/tutorials/intro.html)
+- Slide deck on [effectively using GPUs with Julia](https://docs.google.com/presentation/d/1l-BuAtyKgoVYakJSijaSqaTL3friESDyTOnU2OLqGoA/)
 
 ## Installation
 
