@@ -119,12 +119,12 @@ function T_prjlvalue()
     LLVM.PointerType(eltype(T_pjlvalue), Tracked)
 end
 
-function alloc_obj(sz::Csize_t)
+function gc_pool_alloc(sz::Csize_t)
     ptr = malloc(sz)
     return unsafe_pointer_to_objref(ptr)
 end
 
-compile(alloc_obj, Any, (Csize_t,), T_prjlvalue)
+compile(gc_pool_alloc, Any, (Csize_t,), T_prjlvalue)
 
 
 end

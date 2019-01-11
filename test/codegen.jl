@@ -389,7 +389,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, kernel, Tuple{Int}))
-    @test occursin("ptx_alloc_obj", asm)
+    @test occursin("ptx_gc_pool_alloc", asm)
     @test occursin("malloc", asm)
 end
 

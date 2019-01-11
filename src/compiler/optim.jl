@@ -285,7 +285,7 @@ function lower_gc_frame!(fun::LLVM.Function)
             # replace with PTX alloc_obj
             let builder = Builder(JuliaContext())
                 position!(builder, call)
-                ptr = call!(builder, Runtime.get(:alloc_obj), [sz])
+                ptr = call!(builder, Runtime.get(:gc_pool_alloc), [sz])
                 replace_uses!(call, ptr)
                 dispose(builder)
             end
