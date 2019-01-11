@@ -54,6 +54,10 @@ pages:
     - staging
     - trying
 
+pages:deploy:
+  only:
+    - master
+
 flux:
   stage: test
   image: "juliagpu/julia:v1.0-cuda"
