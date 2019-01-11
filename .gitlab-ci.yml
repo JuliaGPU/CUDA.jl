@@ -26,13 +26,10 @@ coverage:
     - staging
     - trying
 
-# custom 'pages' job that includes a tutorial
-pages:
-  stage: deploy
+docs:
   image: "juliagpu/julia:v1.0-${CI_IMAGE_TAG}"
   variables:
     DOCUMENTER_DEBUG: "true"
-    JULIA_NUM_THREADS: "4"
   dependencies:
     - test:v1.0
   script:
@@ -40,21 +37,41 @@ pages:
                                 Pkg.develop(PackageSpec(path=pwd()));
                                 Pkg.instantiate()'
     - julia --project=docs/ docs/make.jl
-    - mv docs/build public
-    - julia --project=tutorials/ -e 'using Pkg;
-                                     Pkg.develop(PackageSpec(path=pwd()));
-                                     Pkg.instantiate()'
-    - julia --project=tutorials/ tutorials/make.jl
-    - mv tutorials/build public/tutorials
   artifacts:
     paths:
-    - public
+    - docs/build
   only:
     - master
     - staging
     - trying
 
-pages:deploy:
+tutorial:
+  image: "juliagpu/julia:v1.0-${CI_IMAGE_TAG}"
+  variables:
+    JULIA_NUM_THREADS: "4"
+  dependencies:
+    - test:v1.0
+  script:
+    - julia --project=tutorials/ -e 'using Pkg;
+                                     Pkg.develop(PackageSpec(path=pwd()));
+                                     Pkg.instantiate()'
+    - julia --project=tutorials/ tutorials/make.jl
+  artifacts:
+    paths:
+    - tutorials/build
+  only:
+    - master
+    - staging
+    - trying
+
+pages:
+  stage: deploy
+  script:
+    - mv docs/build public
+    - mv tutorials/build public/tutorials
+  artifacts:
+    paths:
+    - public
   only:
     - master
 
