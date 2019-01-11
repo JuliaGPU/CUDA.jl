@@ -2,10 +2,11 @@ variables:
   CI_IMAGE_TAG: 'cuda'
 
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/common.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/test_v1.0.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v1/coverage_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/common.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_v1.0.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_dev.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/documentation_dev.yml'
 
 test:v1.0:
   only:
@@ -26,26 +27,14 @@ coverage:
     - staging
     - trying
 
-docs:
-  image: "juliagpu/julia:v1.0-${CI_IMAGE_TAG}"
-  variables:
-    DOCUMENTER_DEBUG: "true"
-  dependencies:
-    - test:v1.0
-  script:
-    - julia --project=docs/ -e 'using Pkg;
-                                Pkg.develop(PackageSpec(path=pwd()));
-                                Pkg.instantiate()'
-    - julia --project=docs/ docs/make.jl
-  artifacts:
-    paths:
-    - docs/build
+documentation:
   only:
     - master
     - staging
     - trying
 
 tutorial:
+  stage: post
   image: "juliagpu/julia:v1.0-${CI_IMAGE_TAG}"
   variables:
     JULIA_NUM_THREADS: "4"
