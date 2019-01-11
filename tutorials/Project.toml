@@ -1,0 +1,6 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+CUDAdrv = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
+CUDAnative = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Weave = "44d3d7a6-8a23-5bf8-98c5-b353f8df5ec9"

@@ -6,7 +6,7 @@ using CUDAdrv, CUDAnative
 
 using GPUArrays
 
-export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones
+export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones, cufill
 
 import LinearAlgebra
 
