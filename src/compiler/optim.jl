@@ -355,8 +355,8 @@ function lower_relocations!(mod::LLVM.Module)
             # look-up the current type tag
             type_name = m.captures[1]
             type_sym = Symbol("jl_$(type_name)_type")
-            type_ptr = @eval cglobal($(QuoteNode(type_sym)))
-            type_tag = unsafe_load(convert(Ptr{UInt64}, type_ptr))
+            type_ptr = ccall(:jl_cglobal, Any, (Any, Any), type_sym, UInt64)
+            type_tag = unsafe_load(type_ptr)
 
             # replace uses of the relocation with a constant value
             val = LLVM.ConstantInt(type_tag, JuliaContext())
