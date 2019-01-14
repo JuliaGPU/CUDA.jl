@@ -342,3 +342,36 @@ function lower_ptls!(mod::LLVM.Module)
 
     return changed
 end
+
+# lower pseudo-calls to `late_...` to their actual values
+function lower_relocations!(mod::LLVM.Module)
+    ctx = global_ctx::CompilerContext
+    changed = false
+
+    for f in functions(mod)
+        # type tags
+        m = match(r"^late_jl_(.+)_type$", LLVM.name(f))
+        if m !== nothing
+            # look-up the current type tag
+            type_name = m.captures[1]
+            type_sym = Symbol("jl_$(type_name)_type")
+            type_ptr = @eval cglobal($(QuoteNode(type_sym)))
+            type_tag = unsafe_load(convert(Ptr{UInt64}, type_ptr))
+
+            # replace uses of the relocation with a constant value
+            val = LLVM.ConstantInt(type_tag, JuliaContext())
+            for use in uses(f)
+                call = user(use)::LLVM.CallInst
+                replace_uses!(call, val)
+                unsafe_delete!(LLVM.parent(call), call)
+            end
+
+            # remove the original function or declaration
+            @assert isempty(uses(f))
+            unsafe_delete!(mod, f)
+            changed = true
+        end
+    end
+
+    return changed
+end

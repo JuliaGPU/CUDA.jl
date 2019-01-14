@@ -7,6 +7,7 @@ module Runtime
 
 using ..CUDAnative
 using LLVM
+using LLVM.Interop
 
 
 ## representation of a runtime method instance
@@ -74,6 +75,38 @@ function compile(def, return_type, types, llvm_return_type=nothing, llvm_types=n
 end
 
 
+## auxiliary functionality
+
+# something that resembles a relocation
+#
+# calling this function results in a call to a non-existing `late_` function returning `T`.
+#
+# this mechanism can be used to cache code with values that are only known at run-time,
+# such as the values of type tags as used by the Julia runtime library.
+@generated function relocation(::Val{symbol}, ::Type{T}) where {symbol, T}
+    T_ret = convert(LLVMType, T)
+
+    # create function
+    llvm_f, _ = create_function(T_ret)
+    mod = LLVM.parent(llvm_f)
+
+    # get the intrinsic
+    reloc = LLVM.Function(mod, "late_" * String(symbol), LLVM.FunctionType(T_ret))
+
+    # generate IR
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
+        position!(builder, entry)
+
+        val = call!(builder, reloc)
+
+        ret!(builder, val)
+    end
+
+    call_function(llvm_f, T)
+end
+
+
 ## exception handling
 
 function report_exception(ex)
@@ -125,6 +158,42 @@ function gc_pool_alloc(sz::Csize_t)
 end
 
 compile(gc_pool_alloc, Any, (Csize_t,), T_prjlvalue)
+
+
+## boxing
+
+const tag_size = 8
+const gc_bits = 0x3 # FIXME: how should we mark these?
+
+@generated function box(val, ::Val{type_name}) where type_name
+    sz = sizeof(val)
+    allocsz = sz + tag_size
+
+    # FIXME: type tags aren't stable across Julia sessions, so we can't just look it up here
+    #        and embed the current value in the IR. Instead, use a relocation.
+    #tag = unsafe_load(convert(Ptr{UInt64}, type_name))
+    tag = :( relocation(Val(type_name), UInt64) )
+
+    quote
+        Base.@_inline_meta
+
+        ptr = malloc($(Csize_t(allocsz)))
+
+        # store the type tag
+        ptr = convert(Ptr{UInt64}, ptr)
+        Core.Intrinsics.pointerset(ptr, $tag | $gc_bits, #=index=# 1, #=align=# $tag_size)
+
+        # store the value
+        ptr = convert(Ptr{$val}, ptr+tag_size)
+        Core.Intrinsics.pointerset(ptr, val, #=index=# 1, #=align=# $sz)
+
+        unsafe_pointer_to_objref(ptr)
+    end
+end
+
+box_uint64(val) = box(val, Val(:jl_uint64_type))
+
+compile(box_uint64, Any, (UInt64,), T_prjlvalue; llvm_name="jl_box_uint64")
 
 
 end

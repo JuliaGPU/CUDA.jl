@@ -162,3 +162,12 @@ function load_runtime(cap)
         end
     end
 end
+
+function link_runtime!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
+    link_library!(ctx, mod, lib)
+
+    ModulePassManager() do pm
+        add!(pm, ModulePass("LowerRelocations", lower_relocations!))
+        run!(pm, mod)
+    end
+end
