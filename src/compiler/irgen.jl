@@ -271,7 +271,6 @@ function emit_exception!(builder, name, inst)
 
     # report the exception
     if Base.JLOptions().debug_level >= 1
-
         name = globalstring_ptr!(builder, name, "exception")
         if Base.JLOptions().debug_level == 1
             call!(builder, Runtime.get(:report_exception), [name])
@@ -334,8 +333,7 @@ function replace_throw!(mod::LLVM.Module)
 
                 # replace uses of the original function with a call to the run-time
                 for use in uses(f)
-                    call = user(use)
-                    @assert isa(call, LLVM.CallInst)
+                    call = user(use)::LLVM.CallInst
                     let builder = Builder(JuliaContext())
                         position!(builder, call)
                         emit_exception!(builder, String(ex), call)

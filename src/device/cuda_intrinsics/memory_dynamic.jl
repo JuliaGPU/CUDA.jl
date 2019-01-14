@@ -15,14 +15,14 @@ export malloc
     # NOTE: LLVM doesn't have void*, Clang uses i8* for malloc too
     intr = LLVM.Function(mod, "malloc", LLVM.FunctionType(T_pint8, [T_size]))
     # should we attach some metadata here? julia.gc_alloc_obj has the following:
-    #let attrs = function_attributes(f)
+    #let attrs = function_attributes(intr)
     #    AllocSizeNumElemsNotPresent = reinterpret(Cuint, Cint(-1))
     #    packed_allocsize = Int64(1) << 32 | AllocSizeNumElemsNotPresent
-    #    push!(attrs, EnumAttribute("allocsize", packed_allocsize, ctx))
+    #    push!(attrs, EnumAttribute("allocsize", packed_allocsize, JuliaContext()))
     #end
-    #let attrs = return_attributes(f)
-    #    push!(attrs, EnumAttribute("noalias", 0, ctx))
-    #    push!(attrs, EnumAttribute("nonnull", 0, ctx))
+    #let attrs = return_attributes(intr)
+    #    push!(attrs, EnumAttribute("noalias", 0, JuliaContext()))
+    #    push!(attrs, EnumAttribute("nonnull", 0, JuliaContext()))
     #end
 
     # generate IR

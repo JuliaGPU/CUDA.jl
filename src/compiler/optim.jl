@@ -320,7 +320,7 @@ end
 # after lowering the GC intrinsics to TLS-less code and having run DCE.
 #
 # TODO: maybe don't have Julia emit actual uses of the TLS, but use intrinsics instead,
-#       making it easier to remove or reimplement that functionality hre.
+#       making it easier to remove or reimplement that functionality here.
 function lower_ptls!(mod::LLVM.Module)
     ctx = global_ctx::CompilerContext
     changed = false
