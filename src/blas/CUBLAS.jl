@@ -28,13 +28,6 @@ function handle()
     return _handle[]
 end
 
-@enum CUBLASMathMode::Cint begin
-   CUBLAS_DEFAULT_MATH = 0
-   CUBLAS_TENSOR_OP_MATH = 1
-end
-
-setmathmode(mode::CUBLASMathMode) = @check ccall((:cublasSetMathMode, libcublas), cublasStatus_t, (cublasHandle_t, Cint), handle(), Cint(mode))
-
 include("libcublas.jl")
 include("util.jl")
 include("wrappers.jl")
