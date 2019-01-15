@@ -77,6 +77,23 @@ end
   @test Array(Whatever{Int}.(CuArray([1]))) == Whatever{Int}.([1])
 end
 
+@testset "Cufunc" begin
+  gelu(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
+  sig(x) = one(x) / (one(x) + exp(-x))
+  f(x) = gelu(log(x)) * sig(x) * tanh(x)
+
+  CuArrays.@cufunc gelu(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
+  CuArrays.@cufunc sig(x) = one(x) / (one(x) + exp(-x))
+  CuArrays.@cufunc f(x) = gelu(log(x)) * sig(x) * tanh(x)
+
+  @test :gelu ∈ CuArrays.cufuncs()
+  @test :sig ∈ CuArrays.cufuncs()
+  @test :f ∈ CuArrays.cufuncs()
+  @test testf((x)  -> gelu.(x), rand(3,3))
+  @test testf((x)  -> sig.(x),  rand(3,3))
+  @test testf((x)  -> f.(x),    rand(3,3))
+end
+
 # https://github.com/JuliaGPU/CUDAnative.jl/issues/223
 @testset "Ref Broadcast" begin
   foobar(idx, A) = A[idx]
