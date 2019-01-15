@@ -93,22 +93,6 @@ end
 end
 
 @testset "bounds checking" begin
-    function oob_1d(array)
-        return array[1]
-    end
-
-    ir = sprint(io->CUDAnative.code_llvm(io, oob_1d, (CuDeviceArray{Int,1,AS.Global},)))
-    @test !occursin("julia_throw_boundserror", ir)
-    @test occursin("ptx_report_exception", ir)
-
-    function oob_2d(array)
-        return array[1, 1]
-    end
-
-    ir = sprint(io->CUDAnative.code_llvm(io, oob_2d, (CuDeviceArray{Int,2,AS.Global},)))
-    @test !occursin("julia_throw_boundserror", ir)
-    @test occursin("ptx_report_exception", ir)
-
     @testset "#313" begin
         function kernel(dest)
             dest[1] = 1

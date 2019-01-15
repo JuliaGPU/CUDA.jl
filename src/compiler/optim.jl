@@ -67,10 +67,6 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     let pm = ModulePassManager()
         dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
 
-        global_optimizer!(pm)
-        global_dce!(pm)
-        strip_dead_prototypes!(pm)
-
         run!(pm, mod)
         dispose(pm)
     end

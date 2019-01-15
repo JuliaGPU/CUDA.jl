@@ -7,6 +7,7 @@ module Runtime
 
 using ..CUDAnative
 using LLVM
+using LLVM.Interop
 
 
 ## representation of a runtime method instance
@@ -102,6 +103,15 @@ end
 compile(report_exception_frame, Nothing, (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
 compile(report_exception_name, Nothing, (Ptr{Cchar},))
 
+function bounds_error_unboxed_int(data, vt, i)
+    @cuprintf("ERROR: a bounds error occurred during kernel execution.")
+    # FIXME: have this call emit_exception somehow
+    return
+end
+
+compile(bounds_error_unboxed_int, Nothing, (Ptr{Cvoid}, Any, Csize_t);
+        llvm_name="jl_bounds_error_unboxed_int")
+
 
 ## GC
 
@@ -125,6 +135,85 @@ function gc_pool_alloc(sz::Csize_t)
 end
 
 compile(gc_pool_alloc, Any, (Csize_t,), T_prjlvalue)
+
+
+## boxing and unboxing
+
+const tag_type = UInt
+const tag_size = sizeof(tag_type)
+
+const gc_bits = 0x3 # FIXME
+
+# get the type tag of a type at run-time
+@generated function type_tag(::Val{type_name}) where type_name
+    T_tag = convert(LLVMType, tag_type)
+    T_ptag = LLVM.PointerType(T_tag)
+
+    T_pjlvalue = convert(LLVMType, Any, true)
+
+    # create function
+    llvm_f, _ = create_function(T_tag)
+    mod = LLVM.parent(llvm_f)
+
+    # this isn't really a function, but we abuse it to get the JIT to resolve the address
+    typ = LLVM.Function(mod, "jl_" * String(type_name) * "_type",
+                        LLVM.FunctionType(T_pjlvalue))
+
+    # generate IR
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
+        position!(builder, entry)
+
+        typ_var = bitcast!(builder, typ, T_ptag)
+
+        tag = load!(builder, typ_var)
+
+        ret!(builder, tag)
+    end
+
+    call_function(llvm_f, tag_type)
+end
+
+# we use `jl_value_ptr`, a Julia pseudo-intrinsic that can be used to box and unbox values
+
+@generated function box(val, ::Val{type_name}) where type_name
+    sz = sizeof(val)
+    allocsz = sz + tag_size
+
+    # type-tags are ephemeral, so look them up at run time
+    #tag = unsafe_load(convert(Ptr{tag_type}, type_name))
+    tag = :( type_tag(Val(type_name)) )
+
+    quote
+        Base.@_inline_meta
+
+        ptr = malloc($(Csize_t(allocsz)))
+
+        # store the type tag
+        ptr = convert(Ptr{tag_type}, ptr)
+        Core.Intrinsics.pointerset(ptr, $tag | $gc_bits, #=index=# 1, #=align=# $tag_size)
+
+        # store the value
+        ptr = convert(Ptr{$val}, ptr+tag_size)
+        Core.Intrinsics.pointerset(ptr, val, #=index=# 1, #=align=# $sz)
+
+        unsafe_pointer_to_objref(ptr)
+    end
+end
+
+@inline function unbox(obj, ::Type{T}) where T
+    ptr = ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), obj)
+
+    # load the value
+    ptr = convert(Ptr{T}, ptr)
+    Core.Intrinsics.pointerref(ptr, #=index=# 1, #=align=# sizeof(T))
+end
+
+box_uint64(val)   = box(UInt64(val), Val(:uint64))
+unbox_uint64(obj) = unbox(obj, UInt64)
+
+compile(box_uint64, Any, (UInt64,), T_prjlvalue; llvm_name="jl_box_uint64")
+compile(unbox_uint64, UInt64, (Any,); llvm_name="jl_unbox_uint64")
 
 
 end
