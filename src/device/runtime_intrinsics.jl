@@ -103,6 +103,15 @@ end
 compile(report_exception_frame, Nothing, (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
 compile(report_exception_name, Nothing, (Ptr{Cchar},))
 
+function bounds_error_unboxed_int(data, vt, i)
+    @cuprintf("ERROR: a bounds error occurred during kernel execution.")
+    # FIXME: have this call emit_exception somehow
+    return
+end
+
+compile(bounds_error_unboxed_int, Nothing, (Ptr{Cvoid}, Any, Csize_t);
+        llvm_name="jl_bounds_error_unboxed_int")
+
 
 ## GC
 
@@ -128,7 +137,7 @@ end
 compile(gc_pool_alloc, Any, (Csize_t,), T_prjlvalue)
 
 
-## boxing
+## boxing and unboxing
 
 const tag_type = UInt
 const tag_size = sizeof(tag_type)

@@ -248,7 +248,6 @@ function irgen(ctx::CompilerContext)
         global global_ctx
         global_ctx = ctx
 
-        add!(pm, ModulePass("ReplaceThrow", replace_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         add!(pm, FunctionPass("HideTrap", hide_trap!))
         always_inliner!(pm)
@@ -298,60 +297,6 @@ function emit_exception!(builder, name, inst)
         LLVM.Function(mod, "llvm.trap", LLVM.FunctionType(LLVM.VoidType(JuliaContext())))
     end
     call!(builder, trap)
-end
-
-# HACK: this pass replaces `julia_throw_*` void functions with a PTX-compatible print
-#
-# the actual call to `jl_throw` within these functions has already been replaced by
-# `raise_exception`, but there's two reasons we also replace the containing function
-# (matched by name): because we can discover the exception name from the function name (eg.
-# `jl_throw_foobar`), and because these functions are typically `@noinline` since they
-# contain code that allocates.
-#
-# TODO: replace with an early substitution of the `throw` builtin and let the Julia
-# optimizer get rid of the (now dead) allocations
-#
-# TODO: this pass should now be unnecessary since we support allocations. however, it will
-#       need several runtime intrinsics before that actually works.
-function replace_throw!(mod::LLVM.Module)
-    ctx = global_ctx::CompilerContext
-    changed = false
-
-    # NOTE: module pass, since we delete functions
-    for f in collect(functions(mod))
-        fn = LLVM.name(f)
-        ft = eltype(llvmtype(f))
-
-        for re in [# common exceptions as defined in the runtime
-                   r"jl_(bounds_error)_.+",
-                   # user-code throw functions
-                   # FIXME: this is coarse
-                   r"julia_throw_(.+)_\d+"]
-            m = match(re, fn)
-            if m != nothing && return_type(ft) == LLVM.VoidType(JuliaContext())
-                ex = m.captures[1]
-
-                # replace uses of the original function with a call to the run-time
-                for use in uses(f)
-                    call = user(use)::LLVM.CallInst
-                    let builder = Builder(JuliaContext())
-                        position!(builder, call)
-                        emit_exception!(builder, String(ex), call)
-                        dispose(builder)
-                    end
-                    unsafe_delete!(LLVM.parent(call), call)
-                end
-
-                # remove the original function or declaration
-                @assert isempty(uses(f))
-                unsafe_delete!(mod, f)
-
-                changed = true
-            end
-        end
-    end
-
-    return changed
 end
 
 # HACK: this pass removes `unreachable` information from LLVM
