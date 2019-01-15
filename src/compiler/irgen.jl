@@ -243,7 +243,7 @@ function irgen(ctx::CompilerContext)
     llvmfn *= "_$globalUnique"
     LLVM.name!(entry, llvmfn)
 
-    # minimal optimization to get rid of useless generated code (llvmcall, kernel wrapper)
+    # minimal required optimization
     ModulePassManager() do pm
         global global_ctx
         global_ctx = ctx
