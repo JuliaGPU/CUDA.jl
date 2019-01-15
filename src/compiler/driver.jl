@@ -49,8 +49,6 @@ function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     @debug "(Re)compiling function" ctx
 
-    check_method(ctx)
-
 
     ## low-level code generation (LLVM IR)
 

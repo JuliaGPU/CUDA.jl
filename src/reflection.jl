@@ -28,7 +28,6 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
                    kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    check_method(ctx)
     code_llvm(io, ctx; optimize=optimize, dump_module=dump_module,
               strip_ir_metadata=strip_ir_metadata)
 end
@@ -68,7 +67,6 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
                   strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    check_method(ctx)
     code_ptx(io, ctx)
 end
 function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
@@ -95,7 +93,6 @@ function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
                    cap::VersionNumber=current_capability(), kernel::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    check_method(ctx)
     code_sass(io, ctx)
 end
 function code_sass(io::IO, ctx::CompilerContext)
