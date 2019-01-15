@@ -390,7 +390,6 @@ end
 
     asm = sprint(io->CUDAnative.code_ptx(io, kernel, Tuple{Int}))
     @test occursin("ptx_gc_pool_alloc", asm)
-    @test occursin("malloc", asm)
 end
 
 end
@@ -435,12 +434,12 @@ end
     @test occursin(r"\[2\] .+foobar", bt_msg)
 end
 
-# some validation happens in `compile`, which is called by `code_ptx`
+# some validation happens in `compile`
 
 @testset "non-isbits arguments" begin
-    foobar(i) = sink(unsafe_trunc(Int,i))
+    foobar(i) = (sink(unsafe_trunc(Int,i)); return)
 
-    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_ptx(foobar, Tuple{BigInt})) do msg
+    @test_throws_message(CUDAnative.KernelError, CUDAnative.compile(v"3.5", foobar, Tuple{BigInt})) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("BigInt", msg)
     end
@@ -449,7 +448,7 @@ end
 @testset "invalid LLVM IR" begin
     foobar(i) = println(i)
 
-    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.code_ptx(foobar, Tuple{Int})) do msg
+    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.compile(v"3.5", foobar, Tuple{Int})) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.RUNTIME_FUNCTION, msg) &&
         occursin("[1] println", msg) &&
@@ -460,7 +459,7 @@ end
 @testset "invalid LLVM IR (ccall)" begin
     foobar(p) = (unsafe_store!(p, ccall(:time, Cint, ())); nothing)
 
-    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.code_ptx(foobar, Tuple{Ptr{Int}})) do msg
+    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.compile(v"3.5", foobar, Tuple{Ptr{Int}})) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.POINTER_FUNCTION, msg) &&
         occursin(r"\[1\] .+foobar", msg)

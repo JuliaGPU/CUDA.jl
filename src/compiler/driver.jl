@@ -12,21 +12,10 @@ function module respectively of type `CuFuction` and `CuModule`.
 For a list of supported keyword arguments, refer to the documentation of
 [`cufunction`](@ref).
 """
-function compile(dev::CuDevice, @nospecialize(f), @nospecialize(tt);
-                 strip_ir_metadata::Bool=false, kwargs...)
+function compile(dev::CuDevice, @nospecialize(f::Core.Function), @nospecialize(tt); kwargs...)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
-    isa(f, Core.Function) || throw(ArgumentError("Kernel argument to `compile` should be a function."))
 
-    ctx = CompilerContext(f, tt, supported_capability(dev), #=kernel=# true; kwargs...)
-
-    if compile_hook[] != nothing
-        global globalUnique
-        previous_globalUnique = globalUnique
-        compile_hook[](ctx)
-        globalUnique = previous_globalUnique
-    end
-
-    (module_asm, module_entry) = compile(ctx; strip_ir_metadata=strip_ir_metadata)
+    module_asm, module_entry = compile(supported_capability(dev), f, tt; kwargs...)
 
     # enable debug options based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
@@ -41,10 +30,29 @@ function compile(dev::CuDevice, @nospecialize(f), @nospecialize(tt);
     return cuda_fun, cuda_mod
 end
 
-# Compile a function to PTX, returning the assembly and an entry point.
-# FIXME: this pipeline should be partially reusable from eg. code_llvm
-#        also, does the kernel argument belong in the compiler context?
-function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)
+# same as above, but without an active device
+function compile(cap::VersionNumber, @nospecialize(f), @nospecialize(tt);
+                 kernel=true, kwargs...)
+    ctx = CompilerContext(f, tt, cap, kernel; kwargs...)
+
+    return compile(ctx)
+end
+
+function compile(ctx::CompilerContext)
+    if compile_hook[] != nothing
+        hook = compile_hook[]
+        compile_hook[] = nothing
+
+        global globalUnique
+        previous_globalUnique = globalUnique
+
+        hook(ctx)
+
+        globalUnique = previous_globalUnique
+        compile_hook[] = hook
+    end
+
+
     ## high-level code generation (Julia AST)
 
     @debug "(Re)compiling function" ctx
@@ -79,10 +87,6 @@ function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)
     # check generated IR
     check_ir(ctx, mod)
     verify(mod)
-
-    if strip_ir_metadata
-        strip_debuginfo!(mod)
-    end
 
 
     ## machine code generation (PTX assembly)

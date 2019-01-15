@@ -7,6 +7,10 @@ using InteractiveUtils
 # code_* replacements
 #
 
+# NOTE: these functions replicate parts of the main compiler driver in order to generate
+#       more compact code (i.e. without the run-time library) and/or to support generating
+#       otherwise invalid code (e.g. with missing symbols).
+
 """
     code_llvm([io], f, types; optimize=true, cap::VersionNumber, kernel=true,
                               dump_module=false, strip_ir_metadata=true)
@@ -38,7 +42,6 @@ function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
         entry = optimize!(ctx, mod, entry)
     end
     if strip_ir_metadata
-        # FIXME: use a/Julia's modified ASM printer to add source location comments
         strip_debuginfo!(mod)
     end
     if dump_module
@@ -67,12 +70,16 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
                   strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    code_ptx(io, ctx)
+    code_ptx(io, ctx; strip_ir_metadata=strip_ir_metadata)
 end
 function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
-    ptx,_ = compile(ctx; strip_ir_metadata=strip_ir_metadata)
-    # TODO: this code contains all the functions in the call chain,
-    #       is it possible to implement `dump_module`?
+    mod, entry = irgen(ctx)
+    entry = optimize!(ctx, mod, entry)
+    if strip_ir_metadata
+        strip_debuginfo!(mod)
+    end
+    prepare_execution!(ctx, mod)
+    ptx = mcgen(ctx, mod, entry)
     print(io, ptx)
 end
 code_ptx(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =

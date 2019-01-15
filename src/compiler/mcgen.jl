@@ -27,10 +27,10 @@ function prepare_execution!(ctx::CompilerContext, mod::LLVM.Module)
         global_ctx = ctx
 
         global_optimizer!(pm)
-        global_dce!(pm)
 
         add!(pm, ModulePass("ResolveCPUReferences", resolve_cpu_references!))
 
+        global_dce!(pm)
         strip_dead_prototypes!(pm)
 
         run!(pm, mod)
@@ -70,6 +70,7 @@ function resolve_cpu_references!(mod::LLVM.Module)
                     elseif isa(target, LLVM.LoadInst)
                         # resolve
                         replace_uses!(target, dereferenced)
+                        unsafe_delete!(LLVM.parent(target), target)
                         changed = true
                     end
                 end
@@ -77,10 +78,6 @@ function resolve_cpu_references!(mod::LLVM.Module)
             end
 
             changed |= replace_bindings!(f)
-
-            if isempty(uses(f))
-                unsafe_delete!(mod, f)
-            end
         end
     end
 
