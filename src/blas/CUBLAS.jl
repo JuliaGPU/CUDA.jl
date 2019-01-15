@@ -20,6 +20,13 @@ function handle()
         _handle[] = get!(_handles, active_context[]) do
             context = active_context[]
             handle = cublasCreate_v2()
+
+            # enable tensor math mode if our device supports it, and fast math is enabled
+            dev = CUDAdrv.device(context)
+            if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0"
+              cublasSetMathMode(CUBLAS_TENSOR_OP_MATH, handle)
+            end
+
             atexit(()->CUDAdrv.isvalid(context) && cublasDestroy_v2(handle))
             handle
         end

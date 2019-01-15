@@ -97,3 +97,8 @@ if CUDAdrv.version() >= v"0.7.5"
     const CUDA_R_32U = UInt32(12)
     const CUDA_C_32U = UInt32(13)
 end
+
+@enum CUBLASMathMode::Cint begin
+   CUBLAS_DEFAULT_MATH = 0
+   CUBLAS_TENSOR_OP_MATH = 1
+end
