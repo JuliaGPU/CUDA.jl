@@ -75,38 +75,6 @@ function compile(def, return_type, types, llvm_return_type=nothing, llvm_types=n
 end
 
 
-## auxiliary functionality
-
-# something that resembles a relocation
-#
-# calling this function results in a call to a non-existing `late_` function returning `T`.
-#
-# this mechanism can be used to cache code with values that are only known at run-time,
-# such as the values of type tags as used by the Julia runtime library.
-@generated function relocation(::Val{symbol}, ::Type{T}) where {symbol, T}
-    T_ret = convert(LLVMType, T)
-
-    # create function
-    llvm_f, _ = create_function(T_ret)
-    mod = LLVM.parent(llvm_f)
-
-    # get the intrinsic
-    reloc = LLVM.Function(mod, "late_" * String(symbol), LLVM.FunctionType(T_ret))
-
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
-
-        val = call!(builder, reloc)
-
-        ret!(builder, val)
-    end
-
-    call_function(llvm_f, T)
-end
-
-
 ## exception handling
 
 function report_exception(ex)
@@ -162,17 +130,50 @@ compile(gc_pool_alloc, Any, (Csize_t,), T_prjlvalue)
 
 ## boxing
 
-const tag_size = 8
-const gc_bits = 0x3 # FIXME: how should we mark these?
+const tag_type = UInt
+const tag_size = sizeof(tag_type)
+
+const gc_bits = 0x3 # FIXME
+
+# get the type tag of a type at run-time
+@generated function type_tag(::Val{type_name}) where type_name
+    T_tag = convert(LLVMType, tag_type)
+    T_ptag = LLVM.PointerType(T_tag)
+
+    T_pjlvalue = convert(LLVMType, Any, true)
+
+    # create function
+    llvm_f, _ = create_function(T_tag)
+    mod = LLVM.parent(llvm_f)
+
+    # this isn't really a function, but we abuse it to get the JIT to resolve the address
+    typ = LLVM.Function(mod, "jl_" * String(type_name) * "_type",
+                        LLVM.FunctionType(T_pjlvalue))
+
+    # generate IR
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
+        position!(builder, entry)
+
+        typ_var = bitcast!(builder, typ, T_ptag)
+
+        tag = load!(builder, typ_var)
+
+        ret!(builder, tag)
+    end
+
+    call_function(llvm_f, tag_type)
+end
+
+# we use `jl_value_ptr`, a Julia pseudo-intrinsic that can be used to box and unbox values
 
 @generated function box(val, ::Val{type_name}) where type_name
     sz = sizeof(val)
     allocsz = sz + tag_size
 
-    # FIXME: type tags aren't stable across Julia sessions, so we can't just look it up here
-    #        and embed the current value in the IR. Instead, use a relocation.
-    #tag = unsafe_load(convert(Ptr{UInt64}, type_name))
-    tag = :( relocation(Val(type_name), UInt64) )
+    # type-tags are ephemeral, so look them up at run time
+    #tag = unsafe_load(convert(Ptr{tag_type}, type_name))
+    tag = :( type_tag(Val(type_name)) )
 
     quote
         Base.@_inline_meta
@@ -180,7 +181,7 @@ const gc_bits = 0x3 # FIXME: how should we mark these?
         ptr = malloc($(Csize_t(allocsz)))
 
         # store the type tag
-        ptr = convert(Ptr{UInt64}, ptr)
+        ptr = convert(Ptr{tag_type}, ptr)
         Core.Intrinsics.pointerset(ptr, $tag | $gc_bits, #=index=# 1, #=align=# $tag_size)
 
         # store the value
@@ -191,9 +192,19 @@ const gc_bits = 0x3 # FIXME: how should we mark these?
     end
 end
 
-box_uint64(val) = box(val, Val(:jl_uint64_type))
+@inline function unbox(obj, ::Type{T}) where T
+    ptr = ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), obj)
+
+    # load the value
+    ptr = convert(Ptr{T}, ptr)
+    Core.Intrinsics.pointerref(ptr, #=index=# 1, #=align=# sizeof(T))
+end
+
+box_uint64(val)   = box(UInt64(val), Val(:uint64))
+unbox_uint64(obj) = unbox(obj, UInt64)
 
 compile(box_uint64, Any, (UInt64,), T_prjlvalue; llvm_name="jl_box_uint64")
+compile(unbox_uint64, UInt64, (Any,); llvm_name="jl_unbox_uint64")
 
 
 end

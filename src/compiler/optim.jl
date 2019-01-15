@@ -67,10 +67,6 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     let pm = ModulePassManager()
         dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
 
-        global_optimizer!(pm)
-        global_dce!(pm)
-        strip_dead_prototypes!(pm)
-
         run!(pm, mod)
         dispose(pm)
     end
@@ -339,39 +335,6 @@ function lower_ptls!(mod::LLVM.Module)
 
         @compiler_assert isempty(uses(ptls_getter)) ctx
      end
-
-    return changed
-end
-
-# lower pseudo-calls to `late_...` to their actual values
-function lower_relocations!(mod::LLVM.Module)
-    ctx = global_ctx::CompilerContext
-    changed = false
-
-    for f in functions(mod)
-        # type tags
-        m = match(r"^late_jl_(.+)_type$", LLVM.name(f))
-        if m !== nothing
-            # look-up the current type tag
-            type_name = m.captures[1]
-            type_sym = Symbol("jl_$(type_name)_type")
-            type_ptr = ccall(:jl_cglobal, Any, (Any, Any), type_sym, UInt64)
-            type_tag = unsafe_load(type_ptr)
-
-            # replace uses of the relocation with a constant value
-            val = LLVM.ConstantInt(type_tag, JuliaContext())
-            for use in uses(f)
-                call = user(use)::LLVM.CallInst
-                replace_uses!(call, val)
-                unsafe_delete!(LLVM.parent(call), call)
-            end
-
-            # remove the original function or declaration
-            @assert isempty(uses(f))
-            unsafe_delete!(mod, f)
-            changed = true
-        end
-    end
 
     return changed
 end

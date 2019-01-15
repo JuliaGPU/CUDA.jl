@@ -71,8 +71,10 @@ function compile(ctx::CompilerContext; strip_ir_metadata::Bool=false)
 
     runtime = load_runtime(ctx.cap)
     if need_library(runtime)
-        link_runtime!(ctx, mod, runtime)
+        link_library!(ctx, mod, runtime)
     end
+
+    prepare_execution!(ctx, mod)
 
     check_invocation(ctx, entry)
 
