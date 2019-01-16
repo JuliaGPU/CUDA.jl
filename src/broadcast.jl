@@ -39,17 +39,23 @@ end
 
 using MacroTools
 
+const _cufuncs = copy(libdevice)
+cufuncs() = (global _cufuncs; _cufuncs)
+
 function replace_device(ex)
+  global _cufuncs
   MacroTools.postwalk(ex) do x
-    x in libdevice ? :(CUDAnative.$x) : x
+    x in _cufuncs ? :(CuArrays.cufunc($x)) : x
   end
 end
 
 macro cufunc(ex)
+  global _cufuncs
   def = MacroTools.splitdef(ex)
   f = def[:name]
   def[:name] = Symbol(:cu, f)
   def[:body] = replace_device(def[:body])
+  push!(_cufuncs, f)
   quote
     $(esc(MacroTools.combinedef(def)))
     CuArrays.cufunc(::typeof($(esc(f)))) = $(esc(def[:name]))
