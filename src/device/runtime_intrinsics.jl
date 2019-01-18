@@ -209,11 +209,19 @@ end
     Core.Intrinsics.pointerref(ptr, #=index=# 1, #=align=# sizeof(T))
 end
 
-box_uint64(val)   = box(UInt64(val), Val(:uint64))
-unbox_uint64(obj) = unbox(obj, UInt64)
+# generate functions functions that exist in the Julia runtime (see julia/src/datatype.c)
+for (T, t) in [Int8   => :int8,  Int16  => :int16,  Int32  => :int32,  Int64  => :int64,
+               UInt8  => :uint8, UInt16 => :uint16, UInt32 => :uint32, UInt64 => :uint64]
+    box_fn   = Symbol("box_$t")
+    unbox_fn = Symbol("unbox_$t")
+    @eval begin
+        $box_fn(val)   = box($T(val), Val($(QuoteNode(t))))
+        $unbox_fn(obj) = unbox(obj, $T)
 
-compile(box_uint64, Any, (UInt64,), T_prjlvalue; llvm_name="jl_box_uint64")
-compile(unbox_uint64, UInt64, (Any,); llvm_name="jl_unbox_uint64")
+        compile($box_fn, Any, ($T,), T_prjlvalue; llvm_name=$"jl_$box_fn")
+        compile($unbox_fn, $T, (Any,); llvm_name=$"jl_$unbox_fn")
+    end
+end
 
 
 end
