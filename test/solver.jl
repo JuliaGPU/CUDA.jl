@@ -178,42 +178,6 @@ k = 1
         @test p ≈ h_TAUP
     end
 
-    @testset "gesvd!" begin
-        A              = rand(elty,m,n)
-        d_A            = CuArray(A)
-        d_U, d_S, d_Vt = CUSOLVER.gesvd!('A','A',d_A)
-        h_S            = collect(d_S)
-        h_U            = collect(d_U)
-        h_Vt           = collect(d_Vt)
-        F              = svd(A, full=true)
-        @test abs.(h_U'h_U) ≈ Matrix(one(elty)*I, m, m)
-        @test abs.(h_U[:,1:n]'F.U[:,1:n]) ≈ Matrix(one(elty)*I, n, n)
-        @test h_S ≈ svdvals(A)
-        @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
-    end
-    
-    @testset "gesvdj!" begin
-        for nm in ((m, n), (n, m))
-            a, b           = nm
-            A              = rand(elty,a,b)
-            d_A            = CuArray(A)
-            d_U, d_S, d_V  = CUSOLVER.gesvdj!('V',1,d_A)
-            h_S            = collect(d_S)
-            h_U            = collect(d_U)
-            h_V            = collect(d_V)
-            F              = svd(A, full=true)
-            s              = min(a, b)
-            t              = max(a, b)
-            @test size(h_V) == (b, s) 
-            @test size(h_U) == (a, s) 
-            tol = elty == Float32 || elty == ComplexF32 ? 1e-4 : 1e-8
-            @test abs.(h_U'*h_U) ≈ Matrix(one(elty)*I, s, s) rtol=tol
-            @test abs.(h_U[:,1:s]'F.U[:,1:s]) ≈ Matrix(one(elty)*I, s, s)
-            @test h_S ≈ svdvals(A)
-            @test abs.(h_V'*h_V) ≈ Matrix(one(elty)*I, s, s)
-        end
-    end
-
     @testset "syevd!" begin
         A              = rand(elty,m,m)
         A             += A'
@@ -238,7 +202,7 @@ k = 1
         h_W            = collect(d_W)
         @test Eig.values ≈ h_W
     end
-    
+
     @testset "sygvd!" begin
         A              = rand(elty,m,m)
         B              = rand(elty,m,m)
@@ -276,7 +240,7 @@ k = 1
             @test_throws DimensionMismatch CUSOLVER.sygvd!(1, 'N','U', d_A, d_B)
         end
     end
-    
+
     @testset "syevj!" begin
         A              = rand(elty,m,m)
         B              = rand(elty,m,m)
@@ -309,19 +273,33 @@ k = 1
         @test Eig.values ≈ h_W
     end
 
-    @testset "svd!" begin
-        A              = rand(elty,m,n)
+    @testset "svd with $method method" for
+        method in (CUSOLVER.QRAlgorithm, CUSOLVER.JacobiAlgorithm),
+        (_m, _n) in ((m, n), (n, m))
+
+        A              = rand(elty, _m, _n)
+        U, S, V        = svd(A, full=true)
         d_A            = CuArray(A)
-        d_U, d_S, d_Vt = svd!(d_A)
-        h_S            = collect(d_S)
-        h_U            = collect(d_U)
-        h_Vt           = collect(d_Vt)
-        F              = svd(A, full=true)
-        @test abs.(h_U'h_U) ≈ Matrix(one(elty)*I, m, m)
-        @test abs.(h_U[:,1:n]'F.U[:,1:n]) ≈ Matrix(one(elty)*I, n, n)
-        @test h_S ≈ svdvals(A)
-        @test abs.(h_Vt*F.Vt') ≈ Matrix(one(elty)*I, n, n)
+
+        if _m > _n || method == CUSOLVER.JacobiAlgorithm
+            d_U, d_S, d_V  = svd(d_A, method, full=true)
+            h_S            = collect(d_S)
+            h_U            = collect(d_U)
+            h_V            = collect(d_V)
+            @test abs.(h_U'h_U) ≈ I
+            @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
+            @test collect(svdvals(d_A, method)) ≈ svdvals(A)
+            @test abs.(h_V'h_V) ≈ I
+            @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
+            @test collect(d_U'*d_A*d_V) ≈ U'*A*V
+            @test collect(svd(d_A, method).V') == h_V[:,1:min(_m,_n)]'
+        else
+            @test_throws ArgumentError svd(d_A, method)
+        end
     end
+    # Check that constant propagation works
+    _svd(A) = svd(A, CUSOLVER.QRAlgorithm)
+    @inferred _svd(CuArrays.CURAND.curand(Float32, 4, 4))
 
 
     @testset "qr" begin

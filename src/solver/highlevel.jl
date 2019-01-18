@@ -64,16 +64,44 @@ end
 
 # Singular Value Decomposition
 
-struct CuSVD{T,Tr} <: LinearAlgebra.Factorization{T}
+struct CuSVD{T,Tr,A<:AbstractMatrix{T}} <: LinearAlgebra.Factorization{T}
     U::CuMatrix{T}
     S::CuVector{Tr}
-    Vt::CuMatrix{T}
+    V::A
 end
 
 # iteration for destructuring into components
 Base.iterate(S::CuSVD) = (S.U, Val(:S))
-Base.iterate(S::CuSVD, ::Val{:S}) = (S.S, Val(:Vt))
-Base.iterate(S::CuSVD, ::Val{:Vt}) = (S.Vt, Val(:done))
+Base.iterate(S::CuSVD, ::Val{:S}) = (S.S, Val(:V))
+Base.iterate(S::CuSVD, ::Val{:V}) = (S.V, Val(:done))
 Base.iterate(S::CuSVD, ::Val{:done}) = nothing
 
-LinearAlgebra.svd!(A::CuMatrix{T}) where T = CuSVD(gesvd!('A','A',A::CuMatrix{T})...)
+@inline function Base.getproperty(S::CuSVD, s::Symbol)
+    if s === :Vt
+        return getfield(S, :V)'
+    else
+        return getfield(S, s)
+    end
+end
+
+@enum SVDAlgorithm QRAlgorithm JacobiAlgorithm
+function LinearAlgebra.svd!(A::CuMatrix{T}, method::SVDAlgorithm=JacobiAlgorithm; full::Bool=false) where T
+    if method === QRAlgorithm
+        U, s, Vt = gesvd!(full ? 'A' : 'S', full ? 'A' : 'S', A::CuMatrix{T})
+        return CuSVD(U, s, Vt')
+    elseif method === JacobiAlgorithm
+        return CuSVD(gesvdj!('V', Int(!full), A::CuMatrix{T})...)
+    end
+end
+# Once LinearAlgebra.svd(::AbstractMatrix) accepts kwargs this method can be deleted
+LinearAlgebra.svd(A::CuMatrix, method::SVDAlgorithm=JacobiAlgorithm; full=false) = svd!(copy(A), method, full=full)
+
+function LinearAlgebra.svdvals!(A::CuMatrix{T}, method::SVDAlgorithm=JacobiAlgorithm) where T
+    if method === QRAlgorithm
+        return gesvd!('N', 'N', A::CuMatrix{T})[2]
+    elseif method === JacobiAlgorithm
+        return gesvdj!('N', 1, A::CuMatrix{T})[2]
+    end
+end
+# Once LinearAlgebra.svdvals(::AbstractMatrix) accepts kwargs this method can be deleted
+LinearAlgebra.svdvals(A::CuMatrix, method::SVDAlgorithm=JacobiAlgorithm) = svdvals!(copy(A), method)
