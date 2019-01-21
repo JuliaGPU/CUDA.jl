@@ -109,7 +109,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
     end
 end
 
-#geqrf 
+#geqrf
 for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :Float32),
                             (:cusolverDnDgeqrf_bufferSize, :cusolverDnDgeqrf, :Float64),
                             (:cusolverDnCgeqrf_bufferSize, :cusolverDnCgeqrf, :ComplexF32),
@@ -140,7 +140,7 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
     end
 end
 
-#sytrf 
+#sytrf
 for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :Float32),
                             (:cusolverDnDsytrf_bufferSize, :cusolverDnDsytrf, :Float64),
                             (:cusolverDnCsytrf_bufferSize, :cusolverDnCsytrf, :ComplexF32),
@@ -213,7 +213,7 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
     end
 end
 
-#ormqr 
+#ormqr
 for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :Float32),
                              (:cusolverDnDormqr_bufferSize, :cusolverDnDormqr, :Float64),
                              (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :ComplexF32),
@@ -245,7 +245,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             bufSize = Ref{Cint}(0)
             @check ccall(($(string(bname)),libcusolver), cusolverStatus_t,
                           (cusolverDnHandle_t, cublasSideMode_t,
-                           cublasOperation_t, Cint, Cint, Cint, Ptr{$elty}, 
+                           cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
                            Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ref{Cint}),
                           dense_handle(), cuside,
                           cutrans, m, n, k, A,
@@ -269,7 +269,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
     end
 end
 
-#orgqr 
+#orgqr
 for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :Float32),
                              (:cusolverDnDorgqr_bufferSize, :cusolverDnDorgqr, :Float64),
                              (:cusolverDnCungqr_bufferSize, :cusolverDnCungqr, :ComplexF32),
@@ -348,33 +348,55 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
         function gesvd!(jobu::Char,
                         jobvt::Char,
                         A::CuMatrix{$elty})
-            m,n     = size(A)
+            m, n    = size(A)
+            if m < n
+                throw(ArgumentError("CUSOLVER's gesvd currently requires m >= n"))
+            end
             lda     = max(1, stride(A, 2))
-            bufSize = Ref{Cint}(0)
+            lwork   = Ref{Cint}(0)
             @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                          (cusolverDnHandle_t, Cint, Cint, Ref{Cint}),
-                        dense_handle(), m, n, bufSize)
+                        dense_handle(), m, n, lwork)
 
-            buffer  = CuArray{$elty}(undef, bufSize[])
-            rbuffer = CuArray{$relty}(undef, 5 * min(m, n))
+            work    = CuArray{$elty}(undef, lwork[])
+            rwork   = CuArray{$relty}(undef, min(m, n) - 1)
             devinfo = CuArray{Cint}(undef, 1)
-            U       = CuArray{$elty}(undef, m, m)
+
+            if jobu === 'S' && m > n
+                U   = CuArray{$elty}(undef, m, n)
+            elseif jobu === 'N'
+                U   = CuArray{$elty}(undef, m, 0)
+            else
+                U   = CuArray{$elty}(undef, m, m)
+            end
             ldu     = max(1, stride(U, 2))
+
             S       = CuArray{$relty}(undef, min(m, n))
-            Vt      = CuArray{$elty}(undef, n, n)
+
+            if jobvt === 'S' && m < n
+                Vt  = CuArray{$elty}(undef, m, n)
+            elseif jobvt === 'N'
+                Vt  = CuArray{$elty}(undef, 0, n)
+            else
+                Vt  = CuArray{$elty}(undef, n, n)
+            end
             ldvt    = max(1, stride(Vt, 2))
+
             @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                          (cusolverDnHandle_t, Cuchar, Cuchar, Cint,
-                          Cint, Ptr{$elty}, Cint, Ptr{$relty}, Ptr{$elty},
-                          Cint, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                          Ptr{$relty}, Ptr{Cint}), dense_handle(),
-                         jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
-                         buffer, bufSize[], rbuffer, devinfo)
+                          Cint, Ptr{$elty}, Cint, Ptr{$relty},
+                          Ptr{$elty}, Cint, Ptr{$elty}, Cint,
+                          Ptr{$elty}, Cint, Ptr{$relty}, Ptr{Cint}),
+                          dense_handle(), jobu, jobvt, m,
+                          n, A, lda, S,
+                          U, ldu, Vt, ldvt,
+                          work, lwork[], rwork, devinfo)
             info = _getindex(devinfo, 1)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
             end
-            U, S, Vt
+
+            return U, S, Vt
         end
     end
 end
@@ -391,34 +413,54 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                          max_sweeps::Int=100)
             cujobz  = cusolverjob(jobz)
             m,n     = size(A)
-            n_      = min(m, n)
             lda     = max(1, stride(A, 2))
-            U       = CuArray{$elty}(undef, m, n_)
+
+            # Warning! For some reason, the solver needs to access U and V even
+            # when only the values are requested
+            if jobz === 'V' && econ == 1 && m > n
+                U   = CuArray{$elty}(undef, m, n)
+            else
+                U   = CuArray{$elty}(undef, m, m)
+            end
             ldu     = max(1, stride(U, 2))
-            S       = CuArray{$relty}(undef, n_)
-            V       = CuArray{$elty}(undef, n, n_)
+
+            S       = CuArray{$relty}(undef, min(m, n))
+
+            if jobz === 'V' && econ == 1 && m < n
+                V   = CuArray{$elty}(undef, n, m)
+            else
+                V   = CuArray{$elty}(undef, n, n)
+            end
             ldv     = max(1, stride(V, 2))
-            bufSize = Ref{Cint}(0)
+
+            lwork   = Ref{Cint}(0)
             params  = Ref{gesvdjInfo_t}(C_NULL)
             cusolverDnCreateGesvdjInfo(params)
             cusolverDnXgesvdjSetTolerance(params[], tol)
             cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
+
             @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
                          (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
-                          Cint, Ptr{$elty}, Cint, Ptr{$relty}, Ptr{$elty},
-                          Cint, Ptr{$elty}, Cint, Ref{Cint}, gesvdjInfo_t),
-                         dense_handle(), cujobz, Cint(econ), m, n, A, lda,
-                         S, U, ldu, V, ldv, bufSize, params[])
+                          Cint, Ptr{$elty}, Cint, Ptr{$relty},
+                          Ptr{$elty}, Cint, Ptr{$elty}, Cint,
+                          Ref{Cint}, gesvdjInfo_t),
+                         dense_handle(), cujobz, Cint(econ), m,
+                         n, A, lda, S,
+                         U, ldu, V, ldv,
+                         lwork, params[])
 
-            buffer  = CuArray{$elty}(undef, bufSize[])
+            work  = CuArray{$elty}(undef, lwork[])
             devinfo = CuArray{Cint}(undef, 1)
+
             @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
                          (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
-                          Cint, Ptr{$elty}, Cint, Ptr{$relty}, Ptr{$elty},
-                          Cint, Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{Cint},
-                          gesvdjInfo_t), dense_handle(),
-                         cujobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                         buffer, bufSize[], devinfo, params[])
+                          Cint, Ptr{$elty}, Cint, Ptr{$relty},
+                          Ptr{$elty}, Cint, Ptr{$elty}, Cint,
+                          Ptr{$elty}, Cint, Ptr{Cint}, gesvdjInfo_t),
+                         dense_handle(), cujobz, econ, m,
+                         n, A, lda, S,
+                         U, ldu, V, ldv,
+                         work, lwork[], devinfo, params[])
             info = _getindex(devinfo, 1)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -535,7 +577,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
             end
-            n       = nA 
+            n       = nA
             lda     = max(1, stride(A, 2))
             ldb     = max(1, stride(B, 2))
             W       = CuArray{$relty}(undef, n)
