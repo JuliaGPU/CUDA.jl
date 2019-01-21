@@ -203,3 +203,10 @@ const cudnnBatchNormMode_t = UInt32
 const CUDNN_BATCHNORM_PER_ACTIVATION = (UInt32)(0)
 const CUDNN_BATCHNORM_SPATIAL = (UInt32)(1)
 # end enum cudnnBatchNormMode_t
+
+# begin enum cudnnMathType_t
+const cudnnMathType_t = UInt32
+const CUDNN_DEFAULT_MATH                    = 0
+const CUDNN_TENSOR_OP_MATH                  = 1
+const CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION = 2
+# end enum cudnnMathType_t
