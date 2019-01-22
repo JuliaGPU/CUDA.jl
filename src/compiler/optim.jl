@@ -272,7 +272,7 @@ function lower_gc_frame!(fun::LLVM.Function)
         T_pjlvalue = convert(LLVMType, Any, true)
 
         for use in uses(alloc_obj)
-            call = user(use)
+            call = user(use)::LLVM.CallInst
 
             # decode the call
             ops = collect(operands(call))
