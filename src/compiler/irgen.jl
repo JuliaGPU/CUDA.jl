@@ -51,18 +51,7 @@ end
 Base.showerror(io::IO, err::MethodSubstitutionWarning) =
     print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
 
-function irgen(ctx::CompilerContext)
-    # get the method instance
-    isa(ctx.f, Core.Builtin) && throw(KernelError(ctx, "function is not a generic function"))
-    world = typemax(UInt)
-    meth = which(ctx.f, ctx.tt)
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
-    (ti, env) = ccall(:jl_type_intersection_with_env, Any,
-                      (Any, Any), sig, meth.sig)::Core.SimpleVector
-    meth = Base.func_for_method_checked(meth, ti)
-    linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
-                  (Any, Any, Any, UInt), meth, ti, env, world)
-
+function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
     # set-up the compiler interface
     function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
@@ -119,61 +108,35 @@ function irgen(ctx::CompilerContext)
                                 emitted_function   = hook_emitted_function)
 
     # get the code
-    mod = let
-        ref = ccall(:jl_get_llvmf_defn, LLVM.API.LLVMValueRef,
-                    (Any, UInt, Bool, Bool, Base.CodegenParams),
-                    linfo, world, #=wrapper=#false, #=optimize=#false, params)
-        if ref == C_NULL
-            throw(InternalCompilerError(ctx, "the Julia compiler could not generate LLVM IR"))
-        end
+    ref = ccall(:jl_get_llvmf_defn, LLVM.API.LLVMValueRef,
+                (Any, UInt, Bool, Bool, Base.CodegenParams),
+                linfo, world, #=wrapper=#false, #=optimize=#false, params)
+    if ref == C_NULL
+        throw(InternalCompilerError(ctx, "the Julia compiler could not generate LLVM IR"))
+    end
+    llvmf = LLVM.Function(ref)
 
-        llvmf = LLVM.Function(ref)
-        LLVM.parent(llvmf)
-    end
+    modules = [LLVM.parent(llvmf), dependencies...]
+    return llvmf, modules
+end
 
-    # the main module should contain a single jfptr_ function definition,
-    # e.g. jfptr_kernel_vadd_62977
-    definitions = LLVM.Function[]
-    for llvmf in functions(mod)
-        if !isdeclaration(llvmf)
-            push!(definitions, llvmf)
-        end
-    end
-    wrapper = nothing
-    for llvmf in definitions
-        if startswith(LLVM.name(llvmf), "jfptr_")
-            @compiler_assert wrapper == nothing ctx first=wrapper second=llvmf
-            wrapper = llvmf
-        end
-    end
-    @compiler_assert wrapper != nothing ctx
+function irgen(ctx::CompilerContext)
+    # get the method instance
+    isa(ctx.f, Core.Builtin) && throw(KernelError(ctx, "function is not a generic function"))
+    world = typemax(UInt)
+    meth = which(ctx.f, ctx.tt)
+    sig = Base.signature_type(ctx.f, ctx.tt)::Type
+    (ti, env) = ccall(:jl_type_intersection_with_env, Any,
+                      (Any, Any), sig, meth.sig)::Core.SimpleVector
+    meth = Base.func_for_method_checked(meth, ti)
+    linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
+                  (Any, Any, Any, UInt), meth, ti, env, world)
 
-    # the jfptr wrapper function should point us to the actual entry-point,
-    # e.g. julia_kernel_vadd_62984
-    # FIXME: Julia's globalUnique starting with `-` is probably a bug.
-    entry_tag = let
-        m = match(r"^jfptr_(.+)_[-\d]+$", LLVM.name(wrapper))
-        @compiler_assert m != nothing ctx name=LLVM.name(wrapper)
-        m.captures[1]
-    end
-    unsafe_delete!(mod, wrapper)
-    entry = let
-        re = Regex("^julia_$(entry_tag)_[-\\d]+\$")
-        entrypoints = LLVM.Function[]
-        for llvmf in definitions
-            if llvmf != wrapper
-                llvmfn = LLVM.name(llvmf)
-                if occursin(re, llvmfn)
-                    push!(entrypoints, llvmf)
-                end
-            end
-        end
-        @compiler_assert length(entrypoints) == 1 ctx functions=Tuple(LLVM.name.(definitions)) tag=entry_tag entrypoints=Tuple(LLVM.name.(entrypoints))
-        entrypoints[1]
-    end
+    entry, modules = compile_linfo(ctx, linfo, world)
 
     # link in dependent modules
-    for dep in dependencies
+    mod = popfirst!(modules)
+    for dep in modules
         link!(mod, dep)
     end
 
