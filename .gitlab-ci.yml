@@ -4,11 +4,18 @@ variables:
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/common.yml'
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_v1.0.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_v1.1.yml'
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/documentation_v1.0.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_v1.1.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/documentation_v1.1.yml'
 
 test:v1.0:
+  only:
+    - master
+    - staging
+    - trying
+
+test:v1.1:
   only:
     - master
     - staging
@@ -35,11 +42,11 @@ documentation:
 
 tutorial:
   stage: post
-  image: "juliagpu/julia:v1.0-${CI_IMAGE_TAG}"
+  image: "juliagpu/julia:v1.1-${CI_IMAGE_TAG}"
   variables:
     JULIA_NUM_THREADS: "4"
   dependencies:
-    - test:v1.0
+    - test:v1.1
   script:
     - julia --project=tutorials/ -e 'using Pkg;
                                      Pkg.develop(PackageSpec(path=pwd()));
@@ -66,7 +73,7 @@ pages:
 
 flux:
   stage: test
-  image: "juliagpu/julia:v1.0-cuda"
+  image: "juliagpu/julia:v1.1-cuda"
   script:
     - mkdir $JULIA_DEPOT_PATH # Pkg.jl#325
     - julia -e 'using Pkg;
