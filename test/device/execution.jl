@@ -55,6 +55,20 @@ end
     @test occursin("ptxcall_dummy", sprint(io->(@device_code_llvm io=io @cuda dummy())))
     @test occursin("ptxcall_dummy", sprint(io->(@device_code_ptx io=io @cuda dummy())))
     @test occursin("ptxcall_dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
+
+    # make sure invalid kernels can be partially reflected upon
+    let
+        invalid_kernel() = throw()
+        @test_throws CUDAnative.KernelError @cuda invalid_kernel()
+        @test_throws CUDAnative.KernelError @grab_output @device_code_warntype @cuda invalid_kernel()
+        out, err = @grab_output begin
+            try
+                @device_code_warntype @cuda invalid_kernel()
+            catch
+            end
+        end
+        @test occursin("Body::Union{}", err)
+    end
 end
 
 

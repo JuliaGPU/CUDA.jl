@@ -57,6 +57,8 @@ function compile(ctx::CompilerContext)
 
     @debug "(Re)compiling function" ctx
 
+    check_method(ctx)
+
 
     ## low-level code generation (LLVM IR)
 

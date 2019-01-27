@@ -37,6 +37,7 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
 end
 function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
                    dump_module::Bool=false, strip_ir_metadata::Bool=true)
+    check_method(ctx)
     mod, entry = irgen(ctx)
     if optimize
         entry = optimize!(ctx, mod, entry)
@@ -73,6 +74,7 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
     code_ptx(io, ctx; strip_ir_metadata=strip_ir_metadata)
 end
 function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
+    check_method(ctx)
     mod, entry = irgen(ctx)
     entry = optimize!(ctx, mod, entry)
     if strip_ir_metadata
