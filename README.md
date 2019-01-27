@@ -69,4 +69,4 @@ programming, because you can initially lean on the high-level
 abstractions and then learn, as needed, how to obtain more
 fine-grained control.  Here are some tutorials to get you started:
 
-- https://juliagpu.gitlab.io/CuArrays.jl/intro.html
+- https://juliagpu.gitlab.io/CuArrays.jl/tutorials/intro.html
