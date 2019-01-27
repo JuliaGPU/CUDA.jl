@@ -13,13 +13,10 @@ struct CompilerContext
     blocks_per_sm::Union{Nothing,Integer}
     maxregs::Union{Nothing,Integer}
 
-    function CompilerContext(f, tt, cap, kernel;
-                             minthreads=nothing, maxthreads=nothing,
-                             blocks_per_sm=nothing, maxregs=nothing)
-        ctx = new(f, tt, cap, kernel, minthreads, maxthreads, blocks_per_sm, maxregs)
-        check_method(ctx)
-        ctx
-    end
+    CompilerContext(f, tt, cap, kernel;
+                    minthreads=nothing, maxthreads=nothing,
+                    blocks_per_sm=nothing, maxregs=nothing) =
+        new(f, tt, cap, kernel, minthreads, maxthreads, blocks_per_sm, maxregs)
 end
 
 # global context reference
