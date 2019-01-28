@@ -181,7 +181,7 @@ function irgen(ctx::CompilerContext)
 
         add!(pm, ModulePass("LowerThrow", lower_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
-        add!(pm, FunctionPass("HideTrap", hide_trap!))
+        add!(pm, ModulePass("HideTrap", hide_trap!))
         always_inliner!(pm)
         verifier!(pm)
         run!(pm, mod)
@@ -423,25 +423,26 @@ end
 # HACK: this pass removes calls to `trap` and replaces them with inline assembly
 #
 # if LLVM knows we're trapping, code is marked `unreachable` (see `hide_unreachable!`).
-function hide_trap!(fun::LLVM.Function)
+function hide_trap!(mod::LLVM.Module)
     ctx = global_ctx::CompilerContext
-    mod = LLVM.parent(fun)
     changed = false
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()))
     exit = InlineAsm(exit_ft, "trap;", "", true)
 
-    for bb in blocks(fun)
-        # replace calls to `trap` with inline assembly
-        for inst in instructions(bb)
-            if isa(inst, LLVM.CallInst) && LLVM.name(called_value(inst)) == "llvm.trap"
+    if haskey(functions(mod), "llvm.trap")
+        trap = functions(mod)["llvm.trap"]
+
+        for use in uses(trap)
+            val = user(use)
+            if isa(val, LLVM.CallInst)
                 let builder = Builder(JuliaContext())
-                    position!(builder, inst)
+                    position!(builder, val)
                     call!(builder, exit)
                     dispose(builder)
                 end
-                unsafe_delete!(bb, inst)
+                unsafe_delete!(LLVM.parent(val), val)
                 changed = true
             end
         end

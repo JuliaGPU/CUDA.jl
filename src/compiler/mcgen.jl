@@ -63,14 +63,14 @@ function resolve_cpu_references!(mod::LLVM.Module)
             function replace_bindings!(value)
                 changed = false
                 for use in uses(value)
-                    target = user(use)
-                    if isa(target, LLVM.ConstantExpr)
+                    val = user(use)
+                    if isa(val, LLVM.ConstantExpr)
                         # recurse
-                        changed |= replace_bindings!(target)
-                    elseif isa(target, LLVM.LoadInst)
+                        changed |= replace_bindings!(val)
+                    elseif isa(val, LLVM.LoadInst)
                         # resolve
-                        replace_uses!(target, dereferenced)
-                        unsafe_delete!(LLVM.parent(target), target)
+                        replace_uses!(val, dereferenced)
+                        unsafe_delete!(LLVM.parent(val), val)
                         # FIXME: iterator invalidation?
                         changed = true
                     end

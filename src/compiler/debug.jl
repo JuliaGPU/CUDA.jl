@@ -22,7 +22,8 @@ function backtrace(inst::LLVM.Instruction, bt = StackTraces.StackFrame[])
 
     # move up the call chain
     f = LLVM.parent(LLVM.parent(inst))
-    callers = uses(f)
+    ## functions can be used as a *value* in eg. constant expressions, so filter those out
+    callers = filter(val -> isa(user(val), LLVM.CallInst), collect(uses(f)))
     if !isempty(callers)
         # figure out the call sites of this instruction
         call_sites = unique(callers) do call
