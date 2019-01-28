@@ -15,23 +15,6 @@ safe_fn(fn::String) = replace(fn, r"[^aA-zZ0-9_]"=>"_")
 safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
-# NOTE: we remove `throw_...` functions in the ThrowRemoval pass, but that relies on
-#       function names which is fragile. Remove actual calls to `jl_throw` here, to be safe.
-const exception_arguments = Vector{LLVM.Value}()
-function raise_exception(insblock::BasicBlock, ex::Value)
-    fun = LLVM.parent(insblock)
-    mod = LLVM.parent(fun)
-
-    let builder = Builder(JuliaContext())
-        position!(builder, insblock)
-        emit_exception!(builder, "unknown", ex)
-        dispose(builder)
-    end
-
-    # mark arguments that passed to `throw` for removal, as they are often GC-allocated.
-    push!(exception_arguments, ex)
-end
-
 # generate a pseudo-backtrace from a stack of methods being emitted
 function backtrace(ctx::CompilerContext, method_stack::Vector{Core.MethodInstance})
     bt = StackTraces.StackFrame[]
@@ -56,11 +39,6 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
     function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         module_setup(LLVM.Module(ref))
-    end
-    function hook_raise_exception(insblock::Ptr{Cvoid}, ex::Ptr{Cvoid})
-        insblock = convert(LLVM.API.LLVMValueRef, insblock)
-        ex = convert(LLVM.API.LLVMValueRef, ex)
-        raise_exception(BasicBlock(insblock), Value(ex))
     end
     dependencies = Vector{LLVM.Module}()
     function hook_module_activation(ref::Ptr{Cvoid})
@@ -103,7 +81,6 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
                                 prefer_specsig     = true,
                                 module_setup       = hook_module_setup,
                                 module_activation  = hook_module_activation,
-                                raise_exception    = hook_raise_exception,
                                 emit_function      = hook_emit_function,
                                 emitted_function   = hook_emitted_function)
 
@@ -189,15 +166,6 @@ function irgen(ctx::CompilerContext)
         end
     end
 
-    # HACK: remove unused arguments to exception functions
-    for val in exception_arguments
-        if isa(val, LLVM.Instruction) && isempty(uses(val))
-            bb = LLVM.parent(val)
-            unsafe_delete!(bb, val)
-        end
-    end
-    empty!(exception_arguments)
-
     # rename the entry point
     llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
     ## append a global unique counter
@@ -211,6 +179,7 @@ function irgen(ctx::CompilerContext)
         global global_ctx
         global_ctx = ctx
 
+        add!(pm, ModulePass("LowerThrow", lower_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         add!(pm, FunctionPass("HideTrap", hide_trap!))
         always_inliner!(pm)
@@ -219,6 +188,75 @@ function irgen(ctx::CompilerContext)
     end
 
     return mod, entry
+end
+
+# this pass lowers `jl_throw` and friends to GPU-compatible exceptions.
+# this isn't strictly necessary, but has a couple of advantages:
+# - we can kill off unused exception arguments that otherwise would allocate or invoke
+# - we can fake debug information (lacking a stack unwinder)
+#
+# once we have thorough inference (ie. discarding `@nospecialize` and thus supporting
+# exception arguments) and proper debug info to unwind the stack, this pass can go.
+function lower_throw!(mod::LLVM.Module)
+    ctx = global_ctx::CompilerContext
+    changed = false
+
+    throw_functions = Dict{String,String}(
+        "jl_throw"                      => "exception",
+        "jl_error"                      => "error",
+        "jl_too_few_args"               => "too few arguments exception",
+        "jl_too_many_args"              => "too many arguments exception",
+        "jl_type_error_rt"              => "type error",
+        "jl_undefined_var_error"        => "undefined variable error",
+        "jl_bounds_error"               => "bounds error",
+        "jl_bounds_error_v"             => "bounds error",
+        "jl_bounds_error_int"           => "bounds error",
+        "jl_bounds_error_tuple_int"     => "bounds error",
+        "jl_bounds_error_unboxed_int"   => "bounds error",
+        "jl_bounds_error_ints"          => "bounds error",
+        "jl_eof_error"                  => "EOF error"
+    )
+
+    for (fn, name) in throw_functions
+        if haskey(functions(mod), fn)
+            f = functions(mod)[fn]
+
+            for use in uses(f)
+                call = user(use)::LLVM.CallInst
+
+                # replace the throw with a PTX-compatible exception
+                let builder = Builder(JuliaContext())
+                    position!(builder, call)
+                    emit_exception!(builder, name, call)
+                    dispose(builder)
+                end
+
+                # remove the call
+                call_args = collect(operands(call))[1:end-1] # last arg is function itself
+                unsafe_delete!(LLVM.parent(call), call)
+
+                # HACK: kill the exceptions' unused arguments
+                for arg in call_args
+                    # peek through casts
+                    if isa(arg, LLVM.AddrSpaceCastInst)
+                        cast = arg
+                        arg = first(operands(cast))
+                        isempty(uses(cast)) && unsafe_delete!(LLVM.parent(cast), cast)
+                    end
+
+                    if isa(arg, LLVM.Instruction) && isempty(uses(arg))
+                        unsafe_delete!(LLVM.parent(arg), arg)
+                    end
+                end
+
+                changed = true
+            end
+
+            @compiler_assert isempty(uses(f)) ctx
+         end
+     end
+
+    return changed
 end
 
 # report an exception in a GPU-compatible manner

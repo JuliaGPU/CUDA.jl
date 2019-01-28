@@ -524,7 +524,7 @@ let (code, out, err) = julia_script(script, `-g1`)
     @test code == 1
     @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
           occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a .+ exception occurred during kernel execution", out)
+    @test occursin(r"ERROR: a exception was thrown during kernel execution", out)
     @test occursin(r"Run Julia on debug level 2 for device stack traces", out)
 end
 
@@ -532,9 +532,32 @@ let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
           occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a .+ exception occurred during kernel execution", out)
+    @test occursin(r"ERROR: a exception was thrown during kernel execution", out)
     @test occursin("[1] Type at float.jl", out)
     @test occursin("[2] kernel at none:2", out)
+end
+
+end
+
+@testset "#329" begin
+
+script = """
+    @noinline foo(a, i) = a[1] = i
+    bar(a) = (foo(a, 42); nothing)
+
+    ptr = CUDAnative.DevicePtr{Int,AS.Global}(convert(Ptr{Int}, C_NULL))
+    arr = CuDeviceArray{Int,1,AS.Global}((0,), ptr)
+    @cuda bar(arr)
+    CUDAdrv.synchronize()
+"""
+
+let (code, out, err) = julia_script(script, `-g2`)
+    @test code == 1
+    @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
+          occursin("ERROR: CUDA error: unspecified launch failure", err)
+    @test occursin(r"ERROR: a exception was thrown during kernel execution", out)
+    @test occursin("foo at none:1", out)
+    @test occursin("bar at none:2", out)
 end
 
 end
