@@ -524,15 +524,15 @@ let (code, out, err) = julia_script(script, `-g1`)
     @test code == 1
     @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
           occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a exception was thrown during kernel execution", out)
-    @test occursin(r"Run Julia on debug level 2 for device stack traces", out)
+    @test occursin("ERROR: a exception was thrown during kernel execution", out)
+    @test occursin("Run Julia on debug level 2 for device stack traces", out)
 end
 
 let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
           occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a exception was thrown during kernel execution", out)
+    @test occursin("ERROR: a exception was thrown during kernel execution", out)
     @test occursin("[1] Type at float.jl", out)
     @test occursin("[2] kernel at none:2", out)
 end
@@ -555,7 +555,7 @@ let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin("ERROR: CUDA error: an illegal instruction was encountered", err) ||
           occursin("ERROR: CUDA error: unspecified launch failure", err)
-    @test occursin(r"ERROR: a exception was thrown during kernel execution", out)
+    @test occursin("ERROR: a exception was thrown during kernel execution", out)
     @test occursin("foo at none:1", out)
     @test occursin("bar at none:2", out)
 end
