@@ -33,6 +33,10 @@ New features
     kernel launch API. The kernel objects used in that API are useful for
     reflecting on hardware resource usage ([#266]).
 
+  * A GPU runtime library has been introduced ([#303]), implementing certain functionality
+    from the Julia runtime library that would previously have prevented GPU execution
+    ([#314], [#318], [#321]).
+
 
 Changes
 -------
@@ -81,3 +85,6 @@ Deprecations and removals
 
   * The `KernelWrapper` has been removed since it prevented inferring varargs
     functions ([#254]).
+
+  * Support for `CUDAdrv.CuArray` has been removed, the CuArrays.jl package should be used
+    instead ([#284]).
