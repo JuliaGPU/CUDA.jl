@@ -299,7 +299,7 @@ function lower_gc_frame!(fun::LLVM.Function)
         barrier = functions(mod)["julia.write_barrier"]
 
         for use in uses(barrier)
-            call = user(use)
+            call = user(use)::LLVM.CallInst
             unsafe_delete!(LLVM.parent(call), call)
             changed = true
         end
@@ -325,11 +325,11 @@ function lower_ptls!(mod::LLVM.Module)
         ptls_getter = functions(mod)["julia.ptls_states"]
 
         for use in uses(ptls_getter)
-            call = user(use)
-            if !isempty(uses(call))
+            val = user(use)
+            if !isempty(uses(val))
                 error("Thread local storage is not implemented")
             end
-            unsafe_delete!(LLVM.parent(call), call)
+            unsafe_delete!(LLVM.parent(val), val)
             changed = true
         end
 
