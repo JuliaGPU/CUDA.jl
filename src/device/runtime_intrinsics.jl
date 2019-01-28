@@ -79,7 +79,7 @@ end
 
 function report_exception(ex)
     @cuprintf("""
-        ERROR: a %s exception occurred during kernel execution.
+        ERROR: a %s was thrown during kernel execution.
                Run Julia on debug level 2 for device stack traces.
         """, ex)
     return
@@ -89,7 +89,7 @@ compile(report_exception, Nothing, (Ptr{Cchar},))
 
 function report_exception_name(ex)
     @cuprintf("""
-        ERROR: a %s exception occurred during kernel execution.
+        ERROR: a %s was thrown during kernel execution.
         Stacktrace:
         """, ex)
     return
@@ -103,14 +103,8 @@ end
 compile(report_exception_frame, Nothing, (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
 compile(report_exception_name, Nothing, (Ptr{Cchar},))
 
-function bounds_error_unboxed_int(data, vt, i)
-    @cuprintf("ERROR: a bounds error occurred during kernel execution.")
-    # FIXME: have this call emit_exception somehow
-    return
-end
-
-compile(bounds_error_unboxed_int, Nothing, (Ptr{Cvoid}, Any, Csize_t);
-        llvm_name="jl_bounds_error_unboxed_int")
+# NOTE: no throw functions are provided here, but replaced by an LLVM pass instead
+#       in order to provide some debug information without stack unwinding.
 
 
 ## GC
