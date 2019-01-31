@@ -252,10 +252,10 @@ when function changes, or when different types or keyword arguments are provided
             age = method_age(f, $t)
             agecache[key] = age
         end
-        key = hash(age, key)
 
         # compile the function
         ctx = CuCurrentContext()
+        key = hash(age, $precomp_key)
         key = hash(ctx, key)
         key = hash(kwargs, key)
         for nf in 1:nfields(f)
