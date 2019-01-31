@@ -29,6 +29,7 @@ test:dev:
     - trying
 
 coverage:
+  allow_failure: true
   only:
     - master
     - staging
