@@ -79,6 +79,7 @@ macro sync(ex)
     quote
         local e = CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC | CUDAdrv.EVENT_DISABLE_TIMING)
         local ret = $(esc(ex))
+        CUDAdrv.record(e)
         CUDAdrv.synchronize(e)
         ret
     end
