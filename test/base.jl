@@ -3,6 +3,7 @@ using LinearAlgebra
 using Adapt: adapt
 
 import CUDAdrv
+import CUDAdrv: CuPtr, CU_NULL
 
 @testset "GPUArrays test suite" begin
   GPUArrays.test(CuArray)
@@ -17,7 +18,7 @@ end
   @test isa(ret, CuArray{Int32})
   @test occursin("1 GPU allocation: 4 bytes", out)
 
-  ret, out = @grab_output CuArrays.@time Base.unsafe_wrap(CuArray, Ptr{Int32}(12345678), (2, 3))
+  ret, out = @grab_output CuArrays.@time Base.unsafe_wrap(CuArray, CuPtr{Int32}(12345678), (2, 3))
   @test isa(ret, CuArray{Int32})
   @test !occursin("GPU allocation", out)
 end
@@ -35,16 +36,15 @@ end
   @test_throws ErrorException xs[1] = 1
 
   # unsafe_wrap
-  ptr = C_NULL
-  buf = CUDAdrv.Mem.Buffer(C_NULL, 2, CUDAdrv.CuCurrentContext())
-  @test Base.unsafe_wrap(CuArray, C_NULL, 1; own=false).own == false
-  @test Base.unsafe_wrap(CuArray, C_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
-  @test Base.unsafe_wrap(CuArray, C_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray{Nothing}, C_NULL, 2)   == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray{Nothing,1}, C_NULL, 2) == CuArray{Nothing,1}(buf, (2,))
-  @test Base.unsafe_wrap(CuArray, C_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2))
-  @test Base.unsafe_wrap(CuArray{Nothing}, C_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
-  @test Base.unsafe_wrap(CuArray{Nothing,2}, C_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
+  buf = CUDAdrv.Mem.Buffer(CU_NULL, 2, CUDAdrv.CuCurrentContext())
+  @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).own == false
+  @test Base.unsafe_wrap(CuArray, CU_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
+  @test Base.unsafe_wrap(CuArray, CU_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2)   == CuArray{Nothing,1}(buf, (2,))
+  @test Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2) == CuArray{Nothing,1}(buf, (2,))
+  @test Base.unsafe_wrap(CuArray, CU_NULL, (1,2))            == CuArray{Nothing,2}(buf, (1,2))
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
+  @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
 
   @test collect(cuzeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(cuones(2, 2)) == ones(Float32, 2, 2)
