@@ -1,6 +1,6 @@
 module CURAND
 
-import CUDAdrv: CUDAdrv, CuContext
+import CUDAdrv: CUDAdrv, CuContext, CuPtr
 import CUDAapi
 
 using ..CuArrays
