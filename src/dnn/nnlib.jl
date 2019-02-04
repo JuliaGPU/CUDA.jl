@@ -67,7 +67,7 @@ function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T};
 			  alpha=alpha, algo=algo, workspace=workspace, workspace_size=workspace_size)
 end
 
-function ∇conv_filter!(dw::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
+function ∇conv_filter!(dw::CuArray{T}, dy::CuArray{T}, x::CuArray{T};
                        pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                        workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   if version() < v"6"
@@ -75,18 +75,18 @@ function ∇conv_filter!(dw::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArr
   end
   if workspace === nothing
     workspace_size =
-      cudnnGetConvolutionBackwardFilterWorkspaceSize(dw, x, w, dy, padding=pad, stride=stride,
+      cudnnGetConvolutionBackwardFilterWorkspaceSize(dw, x, dy, padding=pad, stride=stride, 
 					             dilation=dilation, algo=algo, mode=flipkernel)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
-  cudnnConvolutionBackwardFilter(dw, x, w, dy, padding=pad, stride=stride, dilation=dilation,
+  cudnnConvolutionBackwardFilter(dw, x, dy, padding=pad, stride=stride, dilation=dilation,
 				 mode=flipkernel, alpha=alpha, algo=algo, workspace=workspace,
                                  workspace_size=workspace_size)
 end
 
-function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray{T};
+function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, w::CuArray{T};
                      pad=0, stride=1, flipkernel=0, alpha=1, dilation=1,
                      workspace::Union{CuVector, Nothing}=nothing, algo=0) where T<:CUDNNFloat
   if version() < v"6"
@@ -94,13 +94,13 @@ function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}, w::CuArray
   end
   if workspace === nothing
     workspace_size =
-      cudnnGetConvolutionBackwardDataWorkspaceSize(dx, x, w, dy, padding=pad, stride=stride,
+      cudnnGetConvolutionBackwardDataWorkspaceSize(dx, w, dy, padding=pad, stride=stride,
                                                    dilation=dilation, algo=algo, mode=flipkernel)
     workspace = workspace_size != 0 ? conv_workspace(workspace_size) : workspace
   else
     workspace_size = length(workspace[])
   end
-  cudnnConvolutionBackwardData(dx, x, w, dy, padding=pad, stride=stride, dilation=dilation,
+  cudnnConvolutionBackwardData(dx, w, dy, padding=pad, stride=stride, dilation=dilation,
 			       mode=flipkernel, alpha=alpha, algo=algo, workspace=workspace,
                                workspace_size=workspace_size)
 end
