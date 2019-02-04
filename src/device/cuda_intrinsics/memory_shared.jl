@@ -23,7 +23,7 @@ macro cuStaticSharedMem(T, dims)
     quote
         len = prod($(esc(dims)))
         ptr = _shmem(Val($id), $(esc(T)), Val(len))
-        CuDeviceArray($(esc(dims)), DevicePtr{$(esc(T)), AS.Shared}(ptr))
+        CuDeviceArray($(esc(dims)), ptr)
     end
 end
 
@@ -49,7 +49,7 @@ macro cuDynamicSharedMem(T, dims, offset=0)
     quote
         len = prod($(esc(dims)))
         ptr = _shmem(Val($id), $(esc(T))) + $(esc(offset))
-        CuDeviceArray($(esc(dims)), DevicePtr{$(esc(T)), AS.Shared}(ptr))
+        CuDeviceArray($(esc(dims)), ptr)
     end
 end
 
@@ -57,7 +57,7 @@ end
 @generated function _shmem(::Val{id}, ::Type{T}, ::Val{len}=Val(0)) where {id,T,len}
     eltyp = convert(LLVMType, T)
 
-    T_ptr = convert(LLVMType, Ptr{T})
+    T_ptr = convert(LLVMType, DevicePtr{T,AS.Shared})
     T_actual_ptr = LLVM.PointerType(eltyp)
 
     # create a function
@@ -96,5 +96,5 @@ end
         ret!(builder, val)
     end
 
-    call_function(llvm_f, Ptr{T})
+    call_function(llvm_f, DevicePtr{T,AS.Shared})
 end

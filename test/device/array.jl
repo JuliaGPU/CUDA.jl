@@ -3,8 +3,7 @@
 @testset "constructors" begin
     # inner constructors
     let
-        p = Ptr{Int}(C_NULL)
-        dp = CUDAnative.DevicePtr(p)
+        dp = CUDAnative.DevicePtr{Int,AS.Generic}(0)
         CuDeviceArray{Int,1,AS.Generic}((1,), dp)
     end
 
@@ -13,8 +12,7 @@
         a = I(1)
         b = I(2)
 
-        p = Ptr{I}(C_NULL)
-        dp = CUDAnative.DevicePtr(p)
+        dp = CUDAnative.DevicePtr{I,AS.Generic}(0)
 
         # not parameterized
         CuDeviceArray(b, dp)
@@ -138,7 +136,7 @@ end
 
     a = [1]
     p = pointer(a)
-    dp = CUDAnative.DevicePtr(p)
+    dp = Base.bitcast(CUDAnative.DevicePtr{eltype(p), AS.Generic}, p)
     da = CUDAnative.CuDeviceArray(1, dp)
     load_index(da)
 end

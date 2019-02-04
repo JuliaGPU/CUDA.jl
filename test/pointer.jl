@@ -2,17 +2,17 @@
 
 # inner constructors
 
-voidptr_a = Ptr{Cvoid}(Int(0xDEADBEEF))
+voidptr_a = CuPtr{Cvoid}(Int(0xDEADBEEF))
 generic_voidptr_a = CUDAnative.DevicePtr{Cvoid,AS.Generic}(voidptr_a)
 global_voidptr_a = CUDAnative.DevicePtr{Cvoid,AS.Global}(voidptr_a)
 local_voidptr_a = CUDAnative.DevicePtr{Cvoid,AS.Local}(voidptr_a)
 
-voidptr_b = Ptr{Cvoid}(Int(0xCAFEBABE))
+voidptr_b = CuPtr{Cvoid}(Int(0xCAFEBABE))
 generic_voidptr_b = CUDAnative.DevicePtr{Cvoid,AS.Generic}(voidptr_b)
 global_voidptr_b = CUDAnative.DevicePtr{Cvoid,AS.Global}(voidptr_b)
 local_voidptr_b = CUDAnative.DevicePtr{Cvoid,AS.Local}(voidptr_b)
 
-intptr_b = convert(Ptr{Int}, voidptr_b)
+intptr_b = convert(CuPtr{Int}, voidptr_b)
 generic_intptr_b = CUDAnative.DevicePtr{Int,AS.Generic}(intptr_b)
 global_intptr_b = CUDAnative.DevicePtr{Int,AS.Global}(intptr_b)
 local_intptr_b = CUDAnative.DevicePtr{Int,AS.Local}(intptr_b)
@@ -35,17 +35,16 @@ local_intptr_b = CUDAnative.DevicePtr{Int,AS.Local}(intptr_b)
 
 @testset "conversions" begin
 
-# between regular and device pointers
+# between host and device pointers
 
-@test_throws InexactError convert(Ptr{Cvoid}, generic_voidptr_a)
-@test_throws InexactError convert(CUDAnative.DevicePtr{Cvoid}, voidptr_a)
-
-@test Base.unsafe_convert(Ptr{Cvoid}, generic_voidptr_a) == voidptr_a
+@test convert(CuPtr{Cvoid}, generic_voidptr_a) == voidptr_a
+@test convert(CUDAnative.DevicePtr{Cvoid}, voidptr_a) == generic_voidptr_a
+@test convert(CUDAnative.DevicePtr{Cvoid,AS.Global}, voidptr_a) == global_voidptr_a
 
 
 # between device pointers
 
-@test_throws InexactError convert(typeof(local_voidptr_a), global_voidptr_a)
+@test_throws ArgumentError convert(typeof(local_voidptr_a), global_voidptr_a)
 @test convert(typeof(generic_voidptr_a), generic_voidptr_a) == generic_voidptr_a
 @test convert(typeof(global_voidptr_a), global_voidptr_a) == global_voidptr_a
 @test Base.unsafe_convert(typeof(local_voidptr_a), global_voidptr_a) == local_voidptr_a

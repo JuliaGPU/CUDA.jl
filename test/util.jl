@@ -108,7 +108,7 @@ end
 ## conversions
 using Adapt
 function Adapt.adapt_storage(::CUDAnative.Adaptor, a::CuTestArray{T,N}) where {T,N}
-    ptr = Base.unsafe_convert(Ptr{T}, a.buf)
+    ptr = Base.unsafe_convert(CuPtr{T}, a.buf)
     devptr = CUDAnative.DevicePtr{T,AS.Global}(ptr)
     CuDeviceArray{T,N,AS.Global}(a.shape, devptr)
 end

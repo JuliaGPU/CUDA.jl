@@ -10,8 +10,7 @@ abstract type AddressSpace end
 
 module AS
 
-using CUDAnative
-import CUDAnative: AddressSpace
+import ..AddressSpace
 
 struct Generic  <: AddressSpace end
 struct Global   <: AddressSpace end
@@ -26,26 +25,29 @@ end
 # Device pointer
 #
 
-struct DevicePtr{T,A}
-    ptr::Ptr{T}
+"""
+    DevicePtr{T,A}
 
-    # inner constructors, fully parameterized
-    DevicePtr{T,A}(ptr::Ptr{T}) where {T,A<:AddressSpace} = new(ptr)
+A memory address that refers to data of type `T` that is accessible from the GPU. It is the
+on-device counterpart of `CUDAdrv.CuPtr`, additionally keeping track of the address space
+`A` where the data resides (shared, global, constant, etc). This information is used to
+provide optimized implementations of operations such as `unsafe_load` and `unsafe_store!.`
+"""
+DevicePtr
+
+if sizeof(Ptr{Cvoid}) == 8
+    primitive type DevicePtr{T,A} 64 end
+else
+    primitive type DevicePtr{T,A} 32 end
 end
 
-# outer constructors, partially parameterized
-DevicePtr{T}(ptr::Ptr{T}) where {T} = DevicePtr{T,AS.Generic}(ptr)
-
-# outer constructors, non-parameterized
-DevicePtr(ptr::Ptr{T})              where {T} = DevicePtr{T,AS.Generic}(ptr)
-
-Base.show(io::IO, dp::DevicePtr{T,AS}) where {T,AS} =
-    print(io, AS.name.name, " Device", pointer(dp))
+# constructors
+DevicePtr{T,A}(x::Union{Int,UInt,CuPtr,DevicePtr}) where {T,A<:AddressSpace} = Base.bitcast(DevicePtr{T,A}, x)
+DevicePtr{T}(ptr::CuPtr{T}) where {T} = DevicePtr{T,AS.Generic}(ptr)
+DevicePtr(ptr::CuPtr{T}) where {T} = DevicePtr{T,AS.Generic}(ptr)
 
 
 ## getters
-
-Base.pointer(p::DevicePtr) = p.ptr
 
 Base.eltype(::Type{<:DevicePtr{T}}) where {T} = T
 
@@ -55,20 +57,23 @@ addrspace(::Type{DevicePtr{T,A}}) where {T,A} = A
 
 ## conversions
 
-# between regular and device pointers
-## simple conversions disallowed
-Base.convert(::Type{Ptr{T}}, p::DevicePtr{T})        where {T} = throw(InexactError(:convert, Ptr{T}, p))
-Base.convert(::Type{<:DevicePtr{T}}, p::Ptr{T})      where {T} = throw(InexactError(:convert, DevicePtr{T}, p))
-## unsafe ones are allowed
-Base.unsafe_convert(::Type{Ptr{T}}, p::DevicePtr{T}) where {T} = pointer(p)
+# to and from integers
+## pointer to integer
+Base.convert(::Type{T}, x::DevicePtr) where {T<:Integer} = T(UInt(x))
+## integer to pointer
+Base.convert(::Type{DevicePtr{T,A}}, x::Union{Int,UInt}) where {T,A<:AddressSpace} = DevicePtr{T,A}(x)
+Int(x::DevicePtr)  = Base.bitcast(Int, x)
+UInt(x::DevicePtr) = Base.bitcast(UInt, x)
 
-# defer conversions to DevicePtr to unsafe_convert
-Base.cconvert(::Type{<:DevicePtr}, x) = x
+# between host and device pointers
+Base.convert(::Type{CuPtr{T}},  p::DevicePtr)  where {T}                 = Base.bitcast(CuPtr{T}, p)
+Base.convert(::Type{DevicePtr{T,A}}, p::CuPtr) where {T,A<:AddressSpace} = Base.bitcast(DevicePtr{T,A}, p)
+Base.convert(::Type{DevicePtr{T}}, p::CuPtr)   where {T}                 = Base.bitcast(DevicePtr{T,AS.Generic}, p)
 
 # between device pointers
-Base.convert(::Type{<:DevicePtr}, p::DevicePtr)                         = throw(InexactError(:convert, DevicePtr, p))
+Base.convert(::Type{<:DevicePtr}, p::DevicePtr)                         = throw(ArgumentError("cannot convert between incompatible device pointer types"))
 Base.convert(::Type{DevicePtr{T,A}}, p::DevicePtr{T,A})   where {T,A}   = p
-Base.unsafe_convert(::Type{DevicePtr{T,A}}, p::DevicePtr) where {T,A}   = DevicePtr{T,A}(reinterpret(Ptr{T}, pointer(p)))
+Base.unsafe_convert(::Type{DevicePtr{T,A}}, p::DevicePtr) where {T,A}   = Base.bitcast(DevicePtr{T,A}, p)
 ## identical addrspaces
 Base.convert(::Type{DevicePtr{T,A}}, p::DevicePtr{U,A}) where {T,U,A} = Base.unsafe_convert(DevicePtr{T,A}, p)
 ## convert to & from generic
@@ -78,17 +83,23 @@ Base.convert(::Type{DevicePtr{T,AS.Generic}}, p::DevicePtr{T,AS.Generic}) where 
 ## unspecified, preserve source addrspace
 Base.convert(::Type{DevicePtr{T}}, p::DevicePtr{U,A}) where {T,U,A} = Base.unsafe_convert(DevicePtr{T,A}, p)
 
+# defer conversions to DevicePtr to unsafe_convert
+Base.cconvert(::Type{<:DevicePtr}, x) = x
+
 
 ## limited pointer arithmetic & comparison
 
-Base.:(==)(a::DevicePtr, b::DevicePtr) = pointer(a) == pointer(b) && addrspace(a) == addrspace(b)
+isequal(x::DevicePtr, y::DevicePtr) = (x === y) && addrspace(x) == addrspace(y)
+isless(x::DevicePtr{T,A}, y::DevicePtr{T,A}) where {T,A<:AddressSpace} = x < y
 
-Base.isless(x::DevicePtr, y::DevicePtr) = Base.isless(pointer(x), pointer(y))
-Base.:(-)(x::DevicePtr, y::DevicePtr)   = pointer(x) - pointer(y)
+Base.:(==)(x::DevicePtr, y::DevicePtr) = UInt(x) == UInt(y) && addrspace(x) == addrspace(y)
+Base.:(<)(x::DevicePtr,  y::DevicePtr) = UInt(x) < UInt(y)
+Base.:(-)(x::DevicePtr,  y::DevicePtr) = UInt(x) - UInt(y)
 
-Base.:(+)(x::DevicePtr{T,A}, y::Integer) where {T,A} = DevicePtr{T,A}(pointer(x) + y)
-Base.:(-)(x::DevicePtr{T,A}, y::Integer) where {T,A} = DevicePtr{T,A}(pointer(x) - y)
+Base.:(+)(x::DevicePtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
+Base.:(-)(x::DevicePtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
 Base.:(+)(x::Integer, y::DevicePtr) = y + x
+
 
 
 ## memory operations
@@ -121,7 +132,7 @@ tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.n
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
-    T_ptr = convert(LLVMType, Ptr{T})
+    T_ptr = convert(LLVMType, DevicePtr{T,A})
 
     T_actual_ptr = LLVM.PointerType(eltyp)
 
@@ -148,7 +159,7 @@ tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.n
         ret!(builder, ld)
     end
 
-    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
+    call_function(llvm_f, T, Tuple{DevicePtr{T,A}, Int}, :((p, Int(i-one(i)))))
 end
 
 @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
@@ -156,7 +167,7 @@ end
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
-    T_ptr = convert(LLVMType, Ptr{T})
+    T_ptr = convert(LLVMType, DevicePtr{T,A})
 
     T_actual_ptr = LLVM.PointerType(eltyp)
 
@@ -184,7 +195,8 @@ end
         ret!(builder)
     end
 
-    call_function(llvm_f, Cvoid, Tuple{Ptr{T}, T, Int}, :((pointer(p), convert(T,x), Int(i-one(i)))))
+    call_function(llvm_f, Cvoid, Tuple{DevicePtr{T,A}, T, Int},
+                  :((p, convert(T,x), Int(i-one(i)))))
 end
 
 ## loading through the texture cache
@@ -215,7 +227,7 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
 
     T_int = convert(LLVMType, Int)
     T_int32 = LLVM.Int32Type(JuliaContext())
-    T_ptr = convert(LLVMType, Ptr{T})
+    T_ptr = convert(LLVMType, DevicePtr{T,AS.Global})
 
     T_actual_ptr = LLVM.PointerType(eltyp)
     T_actual_ptr_as = LLVM.PointerType(eltyp, convert(Int, AS.Global))
@@ -258,7 +270,7 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
         ret!(builder, ld)
     end
 
-    call_function(llvm_f, T, Tuple{Ptr{T}, Int}, :((pointer(p), Int(i-one(i)))))
+    call_function(llvm_f, T, Tuple{DevicePtr{T,AS.Global}, Int}, :((p, Int(i-one(i)))))
 end
 
 @inline unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1, args...) where {T} =
