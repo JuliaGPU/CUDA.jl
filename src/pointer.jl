@@ -1,6 +1,6 @@
 # CUDA pointer types
 
-export CuPtr
+export CuPtr, PtrOrCuPtr
 
 
 #
@@ -46,7 +46,7 @@ Base.convert(::Type{<:Ptr}, p::CuPtr) =
     throw(ArgumentError("cannot convert a GPU pointer to a CPU pointer"))
 
 # between CUDA pointers
-Base.convert(::Type{CuPtr{T}},    p::CuPtr) where {T} = Base.bitcast(CuPtr{T}, p)
+Base.convert(::Type{CuPtr{T}}, p::CuPtr) where {T} = Base.bitcast(CuPtr{T}, p)
 
 # defer conversions to unsafe_convert
 Base.cconvert(::Type{<:CuPtr}, x) = x
@@ -67,3 +67,54 @@ Base.:(-)(x::CuPtr,  y::CuPtr) = UInt(x) - UInt(y)
 Base.:(+)(x::CuPtr, y::Integer) = oftype(x, Base.add_ptr(UInt(x), (y % UInt) % UInt))
 Base.:(-)(x::CuPtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt) % UInt))
 Base.:(+)(x::Integer, y::CuPtr) = y + x
+
+
+
+#
+# GPU or CPU pointer
+#
+
+"""
+    PtrOrCuPtr{T}
+
+A special pointer type, ABI-compatible with both `Ptr` and `CuPtr`, for use in `ccall`
+expressions to convert values to either a GPU or a CPU type (in that order). This is
+required for CUDA APIs which accept pointers that either point to host or device memory.
+"""
+PtrOrCuPtr
+
+
+if sizeof(Ptr{Cvoid}) == 8
+    primitive type PtrOrCuPtr{T} 64 end
+else
+    primitive type PtrOrCuPtr{T} 32 end
+end
+
+function Base.cconvert(::Type{PtrOrCuPtr{T}}, val) where {T}
+    # `cconvert` is always implemented for both `Ptr` and `CuPtr`, so pick the first result
+    # that has done an actual conversion
+
+    gpu_val = Base.cconvert(CuPtr{T}, val)
+    if gpu_val !== val
+        return gpu_val
+    end
+
+    cpu_val = Base.cconvert(Ptr{T}, val)
+    if cpu_val !== val
+        return cpu_val
+    end
+
+    return val
+end
+
+function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
+    # TODO: this should try/catch since the fallback for `unsafe_convert{Ptr}` calls error
+    ptr = if applicable(Base.unsafe_convert, CuPtr{T}, val)
+        Base.unsafe_convert(CuPtr{T}, val)
+    elseif applicable(Base.unsafe_convert, Ptr{T}, val)
+        Base.unsafe_convert(Ptr{T}, val)
+    else
+        throw(ArgumentError("cannot convert to either a CPU or GPU pointer"))
+    end
+    return Base.bitcast(PtrOrCuPtr{T}, ptr)
+end
