@@ -168,7 +168,7 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,true,N},
                          x::CuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2C
     @check ccall((:cufftExecC2C,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftComplex}, Ptr{cufftComplex},
+                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftComplex},
                   Cint),
                  plan, x, x, K)
 end
@@ -176,7 +176,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,N},
                          x::CuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2R
     @check ccall((:cufftExecC2R,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftComplex}, Ptr{cufftComplex}),
+                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftComplex}),
                  plan, x, x)
 end
 
@@ -185,7 +185,7 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2C
     @check ccall((:cufftExecC2C,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftComplex}, Ptr{cufftComplex}, Cint),
+                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftComplex}, Cint),
                  plan, x, y, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
@@ -193,7 +193,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
     @check ccall((:cufftExecC2R,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftComplex}, Ptr{cufftReal}),
+                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftReal}),
                  plan, x, y)
 end
 
@@ -202,7 +202,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_R2C
     @check ccall((:cufftExecR2C,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftReal}, Ptr{cufftComplex}),
+                 (cufftHandle_t, CuPtr{cufftReal}, CuPtr{cufftComplex}),
                  plan, x, y)
 end
 
@@ -211,7 +211,7 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,true,N},
                          x::CuArray{cufftDoubleComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
     @check ccall((:cufftExecZ2Z,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftDoubleComplex}, Ptr{cufftDoubleComplex},
+                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleComplex},
                   Cint),
                  plan, x, x, K)
 end
@@ -219,7 +219,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,true,N},
                          x::CuArray{cufftDoubleComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
     @check ccall((:cufftExecZ2D,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftDoubleComplex}, Ptr{cufftDoubleComplex}),
+                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleComplex}),
                  plan, x, x)
 end
 
@@ -228,7 +228,7 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
     @check ccall((:cufftExecZ2Z,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftDoubleComplex}, Ptr{cufftDoubleComplex}, Cint),
+                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleComplex}, Cint),
                  plan, x, y, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
@@ -236,7 +236,7 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
     @check ccall((:cufftExecZ2D,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftDoubleComplex}, Ptr{cufftDoubleReal}),
+                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleReal}),
                  plan, x, y)
 end
 
@@ -245,6 +245,6 @@ function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleReal,K,false,N},
                          ) where {K,N}
     @assert plan.xtype == CUFFT_D2Z
     @check ccall((:cufftExecD2Z,libcufft), cufftStatus_t,
-                 (cufftHandle_t, Ptr{cufftDoubleReal}, Ptr{cufftDoubleComplex}),
+                 (cufftHandle_t, CuPtr{cufftDoubleReal}, CuPtr{cufftDoubleComplex}),
                  plan, x, y)
 end
