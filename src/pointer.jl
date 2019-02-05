@@ -1,6 +1,6 @@
 # CUDA pointer types
 
-export CuPtr, PtrOrCuPtr
+export CuPtr, CU_NULL, PtrOrCuPtr
 
 
 #
@@ -24,6 +24,8 @@ end
 
 # constructor
 CuPtr{T}(x::Union{Int,UInt,CuPtr}) where {T} = Base.bitcast(CuPtr{T}, x)
+
+const CU_NULL = CuPtr{Cvoid}(0)
 
 
 ## getters

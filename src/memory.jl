@@ -154,7 +154,7 @@ Note that, contrary to the CUDA API, zero-size allocations are permitted. Such a
 will point to the null pointer, and are not attached to a valid context.
 """
 function alloc(bytesize::Integer, managed=false; flags::CUmem_attach=ATTACH_GLOBAL)
-    bytesize == 0 && return Buffer(CuPtr{Cvoid}(0), 0, CuContext(C_NULL))
+    bytesize == 0 && return Buffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
     if !managed
