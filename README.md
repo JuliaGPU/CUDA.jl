@@ -8,14 +8,17 @@
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://juliagpu.gitlab.io/CuArrays.jl/
 
-CuArrays provides a fully-functional GPU array, which can give significant speedups over normal arrays without code changes. CuArrays are implemented fully in Julia, making the implementation [elegant and extremely generic](http://mikeinnes.github.io/2017/08/24/cudanative.html).
+CuArrays provides a fully-functional GPU array, which can give significant speedups over
+normal arrays without code changes. CuArrays are implemented fully in Julia, making the
+implementation [elegant and extremely
+generic](http://mikeinnes.github.io/2017/08/24/cudanative.html).
 
 Documentation for this package is sparse, and for many of the array operations you should
 refer to the official Julia documentation. The following resources can be useful to get a
 better understanding of the characteristics and performance trade offs that come with GPU
 arrays:
 
-- Introductory tutorial on [GPU programming with Julia](https://juliagpu.gitlab.io/CuArrays.jl/tutorials/intro.html)
+- Introductory tutorial on [GPU programming with Julia](https://juliagpu.gitlab.io/CuArrays.jl/tutorials/generated/intro.html)
 - Slide deck on [effectively using GPUs with Julia](https://docs.google.com/presentation/d/1l-BuAtyKgoVYakJSijaSqaTL3friESDyTOnU2OLqGoA/)
 
 ## Installation
@@ -54,19 +57,12 @@ Because `CuArray` is an `AbstractArray`, it doesn't have much of a learning curv
 
 We welcome issues or PRs for functionality not on this list.
 
-Note that some operations not on this list will work, but be slow, due to Base's generic implementations. This is intentional, to enable a "make it work, then make it fast" workflow. When you're ready you can disable slow fallback methods:
+Note that some operations not on this list will work, but be slow, due to Base's generic
+implementations. This is intentional, to enable a "make it work, then make it fast"
+workflow. When you're ready you can disable slow fallback methods:
 
 ```julia
 julia> CuArrays.allowscalar(false)
 julia> xs[5]
 ERROR: getindex is disabled
 ```
-
-## Tutorials
-
-CuArrays is a great starting point for learning the fundamentals GPU
-programming, because you can initially lean on the high-level
-abstractions and then learn, as needed, how to obtain more
-fine-grained control.  Here are some tutorials to get you started:
-
-- https://juliagpu.gitlab.io/CuArrays.jl/tutorials/intro.html
