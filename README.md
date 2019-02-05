@@ -18,7 +18,7 @@ refer to the official Julia documentation. The following resources can be useful
 better understanding of the characteristics and performance trade offs that come with GPU
 arrays:
 
-- Introductory tutorial on [GPU programming with Julia](https://juliagpu.gitlab.io/CuArrays.jl/tutorials/generated/intro.html)
+- Introductory tutorial on [GPU programming with Julia](https://juliagpu.gitlab.io/CuArrays.jl/tutorials/generated/intro/)
 - Slide deck on [effectively using GPUs with Julia](https://docs.google.com/presentation/d/1l-BuAtyKgoVYakJSijaSqaTL3friESDyTOnU2OLqGoA/)
 
 ## Installation
