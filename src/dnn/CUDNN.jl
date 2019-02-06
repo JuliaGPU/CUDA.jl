@@ -1,7 +1,8 @@
 module CUDNN
 
-import CUDAdrv: CUDAdrv, CuContext
 import CUDAapi
+
+import CUDAdrv: CUDAdrv, CuContext, CuPtr, CU_NULL
 
 using ..CuArrays
 using ..CuArrays: libcudnn, active_context, configured

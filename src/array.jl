@@ -51,25 +51,27 @@ Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,
 
 
 """
-  unsafe_wrap(::CuArray, pointer{T}, dims; own=false, ctx=CuCurrentContext())
+  unsafe_wrap(::CuArray, ptr::CuPtr{T}, dims; own=false, ctx=CuCurrentContext())
 
-Wrap a `CuArray` object around the data at the address given by `pointer`. The pointer
+Wrap a `CuArray` object around the data at the address given by `ptr`. The pointer
 element type `T` determines the array element type. `dims` is either an integer (for a 1d
 array) or a tuple of the array dimensions. `own` optionally specified whether Julia should
 take ownership of the memory, calling `free` when the array is no longer referenced. The
 `ctx` argument determines the CUDA context where the data is allocated in.
 """
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
-                          p::Ptr{T}, dims::NTuple{N,Int};
+                          p::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
-  buf = Mem.Buffer(convert(Ptr{Cvoid}, p), prod(dims) * sizeof(T), ctx)
+  buf = Mem.Buffer(convert(CuPtr{Cvoid}, p), prod(dims) * sizeof(T), ctx)
   return CuArray{T, length(dims)}(buf, dims; own=own)
 end
 function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
-                          p::Ptr{T}, dim::Integer;
+                          p::CuPtr{T}, dim::Integer;
                           own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T}
   unsafe_wrap(Atype, p, (dim,); own=own, ctx=ctx)
 end
+Base.unsafe_wrap(T::Type{<:CuArray}, ::Ptr, dims::NTuple{N,Int}; kwargs...) where {N} =
+  throw(ArgumentError("cannot wrap a CPU pointer with a $T"))
 
 
 ## array interface
@@ -126,15 +128,15 @@ function buffer(xs::CuArray, index=1)
              xs.buf.ctx)
 end
 
-Base.cconvert(::Type{Ptr{T}}, x::CuArray{T}) where T = buffer(x)
-Base.cconvert(::Type{Ptr{Nothing}}, x::CuArray) = buffer(x)
+Base.cconvert(::Type{<:Ptr}, x::CuArray) = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
+Base.cconvert(::Type{<:CuPtr}, x::CuArray) = buffer(x)
 
 
 ## interop with CUDAnative
 
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-  ptr = Base.unsafe_convert(Ptr{T}, a.buf)
-  CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr+a.offset))
+  ptr = Base.unsafe_convert(CuPtr{T}, buffer(a))
+  CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr))
 end
 
 Adapt.adapt_storage(::CUDAnative.Adaptor, xs::CuArray{T,N}) where {T,N} =

@@ -1,3 +1,7 @@
+# wrappers of the low-level sparse CUSOLVER functionality
+#
+# TODO: move raw ccall wrappers to libcusolver.jl
+
 import ..CuArrays.CUSPARSE: cusparseindex, cusparseMatDescr_t, CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, CUSPARSE_DIAG_TYPE_UNIT
 import LinearAlgebra: SingularException
 #csrlsvlu 
@@ -73,8 +77,8 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
             singularity = Ref{Cint}(1)
             @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverSpHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, Ptr{$elty}, $relty, Cint, Ptr{$elty},
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, CuPtr{$elty}, $relty, Cint, CuPtr{$elty},
                                Ptr{Cint}),
                               sparse_handle(), n, A.nnz, rcudesca, A.nzVal,
                               A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
@@ -115,8 +119,8 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
             singularity = zeros(Cint,1)
             @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverSpHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, Ptr{$elty}, $relty, Cint, Ptr{$elty},
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, CuPtr{$elty}, $relty, Cint, CuPtr{$elty},
                                Ptr{Cint}),
                               sparse_handle(), n, A.nnz, rcudesca, A.nzVal,
                               A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
@@ -197,9 +201,9 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
             μ       = cuzeros($elty,1)
             @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverSpHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, $elty, Ptr{$elty}, Cint,
-                               $relty, Ptr{$elty}, Ptr{$elty}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, $elty, CuPtr{$elty}, Cint,
+                               $relty, CuPtr{$elty}, CuPtr{$elty}),
                               sparse_handle(), n, A.nnz, rcudesca, A.nzVal,
                               A.rowPtr, A.colVal, μ_0, x_0, maxite, tol, μ, x)
             collect(μ)[1], x

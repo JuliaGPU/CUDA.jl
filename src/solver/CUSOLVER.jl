@@ -1,6 +1,6 @@
 module CUSOLVER
 
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t
+import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
 import CUDAapi
 
 using ..CuArrays

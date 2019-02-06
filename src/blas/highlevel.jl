@@ -1,12 +1,14 @@
+# LinearAlgebra-style wrappers of the CUBLAS functionality
+
+
 cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 
 CublasArray{T<:CublasFloat} = CuArray{T}
 
-###########
+
 #
 # BLAS 1
 #
-###########
 
 LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Number) =
   scal!(length(x), convert(eltype(x), k), x, 1)
@@ -50,15 +52,12 @@ Base.argmax(xs::CublasArray{<:CublasReal}) = iamax(xs)
 
 
 
-############
 #
 # BLAS 2
 #
-############
 
-#########
 # GEMV
-##########
+
 function gemv_wrapper!(y::CuVector{T}, tA::Char, A::CuMatrix{T}, x::CuVector{T},
                        alpha = one(T), beta = zero(T)) where T<:CublasFloat
     mA, nA = cublas_size(tA, A)
@@ -84,15 +83,12 @@ LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}
 
 
 
-############
 #
 # BLAS 3
 #
-############
 
-########
 # GEMM
-########
+
 function gemm_wrapper!(C::CuVecOrMat{T}, tA::Char, tB::Char,
                    A::CuVecOrMat{T},
                    B::CuVecOrMat{T},
@@ -149,9 +145,7 @@ LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix
     gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB))
 
 
-########
 # TRSM
-########
 
 # ldiv!
 ## No transpose/adjoint

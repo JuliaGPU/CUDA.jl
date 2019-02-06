@@ -1,12 +1,8 @@
-# blas.jl
+# wrappers of the low-level CUBLAS functionality
 #
-# "High level" blas interface to cublas.
-# Modeled from julia/src/base/linalg/blas.jl
-#
-# Author: Nick Henderson <nwh@stanford.edu>
-# Created: 2014-08-26
-# License: MIT
-#
+# modeled from julia/src/base/linalg/blas.jl
+# originally authored by Nick Henderson <nwh@stanford.edu> (2014-08-26, MIT licensed)
+
 
 # Utility functions
 
@@ -70,10 +66,7 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
                            incx::Integer,
                            DY::CuArray{$elty},
                            incy::Integer)
-              @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                           (cublasHandle_t, Cint, Ptr{$elty}, Cint,
-                            Ptr{$elty}, Cint),
-                           handle(), n, DX, incx, DY, incy)
+              $fname(handle(), n, DX, incx, DY, incy)
             DY
         end
     end
@@ -90,10 +83,7 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
                        DA::$elty,
                        DX::CuArray{$elty},
                        incx::Integer)
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Ptr{$elty},
-                          Cint),
-                         handle(), n, [DA], DX, incx)
+            $fname(handle(), n, Ref(DA), DX, incx)
             DX
         end
     end
@@ -109,10 +99,7 @@ for (fname, elty, celty) in ((:cublasSscal_v2, :Float32, :ComplexF32),
                        incx::Integer)
             #DY = reinterpret($elty,DX,(2*n,))
             #$(cublascall(fname))(handle(),2*n,[DA],DY,incx)
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Ptr{$celty},
-                          Cint),
-                         handle(), 2*n, [DA], DX, incx)
+            $fname(handle(), 2*n, Ref(DA), DX, incx)
             DX
         end
     end
@@ -138,10 +125,7 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
                         DY::CuArray{$elty},
                         incy::Integer)
             result = Ref{$elty}()
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}),
-                         handle(), n, DX, incx, DY, incy, result)
+            $fname(handle(), n, DX, incx, DY, incy, result)
             return result[]
         end
     end
@@ -158,10 +142,7 @@ for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
                       X::CuArray{$elty},
                       incx::Integer)
             result = Ref{$ret_type}()
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Cint,
-                          Ptr{$ret_type}),
-                         handle(), n, X, incx, result)
+            $fname(handle(), n, X, incx, result)
             return result[]
         end
     end
@@ -181,10 +162,7 @@ for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
                       X::CuArray{$elty},
                       incx::Integer)
             result = Ref{$ret_type}()
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Cint,
-                          Ptr{$ret_type}),
-                         handle(), n, X, incx, result)
+            $fname(handle(), n, X, incx, result)
             return result[]
         end
     end
@@ -212,11 +190,7 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
                        incx::Integer,
                        dy::CuArray{$elty},
                        incy::Integer)
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ref{$elty}, Ptr{$elty},
-                          Cint, Ptr{$elty},
-                          Cint),
-                         handle(), n, alpha, dx, incx, dy, incy)
+            $fname(handle(), n, Ref(alpha), dx, incx, dy, incy)
             dy
         end
     end
@@ -247,10 +221,7 @@ for (fname, elty) in ((:cublasIdamax_v2,:Float64),
                        dx::CuArray{$elty},
                        incx::Integer)
             result = Ref{Cint}()
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Cint,
-                          Ptr{Cint}),
-                         handle(), n, dx, incx, result)
+           $fname(handle(), n, dx, incx, result)
             return result[]
         end
     end
@@ -268,10 +239,7 @@ for (fname, elty) in ((:cublasIdamin_v2,:Float64),
                        dx::CuArray{$elty},
                        incx::Integer)
             result = Ref{Cint}()
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{$elty}, Cint,
-                          Ptr{Cint}),
-                         handle(), n, dx, incx, result)
+            $fname(handle(), n, dx, incx, result)
             return result[]
         end
     end
@@ -309,12 +277,7 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(X,1)
             incy = stride(Y,1)
-            @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasOperation_t, Cint, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
-                         Cint, Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         cutrans, m, n, [alpha], A, lda, X, incx, [beta], Y,
-                         incy)
+            $fname(handle(), cutrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy)
             Y
         end
         function gemv(trans::Char, alpha::($elty), A::CuMatrix{$elty}, X::CuVector{$elty})
@@ -356,12 +319,7 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasOperation_t, Cint, Cint,
-                          Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty},
-                          Cint), handle(), cutrans, m, n, kl, ku, [alpha], A,
-                         lda, x, incx, [beta], y, incy)
+            $fname(handle(), cutrans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function gbmv(trans::Char,
@@ -412,13 +370,7 @@ for (fname, elty) in ((:cublasDsymv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t,
-                         Cint,Ptr{$elty}, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint, Ptr{$elty},
-                         Ptr{$elty},Cint),
-                         handle(), cuuplo, n, [alpha],
-                         A, lda, x, incx, [beta], y, incy)
+            $fname(handle(), cuuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function symv(uplo::Char, alpha::($elty), A::CuMatrix{$elty}, x::CuVector{$elty})
@@ -454,13 +406,7 @@ for (fname, elty) in ((:cublasZhemv_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t,
-                         Cint,Ptr{$elty}, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint, Ptr{$elty},
-                         Ptr{$elty},Cint),
-                         handle(), cuuplo, n, [alpha],
-                         A, lda, x, incx, [beta], y, incy)
+            $fname(handle(), cuuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function hemv(uplo::Char, alpha::($elty), A::CuMatrix{$elty},
@@ -501,12 +447,7 @@ for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t, Cint, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         cuuplo, n, k, [alpha], A, lda, x, incx, [beta], y,
-                         incy)
+            $fname(handle(), cuuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function sbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -545,12 +486,7 @@ for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t, Cint, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint), handle(),
-                         cuuplo, n, k, [alpha], A, lda, x, incx, [beta], y,
-                         incy)
+            $fname(handle(), cuuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function hbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -591,11 +527,7 @@ for (fname, elty) in ((:cublasStbmv_v2,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t, cublasOperation_t,
-                         cublasDiagType_t, Cint, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint), handle(), cuuplo, cutrans,
-                         cudiag, n, k, A, lda, x, incx)
+            $fname(handle(), cuuplo, cutrans, cudiag, n, k, A, lda, x, incx)
             x
         end
         function tbmv(uplo::Char,
@@ -634,11 +566,7 @@ for (fname, elty) in ((:cublasStbsv_v2,:Float32),
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t, cublasOperation_t,
-                         cublasDiagType_t, Cint, Cint, Ptr{$elty}, Cint,
-                         Ptr{$elty}, Cint), handle(), cuuplo, cutrans,
-                         cudiag, n, k, A, lda, x, incx)
+            $fname(handle(), cuuplo, cutrans, cudiag, n, k, A, lda, x, incx)
             x
         end
         function tbsv(uplo::Char,
@@ -678,11 +606,7 @@ for (fname, elty) in ((:cublasDtrmv_v2,:Float64),
             cudiag = cublasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t,
-                          cublasOperation_t, cublasDiagType_t, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint), handle(),
-                         cuuplo, cutrans, cudiag, n, A, lda, x, incx)
+            $fname(handle(), cuuplo, cutrans, cudiag, n, A, lda, x, incx)
             x
         end
         function trmv(uplo::Char,
@@ -721,11 +645,7 @@ for (fname, elty) in ((:cublasDtrsv_v2,:Float64),
             cudiag = cublasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t,
-                          cublasOperation_t, cublasDiagType_t, Cint,
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint), handle(),
-                         cuuplo, cutrans, cudiag, n, A, lda, x, incx)
+            $fname(handle(), cuuplo, cutrans, cudiag, n, A, lda, x, incx)
             x
         end
         function trsv(uplo::Char,
@@ -759,11 +679,7 @@ for (fname, elty) in ((:cublasDger_v2,:Float64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                         Cint), handle(), m, n, [alpha], x, incx, y,
-                         incy, A, lda)
+            $fname(handle(), m, n, [alpha], x, incx, y, incy, A, lda)
             A
         end
     end
@@ -790,11 +706,7 @@ for (fname, elty) in ((:cublasDsyr_v2,:Float64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                         handle(), cuuplo, n, [alpha], x, incx, A,
-                         lda)
+            $fname(handle(), cuuplo, n, [alpha], x, incx, A, lda)
             A
         end
     end
@@ -814,11 +726,7 @@ for (fname, elty) in ((:cublasZher_v2,:ComplexF64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t, Cint,
-                         Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                         handle(), cuuplo, n, [alpha], x, incx, A,
-                         lda)
+            $fname(handle(), cuuplo, n, [alpha], x, incx, A, lda)
             A
         end
     end
@@ -841,12 +749,7 @@ for (fname, elty) in ((:cublasZher2_v2,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t, Cint,
-                          Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                          Ptr{$elty}, Cint),
-                         handle(), cuuplo, n, [alpha], x, incx, y, incy, A,
-                         lda)
+            $fname(handle(), cuuplo, n, [alpha], x, incx, y, incy, A, lda)
             A
         end
     end
@@ -885,14 +788,7 @@ for (fname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasOperation_t,
-                          cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint),
-                         handle(), cutransA,
-                         cutransB, m, n, k, [alpha], A, lda, B, ldb, [beta],
-                         C, ldc)
+            $fname(handle(), cutransA,cutransB, m, n, k, [alpha], A, lda, B, ldb, [beta],C, ldc)
             C
         end
         function gemm(transA::Char,
@@ -916,7 +812,7 @@ end
 # helper function to get a device array of device pointers
 function device_batch(batch::Array{T}) where {T<:CuArray}
   E = eltype(T)
-  ptrs = [Base.unsafe_convert(Ptr{E}, arr.buf) for arr in batch]
+  ptrs = [Base.unsafe_convert(CuPtr{E}, Base.cconvert(CuPtr{E}, arr)) for arr in batch]
   CuArray(ptrs)
 end
 
@@ -962,14 +858,8 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
             Cptrs = device_batch(C)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasOperation_t,
-                          cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
-                          Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}}, Cint, Ptr{$elty},
-                          Ptr{Ptr{$elty}}, Cint, Cint),
-                         handle(), cutransA,
-                         cutransB, m, n, k, [alpha], Aptrs, lda, Bptrs, ldb, [beta],
-                         Cptrs, ldc, length(A))
+            $fname(handle(), cutransA,cutransB, m, n, k, [alpha], Aptrs, lda, Bptrs,
+                   ldb, [beta], Cptrs, ldc, length(A))
             C
         end
         function gemm_batched(transA::Char,
@@ -1038,14 +928,8 @@ for (fname, elty) in
            strideB = stride(B, 3)
            strideC = stride(C, 3)
            batchCount = size(A, 3)
-           @check ccall(($(string(fname)), libcublas), cublasStatus_t,
-                        (cublasHandle_t, cublasOperation_t,
-                         cublasOperation_t, Cint, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Cint, Ptr{$elty}, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Cint, Cint),
-                        handle(), cutransA,
-                        cutransB, m, n, k, [alpha], A, lda, strideA, B, ldb, strideB, [beta],
-                        C, ldc, strideC, batchCount)
+           $fname(handle(), cutransA,cutransB, m, n, k, [alpha], A, lda, strideA, B,
+                  ldb, strideB, [beta], C, ldc, strideC, batchCount)
            C
         end
         function gemm_strided_batched(transA::Char,
@@ -1097,14 +981,8 @@ for (fname, elty) in ((:cublasDsymm_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasSideMode_t,
-                         cublasFillMode_t, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint),
-                         handle(), cuside,
-                         cuuplo, m, n, [alpha], A, lda, B, ldb, [beta], C,
-                         ldc)
+            $fname(handle(), cuside, cuuplo, m, n, [alpha], A, lda, B, ldb,
+                   [beta], C, ldc)
             C
         end
         function symm(side::Char,
@@ -1149,12 +1027,7 @@ for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                        (cublasHandle_t, cublasFillMode_t,
-                         cublasOperation_t, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(), cuuplo, cutrans, n, k, [alpha], A,
-                        lda, [beta], C, ldc)
+           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
             C
         end
     end
@@ -1202,12 +1075,7 @@ for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                        (cublasHandle_t, cublasSideMode_t, cublasFillMode_t,
-                        Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
-                         Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(),
-                        cuside, cuuplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(handle(), cuside, cuuplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
        end
        function hemm(uplo::Char,
@@ -1246,12 +1114,7 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                        (cublasHandle_t, cublasFillMode_t,
-                         cublasOperation_t, Cint, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Ptr{$elty}, Cint),
-                        handle(), cuuplo, cutrans, n, k, [alpha], A,
-                        lda, [beta], C, ldc)
+           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
            C
        end
        function herk(uplo::Char, trans::Char, alpha::($elty), A::CuVecOrMat{$elty})
@@ -1299,14 +1162,7 @@ for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasFillMode_t,
-                         cublasOperation_t, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint),
-                         handle(), cuuplo,
-                         cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C,
-                         ldc)
+            $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
             C
         end
     end
@@ -1355,13 +1211,7 @@ for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                        (cublasHandle_t, cublasFillMode_t,
-                        cublasOperation_t, Cint, Cint, Ptr{$elty1},
-                         Ptr{$elty1}, Cint, Ptr{$elty1}, Cint, Ptr{$elty2},
-                         Ptr{$elty1}, Cint),
-                        handle(), cuuplo, cutrans, n, k,
-                        [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
        end
        function her2k(uplo::Char,
@@ -1418,14 +1268,7 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            @check ccall(($(string(mmname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasSideMode_t,
-                          cublasFillMode_t, cublasOperation_t,
-                          cublasDiagType_t, Cint, Cint, Ptr{$elty},
-                          Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                          Cint),
-                         handle(), cuside, cuuplo, cutransa,
-                         cudiag, m, n, [alpha], A, lda, B, ldb, C, ldc)
+            $mmname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], A, lda, B, ldb, C, ldc)
             C
         end
         function trmm(side::Char,
@@ -1462,13 +1305,7 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            @check ccall(($(string(smname)), libcublas), cublasStatus_t,
-                          (cublasHandle_t, cublasSideMode_t,
-                           cublasFillMode_t, cublasOperation_t,
-                           cublasDiagType_t, Cint, Cint, Ptr{$elty},
-                           Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                          handle(), cuside, cuuplo, cutransa, cudiag,
-                          m, n, [alpha], A, lda, B, ldb)
+            $smname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], A, lda, B, ldb)
             B
         end
         function trsm(side::Char,
@@ -1523,14 +1360,7 @@ for (fname, elty) in
             ldb = max(1,stride(B[1],2))
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasSideMode_t, cublasFillMode_t,
-                          cublasOperation_t, cublasDiagType_t, Cint, Cint,
-                          Ptr{$elty}, Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}},
-                          Cint, Cint),
-                         handle(), cuside, cuuplo,
-                         cutransa, cudiag, m, n, [alpha], Aptrs, lda,
-                         Bptrs, ldb, length(A))
+            $fname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], Aptrs, lda, Bptrs, ldb, length(A))
             B
         end
         function trsm_batched(side::Char,
@@ -1582,11 +1412,7 @@ for (fname, elty) in ((:cublasDgeam,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                        (cublasHandle_t, cublasOperation_t, cublasOperation_t,
-                         Cint, Cint, Ptr{$elty}, Ptr{$elty}, Cint, Ptr{$elty},
-                         Ptr{$elty}, Cint, Ptr{$elty}, Cint), handle(),
-                        cutransa, cutransb, m, n, [alpha], A, lda, [beta], B, ldb, C, ldc)
+           $fname(handle(), cutransa, cutransb, m, n, [alpha], A, lda, [beta], B, ldb, C, ldc)
            C
        end
        function geam(transa::Char,
@@ -1631,11 +1457,8 @@ for (fname, elty) in
             lda = max(1,stride(A[1],2))
             Aptrs = device_batch(A)
             info  = CuArray{Cint}(undef, length(A))
-            pivotArray  = Pivot ? CuArray{Int32}(undef, (n, length(A))) : C_NULL
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{Ptr{$elty}}, Cint,
-                          Ptr{Cint}, Ptr{Cint}, Cint), handle(), n,
-                         Aptrs, lda, pivotArray, info, length(A))
+            pivotArray  = Pivot ? CuArray{Int32}(undef, (n, length(A))) : CU_NULL
+            $fname(handle(), n, Aptrs, lda, pivotArray, info, length(A))
             if( !Pivot )
                 pivotArray = CuArray(zeros(Cint, (n, length(A))))
             end
@@ -1677,11 +1500,7 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
             info = CuArray(zeros(Cint,length(A)))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{Ptr{$elty}}, Cint,
-                          Ptr{Cint}, Ptr{Ptr{$elty}}, Cint, Ptr{Cint}, Cint),
-                         handle(), n, Aptrs, lda, pivotArray, Cptrs,
-                         ldc, info, length(A))
+            $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
             pivotArray, info, C
         end
     end
@@ -1716,11 +1535,7 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
             info = CuArray(zeros(Cint,length(A)))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Ptr{Ptr{$elty}}, Cint,
-                          Ptr{Ptr{$elty}}, Cint, Ptr{Cint}, Cint),
-                         handle(), n, Aptrs, lda, Cptrs,
-                         ldc, info, length(A))
+            $fname(handle(), n, Aptrs, lda, Cptrs, ldc, info, length(A))
             info, C
         end
     end
@@ -1749,11 +1564,7 @@ for (fname, elty) in
             end
             Tauptrs = device_batch(TauArray)
             info    = zero(Cint)
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, Cint, Cint, Ptr{Ptr{$elty}},
-                          Cint, Ptr{Ptr{$elty}}, Ptr{Cint}, Cint),
-                         handle(), m, n, Aptrs, lda,
-                         Tauptrs, [info], length(A))
+            $fname(handle(), m, n, Aptrs, lda, Tauptrs, [info], length(A))
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
@@ -1803,12 +1614,7 @@ for (fname, elty) in
             Cptrs = device_batch(C)
             info  = zero(Cint)
             infoarray = CuArray(zeros(Cint, length(A)))
-            @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                         (cublasHandle_t, cublasOperation_t, Cint, Cint,
-                          Cint, Ptr{Ptr{$elty}}, Cint, Ptr{Ptr{$elty}},
-                          Cint, Ptr{Cint}, Ptr{Cint}, Cint),
-                         handle(), cutrans, m, n, nrhs, Aptrs, lda,
-                         Cptrs, ldc, [info], infoarray, length(A))
+            $fname(handle(), cutrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, [info], infoarray, length(A))
             if( info != 0 )
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
@@ -1848,10 +1654,7 @@ for (fname, elty) in ((:cublasDdgmm,:Float64),
            lda = max(1,stride(A,2))
            incx = stride(X,1)
            ldc = max(1,stride(C,2))
-           @check ccall(($(string(fname)),libcublas), cublasStatus_t,
-                        (cublasHandle_t, cublasSideMode_t, Cint, Cint,
-                         Ptr{$elty}, Cint, Ptr{$elty}, Cint, Ptr{$elty}, Cint),
-                        handle(), cuside, m, n, A, lda, X, incx, C, ldc)
+           $fname(handle(), cuside, m, n, A, lda, X, incx, C, ldc)
            C
        end
        function dgmm(mode::Char,
