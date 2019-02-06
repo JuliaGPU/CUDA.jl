@@ -1,11 +1,19 @@
+using Test
+
+# development often happens in lockstep with other packages,
+# so check-out the master branch of those packages.
+using Pkg
+if haskey(ENV, "GITLAB_CI")
+  Pkg.add([PackageSpec(name = x; rev = "master")
+           for x in ["CUDAdrv", "LLVM", "CuArrays"]])
+end
+
 using CUDAnative, CUDAdrv
 import LLVM
 
-using Test
+include("util.jl")
 
 @testset "CUDAnative" begin
-
-include("util.jl")
 
 include("base.jl")
 include("pointer.jl")
