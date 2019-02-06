@@ -4,21 +4,22 @@ export Mem
 
 module Mem
 
-using CUDAdrv
-import CUDAdrv: @apicall, CuStream_t, CuDevice_t
-
+using ..CUDAdrv
+import ..@apicall, ..CuStream_t, ..CuDevice_t
 
 
 ## buffer type
 
 struct Buffer
-    ptr::Ptr{Cvoid}
+    ptr::CuPtr{Cvoid}
     bytesize::Int
 
     ctx::CuContext
 end
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::Buffer) where {T} = convert(Ptr{T}, buf.ptr)
+Base.unsafe_convert(::Type{<:Ptr}, buf::Buffer) =
+    throw(ArgumentError("cannot take the CPU address of a GPU buffer"))
+Base.unsafe_convert(::Type{CuPtr{T}}, buf::Buffer) where {T} = convert(CuPtr{T}, buf.ptr)
 
 function view(buf::Buffer, bytes::Int)
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
@@ -26,13 +27,12 @@ function view(buf::Buffer, bytes::Int)
 end
 
 
-
 ## refcounting
 
 const refcounts = Dict{Buffer, Int}()
 
 function refcount(buf::Buffer)
-    get(refcounts, Base.unsafe_convert(Ptr{Cvoid}, buf), 0)
+    get(refcounts, Base.unsafe_convert(CuPtr{Cvoid}, buf), 0)
 end
 
 """
@@ -154,13 +154,17 @@ Note that, contrary to the CUDA API, zero-size allocations are permitted. Such a
 will point to the null pointer, and are not attached to a valid context.
 """
 function alloc(bytesize::Integer, managed=false; flags::CUmem_attach=ATTACH_GLOBAL)
-    bytesize == 0 && return Buffer(C_NULL, 0, CuContext(C_NULL))
+    bytesize == 0 && return Buffer(CU_NULL, 0, CuContext(C_NULL))
 
-    ptr_ref = Ref{Ptr{Cvoid}}()
+    ptr_ref = Ref{CuPtr{Cvoid}}()
     if !managed
-        @apicall(:cuMemAlloc, (Ptr{Ptr{Cvoid}}, Csize_t), ptr_ref, bytesize)
+        @apicall(:cuMemAlloc,
+                 (Ptr{CuPtr{Cvoid}}, Csize_t),
+                 ptr_ref, bytesize)
     else
-        @apicall(:cuMemAllocManaged, (Ptr{Ptr{Cvoid}}, Csize_t, Cuint), ptr_ref, bytesize, flags)
+        @apicall(:cuMemAllocManaged,
+                 (Ptr{CuPtr{Cvoid}}, Csize_t, Cuint),
+                 ptr_ref, bytesize, flags)
     end
     return Buffer(ptr_ref[], bytesize, CuCurrentContext())
 end
@@ -168,7 +172,7 @@ end
 function prefetch(buf::Buffer, bytes=buf.bytesize; stream::CuStream=CuDefaultStream())
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
     dev = device(buf.ctx)
-    @apicall(:cuMemPrefetchAsync, (Ptr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
+    @apicall(:cuMemPrefetchAsync, (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
              buf, bytes, dev, stream)
 end
 
@@ -181,13 +185,13 @@ end
 
 function advise(buf::Buffer, advice::CUmem_advise, bytes=buf.bytesize, device=device(buf.ctx))
     bytes > buf.bytesize && throw(BoundsError(buf, bytes))
-    @apicall(:cuMemAdvise, (Ptr{Cvoid}, Csize_t, Cuint, CuDevice_t),
+    @apicall(:cuMemAdvise, (CuPtr{Cvoid}, Csize_t, Cuint, CuDevice_t),
              buf, bytes, advice, device)
 end
 
 function free(buf::Buffer)
     if buf.ptr != C_NULL
-        @apicall(:cuMemFree, (Ptr{Cvoid},), buf.ptr)
+        @apicall(:cuMemFree, (CuPtr{Cvoid},), buf)
     end
     return
 end
@@ -207,12 +211,12 @@ for T in [UInt8, UInt16, UInt32]
                       stream::CuStream=CuDefaultStream(); async::Bool=false)
             if async
                 @apicall($(QuoteNode(fn_async)),
-                         (Ptr{Cvoid}, $T, Csize_t, CuStream_t),
+                         (CuPtr{Cvoid}, $T, Csize_t, CuStream_t),
                          buf.ptr, value, len, stream)
             else
                 @assert stream==CuDefaultStream()
                 @apicall($(QuoteNode(fn_sync)),
-                         (Ptr{Cvoid}, $T, Csize_t),
+                         (CuPtr{Cvoid}, $T, Csize_t),
                          buf.ptr, value, len)
             end
         end
@@ -228,12 +232,12 @@ function upload!(dst::Buffer, src::Ref, nbytes::Integer,
                  stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
         @apicall(:cuMemcpyHtoDAsync,
-                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
+                 (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
         @assert stream==CuDefaultStream()
         @apicall(:cuMemcpyHtoD,
-                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+                 (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t),
                  dst, src, nbytes)
     end
 end
@@ -247,12 +251,12 @@ function download!(dst::Ref, src::Buffer, nbytes::Integer,
                    stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
         @apicall(:cuMemcpyDtoHAsync,
-                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
+                 (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
         @assert stream==CuDefaultStream()
         @apicall(:cuMemcpyDtoH,
-                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+                 (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t),
                  dst, src, nbytes)
     end
 end
@@ -266,12 +270,12 @@ function transfer!(dst::Buffer, src::Buffer, nbytes::Integer,
                    stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
         @apicall(:cuMemcpyDtoDAsync,
-                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
+                 (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
         @assert stream==CuDefaultStream()
         @apicall(:cuMemcpyDtoD,
-                 (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+                 (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t),
                  dst, src, nbytes)
     end
 end

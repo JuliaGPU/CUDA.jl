@@ -18,7 +18,7 @@ d_b = Mem.upload(b)
 d_c = Mem.alloc(c)
 
 len = prod(dims)
-cudacall(vadd, Tuple{Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}}, d_a, d_b, d_c; threads=len)
+cudacall(vadd, Tuple{CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}}, d_a, d_b, d_c; threads=len)
 
 Mem.download!(c, d_c)
 @test a+b ≈ c

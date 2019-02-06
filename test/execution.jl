@@ -52,7 +52,9 @@ let
     let
         c = zeros(Float32, 10)
         cd = Mem.alloc(c)
-        cudacall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
+        cudacall(vadd,
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 threads=10)
         Mem.download!(c, cd)
         @test c ≈ a+b
     end
@@ -61,7 +63,9 @@ let
     let
         c = zeros(Float32, 10)
         cd = Mem.alloc(c)
-        cudacall(vsub, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
+        cudacall(vsub,
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 threads=10)
         Mem.download!(c, cd)
         @test c ≈ a-b
     end
@@ -70,7 +74,9 @@ let
     let
         c = zeros(Float32, 10)
         cd = Mem.alloc(c)
-        cudacall(vmul, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
+        cudacall(vmul,
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 threads=10)
         Mem.download!(c, cd)
         @test c ≈ a.*b
     end
@@ -79,7 +85,9 @@ let
     let
         c = zeros(Float32, 10)
         cd = Mem.alloc(c)
-        cudacall(vdiv, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd; threads=10)
+        cudacall(vdiv,
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 threads=10)
         Mem.download!(c, cd)
         @test c ≈ a./b
     end
