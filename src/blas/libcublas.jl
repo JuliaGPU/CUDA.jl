@@ -1,6 +1,4 @@
-# Julia wrapper for header: /usr/local/cuda/include/cublas_v2.h
-# Automatically generated using Clang.jl wrap_c, version v0.0.1
-# Manually copied from ../gen to this directory
+# low-level wrappers of the CUBLAS library
 
 function cublasCreate_v2()
   handle = Ref{cublasHandle_t}()
@@ -1226,8 +1224,8 @@ function cublasZsyr2k_v2(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta,
   @check ccall((:cublasZsyr2k_v2, libcublas),
                cublasStatus_t,
                (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
-                Cint, CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
+                PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex},
+                Cint, PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
                handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1397,8 +1395,8 @@ function cublasStrmm_v2(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B,
   @check ccall((:cublasStrmm_v2, libcublas),
                cublasStatus_t,
                (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                cublasDiagType_t, Cint, Cint, Ptr{Cfloat}, Ptr{Cfloat}, Cint, Ptr{Cfloat},
-                Cint, Ptr{Cfloat}, Cint),
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
+                Cint, CuPtr{Cfloat}, Cint),
                handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
 
@@ -1474,7 +1472,7 @@ function cublasSgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, 
   @check ccall((:cublasSgeam, libcublas),
                cublasStatus_t,
                (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Cint, CuPtr{Cfloat},
+                PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
                 Cint),
                handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
@@ -1483,7 +1481,7 @@ function cublasDgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, 
   @check ccall((:cublasDgeam, libcublas),
                cublasStatus_t,
                (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Cint,
+                PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
                 CuPtr{Cdouble}, Cint),
                handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
@@ -1492,7 +1490,7 @@ function cublasCgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, 
   @check ccall((:cublasCgeam, libcublas),
                cublasStatus_t,
                (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, PtrOrCuPtr{cuComplex},
+                PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex},
                 Cint, CuPtr{cuComplex}, Cint),
                handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
@@ -1501,8 +1499,8 @@ function cublasZgeam(handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, 
   @check ccall((:cublasZgeam, libcublas),
                cublasStatus_t,
                (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex},
-                PtrOrCuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint),
+                PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint),
                handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
 
@@ -1930,3 +1928,44 @@ cublasSetMathMode(mode::CUBLASMathMode, handle=handle()) =
                cublasStatus_t,
                (cublasHandle_t, Cint),
                handle, Cint(mode))
+
+
+function cublasDgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
+                                   strideB, beta, C, ldc, strideC, batchCount)
+  @check ccall((:cublasDgemmStridedBatched, libcublas), cublasStatus_t, (cublasHandle_t,
+                cublasOperation_t, cublasOperation_t, Cint, Cint, Cint, PtrOrCuPtr{Float64},
+                CuPtr{Float64}, Cint, Cint, CuPtr{Float64}, Cint, Cint, PtrOrCuPtr{Float64},
+                CuPtr{Float64}, Cint, Cint, Cint),
+               handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta,
+               C, ldc, strideC, batchCount)
+end
+
+function cublasSgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
+                                   strideB, beta, C, ldc, strideC, batchCount)
+  @check ccall((:cublasSgemmStridedBatched, libcublas), cublasStatus_t, (cublasHandle_t,
+                cublasOperation_t, cublasOperation_t, Cint, Cint, Cint, PtrOrCuPtr{Float32},
+                CuPtr{Float32}, Cint, Cint, CuPtr{Float32}, Cint, Cint, PtrOrCuPtr{Float32},
+                CuPtr{Float32}, Cint, Cint, Cint),
+               handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta,
+               C, ldc, strideC, batchCount)
+end
+
+function cublasZgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
+                                   strideB, beta, C, ldc, strideC, batchCount)
+  @check ccall((:cublasZgemmStridedBatched, libcublas), cublasStatus_t, (cublasHandle_t,
+                cublasOperation_t, cublasOperation_t, Cint, Cint, Cint, PtrOrCuPtr{ComplexF64},
+                CuPtr{ComplexF64}, Cint, Cint, CuPtr{ComplexF64}, Cint, Cint, PtrOrCuPtr{ComplexF64},
+                CuPtr{ComplexF64}, Cint, Cint, Cint),
+               handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta,
+               C, ldc, strideC, batchCount)
+end
+
+function cublasCgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
+                                   strideB, beta, C, ldc, strideC, batchCount)
+  @check ccall((:cublasCgemmStridedBatched, libcublas), cublasStatus_t, (cublasHandle_t,
+                cublasOperation_t, cublasOperation_t, Cint, Cint, Cint, PtrOrCuPtr{ComplexF32},
+                CuPtr{ComplexF32}, Cint, Cint, CuPtr{ComplexF32}, Cint, Cint, PtrOrCuPtr{ComplexF32},
+                CuPtr{ComplexF32}, Cint, Cint, Cint),
+               handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta,
+               C, ldc, strideC, batchCount)
+end
