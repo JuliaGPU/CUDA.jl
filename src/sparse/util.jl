@@ -1,3 +1,7 @@
+# utility functions for the CUSPARSE wrappers
+#
+# TODO: move raw ccall wrappers to libcusparse.jl
+
 """
 convert `SparseChar` {`N`,`T`,`C`} to `cusparseOperation_t`
 """

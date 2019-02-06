@@ -1,3 +1,7 @@
+# wrappers of the low-level sparse CUSOLVER functionality
+#
+# TODO: move raw ccall wrappers to libcusolver.jl
+
 import ..CuArrays.CUSPARSE: cusparseindex, cusparseMatDescr_t, CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, CUSPARSE_DIAG_TYPE_UNIT
 import LinearAlgebra: SingularException
 #csrlsvlu 

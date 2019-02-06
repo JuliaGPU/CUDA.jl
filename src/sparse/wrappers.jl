@@ -1,3 +1,7 @@
+# wrappers of the low-level CUSPARSE functionality
+#
+# TODO: move raw ccall wrappers to libcusparse.jl
+
 #utilities
 import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \, mul!
 

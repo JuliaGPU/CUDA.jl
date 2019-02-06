@@ -1,3 +1,7 @@
+# wrappers of the low-level dense CUSOLVER functionality
+#
+# TODO: move raw ccall wrappers to libcusolver.jl
+
 using LinearAlgebra: BlasInt, checksquare
 using LinearAlgebra.LAPACK: chkargsok
 
