@@ -14,6 +14,9 @@ documentation:
   only:
     - master
 
+coverage:
+  allow_failure: true
+
 pages:
   stage: deploy
   script:
