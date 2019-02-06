@@ -12,7 +12,9 @@
     end
 
     buf = Mem.alloc(Float64)
-    @cuda kernel(convert(Ptr{Float64}, buf.ptr), (1., 2., ))
+    ptr = Base.unsafe_convert(CuPtr{Float64}, buf)
+
+    @cuda kernel(ptr, (1., 2., ))
     @test Mem.download(Float64, buf) == [1.]
 end
 
@@ -32,7 +34,9 @@ end
         return
     end
 
-    @cuda threads=2 kernel(CuDeviceArray((2,1), CUDAnative.DevicePtr(convert(Ptr{Int}, out_buf.ptr))), a, b)
+    ptr = Base.unsafe_convert(CuPtr{Int}, out_buf)
+
+    @cuda threads=2 kernel(CuDeviceArray((2,1), CUDAnative.DevicePtr(ptr)), a, b)
     @test Mem.download(Int, out_buf, 2) == (_a .+ 1)[1:2]
 end
 
@@ -62,7 +66,9 @@ end
     function gpu(input)
         output = Mem.alloc(Int, 2)
 
-        @cuda threads=2 kernel(input, convert(Ptr{eltype(input)}, output.ptr), 99)
+        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+
+        @cuda threads=2 kernel(input, ptr, 99)
 
         return Mem.download(Int, output, 2)
     end

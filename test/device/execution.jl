@@ -140,8 +140,8 @@ len = prod(dims)
     input_dev = Mem.upload(input)
     output_dev = Mem.alloc(input)
 
-    @cuda threads=len kernel(Base.unsafe_convert(Ptr{Float32}, input_dev),
-                             Base.unsafe_convert(Ptr{Float32}, output_dev))
+    @cuda threads=len kernel(Base.unsafe_convert(CuPtr{Float32}, input_dev),
+                             Base.unsafe_convert(CuPtr{Float32}, output_dev))
     Mem.download!(output, output_dev)
     @test input ≈ output
 end
@@ -164,8 +164,8 @@ end
     arr_dev = Mem.upload(arr)
     val_dev = Mem.upload(val)
 
-    @cuda threads=len kernel(Base.unsafe_convert(Ptr{Float32}, arr_dev),
-                             Base.unsafe_convert(Ptr{Float32}, val_dev))
+    @cuda threads=len kernel(Base.unsafe_convert(CuPtr{Float32}, arr_dev),
+                             Base.unsafe_convert(CuPtr{Float32}, val_dev))
     @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
 end
 
@@ -190,8 +190,8 @@ end
     arr_dev = Mem.upload(arr)
     val_dev = Mem.upload(val)
 
-    @cuda threads=len parent(Base.unsafe_convert(Ptr{Float32}, arr_dev),
-                             Base.unsafe_convert(Ptr{Float32}, val_dev))
+    @cuda threads=len parent(Base.unsafe_convert(CuPtr{Float32}, arr_dev),
+                             Base.unsafe_convert(CuPtr{Float32}, val_dev))
     @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
 end
 
@@ -211,7 +211,7 @@ end
     keeps = (true,)
     d_out = Mem.alloc(Int)
 
-    @cuda kernel(keeps, Base.unsafe_convert(Ptr{Int}, d_out))
+    @cuda kernel(keeps, Base.unsafe_convert(CuPtr{Int}, d_out))
     @test Mem.download(Int, d_out) == [1]
 end
 
@@ -236,9 +236,9 @@ end
         return
     end
     @cuda threads=len kernel(ExecGhost(),
-                             Base.unsafe_convert(Ptr{Float32}, d_a),
-                             Base.unsafe_convert(Ptr{Float32}, d_b),
-                             Base.unsafe_convert(Ptr{Float32}, d_c))
+                             Base.unsafe_convert(CuPtr{Float32}, d_a),
+                             Base.unsafe_convert(CuPtr{Float32}, d_b),
+                             Base.unsafe_convert(CuPtr{Float32}, d_c))
     Mem.download!(c, d_c)
     @test a+b == c
 
@@ -250,7 +250,7 @@ end
         unsafe_store!(out, aggregate[1], i)
         return
     end
-    @cuda threads=len kernel(ExecGhost(), Base.unsafe_convert(Ptr{Float32}, d_c), (42,))
+    @cuda threads=len kernel(ExecGhost(), Base.unsafe_convert(CuPtr{Float32}, d_c), (42,))
 
     Mem.download!(c, d_c)
     @test all(val->val==42, c)
@@ -268,7 +268,7 @@ end
     buf = Mem.upload([0f0])
     x = ComplexF32(2,2)
 
-    @cuda kernel(Base.unsafe_convert(Ptr{Float32}, buf), x)
+    @cuda kernel(Base.unsafe_convert(CuPtr{Float32}, buf), x)
     @test Mem.download(Float32, buf) == [imag(x)]
 end
 
@@ -281,7 +281,7 @@ end
         return
     end
 
-    @cuda kernel(Base.unsafe_convert(Ptr{Int}, buf))
+    @cuda kernel(Base.unsafe_convert(CuPtr{Int}, buf))
     @test Mem.download(Int, buf) == [1]
 
     function kernel(ptr)
@@ -289,7 +289,7 @@ end
         return
     end
 
-    @cuda kernel(Base.unsafe_convert(Ptr{Int}, buf))
+    @cuda kernel(Base.unsafe_convert(CuPtr{Int}, buf))
     @test Mem.download(Int, buf) == [2]
 end
 
@@ -317,7 +317,7 @@ end
 
     out = [0]
     out_dev = Mem.upload(out)
-    out_ptr = Base.unsafe_convert(Ptr{eltype(out)}, out_dev)
+    out_ptr = Base.unsafe_convert(CuPtr{eltype(out)}, out_dev)
 
     @cuda kernel(out_ptr, 1, 2)
     @test Mem.download(eltype(out), out_dev)[1] == 3
@@ -351,7 +351,7 @@ end
     a = [1.]
     a_dev = Mem.upload(a)
 
-    outer(Base.unsafe_convert(Ptr{Float64}, a_dev), 2.)
+    outer(Base.unsafe_convert(CuPtr{Float64}, a_dev), 2.)
 
     @test Mem.download(eltype(a), a_dev) ≈ [2.]
 end
@@ -363,7 +363,7 @@ end
             unsafe_store!(a, val)
             return
        end
-       @cuda inner(Base.unsafe_convert(Ptr{Float64}, a_dev))
+       @cuda inner(Base.unsafe_convert(CuPtr{Float64}, a_dev))
     end
 
     a = [1.]
@@ -393,7 +393,7 @@ end
             unsafe_store!(out, convert(Int, arg))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [2]
     end
 
@@ -405,7 +405,7 @@ end
             unsafe_store!(out, convert(Int, arg[1]))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [2]
     end
 
@@ -417,7 +417,7 @@ end
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [2]
     end
 
@@ -432,7 +432,7 @@ end
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(Ptr{Int}, out_dev))
+        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
         @test Mem.download(eltype(out), out_dev) ≈ [1]
     end
 end
@@ -440,7 +440,8 @@ end
 @testset "argument count" begin
     val = [0]
     val_dev = Mem.upload(val)
-    ptr = Base.unsafe_convert(Ptr{Int}, val_dev)
+    cuda_ptr = Base.unsafe_convert(CuPtr{Int}, val_dev)
+    ptr = CUDAnative.DevicePtr{Int}(cuda_ptr)
     for i in (1, 10, 20, 35)
         variables = ('a':'z'..., 'A':'Z'...)
         params = [Symbol(variables[j]) for j in 1:i]
@@ -482,7 +483,7 @@ end
         end
 
         buf = Mem.alloc(T)
-        @cuda kernel(Base.unsafe_convert(Ptr{T}, buf))
+        @cuda kernel(Base.unsafe_convert(CuPtr{T}, buf))
 
         val = Mem.download(T, buf)[1]
         Mem.free(buf)
@@ -509,7 +510,7 @@ script = """
     end
 
     buf = CUDAdrv.Mem.alloc(Int, 1)
-    @cuda kernel(Base.unsafe_convert(Ptr{Int}, buf), 1.2)
+    @cuda kernel(Base.unsafe_convert(CUDAdrv.CuPtr{Int}, buf), 1.2)
     CUDAdrv.Mem.download(Int, buf)
 """
 
@@ -545,8 +546,9 @@ script = """
     @noinline foo(a, i) = a[1] = i
     bar(a) = (foo(a, 42); nothing)
 
-    ptr = CUDAnative.DevicePtr{Int,AS.Global}(convert(Ptr{Int}, C_NULL))
+    ptr = CUDAnative.DevicePtr{Int,AS.Global}(0)
     arr = CuDeviceArray{Int,1,AS.Global}((0,), ptr)
+
     @cuda bar(arr)
     CUDAdrv.synchronize()
 """
@@ -573,7 +575,7 @@ end
         ccall("llvm.trap", llvmcall, Cvoid, ())
     end
 
-    function kernel(input::Int32, output::Ptr{Int32}, yes::Bool=true)
+    function kernel(input::Int32, output::CUDAnative.DevicePtr{Int32}, yes::Bool=true)
         i = threadIdx().x
 
         temp = @cuStaticSharedMem(Cint, 1)
@@ -595,12 +597,14 @@ end
     let output = Mem.alloc(Cint, N)
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr))
+        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+        @cuda threads=N kernel(input, ptr)
         @test Mem.download(Cint, output, N) == repeat([input], N)
     end
 
     let output = Mem.alloc(Cint, N)
-        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr), true)
+        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+        @cuda threads=N kernel(input, ptr, true)
         @test Mem.download(Cint, output, N) == repeat([input], N)
     end
 end
@@ -611,7 +615,7 @@ end
         Base.llvmcall("unreachable", Cvoid, Tuple{})
     end
 
-    function kernel(input::Int32, output::Ptr{Int32}, yes::Bool=true)
+    function kernel(input::Int32, output::CUDAnative.DevicePtr{Int32}, yes::Bool=true)
         i = threadIdx().x
 
         temp = @cuStaticSharedMem(Cint, 1)
@@ -633,12 +637,14 @@ end
     let output = Mem.alloc(Cint, N)
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr))
+        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+        @cuda threads=N kernel(input, ptr)
         @test Mem.download(Cint, output, N) == repeat([input], N)
     end
 
     let output = Mem.alloc(Cint, N)
-        @cuda threads=N kernel(input, convert(Ptr{eltype(input)}, output.ptr), true)
+        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+        @cuda threads=N kernel(input, ptr, true)
         @test Mem.download(Cint, output, N) == repeat([input], N)
     end
 end
