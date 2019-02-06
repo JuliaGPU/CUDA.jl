@@ -31,8 +31,8 @@ for (fname,elty) in ((:cusparseSaxpyi, :Float32),
                         index::SparseChar)
             cuind = cusparseindex(index)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Ptr{$elty}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{$elty}, cusparseIndexBase_t),
+                              (cusparseHandle_t, Cint, Ptr{$elty}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{$elty}, cusparseIndexBase_t),
                               handle(), X.nnz, [alpha], X.nzVal, X.iPtr,
                               Y, cuind)
             Y
@@ -77,8 +77,8 @@ for (jname,fname,elty) in ((:doti, :cusparseSdoti, :Float32),
             dot = Ref{$elty}(1)
             cuind = cusparseindex(index)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Ptr{$elty}, Ptr{Cint},
-                               Ptr{$elty}, Ptr{$elty}, cusparseIndexBase_t),
+                              (cusparseHandle_t, Cint, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{$elty}, Ptr{$elty}, cusparseIndexBase_t),
                               handle(), X.nnz, X.nzVal, X.iPtr,
                               Y, dot, cuind)
             return dot[]
@@ -102,8 +102,8 @@ for (fname,elty) in ((:cusparseSgthr, :Float32),
                        index::SparseChar)
             cuind = cusparseindex(index)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Ptr{$elty}, Ptr{$elty},
-                               Ptr{Cint}, cusparseIndexBase_t), handle(),
+                              (cusparseHandle_t, Cint, CuPtr{$elty}, CuPtr{$elty},
+                               CuPtr{Cint}, cusparseIndexBase_t), handle(),
                               X.nnz, Y, X.nzVal, X.iPtr, cuind)
             X
         end
@@ -131,8 +131,8 @@ for (fname,elty) in ((:cusparseSgthrz, :Float32),
                         index::SparseChar)
             cuind = cusparseindex(index)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Ptr{$elty}, Ptr{$elty},
-                               Ptr{Cint}, cusparseIndexBase_t), handle(),
+                              (cusparseHandle_t, Cint, CuPtr{$elty}, CuPtr{$elty},
+                               CuPtr{Cint}, cusparseIndexBase_t), handle(),
                               X.nnz, Y, X.nzVal, X.iPtr, cuind)
             X,Y
         end
@@ -160,8 +160,8 @@ for (fname,elty) in ((:cusparseSroti, :Float32),
                        index::SparseChar)
             cuind = cusparseindex(index)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Ptr{$elty}, Ptr{$Cint},
-                               Ptr{$elty}, Ptr{$elty}, Ptr{$elty}, cusparseIndexBase_t),
+                              (cusparseHandle_t, Cint, CuPtr{$elty}, CuPtr{$Cint},
+                               CuPtr{$elty}, Ptr{$elty}, Ptr{$elty}, cusparseIndexBase_t),
                               handle(), X.nnz, X.nzVal, X.iPtr, Y, [c], [s], cuind)
             X,Y
         end
@@ -192,8 +192,8 @@ for (fname,elty) in ((:cusparseSsctr, :Float32),
                        index::SparseChar)
             cuind = cusparseindex(index)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Ptr{$elty}, Ptr{Cint},
-                               Ptr{$elty}, cusparseIndexBase_t),
+                              (cusparseHandle_t, Cint, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{$elty}, cusparseIndexBase_t),
                               handle(), X.nnz, X.nzVal, X.iPtr,
                               Y, cuind)
             Y
@@ -244,8 +244,8 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, Cint, Cint, Cint,
                                Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Cint,
-                               Ptr{$elty}, Ptr{$elty}, Ptr{$elty}),
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, Cint,
+                               CuPtr{$elty}, Ptr{$elty}, CuPtr{$elty}),
                               handle(), cudir, cutransa, mb, nb,
                               A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
                               A.colVal, A.blockDim, X, [beta], Y)
@@ -282,8 +282,8 @@ for (fname,elty) in ((:cusparseScsrmv, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
                                Cint, Cint, Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Ptr{$elty},
-                               Ptr{$elty}, Ptr{$elty}), handle(),
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{$elty},
+                               Ptr{$elty}, CuPtr{$elty}), handle(),
                                cutransa, m, n, Mat.nnz, [alpha], Ref(cudesc), Mat.nzVal,
                                Mat.rowPtr, Mat.colVal, X, [beta], Y)
             Y
@@ -316,8 +316,8 @@ for (fname,elty) in ((:cusparseScsrmv, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
                                Cint, Cint, Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Ptr{$elty},
-                               Ptr{$elty}, Ptr{$elty}), handle(),
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{$elty},
+                               Ptr{$elty}, CuPtr{$elty}), handle(),
                                cutransa, m, n, Mat.nnz, [alpha], Ref(cudesc),
                                Mat.nzVal, Mat.colPtr, Mat.rowVal, X, [beta], Y)
             Y
@@ -365,8 +365,8 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, Cint, bsrsv2Info_t, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, Cint, bsrsv2Info_t, Ptr{Cint}),
                               handle(), cudir, cutransa, mb, A.nnz,
                               Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
                               A.blockDim, info[1], bufSize)
@@ -374,9 +374,9 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, Cint, bsrsv2Info_t,
-                               cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, Cint, bsrsv2Info_t,
+                               cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, cutransa, mb, A.nnz,
                               Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
                               info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -390,9 +390,9 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, Cint, Cint, Ptr{$elty},
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, Cint, bsrsv2Info_t, Ptr{$elty},
-                               Ptr{$elty}, cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, Cint, bsrsv2Info_t, CuPtr{$elty},
+                               CuPtr{$elty}, cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, cutransa, mb, A.nnz,
                               [alpha], Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
                               A.blockDim, info[1], X, X,
@@ -477,7 +477,7 @@ for (fname,elty) in ((:cusparseScsrsv_analysis, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
                                Cint, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint},
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint},
                                cusparseSolveAnalysisInfo_t), handle(),
                                cutransa, m, A.nnz, Ref(cudesc), A.nzVal,
                                A.rowPtr, A.colVal, info[1])
@@ -518,7 +518,7 @@ for (fname,elty) in ((:cusparseScsrsv_analysis, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
                                Cint, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint},
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint},
                                cusparseSolveAnalysisInfo_t), handle(),
                                cutransa, m, A.nnz, Ref(cudesc), A.nzVal,
                                A.colPtr, A.rowVal, info[1])
@@ -558,9 +558,9 @@ for (fname,elty) in ((:cusparseScsrsv_solve, :Float32),
             end
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
-                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, cusparseSolveAnalysisInfo_t,
-                               Ptr{$elty}, Ptr{$elty}), handle(),
+                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, cusparseSolveAnalysisInfo_t,
+                               CuPtr{$elty}, CuPtr{$elty}), handle(),
                                cutransa, m, [alpha], Ref(cudesc), A.nzVal,
                                A.rowPtr, A.colVal, info, X, Y)
             Y
@@ -600,9 +600,9 @@ for (fname,elty) in ((:cusparseScsrsv_solve, :Float32),
             end
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
-                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, cusparseSolveAnalysisInfo_t,
-                               Ptr{$elty}, Ptr{$elty}), handle(),
+                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, cusparseSolveAnalysisInfo_t,
+                               CuPtr{$elty}, CuPtr{$elty}), handle(),
                                cutransa, m, [alpha], Ref(cudesc), A.nzVal,
                                A.colPtr, A.rowVal, info, X, Y)
             Y
@@ -639,17 +639,17 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrsv2Info_t, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrsv2Info_t, Ptr{Cint}),
                               handle(), cutransa, m, A.nnz,
                               Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
                               info[1], bufSize)
             buffer = cuzeros(UInt8, bufSize[])
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrsv2Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), cutransa, m, A.nnz,
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrsv2Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), cutransa, m, A.nnz,
                                Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             posit = Ref{Cint}(1)
@@ -662,9 +662,9 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
                                Cint, Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, csrsv2Info_t,
-                               Ptr{$elty}, Ptr{$elty}, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), cutransa, m,
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, csrsv2Info_t,
+                               CuPtr{$elty}, CuPtr{$elty}, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), cutransa, m,
                                A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
                                A.colVal, info[1], X, X,
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -711,17 +711,17 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrsv2Info_t, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrsv2Info_t, Ptr{Cint}),
                               handle(), cutransa, m, A.nnz,
                               Ref(cudesc), A.nzVal, A.colPtr, A.rowVal,
                               info[1], bufSize)
             buffer = cuzeros(UInt8, bufSize[])
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrsv2Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), cutransa, m, A.nnz,
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrsv2Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), cutransa, m, A.nnz,
                                Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             posit = Ref{Cint}(1)
@@ -734,9 +734,9 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
                                Cint, Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, csrsv2Info_t,
-                               Ptr{$elty}, Ptr{$elty}, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), cutransa, m,
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, csrsv2Info_t,
+                               CuPtr{$elty}, CuPtr{$elty}, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), cutransa, m,
                                A.nnz, [alpha], Ref(cudesc), A.nzVal, A.colPtr,
                                A.rowVal, info[1], X, X,
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -771,8 +771,8 @@ for (fname,elty) in ((:cusparseShybmv, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t,
                                Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               cusparseHybMat_t, Ptr{$elty},
-                               Ptr{$elty}, Ptr{$elty}), handle(),
+                               cusparseHybMat_t, CuPtr{$elty},
+                               Ptr{$elty}, CuPtr{$elty}), handle(),
                                cutransa, [alpha], Ref(cudesc), A.Mat, X, [beta], Y)
             Y
         end
@@ -885,7 +885,7 @@ for (fname,elty) in ((:cusparseShybsv_solve, :Float32),
                               (cusparseHandle_t, cusparseOperation_t,
                                Ptr{$elty}, Ptr{cusparseMatDescr_t},
                                cusparseHybMat_t, cusparseSolveAnalysisInfo_t,
-                               Ptr{$elty}, Ptr{$elty}), handle(),
+                               CuPtr{$elty}, CuPtr{$elty}), handle(),
                                cutransa, [alpha], Ref(cudesc), A.Mat, info, X, Y)
             Y
         end
@@ -999,9 +999,9 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, cusparseOperation_t, Cint,
                                Cint, Cint, Cint, Ptr{$elty},
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, Cint, Ptr{$elty}, Cint, Ptr{$elty},
-                               Ptr{$elty}, Cint), handle(), cudir,
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, Cint, CuPtr{$elty}, Cint, Ptr{$elty},
+                               CuPtr{$elty}, Cint), handle(), cudir,
                                cutransa, cutransb, mb, n, kb, A.nnz,
                                [alpha], Ref(cudesc), A.nzVal,A.rowPtr, A.colVal,
                                A.blockDim, B, ldb, [beta], C, ldc)
@@ -1049,8 +1049,8 @@ for (fname,elty) in ((:cusparseScsrmm, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
                                Cint, Cint, Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Ptr{$elty},
-                               Cint, Ptr{$elty}, Ptr{$elty}, Cint),
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{$elty},
+                               Cint, Ptr{$elty}, CuPtr{$elty}, Cint),
                                handle(), cutransa, m, n, k, Mat.nnz,
                                [alpha], Ref(cudesc), Mat.nzVal, Mat.rowPtr,
                                Mat.colVal, B, ldb, [beta], C, ldc)
@@ -1086,8 +1086,8 @@ for (fname,elty) in ((:cusparseScsrmm, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
                                Cint, Cint, Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Ptr{$elty},
-                               Cint, Ptr{$elty}, Ptr{$elty}, Cint),
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, CuPtr{$elty},
+                               Cint, Ptr{$elty}, CuPtr{$elty}, Cint),
                                handle(), cutransa, m, n, k, Mat.nnz,
                                [alpha], Ref(cudesc), Mat.nzVal, Mat.colPtr,
                                Mat.rowVal, B, ldb, [beta], C, ldc)
@@ -1180,9 +1180,9 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t,
                                cusparseOperation_t, Cint, Cint, Cint, Cint,
-                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty}, Cint,
-                               Ptr{$elty}, Ptr{$elty}, Cint), handle(),
+                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, CuPtr{$elty}, Cint,
+                               Ptr{$elty}, CuPtr{$elty}, Cint), handle(),
                                cutransa, cutransb, m, n, k, A.nnz, [alpha], Ref(cudesc),
                                A.nzVal, A.rowPtr, A.colVal, B, ldb, [beta], C, ldc)
             C
@@ -1219,9 +1219,9 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t,
                                cusparseOperation_t, Cint, Cint, Cint, Cint,
-                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty}, Cint,
-                               Ptr{$elty}, Ptr{$elty}, Cint), handle(),
+                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, CuPtr{$elty}, Cint,
+                               Ptr{$elty}, CuPtr{$elty}, Cint), handle(),
                                cutransa, cutransb, m, n, k, A.nnz, [alpha], Ref(cudesc),
                                A.nzVal, A.colPtr, A.rowVal, B, ldb, [beta], C, ldc)
             C
@@ -1310,8 +1310,8 @@ for (fname,elty) in ((:cusparseScsrsm_analysis, :Float32),
             cusparseCreateSolveAnalysisInfo(info)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, cusparseSolveAnalysisInfo_t),
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, cusparseSolveAnalysisInfo_t),
                               handle(), cutransa, m, A.nnz, Ref(cudesc),
                               A.nzVal, A.rowPtr, A.colVal, info[1])
             info[1]
@@ -1340,8 +1340,8 @@ for (fname,elty) in ((:cusparseScsrsm_analysis, :Float32),
             cusparseCreateSolveAnalysisInfo(info)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, cusparseSolveAnalysisInfo_t),
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, cusparseSolveAnalysisInfo_t),
                               handle(), cutransa, m, A.nnz, Ref(cudesc),
                               A.nzVal, A.colPtr, A.rowVal, info[1])
             info[1]
@@ -1385,9 +1385,9 @@ for (fname,elty) in ((:cusparseScsrsm_solve, :Float32),
             ldy = max(1,stride(Y,2))
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
-                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, cusparseSolveAnalysisInfo_t,
-                               Ptr{$elty}, Cint, Ptr{$elty}, Cint),
+                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, cusparseSolveAnalysisInfo_t,
+                               CuPtr{$elty}, Cint, CuPtr{$elty}, Cint),
                               handle(), cutransa, m, n, [alpha],
                               Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info, X, ldx,
                               Y, ldy)
@@ -1422,9 +1422,9 @@ for (fname,elty) in ((:cusparseScsrsm_solve, :Float32),
             ldy = max(1,stride(Y,2))
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint, Cint,
-                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, cusparseSolveAnalysisInfo_t,
-                               Ptr{$elty}, Cint, Ptr{$elty}, Cint),
+                               Ptr{$elty}, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, cusparseSolveAnalysisInfo_t,
+                               CuPtr{$elty}, Cint, CuPtr{$elty}, Cint),
                               handle(), cutransa, m, n, [alpha],
                               Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info, X, ldx,
                               Y, ldy)
@@ -1524,7 +1524,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, cusparseOperation_t, Cint,
                                Cint, Cint, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Cint,
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, Cint,
                                bsrsm2Info_t, Ptr{Cint}), handle(),
                                cudir, cutransa, cutransxy, mb, nX, A.nnz,
                                Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
@@ -1534,8 +1534,8 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, cusparseOperation_t, Cint,
                                Cint, Cint, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Cint,
-                               bsrsm2Info_t, cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, Cint,
+                               bsrsm2Info_t, cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, cutransa, cutransxy,
                               mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
                               A.colVal, A.blockDim, info[1],
@@ -1551,9 +1551,9 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                               (cusparseHandle_t, cusparseDirection_t,
                                cusparseOperation_t, cusparseOperation_t, Cint,
                                Cint, Cint, Ptr{$elty}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}, Cint,
-                               bsrsm2Info_t, Ptr{$elty}, Cint, Ptr{$elty}, Cint,
-                               cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}, Cint,
+                               bsrsm2Info_t, CuPtr{$elty}, Cint, CuPtr{$elty}, Cint,
+                               cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, cutransa, cutransxy, mb,
                               nX, A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
                               A.colVal, A.blockDim, info[1], X, ldx, X, ldx,
@@ -1608,9 +1608,9 @@ for (fname,elty) in ((:cusparseScsrgeam, :Float32),
             rowPtrC = cuzeros(Cint,mA+1)
             @check ccall((:cusparseXcsrgeamNnz,libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Ptr{Cint},
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, CuPtr{Cint},
                                Ptr{Cint}), handle(), mA, nA, Ref(cudesca),
                                A.nnz, A.rowPtr, A.colVal, Ref(cudescb), B.nnz,
                                B.rowPtr, B.colVal, Ref(cudescc), rowPtrC, nnzC)
@@ -1618,11 +1618,11 @@ for (fname,elty) in ((:cusparseScsrgeam, :Float32),
             C = CuSparseMatrixCSR(rowPtrC, cuzeros(Cint,nnz), cuzeros($elty,nnz), nnz, A.dims)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint, Ptr{$elty},
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty},
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Ptr{$elty},
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Ptr{cusparseMatDescr_t},
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}),
                               handle(), mA, nA, [alpha], Ref(cudesca),
                               A.nnz, A.nzVal, A.rowPtr, A.colVal, [beta],
                               Ref(cudescb), B.nnz, B.nzVal, B.rowPtr, B.colVal,
@@ -1651,9 +1651,9 @@ for (fname,elty) in ((:cusparseScsrgeam, :Float32),
             rowPtrC = cuzeros(Cint, mA+1)
             @check ccall((:cusparseXcsrgeamNnz,libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Ptr{Cint},
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, CuPtr{Cint},
                                Ptr{Cint}), handle(), mA, nA, Ref(cudesca),
                                A.nnz, A.colPtr, A.rowVal, Ref(cudescb), B.nnz,
                                B.colPtr, B.rowVal, Ref(cudescc), rowPtrC, nnzC)
@@ -1661,11 +1661,11 @@ for (fname,elty) in ((:cusparseScsrgeam, :Float32),
             C = CuSparseMatrixCSC(rowPtrC, cuzeros(Cint, nnz), cuzeros($elty, nnz), nnz, A.dims)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint, Ptr{$elty},
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{$elty},
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{cusparseMatDescr_t},
-                               Ptr{$elty}, Ptr{Cint}, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Ptr{$elty},
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Ptr{cusparseMatDescr_t},
+                               CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}),
                               handle(), mA, nA, [alpha], Ref(cudesca),
                               A.nnz, A.nzVal, A.colPtr, A.rowVal, [beta],
                               Ref(cudescb), B.nnz, B.nzVal, B.colPtr, B.rowVal,
@@ -1754,9 +1754,9 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
             @check ccall((:cusparseXcsrgemmNnz,libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t,
                                cusparseOperation_t, Cint, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Ptr{Cint},
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, CuPtr{Cint},
                                Ptr{Cint}), handle(), cutransa, cutransb,
                                m, n, k, Ref(cudesca), A.nnz, A.rowPtr, A.colVal,
                                Ref(cudescb), B.nnz, B.rowPtr, B.colVal, Ref(cudescc),
@@ -1766,11 +1766,11 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t,
                                cusparseOperation_t, Cint, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{cusparseMatDescr_t},
-                               Cint, Ptr{$elty}, Ptr{Cint}, Ptr{Cint},
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}), handle(), cutransa,
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Ptr{cusparseMatDescr_t},
+                               Cint, CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint},
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}), handle(), cutransa,
                                cutransb, m, n, k, Ref(cudesca), A.nnz, A.nzVal,
                                A.rowPtr, A.colVal, Ref(cudescb), B.nnz, B.nzVal,
                                B.rowPtr, B.colVal, Ref(cudescc), C.nzVal,
@@ -1819,9 +1819,9 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
             @check ccall((:cusparseXcsrgemmNnz,libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t,
                                cusparseOperation_t, Cint, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Cint, Ptr{Cint},
-                               Ptr{Cint}, Ptr{cusparseMatDescr_t}, Ptr{Cint},
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, Cint, CuPtr{Cint},
+                               CuPtr{Cint}, Ptr{cusparseMatDescr_t}, CuPtr{Cint},
                                Ptr{Cint}), handle(), cutransa, cutransb,
                                m, n, k, Ref(cudesca), A.nnz, A.colPtr, A.rowVal,
                                Ref(cudescb), B.nnz, B.colPtr, B.rowVal, Ref(cudescc),
@@ -1831,11 +1831,11 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t,
                                cusparseOperation_t, Cint, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Cint, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Ptr{cusparseMatDescr_t},
-                               Cint, Ptr{$elty}, Ptr{Cint}, Ptr{Cint},
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}), handle(), cutransa,
+                               Ptr{cusparseMatDescr_t}, Cint, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Ptr{cusparseMatDescr_t},
+                               Cint, CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint},
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}), handle(), cutransa,
                                cutransb, m, n, k, Ref(cudesca), A.nnz, A.nzVal,
                                A.colPtr, A.rowVal, Ref(cudescb), B.nnz, B.nzVal,
                                B.colPtr, B.rowVal, Ref(cudescc), C.nzVal,
@@ -1890,8 +1890,8 @@ for (fname,elty) in ((:cusparseScsric0, :Float32),
             valPtr   = typeof(Mat) == CuSparseMatrixCSC{$elty} ? Mat.rowVal : Mat.colVal
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, cusparseSolveAnalysisInfo_t),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, cusparseSolveAnalysisInfo_t),
                               handle(), cutransa, m, Ref(cudesc), Mat.nzVal,
                               indPtr, valPtr, info)
             Mat
@@ -1931,16 +1931,16 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csric02Info_t, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csric02Info_t, Ptr{Cint}),
                               handle(), m, A.nnz, Ref(cudesc), A.nzVal,
                               A.rowPtr, A.colVal, info[1], bufSize)
             buffer = CuArray(zeros(UInt8, bufSize[]))
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
                                A.nzVal, A.rowPtr, A.colVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             posit = Ref{Cint}(1)
@@ -1952,9 +1952,9 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             end
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz,
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz,
                                Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             cusparseDestroyCsric02Info(info[1])
@@ -1982,16 +1982,16 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csric02Info_t, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csric02Info_t, Ptr{Cint}),
                               handle(), m, A.nnz, Ref(cudesc), A.nzVal,
                               A.colPtr, A.rowVal, info[1], bufSize)
             buffer = CuArray(zeros(UInt8, bufSize[]))
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
                                A.nzVal, A.colPtr, A.rowVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             posit = Ref{Cint}(1)
@@ -2003,9 +2003,9 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             end
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz,
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csric02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz,
                                Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             cusparseDestroyCsric02Info(info[1])
@@ -2048,8 +2048,8 @@ for (fname,elty) in ((:cusparseScsrilu0, :Float32),
             valPtr   = typeof(Mat) == CuSparseMatrixCSC{$elty} ? Mat.rowVal : Mat.colVal
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseOperation_t, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, cusparseSolveAnalysisInfo_t),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, cusparseSolveAnalysisInfo_t),
                               handle(), cutransa, m, Ref(cudesc), Mat.nzVal,
                               indPtr, valPtr, info)
             Mat
@@ -2088,16 +2088,16 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrilu02Info_t, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrilu02Info_t, Ptr{Cint}),
                               handle(), m, A.nnz, Ref(cudesc), A.nzVal,
                               A.rowPtr, A.colVal, info[1], bufSize)
             buffer = CuArray(zeros(UInt8, bufSize[]))
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
                                A.nzVal, A.rowPtr, A.colVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             posit = Ref{Cint}(1)
@@ -2109,9 +2109,9 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             end
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz,
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz,
                                Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             cusparseDestroyCsrilu02Info(info[1])
@@ -2139,16 +2139,16 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrilu02Info_t, Ptr{Cint}),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrilu02Info_t, Ptr{Cint}),
                               handle(), m, A.nnz, Ref(cudesc), A.nzVal,
                               A.colPtr, A.rowVal, info[1], bufSize)
             buffer = CuArray(zeros(UInt8, bufSize[]))
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz, Ref(cudesc),
                                A.nzVal, A.colPtr, A.rowVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             posit = Ref{Cint}(1)
@@ -2160,9 +2160,9 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             end
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, Cint, Cint,
-                               Ptr{cusparseMatDescr_t}, Ptr{$elty}, Ptr{Cint},
-                               Ptr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
-                               Ptr{Cvoid}), handle(), m, A.nnz,
+                               Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
+                               CuPtr{Cint}, csrilu02Info_t, cusparseSolvePolicy_t,
+                               CuPtr{Cvoid}), handle(), m, A.nnz,
                                Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
                                CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
             cusparseDestroyCsrilu02Info(info[1])
@@ -2192,17 +2192,17 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Cint, bsric02Info_t,
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Cint, bsric02Info_t,
                                Ptr{Cint}), handle(), cudir, mb, A.nnz,
                                Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
                                A.blockDim, info[1], bufSize)
             buffer = CuArray(zeros(UInt8, bufSize[]))
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Cint, bsric02Info_t,
-                               cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Cint, bsric02Info_t,
+                               cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, mb, A.nnz, Ref(cudesc),
                               A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                               CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2215,9 +2215,9 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
             end
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Cint,bsric02Info_t,
-                               cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Cint,bsric02Info_t,
+                               cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, mb, A.nnz, Ref(cudesc),
                               A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                               CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2248,17 +2248,17 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
             bufSize = Ref{Cint}(1)
             @check ccall(($(string(bname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Cint, bsrilu02Info_t,
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Cint, bsrilu02Info_t,
                                Ptr{Cint}), handle(), cudir, mb, A.nnz,
                                Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
                                A.blockDim, info[1], bufSize)
             buffer = CuArray(zeros(UInt8, bufSize[]))
             @check ccall(($(string(aname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Cint, bsrilu02Info_t,
-                               cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Cint, bsrilu02Info_t,
+                               cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, mb, A.nnz, Ref(cudesc),
                               A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                               CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2271,9 +2271,9 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
             end
             @check ccall(($(string(sname)),libcusparse), cusparseStatus_t,
                               (cusparseHandle_t, cusparseDirection_t, Cint,
-                               Cint, Ptr{cusparseMatDescr_t}, Ptr{$elty},
-                               Ptr{Cint}, Ptr{Cint}, Cint,bsrilu02Info_t,
-                               cusparseSolvePolicy_t, Ptr{Cvoid}),
+                               Cint, Ptr{cusparseMatDescr_t}, CuPtr{$elty},
+                               CuPtr{Cint}, CuPtr{Cint}, Cint,bsrilu02Info_t,
+                               cusparseSolvePolicy_t, CuPtr{Cvoid}),
                               handle(), cudir, mb, A.nnz, Ref(cudesc),
                               A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                               CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2324,8 +2324,8 @@ for (fname,elty) in ((:cusparseSgtsv, :Float32),
             m,n = B.dims
             ldb = max(1,stride(B,2))
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Cint, Ptr{$elty},
-                               Ptr{$elty}, Ptr{$elty}, Ptr{$elty}, Cint),
+                              (cusparseHandle_t, Cint, Cint, CuPtr{$elty},
+                               CuPtr{$elty}, CuPtr{$elty}, CuPtr{$elty}, Cint),
                               handle(), m, n, dl, d, du, B, ldb)
             B
         end
@@ -2357,8 +2357,8 @@ for (fname,elty) in ((:cusparseSgtsv_nopivot, :Float32),
             m,n = B.dims
             ldb = max(1,stride(B,2))
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Cint, Ptr{$elty},
-                               Ptr{$elty}, Ptr{$elty}, Ptr{$elty}, Cint),
+                              (cusparseHandle_t, Cint, Cint, CuPtr{$elty},
+                               CuPtr{$elty}, CuPtr{$elty}, CuPtr{$elty}, Cint),
                               handle(), m, n, dl, d, du, B, ldb)
             B
         end
@@ -2393,8 +2393,8 @@ for (fname,elty) in ((:cusparseSgtsvStridedBatch, :Float32),
                                    batchStride::Integer)
             m = div(length(X),batchCount)
             @check ccall(($(string(fname)),libcusparse), cusparseStatus_t,
-                              (cusparseHandle_t, Cint, Ptr{$elty}, Ptr{$elty},
-                               Ptr{$elty}, Ptr{$elty}, Cint, Cint),
+                              (cusparseHandle_t, Cint, CuPtr{$elty}, CuPtr{$elty},
+                               CuPtr{$elty}, CuPtr{$elty}, Cint, Cint),
                               handle(), m, dl, d, du, X,
                               batchCount, batchStride)
             X
