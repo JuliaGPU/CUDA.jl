@@ -1,3 +1,5 @@
+# wrappers of the low-level CUBLAS functionality
+
 # Note: we don't implement padded storage dimensions
 function _mkplan(xtype, xdims, region)
     nrank = length(region)
@@ -8,28 +10,16 @@ function _mkplan(xtype, xdims, region)
 
     pp = Ref{cufftHandle_t}()
     if (nrank == 1) && (batch == 1)
-        @check ccall((:cufftPlan1d,libcufft),cufftStatus_t,
-                     (Ptr{cufftHandle_t}, Cint, cufftType, Cint),
-                     pp, sz[1], xtype, 1)
+        cufftPlan1d(pp, sz[1], xtype, 1)
     elseif (nrank == 2) && (batch == 1)
-        @check ccall((:cufftPlan2d,libcufft),cufftStatus_t,
-                     (Ptr{cufftHandle_t}, Cint, Cint, cufftType),
-                     pp, sz[2], sz[1], xtype)
+        cufftPlan2d(pp, sz[2], sz[1], xtype)
     elseif (nrank == 3) && (batch == 1)
-        @check ccall((:cufftPlan3d,libcufft),cufftStatus_t,
-                     (Ptr{cufftHandle_t}, Cint, Cint, Cint, cufftType),
-                     pp, sz[3], sz[2], sz[1], xtype)
-
+        cufftPlan3d(pp, sz[3], sz[2], sz[1], xtype)
     else
         rsz = (length(sz) > 1) ? rsz = reverse(sz) : sz
         if ((region...,) == ((1:nrank)...,))
             # handle simple case ... simply! (for robustness)
-            @check ccall((:cufftPlanMany,libcufft),cufftStatus_t,
-                         (Ptr{cufftHandle_t}, Cint, Ptr{Cint}, # rank, dims
-                          Ptr{Cint}, Cint, Cint, # nembed,stride,dist (input)
-                          Ptr{Cint}, Cint, Cint, # nembed,stride,dist (output)
-                          cufftType, Cint),
-                         pp, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
+           cufftPlanMany(pp, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
                          xtype, batch)
         else
             if nrank==1 || all(diff(collect(region)) .== 1)
@@ -121,14 +111,9 @@ function _mkplan(xtype, xdims, region)
                     inembed = cnembed
                 end
             end
-            @check ccall((:cufftPlanMany,libcufft),cufftStatus_t,
-                         (Ptr{cufftHandle_t}, Cint, Ptr{Cint}, # rank, dims
-                          Ptr{Cint}, Cint, Cint, # nembed,stride,dist (input)
-                          Ptr{Cint}, Cint, Cint, # nembed,stride,dist (output)
-                          cufftType, Cint),
-                         pp, nrank, Cint[rsz...],
-                         inembed, istride, idist, onembed, ostride, odist,
-                         xtype, batch)
+            cufftPlanMany(pp, nrank, Cint[rsz...],
+                          inembed, istride, idist, onembed, ostride, odist,
+                          xtype, batch)
         end
     end
     pp[]
@@ -139,8 +124,7 @@ unsafe_convert(::Type{cufftHandle_t}, p::CuFFTPlan) = p.plan
 
 convert(::Type{cufftHandle_t}, p::CuFFTPlan) = p.plan
 
-destroy_plan(plan::CuFFTPlan) =
-    ccall((:cufftDestroy,libcufft), Nothing, (cufftHandle_t,), plan.plan)
+destroy_plan(plan::CuFFTPlan) = cufftDestroy(plan)
 
 function assert_applicable(p::CuFFTPlan{T,K}, X::CuArray{T}) where {T,K}
     (size(X) == p.sz) ||
@@ -167,84 +151,62 @@ end
 function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,true,N},
                          x::CuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2C
-    @check ccall((:cufftExecC2C,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftComplex},
-                  Cint),
-                 plan, x, x, K)
+    cufftExecC2C(plan, x, x, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,true,N},
                          x::CuArray{cufftComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_C2R
-    @check ccall((:cufftExecC2R,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftComplex}),
-                 plan, x, x)
+    cufftExecC2R(plan, x, x)
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,false,N},
                          x::CuArray{cufftComplex,N}, y::CuArray{cufftComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2C
-    @check ccall((:cufftExecC2C,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftComplex}, Cint),
-                 plan, x, y, K)
+    cufftExecC2C(plan, x, y, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
                          x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
-    @check ccall((:cufftExecC2R,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftComplex}, CuPtr{cufftReal}),
-                 plan, x, y)
+    cufftExecC2R(plan, x, y)
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
                          x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_R2C
-    @check ccall((:cufftExecR2C,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftReal}, CuPtr{cufftComplex}),
-                 plan, x, y)
+    cufftExecR2C(plan, x, y)
 end
 
 # double prec.
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,true,N},
                          x::CuArray{cufftDoubleComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
-    @check ccall((:cufftExecZ2Z,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleComplex},
-                  Cint),
-                 plan, x, x, K)
+    cufftExecZ2Z(plan, x, x, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,true,N},
                          x::CuArray{cufftDoubleComplex,N}) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
-    @check ccall((:cufftExecZ2D,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleComplex}),
-                 plan, x, x)
+    cufftExecZ2D(plan, x, x)
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,false,N},
                          x::CuArray{cufftDoubleComplex,N}, y::CuArray{cufftDoubleComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
-    @check ccall((:cufftExecZ2Z,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleComplex}, Cint),
-                 plan, x, y, K)
+    cufftExecZ2Z(plan, x, y, K)
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
                          x::CuArray{cufftDoubleComplex,N}, y::CuArray{cufftDoubleReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
-    @check ccall((:cufftExecZ2D,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftDoubleComplex}, CuPtr{cufftDoubleReal}),
-                 plan, x, y)
+    cufftExecZ2D(plan, x, y)
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleReal,K,false,N},
                          x::CuArray{cufftDoubleReal,N}, y::CuArray{cufftDoubleComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_D2Z
-    @check ccall((:cufftExecD2Z,libcufft), cufftStatus_t,
-                 (cufftHandle_t, CuPtr{cufftDoubleReal}, CuPtr{cufftDoubleComplex}),
-                 plan, x, y)
+    cufftExecD2Z(plan, x, y)
 end
