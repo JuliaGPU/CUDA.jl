@@ -223,8 +223,8 @@ function copyto!(dst::CuSparseVector, src::CuSparseVector)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Vector size"))
     end
-    copyto!( dst.iPtr, src.iPtr )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.iPtr, src.iPtr)
+    copyto!(dst.nzVal, src.nzVal)
     dst.nnz = src.nnz
     dst
 end
@@ -233,9 +233,9 @@ function copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
-    copyto!( dst.colPtr, src.colPtr )
-    copyto!( dst.rowVal, src.rowVal )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.colPtr, src.colPtr)
+    copyto!(dst.rowVal, src.rowVal)
+    copyto!(dst.nzVal, src.nzVal)
     dst.nnz = src.nnz
     dst
 end
@@ -244,9 +244,9 @@ function copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
-    copyto!( dst.rowPtr, src.rowPtr )
-    copyto!( dst.colVal, src.colVal )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.rowPtr, src.rowPtr)
+    copyto!(dst.colVal, src.colVal)
+    copyto!(dst.nzVal, src.nzVal)
     dst.nnz = src.nnz
     dst
 end
@@ -255,9 +255,9 @@ function copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
-    copyto!( dst.rowPtr, src.rowPtr )
-    copyto!( dst.colVal, src.colVal )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.rowPtr, src.rowPtr)
+    copyto!(dst.colVal, src.colVal)
+    copyto!(dst.nzVal, src.nzVal)
     dst.dir = src.dir
     dst.nnz = src.nnz
     dst

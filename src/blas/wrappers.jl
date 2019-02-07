@@ -221,7 +221,7 @@ for (fname, elty) in ((:cublasIdamax_v2,:Float64),
                        dx::CuArray{$elty},
                        incx::Integer)
             result = Ref{Cint}()
-           $fname(handle(), n, dx, incx, result)
+            $fname(handle(), n, dx, incx, result)
             return result[]
         end
     end
@@ -836,7 +836,7 @@ for (fname, elty) in
                                B::Array{CuMatrix{$elty},1},
                                beta::($elty),
                                C::Array{CuMatrix{$elty},1})
-            if( length(A) != length(B) || length(A) != length(C) )
+            if length(A) != length(B) || length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
             for (As,Bs,Cs) in zip(A,B,C)
@@ -847,6 +847,7 @@ for (fname, elty) in
                     throw(DimensionMismatch(""))
                 end
             end
+
             m = size(A[1], transA == 'N' ? 1 : 2)
             k = size(A[1], transA == 'N' ? 2 : 1)
             n = size(B[1], transB == 'N' ? 2 : 1)
@@ -1346,7 +1347,7 @@ for (fname, elty) in
             cuuplo = cublasfill(uplo)
             cutransa = cublasop(transa)
             cudiag = cublasdiag(diag)
-            if( length(A) != length(B) )
+            if length(A) != length(B)
                 throw(DimensionMismatch(""))
             end
             for (As,Bs) in zip(A,B)
@@ -1493,6 +1494,7 @@ for (fname, elty) in
                     throw(DimensionMismatch("All A matrices must be square!"))
                 end
             end
+
             C = CuMatrix{$elty}[similar(A[1]) for i in 1:length(A)]
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
@@ -1528,6 +1530,7 @@ for (fname, elty) in
                     throw(ArgumentError("matinv requires all matrices be smaller than 32 x 32"))
                 end
             end
+
             C = CuMatrix{$elty}[similar(A[1]) for i in 1:length(A)]
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
@@ -1593,20 +1596,21 @@ for (fname, elty) in
                               A::Array{CuMatrix{$elty},1},
                               C::Array{CuMatrix{$elty},1})
             cutrans = cublasop(trans)
-            if( length(A) != length(C) )
+            if length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
             for (As,Cs) in zip(A,C)
                 m,n = size(As)
                 mC,nC = size(Cs)
-                if( n != mC )
+                if n != mC
                     throw(DimensionMismatch(""))
                 end
             end
             m,n = size(A[1])
-            if( m < n )
+            if m < n
                 throw(ArgumentError("System must be overdetermined"))
             end
+
             nrhs = size(C[1])[2]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(A[1],2))
