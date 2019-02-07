@@ -4,7 +4,7 @@ import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
 import CUDAapi
 
 using ..CuArrays
-using ..CuArrays: libcusolver, active_context, _getindex
+using ..CuArrays: libcusolver, active_context, _getindex, unsafe_free!
 
 using LinearAlgebra
 using SparseArrays 
