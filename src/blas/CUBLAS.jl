@@ -4,7 +4,7 @@ import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
 import CUDAapi
 
 using ..CuArrays
-using ..CuArrays: libcublas, active_context
+using ..CuArrays: libcublas, active_context, unsafe_free!
 
 using LinearAlgebra
 
