@@ -21,8 +21,13 @@ CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
-function unsafe_free!(xs::CuArray)
+const INVALID = Mem.alloc(0)
+
+function unsafe_free!(xs::CuArray{<:Any,N}) where {N}
+  xs.buf === INVALID && return
   Mem.release(xs.buf) && dealloc(xs.buf, prod(xs.dims)*sizeof(eltype(xs)))
+  xs.dims = Tuple(0 for _ in 1:N)
+  xs.buf = INVALID
   return
 end
 
