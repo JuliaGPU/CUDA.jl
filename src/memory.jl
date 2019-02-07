@@ -302,7 +302,7 @@ end
 
 function dealloc(buf, bytes)
   # 0-byte allocations shouldn't hit the pool
-  bytes == 0 && return Mem.alloc(0)
+  bytes == 0 && return
 
   stats.req_nfree += 1
   stats.user_free += bytes
