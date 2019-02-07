@@ -49,6 +49,20 @@ CuArray{T}(::UndefInitializer, dims::Integer...) where {T} =
 # empty vector constructor
 CuArray{T,1}() where {T} = CuArray{T,1}(undef, 0)
 
+# do-block constructors
+for (ctor, tvars) in (:CuArray => (), :(CuArray{T}) => (:T,), :(CuArray{T,N}) => (:T, :N))
+  @eval begin
+    function $ctor(f::Function, args...) where {$(tvars...)}
+      xs = $ctor(args...)
+      try
+        f(xs)
+      finally
+        unsafe_free!(xs)
+      end
+    end
+  end
+end
+
 
 Base.similar(a::CuArray{T,N}) where {T,N} = CuArray{T,N}(undef, size(a))
 Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
