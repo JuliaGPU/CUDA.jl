@@ -277,6 +277,13 @@ function try_alloc(alloc_bytes, pool=nothing)
   let buf = try_cuda_alloc(alloc_bytes)
     buf !== nothing && return buf
   end
+
+  # 7. maybe we're racing against another process, so try reclaiming _everything_
+  reclaim(true)
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+
   if tracing
     for buf in keys(alloc_sites)
       bytes, bt = alloc_sites[buf]
