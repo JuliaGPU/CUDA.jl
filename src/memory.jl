@@ -87,7 +87,7 @@ Base.copy(stats::PoolStats) =
   PoolStats((getfield(stats, field) for field in fieldnames(PoolStats))...)
 
 # allocation traces
-const pool_traces = Dict{Mem.Buffer, Tuple{Int, Vector{Union{Base.InterpreterIP,Ptr{Cvoid}}}}}()
+const alloc_sites = Dict{Mem.Buffer, Tuple{Int, Vector{Union{Base.InterpreterIP,Ptr{Cvoid}}}}}()
 const tracing = parse(Bool, get(ENV, "CUARRAYS_TRACE_POOL", "false"))
 
 function __init_memory__()
@@ -258,18 +258,18 @@ function try_alloc(alloc_bytes, pool=nothing)
 
   # 5. do a slow GC collection and check the pool again
   if tracing
-    pool_traces_old = copy(pool_traces)
+    alloc_sites_old = copy(alloc_sites)
   end
   gc(true) # full collection
   if tracing
     # report on buffers that we collected -- these could benefit from early freeing
-    for (buf, info) in sort(collect(pool_traces_old), by=x->x[2][1])
+    for (buf, info) in sort(collect(alloc_sites_old), by=x->x[2][1])
       bytes, bt = info
-      if !haskey(pool_traces, buf)
+      if !haskey(alloc_sites, buf)
         st = stacktrace(bt, false)
         Core.print(Core.stderr, "WARNING: force-collected a GPU allocation of $(Base.format_bytes(bytes))")
         Base.show_backtrace(Core.stderr, st)
-        Core.println(Core.stderr, )
+        Core.println(Core.stderr)
       end
     end
   end
@@ -283,12 +283,12 @@ function try_alloc(alloc_bytes, pool=nothing)
     buf !== nothing && return buf
   end
   if tracing
-    for buf in keys(pool_traces)
-      bytes, bt = pool_traces[buf]
+    for buf in keys(alloc_sites)
+      bytes, bt = alloc_sites[buf]
       st = stacktrace(bt, false)
       Core.print(Core.stderr, "WARNING: outstanding a GPU allocation of $(Base.format_bytes(bytes))")
       Base.show_backtrace(Core.stderr, st)
-      Core.println(Core.stderr, )
+      Core.println(Core.stderr)
     end
   end
 
@@ -338,7 +338,7 @@ function alloc(bytes)
   end
 
   if tracing
-    pool_traces[buf] = (bytes, backtrace())
+    alloc_sites[buf] = (bytes, backtrace())
   end
 
   buf
@@ -375,7 +375,7 @@ function dealloc(buf, bytes)
   end
 
   if tracing
-    delete!(pool_traces, buf)
+    delete!(alloc_sites, buf)
   end
 
   return
@@ -449,4 +449,33 @@ macro time(ex)
 
         val
     end
+end
+
+function pool_status()
+  used_pool_buffers = 0
+  used_pool_bytes = 0
+  for (pid, pl) in enumerate(pools_used)
+    bytes = poolsize(pid)
+    used_pool_buffers += length(pl)
+    used_pool_bytes += bytes * length(pl)
+  end
+
+  avail_pool_buffers = 0
+  avail_pool_bytes = 0
+  for (pid, pl) in enumerate(pools_avail)
+    bytes = poolsize(pid)
+    avail_pool_buffers += length(pl)
+    avail_pool_bytes += bytes * length(pl)
+  end
+
+  free_bytes, total_bytes = CUDAdrv.Mem.info()
+  used_bytes = total_bytes - free_bytes
+  used_ratio = used_bytes / total_bytes
+
+  pool_ratio = (used_pool_bytes + avail_pool_bytes) / used_bytes
+
+  println("Total GPU memory usage: $(100*round(used_ratio; digits=2))% ($(Base.format_bytes(used_bytes))/$(Base.format_bytes(total_bytes)))")
+  println("CuArrays.jl pool usage: $(100*round(pool_ratio; digits=2))% ($(Base.format_bytes(used_pool_bytes)) in use by $used_pool_buffers buffer(s), $(Base.format_bytes(avail_pool_bytes)) inactive)")
+
+  return
 end
