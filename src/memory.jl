@@ -163,12 +163,12 @@ end
 # reclaim unused buffers
 function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
   stats.total_time += Base.@elapsed begin
-    # gather candidate buffers
-    candidates = Dict{Int,Int}()  # pid => number of buffers that can be freed
+    # find inactive buffers
+    pools_inactive = Vector{Int}(undef, length(pools_avail)) # pid => buffers that can be freed
     if full
       # consider all currently unused buffers
       for (pid, avail) in enumerate(pools_avail)
-        candidates[pid] = length(avail)
+        pools_inactive[pid] = length(avail)
       end
     else
       # only consider inactive buffers
@@ -180,18 +180,19 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
         if navail > 0
           # reclaim as much as the usage allows
           reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
-          @assert reclaimable <= navail
-
-          candidates[pid] = reclaimable
+          pools_inactive[pid] = reclaimable
+        else
+          pools_inactive[pid] = 0
         end
       end
     end
 
     # reclaim buffers (in reverse, to discard largest buffers first)
-    for (pid, bufcount) in sort(collect(candidates), by=x->x[1]; rev=true)
+    for pid in reverse(eachindex(pools_inactive))
       bytes = poolsize(pid)
       avail = pools_avail[pid]
 
+      bufcount = pools_inactive[pid]
       @assert bufcount <= length(avail)
       for i in 1:bufcount
         buf = pop!(avail)
