@@ -209,10 +209,12 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
   return false
 end
 
+
+## allocator state machine
+
 function try_cuda_alloc(bytes)
   buf = nothing
   try
-    # 2. didn't have one, so allocate a new buffer
     stats.cuda_time += Base.@elapsed begin
       buf = Mem.alloc(bytes)
     end
@@ -225,7 +227,6 @@ function try_cuda_alloc(bytes)
   return buf
 end
 
-# main state machine
 function try_alloc(alloc_bytes, pool=nothing)
   # 1. find an unused buffer in our pool
   if pool !== nothing && !isempty(pool)
@@ -468,7 +469,7 @@ function pool_status()
   pool_ratio = (used_pool_bytes + avail_pool_bytes) / used_bytes
 
   println("Total GPU memory usage: $(100*round(used_ratio; digits=2))% ($(Base.format_bytes(used_bytes))/$(Base.format_bytes(total_bytes)))")
-  println("CuArrays.jl pool usage: $(100*round(pool_ratio; digits=2))% ($(Base.format_bytes(used_pool_bytes)) in use by $used_pool_buffers buffer(s), $(Base.format_bytes(avail_pool_bytes)) inactive)")
+  println("CuArrays.jl pool usage: $(100*round(pool_ratio; digits=2))% ($(Base.format_bytes(used_pool_bytes)) in use by $used_pool_buffers buffer(s), $(Base.format_bytes(avail_pool_bytes)) idle)")
 
   return
 end
