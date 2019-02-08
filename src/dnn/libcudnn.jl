@@ -119,6 +119,13 @@ function cudnnDestroyConvolutionDescriptor(convDesc)
                  convDesc)
 end
 
+function cudnnSetConvolutionMathType(convDesc, mathType)
+    @check ccall((:cudnnSetConvolutionMathType,libcudnn),
+                 cudnnStatus_t,
+                 (cudnnConvolutionDescriptor_t, cudnnMathType_t),
+                 convDesc, mathType)
+end
+
 function cudnnCreatePoolingDescriptor(poolingDesc)
     @check ccall((:cudnnCreatePoolingDescriptor,libcudnn),
                  cudnnStatus_t,
