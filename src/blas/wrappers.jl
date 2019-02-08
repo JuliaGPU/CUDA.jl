@@ -221,7 +221,7 @@ for (fname, elty) in ((:cublasIdamax_v2,:Float64),
                        dx::CuArray{$elty},
                        incx::Integer)
             result = Ref{Cint}()
-           $fname(handle(), n, dx, incx, result)
+            $fname(handle(), n, dx, incx, result)
             return result[]
         end
     end
@@ -836,7 +836,7 @@ for (fname, elty) in
                                B::Array{CuMatrix{$elty},1},
                                beta::($elty),
                                C::Array{CuMatrix{$elty},1})
-            if( length(A) != length(B) || length(A) != length(C) )
+            if length(A) != length(B) || length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
             for (As,Bs,Cs) in zip(A,B,C)
@@ -847,6 +847,7 @@ for (fname, elty) in
                     throw(DimensionMismatch(""))
                 end
             end
+
             m = size(A[1], transA == 'N' ? 1 : 2)
             k = size(A[1], transA == 'N' ? 2 : 1)
             n = size(B[1], transB == 'N' ? 2 : 1)
@@ -860,6 +861,10 @@ for (fname, elty) in
             Cptrs = device_batch(C)
             $fname(handle(), cutransA,cutransB, m, n, k, [alpha], Aptrs, lda, Bptrs,
                    ldb, [beta], Cptrs, ldc, length(A))
+            unsafe_free!(Cptrs)
+            unsafe_free!(Bptrs)
+            unsafe_free!(Aptrs)
+
             C
         end
         function gemm_batched(transA::Char,
@@ -1346,7 +1351,7 @@ for (fname, elty) in
             cuuplo = cublasfill(uplo)
             cutransa = cublasop(transa)
             cudiag = cublasdiag(diag)
-            if( length(A) != length(B) )
+            if length(A) != length(B)
                 throw(DimensionMismatch(""))
             end
             for (As,Bs) in zip(A,B)
@@ -1355,12 +1360,16 @@ for (fname, elty) in
                 if mA != nA throw(DimensionMismatch("A must be square")) end
                 if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm_batched!")) end
             end
+
             m,n = size(B[1])
             lda = max(1,stride(A[1],2))
             ldb = max(1,stride(B[1],2))
             Aptrs = device_batch(A)
             Bptrs = device_batch(B)
             $fname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], Aptrs, lda, Bptrs, ldb, length(A))
+            unsafe_free!(Bptrs)
+            unsafe_free!(Aptrs)
+
             B
         end
         function trsm_batched(side::Char,
@@ -1453,13 +1462,16 @@ for (fname, elty) in
                     throw(DimensionMismatch("All matrices must be square!"))
                 end
             end
+
             m,n = size(A[1])
             lda = max(1,stride(A[1],2))
             Aptrs = device_batch(A)
             info  = CuArray{Cint}(undef, length(A))
             pivotArray  = Pivot ? CuArray{Int32}(undef, (n, length(A))) : CU_NULL
             $fname(handle(), n, Aptrs, lda, pivotArray, info, length(A))
-            if( !Pivot )
+            unsafe_free!(Aptrs)
+
+            if !Pivot
                 pivotArray = CuArray(zeros(Cint, (n, length(A))))
             end
             pivotArray, info, A
@@ -1493,6 +1505,7 @@ for (fname, elty) in
                     throw(DimensionMismatch("All A matrices must be square!"))
                 end
             end
+
             C = CuMatrix{$elty}[similar(A[1]) for i in 1:length(A)]
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
@@ -1501,6 +1514,9 @@ for (fname, elty) in
             Cptrs = device_batch(C)
             info = CuArray(zeros(Cint,length(A)))
             $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
+            unsafe_free!(Cptrs)
+            unsafe_free!(Aptrs)
+
             pivotArray, info, C
         end
     end
@@ -1528,6 +1544,7 @@ for (fname, elty) in
                     throw(ArgumentError("matinv requires all matrices be smaller than 32 x 32"))
                 end
             end
+
             C = CuMatrix{$elty}[similar(A[1]) for i in 1:length(A)]
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
@@ -1536,6 +1553,9 @@ for (fname, elty) in
             Cptrs = device_batch(C)
             info = CuArray(zeros(Cint,length(A)))
             $fname(handle(), n, Aptrs, lda, Cptrs, ldc, info, length(A))
+            unsafe_free!(Cptrs)
+            unsafe_free!(Aptrs)
+
             info, C
         end
     end
@@ -1560,14 +1580,17 @@ for (fname, elty) in
             hTauArray = [zeros($elty, min(m,n)) for i in 1:length(A)]
             TauArray = CuArray{$elty,1}[]
             for i in 1:length(A)
-                push!(TauArray,CuArray(hTauArray[i]))
+                push!(TauArray, CuArray(hTauArray[i]))
             end
             Tauptrs = device_batch(TauArray)
             info    = zero(Cint)
             $fname(handle(), m, n, Aptrs, lda, Tauptrs, [info], length(A))
-            if( info != 0 )
+            unsafe_free!(Tauptrs)
+
+            if info != 0
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
+
             TauArray, A
         end
         function geqrf_batched(A::Array{CuMatrix{$elty},1})
@@ -1593,20 +1616,21 @@ for (fname, elty) in
                               A::Array{CuMatrix{$elty},1},
                               C::Array{CuMatrix{$elty},1})
             cutrans = cublasop(trans)
-            if( length(A) != length(C) )
+            if length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
             for (As,Cs) in zip(A,C)
                 m,n = size(As)
                 mC,nC = size(Cs)
-                if( n != mC )
+                if n != mC
                     throw(DimensionMismatch(""))
                 end
             end
             m,n = size(A[1])
-            if( m < n )
+            if m < n
                 throw(ArgumentError("System must be overdetermined"))
             end
+
             nrhs = size(C[1])[2]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(A[1],2))
@@ -1615,9 +1639,13 @@ for (fname, elty) in
             info  = zero(Cint)
             infoarray = CuArray(zeros(Cint, length(A)))
             $fname(handle(), cutrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, [info], infoarray, length(A))
-            if( info != 0 )
+            unsafe_free!(Cptrs)
+            unsafe_free!(Aptrs)
+
+            if info != 0
                 throw(ArgumentError,string("Invalid value at ",-info))
             end
+
             A, C, infoarray
         end
         function gels_batched(trans::Char,

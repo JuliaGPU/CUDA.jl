@@ -16,9 +16,16 @@ mutable struct CuSparseVector{Tv} <: AbstractCuSparseVector{Tv}
     nzVal::CuVector{Tv}
     dims::NTuple{2,Int}
     nnz::Cint
+
     function CuSparseVector{Tv}(iPtr::CuVector{Cint}, nzVal::CuVector{Tv}, dims::Int, nnz::Cint) where Tv
         new(iPtr,nzVal,(dims,1),nnz)
     end
+end
+
+function CuArrays.unsafe_free!(xs::CuSparseVector)
+    unsafe_free!(xs.iPtr)
+    unsafe_free!(xs.nzVal)
+    return
 end
 
 mutable struct CuSparseMatrixCSC{Tv} <: AbstractCuSparseMatrix{Tv}
@@ -27,10 +34,19 @@ mutable struct CuSparseMatrixCSC{Tv} <: AbstractCuSparseMatrix{Tv}
     nzVal::CuVector{Tv}
     dims::NTuple{2,Int}
     nnz::Cint
+
     function CuSparseMatrixCSC{Tv}(colPtr::CuVector{Cint}, rowVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int}, nnz::Cint) where Tv
         new(colPtr,rowVal,nzVal,dims,nnz)
     end
 end
+
+function CuSparseMatrixCSC!(xs::CuSparseVector)
+    unsafe_free!(xs.colPtr)
+    unsafe_free!(xs.rowVal)
+    unsafe_free!(xs.nzVal)
+    return
+end
+
 """
 Container to hold sparse matrices in compressed sparse row (CSR) format on the
 GPU.
@@ -44,9 +60,17 @@ mutable struct CuSparseMatrixCSR{Tv} <: AbstractCuSparseMatrix{Tv}
     nzVal::CuVector{Tv}
     dims::NTuple{2,Int}
     nnz::Cint
+
     function CuSparseMatrixCSR{Tv}(rowPtr::CuVector{Cint}, colVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int}, nnz::Cint) where Tv
         new(rowPtr,colVal,nzVal,dims,nnz)
     end
+end
+
+function CuSparseMatrixCSR!(xs::CuSparseVector)
+    unsafe_free!(xs.rowPtr)
+    unsafe_free!(xs.colVal)
+    unsafe_free!(xs.nzVal)
+    return
 end
 
 """
@@ -62,9 +86,17 @@ mutable struct CuSparseMatrixBSR{Tv} <: AbstractCuSparseMatrix{Tv}
     blockDim::Cint
     dir::SparseChar
     nnz::Cint
+
     function CuSparseMatrixBSR{Tv}(rowPtr::CuVector{Cint}, colVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int},blockDim::Cint, dir::SparseChar, nnz::Cint) where Tv
         new(rowPtr,colVal,nzVal,dims,blockDim,dir,nnz)
     end
+end
+
+function CuSparseMatrixBSR!(xs::CuSparseVector)
+    unsafe_free!(xs.rowPtr)
+    unsafe_free!(xs.colVal)
+    unsafe_free!(xs.nzVal)
+    return
 end
 
 """
@@ -76,6 +108,7 @@ mutable struct CuSparseMatrixHYB{Tv} <: AbstractCuSparseMatrix{Tv}
     Mat::cusparseHybMat_t
     dims::NTuple{2,Int}
     nnz::Cint
+
     function CuSparseMatrixHYB{Tv}(Mat::cusparseHybMat_t, dims::NTuple{2,Int}, nnz::Cint) where Tv
         new(Mat,dims,nnz)
     end
@@ -190,8 +223,8 @@ function copyto!(dst::CuSparseVector, src::CuSparseVector)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Vector size"))
     end
-    copyto!( dst.iPtr, src.iPtr )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.iPtr, src.iPtr)
+    copyto!(dst.nzVal, src.nzVal)
     dst.nnz = src.nnz
     dst
 end
@@ -200,9 +233,9 @@ function copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
-    copyto!( dst.colPtr, src.colPtr )
-    copyto!( dst.rowVal, src.rowVal )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.colPtr, src.colPtr)
+    copyto!(dst.rowVal, src.rowVal)
+    copyto!(dst.nzVal, src.nzVal)
     dst.nnz = src.nnz
     dst
 end
@@ -211,9 +244,9 @@ function copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
-    copyto!( dst.rowPtr, src.rowPtr )
-    copyto!( dst.colVal, src.colVal )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.rowPtr, src.rowPtr)
+    copyto!(dst.colVal, src.colVal)
+    copyto!(dst.nzVal, src.nzVal)
     dst.nnz = src.nnz
     dst
 end
@@ -222,9 +255,9 @@ function copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
-    copyto!( dst.rowPtr, src.rowPtr )
-    copyto!( dst.colVal, src.colVal )
-    copyto!( dst.nzVal, src.nzVal )
+    copyto!(dst.rowPtr, src.rowPtr)
+    copyto!(dst.colVal, src.colVal)
+    copyto!(dst.nzVal, src.nzVal)
     dst.dir = src.dir
     dst.nnz = src.nnz
     dst

@@ -27,6 +27,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),
             if length(x) != length(b)
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
+
             Mat     = similar(A)
             transpose!(Mat, A)
             cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
@@ -41,15 +42,17 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),
                               Mat.nzval, convert(Vector{Cint},Mat.colptr),
                               convert(Vector{Cint},Mat.rowval), b, tol, reorder,
                               x, singularity)
+
             if singularity[] != -1
                 throw(SingularException(singularity[]))
             end
+
             x
         end
     end
 end
 
-#csrlsvqr 
+#csrlsvqr
 for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                              (:cusolverSpDcsrlsvqr, :Float64, :Float64),
                              (:cusolverSpCcsrlsvqr, :ComplexF32, :Float32),
@@ -72,6 +75,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
             if length(x) != length(b)
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
+
             cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             rcudesca = Ref{cusparseMatDescr_t}(cudesca)
             singularity = Ref{Cint}(1)
@@ -82,9 +86,11 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                                Ptr{Cint}),
                               sparse_handle(), n, A.nnz, rcudesca, A.nzVal,
                               A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+
             if singularity[] != -1
                 throw(SingularException(singularity[]))
             end
+
             x
         end
     end
@@ -114,7 +120,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
 
-            cudesca     = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             rcudesca = Ref{cusparseMatDescr_t}(cudesca)
             singularity = zeros(Cint,1)
             @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
@@ -124,15 +130,17 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                                Ptr{Cint}),
                               sparse_handle(), n, A.nnz, rcudesca, A.nzVal,
                               A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+
             if singularity[1] != -1
                 throw(SingularException(singularity[1]))
             end
+
             x
         end
     end
 end
 
-#csrlsqvqr 
+#csrlsqvqr
 for (fname, elty, relty) in ((:cusolverSpScsrlsqvqrHost, :Float32, :Float32),
                              (:cusolverSpDcsrlsqvqrHost, :Float64, :Float64),
                              (:cusolverSpCcsrlsqvqrHost, :ComplexF32, :Float32),
@@ -154,6 +162,7 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsqvqrHost, :Float32, :Float32),
             if length(x) != length(b)
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
+
             cudesca  = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             rcudesca = Ref{cusparseMatDescr_t}(cudesca)
             p        = zeros(Cint,n)
@@ -170,12 +179,13 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsqvqrHost, :Float32, :Float32),
                               rcudesca, Mat.nzval, convert(Vector{Cint},Mat.colptr),
                               convert(Vector{Cint},Mat.rowval), b,
                               tol, rankA, x, p, min_norm)
+
             x, rankA[1], p, min_norm[1]
         end
     end
 end
 
-#csreigvsi 
+#csreigvsi
 for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                              (:cusolverSpDcsreigvsi, :Float64, :Float64),
                              (:cusolverSpCcsreigvsi, :ComplexF32, :Float32),
@@ -195,6 +205,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
             if n != length(x_0)
                 throw(DimensionMismatch("second dimension of A, $(size(A,2)), must match the length of x_0, $(length(x_0))"))
             end
+
             cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             rcudesca = Ref{cusparseMatDescr_t}(cudesca)
             x       = copy(x_0)
@@ -206,6 +217,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                                $relty, CuPtr{$elty}, CuPtr{$elty}),
                               sparse_handle(), n, A.nnz, rcudesca, A.nzVal,
                               A.rowPtr, A.colVal, μ_0, x_0, maxite, tol, μ, x)
+
             collect(μ)[1], x
         end
     end
@@ -226,6 +238,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigsHost, :ComplexF32, :Float32),
             if m != n
                 throw(DimensionMismatch("A must be square!"))
             end
+
             cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             rcudesca = Ref{cusparseMatDescr_t}(cudesca)
             numeigs = zeros(Cint,1)
@@ -238,6 +251,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigsHost, :ComplexF32, :Float32),
                               sparse_handle(), n, length(A.nzval), rcudesca,
                               Mat.nzval, convert(Vector{Cint},Mat.colptr),
                               convert(Vector{Cint},Mat.rowval), lbc, ruc, numeigs)
+
             numeigs[1]
         end
     end

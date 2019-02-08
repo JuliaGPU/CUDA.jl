@@ -245,7 +245,6 @@ function cudnnConvolutionBiasActivationForward(y::CuArray{T,N}, x::CuArray{T,N},
 end
 
 function cudnnConvolutionForward(alpha, xDesc, x, wDesc, w, convDesc, algo, workspace, workspace_size, beta, yDesc, y)
-    workspace = something(workspace, CU_NULL)
     @check ccall((:cudnnConvolutionForward, libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing},
@@ -285,7 +284,6 @@ function cudnnGetConvolutionForwardWorkspaceSize(y::CuArray{T,N}, x::CuArray{T,N
 end
 
 function cudnnConvolutionBackwardData(alpha, wDesc, w, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dxDesc, dx)
-    workspace = something(workspace, CU_NULL)
     @check ccall((:cudnnConvolutionBackwardData, libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnFilterDescriptor_t, CuPtr{Nothing},
@@ -325,7 +323,6 @@ function cudnnGetConvolutionBackwardDataWorkspaceSize(dx::CuArray{T,N}, w::CuArr
 end
 
 function cudnnConvolutionBackwardFilter(alpha, xDesc, x, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dwDesc, dw)
-    workspace = something(workspace, CU_NULL)
     @check ccall((:cudnnConvolutionBackwardFilter, libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing},
