@@ -164,16 +164,14 @@ end
 function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
   stats.total_time += Base.@elapsed begin
     # gather candidate buffers
-    candidates = Vector{Tuple{Mem.Buffer,Int}}()
+    candidates = Dict{Int,Int}()  # pid => number of buffers that can be freed
     if full
       # consider all currently unused buffers
-      for (pid, pl) in enumerate(pools_avail)
-        for buf in pl
-          push!(candidates, (buf, pid))
-        end
+      for (pid, avail) in enumerate(pools_avail)
+        candidates[pid] = length(avail)
       end
     else
-      # only consider really unused buffers
+      # only consider inactive buffers
       @inbounds for pid in 1:length(pool_usage)
         nused = length(pools_used[pid])
         navail = length(pools_avail[pid])
@@ -184,30 +182,27 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
           reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
           @assert reclaimable <= navail
 
-          while reclaimable > 0
-            buf = pop!(pools_avail[pid])
-            push!(candidates, (buf, pid))
-            reclaimable -= 1
-          end
+          candidates[pid] = reclaimable
         end
       end
     end
 
-    # reclaim buffers
-    for (buf, pid) in reverse(candidates)
+    # reclaim buffers (in reverse, to discard largest buffers first)
+    for (pid, bufcount) in sort(collect(candidates), by=x->x[1]; rev=true)
       bytes = poolsize(pid)
-      pl = pools_avail[pid]
+      avail = pools_avail[pid]
 
-      stats.actual_nfree += 1
-      stats.cuda_time += Base.@elapsed Mem.free(buf)
-      stats.actual_free += bytes
+      @assert bufcount <= length(avail)
+      for i in 1:bufcount
+        buf = pop!(avail)
 
-      # since we iterate in reverse, this buffer should be the last in its pool
-      @assert last(pl) === buf
-      pop!(pl)
+        stats.actual_nfree += 1
+        stats.cuda_time += Base.@elapsed Mem.free(buf)
+        stats.actual_free += bytes
 
-      target_bytes -= bytes
-      target_bytes <= 0 && return true
+        target_bytes -= bytes
+        target_bytes <= 0 && return true
+      end
     end
   end
 
