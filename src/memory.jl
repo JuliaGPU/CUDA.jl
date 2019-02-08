@@ -16,8 +16,6 @@ import Base.GC: gc
 # - regularly release memory from underused pools (see `reclaim(false)`)
 #
 # possible improvements:
-# - pressure: have the `reclaim` background task reclaim more aggressively,
-#             and call it from the failure cascade in `alloc`
 # - context management: either switch contexts when performing memory operations,
 #                       or just use unified memory for all allocations.
 # - per-device pools
@@ -218,10 +216,6 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
   return false
 end
 
-const MAX_POOL = 100*1024^2 # 100 MiB
-
-## interface
-
 function try_cuda_alloc(bytes)
   buf = nothing
   try
@@ -300,6 +294,11 @@ function try_alloc(alloc_bytes, pool=nothing)
 
   throw(OutOfMemoryError())
 end
+
+
+## interface
+
+const MAX_POOL = 100*1024^2 # 100 MiB
 
 function alloc(bytes)
   # 0-byte allocations shouldn't hit the pool
@@ -383,7 +382,7 @@ function dealloc(buf, bytes)
 end
 
 
-## utility macros
+## utilities
 
 using Printf
 
