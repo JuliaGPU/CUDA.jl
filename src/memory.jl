@@ -83,14 +83,8 @@ mutable struct PoolStats
 
   cuda_time::Float64
   total_time::Float64
-
-  # internal stats
-  alloc_1::Int
-  alloc_2::Int
-  alloc_3::Int
-  alloc_4::Int
 end
-const stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+const stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 Base.copy(stats::PoolStats) =
   PoolStats((getfield(stats, field) for field in fieldnames(PoolStats))...)
 
@@ -125,8 +119,7 @@ function __init_memory__()
       Core.println("""
         Pool statistics (managed: $(managed ? "yes" : "no")):
          - requested alloc/free: $(stats.req_nalloc)/$(stats.req_nfree) ($(Base.format_bytes(stats.req_nalloc))/$(Base.format_bytes(stats.req_free)))
-         - actual alloc/free: $(stats.actual_nalloc)/$(stats.actual_nfree) ($(Base.format_bytes(stats.actual_alloc))/$(Base.format_bytes(stats.actual_free)))
-         - alloc types: $(stats.alloc_1) $(stats.alloc_2) $(stats.alloc_3) $(stats.alloc_4)""")
+         - actual alloc/free: $(stats.actual_nalloc)/$(stats.actual_nfree) ($(Base.format_bytes(stats.actual_alloc))/$(Base.format_bytes(stats.actual_free)))""")
     end)
   end
 end
@@ -215,10 +208,77 @@ const MAX_POOL = 100*1024^2 # 100 MiB
 
 ## interface
 
+function try_cuda_alloc(bytes)
+  buf = nothing
+  try
+    # 2. didn't have one, so allocate a new buffer
+    stats.cuda_time += Base.@elapsed begin
+      buf = Mem.alloc(bytes)
+    end
+    stats.actual_nalloc += 1
+    stats.actual_alloc += bytes
+  catch ex
+    ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
+  end
+
+  return buf
+end
+
+# main state machine
+function try_alloc(alloc_bytes, pool=nothing)
+  # 1. find an unused buffer in our pool
+  if pool !== nothing && !isempty(pool)
+    return pop!(pool)
+  end
+
+  # 2. didn't have one, so allocate a new buffer
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+
+  # 3. that failed; make Julia collect objects and check 1. again
+  if tracing
+    pool_traces_old = copy(pool_traces)
+  end
+  gc(true) # full collection
+  if tracing
+    # report on buffers that we collected -- these could benefit from early freeing
+    for (buf, info) in sort(collect(pool_traces_old), by=x->x[2][1])
+      bytes, bt = info
+      if !haskey(pool_traces, buf)
+        st = stacktrace(bt, false)
+        Core.print(Core.stderr, "WARNING: force-collected a GPU allocation of $(Base.format_bytes(bytes))")
+        Base.show_backtrace(Core.stderr, st)
+        Core.println(Core.stderr, )
+      end
+    end
+  end
+
+  if pool !== nothing && !isempty(pool)
+    return pop!(pool)
+  end
+
+  # 4. didn't have one, so reclaim all other unused buffers and do 2. again
+  reclaim(true)
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+  if tracing
+    for buf in keys(pool_traces)
+      bytes, bt = pool_traces[buf]
+      st = stacktrace(bt, false)
+      Core.print(Core.stderr, "WARNING: outstanding a GPU allocation of $(Base.format_bytes(bytes))")
+      Base.show_backtrace(Core.stderr, st)
+      Core.println(Core.stderr, )
+    end
+  end
+
+  throw(OutOfMemoryError())
+end
+
 function alloc(bytes)
   # 0-byte allocations shouldn't hit the pool
   bytes == 0 && return Mem.alloc(0)
-  buf = Ref{Mem.Buffer}()
 
   stats.req_nalloc += 1
   stats.req_alloc += bytes
@@ -236,68 +296,28 @@ function alloc(bytes)
       alloc_bytes = bytes
     end
 
-    lock(pool_lock) do
-      # 1. find an unused buffer in our pool
-      if pooling && !isempty(avail)
-        stats.alloc_1 += 1
-        buf[] = pop!(avail)
-      else
-        try
-          # 2. didn't have one, so allocate a new buffer
-          stats.cuda_time += Base.@elapsed begin
-            buf[] = Mem.alloc(alloc_bytes)
-          end
-          stats.alloc_2 += 1
-          stats.actual_nalloc += 1
-          stats.actual_alloc += alloc_bytes
-        catch ex
-          ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
-          # 3. that failed; make Julia collect objects and check 1. again
-          gc(true) # full collection
-          if pooling && !isempty(avail)
-            stats.alloc_3 += 1
-            buf[] = pop!(avail)
-          else
-            # 4. didn't have one, so reclaim all other unused buffers and do 2. again
-            reclaim(true)
-            try
-              stats.cuda_time += Base.@elapsed begin
-                buf[] = Mem.alloc(alloc_bytes)
-              end
-              stats.alloc_4 += 1
-              stats.actual_nalloc += 1
-              stats.actual_alloc += alloc_bytes
-            catch ex
-              ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
-              if tracing
-                @error "Failed to allocate $(Base.format_bytes(bytes)) (requires $(Base.format_bytes(alloc_bytes)) buffer)"
-                for buf in keys(pool_traces)
-                  bytes, bt = pool_traces[buf]
-                  @warn "Outstanding allocation of $(Base.format_bytes(bytes)) (requires $(Base.format_bytes(buf.bytesize)) buffer)" exception=(ex,bt)
-                end
-              end
-              rethrow()
-            end
-          end
-        end
-      end
+    # do the actual allocation
+    if pooling
+      buf = try_alloc(alloc_bytes, avail)
 
-      if pooling
-        # mark the buffer as used
-        push!(used, buf[])
+      # mark the buffer as used
+      push!(used, buf)
 
-        # update pool usage
+      # update pool usage
+      lock(pool_lock) do
         current_usage = length(used) / (length(avail) + length(used))
         pool_usage[pid] = max(pool_usage[pid], current_usage)
       end
+    else
+      buf = try_alloc(alloc_bytes)
     end
   end
 
   if tracing
-    pool_traces[buf[]] = (bytes, backtrace())
+    pool_traces[buf] = (bytes, backtrace())
   end
 
-  buf[]
+  buf
 end
 
 function dealloc(buf, bytes)
