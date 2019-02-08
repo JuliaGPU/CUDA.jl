@@ -100,13 +100,15 @@ function __init_memory__()
     delay = MIN_DELAY
     @async begin
       while true
-        if scan()
-          delay = MIN_DELAY
-        else
-          delay = min(delay*2, MAX_DELAY)
-        end
+        lock(pool_lock) do
+          if scan()
+            delay = MIN_DELAY
+          else
+            delay = min(delay*2, MAX_DELAY)
+          end
 
-        reclaim()
+          reclaim()
+        end
 
         sleep(delay)
       end
@@ -130,78 +132,90 @@ end
 function scan()
   gc(false) # quick, incremental collection
 
-  lock(pool_lock) do
-    active = false
+  active = false
 
-    @inbounds for pid in 1:length(pool_history)
-      nused = length(pools_used[pid])
-      navail = length(pools_avail[pid])
-      history = pool_history[pid]
+  @inbounds for pid in 1:length(pool_history)
+    nused = length(pools_used[pid])
+    navail = length(pools_avail[pid])
+    history = pool_history[pid]
 
-      if nused+navail > 0
-        usage = pool_usage[pid]
-        current_usage = nused / (nused + navail)
+    if nused+navail > 0
+      usage = pool_usage[pid]
+      current_usage = nused / (nused + navail)
 
-        if any(usage->usage != current_usage, history)
-          # shift the history window with the recorded usage
-          history = pool_history[pid]
-          pool_history[pid] = (Base.tail(pool_history[pid])..., usage)
+      if any(!isequal(current_usage), history)
+        # shift the history window with the recorded usage
+        history = pool_history[pid]
+        pool_history[pid] = (Base.tail(pool_history[pid])..., usage)
 
-          # reset the usage with the current one
-          pool_usage[pid] = current_usage
-        end
-
-        if usage != current_usage
-          active = true
-        end
-      else
-        pool_usage[pid] = 1
-        pool_history[pid] = initial_usage
+        # reset the usage with the current one
+        pool_usage[pid] = current_usage
       end
-    end
 
-    active
+      if usage != current_usage
+        active = true
+      end
+    else
+      pool_usage[pid] = 1
+      pool_history[pid] = initial_usage
+    end
   end
+
+  active
 end
 
-# reclaim free objects
-function reclaim(full::Bool=false)
-  lock(pool_lock) do
-    stats.total_time += Base.@elapsed begin
-      if full
-        # reclaim all currently unused buffers
-        for (pid, pl) in enumerate(pools_avail)
-          for buf in pl
-            stats.actual_nfree += 1
-            stats.cuda_time += Base.@elapsed Mem.free(buf)
-            stats.actual_free += poolsize(pid)
-          end
-          empty!(pl)
+# reclaim unused buffers
+function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
+  stats.total_time += Base.@elapsed begin
+    # gather candidate buffers
+    candidates = Vector{Tuple{Mem.Buffer,Int}}()
+    if full
+      # consider all currently unused buffers
+      for (pid, pl) in enumerate(pools_avail)
+        for buf in pl
+          push!(candidates, (buf, pid))
         end
-      else
-        # only reclaim really unused buffers
-        @inbounds for pid in 1:length(pool_usage)
-          nused = length(pools_used[pid])
-          navail = length(pools_avail[pid])
-          recent_usage = (pool_history[pid]..., pool_usage[pid])
+      end
+    else
+      # only consider really unused buffers
+      @inbounds for pid in 1:length(pool_usage)
+        nused = length(pools_used[pid])
+        navail = length(pools_avail[pid])
+        recent_usage = (pool_history[pid]..., pool_usage[pid])
 
-          if navail > 0
-            # reclaim as much as the usage allows
-            reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
-            @assert reclaimable <= navail
+        if navail > 0
+          # reclaim as much as the usage allows
+          reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
+          @assert reclaimable <= navail
 
-            while reclaimable > 0
-              buf = pop!(pools_avail[pid])
-              stats.actual_nfree += 1
-              stats.cuda_time += Base.@elapsed Mem.free(buf)
-              stats.actual_free += poolsize(pid)
-              reclaimable -= 1
-            end
+          while reclaimable > 0
+            buf = pop!(pools_avail[pid])
+            push!(candidates, (buf, pid))
+            reclaimable -= 1
           end
         end
       end
     end
+
+    # reclaim buffers
+    for (buf, pid) in reverse(candidates)
+      bytes = poolsize(pid)
+      pl = pools_avail[pid]
+
+      stats.actual_nfree += 1
+      stats.cuda_time += Base.@elapsed Mem.free(buf)
+      stats.actual_free += bytes
+
+      # since we iterate in reverse, this buffer should be the last in its pool
+      @assert last(pl) === buf
+      pop!(pl)
+
+      target_bytes -= bytes
+      target_bytes <= 0 && return true
+    end
   end
+
+  return false
 end
 
 const MAX_POOL = 100*1024^2 # 100 MiB
