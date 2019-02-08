@@ -16,8 +16,6 @@ import Base.GC: gc
 # - regularly release memory from underused pools (see `reclaim(false)`)
 #
 # possible improvements:
-# - pressure: have the `reclaim` background task reclaim more aggressively,
-#             and call it from the failure cascade in `alloc`
 # - context management: either switch contexts when performing memory operations,
 #                       or just use unified memory for all allocations.
 # - per-device pools
@@ -83,19 +81,13 @@ mutable struct PoolStats
 
   cuda_time::Float64
   total_time::Float64
-
-  # internal stats
-  alloc_1::Int
-  alloc_2::Int
-  alloc_3::Int
-  alloc_4::Int
 end
-const stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+const stats = PoolStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 Base.copy(stats::PoolStats) =
   PoolStats((getfield(stats, field) for field in fieldnames(PoolStats))...)
 
 # allocation traces
-const pool_traces = Dict{Mem.Buffer, Tuple{Int, Base.StackTraces.StackTrace}}()
+const alloc_sites = Dict{Mem.Buffer, Tuple{Int, Vector{Union{Base.InterpreterIP,Ptr{Cvoid}}}}}()
 const tracing = parse(Bool, get(ENV, "CUARRAYS_TRACE_POOL", "false"))
 
 function __init_memory__()
@@ -106,13 +98,15 @@ function __init_memory__()
     delay = MIN_DELAY
     @async begin
       while true
-        if scan()
-          delay = MIN_DELAY
-        else
-          delay = min(delay*2, MAX_DELAY)
-        end
+        lock(pool_lock) do
+          if scan()
+            delay = MIN_DELAY
+          else
+            delay = min(delay*2, MAX_DELAY)
+          end
 
-        reclaim()
+          reclaim()
+        end
 
         sleep(delay)
       end
@@ -125,8 +119,7 @@ function __init_memory__()
       Core.println("""
         Pool statistics (managed: $(managed ? "yes" : "no")):
          - requested alloc/free: $(stats.req_nalloc)/$(stats.req_nfree) ($(Base.format_bytes(stats.req_nalloc))/$(Base.format_bytes(stats.req_free)))
-         - actual alloc/free: $(stats.actual_nalloc)/$(stats.actual_nfree) ($(Base.format_bytes(stats.actual_alloc))/$(Base.format_bytes(stats.actual_free)))
-         - alloc types: $(stats.alloc_1) $(stats.alloc_2) $(stats.alloc_3) $(stats.alloc_4)""")
+         - actual alloc/free: $(stats.actual_nalloc)/$(stats.actual_nfree) ($(Base.format_bytes(stats.actual_alloc))/$(Base.format_bytes(stats.actual_free)))""")
     end)
   end
 end
@@ -137,88 +130,181 @@ end
 function scan()
   gc(false) # quick, incremental collection
 
-  lock(pool_lock) do
-    active = false
+  active = false
 
-    @inbounds for pid in 1:length(pool_history)
-      nused = length(pools_used[pid])
-      navail = length(pools_avail[pid])
+  @inbounds for pid in 1:length(pool_history)
+    nused = length(pools_used[pid])
+    navail = length(pools_avail[pid])
+    history = pool_history[pid]
+
+    if nused+navail > 0
+      usage = pool_usage[pid]
+      current_usage = nused / (nused + navail)
+
+      # shift the history window with the recorded usage
       history = pool_history[pid]
+      pool_history[pid] = (Base.tail(pool_history[pid])..., usage)
 
-      if nused+navail > 0
-        usage = pool_usage[pid]
-        current_usage = nused / (nused + navail)
+      # reset the usage with the current one
+      pool_usage[pid] = current_usage
 
-        if any(usage->usage != current_usage, history)
-          # shift the history window with the recorded usage
-          history = pool_history[pid]
-          pool_history[pid] = (Base.tail(pool_history[pid])..., usage)
+      if usage != current_usage
+        active = true
+      end
+    else
+      pool_usage[pid] = 1
+      pool_history[pid] = initial_usage
+    end
+  end
 
-          # reset the usage with the current one
-          pool_usage[pid] = current_usage
+  active
+end
+
+# reclaim unused buffers
+function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
+  stats.total_time += Base.@elapsed begin
+    # find inactive buffers
+    pools_inactive = Vector{Int}(undef, length(pools_avail)) # pid => buffers that can be freed
+    if full
+      # consider all currently unused buffers
+      for (pid, avail) in enumerate(pools_avail)
+        pools_inactive[pid] = length(avail)
+      end
+    else
+      # only consider inactive buffers
+      @inbounds for pid in 1:length(pool_usage)
+        nused = length(pools_used[pid])
+        navail = length(pools_avail[pid])
+        recent_usage = (pool_history[pid]..., pool_usage[pid])
+
+        if navail > 0
+          # reclaim as much as the usage allows
+          reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
+          pools_inactive[pid] = reclaimable
+        else
+          pools_inactive[pid] = 0
         end
-
-        if usage != current_usage
-          active = true
-        end
-      else
-        pool_usage[pid] = 1
-        pool_history[pid] = initial_usage
       end
     end
 
-    active
-  end
-end
+    # reclaim buffers (in reverse, to discard largest buffers first)
+    for pid in reverse(eachindex(pools_inactive))
+      bytes = poolsize(pid)
+      avail = pools_avail[pid]
 
-# reclaim free objects
-function reclaim(full::Bool=false)
-  lock(pool_lock) do
-    stats.total_time += Base.@elapsed begin
-      if full
-        # reclaim all currently unused buffers
-        for (pid, pl) in enumerate(pools_avail)
-          for buf in pl
-            stats.actual_nfree += 1
-            stats.cuda_time += Base.@elapsed Mem.free(buf)
-            stats.actual_free += poolsize(pid)
-          end
-          empty!(pl)
-        end
-      else
-        # only reclaim really unused buffers
-        @inbounds for pid in 1:length(pool_usage)
-          nused = length(pools_used[pid])
-          navail = length(pools_avail[pid])
-          recent_usage = (pool_history[pid]..., pool_usage[pid])
+      bufcount = pools_inactive[pid]
+      @assert bufcount <= length(avail)
+      for i in 1:bufcount
+        buf = pop!(avail)
 
-          if navail > 0
-            # reclaim as much as the usage allows
-            reclaimable = floor(Int, (1-maximum(recent_usage))*(nused+navail))
-            @assert reclaimable <= navail
+        stats.actual_nfree += 1
+        stats.cuda_time += Base.@elapsed Mem.free(buf)
+        stats.actual_free += bytes
 
-            while reclaimable > 0
-              buf = pop!(pools_avail[pid])
-              stats.actual_nfree += 1
-              stats.cuda_time += Base.@elapsed Mem.free(buf)
-              stats.actual_free += poolsize(pid)
-              reclaimable -= 1
-            end
-          end
-        end
+        target_bytes -= bytes
+        target_bytes <= 0 && return true
       end
     end
   end
+
+  return false
 end
 
-const MAX_POOL = 100*1024^2 # 100 MiB
+
+## allocator state machine
+
+function try_cuda_alloc(bytes)
+  buf = nothing
+  try
+    stats.cuda_time += Base.@elapsed begin
+      buf = Mem.alloc(bytes)
+    end
+    stats.actual_nalloc += 1
+    stats.actual_alloc += bytes
+  catch ex
+    ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
+  end
+
+  return buf
+end
+
+function try_alloc(alloc_bytes, pool=nothing)
+  # 1. find an unused buffer in our pool
+  if pool !== nothing && !isempty(pool)
+    return pop!(pool)
+  end
+
+  # 2. allocate a new buffer
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+
+  # 3. do a quick GC collection and check the pool again
+  gc(false) # incremental collection
+  if pool !== nothing && !isempty(pool)
+    return pop!(pool)
+  end
+
+  # 4. reclaim memory and try allocating again
+  reclaim(true, alloc_bytes)
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+
+  # 5. do a slow GC collection and check the pool again
+  if tracing
+    alloc_sites_old = copy(alloc_sites)
+  end
+  gc(true) # full collection
+  if tracing
+    # report on buffers that we collected -- these could benefit from early freeing
+    for (buf, info) in sort(collect(alloc_sites_old), by=x->x[2][1])
+      bytes, bt = info
+      if !haskey(alloc_sites, buf)
+        st = stacktrace(bt, false)
+        Core.print(Core.stderr, "WARNING: force-collected a GPU allocation of $(Base.format_bytes(bytes))")
+        Base.show_backtrace(Core.stderr, st)
+        Core.println(Core.stderr)
+      end
+    end
+  end
+  if pool !== nothing && !isempty(pool)
+    return pop!(pool)
+  end
+
+  # 6. reclaim memory and try allocating again
+  reclaim(true, alloc_bytes)
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+
+  # 7. maybe we're racing against another process, so try reclaiming _everything_
+  reclaim(true)
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+
+  if tracing
+    for buf in keys(alloc_sites)
+      bytes, bt = alloc_sites[buf]
+      st = stacktrace(bt, false)
+      Core.print(Core.stderr, "WARNING: outstanding a GPU allocation of $(Base.format_bytes(bytes))")
+      Base.show_backtrace(Core.stderr, st)
+      Core.println(Core.stderr)
+    end
+  end
+
+  throw(OutOfMemoryError())
+end
+
 
 ## interface
+
+const MAX_POOL = 100*1024^2 # 100 MiB
 
 function alloc(bytes)
   # 0-byte allocations shouldn't hit the pool
   bytes == 0 && return Mem.alloc(0)
-  buf = Ref{Mem.Buffer}()
 
   stats.req_nalloc += 1
   stats.req_alloc += bytes
@@ -236,68 +322,28 @@ function alloc(bytes)
       alloc_bytes = bytes
     end
 
-    lock(pool_lock) do
-      # 1. find an unused buffer in our pool
-      if pooling && !isempty(avail)
-        stats.alloc_1 += 1
-        buf[] = pop!(avail)
-      else
-        try
-          # 2. didn't have one, so allocate a new buffer
-          stats.cuda_time += Base.@elapsed begin
-            buf[] = Mem.alloc(alloc_bytes)
-          end
-          stats.alloc_2 += 1
-          stats.actual_nalloc += 1
-          stats.actual_alloc += alloc_bytes
-        catch ex
-          ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
-          # 3. that failed; make Julia collect objects and check 1. again
-          gc(true) # full collection
-          if pooling && !isempty(avail)
-            stats.alloc_3 += 1
-            buf[] = pop!(avail)
-          else
-            # 4. didn't have one, so reclaim all other unused buffers and do 2. again
-            reclaim(true)
-            try
-              stats.cuda_time += Base.@elapsed begin
-                buf[] = Mem.alloc(alloc_bytes)
-              end
-              stats.alloc_4 += 1
-              stats.actual_nalloc += 1
-              stats.actual_alloc += alloc_bytes
-            catch ex
-              ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
-              if tracing
-                @error "Failed to allocate $(Base.format_bytes(bytes)) (requires $(Base.format_bytes(alloc_bytes)) buffer)"
-                for buf in keys(pool_traces)
-                  bytes, bt = pool_traces[buf]
-                  @warn "Outstanding allocation of $(Base.format_bytes(bytes)) (requires $(Base.format_bytes(buf.bytesize)) buffer)" exception=(ex,bt)
-                end
-              end
-              rethrow()
-            end
-          end
-        end
-      end
+    # do the actual allocation
+    if pooling
+      buf = try_alloc(alloc_bytes, avail)
 
-      if pooling
-        # mark the buffer as used
-        push!(used, buf[])
+      # mark the buffer as used
+      push!(used, buf)
 
-        # update pool usage
+      # update pool usage
+      lock(pool_lock) do
         current_usage = length(used) / (length(avail) + length(used))
         pool_usage[pid] = max(pool_usage[pid], current_usage)
       end
+    else
+      buf = try_alloc(alloc_bytes)
     end
   end
 
   if tracing
-    pool_traces[buf[]] = (bytes, stacktrace())
+    alloc_sites[buf] = (bytes, backtrace())
   end
 
-  buf[]
+  buf
 end
 
 function dealloc(buf, bytes)
@@ -331,14 +377,14 @@ function dealloc(buf, bytes)
   end
 
   if tracing
-    delete!(pool_traces, buf)
+    delete!(alloc_sites, buf)
   end
 
   return
 end
 
 
-## utility macros
+## utilities
 
 using Printf
 
@@ -369,7 +415,7 @@ macro time(ex)
         local gpu_mem_stats1 = copy(stats)
 
         local cpu_time = (cpu_time1 - cpu_time0) / 1e9
-        local gpu_gc_time = gpu_mem_stats1.cuda_time - gpu_mem_stats0.cuda_time
+        local gpu_gc_time = gpu_mem_stats1.total_time - gpu_mem_stats0.total_time
         local gpu_lib_time = gpu_mem_stats1.cuda_time - gpu_mem_stats0.cuda_time
         local gpu_alloc_count = gpu_mem_stats1.req_nalloc - gpu_mem_stats0.req_nalloc
         local gpu_alloc_size = gpu_mem_stats1.req_alloc - gpu_mem_stats0.req_alloc
@@ -405,4 +451,33 @@ macro time(ex)
 
         val
     end
+end
+
+function pool_status()
+  used_pool_buffers = 0
+  used_pool_bytes = 0
+  for (pid, pl) in enumerate(pools_used)
+    bytes = poolsize(pid)
+    used_pool_buffers += length(pl)
+    used_pool_bytes += bytes * length(pl)
+  end
+
+  avail_pool_buffers = 0
+  avail_pool_bytes = 0
+  for (pid, pl) in enumerate(pools_avail)
+    bytes = poolsize(pid)
+    avail_pool_buffers += length(pl)
+    avail_pool_bytes += bytes * length(pl)
+  end
+
+  free_bytes, total_bytes = CUDAdrv.Mem.info()
+  used_bytes = total_bytes - free_bytes
+  used_ratio = used_bytes / total_bytes
+
+  pool_ratio = (used_pool_bytes + avail_pool_bytes) / used_bytes
+
+  println("Total GPU memory usage: $(100*round(used_ratio; digits=2))% ($(Base.format_bytes(used_bytes))/$(Base.format_bytes(total_bytes)))")
+  println("CuArrays.jl pool usage: $(100*round(pool_ratio; digits=2))% ($(Base.format_bytes(used_pool_bytes)) in use by $used_pool_buffers buffer(s), $(Base.format_bytes(avail_pool_bytes)) idle)")
+
+  return
 end
