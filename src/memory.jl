@@ -369,7 +369,7 @@ macro time(ex)
         local gpu_mem_stats1 = copy(stats)
 
         local cpu_time = (cpu_time1 - cpu_time0) / 1e9
-        local gpu_gc_time = gpu_mem_stats1.cuda_time - gpu_mem_stats0.cuda_time
+        local gpu_gc_time = gpu_mem_stats1.total_time - gpu_mem_stats0.total_time
         local gpu_lib_time = gpu_mem_stats1.cuda_time - gpu_mem_stats0.cuda_time
         local gpu_alloc_count = gpu_mem_stats1.req_nalloc - gpu_mem_stats0.req_nalloc
         local gpu_alloc_size = gpu_mem_stats1.req_alloc - gpu_mem_stats0.req_alloc
