@@ -95,7 +95,7 @@ Base.copy(stats::PoolStats) =
   PoolStats((getfield(stats, field) for field in fieldnames(PoolStats))...)
 
 # allocation traces
-const pool_traces = Dict{Mem.Buffer, Tuple{Int, Base.StackTraces.StackTrace}}()
+const pool_traces = Dict{Mem.Buffer, Tuple{Int, Vector{Union{Base.InterpreterIP,Ptr{Cvoid}}}}}()
 const tracing = parse(Bool, get(ENV, "CUARRAYS_TRACE_POOL", "false"))
 
 function __init_memory__()
@@ -294,7 +294,7 @@ function alloc(bytes)
   end
 
   if tracing
-    pool_traces[buf[]] = (bytes, stacktrace())
+    pool_traces[buf[]] = (bytes, backtrace())
   end
 
   buf[]
