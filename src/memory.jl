@@ -141,14 +141,12 @@ function scan()
       usage = pool_usage[pid]
       current_usage = nused / (nused + navail)
 
-      if any(!isequal(current_usage), history)
-        # shift the history window with the recorded usage
-        history = pool_history[pid]
-        pool_history[pid] = (Base.tail(pool_history[pid])..., usage)
+      # shift the history window with the recorded usage
+      history = pool_history[pid]
+      pool_history[pid] = (Base.tail(pool_history[pid])..., usage)
 
-        # reset the usage with the current one
-        pool_usage[pid] = current_usage
-      end
+      # reset the usage with the current one
+      pool_usage[pid] = current_usage
 
       if usage != current_usage
         active = true
