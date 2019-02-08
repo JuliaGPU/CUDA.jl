@@ -245,12 +245,24 @@ function try_alloc(alloc_bytes, pool=nothing)
     return pop!(pool)
   end
 
-  # 2. didn't have one, so allocate a new buffer
+  # 2. allocate a new buffer
   let buf = try_cuda_alloc(alloc_bytes)
     buf !== nothing && return buf
   end
 
-  # 3. that failed; make Julia collect objects and check 1. again
+  # 3. do a quick GC collection and check the pool again
+  gc(false) # incremental collection
+  if pool !== nothing && !isempty(pool)
+    return pop!(pool)
+  end
+
+  # 4. reclaim memory and try allocating again
+  reclaim(true, alloc_bytes)
+  let buf = try_cuda_alloc(alloc_bytes)
+    buf !== nothing && return buf
+  end
+
+  # 5. do a slow GC collection and check the pool again
   if tracing
     pool_traces_old = copy(pool_traces)
   end
@@ -267,13 +279,12 @@ function try_alloc(alloc_bytes, pool=nothing)
       end
     end
   end
-
   if pool !== nothing && !isempty(pool)
     return pop!(pool)
   end
 
-  # 4. didn't have one, so reclaim all other unused buffers and do 2. again
-  reclaim(true)
+  # 6. reclaim memory and try allocating again
+  reclaim(true, alloc_bytes)
   let buf = try_cuda_alloc(alloc_bytes)
     buf !== nothing && return buf
   end
