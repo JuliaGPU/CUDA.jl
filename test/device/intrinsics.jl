@@ -387,12 +387,21 @@ end
 
 ############################################################################################
 
+@testset "clock and nanosleep" begin
+@on_device clock(UInt32)
+@on_device clock(UInt64)
+@on_device nanosleep(UInt32(16))
+end
+
 @testset "parallel synchronization and communication" begin
 
 @on_device sync_threads()
 
 @on_device sync_warp()
 @on_device sync_warp(0xffffffff)
+@on_device threadfence_block()
+@on_device threadfence()
+@on_device threadfence_system()
 
 @testset "voting" begin
 
