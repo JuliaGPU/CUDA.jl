@@ -33,4 +33,7 @@ include("fft.jl")
 include("rand.jl")
 include("sparse_solver.jl")
 
+CuArrays.pool_status()
+CuArrays.pool_timings()
+
 end
