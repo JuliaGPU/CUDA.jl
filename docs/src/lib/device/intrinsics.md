@@ -33,8 +33,17 @@ CUDAnative.@cuDynamicSharedMem
 ```@docs
 CUDAnative.sync_threads
 CUDAnative.sync_warp
+CUDAnative.threadfence_block
+CUDAnative.threadfence
+CUDAnative.threadfence_system
 ```
 
+## Clock & Sleep
+
+```@docs
+CUDAnative.clock
+CUDAnative.nanosleep
+```
 
 ## Warp Vote
 
