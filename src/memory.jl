@@ -90,8 +90,10 @@ Base.copy(stats::PoolStats) =
   PoolStats((getfield(stats, field) for field in fieldnames(PoolStats))...)
 
 # allocation traces
-const alloc_sites = Dict{Mem.Buffer, Tuple{Int, Vector{Union{Base.InterpreterIP,Ptr{Cvoid}}}}}()
 const tracing = parse(Bool, get(ENV, "CUARRAYS_TRACE_POOL", "false"))
+const BackTrace = Vector{Union{Ptr{Nothing}, Base.InterpreterIP}}
+const alloc_sites = Dict{Mem.Buffer, Tuple{Int, BackTrace}}()
+const alloc_collectables = Dict{BackTrace, Tuple{Int, Int, Int}}()
 
 function __init_memory__()
   create_pools(30) # up to 512 MiB
@@ -247,6 +249,25 @@ function try_alloc(bytes, pid=-1)
     end
   end
 
+  # trace buffers that are ready to be collected by the Julia GC.
+  # such objects hinder efficient memory management, and maybe should be `unsafe_free!`d
+  if tracing
+    alloc_sites_old = copy(alloc_sites)
+
+    gc(true)
+
+    for (buf, (bytes, bt)) in sort(collect(alloc_sites_old), by=x->x[2][1])
+      if !haskey(alloc_sites, buf)
+        if !haskey(alloc_collectables, bt)
+          alloc_collectables[bt] = (1, bytes, bytes)
+        else
+          nalloc, _, total_bytes = alloc_collectables[bt]
+          alloc_collectables[bt] = (nalloc+1, bytes, bytes+total_bytes)
+        end
+      end
+    end
+  end
+
   @timeit to "2 gc(false)" begin
     gc(false) # incremental collection
   end
@@ -268,23 +289,8 @@ function try_alloc(bytes, pid=-1)
     end
   end
 
-  if tracing
-    alloc_sites_old = copy(alloc_sites)
-  end
   @timeit to "5 gc(true)" begin
     gc(true) # full collection
-  end
-  if tracing
-    # report on buffers that we collected -- these could benefit from early freeing
-    for (buf, info) in sort(collect(alloc_sites_old), by=x->x[2][1])
-      bytes, bt = info
-      if !haskey(alloc_sites, buf)
-        st = stacktrace(bt, false)
-        Core.print(Core.stderr, "WARNING: force-collected a GPU allocation of $(Base.format_bytes(bytes))")
-        Base.show_backtrace(Core.stderr, st)
-        Core.println(Core.stderr)
-      end
-    end
   end
 
   if pid != -1 && !isempty(pools_avail[pid])
@@ -312,8 +318,7 @@ function try_alloc(bytes, pid=-1)
   end
 
   if tracing
-    for buf in keys(alloc_sites)
-      bytes, bt = alloc_sites[buf]
+    for (buf, (bytes, bt)) in alloc_sites
       st = stacktrace(bt, false)
       Core.print(Core.stderr, "WARNING: outstanding a GPU allocation of $(Base.format_bytes(bytes))")
       Base.show_backtrace(Core.stderr, st)
@@ -503,3 +508,16 @@ function pool_status()
 end
 
 pool_timings() = println(to)
+
+function pool_collectables()
+  if !tracing
+    error("Allocation tracing disabled, please start Julia and precompile CuArrays.jl with CUARRAYS_TRACE_POOL=1")
+  end
+
+  for (bt, (nalloc, bytes, total_bytes)) in sort(collect(alloc_collectables), by=x->x[2][3])
+    st = stacktrace(bt, false)
+    print("Eagerly collecting the following $nalloc GPU allocations of each $(Base.format_bytes(bytes)) would unblock $(Base.format_bytes(total_bytes)):")
+    Base.show_backtrace(stdout, st)
+    println()
+  end
+end
