@@ -168,7 +168,8 @@ end
 end
 
 @testset "Reshape" begin
-  A = [1,2,3,4;5,6,7,8]
+  A = [1 2 3 4
+       5 6 7 8]
   gA = reshape(CuArray(A),1,8)
   _A = reshape(A,1,8)
   _gA = Array(gA)
