@@ -129,7 +129,11 @@ function Base._reshape(parent::CuArray, dims::Dims)
   return CuArray{eltype(parent),length(dims)}(parent.buf, dims;
                                               offset=parent.offset, own=parent.own)
 end
-
+function Base._reshape(parent::CuArray{T,1}, dims::Tuple{Int}) where T
+  n = length(parent)
+  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
+  return parent
+end
 
 
 ## interop with C libraries
