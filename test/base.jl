@@ -167,6 +167,16 @@ end
   end
 end
 
+@testset "Reshape" begin
+  A = [1,2,3,4;5,6,7,8]
+  gA = reshape(CuArray(A),1,8)
+  _A = reshape(A,1,8)
+  _gA = Array(gA)
+  @test all(_A .== _gA)
+  A = [1,2,3,4]
+  gA = reshape(CuArray(A),4)
+end
+
 @testset "$f! with diagonal $d" for (f, f!) in ((triu, triu!), (tril, tril!)),
                                           d in -2:2
   A = randn(10, 10)
