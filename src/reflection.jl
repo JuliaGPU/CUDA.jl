@@ -26,7 +26,7 @@ true).
 
 See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
 """
-function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
+function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                    optimize::Bool=true, cap::VersionNumber=current_capability(),
                    dump_module::Bool=false, strip_ir_metadata::Bool=true,
                    kernel::Bool=false, kwargs...)
@@ -51,7 +51,7 @@ function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
         show(io, entry)
     end
 end
-code_llvm(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
+code_llvm(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_llvm(stdout, func, types; kwargs...)
 
 """
@@ -66,7 +66,7 @@ is an entry-point function, or a regular device function. Finally, setting
 
 See also: [`@device_code_ptx`](@ref)
 """
-function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
+function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
                   strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
@@ -84,7 +84,7 @@ function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
     ptx = mcgen(ctx, mod, entry)
     print(io, ptx)
 end
-code_ptx(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
+code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_ptx(stdout, func, types; kwargs...)
 
 """
@@ -98,7 +98,7 @@ values.
 
 See also: [`@device_code_sass`](@ref)
 """
-function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types=Tuple);
+function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
@@ -136,7 +136,7 @@ function code_sass(io::IO, ctx::CompilerContext)
         rm(fn)
     end
 end
-code_sass(@nospecialize(func), @nospecialize(types=Tuple); kwargs...) =
+code_sass(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_sass(stdout, func, types; kwargs...)
 
 
