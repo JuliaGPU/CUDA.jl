@@ -125,6 +125,10 @@ end
 
 function gc_pool_alloc(sz::Csize_t)
     ptr = malloc(sz)
+    if ptr == C_NULL
+        @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+        throw(OutOfMemoryError())
+    end
     return unsafe_pointer_to_objref(ptr)
 end
 
