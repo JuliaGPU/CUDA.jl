@@ -105,7 +105,11 @@ function irgen(ctx::CompilerContext)
     sig = Base.signature_type(ctx.f, ctx.tt)::Type
     (ti, env) = ccall(:jl_type_intersection_with_env, Any,
                       (Any, Any), sig, meth.sig)::Core.SimpleVector
-    meth = Base.func_for_method_checked(meth, ti)
+    if VERSION >= v"1.2.0-DEV.320"
+        meth = Base.func_for_method_checked(meth, ti, env)
+    else
+        meth = Base.func_for_method_checked(meth, ti)
+    end
     linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
                   (Any, Any, Any, UInt), meth, ti, env, world)
 
