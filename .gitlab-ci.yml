@@ -23,6 +23,7 @@ test:v1.1:
     - trying
 
 test:dev:
+  allow_failure: true
   only:
     - master
     - staging
