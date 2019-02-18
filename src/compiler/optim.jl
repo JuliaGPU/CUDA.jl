@@ -15,14 +15,28 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         add_transform_info!(pm, tm)
         internalize!(pm, [LLVM.name(entry)])
 
-        # lower intrinsics
-        add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
-        aggressive_dce!(pm) # remove dead uses of ptls
-        add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+        if VERSION >= v"1.2.0-DEV.351"
+            ccall(:jl_add_optimization_passes, Cvoid,
+                  (LLVM.API.LLVMPassManagerRef, Cint, Cint),
+                  LLVM.ref(pm), Base.JLOptions().opt_level, #=lower_intrinsics=# 0)
 
-        ccall(:jl_add_optimization_passes, Cvoid,
-              (LLVM.API.LLVMPassManagerRef, Cint),
-              LLVM.ref(pm), Base.JLOptions().opt_level)
+            # custom intrinsic lowering
+            add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+            aggressive_dce!(pm) # remove dead uses of ptls
+            add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+        else
+            # with older versions of Julia intrinsics are always lowered, so we need to
+            # replace them with GPU-compatible counterparts eagerly. that breaks certain
+            # optimizations though: https://github.com/JuliaGPU/CUDAnative.jl/issues/340
+
+            add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+            aggressive_dce!(pm) # remove dead uses of ptls
+            add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+
+            ccall(:jl_add_optimization_passes, Cvoid,
+                  (LLVM.API.LLVMPassManagerRef, Cint),
+                  LLVM.ref(pm), Base.JLOptions().opt_level)
+        end
 
         # NVPTX's target machine info enables runtime unrolling,
         # but Julia's pass sequence only invokes the simple unroller.
