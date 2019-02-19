@@ -9,6 +9,7 @@ using GPUArrays
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones, cufill
 
 import LinearAlgebra
+import Base.accumulate!
 
 using Adapt
 
@@ -34,6 +35,7 @@ include("indexing.jl")
 include("broadcast.jl")
 include("matmul.jl")
 include("mapreduce.jl")
+include("accumulate.jl")
 
 include("gpuarray_interface.jl")
 
