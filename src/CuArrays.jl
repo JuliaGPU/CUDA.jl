@@ -91,6 +91,7 @@ function __init__()
     end
 
     __init_memory__()
+    __init_pool_()
 end
 
 end # module

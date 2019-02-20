@@ -22,8 +22,9 @@ import Base.GC: gc
 
 const pool_lock = ReentrantLock()
 
-using TimerOutputs
-const to = TimerOutput()
+function __init_pool_()
+  pool_timings!()
+end
 
 
 ## infrastructure
@@ -49,6 +50,20 @@ function create_pools(idx)
     end
   end
 end
+
+
+## timings
+
+using TimerOutputs
+const to = Ref{TimerOutput}()
+
+function pool_timings!(new=TimerOutput())
+  global to
+  to[] = new
+  return
+end
+
+pool_timings() = println(to[])
 
 
 ## management
@@ -103,7 +118,7 @@ function __init_memory__()
     delay = MIN_DELAY
     @async begin
       while true
-        @timeit to "background task" lock(pool_lock) do
+        @timeit to[] "background task" lock(pool_lock) do
           if scan()
             delay = MIN_DELAY
           else
@@ -169,7 +184,7 @@ end
 function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
   stats.total_time += Base.@elapsed begin
     # find inactive buffers
-    @timeit to "scan" begin
+    @timeit to[] "scan" begin
       pools_inactive = Vector{Int}(undef, length(pools_avail)) # pid => buffers that can be freed
       if full
         # consider all currently unused buffers
@@ -195,7 +210,7 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
     end
 
     # reclaim buffers (in reverse, to discard largest buffers first)
-    @timeit to "reclaim" begin
+    @timeit to[] "reclaim" begin
       for pid in reverse(eachindex(pools_inactive))
         bytes = poolsize(pid)
         avail = pools_avail[pid]
@@ -243,7 +258,7 @@ function try_alloc(bytes, pid=-1)
     return pop!(pools_avail[pid])
   end
 
-  @timeit to "1 try alloc" begin
+  @timeit to[] "1 try alloc" begin
     let buf = try_cuda_alloc(bytes)
       buf !== nothing && return buf
     end
@@ -268,7 +283,7 @@ function try_alloc(bytes, pid=-1)
     end
   end
 
-  @timeit to "2 gc(false)" begin
+  @timeit to[] "2 gc(false)" begin
     gc(false) # incremental collection
   end
 
@@ -279,17 +294,17 @@ function try_alloc(bytes, pid=-1)
   # TODO: we could return a larger allocation here, but that increases memory pressure and
   #       would require proper block splitting + compaction to be any efficient.
 
-  @timeit to "3 reclaim unused" begin
+  @timeit to[] "3 reclaim unused" begin
     reclaim(true, bytes)
   end
 
-  @timeit to "4 try alloc" begin
+  @timeit to[] "4 try alloc" begin
     let buf = try_cuda_alloc(bytes)
       buf !== nothing && return buf
     end
   end
 
-  @timeit to "5 gc(true)" begin
+  @timeit to[] "5 gc(true)" begin
     gc(true) # full collection
   end
 
@@ -297,21 +312,21 @@ function try_alloc(bytes, pid=-1)
     return pop!(pools_avail[pid])
   end
 
-  @timeit to "6 reclaim unused" begin
+  @timeit to[] "6 reclaim unused" begin
     reclaim(true, bytes)
   end
 
-  @timeit to "7 try alloc" begin
+  @timeit to[] "7 try alloc" begin
     let buf = try_cuda_alloc(bytes)
       buf !== nothing && return buf
     end
   end
 
-  @timeit to "8 reclaim everything" begin
+  @timeit to[] "8 reclaim everything" begin
     reclaim(true)
   end
 
-  @timeit to "9 try alloc" begin
+  @timeit to[] "9 try alloc" begin
     let buf = try_cuda_alloc(bytes)
       buf !== nothing && return buf
     end
@@ -351,7 +366,7 @@ function alloc(bytes)
       @inbounds avail = pools_avail[pid]
 
       lock(pool_lock) do
-        buf = @timeit to "pooled alloc" try_alloc(alloc_bytes, pid)
+        buf = @timeit to[] "pooled alloc" try_alloc(alloc_bytes, pid)
 
         # mark the buffer as used
         push!(used, buf)
@@ -361,7 +376,7 @@ function alloc(bytes)
         pool_usage[pid] = max(pool_usage[pid], current_usage)
       end
     else
-      buf = @timeit to "large alloc" try_alloc(bytes)
+      buf = @timeit to[] "large alloc" try_alloc(bytes)
     end
   end
 
@@ -397,7 +412,7 @@ function dealloc(buf, bytes)
         pool_usage[pid] = max(pool_usage[pid], current_usage)
       end
     else
-      @timeit to "large dealloc" Mem.free(buf)
+      @timeit to[] "large dealloc" Mem.free(buf)
     end
   end
 
@@ -506,8 +521,6 @@ function pool_status()
 
   return
 end
-
-pool_timings() = println(to)
 
 function pool_collectables()
   if !tracing
