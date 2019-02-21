@@ -193,3 +193,23 @@ end
   @test t >= 0
   @test ret == 42
 end
+
+@testset "accumulate" begin
+  @test accumulate(+, CuArray{Int}(undef, 2)) isa CuVector
+  @test cumsum(CuArray{Int}(undef, 2)) isa CuVector
+  @test cumprod(CuArray{Int}(undef, 2)) isa CuVector
+
+  @test testf(x->accumulate(+, x), rand(2))
+  @test testf(x->(accumulate!(+, x, copy(x)); x), rand(2))
+  @test testf(cumsum, rand(2))
+  @test testf(cumprod, rand(2))
+
+  @test accumulate(+, CuArray{Int}(undef, 2, 3); dims=1) isa CuMatrix
+  @test cumsum(CuArray{Int}(undef, 2, 3); dims=1) isa CuMatrix
+  @test cumprod(CuArray{Int}(undef, 2, 3); dims=1) isa CuMatrix
+
+  @test testf(x->accumulate(+, x; dims=1), rand(2, 3))
+  @test testf(x->(accumulate!(+, x, copy(x); dims=1); x), rand(2, 3))
+  @test testf(x->cumsum(x; dims=1), rand(2, 3))
+  @test testf(x->cumprod(x; dims=1), rand(2, 3))
+end
