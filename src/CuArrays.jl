@@ -9,7 +9,6 @@ using GPUArrays
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu, cuzeros, cuones, cufill
 
 import LinearAlgebra
-import Base.accumulate!
 
 using Adapt
 
