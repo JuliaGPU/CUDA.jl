@@ -2,7 +2,7 @@
 # See algorithm 1 at https://en.wikipedia.org/wiki/Prefix_sum#Parallel_algorithm
 
 function Base.accumulate!(op::Function, vout::CuVector{T}, v::CuVector) where T
-    vin = T.(v)  # convert to type T
+    vin = T.(v)  # convert to vector with eltype T
 
     Δ = 1   # Δ = 2^d
     n = ceil(Int, log2(length(v)))
@@ -20,14 +20,13 @@ function Base.accumulate!(op::Function, vout::CuVector{T}, v::CuVector) where T
     return vin
 end
 
-
 function _partial_accumulate!(op, vout, vin, Δ)
     @inbounds begin
-        k = threadIdx().x + (blockIdx().x-1)*blockDim().x
+        k = threadIdx().x + (blockIdx().x - 1) * blockDim().x
 
         if k <= length(vin)
             if k > Δ
-                vout[k] = vin[k - Δ] + vin[k]
+                vout[k] = op(vin[k - Δ], vin[k])
             else
                 vout[k] = vin[k]
             end
