@@ -1,17 +1,25 @@
 # Implements the Hillis--Steele algorithm using global memory
 # See algorithm 1 at https://en.wikipedia.org/wiki/Prefix_sum#Parallel_algorithm
 
-function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::Int, init::Nothing) where {T}
+# TODO: features
+# - init::Some
+# - CuMatrix
+# - pairwise
+
+# TODO: performance
+# - shared memory / shuffle (see CUDAnative.jl/examples/scan)
+
+function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::Int,
+                           init::Nothing) where {T}
     if dims != 1
-        return copy!(vout, v)
+        return copyto!(vout, v)
     end
 
     return Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, nothing, nothing)
 end
 
-function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::Nothing, init::Nothing) where {T}
-
-#function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector) where T
+function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::Nothing,
+                           init::Nothing) where {T}
     vin = T.(v)  # convert to vector with eltype T
 
     Δ = 1   # Δ = 2^d
@@ -45,3 +53,5 @@ function _partial_accumulate!(op, vout, vin, Δ)
 
     return
 end
+
+Base.accumulate_pairwise!(op, result::CuVector, v::CuVector) = accumulate!(op, result, v)
