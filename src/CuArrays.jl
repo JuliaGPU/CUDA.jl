@@ -34,6 +34,7 @@ include("indexing.jl")
 include("broadcast.jl")
 include("matmul.jl")
 include("mapreduce.jl")
+include("accumulate.jl")
 
 include("gpuarray_interface.jl")
 
