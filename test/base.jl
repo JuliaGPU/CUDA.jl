@@ -205,3 +205,25 @@ end
   @test testf(cumsum, rand(2))
   @test testf(cumprod, rand(2))
 end
+
+@testset "logical indexing" begin
+  @test CuArray{Int}(undef, 2)[CuArray{Bool}(undef, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[CuArray{Bool}(undef, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2, 2)[CuArray{Bool}(undef, 2, 2, 2)] isa CuArray
+
+  @test CuArray{Int}(undef, 2)[Array{Bool}(undef, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2)[Array{Bool}(undef, 2, 2)] isa CuArray
+  @test CuArray{Int}(undef, 2, 2, 2)[Array{Bool}(undef, 2, 2, 2)] isa CuArray
+
+  @test testf((x,y)->x[y], rand(2), rand(Bool, 2))
+  @test testf((x,y)->x[y], rand(2, 2), rand(Bool, 2, 2))
+  @test testf((x,y)->x[y], rand(2, 2, 2), rand(Bool, 2, 2, 2))
+
+  @test testf(x -> x[x .> 0.5], rand(2))
+  @test testf(x -> x[x .> 0.5], rand(2,2))
+  @test testf(x -> x[x .> 0.5], rand(2,2,2))
+
+  @test testf(x -> filter(y->y .> 0.5, x), rand(2))
+  @test testf(x -> filter(y->y .> 0.5, x), rand(2,2))
+  @test testf(x -> filter(y->y .> 0.5, x), rand(2,2,2))
+end
