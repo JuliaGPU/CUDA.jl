@@ -2,7 +2,7 @@
 # See algorithm 1 at https://en.wikipedia.org/wiki/Prefix_sum#Parallel_algorithm
 
 function Base.accumulate!(op::Function, vout::CuVector{T}, v::CuVector) where T
-    vin = convert.(T, v)  # convert to type T
+    vin = T.(v)  # convert to type T
 
     Δ = 1   # Δ = 2^d
     n = ceil(Int, log2(length(v)))
