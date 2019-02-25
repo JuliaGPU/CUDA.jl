@@ -73,6 +73,12 @@ let
     md = CuModule(obj)
 
     vadd = CuFunction(md, "vadd")
+
+    options = Dict{CUDAdrv.CUjit_option,Any}()
+    options[CUDAdrv.GENERATE_LINE_INFO] = true
+
+    md = CuModule(obj, options)
+    vadd = CuFunction(md, "vadd")
 end
 
 end

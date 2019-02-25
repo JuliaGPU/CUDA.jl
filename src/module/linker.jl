@@ -145,8 +145,8 @@ end
 
 """
     CuModule(img::CuLinkImage, ...)
-    CuModule(f::Function, img::CuLinkImage, ...)
 
 Create a CUDA module from a completed linking operation. Options from `CuModule` apply.
 """
 CuModule(img::CuLinkImage, args...) = CuModule(img.data, args...)
+CuModule(img::CuLinkImage, options::Dict{CUjit_option,Any}) = CuModule(img.data, options)
