@@ -16,6 +16,63 @@ function cublasDestroy_v2(handle)
                handle)
 end
 
+function cublasXtDeviceSelect(handle, nDevices::Int, deviceId::Vector{Cint})
+  @check ccall((:cublasXtDeviceSelect, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, Cint, Ptr{Cint}),
+               handle, nDevices, deviceId)
+end
+
+function cublasXtCreate(;nDevices::Int=1, deviceId::Vector{Cint}=[0], blockDim::Cint=64)
+  handle = Ref{cublasXtHandle_t}()
+  @check ccall((:cublasXtCreate, libcublas),
+               cublasStatus_t,
+               (Ptr{cublasXtHandle_t},),
+               handle)
+  cublasXtDeviceSelect(handle[], nDevices, deviceId)
+  cublasXtSetBlockDim(handle[], blockDim) 
+  handle[]
+end
+
+function cublasXtDestroy(handle)
+  @check ccall((:cublasXtDestroy, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t,),
+               handle)
+end
+
+function cublasXtSetBlockDim(handle, blockDim::Cint)
+  @check ccall((:cublasXtSetBlockDim, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, Cint,),
+               handle, blockDim)
+end
+
+function cublasXtGetBlockDim(handle)
+  bd = Ref{Int}()
+  @check ccall((:cublasXtGetBlockDim, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, Ptr{Cint},),
+               handle, bd)
+  bd[]
+end
+
+function cublasXtSetPinningMemMode(handle, mode::cublasXtPinningMemMode_t)
+  @check ccall((:cublasXtSetPinningMemMode, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, Cint,),
+               handle, blockDim)
+end
+
+function cublasXtGetPinningMemMode(handle)
+  mm = Ref{cublasXtPinningMemMode_t}()
+  @check ccall((:cublasXtGetPinningMemMode, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, Ptr{cublasXtPinningMemMode_t},),
+               handle, mm)
+  mm[]
+end
+
 function cublasGetVersion_v2(handle)
   version = Ref{Cint}()
   @check ccall((:cublasGetVersion_v2, libcublas),
@@ -1968,4 +2025,76 @@ function cublasCgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, ld
                 CuPtr{ComplexF32}, Cint, Cint, Cint),
                handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb, strideB, beta,
                C, ldc, strideC, batchCount)
+end
+
+function cublasXtStrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+  @check ccall((:cublasXtStrsm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
+                Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+end
+
+function cublasXtDtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+  @check ccall((:cublasXtDtrsm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
+                CuPtr{Cdouble}, Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+end
+
+function cublasXtCtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+  @check ccall((:cublasXtCtrsm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint,
+                CuPtr{cuComplex}, Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+end
+
+function cublasXtZtrsm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+  @check ccall((:cublasXtZtrsm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex},
+                Cint, CuPtr{cuDoubleComplex}, Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
+end
+
+function cublasXtStrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+  @check ccall((:cublasXtStrmm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat},
+                Cint, CuPtr{Cfloat}, Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+end
+
+function cublasXtDtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+  @check ccall((:cublasXtDtrmm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
+                CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+end
+
+function cublasXtCtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+  @check ccall((:cublasXtCtrmm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint,
+                CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+end
+
+function cublasXtZtrmm(handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
+  @check ccall((:cublasXtZtrmm, libcublas),
+               cublasStatus_t,
+               (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
+                cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex},
+                Cint, CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint),
+               handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end

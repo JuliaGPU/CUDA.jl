@@ -1382,4 +1382,63 @@ end
 
 end
 
+@testset "xt" begin
+    @testset "trmm! with element type $elty" for elty in [Float32, Float64, ComplexF32] # test broken for ComplexF64
+        # generate parameter
+        alpha = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = triu(A)
+        B = rand(elty,m,n)
+        C = zeros(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        d_C = CuArray(C)
+        # compute
+        C = alpha*A*B
+        CuArrays.CUBLAS.xt_trmm!('L','U','N','N',alpha,d_A,d_B,d_C)
+        # move to host and compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
+
+    @testset "trmm with element type $elty" for elty in [Float32, Float64, ComplexF32] # test broken for ComplexF64
+        # generate parameter
+        alpha = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = triu(A)
+        B = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # compute
+        C = alpha*A*B
+        d_C = CuArrays.CUBLAS.xt_trmm('L','U','N','N',alpha,d_A,d_B)
+        # move to host and compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
+
+    @testset "trsm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate parameter
+        alpha = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = triu(A)
+        B = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # compute
+        C = alpha*(A\B)
+        CuArrays.CUBLAS.xt_trsm!('L','U','N','N',alpha,d_A,d_B)
+        # move to host and compare
+        h_C = Array(d_B)
+        @test C ≈ h_C
+    end
 end
+
+end
+
