@@ -138,7 +138,9 @@ function main()
     # discover other CUDA toolkit artifacts
     ## required
     config[:libdevice] = find_libdevice(config[:target_support], toolkit_dirs)
-    config[:libdevice] == nothing && build_error("Available CUDA toolchain does not provide libdevice")
+    config[:libdevice] === nothing && build_error("Available CUDA toolchain does not provide libdevice")
+    config[:libcudadevrt] = find_libcudadevrt(unique(toolkit_dirs))
+    config[:libcudadevrt] === nothing && build_error("Available CUDA toolchain does not provide libcudadevrt")
     ## optional
     config[:nvdisasm] = find_cuda_binary("nvdisasm", toolkit_dirs)
     config[:ptxas] = find_cuda_binary("ptxas", toolkit_dirs)
