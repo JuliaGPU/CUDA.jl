@@ -26,6 +26,7 @@ makedocs(
                 "lib/device/intrinsics.md",
                 "lib/device/array.md",
                 "lib/device/libdevice.md"
+                "lib/device/libcudadevrt.md"
             ]
         ]
     ],
