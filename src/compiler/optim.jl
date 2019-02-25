@@ -15,7 +15,7 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         add_transform_info!(pm, tm)
         internalize!(pm, [LLVM.name(entry)])
 
-        if VERSION >= v"1.2.0-DEV.351"
+        if VERSION >= v"1.2.0-DEV.375"
             ccall(:jl_add_optimization_passes, Cvoid,
                   (LLVM.API.LLVMPassManagerRef, Cint, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level, #=lower_intrinsics=# 0)
