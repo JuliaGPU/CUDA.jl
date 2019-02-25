@@ -1,7 +1,7 @@
 export find_library, find_binary,
        find_cuda_library, find_cuda_binary,
        find_toolkit, find_toolkit_version,
-       find_libdevice,
+       find_libdevice, find_libcudadevrt,
        find_host_compiler, find_toolchain
 
 function resolve(path)
@@ -338,6 +338,56 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
             @debug "Found split device libraries at $(join(libraries, ", "))"
             return libraries
         end
+    end
+
+    return nothing
+end
+
+"""
+    find_libcudadevrt(toolkit_dirs::Vector{String})
+
+Look for the CUDA device runtime library in any of the CUDA toolkit directories
+`toolkit_dirs`.
+"""
+function find_libcudadevrt(toolkit_dirs)
+    locations = toolkit_dirs
+    @trace "Request to look for libcudadevrt " locations
+
+    name = nothing
+    if Sys.isunix()
+        name = "libcudadevrt.a"
+    elseif Sys.iswindows()
+        name = "libcudadevrt.lib"
+    end
+
+    if name === nothing
+        @error("What even are static libraries")
+        return nothing
+    end
+
+    # figure out locations
+    all_locations = String[]
+    for location in locations
+        push!(all_locations, location)
+        if Sys.iswindows()
+            push!(all_locations, joinpath(location, "bin"))
+        else
+            push!(all_locations, joinpath(location, "lib"))
+            if Sys.WORD_SIZE == 64
+                push!(all_locations, joinpath(location, "lib64"))
+            end
+        end
+    end
+
+    @trace "Looking for library $name" locations=all_locations
+
+    candidates = filter(isfile,
+        map(location->joinpath(location, name), all_locations))
+
+    @trace "Found candidates for library $name" candidates
+
+    if length(candidates) == 1
+        return first(candidates)
     end
 
     return nothing
