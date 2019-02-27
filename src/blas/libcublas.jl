@@ -30,11 +30,11 @@ function cublasXtCreate(;nDevices::Int=1, deviceId::Vector{Cint}=[0], blockDim::
                (Ptr{cublasXtHandle_t},),
                handle)
   cublasXtDeviceSelect(handle[], nDevices, deviceId)
-  cublasXtSetBlockDim(handle[], blockDim) 
+  #cublasXtSetBlockDim(handle[], blockDim) 
   handle[]
 end
 
-function cublasXtDestroy(handle)
+function cublasXtDestroy(handle::cublasXtHandle_t)
   @check ccall((:cublasXtDestroy, libcublas),
                cublasStatus_t,
                (cublasXtHandle_t,),

@@ -1,4 +1,3 @@
-using Test
 
 # development often happens in lockstep with other packages,
 # so check-out the master branch of those packages.
@@ -22,16 +21,17 @@ testf(f, xs...; kwargs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...; kwar
 
 allowscalar(false)
 
+using Test
 @testset "CuArrays" begin
 
 include("base.jl")
 include("dnn.jl")
 include("blas.jl")
-include("sparse.jl")
+#include("sparse_solver.jl")
+#include("sparse.jl")
 include("solver.jl")
 include("fft.jl")
 include("rand.jl")
-include("sparse_solver.jl")
 
 CuArrays.pool_status()
 CuArrays.pool_timings()
