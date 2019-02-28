@@ -1,6 +1,7 @@
 # Synchronization (B.6)
 
 export sync_threads, sync_warp
+export sync_threads_count, sync_threads_and, sync_threads_or
 export threadfence, threadfence_block, threadfence_system
 
 """
@@ -11,6 +12,54 @@ shared memory accesses made by these threads prior to `sync_threads()` are visib
 threads in the block.
 """
 @inline sync_threads() = ccall("llvm.nvvm.barrier0", llvmcall, Cvoid, ())
+
+"""
+    sync_threads_count(predicate::Int32)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate
+for all threads of the block and returns the number of threads for which `predicate` evaluates
+to non-zero.
+
+    sync_threads_count(predicate::Bool)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate
+for all threads of the block and returns the number of threads for which `predicate` evaluates
+to `true`.
+"""
+@inline sync_threads_count(predicate::Int32) = ccall("llvm.nvvm.barrier0.popc", llvmcall, Int32, (Int32,), predicate)
+@inline sync_threads_count(predicate::Bool) = sync_threads_count(Int32(predicate))
+
+"""
+    sync_threads_and(predicate::Int32)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate
+for all threads of the block and returns non-zero if and only if `predicate` evaluates to
+non-zero for all of them.
+
+    sync_threads_and(predicate::Bool)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate
+for all threads of the block and returns `true` if and only if `predicate` evaluates to
+`true` for all of them.
+"""
+@inline sync_threads_and(predicate::Int32) = ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate)
+@inline sync_threads_and(predicate::Bool) = ifelse(sync_threads_and(Int32(predicate)) !== Int32(0), true, false)
+
+"""
+    sync_threads_or(predicate::Int32)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate
+for all threads of the block and returns non-zero if and only if `predicate` evaluates to
+non-zero for any of them.
+
+    sync_threads_or(predicate::Int32)
+
+Identical to `__syncthreads()` with the additional feature that it evaluates predicate
+for all threads of the block and returns `true` if and only if `predicate` evaluates to
+`true` for any of them.
+"""
+@inline sync_threads_or(predicate::Int32) = ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate)
+@inline sync_threads_or(predicate::Bool) = ifelse(sync_threads_or(Int32(predicate)) !== Int32(0), true, false)
 
 """
     sync_warp(mask::Integer=0xffffffff)
@@ -70,4 +119,3 @@ host threads, and all threads in peer devices as occurring before all writes to 
 memory made by the calling thread after the call to `threadfence_system()`.
 """
 @inline threadfence_system() = ccall("llvm.nvvm.membar.sys", llvmcall, Cvoid, ())
-

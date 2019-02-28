@@ -396,6 +396,106 @@ end
 @testset "parallel synchronization and communication" begin
 
 @on_device sync_threads()
+@on_device sync_threads_count(Int32(1))
+@on_device sync_threads_count(true)
+@on_device sync_threads_and(Int32(1))
+@on_device sync_threads_and(true)
+@on_device sync_threads_or(Int32(1))
+@on_device sync_threads_or(true)
+
+@testset "llvm ir barrier int" begin
+    function kernel_barrier_count(an_array_of_1)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        if sync_threads_count(an_array_of_1[i]) == 3
+            an_array_of_1[i] += 1
+        end
+        return nothing
+    end
+
+    b_in = Int32[1, 1, 1, 0, 0]  # 3 true
+    d_b = CuTestArray(b_in)
+    @cuda threads=5 kernel_barrier_count(d_b)
+    b_out = Array(d_b)
+
+    @test b_out == b_in .+ 1
+
+    function kernel_barrier_and(an_array_of_1)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        if sync_threads_and(an_array_of_1[i]) > 0
+            an_array_of_1[i] += 1
+        end
+        return nothing
+    end
+
+    a_in = Int32[1, 1, 1, 1, 1]  # all true
+    d_a = CuTestArray(a_in)
+    @cuda threads=5 kernel_barrier_and(d_a)
+    a_out = Array(d_a)
+
+    @test a_out == a_in .+ 1
+
+    function kernel_barrier_or(an_array_of_1)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        if sync_threads_or(an_array_of_1[i]) > 0
+            an_array_of_1[i] += 1
+        end
+        return nothing
+    end
+
+    c_in = Int32[1, 0, 0, 0, 0]  # 1 true
+    d_c = CuTestArray(c_in)
+    @cuda threads=5 kernel_barrier_or(d_c)
+    c_out = Array(d_c)
+
+    @test c_out == c_in .+ 1
+end
+
+@testset "llvm ir barrier bool" begin
+    function kernel_barrier_count(an_array_of_1)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        if sync_threads_count(an_array_of_1[i] > 0) == 3
+            an_array_of_1[i] += 1
+        end
+        return nothing
+    end
+
+    b_in = Int32[1, 1, 1, 0, 0]  # 3 true
+    d_b = CuTestArray(b_in)
+    @cuda threads=5 kernel_barrier_count(d_b)
+    b_out = Array(d_b)
+
+    @test b_out == b_in .+ 1
+
+    function kernel_barrier_and(an_array_of_1)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        if sync_threads_and(an_array_of_1[i] > 0)
+            an_array_of_1[i] += 1
+        end
+        return nothing
+    end
+
+    a_in = Int32[1, 1, 1, 1, 1]  # all true
+    d_a = CuTestArray(a_in)
+    @cuda threads=5 kernel_barrier_and(d_a)
+    a_out = Array(d_a)
+
+    @test a_out == a_in .+ 1
+
+    function kernel_barrier_or(an_array_of_1)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        if sync_threads_or(an_array_of_1[i] > 0)
+            an_array_of_1[i] += 1
+        end
+        return nothing
+    end
+
+    c_in = Int32[1, 0, 0, 0, 0]  # 1 true
+    d_c = CuTestArray(c_in)
+    @cuda threads=5 kernel_barrier_or(d_c)
+    c_out = Array(d_c)
+
+    @test c_out == c_in .+ 1
+end
 
 @on_device sync_warp()
 @on_device sync_warp(0xffffffff)
