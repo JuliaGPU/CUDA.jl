@@ -7,36 +7,60 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         entry = promote_kernel!(ctx, mod, entry)
     end
 
-    let pm = ModulePassManager()
-        global global_ctx
-        global_ctx = ctx
-
+    function initialize!(pm)
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
         internalize!(pm, [LLVM.name(entry)])
+    end
 
-        if VERSION >= v"1.2.0-DEV.375"
-            ccall(:jl_add_optimization_passes, Cvoid,
-                  (LLVM.API.LLVMPassManagerRef, Cint, Cint),
-                  LLVM.ref(pm), Base.JLOptions().opt_level, #=lower_intrinsics=# 0)
+    global global_ctx
+    global_ctx = ctx
 
-            # custom intrinsic lowering
+    # Julia-specific optimizations
+    #
+    # NOTE: we need to use multiple distinct pass managers to force pass ordering;
+    #       intrinsics should never get lowered before Julia has optimized them.
+    if VERSION < v"1.2.0-DEV.375"
+        # with older versions of Julia, intrinsics are lowered unconditionally so we need to
+        # replace them with GPU-compatible counterparts before anything else. that breaks
+        # certain optimizations though: https://github.com/JuliaGPU/CUDAnative.jl/issues/340
+
+        ModulePassManager() do pm
+            initialize!(pm)
             add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
             aggressive_dce!(pm) # remove dead uses of ptls
             add!(pm, ModulePass("LowerPTLS", lower_ptls!))
-        else
-            # with older versions of Julia intrinsics are always lowered, so we need to
-            # replace them with GPU-compatible counterparts eagerly. that breaks certain
-            # optimizations though: https://github.com/JuliaGPU/CUDAnative.jl/issues/340
+            run!(pm, mod)
+        end
 
-            add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
-            aggressive_dce!(pm) # remove dead uses of ptls
-            add!(pm, ModulePass("LowerPTLS", lower_ptls!))
-
+        ModulePassManager() do pm
+            initialize!(pm)
             ccall(:jl_add_optimization_passes, Cvoid,
                   (LLVM.API.LLVMPassManagerRef, Cint),
                   LLVM.ref(pm), Base.JLOptions().opt_level)
+            run!(pm, mod)
         end
+    else
+        ModulePassManager() do pm
+            initialize!(pm)
+            ccall(:jl_add_optimization_passes, Cvoid,
+                  (LLVM.API.LLVMPassManagerRef, Cint, Cint),
+                  LLVM.ref(pm), Base.JLOptions().opt_level, #=lower_intrinsics=# 0)
+            run!(pm, mod)
+        end
+
+        ModulePassManager() do pm
+            initialize!(pm)
+            add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
+            aggressive_dce!(pm) # remove dead uses of ptls
+            add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+            run!(pm, mod)
+        end
+    end
+
+    # PTX-specific optimizations
+    ModulePassManager() do pm
+        initialize!(pm)
 
         # NVPTX's target machine info enables runtime unrolling,
         # but Julia's pass sequence only invokes the simple unroller.
@@ -67,7 +91,6 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         cfgsimplification!(pm)
 
         run!(pm, mod)
-        dispose(pm)
     end
 
     # we compile a module containing the entire call graph,
@@ -78,11 +101,10 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
     # part of the LateLowerGCFrame pass) aren't collected properly.
     #
     # these might not always be safe, as Julia's IR metadata isn't designed for IPO.
-    let pm = ModulePassManager()
+    ModulePassManager() do pm
         dead_arg_elimination!(pm)   # parent doesn't use return value --> ret void
 
         run!(pm, mod)
-        dispose(pm)
     end
 
     return entry
