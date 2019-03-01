@@ -90,6 +90,9 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
 
         cfgsimplification!(pm)
 
+        # get rid of the internalized functions; now possible unused
+        global_dce!(pm)
+
         run!(pm, mod)
     end
 
