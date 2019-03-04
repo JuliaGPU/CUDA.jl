@@ -63,7 +63,7 @@ function pool_timings!(new=TimerOutput())
   return
 end
 
-pool_timings() = println(to[])
+pool_timings() = (TimerOutputs.print_timer(to[]; allocations=false); println())
 
 
 ## management
