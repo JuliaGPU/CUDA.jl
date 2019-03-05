@@ -390,6 +390,28 @@ end
 
     asm = sprint(io->CUDAnative.code_ptx(io, kernel, Tuple{Int}))
     @test occursin("ptx_gc_pool_alloc", asm)
+
+    # make sure that we can still ellide allocations
+    function ref_kernel(out, i)
+        data = Ref{Int64}()
+        data[] = 0
+        if i > 1
+            data[] = 1
+        else
+            data[] = 2
+        end
+        out[i] = data[]
+        return nothing
+    end
+
+    asm = sprint(io->CUDAnative.code_ptx(io, ref_kernel, Tuple{CuDeviceVector{Int64, AS.Global}, Int}))
+
+
+    if VERSION < v"1.2.0-DEV.375"
+        @test_broken !occursin("ptx_gc_pool_alloc", asm)
+    else
+        @test !occursin("ptx_gc_pool_alloc", asm)
+    end
 end
 
 end
