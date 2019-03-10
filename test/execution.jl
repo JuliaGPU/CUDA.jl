@@ -98,8 +98,11 @@ end
 md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
 dummy = CuFunction(md, "dummy")
 
-val = attributes(dummy)[CUDAdrv.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES]
-attributes(dummy)[CUDAdrv.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = val
+val = attributes(dummy)[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
+
+if CUDAdrv.version() >= v"9.0"
+    attributes(dummy)[CUDAdrv.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = val
+end
 
 end
 
