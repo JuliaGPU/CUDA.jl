@@ -155,6 +155,7 @@ const cuda_names = Dict(
 )
 
 const cuda_versions = Dict(
+    # https://developer.nvidia.com/cuda-toolkit-archive
     "toolkit"   => [v"1.0", v"1.1",
                     v"2.0", v"2.1", v"2.2",
                     v"3.0", v"3.1", v"3.2",
@@ -164,14 +165,15 @@ const cuda_versions = Dict(
                     v"7.0", v"7.5",
                     v"8.0",
                     v"9.0", v"9.1", v"9.2",
-                    v"10.0"],
+                    v"10.0", v"10.1"],
+    # https://developer.nvidia.com/rdp/cudnn-archive
     "cudnn"     => [v"1.0",
                     v"2.0",
                     v"3.0",
                     v"4.0",
                     v"5.0", v"5.1",
                     v"6.0",
-                    v"7.0", v"7.1", v"7.3", v"7.4"]
+                    v"7.0", v"7.1", v"7.2", v"7.3", v"7.4"]
 )
 
 # simplified find_library/find_binary entry-points,

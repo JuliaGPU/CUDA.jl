@@ -22,6 +22,7 @@ const cuda_gcc_db = Dict(
     v"9.1"  => lowest:v"7-",   # (__GNUC__ > 6)                                          && #error
     v"9.2"  => lowest:v"8-",   # (__GNUC__ > 7)                                          && #error
     v"10.0" => lowest:v"8-",   # (__GNUC__ > 7)                                          && #error
+    v"10.1" => lowest:v"9-",   # (__GNUC__ > 8)                                          && #error
 )
 
 function gcc_supported(gcc::VersionNumber, toolkit::VersionNumber)
@@ -51,6 +52,7 @@ const cuda_msvc_db = Dict(
     v"9.1"     => 1600:1911,  # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
     v"9.2"     => 1600:1913,  # (_MSC_VER < 1600 || _MSC_VER > 1913) && #error
     v"10.0"    => 1700:1920,  # (_MSC_VER < 1700 || _MSC_VER > 1920) && #error
+    v"10.1"    => 1700:1930,  # (_MSC_VER < 1700 || _MSC_VER > 1930) && #error
 )
 
 function msvc_supported(msvc::VersionNumber, toolkit::VersionNumber)
@@ -130,6 +132,7 @@ const isa_cuda_db = Dict(
     v"6.1" => v"9.1":highest,
     v"6.2" => v"9.2":highest,
     v"6.3" => v"10.0":highest,
+    v"6.4" => v"10.1":highest,
 )
 
 function isas_for_cuda(ver::VersionNumber)
