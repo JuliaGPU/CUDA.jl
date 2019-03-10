@@ -43,6 +43,7 @@ accordingly:
 - `discovery.jl`: update the `cuda_versions` dictionary
 - `compatibility.jl`: update each `_db` variable (refer to the comments for more
   info)
-- `appveyor.yml`: add the version to the CI roster
+- `travis.linux` and `travis.osx`: provide a link to the installers
 - `appveyor.ps1`: provide a link to the installer, and list the components that
   need to be installed
+- `travis.yml` and `appveyor.yml`: add the version to the CI rosters
