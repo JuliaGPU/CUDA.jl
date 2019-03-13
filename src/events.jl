@@ -62,6 +62,14 @@ Waits for an event to complete.
 synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e)
 
 """
+    wait(e::CuEvent, stream=CuDefaultStream())
+
+Make a `stream` wait on a event.
+"""
+Base.wait(e::CuEvent, stream::CuStream=CuDefaultStream()) = 
+    @apicall(:cuStreamWaitEvent, (CuStream_t, CuEvent_t, Cuint), stream, e, 0)
+
+"""
     elapsed(start::CuEvent, stop::CuEvent)
 
 Computes the elapsed time between two events (in seconds).

@@ -21,4 +21,16 @@ end
 CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC)
 CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC | CUDAdrv.EVENT_DISABLE_TIMING)
 
+# Useful to synchronize work between streams
+@testset "Stream Wait" begin
+    event  = CuEvent(CUDAdrv.EVENT_DISABLE_TIMING)
+    stream = CuStream()
+    # Enqueue work on stream here
+    CUDAdrv.record(event, stream)
+
+    # Wait for work on CuDefaultStream
+    wait(event)
+    synchronize()
+end
+
 end
