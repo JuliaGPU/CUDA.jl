@@ -1,11 +1,10 @@
 module CUBLAS
 
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
+import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL, devices
 import CUDAapi
 
 using ..CuArrays
 using ..CuArrays: libcublas, active_context, unsafe_free!
-
 using LinearAlgebra
 
 include("libcublas_types.jl")
@@ -43,12 +42,11 @@ function xt_handle()
         _xt_handle[] = get!(_xt_handles, active_context[]) do
             context = active_context[]
             dev = CUDAdrv.device(context)
+            devs = map(x-> x.handle, CUDAdrv.devices()) 
             handle = cublasXtCreate()
-            cublasXtDeviceSelect(handle, 1, [dev.handle])
+            cublasXtDeviceSelect(handle, length(devs), devs)
             #cublasXtSetBlockDim(handle, 64)
-
             atexit(()->CUDAdrv.isvalid(context) && cublasXtDestroy(handle))
-
             handle
         end
     end
