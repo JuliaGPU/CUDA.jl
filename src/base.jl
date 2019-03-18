@@ -139,7 +139,7 @@ macro apicall(funspec, argtypes, args...)
         # NOTE: this hook is used by CUDAnative.jl to initialize upon the first API call
         apicall_hook[] !== nothing && apicall_hook[]($funspec)
 
-        status = ccall(($(QuoteNode(api_fun)), libcuda), Cint,
+        status = ccall(($(QuoteNode(api_fun)), libcuda), CuError_t,
                        $(esc(argtypes)), $(map(esc, args)...))
 
         if status != SUCCESS.code

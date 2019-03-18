@@ -27,7 +27,6 @@ the system cleans up the resources allocated to it.
 
 Contexts are unique instances which need to be `destroy`ed after use. For automatic
 management, prefer the `do` block syntax, which implicitly calls `destroy`.
-
 """
 mutable struct CuContext
     handle::CuContext_t
