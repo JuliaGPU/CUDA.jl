@@ -1872,6 +1872,17 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
         end
     end
 end
+function xt_syrk(uplo::Char,
+              trans::Char,
+              alpha::Number,
+              A::CuVecOrMat)
+    T = eltype(A)
+    n = size(A, trans == 'N' ? 1 : 2)
+    xt_syrk!(uplo, trans, convert(T,alpha), A, zero(T), similar(A, T, (n, n)))
+end
+xt_syrk(uplo::Char, trans::Char, A::CuVecOrMat) = xt_syrk(uplo, trans,
+                                                              one(eltype(A)),
+                                                              A)
 
 for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
                       (:cublasXtSsyrkx,:Float32),
@@ -1888,21 +1899,36 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
                       alpha::($elty),
                       A::CuVecOrMat{$elty},
                       beta::($elty),
+                      B::CuVecOrMat{$elty},
                       C::CuMatrix{$elty})
            cuuplo = cublasfill(uplo)
            cutrans = cublasop(trans)
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
-           if nn != n throw(DimensionMismatch("syrk!")) end
+           if nn != n throw(DimensionMismatch("xt_syrkx!")) end
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
+           ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(xt_handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
+           $fname(xt_handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
         end
     end
 end
+function xt_syrkx(uplo::Char,
+              trans::Char,
+              alpha::Number,
+              A::CuVecOrMat,
+              beta::Number,
+              B::CuVecOrMat)
+    T = eltype(A)
+    n = size(A, trans == 'N' ? 1 : 2)
+    xt_syrk!(uplo, trans, convert(T,alpha), A, convert(T,beta), B, similar(A, T, (n, n)))
+end
+xt_syrk(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) = xt_syrk(uplo, trans,
+                                                                 one(eltype(A)), A,
+                                                                 zero(eltype(B)), B)
 
 for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
                       (:cublasXtCherk,:ComplexF32))
