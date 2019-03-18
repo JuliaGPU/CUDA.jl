@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 @testset "CUBLAS" begin
 
 if !isdefined(CuArrays, :CUBLAS)
@@ -45,7 +47,6 @@ CUBLAS.cublasSetMathMode(CUBLAS.CUBLAS_DEFAULT_MATH)
 end # level 1 testset
 
 @testset "Level 2" begin
-
     @testset "gemv with element type $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
         @test testf(*, rand(T, m, n), rand(T, n))
         @test testf(*, transpose(rand(T, m, n)), rand(T, m))
@@ -545,7 +546,6 @@ end # level 1 testset
 end # level 2 testset
 
 @testset "Level 3" begin
-
     @testset "gemm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = rand(elty)
@@ -1187,7 +1187,6 @@ end # Level 3
     end
 end
 
-
 @testset "getrf_batched with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     local k
     # generate matrices
@@ -1380,8 +1379,6 @@ end
     @test C ≈ h_C
 end
 
-end
-
 @testset "xt" begin
     @testset "trmm! with element type $elty" for elty in [Float32, Float64, ComplexF32] # test broken for ComplexF64
         # generate parameter
@@ -1438,6 +1435,8 @@ end
         h_C = Array(d_B)
         @test C ≈ h_C
     end
-end
+end # xt testset
 
-end
+end # if isdefined(CuArrays, :CUBLAS)
+
+end # cublas testset

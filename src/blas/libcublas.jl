@@ -23,14 +23,12 @@ function cublasXtDeviceSelect(handle, nDevices::Int, deviceId::Vector{Cint})
                handle, nDevices, deviceId)
 end
 
-function cublasXtCreate(;nDevices::Int=1, deviceId::Vector{Cint}=[0], blockDim::Cint=64)
+function cublasXtCreate()
   handle = Ref{cublasXtHandle_t}()
   @check ccall((:cublasXtCreate, libcublas),
                cublasStatus_t,
                (Ptr{cublasXtHandle_t},),
                handle)
-  cublasXtDeviceSelect(handle[], nDevices, deviceId)
-  #cublasXtSetBlockDim(handle[], blockDim) 
   handle[]
 end
 

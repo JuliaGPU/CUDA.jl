@@ -43,9 +43,13 @@ function xt_handle()
         _xt_handle[] = get!(_xt_handles, active_context[]) do
             context = active_context[]
             dev = CUDAdrv.device(context)
-            xt_handle = cublasXtCreate(nDevices=1, deviceId=Cint[dev.handle], blockDim=Cint(64))
-            atexit(()->CUDAdrv.isvalid(context) && cublasXtDestroy(xt_handle) && setindex!(active_context, CUDAdrv.CuCurrentContext()))
-            xt_handle
+            handle = cublasXtCreate()
+            cublasXtDeviceSelect(handle, 1, [dev.handle])
+            #cublasXtSetBlockDim(handle, 64)
+
+            atexit(()->CUDAdrv.isvalid(context) && cublasXtDestroy(handle))
+
+            handle
         end
     end
     return _xt_handle[]

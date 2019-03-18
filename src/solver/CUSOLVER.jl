@@ -36,7 +36,7 @@ function dense_handle()
     return _dense_handle[]
 end
 
-#=function sparse_handle()
+function sparse_handle()
     if _sparse_handle[] == C_NULL
         @assert isassigned(active_context) # some other call should have initialized CUDA
         _sparse_handle[] = get!(_sparse_handles, active_context[]) do
@@ -47,10 +47,10 @@ end
         end
     end
     return _sparse_handle[]
-end=#
+end
 
 include("libcusolver.jl")
-#include("sparse.jl")
+include("sparse.jl")
 include("dense.jl")
 include("highlevel.jl")
 

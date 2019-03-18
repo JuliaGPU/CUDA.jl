@@ -27,11 +27,11 @@ using Test
 include("base.jl")
 include("dnn.jl")
 include("blas.jl")
-#include("sparse_solver.jl")
-#include("sparse.jl")
+include("sparse.jl")
 include("solver.jl")
 include("fft.jl")
 include("rand.jl")
+include("sparse_solver.jl")
 
 CuArrays.pool_status()
 CuArrays.pool_timings()
