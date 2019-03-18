@@ -64,9 +64,10 @@ synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e)
 """
     wait(e::CuEvent, stream=CuDefaultStream())
 
-Make a `stream` wait on a event.
+Make a stream wait on a event. This only makes the stream wait, and not the host; use
+[`synchronize(::CuEvent)`](@ref) for that.
 """
-Base.wait(e::CuEvent, stream::CuStream=CuDefaultStream()) = 
+wait(e::CuEvent, stream::CuStream=CuDefaultStream()) =
     @apicall(:cuStreamWaitEvent, (CuStream_t, CuEvent_t, Cuint), stream, e, 0)
 
 """

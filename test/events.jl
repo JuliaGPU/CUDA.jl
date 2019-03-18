@@ -12,24 +12,20 @@ let
     @test elapsed(start, stop) > 0
 end
 
-@test (CUDAdrv.@elapsed begin
-    end) > 0
+@test (CUDAdrv.@elapsed begin end) > 0
 
-@test (CUDAdrv.@elapsed CuDefaultStream() begin
-    end) > 0
+@test (CUDAdrv.@elapsed CuDefaultStream() begin end) > 0
 
 CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC)
 CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC | CUDAdrv.EVENT_DISABLE_TIMING)
 
-# Useful to synchronize work between streams
-@testset "Stream Wait" begin
-    event  = CuEvent(CUDAdrv.EVENT_DISABLE_TIMING)
+@testset "stream wait" begin
+    event  = CuEvent()
     stream = CuStream()
-    # Enqueue work on stream here
+
     CUDAdrv.record(event, stream)
 
-    # Wait for work on CuDefaultStream
-    wait(event)
+    CUDAdrv.wait(event)
     synchronize()
 end
 
