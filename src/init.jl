@@ -58,16 +58,11 @@ function device!(dev::CuDevice)
         CUDAdrv.apicall_hook[] = nothing
     end
 
-    # NOTE: although these conceptually match what the primary context is for,
-    #       we don't use that because it is refcounted separately
-    #       and might confuse / be confused by user operations
-    #       (eg. calling `unsafe_reset!` on a primary context)
-    if haskey(device_contexts, dev)
-        ctx = device_contexts[dev]
-        activate(ctx)
-    else
-        device_contexts[dev] = CuContext(dev)
+    ctx = get!(device_contexts, dev) do
+        pctx = CuPrimaryContext(dev)
+        CuContext(pctx)
     end
+    activate(ctx)
 
     for listener in device!_listeners
         listener(dev, device_contexts[dev])
