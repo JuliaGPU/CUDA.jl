@@ -4,23 +4,27 @@
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
-    compile(dev::CuDevice, f, tt; kwargs...)
+    compile(cap::VersionNumber, f, tt; kernel=true, kwargs...)
 
-Compile a function `f` invoked with types `tt` for device `dev`, returning the compiled
-function module respectively of type `CuFuction` and `CuModule`.
+Compile a function `f` invoked with types `tt` for device `dev` or its compute capability
+`cap`, returning the compiled function module respectively of type `CuFuction` and
+`CuModule`.
 
 For a list of supported keyword arguments, refer to the documentation of
 [`cufunction`](@ref).
 """
-compile(dev::CuDevice, @nospecialize(f::Core.Function), @nospecialize(tt);
+compile(cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt);
         kernel=true, kwargs...) =
-    compile(CompilerContext(f, tt, supported_capability(dev), kernel; kwargs...))
+    compile(CompilerContext(f, tt, cap, kernel; kwargs...))
 
 function compile(ctx::CompilerContext)
     CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
 
     # generate code
     ir, entry = codegen(ctx)
+    check_invocation(ctx, entry)
+    check_ir(ctx, ir)
+    verify(ir)
     asm = mcgen(ctx, ir, entry)
 
     # enable debug options based on Julia's debug setting
@@ -93,8 +97,6 @@ function codegen(ctx::CompilerContext)
 
     prepare_execution!(ctx, ir)
 
-    check_invocation(ctx, entry)
-
 
     ## dynamic parallelism
 
@@ -133,10 +135,6 @@ function codegen(ctx::CompilerContext)
 
 
     ## finalization
-
-    # check generated IR
-    check_ir(ctx, ir)
-    verify(ir)
 
     return ir, entry
 end

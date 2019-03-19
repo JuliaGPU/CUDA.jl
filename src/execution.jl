@@ -312,7 +312,9 @@ when function changes, or when different types or keyword arguments are provided
             key = hash(getfield(f, nf), key)
         end
         if !haskey(compilecache, key)
-            fun, mod = compile(device(ctx), f, tt; kwargs...)
+            dev = device(ctx)
+            cap = supported_capability(dev)
+            fun, mod = compile(cap, f, tt; kwargs...)
             kernel = Kernel{f,tt}(ctx, mod, fun)
             @debug begin
                 ver = version(kernel)
