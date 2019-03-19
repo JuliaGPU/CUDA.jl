@@ -572,7 +572,7 @@ end
 ############################################################################################
 
 @testset "libcudadevrt" begin
-    kernel() = (device_synchronize(); nothing)
+    kernel() = (CUDAnative.synchronize(); nothing)
     @cuda kernel()
 end
 
