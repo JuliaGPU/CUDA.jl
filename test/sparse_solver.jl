@@ -81,6 +81,7 @@ k = 1
 
     @testset "csreigvsi" begin
         A     = sparse(rand(elty,n,n))
+        A     = A + A'
         d_A   = CuSparseMatrixCSR(A)
         evs   = eigvals(Array(A))
         x_0   = CuArray(rand(elty,n))

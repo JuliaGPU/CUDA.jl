@@ -1,18 +1,19 @@
 module CUBLAS
 
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
+import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL, devices
 import CUDAapi
 
 using ..CuArrays
 using ..CuArrays: libcublas, active_context, unsafe_free!
-
 using LinearAlgebra
 
 include("libcublas_types.jl")
 include("error.jl")
 
 const _handles = Dict{CuContext,cublasHandle_t}()
+const _xt_handles = Dict{CuContext,cublasXtHandle_t}()
 const _handle = Ref{cublasHandle_t}(C_NULL)
+const _xt_handle = Ref{cublasXtHandle_t}(C_NULL)
 
 function handle()
     if _handle[] == C_NULL
@@ -33,6 +34,21 @@ function handle()
     end
 
     return _handle[]
+end
+
+function xt_handle()
+    if _xt_handle[] == C_NULL
+        @assert isassigned(active_context) # some other call should have initialized CUDA
+        _xt_handle[] = get!(_xt_handles, active_context[]) do
+            context = active_context[]
+            handle = cublasXtCreate()
+            devs = convert.(Cint, CUDAdrv.devices())
+            cublasXtDeviceSelect(handle, length(devs), devs)
+            atexit(()->CUDAdrv.isvalid(context) && cublasXtDestroy(handle))
+            handle
+        end
+    end
+    return _xt_handle[]
 end
 
 include("libcublas.jl")

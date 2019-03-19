@@ -54,6 +54,7 @@ const CUBLAS_ATOMICS_ALLOWED = 1
 # end enum cublasAtomicsMode_t
 const cublasContext = Nothing
 const cublasHandle_t = Ptr{cublasContext}
+const cublasXtHandle_t = Ptr{cublasContext}
 # complex numbers in cuda
 const cuComplex = Complex{Float32}
 const cuDoubleComplex = Complex{Float64}
@@ -67,6 +68,29 @@ struct __half2
     x1::__half
     x2::__half
 end
+
+const cublasXtOpType_t = UInt32
+const CUBLASXT_FLOAT = 0
+const CUBLASXT_DOUBLE = 1
+const CUBLASXT_COMPLEX = 2
+const CUBLASXT_DOUBLECOMPLEX = 3
+
+const cublasXtBlasOp_t = UInt32
+const CUBLASXT_GEMM = 0
+const CUBLASXT_SYRK = 1
+const CUBLASXT_HERK = 2
+const CUBLASXT_SYMM= 3
+const CUBLASXT_HEMM= 4
+const CUBLASXT_TRSM= 5
+const CUBLASXT_SYR2K= 6
+const CUBLASXT_HER2K= 7
+const CUBLASXT_SPMM= 8
+const CUBLASXT_SYRKX= 9
+const CUBLASXT_HERKX= 10
+
+const cublasXtPinningMemMode_t = UInt32
+const CUBLASXT_PINNING_DISABLED = 0
+const CUBLASXT_PINNING_ENABLED = 1
 
 if CUDAdrv.version() >= v"0.7.5"
     # specify which GEMM algorithm to use in cublasGemmEx() (CUDA 7.5+)

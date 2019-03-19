@@ -78,8 +78,9 @@ function __init__()
         active_context[] = ctx
 
         # wipe the active handles
-        isdefined(CuArrays, :CUBLAS)   && (CUBLAS._handle[] = C_NULL)
-        isdefined(CuArrays, :CUSOLVER) && (CUSOLVER._dense_handle[] = C_NULL)
+        isdefined(CuArrays, :CUBLAS)   && (CUBLAS._handle[] = C_NULL; CUBLAS._xt_handle[] = C_NULL)
+        isdefined(CuArrays, :CUSOLVER) && (CUSOLVER._dense_handle[] = C_NULL; CUSOLVER._sparse_handle[] = C_NULL)
+        isdefined(CuArrays, :CUSPARSE) && (CUSPARSE._handle[] = C_NULL)
         isdefined(CuArrays, :CURAND)   && (CURAND._generator[] = nothing)
         isdefined(CuArrays, :CUDNN)    && (CUDNN._handle[] = C_NULL)
     end

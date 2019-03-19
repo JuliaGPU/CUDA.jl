@@ -1,3 +1,5 @@
+using LinearAlgebra
+
 @testset "CUBLAS" begin
 
 if !isdefined(CuArrays, :CUBLAS)
@@ -45,7 +47,6 @@ CUBLAS.cublasSetMathMode(CUBLAS.CUBLAS_DEFAULT_MATH)
 end # level 1 testset
 
 @testset "Level 2" begin
-
     @testset "gemv with element type $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
         @test testf(*, rand(T, m, n), rand(T, n))
         @test testf(*, transpose(rand(T, m, n)), rand(T, m))
@@ -545,7 +546,6 @@ end # level 1 testset
 end # level 2 testset
 
 @testset "Level 3" begin
-
     @testset "gemm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
         # parameters
         alpha = rand(elty)
@@ -1187,7 +1187,6 @@ end # Level 3
     end
 end
 
-
 @testset "getrf_batched with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     local k
     # generate matrices
@@ -1380,6 +1379,298 @@ end
     @test C ≈ h_C
 end
 
-end
+@testset "xt" begin
+    @testset "trmm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate parameter
+        alpha = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = triu(A)
+        B = rand(elty,m,n)
+        C = zeros(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        d_C = CuArray(C)
+        # compute
+        C = alpha*A*B
+        CuArrays.CUBLAS.xt_trmm!('L','U','N','N',alpha,d_A,d_B,d_C)
+        # move to host and compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
 
-end
+    @testset "trmm with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate parameter
+        alpha = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = triu(A)
+        B = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # compute
+        C = alpha*A*B
+        d_C = CuArrays.CUBLAS.xt_trmm('L','U','N','N',alpha,d_A,d_B)
+        # move to host and compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
+
+    @testset "trsm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate parameter
+        alpha = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = triu(A)
+        B = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # compute
+        C = alpha*(A\B)
+        CuArrays.CUBLAS.xt_trsm!('L','U','N','N',alpha,d_A,d_B)
+        # move to host and compare
+        h_C = Array(d_B)
+        @test C ≈ h_C
+    end
+    @testset "gemm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # parameters
+        alpha = rand(elty)
+        beta = rand(elty)
+        # generate matrices
+        A = rand(elty,m,k)
+        B = rand(elty,k,n)
+        C1 = rand(elty,m,n)
+        C2 = copy(C1)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        d_C1 = CuArray(C1)
+        d_C2 = CuArray(C2)
+        # C = (alpha*A)*B + beta*C
+        CuArrays.CUBLAS.xt_gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
+        mul!(d_C2, d_A, d_B)
+        h_C1 = Array(d_C1)
+        h_C2 = Array(d_C2)
+        C1 = (alpha*A)*B + beta*C1
+        C2 = A*B
+        # compare
+        @test C1 ≈ h_C1
+        @test C2 ≈ h_C2
+    end
+
+    @testset "gemm with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate matrices
+        A = rand(elty,m,k)
+        B = rand(elty,k,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # C = (alpha*A)*B + beta*C
+        d_C = CuArrays.CUBLAS.xt_gemm('N','N',d_A,d_B)
+        C = A*B
+        C2 = d_A * d_B
+        # compare
+        h_C = Array(d_C)
+        h_C2 = Array(C2)
+        @test C ≈ h_C
+        @test C ≈ h_C2
+    end
+ 
+    @testset "hemm! with element type $elty" for elty in [ComplexF32, ComplexF64]
+        # generate parameters
+        alpha = rand(elty)
+        beta  = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = A + adjoint(A)
+        @test ishermitian(A)
+        B = rand(elty,m,n)
+        C = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        d_C = CuArray(C)
+        # compute
+        C = alpha*(A*B) + beta*C
+        CuArrays.CUBLAS.xt_hemm!('L','L',alpha,d_A,d_B,beta,d_C)
+        # move to host and compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
+
+    @testset "hemm with element type $elty" for elty in [ComplexF32, ComplexF64]
+        # generate parameter
+        alpha = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = A + adjoint(A)
+        @test ishermitian(A)
+        B = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # compute
+        C = alpha*(A*B)
+        d_C = CuArrays.CUBLAS.xt_hemm('L','U',alpha,d_A,d_B)
+        # move to host and compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
+
+    @testset "symm! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # parameters
+        alpha = rand(elty)
+        beta = rand(elty)
+        # generate matrices
+        A = rand(elty,m,m)
+        A = A + transpose(A)
+        B = rand(elty,m,n)
+        C = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        d_C = CuArray(C)
+        # C = (alpha*A)*B + beta*C
+        CuArrays.CUBLAS.xt_symm!('L','U',alpha,d_A,d_B,beta,d_C)
+        C = (alpha*A)*B + beta*C
+        # compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
+
+    @testset "symm with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate matrices
+        A = rand(elty,m,m)
+        A = A + transpose(A)
+        B = rand(elty,m,n)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # C = (alpha*A)*B + beta*C
+        d_C = CuArrays.CUBLAS.xt_symm('L','U',d_A,d_B)
+        C = A*B
+        # compare
+        h_C = Array(d_C)
+        @test C ≈ h_C
+    end
+
+    @testset "syrk! with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate matrices
+        A = rand(elty,m,k)
+        C = rand(elty,m,m)
+        C = C + transpose(C)
+        # parameters
+        alpha = rand(elty)
+        beta = rand(elty)
+        # move to device
+        d_A = CuArray(A)
+        d_C = CuArray(C)
+        # C = (alpha*A)*transpose(A) + beta*C
+        CuArrays.CUBLAS.xt_syrk!('U','N',alpha,d_A,beta,d_C)
+        C = (alpha*A)*transpose(A) + beta*C
+        C = triu(C)
+        # move to host and compare
+        h_C = Array(d_C)
+        h_C = triu(C)
+        @test C ≈ h_C
+    end
+
+    @testset "syrk with element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        # generate matrices
+        A = rand(elty,m,k)
+        # move to device
+        d_A = CuArray(A)
+        # C = A*transpose(A)
+        d_C = CuArrays.CUBLAS.xt_syrk('U','N',d_A)
+        C = A*transpose(A)
+        C = triu(C)
+        # move to host and compare
+        h_C = Array(d_C)
+        h_C = triu(C)
+        @test C ≈ h_C
+    end
+
+    @testset "herk! with element type $elty" for elty in [ComplexF32, ComplexF64]
+        # generate matrices
+        A = rand(elty,m,k)
+        C = rand(elty,m,m)
+        C = C + C'
+        # parameters
+        alpha = rand(elty)
+        beta = rand(elty)
+        # move to device
+        d_A = CuArray(A)
+        d_C = CuArray(C)
+        CuArrays.CUBLAS.xt_herk!('U','N',alpha,d_A,beta,d_C)
+        C = alpha*(A*A') + beta*C
+        C = triu(C)
+        # move to host and compare
+        h_C = Array(d_C)
+        h_C = triu(C)
+        @test C ≈ h_C
+    end
+
+    @testset "herk with element type $elty" for elty in [ComplexF32, ComplexF64]
+        # generate matrices
+        A = rand(elty,m,k)
+        # move to device
+        d_A = CuArray(A)
+        # C = A*A'
+        d_C = CuArrays.CUBLAS.xt_herk('U','N',d_A)
+        C = A*A'
+        C = triu(C)
+        # move to host and compare
+        h_C = Array(d_C)
+        h_C = triu(C)
+        @test C ≈ h_C
+    end
+
+    @testset "her2k! with element types $elty1 and $elty2" for (elty1, elty2) in [(ComplexF32, Float32), (ComplexF64, Float64)]
+        # generate parameters
+        alpha = rand(elty1)
+        beta = rand(elty2)
+        # generate matrices
+        A = rand(elty1,m,k)
+        B = rand(elty1,m,k)
+        C = rand(elty1,m,m)
+        C = C + C'
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        d_C = CuArray(C)
+        # compute
+        #C = alpha*(A*B') + conj(alpha)*(B*A') + beta*C
+        C = alpha*(A*B') + conj(alpha)*(B*A') + beta*C
+        CuArrays.CUBLAS.xt_her2k!('U','N',alpha,d_A,d_B,beta,d_C)
+        # move back to host and compare
+        C = triu(C)
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+    end
+
+    @testset "her2k with element type $elty" for elty in [ComplexF32, ComplexF64]
+        # generate matrices
+        A = rand(elty,m,k)
+        B = rand(elty,m,k)
+        # move to device
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        # compute
+        C = A*B' + B*A'
+        d_C = CuArrays.CUBLAS.xt_her2k('U','N',d_A,d_B)
+        # move back to host and compare
+        C = triu(C)
+        h_C = Array(d_C)
+        h_C = triu(h_C)
+        @test C ≈ h_C
+    end
+
+end # xt testset
+
+end # if isdefined(CuArrays, :CUBLAS)
+
+end # cublas testset
