@@ -1,8 +1,10 @@
-# Functions defined in libcudadevrt
-module DevRT
+# runtime library with CUDA-related functions from libcudadevrt
+#
+# The libcudadevrt library is a collection of PTX bitcode functions that implement
+# CUDA-related functionality for runtime device execution, such as device synchronization
+# primitives, dynamic kernel APIs, etc.
 
-using LLVM
-using LLVM.Interop
+export cudaDeviceSynchronize
 
 """
     cudaDeviceSynchronize()
@@ -35,6 +37,4 @@ child grids in the context of dynamic parallelism.
     end
 
     call_function(llvm_f, Cint, Tuple{})
-end
-
 end
