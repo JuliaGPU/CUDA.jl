@@ -167,13 +167,14 @@ a CUDA function upon first use, and to a certain extent arguments will be conver
 managed automatically using `cudaconvert`. Finally, a call to `CUDAdrv.cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
-Several keyword arguments are supported that influence kernel compilation and execution. For
-more information, refer to the documentation of respectively [`cufunction`](@ref) and
-[`CUDAnative.Kernel`](@ref)
+Several keyword arguments are supported that influence the behavior of `@cuda`.
+- `dynamic`: use dynamic parallelism to launch device-side kernels
+- arguments that influence kernel compilation: see [`cufunction`](@ref)
+- arguments that influence kernel execution: see [`CUDAnative.Kernel`](@ref)
 
 The underlying operations (argument conversion, kernel compilation, kernel call) can be
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
-kernel to determine the launch configuration:
+kernel to determine the launch configuration. A host-side kernel launch is done as follows:
 
     args = ...
     GC.@preserve args begin
@@ -248,11 +249,11 @@ Low-level interface to compile a function invocation for the currently-active GP
 a callable kernel object. For a higher-level interface, use [`@cuda`](@ref).
 
 The following keyword arguments are supported:
-- minthreads: the required number of threads in a thread block.
-- maxthreads: the maximum number of threads in a thread block.
-- blocks_per_sm: a minimum number of thread blocks to be scheduled on a single
-  multiprocessor.
-- maxregs: the maximum number of registers to be allocated to a single thread (only
+- `minthreads`: the required number of threads in a thread block
+- `maxthreads`: the maximum number of threads in a thread block
+- `blocks_per_sm`: a minimum number of thread blocks to be scheduled on a single
+  multiprocessor
+- `maxregs`: the maximum number of registers to be allocated to a single thread (only
   supported on LLVM 4.0+)
 
 The output of this function is automatically cached, i.e. you can simply call `cufunction`
@@ -342,10 +343,10 @@ Low-level interface to call a compiled kernel, passing GPU-compatible arguments 
 For a higher-level interface, use [`@cuda`](@ref).
 
 The following keyword arguments are supported:
-- threads (defaults to 1)
-- blocks (defaults to 1)
-- shmem (defaults to 0)
-- stream (defaults to the default stream)
+- `threads` (defaults to 1)
+- `blocks` (defaults to 1)
+- `shmem` (defaults to 0)
+- `stream` (defaults to the default stream)
 """
 Kernel
 
