@@ -23,10 +23,8 @@ makedocs(
             "lib/compilation.md",
             "lib/reflection.md",
             "Device Code" => [
-                "lib/device/intrinsics.md",
-                "lib/device/array.md",
-                "lib/device/libdevice.md"
-                "lib/device/libcudadevrt.md"
+                "lib/device/cuda.md",
+                "lib/device/array.md"
             ]
         ]
     ],
