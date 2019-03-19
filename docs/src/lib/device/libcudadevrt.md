@@ -6,5 +6,5 @@ are welcomed. Features like dynamic parallelism and cooperative groups belong to
 device runtime.
 
 ```@docs
-cudaDeviceSynchronize
+device_synchronize
 ```

@@ -4,18 +4,18 @@
 # CUDA-related functionality for runtime device execution, such as device synchronization
 # primitives, dynamic kernel APIs, etc.
 
-export cudaDeviceSynchronize
+export device_synchronize
 
 """
-    cudaDeviceSynchronize()
+    device_synchronize()
 
 Wait for the device to finish. This is the device side version,
 and should not be called from the host. 
 
-`cudaDeviceSynchronize` acts as a synchronization point for
+`device_synchronize` acts as a synchronization point for
 child grids in the context of dynamic parallelism.
 """
-@generated function cudaDeviceSynchronize()
+@generated function device_synchronize()
     T_int32 = LLVM.Int32Type(JuliaContext())
 
     # create function

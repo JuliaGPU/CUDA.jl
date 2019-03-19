@@ -106,7 +106,7 @@ end
 ############################################################################################
 
 @testset "libcudadevrt" begin
-    kernel() = (cudaDeviceSynchronize(); nothing)
+    kernel() = (device_synchronize(); nothing)
     @cuda kernel()
 end
 
