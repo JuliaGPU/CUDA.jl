@@ -63,15 +63,19 @@ end
 
 # split keyword arguments to `@cuda` into ones affecting the compiler, or the execution
 function split_kwargs(kwargs)
+    macro_kws    = [:dynamic]
     compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs]
     call_kws     = [:blocks, :threads, :shmem, :stream]
+    macro_kwargs = []
     compiler_kwargs = []
     call_kwargs = []
     for kwarg in kwargs
         if Meta.isexpr(kwarg, :(=))
             key,val = kwarg.args
             if isa(key, Symbol)
-                if key in compiler_kws
+                if key in macro_kws
+                    push!(macro_kwargs, kwarg)
+                elseif key in compiler_kws
                     push!(compiler_kwargs, kwarg)
                 elseif key in call_kws
                     push!(call_kwargs, kwarg)
@@ -86,7 +90,7 @@ function split_kwargs(kwargs)
         end
     end
 
-    return compiler_kwargs, call_kwargs
+    return macro_kwargs, compiler_kwargs, call_kwargs
 end
 
 # assign arguments to variables, handle splatting
@@ -195,20 +199,39 @@ macro cuda(ex...)
     args = call.args[2:end]
 
     code = quote end
-    compiler_kwargs, call_kwargs = split_kwargs(kwargs)
+    macro_kwargs, compiler_kwargs, call_kwargs = split_kwargs(kwargs)
     vars, var_exprs = assign_args!(code, args)
 
-    # convert the arguments, call the compiler and launch the kernel
-    # while keeping the original arguments alive
-    push!(code.args,
-        quote
-            GC.@preserve $(vars...) begin
-                local kernel_args = cudaconvert.(($(var_exprs...),))
-                local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-                local kernel = cufunction($(esc(f)), kernel_tt; $(map(esc, compiler_kwargs)...))
-                kernel(kernel_args...; $(map(esc, call_kwargs)...))
-            end
-         end)
+    # handle keyword arguments that influence the macro's behavior
+    dynamic = false
+    for kwarg in macro_kwargs
+        key,val = kwarg.args
+        if key == :dynamic
+            dynamic = val::Bool
+        else
+            throw(ArgumentError("Unsupported keyword argument '$key'"))
+        end
+    end
+
+    if dynamic
+        # dynamic, device-side kernel launch
+        error("unsupported")
+    else
+        # regular, host-side kernel launch
+        #
+        # convert the arguments, call the compiler and launch the kernel
+        # while keeping the original arguments alive
+        push!(code.args,
+            quote
+                GC.@preserve $(vars...) begin
+                    local kernel_args = cudaconvert.(($(var_exprs...),))
+                    local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
+                    local kernel = cufunction($(esc(f)), kernel_tt; $(map(esc, compiler_kwargs)...))
+                    kernel(kernel_args...; $(map(esc, call_kwargs)...))
+                end
+             end)
+    end
+
     return code
 end
 
@@ -310,8 +333,8 @@ end
     end
 end
 
-# There doesn't seem to be a way to access the documentation for the call-syntax,
-# so attach it to the type
+# FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
+#        so attach it to the type
 """
     (::Kernel)(args...; kwargs...)
 
@@ -325,6 +348,7 @@ The following keyword arguments are supported:
 - stream (defaults to the default stream)
 """
 Kernel
+
 
 ## other
 
