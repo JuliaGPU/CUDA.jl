@@ -41,11 +41,9 @@ function xt_handle()
         @assert isassigned(active_context) # some other call should have initialized CUDA
         _xt_handle[] = get!(_xt_handles, active_context[]) do
             context = active_context[]
-            dev = CUDAdrv.device(context)
-            devs = map(x-> x.handle, CUDAdrv.devices()) 
             handle = cublasXtCreate()
+            devs = convert.(Cint, CUDAdrv.devices())
             cublasXtDeviceSelect(handle, length(devs), devs)
-            #cublasXtSetBlockDim(handle, 64)
             atexit(()->CUDAdrv.isvalid(context) && cublasXtDestroy(handle))
             handle
         end
