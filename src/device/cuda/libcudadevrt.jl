@@ -1,8 +1,8 @@
-# runtime library with CUDA-related functions from libcudadevrt
+# wrappers for the libcudadevrt library
 #
-# The libcudadevrt library is a collection of PTX bitcode functions that implement
-# CUDA-related functionality for runtime device execution, such as device synchronization
-# primitives, dynamic kernel APIs, etc.
+# The libcudadevrt library is a collection of PTX bitcode functions that implement parts of
+# the CUDA API for execution on the device, such as device synchronization primitives,
+# dynamic kernel APIs, etc.
 
 export device_synchronize
 
