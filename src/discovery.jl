@@ -360,11 +360,8 @@ function find_libcudadevrt(toolkit_dirs)
         name = "libcudadevrt.a"
     elseif Sys.iswindows()
         name = "libcudadevrt.lib"
-    end
-
-    if name === nothing
-        @error("What even are static libraries")
-        return nothing
+    else
+        error("No support for discovering the CUDA device runtime library on your platform, please file an issue.")
     end
 
     # figure out locations
@@ -381,18 +378,16 @@ function find_libcudadevrt(toolkit_dirs)
         end
     end
 
-    @trace "Looking for library $name" locations=all_locations
+    @trace "Looking for CUDA device runtime library $name" locations=all_locations
+    paths = filter(isfile, map(location->joinpath(location, name), all_locations))
 
-    candidates = filter(isfile,
-        map(location->joinpath(location, name), all_locations))
-
-    @trace "Found candidates for library $name" candidates
-
-    if length(candidates) == 1
-        return first(candidates)
+    if isempty(paths)
+        return nothing
+    else
+        path = first(paths)
+        @debug "Found CUDA device runtime library $(basename(path)) at $(dirname(path))"
+        return path
     end
-
-    return nothing
 end
 
 function find_host_compiler(toolkit_version=nothing)
