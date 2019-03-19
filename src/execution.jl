@@ -314,7 +314,7 @@ when function changes, or when different types or keyword arguments are provided
         if !haskey(compilecache, key)
             dev = device(ctx)
             cap = supported_capability(dev)
-            fun, mod = compile(cap, f, tt; kwargs...)
+            fun, mod = compile(:cuda, cap, f, tt; kwargs...)
             kernel = Kernel{f,tt}(ctx, mod, fun)
             @debug begin
                 ver = version(kernel)

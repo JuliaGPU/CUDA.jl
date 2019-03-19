@@ -4,76 +4,55 @@
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
-    compile(cap::VersionNumber, f, tt; kernel=true, kwargs...)
+    compile(to::Symbol, cap::VersionNumber, f, tt;
+            kernel=true, optimize=true, strip=false, hooked=false,
+            kwargs...)
 
-Compile a function `f` invoked with types `tt` for device `dev` or its compute capability
-`cap`, returning the compiled function module respectively of type `CuFuction` and
-`CuModule`.
+Compile a function `f` invoked with types `tt` for device capability `cap` to one of the
+following formats as specified by the `to` argument: `:julia` for Julia IR, `:llvm` for LLVM
+IR, `:ptx` for PTX assembly and `:cuda` for CUDA driver objects.
 
-For a list of supported keyword arguments, refer to the documentation of
-[`cufunction`](@ref).
+The following keyword arguments are supported:
+- `kernel`: enable kernel-specific code generation
+- `optimize`: optimize the code
+- `strip`: strip non-functional metadata and debug information
+
+Other keyword arguments can be found in the documentation of [`cufunction`](@ref).
 """
-compile(cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt);
-        kernel=true, kwargs...) =
-    compile(CompilerContext(f, tt, cap, kernel; kwargs...))
+compile(to::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt);
+        kernel::Bool=true, optimize::Bool=true, strip::Bool=false, hooked::Bool=false,
+        kwargs...) =
+    compile(to, CompilerContext(f, tt, cap, kernel; kwargs...);
+            optimize=optimize, strip=strip, hooked=hooked)
 
-function compile(ctx::CompilerContext)
-    CUDAnative.configured || error("CUDAnative.jl has not been configured; cannot JIT code.")
+function compile(to::Symbol, ctx::CompilerContext;
+                 optimize::Bool=true, strip::Bool=false, hooked::Bool=false)
+    if !hooked
+        @debug "(Re)compiling function" ctx
+        if compile_hook[] != nothing
+            hook = compile_hook[]
+            compile_hook[] = nothing
 
-    # generate code
-    ir, entry = codegen(ctx)
-    check_invocation(ctx, entry)
-    check_ir(ctx, ir)
-    verify(ir)
-    asm = mcgen(ctx, ir, entry)
+            global globalUnique
+            previous_globalUnique = globalUnique
 
-    # enable debug options based on Julia's debug setting
-    jit_options = Dict{CUDAdrv.CUjit_option,Any}()
-    if Base.JLOptions().debug_level == 1
-        jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
-    elseif Base.JLOptions().debug_level >= 2
-        jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
-    end
+            hook(ctx)
 
-    # link the CUDA device library
-    linker = CUDAdrv.CuLink(jit_options)
-    CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
-    CUDAdrv.add_data!(linker, LLVM.name(entry), asm)
-    image = CUDAdrv.complete(linker)
-
-    cuda_mod = CuModule(image, jit_options)
-    cuda_fun = CuFunction(cuda_mod, LLVM.name(entry))
-
-    return cuda_fun, cuda_mod
-end
-
-codegen(cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt);
-        kernel=true, kwargs...) =
-    codegen(CompilerContext(f, tt, cap, kernel; kwargs...))
-
-function codegen(ctx::CompilerContext)
-    if compile_hook[] != nothing
-        hook = compile_hook[]
-        compile_hook[] = nothing
-
-        global globalUnique
-        previous_globalUnique = globalUnique
-
-        hook(ctx)
-
-        globalUnique = previous_globalUnique
-        compile_hook[] = hook
+            globalUnique = previous_globalUnique
+            compile_hook[] = hook
+        end
     end
 
 
-    ## high-level code generation (Julia AST)
-
-    @debug "(Re)compiling function" ctx
+    ## Julia IR
 
     check_method(ctx)
 
+    # TODO: get the method here, don't put it in the context?
+    #to == :julia && return asm
 
-    ## low-level code generation (LLVM IR)
+
+    ## LLVM IR
 
     ir, entry = irgen(ctx)
 
@@ -88,14 +67,20 @@ function codegen(ctx::CompilerContext)
     end
 
     # optimize the IR
-    entry = optimize!(ctx, ir, entry)
+    if optimize
+        entry = optimize!(ctx, ir, entry)
+    end
 
     runtime = load_runtime(ctx.cap)
     if need_library(runtime)
         link_library!(ctx, ir, runtime)
     end
 
-    prepare_execution!(ctx, ir)
+    verify(ir)
+
+    if strip
+        strip_debuginfo!(ir)
+    end
 
 
     ## dynamic parallelism
@@ -126,15 +111,50 @@ function codegen(ctx::CompilerContext)
     # compile and link
     for (call, dyn_f, dyn_tt) in dyn_calls
         dyn_ctx = CompilerContext(dyn_f, dyn_tt, ctx.cap, true)
-        dyn_ir, dyn_entry = codegen(dyn_ctx)
-        link_library!(ctx, ir, dyn_ir)
+        dyn_ir, dyn_entry =
+            compile(:llvm, dyn_ctx; optimize=optimize, strip=strip, hooked=hooked)
+        link!(ir, dyn_ir)
 
         # TODO
         unsafe_delete!(LLVM.parent(call), call)
     end
 
+    to == :llvm && return ir, entry
 
-    ## finalization
 
-    return ir, entry
+    ## PTX machine code
+
+    prepare_execution!(ctx, ir)
+
+    check_invocation(ctx, entry)
+    check_ir(ctx, ir)
+
+    asm = mcgen(ctx, ir, entry)
+
+    to == :ptx && return asm, LLVM.name(entry)
+
+
+    ## CUDA objects
+
+    # enable debug options based on Julia's debug setting
+    jit_options = Dict{CUDAdrv.CUjit_option,Any}()
+    if Base.JLOptions().debug_level == 1
+        jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
+    elseif Base.JLOptions().debug_level >= 2
+        jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
+    end
+
+    # link the CUDA device library
+    linker = CUDAdrv.CuLink(jit_options)
+    CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
+    CUDAdrv.add_data!(linker, LLVM.name(entry), asm)
+    image = CUDAdrv.complete(linker)
+
+    cuda_mod = CuModule(image, jit_options)
+    cuda_fun = CuFunction(cuda_mod, LLVM.name(entry))
+
+    to == :cuda && return cuda_fun, cuda_mod
+
+
+    error("Unknown compilation target $to")
 end

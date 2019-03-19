@@ -37,16 +37,9 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
 end
 function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
                    dump_module::Bool=false, strip_ir_metadata::Bool=true)
-    check_method(ctx)
-    mod, entry = irgen(ctx)
-    if optimize
-        entry = optimize!(ctx, mod, entry)
-    end
-    if strip_ir_metadata
-        strip_debuginfo!(mod)
-    end
+    ir, entry = compile(:llvm, ctx; optimize=optimize, strip=strip_ir_metadata)
     if dump_module
-        show(io, mod)
+        show(io, ir)
     else
         show(io, entry)
     end
@@ -74,15 +67,8 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
     code_ptx(io, ctx; strip_ir_metadata=strip_ir_metadata)
 end
 function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
-    check_method(ctx)
-    mod, entry = irgen(ctx)
-    entry = optimize!(ctx, mod, entry)
-    if strip_ir_metadata
-        strip_debuginfo!(mod)
-    end
-    prepare_execution!(ctx, mod)
-    ptx = mcgen(ctx, mod, entry)
-    print(io, ptx)
+    asm, _ = compile(:ptx, ctx; strip=strip_ir_metadata)
+    print(io, asm)
 end
 code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_ptx(stdout, func, types; kwargs...)
@@ -112,8 +98,7 @@ function code_sass(io::IO, ctx::CompilerContext)
         error("Your CUDA installation does not provide ptxas or nvdisasm, both of which are required for code_sass")
     end
 
-    ir, entry = codegen(ctx)
-    ptx = mcgen(ctx, ir, entry)
+    ptx, _ = compile(:ptx, ctx)
 
     fn = tempname()
     gpu = "sm_$(ctx.cap.major)$(ctx.cap.minor)"
