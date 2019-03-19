@@ -5,8 +5,7 @@ const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
     compile(to::Symbol, cap::VersionNumber, f, tt;
-            kernel=true, optimize=true, strip=false, hooked=false,
-            kwargs...)
+            kernel=true, optimize=true, strip=false, ...)
 
 Compile a function `f` invoked with types `tt` for device capability `cap` to one of the
 following formats as specified by the `to` argument: `:julia` for Julia IR, `:llvm` for LLVM
@@ -20,27 +19,25 @@ The following keyword arguments are supported:
 Other keyword arguments can be found in the documentation of [`cufunction`](@ref).
 """
 compile(to::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt);
-        kernel::Bool=true, optimize::Bool=true, strip::Bool=false, hooked::Bool=false,
-        kwargs...) =
+        kernel::Bool=true, optimize::Bool=true, strip::Bool=false, kwargs...) =
     compile(to, CompilerContext(f, tt, cap, kernel; kwargs...);
-            optimize=optimize, strip=strip, hooked=hooked)
+            optimize=optimize, strip=strip)
 
 function compile(to::Symbol, ctx::CompilerContext;
-                 optimize::Bool=true, strip::Bool=false, hooked::Bool=false)
-    if !hooked
-        @debug "(Re)compiling function" ctx
-        if compile_hook[] != nothing
-            hook = compile_hook[]
-            compile_hook[] = nothing
+                 optimize::Bool=true, strip::Bool=false)
+    @debug "(Re)compiling function" ctx
 
-            global globalUnique
-            previous_globalUnique = globalUnique
+    if compile_hook[] != nothing
+        hook = compile_hook[]
+        compile_hook[] = nothing
 
-            hook(ctx)
+        global globalUnique
+        previous_globalUnique = globalUnique
 
-            globalUnique = previous_globalUnique
-            compile_hook[] = hook
-        end
+        hook(ctx)
+
+        globalUnique = previous_globalUnique
+        compile_hook[] = hook
     end
 
 
@@ -85,9 +82,10 @@ function compile(to::Symbol, ctx::CompilerContext;
 
     ## dynamic parallelism
 
-    # find dynamic kernel invocations
-    dyn_calls = []
     if haskey(functions(ir), "cudanativeLaunchDevice")
+        dyn_calls = []
+
+        # find dynamic kernel invocations
         f = functions(ir)["cudanativeLaunchDevice"]
         for use in uses(f)
             # decode the call
@@ -106,17 +104,28 @@ function compile(to::Symbol, ctx::CompilerContext;
             dyn_f, dyn_tt = unsafe_pointer_to_objref.(ops)
             push!(dyn_calls, (call, dyn_f, dyn_tt))
         end
-    end
 
-    # compile and link
-    for (call, dyn_f, dyn_tt) in dyn_calls
-        dyn_ctx = CompilerContext(dyn_f, dyn_tt, ctx.cap, true)
-        dyn_ir, dyn_entry =
-            compile(:llvm, dyn_ctx; optimize=optimize, strip=strip, hooked=hooked)
-        link!(ir, dyn_ir)
+        # compile and link
+        for (call, dyn_f, dyn_tt) in dyn_calls
+            # disable the compile hook; this recursive compilation call
+            # shouldn't be traced separately
+            hook = compile_hook[]
+            compile_hook[] = nothing
 
-        # TODO
-        unsafe_delete!(LLVM.parent(call), call)
+            dyn_ctx = CompilerContext(dyn_f, dyn_tt, ctx.cap, true)
+            dyn_ir, dyn_entry =
+                compile(:llvm, dyn_ctx; optimize=optimize, strip=strip)
+
+            compile_hook[] = hook
+
+            link!(ir, dyn_ir)
+
+            # TODO
+            unsafe_delete!(LLVM.parent(call), call)
+        end
+
+        @compiler_assert isempty(uses(f)) ctx
+        unsafe_delete!(ir, f)
     end
 
     to == :llvm && return ir, entry
