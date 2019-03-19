@@ -112,7 +112,8 @@ function code_sass(io::IO, ctx::CompilerContext)
         error("Your CUDA installation does not provide ptxas or nvdisasm, both of which are required for code_sass")
     end
 
-    ptx,_ = compile(ctx)
+    ir, entry = codegen(ctx)
+    ptx = mcgen(ctx, ir, entry)
 
     fn = tempname()
     gpu = "sm_$(ctx.cap.major)$(ctx.cap.minor)"

@@ -216,7 +216,16 @@ macro cuda(ex...)
 
     if dynamic
         # dynamic, device-side kernel launch
-        error("unsupported")
+        #
+        # WIP
+        # TODO: GC.@preserve?
+        # TODO: error on, or support kwargs
+        kernel_args = var_exprs # already in kernel land, so don't need a conversion
+        push!(code.args,
+            quote
+                local kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
+                dynamic_cufunction($(esc(f)), kernel_tt)
+             end)
     else
         # regular, host-side kernel launch
         #
@@ -234,6 +243,19 @@ macro cuda(ex...)
     end
 
     return code
+end
+
+@generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+    tt = Base.to_tuple_type(tt.parameters[1])
+    sig = Base.signature_type(f, tt)
+    t = Tuple(tt.parameters)
+    # TODO: closures
+
+    quote
+        # drop the f and tt into the module, and recover them later during compilation
+        ccall("extern cudanativeLaunchDevice", llvmcall, Nothing, (Any, Any), f, tt)
+        nothing
+    end
 end
 
 

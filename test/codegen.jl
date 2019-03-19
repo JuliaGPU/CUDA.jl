@@ -461,7 +461,7 @@ end
 @testset "non-isbits arguments" begin
     foobar(i) = (sink(unsafe_trunc(Int,i)); return)
 
-    @test_throws_message(CUDAnative.KernelError, CUDAnative.compile(v"3.5", foobar, Tuple{BigInt})) do msg
+    @test_throws_message(CUDAnative.KernelError, CUDAnative.codegen(v"3.5", foobar, Tuple{BigInt})) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("BigInt", msg)
     end
@@ -470,7 +470,7 @@ end
 @testset "invalid LLVM IR" begin
     foobar(i) = println(i)
 
-    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.compile(v"3.5", foobar, Tuple{Int})) do msg
+    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.codegen(v"3.5", foobar, Tuple{Int})) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.RUNTIME_FUNCTION, msg) &&
         occursin("[1] println", msg) &&
@@ -481,7 +481,7 @@ end
 @testset "invalid LLVM IR (ccall)" begin
     foobar(p) = (unsafe_store!(p, ccall(:time, Cint, ())); nothing)
 
-    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.compile(v"3.5", foobar, Tuple{Ptr{Int}})) do msg
+    @test_throws_message(CUDAnative.InvalidIRError, CUDAnative.codegen(v"3.5", foobar, Tuple{Ptr{Int}})) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.POINTER_FUNCTION, msg) &&
         occursin(r"\[1\] .+foobar", msg)

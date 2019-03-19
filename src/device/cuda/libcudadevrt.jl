@@ -13,4 +13,4 @@ and should not be called from the host.
 `synchronize` acts as a synchronization point for
 child grids in the context of dynamic parallelism.
 """
-@inline synchronize() = @wrap cudaDeviceSynchronize()::i32
+@inline synchronize() = ccall("extern cudaDeviceSynchronize", llvmcall, Cint, ())
