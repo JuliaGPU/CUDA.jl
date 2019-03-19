@@ -65,7 +65,7 @@ if CUDAnative.configured
             include("device/execution.jl")
             include("device/pointer.jl")
             include("device/array.jl")
-            include("device/intrinsics.jl")
+            include("device/cuda.jl")
 
             #include("examples.jl")
         end
