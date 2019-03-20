@@ -62,7 +62,7 @@ function compile(to::Symbol, ctx::CompilerContext;
 
     ## LLVM IR
 
-    ir, entry = irgen(ctx, linfo)
+    ir, entry = irgen(ctx, linfo, world)
 
     need_library(lib) = any(f -> isdeclaration(f) &&
                                  intrinsic_id(f) == 0 &&
@@ -94,13 +94,13 @@ function compile(to::Symbol, ctx::CompilerContext;
     ## dynamic parallelism
 
     if haskey(functions(ir), "cudanativeLaunchDevice")
-        dyn_calls = []
+        f = functions(ir)["cudanativeLaunchDevice"]
 
         # find dynamic kernel invocations
-        f = functions(ir)["cudanativeLaunchDevice"]
+        # TODO: recover this information earlier, from the Julia IR
+        worklist = []
         for use in uses(f)
             # decode the call
-            # FIXME: recover this earlier, from the Julia IR
             call = user(use)::LLVM.CallInst
             ops = collect(operands(call))[1:2]
             ## addrspacecast
@@ -113,11 +113,11 @@ function compile(to::Symbol, ctx::CompilerContext;
             ops = Ptr{Any}.(ops)
 
             dyn_f, dyn_tt = unsafe_pointer_to_objref.(ops)
-            push!(dyn_calls, (call, dyn_f, dyn_tt))
+            push!(worklist, (call, dyn_f, dyn_tt))
         end
 
         # compile and link
-        for (call, dyn_f, dyn_tt) in dyn_calls
+        for (call, dyn_f, dyn_tt) in worklist
             dyn_ctx = CompilerContext(dyn_f, dyn_tt, ctx.cap, true)
             dyn_ir, dyn_entry =
                 compile(:llvm, dyn_ctx; hooks=false, optimize=optimize, strip=strip)

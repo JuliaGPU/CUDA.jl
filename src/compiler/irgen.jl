@@ -97,7 +97,7 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
     return llvmf, modules
 end
 
-function irgen(ctx::CompilerContext, linfo, world=typemax(UInt))
+function irgen(ctx::CompilerContext, linfo::Core.MethodInstance, world)
     entry, modules = compile_linfo(ctx, linfo, world)
 
     # link in dependent modules
