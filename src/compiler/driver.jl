@@ -4,40 +4,38 @@
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
-    compile(to::Symbol, cap::VersionNumber, f, tt;
+    compile(to::Symbol, cap::VersionNumber, f, tt, kernel=true;
             kernel=true, optimize=true, strip=false, ...)
 
 Compile a function `f` invoked with types `tt` for device capability `cap` to one of the
 following formats as specified by the `to` argument: `:julia` for Julia IR, `:llvm` for LLVM
-IR, `:ptx` for PTX assembly and `:cuda` for CUDA driver objects.
+IR, `:ptx` for PTX assembly and `:cuda` for CUDA driver objects. If the `kernel` flag is
+set, specialized code generation and optimization for kernel functions is enabled.
 
 The following keyword arguments are supported:
-- `kernel`: enable kernel-specific code generation
-- `optimize`: optimize the code
-- `strip`: strip non-functional metadata and debug information
+- `hooks`: enable compiler hooks that drive reflection functions (default: true)
+- `optimize`: optimize the code (default: true)
+- `strip`: strip non-functional metadata and debug information  (default: false)
 
 Other keyword arguments can be found in the documentation of [`cufunction`](@ref).
 """
-compile(to::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt);
-        kernel::Bool=true, optimize::Bool=true, strip::Bool=false, kwargs...) =
+compile(to::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt),
+        kernel::Bool=true; hooks::Bool=true, optimize::Bool=true, strip::Bool=false,
+        kwargs...) =
     compile(to, CompilerContext(f, tt, cap, kernel; kwargs...);
-            optimize=optimize, strip=strip)
+            hooks=hooks, optimize=optimize, strip=strip)
 
 function compile(to::Symbol, ctx::CompilerContext;
-                 optimize::Bool=true, strip::Bool=false)
+                 hooks::Bool=true, optimize::Bool=true, strip::Bool=false)
     @debug "(Re)compiling function" ctx
 
-    if compile_hook[] != nothing
-        hook = compile_hook[]
-        compile_hook[] = nothing
-
+    if hooks && compile_hook[] != nothing
         global globalUnique
         previous_globalUnique = globalUnique
 
-        hook(ctx)
+        compile_hook[](ctx)
 
         globalUnique = previous_globalUnique
-        compile_hook[] = hook
     end
 
 
@@ -107,16 +105,9 @@ function compile(to::Symbol, ctx::CompilerContext;
 
         # compile and link
         for (call, dyn_f, dyn_tt) in dyn_calls
-            # disable the compile hook; this recursive compilation call
-            # shouldn't be traced separately
-            hook = compile_hook[]
-            compile_hook[] = nothing
-
             dyn_ctx = CompilerContext(dyn_f, dyn_tt, ctx.cap, true)
             dyn_ir, dyn_entry =
-                compile(:llvm, dyn_ctx; optimize=optimize, strip=strip)
-
-            compile_hook[] = hook
+                compile(:llvm, dyn_ctx; hooks=false, optimize=optimize, strip=strip)
 
             link!(ir, dyn_ir)
 

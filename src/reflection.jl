@@ -37,7 +37,7 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
 end
 function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
                    dump_module::Bool=false, strip_ir_metadata::Bool=true)
-    ir, entry = compile(:llvm, ctx; optimize=optimize, strip=strip_ir_metadata)
+    ir, entry = compile(:llvm, ctx; hooks=false, optimize=optimize, strip=strip_ir_metadata)
     if dump_module
         show(io, ir)
     else
@@ -67,7 +67,7 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
     code_ptx(io, ctx; strip_ir_metadata=strip_ir_metadata)
 end
 function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
-    asm, _ = compile(:ptx, ctx; strip=strip_ir_metadata)
+    asm, _ = compile(:ptx, ctx; hooks=false, strip=strip_ir_metadata)
     print(io, asm)
 end
 code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
@@ -98,7 +98,7 @@ function code_sass(io::IO, ctx::CompilerContext)
         error("Your CUDA installation does not provide ptxas or nvdisasm, both of which are required for code_sass")
     end
 
-    ptx, _ = compile(:ptx, ctx)
+    ptx, _ = compile(:ptx, ctx; hooks=false)
 
     fn = tempname()
     gpu = "sm_$(ctx.cap.major)$(ctx.cap.minor)"
