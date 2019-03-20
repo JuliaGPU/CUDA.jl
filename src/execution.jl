@@ -3,21 +3,23 @@
 export @cuda, cudaconvert, cufunction, nearest_warpsize
 
 
-## kernel object and query functions
+## host-side kernels
 
-struct Kernel{F,TT}
+abstract type AbstractKernel{F,TT} end
+
+struct HostKernel{F,TT} <: AbstractKernel{F,TT}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
 end
 
 """
-    version(k::Kernel)
+    version(k::HostKernel)
 
 Queries the PTX and SM versions a kernel was compiled for.
 Returns a named tuple.
 """
-function version(k::Kernel)
+function version(k::HostKernel)
     attr = attributes(k.fun)
     binary_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_BINARY_VERSION],10)...)
     ptx_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_PTX_VERSION],10)...)
@@ -25,12 +27,12 @@ function version(k::Kernel)
 end
 
 """
-    memory(k::Kernel)
+    memory(k::HostKernel)
 
 Queries the local, shared and constant memory usage of a compiled kernel in bytes.
 Returns a named tuple.
 """
-function memory(k::Kernel)
+function memory(k::HostKernel)
     attr = attributes(k.fun)
     local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
     shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
@@ -39,21 +41,21 @@ function memory(k::Kernel)
 end
 
 """
-    registers(k::Kernel)
+    registers(k::HostKernel)
 
 Queries the register usage of a kernel.
 """
-function registers(k::Kernel)
+function registers(k::HostKernel)
     attr = attributes(k.fun)
     return attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
 end
 
 """
-    maxthreads(k::Kernel)
+    maxthreads(k::HostKernel)
 
 Queries the maximum amount of threads a kernel can use in a single block.
 """
-function maxthreads(k::Kernel)
+function maxthreads(k::HostKernel)
     attr = attributes(k.fun)
     return attr[CUDAdrv.FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
 end
@@ -171,7 +173,7 @@ performed, scheduling a kernel launch on the current CUDA context.
 Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `dynamic`: use dynamic parallelism to launch device-side kernels
 - arguments that influence kernel compilation: see [`cufunction`](@ref)
-- arguments that influence kernel execution: see [`CUDAnative.Kernel`](@ref)
+- arguments that influence kernel execution: see [`CUDAnative.HostKernel`](@ref)
 
 The underlying operations (argument conversion, kernel compilation, kernel call) can be
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
@@ -245,10 +247,10 @@ macro cuda(ex...)
 end
 
 
-## APIs for manual compilation
+## host-side launch API
 
 const agecache = Dict{UInt, UInt}()
-const compilecache = Dict{UInt, Kernel}()
+const compilecache = Dict{UInt, HostKernel}()
 
 """
     cufunction(f, tt=Tuple{}; kwargs...)
@@ -301,7 +303,7 @@ when function changes, or when different types or keyword arguments are provided
             dev = device(ctx)
             cap = supported_capability(dev)
             fun, mod = compile(:cuda, cap, f, tt; kwargs...)
-            kernel = Kernel{f,tt}(ctx, mod, fun)
+            kernel = HostKernel{f,tt}(ctx, mod, fun)
             @debug begin
                 ver = version(kernel)
                 mem = memory(kernel)
@@ -312,11 +314,11 @@ when function changes, or when different types or keyword arguments are provided
             compilecache[key] = kernel
         end
 
-        return compilecache[key]::Kernel{f,tt}
+        return compilecache[key]::HostKernel{f,tt}
     end
 end
 
-@generated function (kernel::Kernel{F,TT})(args...; call_kwargs...) where {F,TT}
+@generated function (kernel::HostKernel{F,TT})(args...; call_kwargs...) where {F,TT}
     sig = Base.signature_type(F, TT)
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)
 
@@ -347,7 +349,7 @@ end
 # FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
 #        so attach it to the type
 """
-    (::Kernel)(args...; kwargs...)
+    (::HostKernel)(args...; kwargs...)
 
 Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
 For a higher-level interface, use [`@cuda`](@ref).
@@ -358,23 +360,23 @@ The following keyword arguments are supported:
 - `shmem` (defaults to 0)
 - `stream` (defaults to the default stream)
 """
-Kernel
+HostKernel
 
 
-## dynamic parallelism
+## device-side kernels and launch API (aka. dynamic parallelism)
 
-struct DynamicKernel{F,TT}
+struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
     fun::Ptr{Cvoid}
 end
 
 function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
     # we can't compile here, so drop a marker which will get picked up during compilation
     fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Any, Any), f, tt)
-    DynamicKernel{f,tt}(fptr)
+    DeviceKernel{f,tt}(fptr)
 end
 
-# FIXME: duplication with (::Kernel)(...)
-@generated function (kernel::DynamicKernel{F,TT})(args...; call_kwargs...) where {F,TT}
+# FIXME: duplication with (::HostKernel)(...)
+@generated function (kernel::DeviceKernel{F,TT})(args...; call_kwargs...) where {F,TT}
     sig = Base.signature_type(F, TT)
     args = (:F, (:( args[$i] ) for i in 1:length(args))...)
 
@@ -414,9 +416,9 @@ end
 
     # convert the argument values to match the kernel's signature (specified by the user)
     # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, length(types))
-    arg_ptrs = Vector{Symbol}(undef, length(types))
-    for i in 1:length(types)
+    converted_args = Vector{Symbol}(undef, length(args))
+    arg_ptrs = Vector{Symbol}(undef, length(args))
+    for i in 1:length(args)
         converted_args[i] = gensym()
         arg_ptrs[i] = gensym()
         push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
