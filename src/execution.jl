@@ -253,6 +253,9 @@ import CUDAdrv: CuDim3
 const cudaError_t = Cint
 const cudaStream_t = Ptr{Cvoid}
 
+dynamic_cufunction(f::Core.Function, tt::Type=Tuple{}) =
+    ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Any, Any), f, tt)
+
 @inline function dynamic_launch(f::Ptr{Cvoid}, blocks::CuDim, threads::CuDim, shmem::Int, stream::Ptr{Cvoid})
     blocks = CuDim3(blocks)
     threads = CuDim3(threads)
@@ -263,18 +266,6 @@ const cudaStream_t = Ptr{Cvoid}
     ccall("extern cudaLaunchDeviceV2", llvmcall, cudaError_t,
           (Ptr{Cvoid}, cudaStream_t),
           buf, stream)
-end
-
-@generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
-    tt = Base.to_tuple_type(tt.parameters[1])
-    sig = Base.signature_type(f, tt)
-    t = Tuple(tt.parameters)
-    # TODO: closures
-
-    quote
-        # drop the f and tt into the module, and recover them later during compilation
-        ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Any, Any), f, tt)
-    end
 end
 
 
