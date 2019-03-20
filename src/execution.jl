@@ -219,10 +219,10 @@ macro cuda(ex...)
         # dynamic, device-side kernel launch
         push!(code.args,
             quote
-                # we're in kernel land already, so no need to convert arguments
+                # we're in kernel land already, so no need to cudaconvert arguments
                 local kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
                 local kernel = dynamic_cufunction($(esc(f)), kernel_tt)
-                dynamic_cudacall(kernel, kernel_tt, $(var_exprs...); $(map(esc, call_kwargs)...))
+                kernel($(var_exprs...); $(map(esc, call_kwargs)...))
              end)
     else
         # regular, host-side kernel launch
@@ -363,8 +363,27 @@ Kernel
 
 ## dynamic parallelism
 
-dynamic_cufunction(f::Core.Function, tt::Type=Tuple{}) =
-    ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Any, Any), f, tt)
+struct DynamicKernel{F,TT}
+    fun::Ptr{Cvoid}
+end
+
+function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+    # we can't compile here, so drop a marker which will get picked up during compilation
+    fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Any, Any), f, tt)
+    DynamicKernel{f,tt}(fptr)
+end
+
+@generated function (kernel::DynamicKernel{F,TT})(args...; call_kwargs...) where {F,TT}
+    # TODO
+    call_args = :(args)
+    call_tt = TT
+
+    quote
+        Base.@_inline_meta
+
+        dynamic_cudacall(kernel.fun, $call_tt, $call_args...; call_kwargs...)
+    end
+end
 
 @generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type, args...;
                                      blocks::CuDim=1, threads::CuDim=1, shmem::Integer=0,
