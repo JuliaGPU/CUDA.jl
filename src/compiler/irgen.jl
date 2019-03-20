@@ -1,4 +1,4 @@
-# Julia/LLVM IR generation and transformation passes
+# LLVM IR generation
 
 function module_setup(mod::LLVM.Module)
     triple!(mod, Int === Int64 ? "nvptx64-nvidia-cuda" : "nvptx-nvidia-cuda")
@@ -97,22 +97,7 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
     return llvmf, modules
 end
 
-function irgen(ctx::CompilerContext)
-    # get the method instance
-    isa(ctx.f, Core.Builtin) && throw(KernelError(ctx, "function is not a generic function"))
-    world = typemax(UInt)
-    meth = which(ctx.f, ctx.tt)
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
-    (ti, env) = ccall(:jl_type_intersection_with_env, Any,
-                      (Any, Any), sig, meth.sig)::Core.SimpleVector
-    if VERSION >= v"1.2.0-DEV.320"
-        meth = Base.func_for_method_checked(meth, ti, env)
-    else
-        meth = Base.func_for_method_checked(meth, ti)
-    end
-    linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
-                  (Any, Any, Any, UInt), meth, ti, env, world)
-
+function irgen(ctx::CompilerContext, linfo, world=typemax(UInt))
     entry, modules = compile_linfo(ctx, linfo, world)
 
     # link in dependent modules

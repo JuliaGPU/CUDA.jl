@@ -1,6 +1,8 @@
 # validation of properties and code
 
 function check_method(ctx::CompilerContext)
+    isa(ctx.f, Core.Builtin) && throw(KernelError(ctx, "function is not a generic function"))
+
     # get the method
     ms = Base.methods(ctx.f, ctx.tt)
     isempty(ms)   && throw(KernelError(ctx, "no method found"))

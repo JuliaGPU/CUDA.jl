@@ -43,13 +43,26 @@ function compile(to::Symbol, ctx::CompilerContext;
 
     check_method(ctx)
 
-    # TODO: get the method here, don't put it in the context?
-    #to == :julia && return asm
+    # get the method instance
+    world = typemax(UInt)
+    meth = which(ctx.f, ctx.tt)
+    sig = Base.signature_type(ctx.f, ctx.tt)::Type
+    (ti, env) = ccall(:jl_type_intersection_with_env, Any,
+                      (Any, Any), sig, meth.sig)::Core.SimpleVector
+    if VERSION >= v"1.2.0-DEV.320"
+        meth = Base.func_for_method_checked(meth, ti, env)
+    else
+        meth = Base.func_for_method_checked(meth, ti)
+    end
+    linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
+                  (Any, Any, Any, UInt), meth, ti, env, world)
+
+    to == :julia && return linfo
 
 
     ## LLVM IR
 
-    ir, entry = irgen(ctx)
+    ir, entry = irgen(ctx, linfo)
 
     need_library(lib) = any(f -> isdeclaration(f) &&
                                  intrinsic_id(f) == 0 &&
