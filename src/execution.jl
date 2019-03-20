@@ -373,34 +373,54 @@ function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
     DynamicKernel{f,tt}(fptr)
 end
 
+# FIXME: duplication with (::Kernel)(...)
 @generated function (kernel::DynamicKernel{F,TT})(args...; call_kwargs...) where {F,TT}
-    # TODO
-    call_args = :(args)
-    call_tt = TT
+    sig = Base.signature_type(F, TT)
+    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
+
+    # filter out ghost arguments that shouldn't be passed
+    to_pass = map(!isghosttype, sig.parameters)
+    call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
+    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
+
+    # replace non-isbits arguments (they should be unused, or compilation would have failed)
+    # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
+    for (i,dt) in enumerate(call_t)
+        if !isbitstype(dt)
+            call_t[i] = Ptr{Any}
+            call_args[i] = :C_NULL
+        end
+    end
+
+    # finalize types
+    call_tt = Base.to_tuple_type(call_t)
 
     quote
         Base.@_inline_meta
 
-        dynamic_cudacall(kernel.fun, $call_tt, $call_args...; call_kwargs...)
+        dynamic_cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
 
+# FIXME: duplication with CUDAdrv.cudacall
 @generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type, args...;
                                      blocks::CuDim=1, threads::CuDim=1, shmem::Integer=0,
                                      stream::CuStream=CuDefaultStream())
+    types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
+
     ex = quote
         Base.@_inline_meta
     end
 
     # convert the argument values to match the kernel's signature (specified by the user)
     # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, length(args))
-    arg_ptrs = Vector{Symbol}(undef, length(args))
-    for i in 1:length(args)
+    converted_args = Vector{Symbol}(undef, length(types))
+    arg_ptrs = Vector{Symbol}(undef, length(types))
+    for i in 1:length(types)
         converted_args[i] = gensym()
         arg_ptrs[i] = gensym()
-        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(args[i]), args[$i])))
-        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(args[i]), $(converted_args[i]))))
+        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
+        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
     end
 
     append!(ex.args, (quote
