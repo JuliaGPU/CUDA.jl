@@ -93,8 +93,8 @@ function compile(to::Symbol, ctx::CompilerContext;
 
     ## dynamic parallelism
 
-    if haskey(functions(ir), "cudanativeLaunchDevice")
-        f = functions(ir)["cudanativeLaunchDevice"]
+    if haskey(functions(ir), "cudanativeCompileKernel")
+        f = functions(ir)["cudanativeCompileKernel"]
 
         # find dynamic kernel invocations
         # TODO: recover this information earlier, from the Julia IR
@@ -122,9 +122,12 @@ function compile(to::Symbol, ctx::CompilerContext;
             dyn_ir, dyn_entry =
                 compile(:llvm, dyn_ctx; hooks=false, optimize=optimize, strip=strip)
 
+            dyn_fn = LLVM.name(dyn_entry)
             link!(ir, dyn_ir)
+            dyn_ir = nothing
+            dyn_entry = functions(ir)[dyn_fn]
 
-            # TODO
+            replace_uses!(call, dyn_entry)
             unsafe_delete!(LLVM.parent(call), call)
         end
 

@@ -61,7 +61,8 @@ end
 
 ## helper functions
 
-# split keyword arguments to `@cuda` into ones affecting the compiler, or the execution
+# split keyword arguments to `@cuda` into ones affecting the macro itself, the compiler and
+# the code it generates, or the execution
 function split_kwargs(kwargs)
     macro_kws    = [:dynamic]
     compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs]
@@ -220,11 +221,12 @@ macro cuda(ex...)
         # WIP
         # TODO: GC.@preserve?
         # TODO: error on, or support kwargs
-        kernel_args = var_exprs # already in kernel land, so don't need a conversion
         push!(code.args,
             quote
+                # we're in kernel land already, so no need to convert arguments
                 local kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
-                dynamic_cufunction($(esc(f)), kernel_tt)
+                local kernel = dynamic_cufunction($(esc(f)), kernel_tt)
+                dynamic_launch(kernel, 1, 1, 0, C_NULL)
              end)
     else
         # regular, host-side kernel launch
@@ -236,13 +238,31 @@ macro cuda(ex...)
                 GC.@preserve $(vars...) begin
                     local kernel_args = cudaconvert.(($(var_exprs...),))
                     local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-                    local kernel = cufunction($(esc(f)), kernel_tt; $(map(esc, compiler_kwargs)...))
+                    local kernel = cufunction($(esc(f)), kernel_tt;
+                                              $(map(esc, compiler_kwargs)...))
                     kernel(kernel_args...; $(map(esc, call_kwargs)...))
                 end
              end)
     end
 
     return code
+end
+
+import CUDAdrv: CuDim3
+
+const cudaError_t = Cint
+const cudaStream_t = Ptr{Cvoid}
+
+@inline function dynamic_launch(f::Ptr{Cvoid}, blocks::CuDim, threads::CuDim, shmem::Int, stream::Ptr{Cvoid})
+    blocks = CuDim3(blocks)
+    threads = CuDim3(threads)
+    buf = ccall("extern cudaGetParameterBufferV2", llvmcall, Ptr{Cvoid},
+                (Ptr{Cvoid}, CuDim3, CuDim3, Cuint),
+                f, blocks, threads, shmem)
+
+    ccall("extern cudaLaunchDeviceV2", llvmcall, cudaError_t,
+          (Ptr{Cvoid}, cudaStream_t),
+          buf, stream)
 end
 
 @generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
@@ -253,8 +273,7 @@ end
 
     quote
         # drop the f and tt into the module, and recover them later during compilation
-        ccall("extern cudanativeLaunchDevice", llvmcall, Nothing, (Any, Any), f, tt)
-        nothing
+        ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Any, Any), f, tt)
     end
 end
 
