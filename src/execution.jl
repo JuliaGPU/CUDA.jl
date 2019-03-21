@@ -425,7 +425,7 @@ end
 
     append!(ex.args, (quote
         #GC.@preserve $(converted_args...) begin
-            launch(f, blocks, threads, shmem, stream, ($(arg_ptrs...),))
+            launch(f, blocks, threads, shmem, stream, $(arg_ptrs...))
         #end
     end).args)
 
