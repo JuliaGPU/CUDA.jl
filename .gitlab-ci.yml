@@ -9,37 +9,13 @@ include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_v1.1.yml'
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/documentation_v1.1.yml'
 
-test:v1.0:
-  only:
-    - master
-    - staging
-    - trying
-
-test:v1.1:
-  only:
-    - master
-    - staging
-    - trying
-
 test:dev:
   allow_failure: true
-  only:
-    - master
-    - staging
-    - trying
 
 coverage:
   allow_failure: true
   only:
     - master
-    - staging
-    - trying
-
-documentation:
-  only:
-    - master
-    - staging
-    - trying
 
 pages:
   stage: deploy
@@ -62,7 +38,3 @@ flux:
                 Pkg.add(PackageSpec(name="Flux", rev="master"));
                 Pkg.test("Flux");'
   allow_failure: true
-  only:
-    - master
-    - staging
-    - trying
