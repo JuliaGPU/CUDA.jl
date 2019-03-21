@@ -35,10 +35,6 @@ function compile(target::Symbol, job::CompilerJob;
         globalUnique = previous_globalUnique
     end
 
-    # preload libraries
-    load_runtime(job.cap)
-    load_libdevice(job.cap)
-
     return codegen(target, job; libraries=libraries, optimize=optimize, strip=strip)
 end
 
@@ -46,7 +42,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
                  optimize::Bool=true, strip::Bool=false)
     ## Julia IR
 
-    @timeit to[] "Julia IR generation" begin
+    @timeit to[] "Julia front-end" begin
         check_method(job)
 
         # get the method instance
@@ -69,7 +65,13 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
 
     ## LLVM IR
 
-    @timeit to[] "LLVM IR generation" begin
+    # preload libraries
+    if libraries
+        libdevice = load_libdevice(job.cap)
+        runtime = load_runtime(job.cap)
+    end
+
+    @timeit to[] "LLVM middle-end" begin
         ir, kernel = irgen(job, linfo, world)
 
         need_library(lib) = any(f -> isdeclaration(f) &&
@@ -78,24 +80,22 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
                                 functions(ir))
 
         if libraries
-            libdevice = load_libdevice(job.cap)
-            if need_library(libdevice)
+            @timeit to[] "device library" if need_library(libdevice)
                 link_libdevice!(job, ir, libdevice)
             end
         end
 
         if optimize
-            kernel = optimize!(job, ir, kernel)
+            kernel = @timeit to[] "optimization" optimize!(job, ir, kernel)
         end
 
         if libraries
-            runtime = load_runtime(job.cap)
-            if need_library(runtime)
+            @timeit to[] "runtime library" if need_library(runtime)
                 link_library!(job, ir, runtime)
             end
         end
 
-        verify(ir)
+        @timeit to[] "verification" verify(ir)
 
         if strip
             strip_debuginfo!(ir)
@@ -168,13 +168,13 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
 
     ## PTX machine code
 
-    @timeit to[] "PTX assembly generation" begin
-        prepare_execution!(job, ir)
+    @timeit to[] "LLVM back-end" begin
+        @timeit to[] "preparation" prepare_execution!(job, ir)
 
         check_invocation(job, kernel)
         check_ir(job, ir)
 
-        asm = mcgen(job, ir, kernel)
+        asm = @timeit to[] "machine-code generation" mcgen(job, ir, kernel)
     end
 
     target == :ptx && return asm, kernel_fn
@@ -192,13 +192,17 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         end
 
         # link the CUDA device library
-        linker = CUDAdrv.CuLink(jit_options)
-        CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
-        CUDAdrv.add_data!(linker, kernel_fn, asm)
-        image = CUDAdrv.complete(linker)
+        @timeit to[] "linking" begin
+            linker = CUDAdrv.CuLink(jit_options)
+            CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
+            CUDAdrv.add_data!(linker, kernel_fn, asm)
+            image = CUDAdrv.complete(linker)
+        end
 
-        cuda_mod = CuModule(image, jit_options)
-        cuda_fun = CuFunction(cuda_mod, kernel_fn)
+        @timeit to[] "compilation" begin
+            cuda_mod = CuModule(image, jit_options)
+            cuda_fun = CuFunction(cuda_mod, kernel_fn)
+        end
     end
 
     target == :cuda && return cuda_fun, cuda_mod
