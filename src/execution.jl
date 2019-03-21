@@ -86,8 +86,10 @@ performed, scheduling a kernel launch on the current CUDA context.
 
 Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `dynamic`: use dynamic parallelism to launch device-side kernels
-- arguments that influence kernel compilation: see [`cufunction`](@ref)
-- arguments that influence kernel execution: see [`CUDAnative.HostKernel`](@ref)
+- arguments that influence kernel compilation: see [`cufunction`](@ref) and
+  [`dynamic_cufunction`](@ref)
+- arguments that influence kernel launch: see [`CUDAnative.HostKernel`](@ref) and
+  [`CUDAnative.DeviceKernel`](@ref)
 
 The underlying operations (argument conversion, kernel compilation, kernel call) can be
 performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
@@ -100,6 +102,15 @@ kernel to determine the launch configuration. A host-side kernel launch is done 
         kernel = cufunction(f, kernel_tt; compilation_kwargs)
         kernel(kernel_args...; launch_kwargs)
     end
+
+A device-side launch, aka. dynamic parallelism, is similar but more restricted:
+
+    args = ...
+    # GC.@preserve is not supported
+    # we're on the device already, so no need to cudaconvert
+    kernel_tt = Tuple{Core.Typeof(args[1]), ...}    # this needs to be fully inferred!
+    kernel = dynamic_cufunction(f, kernel_tt)       # no compiler kwargs supported
+    kernel(args...; launch_kwargs)
 """
 macro cuda(ex...)
     # destructure the `@cuda` expression
@@ -125,6 +136,7 @@ macro cuda(ex...)
     for kwarg in macro_kwargs
         key,val = kwarg.args
         if key == :dynamic
+            isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @cuda should be a constant value"))
             dynamic = val::Bool
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
@@ -132,6 +144,11 @@ macro cuda(ex...)
     end
 
     if dynamic
+        # FIXME: we could probably somehow support kwargs with constant values by either
+        #        saving them in a global Dict here, or trying to pick them up from the Julia
+        #        IR when processing the dynamic parallelism marker
+        isempty(compiler_kwargs) || error("@cuda dynamic parallelism does not support compiler keyword arguments")
+
         # dynamic, device-side kernel launch
         push!(code.args,
             quote
@@ -418,6 +435,14 @@ end
 
 ## device-side API
 
+"""
+    dynamic_cufunction(f, tt=Tuple{})
+
+Low-level interface to compile a function invocation for the currently-active GPU, returning
+a callable kernel object. Device-side equivalent of [`CUDAnative.cufunction`](@ref).
+
+No keyword arguments are supported.
+"""
 @generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
     if sizeof(f) > 0
         Core.println(Core.stderr, "ERROR: @cuda dynamic parallelism does not support closures")
