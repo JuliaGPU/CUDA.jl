@@ -9,33 +9,7 @@ include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/test_dev.yml'
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_v1.1.yml'
 
-test:v0.7:
-  only:
-    - master
-    - staging
-    - trying
-
-test:v1.0:
-  only:
-    - master
-    - staging
-    - trying
-
-test:v1.1:
-  only:
-    - master
-    - staging
-    - trying
-
-test:dev:
-  only:
-    - master
-    - staging
-    - trying
-
 coverage:
   allow_failure: true
   only:
     - master
-    - staging
-    - trying
