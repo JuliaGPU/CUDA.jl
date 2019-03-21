@@ -74,4 +74,6 @@ else
     @warn("CUDAnative.jl has not been configured; skipping on-device tests.")
 end
 
+CUDAnative.timings()
+
 end
