@@ -51,9 +51,18 @@ function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
 
         ModulePassManager() do pm
             initialize!(pm)
+
+            # lower intrinsics
             add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
             aggressive_dce!(pm) # remove dead uses of ptls
             add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+
+            # the Julia GC lowering pass also has some clean-up that is required
+            function LLVMAddLateLowerGCFramePass(PM::LLVM.API.LLVMPassManagerRef)
+                LLVM.@apicall(:LLVMExtraAddLateLowerGCFramePass,Cvoid,(LLVM.API.LLVMPassManagerRef,), PM)
+            end
+            LLVMAddLateLowerGCFramePass(LLVM.ref(pm))
+
             run!(pm, mod)
         end
     end
