@@ -453,6 +453,7 @@ No keyword arguments are supported.
     else
         # we can't compile here, so drop a marker which will get picked up during compilation
         quote
+            # TODO: add an edge to this method instance to support method redefinitions
             fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid},
                          (Any, Any), f, tt)
             DeviceKernel{f,tt}(fptr)
