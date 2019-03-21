@@ -24,7 +24,14 @@ function compile(dev::CuDevice, @nospecialize(f::Core.Function), @nospecialize(t
     elseif Base.JLOptions().debug_level >= 2
         jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
     end
-    cuda_mod = CuModule(module_asm, jit_options)
+
+    # Link libcudadevrt
+    linker = CUDAdrv.CuLink(jit_options)
+    CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
+    CUDAdrv.add_data!(linker, module_entry, module_asm)
+    image = CUDAdrv.complete(linker)
+
+    cuda_mod = CuModule(image, jit_options)
     cuda_fun = CuFunction(cuda_mod, module_entry)
 
     return cuda_fun, cuda_mod

@@ -1,7 +1,7 @@
-# Intrinsics
+# CUDA
 
 This section lists the package's public functionality that corresponds to special CUDA
-functions to be used in device code. It is loosely organized according to the [C language
+functions for use in device code. It is loosely organized according to the [C language
 extensions](http://docs.nvidia.com/cuda/cuda-c-programming-guide/#c-language-extensions)
 appendix from the CUDA C programming guide. For more information about certain intrinsics,
 refer to the aforementioned NVIDIA documentation.
@@ -92,3 +92,31 @@ CUDAnative.@cuprintf
 ```@docs
 CUDAnative.@cuassert
 ```
+
+
+## CUDA runtime
+
+Certain parts of the CUDA API are available for use on the GPU, for example to launch
+dynamic kernels or set-up cooperative groups. Coverage of this part of the API, provided by
+the `libcudadevrt` library, is under development and contributions are welcome.
+
+Calls to these functions are often ambiguous with their host-side equivalents as implemented
+in CUDAdrv. To avoid confusion, you need to prefix device-side API interactions with the
+CUDAnative module, e.g., `CUDAnative.synchronize`.
+
+```@docs
+CUDAnative.device_synchronize
+```
+
+
+## Math
+
+Many mathematical functions are provided by the `libdevice` library, and are wrapped by
+CUDAnative.jl. These functions implement interfaces that are similar to existing functions
+in `Base`, albeit often with support for fewer types.
+
+To avoid confusion with existing implementations in `Base`, you need to prefix calls to this
+library with the CUDAnative module. For example, in kernel code, call `CUDAnative.sin`
+instead of plain `sin`.
+
+For a list of available functions, look at `src/device/cuda/libdevice.jl`.

@@ -1,7 +1,11 @@
-# CUDAnative run-time library
+# CUDAnative runtime library
 #
 # This module defines method instances that will be compiled into a device-specific image
 # and will be available to the CUDAnative compiler to call after Julia has generated code.
+#
+# Most functions implement, or are used to support Julia runtime functions that are expected
+# by the Julia compiler to be available at run time, e.g., to dynamically allocate memory,
+# box values, etc.
 
 module Runtime
 
