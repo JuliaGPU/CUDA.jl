@@ -14,19 +14,22 @@ set, specialized code generation and optimization for kernel functions is enable
 
 The following keyword arguments are supported:
 - `hooks`: enable compiler hooks that drive reflection functions (default: true)
+- `libraries`: link auxiliary bitcode libraries that may be required (default: true)
 - `optimize`: optimize the code (default: true)
 - `strip`: strip non-functional metadata and debug information  (default: false)
 
 Other keyword arguments can be found in the documentation of [`cufunction`](@ref).
 """
 compile(to::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt),
-        kernel::Bool=true; hooks::Bool=true, optimize::Bool=true, strip::Bool=false,
+        kernel::Bool=true; hooks::Bool=true, libraries::Bool=true,
+        optimize::Bool=true, strip::Bool=false,
         kwargs...) =
     compile(to, CompilerJob(f, tt, cap, kernel; kwargs...);
-            hooks=hooks, optimize=optimize, strip=strip)
+            hooks=hooks, libraries=libraries, optimize=optimize, strip=strip)
 
 function compile(to::Symbol, job::CompilerJob;
-                 hooks::Bool=true, optimize::Bool=true, strip::Bool=false)
+                 hooks::Bool=true, libraries::Bool=true,
+                 optimize::Bool=true, strip::Bool=false)
     @debug "(Re)compiling function" job
 
     if hooks && compile_hook[] != nothing
@@ -69,19 +72,22 @@ function compile(to::Symbol, job::CompilerJob;
                                  haskey(functions(lib), LLVM.name(f)),
                             functions(ir))
 
-    libdevice = load_libdevice(job.cap)
-    if need_library(libdevice)
-        link_libdevice!(job, ir, libdevice)
+    if libraries
+        libdevice = load_libdevice(job.cap)
+        if need_library(libdevice)
+            link_libdevice!(job, ir, libdevice)
+        end
     end
 
-    # optimize the IR
     if optimize
         kernel = optimize!(job, ir, kernel)
     end
 
-    runtime = load_runtime(job.cap)
-    if need_library(runtime)
-        link_library!(job, ir, runtime)
+    if libraries
+        runtime = load_runtime(job.cap)
+        if need_library(runtime)
+            link_library!(job, ir, runtime)
+        end
     end
 
     verify(ir)

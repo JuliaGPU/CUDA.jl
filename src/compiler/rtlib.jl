@@ -124,7 +124,8 @@ end
 
 function emit_function!(mod, cap, f, types, name)
     tt = Base.to_tuple_type(types)
-    new_mod, entry = compile(:llvm, cap, f, tt, #=kernel=# false; hooks=false)
+    new_mod, entry = compile(:llvm, cap, f, tt, #=kernel=# false;
+                             hooks=false, libraries=false)
     LLVM.name!(entry, name)
     link!(mod, new_mod)
 end
