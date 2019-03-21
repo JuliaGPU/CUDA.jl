@@ -6,6 +6,7 @@ using LLVM
 using LLVM.Interop
 
 using Adapt
+using DataStructures
 
 using Pkg
 using Libdl
