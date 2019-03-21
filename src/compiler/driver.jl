@@ -1,6 +1,6 @@
 # compiler driver and main interface
 
-# (::CompilerContext)
+# (::CompilerJob)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
@@ -22,18 +22,18 @@ Other keyword arguments can be found in the documentation of [`cufunction`](@ref
 compile(to::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt),
         kernel::Bool=true; hooks::Bool=true, optimize::Bool=true, strip::Bool=false,
         kwargs...) =
-    compile(to, CompilerContext(f, tt, cap, kernel; kwargs...);
+    compile(to, CompilerJob(f, tt, cap, kernel; kwargs...);
             hooks=hooks, optimize=optimize, strip=strip)
 
-function compile(to::Symbol, ctx::CompilerContext;
+function compile(to::Symbol, job::CompilerJob;
                  hooks::Bool=true, optimize::Bool=true, strip::Bool=false)
-    @debug "(Re)compiling function" ctx
+    @debug "(Re)compiling function" job
 
     if hooks && compile_hook[] != nothing
         global globalUnique
         previous_globalUnique = globalUnique
 
-        compile_hook[](ctx)
+        compile_hook[](job)
 
         globalUnique = previous_globalUnique
     end
@@ -41,12 +41,12 @@ function compile(to::Symbol, ctx::CompilerContext;
 
     ## Julia IR
 
-    check_method(ctx)
+    check_method(job)
 
     # get the method instance
     world = typemax(UInt)
-    meth = which(ctx.f, ctx.tt)
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
+    meth = which(job.f, job.tt)
+    sig = Base.signature_type(job.f, job.tt)::Type
     (ti, env) = ccall(:jl_type_intersection_with_env, Any,
                       (Any, Any), sig, meth.sig)::Core.SimpleVector
     if VERSION >= v"1.2.0-DEV.320"
@@ -62,26 +62,26 @@ function compile(to::Symbol, ctx::CompilerContext;
 
     ## LLVM IR
 
-    ir, entry = irgen(ctx, linfo, world)
+    ir, entry = irgen(job, linfo, world)
 
     need_library(lib) = any(f -> isdeclaration(f) &&
                                  intrinsic_id(f) == 0 &&
                                  haskey(functions(lib), LLVM.name(f)),
                             functions(ir))
 
-    libdevice = load_libdevice(ctx.cap)
+    libdevice = load_libdevice(job.cap)
     if need_library(libdevice)
-        link_libdevice!(ctx, ir, libdevice)
+        link_libdevice!(job, ir, libdevice)
     end
 
     # optimize the IR
     if optimize
-        entry = optimize!(ctx, ir, entry)
+        entry = optimize!(job, ir, entry)
     end
 
-    runtime = load_runtime(ctx.cap)
+    runtime = load_runtime(job.cap)
     if need_library(runtime)
-        link_library!(ctx, ir, runtime)
+        link_library!(job, ir, runtime)
     end
 
     verify(ir)
@@ -119,7 +119,7 @@ function compile(to::Symbol, ctx::CompilerContext;
 
         # compile and link
         for (dyn_f, dyn_tt) in keys(worklist)
-            dyn_ctx = CompilerContext(dyn_f, dyn_tt, ctx.cap, true)
+            dyn_ctx = CompilerJob(dyn_f, dyn_tt, job.cap, true)
             dyn_ir, dyn_entry =
                 compile(:llvm, dyn_ctx; hooks=false, optimize=optimize, strip=strip)
 
@@ -135,7 +135,7 @@ function compile(to::Symbol, ctx::CompilerContext;
             end
         end
 
-        @compiler_assert isempty(uses(f)) ctx
+        @compiler_assert isempty(uses(f)) job
         unsafe_delete!(ir, f)
     end
 
@@ -144,12 +144,12 @@ function compile(to::Symbol, ctx::CompilerContext;
 
     ## PTX machine code
 
-    prepare_execution!(ctx, ir)
+    prepare_execution!(job, ir)
 
-    check_invocation(ctx, entry)
-    check_ir(ctx, ir)
+    check_invocation(job, entry)
+    check_ir(job, ir)
 
-    asm = mcgen(ctx, ir, entry)
+    asm = mcgen(job, ir, entry)
 
     to == :ptx && return asm, LLVM.name(entry)
 
