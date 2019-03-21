@@ -3,64 +3,6 @@
 export @cuda, cudaconvert, cufunction, nearest_warpsize
 
 
-## host-side kernels
-
-abstract type AbstractKernel{F,TT} end
-
-struct HostKernel{F,TT} <: AbstractKernel{F,TT}
-    ctx::CuContext
-    mod::CuModule
-    fun::CuFunction
-end
-
-"""
-    version(k::HostKernel)
-
-Queries the PTX and SM versions a kernel was compiled for.
-Returns a named tuple.
-"""
-function version(k::HostKernel)
-    attr = attributes(k.fun)
-    binary_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_BINARY_VERSION],10)...)
-    ptx_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_PTX_VERSION],10)...)
-    return (ptx=ptx_ver, binary=binary_ver)
-end
-
-"""
-    memory(k::HostKernel)
-
-Queries the local, shared and constant memory usage of a compiled kernel in bytes.
-Returns a named tuple.
-"""
-function memory(k::HostKernel)
-    attr = attributes(k.fun)
-    local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
-    shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
-    constant_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_CONST_SIZE_BYTES]
-    return (:local=>local_mem, shared=shared_mem, constant=constant_mem)
-end
-
-"""
-    registers(k::HostKernel)
-
-Queries the register usage of a kernel.
-"""
-function registers(k::HostKernel)
-    attr = attributes(k.fun)
-    return attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
-end
-
-"""
-    maxthreads(k::HostKernel)
-
-Queries the maximum amount of threads a kernel can use in a single block.
-"""
-function maxthreads(k::HostKernel)
-    attr = attributes(k.fun)
-    return attr[CUDAdrv.FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
-end
-
-
 ## helper functions
 
 # split keyword arguments to `@cuda` into ones affecting the macro itself, the compiler and
@@ -129,34 +71,6 @@ function method_age(f, tt)::UInt
     end
     throw(MethodError(f, tt))
 end
-
-
-## adaptors
-
-struct Adaptor end
-
-# convert CUDAdrv pointers to CUDAnative pointers
-Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = DevicePtr{T,AS.Generic}(p)
-
-# Base.RefValue isn't GPU compatible, so provide a compatible alternative
-struct CuRefValue{T} <: Ref{T}
-  x::T
-end
-Base.getindex(r::CuRefValue) = r.x
-Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
-
-# convenience function
-"""
-    cudaconvert(x)
-
-This function is called for every argument to be passed to a kernel, allowing it to be
-converted to a GPU-friendly format. By default, the function does nothing and returns the
-input object `x` as-is.
-
-Do not add methods to this function, but instead extend the underlying Adapt.jl package and
-register methods for the the `CUDAnative.Adaptor` type.
-"""
-cudaconvert(arg) = adapt(Adaptor(), arg)
 
 
 ## high-level @cuda interface
@@ -247,7 +161,145 @@ macro cuda(ex...)
 end
 
 
-## host-side launch API
+## host to device value conversion
+
+struct Adaptor end
+
+# convert CUDAdrv pointers to CUDAnative pointers
+Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = DevicePtr{T,AS.Generic}(p)
+
+# Base.RefValue isn't GPU compatible, so provide a compatible alternative
+struct CuRefValue{T} <: Ref{T}
+  x::T
+end
+Base.getindex(r::CuRefValue) = r.x
+Adapt.adapt_structure(to::Adaptor, r::Base.RefValue) = CuRefValue(adapt(to, r[]))
+
+"""
+    cudaconvert(x)
+
+This function is called for every argument to be passed to a kernel, allowing it to be
+converted to a GPU-friendly format. By default, the function does nothing and returns the
+input object `x` as-is.
+
+Do not add methods to this function, but instead extend the underlying Adapt.jl package and
+register methods for the the `CUDAnative.Adaptor` type.
+"""
+cudaconvert(arg) = adapt(Adaptor(), arg)
+
+
+## abstract kernel functionality
+
+abstract type AbstractKernel{F,TT} end
+
+# FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
+#        so attach it to the type
+"""
+    (::HostKernel)(args...; kwargs...)
+    (::DeviceKernel)(args...; kwargs...)
+
+Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
+For a higher-level interface, use [`@cuda`](@ref).
+
+The following keyword arguments are supported:
+- `threads` (defaults to 1)
+- `blocks` (defaults to 1)
+- `shmem` (defaults to 0)
+- `stream` (defaults to the default stream)
+"""
+AbstractKernel
+
+@generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
+    sig = Base.signature_type(F, TT)
+    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
+
+    # filter out ghost arguments that shouldn't be passed
+    to_pass = map(!isghosttype, sig.parameters)
+    call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
+    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
+
+    # replace non-isbits arguments (they should be unused, or compilation would have failed)
+    # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
+    for (i,dt) in enumerate(call_t)
+        if !isbitstype(dt)
+            call_t[i] = Ptr{Any}
+            call_args[i] = :C_NULL
+        end
+    end
+
+    # finalize types
+    call_tt = Base.to_tuple_type(call_t)
+
+    quote
+        Base.@_inline_meta
+
+        cudacall(kernel, $call_tt, $(call_args...); call_kwargs...)
+    end
+end
+
+
+## host-side kernels
+
+struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+    ctx::CuContext
+    mod::CuModule
+    fun::CuFunction
+end
+
+@doc (@doc AbstractKernel) HostKernel
+
+@inline cudacall(kernel::HostKernel, tt, args...; kwargs...) =
+    CUDAdrv.cudacall(kernel.fun, tt, args...; kwargs...)
+
+"""
+    version(k::HostKernel)
+
+Queries the PTX and SM versions a kernel was compiled for.
+Returns a named tuple.
+"""
+function version(k::HostKernel)
+    attr = attributes(k.fun)
+    binary_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_BINARY_VERSION],10)...)
+    ptx_ver = VersionNumber(divrem(attr[CUDAdrv.FUNC_ATTRIBUTE_PTX_VERSION],10)...)
+    return (ptx=ptx_ver, binary=binary_ver)
+end
+
+"""
+    memory(k::HostKernel)
+
+Queries the local, shared and constant memory usage of a compiled kernel in bytes.
+Returns a named tuple.
+"""
+function memory(k::HostKernel)
+    attr = attributes(k.fun)
+    local_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
+    shared_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
+    constant_mem = attr[CUDAdrv.FUNC_ATTRIBUTE_CONST_SIZE_BYTES]
+    return (:local=>local_mem, shared=shared_mem, constant=constant_mem)
+end
+
+"""
+    registers(k::HostKernel)
+
+Queries the register usage of a kernel.
+"""
+function registers(k::HostKernel)
+    attr = attributes(k.fun)
+    return attr[CUDAdrv.FUNC_ATTRIBUTE_NUM_REGS]
+end
+
+"""
+    maxthreads(k::HostKernel)
+
+Queries the maximum amount of threads a kernel can use in a single block.
+"""
+function maxthreads(k::HostKernel)
+    attr = attributes(k.fun)
+    return attr[CUDAdrv.FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
+end
+
+
+## host-side API
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, HostKernel}()
@@ -318,102 +370,20 @@ when function changes, or when different types or keyword arguments are provided
     end
 end
 
-@generated function (kernel::HostKernel{F,TT})(args...; call_kwargs...) where {F,TT}
-    sig = Base.signature_type(F, TT)
-    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
-
-    # filter out ghost arguments that shouldn't be passed
-    to_pass = map(!isghosttype, sig.parameters)
-    call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
-    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
-
-    # replace non-isbits arguments (they should be unused, or compilation would have failed)
-    # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
-    for (i,dt) in enumerate(call_t)
-        if !isbitstype(dt)
-            call_t[i] = Ptr{Any}
-            call_args[i] = :C_NULL
-        end
-    end
-
-    # finalize types
-    call_tt = Base.to_tuple_type(call_t)
-
-    quote
-        Base.@_inline_meta
-
-        cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
-    end
-end
-
-# FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
-#        so attach it to the type
-"""
-    (::HostKernel)(args...; kwargs...)
-
-Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
-For a higher-level interface, use [`@cuda`](@ref).
-
-The following keyword arguments are supported:
-- `threads` (defaults to 1)
-- `blocks` (defaults to 1)
-- `shmem` (defaults to 0)
-- `stream` (defaults to the default stream)
-"""
-HostKernel
+# https://github.com/JuliaLang/julia/issues/14919
+(kernel::HostKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
 
 
-## device-side kernels and launch API (aka. dynamic parallelism)
+## device-side kernels
 
 struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
     fun::Ptr{Cvoid}
 end
 
-@generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
-    if sizeof(f) > 0
-        Core.println(Core.stderr, "ERROR: @cuda dynamic parallelism does not support closures")
-        quote
-            trap()
-            DeviceKernel{f,tt}(C_NULL)
-        end
-    else
-        # we can't compile here, so drop a marker which will get picked up during compilation
-        quote
-            fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid},
-                         (Any, Any), f, tt)
-            DeviceKernel{f,tt}(fptr)
-        end
-    end
-end
+@doc (@doc AbstractKernel) DeviceKernel
 
-# FIXME: duplication with (::HostKernel)(...)
-@generated function (kernel::DeviceKernel{F,TT})(args...; call_kwargs...) where {F,TT}
-    sig = Base.signature_type(F, TT)
-    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
-
-    # filter out ghost arguments that shouldn't be passed
-    to_pass = map(!isghosttype, sig.parameters)
-    call_t =                  Type[x[1] for x in zip(sig.parameters,  to_pass) if x[2]]
-    call_args = Union{Expr,Symbol}[x[1] for x in zip(args, to_pass)            if x[2]]
-
-    # replace non-isbits arguments (they should be unused, or compilation would have failed)
-    # alternatively, make CUDAdrv allow `launch` with non-isbits arguments.
-    for (i,dt) in enumerate(call_t)
-        if !isbitstype(dt)
-            call_t[i] = Ptr{Any}
-            call_args[i] = :C_NULL
-        end
-    end
-
-    # finalize types
-    call_tt = Base.to_tuple_type(call_t)
-
-    quote
-        Base.@_inline_meta
-
-        dynamic_cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
-    end
-end
+@inline cudacall(kernel::DeviceKernel, tt, args...; kwargs...) =
+    dynamic_cudacall(kernel.fun, tt, args...; kwargs...)
 
 # FIXME: duplication with CUDAdrv.cudacall
 @generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type, args...;
@@ -444,6 +414,29 @@ end
 
     return ex
 end
+
+
+## device-side API
+
+@generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+    if sizeof(f) > 0
+        Core.println(Core.stderr, "ERROR: @cuda dynamic parallelism does not support closures")
+        quote
+            trap()
+            DeviceKernel{f,tt}(C_NULL)
+        end
+    else
+        # we can't compile here, so drop a marker which will get picked up during compilation
+        quote
+            fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid},
+                         (Any, Any), f, tt)
+            DeviceKernel{f,tt}(fptr)
+        end
+    end
+end
+
+# https://github.com/JuliaLang/julia/issues/14919
+(kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
 
 
 ## other
