@@ -71,13 +71,13 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         runtime = load_runtime(job.cap)
     end
 
-    @timeit to[] "LLVM middle-end" begin
-        ir, kernel = irgen(job, linfo, world)
+    need_library(lib) = any(f -> isdeclaration(f) &&
+                                 intrinsic_id(f) == 0 &&
+                                 haskey(functions(lib), LLVM.name(f)),
+                            functions(ir))
 
-        need_library(lib) = any(f -> isdeclaration(f) &&
-                                     intrinsic_id(f) == 0 &&
-                                     haskey(functions(lib), LLVM.name(f)),
-                                functions(ir))
+    @timeit to[] "LLVM middle-end" begin
+        ir, kernel = @timeit to[] "IR generation" irgen(job, linfo, world)
 
         if libraries
             @timeit to[] "device library" if need_library(libdevice)
@@ -98,7 +98,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         @timeit to[] "verification" verify(ir)
 
         if strip
-            strip_debuginfo!(ir)
+            @timeit to[] "strip debug info" strip_debuginfo!(ir)
         end
 
         kernel_fn = LLVM.name(kernel)
