@@ -369,10 +369,21 @@ struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
     fun::Ptr{Cvoid}
 end
 
-function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
-    # we can't compile here, so drop a marker which will get picked up during compilation
-    fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Any, Any), f, tt)
-    DeviceKernel{f,tt}(fptr)
+@generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+    if sizeof(f) > 0
+        Core.println(Core.stderr, "ERROR: @cuda dynamic parallelism does not support closures")
+        quote
+            trap()
+            DeviceKernel{f,tt}(C_NULL)
+        end
+    else
+        # we can't compile here, so drop a marker which will get picked up during compilation
+        quote
+            fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid},
+                         (Any, Any), f, tt)
+            DeviceKernel{f,tt}(fptr)
+        end
+    end
 end
 
 # FIXME: duplication with (::HostKernel)(...)
