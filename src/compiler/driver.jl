@@ -98,7 +98,7 @@ function compile(to::Symbol, ctx::CompilerContext;
 
         # find dynamic kernel invocations
         # TODO: recover this information earlier, from the Julia IR
-        worklist = []
+        worklist = Dict{Tuple{Core.Function,Type}, Vector{LLVM.CallInst}}()
         for use in uses(f)
             # decode the call
             call = user(use)::LLVM.CallInst
@@ -113,11 +113,12 @@ function compile(to::Symbol, ctx::CompilerContext;
             ops = Ptr{Any}.(ops)
 
             dyn_f, dyn_tt = unsafe_pointer_to_objref.(ops)
-            push!(worklist, (call, dyn_f, dyn_tt))
+            calls = get!(worklist, (dyn_f, dyn_tt), LLVM.CallInst[])
+            push!(calls, call)
         end
 
         # compile and link
-        for (call, dyn_f, dyn_tt) in worklist
+        for (dyn_f, dyn_tt) in keys(worklist)
             dyn_ctx = CompilerContext(dyn_f, dyn_tt, ctx.cap, true)
             dyn_ir, dyn_entry =
                 compile(:llvm, dyn_ctx; hooks=false, optimize=optimize, strip=strip)
@@ -127,8 +128,11 @@ function compile(to::Symbol, ctx::CompilerContext;
             dyn_ir = nothing
             dyn_entry = functions(ir)[dyn_fn]
 
-            replace_uses!(call, dyn_entry)
-            unsafe_delete!(LLVM.parent(call), call)
+            # insert a call everywhere the kernel is used
+            for call in worklist[(dyn_f,dyn_tt)]
+                replace_uses!(call, dyn_entry)
+                unsafe_delete!(LLVM.parent(call), call)
+            end
         end
 
         @compiler_assert isempty(uses(f)) ctx
