@@ -1,6 +1,6 @@
 # Native execution support
 
-export @cuda, cudaconvert, cufunction, nearest_warpsize
+export @cuda, cudaconvert, cufunction, dynamic_cufunction, nearest_warpsize
 
 
 ## helper functions
