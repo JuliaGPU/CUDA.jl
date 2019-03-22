@@ -58,10 +58,13 @@ function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
             add!(pm, ModulePass("LowerPTLS", lower_ptls!))
 
             # the Julia GC lowering pass also has some clean-up that is required
-            function LLVMAddLateLowerGCFramePass(PM::LLVM.API.LLVMPassManagerRef)
-                LLVM.@apicall(:LLVMExtraAddLateLowerGCFramePass,Cvoid,(LLVM.API.LLVMPassManagerRef,), PM)
+            if VERSION >= v"1.2.0-DEV.520"
+                # TODO: move this to LLVM.jl
+                function LLVMAddLateLowerGCFramePass(PM::LLVM.API.LLVMPassManagerRef)
+                    LLVM.@apicall(:LLVMExtraAddLateLowerGCFramePass,Cvoid,(LLVM.API.LLVMPassManagerRef,), PM)
+                end
+                LLVMAddLateLowerGCFramePass(LLVM.ref(pm))
             end
-            LLVMAddLateLowerGCFramePass(LLVM.ref(pm))
 
             run!(pm, mod)
         end

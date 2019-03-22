@@ -446,6 +446,19 @@ No keyword arguments are supported.
 @inline dynamic_cufunction(f::Core.Function, tt::Type=Tuple{}) =
     delayed_cufunction(Val(f), Val(tt))
 
+# marker function that will get picked up during compilation
+if VERSION >= v"1.2.0-DEV.512"
+    @inline cudanativeCompileKernel(id::Int) =
+        ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
+else
+    import Base.Sys: WORD_SIZE
+    @eval @inline cudanativeCompileKernel(id::Int) =
+        Base.llvmcall(
+            ($"declare i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE)",
+             $"%rv = call i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE %0)
+               ret i$WORD_SIZE %rv"), Ptr{Cvoid}, Tuple{Int}, id)
+end
+
 const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
 @generated function delayed_cufunction(::Val{f}, ::Val{tt}) where {f,tt}
     global delayed_cufunctions
@@ -453,10 +466,8 @@ const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
     id = length(delayed_cufunctions)
 
     quote
-        # drop a marker which will get picked up during compilation
         # TODO: add an edge to this method instance to support method redefinitions
-        fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), $id)
-
+        fptr = cudanativeCompileKernel($id)
         DeviceKernel{f,tt}(fptr)
     end
 end
