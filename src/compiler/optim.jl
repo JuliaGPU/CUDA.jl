@@ -1,10 +1,10 @@
 # LLVM IR optimization
 
-function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
-    tm = machine(ctx.cap, triple(mod))
+function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
+    tm = machine(job.cap, triple(mod))
 
-    if ctx.kernel
-        entry = promote_kernel!(ctx, mod, entry)
+    if job.kernel
+        entry = promote_kernel!(job, mod, entry)
     end
 
     function initialize!(pm)
@@ -13,8 +13,8 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
         internalize!(pm, [LLVM.name(entry)])
     end
 
-    global global_ctx
-    global_ctx = ctx
+    global current_job
+    current_job = job
 
     # Julia-specific optimizations
     #
@@ -51,9 +51,21 @@ function optimize!(ctx::CompilerContext, mod::LLVM.Module, entry::LLVM.Function)
 
         ModulePassManager() do pm
             initialize!(pm)
+
+            # lower intrinsics
             add!(pm, FunctionPass("LowerGCFrame", lower_gc_frame!))
             aggressive_dce!(pm) # remove dead uses of ptls
             add!(pm, ModulePass("LowerPTLS", lower_ptls!))
+
+            # the Julia GC lowering pass also has some clean-up that is required
+            if VERSION >= v"1.2.0-DEV.520"
+                # TODO: move this to LLVM.jl
+                function LLVMAddLateLowerGCFramePass(PM::LLVM.API.LLVMPassManagerRef)
+                    LLVM.@apicall(:LLVMExtraAddLateLowerGCFramePass,Cvoid,(LLVM.API.LLVMPassManagerRef,), PM)
+                end
+                LLVMAddLateLowerGCFramePass(LLVM.ref(pm))
+            end
+
             run!(pm, mod)
         end
     end
@@ -118,8 +130,8 @@ end
 
 # promote a function to a kernel
 # FIXME: sig vs tt (code_llvm vs cufunction)
-function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
-    kernel = wrap_entry!(ctx, mod, entry_f)
+function promote_kernel!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
+    kernel = wrap_entry!(job, mod, entry_f)
 
     # property annotations
     # TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
@@ -130,16 +142,16 @@ function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.F
     append!(annotations, [MDString("kernel"), ConstantInt(Int32(1), JuliaContext())])
 
     ## expected CTA sizes
-    if ctx.minthreads != nothing
-        bounds = CUDAdrv.CuDim3(ctx.minthreads)
+    if job.minthreads != nothing
+        bounds = CUDAdrv.CuDim3(job.minthreads)
         for dim in (:x, :y, :z)
             bound = getfield(bounds, dim)
             append!(annotations, [MDString("reqntid$dim"),
                                   ConstantInt(Int32(bound), JuliaContext())])
         end
     end
-    if ctx.maxthreads != nothing
-        bounds = CUDAdrv.CuDim3(ctx.maxthreads)
+    if job.maxthreads != nothing
+        bounds = CUDAdrv.CuDim3(job.maxthreads)
         for dim in (:x, :y, :z)
             bound = getfield(bounds, dim)
             append!(annotations, [MDString("maxntid$dim"),
@@ -147,14 +159,14 @@ function promote_kernel!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.F
         end
     end
 
-    if ctx.blocks_per_sm != nothing
+    if job.blocks_per_sm != nothing
         append!(annotations, [MDString("minctasm"),
-                              ConstantInt(Int32(ctx.blocks_per_sm), JuliaContext())])
+                              ConstantInt(Int32(job.blocks_per_sm), JuliaContext())])
     end
 
-    if ctx.maxregs != nothing
+    if job.maxregs != nothing
         append!(annotations, [MDString("maxnreg"),
-                              ConstantInt(Int32(ctx.maxregs), JuliaContext())])
+                              ConstantInt(Int32(job.maxregs), JuliaContext())])
     end
 
 
@@ -178,12 +190,12 @@ function wrapper_type(julia_t::Type, codegen_t::LLVMType)::LLVMType
 end
 
 # generate a kernel wrapper to fix & improve argument passing
-function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Function)
+function wrap_entry!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
     entry_ft = eltype(llvmtype(entry_f)::LLVM.PointerType)::LLVM.FunctionType
-    @compiler_assert return_type(entry_ft) == LLVM.VoidType(JuliaContext()) ctx
+    @compiler_assert return_type(entry_ft) == LLVM.VoidType(JuliaContext()) job
 
     # filter out ghost types, which don't occur in the LLVM function signatures
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
+    sig = Base.signature_type(job.f, job.tt)::Type
     julia_types = Type[]
     for dt::Type in sig.parameters
         if !isghosttype(dt)
@@ -216,8 +228,8 @@ function wrap_entry!(ctx::CompilerContext, mod::LLVM.Module, entry_f::LLVM.Funct
             if codegen_t != wrapper_t
                 # the wrapper argument doesn't match the kernel parameter type.
                 # this only happens when codegen wants to pass a pointer.
-                @compiler_assert isa(codegen_t, LLVM.PointerType) ctx
-                @compiler_assert eltype(codegen_t) == wrapper_t ctx
+                @compiler_assert isa(codegen_t, LLVM.PointerType) job
+                @compiler_assert eltype(codegen_t) == wrapper_t job
 
                 # copy the argument value to a stack slot, and reference it.
                 ptr = alloca!(builder, wrapper_t)
@@ -299,7 +311,7 @@ end
 # such IR is hard to clean-up, so we probably will need to have the GC lowering pass emit
 # lower-level intrinsics which then can be lowered to architecture-specific code.
 function lower_gc_frame!(fun::LLVM.Function)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     mod = LLVM.parent(fun)
     changed = false
 
@@ -330,7 +342,7 @@ function lower_gc_frame!(fun::LLVM.Function)
             changed = true
         end
 
-        @compiler_assert isempty(uses(alloc_obj)) ctx
+        @compiler_assert isempty(uses(alloc_obj)) job
     end
 
     # we don't care about write barriers
@@ -343,7 +355,7 @@ function lower_gc_frame!(fun::LLVM.Function)
             changed = true
         end
 
-        @compiler_assert isempty(uses(barrier)) ctx
+        @compiler_assert isempty(uses(barrier)) job
     end
 
     return changed
@@ -357,7 +369,7 @@ end
 # TODO: maybe don't have Julia emit actual uses of the TLS, but use intrinsics instead,
 #       making it easier to remove or reimplement that functionality here.
 function lower_ptls!(mod::LLVM.Module)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     changed = false
 
     if haskey(functions(mod), "julia.ptls_states")
@@ -372,7 +384,7 @@ function lower_ptls!(mod::LLVM.Module)
             changed = true
         end
 
-        @compiler_assert isempty(uses(ptls_getter)) ctx
+        @compiler_assert isempty(uses(ptls_getter)) job
      end
 
     return changed

@@ -807,4 +807,148 @@ end
 
 ############################################################################################
 
+@testset "dynamic parallelism" begin
+
+@testset "basic usage" begin
+    function hello()
+        @cuprintf("Hello, ")
+        @cuda dynamic=true world()
+        return
+    end
+
+    @eval function world()
+        @cuprintf("World!")
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda hello()
+        synchronize()
+    end
+    @test out == "Hello, World!"
+end
+
+@testset "anonymous functions" begin
+    function hello()
+        @cuprintf("Hello, ")
+        world = () -> (@cuprintf("World!"); nothing)
+        @cuda dynamic=true world()
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda hello()
+        synchronize()
+    end
+    @test out == "Hello, World!"
+end
+
+if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved over time
+@testset "closures" begin
+    function hello()
+        x = 1
+        @cuprintf("Hello, ")
+        world = () -> (@cuprintf("World %ld!", x); nothing)
+        @cuda dynamic=true world()
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda hello()
+        synchronize()
+    end
+    @test out == "Hello, World 1!"
+end
+end
+
+@testset "argument passing" begin
+    ## padding
+
+    function kernel(a, b, c)
+        @cuprintf("%ld %ld %ld", Int64(a), Int64(b), Int64(c))
+        return
+    end
+
+    for args in ((Int16(1), Int32(2), Int64(3)),    # padding
+                 (Int32(1), Int32(2), Int32(3)),    # no padding, equal size
+                 (Int64(1), Int32(2), Int16(3)),    # no padding, inequal size
+                 (Int16(1), Int64(2), Int32(3)))    # mixed
+        _, out = @grab_output begin
+            @cuda kernel(args...)
+            synchronize()
+        end
+        @test out == "1 2 3"
+    end
+
+    ## conversion
+
+    function kernel(a)
+        increment(a) = (a[1] += 1; nothing)
+
+        a[1] = 1
+        increment(a)
+        @cuda dynamic=true increment(a)
+
+        return
+    end
+
+    dA = CuTestArray{Int,1}((1,))
+    @cuda kernel(dA)
+    A = Array(dA)
+    @test A == [3]
+end
+
+@testset "self-recursion" begin
+    @eval function kernel(x::Bool)
+        if x
+            @cuprintf("recurse ")
+            @cuda dynamic=true kernel(false)
+        else
+            @cuprintf("stop")
+        end
+       return
+    end
+
+    _, out = @grab_output begin
+        @cuda kernel(true)
+        synchronize()
+    end
+    @test out == "recurse stop"
+end
+
+@testset "deep recursion" begin
+    @eval function kernel_a(x::Bool)
+        @cuprintf("a ")
+        @cuda dynamic=true kernel_b(x)
+        return
+    end
+
+    @eval function kernel_b(x::Bool)
+        @cuprintf("b ")
+        @cuda dynamic=true kernel_c(x)
+        return
+    end
+
+    @eval function kernel_c(x::Bool)
+        @cuprintf("c ")
+        if x
+            @cuprintf("recurse ")
+            @cuda dynamic=true kernel_a(false)
+        else
+            @cuprintf("stop")
+        end
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda kernel_a(true)
+        synchronize()
+    end
+    @test out == "a b c recurse a b c stop"
+end
+
+end
+
+############################################################################################
+
 end

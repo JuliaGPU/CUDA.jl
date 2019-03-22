@@ -31,22 +31,15 @@ function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(typ
                    dump_module::Bool=false, strip_ir_metadata::Bool=true,
                    kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    code_llvm(io, ctx; optimize=optimize, dump_module=dump_module,
+    job = CompilerJob(func, tt, cap, kernel; kwargs...)
+    code_llvm(io, job; optimize=optimize, dump_module=dump_module,
               strip_ir_metadata=strip_ir_metadata)
 end
-function code_llvm(io::IO, ctx::CompilerContext; optimize::Bool=true,
+function code_llvm(io::IO, job::CompilerJob; optimize::Bool=true,
                    dump_module::Bool=false, strip_ir_metadata::Bool=true)
-    check_method(ctx)
-    mod, entry = irgen(ctx)
-    if optimize
-        entry = optimize!(ctx, mod, entry)
-    end
-    if strip_ir_metadata
-        strip_debuginfo!(mod)
-    end
+    ir, entry = compile(:llvm, job; hooks=false, optimize=optimize, strip=strip_ir_metadata)
     if dump_module
-        show(io, mod)
+        show(io, ir)
     else
         show(io, entry)
     end
@@ -70,19 +63,12 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
                   strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
-    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    code_ptx(io, ctx; strip_ir_metadata=strip_ir_metadata)
+    job = CompilerJob(func, tt, cap, kernel; kwargs...)
+    code_ptx(io, job; strip_ir_metadata=strip_ir_metadata)
 end
-function code_ptx(io::IO, ctx::CompilerContext; strip_ir_metadata::Bool=true)
-    check_method(ctx)
-    mod, entry = irgen(ctx)
-    entry = optimize!(ctx, mod, entry)
-    if strip_ir_metadata
-        strip_debuginfo!(mod)
-    end
-    prepare_execution!(ctx, mod)
-    ptx = mcgen(ctx, mod, entry)
-    print(io, ptx)
+function code_ptx(io::IO, job::CompilerJob; strip_ir_metadata::Bool=true)
+    asm, _ = compile(:ptx, job; hooks=false, strip=strip_ir_metadata)
+    print(io, asm)
 end
 code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_ptx(stdout, func, types; kwargs...)
@@ -101,21 +87,21 @@ See also: [`@device_code_sass`](@ref)
 function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
-    ctx = CompilerContext(func, tt, cap, kernel; kwargs...)
-    code_sass(io, ctx)
+    job = CompilerJob(func, tt, cap, kernel; kwargs...)
+    code_sass(io, job)
 end
-function code_sass(io::IO, ctx::CompilerContext)
-    if !ctx.kernel
+function code_sass(io::IO, job::CompilerJob)
+    if !job.kernel
         error("Can only generate SASS code for kernel functions")
     end
     if ptxas === nothing || nvdisasm === nothing
         error("Your CUDA installation does not provide ptxas or nvdisasm, both of which are required for code_sass")
     end
 
-    ptx,_ = compile(ctx)
+    ptx, _ = compile(:ptx, job; hooks=false)
 
     fn = tempname()
-    gpu = "sm_$(ctx.cap.major)$(ctx.cap.minor)"
+    gpu = "sm_$(job.cap.major)$(job.cap.minor)"
     # NOTE: this might not match what is being executed, due to the PTX->SASS conversion
     #       by the driver possibly not matching what `ptxas` (part of the toolkit) does.
     # TODO: see how `nvvp` extracts SASS code when doing PC sampling, and copy that.
@@ -156,9 +142,9 @@ function emit_hooked_compilation(inner_hook, ex...)
         empty!(CUDAnative.compilecache)
 
         local kernels = 0
-        function outer_hook(ctx)
+        function outer_hook(job)
             kernels += 1
-            $inner_hook(ctx; $(map(esc, user_kwargs)...))
+            $inner_hook(job; $(map(esc, user_kwargs)...))
         end
 
         if CUDAnative.compile_hook[] != nothing
@@ -198,8 +184,8 @@ See also: [`InteractiveUtils.@code_lowered`](@ref)
 macro device_code_lowered(ex...)
     quote
         buf = Any[]
-        function hook(ctx::CompilerContext)
-            append!(buf, code_lowered(ctx.f, ctx.tt))
+        function hook(job::CompilerJob)
+            append!(buf, code_lowered(job.f, job.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -217,8 +203,8 @@ See also: [`InteractiveUtils.@code_typed`](@ref)
 macro device_code_typed(ex...)
     quote
         buf = Any[]
-        function hook(ctx::CompilerContext)
-            append!(buf, code_typed(ctx.f, ctx.tt))
+        function hook(job::CompilerJob)
+            append!(buf, code_typed(job.f, job.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -234,8 +220,8 @@ Evaluates the expression `ex` and prints the result of
 See also: [`InteractiveUtils.@code_warntype`](@ref)
 """
 macro device_code_warntype(ex...)
-    function hook(ctx::CompilerContext; io::IO=stdout, kwargs...)
-        code_warntype(io, ctx.f, ctx.tt; kwargs...)
+    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+        code_warntype(io, job.f, job.tt; kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -250,7 +236,7 @@ to `io` for every compiled CUDA kernel. For other supported keywords, see
 See also: [`InteractiveUtils.@code_llvm`](@ref)
 """
 macro device_code_llvm(ex...)
-    hook(ctx::CompilerContext; io::IO=stdout, kwargs...) = code_llvm(io, ctx; kwargs...)
+    hook(job::CompilerJob; io::IO=stdout, kwargs...) = code_llvm(io, job; kwargs...)
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -262,7 +248,7 @@ for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    hook(ctx::CompilerContext; io::IO=stdout, kwargs...) = code_ptx(io, ctx; kwargs...)
+    hook(job::CompilerJob; io::IO=stdout, kwargs...) = code_ptx(io, job; kwargs...)
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -274,7 +260,7 @@ Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    hook(ctx::CompilerContext; io::IO=stdout, kwargs...) = code_sass(io, ctx; kwargs...)
+    hook(job::CompilerJob; io::IO=stdout, kwargs...) = code_sass(io, job; kwargs...)
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -286,34 +272,34 @@ Evaluates the expression `ex` and dumps all intermediate forms of code to the di
 """
 macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
-    function hook(ctx::CompilerContext; dir::AbstractString)
-        fn = "$(typeof(ctx.f).name.mt.name)_$(globalUnique+1)"
+    function hook(job::CompilerJob; dir::AbstractString)
+        fn = "$(typeof(job.f).name.mt.name)_$(globalUnique+1)"
         mkpath(dir)
 
         open(joinpath(dir, "$fn.lowered.jl"), "w") do io
-            code = only(code_lowered(ctx.f, ctx.tt))
+            code = only(code_lowered(job.f, job.tt))
             println(io, code)
         end
 
         open(joinpath(dir, "$fn.typed.jl"), "w") do io
-            code = only(code_typed(ctx.f, ctx.tt))
+            code = only(code_typed(job.f, job.tt))
             println(io, code)
         end
 
         open(joinpath(dir, "$fn.unopt.ll"), "w") do io
-            code_llvm(io, ctx; dump_module=true, strip_ir_metadata=false, optimize=false)
+            code_llvm(io, job; dump_module=true, strip_ir_metadata=false, optimize=false)
         end
 
         open(joinpath(dir, "$fn.opt.ll"), "w") do io
-            code_llvm(io, ctx; dump_module=true, strip_ir_metadata=false)
+            code_llvm(io, job; dump_module=true, strip_ir_metadata=false)
         end
 
         open(joinpath(dir, "$fn.ptx"), "w") do io
-            code_ptx(io, ctx)
+            code_ptx(io, job)
         end
 
         open(joinpath(dir, "$fn.sass"), "w") do io
-            code_sass(io, ctx)
+            code_sass(io, job)
         end
     end
     emit_hooked_compilation(hook, ex...)

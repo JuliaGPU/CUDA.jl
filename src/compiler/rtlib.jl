@@ -1,6 +1,6 @@
 # compiler support for working with run-time libraries
 
-function link_library!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
+function link_library!(job::CompilerJob, mod::LLVM.Module, lib::LLVM.Module)
     # linking is destructive, so copy the library
     lib = LLVM.Module(lib)
 
@@ -61,12 +61,12 @@ function load_libdevice(cap)
     end
 end
 
-function link_libdevice!(ctx::CompilerContext, mod::LLVM.Module, lib::LLVM.Module)
+function link_libdevice!(job::CompilerJob, mod::LLVM.Module, lib::LLVM.Module)
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 
-    link_library!(ctx, mod, lib)
+    link_library!(job, mod, lib)
 
     ModulePassManager() do pm
         push!(metadata(mod), "nvvm-reflect-ftz",
@@ -124,11 +124,9 @@ end
 
 function emit_function!(mod, cap, f, types, name)
     tt = Base.to_tuple_type(types)
-    ctx = CompilerContext(f, tt, cap, #= kernel =# false)
-    new_mod, entry = irgen(ctx)
-    entry = optimize!(ctx, new_mod, entry)
+    new_mod, entry = compile(:llvm, cap, f, tt, #=kernel=# false;
+                             hooks=false, libraries=false)
     LLVM.name!(entry, name)
-
     link!(mod, new_mod)
 end
 

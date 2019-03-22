@@ -1,4 +1,4 @@
-# Julia/LLVM IR generation and transformation passes
+# LLVM IR generation
 
 function module_setup(mod::LLVM.Module)
     triple!(mod, Int === Int64 ? "nvptx64-nvidia-cuda" : "nvptx-nvidia-cuda")
@@ -16,7 +16,7 @@ safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
 # generate a pseudo-backtrace from a stack of methods being emitted
-function backtrace(ctx::CompilerContext, method_stack::Vector{Core.MethodInstance})
+function backtrace(job::CompilerJob, method_stack::Vector{Core.MethodInstance})
     bt = StackTraces.StackFrame[]
     for method_instance in method_stack
         method = method_instance.def
@@ -34,7 +34,7 @@ end
 Base.showerror(io::IO, err::MethodSubstitutionWarning) =
     print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
 
-function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
+function compile_linfo(job::CompilerJob, linfo::Core.MethodInstance, world)
     # set-up the compiler interface
     function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
@@ -56,8 +56,8 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
 
         # check for recursion
         if method_instance in method_stack[1:end-1]
-            throw(KernelError(ctx, "recursion is currently not supported";
-                              bt=backtrace(ctx, method_stack)))
+            throw(KernelError(job, "recursion is currently not supported";
+                              bt=backtrace(job, method_stack)))
         end
 
         # if last method on stack is overdub skip the Base check
@@ -74,13 +74,13 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
             if hasmethod(substitute_function, tt)
                 method′ = which(substitute_function, tt)
                 if Base.moduleroot(method′.module) == CUDAnative
-                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method, method′), backtrace(ctx, method_stack))
+                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method, method′), backtrace(job, method_stack))
                 end
             end
         end
     end
     function hook_emitted_function(method, code, world)
-        @compiler_assert last(method_stack) == method ctx
+        @compiler_assert last(method_stack) == method job
         pop!(method_stack)
     end
     params = Base.CodegenParams(cached             = false,
@@ -98,7 +98,7 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
                 (Any, UInt, Bool, Bool, Base.CodegenParams),
                 linfo, world, #=wrapper=#false, #=optimize=#false, params)
     if ref == C_NULL
-        throw(InternalCompilerError(ctx, "the Julia compiler could not generate LLVM IR"))
+        throw(InternalCompilerError(job, "the Julia compiler could not generate LLVM IR"))
     end
     llvmf = LLVM.Function(ref)
 
@@ -106,23 +106,8 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
     return llvmf, modules
 end
 
-function irgen(ctx::CompilerContext)
-    # get the method instance
-    isa(ctx.f, Core.Builtin) && throw(KernelError(ctx, "function is not a generic function"))
-    world = typemax(UInt)
-    meth = which(ctx.f, ctx.tt)
-    sig = Base.signature_type(ctx.f, ctx.tt)::Type
-    (ti, env) = ccall(:jl_type_intersection_with_env, Any,
-                      (Any, Any), sig, meth.sig)::Core.SimpleVector
-    if VERSION >= v"1.2.0-DEV.320"
-        meth = Base.func_for_method_checked(meth, ti, env)
-    else
-        meth = Base.func_for_method_checked(meth, ti)
-    end
-    linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
-                  (Any, Any, Any, UInt), meth, ti, env, world)
-
-    entry, modules = compile_linfo(ctx, linfo, world)
+function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
+    entry, modules = compile_linfo(job, linfo, world)
 
     # link in dependent modules
     mod = popfirst!(modules)
@@ -189,8 +174,8 @@ function irgen(ctx::CompilerContext)
 
     # minimal required optimization
     ModulePassManager() do pm
-        global global_ctx
-        global_ctx = ctx
+        global current_job
+        current_job = job
 
         add!(pm, ModulePass("LowerThrow", lower_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
@@ -211,7 +196,7 @@ end
 # once we have thorough inference (ie. discarding `@nospecialize` and thus supporting
 # exception arguments) and proper debug info to unwind the stack, this pass can go.
 function lower_throw!(mod::LLVM.Module)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     changed = false
 
     throw_functions = Dict{String,String}(
@@ -265,7 +250,7 @@ function lower_throw!(mod::LLVM.Module)
                 changed = true
             end
 
-            @compiler_assert isempty(uses(f)) ctx
+            @compiler_assert isempty(uses(f)) job
          end
      end
 
@@ -324,7 +309,7 @@ end
 #       only to prevent introducing non-structureness during optimization (ie. the front-end
 #       is still responsible for generating structured control flow).
 function hide_unreachable!(fun::LLVM.Function)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     changed = false
 
     # remove `noreturn` attributes
@@ -437,7 +422,7 @@ end
 #
 # if LLVM knows we're trapping, code is marked `unreachable` (see `hide_unreachable!`).
 function hide_trap!(mod::LLVM.Module)
-    ctx = global_ctx::CompilerContext
+    job = current_job::CompilerJob
     changed = false
 
     # inline assembly to exit a thread, hiding control flow from LLVM
