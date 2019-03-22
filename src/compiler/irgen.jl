@@ -47,6 +47,11 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
     end
     method_stack = Vector{Core.MethodInstance}()
     function hook_emit_function(method_instance, code, world)
+        skip_verifier = false
+        if length(method_stack) >= 1
+            last_method = last(method_stack)
+            skip_verifier = last_method.def.name === :overdub
+        end
         push!(method_stack, method_instance)
 
         # check for recursion
@@ -54,6 +59,10 @@ function compile_linfo(ctx::CompilerContext, linfo::Core.MethodInstance, world)
             throw(KernelError(ctx, "recursion is currently not supported";
                               bt=backtrace(ctx, method_stack)))
         end
+
+        # if last method on stack is overdub skip the Base check
+        # and trust in Cassette
+        skip_verifier && return
 
         # check for Base methods that exist in CUDAnative too
         # FIXME: this might be too coarse
