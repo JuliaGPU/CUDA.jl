@@ -120,17 +120,10 @@ function compile(to::Symbol, job::CompilerJob;
             for use in uses(dyn_maker)
                 # decode the call
                 call = user(use)::LLVM.CallInst
-                ops = collect(operands(call))[1:2]
-                ## addrspacecast
-                ops = LLVM.Value[first(operands(val)) for val in ops]
-                ## inttoptr
-                ops = ConstantInt[first(operands(val)) for val in ops]
-                ## integer constants
-                ops = convert.(Int, ops)
-                ## actual pointer values
-                ops = Ptr{Any}.(ops)
+                id = convert(Int, first(operands(call)))
 
-                dyn_f, dyn_tt = unsafe_pointer_to_objref.(ops)
+                global delayed_cufunctions
+                dyn_f, dyn_tt = delayed_cufunctions[id]
                 dyn_job = CompilerJob(dyn_f, dyn_tt, job.cap, #=kernel=# true)
                 push!(worklist, dyn_job => call)
             end

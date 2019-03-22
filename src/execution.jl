@@ -443,7 +443,11 @@ a callable kernel object. Device-side equivalent of [`CUDAnative.cufunction`](@r
 
 No keyword arguments are supported.
 """
-@generated function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+@inline dynamic_cufunction(f::Core.Function, tt::Type=Tuple{}) =
+    delayed_cufunction(Val(f), Val(tt))
+
+const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
+@generated function delayed_cufunction(::Val{f}, ::Val{tt}) where {f,tt}
     if sizeof(f) > 0
         Core.println(Core.stderr, "ERROR: @cuda dynamic parallelism does not support closures")
         quote
@@ -451,11 +455,14 @@ No keyword arguments are supported.
             DeviceKernel{f,tt}(C_NULL)
         end
     else
-        # we can't compile here, so drop a marker which will get picked up during compilation
+        global delayed_cufunctions
+        push!(delayed_cufunctions, (f,tt))
+        id = length(delayed_cufunctions)
+
+        # drop a marker which will get picked up during compilation
         quote
             # TODO: add an edge to this method instance to support method redefinitions
-            fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid},
-                         (Any, Any), f, tt)
+            fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), $id)
             DeviceKernel{f,tt}(fptr)
         end
     end
