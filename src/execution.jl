@@ -448,23 +448,16 @@ No keyword arguments are supported.
 
 const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
 @generated function delayed_cufunction(::Val{f}, ::Val{tt}) where {f,tt}
-    if sizeof(f) > 0
-        Core.println(Core.stderr, "ERROR: @cuda dynamic parallelism does not support closures")
-        quote
-            trap()
-            DeviceKernel{f,tt}(C_NULL)
-        end
-    else
-        global delayed_cufunctions
-        push!(delayed_cufunctions, (f,tt))
-        id = length(delayed_cufunctions)
+    global delayed_cufunctions
+    push!(delayed_cufunctions, (f,tt))
+    id = length(delayed_cufunctions)
 
+    quote
         # drop a marker which will get picked up during compilation
-        quote
-            # TODO: add an edge to this method instance to support method redefinitions
-            fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), $id)
-            DeviceKernel{f,tt}(fptr)
-        end
+        # TODO: add an edge to this method instance to support method redefinitions
+        fptr = ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), $id)
+
+        DeviceKernel{f,tt}(fptr)
     end
 end
 

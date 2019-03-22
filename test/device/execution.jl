@@ -828,6 +828,37 @@ end
     @test out == "Hello, World!"
 end
 
+@testset "anonymous functions" begin
+    function hello()
+        @cuprintf("Hello, ")
+        world = () -> (@cuprintf("World!"); nothing)
+        @cuda dynamic=true world()
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda hello()
+        synchronize()
+    end
+    @test out == "Hello, World!"
+end
+
+@testset "closures" begin
+    function hello()
+        x = 1
+        @cuprintf("Hello, ")
+        world = () -> (@cuprintf("World %ld!", x); nothing)
+        @cuda dynamic=true world()
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda hello()
+        synchronize()
+    end
+    @test out == "Hello, World 1!"
+end
+
 @testset "argument passing" begin
     function kernel(a, b, c)
         @cuprintf("%ld %ld %ld", Int64(a), Int64(b), Int64(c))
