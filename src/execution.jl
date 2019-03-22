@@ -64,25 +64,26 @@ end
 # without having to inspect the types at runtime
 @generated function _launch(f::CuFunction, blocks::CuDim3, threads::CuDim3,
                             shmem::Int, stream::CuStream,
-                            args::NTuple{N,Any}) where N
-    all(isbitstype, args.parameters) || throw(ArgumentError("Arguments to kernel should be bitstype."))
+                            args...)
+    all(isbitstype, args) || throw(ArgumentError("Arguments to kernel should be bitstype."))
 
-    ex = Expr(:block)
-    push!(ex.args, :(Base.@_inline_meta))
+    ex = quote
+        Base.@_inline_meta
+    end
 
     # If f has N parameters, then kernelParams needs to be an array of N pointers.
     # Each of kernelParams[0] through kernelParams[N-1] must point to a region of memory
     # from which the actual kernel parameter will be copied.
 
     # put arguments in Ref boxes so that we can get a pointers to them
-    arg_refs = Vector{Symbol}(undef, N)
-    for i in 1:N
+    arg_refs = Vector{Symbol}(undef, length(args))
+    for i in 1:length(args)
         arg_refs[i] = gensym()
         push!(ex.args, :($(arg_refs[i]) = Base.RefValue(args[$i])))
     end
 
     # generate an array with pointers
-    arg_ptrs = [:(Base.unsafe_convert(Ptr{Cvoid}, $(arg_refs[i]))) for i in 1:N]
+    arg_ptrs = [:(Base.unsafe_convert(Ptr{Cvoid}, $(arg_refs[i]))) for i in 1:length(args)]
 
     append!(ex.args, (quote
         GC.@preserve $(arg_refs...) begin
@@ -136,31 +137,32 @@ cudacall
                           kwargs...) where N
     # this cannot be inferred properly (because types only contains `DataType`s),
     # which results in the call `@generated _cudacall` getting expanded upon first use
-    _cudacall(f, Tuple{types...}, values; kwargs...)
+    _cudacall(f, Tuple{types...}, values...; kwargs...)
 end
 
 @inline function cudacall(f::CuFunction, tt::Type, values::Vararg{Any,N};
                           kwargs...) where N
     # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
     # which means the generated function can be expanded earlier
-    _cudacall(f, tt, values; kwargs...)
+    _cudacall(f, tt, values...; kwargs...)
 end
 
 # we need a generated function to get a tuple of converted arguments (using unsafe_convert),
 # without having to inspect the types at runtime
-@generated function _cudacall(f::CuFunction, tt::Type, args::NTuple{N,Any};
+@generated function _cudacall(f::CuFunction, tt::Type, args...;
                               blocks::CuDim=1, threads::CuDim=1,
-                              shmem::Integer=0, stream::CuStream=CuDefaultStream()) where N
+                              shmem::Integer=0, stream::CuStream=CuDefaultStream())
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
-    ex = Expr(:block)
-    push!(ex.args, :(Base.@_inline_meta))
+    ex = quote
+        Base.@_inline_meta
+    end
 
     # convert the argument values to match the kernel's signature (specified by the user)
     # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, N)
-    arg_ptrs = Vector{Symbol}(undef, N)
-    for i in 1:N
+    converted_args = Vector{Symbol}(undef, length(args))
+    arg_ptrs = Vector{Symbol}(undef, length(args))
+    for i in 1:length(args)
         converted_args[i] = gensym()
         arg_ptrs[i] = gensym()
         push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
@@ -169,7 +171,7 @@ end
 
     append!(ex.args, (quote
         GC.@preserve $(converted_args...) begin
-            launch(f, blocks, threads, shmem, stream, ($(arg_ptrs...),))
+            launch(f, blocks, threads, shmem, stream, ($(arg_ptrs...)))
         end
     end).args)
 
