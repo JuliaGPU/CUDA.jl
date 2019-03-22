@@ -359,7 +359,7 @@ function find_libcudadevrt(toolkit_dirs)
     if Sys.isunix()
         name = "libcudadevrt.a"
     elseif Sys.iswindows()
-        name = "libcudadevrt.lib"
+        name = "cudadevrt.lib"
     else
         error("No support for discovering the CUDA device runtime library on your platform, please file an issue.")
     end
@@ -369,7 +369,11 @@ function find_libcudadevrt(toolkit_dirs)
     for location in locations
         push!(all_locations, location)
         if Sys.iswindows()
-            push!(all_locations, joinpath(location, "bin"))
+            if Sys.WORD_SIZE == 64
+                push!(all_locations, joinpath(location, "lib", "x64"))
+            elseif Sys.WORD_SIZE == 32
+                push!(all_locations, joinpath(location, "lib", "Win32"))
+            end
         else
             push!(all_locations, joinpath(location, "lib"))
             if Sys.WORD_SIZE == 64
