@@ -860,6 +860,8 @@ end
 end
 
 @testset "argument passing" begin
+    ## padding
+
     function kernel(a, b, c)
         @cuprintf("%ld %ld %ld", Int64(a), Int64(b), Int64(c))
         return
@@ -875,6 +877,23 @@ end
         end
         @test out == "1 2 3"
     end
+
+    ## conversion
+
+    function kernel(a)
+        increment(a) = (a[1] += 1; nothing)
+
+        a[1] = 1
+        increment(a)
+        @cuda dynamic=true increment(a)
+
+        return
+    end
+
+    dA = CuTestArray{Int,1}((1,))
+    @cuda kernel(dA)
+    A = Array(dA)
+    @test A == [3]
 end
 
 @testset "self-recursion" begin
