@@ -107,16 +107,18 @@ function compile_linfo(job::CompilerJob, linfo::Core.MethodInstance, world)
 end
 
 function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
-    entry, modules = compile_linfo(job, linfo, world)
+    entry, modules = @timeit to[] "emission" compile_linfo(job, linfo, world)
 
     # link in dependent modules
-    mod = popfirst!(modules)
-    for dep in modules
-        link!(mod, dep)
+    @timeit to[] "linking" begin
+        mod = popfirst!(modules)
+        for dep in modules
+            link!(mod, dep)
+        end
     end
 
     # clean up incompatibilities
-    for llvmf in functions(mod)
+    @timeit to[] "clean-up" for llvmf in functions(mod)
         llvmfn = LLVM.name(llvmf)
 
         # only occurs in debug builds
@@ -173,7 +175,7 @@ function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
     LLVM.name!(entry, llvmfn)
 
     # minimal required optimization
-    ModulePassManager() do pm
+    @timeit to[] "rewrite" ModulePassManager() do pm
         global current_job
         current_job = job
 
@@ -181,7 +183,6 @@ function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         add!(pm, ModulePass("HideTrap", hide_trap!))
         always_inliner!(pm)
-        verifier!(pm)
         run!(pm, mod)
     end
 
