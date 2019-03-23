@@ -61,21 +61,3 @@ macro cufunc(ex)
     CuArrays.cufunc(::typeof($(esc(f)))) = $(esc(def[:name]))
   end
 end
-
-# ForwardDiff Integration
-using ForwardDiff: Dual, value, partials, unary_dual_definition
-using DiffRules
-
-for f in libdevice
-  if haskey(DiffRules.DEFINED_DIFFRULES, (:Base,f,1))
-    f == :tanh && continue
-    diffrule = DiffRules.DEFINED_DIFFRULES[(:Base,f,1)]
-    DiffRules.DEFINED_DIFFRULES[(:CUDAnative,f,1)] =
-      (args...) -> replace_device(diffrule(args...))
-    eval(unary_dual_definition(:CUDAnative, f))
-  end
-end
-
-DiffRules.DEFINED_DIFFRULES[(:CUDAnative, :tanh, 1)] = x ->
-  replace_device(:(1-tanh(x)^2))
-eval(unary_dual_definition(:CUDAnative, :tanh))

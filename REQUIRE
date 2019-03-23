@@ -7,6 +7,4 @@ GPUArrays 0.5
 Adapt 0.4
 AbstractFFTs
 MacroTools
-ForwardDiff
-DiffRules
 TimerOutputs
