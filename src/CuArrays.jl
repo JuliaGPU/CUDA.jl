@@ -12,6 +12,8 @@ import LinearAlgebra
 
 using Adapt
 
+using Requires
+
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 isfile(ext) || error("CuArrays.jl has not been built, please run Pkg.build(\"CuArrays\").")
 include(ext)
@@ -72,6 +74,9 @@ function __init__()
     check_library("CUFFT", libcufft)
     check_library("CURAND", libcurand)
     check_library("CUDNN", libcudnn)
+
+    # package integrations
+    @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 
     # update the active context when we switch devices
     callback = (::CuDevice, ctx::CuContext) -> begin
