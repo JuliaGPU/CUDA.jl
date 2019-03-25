@@ -12,7 +12,7 @@ end
 for async in [false, true]
     src = 42
 
-    buf1 = Mem.alloc(sizeof(src))
+    buf1 = Mem.alloc(Mem.DeviceBuffer, sizeof(src))
 
     Mem.set!(buf1, UInt32(0), sizeof(Int)÷sizeof(UInt32); async=async)
 
@@ -23,7 +23,7 @@ for async in [false, true]
     async && synchronize()
     @test src == dst1[]
 
-    buf2 = Mem.alloc(sizeof(src))
+    buf2 = Mem.alloc(Mem.DeviceBuffer, sizeof(src))
 
     Mem.transfer!(buf2, buf1, sizeof(src); async=async)
 
@@ -40,7 +40,7 @@ end
 for async in [false, true]
     src = [42]
 
-    buf1 = Mem.alloc(src)
+    buf1 = Mem.alloc(Mem.DeviceBuffer, src)
 
     Mem.upload!(buf1, src; async=async)
 
@@ -49,7 +49,7 @@ for async in [false, true]
     async && synchronize()
     @test src == dst1
 
-    buf2 = Mem.upload(src)
+    buf2 = Mem.upload(Mem.DeviceBuffer, src)
 
     dst2 = similar(src)
     Mem.download!(dst2, buf2; async=async)
@@ -61,7 +61,7 @@ end
 
 # type-based
 for async in [false, true]
-    buf = Mem.alloc(Int)
+    buf = Mem.alloc(Mem.DeviceBuffer, Int)
 
     # there's no type-based upload, duh
     src = [42]
@@ -73,18 +73,18 @@ for async in [false, true]
 end
 
 let
-    @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract
-    @test_throws ArgumentError Mem.alloc(Array{Int}, 1) # UnionAll
-    @test_throws ArgumentError Mem.alloc(Integer, 1)    # abstract
+    @test_throws ArgumentError Mem.alloc(Mem.DeviceBuffer, Function, 1)   # abstract
+    @test_throws ArgumentError Mem.alloc(Mem.DeviceBuffer, Array{Int}, 1) # UnionAll
+    @test_throws ArgumentError Mem.alloc(Mem.DeviceBuffer, Integer, 1)    # abstract
     # TODO: can we test for the third case?
     #       !abstract && leaftype seems to imply UnionAll nowadays...
 
     # zero-width allocations should be permitted
-    null = Mem.alloc(Int, 0)
+    null = Mem.alloc(Mem.DeviceBuffer, Int, 0)
     Mem.free(null)
 
     # double-free should throw
-    x = Mem.alloc(1)
+    x = Mem.alloc(Mem.DeviceBuffer, 1)
     Mem.free(x)
     @test_throws_cuerror CUDAdrv.ERROR_INVALID_VALUE Mem.free(x)
 end
@@ -94,7 +94,7 @@ let
         foo::Int
         bar::Int
     end
-    buf = Mem.alloc(MutablePtrFree)
+    buf = Mem.alloc(Mem.DeviceBuffer, MutablePtrFree)
     Mem.upload!(buf, [MutablePtrFree(0,0)])
     Mem.free(buf)
 end
@@ -104,7 +104,7 @@ let
         foo::Int
         bar::String
     end
-    @test_throws ArgumentError Mem.alloc(MutableNonPtrFree)
+    @test_throws ArgumentError Mem.alloc(Mem.DeviceBuffer, MutableNonPtrFree)
 end
 
 end

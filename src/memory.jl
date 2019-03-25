@@ -30,7 +30,6 @@ function Base.view(buf::Buffer, bytes::Int)
 end
 
 
-
 ## refcounting
 
 const refcounts = Dict{Buffer, Int}()
@@ -436,8 +435,8 @@ end
 
 Allocate space to store the contents of `src`.
 """
-function alloc(src::AbstractArray)
-    return alloc(sizeof(src))
+function alloc(BT::Type{<:Buffer}, src::AbstractArray, args...)
+    return alloc(BT, sizeof(src), args...)
 end
 
 """
@@ -456,9 +455,10 @@ end
 Allocates space for and uploads the contents of an array `src`, returning a Buffer.
 Cannot be executed asynchronously due to the synchronous allocation.
 """
-function upload(src::AbstractArray) # TODO: stream, async
-    dst = alloc(src)
-    upload!(dst, src)
+function upload(T::Type{<:Buffer}, src::AbstractArray,
+                stream=CuDefaultStream(); async::Bool=false)
+    dst = alloc(T, src)
+    upload!(dst, src, stream; async=async)
     return dst
 end
 
@@ -478,7 +478,7 @@ end
 
 ## type based
 
-function check_type(::Type{Buffer}, T)
+function check_type(T)
     if isa(T, UnionAll) || T.abstract || !isconcretetype(T)
         throw(ArgumentError("cannot represent abstract or non-leaf object"))
     end
@@ -491,10 +491,10 @@ end
 
 Allocate space for `count` objects of type `T`.
 """
-function alloc(::Type{T}, count::Integer=1) where {T}
-    check_type(Buffer, T)
+function alloc(BT::Type{<:Buffer}, ::Type{T}, count::Integer=1) where {T}
+    check_type(T)
 
-    return alloc(sizeof(T)*count)
+    return alloc(BT, sizeof(T)*count)
 end
 
 """
@@ -521,5 +521,10 @@ function alloc(bytesize::Integer, managed=false; flags::CUmem_attach=ATTACH_GLOB
         alloc(DeviceBuffer, bytesize)
     end
 end
+
+@deprecate alloc(src::AbstractArray) alloc(DeviceBuffer, src)
+@deprecate upload(src::AbstractArray) upload(DeviceBuffer, src)
+
+@deprecate alloc(T::Type, count::Integer=1) alloc(DeviceBuffer, T, count)
 
 end
