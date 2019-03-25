@@ -1,5 +1,9 @@
 # Raw memory management
 
+# TODO:
+# - cuMemHostRegister to page-lock existing buffers
+# - consistent CPU/GPU or host/device terminology
+
 export Mem
 
 module Mem
@@ -8,23 +12,23 @@ using ..CUDAdrv
 import ..@apicall, ..CuStream_t, ..CuDevice_t
 
 
-## buffer type
+## abstract buffer type
 
-struct Buffer
-    ptr::CuPtr{Cvoid}
-    bytesize::Int
+abstract type Buffer <: Ref{Cvoid} end
 
-    ctx::CuContext
+# expected interface:
+# - similar()
+# - ptr, bytesize and ctx fields
+# - unsafe_convert() to certain pointers
+
+Base.pointer(buf::Buffer) = buf.ptr
+Base.sizeof(buf::Buffer) = buf.bytesize
+
+function Base.view(buf::Buffer, bytes::Int)
+    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
+    return similar(buf, pointer(buf)+bytes, sizeof(buf)-bytes)
 end
 
-Base.unsafe_convert(::Type{<:Ptr}, buf::Buffer) =
-    throw(ArgumentError("cannot take the CPU address of a GPU buffer"))
-Base.unsafe_convert(::Type{CuPtr{T}}, buf::Buffer) where {T} = convert(CuPtr{T}, buf.ptr)
-
-function view(buf::Buffer, bytes::Int)
-    bytes > buf.bytesize && throw(BoundsError(buf, bytes))
-    return Mem.Buffer(buf.ptr+bytes, buf.bytesize-bytes, buf.ctx)
-end
 
 
 ## refcounting
@@ -98,6 +102,107 @@ Returns the used amount of memory (in bytes), allocated by the CUDA context.
 used() = total()-free()
 
 
+## concrete buffer types
+
+# device buffer: residing on the GPU
+
+struct DeviceBuffer <: Buffer
+    ptr::CuPtr{Cvoid}
+    bytesize::Int
+    ctx::CuContext
+end
+
+Base.similar(buf::DeviceBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
+             bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx) =
+    DeviceBuffer(bytesize, ptr, ctx)
+
+Base.unsafe_convert(::Type{<:Ptr}, buf::DeviceBuffer) =
+    throw(ArgumentError("cannot take the CPU address of a GPU buffer"))
+
+Base.unsafe_convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
+    convert(CuPtr{T}, pointer(buf))
+
+# host buffer: pinned memory on the CPU, possibly accessible on the GPU
+
+@enum CUmem_host_alloc::Cuint begin
+    HOSTALLOC_DEFAULT       = 0x00
+    HOSTALLOC_PORTABLE      = 0x01  # memory is portable between CUDA contexts
+    HOSTALLOC_DEVICEMAP     = 0x02  # memory is mapped into CUDA address space and
+                                    # cuMemHostGetDevicePointer may be called on the pointer
+    HOSTALLOC_WRITECOMBINED = 0x04  # memory is allocated as write-combined - fast to write,
+                                    # faster to DMA, slow to read except via SSE4 MOVNTDQA
+end
+
+# FIXME: EnumSet from JuliaLang/julia#19470
+Base.:|(x::CUmem_host_alloc, y::CUmem_host_alloc) =
+    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
+
+struct HostBuffer <: Buffer
+    ptr::Ptr{Cvoid}
+    bytesize::Int
+    ctx::CuContext
+
+    flags::CUmem_host_alloc
+end
+
+Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=pointer(buf),
+             bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx,
+             flags::CUmem_host_alloc=buf.flags) =
+    HostBuffer(bytesize, ptr, ctx, buf.flags)
+
+Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
+    convert(Ptr{T}, pointer(buffer))
+
+function Base.unsafe_convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
+    if buf.flags & HOSTALLOC_DEVICEMAP
+        pointer(buf) == C_NULL && return CU_NULL
+        ptr_ref[] = Ref{CuPtr{Cvoid}}()
+        @apicall(:cuMemHostGetDevicePointer,
+                 (Ptr{CuPtr{Cvoid}}, Ptr{Cvoid}, Cuint),
+                 ptr_ref, pointer(buf), #=flags=# 0)
+        convert(CuPtr{T}, ptr_ref[])
+    else
+        throw(ArgumentError("cannot take the GPU address of a pinned but not mapped CPU buffer"))
+    end
+end
+
+# unified buffer: managed buffer that is accessible on both the CPU and GPU
+
+@enum CUmem_attach::Cuint begin
+    ATTACH_GLOBAL   = 0x01  # memory can be accessed by any stream on any device
+    ATTACH_HOST     = 0x02  # memory cannot be accessed by any stream on any device
+    ATTACH_SINGLE   = 0x04  # memory can only be accessed by a single stream on the associated device
+end
+
+# FIXME: EnumSet from JuliaLang/julia#19470
+Base.:|(x::CUmem_attach, y::CUmem_attach) =
+    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
+
+struct UnifiedBuffer <: Buffer
+    ptr::CuPtr{Cvoid}
+    bytesize::Int
+    ctx::CuContext
+
+    flags::CUmem_attach
+end
+
+Base.similar(buf::UnifiedBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
+             bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx,
+             flags::CUmem_attach=buf.flags) =
+    UnifiedBuffer(bytesize, ptr, ctx, buf.flags)
+
+Base.unsafe_convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
+    convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buffer)))
+
+Base.unsafe_convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
+    convert(CuPtr{T}, pointer(buffer))
+
+# aliases for dispatch
+
+const AnyHostBuffer   = Union{HostBuffer,  UnifiedBuffer}
+const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
+
+
 ## generic interface (for documentation purposes)
 
 """
@@ -141,59 +246,94 @@ function transfer end
 
 ## pointer-based
 
-@enum(CUmem_attach, ATTACH_GLOBAL = 0x01,
-                    ATTACH_HOST   = 0x02)
-                    #ATTACH_SINGLE = 0x04) # Defined but not valid
-
 """
-    alloc(bytes::Integer)
+    alloc(DeviceBuffer, bytesize::Integer)
 
-Allocate `bytesize` bytes of memory.
-
-Note that, contrary to the CUDA API, zero-size allocations are permitted. Such allocations
-will point to the null pointer, and are not attached to a valid context.
+Allocate `bytesize` bytes of memory on the device. This memory is only accessible on the
+GPU, and requires explicit calls to `upload` and `download` for access on the CPU.
 """
-function alloc(bytesize::Integer, managed=false; flags::CUmem_attach=ATTACH_GLOBAL)
-    bytesize == 0 && return Buffer(CU_NULL, 0, CuContext(C_NULL))
+function alloc(::Type{DeviceBuffer}, bytesize::Integer)
+    bytesize == 0 && return DeviceBuffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
-    if !managed
-        @apicall(:cuMemAlloc,
-                 (Ptr{CuPtr{Cvoid}}, Csize_t),
-                 ptr_ref, bytesize)
-    else
-        @apicall(:cuMemAllocManaged,
-                 (Ptr{CuPtr{Cvoid}}, Csize_t, Cuint),
-                 ptr_ref, bytesize, flags)
-    end
-    return Buffer(ptr_ref[], bytesize, CuCurrentContext())
+    @apicall(:cuMemAlloc,
+             (Ptr{CuPtr{Cvoid}}, Csize_t),
+             ptr_ref, bytesize)
+
+    return DeviceBuffer(ptr_ref[], bytesize, CuCurrentContext())
 end
 
-function prefetch(buf::Buffer, bytes=buf.bytesize; stream::CuStream=CuDefaultStream())
-    bytes > buf.bytesize && throw(BoundsError(buf, bytes))
+"""
+    alloc(HostBuffer, bytesize::Integer, [flags])
+
+Allocate `bytesize` bytes of page-locked memory on the host. This memory is accessible from
+the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
+`flags` is set to `HOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU. These
+accesses are direct, and go through the PCI bus.
+"""
+function alloc(::Type{HostBuffer}, bytesize::Integer, flags::CUmem_host_alloc=HOSTALLOC_DEFAULT)
+    bytesize == 0 && return HostBuffer(C_NULL, 0, CuContext(C_NULL), flags)
+
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    @apicall(:cuMemHostAlloc,
+             (Ptr{Ptr{Cvoid}}, Csize_t, Cuint),
+             ptr_ref, bytesize, flags)
+
+    return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), flags)
+end
+
+"""
+    alloc(UnifiedBuffer, bytesize::Integer, [flags])
+
+Allocate `bytesize` bytes of unified memory. This memory is accessible from both the CPU and
+GPU, with the CUDA driver automatically copying upon first access.
+"""
+function alloc(::Type{UnifiedBuffer}, bytesize::Integer, flags::CUmem_attach=ATTACH_GLOBAL)
+    bytesize == 0 && return UnifiedBuffer(C_NULL, 0, CuContext(C_NULL), flags)
+
+    ptr_ref = Ref{Ptr{Cvoid}}()
+    @apicall(:cuMemAllocManaged,
+             (Ptr{Ptr{Cvoid}}, Csize_t, Cuint),
+             ptr_ref, bytesize, flags)
+
+    return UnifiedBuffer(ptr_ref[], bytesize, CuCurrentContext(), flags)
+end
+
+function prefetch(buf::DeviceBuffer, bytes=sizeof(buf); stream::CuStream=CuDefaultStream())
+    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     dev = device(buf.ctx)
-    @apicall(:cuMemPrefetchAsync, (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
+    @apicall(:cuMemPrefetchAsync,
+             (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
              buf, bytes, dev, stream)
 end
 
-@enum(CUmem_advise, ADVISE_SET_READ_MOSTLY          = 0x01,
-                    ADVISE_UNSET_READ_MOSTLY        = 0x02,
-                    ADVISE_SET_PREFERRED_LOCATION   = 0x03,
-                    ADVISE_UNSET_PREFERRED_LOCATION = 0x04,
-                    ADVISE_SET_ACCESSED_BY          = 0x05,
-                    ADVISE_UNSET_ACCESSED_BY        = 0x06)
+@enum CUmem_advise::Cuint begin
+    ADVISE_SET_READ_MOSTLY          = 0x01  # data will mostly be read and only occasionally be written to
+    ADVISE_UNSET_READ_MOSTLY        = 0x02  #
+    ADVISE_SET_PREFERRED_LOCATION   = 0x03  # set the preferred location for the data as the specified device
+    ADVISE_UNSET_PREFERRED_LOCATION = 0x04  #
+    ADVISE_SET_ACCESSED_BY          = 0x05  # data will be accessed by the specified device,
+                                            # so prevent page faults as much as possible
+    ADVISE_UNSET_ACCESSED_BY        = 0x06  #
+end
 
-function advise(buf::Buffer, advice::CUmem_advise, bytes=buf.bytesize, device=device(buf.ctx))
-    bytes > buf.bytesize && throw(BoundsError(buf, bytes))
-    @apicall(:cuMemAdvise, (CuPtr{Cvoid}, Csize_t, Cuint, CuDevice_t),
+function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf), device=device(buf.ctx))
+    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
+    @apicall(:cuMemAdvise,
+             (CuPtr{Cvoid}, Csize_t, Cuint, CuDevice_t),
              buf, bytes, advice, device)
 end
 
-function free(buf::Buffer)
-    if buf.ptr != C_NULL
+function free(buf::Union{DeviceBuffer,UnifiedBuffer})
+    if pointer(buf) != CU_NULL
         @apicall(:cuMemFree, (CuPtr{Cvoid},), buf)
     end
-    return
+end
+
+function free(buf::HostBuffer)
+    if pointer(buf) != CU_NULL
+        @apicall(:cuMemFreeHost, (Ptr{Cvoid},), buf)
+    end
 end
 
 for T in [UInt8, UInt16, UInt32]
@@ -202,40 +342,43 @@ for T in [UInt8, UInt16, UInt32]
     fn_async = Symbol("cuMemsetD$(bits)Async")
     @eval begin
         @doc $"""
-            set!(buf::Buffer, value::$T, len::Integer, [stream=CuDefaultStream()]; async=false)
+            set!(buf::DeviceBuffer, value::$T, len::Integer, [stream=CuDefaultStream()]; async=false)
 
         Initialize device memory by copying the $bits-bit value `val` for `len` times.
         Executed asynchronously if `async` is true.
         """
-        function set!(buf::Buffer, value::$T, len::Integer,
+        function set!(buf::DeviceBuffer, value::$T, len::Integer,
                       stream::CuStream=CuDefaultStream(); async::Bool=false)
             if async
                 @apicall($(QuoteNode(fn_async)),
                          (CuPtr{Cvoid}, $T, Csize_t, CuStream_t),
-                         buf.ptr, value, len, stream)
+                         buf, value, len, stream)
             else
                 @assert stream==CuDefaultStream()
                 @apicall($(QuoteNode(fn_sync)),
                          (CuPtr{Cvoid}, $T, Csize_t),
-                         buf.ptr, value, len)
+                         buf, value, len)
             end
         end
     end
 end
 
 """
-    upload!(dst::Buffer, src, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
+    upload!(dst::Buffer,  src, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
 
 Upload `nbytes` memory from `src` at the host to `dst` on the device.
 """
-function upload!(dst::Buffer, src::Ref, nbytes::Integer,
+function upload!(dst::AnyDeviceBuffer, src::Ref, nbytes::Integer,
                  stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
+        isa(src, HostBuffer) ||
+            @warn "Cannot asynchronously upload from non-pinned host memory" maxlog=1
         @apicall(:cuMemcpyHtoDAsync,
                  (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
-        @assert stream==CuDefaultStream()
+        stream==CuDefaultStream() ||
+            throw(ArgumentError("Cannot specify a stream for synchronous operations."))
         @apicall(:cuMemcpyHtoD,
                  (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t),
                  dst, src, nbytes)
@@ -243,18 +386,22 @@ function upload!(dst::Buffer, src::Ref, nbytes::Integer,
 end
 
 """
-    download!(dst::Ref, src::Buffer, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
+    download!(dst::Ref, src::DeviceBuffer,  nbytes::Integer, [stream=CuDefaultStream()]; async=false)
+    download!(dst::Ref, src::UnifiedBuffer, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
 
 Download `nbytes` memory from `src` on the device to `src` on the host.
 """
-function download!(dst::Ref, src::Buffer, nbytes::Integer,
+function download!(dst::Ref, src::AnyDeviceBuffer, nbytes::Integer,
                    stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
+        isa(dst, HostBuffer) ||
+            @warn "Cannot asynchronously upload to non-pinned host memory" maxlog=1
         @apicall(:cuMemcpyDtoHAsync,
                  (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
-        @assert stream==CuDefaultStream()
+        stream==CuDefaultStream() ||
+            throw(ArgumentError("Cannot specify a stream for synchronous operations."))
         @apicall(:cuMemcpyDtoH,
                  (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t),
                  dst, src, nbytes)
@@ -266,14 +413,15 @@ end
 
 Transfer `nbytes` of device memory from `src` to `dst`.
 """
-function transfer!(dst::Buffer, src::Buffer, nbytes::Integer,
+function transfer!(dst::AnyDeviceBuffer, src::AnyDeviceBuffer, nbytes::Integer,
                    stream::CuStream=CuDefaultStream(); async::Bool=false)
     if async
         @apicall(:cuMemcpyDtoDAsync,
                  (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
                  dst, src, nbytes, stream)
     else
-        @assert stream==CuDefaultStream()
+        stream==CuDefaultStream() ||
+            throw(ArgumentError("Cannot specify a stream for synchronous operations."))
         @apicall(:cuMemcpyDtoD,
                  (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t),
                  dst, src, nbytes)
@@ -359,6 +507,19 @@ function download(::Type{T}, src::Buffer, count::Integer=1,
     dst = Vector{T}(undef, count)
     download!(dst, src, stream; async=async)
     return dst
+end
+
+
+## deprecations
+
+function alloc(bytesize::Integer, managed=false; flags::CUmem_attach=ATTACH_GLOBAL)
+    if managed
+        Base.depwarn("`Mem.alloc(bytesize, managed=true; [flags...])` is deprecated, use `Mem.alloc(UnifiedBuffer, bytesize, [flags...])` instead.", :alloc)
+        alloc(UnifiedByffer, bytesize, flags)
+    else
+        Base.depwarn("`Mem.alloc(bytesize, [managed=false])` is deprecated, use `Mem.alloc(DeviceBuffer, bytesize)` instead.", :alloc)
+        alloc(DeviceBuffer, bytesize)
+    end
 end
 
 end

@@ -10,7 +10,7 @@ export
 Acquires a typed global variable handle from a named global in a module.
 """
 struct CuGlobal{T}
-    buf::Mem.Buffer
+    buf::Mem.DeviceBuffer
 
     function CuGlobal{T}(mod::CuModule, name::String) where T
         ptr_ref = Ref{CuPtr{Cvoid}}()
@@ -20,7 +20,7 @@ struct CuGlobal{T}
         if nbytes_ref[] != sizeof(T)
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
-        buf = Mem.Buffer(ptr_ref[], nbytes_ref[], CuCurrentContext())
+        buf = Mem.DeviceBuffer(ptr_ref[], nbytes_ref[], CuCurrentContext())
 
         return new{T}(buf)
     end
