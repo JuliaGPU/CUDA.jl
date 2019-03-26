@@ -13,14 +13,18 @@ a = round.(rand(Float32, dims) * 100)
 b = round.(rand(Float32, dims) * 100)
 c = similar(a)
 
-d_a = Mem.upload(a)
-d_b = Mem.upload(b)
-d_c = Mem.alloc(c)
+d_a = Mem.alloc(Mem.Device, sizeof(a))
+d_b = Mem.alloc(Mem.Device, sizeof(a))
+d_c = Mem.alloc(Mem.Device, sizeof(c))
+
+copyto!(d_a, pointer(a), sizeof(a))
+copyto!(d_b, pointer(b), sizeof(b))
 
 len = prod(dims)
 cudacall(vadd, Tuple{CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}}, d_a, d_b, d_c; threads=len)
 
-Mem.download!(c, d_c)
+copyto!(pointer(c), d_c, sizeof(c))
+
 @test a+b ≈ c
 
 destroy!(ctx)

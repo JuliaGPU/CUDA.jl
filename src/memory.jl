@@ -159,6 +159,17 @@ Base.unsafe_convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
 Base.unsafe_convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
     convert(CuPtr{T}, pointer(buffer))
 
+# aliases
+
+# for dispatch
+const AnyHostBuffer   = Union{HostBuffer,  UnifiedBuffer}
+const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
+
+# for convenience
+const Device  = DeviceBuffer
+const Host    = HostBuffer
+const Unified = UnifiedBuffer
+
 
 ## memory management
 
@@ -259,9 +270,6 @@ end
 
 
 ## copy operations
-
-const AnyHostBuffer   = Union{HostBuffer,  UnifiedBuffer}
-const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
 
 # between host memory
 Base.copyto!(dst::AnyHostBuffer, src::Ref, nbytes::Integer) =
