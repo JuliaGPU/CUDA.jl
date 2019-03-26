@@ -271,36 +271,38 @@ end
 
 ## copy operations
 
+# TODO: Base.copyto! generally works with number of elements, not number of bytes
+
 # between host memory
-Base.copyto!(dst::AnyHostBuffer, src::Ref, nbytes::Integer) =
+Base.unsafe_copyto!(dst::AnyHostBuffer, src::Ref, nbytes::Integer) =
     ccall(:memcpy, Ptr{Cvoid},
           (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
           dst, src, nbytes)
 
 # device to host
-Base.copyto!(dst::Ref, src::AnyDeviceBuffer, nbytes::Integer) =
+Base.unsafe_copyto!(dst::Ref, src::AnyDeviceBuffer, nbytes::Integer) =
     @apicall(:cuMemcpyDtoH,
              (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t),
              dst, src, nbytes)
-Base.copyto!(dst::HostBuffer, src::AnyDeviceBuffer, nbytes::Integer,
+Base.unsafe_copyto!(dst::HostBuffer, src::AnyDeviceBuffer, nbytes::Integer,
              stream::CuStream=CuDefaultStream()) =
     @apicall(:cuMemcpyDtoHAsync,
              (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
              dst, src, nbytes, stream)
 
 # host to device
-Base.copyto!(dst::AnyDeviceBuffer, src::Ref, nbytes::Integer) =
+Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::Ref, nbytes::Integer) =
     @apicall(:cuMemcpyHtoD,
              (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t),
              dst, src, nbytes)
-Base.copyto!(dst::AnyDeviceBuffer, src::HostBuffer, nbytes::Integer,
+Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::HostBuffer, nbytes::Integer,
              stream::CuStream=CuDefaultStream()) =
     @apicall(:cuMemcpyHtoDAsync,
              (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
              dst, src, nbytes, stream)
 
 # between device memory
-Base.copyto!(dst::AnyDeviceBuffer, src::AnyDeviceBuffer, nbytes::Integer,
+Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::AnyDeviceBuffer, nbytes::Integer,
              stream::CuStream=CuDefaultStream()) =
     @apicall(:cuMemcpyDtoDAsync,
              (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
