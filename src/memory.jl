@@ -76,7 +76,7 @@ end
 
 Base.similar(buf::DeviceBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
              bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx) =
-    DeviceBuffer(bytesize, ptr, ctx)
+    DeviceBuffer(ptr, bytesize, ctx)
 
 Base.unsafe_convert(::Type{<:Ptr}, buf::DeviceBuffer) =
     throw(ArgumentError("cannot take the CPU address of a GPU buffer"))
@@ -110,7 +110,7 @@ end
 Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=pointer(buf),
              bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx,
              flags::CUmem_host_alloc=buf.flags) =
-    HostBuffer(bytesize, ptr, ctx, buf.flags)
+    HostBuffer(ptr, bytesize, ctx, buf.flags)
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
     convert(Ptr{T}, pointer(buffer))
@@ -151,7 +151,7 @@ end
 Base.similar(buf::UnifiedBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
              bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx,
              flags::CUmem_attach=buf.flags) =
-    UnifiedBuffer(bytesize, ptr, ctx, buf.flags)
+    UnifiedBuffer(ptr, bytesize, ctx, buf.flags)
 
 Base.unsafe_convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
     convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buffer)))
