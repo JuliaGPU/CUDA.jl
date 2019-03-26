@@ -196,54 +196,8 @@ Base.unsafe_convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
 Base.unsafe_convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
     convert(CuPtr{T}, pointer(buffer))
 
-# aliases for dispatch
 
-const AnyHostBuffer   = Union{HostBuffer,  UnifiedBuffer}
-const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
-
-
-## generic interface (for documentation purposes)
-
-"""
-Allocate linear memory on the device and return a buffer to the allocated memory. The
-allocated memory is suitably aligned for any kind of variable. The memory will not be freed
-automatically, use [`free(::Buffer)`](@ref) for that.
-"""
-function alloc end
-
-"""
-Free device memory.
-"""
-function free end
-
-"""
-Initialize device memory with a repeating value.
-"""
-function set! end
-
-"""
-Upload memory from host to device.
-Executed asynchronously on `stream` if `async` is true.
-"""
-function upload end
-@doc (@doc upload) upload!
-
-"""
-Download memory from device to host.
-Executed asynchronously on `stream` if `async` is true.
-"""
-function download end
-@doc (@doc download) download!
-
-"""
-Transfer memory from device to device.
-Executed asynchronously on `stream` if `async` is true.
-"""
-function transfer end
-@doc (@doc transfer) transfer!
-
-
-## pointer-based
+## memory management
 
 """
     alloc(DeviceBuffer, bytesize::Integer)
@@ -298,31 +252,6 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer, flags::CUmem_attach=ATT
     return UnifiedBuffer(ptr_ref[], bytesize, CuCurrentContext(), flags)
 end
 
-function prefetch(buf::DeviceBuffer, bytes=sizeof(buf); stream::CuStream=CuDefaultStream())
-    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    dev = device(buf.ctx)
-    @apicall(:cuMemPrefetchAsync,
-             (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
-             buf, bytes, dev, stream)
-end
-
-@enum CUmem_advise::Cuint begin
-    ADVISE_SET_READ_MOSTLY          = 0x01  # data will mostly be read and only occasionally be written to
-    ADVISE_UNSET_READ_MOSTLY        = 0x02  #
-    ADVISE_SET_PREFERRED_LOCATION   = 0x03  # set the preferred location for the data as the specified device
-    ADVISE_UNSET_PREFERRED_LOCATION = 0x04  #
-    ADVISE_SET_ACCESSED_BY          = 0x05  # data will be accessed by the specified device,
-                                            # so prevent page faults as much as possible
-    ADVISE_UNSET_ACCESSED_BY        = 0x06  #
-end
-
-function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf), device=device(buf.ctx))
-    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    @apicall(:cuMemAdvise,
-             (CuPtr{Cvoid}, Csize_t, Cuint, CuDevice_t),
-             buf, bytes, advice, device)
-end
-
 function free(buf::Union{DeviceBuffer,UnifiedBuffer})
     if pointer(buf) != CU_NULL
         @apicall(:cuMemFree, (CuPtr{Cvoid},), buf)
@@ -334,6 +263,9 @@ function free(buf::HostBuffer)
         @apicall(:cuMemFreeHost, (Ptr{Cvoid},), buf)
     end
 end
+
+
+## initialization
 
 for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
@@ -362,169 +294,74 @@ for T in [UInt8, UInt16, UInt32]
     end
 end
 
-"""
-    upload!(dst::Buffer,  src, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
 
-Upload `nbytes` memory from `src` at the host to `dst` on the device.
-"""
-function upload!(dst::AnyDeviceBuffer, src::Ref, nbytes::Integer,
-                 stream::CuStream=CuDefaultStream(); async::Bool=false)
-    if async
-        isa(src, HostBuffer) ||
-            @warn "Cannot asynchronously upload from non-pinned host memory" maxlog=1
-        @apicall(:cuMemcpyHtoDAsync,
-                 (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
-                 dst, src, nbytes, stream)
-    else
-        stream==CuDefaultStream() ||
-            throw(ArgumentError("Cannot specify a stream for synchronous operations."))
-        @apicall(:cuMemcpyHtoD,
-                 (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t),
-                 dst, src, nbytes)
-    end
+## copy operations
+
+const AnyHostBuffer   = Union{HostBuffer,  UnifiedBuffer}
+const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
+
+# between host memory
+Base.copyto!(dst::AnyHostBuffer, src::Ref, nbytes::Integer) =
+    ccall(:memcpy, Ptr{Cvoid},
+          (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+          dst, src, nbytes)
+
+# device to host
+Base.copyto!(dst::Ref, src::AnyDeviceBuffer, nbytes::Integer) =
+    @apicall(:cuMemcpyDtoH,
+             (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t),
+             dst, src, nbytes)
+Base.copyto!(dst::HostBuffer, src::AnyDeviceBuffer, nbytes::Integer,
+             stream::CuStream=CuDefaultStream()) =
+    @apicall(:cuMemcpyDtoHAsync,
+             (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
+             dst, src, nbytes, stream)
+
+# host to device
+Base.copyto!(dst::AnyDeviceBuffer, src::Ref, nbytes::Integer) =
+    @apicall(:cuMemcpyHtoD,
+             (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t),
+             dst, src, nbytes)
+Base.copyto!(dst::AnyDeviceBuffer, src::HostBuffer, nbytes::Integer,
+             stream::CuStream=CuDefaultStream()) =
+    @apicall(:cuMemcpyHtoDAsync,
+             (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
+             dst, src, nbytes, stream)
+
+# between device memory
+Base.copyto!(dst::AnyDeviceBuffer, src::AnyDeviceBuffer, nbytes::Integer,
+             stream::CuStream=CuDefaultStream()) =
+    @apicall(:cuMemcpyDtoDAsync,
+             (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
+             dst, src, nbytes, stream)
+
+
+## other
+
+function prefetch(buf::DeviceBuffer, bytes=sizeof(buf); stream::CuStream=CuDefaultStream())
+    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
+    dev = device(buf.ctx)
+    @apicall(:cuMemPrefetchAsync,
+             (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
+             buf, bytes, dev, stream)
 end
 
-"""
-    download!(dst::Ref, src::DeviceBuffer,  nbytes::Integer, [stream=CuDefaultStream()]; async=false)
-    download!(dst::Ref, src::UnifiedBuffer, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
-
-Download `nbytes` memory from `src` on the device to `src` on the host.
-"""
-function download!(dst::Ref, src::AnyDeviceBuffer, nbytes::Integer,
-                   stream::CuStream=CuDefaultStream(); async::Bool=false)
-    if async
-        isa(dst, HostBuffer) ||
-            @warn "Cannot asynchronously upload to non-pinned host memory" maxlog=1
-        @apicall(:cuMemcpyDtoHAsync,
-                 (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
-                 dst, src, nbytes, stream)
-    else
-        stream==CuDefaultStream() ||
-            throw(ArgumentError("Cannot specify a stream for synchronous operations."))
-        @apicall(:cuMemcpyDtoH,
-                 (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t),
-                 dst, src, nbytes)
-    end
+@enum CUmem_advise::Cuint begin
+    ADVISE_SET_READ_MOSTLY          = 0x01  # data will mostly be read and only occasionally be written to
+    ADVISE_UNSET_READ_MOSTLY        = 0x02  #
+    ADVISE_SET_PREFERRED_LOCATION   = 0x03  # set the preferred location for the data as the specified device
+    ADVISE_UNSET_PREFERRED_LOCATION = 0x04  #
+    ADVISE_SET_ACCESSED_BY          = 0x05  # data will be accessed by the specified device,
+                                            # so prevent page faults as much as possible
+    ADVISE_UNSET_ACCESSED_BY        = 0x06  #
 end
 
-"""
-    transfer!(dst::Buffer, src::Buffer, nbytes::Integer, [stream=CuDefaultStream()]; async=false)
-
-Transfer `nbytes` of device memory from `src` to `dst`.
-"""
-function transfer!(dst::AnyDeviceBuffer, src::AnyDeviceBuffer, nbytes::Integer,
-                   stream::CuStream=CuDefaultStream(); async::Bool=false)
-    if async
-        @apicall(:cuMemcpyDtoDAsync,
-                 (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
-                 dst, src, nbytes, stream)
-    else
-        stream==CuDefaultStream() ||
-            throw(ArgumentError("Cannot specify a stream for synchronous operations."))
-        @apicall(:cuMemcpyDtoD,
-                 (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t),
-                 dst, src, nbytes)
-    end
+function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf), device=device(buf.ctx))
+    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
+    @apicall(:cuMemAdvise,
+             (CuPtr{Cvoid}, Csize_t, Cuint, CuDevice_t),
+             buf, bytes, advice, device)
 end
 
-
-## array based
-
-"""
-    alloc(src::AbstractArray)
-
-Allocate space to store the contents of `src`.
-"""
-function alloc(BT::Type{<:Buffer}, src::AbstractArray, args...)
-    return alloc(BT, sizeof(src), args...)
-end
-
-"""
-    upload!(dst::Buffer, src::AbstractArray, [stream=CuDefaultStream()]; async=false)
-
-Upload the contents of an array `src` to `dst`.
-"""
-function upload!(dst::Buffer, src::AbstractArray,
-                 stream=CuDefaultStream(); async::Bool=false)
-    upload!(dst, Ref(src, 1), sizeof(src), stream; async=async)
-end
-
-"""
-    upload(src::AbstractArray)::Buffer
-
-Allocates space for and uploads the contents of an array `src`, returning a Buffer.
-Cannot be executed asynchronously due to the synchronous allocation.
-"""
-function upload(T::Type{<:Buffer}, src::AbstractArray,
-                stream=CuDefaultStream(); async::Bool=false)
-    dst = alloc(T, src)
-    upload!(dst, src, stream; async=async)
-    return dst
-end
-
-"""
-    download!(dst::AbstractArray, src::Buffer, [stream=CuDefaultStream()]; async=false)
-
-Downloads memory from `src` to the array at `dst`. The amount of memory downloaded is
-determined by calling `sizeof` on the array, so it needs to be properly preallocated.
-"""
-function download!(dst::AbstractArray, src::Buffer,
-                   stream::CuStream=CuDefaultStream(); async::Bool=false)
-    ref = Ref(dst, 1)
-    download!(ref, src, sizeof(dst), stream; async=async)
-    return
-end
-
-
-## type based
-
-function check_type(T)
-    if isa(T, UnionAll) || T.abstract || !isconcretetype(T)
-        throw(ArgumentError("cannot represent abstract or non-leaf object"))
-    end
-    Base.datatype_pointerfree(T) || throw(ArgumentError("cannot handle non-ptrfree objects"))
-    sizeof(T) == 0 && throw(ArgumentError("cannot represent singleton objects"))
-end
-
-"""
-    alloc(T::Type, [count::Integer=1])
-
-Allocate space for `count` objects of type `T`.
-"""
-function alloc(BT::Type{<:Buffer}, ::Type{T}, count::Integer=1) where {T}
-    check_type(T)
-
-    return alloc(BT, sizeof(T)*count)
-end
-
-"""
-    download(::Type{T}, src::Buffer, [count::Integer=1], [stream=CuDefaultStream()]; async=false)::Vector{T}
-
-Download `count` objects of type `T` from the device at `src`, returning a vector.
-"""
-function download(::Type{T}, src::Buffer, count::Integer=1,
-                  stream::CuStream=CuDefaultStream(); async::Bool=false) where {T}
-    dst = Vector{T}(undef, count)
-    download!(dst, src, stream; async=async)
-    return dst
-end
-
-
-## deprecations
-
-function alloc(bytesize::Integer, managed=false; flags::CUmem_attach=ATTACH_GLOBAL)
-    if managed
-        Base.depwarn("`Mem.alloc(bytesize, managed=true; [flags...])` is deprecated, use `Mem.alloc(UnifiedBuffer, bytesize, [flags...])` instead.", :alloc)
-        alloc(UnifiedByffer, bytesize, flags)
-    else
-        Base.depwarn("`Mem.alloc(bytesize, [managed=false])` is deprecated, use `Mem.alloc(DeviceBuffer, bytesize)` instead.", :alloc)
-        alloc(DeviceBuffer, bytesize)
-    end
-end
-
-@deprecate alloc(src::AbstractArray) alloc(DeviceBuffer, src)
-@deprecate upload(src::AbstractArray) upload(DeviceBuffer, src)
-
-@deprecate alloc(T::Type, count::Integer=1) alloc(DeviceBuffer, T, count)
 
 end
