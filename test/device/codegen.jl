@@ -11,11 +11,11 @@
         return
     end
 
-    buf = Mem.alloc(Float64)
-    ptr = Base.unsafe_convert(CuPtr{Float64}, buf)
+    arr = CuTestArray(zeros(Float64))
+    ptr = Base.unsafe_convert(CuPtr{Float64}, arr.buf)
 
     @cuda kernel(ptr, (1., 2., ))
-    @test Mem.download(Float64, buf) == [1.]
+    @test Array(arr)[] == 1.
 end
 
 @testset "stripping const TBAA" begin
@@ -24,7 +24,7 @@ end
     _a = rand(Int, 2, 1)
     b = ((1,9999),(1,9999))
 
-    out_buf = Mem.alloc(Int, 2)
+    out = CuTestArray(zeros(Int, 2,1))
     a = Tuple(_a)
 
     function kernel(out, a, b)
@@ -34,10 +34,8 @@ end
         return
     end
 
-    ptr = Base.unsafe_convert(CuPtr{Int}, out_buf)
-
-    @cuda threads=2 kernel(CuDeviceArray((2,1), CUDAnative.DevicePtr(ptr)), a, b)
-    @test Mem.download(Int, out_buf, 2) == (_a .+ 1)[1:2]
+    @cuda threads=2 kernel(out, a, b)
+    @test Array(out) == (_a .+ 1)
 end
 
 
@@ -64,13 +62,13 @@ end
     end
 
     function gpu(input)
-        output = Mem.alloc(Int, 2)
-
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+        output = CuTestArray(zeros(eltype(input), 2))
+        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output.buf)
+        ptr = reinterpret(Ptr{eltype(input)}, ptr)
 
         @cuda threads=2 kernel(input, ptr, 99)
 
-        return Mem.download(Int, output, 2)
+        return Array(output)
     end
 
     function cpu(input)

@@ -13,12 +13,12 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
                    Float32, Float64,
                    LoadableStruct),
              cached in (false, true)
-    d_a = Mem.upload(ones(T))
-    d_b = Mem.upload(zeros(T))
+    d_a = CuTestArray(ones(T))
+    d_b = CuTestArray(zeros(T))
 
-    ptr_a = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(CuPtr{T}, d_a))
-    ptr_b = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(CuPtr{T}, d_b))
-    @test Mem.download(T, d_a) != Mem.download(T, d_b)
+    ptr_a = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(CuPtr{T}, d_a.buf))
+    ptr_b = CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(CuPtr{T}, d_b.buf))
+    @test Array(d_a) != Array(d_b)
 
     let ptr_a=ptr_a, ptr_b=ptr_b #JuliaLang/julia#15276
         if cached && capability(dev) >= v"3.2"
@@ -27,7 +27,7 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
             @on_device unsafe_store!(ptr_b, unsafe_load(ptr_a))
         end
     end
-    @test Mem.download(T, d_a) == Mem.download(T, d_b)
+    @test Array(d_a) == Array(d_b)
 end
 
 @testset "indexing" begin
@@ -38,15 +38,15 @@ end
 
     T = Complex{Int8}
 
-    src = Mem.upload([T(1) T(9); T(3) T(4)])
-    dst = Mem.upload([0])
+    src = CuTestArray([T(1) T(9); T(3) T(4)])
+    dst = CuTestArray([0])
 
     @cuda kernel(
-        CUDAnative.DevicePtr{T,AS.Global}(CuPtr{T}(src.ptr)),
-        CUDAnative.DevicePtr{T,AS.Global}(CuPtr{T}(dst.ptr))
+        CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(CuPtr{T}, src.buf)),
+        CUDAnative.DevicePtr{T,AS.Global}(Base.unsafe_convert(CuPtr{T}, dst.buf))
     )
 
-    @test Mem.download(T, src, 4)[4] == Mem.download(T, dst)[1]
+    @test Array(src)[4] == Array(dst)[1]
 end
 
 end

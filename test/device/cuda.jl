@@ -31,16 +31,16 @@ end
 ############################################################################################
 
 @testset "math" begin
-    buf = CuTestArray(Float32[0])
+    buf = CuTestArray(zeros(Float32))
 
     function kernel(a, i)
-        a[1] = CUDAnative.log10(i)
+        a[] = CUDAnative.log10(i)
         return
     end
 
     @cuda kernel(buf, Float32(100))
     val = Array(buf)
-    @test val[1] ≈ 2.0
+    @test val[] ≈ 2.0
 end
 
 

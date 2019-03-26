@@ -24,7 +24,7 @@ if CUDAnative.configured
         push!(CUDAnative.device!_listeners, device_callback)
 
         # now cause initialization
-        Mem.alloc(1)
+        Mem.alloc(Mem.Device, 1)
         @test CuCurrentContext() != nothing
         @test device(CuCurrentContext()) == CuDevice(0)
         @test device_callbacked == CuDevice(0)
