@@ -25,7 +25,7 @@ Base.pointer(buf::Buffer) = buf.ptr
 Base.sizeof(buf::Buffer) = buf.bytesize
 
 function Base.view(buf::Buffer, bytes::Int)
-    bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
+    @boundscheck bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     return similar(buf, pointer(buf)+bytes, sizeof(buf)-bytes)
 end
 
