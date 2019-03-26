@@ -64,43 +64,6 @@ function release(buf::Buffer)
 end
 
 
-## memory info
-
-"""
-    info()
-
-Returns a tuple of two integers, indicating respectively the free and total amount of memory
-(in bytes) available for allocation by the CUDA context.
-"""
-function info()
-    free_ref = Ref{Csize_t}()
-    total_ref = Ref{Csize_t}()
-    @apicall(:cuMemGetInfo, (Ptr{Csize_t},Ptr{Csize_t}), free_ref, total_ref)
-    return convert(Int, free_ref[]), convert(Int, total_ref[])
-end
-
-"""
-    free()
-
-Returns the free amount of memory (in bytes), available for allocation by the CUDA context.
-"""
-free() = info()[1]
-
-"""
-    total()
-
-Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
-"""
-total() = info()[2]
-
-"""
-    used()
-
-Returns the used amount of memory (in bytes), allocated by the CUDA context.
-"""
-used() = total()-free()
-
-
 ## concrete buffer types
 
 # device buffer: residing on the GPU
@@ -356,7 +319,8 @@ end
     ADVISE_UNSET_ACCESSED_BY        = 0x06  #
 end
 
-function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf), device=device(buf.ctx))
+function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf),
+                device=device(buf.ctx))
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     @apicall(:cuMemAdvise,
              (CuPtr{Cvoid}, Csize_t, Cuint, CuDevice_t),
@@ -364,4 +328,27 @@ function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf), dev
 end
 
 
+## memory info
+
+function info()
+    free_ref = Ref{Csize_t}()
+    total_ref = Ref{Csize_t}()
+    @apicall(:cuMemGetInfo, (Ptr{Csize_t},Ptr{Csize_t}), free_ref, total_ref)
+    return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
+
+end
+
+"""
+    available_memory()
+
+Returns the available_memory amount of memory (in bytes), available for allocation by the CUDA context.
+"""
+available_memory() = Mem.info()[1]
+
+"""
+    total_memory()
+
+Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
+"""
+total_memory() = Mem.info()[2]
