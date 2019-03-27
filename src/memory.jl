@@ -288,6 +288,10 @@ Base.unsafe_copyto!(dst::AnyHostBuffer, src::Ref, nbytes::Integer) =
     ccall(:memcpy, Ptr{Cvoid},
           (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
           dst, src, nbytes)
+Base.unsafe_copyto!(dst::Ref, src::AnyHostBuffer, nbytes::Integer) =
+    ccall(:memcpy, Ptr{Cvoid},
+          (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+          dst, src, nbytes)
 
 # ... on the device
 for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Ref, AnyDeviceBuffer),
