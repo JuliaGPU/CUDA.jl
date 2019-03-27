@@ -311,13 +311,13 @@ for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, DeviceBuffer),
                          async::Bool=false)
         if async
             stream===nothing &&
-                throw(ArgumentError("Cannot perform an asynchronous copy without a stream."))
+                throw(ArgumentError("Asynchronous memory operations require a stream."))
             @apicall($(QuoteNode(Symbol(f * "Async"))),
                      ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t, CuStream_t),
                      dst, src, nbytes, stream)
         else
             stream===nothing ||
-                throw(ArgumentError("Cannot perform a synchronous copy on a stream."))
+                throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
             @apicall($(QuoteNode(Symbol(f))),
                      ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t),
                      dst, src, nbytes)
@@ -325,6 +325,22 @@ for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, DeviceBuffer),
         return dst
     end
 end
+
+"""
+  copy!(dst, src, nbytes::Integer)
+  copy!(dst, src, nbytes::Integer; async::Bool=false, stream::CuStream)
+
+Copy `nbytes` bytes of memory from `src` to `dst`. The source and destination arguments can
+point to memory managed by CUDA, represented by objects of type `Buffer`, or any other piece
+of memory using `Ref` objects.
+
+When copying to or from a GPU device, additional keyword arguments are supported: `async` to
+control whether the operation should be asynchronous, and `stream` to indicate on which
+stream the asynchronous operation should happen (this argument is not supported when `async`
+is set to false). Note that memory operations will only truly behave asynchronously when
+other conditions are met, e.g., if any CPU memory is allocated as a page-locked buffer.
+"""
+copy!
 
 
 ## unified memory
