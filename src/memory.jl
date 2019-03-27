@@ -14,7 +14,7 @@ import ..@apicall, ..CuStream_t, ..CuDevice_t
 
 ## abstract buffer type
 
-abstract type Buffer <: Ref{Cvoid} end
+abstract type Buffer end
 
 # expected interface:
 # - similar()
@@ -169,13 +169,8 @@ Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
 Base.convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
 
-# aliases
+# convenience aliases
 
-# for dispatch
-const AnyHostBuffer   = Union{HostBuffer,  UnifiedBuffer}
-const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
-
-# for convenience
 const Device  = DeviceBuffer
 const Host    = HostBuffer
 const Unified = UnifiedBuffer
@@ -228,9 +223,9 @@ GPU, with the CUDA driver automatically copying upon first access.
 function alloc(::Type{UnifiedBuffer}, bytesize::Integer, flags::CUmem_attach=ATTACH_GLOBAL)
     bytesize == 0 && return UnifiedBuffer(C_NULL, 0, CuContext(C_NULL), flags)
 
-    ptr_ref = Ref{Ptr{Cvoid}}()
+    ptr_ref = Ref{CuPtr{Cvoid}}()
     @apicall(:cuMemAllocManaged,
-             (Ptr{Ptr{Cvoid}}, Csize_t, Cuint),
+             (Ptr{CuPtr{Cvoid}}, Csize_t, Cuint),
              ptr_ref, bytesize, flags)
 
     return UnifiedBuffer(ptr_ref[], bytesize, CuCurrentContext(), flags)
@@ -281,26 +276,32 @@ end
 
 ## copy operations
 
-# TODO: Base.copyto! generally works with number of elements, not number of bytes
+# NOTE: we don't extend `Base.unsafe_copyto!` because that function works with elements
+
+const AnyHostBuffer = Union{Ref,HostBuffer,UnifiedBuffer}
+const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
 
 # ... on the host
-Base.unsafe_copyto!(dst::AnyHostBuffer, src::Ref, nbytes::Integer) =
-    ccall(:memcpy, Ptr{Cvoid},
-          (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-          dst, src, nbytes)
-Base.unsafe_copyto!(dst::Ref, src::AnyHostBuffer, nbytes::Integer) =
-    ccall(:memcpy, Ptr{Cvoid},
-          (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-          dst, src, nbytes)
+for (dstTy, srcTy) in ((AnyHostBuffer, AnyHostBuffer),
+                       (UnifiedBuffer, UnifiedBuffer)   # to avoid ambiguities
+                      )
+    @eval function copy!(dst::$dstTy, src::$srcTy, nbytes::Integer)
+        ccall(:memcpy, Ptr{Cvoid},
+              (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
+              dst, src, nbytes)
+        return dst
+    end
+end
 
 # ... on the device
-for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Ref, AnyDeviceBuffer),
-                          ("cuMemcpyHtoD", AnyDeviceBuffer, Ref),
-                          ("cuMemcpyDtoD", AnyDeviceBuffer, AnyDeviceBuffer))
-    dstPtrTy = (dstTy==Ref ? Ptr : CuPtr)
-    srcPtrTy = (srcTy==Ref ? Ptr : CuPtr)
+for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, DeviceBuffer),
+                          ("cuMemcpyHtoD", DeviceBuffer, Union{Ref,HostBuffer}),
+                          ("cuMemcpyDtoD", AnyDeviceBuffer, AnyDeviceBuffer),
+                         )
+    dstPtrTy = (dstTy==Union{Ref,HostBuffer} ? Ptr : CuPtr)
+    srcPtrTy = (srcTy==Union{Ref,HostBuffer} ? Ptr : CuPtr)
 
-    @eval function Base.unsafe_copyto!(dst::$dstTy, src::$srcTy, nbytes::Integer,
+    @eval function copy!(dst::$dstTy, src::$srcTy, nbytes::Integer,
                                        stream::Union{Nothing,CuStream}=nothing,
                                        async::Bool=false)
         if async
@@ -316,6 +317,7 @@ for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Ref, AnyDeviceBuffer),
                      ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t),
                      dst, src, nbytes)
         end
+        return dst
     end
 end
 

@@ -87,11 +87,11 @@ Base.cconvert(::Type{<:CuPtr}, x::CuTestArray) = x.buf
 ## memory copy operations
 function CuTestArray(src::Array{T,N}) where {T,N}
     dst = CuTestArray{T,N}(size(src))
-    unsafe_copyto!(dst.buf, pointer(src), length(src) * sizeof(T))
+    Mem.copy!(dst.buf, pointer(src), length(src) * sizeof(T))
     return dst
 end
 function Base.Array(src::CuTestArray{T,N}) where {T,N}
     dst = Array{T,N}(undef, src.shape)
-    unsafe_copyto!(pointer(dst), src.buf, prod(src.shape) * sizeof(T))
+    Mem.copy!(pointer(dst), src.buf, prod(src.shape) * sizeof(T))
     return dst
 end
