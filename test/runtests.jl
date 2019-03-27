@@ -4,6 +4,7 @@ using CUDAnative, CUDAdrv
 import LLVM
 
 include("util.jl")
+include("array.jl")
 
 @testset "CUDAnative" begin
 
@@ -71,7 +72,7 @@ else
         include("device/array.jl")
         include("device/cuda.jl")
 
-        #include("examples.jl")
+        include("examples.jl")
     end
 end
 

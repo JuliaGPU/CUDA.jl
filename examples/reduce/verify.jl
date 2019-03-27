@@ -9,14 +9,15 @@ end
 
 len = 10^7
 input = ones(Int32, len)
+output = similar(input)
 
 # CPU
 cpu_val = reduce(+, input)
 
 # CUDAnative
 let
-    gpu_input = CuArray(input)
-    gpu_output = similar(gpu_input)
+    gpu_input = CuTestArray(input)
+    gpu_output = CuTestArray(output)
     gpu_reduce(+, gpu_input, gpu_output)
     gpu_val = Array(gpu_output)[1]
     @assert cpu_val == gpu_val

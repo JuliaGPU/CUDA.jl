@@ -13,6 +13,7 @@ const cap = capability(dev)
 
 len = 10^7
 input = ones(Int32, len)
+output = similar(input)
 
 
 ## CPU
@@ -39,8 +40,8 @@ benchmark_gpu = @benchmarkable begin
         val = Array(gpu_output)[1]
     end setup=(
         val = nothing;
-        gpu_input = CuArray($input);
-        gpu_output = similar(gpu_input)
+        gpu_input = CuTestArray($input);
+        gpu_output = CuTestArray($output)
     ) teardown=(
         gpu_input = nothing;
         gpu_output = nothing

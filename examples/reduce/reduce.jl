@@ -7,7 +7,8 @@
 #
 # Based on devblogs.nvidia.com/parallelforall/faster-parallel-reductions-kepler/
 
-using CUDAdrv, CUDAnative, CuArrays
+using CUDAdrv, CUDAnative
+include(joinpath(@__DIR__, "..", "..", "test", "array.jl"))   # real applications: use CuArrays.jl
 
 
 #
@@ -84,7 +85,7 @@ Reduce a large array.
 
 Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
 """
-function gpu_reduce(op::Function, input::CuVector{T}, output::CuVector{T}) where {T}
+function gpu_reduce(op::Function, input::CuTestArray{T}, output::CuTestArray{T}) where {T}
     len = length(input)
 
     # TODO: these values are hardware-dependent, with recent GPUs supporting more threads
