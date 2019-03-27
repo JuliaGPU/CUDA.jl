@@ -283,40 +283,37 @@ end
 
 # TODO: Base.copyto! generally works with number of elements, not number of bytes
 
-# between host memory
+# ... on the host
 Base.unsafe_copyto!(dst::AnyHostBuffer, src::Ref, nbytes::Integer) =
     ccall(:memcpy, Ptr{Cvoid},
           (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
           dst, src, nbytes)
 
-# device to host
-Base.unsafe_copyto!(dst::Ref, src::AnyDeviceBuffer, nbytes::Integer) =
-    @apicall(:cuMemcpyDtoH,
-             (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t),
-             dst, src, nbytes)
-Base.unsafe_copyto!(dst::HostBuffer, src::AnyDeviceBuffer, nbytes::Integer,
-             stream::CuStream=CuDefaultStream()) =
-    @apicall(:cuMemcpyDtoHAsync,
-             (Ptr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
-             dst, src, nbytes, stream)
+# ... on the device
+for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Ref, AnyDeviceBuffer),
+                          ("cuMemcpyHtoD", AnyDeviceBuffer, Ref),
+                          ("cuMemcpyDtoD", AnyDeviceBuffer, AnyDeviceBuffer))
+    dstPtrTy = (dstTy==Ref ? Ptr : CuPtr)
+    srcPtrTy = (srcTy==Ref ? Ptr : CuPtr)
 
-# host to device
-Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::Ref, nbytes::Integer) =
-    @apicall(:cuMemcpyHtoD,
-             (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t),
-             dst, src, nbytes)
-Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::HostBuffer, nbytes::Integer,
-             stream::CuStream=CuDefaultStream()) =
-    @apicall(:cuMemcpyHtoDAsync,
-             (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
-             dst, src, nbytes, stream)
-
-# between device memory
-Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::AnyDeviceBuffer, nbytes::Integer,
-             stream::CuStream=CuDefaultStream()) =
-    @apicall(:cuMemcpyDtoDAsync,
-             (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
-             dst, src, nbytes, stream)
+    @eval function Base.unsafe_copyto!(dst::$dstTy, src::$srcTy, nbytes::Integer,
+                                       stream::Union{Nothing,CuStream}=nothing,
+                                       async::Bool=false)
+        if async
+            stream===nothing &&
+                throw(ArgumentError("Cannot perform an asynchronous copy without a stream."))
+            @apicall($(QuoteNode(Symbol(f * "Async"))),
+                     ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t, CuStream_t),
+                     dst, src, nbytes, stream)
+        else
+            stream===nothing ||
+                throw(ArgumentError("Cannot perform a synchronous copy on a stream."))
+            @apicall($(QuoteNode(Symbol(f))),
+                     ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t),
+                     dst, src, nbytes)
+        end
+    end
+end
 
 
 ## other
