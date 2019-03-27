@@ -322,14 +322,14 @@ for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, DeviceBuffer),
 end
 
 
-## other
+## unified memory
 
-function prefetch(buf::DeviceBuffer, bytes=sizeof(buf); stream::CuStream=CuDefaultStream())
+function prefetch(buf::UnifiedBuffer, bytes=sizeof(buf);
+                  device::CuDevice=device(), stream::CuStream=CuDefaultStream())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    dev = device(buf.ctx)
     @apicall(:cuMemPrefetchAsync,
              (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
-             buf, bytes, dev, stream)
+             buf, bytes, device, stream)
 end
 
 @enum CUmem_advise::Cuint begin
