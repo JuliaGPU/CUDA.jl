@@ -70,6 +70,31 @@ let
     # NOTE: don't free dst, it's just a mapped pointer
 end
 
+# pinned memory with existing memory
+let
+    # can only get GPU pointer if the pinned buffer is mapped
+    src = Mem.register(Mem.Host, pointer(data), nb)
+    @test_throws ArgumentError convert(CuPtr{T}, src)
+    Mem.unregister(src)
+
+    # register a pinned and mapped buffer
+    src = Mem.register(Mem.Host, pointer(data), nb, Mem.HOSTREGISTER_DEVICEMAP)
+
+    # get the GPU address and construct a fake device buffer
+    gpu_ptr = convert(CuPtr{Cvoid}, src)
+    gpu_obj = Mem.alloc(Mem.Device, nb)
+    dst = similar(gpu_obj, gpu_ptr)
+    Mem.free(gpu_obj)
+
+    # copy data back from the GPU and compare
+    ref = Array{T}(undef, N)
+    Mem.copy!(pointer(ref), dst, nb)
+    @test ref == data
+
+    Mem.unregister(src)
+    # NOTE: don't unregister dst, it's just a mapped pointer
+end
+
 # unified memory
 let
     src = Mem.alloc(Mem.Unified, nb)

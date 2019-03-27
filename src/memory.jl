@@ -1,9 +1,5 @@
 # Raw memory management
 
-# TODO:
-# - cuMemHostRegister to page-lock existing buffers
-# - consistent CPU/GPU or host/device terminology
-
 export Mem
 
 module Mem
@@ -92,39 +88,23 @@ Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
 
 # host buffer: pinned memory on the CPU, possibly accessible on the GPU
 
-@enum CUmem_host_alloc::Cuint begin
-    HOSTALLOC_DEFAULT       = 0x00
-    HOSTALLOC_PORTABLE      = 0x01  # memory is portable between CUDA contexts
-    HOSTALLOC_DEVICEMAP     = 0x02  # memory is mapped into CUDA address space and
-                                    # cuMemHostGetDevicePointer may be called on the pointer
-    HOSTALLOC_WRITECOMBINED = 0x04  # memory is allocated as write-combined - fast to write,
-                                    # faster to DMA, slow to read except via SSE4 MOVNTDQA
-end
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUmem_host_alloc, y::CUmem_host_alloc) =
-    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-Base.:&(x::CUmem_host_alloc, y::CUmem_host_alloc) =
-    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
-
 struct HostBuffer <: Buffer
     ptr::Ptr{Cvoid}
     bytesize::Int
     ctx::CuContext
 
-    flags::CUmem_host_alloc
+    mapped::Bool
 end
 
-Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=pointer(buf),
-             bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx,
-             flags::CUmem_host_alloc=buf.flags) =
-    HostBuffer(ptr, bytesize, ctx, buf.flags)
+Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=pointer(buf), bytesize::Int=sizeof(buf),
+             ctx::CuContext=buf.ctx, mapped::Bool=buf.mapped) =
+    HostBuffer(ptr, bytesize, ctx, mapped)
 
 Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
     convert(Ptr{T}, pointer(buf))
 
 function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
-    if (buf.flags & HOSTALLOC_DEVICEMAP) != HOSTALLOC_DEFAULT
+    if buf.mapped
         pointer(buf) == C_NULL && return CU_NULL
         ptr_ref = Ref{CuPtr{Cvoid}}()
         @apicall(:cuMemHostGetDevicePointer,
@@ -138,30 +118,15 @@ end
 
 # unified buffer: managed buffer that is accessible on both the CPU and GPU
 
-@enum CUmem_attach::Cuint begin
-    ATTACH_GLOBAL   = 0x01  # memory can be accessed by any stream on any device
-    ATTACH_HOST     = 0x02  # memory cannot be accessed by any stream on any device
-    ATTACH_SINGLE   = 0x04  # memory can only be accessed by a single stream on the associated device
-end
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUmem_attach, y::CUmem_attach) =
-    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-Base.:&(x::CUmem_attach, y::CUmem_attach) =
-    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
-
 struct UnifiedBuffer <: Buffer
     ptr::CuPtr{Cvoid}
     bytesize::Int
     ctx::CuContext
-
-    flags::CUmem_attach
 end
 
 Base.similar(buf::UnifiedBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
-             bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx,
-             flags::CUmem_attach=buf.flags) =
-    UnifiedBuffer(ptr, bytesize, ctx, buf.flags)
+             bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx) =
+    UnifiedBuffer(ptr, bytesize, ctx)
 
 Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
     convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buf)))
@@ -195,6 +160,21 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer)
     return DeviceBuffer(ptr_ref[], bytesize, CuCurrentContext())
 end
 
+@enum CUmem_host_alloc::Cuint begin
+    HOSTALLOC_DEFAULT       = 0x00
+    HOSTALLOC_PORTABLE      = 0x01  # memory is portable between CUDA contexts
+    HOSTALLOC_DEVICEMAP     = 0x02  # memory is mapped into CUDA address space and
+                                    # cuMemHostGetDevicePointer may be called on the pointer
+    HOSTALLOC_WRITECOMBINED = 0x04  # memory is allocated as write-combined - fast to write,
+                                    # faster to DMA, slow to read except via SSE4 MOVNTDQA
+end
+
+# FIXME: EnumSet from JuliaLang/julia#19470
+Base.:|(x::CUmem_host_alloc, y::CUmem_host_alloc) =
+    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
+Base.:&(x::CUmem_host_alloc, y::CUmem_host_alloc) =
+    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
+
 """
     alloc(HostBuffer, bytesize::Integer, [flags])
 
@@ -211,8 +191,21 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags::CUmem_host_alloc=HO
              (Ptr{Ptr{Cvoid}}, Csize_t, Cuint),
              ptr_ref, bytesize, flags)
 
-    return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), flags)
+    mapped = (flags & HOSTALLOC_DEVICEMAP) != HOSTALLOC_DEFAULT
+    return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), mapped)
 end
+
+@enum CUmem_attach::Cuint begin
+    ATTACH_GLOBAL   = 0x01  # memory can be accessed by any stream on any device
+    ATTACH_HOST     = 0x02  # memory cannot be accessed by any stream on any device
+    ATTACH_SINGLE   = 0x04  # memory can only be accessed by a single stream on the associated device
+end
+
+# FIXME: EnumSet from JuliaLang/julia#19470
+Base.:|(x::CUmem_attach, y::CUmem_attach) =
+    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
+Base.:&(x::CUmem_attach, y::CUmem_attach) =
+    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
 
 """
     alloc(UnifiedBuffer, bytesize::Integer, [flags])
@@ -228,7 +221,7 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer, flags::CUmem_attach=ATT
              (Ptr{CuPtr{Cvoid}}, Csize_t, Cuint),
              ptr_ref, bytesize, flags)
 
-    return UnifiedBuffer(ptr_ref[], bytesize, CuCurrentContext(), flags)
+    return UnifiedBuffer(ptr_ref[], bytesize, CuCurrentContext())
 end
 
 function free(buf::Union{DeviceBuffer,UnifiedBuffer})
@@ -241,6 +234,45 @@ function free(buf::HostBuffer)
     if pointer(buf) != CU_NULL
         @apicall(:cuMemFreeHost, (Ptr{Cvoid},), buf)
     end
+end
+
+@enum CUmem_host_register::Cuint begin
+  HOSTREGISTER_DEFAULT   = 0x00
+  HOSTREGISTER_PORTABLE  = 0x01 # registered memory will be considered as pinned memory by
+                                # all CUDA contexts, not just the one that performed the allocation.
+  HOSTREGISTER_DEVICEMAP = 0x02 # maps the allocation into the CUDA address space
+  HOSTREGISTER_IOMEMORY  = 0x04 # pointer is treated as pointing to some I/O memory space,
+                                # e.g. the PCI Express resource of a 3rd party device.
+end
+
+# FIXME: EnumSet from JuliaLang/julia#19470
+Base.:|(x::CUmem_host_register, y::CUmem_host_register) =
+    reinterpret(CUmem_host_register, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
+Base.:&(x::CUmem_host_register, y::CUmem_host_register) =
+    reinterpret(CUmem_host_register, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
+
+"""
+    register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags::CUmem_host_register])
+
+Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
+be faster, and can be executed asynchronously. If the `HOSTREGISTER_DEVICEMAP` flag is
+specified, the buffer will also be accessible directly from the GPU. These accesses are
+direct, and go through the PCI bus.
+"""
+function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer,
+                  flags::CUmem_host_register=HOSTREGISTER_DEFAULT)
+    bytesize == 0 && throw(ArgumentError())
+
+    @apicall(:cuMemHostRegister,
+             (Ptr{Cvoid}, Csize_t, Cuint),
+             ptr, bytesize, flags)
+
+    mapped = (flags & HOSTREGISTER_DEVICEMAP) != HOSTREGISTER_DEFAULT
+    return HostBuffer(ptr, bytesize, CuCurrentContext(), mapped)
+end
+
+function unregister(buf::HostBuffer)
+    @apicall(:cuMemHostUnregister, (Ptr{Cvoid},), buf)
 end
 
 
