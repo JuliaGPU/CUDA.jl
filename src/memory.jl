@@ -104,6 +104,8 @@ end
 # FIXME: EnumSet from JuliaLang/julia#19470
 Base.:|(x::CUmem_host_alloc, y::CUmem_host_alloc) =
     reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
+Base.:&(x::CUmem_host_alloc, y::CUmem_host_alloc) =
+    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
 
 struct HostBuffer <: Buffer
     ptr::Ptr{Cvoid}
@@ -122,9 +124,9 @@ Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
     convert(Ptr{T}, pointer(buf))
 
 function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
-    if buf.flags & HOSTALLOC_DEVICEMAP
+    if (buf.flags & HOSTALLOC_DEVICEMAP) != 0x0
         pointer(buf) == C_NULL && return CU_NULL
-        ptr_ref[] = Ref{CuPtr{Cvoid}}()
+        ptr_ref = Ref{CuPtr{Cvoid}}()
         @apicall(:cuMemHostGetDevicePointer,
                  (Ptr{CuPtr{Cvoid}}, Ptr{Cvoid}, Cuint),
                  ptr_ref, pointer(buf), #=flags=# 0)
@@ -145,6 +147,8 @@ end
 # FIXME: EnumSet from JuliaLang/julia#19470
 Base.:|(x::CUmem_attach, y::CUmem_attach) =
     reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
+Base.:&(x::CUmem_attach, y::CUmem_attach) =
+    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
 
 struct UnifiedBuffer <: Buffer
     ptr::CuPtr{Cvoid}
