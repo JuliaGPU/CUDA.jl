@@ -19,6 +19,9 @@ struct CuDevice
     CuDevice(::Type{Bool}, handle::CuDevice_t) = new(handle)
 end
 
+const DEVICE_CPU = CuDevice(Bool, CuDevice_t(-1))
+const DEVICE_INVALID = CuDevice(Bool, CuDevice_t(-2))
+
 function CuDevice(ordinal::Integer)
     device_ref = Ref{CuDevice_t}()
     @apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), device_ref, ordinal)
@@ -30,7 +33,16 @@ Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
 Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
 Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
 
-Base.show(io::IO, dev::CuDevice) = print(io, "CuDevice($(dev.handle)): $(name(dev))")
+function Base.show(io::IO, dev::CuDevice)
+  print(io, "CuDevice($(dev.handle)): ")
+  if dev == DEVICE_CPU
+      print(io, "CPU")
+  elseif dev == DEVICE_INVALID
+      print(io, "INVALID")
+  else
+      print(io, "$(name(dev))")
+  end
+end
 
 """
     name(dev::CuDevice)
