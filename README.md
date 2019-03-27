@@ -28,8 +28,8 @@ CUDAdrv is a registered package, and can be installed using the Julia package ma
 Pkg.add("CUDAdrv")
 ```
 
-Julia versions 0.5 and 0.6 are supported, with limited effort to keep the package working on
-current master as well. Refer to [the documentation][docs-stable-url] for more information
+Julia 1.0 and higher is supported, with limited effort to keep the package working on
+current master as well. Refer to [the documentation][docs-latest-url] for more information
 on how to install or use this package.
 
 
