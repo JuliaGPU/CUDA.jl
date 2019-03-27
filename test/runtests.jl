@@ -5,6 +5,7 @@ using Test
 @testset "CUDAdrv" begin
 
 include("util.jl")
+include("array.jl")
 
 include("base.jl")
 
