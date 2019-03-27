@@ -140,8 +140,8 @@ len = prod(dims)
     input_dev = CuTestArray(input)
     output_dev = CuTestArray(output)
 
-    @cuda threads=len kernel(Base.unsafe_convert(CuPtr{Float32}, input_dev.buf),
-                             Base.unsafe_convert(CuPtr{Float32}, output_dev.buf))
+    @cuda threads=len kernel(convert(CuPtr{Float32}, input_dev.buf),
+                             convert(CuPtr{Float32}, output_dev.buf))
     @test input ≈ Array(output_dev)
 end
 
@@ -163,8 +163,8 @@ end
     arr_dev = CuTestArray(arr)
     val_dev = CuTestArray(val)
 
-    @cuda threads=len kernel(Base.unsafe_convert(CuPtr{Float32}, arr_dev.buf),
-                             Base.unsafe_convert(CuPtr{Float32}, val_dev.buf))
+    @cuda threads=len kernel(convert(CuPtr{Float32}, arr_dev.buf),
+                             convert(CuPtr{Float32}, val_dev.buf))
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -189,8 +189,8 @@ end
     arr_dev = CuTestArray(arr)
     val_dev = CuTestArray(val)
 
-    @cuda threads=len parent(Base.unsafe_convert(CuPtr{Float32}, arr_dev.buf),
-                             Base.unsafe_convert(CuPtr{Float32}, val_dev.buf))
+    @cuda threads=len parent(convert(CuPtr{Float32}, arr_dev.buf),
+                             convert(CuPtr{Float32}, val_dev.buf))
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -210,7 +210,7 @@ end
     keeps = (true,)
     d_out = CuTestArray(zeros(Int))
 
-    @cuda kernel(keeps, Base.unsafe_convert(CuPtr{Int}, d_out.buf))
+    @cuda kernel(keeps, convert(CuPtr{Int}, d_out.buf))
     @test Array(d_out)[] == 1
 end
 
@@ -235,9 +235,9 @@ end
         return
     end
     @cuda threads=len kernel(ExecGhost(),
-                             Base.unsafe_convert(CuPtr{Float32}, d_a.buf),
-                             Base.unsafe_convert(CuPtr{Float32}, d_b.buf),
-                             Base.unsafe_convert(CuPtr{Float32}, d_c.buf))
+                             convert(CuPtr{Float32}, d_a.buf),
+                             convert(CuPtr{Float32}, d_b.buf),
+                             convert(CuPtr{Float32}, d_c.buf))
     @test a+b == Array(d_c)
 
 
@@ -248,7 +248,7 @@ end
         unsafe_store!(out, aggregate[1], i)
         return
     end
-    @cuda threads=len kernel(ExecGhost(), Base.unsafe_convert(CuPtr{Float32}, d_c.buf), (42,))
+    @cuda threads=len kernel(ExecGhost(), convert(CuPtr{Float32}, d_c.buf), (42,))
 
     @test all(val->val==42, Array(d_c))
 end
@@ -265,7 +265,7 @@ end
     arr = CuTestArray(zeros(Float32))
     x = ComplexF32(2,2)
 
-    @cuda kernel(Base.unsafe_convert(CuPtr{Float32}, arr.buf), x)
+    @cuda kernel(convert(CuPtr{Float32}, arr.buf), x)
     @test Array(arr)[] == imag(x)
 end
 
@@ -278,7 +278,7 @@ end
         return
     end
 
-    @cuda kernel(Base.unsafe_convert(CuPtr{Int}, arr.buf))
+    @cuda kernel(convert(CuPtr{Int}, arr.buf))
     @test Array(arr)[] == 1
 
     function kernel(ptr)
@@ -286,7 +286,7 @@ end
         return
     end
 
-    @cuda kernel(Base.unsafe_convert(CuPtr{Int}, arr.buf))
+    @cuda kernel(convert(CuPtr{Int}, arr.buf))
     @test Array(arr)[] == 2
 end
 
@@ -314,7 +314,7 @@ end
 
     out = [0]
     out_dev = CuTestArray(out)
-    out_ptr = Base.unsafe_convert(CuPtr{eltype(out)}, out_dev.buf)
+    out_ptr = convert(CuPtr{eltype(out)}, out_dev.buf)
 
     @cuda kernel(out_ptr, 1, 2)
     @test Array(out_dev)[1] == 3
@@ -348,7 +348,7 @@ end
     a = [1.]
     a_dev = CuTestArray(a)
 
-    outer(Base.unsafe_convert(CuPtr{Float64}, a_dev.buf), 2.)
+    outer(convert(CuPtr{Float64}, a_dev.buf), 2.)
 
     @test Array(a_dev) ≈ [2.]
 end
@@ -360,7 +360,7 @@ end
             unsafe_store!(a, val)
             return
        end
-       @cuda inner(Base.unsafe_convert(CuPtr{Float64}, a_dev.buf))
+       @cuda inner(convert(CuPtr{Float64}, a_dev.buf))
     end
 
     a = [1.]
@@ -390,7 +390,7 @@ end
             unsafe_store!(out, convert(Int, arg))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
         @test Array(out_dev) ≈ [2]
     end
 
@@ -402,7 +402,7 @@ end
             unsafe_store!(out, convert(Int, arg[1]))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
         @test Array(out_dev) ≈ [2]
     end
 
@@ -414,7 +414,7 @@ end
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
         @test Array(out_dev) ≈ [2]
     end
 
@@ -429,7 +429,7 @@ end
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
         @test Array(out_dev) ≈ [1]
     end
 end
@@ -437,7 +437,7 @@ end
 @testset "argument count" begin
     val = [0]
     val_dev = CuTestArray(val)
-    cuda_ptr = Base.unsafe_convert(CuPtr{Int}, val_dev.buf)
+    cuda_ptr = convert(CuPtr{Int}, val_dev.buf)
     ptr = CUDAnative.DevicePtr{Int}(cuda_ptr)
     for i in (1, 10, 20, 35)
         variables = ('a':'z'..., 'A':'Z'...)
@@ -480,7 +480,7 @@ end
         end
 
         arr = CuTestArray(zeros(T))
-        @cuda kernel(Base.unsafe_convert(CuPtr{T}, arr.buf))
+        @cuda kernel(convert(CuPtr{T}, arr.buf))
 
         return Array(arr)[1]
     end
@@ -506,8 +506,8 @@ script = """
 
     cpu = zeros(Int)
     gpu = CUDAdrv.Mem.alloc(CUDAdrv.Mem.Device, sizeof(cpu))
-    @cuda kernel(Base.unsafe_convert(CUDAdrv.CuPtr{Int}, gpu), 1.2)
-    unsafe_copyto!(pointer(cpu), gpu, sizeof(Int))
+    @cuda kernel(convert(CUDAdrv.CuPtr{Int}, gpu), 1.2)
+    CUDAdrv.Mem.copy!(pointer(cpu), gpu, sizeof(Int))
 """
 
 let (code, out, err) = julia_script(script, `-g0`)
@@ -593,13 +593,13 @@ end
     let output = CuTestArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output.buf)
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr)
         @test Array(output) == repeat([input], N)
     end
 
     let output = CuTestArray(zeros(Cint, N))
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output.buf)
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
         @test Array(output) == repeat([input], N)
     end
@@ -633,13 +633,13 @@ end
     let output = CuTestArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output.buf)
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr)
         @test Array(output) == repeat([input], N)
     end
 
     let output = CuTestArray(zeros(Cint, N))
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output.buf)
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
         @test Array(output) == repeat([input], N)
     end

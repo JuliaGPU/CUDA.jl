@@ -12,7 +12,7 @@
     end
 
     arr = CuTestArray(zeros(Float64))
-    ptr = Base.unsafe_convert(CuPtr{Float64}, arr.buf)
+    ptr = convert(CuPtr{Float64}, arr.buf)
 
     @cuda kernel(ptr, (1., 2., ))
     @test Array(arr)[] == 1.
@@ -63,7 +63,7 @@ end
 
     function gpu(input)
         output = CuTestArray(zeros(eltype(input), 2))
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output.buf)
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         ptr = reinterpret(Ptr{eltype(input)}, ptr)
 
         @cuda threads=2 kernel(input, ptr, 99)
