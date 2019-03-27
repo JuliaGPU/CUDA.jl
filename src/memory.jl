@@ -246,29 +246,34 @@ end
 
 ## initialization
 
+"""
+    set!(buf::DeviceBuffer, value::Union{UInt8,UInt16,UInt32}, len::Integer;
+         async::Bool=false, stream::CuStream)
+
+Initialize device memory by copying `val` for `len` times. Executed asynchronously if
+`async` is true, in which case a valid `stream` is required.
+"""
+set!
+
 for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
     fn_sync = Symbol("cuMemsetD$(bits)")
     fn_async = Symbol("cuMemsetD$(bits)Async")
-    @eval begin
-        @doc $"""
-            set!(buf::DeviceBuffer, value::$T, len::Integer, [stream=CuDefaultStream()]; async=false)
-
-        Initialize device memory by copying the $bits-bit value `val` for `len` times.
-        Executed asynchronously if `async` is true.
-        """
-        function set!(buf::DeviceBuffer, value::$T, len::Integer,
-                      stream::CuStream=CuDefaultStream(); async::Bool=false)
-            if async
-                @apicall($(QuoteNode(fn_async)),
-                         (CuPtr{Cvoid}, $T, Csize_t, CuStream_t),
-                         buf, value, len, stream)
-            else
-                @assert stream==CuDefaultStream()
-                @apicall($(QuoteNode(fn_sync)),
-                         (CuPtr{Cvoid}, $T, Csize_t),
-                         buf, value, len)
-            end
+    @eval function set!(buf::DeviceBuffer, value::$T, len::Integer;
+                        async::Bool=false, stream::Union{Nothing,CuStream}=nothing)
+        if async
+          stream===nothing &&
+              throw(ArgumentError("Asynchronous memory operations require a stream."))
+            @apicall($(QuoteNode(fn_async)),
+                     (CuPtr{Cvoid}, $T, Csize_t, CuStream_t),
+                     buf, value, len, stream)
+        else
+          stream===nothing ||
+              throw(ArgumentError("Synchronous memory operations cannot be issues on a stream."))
+            @assert stream==CuDefaultStream()
+            @apicall($(QuoteNode(fn_sync)),
+                     (CuPtr{Cvoid}, $T, Csize_t),
+                     buf, value, len)
         end
     end
 end
