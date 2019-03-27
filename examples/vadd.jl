@@ -2,9 +2,6 @@ using CUDAdrv, CuArrays
 
 using Test
 
-dev = CuDevice(0)
-ctx = CuContext(dev)
-
 md = CuModuleFile(joinpath(@__DIR__, "vadd.ptx"))
 vadd = CuFunction(md, "kernel_vadd")
 
@@ -22,5 +19,3 @@ cudacall(vadd, Tuple{CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}}, d_a, d_b, d_c; 
 c = Array(d_c)
 
 @test a+b ≈ c
-
-destroy!(ctx)
