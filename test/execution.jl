@@ -51,50 +51,50 @@ let
 
     a = rand(Float32, 10)
     b = rand(Float32, 10)
-    ad = Mem.upload(a)
-    bd = Mem.upload(b)
+    ad = CuTestArray(a)
+    bd = CuTestArray(b)
 
     # Addition
     let
         c = zeros(Float32, 10)
-        cd = Mem.alloc(c)
+        c_d = CuTestArray(c)
         cudacall(vadd,
-                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, c_d;
                  threads=10)
-        Mem.download!(c, cd)
+        c = Array(c_d)
         @test c ≈ a+b
     end
 
     # Subtraction
     let
         c = zeros(Float32, 10)
-        cd = Mem.alloc(c)
+        c_d = CuTestArray(c)
         cudacall(vsub,
-                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, c_d;
                  threads=10)
-        Mem.download!(c, cd)
+        c = Array(c_d)
         @test c ≈ a-b
     end
 
     # Multiplication
     let
         c = zeros(Float32, 10)
-        cd = Mem.alloc(c)
+        c_d = CuTestArray(c)
         cudacall(vmul,
-                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, c_d;
                  threads=10)
-        Mem.download!(c, cd)
+        c = Array(c_d)
         @test c ≈ a.*b
     end
 
     # Division
     let
         c = zeros(Float32, 10)
-        cd = Mem.alloc(c)
+        c_d = CuTestArray(c)
         cudacall(vdiv,
-                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd;
+                 (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, c_d;
                  threads=10)
-        Mem.download!(c, cd)
+        c = Array(c_d)
         @test c ≈ a./b
     end
 end

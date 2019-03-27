@@ -19,7 +19,7 @@ abstract type Buffer <: Ref{Cvoid} end
 # expected interface:
 # - similar()
 # - ptr, bytesize and ctx fields
-# - unsafe_convert() to certain pointers
+# - convert() to certain pointers
 
 Base.pointer(buf::Buffer) = buf.ptr
 Base.sizeof(buf::Buffer) = buf.bytesize
@@ -28,6 +28,12 @@ function Base.view(buf::Buffer, bytes::Int)
     @boundscheck bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     return similar(buf, pointer(buf)+bytes, sizeof(buf)-bytes)
 end
+
+# ccall integration
+#
+# taking the pointer of a buffer means returning the underlying pointer,
+# and not the pointer of the buffer object itself.
+Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr}}, buf::Buffer) = convert(T, buf)
 
 
 ## refcounting
@@ -78,10 +84,10 @@ Base.similar(buf::DeviceBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
              bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx) =
     DeviceBuffer(ptr, bytesize, ctx)
 
-Base.unsafe_convert(::Type{<:Ptr}, buf::DeviceBuffer) =
+Base.convert(::Type{<:Ptr}, buf::DeviceBuffer) =
     throw(ArgumentError("cannot take the CPU address of a GPU buffer"))
 
-Base.unsafe_convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
+Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
 
 # host buffer: pinned memory on the CPU, possibly accessible on the GPU
@@ -112,10 +118,10 @@ Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=pointer(buf),
              flags::CUmem_host_alloc=buf.flags) =
     HostBuffer(ptr, bytesize, ctx, buf.flags)
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
-    convert(Ptr{T}, pointer(buffer))
+Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
+    convert(Ptr{T}, pointer(buf))
 
-function Base.unsafe_convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
+function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
     if buf.flags & HOSTALLOC_DEVICEMAP
         pointer(buf) == C_NULL && return CU_NULL
         ptr_ref[] = Ref{CuPtr{Cvoid}}()
@@ -153,11 +159,11 @@ Base.similar(buf::UnifiedBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
              flags::CUmem_attach=buf.flags) =
     UnifiedBuffer(ptr, bytesize, ctx, buf.flags)
 
-Base.unsafe_convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
-    convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buffer)))
+Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
+    convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buf)))
 
-Base.unsafe_convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
-    convert(CuPtr{T}, pointer(buffer))
+Base.convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
+    convert(CuPtr{T}, pointer(buf))
 
 # aliases
 
