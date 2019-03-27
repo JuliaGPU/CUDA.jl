@@ -41,7 +41,7 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr}}, buf::Buffer) = convert(T, buf)
 const refcounts = Dict{Buffer, Int}()
 
 function refcount(buf::Buffer)
-    get(refcounts, Base.unsafe_convert(CuPtr{Cvoid}, buf), 0)
+    get(refcounts, buf, 0)
 end
 
 """
@@ -311,7 +311,7 @@ Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::HostBuffer, nbytes::Integer,
 Base.unsafe_copyto!(dst::AnyDeviceBuffer, src::AnyDeviceBuffer, nbytes::Integer,
              stream::CuStream=CuDefaultStream()) =
     @apicall(:cuMemcpyDtoDAsync,
-             (CuPtr{Cvoid}, Ptr{Cvoid}, Csize_t, CuStream_t),
+             (CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t, CuStream_t),
              dst, src, nbytes, stream)
 
 
