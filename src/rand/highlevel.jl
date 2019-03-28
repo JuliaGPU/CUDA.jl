@@ -40,8 +40,8 @@ rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_poisso
 # specify default types
 Random.rand(rng::RNG, dims::Integer...; kwargs...) = rand(rng, Float32, dims...; kwargs...)
 Random.randn(rng::RNG, dims::Integer...; kwargs...) = randn(rng, Float32, dims...; kwargs...)
-rand_logn(rng::RNG, dims...; kwargs...) = rand_logn(rng, Float32, dims...; kwargs...)
-rand_poisson(rng::RNG, dims...; kwargs...) = rand_poisson(rng, Cuint, dims...; kwargs...)
+rand_logn(rng::RNG, dims::Integer...; kwargs...) = rand_logn(rng, Float32, dims...; kwargs...)
+rand_poisson(rng::RNG, dims::Integer...; kwargs...) = rand_poisson(rng, Cuint, dims...; kwargs...)
 
 # convenience
 Random.randn(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
@@ -74,6 +74,8 @@ Random.rand!(A::CuArray; kwargs...) = rand!(uniform_rng(A), A; kwargs...)
 Random.randn!(A::CuArray; kwargs...) = randn!(normal_rng(A), A; kwargs...)
 rand_logn!(A::CuArray; kwargs...) = rand_logn!(logn_rng(A), A; kwargs...)
 rand_poisson!(A::CuArray; kwargs...) = rand_poisson!(poisson_rng(A), A; kwargs...)
+rand_logn(A::CuArray; kwargs...) = rand_logn!(logn_rng(A), A; kwargs...)
+rand_poisson(A::CuArray; kwargs...) = rand_poisson!(poisson_rng(A), A; kwargs...)
 
 
 # need to prefix with `cu` to disambiguate from Random functions that return an Array
@@ -82,6 +84,9 @@ curand(::Type{X}, args...; kwargs...) where {X} = rand!(CuArray{X}(undef, args..
 curandn(::Type{X}, args...; kwargs...) where {X} = randn!(CuArray{X}(undef, args...); kwargs...)
 curand_logn(::Type{X}, args...; kwargs...) where {X} = rand_logn!(CuArray{X}(undef, args...); kwargs...)
 curand_poisson(::Type{X}, args...; kwargs...) where {X} = rand_poisson!(CuArray{X}(undef, args...); kwargs...)
+
+rand_logn(::Type{X}, args...; kwargs...) where {X} = rand_logn!(CuArray{X}(undef, args...); kwargs...)
+rand_poisson(::Type{X}, args...; kwargs...) where {X} = rand_poisson!(CuArray{X}(undef, args...); kwargs...)
 
 # specify default types
 curand(args...; kwargs...) where {X} = curand(Float32, args...; kwargs...)

@@ -12,8 +12,8 @@ using Random
 
 export curand,
        curandn,
-       curand_logn, rand_logn!,
-       curand_poisson, rand_poisson!
+       curand_logn, rand_logn!, rand_logn,
+       curand_poisson, rand_poisson!, rand_poisson
 
 include("libcurand_types.jl")
 include("error.jl")
