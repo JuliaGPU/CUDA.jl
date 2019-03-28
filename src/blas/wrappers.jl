@@ -533,9 +533,10 @@ for (fname, elty) in ((:cublasStbmv_v2,:Float32),
         function tbmv(uplo::Char,
                       trans::Char,
                       diag::Char,
+                      k::Integer,
                       A::CuMatrix{$elty},
                       x::CuVector{$elty})
-            tbmv!(uplo, trans, diag, A, copy(x))
+            tbmv!(uplo, trans, diag, k, A, copy(x))
         end
     end
 end
