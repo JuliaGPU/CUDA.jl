@@ -30,6 +30,10 @@ end
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
   @test testf(vec, rand(5,3))
   @test cu(1:3) === 1:3
+  @test Base.elsize(xs) == sizeof(Int)
+  @test CuArray{Int, 2}(xs) === xs
+
+  @test_throws ArgumentError Base.cconvert(Ptr, xs)
 
   # Check that allowscalar works
   @test_throws ErrorException xs[1]
