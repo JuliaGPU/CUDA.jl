@@ -8,7 +8,7 @@ function timings!(new=TimerOutput())
   return
 end
 
-timings() = (TimerOutputs.print_timer(to[]; allocations=false); println())
+timings() = (TimerOutputs.print_timer(to[]); println())
 
 include(joinpath("compiler", "common.jl"))
 include(joinpath("compiler", "irgen.jl"))
