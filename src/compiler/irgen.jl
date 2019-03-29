@@ -301,6 +301,11 @@ function emit_exception!(builder, name, inst)
     call!(builder, trap)
 end
 
+# TODO: move these to LLVM.jl
+isaTerminatorInst(inst) = LLVM.API.LLVMIsATerminatorInst(LLVM.ref(inst)) != C_NULL
+Base.isempty(iter::LLVM.BasicBlockInstructionSet) =
+    LLVM.API.LLVMGetLastInstruction(LLVM.blockref(iter.bb)) == C_NULL
+
 # HACK: this pass removes `unreachable` information from LLVM
 #
 # `ptxas` is buggy and cannot deal with thread-divergent control flow in the presence of
@@ -324,12 +329,8 @@ function hide_unreachable!(fun::LLVM.Function)
     delete!(attrs, EnumAttribute("noreturn", 0, JuliaContext()))
 
     # build a map of basic block predecessors
-    predecessors = Dict{LLVM.BasicBlock,Set{LLVM.BasicBlock}}(
-        bb => Set{LLVM.BasicBlock}() for bb in blocks(fun)
-    )
-    # TODO: move to LLVM.jl
-    isaTerminatorInst(inst) = LLVM.API.LLVMIsATerminatorInst(LLVM.ref(inst)) != C_NULL
-    for bb in blocks(fun)
+    predecessors = Dict(bb => Set{LLVM.BasicBlock}() for bb in blocks(fun))
+    @timeit to[] "predecessors" for bb in blocks(fun)
         insts = instructions(bb)
         if !isempty(insts)
             term = last(insts)
@@ -343,7 +344,7 @@ function hide_unreachable!(fun::LLVM.Function)
 
     # scan for unreachable terminators and alternative successors
     worklist = Pair{LLVM.BasicBlock, Union{Nothing,LLVM.BasicBlock}}[]
-    for bb in blocks(fun)
+    @timeit to[] "find" for bb in blocks(fun)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -391,7 +392,7 @@ function hide_unreachable!(fun::LLVM.Function)
     end
 
     # apply the pending terminator rewrites
-    if !isempty(worklist)
+    @timeit to[] "replace" if !isempty(worklist)
         let builder = Builder(JuliaContext())
             for (bb, fallthrough) in worklist
                 position!(builder, bb)
