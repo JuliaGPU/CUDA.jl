@@ -49,9 +49,9 @@ for (f,T) in ((rand!,Int64),),
     f(A)
 end
 
-@test_throws ErrorException CURAND.normal_rng(CuArray{Cuint}(undef, 10))
-@test_throws ErrorException CURAND.logn_rng(CuArray{Cuint}(undef, 10))
-@test_throws ErrorException CURAND.poisson_rng(CuArray{Float64}(undef, 10))
+@test_throws ErrorException randn!(CuArray{Cuint}(undef, 10)) 
+@test_throws ErrorException rand_logn!(CuArray{Cuint}(undef, 10)) 
+@test_throws ErrorException rand_poisson!(CuArray{Float64}(undef, 10)) 
 
 end
 
