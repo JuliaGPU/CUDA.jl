@@ -199,6 +199,7 @@ end
 function lower_throw!(mod::LLVM.Module)
     job = current_job::CompilerJob
     changed = false
+    @timeit to[] "lower throw" begin
 
     throw_functions = Dict{String,String}(
         "jl_throw"                      => "exception",
@@ -255,6 +256,7 @@ function lower_throw!(mod::LLVM.Module)
          end
      end
 
+    end
     return changed
 end
 
@@ -312,6 +314,7 @@ end
 function hide_unreachable!(fun::LLVM.Function)
     job = current_job::CompilerJob
     changed = false
+    @timeit to[] "hide unreachable" begin
 
     # remove `noreturn` attributes
     #
@@ -412,6 +415,7 @@ function hide_unreachable!(fun::LLVM.Function)
         end
     end
 
+    end
     return changed
 end
 
@@ -421,6 +425,7 @@ end
 function hide_trap!(mod::LLVM.Module)
     job = current_job::CompilerJob
     changed = false
+    @timeit to[] "hide trap" begin
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()))
@@ -443,5 +448,6 @@ function hide_trap!(mod::LLVM.Module)
         end
     end
 
+    end
     return changed
 end
