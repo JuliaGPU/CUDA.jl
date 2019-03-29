@@ -302,7 +302,6 @@ for T in [UInt8, UInt16, UInt32]
         else
           stream===nothing ||
               throw(ArgumentError("Synchronous memory operations cannot be issues on a stream."))
-            @assert stream==CuDefaultStream()
             @apicall($(QuoteNode(fn_sync)),
                      (CuPtr{Cvoid}, $T, Csize_t),
                      buf, value, len)
