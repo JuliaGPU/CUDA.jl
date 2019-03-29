@@ -430,7 +430,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                      X::CuVector{$elty},
                      index::SparseChar)
             uplo = 'U'
-            if islower(A)
+            if istril(A)
                 uplo = 'L'
             end
             sv2!(transa,uplo,alpha,A.data,copy(X),index)
@@ -440,7 +440,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                      X::CuVector{$elty},
                      index::SparseChar)
             uplo = 'U'
-            if islower(A)
+            if istril(A)
                 uplo = 'L'
             end
             sv2!(transa,uplo,one($elty),A.data,copy(X),index)
@@ -939,7 +939,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                     X::CuVector{$elty},
                     index::SparseChar)
             uplo = 'U'
-            if islower(A)
+            if istril(A)
                 uplo = 'L'
             end
             info = sv_analysis(transa,'T',uplo,A.data,index)
@@ -1471,7 +1471,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                     B::CuMatrix{$elty},
                     index::SparseChar)
             uplo = 'U'
-            if islower(A)
+            if istril(A)
                 uplo = 'L'
             end
             info = sm_analysis(transa,uplo,A.data,index)
@@ -1482,7 +1482,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                     B::CuMatrix{$elty},
                     index::SparseChar)
             uplo = 'U'
-            if islower(A)
+            if istril(A)
                 uplo = 'L'
             end
             info = sm_analysis(transa,uplo,A.data,index)

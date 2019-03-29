@@ -1,6 +1,10 @@
-(\)(A::AbstractTriangular{<:CuSparseMatrix},B::CuMatrix)       = sm('N',A,B,'O')
-(\)(transA::Transpose{<:Any, <:AbstractTriangular{<:CuSparseMatrix}}, B::CuMatrix) = sm('T',parent(transA),B,'O')
-(\)(adjA::Adjoint{<:Any, <:AbstractTriangular{<:CuSparseMatrix}},B::CuMatrix) = sm('C',parent(adjA),B,'O')
+import LinearAlgebra: BlasFloat, mul!
+
+Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}}       = sm('N',A,B,'O')
+Base.:(\)(transA::Transpose{T, UpperTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('T',parent(transA),B,'O')
+Base.:(\)(transA::Transpose{T, LowerTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('T',parent(transA),B,'O')
+Base.:(\)(adjA::Adjoint{T, UpperTriangular{T, S}},B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('C',parent(adjA),B,'O')
+Base.:(\)(adjA::Adjoint{T, LowerTriangular{T, S}},B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('C',parent(adjA),B,'O')
 
 mul!(C::CuVector{T},A::CuSparseMatrix,B::CuVector) where {T} = mv!('N',one(T),A,B,zero(T),C,'O')
 mul!(C::CuVector{T},transA::Transpose{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('T',one(T),parent(transA),B,zero(T),C,'O')
@@ -19,12 +23,16 @@ mul!(C::CuMatrix{T},A::HermOrSym{<:Number, <:CuSparseMatrix},B::CuMatrix) where 
 mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) where {T} = mm!('T',one(T),parent(transA),B,zero(T),C,'O')
 mul!(C::CuMatrix{T},adjA::Adjoint{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) where {T} = mm!('C',one(T),parent(adjA),B,zero(T),C,'O')
 
-(\)(A::AbstractTriangular{<:CuSparseMatrix},B::CuVector)       = sv2('N',A,B,'O')
-(\)(transA::Transpose{<:Any, <:AbstractTriangular{<:CuSparseMatrix}},B::CuVector) = sv2('T',parent(transA),B,'O')
-(\)(adjA::Adjoint{<:Any, <:AbstractTriangular{T,<:CuSparseMatrix{T}}},B::CuVector{T}) where T = sv2('C',parent(adjA),B,'O')
-(\)(A::AbstractTriangular{T,CuSparseMatrixHYB{T}},B::CuVector{T})       where T = sv('N',A,B,'O')
-(\)(transA::Transpose{<:Any, AbstractTriangular{T,CuSparseMatrixHYB{T}}},B::CuVector{T}) where T = sv('T',parent(transA),B,'O')
-(\)(adjA::Adjoint{<:Any, AbstractTriangular{T,CuSparseMatrixHYB{T}}},B::CuVector{T}) where T = sv('C',parent(adjA),B,'O')
+Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::CuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}}       = sv2('N',A,B,'O')
+Base.:(\)(transA::Transpose{T, UpperTriangular{T, S}},B::CuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sv2('T',parent(transA),B,'O')
+Base.:(\)(transA::Transpose{T, LowerTriangular{T, S}},B::CuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sv2('T',parent(transA),B,'O')
+Base.:(\)(adjA::Adjoint{T, UpperTriangular{T, S}},B::CuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}}  = sv2('C',parent(adjA),B,'O')
+Base.:(\)(adjA::Adjoint{T, LowerTriangular{T, S}},B::CuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}}  = sv2('C',parent(adjA),B,'O')
+Base.:(\)(A::AbstractTriangular{T,CuSparseMatrixHYB{T}},B::CuVector{T})       where T = sv('N',A,B,'O')
+Base.:(\)(transA::Transpose{T, UpperTriangular{T, CuSparseMatrixHYB{T}}},B::CuVector{T}) where {T<:BlasFloat} = sv('T',parent(transA),B,'O')
+Base.:(\)(transA::Transpose{T, LowerTriangular{T, CuSparseMatrixHYB{T}}},B::CuVector{T}) where {T<:BlasFloat} = sv('T',parent(transA),B,'O')
+Base.:(\)(adjA::Adjoint{T, UpperTriangular{T, CuSparseMatrixHYB{T}}},B::CuVector{T}) where {T<:BlasFloat} = sv('C',parent(adjA),B,'O')
+Base.:(\)(adjA::Adjoint{T, LowerTriangular{T, CuSparseMatrixHYB{T}}},B::CuVector{T}) where {T<:BlasFloat} = sv('C',parent(adjA),B,'O')
 
-(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')
-(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,-one(eltype(A)),B,'O','O','O')
+Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')
+Base.:(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,-one(eltype(A)),B,'O','O','O')
