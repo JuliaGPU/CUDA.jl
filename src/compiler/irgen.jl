@@ -301,11 +301,6 @@ function emit_exception!(builder, name, inst)
     call!(builder, trap)
 end
 
-# TODO: move these to LLVM.jl
-isaTerminatorInst(inst) = LLVM.API.LLVMIsATerminatorInst(LLVM.ref(inst)) != C_NULL
-Base.isempty(iter::LLVM.BasicBlockInstructionSet) =
-    LLVM.API.LLVMGetLastInstruction(LLVM.blockref(iter.bb)) == C_NULL
-
 # HACK: this pass removes `unreachable` information from LLVM
 #
 # `ptxas` is buggy and cannot deal with thread-divergent control flow in the presence of
@@ -333,9 +328,9 @@ function hide_unreachable!(fun::LLVM.Function)
     @timeit to[] "predecessors" for bb in blocks(fun)
         insts = instructions(bb)
         if !isempty(insts)
-            term = last(insts)
-            if isaTerminatorInst(term)
-                for bb′ in successors(term)
+            inst = last(insts)
+            if isterminator(inst)
+                for bb′ in successors(inst)
                     push!(predecessors[bb′], bb)
                 end
             end
