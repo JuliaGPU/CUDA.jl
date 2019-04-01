@@ -74,7 +74,7 @@ function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, w::CuArray{T},
   end
 
   workspace_size =
-    cudnnGetConvolutionBackwardDataWorkspaceSize(dx, w, dy, cdims; algo=algo)
+    cudnnGetConvolutionBackwardDataWorkspaceSize(dx, w, dy, cdims, algo=algo)
   CuVector{UInt8}(undef, workspace_size) do workspace
     cudnnConvolutionBackwardData(dx, w, dy, cdims, alpha=alpha, algo=algo,
                                  workspace=workspace, workspace_size=workspace_size)
