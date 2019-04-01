@@ -102,6 +102,15 @@ function ConvDesc(T, N, padding, stride, dilation, mode)
     return this
 end
 
+function ConvDesc(T, cdims::DenseConvDims)
+    pd = NNlib.padding(cdims)
+    if !all(pd[1:2:end] .== pd[2:2:end])
+        @warn("CuDNN does not support asymmetric padding; defaulting to symmetric choice")
+    end
+    return ConvDesc(T, NNlib.spatial_dims(cdims), pd[1:2:end], NNlib.stride(cdims),
+                       NNlib.dilation(cdims), NNlib.flipkernel(cdims))
+end
+
 mutable struct PoolDesc; ptr; end
 free(pd::PoolDesc)=cudnnDestroyPoolingDescriptor(pd.ptr)
 Base.unsafe_convert(::Type{cudnnPoolingDescriptor_t}, pd::PoolDesc)=pd.ptr
@@ -113,6 +122,15 @@ function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_
     this = PoolDesc(pd[])
     finalizer(free, this)
     return this
+end
+
+function PoolDesc(pdims::PoolDims, mode, maxpoolingNanOpt=CUDNN_NOT_PROPAGATE_NAN)
+    pd = NNlib.padding(pdims)
+    if !all(pd[1:2:end] .== pd[2:2:end])
+        @warn("CuDNN does not support asymmetric padding; defaulting to symmetric choice")
+    end
+    return PoolDesc(NNlib.spatial_dims(pdims), NNlib.kernel_size(pdims), pd[1:2:end],
+                    NNlib.stride(pdims), mode, maxpoolingNanOpt)
 end
 
 mutable struct ActivationDesc; ptr; end

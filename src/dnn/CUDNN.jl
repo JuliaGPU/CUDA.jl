@@ -6,6 +6,7 @@ import CUDAdrv: CUDAdrv, CuContext, CuPtr, CU_NULL
 
 using ..CuArrays
 using ..CuArrays: libcudnn, active_context, configured, unsafe_free!
+using NNlib
 
 include("libcudnn_types.jl")
 include("error.jl")
@@ -30,6 +31,7 @@ end
 include("libcudnn.jl")
 include("helpers.jl")
 include("nnlib.jl")
+include("compat.jl")
 
 version() = VersionNumber(cudnnGetProperty(CUDAapi.MAJOR_VERSION),
                           cudnnGetProperty(CUDAapi.MINOR_VERSION),

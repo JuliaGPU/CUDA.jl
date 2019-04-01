@@ -12,44 +12,53 @@ using CuArrays.CUDNN
                maxpool, meanpool, ∇maxpool, ∇meanpool,
                softmax, ∇softmax, logsoftmax, ∇logsoftmax
 
-  @test testf(NNlib.conv, rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
-  @test testf(∇conv_data, rand(Float64, 9, 9, 4, 1), rand(Float64, 2, 2, 3, 4))
-  @test testf(∇conv_filter, rand(Float64, 9, 9, 4, 1), rand(Float64, 10, 10, 3, 1))
-  @test testf(CuArrays.CUDNN.∇conv_bias!, cu(rand(Float64, 1, 1, 10, 1)), cu(rand(Float64, 10, 10, 10, 1)))
+  # Test for agreement between CPU NNlib and CuDNN versions, across a variety of kwargs
+  for num_spatial_dims in (2, 3)
+    # Initialize data we'll run our tests over
+    C_in = 3
+    C_out = 4
+    batch_size = 1
+    x = rand(Float64, repeat([8], num_spatial_dims)..., C_in, batch_size)
+    w = rand(Float64, repeat([2], num_spatial_dims)..., C_in, C_out)
+    b = rand(Float64, repeat([1], num_spatial_dims)..., C_in, C_out)
 
-  @test testf(NNlib.conv, rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4); dilation=2)
-  @test testf(∇conv_data, rand(Float64, 8, 8, 4, 1), rand(Float64, 2, 2, 3, 4); dilation=2)
-  @test testf(∇conv_filter, rand(Float64, 8, 8, 4, 1), rand(Float64, 10, 10, 3, 1); dilation=2)
+    for options in (
+      Dict(),
+      Dict(:dilation => 2),
+      Dict(:flipkernel => true),
+      Dict(:stride => 2),
+    )
+      cdims = DenseConvDims(x, w; options...)
+      y = NNlib.conv(x, w, cdims)
 
-  @test testf(NNlib.crosscor, rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4))
-  @test testf(∇conv_data, rand(Float64, 9, 9, 4, 1), rand(Float64, 2, 2, 3, 4); flipkernel=1)
-  @test testf(∇conv_filter, rand(Float64, 9, 9, 4, 1), rand(Float64, 10, 10, 3, 1); flipkernel=1)
+      # Test that basic convolution is equivalent across GPU/CPU
+      @test testf((x, w) -> NNlib.conv(x, w, cdims), x, w)
+      @test testf((y, w) -> ∇conv_data(y, w, cdims), y, w)
+      @test testf((x, y) -> ∇conv_filter(x, y, cdims), x, y)
+
+      # Test that we can use an alternative algorithm without dying
+      @test_nowarn NNlib.conv!(cu(y), cu(x), cu(w), cdims; algo=1)
+      @test_nowarn NNlib.∇conv_data!(cu(x), cu(y), cu(w), cdims; algo=1)
+      @test_nowarn NNlib.∇conv_filter!(cu(w), cu(x), cu(y), cdims; algo=1)
+    end
+
+    # Test that pooling is equivalent across GPU/CPU
+    pdims = PoolDims(x, 2)
+    y = maxpool(x, pdims)
+    dy = ones(size(y))
+    @test testf(x -> maxpool(x, pdims), x)
+    @test testf((dy, y, x) -> ∇maxpool(dy, y, x, pdims), dy, y, x)
+    @test testf(x -> maxpool(x, pdims), x)
+    @test testf((dy, y, x) -> ∇maxpool(dy, y, x, pdims), dy, y, x)
   
-  @test_nowarn NNlib.conv!(cu(zeros(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
-  @test_nowarn NNlib.∇conv_data!(cu(zeros(Float64, 10, 10, 1, 1)), cu(ones(Float64, 9, 9, 3, 1)), cu(rand(Float64, 2, 2, 1, 3)), algo=1)
-  @test_nowarn NNlib.∇conv_filter!(cu(zeros(Float64, 2, 2, 1, 3)), cu(ones(Float64, 9, 9, 3, 1)), cu(rand(Float64, 10, 10, 1, 1)), algo=1)
-
-  @test testf(NNlib.conv, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
-  @test testf(∇conv_data, rand(Float64, 9, 9, 9, 4, 1),  rand(Float64, 2, 2, 2, 3, 4))
-  @test testf(∇conv_filter, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1))
-  
-  @test testf(NNlib.conv, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4); dilation=2)
-  @test testf(∇conv_data, rand(Float64, 8, 8, 8, 4, 1), rand(Float64, 2, 2, 2, 3, 4); dilation=2)
-  @test testf(∇conv_filter, rand(Float64, 8, 8, 8, 4, 1), rand(Float64, 10, 10, 10, 3, 1); dilation=2)
-
-  @test testf(NNlib.crosscor, rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 2, 2, 2, 3, 4))
-  @test testf(∇conv_data, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 2, 2, 2, 3, 4); flipkernel=1)
-  @test testf(∇conv_filter, rand(Float64, 9, 9, 9, 4, 1), rand(Float64, 10, 10, 10, 3, 1); flipkernel=1)
-  
-  @test testf(x -> maxpool(x, (2,2)), rand(Float64, 10, 10, 3, 1))
-  @test testf(x -> meanpool(x, (2,2)), rand(Float64, 10, 10, 3, 1))
-  @test testf((x, dy) -> ∇maxpool(dy, maxpool(x, (2,2)), x, (2,2)), rand(Float64, 10, 10, 3, 1), rand(Float64, 5, 5, 3, 1))
-  @test testf((x, dy) -> ∇meanpool(dy, meanpool(x, (2,2)), x, (2,2)), rand(Float64, 10, 10, 3, 1), rand(Float64, 5, 5, 3, 1))
-
-  @test testf(x -> maxpool(x, (2,2,2)), rand(Float64, 10, 10, 10, 3, 1))
-  @test testf(x -> meanpool(x, (2,2,2)), rand(Float64, 10, 10, 10, 3, 1))
-  @test testf((x, dy) -> ∇maxpool(dy, maxpool(x, (2,2,2)), x, (2,2,2)), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 5, 5, 5, 3, 1))
-  @test testf((x, dy) -> ∇meanpool(dy, meanpool(x, (2,2,2)), x, (2,2,2)), rand(Float64, 10, 10, 10, 3, 1), rand(Float64, 5, 5, 5, 3, 1))
+    # CPU implementation of ∇conv_bias!
+    db = zeros(Float64, 1, 1, 3, 1)
+    function CuArrays.CUDNN.∇conv_bias!(db, y)
+      db[:] .= sum(y, dims=(1:(ndims(y)-2)))
+      return db
+    end
+    @test testf(CuArrays.CUDNN.∇conv_bias!, db, y)
+  end
 
   for dims in [(5,5), (5,)]
     @test testf(softmax, rand(Float64, dims))
