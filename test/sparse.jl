@@ -21,6 +21,8 @@ blockdim = 5
     @test size(d_x)   == (m,n)
     @test size(d_x,1) == m
     @test size(d_x,2) == n
+    @test size(d_x,3) == 1
+    @test_throws ArgumentError size(d_x,0)
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCSC(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
@@ -29,6 +31,14 @@ blockdim = 5
     @test_throws ArgumentError copyto!(d_y,d_x)
     d_y = CUSPARSE.switch2bsr(d_y,convert(Cint,blockdim))
     d_x = CUSPARSE.switch2bsr(d_x,convert(Cint,blockdim))
+    @test_throws ArgumentError copyto!(d_y,d_x)
+    x = sprand(m,0.2)
+    d_x = CuSparseVector(x)
+    @test size(d_x, 1) == m
+    @test size(d_x, 2) == 1
+    @test_throws ArgumentError size(d_x, 0)
+    y = sprand(n,0.2)
+    d_y = CuSparseVector(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
 end
 
