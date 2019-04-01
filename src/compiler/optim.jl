@@ -59,11 +59,7 @@ function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
 
             # the Julia GC lowering pass also has some clean-up that is required
             if VERSION >= v"1.2.0-DEV.531"
-                # TODO: move this to LLVM.jl
-                function LLVMAddLateLowerGCFramePass(PM::LLVM.API.LLVMPassManagerRef)
-                    LLVM.@apicall(:LLVMExtraAddLateLowerGCFramePass,Cvoid,(LLVM.API.LLVMPassManagerRef,), PM)
-                end
-                LLVMAddLateLowerGCFramePass(LLVM.ref(pm))
+                late_lower_gc_frame!(pm)
             end
 
             run!(pm, mod)

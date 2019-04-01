@@ -199,6 +199,7 @@ end
 function lower_throw!(mod::LLVM.Module)
     job = current_job::CompilerJob
     changed = false
+    @timeit to[] "lower throw" begin
 
     throw_functions = Dict{String,String}(
         "jl_throw"                      => "exception",
@@ -255,6 +256,7 @@ function lower_throw!(mod::LLVM.Module)
          end
      end
 
+    end
     return changed
 end
 
@@ -312,6 +314,7 @@ end
 function hide_unreachable!(fun::LLVM.Function)
     job = current_job::CompilerJob
     changed = false
+    @timeit to[] "hide unreachable" begin
 
     # remove `noreturn` attributes
     #
@@ -320,9 +323,23 @@ function hide_unreachable!(fun::LLVM.Function)
     attrs = function_attributes(fun)
     delete!(attrs, EnumAttribute("noreturn", 0, JuliaContext()))
 
+    # build a map of basic block predecessors
+    predecessors = Dict(bb => Set{LLVM.BasicBlock}() for bb in blocks(fun))
+    @timeit to[] "predecessors" for bb in blocks(fun)
+        insts = instructions(bb)
+        if !isempty(insts)
+            inst = last(insts)
+            if isterminator(inst)
+                for bb′ in successors(inst)
+                    push!(predecessors[bb′], bb)
+                end
+            end
+        end
+    end
+
     # scan for unreachable terminators and alternative successors
     worklist = Pair{LLVM.BasicBlock, Union{Nothing,LLVM.BasicBlock}}[]
-    for bb in blocks(fun)
+    @timeit to[] "find" for bb in blocks(fun)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -338,49 +355,27 @@ function hide_unreachable!(fun::LLVM.Function)
                 let builder = Builder(JuliaContext())
                     position!(builder, bb)
 
-                    # TODO: move to LLVM.jl
-                    isaTerminatorInst(inst) =
-                        LLVM.API.LLVMIsATerminatorInst(LLVM.ref(inst)) != C_NULL
+                    # find the strict predecessors to this block
+                    preds = collect(predecessors[bb])
 
-                    # find the predecessors to this block
-                    function predecessors(bb)
-                        pred = BasicBlock[]
-                        for bb′ in blocks(fun)
-                            insts = instructions(bb′)
-                            if bb != bb′ && !isempty(insts)
-                                term = last(insts)
-                                if isaTerminatorInst(term) && bb in successors(term)
-                                    push!(pred, bb′)
-                                end
-                            end
-                            pred
-                        end
-                        return pred
-                    end
-                    pred = predecessors(bb)
-
-                    # find a fallthrough block: recursively look at predecessors and find
-                    # terminators that branch to any block != unreachable block
+                    # find a fallthrough block: recursively look at predecessors
+                    # and find a successor that branches to any other block
                     fallthrough = nothing
-                    while !isempty(pred)
-                        # there might be multiple blocks branching to the unreachable one
-                        branches = map(terminator, pred)
-
-                        # find the other successors
-                        other_succ = BasicBlock[]
-                        for br in branches
-                            for target in successors(br)
-                                if target != bb
-                                    push!(other_succ, target)
-                                end
+                    while !isempty(preds)
+                        # find an alternative successor
+                        for pred in preds, succ in successors(terminator(pred))
+                            if succ != bb
+                                fallthrough = succ
+                                break
                             end
                         end
+                        fallthrough === nothing || break
 
-                        if !isempty(other_succ)
-                            fallthrough = first(other_succ)
-                            break
-                        else
-                            pred = Iterators.flatten(map(predecessors, pred))
+                        # recurse upwards
+                        old_preds = copy(preds)
+                        empty!(preds)
+                        for pred in old_preds
+                            append!(preds, predecessors[pred])
                         end
                     end
                     push!(worklist, bb => fallthrough)
@@ -392,7 +387,7 @@ function hide_unreachable!(fun::LLVM.Function)
     end
 
     # apply the pending terminator rewrites
-    if !isempty(worklist)
+    @timeit to[] "replace" if !isempty(worklist)
         let builder = Builder(JuliaContext())
             for (bb, fallthrough) in worklist
                 position!(builder, bb)
@@ -416,6 +411,7 @@ function hide_unreachable!(fun::LLVM.Function)
         end
     end
 
+    end
     return changed
 end
 
@@ -425,6 +421,7 @@ end
 function hide_trap!(mod::LLVM.Module)
     job = current_job::CompilerJob
     changed = false
+    @timeit to[] "hide trap" begin
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()))
@@ -447,5 +444,6 @@ function hide_trap!(mod::LLVM.Module)
         end
     end
 
+    end
     return changed
 end
