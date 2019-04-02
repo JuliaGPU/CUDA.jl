@@ -54,7 +54,7 @@ using CuArrays.CUDNN
     # CPU implementation of ∇conv_bias!
     db = zeros(Float64, 1, 1, 3, 1)
     function CuArrays.CUDNN.∇conv_bias!(db, y)
-      db[:] .= sum(y, dims=(1:(ndims(y)-2)))
+      db .= sum(y, dims=(1:(ndims(y)-2)))
       return db
     end
     @test testf(CuArrays.CUDNN.∇conv_bias!, db, y)
