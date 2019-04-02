@@ -33,7 +33,9 @@ let
     cudacall(dummy, (); threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
 
     # different launch syntaxes
-    CUDAdrv.launch(dummy, 1, 1, 0, CuDefaultStream(), ())
+    CUDAdrv.launch(dummy, true, 1, 1, 0, CuDefaultStream(), ())
+    CUDAdrv.launch(dummy, false, 1, 1, 0, CuDefaultStream(), ())
+
 end
 
 let
