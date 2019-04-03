@@ -513,7 +513,7 @@ end
     d_a = CuTestArray(a)
     d_b = CuTestArray(b)
     d_c = CuTestArray(c)  # output array
-    @cuda cg=true threads=600 blocks=20 kernel_vadd(d_a, d_b, d_c)
+    @cuda cooperative=true threads=600 blocks=20 kernel_vadd(d_a, d_b, d_c)
     c = Array(d_c)
     @test all(c[1] .== c)
 end

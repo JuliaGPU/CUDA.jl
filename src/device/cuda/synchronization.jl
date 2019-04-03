@@ -139,7 +139,7 @@ kernel is launched.
 this_grid
 
 if VERSION >= v"1.2.0-DEV.512"
-    @inline cudaGetParameterBuffer(grid_handle::Culonglong) =
+    @inline sync_grid(grid_handle::Culonglong) =
         ccall("extern cudaCGSynchronize", llvmcall, cudaError_t, (Culonglong, Cuint), grid_handle, UInt32(0))
 else
     @eval @inline sync_grid(grid_handle::Culonglong) = Base.llvmcall(
