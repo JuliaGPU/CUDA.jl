@@ -83,13 +83,19 @@ free(cd::ConvDesc) = cudnnDestroyConvolutionDescriptor(cd.ptr)
 Base.unsafe_convert(::Type{cudnnConvolutionDescriptor_t}, cd::ConvDesc)=cd.ptr
 
 function cdsize(w, nd)
-    isa(w, Integer) ? Cint[fill(w,nd)...] :
-    length(w)!=nd ? error("Dimension mismatch") :
-    Cint[reverse(w)...]
+    isa(w, Integer) && return Cint[fill(w,nd)...]
+    length(w) == nd && return Cint[reverse(w)...]
+    length(w) == 2*nd && return Cint[reverse(w[nd+1:end])...]
+    throw(DimensionMismatch())
 end
 
 pdsize(w, nd)=Cint[reverse(psize(w,nd))...]
-psize(w, nd)=(isa(w,Integer)  ? fill(w,nd) : length(w) != nd ? error("Dimension mismatch") : w)
+function psize(w, nd)
+    isa(w, Integer) && return Cint[fill(w,nd)...]
+    length(w) == nd && return w
+    length(w) == 2*nd && return w[1:nd]
+    throw(DimensionMismatch())
+end
 
 function ConvDesc(T, N, padding, stride, dilation, mode)
     cd = Ref{cudnnConvolutionDescriptor_t}()

@@ -11,6 +11,12 @@ using CuArrays.CUDNN
   using NNlib: ∇conv_data, ∇conv_filter,
                maxpool, meanpool, ∇maxpool, ∇meanpool,
                softmax, ∇softmax, logsoftmax, ∇logsoftmax
+  a, b, c = rand(Float64, 10, 10, 3, 1), rand(Float64, 2, 2, 3, 4), rand(Float64, 9, 9, 4, 1)
+  da, db, dc = CuArray(a), CuArray(b), CuArray(c)
+  cdims = DenseConvDims(a, b)
+  @test NNlib.conv(a, b, cdims) ≈ collect(NNlib.conv(da, db, cdims))
+  @test ∇conv_data(c, b, cdims) ≈ collect(∇conv_data(dc, db, cdims))
+  @test ∇conv_filter(a, c, cdims) ≈ collect(∇conv_filter(da, dc, cdims))
 
   # Test for agreement between CPU NNlib and CuDNN versions, across a variety of kwargs
   for num_spatial_dims in (2, 3)
