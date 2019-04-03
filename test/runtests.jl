@@ -42,6 +42,8 @@ if CUDAnative.configured
             nothing
         end
 
+        device_reset!()
+
         # test the device selection functionality
         if length(devices()) > 1
             device!(1) do

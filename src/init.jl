@@ -1,6 +1,6 @@
 # Initialization
 
-export device!
+export device!, device_reset!
 
 
 const initialized = Ref{Bool}(false)
@@ -69,6 +69,26 @@ function device!(dev::CuDevice)
     end
 end
 device!(dev::Integer) = device!(CuDevice(dev))
+
+"""
+    device_reset!(dev::CuDevice=device())
+
+Reset the CUDA state associated with a device. This call with release the underlying
+context, at which point any objects allocated in that context will be invalidated.
+"""
+function device_reset!(dev::CuDevice=device())
+    delete!(device_contexts, dev)
+
+    pctx = CuPrimaryContext(dev)
+    unsafe_reset!(pctx)
+
+    # unless the user switches devices, new API calls should trigger initialization
+    CUDAdrv.apicall_hook[] = maybe_initialize
+    initialized[] = false
+
+    # HACK: primary contexts always have the same handle, defeating the compilation cache
+    empty!(compilecache)
+end
 
 """
     device!(f, dev)
