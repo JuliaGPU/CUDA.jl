@@ -10,12 +10,13 @@ include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/coverage_v1.1.yml'
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v2/documentation_v1.1.yml'
 
-documentation:
-  only:
-    - master
+test:dev:
+  allow_failure: true
 
 coverage:
   allow_failure: true
+  only:
+    - master
 
 pages:
   stage: deploy
