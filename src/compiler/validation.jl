@@ -106,7 +106,8 @@ const special_fns = (
     # libdevice
     "__nvvm_reflect",
     # libcudevrt
-    "cudaDeviceSynchronize", "cudaGetParameterBufferV2", "cudaLaunchDeviceV2"
+    "cudaDeviceSynchronize", "cudaGetParameterBufferV2", "cudaLaunchDeviceV2",
+    "cudaCGGetIntrinsicHandle", "cudaCGSynchronize"
 )
 
 const libjulia = Ref{Ptr{Cvoid}}(C_NULL)
