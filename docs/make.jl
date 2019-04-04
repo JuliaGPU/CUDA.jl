@@ -1,10 +1,5 @@
 using Documenter
 
-using Pkg
-if haskey(ENV, "GITLAB_CI")
-  Pkg.add([PackageSpec(name = x; rev = "master") for x in ["CUDAdrv", "LLVM"]])
-end
-
 using CUDAnative
 
 makedocs(
