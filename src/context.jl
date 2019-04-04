@@ -129,6 +129,25 @@ function CuCurrentContext()
 end
 
 """
+    push!(CuContext, ctx::CuContext)
+
+Pushes a context on the current CPU thread.
+"""
+Base.push!(::Type{CuContext}, ctx::CuContext) =
+    @apicall(:cuCtxPushCurrent, (CuContext_t,), ctx)
+
+"""
+    pop!(CuContext)
+
+Pops the current CUDA context from the current CPU thread, and returns that context.
+"""
+function Base.pop!(::Type{CuContext})
+    handle_ref = Ref{CuContext_t}()
+    @apicall(:cuCtxPopCurrent, (Ptr{CuContext_t},), handle_ref)
+    CuContext(handle_ref[], false)
+end
+
+"""
     activate(ctx::CuContext)
 
 Binds the specified CUDA context to the calling CPU thread.
@@ -136,15 +155,12 @@ Binds the specified CUDA context to the calling CPU thread.
 activate(ctx::CuContext) = @apicall(:cuCtxSetCurrent, (CuContext_t,), ctx)
 
 function CuContext(f::Function, args...)
-    # NOTE: this could be implemented with context pushing and popping,
-    #       but that functionality / our implementation of it hasn't been reliable
-    old_ctx = CuCurrentContext()
-    ctx = CuContext(args...)    # implicitly activates
+    ctx = CuContext(args...)    # implicitly pushes
     try
         f(ctx)
     finally
+        @assert pop!(CuContext) == ctx
         destroy!(ctx)
-        activate(old_ctx)
     end
 end
 
@@ -155,16 +171,14 @@ end
     device()
     device(ctx::Cucontext)
 
-Returns the device for the current context. The optional `ctx` parameter is to make sure
-that the current context is really active, and hence the returned device is valid.
+Returns the device for a context.
 """
 function device(ctx::CuContext)
-    if CuCurrentContext() != ctx
-        # TODO: should we push and pop here?
-        error("context should be active")
-    end
-
-    return device()
+    push!(CuContext, ctx)
+    device_ref = Ref{CuDevice_t}()
+    @apicall(:cuCtxGetDevice, (Ptr{Cint},), device_ref)
+    pop!(CuContext)
+    return CuDevice(Bool, device_ref[])
 end
 function device()
     device_ref = Ref{CuDevice_t}()

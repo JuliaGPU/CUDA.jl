@@ -10,7 +10,7 @@ let ctx2 = CuContext(dev)
     activate(ctx)
     @test ctx == CuCurrentContext()
 
-    @test_throws ErrorException device(ctx2)
+    @test device(ctx2) == dev
 
     destroy!(ctx2)
 end
