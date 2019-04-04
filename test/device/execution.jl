@@ -951,4 +951,27 @@ end
 
 ############################################################################################
 
+@testset "cooperative groups" begin
+    function kernel_vadd(a, b, c)
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        grid_handle = this_grid()
+        c[i] = a[i] + b[i]
+        sync_grid(grid_handle)
+        c[i] = c[1]
+        return nothing
+    end
+
+    a = round.(rand(Float32, (300, 40)) * 100)
+    b = round.(rand(Float32, (300, 40)) * 100)
+    c = zeros(Float32, (300, 40))
+    d_a = CuTestArray(a)
+    d_b = CuTestArray(b)
+    d_c = CuTestArray(c)  # output array
+    @cuda cooperative=true threads=600 blocks=20 kernel_vadd(d_a, d_b, d_c)
+    c = Array(d_c)
+    @test all(c[1] .== c)
+end
+
+############################################################################################
+
 end

@@ -107,7 +107,6 @@ const special_fns = (
     "__nvvm_reflect",
     # libcudevrt
     "cudaDeviceSynchronize", "cudaGetParameterBufferV2", "cudaLaunchDeviceV2",
-    # cooperative groups
     "cudaCGGetIntrinsicHandle", "cudaCGSynchronize"
 )
 

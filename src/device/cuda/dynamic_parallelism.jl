@@ -1,12 +1,6 @@
-# wrappers for the libcudadevrt library
-#
-# The libcudadevrt library is a collection of PTX bitcode functions that implement parts of
-# the CUDA API for execution on the device, such as device synchronization primitives,
-# dynamic kernel APIs, etc.
+# E. Dynamic Parallelism
 
 import CUDAdrv: CuDim3, CuStream_t
-
-const cudaError_t = Cint
 const cudaStream_t = CUDAdrv.CuStream_t
 
 if VERSION >= v"1.2.0-DEV.512"
