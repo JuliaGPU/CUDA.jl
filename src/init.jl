@@ -61,8 +61,9 @@ function device!(dev::CuDevice)
     ctx = get!(device_contexts, dev) do
         pctx = CuPrimaryContext(dev)
         CuContext(pctx)
+        pop!(CuContext) # we don't maintain a stack...
     end
-    activate(ctx)
+    activate(ctx)       # replace the top of the stack
 
     for listener in device!_listeners
         listener(dev, device_contexts[dev])
