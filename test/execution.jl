@@ -29,11 +29,17 @@ let
     cudacall(dummy, Tuple{}; threads=1, blocks=1)
     cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0)
     cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
+    cudacall(dummy, Tuple{}; threads=1, blocks=1, shmem=0, stream=CuDefaultStream(), cooperative=false)
     cudacall(dummy, ())
-    cudacall(dummy, (); threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
+    cudacall(dummy, (); threads=1, blocks=1, shmem=0, stream=CuDefaultStream(), cooperative=false)
 
     # different launch syntaxes
-    CUDAdrv.launch(dummy, 1, 1, 0, CuDefaultStream(), ())
+    CUDAdrv.launch(dummy)
+    CUDAdrv.launch(dummy; threads=1)
+    CUDAdrv.launch(dummy; threads=1, blocks=1)
+    CUDAdrv.launch(dummy; threads=1, blocks=1, shmem=0)
+    CUDAdrv.launch(dummy; threads=1, blocks=1, shmem=0, stream=CuDefaultStream())
+    CUDAdrv.launch(dummy; threads=1, blocks=1, shmem=0, stream=CuDefaultStream(), cooperative=false)
 end
 
 let

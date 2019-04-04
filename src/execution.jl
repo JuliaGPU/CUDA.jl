@@ -35,36 +35,8 @@ const CuDim = Union{Integer,
                     Tuple{Integer, Integer},
                     Tuple{Integer, Integer, Integer}}
 
-"""
-    launch(f::CuFunction, blocks::CuDim, threads::CuDim, args...;
-           shmem=0, stream=CuDefaultStream())
-    launch(f::CuFunction, blocks::CuDim, threads::CuDim, shmem::Int, stream::CuStream, args...)
-
-Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
-respectively the grid and block configuration. Dynamic shared memory is allocated according
-to `shmem`, and the kernel is launched on stream `stream`.
-
-Arguments to a kernel should either be bitstype, in which case they will be copied to the
-internal kernel parameter buffer, or a pointer to device memory.
-
-This is a low-level call, prefer to use [`cudacall`](@ref) instead.
-"""
-@inline function launch(f::CuFunction, blocks::CuDim, threads::CuDim,
-                        shmem::Int, stream::CuStream,
-                        args...)
-    blocks = CuDim3(blocks)
-    threads = CuDim3(threads)
-    (blocks.x>0 && blocks.y>0 && blocks.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
-    (threads.x>0 && threads.y>0 && threads.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
-
-    _launch(f, blocks, threads, shmem, stream, args...)
-end
-
-# we need a generated function to get an args array,
-# without having to inspect the types at runtime
-@generated function _launch(f::CuFunction, blocks::CuDim3, threads::CuDim3,
-                            shmem::Int, stream::CuStream,
-                            args...)
+# pack arguments in a buffer that CUDA expects
+@generated function pack_arguments(f::Function, args...)
     all(isbitstype, args) || throw(ArgumentError("Arguments to kernel should be bitstype."))
 
     ex = quote
@@ -88,6 +60,47 @@ end
     append!(ex.args, (quote
         GC.@preserve $(arg_refs...) begin
             kernelParams = [$(arg_ptrs...)]
+            f(kernelParams)
+        end
+    end).args)
+    return ex
+end
+
+"""
+    launch(f::CuFunction; args...; blocks::CuDim=1, threads::CuDim=1,
+           cooperative=false, shmem=0, stream=CuDefaultStream())
+
+Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
+respectively the grid and block configuration. Dynamic shared memory is allocated according
+to `shmem`, and the kernel is launched on stream `stream`.
+
+Arguments to a kernel should either be bitstype, in which case they will be copied to the
+internal kernel parameter buffer, or a pointer to device memory.
+
+This is a low-level call, prefer to use [`cudacall`](@ref) instead.
+"""
+function launch(f::CuFunction, args...; blocks::CuDim=1, threads::CuDim=1,
+                cooperative::Bool=false, shmem::Integer=0,
+                stream::CuStream=CuDefaultStream())
+    blocks = CuDim3(blocks)
+    threads = CuDim3(threads)
+    (blocks.x>0 && blocks.y>0 && blocks.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
+    (threads.x>0 && threads.y>0 && threads.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
+
+    pack_arguments(args...) do kernelParams
+        if cooperative
+            @apicall(:cuLaunchCooperativeKernel, (
+                CuFunction_t,           # function
+                Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
+                Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
+                Cuint,                  # shared memory bytes,
+                CuStream_t,             # stream
+                Ptr{Ptr{Cvoid}}),       # kernel parameters
+                f,
+                blocks.x, blocks.y, blocks.z,
+                threads.x, threads.y, threads.z,
+                shmem, stream, kernelParams)
+        else
             @apicall(:cuLaunchKernel, (
                 CuFunction_t,           # function
                 Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
@@ -101,14 +114,39 @@ end
                 threads.x, threads.y, threads.z,
                 shmem, stream, kernelParams, C_NULL)
         end
+    end
+end
+
+# convert the argument values to match the kernel's signature (specified by the user)
+# (this mimics `lower-ccall` in julia-syntax.scm)
+@generated function convert_arguments(f::Function, ::Type{tt}, args...) where {tt}
+    types = tt.parameters
+
+    ex = quote
+        Base.@_inline_meta
+    end
+
+    converted_args = Vector{Symbol}(undef, length(args))
+    arg_ptrs = Vector{Symbol}(undef, length(args))
+    for i in 1:length(args)
+        converted_args[i] = gensym()
+        arg_ptrs[i] = gensym()
+        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
+        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
+    end
+
+    append!(ex.args, (quote
+        GC.@preserve $(converted_args...) begin
+            f($(arg_ptrs...))
+        end
     end).args)
 
     return ex
 end
 
 """
-    cudacall(f::CuFunction, types, values...;
-             blocks::CuDim, threads::CuDim, shmem=0, stream=CuDefaultStream())
+    cudacall(f::CuFunction, types, values...; blocks::CuDim, threads::CuDim,
+             cooperative=false, shmem=0, stream=CuDefaultStream())
 
 `ccall`-like interface for launching a CUDA function `f` on a GPU.
 
@@ -122,8 +160,7 @@ For example:
     c = zeros(Float32, 10)
     cd = Mem.alloc(c)
 
-    cudacall(vadd, (Ptr{Cfloat},Ptr{Cfloat},Ptr{Cfloat}), ad, bd, cd;
-             threads=10)
+    cudacall(vadd, (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd; threads=10)
     Mem.download!(c, cd)
 
 The `blocks` and `threads` arguments control the launch configuration, and should both
@@ -133,49 +170,14 @@ being slightly faster.
 """
 cudacall
 
-@inline function cudacall(f::CuFunction, types::NTuple{N,DataType}, values::Vararg{Any,N};
-                          kwargs...) where N
-    # this cannot be inferred properly (because types only contains `DataType`s),
-    # which results in the call `@generated _cudacall` getting expanded upon first use
-    _cudacall(f, Tuple{types...}, values...; kwargs...)
-end
+# FIXME: can we make this infer properly?
+cudacall(f::CuFunction, types::Tuple, args...; kwargs...) where {N} =
+    cudacall(f, Base.to_tuple_type(types), args...; kwargs...)
 
-@inline function cudacall(f::CuFunction, tt::Type, values::Vararg{Any,N};
-                          kwargs...) where N
-    # in this case, the type of `tt` is `Tuple{<:DataType,...}`,
-    # which means the generated function can be expanded earlier
-    _cudacall(f, tt, values...; kwargs...)
-end
-
-# we need a generated function to get a tuple of converted arguments (using unsafe_convert),
-# without having to inspect the types at runtime
-@generated function _cudacall(f::CuFunction, tt::Type, args...;
-                              blocks::CuDim=1, threads::CuDim=1,
-                              shmem::Integer=0, stream::CuStream=CuDefaultStream())
-    types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
-
-    ex = quote
-        Base.@_inline_meta
+function cudacall(f::CuFunction, types::Type, args...; kwargs...)
+    convert_arguments(types, args...) do pointers...
+        launch(f, pointers...; kwargs...)
     end
-
-    # convert the argument values to match the kernel's signature (specified by the user)
-    # (this mimics `lower-ccall` in julia-syntax.scm)
-    converted_args = Vector{Symbol}(undef, length(args))
-    arg_ptrs = Vector{Symbol}(undef, length(args))
-    for i in 1:length(args)
-        converted_args[i] = gensym()
-        arg_ptrs[i] = gensym()
-        push!(ex.args, :($(converted_args[i]) = Base.cconvert($(types[i]), args[$i])))
-        push!(ex.args, :($(arg_ptrs[i]) = Base.unsafe_convert($(types[i]), $(converted_args[i]))))
-    end
-
-    append!(ex.args, (quote
-        GC.@preserve $(converted_args...) begin
-            launch(f, blocks, threads, shmem, stream, ($(arg_ptrs...)))
-        end
-    end).args)
-
-    return ex
 end
 
 
