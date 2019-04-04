@@ -77,6 +77,15 @@ Reset the CUDA state associated with a device. This call with release the underl
 context, at which point any objects allocated in that context will be invalidated.
 """
 function device_reset!(dev::CuDevice=device())
+    # invalidate compiled kernels
+    ctx = device_contexts[dev]
+    for id in collect(keys(compilecache))
+        kernel = compilecache[id]
+        if kernel.ctx == ctx
+            delete!(compilecache, id)
+        end
+    end
+
     delete!(device_contexts, dev)
 
     pctx = CuPrimaryContext(dev)
@@ -85,9 +94,6 @@ function device_reset!(dev::CuDevice=device())
     # unless the user switches devices, new API calls should trigger initialization
     CUDAdrv.apicall_hook[] = maybe_initialize
     initialized[] = false
-
-    # HACK: primary contexts always have the same handle, defeating the compilation cache
-    empty!(compilecache)
 end
 
 """
