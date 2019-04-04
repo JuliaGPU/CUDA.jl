@@ -951,6 +951,8 @@ end
 
 ############################################################################################
 
+if capability(dev) >= v"6.0"
+
 @testset "cooperative groups" begin
     function kernel_vadd(a, b, c)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -970,6 +972,8 @@ end
     @cuda cooperative=true threads=600 blocks=20 kernel_vadd(d_a, d_b, d_c)
     c = Array(d_c)
     @test all(c[1] .== c)
+end
+
 end
 
 ############################################################################################
