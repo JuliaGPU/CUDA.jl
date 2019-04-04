@@ -33,13 +33,15 @@ const pctx_instances = Dict{CuPrimaryContext,Set{WeakRef}}()
     CuContext(f::Function, pctx::CuPrimaryContext)
 
 Retain the primary context on the GPU, returning a context compatible with the driver API.
-The primary context will be released when the returned driver context is finalized. For that
-reason, it is advised to use this function with `do` block syntax.
+The primary context will be released when the returned driver context is finalized.
+
+Contrary to the CUDA API, this call does push the context on the current CPU thread.
 """
 function CuContext(pctx::CuPrimaryContext)
     handle = Ref{CuContext_t}()
     @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, pctx.dev)
     ctx = CuContext(handle[], false)    # CuContext shouldn't manage this ctx
+    push!(CuContext, ctx)
     finalizer((ctx)->begin
         @assert isvalid(ctx)    # not owned by CuContext, so shouldn't have been invalidated
         @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
