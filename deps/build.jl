@@ -1,6 +1,4 @@
 using CUDAapi
-using CUDAdrv
-using CUDAnative
 
 
 ## auxiliary routines
@@ -40,9 +38,6 @@ function main()
 
 
     ## discover stuff
-
-    CUDAdrv.configured || build_error("Dependent package CUDAdrv.jl has not been built successfully")
-    CUDAnative.configured || build_error("Dependent package CUDAnative.jl has not been built successfully")
 
     toolkit = find_toolkit()
 
