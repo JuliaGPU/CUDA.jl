@@ -35,8 +35,10 @@ flux:
   script:
     - mkdir $JULIA_DEPOT_PATH # Pkg.jl#325
     - julia -e 'using Pkg;
-                Pkg.develop(PackageSpec(path=pwd()));
-                Pkg.build();
-                Pkg.add(PackageSpec(name="Flux", rev="master"));
-                Pkg.test("Flux");'
+                Pkg.develop([PackageSpec(path=pwd());
+                             [PackageSpec(name=pkg)
+                              for pkg in split(get(ENV,"CI_DEV_PKGS",""))]])'
+    - julia -e 'using Pkg;
+                Pkg.build("CuArrays");
+                Pkg.test("Flux")'
   allow_failure: true
