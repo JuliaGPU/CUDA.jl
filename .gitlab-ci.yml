@@ -37,8 +37,9 @@ flux:
     - julia -e 'using Pkg;
                 Pkg.develop([PackageSpec(path=pwd());
                              [PackageSpec(name=pkg)
-                              for pkg in split(get(ENV,"CI_DEV_PKGS",""))]])'
+                              for pkg in split(get(ENV,"CI_DEV_PKGS",""))]]);
+                Pkg.build("CuArrays")'
     - julia -e 'using Pkg;
-                Pkg.build("CuArrays");
+                Pkg.add("Flux");
                 Pkg.test("Flux")'
   allow_failure: true
