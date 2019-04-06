@@ -1,7 +1,5 @@
 @testset "code generation" begin
 
-cap = CUDAnative.current_capability()
-
 ############################################################################################
 
 @testset "LLVM IR" begin
