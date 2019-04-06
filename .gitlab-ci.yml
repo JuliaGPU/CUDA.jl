@@ -1,6 +1,6 @@
 variables:
   CI_IMAGE_TAG: 'cuda'
-  CI_DEV_PKGS: 'CUDAdrv LLVM CuArrays'
+  CI_DEV_PKGS: 'CUDAdrv LLVM'
 
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/common.yml'
@@ -36,8 +36,9 @@ cuarrays:
     - julia -e 'using Pkg;
                 Pkg.develop([PackageSpec(path=pwd());
                              [PackageSpec(name=pkg)
-                              for pkg in split(get(ENV,"CI_DEV_PKGS",""))]])'
+                              for pkg in split(get(ENV,"CI_DEV_PKGS",""))]]);
+                Pkg.build("CUDAnative")'
     - julia -e 'using Pkg;
-                Pkg.build("CUDAnative");
+                Pkg.add("CuArrays");
                 Pkg.test("CuArrays")'
   allow_failure: true
