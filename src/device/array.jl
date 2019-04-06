@@ -53,7 +53,10 @@ CuDeviceVector{T,A}(len::Integer,               p::DevicePtr{T,A}) where {T,A}  
 ## getters
 
 Base.pointer(a::CuDeviceArray) = a.ptr
+Base.pointer(a::CuDeviceArray, i::Integer) =
+    pointer(a) + (i - 1) * Base.elsize(a)
 
+Base.elsize(::Type{<:CuDeviceArray{T}}) where {T} = sizeof(T)
 Base.size(g::CuDeviceArray) = g.shape
 Base.length(g::CuDeviceArray) = prod(g.shape)
 
