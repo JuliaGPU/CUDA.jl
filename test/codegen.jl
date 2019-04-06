@@ -1,5 +1,7 @@
 @testset "code generation" begin
 
+cap = CUDAnative.current_capability()
+
 ############################################################################################
 
 @testset "LLVM IR" begin
@@ -473,7 +475,7 @@ end
     foobar(i) = (sink(unsafe_trunc(Int,i)); return)
 
     @test_throws_message(CUDAnative.KernelError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{BigInt}, v"3.5", true))) do msg
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{BigInt}, cap, true))) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("BigInt", msg)
     end
@@ -483,7 +485,7 @@ end
     foobar(i) = println(i)
 
     @test_throws_message(CUDAnative.InvalidIRError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Int}, v"3.5", true))) do msg
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Int}, cap, true))) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.RUNTIME_FUNCTION, msg) &&
         occursin("[1] println", msg) &&
@@ -495,7 +497,7 @@ end
     foobar(p) = (unsafe_store!(p, ccall(:time, Cint, ())); nothing)
 
     @test_throws_message(CUDAnative.InvalidIRError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Ptr{Int}}, v"3.5", true))) do msg
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Ptr{Int}}, cap, true))) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.POINTER_FUNCTION, msg) &&
         occursin(r"\[1\] .+foobar", msg)
