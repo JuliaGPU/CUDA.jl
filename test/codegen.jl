@@ -469,12 +469,27 @@ end
 
 # some validation happens in `compile`
 
+@eval Main begin
+struct CleverType{T}
+    x::T
+end
+Base.unsafe_trunc(::Type{Int}, x::CleverType) = unsafe_trunc(Int, x.x)
+end
+
 @testset "non-isbits arguments" begin
     foobar(i) = (sink(unsafe_trunc(Int,i)); return)
 
     @test_throws_message(CUDAnative.KernelError,
                          CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{BigInt}, cap, true))) do msg
         occursin("passing and using non-bitstype argument", msg) &&
+        occursin("BigInt", msg)
+    end
+
+    # test that we get information about fields and reason why something is not isbits
+    @test_throws_message(CUDAnative.KernelError,
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{CleverType{BigInt}}, cap, true))) do msg
+        occursin("passing and using non-bitstype argument", msg) &&
+        occursin("CleverType", msg) &&
         occursin("BigInt", msg)
     end
 end
