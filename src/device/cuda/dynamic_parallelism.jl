@@ -13,8 +13,8 @@ else
     # declare i32 @cudaLaunchDeviceV2(i8*, %struct.CUstream_st*)
     @eval @inline cudaLaunchDevice(buf::Ptr{Cvoid}, stream::CuStream) =
             Base.llvmcall(
-                ( "declare i32 @cudaLaunchDeviceV2(i8*, i8*)",
-                 $"%buf = inttoptr i$WORD_SIZE %0 to i8*
+                $("declare i32 @cudaLaunchDeviceV2(i8*, i8*)",
+                  "%buf = inttoptr i$WORD_SIZE %0 to i8*
                    %stream = inttoptr i$WORD_SIZE %1 to i8*
                    %rv = call i32 @cudaLaunchDeviceV2(i8* %buf, i8* %stream)
                    ret i32 %rv"), cudaError_t,
@@ -52,8 +52,8 @@ else
                                          threads_x::Cuint, threads_y::Cuint, threads_z::Cuint,
                                          shmem::Cuint) =
             Base.llvmcall(
-                ( "declare i8* @cudaGetParameterBufferV2(i8*, {i32,i32,i32}, {i32,i32,i32}, i32)",
-                 $"%f = inttoptr i$WORD_SIZE %0 to i8*
+                $("declare i8* @cudaGetParameterBufferV2(i8*, {i32,i32,i32}, {i32,i32,i32}, i32)",
+                  "%f = inttoptr i$WORD_SIZE %0 to i8*
                    %blocks.x = insertvalue { i32, i32, i32 } undef, i32 %1, 0
                    %blocks.y = insertvalue { i32, i32, i32 } %blocks.x, i32 %2, 1
                    %blocks.z = insertvalue { i32, i32, i32 } %blocks.y, i32 %3, 2
@@ -98,11 +98,10 @@ end
 if VERSION >= v"1.2.0-DEV.512"
     @inline synchronize() = ccall("extern cudaDeviceSynchronize", llvmcall, Cint, ())
 else
-    @eval @inline synchronize() =
-            Base.llvmcall(
-                ("declare i32 @cudaDeviceSynchronize()",
-                 "%rv = call i32 @cudaDeviceSynchronize()
-                  ret i32 %rv"), cudaError_t, Tuple{})
+    @eval @inline synchronize() = Base.llvmcall(
+        $("declare i32 @cudaDeviceSynchronize()",
+          "%rv = call i32 @cudaDeviceSynchronize()
+           ret i32 %rv"), cudaError_t, Tuple{})
 end
 
 """

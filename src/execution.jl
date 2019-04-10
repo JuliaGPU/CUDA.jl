@@ -456,11 +456,10 @@ if VERSION >= v"1.2.0-DEV.512"
         ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
 else
     import Base.Sys: WORD_SIZE
-    @eval @inline cudanativeCompileKernel(id::Int) =
-        Base.llvmcall(
-            ($"declare i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE)",
-             $"%rv = call i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE %0)
-               ret i$WORD_SIZE %rv"), Ptr{Cvoid}, Tuple{Int}, id)
+    @eval @inline cudanativeCompileKernel(id::Int) = Base.llvmcall(
+        $("declare i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE)",
+          "%rv = call i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE %0)
+           ret i$WORD_SIZE %rv"), Ptr{Cvoid}, Tuple{Int}, id)
 end
 
 const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
