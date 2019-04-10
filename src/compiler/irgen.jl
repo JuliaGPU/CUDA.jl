@@ -34,7 +34,7 @@ end
 Base.showerror(io::IO, err::MethodSubstitutionWarning) =
     print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
 
-function compile_linfo(job::CompilerJob, linfo::Core.MethodInstance, world)
+function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
     # set-up the compiler interface
     function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
@@ -96,7 +96,7 @@ function compile_linfo(job::CompilerJob, linfo::Core.MethodInstance, world)
     # get the code
     ref = ccall(:jl_get_llvmf_defn, LLVM.API.LLVMValueRef,
                 (Any, UInt, Bool, Bool, Base.CodegenParams),
-                linfo, world, #=wrapper=#false, #=optimize=#false, params)
+                method_instance, world, #=wrapper=#false, #=optimize=#false, params)
     if ref == C_NULL
         throw(InternalCompilerError(job, "the Julia compiler could not generate LLVM IR"))
     end
@@ -106,8 +106,8 @@ function compile_linfo(job::CompilerJob, linfo::Core.MethodInstance, world)
     return llvmf, modules
 end
 
-function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
-    entry, modules = @timeit to[] "emission" compile_linfo(job, linfo, world)
+function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
+    entry, modules = @timeit to[] "emission" compile_method_instance(job, method_instance, world)
 
     # link in dependent modules
     @timeit to[] "linking" begin
@@ -127,12 +127,6 @@ function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
         # dependent modules might have brought in other jfptr wrappers, delete them
         if startswith(LLVM.name(llvmf), "jfptr_") && isempty(uses(llvmf))
             unsafe_delete!(mod, llvmf)
-            continue
-        end
-
-        # llvmcall functions aren't to be called, so mark them internal (cleans up the IR)
-        if startswith(llvmfn, "jl_llvmcall")
-            linkage!(llvmf, LLVM.API.LLVMInternalLinkage)
             continue
         end
 
@@ -178,6 +172,9 @@ function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
     @timeit to[] "rewrite" ModulePassManager() do pm
         global current_job
         current_job = job
+
+        linkage!(entry, LLVM.API.LLVMExternalLinkage)
+        internalize!(pm, [LLVM.name(entry)])
 
         add!(pm, ModulePass("LowerThrow", lower_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
