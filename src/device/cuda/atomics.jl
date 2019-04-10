@@ -157,3 +157,43 @@ for A in (AS.Generic, AS.Global, AS.Shared)
         end
     end
 end
+
+
+#
+# Documentation
+#
+
+"""
+    atomic_add!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `old+val`, and stores the result
+back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32, UInt64, and Float32.
+Additionally, on GPU hardware with compute capability 6.0+, values of type Float64 are
+supported.
+"""
+atomic_add!
+
+"""
+    atomic_inc!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `((old >= val) ? 0 : (old+1))`, and
+stores the result back to memory at the same address. These three operations are performed
+in one atomic transaction. The function returns `old`.
+
+This operation is only supported for values of type Int32.
+"""
+atomic_inc!
+
+"""
+    atomic_dec!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `(((old == 0) | (old > val)) ? val
+: (old-1) )`, and stores the result back to memory at the same address. These three
+operations are performed in one atomic transaction. The function returns `old`.
+
+This operation is only supported for values of type Int32.
+"""
+atomic_dec!
