@@ -255,7 +255,6 @@ function wrap_entry!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
     fixup_metadata!(entry_f)
     ModulePassManager() do pm
         always_inliner!(pm)
-        verifier!(pm)
         run!(pm, mod)
     end
 
