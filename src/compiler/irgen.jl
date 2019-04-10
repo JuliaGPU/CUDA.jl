@@ -130,12 +130,6 @@ function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
             continue
         end
 
-        # llvmcall functions aren't to be called, so mark them internal (cleans up the IR)
-        if startswith(llvmfn, "jl_llvmcall")
-            linkage!(llvmf, LLVM.API.LLVMInternalLinkage)
-            continue
-        end
-
         # rename functions
         if !isdeclaration(llvmf)
             # Julia disambiguates local functions by prefixing with `#\d#`.
@@ -178,6 +172,9 @@ function irgen(job::CompilerJob, linfo::Core.MethodInstance, world)
     @timeit to[] "rewrite" ModulePassManager() do pm
         global current_job
         current_job = job
+
+        linkage!(entry, LLVM.API.LLVMExternalLinkage)
+        internalize!(pm, [LLVM.name(entry)])
 
         add!(pm, ModulePass("LowerThrow", lower_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
