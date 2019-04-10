@@ -578,4 +578,69 @@ end
 
 ############################################################################################
 
+@testset "atomics" begin
+
+@testset "atomic_add" begin
+    types = [Int32, Int64, UInt32, UInt64, Float32]
+    cap >= v"6.0" && push!(types, Float64)
+
+    @testset for T in types
+        a = CuArray{T}([zero(T)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_add!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=1024 kernel(a, one(T))
+        @test a[1] == T(1024)
+    end
+end
+
+@testset "atomic_sub" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuArray{T}([T(2048)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_sub!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=1024 kernel(a, one(T))
+        @test a[1] == T(1024)
+    end
+end
+
+@testset "atomic_inc" begin
+    @testset for T in [Int32]
+        a = CuArray{T}([zero(T)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_inc!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=768 kernel(a, T(512))
+        @test a[1] == T(255)
+    end
+end
+
+@testset "atomic_dec" begin
+    @testset for T in [Int32]
+        a = CuArray{T}([T(1024)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_dec!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=256 kernel(a, T(512))
+        @test a[1] == T(257)
+    end
+end
+
+end
+
+############################################################################################
+
 end
