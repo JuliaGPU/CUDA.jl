@@ -92,9 +92,9 @@ number of seconds it took to execute on the GPU, as a floating-point number.
 macro elapsed(stream, ex)
     quote
         t0, t1 = CuEvent(), CuEvent()
-        record(t0, $stream)
+        record(t0, $(esc(stream)))
         $(esc(ex))
-        record(t1, $stream)
+        record(t1, $(esc(stream)))
         synchronize(t1)
         elapsed(t0, t1)
     end

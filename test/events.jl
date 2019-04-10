@@ -29,4 +29,9 @@ CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC | CUDAdrv.EVENT_DISABLE_TIMING)
     synchronize()
 end
 
+@testset "elapsed stream" begin
+    stream = CuStream()
+    @test (CUDAdrv.@elapsed stream begin end) > 0
+end
+
 end
