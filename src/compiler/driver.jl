@@ -95,7 +95,9 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
             end
         end
 
-        @timeit to[] "verification" verify(ir)
+        if ccall(:jl_is_debugbuild, Cint, ()) == 1
+            @timeit to[] "verification" verify(ir)
+        end
 
         if strip
             @timeit to[] "strip debug info" strip_debuginfo!(ir)
