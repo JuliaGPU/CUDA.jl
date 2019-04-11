@@ -23,6 +23,23 @@ function check_method(job::CompilerJob)
     return
 end
 
+if VERSION < v"1.1.0-DEV.593"
+    fieldtypes(dt::DataType) = ntuple(i->fieldtype(dt, i), fieldcount(dt))
+end
+
+function explain_nonisbits(dt::DataType, depth=1)
+    msg = ""
+    for (ft, fn) in zip(fieldtypes(dt), fieldnames(dt))
+        if !isbitstype(ft)
+            msg *= "  "^depth * ".$fn is of type $ft which is not isbits.\n"
+            if !isabstracttype(dt)
+                msg *= explain_nonisbits(ft, depth+1)
+            end
+        end
+    end
+    return msg
+end
+
 function check_invocation(job::CompilerJob, entry::LLVM.Function)
     # make sure any non-isbits arguments are unused
     real_arg_i = 0
@@ -34,9 +51,13 @@ function check_invocation(job::CompilerJob, entry::LLVM.Function)
         if !isbitstype(dt)
             param = parameters(entry)[real_arg_i]
             if !isempty(uses(param))
-                throw(KernelError(job, "passing and using non-bitstype argument",
-                    """Argument $arg_i to your kernel function is of type $dt.
-                       That type is not isbits, and such arguments are only allowed when they are unused by the kernel."""))
+                msg = """Argument $arg_i to your kernel function is of type $dt.
+                       That type is not isbits, and such arguments are only allowed when they are unused by the kernel."""
+
+                # explain which fields are not isbits
+                msg *= explain_nonisbits(dt)
+
+                throw(KernelError(job, "passing and using non-bitstype argument", msg))
             end
         end
     end
