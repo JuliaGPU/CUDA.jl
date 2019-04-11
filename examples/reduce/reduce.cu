@@ -24,7 +24,7 @@ inline void check_code(cudaError_t code, const char *file, int line)
 __inline__ __device__
 int sumReduce_warp(int val) {
   for (int offset = warpSize/2; offset > 0; offset /= 2) 
-    val += __shfl_down(val, offset);
+    val += __shfl_down_sync(0xFFFFFFFF, val, offset);
   return val;
 }
 

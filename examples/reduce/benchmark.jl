@@ -32,7 +32,7 @@ benchmark_cpu = @benchmarkable begin
 open(joinpath(@__DIR__, "reduce.jl.ptx"), "w") do f
     CUDAnative.code_ptx(f, reduce_grid, Tuple{typeof(+), CuDeviceVector{Int32,AS.Global},
                                               CuDeviceVector{Int32,AS.Global}, Int32};
-                        cap=v"6.1.0")
+                        cap=cap)
 end
 
 benchmark_gpu = @benchmarkable begin
