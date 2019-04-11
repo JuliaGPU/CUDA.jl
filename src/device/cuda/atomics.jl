@@ -87,6 +87,8 @@ end
 
 # floating-point operations using NVVM intrinsics
 
+# TODO: Base.Ref{T,AS} would make these operations possible with plain `ccall`
+
 for A in (AS.Generic, AS.Global, AS.Shared)
     # declare float @llvm.nvvm.atomic.load.add.f32.p0f32(float* address, float val)
     # declare float @llvm.nvvm.atomic.load.add.f32.p1f32(float addrspace(1)* address, float val)
@@ -98,11 +100,12 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     # declare double @llvm.nvvm.atomic.load.add.f64.p3f64(double addrspace(3)* address, double val)
     for T in (Float32, Float64)
         nb = sizeof(T)*8
-        intr = "llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))f$nb"
 
-        if VERSION >= v"999" # FIXME: JuliaLang/julia#31624
+        if A == AS.Generic
+            # FIXME: Ref doesn't encode the AS --> wrong mangling for nonzero address spaces
+            intr = "llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))i8"
             @eval @inline atomic_add!(ptr::DevicePtr{$T,$A}, val::$T) =
-                ccall($intr, llvmcall, $T, (DevicePtr{$T,$A}, $T), ptr, val)
+                ccall($intr, llvmcall, $T, (Ref{$T}, $T), ptr, val)
         else
             import Base.Sys: WORD_SIZE
             if T == Float32
@@ -115,6 +118,7 @@ for A in (AS.Generic, AS.Global, AS.Shared)
             else
                 T_ptr = "$(T_val) addrspace($(convert(Int, A)))*"
             end
+            intr = "llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))f$nb"
             @eval @inline atomic_add!(ptr::DevicePtr{$T,$A}, val::$T) = Base.llvmcall(
                 $("declare $T_val @$intr($T_ptr, $T_val)",
                   "%ptr = inttoptr i$WORD_SIZE %0 to $T_ptr
@@ -133,12 +137,13 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     # declare i32 @llvm.nvvm.atomic.load.dec.32.p3i32(i32 addrspace(3)* address, i32 val)
     for T in (Int32,), op in (:inc, :dec)
         nb = sizeof(T)*8
-        intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
         fn = Symbol("atomic_$(op)!")
 
-        if VERSION >= v"999" # FIXME: JuliaLang/julia#31624
+        if A == AS.Generic
+            # FIXME: Ref doesn't encode the AS --> wrong mangling for nonzero address spaces
+            intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i8"
             @eval @inline $fn(ptr::DevicePtr{$T,$A}, val::$T) =
-                ccall($intr, llvmcall, $T, (DevicePtr{$T,$A}, $T), ptr, val)
+                ccall($intr, llvmcall, $T, (Ref{$T}, $T), ptr, val)
         else
             import Base.Sys: WORD_SIZE
             T_val = "i32"
@@ -147,6 +152,7 @@ for A in (AS.Generic, AS.Global, AS.Shared)
             else
                 T_ptr = "$(T_val) addrspace($(convert(Int, A)))*"
             end
+            intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
             @eval @inline $fn(ptr::DevicePtr{$T,$A}, val::$T) = Base.llvmcall(
                 $("declare $T_val @$intr($T_ptr, $T_val)",
                   "%ptr = inttoptr i$WORD_SIZE %0 to $T_ptr

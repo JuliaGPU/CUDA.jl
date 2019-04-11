@@ -36,9 +36,9 @@ provide optimized implementations of operations such as `unsafe_load` and `unsaf
 DevicePtr
 
 if sizeof(Ptr{Cvoid}) == 8
-    primitive type DevicePtr{T,A} 64 end
+    primitive type DevicePtr{T,A} <: Ref{T} 64 end
 else
-    primitive type DevicePtr{T,A} 32 end
+    primitive type DevicePtr{T,A} <: Ref{T} 32 end
 end
 
 # constructors
@@ -70,6 +70,9 @@ Base.convert(::Type{CuPtr{T}},  p::DevicePtr)  where {T}                 = Base.
 Base.convert(::Type{DevicePtr{T,A}}, p::CuPtr) where {T,A<:AddressSpace} = Base.bitcast(DevicePtr{T,A}, p)
 Base.convert(::Type{DevicePtr{T}}, p::CuPtr)   where {T}                 = Base.bitcast(DevicePtr{T,AS.Generic}, p)
 
+# between CPU pointers, for the purpose of working with `ccall`
+Base.unsafe_convert(::Type{Ptr{T}}, x::DevicePtr{T}) where {T} = reinterpret(Ptr{T}, x)
+
 # between device pointers
 Base.convert(::Type{<:DevicePtr}, p::DevicePtr)                         = throw(ArgumentError("cannot convert between incompatible device pointer types"))
 Base.convert(::Type{DevicePtr{T,A}}, p::DevicePtr{T,A})   where {T,A}   = p
@@ -82,9 +85,6 @@ Base.convert(::Type{DevicePtr{T,A}}, p::DevicePtr{U,AS.Generic})          where 
 Base.convert(::Type{DevicePtr{T,AS.Generic}}, p::DevicePtr{T,AS.Generic}) where {T}     = p  # avoid ambiguities
 ## unspecified, preserve source addrspace
 Base.convert(::Type{DevicePtr{T}}, p::DevicePtr{U,A}) where {T,U,A} = Base.unsafe_convert(DevicePtr{T,A}, p)
-
-# defer conversions to DevicePtr to unsafe_convert
-Base.cconvert(::Type{<:DevicePtr}, x) = x
 
 
 ## limited pointer arithmetic & comparison
