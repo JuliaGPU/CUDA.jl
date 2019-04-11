@@ -56,11 +56,17 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         else
             meth = Base.func_for_method_checked(meth, ti)
         end
-        linfo = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
+        method_instance = ccall(:jl_specializations_get_linfo, Ref{Core.MethodInstance},
                       (Any, Any, Any, UInt), meth, ti, env, world)
+
+        for var in env
+            if var isa TypeVar
+                throw(KernelError(job, "method captures a typevar (you probably use an unbound type variable)"))
+            end
+        end
     end
 
-    target == :julia && return linfo
+    target == :julia && return method_instance
 
 
     ## LLVM IR
@@ -77,7 +83,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
                             functions(ir))
 
     @timeit to[] "LLVM middle-end" begin
-        ir, kernel = @timeit to[] "IR generation" irgen(job, linfo, world)
+        ir, kernel = @timeit to[] "IR generation" irgen(job, method_instance, world)
 
         if libraries
             @timeit to[] "device library" if need_library(libdevice)

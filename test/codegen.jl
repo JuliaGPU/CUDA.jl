@@ -21,6 +21,11 @@
     @test_throws CUDAnative.KernelError CUDAnative.code_llvm(devnull, invalid_kernel, Tuple{}; kernel=true) == nothing
 end
 
+@testset "unbound typevars" begin
+    invalid_kernel() where {unbound} = return
+    @test_throws CUDAnative.KernelError CUDAnative.code_llvm(devnull, invalid_kernel, Tuple{})
+end
+
 @testset "exceptions" begin
     foobar() = throw(DivideError())
     ir = sprint(io->CUDAnative.code_llvm(io, foobar, Tuple{}))
