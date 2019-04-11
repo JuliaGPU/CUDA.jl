@@ -1,14 +1,15 @@
 # Atomic Functions (B.12)
 
+#
+# Low-level intrinsics
+#
+
 # TODO:
 # - scoped atomics: _system and _block versions (see CUDA programming guide, sm_60+)
 #   https://github.com/Microsoft/clang/blob/86d4513d3e0daa4d5a29b0b1de7c854ca15f9fe5/test/CodeGen/builtins-nvptx.c#L293
 # - atomic_cas!
 
-
-#
-# LLVM
-#
+## LLVM
 
 # common arithmetic operations on integers using LLVM instructions
 #
@@ -82,9 +83,7 @@ for T in (Int32, Int64, UInt32, UInt64)
 end
 
 
-#
-# NVVM
-#
+## NVVM
 
 # floating-point operations using NVVM intrinsics
 
@@ -159,9 +158,7 @@ for A in (AS.Generic, AS.Global, AS.Shared)
 end
 
 
-#
-# Documentation
-#
+## documentation
 
 """
     atomic_add!(ptr::DevicePtr{T}, val::T)
@@ -197,3 +194,87 @@ operations are performed in one atomic transaction. The function returns `old`.
 This operation is only supported for values of type Int32.
 """
 atomic_dec!
+
+
+
+#
+# High-level interface
+#
+
+# prototype of a high-level interface for performing atomic operations on arrays
+#
+# this design could be generalized by having atomic {field,array}{set,ref} accessors, as
+# well as acquire/release operations to implement the fallback functionality where any
+# operation can be applied atomically.
+
+export @atomic
+
+const inplace_ops = Dict(
+    :(+=) => :(+),
+    :(-=) => :(-),
+    :(&=) => :(&),
+    :(|=) => :(|),
+    :(⊻=) => :(⊻)
+)
+
+"""
+    @atomic a[I] = op(a[I], val)
+    @atomic a[I] ...= val
+
+Atomically perform a sequence of operations that loads an array element `a[I]`, performs
+the operation `op` on that value and a second value `val`, and writes the result back to
+the array. This sequence can be written out as a regular assignment, in which case the
+same array element should be used in the left and right hand side of the assignment, or
+as an in-place application of a known operator.
+"""
+macro atomic(ex)
+    # decode assignment and call
+    if ex.head == :(=)
+        ref = ex.args[1]
+        rhs = ex.args[2]
+        rhs.head == :call || error("right-hand side of an @atomic assignment should be a call")
+        op = rhs.args[1]
+        if rhs.args[2] != ref
+            error("non-inplace @atomic assignment should reference the same array elements")
+        end
+        val = rhs.args[3]
+    elseif haskey(inplace_ops, ex.head)
+        op = inplace_ops[ex.head]
+        ref = ex.args[1]
+        val = ex.args[2]
+    else
+        error("unknown @atomic expression")
+    end
+
+    # decode array expression
+    if ref.head != :ref
+        error("@atomic should be applied to an array reference expression")
+    end
+    array = ref.args[1]
+    indices = Expr(:tuple, ref.args[2:end]...)
+
+    esc(quote
+        $atomic_arrayset($array, $indices, $op, $val)
+    end)
+end
+
+# FIXME: make this respect the indexing style
+@inline atomic_arrayset(A::AbstractArray, Is::Tuple, op::Function, val) =
+    atomic_arrayset(A, Base._to_linear_index(A, Is...), op, val)
+
+function atomic_arrayset(A::AbstractArray, I::Integer, op::Function, val)
+    error("Don't know how to atomically perform $op on $(typeof(A))")
+    # TODO: while { acquire, op, cmpxchg }
+end
+
+# CUDAnative.jl atomics
+for (op,impl) in [(+)      => atomic_add!,
+                  (-)      => atomic_sub!,
+                  (&)      => atomic_and!,
+                  (|)      => atomic_or!,
+                  (⊻)      => atomic_xor!,
+                  Base.max => atomic_max!,
+                  Base.min => atomic_min!]
+    @eval @inline atomic_arrayset(A::CuDeviceArray, I::Integer, ::typeof($op), val) =
+        $impl(pointer(A, I), val)
+end
