@@ -111,10 +111,10 @@ end
 
 function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
     # TODO: this should try/catch since the fallback for `unsafe_convert{Ptr}` calls error
-    ptr = if applicable(Base.unsafe_convert, CuPtr{T}, val)
-        Base.unsafe_convert(CuPtr{T}, val)
-    elseif applicable(Base.unsafe_convert, Ptr{T}, val)
+    ptr = if applicable(Base.unsafe_convert, Ptr{T}, val)
         Base.unsafe_convert(Ptr{T}, val)
+    elseif applicable(Base.unsafe_convert, CuPtr{T}, val)
+        Base.unsafe_convert(CuPtr{T}, val)
     else
         throw(ArgumentError("cannot convert to either a CPU or GPU pointer"))
     end
