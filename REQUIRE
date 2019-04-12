@@ -1,5 +1,5 @@
 julia 1.0
-CUDAdrv 2.0
+CUDAdrv 2.1
 LLVM 1.1.0
 CUDAapi 0.6.0
 Adapt 0.4
