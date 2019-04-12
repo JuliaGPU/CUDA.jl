@@ -4,6 +4,7 @@ using CUDAnative, CUDAdrv
 import LLVM
 
 include("util.jl")
+include("array.jl")
 
 @testset "CUDAnative" begin
 
@@ -24,7 +25,7 @@ if CUDAnative.configured
         push!(CUDAnative.device!_listeners, device_callback)
 
         # now cause initialization
-        Mem.alloc(1)
+        Mem.alloc(Mem.Device, 1)
         @test CuCurrentContext() != nothing
         @test device(CuCurrentContext()) == CuDevice(0)
         @test device_callbacked == CuDevice(0)
@@ -71,7 +72,7 @@ else
         include("device/array.jl")
         include("device/cuda.jl")
 
-        #include("examples.jl")
+        include("examples.jl")
     end
 end
 

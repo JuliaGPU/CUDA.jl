@@ -1,4 +1,4 @@
-using CUDAdrv, CUDAnative, CuArrays
+using CUDAdrv, CUDAnative
 
 if Sys.iswindows()
     function hello_world()

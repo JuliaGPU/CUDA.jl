@@ -16,7 +16,7 @@ const len = 1000
 const ITERATIONS = 100
 
 function benchmark(gpu_buf)
-    @cuda threads=len kernel_dummy(Base.unsafe_convert(Ptr{Float32}, gpu_buf))
+    @cuda threads=len kernel_dummy(convert(Ptr{Float32}, gpu_buf))
 end
 
 function main()    

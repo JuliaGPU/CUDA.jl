@@ -137,13 +137,12 @@ len = prod(dims)
     input = round.(rand(Float32, dims) * 100)
     output = similar(input)
 
-    input_dev = Mem.upload(input)
-    output_dev = Mem.alloc(input)
+    input_dev = CuTestArray(input)
+    output_dev = CuTestArray(output)
 
-    @cuda threads=len kernel(Base.unsafe_convert(CuPtr{Float32}, input_dev),
-                             Base.unsafe_convert(CuPtr{Float32}, output_dev))
-    Mem.download!(output, output_dev)
-    @test input ≈ output
+    @cuda threads=len kernel(convert(CuPtr{Float32}, input_dev.buf),
+                             convert(CuPtr{Float32}, output_dev.buf))
+    @test input ≈ Array(output_dev)
 end
 
 
@@ -161,12 +160,12 @@ end
     arr = round.(rand(Float32, dims) * 100)
     val = [0f0]
 
-    arr_dev = Mem.upload(arr)
-    val_dev = Mem.upload(val)
+    arr_dev = CuTestArray(arr)
+    val_dev = CuTestArray(val)
 
-    @cuda threads=len kernel(Base.unsafe_convert(CuPtr{Float32}, arr_dev),
-                             Base.unsafe_convert(CuPtr{Float32}, val_dev))
-    @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
+    @cuda threads=len kernel(convert(CuPtr{Float32}, arr_dev.buf),
+                             convert(CuPtr{Float32}, val_dev.buf))
+    @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 
@@ -187,12 +186,12 @@ end
     arr = round.(rand(Float32, dims) * 100)
     val = [0f0]
 
-    arr_dev = Mem.upload(arr)
-    val_dev = Mem.upload(val)
+    arr_dev = CuTestArray(arr)
+    val_dev = CuTestArray(val)
 
-    @cuda threads=len parent(Base.unsafe_convert(CuPtr{Float32}, arr_dev),
-                             Base.unsafe_convert(CuPtr{Float32}, val_dev))
-    @test arr[dims...] ≈ Mem.download(eltype(val), val_dev)[1]
+    @cuda threads=len parent(convert(CuPtr{Float32}, arr_dev.buf),
+                             convert(CuPtr{Float32}, val_dev.buf))
+    @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 
@@ -209,10 +208,10 @@ end
     end
 
     keeps = (true,)
-    d_out = Mem.alloc(Int)
+    d_out = CuTestArray(zeros(Int))
 
-    @cuda kernel(keeps, Base.unsafe_convert(CuPtr{Int}, d_out))
-    @test Mem.download(Int, d_out) == [1]
+    @cuda kernel(keeps, convert(CuPtr{Int}, d_out.buf))
+    @test Array(d_out)[] == 1
 end
 
 
@@ -224,9 +223,9 @@ end
     b = rand(Float32, len)
     c = similar(a)
 
-    d_a = Mem.upload(a)
-    d_b = Mem.upload(b)
-    d_c = Mem.alloc(c)
+    d_a = CuTestArray(a)
+    d_b = CuTestArray(b)
+    d_c = CuTestArray(c)
 
     @eval struct ExecGhost end
 
@@ -236,11 +235,10 @@ end
         return
     end
     @cuda threads=len kernel(ExecGhost(),
-                             Base.unsafe_convert(CuPtr{Float32}, d_a),
-                             Base.unsafe_convert(CuPtr{Float32}, d_b),
-                             Base.unsafe_convert(CuPtr{Float32}, d_c))
-    Mem.download!(c, d_c)
-    @test a+b == c
+                             convert(CuPtr{Float32}, d_a.buf),
+                             convert(CuPtr{Float32}, d_b.buf),
+                             convert(CuPtr{Float32}, d_c.buf))
+    @test a+b == Array(d_c)
 
 
     # bug: ghost type function parameters confused aggregate type rewriting
@@ -250,10 +248,9 @@ end
         unsafe_store!(out, aggregate[1], i)
         return
     end
-    @cuda threads=len kernel(ExecGhost(), Base.unsafe_convert(CuPtr{Float32}, d_c), (42,))
+    @cuda threads=len kernel(ExecGhost(), convert(CuPtr{Float32}, d_c.buf), (42,))
 
-    Mem.download!(c, d_c)
-    @test all(val->val==42, c)
+    @test all(val->val==42, Array(d_c))
 end
 
 
@@ -265,32 +262,32 @@ end
         return
     end
 
-    buf = Mem.upload([0f0])
+    arr = CuTestArray(zeros(Float32))
     x = ComplexF32(2,2)
 
-    @cuda kernel(Base.unsafe_convert(CuPtr{Float32}, buf), x)
-    @test Mem.download(Float32, buf) == [imag(x)]
+    @cuda kernel(convert(CuPtr{Float32}, arr.buf), x)
+    @test Array(arr)[] == imag(x)
 end
 
 
 @testset "automatic recompilation" begin
-    buf = Mem.alloc(Int)
+    arr = CuTestArray(zeros(Int))
 
     function kernel(ptr)
         unsafe_store!(ptr, 1)
         return
     end
 
-    @cuda kernel(Base.unsafe_convert(CuPtr{Int}, buf))
-    @test Mem.download(Int, buf) == [1]
+    @cuda kernel(convert(CuPtr{Int}, arr.buf))
+    @test Array(arr)[] == 1
 
     function kernel(ptr)
         unsafe_store!(ptr, 2)
         return
     end
 
-    @cuda kernel(Base.unsafe_convert(CuPtr{Int}, buf))
-    @test Mem.download(Int, buf) == [2]
+    @cuda kernel(convert(CuPtr{Int}, arr.buf))
+    @test Array(arr)[] == 2
 end
 
 
@@ -316,19 +313,19 @@ end
     end
 
     out = [0]
-    out_dev = Mem.upload(out)
-    out_ptr = Base.unsafe_convert(CuPtr{eltype(out)}, out_dev)
+    out_dev = CuTestArray(out)
+    out_ptr = convert(CuPtr{eltype(out)}, out_dev.buf)
 
     @cuda kernel(out_ptr, 1, 2)
-    @test Mem.download(eltype(out), out_dev)[1] == 3
+    @test Array(out_dev)[1] == 3
 
     all_splat = (out_ptr, 3, 4)
     @cuda kernel(all_splat...)
-    @test Mem.download(eltype(out), out_dev)[1] == 7
+    @test Array(out_dev)[1] == 7
 
     partial_splat = (5, 6)
     @cuda kernel(out_ptr, partial_splat...)
-    @test Mem.download(eltype(out), out_dev)[1] == 11
+    @test Array(out_dev)[1] == 11
 end
 
 @testset "object invoke" begin
@@ -349,11 +346,11 @@ end
     end
 
     a = [1.]
-    a_dev = Mem.upload(a)
+    a_dev = CuTestArray(a)
 
-    outer(Base.unsafe_convert(CuPtr{Float64}, a_dev), 2.)
+    outer(convert(CuPtr{Float64}, a_dev.buf), 2.)
 
-    @test Mem.download(eltype(a), a_dev) ≈ [2.]
+    @test Array(a_dev) ≈ [2.]
 end
 
 @testset "closures" begin
@@ -363,15 +360,15 @@ end
             unsafe_store!(a, val)
             return
        end
-       @cuda inner(Base.unsafe_convert(CuPtr{Float64}, a_dev))
+       @cuda inner(convert(CuPtr{Float64}, a_dev.buf))
     end
 
     a = [1.]
-    a_dev = Mem.upload(a)
+    a_dev = CuTestArray(a)
 
     outer(a_dev, 2.)
 
-    @test Mem.download(eltype(a), a_dev) ≈ [2.]
+    @test Array(a_dev) ≈ [2.]
 end
 
 @testset "conversions" begin
@@ -386,61 +383,61 @@ end
     out = [0]
 
     # convert arguments
-    out_dev = Mem.upload(out)
+    out_dev = CuTestArray(out)
     let arg = Host()
-        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
             unsafe_store!(out, convert(Int, arg))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
-        @test Mem.download(eltype(out), out_dev) ≈ [2]
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @test Array(out_dev) ≈ [2]
     end
 
     # convert tuples
-    out_dev = Mem.upload(out)
+    out_dev = CuTestArray(out)
     let arg = (Host(),)
-        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
             unsafe_store!(out, convert(Int, arg[1]))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
-        @test Mem.download(eltype(out), out_dev) ≈ [2]
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @test Array(out_dev) ≈ [2]
     end
 
     # convert named tuples
-    out_dev = Mem.upload(out)
+    out_dev = CuTestArray(out)
     let arg = (a=Host(),)
-        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
-        @test Mem.download(eltype(out), out_dev) ≈ [2]
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @test Array(out_dev) ≈ [2]
     end
 
     # don't convert structs
-    out_dev = Mem.upload(out)
+    out_dev = CuTestArray(out)
     @eval struct Nested
         a::Host
     end
     let arg = Nested(Host())
-        @test Mem.download(eltype(out), out_dev) ≈ [0]
+        @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, Base.unsafe_convert(CuPtr{Int}, out_dev))
-        @test Mem.download(eltype(out), out_dev) ≈ [1]
+        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @test Array(out_dev) ≈ [1]
     end
 end
 
 @testset "argument count" begin
     val = [0]
-    val_dev = Mem.upload(val)
-    cuda_ptr = Base.unsafe_convert(CuPtr{Int}, val_dev)
+    val_dev = CuTestArray(val)
+    cuda_ptr = convert(CuPtr{Int}, val_dev.buf)
     ptr = CUDAnative.DevicePtr{Int}(cuda_ptr)
     for i in (1, 10, 20, 35)
         variables = ('a':'z'..., 'A':'Z'...)
@@ -457,7 +454,7 @@ end
         call = Expr(:call, :kernel, args...)
         cudacall = :(@cuda $call)
         eval(cudacall)
-        @test Mem.download(eltype(val), val_dev)[1] == sum(args)
+        @test Array(val_dev)[1] == sum(args)
     end
 end
 
@@ -482,12 +479,10 @@ end
             return
         end
 
-        buf = Mem.alloc(T)
-        @cuda kernel(Base.unsafe_convert(CuPtr{T}, buf))
+        arr = CuTestArray(zeros(T))
+        @cuda kernel(convert(CuPtr{T}, arr.buf))
 
-        val = Mem.download(T, buf)[1]
-        Mem.free(buf)
-        return val
+        return Array(arr)[1]
     end
 
     using Test
@@ -509,9 +504,10 @@ script = """
         return
     end
 
-    buf = CUDAdrv.Mem.alloc(Int, 1)
-    @cuda kernel(Base.unsafe_convert(CUDAdrv.CuPtr{Int}, buf), 1.2)
-    CUDAdrv.Mem.download(Int, buf)
+    cpu = zeros(Int)
+    gpu = CUDAdrv.Mem.alloc(CUDAdrv.Mem.Device, sizeof(cpu))
+    @cuda kernel(convert(CUDAdrv.CuPtr{Int}, gpu), 1.2)
+    CUDAdrv.Mem.copy!(pointer(cpu), gpu, sizeof(Int))
 """
 
 let (code, out, err) = julia_script(script, `-g0`)
@@ -594,18 +590,18 @@ end
     input = rand(Cint(1):Cint(100))
     N = 2
 
-    let output = Mem.alloc(Cint, N)
+    let output = CuTestArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr)
-        @test Mem.download(Cint, output, N) == repeat([input], N)
+        @test Array(output) == repeat([input], N)
     end
 
-    let output = Mem.alloc(Cint, N)
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+    let output = CuTestArray(zeros(Cint, N))
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
-        @test Mem.download(Cint, output, N) == repeat([input], N)
+        @test Array(output) == repeat([input], N)
     end
 end
 
@@ -634,18 +630,18 @@ end
     input = rand(Cint(1):Cint(100))
     N = 2
 
-    let output = Mem.alloc(Cint, N)
+    let output = CuTestArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr)
-        @test Mem.download(Cint, output, N) == repeat([input], N)
+        @test Array(output) == repeat([input], N)
     end
 
-    let output = Mem.alloc(Cint, N)
-        ptr = Base.unsafe_convert(CuPtr{eltype(input)}, output)
+    let output = CuTestArray(zeros(Cint, N))
+        ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
-        @test Mem.download(Cint, output, N) == repeat([input], N)
+        @test Array(output) == repeat([input], N)
     end
 end
 

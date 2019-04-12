@@ -3,7 +3,8 @@
 #
 # Based on https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html
 
-using CUDAdrv, CUDAnative, CuArrays
+using CUDAdrv, CUDAnative
+include(joinpath(@__DIR__, "..", "test", "array.jl"))   # real applications: use CuArrays.jl
 
 function cpu_accumulate!(op::Function, data::Matrix{T}) where {T}
     cols = size(data,2)
@@ -64,7 +65,7 @@ a = rand(Int, rows, cols)
 cpu_a = copy(a)
 cpu_accumulate!(+, cpu_a)
 
-gpu_a = CuArray(a)
+gpu_a = CuTestArray(a)
 @cuda blocks=cols threads=rows shmem=2*rows*sizeof(eltype(a)) gpu_accumulate!(+, gpu_a)
 
 using Test
