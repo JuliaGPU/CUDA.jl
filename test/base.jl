@@ -40,7 +40,7 @@ end
   @test_throws ErrorException xs[1] = 1
 
   # unsafe_wrap
-  buf = CUDAdrv.Mem.Buffer(CU_NULL, 2, CUDAdrv.CuCurrentContext())
+  buf = CUDAdrv.Mem.DeviceBuffer(CU_NULL, 2, CUDAdrv.CuCurrentContext())
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).own == false
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
   @test Base.unsafe_wrap(CuArray, CU_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
