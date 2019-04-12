@@ -3,108 +3,121 @@
 let
     a,b = Mem.info()
     # NOTE: actually testing this is pretty fragile on CI
-    #=@test a == =# Mem.free()
-    #=@test b == =# Mem.total()
-    #=@test b-a == =# Mem.used()
+    #=@test a == =# CUDAdrv.available_memory()
+    #=@test b == =# CUDAdrv.total_memory()
 end
 
-# pointer-based
-for async in [false, true]
-    src = 42
+# dummy data
+T = Int
+N = 5
+data = rand(T, N)
+nb = sizeof(data)
 
-    buf1 = Mem.alloc(sizeof(src))
+# allocations and copies
+for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
+    dstTy in [Mem.Device, Mem.Host, Mem.Unified]
 
-    Mem.set!(buf1, UInt32(0), sizeof(Int)÷sizeof(UInt32); async=async)
+    src = Mem.alloc(srcTy, nb)
+    Mem.copy!(src, pointer(data), nb)
 
-    Mem.upload!(buf1, Ref(src), sizeof(src); async=async)
+    dst = Mem.alloc(dstTy, nb)
+    Mem.copy!(dst, src, nb)
 
-    dst1 = Ref(0)
-    Mem.download!(dst1, buf1, sizeof(src); async=async)
-    async && synchronize()
-    @test src == dst1[]
+    ref = Array{T}(undef, N)
+    Mem.copy!(pointer(ref), dst, nb)
 
-    buf2 = Mem.alloc(sizeof(src))
+    @test data == ref
 
-    Mem.transfer!(buf2, buf1, sizeof(src); async=async)
-
-    dst2 = Ref(0)
-    Mem.download!(dst2, buf2, sizeof(src); async=async)
-    async && synchronize()
-    @test src == dst2[]
-
-    Mem.free(buf2)
-    Mem.free(buf1)
+    Mem.free(src)
+    Mem.free(dst)
 end
 
-# array-based
-for async in [false, true]
-    src = [42]
-
-    buf1 = Mem.alloc(src)
-
-    Mem.upload!(buf1, src; async=async)
-
-    dst1 = similar(src)
-    Mem.download!(dst1, buf1; async=async)
-    async && synchronize()
-    @test src == dst1
-
-    buf2 = Mem.upload(src)
-
-    dst2 = similar(src)
-    Mem.download!(dst2, buf2; async=async)
-    async && synchronize()
-    @test src == dst2
-
-    Mem.free(buf1)
-end
-
-# type-based
-for async in [false, true]
-    buf = Mem.alloc(Int)
-
-    # there's no type-based upload, duh
-    src = [42]
-    Mem.upload!(buf, src)
-
-    dst = Mem.download(eltype(src), buf; async=async)
-    async && synchronize()
-    @test src == dst
-end
-
+# asynchronous operations
 let
-    @test_throws ArgumentError Mem.alloc(Function, 1)   # abstract
-    @test_throws ArgumentError Mem.alloc(Array{Int}, 1) # UnionAll
-    @test_throws ArgumentError Mem.alloc(Integer, 1)    # abstract
-    # TODO: can we test for the third case?
-    #       !abstract && leaftype seems to imply UnionAll nowadays...
+    src = Mem.alloc(Mem.Device, nb)
+    @test_throws ArgumentError Mem.copy!(src, pointer(data), nb; async=true)
+    Mem.copy!(src, pointer(data), nb; async=true, stream=CuDefaultStream())
 
-    # zero-width allocations should be permitted
-    null = Mem.alloc(Int, 0)
-    Mem.free(null)
-
-    # double-free should throw
-    x = Mem.alloc(1)
-    Mem.free(x)
-    @test_throws_cuerror CUDAdrv.ERROR_INVALID_VALUE Mem.free(x)
+    Mem.free(src)
 end
 
+# pinned memory
 let
-    @eval mutable struct MutablePtrFree
-        foo::Int
-        bar::Int
-    end
-    buf = Mem.alloc(MutablePtrFree)
-    Mem.upload!(buf, [MutablePtrFree(0,0)])
-    Mem.free(buf)
+    # can only get GPU pointer if the pinned buffer is mapped
+    src = Mem.alloc(Mem.Host, nb)
+    @test_throws ArgumentError convert(CuPtr{T}, src)
+    Mem.free(src)
+
+    # create a pinned and mapped buffer
+    src = Mem.alloc(Mem.Host, nb, Mem.HOSTALLOC_DEVICEMAP)
+
+    # get the CPU address and copy some data
+    cpu_ptr = convert(Ptr{T}, src)
+    unsafe_copyto!(cpu_ptr, pointer(data), N)
+
+    # get the GPU address and construct a fake device buffer
+    gpu_ptr = convert(CuPtr{Cvoid}, src)
+    gpu_obj = Mem.alloc(Mem.Device, nb)
+    dst = similar(gpu_obj, gpu_ptr)
+    Mem.free(gpu_obj)
+
+    # copy data back from the GPU and compare
+    ref = Array{T}(undef, N)
+    Mem.copy!(pointer(ref), dst, nb)
+    @test ref == data
+
+    Mem.free(src)
+    # NOTE: don't free dst, it's just a mapped pointer
 end
 
+# pinned memory with existing memory
 let
-    @eval mutable struct MutableNonPtrFree
-        foo::Int
-        bar::String
-    end
-    @test_throws ArgumentError Mem.alloc(MutableNonPtrFree)
+    # can only get GPU pointer if the pinned buffer is mapped
+    src = Mem.register(Mem.Host, pointer(data), nb)
+    @test_throws ArgumentError convert(CuPtr{T}, src)
+    Mem.unregister(src)
+
+    # register a pinned and mapped buffer
+    src = Mem.register(Mem.Host, pointer(data), nb, Mem.HOSTREGISTER_DEVICEMAP)
+
+    # get the GPU address and construct a fake device buffer
+    gpu_ptr = convert(CuPtr{Cvoid}, src)
+    gpu_obj = Mem.alloc(Mem.Device, nb)
+    dst = similar(gpu_obj, gpu_ptr)
+    Mem.free(gpu_obj)
+
+    # copy data back from the GPU and compare
+    ref = Array{T}(undef, N)
+    Mem.copy!(pointer(ref), dst, nb)
+    @test ref == data
+
+    Mem.unregister(src)
+    # NOTE: don't unregister dst, it's just a mapped pointer
+end
+
+# unified memory
+let
+    src = Mem.alloc(Mem.Unified, nb)
+
+    #Mem.prefetch(src, nb; device=CUDAdrv.DEVICE_CPU)
+    Mem.advise(src, Mem.ADVISE_SET_READ_MOSTLY)
+
+    # get the CPU address and copy some data
+    cpu_ptr = convert(Ptr{T}, src)
+    unsafe_copyto!(cpu_ptr, pointer(data), N)
+
+    # get the GPU address and construct a fake device buffer
+    gpu_ptr = convert(CuPtr{Cvoid}, src)
+    gpu_obj = Mem.alloc(Mem.Device, nb)
+    dst = similar(gpu_obj, gpu_ptr)
+    Mem.free(gpu_obj)
+
+    # copy data back from the GPU and compare
+    ref = Array{T}(undef, N)
+    Mem.copy!(pointer(ref), dst, nb)
+    @test ref == data
+
+    Mem.free(src)
 end
 
 end

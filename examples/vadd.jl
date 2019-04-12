@@ -1,6 +1,7 @@
-using CUDAdrv
-
 using Test
+
+using CUDAdrv
+include(joinpath(@__DIR__, "..", "test", "array.jl"))   # real applications: use CuArrays.jl
 
 dev = CuDevice(0)
 ctx = CuContext(dev)
@@ -13,14 +14,13 @@ a = round.(rand(Float32, dims) * 100)
 b = round.(rand(Float32, dims) * 100)
 c = similar(a)
 
-d_a = Mem.upload(a)
-d_b = Mem.upload(b)
-d_c = Mem.alloc(c)
+d_a = CuTestArray(a)
+d_b = CuTestArray(b)
+d_c = CuTestArray(c)
 
 len = prod(dims)
 cudacall(vadd, Tuple{CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}}, d_a, d_b, d_c; threads=len)
 
-Mem.download!(c, d_c)
-@test a+b ≈ c
+@test a+b ≈ Array(d_c)
 
 destroy!(ctx)
