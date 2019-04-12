@@ -447,17 +447,16 @@ function find_host_compiler(toolkit_version=nothing)
 
         # discover Visual Studio installations
         msvc_paths = String[]
-        arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
-        ## locate VS2017
+        ## locate ≥ VS2017
         vswhere_dist = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
-        let vswhere = isfile(vswhere_dist) ? vswhere_dist : download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
-            msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
+        vswhere_url = "https://github.com/Microsoft/vswhere/releases/download/2.6.7/vswhere.exe"
+        let vswhere = Sys.which("vswhere.exe") !== nothing ? "vswhere.exe" : isfile(vswhere_dist) ? vswhere_dist : download(vswhere_url)
+            msvc_cmd_tools_dir = readchomp(`$vswhere -latest -products \* -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`)
             if !isempty(msvc_cmd_tools_dir)
-                vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
-                tmpfile = tempname() # TODO: do this with a pipe
-                run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
-                msvc_path = readlines(tmpfile)[end]
+                msvc_build_ver = readchomp(joinpath(msvc_cmd_tools_dir, "VC\\Auxiliary\\Build\\Microsoft.VCToolsVersion.default.txt"))
+                arch = Sys.WORD_SIZE == 64 ? "x64" : "x86"
+                msvc_path = joinpath(msvc_cmd_tools_dir,"VC\\Tools\\MSVC\\$msvc_build_ver\\bin\\Host$arch\\$arch\\cl.exe")
                 @trace "Considering MSVC at $msvc_path located with vswhere"
                 push!(msvc_paths, msvc_path)
             end
@@ -467,6 +466,7 @@ function find_host_compiler(toolkit_version=nothing)
             envvars_set = filter(var -> haskey(ENV, var), envvars)
             for var in envvars_set
                 val = ENV[var]
+                arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
                 msvc_path = joinpath(dirname(dirname(dirname(val))), "VC", "bin", arch, "cl.exe")
                 if isfile(msvc_path)
                     @trace "Considering MSVC at $msvc_path located with environment variable $var"
