@@ -217,7 +217,7 @@ function find_toolkit()
 
     # look for the compiler binary (in the case PATH points to the installation)
     nvcc_path = find_cuda_binary("nvcc")
-    if nvcc_path != nothing
+    if nvcc_path !== nothing
         nvcc_dir = dirname(nvcc_path)
         if occursin(r"^bin(32|64)?$", basename(nvcc_dir))
             nvcc_dir = dirname(nvcc_dir)
@@ -229,7 +229,7 @@ function find_toolkit()
 
     # look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
     libcudart_path = find_cuda_library("cudart")
-    if libcudart_path != nothing
+    if libcudart_path !== nothing
         libcudart_dir = dirname(libcudart_path)
         if occursin(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
             libcudart_dir = dirname(libcudart_dir)
@@ -275,7 +275,7 @@ end
 # figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
 function find_toolkit_version(toolkit_dirs)
     nvcc_path = find_cuda_binary("nvcc", toolkit_dirs)
-    if nvcc_path == nothing
+    if nvcc_path === nothing
         error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain nvcc")
     end
 
@@ -284,7 +284,7 @@ function find_toolkit_version(toolkit_dirs)
         read(`$nvcc_path --version`, String)
     end
     m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
-    m != nothing || error("could not parse NVCC version info (\"$verstr\")")
+    m !== nothing || error("could not parse NVCC version info (\"$verstr\")")
 
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
@@ -333,7 +333,7 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
         end
 
         # select
-        if library != nothing
+        if library !== nothing
             @debug "Found unified device library at $library"
             return library
         elseif !isempty(libraries)
@@ -413,7 +413,7 @@ function find_host_compiler(toolkit_version=nothing)
         for gcc_name in gcc_names
             # check if the binary exists
             gcc_path = find_binary([gcc_name])
-            if gcc_path == nothing
+            if gcc_path === nothing
                 continue
             end
 
@@ -429,9 +429,9 @@ function find_host_compiler(toolkit_version=nothing)
             gcc_ver = VersionNumber(m.captures[1])
             @trace "Found GCC $gcc_ver at $gcc_path"
 
-            if toolkit_version == nothing || gcc_supported(gcc_ver, toolkit_version)
+            if toolkit_version === nothing || gcc_supported(gcc_ver, toolkit_version)
                 push!(gcc_possibilities, (gcc_path, gcc_ver))
-            elseif toolkit_version != nothing
+            elseif toolkit_version !== nothing
                 @warn "Ignoring $gcc_path v$gcc_ver which isn't supported by CUDA $toolkit_version"
             end
         end
@@ -447,17 +447,16 @@ function find_host_compiler(toolkit_version=nothing)
 
         # discover Visual Studio installations
         msvc_paths = String[]
-        arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles(x86)" : "ProgramFiles"]
-        ## locate VS2017
+        ## locate ≥ VS2017
         vswhere_dist = joinpath(program_files, "Microsoft Visual Studio", "Installer", "vswhere.exe")
-        let vswhere = isfile(vswhere_dist) ? vswhere_dist : download("https://github.com/Microsoft/vswhere/releases/download/2.2.11/vswhere.exe")
-            msvc_cmd_tools_dir = chomp(read(`$vswhere -latest -property installationPath`, String))
+        vswhere_url = "https://github.com/Microsoft/vswhere/releases/download/2.6.7/vswhere.exe"
+        let vswhere = Sys.which("vswhere.exe") !== nothing ? "vswhere.exe" : isfile(vswhere_dist) ? vswhere_dist : download(vswhere_url)
+            msvc_cmd_tools_dir = readchomp(`$vswhere -latest -products \* -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`)
             if !isempty(msvc_cmd_tools_dir)
-                vs_prompt = joinpath(msvc_cmd_tools_dir, "VC", "Auxiliary", "Build", "vcvarsall.bat")
-                tmpfile = tempname() # TODO: do this with a pipe
-                run(pipeline(`$vs_prompt $arch \& where cl.exe`, tmpfile))
-                msvc_path = readlines(tmpfile)[end]
+                msvc_build_ver = readchomp(joinpath(msvc_cmd_tools_dir, "VC\\Auxiliary\\Build\\Microsoft.VCToolsVersion.default.txt"))
+                arch = Sys.WORD_SIZE == 64 ? "x64" : "x86"
+                msvc_path = joinpath(msvc_cmd_tools_dir,"VC\\Tools\\MSVC\\$msvc_build_ver\\bin\\Host$arch\\$arch\\cl.exe")
                 @trace "Considering MSVC at $msvc_path located with vswhere"
                 push!(msvc_paths, msvc_path)
             end
@@ -467,6 +466,7 @@ function find_host_compiler(toolkit_version=nothing)
             envvars_set = filter(var -> haskey(ENV, var), envvars)
             for var in envvars_set
                 val = ENV[var]
+                arch = Sys.WORD_SIZE == 64 ? "amd64" : "x86"
                 msvc_path = joinpath(dirname(dirname(dirname(val))), "VC", "bin", arch, "cl.exe")
                 if isfile(msvc_path)
                     @trace "Considering MSVC at $msvc_path located with environment variable $var"
@@ -506,7 +506,7 @@ function find_host_compiler(toolkit_version=nothing)
 
         # check compiler compatibility
         msvc_path, msvc_ver = nothing, nothing
-        if toolkit_version != nothing
+        if toolkit_version !== nothing
             for ver in sort(collect(keys(msvc_list)), rev=true) # search the highest version first
                 if msvc_supported(ver, toolkit_version)
                     msvc_path, msvc_ver = msvc_list[ver], ver
@@ -515,7 +515,7 @@ function find_host_compiler(toolkit_version=nothing)
                     @warn "Ignoring $msvc_path v$msvc_ver which isn't supported by CUDA $toolkit_version"
                 end
             end
-            if msvc_ver == nothing
+            if msvc_ver === nothing
                 error("None of the available Visual Studio C++ compilers ($(join(keys(msvc_list), ", "))) are compatible with CUDA $toolkit_version")
             end
         else
@@ -529,7 +529,7 @@ function find_host_compiler(toolkit_version=nothing)
         # GCC is no longer supported on MacOS so let's just use clang
         # TODO: discovery of all compilers, and version matching against the toolkit
         clang_path = find_binary(["clang"])
-        if clang_path == nothing
+        if clang_path === nothing
             error("Could not find clang")
         end
         verstr = read(`$clang_path --version`, String)
@@ -556,7 +556,7 @@ end
 function find_toolchain(toolkit_dirs, toolkit_version=find_toolkit_version(toolkit_dirs))
     # find the CUDA compiler
     nvcc_path = find_cuda_binary("nvcc", toolkit_dirs)
-    if nvcc_path == nothing
+    if nvcc_path === nothing
         error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain nvcc")
     end
     nvcc_version = toolkit_version
