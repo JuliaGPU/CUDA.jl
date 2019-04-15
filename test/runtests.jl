@@ -3,6 +3,12 @@ using CUDAapi
 using Test
 
 
+## library types (Accessibility and `@enum` behaviour)
+
+@test CUDAapi.PATCH_LEVEL == CUDAapi.libraryPropertyType(2)
+@test CUDAapi.C_32U == CUDAapi.cudaDataType(13)
+
+
 ## properties
 
 @test !CUDAapi.gcc_supported(v"5.0", v"5.5")
@@ -20,7 +26,6 @@ find_binary([Sys.iswindows() ? "CHKDSK" : "true"])
 find_library([Sys.iswindows() ? "NTDLL" : "c"])
 
 # CUDA
-
 macro test_something(ex...)
     quote
         rv = $(ex...,)
