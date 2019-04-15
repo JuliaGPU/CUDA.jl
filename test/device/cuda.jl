@@ -578,4 +578,191 @@ end
 
 ############################################################################################
 
+@testset "atomics (low-level)" begin
+
+@testset "atomic_add" begin
+    types = [Int32, Int64, UInt32, UInt64, Float32]
+    cap >= v"6.0" && push!(types, Float64)
+
+    @testset for T in types
+        a = CuTestArray([zero(T)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_add!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=1024 kernel(a, one(T))
+        @test Array(a)[1] == T(1024)
+    end
+end
+
+@testset "atomic_sub" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuTestArray([T(2048)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_sub!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=1024 kernel(a, one(T))
+        @test Array(a)[1] == T(1024)
+    end
+end
+
+@testset "atomic_inc" begin
+    @testset for T in [Int32]
+        a = CuTestArray([zero(T)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_inc!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=768 kernel(a, T(512))
+        @test Array(a)[1] == T(255)
+    end
+end
+
+@testset "atomic_dec" begin
+    @testset for T in [Int32]
+        a = CuTestArray([T(1024)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_dec!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=256 kernel(a, T(512))
+        @test Array(a)[1] == T(257)
+    end
+end
+
+end
+
+@testset "atomics (high-level)" begin
+
+@testset "add" begin
+    types = [Int32, Int64, UInt32, UInt64, Float32]
+    cap >= v"6.0" && push!(types, Float64)
+
+    @testset for T in types
+        a = CuTestArray([zero(T)])
+
+        function kernel(T, a)
+            @atomic a[1] = a[1] + T(1)
+            @atomic a[1] += T(1)
+            return
+        end
+
+        @cuda threads=1024 kernel(T, a)
+        @test Array(a)[1] == T(2048)
+    end
+end
+
+@testset "sub" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuTestArray([T(4096)])
+
+        function kernel(T, a)
+            @atomic a[1] = a[1] - T(1)
+            @atomic a[1] -= T(1)
+            return
+        end
+
+        @cuda threads=1024 kernel(T, a)
+        @test Array(a)[1] == T(2048)
+    end
+end
+
+@testset "and" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuTestArray([~zero(T), ~zero(T)])
+
+        function kernel(T, a)
+            i = threadIdx().x
+            mask = ~(T(1) << (i-1))
+            @atomic a[1] = a[1] & mask
+            @atomic a[2] &= mask
+            return
+        end
+
+        @cuda threads=8*sizeof(T) kernel(T, a)
+        @test Array(a)[1] == zero(T)
+        @test Array(a)[2] == zero(T)
+    end
+end
+
+@testset "or" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuTestArray([zero(T), zero(T)])
+
+        function kernel(T, a)
+            i = threadIdx().x
+            mask = T(1) << (i-1)
+            @atomic a[1] = a[1] | mask
+            @atomic a[2] |= mask
+            return
+        end
+
+        @cuda threads=8*sizeof(T) kernel(T, a)
+        @test Array(a)[1] == ~zero(T)
+        @test Array(a)[2] == ~zero(T)
+    end
+end
+
+@testset "xor" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuTestArray([zero(T), zero(T)])
+
+        function kernel(T, a)
+            i = threadIdx().x
+            mask = T(1) << ((i-1)%(8*sizeof(T)))
+            @atomic a[1] = a[1] ⊻ mask
+            @atomic a[2] ⊻= mask
+            return
+        end
+
+        nb = 4
+        @cuda threads=(8*sizeof(T)+nb) kernel(T, a)
+        @test Array(a)[1] == ~zero(T) & ~((one(T) << nb) - one(T))
+        @test Array(a)[2] == ~zero(T) & ~((one(T) << nb) - one(T))
+    end
+end
+
+@testset "max" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuTestArray([zero(T)])
+
+        function kernel(T, a)
+            i = threadIdx().x
+            @atomic a[1] = max(a[1], T(i))
+            return
+        end
+
+        @cuda threads=32 kernel(T, a)
+        @test Array(a)[1] == 32
+    end
+end
+
+@testset "min" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuTestArray([typemax(T)])
+
+        function kernel(T, a)
+            i = threadIdx().x
+            @atomic a[1] = min(a[1], T(i))
+            return
+        end
+
+        @cuda threads=32 kernel(T, a)
+        @test Array(a)[1] == 1
+    end
+end
+
+end
+
+############################################################################################
+
 end

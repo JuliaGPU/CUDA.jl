@@ -9,6 +9,7 @@ include(joinpath("cuda", "warp_shuffle.jl"))
 include(joinpath("cuda", "output.jl"))
 include(joinpath("cuda", "assertion.jl"))
 include(joinpath("cuda", "memory_dynamic.jl"))
+include(joinpath("cuda", "atomics.jl"))
 include(joinpath("cuda", "misc.jl"))
 
 # functionality from libdevice

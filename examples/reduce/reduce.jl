@@ -58,7 +58,6 @@ end
 # Reduce an array across a complete grid
 function reduce_grid(op::F, input::CuDeviceVector{T}, output::CuDeviceVector{T},
                      len::Integer) where {F<:Function,T}
-
     # TODO: neutral element depends on the operator (see Base's 2 and 3 argument `reduce`)
     val = zero(T)
 
