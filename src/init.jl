@@ -132,6 +132,7 @@ end
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
 function __init__()
+    __init_compiler__()
     configured || return
 
     if CUDAdrv.version() != cuda_driver_version
@@ -139,5 +140,4 @@ function __init__()
     end
 
     CUDAdrv.apicall_hook[] = maybe_initialize
-    __init_compiler__()
 end
