@@ -419,6 +419,22 @@ end
     end
 end
 
+@testset "float boxes" begin
+    function kernel(a,b)
+        c = Int32(a)
+        # the conversion to Int32 may fail, in which case the input Float32 is boxed in order to
+        # pass it to the @nospecialize exception constructor. we should really avoid that (eg.
+        # by avoiding @nospecialize, or optimize the unused arguments away), but for now the box
+        # should just work.
+        unsafe_store!(b, c)
+        return
+    end
+
+    ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Float32,Ptr{Float32}}))
+    @test occursin("jl_box_float32", ir)
+    CUDAnative.code_ptx(kernel, Tuple{Float32,Ptr{Float32}})
+end
+
 end
 
 

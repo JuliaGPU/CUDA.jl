@@ -213,7 +213,8 @@ end
 
 # generate functions functions that exist in the Julia runtime (see julia/src/datatype.c)
 for (T, t) in [Int8   => :int8,  Int16  => :int16,  Int32  => :int32,  Int64  => :int64,
-               UInt8  => :uint8, UInt16 => :uint16, UInt32 => :uint32, UInt64 => :uint64]
+               UInt8  => :uint8, UInt16 => :uint16, UInt32 => :uint32, UInt64 => :uint64,
+               Bool => :bool, Float32 => :float32, Float64 => :float64]
     box_fn   = Symbol("box_$t")
     unbox_fn = Symbol("unbox_$t")
     @eval begin
