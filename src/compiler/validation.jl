@@ -155,46 +155,74 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
         # some special handling for runtime functions that we don't implement
 
         if fn == "jl_get_binding_or_error"
-            # extract the literal arguments
-            m, sym, _ = operands(inst)
-            sym = first(operands(sym::ConstantExpr))::ConstantInt
-            sym = convert(Int, sym)
-            sym = Ptr{Cvoid}(sym)
-            sym = Base.unsafe_pointer_to_objref(sym)
+            # interpret the arguments
+            sym = try
+                m, sym, _ = operands(inst)
+                sym = first(operands(sym::ConstantExpr))::ConstantInt
+                sym = convert(Int, sym)
+                sym = Ptr{Cvoid}(sym)
+                Base.unsafe_pointer_to_objref(sym)
+            catch e
+                isa(e,TypeError) || rethrow()
+                @warn "Decoding arguments to jl_get_binding_or_error failed, please file a bug with a reproducer." inst bb=LLVM.parent(inst)
+                nothing
+            end
 
-            bt = backtrace(inst)
-            push!(errors, (DELAYED_BINDING, bt, sym))
+            if sym !== nothing
+                bt = backtrace(inst)
+                push!(errors, (DELAYED_BINDING, bt, sym))
+                return errors
+            end
 
         elseif fn == "jl_invoke"
-            # extract the literal arguments
-            meth, args, nargs, _ = operands(inst)
-            meth = first(operands(meth::ConstantExpr))::ConstantExpr
-            meth = first(operands(meth))::ConstantInt
-            meth = convert(Int, meth)
-            meth = Ptr{Cvoid}(meth)
-            meth = Base.unsafe_pointer_to_objref(meth)
+            # interpret the arguments
+            meth = try
+                meth, args, nargs, _ = operands(inst)
+                meth = first(operands(meth::ConstantExpr))::ConstantExpr
+                meth = first(operands(meth))::ConstantInt
+                meth = convert(Int, meth)
+                meth = Ptr{Cvoid}(meth)
+                Base.unsafe_pointer_to_objref(meth)
+            catch e
+                isa(e,TypeError) || rethrow()
+                @warn "Decoding arguments to jl_invoke failed, please file a bug with a reproducer." inst bb=LLVM.parent(inst)
+                nothing
+            end
 
-            bt = backtrace(inst)
-            push!(errors, (DYNAMIC_CALL, bt, meth.def))
+            if meth !== nothing
+                bt = backtrace(inst)
+                push!(errors, (DYNAMIC_CALL, bt, meth.def))
+                return errors
+            end
 
         elseif fn == "jl_apply_generic"
             # interpret the arguments
-            args, nargs, _ = operands(inst)
-            ## args is a buffer where arguments are stored in
-            f, args = user.(uses(args))
-            ## first store into the args buffer is a direct store
-            f = first(operands(f::LLVM.StoreInst))::ConstantExpr
-            f = first(operands(f))::ConstantExpr # get rid of addrspacecast
-            f = first(operands(f))::ConstantInt # get rid of inttoptr
-            f = convert(Int, f)
-            f = Ptr{Cvoid}(f)
-            f = Base.unsafe_pointer_to_objref(f)
+            f = try
+                args, nargs, _ = operands(inst)
+                ## args is a buffer where arguments are stored in
+                f, args = user.(uses(args))
+                ## first store into the args buffer is a direct store
+                f = first(operands(f::LLVM.StoreInst))::ConstantExpr
+                f = first(operands(f))::ConstantExpr # get rid of addrspacecast
+                f = first(operands(f))::ConstantInt # get rid of inttoptr
+                f = convert(Int, f)
+                f = Ptr{Cvoid}(f)
+                Base.unsafe_pointer_to_objref(f)
+            catch e
+                isa(e,TypeError) || rethrow()
+                @warn "Decoding arguments to jl_apply_generic failed, please file a bug with a reproducer." inst bb=LLVM.parent(inst)
+                nothing
+            end
 
-            bt = backtrace(inst)
-            push!(errors, (DYNAMIC_CALL, bt, f))
+            if f !== nothing
+                bt = backtrace(inst)
+                push!(errors, (DYNAMIC_CALL, bt, f))
+                return errors
+            end
+        end
 
         # detect calls to undefined functions
-        elseif isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
+        if isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
             # figure out if the function lives in the Julia runtime library
             if libjulia[] == C_NULL
                 paths = filter(Libdl.dllist()) do path
