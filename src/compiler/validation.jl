@@ -24,17 +24,27 @@ function check_method(job::CompilerJob)
 end
 
 if VERSION < v"1.1.0-DEV.593"
-    fieldtypes(dt::DataType) = ntuple(i->fieldtype(dt, i), fieldcount(dt))
+    fieldtypes(@nospecialize(dt)) = ntuple(i->fieldtype(dt, i), fieldcount(dt))
 end
 
-function explain_nonisbits(dt::DataType, depth=1)
+# The actual check is rather complicated
+# and might change from version to version...
+function hasfieldcount(@nospecialize(dt))
+    try
+        fieldcount(dt)
+    catch
+        return false
+    end
+    return true
+end
+
+function explain_nonisbits(@nospecialize(dt), depth=1)
+    hasfieldcount(dt) || return ""
     msg = ""
     for (ft, fn) in zip(fieldtypes(dt), fieldnames(dt))
         if !isbitstype(ft)
             msg *= "  "^depth * ".$fn is of type $ft which is not isbits.\n"
-            if !isabstracttype(dt)
-                msg *= explain_nonisbits(ft, depth+1)
-            end
+            msg *= explain_nonisbits(ft, depth+1)
         end
     end
     return msg

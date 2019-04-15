@@ -506,6 +506,25 @@ end
         occursin("BigInt", msg)
     end
 
+    # test that we can handle abstract types
+    @test_throws_message(CUDAnative.KernelError,
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Any}, cap, true))) do msg
+        occursin("passing and using non-bitstype argument", msg) &&
+        occursin("Any", msg)
+    end
+
+    @test_throws_message(CUDAnative.KernelError,
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Union{Int32, Int64}}, cap, true))) do msg
+        occursin("passing and using non-bitstype argument", msg) &&
+        occursin("Union{Int32, Int64}", msg)
+    end
+
+    @test_throws_message(CUDAnative.KernelError,
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Union{Int32, Int64}}, cap, true))) do msg
+        occursin("passing and using non-bitstype argument", msg) &&
+        occursin("Union{Int32, Int64}", msg)
+    end
+
     # test that we get information about fields and reason why something is not isbits
     @test_throws_message(CUDAnative.KernelError,
                          CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{CleverType{BigInt}}, cap, true))) do msg
