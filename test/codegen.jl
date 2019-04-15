@@ -557,6 +557,18 @@ end
     end
 end
 
+@testset "delayed bindings" begin
+    kernel() = (undefined; return)
+
+    @test_throws_message(CUDAnative.InvalidIRError,
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(kernel, Tuple{}, cap, true))) do msg
+        occursin("invalid LLVM IR", msg) &&
+        occursin(CUDAnative.DELAYED_BINDING, msg) &&
+        occursin("use of 'undefined'", msg) &&
+        occursin(r"\[1\] .+kernel", msg)
+    end
+end
+
 end
 
 

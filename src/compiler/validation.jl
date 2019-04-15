@@ -88,6 +88,7 @@ end
 const RUNTIME_FUNCTION = "call to the Julia runtime"
 const UNKNOWN_FUNCTION = "call to an unknown function"
 const POINTER_FUNCTION = "call through a literal pointer"
+const DELAYED_BINDING  = "use of an undefined name"
 
 function Base.showerror(io::IO, err::InvalidIRError)
     print(io, "InvalidIRError: compiling $(signature(err.job)) resulted in invalid LLVM IR")
@@ -96,6 +97,8 @@ function Base.showerror(io::IO, err::InvalidIRError)
         if meta != nothing
             if kind == RUNTIME_FUNCTION || kind == UNKNOWN_FUNCTION || kind == POINTER_FUNCTION
                 print(io, " (call to ", meta, ")")
+            elseif kind == DELAYED_BINDING
+                print(io, " (use of '", meta, "')")
             end
         end
         Base.show_backtrace(io, bt)
@@ -148,8 +151,21 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
     if isa(dest, LLVM.Function)
         fn = LLVM.name(dest)
 
+        # some special handling for runtime functions that we don't implement
+
+        if fn == "jl_get_binding_or_error"
+            # extract the literal arguments
+            m, sym, _ = operands(inst)
+            sym = first(operands(sym::ConstantExpr))::ConstantInt
+            sym = convert(Int, sym)
+            sym = Ptr{Cvoid}(sym)
+            sym = Base.unsafe_pointer_to_objref(sym)
+
+            bt = backtrace(inst)
+            push!(errors, (DELAYED_BINDING, bt, sym))
+
         # detect calls to undefined functions
-        if isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
+        elseif isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
             # figure out if the function lives in the Julia runtime library
             if libjulia[] == C_NULL
                 paths = filter(Libdl.dllist()) do path
@@ -170,8 +186,6 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
         # let's assume it's valid ASM
     elseif isa(dest, ConstantExpr)
         # detect calls to literal pointers
-        # FIXME: can we detect these properly?
-        # FIXME: jl_apply_generic and jl_invoke also have such arguments
         if occursin("inttoptr", string(dest))
             # extract the literal pointer
             ptr_arg = first(operands(dest))
