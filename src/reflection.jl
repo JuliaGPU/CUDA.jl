@@ -13,31 +13,32 @@ using InteractiveUtils
 
 """
     code_llvm([io], f, types; optimize=true, cap::VersionNumber, kernel=true,
-                              dump_module=false, strip_ir_metadata=true)
+                              dump_module=false, libraries=false, strip_ir_metadata=true)
 
 Prints the device LLVM IR generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`. The IR is optimized according to
 `optimize` (defaults to true), which includes entry-point specific optimizations if `kernel`
-is set (defaults to false). The device capability `cap` to generate code for defaults to the
-current active device's capability, or v"2.0" if there is no such active context. The entire
-module, including headers and other functions, is dumped if `dump_module` is set (defaults
-to false). Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to
-true).
+is set (defaults to false). Necessary libraries, such as the CUDAnative runtime, are linked
+in the module when `libraries` is set (defaults to false). The device capability `cap` to
+generate code for defaults to the current active device's capability, or v"2.0" if there is
+no such active context. The entire module, including headers and other functions, is dumped
+if `dump_module` is set (defaults to false). Finally, setting `strip_ir_metadata` removes
+all debug metadata (defaults to true).
 
 See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
 """
 function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                    optimize::Bool=true, cap::VersionNumber=current_capability(),
-                   dump_module::Bool=false, strip_ir_metadata::Bool=true,
-                   kernel::Bool=false, kwargs...)
+                   dump_module::Bool=false, libraries::Bool=false,
+                   strip_ir_metadata::Bool=true, kernel::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
-    code_llvm(io, job; optimize=optimize, dump_module=dump_module,
+    code_llvm(io, job; optimize=optimize, dump_module=dump_module, libraries=libraries,
               strip_ir_metadata=strip_ir_metadata)
 end
 function code_llvm(io::IO, job::CompilerJob; optimize::Bool=true,
-                   dump_module::Bool=false, strip_ir_metadata::Bool=true)
-    ir, entry = codegen(:llvm, job; optimize=optimize, strip=strip_ir_metadata)
+                   dump_module::Bool=false, libraries::Bool=false, strip_ir_metadata::Bool=true)
+    ir, entry = codegen(:llvm, job; libraries=libraries, optimize=optimize, strip=strip_ir_metadata)
     if dump_module
         show(io, ir)
     else
@@ -48,26 +49,28 @@ code_llvm(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_llvm(stdout, func, types; kwargs...)
 
 """
-    code_ptx([io], f, types; cap::VersionNumber, kernel=false, strip_ir_metadata=true)
+    code_ptx([io], f, types; cap::VersionNumber, kernel=false,
+             libraries=false, strip_ir_metadata=true)
 
 Prints the PTX assembly generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`. The device capability `cap` to generate
 code for defaults to the current active device's capability, or v"2.0" if there is no such
 active context. The optional `kernel` parameter indicates whether the function in question
-is an entry-point function, or a regular device function. Finally, setting
-`strip_ir_metadata` removes all debug metadata (defaults to true).
+is an entry-point function, or a regular device function. Necessary libraries, such as the
+CUDAnative runtime, are linked in the module when `libraries` is set (defaults to false).
+Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to true).
 
 See also: [`@device_code_ptx`](@ref)
 """
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
-                  strip_ir_metadata::Bool=true, kwargs...)
+                  libraries::Bool=false, strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
-    code_ptx(io, job; strip_ir_metadata=strip_ir_metadata)
+    code_ptx(io, job; libraries=libraries, strip_ir_metadata=strip_ir_metadata)
 end
-function code_ptx(io::IO, job::CompilerJob; strip_ir_metadata::Bool=true)
-    asm, _ = codegen(:ptx, job; strip=strip_ir_metadata)
+function code_ptx(io::IO, job::CompilerJob; libraries::Bool=false, strip_ir_metadata::Bool=true)
+    asm, _ = codegen(:ptx, job; libraries=libraries, strip=strip_ir_metadata)
     print(io, asm)
 end
 code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
