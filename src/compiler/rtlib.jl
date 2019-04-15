@@ -36,7 +36,6 @@ const libcache = Dict{String, LLVM.Module}()
 #
 
 function find_libdevice(cap)
-    CUDAnative.configured || return
     global libdevice
 
     if isa(libdevice, Dict)
@@ -52,6 +51,7 @@ function find_libdevice(cap)
 end
 
 function load_libdevice(cap)
+    configured || error("libdevice is not available")
     path = find_libdevice(cap)
 
     get!(libcache, path) do
