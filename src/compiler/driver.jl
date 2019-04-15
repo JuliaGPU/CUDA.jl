@@ -71,23 +71,30 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
 
     ## LLVM IR
 
-    # preload libraries
+    # always preload the runtime, and do so early; it cannot be part of any timing block
+    # because it recurses into the compiler
     if libraries
-        libdevice = load_libdevice(job.cap)
         runtime = load_runtime(job.cap)
+        runtime_defs = LLVM.name.(filter(f -> !isdeclaration(f),
+                                         collect(functions(runtime))))
     end
-
-    need_library(lib) = any(f -> isdeclaration(f) &&
-                                 intrinsic_id(f) == 0 &&
-                                 haskey(functions(lib), LLVM.name(f)),
-                            functions(ir))
 
     @timeit to[] "LLVM middle-end" begin
         ir, kernel = @timeit to[] "IR generation" irgen(job, method_instance, world)
 
         if libraries
-            @timeit to[] "device library" if need_library(libdevice)
-                link_libdevice!(job, ir, libdevice)
+            # find out if there's any libraries we actually need
+            decls = LLVM.name.(filter(f -> isdeclaration(f) &&
+                                           intrinsic_id(f) == 0,
+                                      collect(functions(ir))))
+            need_runtime = any(fn -> fn in runtime_defs, decls)
+            need_libdevice = any(fn->startswith(fn, "__nv_"), decls)
+
+            if need_libdevice
+                libdevice = load_libdevice(job.cap)
+                @timeit to[] "device library" if need_library(libdevice)
+                    link_libdevice!(job, ir, libdevice)
+                end
             end
         end
 
@@ -96,7 +103,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         end
 
         if libraries
-            @timeit to[] "runtime library" if need_library(runtime)
+            @timeit to[] "runtime library" if need_runtime
                 link_library!(job, ir, runtime)
             end
         end

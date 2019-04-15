@@ -50,21 +50,21 @@ code_llvm(@nospecialize(func), @nospecialize(types); kwargs...) =
 
 """
     code_ptx([io], f, types; cap::VersionNumber, kernel=false,
-             libraries=false, strip_ir_metadata=true)
+             libraries=true, strip_ir_metadata=true)
 
 Prints the PTX assembly generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`. The device capability `cap` to generate
 code for defaults to the current active device's capability, or v"2.0" if there is no such
 active context. The optional `kernel` parameter indicates whether the function in question
 is an entry-point function, or a regular device function. Necessary libraries, such as the
-CUDAnative runtime, are linked in the module when `libraries` is set (defaults to false).
+CUDAnative runtime, are linked in the module when `libraries` is set (defaults to true).
 Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to true).
 
 See also: [`@device_code_ptx`](@ref)
 """
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
-                  libraries::Bool=false, strip_ir_metadata::Bool=true, kwargs...)
+                  libraries::Bool=true, strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
     code_ptx(io, job; libraries=libraries, strip_ir_metadata=strip_ir_metadata)
