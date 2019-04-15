@@ -20,10 +20,9 @@ type signature to `io` which defaults to `stdout`. The IR is optimized according
 `optimize` (defaults to true), which includes entry-point specific optimizations if `kernel`
 is set (defaults to false). Necessary libraries, such as the CUDAnative runtime, are linked
 in the module when `libraries` is set (defaults to false). The device capability `cap` to
-generate code for defaults to the current active device's capability, or v"2.0" if there is
-no such active context. The entire module, including headers and other functions, is dumped
-if `dump_module` is set (defaults to false). Finally, setting `strip_ir_metadata` removes
-all debug metadata (defaults to true).
+generate code for defaults to the current active device's capability. The entire module,
+including headers and other functions, is dumped if `dump_module` is set (defaults to
+false). Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to true).
 
 See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
 """
@@ -54,11 +53,11 @@ code_llvm(@nospecialize(func), @nospecialize(types); kwargs...) =
 
 Prints the PTX assembly generated for the method matching the given generic function and
 type signature to `io` which defaults to `stdout`. The device capability `cap` to generate
-code for defaults to the current active device's capability, or v"2.0" if there is no such
-active context. The optional `kernel` parameter indicates whether the function in question
-is an entry-point function, or a regular device function. Necessary libraries, such as the
-CUDAnative runtime, are linked in the module when `libraries` is set (defaults to true).
-Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to true).
+code for defaults to the current active device's capability. The optional `kernel` parameter
+indicates whether the function in question is an entry-point function, or a regular device
+function. Necessary libraries, such as the CUDAnative runtime, are linked in the module when
+`libraries` is set (defaults to true). Finally, setting `strip_ir_metadata` removes all
+debug metadata (defaults to true).
 
 See also: [`@device_code_ptx`](@ref)
 """
@@ -69,7 +68,7 @@ function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(type
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
     code_ptx(io, job; libraries=libraries, strip_ir_metadata=strip_ir_metadata)
 end
-function code_ptx(io::IO, job::CompilerJob; libraries::Bool=false, strip_ir_metadata::Bool=true)
+function code_ptx(io::IO, job::CompilerJob; libraries::Bool=true, strip_ir_metadata::Bool=true)
     asm, _ = codegen(:ptx, job; libraries=libraries, strip=strip_ir_metadata)
     print(io, asm)
 end
