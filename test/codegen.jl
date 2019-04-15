@@ -569,7 +569,7 @@ end
     end
 end
 
-@testset "dynamic call" begin
+@testset "dynamic call (invoke)" begin
     @eval @noinline nospecialize_child(@nospecialize(i)) = i
     kernel(a, b) = (unsafe_store!(b, nospecialize_child(a)); return)
 
@@ -579,6 +579,18 @@ end
         occursin(CUDAnative.DYNAMIC_CALL, msg) &&
         occursin("call to nospecialize_child", msg) &&
         occursin(r"\[1\] .+kernel", msg)
+    end
+end
+
+@testset "dynamic call (apply)" begin
+    func() = pointer(1)
+
+    @test_throws_message(CUDAnative.InvalidIRError,
+                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(func, Tuple{}, cap, false))) do msg
+        occursin("invalid LLVM IR", msg) &&
+        occursin(CUDAnative.DYNAMIC_CALL, msg) &&
+        occursin("call to pointer", msg) &&
+        occursin("[1] func", msg)
     end
 end
 

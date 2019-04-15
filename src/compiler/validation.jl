@@ -177,6 +177,22 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
             bt = backtrace(inst)
             push!(errors, (DYNAMIC_CALL, bt, meth.def))
 
+        elseif fn == "jl_apply_generic"
+            # interpret the arguments
+            args, nargs, _ = operands(inst)
+            ## args is a buffer where arguments are stored in
+            f, args = user.(uses(args))
+            ## first store into the args buffer is a direct store
+            f = first(operands(f::LLVM.StoreInst))::ConstantExpr
+            f = first(operands(f))::ConstantExpr # get rid of addrspacecast
+            f = first(operands(f))::ConstantInt # get rid of inttoptr
+            f = convert(Int, f)
+            f = Ptr{Cvoid}(f)
+            f = Base.unsafe_pointer_to_objref(f)
+
+            bt = backtrace(inst)
+            push!(errors, (DYNAMIC_CALL, bt, f))
+
         # detect calls to undefined functions
         elseif isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
             # figure out if the function lives in the Julia runtime library
