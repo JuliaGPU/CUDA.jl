@@ -89,13 +89,14 @@ const RUNTIME_FUNCTION = "call to the Julia runtime"
 const UNKNOWN_FUNCTION = "call to an unknown function"
 const POINTER_FUNCTION = "call through a literal pointer"
 const DELAYED_BINDING  = "use of an undefined name"
+const DYNAMIC_CALL     = "dynamic function invocation"
 
 function Base.showerror(io::IO, err::InvalidIRError)
     print(io, "InvalidIRError: compiling $(signature(err.job)) resulted in invalid LLVM IR")
     for (kind, bt, meta) in err.errors
         print(io, "\nReason: unsupported $kind")
         if meta != nothing
-            if kind == RUNTIME_FUNCTION || kind == UNKNOWN_FUNCTION || kind == POINTER_FUNCTION
+            if kind == RUNTIME_FUNCTION || kind == UNKNOWN_FUNCTION || kind == POINTER_FUNCTION || kind == DYNAMIC_CALL
                 print(io, " (call to ", meta, ")")
             elseif kind == DELAYED_BINDING
                 print(io, " (use of '", meta, "')")
@@ -163,6 +164,18 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
 
             bt = backtrace(inst)
             push!(errors, (DELAYED_BINDING, bt, sym))
+
+        elseif fn == "jl_invoke"
+            # extract the literal arguments
+            meth, args, nargs, _ = operands(inst)
+            meth = first(operands(meth::ConstantExpr))::ConstantExpr
+            meth = first(operands(meth))::ConstantInt
+            meth = convert(Int, meth)
+            meth = Ptr{Cvoid}(meth)
+            meth = Base.unsafe_pointer_to_objref(meth)
+
+            bt = backtrace(inst)
+            push!(errors, (DYNAMIC_CALL, bt, meth.def))
 
         # detect calls to undefined functions
         elseif isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
