@@ -167,9 +167,19 @@ end
 ## documentation
 
 """
+    atomic_xchg!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr` and stores `val` at the same address. These
+operations are performed in one atomic transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_xchg!
+
+"""
     atomic_add!(ptr::DevicePtr{T}, val::T)
 
-Reads the value `old` located at address `ptr`, computes `old+val`, and stores the result
+Reads the value `old` located at address `ptr`, computes `old + val`, and stores the result
 back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
@@ -178,6 +188,72 @@ Additionally, on GPU hardware with compute capability 6.0+, values of type Float
 supported.
 """
 atomic_add!
+
+"""
+    atomic_sub!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `old - val`, and stores the result
+back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_sub!
+
+"""
+    atomic_and!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `old & val`, and stores the result
+back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_and!
+
+"""
+    atomic_or!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `old | val`, and stores the result
+back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_or!
+
+"""
+    atomic_xor!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `old ⊻ val`, and stores the result
+back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_xor!
+
+"""
+    atomic_min!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `min(old, val)`, and stores the
+result back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_min!
+
+"""
+    atomic_max!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `min(old, val)`, and stores the
+result back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_max!
 
 """
     atomic_inc!(ptr::DevicePtr{T}, val::T)
@@ -227,11 +303,16 @@ const inplace_ops = Dict(
     @atomic a[I] = op(a[I], val)
     @atomic a[I] ...= val
 
-Atomically perform a sequence of operations that loads an array element `a[I]`, performs
-the operation `op` on that value and a second value `val`, and writes the result back to
-the array. This sequence can be written out as a regular assignment, in which case the
-same array element should be used in the left and right hand side of the assignment, or
-as an in-place application of a known operator.
+Atomically perform a sequence of operations that loads an array element `a[I]`, performs the
+operation `op` on that value and a second value `val`, and writes the result back to the
+array. This sequence can be written out as a regular assignment, in which case the same
+array element should be used in the left and right hand side of the assignment, or as an
+in-place application of a known operator. In both cases, the array reference should be pure
+and not induce any side-effects.
+
+!!! warn
+    This interface is experimental, and might change without warning.  Use the lower-level
+    `atomic_...!` functions for a stable API.
 """
 macro atomic(ex)
     # decode assignment and call
