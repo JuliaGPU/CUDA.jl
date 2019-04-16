@@ -83,25 +83,23 @@ function codegen(target::Symbol, job::CompilerJob;
 
     ## LLVM IR
 
+    defs(mod)  = filter(f -> !isdeclaration(f), collect(functions(mod)))
+    decls(mod) = filter(f ->  isdeclaration(f) && intrinsic_id(f) == 0,
+                        collect(functions(mod)))
+
     # always preload the runtime, and do so early; it cannot be part of any timing block
     # because it recurses into the compiler
     if libraries
         runtime = load_runtime(job.cap)
-        runtime_defs = LLVM.name.(filter(f -> !isdeclaration(f),
-                                         collect(functions(runtime))))
+        runtime_fns = LLVM.name.(defs(runtime))
     end
 
     @timeit to[] "LLVM middle-end" begin
         ir, kernel = @timeit to[] "IR generation" irgen(job, method_instance, world)
 
         if libraries
-            # find out if there's any libraries we actually need
-            decls = LLVM.name.(filter(f -> isdeclaration(f) &&
-                                           intrinsic_id(f) == 0,
-                                      collect(functions(ir))))
-
-            need_libdevice = any(fn->startswith(fn, "__nv_"), decls)
-            if need_libdevice
+            undefined_fns = LLVM.name.(decls(ir))
+            if any(fn->startswith(fn, "__nv_"), undefined_fns)
                 libdevice = load_libdevice(job.cap)
                 @timeit to[] "device library" link_libdevice!(job, ir, libdevice)
             end
@@ -112,8 +110,8 @@ function codegen(target::Symbol, job::CompilerJob;
         end
 
         if libraries
-            need_runtime = any(fn -> fn in runtime_defs, decls)
-            if need_runtime
+            undefined_fns = LLVM.name.(decls(ir))
+            if any(fn -> fn in runtime_fns, undefined_fns)
                 @timeit to[] "runtime library" link_library!(job, ir, runtime)
             end
         end
@@ -183,7 +181,7 @@ function codegen(target::Symbol, job::CompilerJob;
     end
 
     if strict
-        # NOTE: keep in sync with non-strict check above
+        # NOTE: keep in sync with non-strict check below
         @timeit to[] "validation" begin
             check_invocation(job, kernel)
             check_ir(job, ir)
