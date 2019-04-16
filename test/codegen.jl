@@ -561,7 +561,7 @@ end
     kernel() = (undefined; return)
 
     @test_throws_message(CUDAnative.InvalidIRError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(kernel, Tuple{}, cap, true))) do msg
+                         CUDAnative.code_llvm(kernel, Tuple{}; strict=true)) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.DELAYED_BINDING, msg) &&
         occursin("use of 'undefined'", msg) &&
@@ -574,7 +574,7 @@ end
     kernel(a, b) = (unsafe_store!(b, nospecialize_child(a)); return)
 
     @test_throws_message(CUDAnative.InvalidIRError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(kernel, Tuple{Int,Ptr{Int}}, cap, true))) do msg
+                         CUDAnative.code_llvm(kernel, Tuple{Int,Ptr{Int}}; strict=true)) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.DYNAMIC_CALL, msg) &&
         occursin("call to nospecialize_child", msg) &&
@@ -586,7 +586,7 @@ end
     func() = pointer(1)
 
     @test_throws_message(CUDAnative.InvalidIRError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(func, Tuple{}, cap, false))) do msg
+                         CUDAnative.code_llvm(func, Tuple{}; strict=true)) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.DYNAMIC_CALL, msg) &&
         occursin("call to pointer", msg) &&
