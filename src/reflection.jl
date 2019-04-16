@@ -56,19 +56,19 @@ type signature to `io` which defaults to `stdout`. The device capability `cap` t
 code for defaults to the current active device's capability. The optional `kernel` parameter
 indicates whether the function in question is an entry-point function, or a regular device
 function. Necessary libraries, such as the CUDAnative runtime, are linked in the module when
-`libraries` is set (defaults to true). Finally, setting `strip_ir_metadata` removes all
+`libraries` is set (defaults to false). Finally, setting `strip_ir_metadata` removes all
 debug metadata (defaults to true).
 
 See also: [`@device_code_ptx`](@ref)
 """
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
-                  libraries::Bool=true, strip_ir_metadata::Bool=true, kwargs...)
+                  libraries::Bool=false, strip_ir_metadata::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
     code_ptx(io, job; libraries=libraries, strip_ir_metadata=strip_ir_metadata)
 end
-function code_ptx(io::IO, job::CompilerJob; libraries::Bool=true, strip_ir_metadata::Bool=true)
+function code_ptx(io::IO, job::CompilerJob; libraries::Bool=false, strip_ir_metadata::Bool=true)
     asm, _ = codegen(:ptx, job; libraries=libraries, strip=strip_ir_metadata)
     print(io, asm)
 end

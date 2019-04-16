@@ -184,9 +184,6 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
     @timeit to[] "LLVM back-end" begin
         @timeit to[] "preparation" prepare_execution!(job, ir)
 
-        check_invocation(job, kernel)
-        check_ir(job, ir)
-
         asm = @timeit to[] "machine-code generation" mcgen(job, ir, kernel)
     end
 
@@ -196,6 +193,11 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
     ## CUDA objects
 
     @timeit to[] "CUDA object generation" begin
+        @timeit to[] "verification" begin
+            check_invocation(job, kernel)
+            check_ir(job, ir)
+        end
+
         # enable debug options based on Julia's debug setting
         jit_options = Dict{CUDAdrv.CUjit_option,Any}()
         if Base.JLOptions().debug_level == 1
