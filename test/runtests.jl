@@ -26,10 +26,10 @@ find_binary([Sys.iswindows() ? "CHKDSK" : "true"])
 find_library([Sys.iswindows() ? "NTDLL" : "c"])
 
 # CUDA
-macro test_something(ex...)
+macro test_something(ex)
     quote
-        rv = $(ex...,)
-        @test rv != nothing
+        rv = $(ex)
+        @test rv !== nothing
         rv
     end
 end
