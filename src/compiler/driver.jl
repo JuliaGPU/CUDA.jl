@@ -5,6 +5,7 @@ const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
     compile(target::Symbol, cap::VersionNumber, f, tt, kernel=true;
+            libraries=true, dynamic_parallelism=true,
             optimize=true, strip=false, strict=true, ...)
 
 Compile a function `f` invoked with types `tt` for device capability `cap` to one of the
