@@ -201,6 +201,25 @@ The behavior of this function can be overridden by defining the `CUDA_PATH`, `CU
 `CUDA_ROOT` environment variables, which should point to the root of the CUDA toolkit.
 """
 function find_toolkit()
+    dirs = String[]
+
+    # NVTX library (special case for Windows)
+    if Sys.iswindows()
+        var = "NVTOOLSEXT_PATH"
+        dir = get(ENV, var, nothing)
+        if dir !== nothing && isdir(dir)
+            @trace "Looking for NVTX library via environment variable" var
+            push!(dirs, joinpath(basedir, "bin", suffix))
+        else
+            program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
+            basedir = joinpath(program_files, "NVIDIA Corporation", "NvToolsExt")
+            suffix = Sys.WORD_SIZE == 64 ? "x64" : "Win32"
+            dir = joinpath(basedir, "bin", suffix)
+            @trace "Looking for NVTX library in the default directory" dir
+            isdir(dir) && push!(dirs, joinpath(basedir, "bin", suffix))
+        end
+    end
+
     # look for environment variables to override discovery
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
     envdict = Dict(Symbol(var) => ENV[var] for var in envvars if haskey(ENV, var))
@@ -210,10 +229,10 @@ function find_toolkit()
         end
 
         @trace "Looking for CUDA toolkit via environment variables" envdict...
-        return collect(values(envdict))
+        append!(dirs, collect(values(envdict)))
+        return dirs
     end
 
-    dirs = String[]
 
     # look for the compiler binary (in the case PATH points to the installation)
     nvcc_path = find_cuda_binary("nvcc")
@@ -243,7 +262,7 @@ function find_toolkit()
     default_dirs = String[]
     if Sys.iswindows()
         # CUDA versions are installed in separate directories under a single base dir
-        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)" ]
+        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
         if isdir(basedir)
             entries = map(dir -> joinpath(basedir, dir), readdir(basedir))
