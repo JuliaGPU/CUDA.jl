@@ -87,9 +87,8 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
             decls = LLVM.name.(filter(f -> isdeclaration(f) &&
                                            intrinsic_id(f) == 0,
                                       collect(functions(ir))))
-            need_runtime = any(fn -> fn in runtime_defs, decls)
-            need_libdevice = any(fn->startswith(fn, "__nv_"), decls)
 
+            need_libdevice = any(fn->startswith(fn, "__nv_"), decls)
             if need_libdevice
                 libdevice = load_libdevice(job.cap)
                 @timeit to[] "device library" if need_library(libdevice)
@@ -103,6 +102,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         end
 
         if libraries
+            need_runtime = any(fn -> fn in runtime_defs, decls)
             @timeit to[] "runtime library" if need_runtime
                 link_library!(job, ir, runtime)
             end
