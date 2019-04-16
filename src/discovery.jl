@@ -88,7 +88,7 @@ function find_library(names::Vector{String};
 
     # find the full path of the library (which Libdl.find_library doesn't guarantee to return)
     path = Libdl.dlpath(name_found)
-    @debug "Found library $name_found at $path"
+    @debug "Found library $(basename(path)) at $(dirname(path))"
     return path
 end
 
