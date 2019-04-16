@@ -240,7 +240,7 @@ function find_toolkit()
     end
 
     # look in default installation directories
-    default_dirs = []
+    default_dirs = String[]
     if Sys.iswindows()
         # CUDA versions are installed in separate directories under a single base dir
         program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)" ]

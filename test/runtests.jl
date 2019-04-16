@@ -29,7 +29,7 @@ find_library([Sys.iswindows() ? "NTDLL" : "c"])
 macro test_something(ex...)
     quote
         rv = $(ex...,)
-        @test rv != nothing
+        @test rv !== nothing
         rv
     end
 end
