@@ -99,6 +99,17 @@ end
     @test_throws CUDAnative.KernelError CUDAnative.code_sass(devnull, invalid_kernel, Tuple{})
 end
 
+@testset "function name mangling" begin
+    name = "julia_^"
+    @test CUDAnative.safe_fn(name) != name
+
+    @eval @noinline $(Symbol("dummy_^"))(x) = x
+
+    @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
+
+    CUDAnative.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+end
+
 end
 
 ############################################################################################
