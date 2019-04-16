@@ -501,33 +501,33 @@ end
     foobar(i) = (sink(unsafe_trunc(Int,i)); return)
 
     @test_throws_message(CUDAnative.KernelError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{BigInt}, cap, true))) do msg
+                         CUDAnative.code_llvm(foobar, Tuple{BigInt}; strict=true)) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("BigInt", msg)
     end
 
     # test that we can handle abstract types
     @test_throws_message(CUDAnative.KernelError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Any}, cap, true))) do msg
+                         CUDAnative.code_llvm(foobar, Tuple{Any}; strict=true)) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("Any", msg)
     end
 
     @test_throws_message(CUDAnative.KernelError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Union{Int32, Int64}}, cap, true))) do msg
+                         CUDAnative.code_llvm(foobar, Tuple{Union{Int32, Int64}}; strict=true)) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("Union{Int32, Int64}", msg)
     end
 
     @test_throws_message(CUDAnative.KernelError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Union{Int32, Int64}}, cap, true))) do msg
+                         CUDAnative.code_llvm(foobar, Tuple{Union{Int32, Int64}}; strict=true)) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("Union{Int32, Int64}", msg)
     end
 
     # test that we get information about fields and reason why something is not isbits
     @test_throws_message(CUDAnative.KernelError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{CleverType{BigInt}}, cap, true))) do msg
+                         CUDAnative.code_llvm(foobar, Tuple{CleverType{BigInt}}; strict=true)) do msg
         occursin("passing and using non-bitstype argument", msg) &&
         occursin("CleverType", msg) &&
         occursin("BigInt", msg)
@@ -538,7 +538,7 @@ end
     foobar(i) = println(i)
 
     @test_throws_message(CUDAnative.InvalidIRError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Int}, cap, true))) do msg
+                         CUDAnative.code_llvm(foobar, Tuple{Int}; strict=true)) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.RUNTIME_FUNCTION, msg) &&
         occursin("[1] println", msg) &&
@@ -550,22 +550,11 @@ end
     foobar(p) = (unsafe_store!(p, ccall(:time, Cint, ())); nothing)
 
     @test_throws_message(CUDAnative.InvalidIRError,
-                         CUDAnative.codegen(:ptx, CUDAnative.CompilerJob(foobar, Tuple{Ptr{Int}}, cap, true))) do msg
+                         CUDAnative.code_llvm(foobar, Tuple{Ptr{Int}}; strict=true)) do msg
         occursin("invalid LLVM IR", msg) &&
         occursin(CUDAnative.POINTER_FUNCTION, msg) &&
         occursin(r"\[1\] .+foobar", msg)
     end
-end
-
-@testset "function name mangling" begin
-    name = "julia_^"
-    @test CUDAnative.safe_fn(name) != name
-
-    @eval @noinline $(Symbol("dummy_^"))(x) = x
-
-    @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
-
-    CUDAnative.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
 end
 
 end

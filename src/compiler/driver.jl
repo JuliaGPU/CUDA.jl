@@ -5,7 +5,8 @@ const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
 """
     compile(target::Symbol, cap::VersionNumber, f, tt, kernel=true;
-            optimize=true, strip=false, ...)
+            libraries=true, dynamic_parallelism=true,
+            optimize=true, strip=false, strict=true, ...)
 
 Compile a function `f` invoked with types `tt` for device capability `cap` to one of the
 following formats as specified by the `target` argument: `:julia` for Julia IR, `:llvm` for
@@ -13,17 +14,25 @@ LLVM IR, `:ptx` for PTX assembly and `:cuda` for CUDA driver objects. If the `ke
 is set, specialized code generation and optimization for kernel functions is enabled.
 
 The following keyword arguments are supported:
+- `libraries`: link the CUDAnative runtime and `libdevice` libraries (if required)
+- `dynamic_parallelism`: resolve dynamic parallelism (if required)
 - `optimize`: optimize the code (default: true)
 - `strip`: strip non-functional metadata and debug information  (default: false)
+- `strict`: perform code validation either as early or as late as possible
 
 Other keyword arguments can be found in the documentation of [`cufunction`](@ref).
 """
-compile(target::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function), @nospecialize(tt),
-        kernel::Bool=true; optimize::Bool=true, strip::Bool=false, kwargs...) =
-    compile(target, CompilerJob(f, tt, cap, kernel; kwargs...); optimize=optimize, strip=strip)
+compile(target::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function),
+        @nospecialize(tt), kernel::Bool=true; libraries::Bool=true,
+        dynamic_parallelism::Bool=true, optimize::Bool=true,
+        strip::Bool=false, strict::Bool=true, kwargs...) =
+    compile(target, CompilerJob(f, tt, cap, kernel; kwargs...);
+            libraries=libraries, dynamic_parallelism=dynamic_parallelism,
+            optimize=optimize, strip=strip, strict=strict)
 
 function compile(target::Symbol, job::CompilerJob;
-                 libraries::Bool=true, optimize::Bool=true, strip::Bool=false)
+                 libraries::Bool=true, dynamic_parallelism::Bool=true,
+                 optimize::Bool=true, strip::Bool=false, strict::Bool=true)
     @debug "(Re)compiling function" job
 
     if compile_hook[] != nothing
@@ -35,15 +44,19 @@ function compile(target::Symbol, job::CompilerJob;
         globalUnique = previous_globalUnique
     end
 
-    return codegen(target, job; libraries=libraries, optimize=optimize, strip=strip)
+    return codegen(target, job;
+                   libraries=libraries, dynamic_parallelism=dynamic_parallelism,
+                   optimize=optimize, strip=strip, strict=strict)
 end
 
-function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
-                 optimize::Bool=true, strip::Bool=false)
+function codegen(target::Symbol, job::CompilerJob;
+                 libraries::Bool=true, dynamic_parallelism::Bool=true, optimize::Bool=true,
+                 strip::Bool=false,strict::Bool=true)
     ## Julia IR
 
+    @timeit to[] "validation" check_method(job)
+
     @timeit to[] "Julia front-end" begin
-        check_method(job)
 
         # get the method instance
         world = typemax(UInt)
@@ -71,23 +84,25 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
 
     ## LLVM IR
 
-    # preload libraries
-    if libraries
-        libdevice = load_libdevice(job.cap)
-        runtime = load_runtime(job.cap)
-    end
+    defs(mod)  = filter(f -> !isdeclaration(f), collect(functions(mod)))
+    decls(mod) = filter(f ->  isdeclaration(f) && intrinsic_id(f) == 0,
+                        collect(functions(mod)))
 
-    need_library(lib) = any(f -> isdeclaration(f) &&
-                                 intrinsic_id(f) == 0 &&
-                                 haskey(functions(lib), LLVM.name(f)),
-                            functions(ir))
+    # always preload the runtime, and do so early; it cannot be part of any timing block
+    # because it recurses into the compiler
+    if libraries
+        runtime = load_runtime(job.cap)
+        runtime_fns = LLVM.name.(defs(runtime))
+    end
 
     @timeit to[] "LLVM middle-end" begin
         ir, kernel = @timeit to[] "IR generation" irgen(job, method_instance, world)
 
         if libraries
-            @timeit to[] "device library" if need_library(libdevice)
-                link_libdevice!(job, ir, libdevice)
+            undefined_fns = LLVM.name.(decls(ir))
+            if any(fn->startswith(fn, "__nv_"), undefined_fns)
+                libdevice = load_libdevice(job.cap)
+                @timeit to[] "device library" link_libdevice!(job, ir, libdevice)
             end
         end
 
@@ -96,8 +111,9 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         end
 
         if libraries
-            @timeit to[] "runtime library" if need_library(runtime)
-                link_library!(job, ir, runtime)
+            undefined_fns = LLVM.name.(decls(ir))
+            if any(fn -> fn in runtime_fns, undefined_fns)
+                @timeit to[] "runtime library" link_library!(job, ir, runtime)
             end
         end
 
@@ -105,22 +121,14 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
             @timeit to[] "verification" verify(ir)
         end
 
-        if strip
-            @timeit to[] "strip debug info" strip_debuginfo!(ir)
-        end
-
         kernel_fn = LLVM.name(kernel)
     end
 
-    target == :llvm && return ir, kernel
+    # dynamic parallelism
+    if dynamic_parallelism && haskey(functions(ir), "cudanativeCompileKernel")
+        dyn_marker = functions(ir)["cudanativeCompileKernel"]
 
-
-    ## dynamic parallelism
-
-    kernels = OrderedDict{CompilerJob, String}(job => kernel_fn)
-
-    if haskey(functions(ir), "cudanativeCompileKernel")
-        dyn_maker = functions(ir)["cudanativeCompileKernel"]
+        cache = Dict{CompilerJob, String}(job => kernel_fn)
 
         # iterative compilation (non-recursive)
         changed = true
@@ -130,7 +138,7 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
             # find dynamic kernel invocations
             # TODO: recover this information earlier, from the Julia IR
             worklist = MultiDict{CompilerJob, LLVM.CallInst}()
-            for use in uses(dyn_maker)
+            for use in uses(dyn_marker)
                 # decode the call
                 call = user(use)::LLVM.CallInst
                 id = convert(Int, first(operands(call)))
@@ -144,8 +152,10 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
             # compile and link
             for dyn_job in keys(worklist)
                 # cached compilation
-                dyn_kernel_fn = get!(kernels, dyn_job) do
-                    dyn_ir, dyn_kernel = codegen(:llvm, dyn_job; optimize=optimize, strip=strip)
+                dyn_kernel_fn = get!(cache, dyn_job) do
+                    dyn_ir, dyn_kernel = codegen(:llvm, dyn_job;
+                                                 optimize=optimize, strip=strip,
+                                                 dynamic_parallelism=false, strict=false)
                     dyn_kernel_fn = LLVM.name(dyn_kernel)
                     link!(ir, dyn_ir)
                     changed = true
@@ -167,18 +177,29 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
         end
 
         # all dynamic launches should have been resolved
-        @compiler_assert isempty(uses(dyn_maker)) job
-        unsafe_delete!(ir, dyn_maker)
+        @compiler_assert isempty(uses(dyn_marker)) job
+        unsafe_delete!(ir, dyn_marker)
     end
+
+    if strict
+        # NOTE: keep in sync with non-strict check below
+        @timeit to[] "validation" begin
+            check_invocation(job, kernel)
+            check_ir(job, ir)
+        end
+    end
+
+    if strip
+        @timeit to[] "strip debug info" strip_debuginfo!(ir)
+    end
+
+    target == :llvm && return ir, kernel
 
 
     ## PTX machine code
 
     @timeit to[] "LLVM back-end" begin
         @timeit to[] "preparation" prepare_execution!(job, ir)
-
-        check_invocation(job, kernel)
-        check_ir(job, ir)
 
         asm = @timeit to[] "machine-code generation" mcgen(job, ir, kernel)
     end
@@ -188,7 +209,16 @@ function codegen(target::Symbol, job::CompilerJob; libraries::Bool=true,
 
     ## CUDA objects
 
+    if !strict
+        # NOTE: keep in sync with strict check above
+        @timeit to[] "validation" begin
+            check_invocation(job, kernel)
+            check_ir(job, ir)
+        end
+    end
+
     @timeit to[] "CUDA object generation" begin
+
         # enable debug options based on Julia's debug setting
         jit_options = Dict{CUDAdrv.CUjit_option,Any}()
         if Base.JLOptions().debug_level == 1

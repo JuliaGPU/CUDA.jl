@@ -36,7 +36,6 @@ const libcache = Dict{String, LLVM.Module}()
 #
 
 function find_libdevice(cap)
-    CUDAnative.configured || return
     global libdevice
 
     if isa(libdevice, Dict)
@@ -52,6 +51,7 @@ function find_libdevice(cap)
 end
 
 function load_libdevice(cap)
+    configured || error("libdevice is not available")
     path = find_libdevice(cap)
 
     get!(libcache, path) do
@@ -125,7 +125,7 @@ end
 function emit_function!(mod, cap, f, types, name)
     tt = Base.to_tuple_type(types)
     new_mod, entry = codegen(:llvm, CompilerJob(f, tt, cap, #=kernel=# false);
-                             libraries=false)
+                             libraries=false, strict=false)
     LLVM.name!(entry, name)
     link!(mod, new_mod)
 end

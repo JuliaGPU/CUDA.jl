@@ -12,32 +12,36 @@ using InteractiveUtils
 #       otherwise invalid code (e.g. with missing symbols).
 
 """
-    code_llvm([io], f, types; optimize=true, cap::VersionNumber, kernel=true,
-                              dump_module=false, strip_ir_metadata=true)
+    code_llvm([io], f, types; optimize=true, cap::VersionNumber, kernel=false,
+              optimize=true, raw=false, dump_module=false, strict=false)
 
 Prints the device LLVM IR generated for the method matching the given generic function and
-type signature to `io` which defaults to `stdout`. The IR is optimized according to
-`optimize` (defaults to true), which includes entry-point specific optimizations if `kernel`
-is set (defaults to false). The device capability `cap` to generate code for defaults to the
-current active device's capability, or v"2.0" if there is no such active context. The entire
-module, including headers and other functions, is dumped if `dump_module` is set (defaults
-to false). Finally, setting `strip_ir_metadata` removes all debug metadata (defaults to
-true).
+type signature to `io` which defaults to `stdout`.
+
+The following keyword arguments are supported:
+
+- `cap` which device to generate code for
+- `kernel`: treat the function as an entry-point kernel
+- `optimize`: determines if the code is optimized, which includes kernel-specific
+  optimizations if `kernel` is true
+- `raw`: return the raw IR including all metadata
+- `dump_module`: display the entire module instead of just the function
+- `strict`: verify generate code as early as possible
 
 See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
 """
 function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
-                   optimize::Bool=true, cap::VersionNumber=current_capability(),
-                   dump_module::Bool=false, strip_ir_metadata::Bool=true,
-                   kernel::Bool=false, kwargs...)
+                   cap::VersionNumber=current_capability(), kernel::Bool=false,
+                   optimize::Bool=true, raw::Bool=false,
+                   dump_module::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
-    code_llvm(io, job; optimize=optimize, dump_module=dump_module,
-              strip_ir_metadata=strip_ir_metadata)
+    code_llvm(io, job; optimize=optimize,
+              raw=raw, dump_module=dump_module, strict=strict)
 end
-function code_llvm(io::IO, job::CompilerJob; optimize::Bool=true,
-                   dump_module::Bool=false, strip_ir_metadata::Bool=true)
-    ir, entry = codegen(:llvm, job; optimize=optimize, strip=strip_ir_metadata)
+function code_llvm(io::IO, job::CompilerJob; optimize::Bool=true, raw::Bool=false,
+                   dump_module::Bool=false, strict::Bool=false)
+    ir, entry = codegen(:llvm, job; optimize=optimize, strip=!raw, strict=strict)
     if dump_module
         show(io, ir)
     else
@@ -48,26 +52,29 @@ code_llvm(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_llvm(stdout, func, types; kwargs...)
 
 """
-    code_ptx([io], f, types; cap::VersionNumber, kernel=false, strip_ir_metadata=true)
+    code_ptx([io], f, types; cap::VersionNumber, kernel=false, raw=false, strict=false)
 
 Prints the PTX assembly generated for the method matching the given generic function and
-type signature to `io` which defaults to `stdout`. The device capability `cap` to generate
-code for defaults to the current active device's capability, or v"2.0" if there is no such
-active context. The optional `kernel` parameter indicates whether the function in question
-is an entry-point function, or a regular device function. Finally, setting
-`strip_ir_metadata` removes all debug metadata (defaults to true).
+type signature to `io` which defaults to `stdout`.
+
+The following keyword arguments are supported:
+
+- `cap` which device to generate code for
+- `kernel`: treat the function as an entry-point kernel
+- `raw`: return the raw code including all metadata
+- `strict`: verify generate code as early as possible
 
 See also: [`@device_code_ptx`](@ref)
 """
 function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
-                  strip_ir_metadata::Bool=true, kwargs...)
+                  raw::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
-    code_ptx(io, job; strip_ir_metadata=strip_ir_metadata)
+    code_ptx(io, job; raw=raw, strict=strict)
 end
-function code_ptx(io::IO, job::CompilerJob; strip_ir_metadata::Bool=true)
-    asm, _ = codegen(:ptx, job; strip=strip_ir_metadata)
+function code_ptx(io::IO, job::CompilerJob; raw::Bool=false, strict::Bool=false)
+    asm, _ = codegen(:ptx, job; strip=!raw, strict=strict)
     print(io, asm)
 end
 code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
@@ -77,10 +84,12 @@ code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_sass([io], f, types, cap::VersionNumber)
 
 Prints the SASS code generated for the method matching the given generic function and type
-signature to `io` which defaults to `stdout`. The device capability `cap` to generate code
-for defaults to the current active device's capability, or v"2.0" if there is no such active
-context. The method needs to be a valid entry-point kernel, eg. it should not return any
-values.
+signature to `io` which defaults to `stdout`.
+
+The following keyword arguments are supported:
+
+- `cap` which device to generate code for
+- `kernel`: treat the function as an entry-point kernel
 
 See also: [`@device_code_sass`](@ref)
 """
@@ -287,11 +296,11 @@ macro device_code(ex...)
         end
 
         open(joinpath(dir, "$fn.unopt.ll"), "w") do io
-            code_llvm(io, job; dump_module=true, strip_ir_metadata=false, optimize=false)
+            code_llvm(io, job; dump_module=true, raw=true, optimize=false)
         end
 
         open(joinpath(dir, "$fn.opt.ll"), "w") do io
-            code_llvm(io, job; dump_module=true, strip_ir_metadata=false)
+            code_llvm(io, job; dump_module=true, raw=true)
         end
 
         open(joinpath(dir, "$fn.ptx"), "w") do io
