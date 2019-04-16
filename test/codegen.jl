@@ -432,7 +432,7 @@ end
 
     ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Float32,Ptr{Float32}}))
     @test occursin("jl_box_float32", ir)
-    CUDAnative.code_ptx(kernel, Tuple{Float32,Ptr{Float32}})
+    CUDAnative.code_ptx(devnull, kernel, Tuple{Float32,Ptr{Float32}})
 end
 
 end
