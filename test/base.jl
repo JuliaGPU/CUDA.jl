@@ -231,3 +231,36 @@ end
   @test testf(x -> filter(y->y .> 0.5, x), rand(2,2))
   @test testf(x -> filter(y->y .> 0.5, x), rand(2,2,2))
 end
+
+@testset "generic fallbacks" begin
+    a = rand(Int8, 3, 3)
+    b = rand(Int8, 3, 3)
+    d_a = CuArray{Int8}(a)
+    d_b = CuArray{Int8}(b)
+    d_c = d_a*d_b
+    @test collect(d_c) == a*b
+    a = rand(Complex{Int8}, 3, 3)
+    b = rand(Complex{Int8}, 3, 3)
+    d_a = CuArray{Complex{Int8}}(a)
+    d_b = CuArray{Complex{Int8}}(b)
+    d_c = d_a'*d_b
+    @test collect(d_c) == a'*b
+    d_c = d_a*d_b'
+    @test collect(d_c) == a*b'
+    d_c = d_a'*d_b'
+    @test collect(d_c) == a'*b'
+    d_c = transpose(d_a)*d_b'
+    @test collect(d_c) == transpose(a)*b'
+    d_c = d_a'*transpose(d_b)
+    @test collect(d_c) == a'*transpose(b)
+    d_c = transpose(d_a)*d_b
+    @test collect(d_c) == transpose(a)*b
+    d_c = d_a*transpose(d_b)
+    @test collect(d_c) == a*transpose(b)
+    d_c = transpose(d_a)*transpose(d_b)
+    @test collect(d_c) == transpose(a)*transpose(b)
+    d_c = rmul!(copy(d_a), Complex{Int8}(2, 2))
+    @test collect(d_c) == a*Complex{Int8}(2, 2)
+    d_c = lmul!(Complex{Int8}(2, 2), copy(d_a))
+    @test collect(d_c) == Complex{Int8}(2, 2)*a
+end
