@@ -29,7 +29,7 @@ test = ["Test", "FFTW", "ForwardDiff"]
 [compat]
 julia = "1.0"
 CUDAnative = "2.0"
-CUDAdrv = "2.1"
+CUDAdrv = "3.0"
 CUDAapi = "0.5.3, 0.6"
 NNlib = "0.5, 0.6"
 GPUArrays = "0.7"
