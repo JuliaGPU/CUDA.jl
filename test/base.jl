@@ -66,6 +66,7 @@ end
   @test testf((x)       -> sin.(x),      rand(2, 3))
   @test testf((x)       -> log.(x) .+ 1, rand(2, 3))
   @test testf((x)       -> 2x,           rand(2, 3))
+  @test testf((x)       -> x .^ 5,      rand(2, 3))
   @test testf((x, y)    -> x .+ y,       rand(2, 3), rand(1, 3))
   @test testf((z, x, y) -> z .= x .+ y,  rand(2, 3), rand(2, 3), rand(2))
   @test (CuArray{Ptr{Cvoid}}(undef, 1) .= C_NULL) == CuArray([C_NULL])
