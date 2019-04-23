@@ -206,17 +206,19 @@ function find_toolkit()
     # NVTX library (special case for Windows)
     if Sys.iswindows()
         var = "NVTOOLSEXT_PATH"
-        dir = get(ENV, var, nothing)
-        if dir !== nothing && isdir(dir)
+        basedir = get(ENV, var, nothing)
+        if basedir !== nothing && isdir(basedir)
             @trace "Looking for NVTX library via environment variable" var
-            push!(dirs, joinpath(basedir, "bin", suffix))
+            suffix = Sys.WORD_SIZE == 64 ? "x64" : "Win32"
+            dir = joinpath(basedir, "bin", suffix)
+            isdir(dir) && push!(dirs, dir)
         else
             program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
             basedir = joinpath(program_files, "NVIDIA Corporation", "NvToolsExt")
+            @trace "Looking for NVTX library in the default directory" basedir
             suffix = Sys.WORD_SIZE == 64 ? "x64" : "Win32"
             dir = joinpath(basedir, "bin", suffix)
-            @trace "Looking for NVTX library in the default directory" dir
-            isdir(dir) && push!(dirs, joinpath(basedir, "bin", suffix))
+            isdir(dir) && push!(dirs, dir)
         end
     end
 
