@@ -38,8 +38,7 @@ for f in libdevice
 end
 
 #broadcast ^
-CUDAnative.pow(x::Union{Float32, Float64}, y::Int64) = CUDAnative.pow(x, Int32(y))
-culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{p}) where p = CUDAnative.pow(x, Int32(p))
+culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{p}) where p = CUDAnative.pow(x, p)
 
 cufunc(::typeof(Base.literal_pow)) = culiteral_pow
 cufunc(::typeof(Base.:(^))) = CUDAnative.pow
