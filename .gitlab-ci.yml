@@ -1,6 +1,5 @@
 variables:
   CI_IMAGE_TAG: 'cuda'
-  CI_DEV_PKGS: 'CUDAapi GPUArrays CUDAnative NNlib CUDAdrv'
   JULIA_NUM_THREADS: '4'
 
 include:
