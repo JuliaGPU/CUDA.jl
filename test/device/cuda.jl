@@ -41,6 +41,64 @@ end
     @cuda kernel(buf, Float32(100))
     val = Array(buf)
     @test val[] ≈ 2.0
+
+
+    @testset "pow" begin
+        buf = CuTestArray(zeros(Float32))
+
+        function pow_kernel(a, x, y)
+            a[] = CUDAnative.pow(x, y)
+            return
+        end
+
+        #pow(::Float32, ::Float32)
+        x, y = rand(Float32), rand(Float32)
+        @cuda pow_kernel(buf, x, y)
+        val = Array(buf)
+        @test val[] ≈ x^y
+        @cuda pow_kernel(buf, x, -y)
+        val = Array(buf)
+        @test val[] ≈ x^(-y)
+
+        #pow(::Float64, ::Float64)
+        x, y = rand(Float64), rand(Float64)
+        @cuda pow_kernel(buf, x, y)
+        val = Array(buf)
+        @test val[] ≈ x^y
+        @cuda pow_kernel(buf, x, -y)
+        val = Array(buf)
+        @test val[] ≈ x^(-y)
+
+        #pow(::Float32, ::Int32)
+        x, y = rand(Float32), rand(Int32(5):Int32(10))
+        @cuda pow_kernel(buf, x, y)
+        val = Array(buf)
+        @test val[] ≈ x^y
+        @cuda pow_kernel(buf, x, -y)
+        val = Array(buf)
+        @test val[] ≈ x^(-y)
+
+        #pow(::Float64, ::Int32)
+        x, y = rand(Float64), rand(Int32(5):Int32(10))
+        @cuda pow_kernel(buf, x, y)
+        val = Array(buf)
+        @test val[] ≈ x^y
+        @cuda pow_kernel(buf, x, -y)
+        val = Array(buf)
+        @test val[] ≈ x^(-y)
+
+        #pow(::Float32, ::Int64)
+        x, y = rand(Float32), rand(5:10)
+        @cuda pow_kernel(buf, x, y)
+        val = Array(buf)
+        @test val[] ≈ x^y
+
+        #pow(::Float64, ::Int64)
+        x, y = rand(Float32), rand(5:10)
+        @cuda pow_kernel(buf, x, y)
+        val = Array(buf)
+        @test val[] ≈ x^y
+    end
 end
 
 
