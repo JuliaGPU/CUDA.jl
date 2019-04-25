@@ -16,9 +16,9 @@ safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
 # generate a pseudo-backtrace from a stack of methods being emitted
-function backtrace(job::CompilerJob, method_stack::Vector{Core.MethodInstance})
+function backtrace(job::CompilerJob, call_stack::Vector{Core.MethodInstance})
     bt = StackTraces.StackFrame[]
-    for method_instance in method_stack
+    for method_instance in call_stack
         method = method_instance.def
         frame = StackTraces.StackFrame(method.name, method.file, method.line)
         pushfirst!(bt, frame)
@@ -36,35 +36,36 @@ Base.showerror(io::IO, err::MethodSubstitutionWarning) =
 
 function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
     # set-up the compiler interface
+    last_method_instance = nothing
+    call_stack = Vector{Core.MethodInstance}()
+    dependencies = MultiDict{Core.MethodInstance,LLVM.Module}()
     function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         module_setup(LLVM.Module(ref))
     end
-    dependencies = Vector{LLVM.Module}()
     function hook_module_activation(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
-        push!(dependencies, LLVM.Module(ref))
+        insert!(dependencies, last_method_instance, LLVM.Module(ref))
     end
-    method_stack = Vector{Core.MethodInstance}()
     function hook_emit_function(method_instance, code, world)
         skip_verifier = false
-        if length(method_stack) >= 1
-            last_method = last(method_stack)
-            skip_verifier = last_method.def.name === :overdub
+        if length(call_stack) >= 1
+            caller = last(call_stack)
+            skip_verifier = caller.def.name === :overdub
         end
-        push!(method_stack, method_instance)
+
+        push!(call_stack, method_instance)
 
         # check for recursion
-        if method_instance in method_stack[1:end-1]
+        if method_instance in call_stack[1:end-1]
             throw(KernelError(job, "recursion is currently not supported";
-                              bt=backtrace(job, method_stack)))
+                              bt=backtrace(job, call_stack)))
         end
 
-        # if last method on stack is overdub skip the Base check
-        # and trust in Cassette
+        # if last method on stack is overdub skip the Base check and trust in Cassette
         skip_verifier && return
 
-        # check for Base methods that exist in CUDAnative too
+        # check for Base functions that exist in CUDAnative too
         # FIXME: this might be too coarse
         method = method_instance.def
         if Base.moduleroot(method.module) == Base &&
@@ -74,14 +75,14 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
             if hasmethod(substitute_function, tt)
                 method′ = which(substitute_function, tt)
                 if Base.moduleroot(method′.module) == CUDAnative
-                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method, method′), backtrace(job, method_stack))
+                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method, method′), backtrace(job, call_stack))
                 end
             end
         end
     end
     function hook_emitted_function(method, code, world)
-        @compiler_assert last(method_stack) == method job
-        pop!(method_stack)
+        @compiler_assert last(call_stack) == method job
+        last_method_instance = pop!(call_stack)
     end
     params = Base.CodegenParams(cached             = false,
                                 track_allocations  = false,
@@ -102,17 +103,16 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
     end
     llvmf = LLVM.Function(ref)
 
-    modules = [LLVM.parent(llvmf), dependencies...]
-    return llvmf, modules
+    return llvmf, dependencies
 end
 
 function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     entry, modules = @timeit to[] "emission" compile_method_instance(job, method_instance, world)
+    mod = LLVM.parent(entry)
 
     # link in dependent modules
     @timeit to[] "linking" begin
-        mod = popfirst!(modules)
-        for dep in modules
+        for called_method_instance in keys(modules), dep in modules[called_method_instance]
             link!(mod, dep)
         end
     end
