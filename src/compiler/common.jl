@@ -2,7 +2,7 @@
 
 struct CompilerJob
     # core invocation
-    f::Core.Function
+    f::Base.Callable
     tt::DataType
     cap::VersionNumber
     kernel::Bool

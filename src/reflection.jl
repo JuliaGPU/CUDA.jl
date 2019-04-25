@@ -30,7 +30,7 @@ The following keyword arguments are supported:
 
 See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
 """
-function code_llvm(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
+function code_llvm(io::IO, @nospecialize(func), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=false,
                    optimize::Bool=true, raw::Bool=false,
                    dump_module::Bool=false, strict::Bool=false, kwargs...)
@@ -66,7 +66,7 @@ The following keyword arguments are supported:
 
 See also: [`@device_code_ptx`](@ref)
 """
-function code_ptx(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
+function code_ptx(io::IO, @nospecialize(func), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
                   raw::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
@@ -93,7 +93,7 @@ The following keyword arguments are supported:
 
 See also: [`@device_code_sass`](@ref)
 """
-function code_sass(io::IO, @nospecialize(func::Core.Function), @nospecialize(types);
+function code_sass(io::IO, @nospecialize(func), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=true, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
