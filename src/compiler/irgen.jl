@@ -129,13 +129,38 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
 end
 
 function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
-    entry, modules = @timeit to[] "emission" compile_method_instance(job, method_instance, world)
+    entry, dependencies = @timeit to[] "emission" compile_method_instance(job, method_instance, world)
     mod = LLVM.parent(entry)
 
     # link in dependent modules
     @timeit to[] "linking" begin
-        for called_method_instance in keys(modules), llvmf in modules[called_method_instance]
+        # we disable Julia's compilation cache not to poison it with GPU-specific code.
+        # as a result, we might get multiple modules for a single method instance.
+        cache = Dict{String,LLVM.Function}()
+
+        for called_method_instance in keys(dependencies)
+            llvmfs = dependencies[called_method_instance]
+
+            # only link the first module
+            llvmf = popfirst!(llvmfs)
+            llvmfn = LLVM.name(llvmf)
             link!(mod, LLVM.parent(llvmf))
+
+            # cache subsequent modules
+            for dup_llvmf in llvmfs
+                dup_llvmfn = LLVM.name(dup_llvmf)
+                cache[dup_llvmfn] = functions(mod)[llvmfn]
+            end
+        end
+
+        # resolve cache entries
+        for llvmf in filter(isdeclaration, collect(functions(mod)))
+            llvmfn = LLVM.name(llvmf)
+            if haskey(cache, llvmfn)
+                replace_uses!(llvmf, cache[llvmfn])
+                @compiler_assert isempty(uses(llvmf)) job
+                unsafe_delete!(LLVM.parent(llvmf), llvmf)
+            end
         end
     end
 
