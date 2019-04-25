@@ -136,7 +136,7 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     @timeit to[] "linking" begin
         # we disable Julia's compilation cache not to poison it with GPU-specific code.
         # as a result, we might get multiple modules for a single method instance.
-        cache = Dict{String,LLVM.Function}()
+        cache = Dict{String,String}()
 
         for called_method_instance in keys(dependencies)
             llvmfs = dependencies[called_method_instance]
@@ -149,15 +149,17 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
             # cache subsequent modules
             for dup_llvmf in llvmfs
                 dup_llvmfn = LLVM.name(dup_llvmf)
-                cache[dup_llvmfn] = functions(mod)[llvmfn]
+                cache[dup_llvmfn] = llvmfn
             end
         end
 
-        # resolve cache entries
+        # resolve function declarations with cached entries
         for llvmf in filter(isdeclaration, collect(functions(mod)))
             llvmfn = LLVM.name(llvmf)
             if haskey(cache, llvmfn)
-                replace_uses!(llvmf, cache[llvmfn])
+                def_llvmfn = cache[llvmfn]
+                replace_uses!(llvmf, functions(mod)[def_llvmfn])
+
                 @compiler_assert isempty(uses(llvmf)) job
                 unsafe_delete!(LLVM.parent(llvmf), llvmf)
             end
