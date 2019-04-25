@@ -35,6 +35,15 @@ Base.showerror(io::IO, err::MethodSubstitutionWarning) =
     print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
 
 function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
+    function postprocess(ir)
+        # get rid of jfptr wrappers
+        for llvmf in functions(ir)
+            startswith(LLVM.name(llvmf), "jfptr_") && unsafe_delete!(ir, llvmf)
+        end
+
+        return
+    end
+
     # set-up the compiler interface
     last_method_instance = nothing
     call_stack = Vector{Core.MethodInstance}()
@@ -47,11 +56,7 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
     function hook_module_activation(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         ir = LLVM.Module(ref)
-
-        # get rid of jfptr wrappers
-        for llvmf in functions(ir)
-            startswith(LLVM.name(llvmf), "jfptr_") && unsafe_delete!(ir, llvmf)
-        end
+        postprocess(ir)
 
         # find the function that this module defines
         llvmfs = filter(llvmf -> !isdeclaration(llvmf) &&
@@ -117,6 +122,8 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
         throw(InternalCompilerError(job, "the Julia compiler could not generate LLVM IR"))
     end
     llvmf = LLVM.Function(ref)
+    ir = LLVM.parent(llvmf)
+    postprocess(ir)
 
     return llvmf, dependencies
 end
