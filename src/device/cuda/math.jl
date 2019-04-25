@@ -190,7 +190,7 @@
 @inline pow_fast(x::Float32, y::Float32) = @wrap __nv_fast_powf(x::float, y::float)::float
 @inline pow(x::Float64, y::Int32) =   @wrap __nv_powi(x::double, y::i32)::double
 @inline pow(x::Float32, y::Int32) =   @wrap __nv_powif(x::float, y::i32)::float
-
+@inline pow(x::Union{Float32, Float64}, y::Int64) = pow(x, Int32(y))
 
 ## rounding and selection
 
