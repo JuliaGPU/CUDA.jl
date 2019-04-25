@@ -35,7 +35,7 @@ Returns the full path to the library.
 function find_library(names::Vector{String};
                       locations::Vector{String}=String[],
                       versions::Vector{VersionNumber}=VersionNumber[],
-                      word_size::Int=Sys.WORD_SIZE)
+                      word_size::Integer=Sys.WORD_SIZE)
     @trace "Request to look for library $(join(names, ", "))" locations
 
     # figure out names
@@ -74,7 +74,7 @@ function find_library(names::Vector{String};
             push!(all_locations, joinpath(location, "bin"))
         else
             push!(all_locations, joinpath(location, "lib"))
-            if Sys.WORD_SIZE == 64
+            if word_size == 64
                 push!(all_locations, joinpath(location, "lib64"))
             end
         end
