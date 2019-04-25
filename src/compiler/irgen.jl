@@ -38,21 +38,29 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
     # set-up the compiler interface
     last_method_instance = nothing
     call_stack = Vector{Core.MethodInstance}()
-    dependencies = MultiDict{Core.MethodInstance,LLVM.Module}()
+    dependencies = MultiDict{Core.MethodInstance,LLVM.Function}()
     function hook_module_setup(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
-        module_setup(LLVM.Module(ref))
+        ir = LLVM.Module(ref)
+        module_setup(ir)
     end
     function hook_module_activation(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
         ir = LLVM.Module(ref)
 
         # get rid of jfptr wrappers
-        for f in functions(ir)
-            startswith(LLVM.name(f), "jfptr_") && unsafe_delete!(ir, f)
+        for llvmf in functions(ir)
+            startswith(LLVM.name(llvmf), "jfptr_") && unsafe_delete!(ir, llvmf)
         end
 
-        insert!(dependencies, last_method_instance, ir)
+        # find the function that this module defines
+        llvmfs = filter(llvmf -> !isdeclaration(llvmf) &&
+                                 startswith(LLVM.name(llvmf), "julia_"),
+                        collect(functions(ir)))
+        @compiler_assert length(llvmfs) == 1 job
+        llvmf = first(llvmfs)
+
+        insert!(dependencies, last_method_instance, llvmf)
     end
     function hook_emit_function(method_instance, code, world)
         skip_verifier = false
@@ -119,8 +127,8 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
 
     # link in dependent modules
     @timeit to[] "linking" begin
-        for called_method_instance in keys(modules), dep in modules[called_method_instance]
-            link!(mod, dep)
+        for called_method_instance in keys(modules), llvmf in modules[called_method_instance]
+            link!(mod, LLVM.parent(llvmf))
         end
     end
 
