@@ -45,7 +45,14 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
     end
     function hook_module_activation(ref::Ptr{Cvoid})
         ref = convert(LLVM.API.LLVMModuleRef, ref)
-        insert!(dependencies, last_method_instance, LLVM.Module(ref))
+        ir = LLVM.Module(ref)
+
+        # get rid of jfptr wrappers
+        for f in functions(ir)
+            startswith(LLVM.name(f), "jfptr_") && unsafe_delete!(ir, f)
+        end
+
+        insert!(dependencies, last_method_instance, ir)
     end
     function hook_emit_function(method_instance, code, world)
         skip_verifier = false
@@ -123,12 +130,6 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
 
         # only occurs in debug builds
         delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
-
-        # dependent modules might have brought in other jfptr wrappers, delete them
-        if startswith(LLVM.name(llvmf), "jfptr_") && isempty(uses(llvmf))
-            unsafe_delete!(mod, llvmf)
-            continue
-        end
 
         # rename functions
         if !isdeclaration(llvmf)
