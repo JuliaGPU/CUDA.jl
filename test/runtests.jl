@@ -17,13 +17,13 @@ allowscalar(false)
 @testset "CuArrays" begin
 
 include("base.jl")
-include("dnn.jl")
 include("blas.jl")
+include("rand.jl")
+include("fft.jl")
 include("sparse.jl")
 include("solver.jl")
-include("fft.jl")
-include("rand.jl")
 include("sparse_solver.jl")
+include("dnn.jl")
 
 CuArrays.pool_status()
 CuArrays.pool_timings()
