@@ -2,12 +2,7 @@ using LinearAlgebra
 
 @testset "CUBLAS" begin
 
-if !isdefined(CuArrays, :CUBLAS)
-@warn "Not testing CUBLAS"
-else
 using CuArrays.CUBLAS
-@info "Testing CUBLAS $(CUBLAS.version())"
-
 using CuArrays.CUBLAS: band, bandex
 
 m = 20
@@ -1105,6 +1100,6 @@ end # level 1 testset
             @test C ≈ h_C
         end
     end # extensions
-    end # elty
-    end # if CUBLAS
+end # elty
+
 end # cublas testset

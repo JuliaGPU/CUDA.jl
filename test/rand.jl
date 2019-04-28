@@ -1,10 +1,6 @@
 @testset "CURAND" begin
 
-if !isdefined(CuArrays, :CURAND)
-@warn "Not testing CURAND"
-else
 using CuArrays.CURAND
-@info "Testing CURAND $(CURAND.version())"
 
 CURAND.seed!()
 
@@ -52,7 +48,5 @@ end
 @test_throws ErrorException randn!(CuArray{Cuint}(undef, 10)) 
 @test_throws ErrorException rand_logn!(CuArray{Cuint}(undef, 10)) 
 @test_throws ErrorException rand_poisson!(CuArray{Float64}(undef, 10)) 
-
-end
 
 end
