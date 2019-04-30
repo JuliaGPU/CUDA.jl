@@ -36,14 +36,38 @@ end
 
 dirs = find_toolkit()
 @test !isempty(dirs)
-ver = find_toolkit_version(dirs)
 
-@test_something find_cuda_binary("nvcc", dirs)
-@test_something find_cuda_library("cudart", dirs)
-@test_something find_cuda_library("nvtx", dirs)
-@test_something find_libdevice([v"3.0"], dirs)
-@test_something find_libcudadevrt(dirs)
-@test_something find_host_compiler()
-@test_something find_host_compiler(ver)
-@test_something find_toolchain(dirs)
-@test_something find_toolchain(dirs, ver)
+if !isempty(dirs)
+    ver = find_toolkit_version(dirs)
+
+    @test_something find_cuda_binary("nvcc", dirs)
+    @test_something find_cuda_library("cudart", dirs)
+    @test_something find_cuda_library("nvtx", dirs)
+    @test_something find_libdevice([v"3.0"], dirs)
+    @test_something find_libcudadevrt(dirs)
+    @test_something find_host_compiler()
+    @test_something find_host_compiler(ver)
+    @test_something find_toolchain(dirs)
+    @test_something find_toolchain(dirs, ver)
+
+    if haskey(ENV, "CI")
+        # CI deals with plenty of CUDA versions, which makes discovery tricky.
+        # dump a relevant tree of files to help debugging
+        function traverse(dir, level=0)
+            for entry in readdir(dir)
+                print("  "^level)
+                path = joinpath(dir, entry)
+                if isdir(path)
+                    println("└ $entry")
+                    traverse(path, level+1)
+                else
+                    println("├ $entry")
+                end
+            end
+        end
+        for dir in dirs
+            println("File tree of toolkit directory $dir:")
+            traverse(dir)
+        end
+    end
+end
