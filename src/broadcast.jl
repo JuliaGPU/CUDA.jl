@@ -73,7 +73,7 @@ macro cufunc(ex)
 end
 
 # ForwardDiff Integration
-using ForwardDiff: Dual, value, partials, unary_dual_definition
+using ForwardDiff: Dual, value, partials, unary_dual_definition, @define_binary_dual_op, Partials
 using DiffRules
 
 for f in libdevice
@@ -89,3 +89,52 @@ end
 DiffRules.DEFINED_DIFFRULES[(:CUDAnative, :tanh, 1)] = x ->
   replace_device(:(1-tanh(x)^2))
 eval(unary_dual_definition(:CUDAnative, :tanh))
+
+DiffRules.DEFINED_DIFFRULES[(:CUDAnative, :pow, 2)] = (x, y) ->
+  replace_device.(DiffRules.DEFINED_DIFFRULES[(:Base, :^, 2)](x, y))
+
+@eval begin
+  @define_binary_dual_op(
+      CUDAnative.pow,
+      begin
+        vx = value(x)
+        vy = value(y)
+        expv = (CUDAnative.pow)(vx, vy)
+
+        powval = vy * CUDAnative.pow(vx , oftype(vx, vy - 1))
+
+        py = partials(y)
+        px = partials(x)
+
+        cond = all(py.values) do x
+          x == zero(x)
+        end
+
+        if cond
+          logval = one(expv)
+        else
+          logval = expv * CUDAnative.log(vx)
+        end
+
+        new_partials = Partials(powval .* px.values .+ logval .* py.values)
+
+        return Dual{Txy}(expv, new_partials)
+      end,
+      begin
+        v = value(x)
+        expv = (CUDAnative.pow)(v, y)
+        if y == zero(y)
+          new_partials = zero(partials(x))
+        else
+          new_partials = partials(x) * y * (CUDAnative.pow)(v, y - 1)
+        end
+        return Dual{Tx}(expv, new_partials)
+      end,
+      begin
+        v = value(y)
+        expv = (CUDAnative.pow)(x, v)
+        deriv = expv*CUDAnative.log(x)
+        return Dual{Ty}(expv, deriv * partials(y))
+      end
+    )
+end
