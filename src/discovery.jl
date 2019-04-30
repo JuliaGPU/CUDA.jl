@@ -151,7 +151,8 @@ end
 
 const cuda_names = Dict(
     "cuda"      => Sys.iswindows() ? ["nvcuda"] : ["cuda"],
-    "nvml"      => Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"]
+    "nvml"      => Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"],
+    "nvtx"      => ["nvToolsExt"]
 )
 
 const cuda_versions = Dict(
