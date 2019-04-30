@@ -174,7 +174,8 @@ const cuda_versions = Dict(
                     v"4.0",
                     v"5.0", v"5.1",
                     v"6.0",
-                    v"7.0", v"7.1", v"7.2", v"7.3", v"7.4"]
+                    v"7.0", v"7.1", v"7.2", v"7.3", v"7.4"],
+    "nvtx"      => [v"1.0.0"]
 )
 
 # simplified find_library/find_binary entry-points,
