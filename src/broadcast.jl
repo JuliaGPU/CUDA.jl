@@ -73,7 +73,7 @@ macro cufunc(ex)
 end
 
 # ForwardDiff Integration
-using ForwardDiff: Dual, value, partials, unary_dual_definition, @define_binary_dual_op, Partials
+using ForwardDiff: Dual, value, partials, unary_dual_definition, @define_binary_dual_op
 using DiffRules
 
 for f in libdevice
@@ -116,8 +116,7 @@ DiffRules.DEFINED_DIFFRULES[(:CUDAnative, :pow, 2)] = (x, y) ->
           logval = expv * CUDAnative.log(vx)
         end
 
-        new_partials = Partials(powval .* px.values .+ logval .* py.values)
-
+        new_partials = powval * px + logval * py
         return Dual{Txy}(expv, new_partials)
       end,
       begin
