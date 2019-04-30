@@ -20,7 +20,7 @@ end
 # helper macro to test for non-nothingness
 macro test_something(ex)
     quote
-        rv = $(ex)
+        local rv = $(esc(ex))
         @test rv !== nothing
         rv
     end
