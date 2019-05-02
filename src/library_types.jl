@@ -20,3 +20,37 @@ end
       R_32U      # `CUDA_R_32U`, real as a unsigned int
       C_32U      # `CUDA_C_32U`, complex as a pair of unsigned int numbers
 end
+
+function cudaDataType(T::DataType)
+    if T == Float32
+        return R_32F
+    elseif T == ComplexF32
+        return C_32F
+    elseif T == Float16
+        return R_16F
+    elseif T == ComplexF16
+        return C_16F
+    elseif T == Float64
+        return R_64F
+    elseif T == ComplexF64
+        return C_64F
+    elseif T == Int8
+        return R_8I
+    elseif T == Complex{Int8}
+        return C_8I
+    elseif T == Int32
+        return R_32I
+    elseif T == Complex{Int32}
+        return C_32I
+    elseif T == UInt8
+        return R_8U
+    elseif T == Complex{UInt8}
+        return C_8U
+    elseif T == UInt32
+        return R_32U
+    elseif T == Complex{UInt32}
+        return C_32U
+    else
+        throw(ArgumentError("cudaDataType equivalent for input type $T does not exist!"))
+    end
+end
