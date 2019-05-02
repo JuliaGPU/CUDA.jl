@@ -214,12 +214,12 @@ end
 cu(xs) = adapt(CuArray{Float32}, xs)
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
-cuzeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 0)
-cuones(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 1)
-cuzeros(dims...) = cuzeros(Float32, dims...)
-cuones(dims...) = cuones(Float32, dims...)
-cufill(v, dims...) = fill!(CuArray{typeof(v)}(undef, dims...), v)
-cufill(v, dims::Dims) = fill!(CuArray{typeof(v)}(undef, dims...), v)
+zeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 0)
+ones(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 1)
+zeros(dims...) = CuArrays.zeros(Float32, dims...)
+ones(dims...) = CuArrays.ones(Float32, dims...)
+fill(v, dims...) = fill!(CuArray{typeof(v)}(undef, dims...), v)
+fill(v, dims::Dims) = fill!(CuArray{typeof(v)}(undef, dims...), v)
 
 # optimized implementation of `fill!` for types that are directly supported by memset
 const MemsetTypes = Dict(1=>UInt8, 2=>UInt16, 4=>UInt32)
