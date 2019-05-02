@@ -21,7 +21,7 @@ CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
-const INVALID = Mem.alloc(0)
+const INVALID = Mem.alloc(Mem.Device, 0)
 
 function unsafe_free!(xs::CuArray{<:Any,N}) where {N}
   xs.buf === INVALID && return
@@ -81,7 +81,7 @@ take ownership of the memory, calling `free` when the array is no longer referen
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
-  buf = Mem.Buffer(convert(CuPtr{Cvoid}, p), prod(dims) * sizeof(T), ctx)
+  buf = Mem.DeviceBuffer(convert(CuPtr{Cvoid}, p), prod(dims) * sizeof(T), ctx)
   return CuArray{T, length(dims)}(buf, dims; own=own)
 end
 function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
@@ -144,11 +144,9 @@ end
 Get the native address of a CuArray, optionally at a given location `index`.
 Equivalent of `Base.pointer` on `Array`s.
 """
-function buffer(xs::CuArray, index=1)
+function buffer(xs::CuArray, index::Integer=1)
   extra_offset = (index-1) * Base.elsize(xs)
-  Mem.Buffer(xs.buf.ptr + xs.offset + extra_offset,
-             sizeof(xs) - extra_offset,
-             xs.buf.ctx)
+  view(xs.buf, xs.offset + extra_offset)
 end
 
 Base.cconvert(::Type{<:Ptr}, x::CuArray) = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
@@ -158,7 +156,7 @@ Base.cconvert(::Type{<:CuPtr}, x::CuArray) = buffer(x)
 ## interop with CUDAnative
 
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-  ptr = Base.unsafe_convert(CuPtr{T}, buffer(a))
+  ptr = convert(CuPtr{T}, buffer(a))
   CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(ptr))
 end
 
@@ -166,8 +164,7 @@ Adapt.adapt_storage(::CUDAnative.Adaptor, xs::CuArray{T,N}) where {T,N} =
   convert(CuDeviceArray{T,N,AS.Global}, xs)
 
 
-
-## interop with CPU array
+## interop with CPU arrays
 
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
@@ -182,18 +179,27 @@ Adapt.adapt_storage(::Type{<:Array}, xs::CuArray) = convert(Array, xs)
 
 Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
-function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
-  Mem.upload!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
+function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
+                      n::Integer) where T
+  @boundscheck checkbounds(dest, doffs+n-1)
+  @boundscheck checkbounds(src, soffs+n-1)
+  Mem.copy!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
   return dest
 end
 
-function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
-  Mem.download!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
+function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
+                      n::Integer) where T
+  @boundscheck checkbounds(dest, doffs+n-1)
+  @boundscheck checkbounds(src, soffs+n-1)
+  Mem.copy!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
   return dest
 end
 
-function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
-  Mem.transfer!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
+function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
+                      n::Integer) where T
+  @boundscheck checkbounds(dest, doffs+n-1)
+  @boundscheck checkbounds(src, soffs+n-1)
+  Mem.copy!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
   return dest
 end
 

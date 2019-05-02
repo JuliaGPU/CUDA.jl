@@ -1,6 +1,6 @@
 name = "CuArrays"
 uuid = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
-version = "1.0.1"
+version = "1.0.2"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -8,21 +8,29 @@ Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 CUDAdrv = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
 CUDAnative = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
-DiffRules = "b552c78f-8df3-52c6-915a-8e097449b14b"
-ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 NNlib = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Requires = "ae029012-a4dd-5104-9daa-d747884805df"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [extras]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "FFTW", "Pkg"]
+test = ["Test", "FFTW", "ForwardDiff"]
+
+[compat]
+julia = "1.0"
+CUDAnative = "2.0"
+CUDAdrv = "3.0"
+CUDAapi = "0.5.3, 0.6"
+NNlib = "0.6"
+GPUArrays = "0.7"
+Adapt = "0.4"

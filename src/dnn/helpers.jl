@@ -83,13 +83,19 @@ free(cd::ConvDesc) = cudnnDestroyConvolutionDescriptor(cd.ptr)
 Base.unsafe_convert(::Type{cudnnConvolutionDescriptor_t}, cd::ConvDesc)=cd.ptr
 
 function cdsize(w, nd)
-    isa(w, Integer) ? Cint[fill(w,nd)...] :
-    length(w)!=nd ? error("Dimension mismatch") :
-    Cint[reverse(w)...]
+    isa(w, Integer) && return Cint[fill(w,nd)...]
+    length(w) == nd && return Cint[reverse(w)...]
+    length(w) == 2*nd && return Cint[reverse(w[nd+1:end])...]
+    throw(DimensionMismatch())
 end
 
 pdsize(w, nd)=Cint[reverse(psize(w,nd))...]
-psize(w, nd)=(isa(w,Integer)  ? fill(w,nd) : length(w) != nd ? error("Dimension mismatch") : w)
+function psize(w, nd)
+    isa(w, Integer) && return Cint[fill(w,nd)...]
+    length(w) == nd && return w
+    length(w) == 2*nd && return w[1:nd]
+    throw(DimensionMismatch())
+end
 
 function ConvDesc(T, N, padding, stride, dilation, mode)
     cd = Ref{cudnnConvolutionDescriptor_t}()
@@ -100,6 +106,15 @@ function ConvDesc(T, N, padding, stride, dilation, mode)
     this = ConvDesc(cd[])
     finalizer(free, this)
     return this
+end
+
+function ConvDesc(T, cdims::DenseConvDims)
+    pd = NNlib.padding(cdims)
+    if !all(pd[1:2:end] .== pd[2:2:end])
+        @warn("CuDNN does not support asymmetric padding; defaulting to symmetric choice")
+    end
+    return ConvDesc(T, NNlib.spatial_dims(cdims), pd[1:2:end], NNlib.stride(cdims),
+                       NNlib.dilation(cdims), NNlib.flipkernel(cdims))
 end
 
 mutable struct PoolDesc; ptr; end
@@ -113,6 +128,15 @@ function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_
     this = PoolDesc(pd[])
     finalizer(free, this)
     return this
+end
+
+function PoolDesc(pdims::PoolDims, mode, maxpoolingNanOpt=CUDNN_NOT_PROPAGATE_NAN)
+    pd = NNlib.padding(pdims)
+    if !all(pd[1:2:end] .== pd[2:2:end])
+        @warn("CuDNN does not support asymmetric padding; defaulting to symmetric choice")
+    end
+    return PoolDesc(NNlib.spatial_dims(pdims), NNlib.kernel_size(pdims), pd[1:2:end],
+                    NNlib.stride(pdims), mode, maxpoolingNanOpt)
 end
 
 mutable struct ActivationDesc; ptr; end

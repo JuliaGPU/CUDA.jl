@@ -12,6 +12,8 @@ import LinearAlgebra
 
 using Adapt
 
+using Requires
+
 const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
 isfile(ext) || error("CuArrays.jl has not been built, please run Pkg.build(\"CuArrays\").")
 include(ext)
@@ -42,12 +44,12 @@ include("gpuarray_interface.jl")
 # of CuArrays and/or CUDAnative only use a single context), so keep track of the active one.
 const active_context = Ref{CuContext}()
 
-libcublas !== nothing   && include("blas/CUBLAS.jl")
-libcusparse !== nothing && include("sparse/CUSPARSE.jl")
-libcusolver !== nothing && include("solver/CUSOLVER.jl")
-libcufft !== nothing    && include("fft/CUFFT.jl")
-libcurand !== nothing   && include("rand/CURAND.jl")
-libcudnn !== nothing    && include("dnn/CUDNN.jl")
+include("blas/CUBLAS.jl")
+include("sparse/CUSPARSE.jl")
+include("solver/CUSOLVER.jl")
+include("fft/CUFFT.jl")
+include("rand/CURAND.jl")
+libcudnn !== nothing && include("dnn/CUDNN.jl")
 
 include("nnlib.jl")
 
@@ -73,16 +75,21 @@ function __init__()
     check_library("CURAND", libcurand)
     check_library("CUDNN", libcudnn)
 
+    # package integrations
+    @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
+
     # update the active context when we switch devices
     callback = (::CuDevice, ctx::CuContext) -> begin
         active_context[] = ctx
 
         # wipe the active handles
-        isdefined(CuArrays, :CUBLAS)   && (CUBLAS._handle[] = C_NULL; CUBLAS._xt_handle[] = C_NULL)
-        isdefined(CuArrays, :CUSOLVER) && (CUSOLVER._dense_handle[] = C_NULL; CUSOLVER._sparse_handle[] = C_NULL)
-        isdefined(CuArrays, :CUSPARSE) && (CUSPARSE._handle[] = C_NULL)
-        isdefined(CuArrays, :CURAND)   && (CURAND._generator[] = nothing)
-        isdefined(CuArrays, :CUDNN)    && (CUDNN._handle[] = C_NULL)
+        CUBLAS._handle[] = C_NULL
+        CUBLAS._xt_handle[] = C_NULL
+        CUSOLVER._dense_handle[] = C_NULL
+        CUSOLVER._sparse_handle[] = C_NULL
+        CUSPARSE._handle[] = C_NULL
+        CURAND._generator[] = nothing
+        isdefined(CuArrays, :CUDNN) && (CUDNN._handle[] = C_NULL)
     end
     push!(CUDAnative.device!_listeners, callback)
 

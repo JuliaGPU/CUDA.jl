@@ -241,7 +241,7 @@ function try_cuda_alloc(bytes)
   buf = nothing
   try
     stats.cuda_time += Base.@elapsed begin
-      buf = Mem.alloc(bytes)
+      buf = Mem.alloc(Mem.Device, bytes)
     end
     stats.actual_nalloc += 1
     stats.actual_alloc += bytes
@@ -351,7 +351,7 @@ const MAX_POOL = 100*1024^2 # 100 MiB
 
 function alloc(bytes)
   # 0-byte allocations shouldn't hit the pool
-  bytes == 0 && return Mem.alloc(0)
+  bytes == 0 && return Mem.alloc(Mem.Device, 0)
 
   stats.req_nalloc += 1
   stats.req_alloc += bytes

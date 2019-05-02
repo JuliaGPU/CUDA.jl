@@ -1,10 +1,6 @@
 @testset "CUSOLVER" begin
 
-if !isdefined(CuArrays, :CUSOLVER)
-@warn "Not testing CUSOLVER"
-else
 using CuArrays.CUSOLVER
-@info "Testing CUSOLVER $(CUSOLVER.version())"
 
 using LinearAlgebra
 
@@ -328,8 +324,6 @@ k = 1
         @test Array(h_q) ≈ Array(q)
         @test Array(h_r) ≈ Array(r)
     end
-
-end
 
 end
 

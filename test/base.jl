@@ -30,13 +30,17 @@ end
   @test collect(cu([1, 2, 3])) == [1, 2, 3]
   @test testf(vec, rand(5,3))
   @test cu(1:3) === 1:3
+  @test Base.elsize(xs) == sizeof(Int)
+  @test CuArray{Int, 2}(xs) === xs
+
+  @test_throws ArgumentError Base.cconvert(Ptr, xs)
 
   # Check that allowscalar works
   @test_throws ErrorException xs[1]
   @test_throws ErrorException xs[1] = 1
 
   # unsafe_wrap
-  buf = CUDAdrv.Mem.Buffer(CU_NULL, 2, CUDAdrv.CuCurrentContext())
+  buf = CUDAdrv.Mem.DeviceBuffer(CU_NULL, 2, CUDAdrv.CuCurrentContext())
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).own == false
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; ctx=CUDAdrv.CuCurrentContext()).buf.ctx == CUDAdrv.CuCurrentContext()
   @test Base.unsafe_wrap(CuArray, CU_NULL, 2)            == CuArray{Nothing,1}(buf, (2,))
@@ -232,4 +236,37 @@ end
   @test testf(x -> filter(y->y .> 0.5, x), rand(2))
   @test testf(x -> filter(y->y .> 0.5, x), rand(2,2))
   @test testf(x -> filter(y->y .> 0.5, x), rand(2,2,2))
+end
+
+@testset "generic fallbacks" begin
+    a = rand(Int8, 3, 3)
+    b = rand(Int8, 3, 3)
+    d_a = CuArray{Int8}(a)
+    d_b = CuArray{Int8}(b)
+    d_c = d_a*d_b
+    @test collect(d_c) == a*b
+    a = rand(Complex{Int8}, 3, 3)
+    b = rand(Complex{Int8}, 3, 3)
+    d_a = CuArray{Complex{Int8}}(a)
+    d_b = CuArray{Complex{Int8}}(b)
+    d_c = d_a'*d_b
+    @test collect(d_c) == a'*b
+    d_c = d_a*d_b'
+    @test collect(d_c) == a*b'
+    d_c = d_a'*d_b'
+    @test collect(d_c) == a'*b'
+    d_c = transpose(d_a)*d_b'
+    @test collect(d_c) == transpose(a)*b'
+    d_c = d_a'*transpose(d_b)
+    @test collect(d_c) == a'*transpose(b)
+    d_c = transpose(d_a)*d_b
+    @test collect(d_c) == transpose(a)*b
+    d_c = d_a*transpose(d_b)
+    @test collect(d_c) == a*transpose(b)
+    d_c = transpose(d_a)*transpose(d_b)
+    @test collect(d_c) == transpose(a)*transpose(b)
+    d_c = rmul!(copy(d_a), Complex{Int8}(2, 2))
+    @test collect(d_c) == a*Complex{Int8}(2, 2)
+    d_c = lmul!(Complex{Int8}(2, 2), copy(d_a))
+    @test collect(d_c) == Complex{Int8}(2, 2)*a
 end

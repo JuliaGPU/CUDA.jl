@@ -3,7 +3,7 @@
 
 import Base: length, size, ndims, eltype, similar, pointer, stride,
     copy, convert, reinterpret, show, summary, copyto!, get!, fill!, collect
-import LinearAlgebra: BlasFloat, Hermitian, HermOrSym, issymmetric,
+import LinearAlgebra: BlasFloat, Hermitian, HermOrSym, issymmetric, Transpose, Adjoint,
     ishermitian, istriu, istril, Symmetric, UpperTriangular, LowerTriangular
 import SparseArrays: sparse, SparseMatrixCSC
 
@@ -162,14 +162,10 @@ ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) where T = false
 issymmetric(M::Symmetric{CuSparseMatrixCSC})= true
 ishermitian(M::Hermitian{CuSparseMatrixCSC}) = true
 
-for mat_type in [:CuSparseMatrixCSC, :CuSparseMatrixCSR, :CuSparseMatrixBSR, :CuSparseMatrixHYB]
-    @eval begin
-        istriu(M::UpperTriangular{$mat_type}) = true
-        istril(M::UpperTriangular{$mat_type}) = false
-        istriu(M::LowerTriangular{$mat_type}) = false 
-        istril(M::LowerTriangular{$mat_type}) = true 
-    end
-end
+istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = true
+istril(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = false
+istriu(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = false
+istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = true
 eltype(g::CuSparseMatrix{T}) where T = T
 
 function collect(Vec::CuSparseVector)

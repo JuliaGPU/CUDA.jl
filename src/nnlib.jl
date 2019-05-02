@@ -16,8 +16,14 @@ end
 @cufunc elu(x, α = one(x)) =
   ifelse(x ≥ 0, x/1, α * (exp(x) - one(x)))
 
-# TODO: make @cufunc recognise its own definitions
-cufunc(::typeof(swish)) = x -> x * cufunc(σ)(x)
+@cufunc swish(x) = x * σ(x)
+
+@cufunc function gelu(x)
+  λ = oftype(x/1, √(2/π))
+  α = oftype(x/1, 0.044715)
+  h = oftype(x/1, 0.5)
+  h * x * (one(x) + tanh(λ * (x + α * x^3)))
+end
 
 @cufunc function selu(x)
   λ = oftype(x/1, 1.0507009873554804934193349852946)

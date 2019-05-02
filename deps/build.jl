@@ -1,6 +1,4 @@
 using CUDAapi
-using CUDAdrv
-using CUDAnative
 
 
 ## auxiliary routines
@@ -41,16 +39,23 @@ function main()
 
     ## discover stuff
 
-    CUDAdrv.configured || build_error("Dependent package CUDAdrv.jl has not been built successfully")
-    CUDAnative.configured || build_error("Dependent package CUDAnative.jl has not been built successfully")
-
     toolkit = find_toolkit()
 
-    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudnn")
+    # required libraries that are part of the CUDA toolkit
+    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand")
         lib = Symbol("lib$name")
         config[lib] = find_cuda_library(name, toolkit)
         if config[lib] == nothing
-            build_warning("Could not find library '$name'")
+            build_error("Could not find library '$name' (it should be part of the CUDA toolkit)")
+        end
+    end
+
+    # optional libraries
+    for name in ("cudnn", )
+        lib = Symbol("lib$name")
+        config[lib] = find_cuda_library(name, toolkit)
+        if config[lib] == nothing
+            build_warning("Could not find optional library '$name'")
         end
     end
 
