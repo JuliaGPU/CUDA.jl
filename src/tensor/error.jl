@@ -1,10 +1,10 @@
-export CUTENSORrror
+export CUTENSORError
 
 struct CUTENSORError <: Exception
     code::cutensorStatus_t
     msg::AbstractString
 end
-Base.show(io::IO, err::CUTENSORError) = print(io, "CUTENSORrror(code $(err.code), $(err.msg))")
+Base.show(io::IO, err::CUTENSORError) = print(io, "CUTENSORError(code $(err.code), $(err.msg))")
 
 function CUTENSORError(code::cutensorStatus_t)
     msg = statusmessage(code)
