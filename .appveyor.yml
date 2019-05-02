@@ -28,12 +28,6 @@ matrix:
   - julia_version: latest
     cuda_version: 8.0
 
-branches:
-  only:
-    - master
-    - staging
-    - trying
-
 notifications:
   - provider: Email
     on_build_success: false
