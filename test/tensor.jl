@@ -1,3 +1,5 @@
+@testset "CUTENSOR" begin
+
 if !isdefined(CuArrays, :CUTENSOR)
 @warn "Not testing CUTENSOR"
 else
@@ -169,6 +171,8 @@ end
     opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
     C = CUTENSOR.contraction!(one(Float32), A, Ainds, Aop, B, Binds, Bop, one(Float32), C, Cinds, Cop, opOut)
     @test C ≈ A * B=#
+end
+
 end
 
 end
