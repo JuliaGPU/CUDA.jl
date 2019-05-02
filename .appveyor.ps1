@@ -1,4 +1,3 @@
-Set-PSDebug -Trace 1
 $ErrorActionPreference = "Stop"
 
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
