@@ -5,7 +5,7 @@ using Test
 
 @testset "library types" begin
     @test CUDAapi.PATCH_LEVEL == CUDAapi.libraryPropertyType(2)
-    @test CUDAapi.C_32U == CUDAapi.cudaDataType(13)
+    @test CUDAapi.C_32U == CUDAapi.cudaDataType(Complex{UInt32})
 end
 
 @testset "properties" begin
