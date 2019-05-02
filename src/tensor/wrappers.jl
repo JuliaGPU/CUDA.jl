@@ -1,4 +1,4 @@
-using CUDAdrv: CuDefaultStream, CuStream, CuStream_t
+using CUDAdrv: CuDefaultStream, CuStream
 
 function cudaDataType(T::DataType)
     if T == Float32
@@ -70,14 +70,9 @@ function elementwiseTrinary!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnio
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
     modeD = modeC 
-    @check ccall((:cutensorElementwiseTrinary,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint}, cutensorOperator_t,
-                               cutensorOperator_t, cudaDataType_t, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, [beta], B, descB, modeB, [gamma], C, descC,
-                         modeC, D, descD, modeD, opAB, opABC, typeCompute, stream.handle)
+    cutensorElementwiseTrinary(handle(), [alpha], A, descA, modeA, [beta], B, descB, modeB,
+                               [gamma], C, descC, modeC, D, descD, modeD, opAB, opABC,
+                               typeCompute, stream)
     return D
 end
 
@@ -100,14 +95,9 @@ function elementwiseTrinary!(alpha::Number, A::Array, Ainds::Vector{<:CharUnion}
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
     modeD = modeC 
-    @check ccall((:cutensorElementwiseTrinary,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint}, cutensorOperator_t,
-                               cutensorOperator_t, cudaDataType_t, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, [beta], B, descB, modeB, [gamma], C, descC,
-                         modeC, D, descD, modeD, opAB, opABC, typeCompute, stream.handle)
+    cutensorElementwiseTrinary(handle(), [alpha], A, descA, modeA, [beta], B, descB, modeB,
+                               [gamma], C, descC, modeC, D, descD, modeD, opAB, opABC,
+                               typeCompute, stream)
     return D
 end
 
@@ -125,13 +115,8 @@ function elementwiseBinary!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion
     modeA = Vector{Cwchar_t}(Ainds)
     modeC = Vector{Cwchar_t}(Cinds)
     modeD = modeC
-    @check ccall((:cutensorElementwiseBinary,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, [gamma], C, descC,
-                         modeC, D, descD, modeD, opAC, typeCompute, stream.handle)
+    cutensorElementwiseBinary(handle(), [alpha], A, descA, modeA, [gamma], C, descC,
+                              modeC, D, descD, modeD, opAC, typeCompute, stream)
     return D
 end
 function elementwiseBinary!(alpha::Number, A::Array, Ainds::Vector{Char}, opA::cutensorOperator_t,
@@ -147,13 +132,8 @@ function elementwiseBinary!(alpha::Number, A::Array, Ainds::Vector{Char}, opA::c
     modeA = Vector{Cwchar_t}(Ainds)
     modeC = Vector{Cwchar_t}(Cinds)
     modeD = modeC
-    @check ccall((:cutensorElementwiseBinary,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, [gamma], C, descC,
-                         modeC, D, descD, modeD, opAC, typeCompute, stream.handle)
+    cutensorElementwiseBinary(handle(), [alpha], A, descA, modeA, [gamma], C, descC,
+                              modeC, D, descD, modeD, opAC, typeCompute, stream)
     return D
 end
 function elementwiseBinary!(alpha::Number, A::CuTensor, opA::cutensorOperator_t,
@@ -165,13 +145,9 @@ function elementwiseBinary!(alpha::Number, A::CuTensor, opA::cutensorOperator_t,
     descA = cutensorDescriptor(A, opA)
     descC = cutensorDescriptor(C, opC)
     typeCompute = cudaDataType(eltype(D))
-    @check ccall((:cutensorElementwiseBinary,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, CuStream_t),
-                         handle(), [alpha], A.data, descA, A.inds, [gamma], C.data, descC,
-                         C.inds, D.data, descC, C.inds, opAC, typeCompute, stream.handle)
+    cutensorElementwiseBinary(handle(), [alpha], A.data, descA, A.inds, [gamma], C.data,
+                              descC, C.inds, D.data, descC, C.inds, opAC, typeCompute,
+                              stream)
     return D
 end
 
@@ -183,10 +159,8 @@ function permutation!(alpha::Number, A::CuArray, Ainds::Vector{Char},
     typeCompute = cudaDataType(eltype(B))
     modeA = Vector{Cwchar_t}(Ainds)
     modeB = Vector{Cwchar_t}(Binds)
-    @check ccall((:cutensorPermutation,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint}, cudaDataType_t, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, B, descB, modeB, typeCompute, stream.handle)
+    cutensorPermutation(handle(), [alpha], A, descA, modeA, B, descB, modeB, typeCompute,
+                        stream)
     return B
 end
 
@@ -198,10 +172,8 @@ function permutation!(alpha::Number, A::Array, Ainds::Vector{Char},
     typeCompute = cudaDataType(eltype(B))
     modeA = Vector{Cwchar_t}(Ainds)
     modeB = Vector{Cwchar_t}(Binds)
-    @check ccall((:cutensorPermutation,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint}, cudaDataType_t, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, B, descB, modeB, typeCompute, stream.handle)
+    cutensorPermutation(handle(), [alpha], A, descA, modeA, B, descB, modeB, typeCompute,
+                        stream)
     return B
 end
 
@@ -224,25 +196,13 @@ function contraction!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion}, opA
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
     workspaceSize = Ref{UInt64}(C_NULL)
-    @check ccall((:cutensorContractionGetWorkspace,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, cutensorAlgo_t, cutensorWorksizePreference_t,
-                               Ptr{UInt64}),
-                         handle(), A, descA, modeA, B, descB, modeB, C, descC, modeC, C, descC, modeC, opOut,
-                         typeCompute, algo, pref, workspaceSize)
+    cutensorContractionGetWorkspace(handle(), A, descA, modeA, B, descB, modeB, C, descC,
+                                    modeC, C, descC, modeC, opOut, typeCompute, algo, pref,
+                                    workspaceSize)
     workspace = cuzeros(eltype(C), workspaceSize[])
-    @check ccall((:cutensorContraction,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, cutensorAlgo_t, CuPtr{Cvoid},
-                               UInt64, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, B, descB, modeB, [beta], C, descC,
-                         modeC, C, descC, modeC, opOut, typeCompute, algo, workspace, workspaceSize[], stream.handle)
+    cutensorContraction(handle(), [alpha], A, descA, modeA, B, descB, modeB, [beta], C,
+                        descC, modeC, C, descC, modeC, opOut, typeCompute, algo, workspace,
+                        workspaceSize[], stream)
     return C
 end
 
@@ -264,15 +224,9 @@ function contraction!(alpha::Number, A::Array, Ainds::Vector{<:CharUnion}, opA::
     modeA = Vector{Cwchar_t}(Ainds)
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
-    @check ccall((:cutensorContraction,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, cutensorAlgo_t, CuPtr{Cvoid},
-                               UInt64, CuStream_t),
-                         handle(), [alpha], A, descA, modeA, B, descB, modeB, [beta], C, descC,
-                         modeC, C, descC, modeC, opOut, typeCompute, algo, CU_NULL, 0, stream.handle)
+    cutensorContraction(handle(), [alpha], A, descA, modeA, B, descB, modeB, [beta], C,
+                        descC, modeC, C, descC, modeC, opOut, typeCompute, algo, CU_NULL, 0,
+                        stream)
     return C
 end
 
@@ -291,25 +245,13 @@ function contraction!(alpha::Number, A::CuTensor, opA::cutensorOperator_t, B::Cu
     typeCompute = cudaDataType(eltype(C))
     descD = descC 
     workspaceSize = Ref{UInt64}(C_NULL)
-    @check ccall((:cutensorContractionGetWorkspace,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, cutensorAlgo_t, cutensorWorksizePreference_t,
-                               Ptr{UInt64}),
-                         handle(), A.data, descA, A.inds, B.data, descB, B.inds, C.data, descC, C.inds, C.data, descC, C.inds, opOut,
-                         typeCompute, algo, pref, workspaceSize)
+    cutensorContractionGetWorkspace(handle(), A.data, descA, A.inds, B.data, descB, B.inds,
+                                    C.data, descC, C.inds, C.data, descC, C.inds, opOut,
+                                    typeCompute, algo, pref, workspaceSize)
     workspace = cuzeros(eltype(C), workspaceSize[])
-    @check ccall((:cutensorContraction,libcutensor), cutensorStatus_t,
-                         (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
-                               cutensorOperator_t, cudaDataType_t, cutensorAlgo_t, CuPtr{Cvoid},
-                               UInt64, CuStream_t),
-                         handle(), [alpha], A.data, descA, A.inds, B.data, descB, B.inds, [beta], C.data, descC,
-                         C.inds, C.data, descC, C.inds, opOut, typeCompute, algo, workspace, workspaceSize[], stream.handle)
+    cutensorContraction(handle(), [alpha], A.data, descA, A.inds, B.data, descB, B.inds,
+                        [beta], C.data, descC, C.inds, C.data, descC, C.inds, opOut,
+                        typeCompute, algo, workspace, workspaceSize[], stream)
     return C
 end
 

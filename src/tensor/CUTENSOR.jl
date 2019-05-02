@@ -2,7 +2,7 @@ module CUTENSOR
 
 import CUDAapi
 
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
+import CUDAdrv: CUDAdrv, CuContext
 
 using ..CuArrays
 using ..CuArrays: libcutensor, active_context
