@@ -1,5 +1,6 @@
 variables:
   CI_IMAGE_TAG: 'cuda'
+  JULIA_DEBUG: 'CUDAapi'
 
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/common.yml'

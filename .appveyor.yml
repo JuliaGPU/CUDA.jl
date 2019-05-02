@@ -1,4 +1,5 @@
 environment:
+  JULIA_DEBUG: CUDAapi
   matrix:
   # Julia versions
   - julia_version: 0.7

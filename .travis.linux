@@ -10,11 +10,18 @@ installers["9.2"]="http://developer.download.nvidia.com/compute/cuda/repos/ubunt
 installers["10.0"]="http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/cuda-repo-ubuntu1604_10.0.130-1_amd64.deb"
 installers["10.1"]="http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/cuda-repo-ubuntu1604_10.1.105-1_amd64.deb"
 
+declare -A components
+components["8.0"]="cuda-drivers cuda-core-8-0 cuda-cudart-dev-8-0"
+components["9.0"]="cuda-drivers cuda-core-9-0 cuda-cudart-dev-9-0"
+components["9.1"]="cuda-drivers cuda-core-9-1 cuda-cudart-dev-9-1 cuda-nvtx-9-1"
+components["9.2"]="cuda-drivers cuda-core-9-2 cuda-cudart-dev-9-2 cuda-nvtx-9-2"
+components["10.0"]="cuda-drivers cuda-core-10-0 cuda-cudart-dev-10-0 cuda-nvtx-10-0"
+components["10.1"]="cuda-drivers cuda-core-10-1 cuda-cudart-dev-10-1 cuda-nvtx-10-1"
+
 installer=${installers[$CUDA]}
 wget -O cuda.deb "$installer"
 
 sudo dpkg -i cuda.deb
 
 sudo apt-get update
-suffix=${CUDA/./-}
-sudo apt-get install -y cuda-drivers cuda-core-$suffix cuda-cudart-dev-$suffix
+sudo apt-get install -y ${components[$CUDA]}

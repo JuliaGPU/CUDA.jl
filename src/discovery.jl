@@ -151,7 +151,8 @@ end
 
 const cuda_names = Dict(
     "cuda"      => Sys.iswindows() ? ["nvcuda"] : ["cuda"],
-    "nvml"      => Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"]
+    "nvml"      => Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"],
+    "nvtx"      => ["nvToolsExt"]
 )
 
 const cuda_versions = Dict(
@@ -173,7 +174,8 @@ const cuda_versions = Dict(
                     v"4.0",
                     v"5.0", v"5.1",
                     v"6.0",
-                    v"7.0", v"7.1", v"7.2", v"7.3", v"7.4"]
+                    v"7.0", v"7.1", v"7.2", v"7.3", v"7.4"],
+    "nvtx"      => [v"1.0.0"]
 )
 
 # simplified find_library/find_binary entry-points,
@@ -201,6 +203,27 @@ The behavior of this function can be overridden by defining the `CUDA_PATH`, `CU
 `CUDA_ROOT` environment variables, which should point to the root of the CUDA toolkit.
 """
 function find_toolkit()
+    dirs = String[]
+
+    # NVTX library (special case for Windows)
+    if Sys.iswindows()
+        var = "NVTOOLSEXT_PATH"
+        basedir = get(ENV, var, nothing)
+        if basedir !== nothing && isdir(basedir)
+            @trace "Looking for NVTX library via environment variable" var
+            suffix = Sys.WORD_SIZE == 64 ? "x64" : "Win32"
+            dir = joinpath(basedir, "bin", suffix)
+            isdir(dir) && push!(dirs, dir)
+        else
+            program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
+            basedir = joinpath(program_files, "NVIDIA Corporation", "NvToolsExt")
+            @trace "Looking for NVTX library in the default directory" basedir
+            suffix = Sys.WORD_SIZE == 64 ? "x64" : "Win32"
+            dir = joinpath(basedir, "bin", suffix)
+            isdir(dir) && push!(dirs, dir)
+        end
+    end
+
     # look for environment variables to override discovery
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
     envdict = Dict(Symbol(var) => ENV[var] for var in envvars if haskey(ENV, var))
@@ -210,10 +233,10 @@ function find_toolkit()
         end
 
         @trace "Looking for CUDA toolkit via environment variables" envdict...
-        return collect(values(envdict))
+        append!(dirs, collect(values(envdict)))
+        return dirs
     end
 
-    dirs = String[]
 
     # look for the compiler binary (in the case PATH points to the installation)
     nvcc_path = find_cuda_binary("nvcc")
@@ -243,7 +266,7 @@ function find_toolkit()
     default_dirs = String[]
     if Sys.iswindows()
         # CUDA versions are installed in separate directories under a single base dir
-        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)" ]
+        program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
         if isdir(basedir)
             entries = map(dir -> joinpath(basedir, dir), readdir(basedir))
