@@ -274,4 +274,11 @@ end
 
 end # testset int FFT
 
+@testset "streams" begin
+    X = rand(N1)
+    d_X = CuArray(X)
+    p = plan_fft(d_X)
+    CUFFT.set_stream(p, CUDAdrv.CuDefaultStream())
+end
+
 end
