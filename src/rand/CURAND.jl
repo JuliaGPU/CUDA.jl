@@ -10,10 +10,7 @@ using GPUArrays
 
 using Random
 
-export curand,
-       curandn,
-       curand_logn, rand_logn!, rand_logn,
-       curand_poisson, rand_poisson!, rand_poisson
+export rand_logn!, rand_poisson!
 
 include("libcurand_types.jl")
 include("error.jl")
@@ -44,3 +41,11 @@ version() = VersionNumber(curandGetProperty(CUDAapi.MAJOR_VERSION),
                           curandGetProperty(CUDAapi.PATCH_LEVEL))
 
 end
+
+const rand = CURAND.rand
+const randn = CURAND.randn
+const rand_logn = CURAND.rand_logn
+const rand_poisson = CURAND.rand_poisson
+
+@deprecate curand CuArrays.rand
+@deprecate curandn CuArrays.randn

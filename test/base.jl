@@ -50,11 +50,11 @@ end
   @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
   @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
 
-  @test collect(cuzeros(2, 2)) == zeros(Float32, 2, 2)
-  @test collect(cuones(2, 2)) == ones(Float32, 2, 2)
+  @test collect(CuArrays.zeros(2, 2)) == zeros(Float32, 2, 2)
+  @test collect(CuArrays.ones(2, 2)) == ones(Float32, 2, 2)
 
-  @test collect(cufill(0, 2, 2)) == zeros(Float32, 2, 2)
-  @test collect(cufill(1, 2, 2)) == ones(Float32, 2, 2)
+  @test collect(CuArrays.fill(0, 2, 2)) == zeros(Float32, 2, 2)
+  @test collect(CuArrays.fill(1, 2, 2)) == ones(Float32, 2, 2)
 end
 
 @testset "Adapt" begin

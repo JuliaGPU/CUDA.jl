@@ -114,8 +114,8 @@ using BenchmarkTools
 
 using CuArrays
 
-x_d = cufill(1.0f0, N)  # a vector stored on the GPU filled with 1.0 (Float32)
-y_d = cufill(2.0f0, N)  # a vector stored on the GPU filled with 2.0
+x_d = CuArrays.fill(1.0f0, N)  # a vector stored on the GPU filled with 1.0 (Float32)
+y_d = CuArrays.fill(2.0f0, N)  # a vector stored on the GPU filled with 2.0
 
 # Here the `d` means "device," in contrast with "host". Now let's do the increment:
 
@@ -220,8 +220,8 @@ CUDAdrv.@profile bench_gpu1!(y_d, x_d)
 
 # You can see that 100% of the time was spent in `ptxcall_gpu_add1__1`, the name of the
 # kernel that `CUDAnative` assigned when compiling `gpu_add1!` for these inputs. (Had you
-# created arrays of multiple data types, e.g., `xu_d = cufill(0x01, N)`, you might have
-# also seen `ptxcall_gpu_add1__2` and so on. Like the rest of Julia, you can define a
+# created arrays of multiple data types, e.g., `xu_d = CuArrays.fill(0x01, N)`, you might
+# have also seen `ptxcall_gpu_add1__2` and so on. Like the rest of Julia, you can define a
 # single method and it will be specialized at compile time for the particular data types
 # you're using.)
 
