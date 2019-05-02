@@ -11,45 +11,34 @@ function CUTENSORError(code::cutensorStatus_t)
     return CUTENSORError(code, msg)
 end
 
-
 function statusmessage( status )
     if status == CUTENSOR_STATUS_SUCCESS
-        return "cutensor success"
+        return "the operation completed successfully"
+    elseif status == CUTENSOR_STATUS_NOT_INITIALIZED
+        return "the library was not initialized"
+    elseif status == CUTENSOR_STATUS_ALLOC_FAILED
+        return "the resource allocation failed"
+    elseif status == CUTENSOR_STATUS_INVALID_VALUE
+        return "an invalid value was used as an argument"
+    elseif status == CUTENSOR_STATUS_ARCH_MISMATCH
+        return "an absent device architectural feature is required"
+    elseif status == CUTENSOR_STATUS_MAPPING_ERROR
+        return "an access to GPU memory space failed"
+    elseif status == CUTENSOR_STATUS_EXECUTION_FAILED
+        return "the GPU program failed to execute"
+    elseif status == CUTENSOR_STATUS_INTERNAL_ERROR
+        return "an internal operation failed"
+    elseif status == CUTENSOR_STATUS_LICENSE_ERROR
+        return "error detected trying to check the license"
+    elseif status == CUTENSOR_STATUS_CUBLAS_ERROR
+        return "error occurred during a CUBLAS operation"
+    elseif status == CUTENSOR_STATUS_CUDA_ERROR
+        return "error occurred during a CUDA operation"
+    elseif status == CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE
+        return "insufficient workspace memory for this operation"
+    else
+        return "unknown status"
     end
-    if status == CUTENSOR_STATUS_NOT_INITIALIZED
-        return "cutensor not initialized"
-    end
-    if status == CUTENSOR_STATUS_ALLOC_FAILED
-        return "cutensor allocation failed"
-    end
-    if status == CUTENSOR_STATUS_INVALID_VALUE
-        return "cutensor invalid value"
-    end
-    if status == CUTENSOR_STATUS_ARCH_MISMATCH
-        return "cutensor architecture mismatch"
-    end
-    if status == CUTENSOR_STATUS_MAPPING_ERROR
-        return "cutensor mapping error"
-    end
-    if status == CUTENSOR_STATUS_EXECUTION_FAILED
-        return "cutensor execution failed"
-    end
-    if status == CUTENSOR_STATUS_INTERNAL_ERROR
-        return "cutensor internal error"
-    end
-    if status == CUTENSOR_STATUS_LICENSE_ERROR
-        return "cutensor license error"
-    end
-    if status == CUTENSOR_STATUS_CUBLAS_ERROR
-        return "cutensor cublas error"
-    end
-    if status == CUTENSOR_STATUS_CUDA_ERROR
-        return "cutensor cuda error"
-    end
-    if status == CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE
-        return "cutensor insufficient workspace error"
-    end
-    return "unknown cutensor error"
 end
 
 macro check(tensor_func)
