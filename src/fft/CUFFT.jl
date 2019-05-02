@@ -2,8 +2,6 @@ module CUFFT
 
 import CUDAapi
 
-import CUDAdrv: CuPtr, PtrOrCuPtr
-
 using ..CuArrays
 using ..CuArrays: libcufft, configured
 
