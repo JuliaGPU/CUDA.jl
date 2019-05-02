@@ -142,15 +142,21 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
         for called_method_instance in keys(dependencies)
             llvmfs = dependencies[called_method_instance]
 
-            # only link the first module
+            # link the first module
             llvmf = popfirst!(llvmfs)
             llvmfn = LLVM.name(llvmf)
             link!(mod, LLVM.parent(llvmf))
 
-            # cache subsequent modules
+            # process subsequent duplicate modules
             for dup_llvmf in llvmfs
-                dup_llvmfn = LLVM.name(dup_llvmf)
-                cache[dup_llvmfn] = llvmfn
+                if Base.JLOptions().debug_level >= 2
+                    # link them too, to ensure accurate backtrace reconstruction
+                    link!(mod, LLVM.parent(dup_llvmf))
+                else
+                    # don't link them, but note the called function name in a cache
+                    dup_llvmfn = LLVM.name(dup_llvmf)
+                    cache[dup_llvmfn] = llvmfn
+                end
             end
         end
 
