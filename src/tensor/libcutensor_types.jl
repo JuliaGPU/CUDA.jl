@@ -55,23 +55,6 @@ const CUTENSOR_ALGO_DEFAULT        = Int32(-1)
 const cutensorTensorDescriptor_t = Ptr{Cvoid}
 const cutensorContext = Cvoid
 const cutensorHandle_t = Ptr{cutensorContext}
-    
-const cudaDataType_t = UInt32
-const CUDA_R_16F = UInt32(2)
-const CUDA_C_16F = UInt32(6)
-const CUDA_R_32F = UInt32(0)
-const CUDA_C_32F = UInt32(4)
-const CUDA_R_64F = UInt32(1)
-const CUDA_C_64F = UInt32(5)
-const CUDA_R_8I  = UInt32(3)
-const CUDA_C_8I  = UInt32(7)
-const CUDA_R_8U  = UInt32(8)
-const CUDA_C_8U  = UInt32(9)
-const CUDA_R_32I = UInt32(10)
-const CUDA_C_32I = UInt32(11)
-const CUDA_R_32U = UInt32(12)
-const CUDA_C_32U = UInt32(13)
-
 
 mutable struct CuTensor{T, N} <: AbstractArray{T, N}
     data::CuArray{T, N}

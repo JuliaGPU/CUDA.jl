@@ -1,38 +1,5 @@
+using CUDAapi: cudaDataType
 using CUDAdrv: CuDefaultStream, CuStream
-
-function cudaDataType(T::DataType)
-    if T == Float32
-        return CUDA_R_32F
-    elseif T == ComplexF32
-        return CUDA_C_32F
-    elseif T == Float16
-        return CUDA_R_16F
-    elseif T == ComplexF16
-        return CUDA_C_16F
-    elseif T == Float64
-        return CUDA_R_64F
-    elseif T == ComplexF64
-        return CUDA_C_64F
-    elseif T == Int8 
-        return CUDA_R_8I
-    elseif T == Complex{Int8}
-        return CUDA_C_8I
-    elseif T == Int32
-        return CUDA_R_32I
-    elseif T == Complex{Int32}
-        return CUDA_C_32I
-    elseif T == UInt8 
-        return CUDA_R_8U
-    elseif T == Complex{UInt8}
-        return CUDA_C_8U
-    elseif T == UInt32
-        return CUDA_R_32U
-    elseif T == Complex{UInt32}
-        return CUDA_C_32U
-    else
-        throw(ArgumentError("cudaDataType equivalent for input type $T does not exist!"))
-    end
-end
 
 const CharUnion = Union{Char, Cwchar_t}
 

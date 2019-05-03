@@ -1,5 +1,7 @@
 # low-level wrappers of the CUBLAS library
 
+using CUDAapi: cudaDataType
+
 function cublasCreate_v2()
   handle = Ref{cublasHandle_t}()
   @check ccall((:cublasCreate_v2, libcublas),
@@ -1842,47 +1844,47 @@ if CUDAdrv.version() ≥ v"7.5"
     function cublasNrm2Ex(handle, n, x, xType, incx, result, resultType, executionType)
         @check ccall((:cublasNrm2Ex, libcublas),
                       cublasStatus_t,
-                      (cublasHandle_t, Cint, CuPtr{Nothing}, cudaDataType_t, Cint,
-                        PtrOrCuPtr{Nothing}, cudaDataType_t, cudaDataType_t),
+                      (cublasHandle_t, Cint, CuPtr{Nothing}, cudaDataType, Cint,
+                        PtrOrCuPtr{Nothing}, cudaDataType, cudaDataType),
                      handle, n, x, xType, incx, result, resultType, executionType)
     end
     function cublasDotEx(handle, n, x, xType, incx, y, yType, incy, result, resultType, executionType)
         @check ccall((:cublasDotEx, libcublas),
                      cublasStatus_t,
-                     (cublasHandle_t, Cint, CuPtr{Nothing}, cudaDataType_t, Cint,
-                      CuPtr{Nothing}, cudaDataType_t, Cint, PtrOrCuPtr{Nothing}, cudaDataType_t,
-                      cudaDataType_t),
+                     (cublasHandle_t, Cint, CuPtr{Nothing}, cudaDataType, Cint,
+                      CuPtr{Nothing}, cudaDataType, Cint, PtrOrCuPtr{Nothing}, cudaDataType,
+                      cudaDataType),
                      handle, n, x, xType, incx, y, yType, incy, result, resultType,
                      executionType)
     end
     function cublasDotcEx(handle, n, x, xType, incx, y, yType, incy, result, resultType, executionType)
         @check ccall((:cublasDotcEx, libcublas),
                      cublasStatus_t,
-                     (cublasHandle_t, Cint, CuPtr{Nothing}, cudaDataType_t, Cint,
-                      CuPtr{Nothing}, cudaDataType_t, Cint, PtrOrCuPtr{Nothing}, cudaDataType_t,
-                      cudaDataType_t),
+                     (cublasHandle_t, Cint, CuPtr{Nothing}, cudaDataType, Cint,
+                      CuPtr{Nothing}, cudaDataType, Cint, PtrOrCuPtr{Nothing}, cudaDataType,
+                      cudaDataType),
                      handle, n, x, xType, incx, y, yType, incy, result, resultType, executionType)
     end
     function cublasScalEx(handle, n, alpha, alphaType, x, xType, incx, executionType)
         @check ccall((:cublasScalEx, libcublas),
                      cublasStatus_t,
-                     (cublasHandle_t, Cint, PtrOrCuPtr{Nothing}, cudaDataType_t, CuPtr{Nothing},
-                      cudaDataType_t, Cint, cudaDataType_t),
+                     (cublasHandle_t, Cint, PtrOrCuPtr{Nothing}, cudaDataType, CuPtr{Nothing},
+                      cudaDataType, Cint, cudaDataType),
                      handle, n, alpha, alphaType, x, xType, incx, executionType)
     end
     function cublasAxpyEx(handle, n, alpha, alphaType, x, xType, incx, y, yType, incy, executionType)
         @check ccall((:cublasAxpyEx, libcublas),
                      cublasStatus_t,
-                     (cublasHandle_t, Cint, PtrOrCuPtr{Nothing}, cudaDataType_t, CuPtr{Nothing},
-                      cudaDataType_t, Cint, CuPtr{Nothing}, cudaDataType_t, Cint, cudaDataType_t),
+                     (cublasHandle_t, Cint, PtrOrCuPtr{Nothing}, cudaDataType, CuPtr{Nothing},
+                      cudaDataType, Cint, CuPtr{Nothing}, cudaDataType, Cint, cudaDataType),
                      handle, n, alpha, alphaType, x, xType, incx, y, yType, incy, executionType)
     end
     function cublasCgemm3mEx(handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb, beta, C, Ctype, ldc)
         @check ccall((:cublasCgemm3mEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType_t, Cint, CuPtr{Nothing},
-                      cudaDataType_t, Cint, PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType_t,
+                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType, Cint, CuPtr{Nothing},
+                      cudaDataType, Cint, PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType,
                       Cint),
                      handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                      beta, C, Ctype, ldc)
@@ -1891,8 +1893,8 @@ if CUDAdrv.version() ≥ v"7.5"
         @check ccall((:cublasSgemmEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-                      PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType_t, Cint, CuPtr{Nothing},
-                      cudaDataType_t, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType_t, Cint),
+                      PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType, Cint, CuPtr{Nothing},
+                      cudaDataType, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType, Cint),
                      handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                      beta, C, Ctype, ldc)
     end
@@ -1900,9 +1902,9 @@ if CUDAdrv.version() ≥ v"7.5"
         @check ccall((:cublasGemmEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-                      PtrOrCuPtr{Nothing}, CuPtr{Nothing}, cudaDataType_t, Cint, CuPtr{Nothing},
-                      cudaDataType_t, Cint, PtrOrCuPtr{Nothing}, CuPtr{Nothing}, cudaDataType_t,
-                      Cint, cudaDataType_t, cublasGemmAlgo_t),
+                      PtrOrCuPtr{Nothing}, CuPtr{Nothing}, cudaDataType, Cint, CuPtr{Nothing},
+                      cudaDataType, Cint, PtrOrCuPtr{Nothing}, CuPtr{Nothing}, cudaDataType,
+                      Cint, cudaDataType, cublasGemmAlgo_t),
                      handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                      beta, C, Ctype, ldc, computeType, algo)
     end
@@ -1910,8 +1912,8 @@ if CUDAdrv.version() ≥ v"7.5"
         @check ccall((:cublasCgemmEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint, Cint,
-                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType_t, Cint, CuPtr{Nothing},
-                      cudaDataType_t, Cint, PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType_t,
+                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType, Cint, CuPtr{Nothing},
+                      cudaDataType, Cint, PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType,
                       Cint),
                      handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                      beta, C, Ctype, ldc)
@@ -1920,32 +1922,32 @@ if CUDAdrv.version() ≥ v"7.5"
         @check ccall((:cublasCsyrkEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType_t, Cint, PtrOrCuPtr{cuComplex},
-                      CuPtr{Nothing}, cudaDataType_t, Cint),
+                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType, Cint, PtrOrCuPtr{cuComplex},
+                      CuPtr{Nothing}, cudaDataType, Cint),
                      handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
     end
     function cublasCsyrk3mEx(handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
         @check ccall((:cublasCsyrk3mEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType_t, Cint, PtrOrCuPtr{cuComplex},
-                      CuPtr{Nothing}, cudaDataType_t, Cint),
+                      PtrOrCuPtr{cuComplex}, CuPtr{Nothing}, cudaDataType, Cint, PtrOrCuPtr{cuComplex},
+                      CuPtr{Nothing}, cudaDataType, Cint),
                      handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
     end
     function cublasCherkEx(handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
         @check ccall((:cublasCherkEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                      PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType_t, Cint, PtrOrCuPtr{Cfloat},
-                      CuPtr{Nothing}, cudaDataType_t, Cint),
+                      PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType, Cint, PtrOrCuPtr{Cfloat},
+                      CuPtr{Nothing}, cudaDataType, Cint),
                      handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
     end
     function cublasCherk3mEx(handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
         @check ccall((:cublasCherk3mEx, libcublas),
                      cublasStatus_t,
                      (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                      PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType_t, Cint, PtrOrCuPtr{Cfloat},
-                      CuPtr{Nothing}, cudaDataType_t, Cint),
+                      PtrOrCuPtr{Cfloat}, CuPtr{Nothing}, cudaDataType, Cint, PtrOrCuPtr{Cfloat},
+                      CuPtr{Nothing}, cudaDataType, Cint),
                      handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
     end
     # Wrap FP16 functions (CUDA 7.5+)
