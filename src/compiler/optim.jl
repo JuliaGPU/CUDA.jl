@@ -3,10 +3,6 @@
 function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
     tm = machine(job.cap, triple(mod))
 
-    if job.kernel
-        entry = promote_kernel!(job, mod, entry)
-    end
-
     function initialize!(pm)
         add_library_info!(pm, triple(mod))
         add_transform_info!(pm, tm)
@@ -35,16 +31,16 @@ function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
         ModulePassManager() do pm
             initialize!(pm)
             ccall(:jl_add_optimization_passes, Cvoid,
-                  (LLVM.API.LLVMPassManagerRef, Cint),
-                  LLVM.ref(pm), Base.JLOptions().opt_level)
+                    (LLVM.API.LLVMPassManagerRef, Cint),
+                    LLVM.ref(pm), Base.JLOptions().opt_level)
             run!(pm, mod)
         end
     else
         ModulePassManager() do pm
             initialize!(pm)
             ccall(:jl_add_optimization_passes, Cvoid,
-                  (LLVM.API.LLVMPassManagerRef, Cint, Cint),
-                  LLVM.ref(pm), Base.JLOptions().opt_level, #=lower_intrinsics=# 0)
+                    (LLVM.API.LLVMPassManagerRef, Cint, Cint),
+                    LLVM.ref(pm), Base.JLOptions().opt_level, #=lower_intrinsics=# 0)
             run!(pm, mod)
         end
 
@@ -121,188 +117,7 @@ function optimize!(job::CompilerJob, mod::LLVM.Module, entry::LLVM.Function)
 end
 
 
-## kernel-specific optimizations
-
-# promote a function to a kernel
-# FIXME: sig vs tt (code_llvm vs cufunction)
-function promote_kernel!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
-    kernel = wrap_entry!(job, mod, entry_f)
-
-    # property annotations
-    # TODO: belongs in irgen? doesn't maxntidx doesn't appear in ptx code?
-
-    annotations = LLVM.Value[kernel]
-
-    ## kernel metadata
-    append!(annotations, [MDString("kernel"), ConstantInt(Int32(1), JuliaContext())])
-
-    ## expected CTA sizes
-    if job.minthreads != nothing
-        bounds = CUDAdrv.CuDim3(job.minthreads)
-        for dim in (:x, :y, :z)
-            bound = getfield(bounds, dim)
-            append!(annotations, [MDString("reqntid$dim"),
-                                  ConstantInt(Int32(bound), JuliaContext())])
-        end
-    end
-    if job.maxthreads != nothing
-        bounds = CUDAdrv.CuDim3(job.maxthreads)
-        for dim in (:x, :y, :z)
-            bound = getfield(bounds, dim)
-            append!(annotations, [MDString("maxntid$dim"),
-                                  ConstantInt(Int32(bound), JuliaContext())])
-        end
-    end
-
-    if job.blocks_per_sm != nothing
-        append!(annotations, [MDString("minctasm"),
-                              ConstantInt(Int32(job.blocks_per_sm), JuliaContext())])
-    end
-
-    if job.maxregs != nothing
-        append!(annotations, [MDString("maxnreg"),
-                              ConstantInt(Int32(job.maxregs), JuliaContext())])
-    end
-
-
-    push!(metadata(mod), "nvvm.annotations", MDNode(annotations))
-
-    return kernel
-end
-
-function wrapper_type(julia_t::Type, codegen_t::LLVMType)::LLVMType
-    if !isbitstype(julia_t)
-        # don't pass jl_value_t by value; it's an opaque structure
-        return codegen_t
-    elseif isa(codegen_t, LLVM.PointerType) && !(julia_t <: Ptr)
-        # we didn't specify a pointer, but codegen passes one anyway.
-        # make the wrapper accept the underlying value instead.
-        return eltype(codegen_t)
-    else
-        return codegen_t
-    end
-end
-
-# generate a kernel wrapper to fix & improve argument passing
-function wrap_entry!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
-    entry_ft = eltype(llvmtype(entry_f)::LLVM.PointerType)::LLVM.FunctionType
-    @compiler_assert return_type(entry_ft) == LLVM.VoidType(JuliaContext()) job
-
-    # filter out ghost types, which don't occur in the LLVM function signatures
-    sig = Base.signature_type(job.f, job.tt)::Type
-    julia_types = Type[]
-    for dt::Type in sig.parameters
-        if !isghosttype(dt)
-            push!(julia_types, dt)
-        end
-    end
-
-    # generate the wrapper function type & definition
-    wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
-                                  for (julia_t, codegen_t)
-                                  in zip(julia_types, parameters(entry_ft))]
-    wrapper_fn = replace(LLVM.name(entry_f), r"^.+?_"=>"ptxcall_") # change the CC tag
-    wrapper_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()), wrapper_types)
-    wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
-
-    # Get debuginfo from the entry_f and copy it to the wrapper_f
-    # on -g0 julia does not add a DICU and DISP object
-    if LLVM.version() >= v"8.0"
-        if Base.JLOptions().debug_level > 0
-            SP = LLVM.get_subprogram(entry_f)
-            LLVM.set_subprogram!(wrapper_f, SP)
-        end
-    end
-
-    # emit IR performing the "conversions"
-    let builder = Builder(JuliaContext())
-        entry = BasicBlock(wrapper_f, "entry", JuliaContext())
-        position!(builder, entry)
-
-        wrapper_args = Vector{LLVM.Value}()
-
-        # perform argument conversions
-        codegen_types = parameters(entry_ft)
-        wrapper_params = parameters(wrapper_f)
-        param_index = 0
-        for (julia_t, codegen_t, wrapper_t, wrapper_param) in
-            zip(julia_types, codegen_types, wrapper_types, wrapper_params)
-            param_index += 1
-            if codegen_t != wrapper_t
-                # the wrapper argument doesn't match the kernel parameter type.
-                # this only happens when codegen wants to pass a pointer.
-                @compiler_assert isa(codegen_t, LLVM.PointerType) job
-                @compiler_assert eltype(codegen_t) == wrapper_t job
-
-                # copy the argument value to a stack slot, and reference it.
-                ptr = alloca!(builder, wrapper_t)
-                if LLVM.addrspace(codegen_t) != 0
-                    ptr = addrspacecast!(builder, ptr, codegen_t)
-                end
-                store!(builder, wrapper_param, ptr)
-                push!(wrapper_args, ptr)
-            else
-                push!(wrapper_args, wrapper_param)
-                for attr in collect(parameter_attributes(entry_f, param_index))
-                    push!(parameter_attributes(wrapper_f, param_index), attr)
-                end
-            end
-        end
-
-        call!(builder, entry_f, wrapper_args)
-
-        ret!(builder)
-
-        dispose(builder)
-    end
-
-    # early-inline the original entry function into the wrapper
-    push!(function_attributes(entry_f), EnumAttribute("alwaysinline", 0, JuliaContext()))
-    linkage!(entry_f, LLVM.API.LLVMInternalLinkage)
-
-    fixup_metadata!(entry_f)
-    ModulePassManager() do pm
-        always_inliner!(pm)
-        run!(pm, mod)
-    end
-
-    return wrapper_f
-end
-
-# HACK: get rid of invariant.load and const TBAA metadata on loads from pointer args,
-#       since storing to a stack slot violates the semantics of those attributes.
-# TODO: can we emit a wrapper that doesn't violate Julia's metadata?
-function fixup_metadata!(f::LLVM.Function)
-    for param in parameters(f)
-        if isa(llvmtype(param), LLVM.PointerType)
-            # collect all uses of the pointer
-            worklist = Vector{LLVM.Instruction}(user.(collect(uses(param))))
-            while !isempty(worklist)
-                value = popfirst!(worklist)
-
-                # remove the invariant.load attribute
-                md = metadata(value)
-                if haskey(md, LLVM.MD_invariant_load)
-                    delete!(md, LLVM.MD_invariant_load)
-                end
-                if haskey(md, LLVM.MD_tbaa)
-                    delete!(md, LLVM.MD_tbaa)
-                end
-
-                # recurse on the output of some instructions
-                if isa(value, LLVM.BitCastInst) ||
-                   isa(value, LLVM.GetElementPtrInst) ||
-                   isa(value, LLVM.AddrSpaceCastInst)
-                    append!(worklist, user.(collect(uses(value))))
-                end
-
-                # IMPORTANT NOTE: if we ever want to inline functions at the LLVM level,
-                # we need to recurse into call instructions here, and strip metadata from
-                # called functions (see CUDAnative.jl#238).
-            end
-        end
-    end
-end
+## lowering intrinsics
 
 # lower object allocations to to PTX malloc
 #
