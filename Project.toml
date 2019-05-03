@@ -15,4 +15,4 @@ test = ["Test"]
 
 [compat]
 julia = "0.7, 1"
-CUDAapi = "0.4.2, 0.5, 0.6"
+CUDAapi = "0.4.2, 0.5, 0.6, 1.0"
