@@ -270,3 +270,64 @@ function LinearAlgebra.triu!(A::CuMatrix{T}, d::Integer = 0) where T
   @cuda blocks=blk threads=thr kernel!(A, d)
   return A
 end
+
+
+## reversing
+
+function _reverse(input::CuVector{T}, output::CuVector{T}) where {T}
+    @assert length(input) == length(output)
+
+    nthreads = 256
+    nblocks = ceil(Int, length(input) / nthreads)
+    shmem = nthreads * sizeof(T)
+
+    function kernel(input::CuDeviceVector{T}, output::CuDeviceVector{T}) where {T}
+        shared = @cuDynamicSharedMem(T, blockDim().x)
+
+        # load one element per thread from device memory and buffer it in reversed order
+
+        offset_in = blockDim().x * (blockIdx().x - 1)
+        index_in = offset_in + threadIdx().x
+
+        if index_in <= length(input)
+            index_shared = blockDim().x - threadIdx().x + 1
+            @inbounds shared[index_shared] = input[index_in]
+        end
+
+        sync_threads()
+
+        # write back in forward order, but to the reversed block offset as before
+
+        offset_out = length(output) -  blockDim().x * blockIdx().x
+        index_out = offset_out + threadIdx().x
+
+        if 1 <= index_out <= length(output)
+            index_shared = threadIdx().x
+            @inbounds output[index_out] = shared[index_shared]
+        end
+
+        return
+    end
+
+    @cuda threads=nthreads blocks=nblocks shmem=shmem kernel(input, output)
+
+    return
+end
+
+function Base.reverse!(v::CuVector,
+                       start=first(LinearIndices(v)),
+                       stop=last(LinearIndices(v)))
+    v′ = view(v, start:stop)
+    _reverse(v′, v′)
+    return v
+end
+
+function Base.reverse(v::CuVector,
+                      start=first(LinearIndices(v)),
+                      stop=last(LinearIndices(v)))
+    v′ = similar(v)
+    start > 1 && copyto!(v′, 1, v, 1, start-1)
+    _reverse(view(v, start:stop), view(v′, start:stop))
+    stop < length(v) && copyto!(v′, stop+1, v, stop+1)
+    return v′
+end

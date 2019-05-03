@@ -264,3 +264,13 @@ end
     d_c = lmul!(Complex{Int8}(2, 2), copy(d_a))
     @test collect(d_c) == Complex{Int8}(2, 2)*a
 end
+
+@testset "reverse" begin
+    @test testf(x->reverse(x), rand(1000))
+    @test testf(x->reverse(x, 10), rand(1000))
+    @test testf(x->reverse(x, 10, 90), rand(1000))
+
+    @test testf(x->reverse!(x), rand(1000))
+    @test testf(x->reverse!(x, 10), rand(1000))
+    @test testf(x->reverse!(x, 10, 90), rand(1000))
+end
