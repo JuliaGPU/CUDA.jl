@@ -317,24 +317,13 @@ end
 
 # NOTE: we don't extend `Base.unsafe_copyto!` because that function works with elements
 
-const AnyHostBuffer = Union{Ref,HostBuffer,UnifiedBuffer}
-const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
-
-# ... on the host
-for (dstTy, srcTy) in ((AnyHostBuffer, AnyHostBuffer),
-                       (UnifiedBuffer, UnifiedBuffer)   # to avoid ambiguities
-                      )
-    @eval function copy!(dst::$dstTy, src::$srcTy, nbytes::Integer)
-        ccall(:memcpy, Ptr{Cvoid},
-              (Ptr{Cvoid}, Ptr{Cvoid}, Csize_t),
-              dst, src, nbytes)
-        return dst
-    end
-end
-
-# ... on the device
-for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, DeviceBuffer),
-                          ("cuMemcpyHtoD", DeviceBuffer, Union{Ref,HostBuffer}),
+# NOTE: we don't have a memcpy implementation for host to host buffers for multiple reasons:
+#       1) this package is a CUDA API wrapper, the user can just convert to a CPU pointer;
+#       2) you sometimes want to do an explicit CUD API memcpy even for unified memory,
+#          since otherwise you need to synchronize the device first.
+#          https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#um-gpu-exclusive
+for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, AnyDeviceBuffer),
+                          ("cuMemcpyHtoD", AnyDeviceBuffer, Union{Ref,HostBuffer}),
                           ("cuMemcpyDtoD", AnyDeviceBuffer, AnyDeviceBuffer),
                          )
     dstPtrTy = (dstTy==Union{Ref,HostBuffer} ? Ptr : CuPtr)
