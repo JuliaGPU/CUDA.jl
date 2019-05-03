@@ -314,17 +314,13 @@ function _reverse(input::CuVector{T}, output::CuVector{T}) where {T}
     return
 end
 
-function Base.reverse!(v::CuVector,
-                       start=first(LinearIndices(v)),
-                       stop=last(LinearIndices(v)))
+function Base.reverse!(v::CuVector, start=1, stop=length(v))
     v′ = view(v, start:stop)
     _reverse(v′, v′)
     return v
 end
 
-function Base.reverse(v::CuVector,
-                      start=first(LinearIndices(v)),
-                      stop=last(LinearIndices(v)))
+function Base.reverse(v::CuVector, start=1, stop=length(v))
     v′ = similar(v)
     start > 1 && copyto!(v′, 1, v, 1, start-1)
     _reverse(view(v, start:stop), view(v′, start:stop))
