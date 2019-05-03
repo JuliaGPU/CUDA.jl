@@ -18,13 +18,25 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     dstTy in [Mem.Device, Mem.Host, Mem.Unified]
 
     src = Mem.alloc(srcTy, nb)
-    Mem.copy!(src, pointer(data), nb)
+    if isa(src, Mem.Host)
+        unsafe_copyto!(convert(Ptr{T}, src), pointer(data), N)
+    else
+        Mem.copy!(src, pointer(data), nb)
+    end
 
     dst = Mem.alloc(dstTy, nb)
-    Mem.copy!(dst, src, nb)
+    if isa(src, Mem.Host) && isa(dst, Mem.Host)
+        unsafe_copyto!(convert(Ptr{T}, dst), convert(Ptr{T}, src), N)
+    else
+        Mem.copy!(dst, src, nb)
+    end
 
     ref = Array{T}(undef, N)
-    Mem.copy!(pointer(ref), dst, nb)
+    if isa(dst, Mem.Host)
+        unsafe_copyto!(pointer(ref), convert(Ptr{T}, dst), N)
+    else
+        Mem.copy!(pointer(ref), dst, nb)
+    end
 
     @test data == ref
 
