@@ -278,6 +278,9 @@ end
 
 ## initialization
 
+const AnyHostBuffer = Union{Ref,HostBuffer,UnifiedBuffer}
+const AnyDeviceBuffer = Union{DeviceBuffer,UnifiedBuffer}
+
 """
     set!(buf::DeviceBuffer, value::Union{UInt8,UInt16,UInt32}, len::Integer;
          async::Bool=false, stream::CuStream)
@@ -291,7 +294,7 @@ for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
     fn_sync = Symbol("cuMemsetD$(bits)")
     fn_async = Symbol("cuMemsetD$(bits)Async")
-    @eval function set!(buf::DeviceBuffer, value::$T, len::Integer;
+    @eval function set!(buf::AnyDeviceBuffer, value::$T, len::Integer;
                         async::Bool=false, stream::Union{Nothing,CuStream}=nothing)
         if async
           stream===nothing &&
