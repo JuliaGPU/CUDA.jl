@@ -22,7 +22,7 @@ CUBLAS.cublasSetMathMode(CUBLAS.CUBLAS_DEFAULT_MATH)
 #################
 
 @testset "Level 1 with element type $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-    A = CuArray(rand(T, m))
+    A = CuArrays.rand(T, m)
     B = CuArray{T}(undef, m)
     CuArrays.CUBLAS.blascopy!(m,A,1,B,1)
     @test Array(A) == Array(B)

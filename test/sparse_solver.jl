@@ -83,7 +83,7 @@ k = 1
         A     = A + A'
         d_A   = CuSparseMatrixCSR(A)
         evs   = eigvals(Array(A))
-        x_0   = CuArray(rand(elty,n))
+        x_0   = CuArrays.rand(elty,n)
         μ,x   = CUSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
         @test μ ≈ evs[1]
         A     = sparse(rand(elty,m,n))
@@ -91,7 +91,7 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
         A     = sparse(rand(elty,n,n))
         d_A   = CuSparseMatrixCSR(A)
-        x_0   = CuArray(rand(elty,m))
+        x_0   = CuArrays.rand(elty,m)
         @test_throws DimensionMismatch CUSOLVER.csreigvsi(d_A,convert(elty,evs[1]),x_0,convert(real(elty),1e-6),convert(Cint,1000),'O')
     end
     @testset "csreigs" begin
