@@ -55,7 +55,23 @@ cufuncs() = (global _cufuncs; _cufuncs)
 function replace_device(ex)
   global _cufuncs
   MacroTools.postwalk(ex) do x
-    x in _cufuncs ? :(CuArrays.cufunc($x)) : x
+    x = x in _cufuncs ? :(CuArrays.cufunc($x)) : x
+    if x isa Expr && x.head == :call && x.args[1] == :(CuArrays.cufunc(^)) && x.args[3] isa Int
+      if x.args[3] == 0
+        sym = gensym(:x)
+        x = rmlines(:($sym = $(x.args[2]); one($sym)))
+      elseif x.args[3] == 1
+        sym = gensym(:x)
+        x = rmlines(:($sym = $(x.args[2]); $sym))
+      elseif x.args[3] == 2
+        sym = gensym(:x)
+        x = rmlines(:($sym = $(x.args[2]); $sym * $sym))
+      elseif x.args[3] == 3
+        sym = gensym(:x)
+        x = rmlines(:($sym = $(x.args[2]); $sym * $sym * $sym))
+      end
+    end
+    x
   end
 end
 

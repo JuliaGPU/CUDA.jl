@@ -3,8 +3,6 @@
 
     @info "Testing ForwardDiff integration"
 
-    CUDAnative.pow(x, y::Int64) = CUDAnative.pow(x, Int32(y))
-
     @testset "UNARY" begin
         fs = filter(x->x[1] ==:CUDAnative && x[3] == 1, keys(ForwardDiff.DiffRules.DEFINED_DIFFRULES))
 
