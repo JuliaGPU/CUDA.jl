@@ -1,6 +1,6 @@
 name = "CuArrays"
 uuid = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
-version = "1.0.2"
+version = "2.0.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -30,7 +30,7 @@ test = ["Test", "FFTW", "ForwardDiff"]
 julia = "1.0"
 CUDAnative = "2.0"
 CUDAdrv = "3.0"
-CUDAapi = "0.5.3, 0.6"
+CUDAapi = "0.5.3, 0.6, 1.0"
 NNlib = "0.6"
 GPUArrays = "0.7"
 Adapt = "0.4"

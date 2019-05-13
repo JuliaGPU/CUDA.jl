@@ -1,5 +1,7 @@
 # wrappers of the low-level CUBLAS functionality
 
+import CUDAdrv: CuStream
+
 # Note: we don't implement padded storage dimensions
 function _mkplan(xtype, xdims, region)
     nrank = length(region)
@@ -125,6 +127,8 @@ unsafe_convert(::Type{cufftHandle_t}, p::CuFFTPlan) = p.plan
 convert(::Type{cufftHandle_t}, p::CuFFTPlan) = p.plan
 
 destroy_plan(plan::CuFFTPlan) = cufftDestroy(plan)
+
+set_stream(plan::CuFFTPlan, stream::CuStream) = cufftSetStream(plan, stream)
 
 function assert_applicable(p::CuFFTPlan{T,K}, X::CuArray{T}) where {T,K}
     (size(X) == p.sz) ||

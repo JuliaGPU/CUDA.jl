@@ -1,5 +1,7 @@
 # low-level wrappers of the CUFFT library
 
+import CUDAdrv: CuPtr, PtrOrCuPtr, CuStream_t
+
 cufftGetVersion() = ccall((:cufftGetVersion,libcufft), Cint, ())
 
 function cufftGetProperty(property::CUDAapi.libraryPropertyType)
@@ -74,4 +76,10 @@ function cufftExecD2Z(plan, idata, odata)
     @check ccall((:cufftExecD2Z,libcufft), cufftStatus_t,
                  (cufftHandle_t, CuPtr{cufftDoubleReal}, CuPtr{cufftDoubleComplex}),
                  plan, idata, odata)
+end
+
+function cufftSetStream(plan, stream)
+    @check ccall((:cufftSetStream,libcufft), cufftStatus_t,
+                 (cufftHandle_t, CuStream_t),
+                 plan, stream)
 end

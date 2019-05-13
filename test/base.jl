@@ -50,11 +50,11 @@ end
   @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(buf, (1,2))
   @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(buf, (1,2))
 
-  @test collect(cuzeros(2, 2)) == zeros(Float32, 2, 2)
-  @test collect(cuones(2, 2)) == ones(Float32, 2, 2)
+  @test collect(CuArrays.zeros(2, 2)) == zeros(Float32, 2, 2)
+  @test collect(CuArrays.ones(2, 2)) == ones(Float32, 2, 2)
 
-  @test collect(cufill(0, 2, 2)) == zeros(Float32, 2, 2)
-  @test collect(cufill(1, 2, 2)) == ones(Float32, 2, 2)
+  @test collect(CuArrays.fill(0, 2, 2)) == zeros(Float32, 2, 2)
+  @test collect(CuArrays.fill(1, 2, 2)) == ones(Float32, 2, 2)
 end
 
 @testset "Adapt" begin
@@ -275,4 +275,14 @@ end
     @test collect(d_c) == a*Complex{Int8}(2, 2)
     d_c = lmul!(Complex{Int8}(2, 2), copy(d_a))
     @test collect(d_c) == Complex{Int8}(2, 2)*a
+end
+
+@testset "reverse" begin
+    @test testf(x->reverse(x), rand(1000))
+    @test testf(x->reverse(x, 10), rand(1000))
+    @test testf(x->reverse(x, 10, 90), rand(1000))
+
+    @test testf(x->reverse!(x), rand(1000))
+    @test testf(x->reverse!(x, 10), rand(1000))
+    @test testf(x->reverse!(x, 10, 90), rand(1000))
 end

@@ -295,7 +295,7 @@ k = 1
     end
     # Check that constant propagation works
     _svd(A) = svd(A, CUSOLVER.QRAlgorithm)
-    @inferred _svd(CuArrays.CURAND.curand(Float32, 4, 4))
+    @inferred _svd(CuArrays.rand(Float32, 4, 4))
 
 
     @testset "qr" begin

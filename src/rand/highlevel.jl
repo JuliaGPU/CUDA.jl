@@ -77,19 +77,13 @@ rand_poisson!(A::CuArray; kwargs...) = rand_poisson!(poisson_rng(A), A; kwargs..
 rand_logn(A::CuArray; kwargs...) = rand_logn!(logn_rng(A), A; kwargs...)
 rand_poisson(A::CuArray; kwargs...) = rand_poisson!(poisson_rng(A), A; kwargs...)
 
-
-# need to prefix with `cu` to disambiguate from Random functions that return an Array
-# TODO: `@gpu rand` with Cassette
-curand(::Type{X}, args...; kwargs...) where {X} = rand!(CuArray{X}(undef, args...); kwargs...)
-curandn(::Type{X}, args...; kwargs...) where {X} = randn!(CuArray{X}(undef, args...); kwargs...)
-curand_logn(::Type{X}, args...; kwargs...) where {X} = rand_logn!(CuArray{X}(undef, args...); kwargs...)
-curand_poisson(::Type{X}, args...; kwargs...) where {X} = rand_poisson!(CuArray{X}(undef, args...); kwargs...)
-
+rand(::Type{X}, args...; kwargs...) where {X} = rand!(CuArray{X}(undef, args...); kwargs...)
+randn(::Type{X}, args...; kwargs...) where {X} = randn!(CuArray{X}(undef, args...); kwargs...)
 rand_logn(::Type{X}, args...; kwargs...) where {X} = rand_logn!(CuArray{X}(undef, args...); kwargs...)
 rand_poisson(::Type{X}, args...; kwargs...) where {X} = rand_poisson!(CuArray{X}(undef, args...); kwargs...)
 
 # specify default types
-curand(args...; kwargs...) where {X} = curand(Float32, args...; kwargs...)
-curandn(args...; kwargs...) where {X} = curandn(Float32, args...; kwargs...)
-curand_logn(args...; kwargs...) where {X} = curand_logn(Float32, args...; kwargs...)
-curand_poisson(args...; kwargs...) where {X} = curand_poisson(Cuint, args...; kwargs...)
+rand(args...; kwargs...) where {X} = rand(Float32, args...; kwargs...)
+randn(args...; kwargs...) where {X} = randn(Float32, args...; kwargs...)
+rand_logn(args...; kwargs...) where {X} = rand_logn(Float32, args...; kwargs...)
+rand_poisson(args...; kwargs...) where {X} = rand_poisson(Cuint, args...; kwargs...)
