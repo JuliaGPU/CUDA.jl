@@ -1,6 +1,6 @@
 # ForwardDiff integration
 
-byhand = [:tanh, :exp2, :log2, :exp10, :log10, :abs]
+byhand = [:exp2, :log2, :exp10, :log10, :abs]
 
 for f in libdevice
   if haskey(ForwardDiff.DiffRules.DEFINED_DIFFRULES, (:Base,f,1))
@@ -11,12 +11,6 @@ for f in libdevice
     eval(ForwardDiff.unary_dual_definition(:CUDAnative, f))
   end
 end
-
-
-# byhand: tanh
-ForwardDiff.DiffRules.DEFINED_DIFFRULES[(:CUDAnative, :tanh, 1)] = x ->
-  replace_device(:(1-tanh(x)^2))
-eval(ForwardDiff.unary_dual_definition(:CUDAnative, :tanh))
 
 # byhand: exp2
 ForwardDiff.DiffRules.DEFINED_DIFFRULES[(:CUDAnative, :exp2, 1)] = x ->
