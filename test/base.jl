@@ -92,13 +92,13 @@ end
   gelu1(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
   sig(x) = one(x) / (one(x) + exp(-x))
   f(x) = gelu1(log(x)) * sig(x) * tanh(x)
-  g(x) = x^Int32(7) - 2 * x^f(x^Int32(2)) + 3
+  g(x) = x^7 - 2 * x^f(x^2) + 3
 
 
   CuArrays.@cufunc gelu1(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
   CuArrays.@cufunc sig(x) = one(x) / (one(x) + exp(-x))
   CuArrays.@cufunc f(x) = gelu1(log(x)) * sig(x) * tanh(x)
-  CuArrays.@cufunc g(x) = x^Int32(7) - 2 * x^f(x^Int32(2)) + 3
+  CuArrays.@cufunc g(x) = x^7 - 2 * x^f(x^2) + 3
 
   @test :gelu1 ∈ CuArrays.cufuncs()
   @test :sig ∈ CuArrays.cufuncs()
