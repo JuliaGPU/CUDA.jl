@@ -30,3 +30,14 @@ Even if the build fails, CUDAnative.jl should always be loadable. This simplifie
 downstream packages, until there is proper language support for conditional modules. You can
 check whether the package has been built properly by inspecting the `CUDAnative.configured`
 global variable.
+
+## License
+
+CUDAnative.jl is licensed under the [MIT
+license](https://github.com/JuliaGPU/CUDAnative.jl/blob/master/LICENSE.md).
+
+If you use this package in your research, please cite the paper [Besard, Foket,
+De Sutter (2018)](https://doi.org/10.1109/TPDS.2018.2872064).  For your
+convenience, a BibTeX entry is provided in the
+[`CITATION.bib`](https://github.com/JuliaGPU/CUDAnative.jl/blob/master/CITATION.bib)
+file.
