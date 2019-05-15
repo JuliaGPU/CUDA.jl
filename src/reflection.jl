@@ -213,7 +213,7 @@ macro device_code_typed(ex...)
     quote
         buf = Any[]
         function hook(job::CompilerJob)
-            append!(buf, code_typed(job.f, job.tt))
+            append!(buf, code_typed(job.f, job.tt, debuginfo=:source))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -291,7 +291,7 @@ macro device_code(ex...)
         end
 
         open(joinpath(dir, "$fn.typed.jl"), "w") do io
-            code = only(code_typed(job.f, job.tt))
+            code = only(code_typed(job.f, job.tt, debuginfo=:source))
             println(io, code)
         end
 
