@@ -6,7 +6,6 @@ function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}) where T
     similar(CuArray{T}, axes(bc))
 end
 
-
 # replace base functions with libdevice alternatives
 # TODO: do this with Cassette.jl
 
@@ -37,15 +36,56 @@ for f in libdevice
   @eval cufunc(::typeof(Base.$f)) = CUDAnative.$f
 end
 
+#broadcast ^
+culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{0}) = one(x)
+culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{1}) = x
+culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{2}) = x*x
+culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{3}) = x*x*x
+culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{p}) where p = CUDAnative.pow(x, Int32(p))
+
+cufunc(::typeof(Base.literal_pow)) = culiteral_pow
+cufunc(::typeof(Base.:(^))) = CUDAnative.pow
+
 using MacroTools
 
-const _cufuncs = copy(libdevice)
+const _cufuncs = [copy(libdevice); :^]
 cufuncs() = (global _cufuncs; _cufuncs)
+
+_cuint(x::Int) = Int32(x)
+_cuint(x::Expr) = x.head == :call && x.args[1] == :Int32 && x.args[2] isa Int ? Int32(x.args[2]) : x
+_cuint(x) = x
+
+function _cupowliteral(x::Expr)
+  if x.head == :call && x.args[1] == :(CuArrays.cufunc(^)) && x.args[3] isa Int32
+    num = x.args[3]
+    if 0 <= num <= 3
+      sym = gensym(:x)
+      new_x = Expr(:block, :($sym = $(x.args[2])))
+
+      if iszero(num)
+        push!(new_x.args, :(one($sym)))
+      else
+        unroll = Expr(:call, :*)
+        for x = one(num):num
+          push!(unroll.args, sym)
+        end
+        push!(new_x.args, unroll)
+      end
+
+      x = new_x
+    end
+  end
+  x
+end
+_cupowliteral(x) = x
 
 function replace_device(ex)
   global _cufuncs
   MacroTools.postwalk(ex) do x
-    x in _cufuncs ? :(CuArrays.cufunc($x)) : x
+    x = x in _cufuncs ? :(CuArrays.cufunc($x)) : x
+    x = _cuint(x)
+    x = _cupowliteral(x)
+    x
   end
 end
 
