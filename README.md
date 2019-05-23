@@ -23,10 +23,11 @@ arrays:
 
 ## Installation
 
-CuArrays should work **out-of-the-box** on Julia 1.0. You only need to have a
-proper set-up of CUDA, meaning the rest of the Julia CUDA stack should work
-(notably CUDAapi.jl, CUDAdrv.jl and CUDAnative.jl). If you encounter any issues
-with CuArrays.jl, please make sure those other packages are working as expected.
+CuArrays should work **out-of-the-box** on stable releases of Julia 1.x. You
+only need to have a proper set-up of CUDA, meaning the rest of the Julia CUDA
+stack should work (notably CUDAapi.jl, CUDAdrv.jl and CUDAnative.jl). If you
+encounter any issues with CuArrays.jl, please make sure those other packages are
+working as expected.
 
 Some parts of CuArrays.jl depend on **optional libraries**, such as
 [cuDNN](https://developer.nvidia.com/cudnn). The build process should notify
