@@ -15,10 +15,11 @@ const CUTENSOR_STATUS_LICENSE_ERROR          = UInt32(16)
 const CUTENSOR_STATUS_CUBLAS_ERROR           = UInt32(17)
 const CUTENSOR_STATUS_CUDA_ERROR             = UInt32(18)
 const CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE = UInt32(19)
+const CUTENSOR_STATUS_INSUFFICIENT_DRIVER    = UInt32(20)
 
 #enum cutensorOperator_t
 const cutensorOperator_t = UInt32
-# Unary   
+# Unary
 const CUTENSOR_OP_IDENTITY = UInt32(1)
 const CUTENSOR_OP_SQRT     = UInt32(2)
 const CUTENSOR_OP_RELU     = UInt32(8)

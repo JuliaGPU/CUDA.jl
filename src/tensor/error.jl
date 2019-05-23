@@ -36,6 +36,8 @@ function statusmessage( status )
         return "error occurred during a CUDA operation"
     elseif status == CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE
         return "insufficient workspace memory for this operation"
+    elseif status == CUTENSOR_STATUS_INSUFFICIENT_DRIVER
+        return "insufficient driver version"
     else
         return "unknown status"
     end
