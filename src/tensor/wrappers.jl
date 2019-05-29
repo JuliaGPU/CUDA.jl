@@ -1,7 +1,7 @@
 using CUDAapi: cudaDataType
 using CUDAdrv: CuDefaultStream, CuStream
 
-const CharUnion = Union{Char, Cwchar_t}
+const CharUnion = Union{Char, Integer}
 
 is_unary(op::cutensorOperator_t) = (op ∈ [CUTENSOR_OP_IDENTITY, CUTENSOR_OP_SQRT, CUTENSOR_OP_RELU, CUTENSOR_OP_CONJ, CUTENSOR_OP_RCP])
 is_binary(op::cutensorOperator_t) = (op ∈ [CUTENSOR_OP_ADD, CUTENSOR_OP_MUL, CUTENSOR_OP_MAX, CUTENSOR_OP_MIN])
@@ -21,7 +21,7 @@ end
 function elementwiseTrinary!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion}, opA::cutensorOperator_t,
                              beta::Number, B::CuArray, Binds::Vector{<:CharUnion}, opB::cutensorOperator_t,
                              gamma::Number, C::CuArray, Cinds::Vector{<:CharUnion}, opC::cutensorOperator_t,
-                             D::CuArray, Dinds::Vector{Char},
+                             D::CuArray, Dinds::Vector{<:CharUnion},
                              opAB::cutensorOperator_t, opABC::cutensorOperator_t; stream::CuStream=CuDefaultStream())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
@@ -36,7 +36,7 @@ function elementwiseTrinary!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnio
     modeA = Vector{Cwchar_t}(Ainds)
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
-    modeD = modeC 
+    modeD = modeC
     cutensorElementwiseTrinary(handle(), [alpha], A, descA, modeA, [beta], B, descB, modeB,
                                [gamma], C, descC, modeC, D, descD, modeD, opAB, opABC,
                                typeCompute, stream)
@@ -46,7 +46,7 @@ end
 function elementwiseTrinary!(alpha::Number, A::Array, Ainds::Vector{<:CharUnion}, opA::cutensorOperator_t,
                              beta::Number, B::Array, Binds::Vector{<:CharUnion}, opB::cutensorOperator_t,
                              gamma::Number, C::Array, Cinds::Vector{<:CharUnion}, opC::cutensorOperator_t,
-                             D::Array, Dinds::Vector{Char},
+                             D::Array, Dinds::Vector{<:CharUnion},
                              opAB::cutensorOperator_t, opABC::cutensorOperator_t; stream::CuStream=CuDefaultStream())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
@@ -61,7 +61,7 @@ function elementwiseTrinary!(alpha::Number, A::Array, Ainds::Vector{<:CharUnion}
     modeA = Vector{Cwchar_t}(Ainds)
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
-    modeD = modeC 
+    modeD = modeC
     cutensorElementwiseTrinary(handle(), [alpha], A, descA, modeA, [beta], B, descB, modeB,
                                [gamma], C, descC, modeC, D, descD, modeD, opAB, opABC,
                                typeCompute, stream)
@@ -71,7 +71,7 @@ end
 
 function elementwiseBinary!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion}, opA::cutensorOperator_t,
                             gamma::Number, C::CuArray, Cinds::Vector{<:CharUnion}, opC::cutensorOperator_t,
-                            D::CuArray, Dinds::Vector{Char}, opAC::cutensorOperator_t; stream::CuStream=CuDefaultStream())
+                            D::CuArray, Dinds::Vector{<:CharUnion}, opAC::cutensorOperator_t; stream::CuStream=CuDefaultStream())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -86,9 +86,9 @@ function elementwiseBinary!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion
                               modeC, D, descD, modeD, opAC, typeCompute, stream)
     return D
 end
-function elementwiseBinary!(alpha::Number, A::Array, Ainds::Vector{Char}, opA::cutensorOperator_t,
-                            gamma::Number, C::Array, Cinds::Vector{Char}, opC::cutensorOperator_t,
-                            D::Array, Dinds::Vector{Char}, opAC::cutensorOperator_t; stream::CuStream=CuDefaultStream())
+function elementwiseBinary!(alpha::Number, A::Array, Ainds::Vector{<:CharUnion}, opA::cutensorOperator_t,
+                            gamma::Number, C::Array, Cinds::Vector{<:CharUnion}, opC::cutensorOperator_t,
+                            D::Array, Dinds::Vector{<:CharUnion}, opAC::cutensorOperator_t; stream::CuStream=CuDefaultStream())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -118,8 +118,8 @@ function elementwiseBinary!(alpha::Number, A::CuTensor, opA::cutensorOperator_t,
     return D
 end
 
-function permutation!(alpha::Number, A::CuArray, Ainds::Vector{Char},
-                      B::CuArray, Binds::Vector{Char}; stream::CuStream=CuDefaultStream()) 
+function permutation!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion},
+                      B::CuArray, Binds::Vector{<:CharUnion}; stream::CuStream=CuDefaultStream())
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = cutensorDescriptor(A, CUTENSOR_OP_IDENTITY)
     descB = cutensorDescriptor(B, CUTENSOR_OP_IDENTITY)
@@ -131,8 +131,8 @@ function permutation!(alpha::Number, A::CuArray, Ainds::Vector{Char},
     return B
 end
 
-function permutation!(alpha::Number, A::Array, Ainds::Vector{Char},
-                      B::Array, Binds::Vector{Char}; stream::CuStream=CuDefaultStream()) 
+function permutation!(alpha::Number, A::Array, Ainds::Vector{<:CharUnion},
+                      B::Array, Binds::Vector{<:CharUnion}; stream::CuStream=CuDefaultStream())
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = cutensorDescriptor(A, CUTENSOR_OP_IDENTITY)
     descB = cutensorDescriptor(B, CUTENSOR_OP_IDENTITY)
@@ -158,7 +158,7 @@ function contraction!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion}, opA
     descC = cutensorDescriptor(C, opC)
     # for now, descD must be identical to descC
     typeCompute = cudaDataType(eltype(C))
-    descD = descC 
+    descD = descC
     modeA = Vector{Cwchar_t}(Ainds)
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
@@ -187,7 +187,7 @@ function contraction!(alpha::Number, A::Array, Ainds::Vector{<:CharUnion}, opA::
     descC = cutensorDescriptor(C, opC)
     # for now, descD must be identical to descC
     typeCompute = cudaDataType(eltype(C))
-    descD = descC 
+    descD = descC
     modeA = Vector{Cwchar_t}(Ainds)
     modeB = Vector{Cwchar_t}(Binds)
     modeC = Vector{Cwchar_t}(Cinds)
@@ -210,7 +210,7 @@ function contraction!(alpha::Number, A::CuTensor, opA::cutensorOperator_t, B::Cu
     descC = cutensorDescriptor(C, opC)
     # for now, descD must be identical to descC
     typeCompute = cudaDataType(eltype(C))
-    descD = descC 
+    descD = descC
     workspaceSize = Ref{UInt64}(C_NULL)
     cutensorContractionGetWorkspace(handle(), A.data, descA, A.inds, B.data, descB, B.inds,
                                     C.data, descC, C.inds, C.data, descC, C.inds, opOut,
@@ -221,4 +221,3 @@ function contraction!(alpha::Number, A::CuTensor, opA::cutensorOperator_t, B::Cu
                         typeCompute, algo, workspace, workspaceSize[], stream)
     return C
 end
-
