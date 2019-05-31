@@ -102,6 +102,7 @@ using CuArrays.CUTENSOR
             @test hD ≈ α.*permutedims(A, p) .+ β.*C
         end
     end
+end
 
 #=@testset "Elementwise trinary" begin
     eltyA       = Float32
