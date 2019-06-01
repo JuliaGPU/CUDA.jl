@@ -177,12 +177,16 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
         elseif fn == "jl_invoke"
             # interpret the arguments
             meth = try
-                meth, args, nargs, _ = operands(inst)
+                if VERSION < v"1.3.0-DEV.244"
+                    meth, args, nargs, _ = operands(inst)
+                else
+                    f, args, nargs, meth = operands(inst)
+                end
                 meth = first(operands(meth::ConstantExpr))::ConstantExpr
                 meth = first(operands(meth))::ConstantInt
                 meth = convert(Int, meth)
                 meth = Ptr{Cvoid}(meth)
-                Base.unsafe_pointer_to_objref(meth)
+                Base.unsafe_pointer_to_objref(meth)::Core.MethodInstance
             catch e
                 isa(e,TypeError) || rethrow()
                 @warn "Decoding arguments to jl_invoke failed, please file a bug with a reproducer." inst bb=LLVM.parent(inst)
@@ -198,11 +202,16 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
         elseif fn == "jl_apply_generic"
             # interpret the arguments
             f = try
-                args, nargs, _ = operands(inst)
-                ## args is a buffer where arguments are stored in
-                f, args = user.(uses(args))
-                ## first store into the args buffer is a direct store
-                f = first(operands(f::LLVM.StoreInst))::ConstantExpr
+                if VERSION < v"1.3.0-DEV.244"
+                    args, nargs, _ = operands(inst)
+                    ## args is a buffer where arguments are stored in
+                    f, args = user.(uses(args))
+                    ## first store into the args buffer is a direct store
+                    f = first(operands(f::LLVM.StoreInst))::ConstantExpr
+                else 
+                    f, args, nargs, _ = operands(inst)
+                end
+
                 f = first(operands(f))::ConstantExpr # get rid of addrspacecast
                 f = first(operands(f))::ConstantInt # get rid of inttoptr
                 f = convert(Int, f)
