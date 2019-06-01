@@ -70,6 +70,12 @@ end
         @test occursin("Body::Union{}", err)
     end
 
+    let
+        range_kernel() = (0.0:0.1:100.0; nothing)
+
+        @test_throws CUDAnative.InvalidIRError @cuda range_kernel()
+    end
+
     # set name of kernel
     @test occursin("ptxcall_mykernel", sprint(io->(@device_code_llvm io=io begin
         k = cufunction(dummy, name="mykernel")

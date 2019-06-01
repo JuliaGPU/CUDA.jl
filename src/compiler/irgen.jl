@@ -60,11 +60,20 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
 
         # find the function that this module defines
         llvmfs = filter(llvmf -> !isdeclaration(llvmf) &&
-                                 startswith(LLVM.name(llvmf), "julia_") &&
                                  linkage(llvmf) == LLVM.API.LLVMExternalLinkage,
                         collect(functions(ir)))
-        @compiler_assert length(llvmfs) == 1 job
-        llvmf = first(llvmfs)
+
+        llvmf = nothing
+        if length(llvmfs) == 1
+            llvmf = first(llvmfs)
+        elseif length(llvmfs) > 1
+            llvmfs = filter!(llvmf -> startswith(LLVM.name(llvmf), "julia_"), llvmfs)
+            if length(llvmfs) == 1
+                llvmf = first(llvmfs)
+            end
+        end
+
+        @compiler_assert llvmf !== nothing job
 
         insert!(dependencies, last_method_instance, llvmf)
     end
