@@ -1473,7 +1473,7 @@ for (fname, elty) in
             unsafe_free!(Aptrs)
 
             if !Pivot
-                pivotArray = CuArray(zeros(Cint, (n, length(A))))
+                pivotArray = CuArrays.zeros(Cint, (n, length(A)))
             end
             pivotArray, info, A
         end
@@ -1513,7 +1513,7 @@ for (fname, elty) in
             ldc = max(1,stride(C[1],2))
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
-            info = CuArray(zeros(Cint,length(A)))
+            info = CuArrays.zeros(Cint,length(A))
             $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)
@@ -1552,7 +1552,7 @@ for (fname, elty) in
             ldc = max(1,stride(C[1],2))
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
-            info = CuArray(zeros(Cint,length(A)))
+            info = CuArrays.zeros(Cint,length(A))
             $fname(handle(), n, Aptrs, lda, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)
@@ -1638,7 +1638,7 @@ for (fname, elty) in
             Aptrs = device_batch(A)
             Cptrs = device_batch(C)
             info  = zero(Cint)
-            infoarray = CuArray(zeros(Cint, length(A)))
+            infoarray = CuArrays.zeros(Cint, length(A))
             $fname(handle(), cutrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, [info], infoarray, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)

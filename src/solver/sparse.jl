@@ -209,7 +209,7 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
             cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             rcudesca = Ref{cusparseMatDescr_t}(cudesca)
             x       = copy(x_0)
-            μ       = cuzeros($elty,1)
+            μ       = CuArrays.zeros($elty,1)
             @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
                               (cusolverSpHandle_t, Cint, Cint,
                                Ptr{cusparseMatDescr_t}, CuPtr{$elty}, CuPtr{Cint},
