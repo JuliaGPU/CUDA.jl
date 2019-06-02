@@ -28,6 +28,6 @@ function Base.:(*)(A::CuTensor, B::CuTensor)
     B_sizes = map(x->size(B,x[1]), B_uniqs)
     A_inds = map(x->Cwchar_t(x[2]), A_uniqs)
     B_inds = map(x->Cwchar_t(x[2]), B_uniqs)
-    C = CuTensor(cuzeros(tC, Dims(vcat(A_sizes, B_sizes))), vcat(A_inds, B_inds))
+    C = CuTensor(zeros(tC, Dims(vcat(A_sizes, B_sizes))), vcat(A_inds, B_inds))
     return mul!(C, A, B)
 end
