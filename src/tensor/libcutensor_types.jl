@@ -57,7 +57,7 @@ const cutensorTensorDescriptor_t = Ptr{Cvoid}
 const cutensorContext = Cvoid
 const cutensorHandle_t = Ptr{cutensorContext}
 
-mutable struct CuTensor{T, N} <: AbstractArray{T, N}
+mutable struct CuTensor{T, N}
     data::CuArray{T, N}
     inds::Vector{Cwchar_t}
     function CuTensor{T, N}(data::CuArray{T, N}, inds::Vector{Cwchar_t}) where {T<:Number, N}

@@ -166,7 +166,7 @@ function contraction!(alpha::Number, A::CuArray, Ainds::Vector{<:CharUnion}, opA
     cutensorContractionGetWorkspace(handle(), A, descA, modeA, B, descB, modeB, C, descC,
                                     modeC, C, descC, modeC, opOut, typeCompute, algo, pref,
                                     workspaceSize)
-    workspace = zeros(eltype(C), workspaceSize[])
+    workspace = similar(C, workspaceSize[])
     cutensorContraction(handle(), [alpha], A, descA, modeA, B, descB, modeB, [beta], C,
                         descC, modeC, C, descC, modeC, opOut, typeCompute, algo, workspace,
                         workspaceSize[], stream)
@@ -215,7 +215,7 @@ function contraction!(alpha::Number, A::CuTensor, opA::cutensorOperator_t, B::Cu
     cutensorContractionGetWorkspace(handle(), A.data, descA, A.inds, B.data, descB, B.inds,
                                     C.data, descC, C.inds, C.data, descC, C.inds, opOut,
                                     typeCompute, algo, pref, workspaceSize)
-    workspace = zeros(eltype(C), workspaceSize[])
+    workspace = similar(C.data, workspaceSize[])
     cutensorContraction(handle(), [alpha], A.data, descA, A.inds, B.data, descB, B.inds,
                         [beta], C.data, descC, C.inds, C.data, descC, C.inds, opOut,
                         typeCompute, algo, workspace, workspaceSize[], stream)
