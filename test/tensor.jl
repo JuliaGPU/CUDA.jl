@@ -10,14 +10,13 @@ using CuArrays.CUTENSOR
     eltypes = (Float16, Float32, Float64, # ComplexF16,
                 ComplexF32, ComplexF64)
     @testset for N=2:5
-        # @testset for (eltyA, eltyC) in Base.Iterators.product(eltypes, eltypes)
-        # mixed precision does not seem to work currently
         @testset for elty in eltypes
             eltyA = elty
             eltyC = elty
+        # @testset for (eltyA, eltyC) in Base.Iterators.product(eltypes, eltypes)
+        # mixed precision does not seem to work currently
             eltyD = promote_type(eltyA, eltyC)
-
-            dmax = 2^div(16,N)
+            dmax = 2^div(18,N)
             dims = rand(2:dmax, N)
             p = randperm(N)
             Ainds = collect(('a':'z')[1:N])
@@ -147,78 +146,155 @@ end
 end=#
 
 @testset "Permutations" begin
-    eltyA       = Float32
-    eltyC       = Float32
-    eltyCompute = Float32
-    Ainds = ['w', 'h', 'c', 'n']
-    Cinds = ['c', 'w', 'h', 'n']
-    small_size = 32
-    big_size = 64
-    dimsA = (small_size, big_size, big_size, big_size)
-    dimsC = (big_size, small_size, big_size, big_size)
-    A = rand(eltyA, dimsA...)
-    dA = CuArray(A)
-    dC = CuArrays.zeros(eltyC, dimsC...)
-    dC = CUTENSOR.permutation!(Float32(1.), dA, Ainds, dC, Cinds)
-    C  = collect(dC)
-    hC = permutedims(A, (3, 1, 2, 4))
-    @test hC == C
-
-    #=A = rand(eltyA, dimsA...)
-    C = CUTENSOR.permutation!(Float32(1.), A, Ainds, C, Cinds)
-    hC = permutedims(A, (3, 1, 2, 4))
-    @test hC == C=#
+    eltypes = (Float16, Float32, Float64, # ComplexF16,
+                ComplexF32, ComplexF64)
+    @testset for N=2:5
+        @testset for elty in eltypes
+            eltyA = elty
+            eltyC = elty
+        # @testset for (eltyA, eltyC) in Base.Iterators.product(eltypes, eltypes)
+        # mixed precision does not seem to work currently
+            dmax = 2^div(18,N)
+            dims = rand(2:dmax, N)
+            p = randperm(N)
+            Ainds = collect(('a':'z')[1:N])
+            Cinds = Ainds[p]
+            dimsA = dims
+            dimsC = dims[p]
+            A = rand(eltyA, dimsA...)
+            dA = CuArray(A)
+            dC = similar(dA, eltyC, dimsC...)
+            dC = CUTENSOR.permutation!(one(eltyA), dA, Ainds, dC, Cinds)
+            C  = collect(dC)
+            @test C == permutedims(A, p) # exact equality
+            # with scalar
+            α = rand(eltyA)
+            dC = CUTENSOR.permutation!(α, dA, Ainds, dC, Cinds)
+            C  = collect(dC)
+            @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
+        end
+    end
 end
 
 @testset "Contraction" begin
-    @testset for (eltyA, eltyB, eltyC, eltyCompute) in ((Float32, Float32, Float32, Float32),
-                                                        (Float16, Float16, Float16, Float16),
-                                                        (Float64, Float64, Float64, Float64),
-                                                        (ComplexF32, ComplexF32, ComplexF32, ComplexF32),
-                                                        (ComplexF64, ComplexF64, ComplexF64, ComplexF64))
-        Ainds = ['m', 'k']
-        Binds = ['k', 'n']
-        Cinds = ['m', 'n']
-        m_size = 32
-        k_size = 16
-        n_size = 32
-        dimsA = (m_size, k_size)
-        dimsB = (k_size, n_size)
-        dimsC = (m_size, n_size)
-        A = rand(eltyA, dimsA...)
-        dA = CuArray(A)
-        B = rand(eltyB, dimsB...)
-        dB = CuArray(B)
-        C = zeros(eltyC, dimsC...)
-        dC = CuArray(C)
-        Aop = CUTENSOR.CUTENSOR_OP_IDENTITY
-        Bop = CUTENSOR.CUTENSOR_OP_IDENTITY
-        Cop = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
-        dC = CUTENSOR.contraction!(one(eltyA), dA, Ainds, Aop, dB, Binds, Bop, one(eltyC), dC, Cinds, Cop, opOut)
-        C = collect(dC)
-        @test C ≈ A * B
+    eltypes = (Float32, Float64, # Float16, ComplexF16,
+                ComplexF32, ComplexF64)
+    @testset for NoA=1:3, NoB=1:3, Nc=1:3
+        # same eltype for both arguments
+        @testset for elty in eltypes
+            eltyA = elty
+            eltyB = elty
+        # @testset for (eltyA, eltyB) in Base.Iterators.product(eltypes, eltypes)
+        # mixed precision does not seem to work currently
+            eltyC = promote_type(eltyA, eltyB)
 
-        ctA = CuTensor(dA, Ainds)
-        ctB = CuTensor(dB, Binds)
-        ctC = CuTensor(dC, Cinds)
-        dC = LinearAlgebra.mul!(ctC, ctA, ctB)
-        C, Cinds = collect(dC)
-        @test C ≈ A * B
+            dmax = 2^div(18, max(NoA+Nc, NoB+Nc, NoA+NoB))
+            dimsoA = rand(2:dmax, NoA)
+            loA = prod(dimsoA)
+            dimsoB = rand(2:dmax, NoB)
+            loB = prod(dimsoB)
+            dimsc = rand(2:dmax, Nc)
+            lc = prod(dimsc)
+            allinds = collect('a':'z')
+            indsoA = allinds[1:NoA]
+            indsoB = allinds[NoA .+ (1:NoB)]
+            indsc = allinds[NoA .+ NoB .+ (1:Nc)]
+            pA = randperm(NoA + Nc)
+            ipA = invperm(pA)
+            pB = randperm(Nc + NoB)
+            ipB = invperm(pB)
+            pC = randperm(NoA + NoB)
+            ipC = invperm(pC)
 
-        dC = ctA * ctB
-        C, Cinds = collect(dC)
-        @test C ≈ A * B
+            dimsA = [dimsoA; dimsc][pA]
+            Ainds = [indsoA; indsc][pA]
+            dimsB = [dimsc; dimsoB][pB]
+            Binds = [indsc; indsoB][pB]
+            dimsC = [dimsoA; dimsoB][pC]
+            Cinds = [indsoA; indsoB][pC]
 
-        #=A = rand(eltyA, dimsA...)
-        B = rand(eltyB, dimsB...)
-        C = zeros(eltyC, dimsC...)
-        Aop = CUTENSOR.CUTENSOR_OP_IDENTITY
-        Bop = CUTENSOR.CUTENSOR_OP_IDENTITY
-        Cop = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
-        C = CUTENSOR.contraction!(one(Float32), A, Ainds, Aop, B, Binds, Bop, one(Float32), C, Cinds, Cop, opOut)
-        @test C ≈ A * B=#
+            A = rand(eltyA, dimsA...)
+            mA = reshape(permutedims(A, ipA), (loA, lc))
+            dA = CuArray(A)
+            B = rand(eltyB, dimsB...)
+            dB = CuArray(B)
+            mB = reshape(permutedims(B, ipB), (lc, loB))
+            C = zeros(eltyC, dimsC...)
+            dC = CuArray(C)
+            Aop = CUTENSOR.CUTENSOR_OP_IDENTITY
+            Bop = CUTENSOR.CUTENSOR_OP_IDENTITY
+            Cop = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
+            dC = CUTENSOR.contraction!(one(eltyA), dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+            C = collect(dC)
+            mC = reshape(permutedims(C, ipC), (loA, loB))
+            @test mC ≈ mA * mB
+            # with non-trivial α
+            α = rand(eltyC)
+            dC = CUTENSOR.contraction!(α, dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+            C = collect(dC)
+            mC = reshape(permutedims(C, ipC), (loA, loB))
+            @test mC ≈ α * mA * mB
+            # with CuTensor objects
+            ctA = CuTensor(dA, Ainds)
+            ctB = CuTensor(dB, Binds)
+            ctC = CuTensor(dC, Cinds)
+            ctC = LinearAlgebra.mul!(ctC, ctA, ctB)
+            C2, C2inds = collect(ctC)
+            mC = reshape(permutedims(C2, ipC), (loA, loB))
+            @test mC ≈ mA * mB
+            ctC = ctA * ctB
+            C2, C2inds = collect(ctC)
+            pC2 = convert.(Int, indexin(convert.(Char, C2inds), [indsoA; indsoB]))
+            mC = reshape(permutedims(C2, invperm(pC2)), (loA, loB))
+            @test mC ≈ mA * mB
+            # with conjugation flag for complex arguments
+            if eltyA <: Complex
+                Aop = CUTENSOR.CUTENSOR_OP_CONJ
+                Bop = CUTENSOR.CUTENSOR_OP_IDENTITY
+                opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
+                dC = CUTENSOR.contraction!(one(eltyA), dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+                C = collect(dC)
+                mC = reshape(permutedims(C, ipC), (loA, loB))
+                @test mC ≈ conj(mA) * mB
+                # # not supported yet
+                # opOut = CUTENSOR.CUTENSOR_OP_CONJ
+                # dC = CUTENSOR.contraction!(α, dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+                # C = collect(dC)
+                # mC = reshape(permutedims(C, ipC), (loA, loB))
+                # @test mC ≈ conj(α * conj(mA) * mB)
+            end
+            if eltyB <: Complex
+                Aop = CUTENSOR.CUTENSOR_OP_IDENTITY
+                Bop = CUTENSOR.CUTENSOR_OP_CONJ
+                opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
+                dC = CUTENSOR.contraction!(one(eltyA), dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+                C = collect(dC)
+                mC = reshape(permutedims(C, ipC), (loA, loB))
+                @test mC ≈ mA*conj(mB)
+                # # not supported yet
+                # opOut = CUTENSOR.CUTENSOR_OP_CONJ
+                # dC = CUTENSOR.contraction!(α, dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+                # C = collect(dC)
+                # mC = reshape(permutedims(C, ipC), (loA, loB))
+                # @test mC ≈ conj(α * mA * conj(mB))
+            end
+            if eltyA <: Complex && eltyB <: Complex
+                Aop = CUTENSOR.CUTENSOR_OP_CONJ
+                Bop = CUTENSOR.CUTENSOR_OP_CONJ
+                opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
+                dC = CUTENSOR.contraction!(one(eltyA), dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+                C = collect(dC)
+                mC = reshape(permutedims(C, ipC), (loA, loB))
+                @test mC ≈ conj(mA)*conj(mB)
+                # # not supported yet
+                # opOut = CUTENSOR.CUTENSOR_OP_CONJ
+                # dC = CUTENSOR.contraction!(α, dA, Ainds, Aop, dB, Binds, Bop, zero(eltyC), dC, Cinds, Cop, opOut)
+                # C = collect(dC)
+                # mC = reshape(permutedims(C, ipC), (loA, loB))
+                # @test mC ≈ conj(α * conj(mA) * conj(mB))
+            end
+        end
     end
 end
 
