@@ -28,6 +28,8 @@ function statusmessage( status )
         return "the GPU program failed to execute"
     elseif status == CUTENSOR_STATUS_INTERNAL_ERROR
         return "an internal operation failed"
+    elseif status == CUTENSOR_STATUS_NOT_SUPPORTED
+        return "operation not supported (yet)"
     elseif status == CUTENSOR_STATUS_LICENSE_ERROR
         return "error detected trying to check the license"
     elseif status == CUTENSOR_STATUS_CUBLAS_ERROR
@@ -52,4 +54,3 @@ macro check(tensor_func)
         err
     end
 end
-
