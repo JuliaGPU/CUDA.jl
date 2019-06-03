@@ -9,7 +9,6 @@ using Adapt
 using TimerOutputs
 using DataStructures
 
-using Pkg
 using Libdl
 
 const ext = joinpath(@__DIR__, "..", "deps", "ext.jl")
