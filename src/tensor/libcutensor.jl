@@ -54,14 +54,27 @@ function cutensorElementwiseTrinary(handle,
 end
 
 function cutensorElementwiseBinary(handle,
-                                   alpha, A, descA, modeA,
-                                   gamma, C, descC, modeC,
-                                          D, descD, modeD,
+                                   alpha, A::CuArray, descA, modeA,
+                                   gamma, C::CuArray, descC, modeC,
+                                          D::CuArray, descD, modeD,
                                    opAC, typeCompute, stream)
   @check ccall((:cutensorElementwiseBinary,libcutensor), cutensorStatus_t,
                (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                 Ptr{Cint}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                 Ptr{Cint}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
+                cutensorOperator_t, cudaDataType, CuStream_t),
+               handle, alpha, A, descA, modeA, gamma, C, descC, modeC, D, descD, modeD,
+               opAC, typeCompute, stream)
+end
+function cutensorElementwiseBinary(handle,
+                                   alpha, A::Array, descA, modeA,
+                                   gamma, C::Array, descC, modeC,
+                                          D::Array, descD, modeD,
+                                   opAC, typeCompute, stream)
+  @check ccall((:cutensorElementwiseBinary,libcutensor), cutensorStatus_t,
+               (cutensorHandle_t, Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t,
+                Ptr{Cint}, Ptr{Cvoid}, Ptr{Cvoid}, cutensorTensorDescriptor_t,
+                Ptr{Cint}, Ptr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
                 cutensorOperator_t, cudaDataType, CuStream_t),
                handle, alpha, A, descA, modeA, gamma, C, descC, modeC, D, descD, modeD,
                opAC, typeCompute, stream)
