@@ -10,7 +10,7 @@ export @cuda, cudaconvert, cufunction, dynamic_cufunction, nearest_warpsize
 function split_kwargs(kwargs)
     macro_kws    = [:dynamic]
     compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name]
-    call_kws     = [:cooperative, :blocks, :threads, :shmem, :stream]
+    call_kws     = [:cooperative, :blocks, :threads, :config, :shmem, :stream]
     macro_kwargs = []
     compiler_kwargs = []
     call_kwargs = []
@@ -226,6 +226,9 @@ The following keyword arguments are supported:
 - `threads` (defaults to 1)
 - `blocks` (defaults to 1)
 - `shmem` (defaults to 0)
+- `config`: callback function to dynamically compute the launch configuration.
+  should accept a `HostKernel` and return a name tuple with any of the above as fields.
+  this functionality is intended to be used in combination with the CUDA occupancy API.
 - `stream` (defaults to the default stream)
 """
 AbstractKernel
@@ -269,8 +272,13 @@ end
 
 @doc (@doc AbstractKernel) HostKernel
 
-@inline cudacall(kernel::HostKernel, tt, args...; kwargs...) =
-    CUDAdrv.cudacall(kernel.fun, tt, args...; kwargs...)
+@inline function cudacall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
+    if config !== nothing
+        CUDAdrv.cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
+    else
+        CUDAdrv.cudacall(kernel.fun, tt, args...; kwargs...)
+    end
+end
 
 """
     version(k::HostKernel)
