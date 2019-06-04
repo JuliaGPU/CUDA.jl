@@ -30,7 +30,7 @@ function LinearAlgebra.BLAS.dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{
 end
 
 function LinearAlgebra.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
-    dotc(DX, DY)
+    BLAS.dotc(DX, DY)
 end
 
 function LinearAlgebra.BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
@@ -43,7 +43,7 @@ LinearAlgebra.norm(x::CublasArray) = nrm2(x)
 LinearAlgebra.BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where T<:CublasFloat
-    length(x)==length(y) || throw(DimensionMismatch(""))
+    length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
 
