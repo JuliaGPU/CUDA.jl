@@ -69,6 +69,12 @@ end
         end
         @test occursin("Body::Union{}", err)
     end
+
+    # set name of kernel
+    @test occursin("ptxcall_mykernel", sprint(io->(@device_code_llvm io=io begin
+        k = cufunction(dummy, name="mykernel")
+        k()
+    end)))
 end
 
 

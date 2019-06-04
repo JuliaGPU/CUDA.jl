@@ -12,7 +12,7 @@ end
 
 # make function names safe for PTX
 safe_fn(fn::String) = replace(fn, r"[^A-Za-z0-9_]"=>"_")
-safe_fn(f::Core.Function) = safe_fn(String(typeof(f).name.mt.name))
+safe_fn(f::Core.Function) = safe_fn(String(nameof(f)))
 safe_fn(f::LLVM.Function) = safe_fn(LLVM.name(f))
 
 # generate a pseudo-backtrace from a stack of methods being emitted
@@ -211,7 +211,11 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     end
 
     # rename the entry point
-    llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
+    if job.name !== nothing
+        llvmfn = safe_fn(string("julia_", job.name))
+    else
+        llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
+    end
     ## append a global unique counter
     global globalUnique
     globalUnique += 1

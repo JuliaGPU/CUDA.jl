@@ -67,7 +67,7 @@ get(name::Symbol) = methods[name]
 # you can always specify `llvm_name` to influence that. Never use an LLVM name that starts
 # with `julia_` or the function might clash with other compiled functions.
 function compile(def, return_type, types, llvm_return_type=nothing, llvm_types=nothing;
-                 name=typeof(def).name.mt.name, llvm_name="ptx_$name")
+                 name=nameof(def), llvm_name="ptx_$name")
     meth = RuntimeMethodInstance(def,
                                  return_type, types, name,
                                  llvm_return_type, llvm_types, llvm_name)
