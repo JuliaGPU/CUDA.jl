@@ -1,6 +1,7 @@
 """
 Status messages from CUTENSOR's C API.
 """
+# begin enum cutensorStatus_t
 const cutensorStatus_t = UInt32
 const CUTENSOR_STATUS_SUCCESS                = UInt32(0)
 const CUTENSOR_STATUS_NOT_INITIALIZED        = UInt32(1)
@@ -16,8 +17,9 @@ const CUTENSOR_STATUS_CUBLAS_ERROR           = UInt32(17)
 const CUTENSOR_STATUS_CUDA_ERROR             = UInt32(18)
 const CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE = UInt32(19)
 const CUTENSOR_STATUS_INSUFFICIENT_DRIVER    = UInt32(20)
+# end enum cutensorStatus_t
 
-#enum cutensorOperator_t
+# begin enum cutensorOperator_t
 const cutensorOperator_t = UInt32
 # Unary
 const CUTENSOR_OP_IDENTITY = UInt32(1)
@@ -31,19 +33,22 @@ const CUTENSOR_OP_MUL      = UInt32(5)
 const CUTENSOR_OP_MAX      = UInt32(6)
 const CUTENSOR_OP_MIN      = UInt32(7)
 const CUTENSOR_OP_UNKNOWN  = UInt32(126)
+# end enum cutensorOperator_t
 
-#enum cutensorWorksizePreference_t
+# begin enum cutensorWorksizePreference_t
 const cutensorWorksizePreference_t = UInt32
 const CUTENSOR_WORKSPACE_MIN         = UInt32(1)
 const CUTENSOR_WORKSPACE_RECOMMENDED = UInt32(2)
 const CUTENSOR_WORKSPACE_MAX         = UInt32(3)
+# end enum cutensorWorksizePreference_t
 
-#enum cutensorPaddingType_t
+# begin enum cutensorPaddingType_t
 const cutensorPaddingType_t = UInt32
 const CUTENSOR_PADDING_NONE = UInt32(0)
 const CUTENSOR_PADDING_ZERO = UInt32(1)
+# end enum cutensorPaddingType_t
 
-#enum cutensorAlgo_t
+# begin enum cutensorAlgo_t
 const cutensorAlgo_t = Int32
 const CUTENSOR_ALGO_TGETT          = Int32(-7)
 const CUTENSOR_ALGO_GETT           = Int32(-6)
@@ -52,29 +57,8 @@ const CUTENSOR_ALGO_LOG            = Int32(-4)
 const CUTENSOR_ALGO_TTGT_TENSOR_OP = Int32(-3)
 const CUTENSOR_ALGO_TTGT           = Int32(-2)
 const CUTENSOR_ALGO_DEFAULT        = Int32(-1)
+# end enum cutensorAlgo_t
 
 const cutensorTensorDescriptor_t = Ptr{Cvoid}
 const cutensorContext = Cvoid
 const cutensorHandle_t = Ptr{cutensorContext}
-
-mutable struct CuTensor{T, N}
-    data::CuArray{T, N}
-    inds::Vector{Cwchar_t}
-    function CuTensor{T, N}(data::CuArray{T, N}, inds::Vector{Cwchar_t}) where {T<:Number, N}
-        new(data, inds)
-    end
-    function CuTensor{T, N}(data::CuArray{N, T}, inds::Vector{<:AbstractChar}) where {T<:Number, N}
-        new(data, Cwchar_t.(inds))
-    end
-end
-CuTensor(data::CuArray{T, N}, inds::Vector{<:AbstractChar}) where {T<:Number, N} = CuTensor{T, N}(data, convert(Vector{Cwchar_t}, inds))
-CuTensor(data::CuArray{T, N}, inds::Vector{Cwchar_t}) where {T<:Number, N} = CuTensor{T, N}(data, inds)
-
-Base.size(T::CuTensor) = size(T.data)
-Base.size(T::CuTensor, i) = size(T.data, i)
-Base.length(T::CuTensor) = length(T.data)
-Base.ndims(T::CuTensor) = length(T.inds)
-Base.strides(T::CuTensor) = strides(T.data)
-Base.eltype(T::CuTensor) = eltype(T.data)
-Base.similar(T::CuTensor{Tv, N}) where {Tv, N} = CuTensor{Tv, N}(similar(T.data), copy(T.inds))
-Base.collect(T::CuTensor) = (collect(T.data), T.inds)

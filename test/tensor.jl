@@ -40,8 +40,7 @@ using CuArrays.CUTENSOR
             @test D ≈ permutedims(A, p) .+ C
 
             # using integers as indices
-            dD = CUTENSOR.elementwiseBinary!(1, dA, collect(1:N), opA, 1, dC, p, opC,
-                                                dD, p, opAC)
+            dD = CUTENSOR.elementwiseBinary!(1, dA, 1:N, opA, 1, dC, p, opC, dD, p, opAC)
             D = collect(dD)
             @test D ≈ permutedims(A, p) .+ C
 
@@ -196,7 +195,7 @@ end
 
             # using integers as indices
             dD = CUTENSOR.elementwiseTrinary!(1, dA, ipA, opA, 1, dB, ipB, opB,
-                                                1, dC, [1:N;], opC, dD, [1:N;], opAB, opABC)
+                                                1, dC, 1:N, opC, dD, 1:N, opAB, opABC)
             D = collect(dD)
             @test D ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
 
