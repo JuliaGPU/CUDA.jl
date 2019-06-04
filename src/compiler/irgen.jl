@@ -78,12 +78,6 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
         insert!(dependencies, last_method_instance, llvmf)
     end
     function hook_emit_function(method_instance, code, world)
-        skip_verifier = false
-        if length(call_stack) >= 1
-            caller = last(call_stack)
-            skip_verifier = caller.def.name === :overdub
-        end
-
         push!(call_stack, method_instance)
 
         # check for recursion
@@ -91,9 +85,6 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
             throw(KernelError(job, "recursion is currently not supported";
                               bt=backtrace(job, call_stack)))
         end
-
-        # if last method on stack is overdub skip the Base check and trust in Cassette
-        skip_verifier && return
 
         # check for Base functions that exist in CUDAnative too
         # FIXME: this might be too coarse
