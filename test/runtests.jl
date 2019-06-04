@@ -37,6 +37,7 @@ if CUDAdrv.configured
             include("execution.jl")
             include("events.jl")
             include("profile.jl")
+            include("occupancy.jl")
         end
 
         include("gc.jl")
