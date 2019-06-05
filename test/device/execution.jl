@@ -22,6 +22,24 @@ dummy() = return
 end
 
 
+@testset "launch configuration" begin
+    @cuda dummy()
+
+    @cuda threads=1 dummy()
+    @cuda threads=(1,1) dummy()
+    @cuda threads=(1,1,1) dummy()
+
+    @cuda blocks=1 dummy()
+    @cuda blocks=(1,1) dummy()
+    @cuda blocks=(1,1,1) dummy()
+
+    @cuda config=(kernel)->() dummy()
+    @cuda config=(kernel)->(threads=1,) dummy()
+    @cuda config=(kernel)->(blocks=1,) dummy()
+    @cuda config=(kernel)->(shmem=0,) dummy()
+end
+
+
 @testset "compilation params" begin
     @cuda dummy()
 
