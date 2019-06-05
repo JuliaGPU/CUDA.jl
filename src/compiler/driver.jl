@@ -122,15 +122,6 @@ function codegen(target::Symbol, job::CompilerJob;
         end
 
         kernel_fn = LLVM.name(kernel)
-
-        if libraries
-            # linking the device run-time library requires use of the CUDA linker,
-            # which in turn switches compilation to device relocatable code (-rdc) mode.
-            #
-            # even if not doing any actual calls that need -rdc (i.e., calls to the run-time
-            # library), this significantly hurts performance, so don't do it unconditionally
-            need_libcudadevrt = !isempty(decls(ir))
-        end
     end
 
     # dynamic parallelism
@@ -236,16 +227,25 @@ function codegen(target::Symbol, job::CompilerJob;
             jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
         end
 
-        if libraries && need_libcudadevrt
-            # link the CUDA device library
-            @timeit to[] "linking" begin
-                linker = CUDAdrv.CuLink(jit_options)
-                CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
-                CUDAdrv.add_data!(linker, kernel_fn, asm)
-                image = CUDAdrv.complete(linker)
+        # link the CUDA device library
+        image = asm
+        if libraries
+            # linking the device runtime library requires use of the CUDA linker,
+            # which in turn switches compilation to device relocatable code (-rdc) mode.
+            #
+            # even if not doing any actual calls that need -rdc (i.e., calls to the runtime
+            # library), this significantly hurts performance, so don't do it unconditionally
+            undefined_fns = LLVM.name.(decls(ir))
+            intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
+                             "__nvvm_reflect" #= TODO: should have been optimized away =#]
+            if !isempty(setdiff(undefined_fns, intrinsic_fns))
+                @timeit to[] "device runtime library" begin
+                    linker = CUDAdrv.CuLink(jit_options)
+                    CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
+                    CUDAdrv.add_data!(linker, kernel_fn, asm)
+                    image = CUDAdrv.complete(linker)
+                end
             end
-        else
-            image = asm
         end
 
         @timeit to[] "compilation" begin
