@@ -30,6 +30,7 @@ include("module.jl")
 include("events.jl")
 include("execution.jl")
 include("profile.jl")
+include("occupancy.jl")
 
 include("deprecated.jl")
 
