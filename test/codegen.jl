@@ -477,17 +477,6 @@ end
     @test occursin(r"\[2\] .+foobar", bt_msg)
 end
 
-@testset "do not verify hack for base intrinsics" begin
-    @noinline overdub(f::F, args...) where F = f(args...)
-    foobar(i) = overdub(sin, i)
-
-    # NOTE: we don't use test_logs in order to test all of the warning (exception, backtrace)
-    logs, _ = Test.collect_test_logs() do
-        CUDAnative.code_llvm(devnull, foobar, Tuple{Int})
-    end
-    @test length(logs) == 0
-end
-
 # some validation happens in `compile`
 
 @eval Main begin

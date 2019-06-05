@@ -82,7 +82,7 @@ function Base.showerror(io::IO, err::InternalCompilerError)
     let Pkg = Base.require(Base.PkgId(Base.UUID((0x44cfe95a1eb252ea, 0xb672e2afdf69b78f)), "Pkg"))
         println(io, "\nInstalled packages:")
         for (pkg,ver) in Pkg.installed()
-            println(io, " - $pkg = $ver")
+            println(io, " - $pkg = $(repr(ver))")
         end
     end
 
