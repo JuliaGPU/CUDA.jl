@@ -11,6 +11,13 @@ k = 10
 blockdim = 5
 
 @testset "util" begin
+    x = sprand(m,0.2)
+    d_x = CuSparseVector(x)
+    @test length(d_x) == m
+    @test size(d_x)   == (m, 1)
+    @test size(d_x,1) == m
+    @test size(d_x,2) == 1
+    @test ndims(d_x)  == 1
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
     @test length(d_x) == m*n
@@ -18,7 +25,11 @@ blockdim = 5
     @test size(d_x,1) == m
     @test size(d_x,2) == n
     @test size(d_x,3) == 1
+    @test ndims(d_x)  == 2
+    @test !issymmetric(d_x)
+    @test !ishermitian(d_x)
     @test_throws ArgumentError size(d_x,0)
+    @test_throws ArgumentError CUSPARSE.CuSparseVector(x)
     y = sprand(k,n,0.2)
     d_y = CuSparseMatrixCSC(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
