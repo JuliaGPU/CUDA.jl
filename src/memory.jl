@@ -58,7 +58,6 @@ using TimerOutputs
 const to = Ref{TimerOutput}()
 
 function pool_timings!(new=TimerOutput())
-  global to
   to[] = new
   return
 end
