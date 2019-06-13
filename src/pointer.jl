@@ -110,13 +110,15 @@ function Base.cconvert(::Type{PtrOrCuPtr{T}}, val) where {T}
 end
 
 function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
-    # TODO: this should try/catch since the fallback for `unsafe_convert{Ptr}` calls error
-    ptr = if applicable(Base.unsafe_convert, Ptr{T}, val)
+    # FIXME: this is expensive
+    ptr = try
         Base.unsafe_convert(Ptr{T}, val)
-    elseif applicable(Base.unsafe_convert, CuPtr{T}, val)
-        Base.unsafe_convert(CuPtr{T}, val)
-    else
-        throw(ArgumentError("cannot convert to either a CPU or GPU pointer"))
+    catch
+        try
+            Base.unsafe_convert(CuPtr{T}, val)
+        catch
+            throw(ArgumentError("cannot convert to either a CPU or GPU pointer"))
+        end
     end
     return Base.bitcast(PtrOrCuPtr{T}, ptr)
 end
