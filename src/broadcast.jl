@@ -6,6 +6,10 @@ function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}) where T
     similar(CuArray{T}, axes(bc))
 end
 
+function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}, dims...) where {T}
+    similar(CuArray{T}, dims...)
+end
+
 # replace base functions with libdevice alternatives
 # TODO: do this with Cassette.jl
 
