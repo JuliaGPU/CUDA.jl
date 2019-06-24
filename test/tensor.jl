@@ -298,10 +298,13 @@ end
     eltypes = (# (Float16, Float16, Float16), # works for some
                 # (Float16, Float16, Float32), # works for some but claims otherwise
                 (Float32, Float32, Float32),
+                (Float32, ComplexF32, ComplexF32),
+                (ComplexF32, Float32, ComplexF32),
                 # (Float32, Float32, Float64), # does not work
                 (Float64, Float64, Float64),
+                (Float64, ComplexF64, ComplexF64),
+                (ComplexF64, Float64, ComplexF64),
                 # (ComplexF16, ComplexF16, ComplexF16), # does not work
-                # (ComplexF16, Complex ComplexF32), # does not work
                 (ComplexF32, ComplexF32, ComplexF32),
                 # (ComplexF32, ComplexF32, ComplexF64), # does not work
                 (ComplexF64, ComplexF64, ComplexF64))
@@ -334,13 +337,13 @@ end
             dimsC = [dimsoA; dimsoB][pC]
             indsC = [indsoA; indsoB][pC]
 
-            A = rand(eltyA, dimsA...)
+            A = rand(eltyA, (dimsA...,))
             mA = reshape(permutedims(A, ipA), (loA, lc))
             dA = CuArray(A)
-            B = rand(eltyB, dimsB...)
+            B = rand(eltyB, (dimsB...,))
             dB = CuArray(B)
             mB = reshape(permutedims(B, ipB), (lc, loB))
-            C = zeros(eltyC, dimsC...)
+            C = zeros(eltyC, (dimsC...,))
             dC = CuArray(C)
 
             # simple case
@@ -363,7 +366,7 @@ end
             @test mC ≈ α * mA * mB
 
             # with non-trivial β
-            C = rand(eltyC, dimsC...)
+            C = rand(eltyC, (dimsC...,))
             dC = CuArray(C)
             α = rand(eltyC)
             β = rand(eltyC)
@@ -438,6 +441,68 @@ end
                 # mC = reshape(permutedims(C, ipC), (loA, loB))
                 # @test mC ≈ conj(α * conj(mA) * conj(mB))
             end
+        end
+    end
+end
+
+@testset "Reduction" begin
+    eltypes = ((Float16, Float16), #(Float16, Float32),
+                            (Float32, Float32), #(Float32, Float64),
+                            (Float64, Float64),
+                            #(ComplexF16, ComplexF16), (ComplexF16, ComplexF32),
+                            (ComplexF32, ComplexF32), #(ComplexF32, ComplexF64),
+                            (ComplexF64, ComplexF64))
+    @testset for NA=2:5, NC = 1:NA-1
+        @testset for (eltyA, eltyC) in eltypes
+            # setup
+            eltyD = eltyC
+            dmax = 2^div(18,NA)
+            dims = rand(2:dmax, NA)
+            p = randperm(NA)
+            indsA = collect(('a':'z')[1:NA])
+            indsC = indsA[p][1:NC]
+            dimsA = dims
+            dimsC = dims[p][1:NC]
+            A = rand(eltyA, (dimsA...,))
+            dA = CuArray(A)
+            C = rand(eltyC, (dimsC...,))
+            dC = CuArray(C)
+            # setup
+
+            opA = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opC = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opReduce = CUTENSOR.CUTENSOR_OP_ADD
+            # simple case
+            dC = CUTENSOR.reduction!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
+            C = collect(dC)
+            @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
+                sum(permutedims(A, p); dims = ((NC+1:NA)...,))
+
+            # using integers as indices
+            dC = CUTENSOR.reduction!(1, dA, collect(1:NA), opA, 0, dC, p[1:NC], opC, opReduce)
+            C = collect(dC)
+            @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
+                sum(permutedims(A, p); dims = ((NC+1:NA)...,))
+
+            # multiplication as reduction operator
+            opReduce = CUTENSOR.CUTENSOR_OP_MUL
+            dC = CUTENSOR.reduction!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
+            C = collect(dC)
+            @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
+                prod(permutedims(A, p); dims = ((NC+1:NA)...,))
+
+            # with non-trivial coefficients and conjugation
+            opA = eltyA <: Complex ? CUTENSOR.CUTENSOR_OP_CONJ :
+                                    CUTENSOR.CUTENSOR_OP_IDENTITY
+            opC = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opReduce = CUTENSOR.CUTENSOR_OP_ADD
+            C = rand(eltyC, (dimsC...,))
+            dC = CuArray(C)
+            α = rand(eltyC)
+            γ = rand(eltyC)
+            dC = CUTENSOR.reduction!(α, dA, indsA, opA, γ, dC, indsC, opC, opReduce)
+            @test reshape(collect(dC), (dimsC..., ones(Int,NA-NC)...)) ≈
+                α .* conj.(sum(permutedims(A, p); dims = ((NC+1:NA)...,))) .+ γ .* C
         end
     end
 end

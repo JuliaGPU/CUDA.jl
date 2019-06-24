@@ -117,3 +117,33 @@ function cutensorContractionMaxAlgos()
                (Ptr{Cint},), max_algos)
   return max_algos
 end
+
+function cutensorReduction(handle,
+                            alpha, A, descA, modeA,
+                            beta, C, descC, modeC,
+                                D, descD, modeD,
+                            opReduce, typeCompute, workspace, workspaceSize, stream)
+  @check ccall((:cutensorReduction,libcutensor), cutensorStatus_t,
+               (cutensorHandle_t,
+                Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
+                Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
+                CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
+                cutensorOperator_t, cudaDataType, CuPtr{Cvoid}, UInt64, CuStream_t),
+               handle, alpha, A, descA, modeA, beta, C, descC, modeC, D, descD, modeD,
+               opReduce, typeCompute, workspace, workspaceSize, stream)
+end
+
+function cutensorReductionGetWorkspace(handle,
+                            alpha, A, descA, modeA,
+                            beta, C, descC, modeC,
+                                D, descD, modeD,
+                            opReduce, typeCompute, workspaceSize)
+    @check ccall((:cutensorReductionGetWorkspace,libcutensor), cutensorStatus_t,
+                 (cutensorHandle_t,
+                  Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
+                  Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
+                  CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
+                  cutensorOperator_t, cudaDataType, Ptr{UInt64}),
+                 handle, alpha, A, descA, modeA, beta, C, descC, modeC, D, descD, modeD,
+                 opReduce, typeCompute, workspaceSize)
+end

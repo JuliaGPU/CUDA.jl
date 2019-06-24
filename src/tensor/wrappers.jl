@@ -15,8 +15,9 @@ mutable struct CuTensorDescriptor
     function CuTensorDescriptor(a; size = size(a), strides = strides(a), eltype = eltype(a),
                                    op = CUTENSOR_OP_IDENTITY,
                                    vectorwidth = Cint(1), vectormodeindex = Cint(0))
-        desc = cutensorCreateTensorDescriptor(ndims(a), collect(Int64, size),
-                                                collect(Int64, strides),
+        sz = collect(Int64, size)
+        st = collect(Int64, strides)
+        desc = cutensorCreateTensorDescriptor(length(sz), sz, st,
                                                 cudaDataType(eltype), op,
                                                 vectorwidth, vectormodeindex)
         obj = new(desc)
@@ -189,11 +190,19 @@ function contraction!(
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
+
     workspaceSize = Ref{UInt64}(C_NULL)
     cutensorContractionGetWorkspace(handle(), A, descA, modeA, B, descB, modeB, C, descC,
                                     modeC, C, descC, modeC, opOut, typeCompute, algo, pref,
                                     workspaceSize)
-    workspace = CuArray{T}(undef, workspaceSize[])
+    workspace = CuArray{UInt8}(undef, 0)
+    try
+        workspace = CuArray{UInt8}(undef, workspaceSize[])
+    catch
+        workspace = CuArray{UInt8}(undef, 1<<27)
+    end
+    workspaceSize[] = length(workspace)
+
     cutensorContraction(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T[beta], C,
                         descC, modeC, C, descC, modeC, opOut, typeCompute, algo, workspace,
                         workspaceSize[], stream)
@@ -221,6 +230,19 @@ function contraction!(
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
+
+    workspaceSize = Ref{UInt64}(C_NULL)
+    cutensorContractionGetWorkspace(handle(), A, descA, modeA, B, descB, modeB, C, descC,
+                                    modeC, C, descC, modeC, opOut, typeCompute, algo, pref,
+                                    workspaceSize)
+    workspace = CuArray{UInt8}(undef, 0)
+    try
+        workspace = CuArray{UInt8}(undef, workspaceSize[])
+    catch
+        workspace = CuArray{UInt8}(undef, 1<<27)
+    end
+    workspaceSize[] = length(workspace)
+
     cutensorContraction(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T[beta], C,
                         descC, modeC, C, descC, modeC, opOut, typeCompute, algo, CU_NULL, 0,
                         stream)
@@ -242,13 +264,55 @@ function contraction!(alpha::Number,
     # for now, D must be identical to C (and thus, descD must be identical to descC)
     T = eltype(C)
     typeCompute = cudaDataType(T)
+
     workspaceSize = Ref{UInt64}(C_NULL)
     cutensorContractionGetWorkspace(handle(), A.data, descA, A.inds, B.data, descB, B.inds,
                                     C.data, descC, C.inds, C.data, descC, C.inds, opOut,
                                     typeCompute, algo, pref, workspaceSize)
-    workspace = CuArray{T}(undef, workspaceSize[])
+    workspace = CuArray{UInt8}(undef, 0)
+    try
+        workspace = CuArray{UInt8}(undef, workspaceSize[])
+    catch
+        workspace = CuArray{UInt8}(undef, 1<<27)
+    end
+    workspaceSize[] = length(workspace)
+
     cutensorContraction(handle(), T[alpha], A.data, descA, A.inds, B.data, descB, B.inds,
                         T[beta], C.data, descC, C.inds, C.data, descC, C.inds, opOut,
                         typeCompute, algo, workspace, workspaceSize[], stream)
+    return C
+end
+
+function reduction!(
+    alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
+    beta::Number, C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
+    opReduce::cutensorOperator_t; stream::CuStream=CuDefaultStream())
+
+    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
+    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
+    !is_binary(opReduce)  && throw(ArgumentError("opReduce must be a binary op!"))
+    descA = CuTensorDescriptor(A; op = opA)
+    descC = CuTensorDescriptor(C; op = opC)
+    # for now, D must be identical to C (and thus, descD must be identical to descC)
+    T = eltype(C)
+    typeCompute = cudaDataType(T)
+    modeA = collect(Cint, Ainds)
+    modeC = collect(Cint, Cinds)
+
+    workspaceSize = Ref{UInt64}(C_NULL)
+    cutensorReductionGetWorkspace(handle(), T[alpha], A, descA, modeA,
+                                    T[beta], C, descC, modeC, C, descC, modeC,
+                                    opReduce, typeCompute, workspaceSize)
+    workspace = CuArray{UInt8}(undef, 0)
+    try
+        workspace = CuArray{UInt8}(undef, workspaceSize[])
+    catch
+        workspace = CuArray{UInt8}(undef, 1<<13)
+    end
+    workspaceSize[] = length(workspace)
+
+    cutensorReduction(handle(), T[alpha], A, descA, modeA, T[beta], C, descC, modeC,
+                        C, descC, modeC, opReduce, typeCompute, workspace,
+                        workspaceSize[], stream)
     return C
 end
