@@ -21,7 +21,7 @@ include(joinpath("compiler", "driver.jl"))
 
 function __init_compiler__()
     # enable generation of FMA instructions to mimic behavior of nvcc
-    LLVM.clopts("--nvptx-fma-level=1")
+    LLVM.clopts("-nvptx-fma-level=1")
 
     timings!()
 end
