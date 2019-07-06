@@ -300,8 +300,8 @@ function reduction!(
     modeC = collect(Cint, Cinds)
 
     workspaceSize = Ref{UInt64}(C_NULL)
-    cutensorReductionGetWorkspace(handle(), T[alpha], A, descA, modeA,
-                                    T[beta], C, descC, modeC, C, descC, modeC,
+    cutensorReductionGetWorkspace(handle(), A, descA, modeA,
+                                    C, descC, modeC, C, descC, modeC,
                                     opReduce, typeCompute, workspaceSize)
     workspace = CuArray{UInt8}(undef, 0)
     try
