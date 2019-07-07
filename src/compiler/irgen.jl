@@ -133,6 +133,15 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
                     :emitted_function   => hook_emitted_function]
     if LLVM.version() >= v"8.0" && VERSION >= v"1.3.0-DEV.547"
         push!(param_kwargs, :gnu_pubnames => false)
+
+        debug_info_kind = if Base.JLOptions().debug_level == 0
+            LLVM.API.LLVMDebugEmissionKindNoDebug
+        elseif Base.JLOptions().debug_level == 1
+            LLVM.API.LLVMDebugEmissionKindDebugDirectivesOnly
+        elseif Base.JLOptions().debug_level >= 2
+            LLVM.API.LLVMDebugEmissionKindFullDebug
+        end
+        push!(param_kwargs, :debug_info_kind => Cint(debug_info_kind))
     end
     params = Base.CodegenParams(;param_kwargs...)
 
