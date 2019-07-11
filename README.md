@@ -47,3 +47,9 @@ accordingly:
 - `appveyor.ps1`: provide a link to the installer, and list the components that
   need to be installed
 - `travis.yml` and `appveyor.yml`: add the version to the CI rosters
+
+
+### GCC version update
+
+Update the `gcc_major_versions` and `gcc_minor_versions` ranges in
+`discovery.jl` to cover the new version.

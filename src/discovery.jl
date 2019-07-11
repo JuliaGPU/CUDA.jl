@@ -19,6 +19,9 @@ function valid_dirs(dirs)
     filter(isdir, unique(dirs))
 end
 
+const gcc_major_versions = 3:9
+const gcc_minor_versions = 0:9
+
 
 ## generic discovery routines
 
@@ -423,9 +426,9 @@ function find_host_compiler(toolkit_version=nothing)
         # enumerate possible names for the gcc binary
         # NOTE: this is coarse, and might list invalid, non-existing versions
         gcc_names = [ "gcc", "cuda-gcc" ]
-        for major in 3:7
+        for major in gcc_major_versions
             push!(gcc_names, "gcc-$major")
-            for minor in 0:9
+            for minor in gcc_minor_versions
                 push!(gcc_names, "gcc-$major.$minor")
                 push!(gcc_names, "gcc$major$minor")
             end
