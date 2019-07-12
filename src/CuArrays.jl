@@ -29,6 +29,7 @@ end
 include("memory.jl")
 include("array.jl")
 include("subarray.jl")
+include("permuteddimsarray.jl")
 include("utils.jl")
 include("indexing.jl")
 include("broadcast.jl")

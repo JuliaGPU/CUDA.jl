@@ -305,3 +305,10 @@ end
     @test testf(x->reverse!(x, 10), rand(1000))
     @test testf(x->reverse!(x, 10, 90), rand(1000))
 end
+
+@testset "permutedims" begin
+    @test testf(x->permutedims(x, [1, 2]), rand(4, 4))
+
+    inds = rand(1:100, 150, 150)
+    @test testf(x->permutedims(view(x, inds, :), (3, 2, 1)), rand(100, 100))
+end
