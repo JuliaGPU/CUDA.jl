@@ -7,8 +7,9 @@ GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
 #Abstract GPU interface
 struct CuKernelState end
 
-@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{id}) where {T, N, id}
-    ptr = CUDAnative._shmem(Val(id), T, Val(N))
+@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{id}
+                                      ) where {T, N, id}
+    ptr = CUDAnative._shmem(Val(id), T, Val(prod(N)))
     CuDeviceArray(N, DevicePtr{T, CUDAnative.AS.Shared}(ptr))
 end
 
