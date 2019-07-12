@@ -110,7 +110,7 @@ function Base.cconvert(::Type{PtrOrCuPtr{T}}, val) where {T}
 end
 
 function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
-    # FIXME: this is expensive
+    # FIXME: this is expensive; optimize using isapplicable?
     ptr = try
         Base.unsafe_convert(Ptr{T}, val)
     catch
