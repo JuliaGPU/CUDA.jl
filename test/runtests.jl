@@ -8,6 +8,7 @@ include("util.jl")
 include("array.jl")
 
 include("base.jl")
+include("pointer.jl")
 
 if CUDAdrv.configured
     @test length(devices()) > 0

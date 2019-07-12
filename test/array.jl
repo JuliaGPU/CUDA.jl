@@ -13,6 +13,9 @@ mutable struct CuTestArray{T,N}
         finalizer(unsafe_free!, obj)
         return obj
     end
+    function CuTestArray{T,N}(buf::Mem.DeviceBuffer, shape::NTuple{N,Int}) where {T,N}
+        new{T,N}(buf, shape)
+    end
 end
 
 function unsafe_free!(a::CuTestArray)
