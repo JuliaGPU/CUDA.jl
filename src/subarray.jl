@@ -1,7 +1,10 @@
 import Base: view
 
-using Base: ScalarIndex, ViewIndex, Slice, @_inline_meta, @boundscheck, 
+using Base: ScalarIndex, ViewIndex, Slice, @_inline_meta, @boundscheck,
             to_indices, compute_offset1, unsafe_length, _maybe_reshape_parent, index_ndims
+
+
+## construction
 
 struct Contiguous end
 struct NonContiguous end
@@ -33,3 +36,27 @@ _cuview(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T
 
 # fallback to SubArray when the view is not contiguous
 _cuview(A, I, ::NonContiguous) where {N} = invoke(view, Tuple{AbstractArray, typeof(I).parameters...}, A, I...)
+
+
+## operations
+
+# copyto! doesn't know how to deal with SubArrays, but broadcast does
+# FIXME: use the rules from Adapt.jl to define copyto! methods in GPUArrays.jl
+function Base.copyto!(dest::GPUArray{T,N}, src::SubArray{T,N,<:GPUArray{T,N}}) where {T,N}
+    dest .= src
+    dest
+end
+
+# copying to a CPU array requires an intermediate copy
+# TODO: support other copyto! invocations (GPUArrays.jl copyto! defs + Adapt.jl rules)
+function Base.copyto!(dest::AbstractArray{T,N}, src::SubArray{T,N,AT}) where {T,N,AT<:GPUArray{T}}
+    temp = similar(AT, axes(src))
+    copyto!(temp, src)
+    copyto!(dest, temp)
+end
+
+# upload the SubArray indices when adapting to the GPU
+# (can't do this eagerly or the view constructor wouldn't be able to boundscheck)
+# FIXME: alternatively, have users do `cu(view(cu(A), inds))`, but that seems redundant
+Adapt.adapt_structure(to::CUDAnative.Adaptor, A::SubArray) =
+    SubArray(adapt(to, parent(A)), adapt(to, map(CuArray, parentindices(A))))

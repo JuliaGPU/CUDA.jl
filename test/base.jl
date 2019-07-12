@@ -150,19 +150,22 @@ end
   @test collect(x)[] == 0.5
 end
 
-@testset "Slices" begin
+@testset "SubArray" begin
   @test testf(rand(5)) do x
     y = x[2:4]
     y .= 1
     x
   end
+
   @test testf(rand(5)) do x
     y = view(x, 2:4)
     y .= 1
     x
   end
+
   @test testf(x->view(x, :, 1:4, 3), rand(Float32, 5, 4, 3))
-  @allowscalar let x = cu(rand(Float32, 5, 4, 3))
+
+  let x = cu(rand(Float32, 5, 4, 3))
     @test_throws BoundsError view(x, :, :, 1:10)
 
     # Contiguous views should return new CuArray
@@ -182,9 +185,24 @@ end
     @test typeof(view(x, :, 1:2:4, 1)) <: SubArray
     @test typeof(view(x, 1:2:5, 1, 1)) <: SubArray
   end
+
+  # non-contiguous copyto!
+  let x = CuArrays.rand(4, 4)
+    y = view(x, 2:3, 2:3)
+
+    # to gpu
+    gpu = CuArray{eltype(y)}(undef, size(y))
+    copyto!(gpu, y)
+    @test Array(gpu) == Array(y)
+
+    # to cpu
+    cpu = Array{eltype(y)}(undef, size(y))
+    copyto!(cpu, y)
+    @test cpu == Array(y)
+  end
 end
 
-@testset "Reshape" begin
+@testset "reshape" begin
   A = [1 2 3 4
        5 6 7 8]
   gA = reshape(CuArray(A),1,8)
