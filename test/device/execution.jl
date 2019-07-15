@@ -629,13 +629,13 @@ end
         # allowing `ptxas` to emit validly-structured code.
         ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr)
-        @test Array(output) == repeat([input], N)
+        @test Array(output) == fill(input, N)
     end
 
     let output = CuTestArray(zeros(Cint, N))
         ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
-        @test Array(output) == repeat([input], N)
+        @test Array(output) == fill(input, N)
     end
 end
 
@@ -669,13 +669,13 @@ end
         # allowing `ptxas` to emit validly-structured code.
         ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr)
-        @test Array(output) == repeat([input], N)
+        @test Array(output) == fill(input, N)
     end
 
     let output = CuTestArray(zeros(Cint, N))
         ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
-        @test Array(output) == repeat([input], N)
+        @test Array(output) == fill(input, N)
     end
 end
 
