@@ -43,13 +43,23 @@ dynamic shared memory. Returns a tuple with a suggested amount of threads, and t
 amount of blocks to reach maximal occupancy. Optionally, the maximum amount of threads can
 be constrained using `max_threads`.
 
+In the case of a variable amount of shared memory, pass a callable object for `shmem`
+instead, taking a single integer representing the block size and returning the amount of
+dynamic shared memory for that configuration.
 """
-function launch_configuration(fun::CuFunction; shmem::Integer=0, max_threads::Integer=0)
-    # TODO: more flexible shmem callback arg
+function launch_configuration(fun::CuFunction; shmem=0, max_threads::Integer=0)
     blocks_ref = Ref{Cint}()
     threads_ref = Ref{Cint}()
-    @apicall(:cuOccupancyMaxPotentialBlockSize,
-             (Ptr{Cint}, Ptr{Cint}, CuFunction_t, Ptr{Cvoid}, Csize_t, Cint),
-             blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
+    if isa(shmem, Integer)
+        @apicall(:cuOccupancyMaxPotentialBlockSize,
+                (Ptr{Cint}, Ptr{Cint}, CuFunction_t, Ptr{Cvoid}, Csize_t, Cint),
+                blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
+    else
+        shmem_cint = threads -> Cint(shmem(threads))
+        cb = @cfunction($shmem_cint, Cint, (Cint,))
+        @apicall(:cuOccupancyMaxPotentialBlockSize,
+                (Ptr{Cint}, Ptr{Cint}, CuFunction_t, Ptr{Cvoid}, Csize_t, Cint),
+                blocks_ref, threads_ref, fun, cb, 0, max_threads)
+    end
     return (blocks=blocks_ref[], threads=threads_ref[])
 end
