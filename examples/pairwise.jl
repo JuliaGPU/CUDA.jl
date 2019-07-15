@@ -21,13 +21,13 @@ function pairwise_dist_cpu(lat::Vector{Float32}, lon::Vector{Float32})
     # allocate
     n = length(lat)
     rowresult = Array{Float32}(undef, n, n)
-    
+
     # brute force fill in each cell
     for i in 1:n, j in 1:n
         @inbounds rowresult[i, j] = haversine_cpu(lat[i], lon[i], lat[j], lon[j] , 6372.8f0)
     end
-    
-    return rowresult    
+
+    return rowresult
 end
 
 # from https://devblogs.nvidia.com/parallelforall/fast-great-circle-distance-calculation-cuda-c/
@@ -86,19 +86,31 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     rowresult_gpu = CuTestArray(zeros(Float32, n, n))
 
     # calculate launch configuration
-    # NOTE: we want our launch configuration to be as square as possible,
-    #       because that minimizes shared memory usage
-    dev = device()
-    total_threads = min(n, attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK))
-    threads_x = floor(Int, sqrt(total_threads))
-    threads_y = total_threads ÷ threads_x
-    threads = (threads_x, threads_y)
-    blocks = ceil.(Int, n ./ threads)
+    function get_config(kernel)
+        # calculate a 2D block size from the suggested 1D configuration
+        # NOTE: we want our launch configuration to be as square as possible,
+        #       because that minimizes shared memory usage
+        function get_threads(threads)
+            threads_x = floor(Int, sqrt(threads))
+            threads_y = threads ÷ threads_x
+            return (threads_x, threads_y)
+        end
 
-    # calculate size of dynamic shared memory
-    shmem = 2 * sum(threads) * sizeof(Float32)
+        # calculate the amount of dynamic shared memory for a 2D block size
+        get_shmem(threads) = 2 * sum(threads) * sizeof(Float32)
 
-    @cuda blocks=blocks threads=threads shmem=shmem pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
+        fun = kernel.fun
+        config = launch_configuration(fun, shmem=threads->get_shmem(get_threads(threads)))
+
+        # convert to 2D block size and figure out appropriate grid size
+        threads = get_threads(config.threads)
+        blocks = ceil.(Int, n ./ threads)
+        shmem = get_shmem(threads)
+
+        return (threads=threads, blocks=blocks, shmem=shmem)
+    end
+
+    @cuda config=get_config pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
 
     return Array(rowresult_gpu)
 end
@@ -106,7 +118,7 @@ end
 using Test
 
 # generate reasonable data
-function main(n = 10000)
+function main(n = 1000)
     lat = rand(Float32, n) .* 45
     lon = rand(Float32, n) .* -120
 
