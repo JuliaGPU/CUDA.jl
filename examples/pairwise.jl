@@ -21,13 +21,13 @@ function pairwise_dist_cpu(lat::Vector{Float32}, lon::Vector{Float32})
     # allocate
     n = length(lat)
     rowresult = Array{Float32}(undef, n, n)
-    
+
     # brute force fill in each cell
     for i in 1:n, j in 1:n
         @inbounds rowresult[i, j] = haversine_cpu(lat[i], lon[i], lat[j], lon[j] , 6372.8f0)
     end
-    
-    return rowresult    
+
+    return rowresult
 end
 
 # from https://devblogs.nvidia.com/parallelforall/fast-great-circle-distance-calculation-cuda-c/
@@ -106,7 +106,7 @@ end
 using Test
 
 # generate reasonable data
-function main(n = 10000)
+function main(n = 1000)
     lat = rand(Float32, n) .* 45
     lon = rand(Float32, n) .* -120
 
