@@ -87,18 +87,35 @@ Kepler-specific implementation, ie. you need sm_30 or higher to run this code.
 function gpu_reduce(op::Function, input::CuTestArray{T}, output::CuTestArray{T}) where {T}
     len = length(input)
 
-    # TODO: these values are hardware-dependent, with recent GPUs supporting more threads
-    threads = 512
-    blocks = min((len + threads - 1) ÷ threads, 1024)
+    function get_config(kernel)
+        fun = kernel.fun
+        config = launch_configuration(fun)
 
-    # the output array must have a size equal to or larger than the number of thread blocks
-    # in the grid because each block writes to a unique location within the array.
-    if length(output) < blocks
-        throw(ArgumentError("output array too small, should be at least $blocks elements"))
+        # pad to cover as many elements as possible (`cld`), but keep in mind
+        # how we launch this kernel for the final reduction step `min(..., threads)`
+        blocks = min(cld(len, config.threads), config.threads)
+
+        # the output array must have a size equal to or larger than the number of blocks
+        # in the grid because each block writes to a unique location within the array.
+        if length(output) < blocks
+            throw(ArgumentError("output array too small, should be at least $blocks elements"))
+        end
+
+        return (threads=config.threads, blocks=blocks)
     end
 
-    @cuda blocks=blocks threads=threads reduce_grid(op, input, output, len)
-    @cuda threads=1024 reduce_grid(op, output, output, blocks)
+    # NOTE: manual expansion of @cuda because we need the result of the dynamic launch config
+    #@cuda config=get_config reduce_grid(op, input, output, len)
+    args = (op, input, output, len)
+    GC.@preserve args begin
+        kernel_args = cudaconvert.(args)
+        kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
+        kernel = cufunction(reduce_grid, kernel_tt)
+        kernel_config = get_config(kernel)
+        kernel(kernel_args...; kernel_config...)
+    end
+
+    @cuda threads=kernel_config.threads reduce_grid(op, output, output, kernel_config.blocks)
 end
 
 
