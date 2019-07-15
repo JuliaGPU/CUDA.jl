@@ -22,7 +22,7 @@ test = ["Test"]
 
 [compat]
 julia = "1.0"
-CUDAdrv = "3.0"
+CUDAdrv = "3.1"
 LLVM = "1.1.0"
 CUDAapi = "0.6, 1.0"
 Adapt = "0.4, 1.0"
