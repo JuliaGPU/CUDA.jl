@@ -1,6 +1,6 @@
 variables:
   CI_IMAGE_TAG: 'cuda'
-  CI_DEV_PKGS: 'CUDAdrv LLVM'
+  CI_DEV_PKGS: 'CUDAdrv'
 
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/common.yml'
