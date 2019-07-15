@@ -44,8 +44,8 @@ amount of blocks to reach maximal occupancy. Optionally, the maximum amount of t
 be constrained using `max_threads`.
 
 In the case of a variable amount of shared memory, pass a callable object for `shmem`
-instead, taking a single integer of type `Cint` representing the block size and returning
-the amount of dynamic shared memory for that configuration as a `Cint`.
+instead, taking a single integer representing the block size and returning the amount of
+dynamic shared memory for that configuration.
 """
 function launch_configuration(fun::CuFunction; shmem=0, max_threads::Integer=0)
     blocks_ref = Ref{Cint}()
@@ -55,7 +55,8 @@ function launch_configuration(fun::CuFunction; shmem=0, max_threads::Integer=0)
                 (Ptr{Cint}, Ptr{Cint}, CuFunction_t, Ptr{Cvoid}, Csize_t, Cint),
                 blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
     else
-        cb = @cfunction($shmem, Cint, (Cint,))
+        shmem_cint = threads -> Cint(shmem(threads))
+        cb = @cfunction($shmem_cint, Cint, (Cint,))
         @apicall(:cuOccupancyMaxPotentialBlockSize,
                 (Ptr{Cint}, Ptr{Cint}, CuFunction_t, Ptr{Cvoid}, Csize_t, Cint),
                 blocks_ref, threads_ref, fun, cb, 0, max_threads)
