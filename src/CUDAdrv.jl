@@ -24,28 +24,20 @@ function pre_version(libpath)
     return VersionNumber(ref[] ÷ 1000, mod(ref[], 100) ÷ 10)
 end
 
-const configured, libcuda, libcuda_version = try
+let
     # NOTE: on macOS, the driver is part of the toolkit
     toolkit_dirs = find_toolkit()
 
-    libcuda = find_cuda_library("cuda", toolkit_dirs)
+    global const libcuda = find_cuda_library("cuda", toolkit_dirs)
     if libcuda == nothing
         error("Could not find CUDA driver library")
     end
     Base.include_dependency(libcuda)
 
-    libcuda_version = pre_version(libcuda)
+    global const libcuda_version = pre_version(libcuda)
 
-    true, libcuda, libcuda_version
-catch ex
-    @error "Could not configure CUDAdrv.jl" exception=(ex,catch_backtrace())
-    # default (non-functional) values for critical variables,
-    # making it possible to _load_ the package at all times.
-    false, nothing, v"5.5"
+    @debug "Found CUDA v$libcuda_version at $libcuda"
 end
-
-# backwards-compatible flags
-const libcuda_vendor = "NVIDIA"
 
 
 ## source code includes
@@ -74,8 +66,6 @@ include("deprecated.jl")
 ## initialization
 
 function __init__()
-    configured || return
-
     if !ispath(libcuda) || version() != libcuda_version
         cachefile = Base.compilecache(Base.PkgId(CUDAdrv))
         rm(cachefile)
