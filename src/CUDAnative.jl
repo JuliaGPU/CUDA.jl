@@ -20,6 +20,11 @@ verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))),
 function llvm_support(version)
     @debug("Using LLVM v$version")
 
+    # https://github.com/JuliaGPU/CUDAnative.jl/issues/428
+    if version >= v"8.0" && VERSION < v"1.3.0-DEV.547"
+        error("LLVM 8.0 requires a newer version of Julia")
+    end
+
     InitializeAllTargets()
     haskey(targets(), "nvptx") ||
         error("""
