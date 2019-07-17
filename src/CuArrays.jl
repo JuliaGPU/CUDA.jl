@@ -1,6 +1,6 @@
 module CuArrays
 
-using CUDAdrv, CUDAnative
+using CUDAapi, CUDAdrv, CUDAnative
 
 using GPUArrays
 
@@ -12,19 +12,36 @@ using Adapt
 
 using Requires
 
-const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
-isfile(ext) || error("CuArrays.jl has not been built, please run Pkg.build(\"CuArrays\").")
-include(ext)
-if !configured
-    # default (non-functional) values for critical variables,
-    # making it possible to _load_ the package at all times.
-    const libcublas = nothing
-    const libcusparse = nothing
-    const libcusolver = nothing
-    const libcufft = nothing
-    const libcurand = nothing
-    const libcudnn = nothing
+
+## discovery
+
+let
+    toolkit = find_toolkit()
+
+    # required libraries that are part of the CUDA toolkit
+    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand")
+        lib = Symbol("lib$name")
+        path = find_cuda_library(name, toolkit)
+        if path === nothing
+            error("Could not find library '$name' (it should be part of the CUDA toolkit)")
+        end
+        Base.include_dependency(path)
+        @eval global const $lib = $path
+    end
+
+    # optional libraries
+    for name in ("cudnn", )
+        lib = Symbol("lib$name")
+        path = find_cuda_library(name, toolkit)
+        if path !== nothing
+            Base.include_dependency(path)
+        end
+        @eval global const $lib = $path
+    end
 end
+
+
+## source code includes
 
 include("memory.jl")
 include("array.jl")
@@ -54,26 +71,10 @@ include("nnlib.jl")
 
 include("deprecated.jl")
 
+
+## initialization
+
 function __init__()
-    if !configured
-        @warn("CuArrays.jl has not been successfully built, and will not work properly.")
-        @warn("Please run Pkg.build(\"CuArrays\") and restart Julia.")
-        return
-    end
-
-    function check_library(name, path)
-        path === nothing && return
-        if !ispath(path)
-            error("$name library has changed. Please run Pkg.build(\"CuArrays\") and restart Julia.")
-        end
-    end
-    check_library("CUBLAS", libcublas)
-    check_library("CUSPARSE", libcusparse)
-    check_library("CUSOLVER", libcusolver)
-    check_library("CUFFT", libcufft)
-    check_library("CURAND", libcurand)
-    check_library("CUDNN", libcudnn)
-
     # package integrations
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 

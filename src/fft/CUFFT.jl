@@ -3,7 +3,7 @@ module CUFFT
 import CUDAapi
 
 using ..CuArrays
-using ..CuArrays: libcufft, configured
+using ..CuArrays: libcufft
 
 import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!,
     plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft,
