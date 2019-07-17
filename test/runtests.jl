@@ -71,3 +71,8 @@ end
         end
     end
 end
+
+@testset "availability" begin
+    @test isa(has_cuda(), Bool)
+    @test isa(has_cuda_gpu(), Bool)
+end
