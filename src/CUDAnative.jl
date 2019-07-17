@@ -101,6 +101,7 @@ let
     libdevice === nothing && error("Available CUDA toolchain does not provide libdevice")
     global const libcudadevrt = find_libcudadevrt(toolkit_dirs)
     libcudadevrt === nothing && error("Available CUDA toolchain does not provide libcudadevrt")
+    Base.include_dependency(libcudadevrt)
     ## optional
     global const nvdisasm = find_cuda_binary("nvdisasm", toolkit_dirs)
     global const ptxas = find_cuda_binary("ptxas", toolkit_dirs)
