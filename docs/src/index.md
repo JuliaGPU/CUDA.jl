@@ -22,14 +22,6 @@ using CUDAnative
 Pkg.test("CUDAnative")
 ```
 
-The build step will discover the available CUDA and LLVM installations, and
-figure out which devices can be programmed using that set-up. It depends on
-CUDAdrv and LLVM being properly configured.
-
-Even if the build fails, CUDAnative.jl should always be loadable. This simplifies use by
-downstream packages, until there is proper language support for conditional modules. You can
-check whether the package has been built properly by inspecting the `CUDAnative.configured`
-global variable.
 
 ## License
 
