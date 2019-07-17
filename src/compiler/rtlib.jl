@@ -155,9 +155,9 @@ function build_runtime(cap)
 end
 
 function load_runtime(cap)
+    mkpath(runtimedir())
     name = "cudanative.$(cap.major)$(cap.minor).bc"
     path = joinpath(runtimedir(), name)
-    mkpath(dirname(path))
 
     get!(libcache, path) do
         if ispath(path)
