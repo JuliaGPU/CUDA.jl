@@ -80,9 +80,24 @@ end
 # CUDAnative run-time library
 #
 
+# get the path to a directory where we can put cache files (machine-specific, ephemeral)
+# NOTE: maybe we should use XDG_CACHE_PATH/%LOCALAPPDATA%, but other Julia cache files
+#       are put in .julia anyway so let's just follow suit for now.
+function cachedir()
+    # this mimicks Base.compilecache. we can't just call the function, or we micht actually
+    # _generate_ a cache file, e.g., when running with `--compiled-modules=no`.
+    cachefile = abspath(DEPOT_PATH[1], Base.cache_file_entry(Base.PkgId(CUDAnative)))
+
+    # the cachefile consists of `/depot/compiled/vXXX/CUDAnative/$slug.ji`
+    # transform that into `/depot/compiled/vXXX/CUDAnative/$slug/`
+    splitext(cachefile)[1]
+end
+
+runtimedir() = joinpath(cachedir(), "runtime")
+
 # remove existing runtime libraries globally,
 # so any change to CUDAnative triggers recompilation
-rm(joinpath(@__DIR__, "..", "..", "deps", "runtime"); recursive=true, force=true)
+rm(runtimedir(); recursive=true, force=true)
 
 
 ## higher-level functionality to work with runtime functions
@@ -141,7 +156,7 @@ end
 
 function load_runtime(cap)
     name = "cudanative.$(cap.major)$(cap.minor).bc"
-    path = joinpath(@__DIR__, "..", "..", "deps", "runtime", name)
+    path = joinpath(runtimedir(), name)
     mkpath(dirname(path))
 
     get!(libcache, path) do
