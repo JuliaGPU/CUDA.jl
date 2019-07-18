@@ -35,7 +35,7 @@ const libcache = Dict{String, LLVM.Module}()
 # CUDA device library
 #
 
-function find_libdevice(cap)
+function get_libdevice(cap)
     global libdevice
 
     if isa(libdevice, Dict)
@@ -51,8 +51,7 @@ function find_libdevice(cap)
 end
 
 function load_libdevice(cap)
-    configured || error("libdevice is not available")
-    path = find_libdevice(cap)
+    path = get_libdevice(cap)
 
     get!(libcache, path) do
         open(path) do io
@@ -81,9 +80,24 @@ end
 # CUDAnative run-time library
 #
 
+# get the path to a directory where we can put cache files (machine-specific, ephemeral)
+# NOTE: maybe we should use XDG_CACHE_PATH/%LOCALAPPDATA%, but other Julia cache files
+#       are put in .julia anyway so let's just follow suit for now.
+function cachedir()
+    # this mimicks Base.compilecache. we can't just call the function, or we micht actually
+    # _generate_ a cache file, e.g., when running with `--compiled-modules=no`.
+    cachefile = abspath(DEPOT_PATH[1], Base.cache_file_entry(Base.PkgId(CUDAnative)))
+
+    # the cachefile consists of `/depot/compiled/vXXX/CUDAnative/$slug.ji`
+    # transform that into `/depot/compiled/vXXX/CUDAnative/$slug/`
+    splitext(cachefile)[1]
+end
+
+runtimedir() = joinpath(cachedir(), "runtime")
+
 # remove existing runtime libraries globally,
 # so any change to CUDAnative triggers recompilation
-rm(joinpath(@__DIR__, "..", "..", "deps", "runtime"); recursive=true, force=true)
+rm(runtimedir(); recursive=true, force=true)
 
 
 ## higher-level functionality to work with runtime functions
@@ -141,9 +155,9 @@ function build_runtime(cap)
 end
 
 function load_runtime(cap)
+    mkpath(runtimedir())
     name = "cudanative.$(cap.major)$(cap.minor).bc"
-    path = joinpath(@__DIR__, "..", "..", "deps", "runtime", name)
-    mkpath(dirname(path))
+    path = joinpath(runtimedir(), name)
 
     get!(libcache, path) do
         if ispath(path)

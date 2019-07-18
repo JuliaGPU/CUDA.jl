@@ -130,14 +130,3 @@ function device!(f::Function, dev::CuDevice)
     end
 end
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
-
-function __init__()
-    __init_compiler__()
-    configured || return
-
-    if CUDAdrv.version() != cuda_driver_version
-        error("Your set-up has changed. Please run Pkg.build(\"CUDAnative\") and restart Julia.")
-    end
-
-    CUDAdrv.apicall_hook[] = maybe_initialize
-end
