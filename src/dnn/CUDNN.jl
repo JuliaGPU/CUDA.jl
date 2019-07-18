@@ -5,7 +5,7 @@ import CUDAapi
 import CUDAdrv: CUDAdrv, CuContext, CuPtr, CU_NULL
 
 using ..CuArrays
-using ..CuArrays: libcudnn, active_context, configured, unsafe_free!
+using ..CuArrays: libcudnn, active_context, unsafe_free!
 using ..CuArrays: CuVecOrMat, CuVector
 using NNlib
 import NNlib: conv!, ∇conv_filter!, ∇conv_data!, stride, dilation, flipkernel,
