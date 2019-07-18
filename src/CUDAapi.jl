@@ -9,8 +9,11 @@ macro trace(ex...)
 end
 
 include("util.jl")
+
 include("compatibility.jl")
 include("discovery.jl")
+include("availability.jl")
+
 include("library_types.jl")
 
 end
