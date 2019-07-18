@@ -115,24 +115,16 @@ end
     @test out == "Testing...$endline"
 
     # narrow integer
-    _, out = @grab_output @on_device @cuprintf("Testing %d...\n", Int32(42))
-    @test out == "Testing 42...$endline"
+    _, out = @grab_output @on_device @cuprintf("Testing %d %d...\n", Int32(1), Int32(2))
+    @test out == "Testing 1 2...$endline"
 
     # wide integer
-    _, out = @grab_output @on_device @cuprintf("Testing %ld...\n", Int64(42))
-    @test out == "Testing 42...$endline"
-
-    _, out = @grab_output if Int == Int32
-        @on_device @cuprintf("Testing %lld %d...\n",
-                             blockIdx().x, threadIdx().x)
-    elseif Sys.iswindows()
-        @on_device @cuprintf("Testing %lld %lld...\n",
-                             blockIdx().x, threadIdx().x)
+    _, out = @grab_output if Sys.iswindows()
+        @on_device @cuprintf("Testing %lld %lld...\n", Int64(1), Int64(2))
     else
-        @on_device @cuprintf("Testing %ld %ld...\n",
-                             blockIdx().x, threadIdx().x)
+        @on_device @cuprintf("Testing %ld %ld...\n", Int64(1), Int64(2))
     end
-    @test out == "Testing 1 1...$endline"
+    @test out == "Testing 1 2...$endline"
 
     _, out = @grab_output @on_device begin
         @cuprintf("foo")
