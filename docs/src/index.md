@@ -34,7 +34,7 @@ using CUDAdrv
 Pkg.test("CUDAdrv")
 ```
 
-Building CUDAdrv might display error messages, indicating issues with your set-up. These
+Loading CUDAdrv might display error messages, indicating issues with your set-up. These
 messages can be cryptic as they happen too early for decent error handling to be loaded.
 However, please pay close attention to them as they might prevent CUDAdrv.jl from working
 properly! Some common issues:
@@ -54,8 +54,3 @@ properly! Some common issues:
   be linked with `libcuda.so` at a time when that library isn't available yet. Unless you
   purposefully added the stub libraries to the search path, please run the build script with
   `JULIA_DEBUG=CUDAdrv` and file a bug report.
-
-Even if the build fails, CUDAdrv.jl should always be loadable. This simplifies use by
-downstream packages, until there is proper language support for conditional modules. You can
-check whether the package has been built properly by inspecting the `CUDAdrv.configured`
-global variable.

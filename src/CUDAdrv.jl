@@ -1,18 +1,46 @@
 module CUDAdrv
 
-using Printf
+using CUDAapi
 
-const ext = joinpath(dirname(@__DIR__), "deps", "ext.jl")
-isfile(ext) || error("CUDAdrv.jl has not been built, please run Pkg.build(\"CUDAdrv\").")
-include(ext)
-if !configured
-    # default (non-functional) values for critical variables,
-    # making it possible to _load_ the package at all times.
-    const libcuda_version = v"5.5"
-    const libcuda_vendor = "none"
-    const libcuda_path = nothing
+using Printf
+using Libdl
+
+
+## discovery
+
+# minimal versions of certain API calls for during bootstrap
+macro pre_apicall(libpath, fn, types, args...)
+    quote
+        lib = Libdl.dlopen($(esc(libpath)))
+        sym = Libdl.dlsym(lib, $(esc(fn)))
+
+        ccall(sym, Cint, $(esc(types)), $(map(esc, args)...))
+    end
 end
-const libcuda = libcuda_path
+function pre_version(libpath)
+    ref = Ref{Cint}()
+    status = @pre_apicall(libpath, :cuDriverGetVersion, (Ptr{Cint}, ), ref)
+    @assert status == 0
+    return VersionNumber(ref[] ÷ 1000, mod(ref[], 100) ÷ 10)
+end
+
+let
+    # NOTE: on macOS, the driver is part of the toolkit
+    toolkit_dirs = find_toolkit()
+
+    global const libcuda = find_cuda_library("cuda", toolkit_dirs)
+    if libcuda == nothing
+        error("Could not find CUDA driver library")
+    end
+    Base.include_dependency(libcuda)
+
+    global const libcuda_version = pre_version(libcuda)
+
+    @debug "Found CUDA v$libcuda_version at $libcuda"
+end
+
+
+## source code includes
 
 include("base.jl")
 
@@ -33,5 +61,22 @@ include("profile.jl")
 include("occupancy.jl")
 
 include("deprecated.jl")
+
+
+## initialization
+
+function __init__()
+    if !ispath(libcuda) || version() != libcuda_version
+        cachefile = Base.compilecache(Base.PkgId(CUDAdrv))
+        rm(cachefile)
+        error("Your set-up changed, and CUDAdrv.jl needs to be reconfigured. Please load the package again.")
+    end
+
+    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+        @warn "Running under rr, which is incompatible with CUDA; disabling initialization."
+    else
+        init()
+    end
+end
 
 end

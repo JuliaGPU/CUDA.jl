@@ -133,8 +133,6 @@ macro apicall(funspec, argtypes, args...)
         return :(throw(CuVersionError($(QuoteNode(fun)), $(minreq[fun]))))
     end
 
-    configured || return :(error("CUDAdrv.jl has not been configured. Please run Pkg.build(\"CUDAdrv\") and restart Julia."))
-
     return quote
         # NOTE: this hook is used by CUDAnative.jl to initialize upon the first API call
         apicall_hook[] !== nothing && apicall_hook[]($funspec)
@@ -147,16 +145,4 @@ macro apicall(funspec, argtypes, args...)
             throw(err)
         end
     end
-end
-
-
-#
-# Basic functionality
-#
-
-"""
-Returns a string identifying the vendor of your CUDA driver.
-"""
-function vendor()
-    return libcuda_vendor
 end
