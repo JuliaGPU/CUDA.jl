@@ -37,6 +37,11 @@ let
     global const libcuda_version = pre_version(libcuda)
 
     @debug "Found CUDA v$libcuda_version at $libcuda"
+
+
+    # backwards-compatible flags
+
+    global const configured = true
 end
 
 
