@@ -4,10 +4,19 @@ function module_setup(mod::LLVM.Module)
     triple!(mod, Int === Int64 ? "nvptx64-nvidia-cuda" : "nvptx-nvidia-cuda")
 
     # add debug info metadata
-    push!(metadata(mod), "llvm.module.flags",
-         MDNode([ConstantInt(Int32(1), JuliaContext()),    # llvm::Module::Error
-                 MDString("Debug Info Version"),
-                 ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext())]))
+    if LLVM.version() >= v"8.0"
+        # Set Dwarf Version to 2, the DI printer will downgrade to v2 automatically,
+        # but this is technically correct and the only version supported by NVPTX
+        LLVM.flags(mod)["Dwarf Version", LLVM.API.LLVMModuleFlagBehaviorWarning] =
+            Metadata(ConstantInt(Int32(2), JuliaContext()))
+        LLVM.flags(mod)["Debug Info Version", LLVM.API.LLVMModuleFlagBehaviorError] =
+            Metadata(ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext()))
+    else
+        push!(metadata(mod), "llvm.module.flags",
+             MDNode([ConstantInt(Int32(1), JuliaContext()),    # llvm::Module::Error
+                     MDString("Debug Info Version"),
+                     ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext())]))
+    end
 end
 
 # make function names safe for PTX
@@ -124,6 +133,15 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
                     :emitted_function   => hook_emitted_function]
     if LLVM.version() >= v"8.0" && VERSION >= v"1.3.0-DEV.547"
         push!(param_kwargs, :gnu_pubnames => false)
+
+        debug_info_kind = if Base.JLOptions().debug_level == 0
+            LLVM.API.LLVMDebugEmissionKindNoDebug
+        elseif Base.JLOptions().debug_level == 1
+            LLVM.API.LLVMDebugEmissionKindDebugDirectivesOnly
+        elseif Base.JLOptions().debug_level >= 2
+            LLVM.API.LLVMDebugEmissionKindFullDebug
+        end
+        push!(param_kwargs, :debug_info_kind => Cint(debug_info_kind))
     end
     params = Base.CodegenParams(;param_kwargs...)
 

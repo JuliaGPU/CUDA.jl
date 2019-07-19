@@ -167,7 +167,6 @@ function promote_kernel!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Funct
 
     push!(metadata(mod), "nvvm.annotations", MDNode(annotations))
 
-
     return kernel
 end
 
@@ -205,6 +204,15 @@ function wrap_entry!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
     wrapper_fn = replace(LLVM.name(entry_f), r"^.+?_"=>"ptxcall_") # change the CC tag
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
+
+    # Get debuginfo from the entry_f and copy it to the wrapper_f
+    # on -g0 julia does not add a DICU and DISP object
+    if LLVM.version() >= v"8.0"
+        if Base.JLOptions().debug_level > 0
+            SP = LLVM.get_subprogram(entry_f)
+            LLVM.set_subprogram!(wrapper_f, SP)
+        end
+    end
 
     # emit IR performing the "conversions"
     let builder = Builder(JuliaContext())
