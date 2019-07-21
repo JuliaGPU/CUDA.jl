@@ -194,18 +194,18 @@ end
         @test out == "$(str) ($(Int(canary)))"
     end
 
-    for T in (Int16, Int32, Int64, UInt16, UInt32, UInt64)
-        test_output(T(42), "42")
+    for typ in (Int16, Int32, Int64, UInt16, UInt32, UInt64)
+        test_output(typ(42), "42")
     end
 
-    for T in (Float32, Float64)
-        test_output(T(42), "42.000000")
+    for typ in (Float32, Float64)
+        test_output(typ(42), "42.000000")
     end
 
     test_output('c', "c")
 
-    for T in (Ptr{Cvoid}, Ptr{Int})
-        ptr = convert(T, Int(0x12345))
+    for typ in (Ptr{Cvoid}, Ptr{Int})
+        ptr = convert(typ, Int(0x12345))
         test_output(ptr, "0x12345")
     end
 
