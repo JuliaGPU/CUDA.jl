@@ -878,7 +878,7 @@ if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved 
     function hello()
         x = 1
         @cuprintf("Hello, ")
-        world = () -> (@cuprintf("World %ld!", x); nothing)
+        world = () -> (@cuprintf("World %d!", Cint(x)); nothing)
         @cuda dynamic=true world()
         return
     end
@@ -895,7 +895,7 @@ end
     ## padding
 
     function kernel(a, b, c)
-        @cuprintf("%ld %ld %ld", Int64(a), Int64(b), Int64(c))
+        @cuprintf("%d %d %d", Cint(a), Cint(b), Cint(c))
         return
     end
 
