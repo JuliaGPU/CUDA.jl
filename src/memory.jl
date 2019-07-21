@@ -22,15 +22,13 @@ import Base.GC: gc
 
 const pool_lock = ReentrantLock()
 
-const usage_limit = Ref{Union{Nothing,Int}}()
+const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
 function __init_pool_()
   pool_timings!()
 
   if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
     usage_limit[] = parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
-  else
-    usage_limit[] = nothing
   end
 end
 
