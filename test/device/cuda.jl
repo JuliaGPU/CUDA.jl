@@ -202,7 +202,7 @@ end
         test_output(typ(42), "42.000000")
     end
 
-    test_output('c', "c")
+    test_output(Cchar('c'), "c")
 
     for typ in (Ptr{Cvoid}, Ptr{Int})
         ptr = convert(typ, Int(0x12345))

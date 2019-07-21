@@ -90,10 +90,7 @@ export @cuprint, @cuprintln
 
 # simple conversions, defining an expression and the resulting argument type. nothing fancy,
 # `@cuprint` pretty directly maps to `@cuprintf`; we should just support `write(::IO)`.
-# FIXME: this might be confusing, being able to `@cuprint(::Int8)` since its aka `Cchar`.
-#        better add explicit entries to `cuprint_specifiers`?
 const cuprint_conversions = Dict(
-    Char        => (x->:(Cchar($x)),               Cchar),
     Float32     => (x->:(Float64($x)),             Float64),
     Ptr{<:Any}  => (x->:(convert(Ptr{Cvoid}, $x)), Ptr{Cvoid})
 )
