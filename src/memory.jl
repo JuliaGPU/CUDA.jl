@@ -247,9 +247,9 @@ end
 function try_cuda_alloc(bytes)
   # check the memory allocation limit
   if usage_limit[] !== nothing
-    free, total = Mem.info()
-    used = total - free
-    if used + bytes > usage_limit[]
+    allocated  = sum(poolsize(pid) * length(pl) for (pid, pl) in enumerate(pools_used))
+    allocated += sum(poolsize(pid) * length(pl) for (pid, pl) in enumerate(pools_avail))
+    if allocated + bytes > usage_limit[]
       return
     end
   end
