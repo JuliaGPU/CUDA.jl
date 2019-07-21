@@ -299,24 +299,26 @@ end
     @test reverse(a) == Array(d_a)
 end
 
-@testset "parametrically typed" for T in [Int32, Int64, Float32, Float64]
-    function kernel(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        tr = n-t+1
+@testset "parametrically typed" begin
+    @testset for T in [Int32, Int64, Float32, Float64]
+        function kernel(d::CuDeviceArray{T}, n) where {T}
+            t = threadIdx().x
+            tr = n-t+1
 
-        s = @cuDynamicSharedMem(T, n)
-        s[t] = d[t]
-        sync_threads()
-        d[t] = s[tr]
+            s = @cuDynamicSharedMem(T, n)
+            s[t] = d[t]
+            sync_threads()
+            d[t] = s[tr]
 
-        return
+            return
+        end
+
+        a = rand(T, n)
+        d_a = CuTestArray(a)
+
+        @cuda threads=n shmem=n*sizeof(T) kernel(d_a, n)
+        @test reverse(a) == Array(d_a)
     end
-
-    a = rand(T, n)
-    d_a = CuTestArray(a)
-
-    @cuda threads=n shmem=n*sizeof(T) kernel(d_a, n)
-    @test reverse(a) == Array(d_a)
 end
 
 @testset "alignment" begin
@@ -360,27 +362,29 @@ end
     @test reverse(a) == Array(d_a)
 end
 
-@testset "parametrically typed" for typ in [Int32, Int64, Float32, Float64]
-    function kernel(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        tr = n-t+1
+@testset "parametrically typed" begin
+    @testset for typ in [Int32, Int64, Float32, Float64]
+        function kernel(d::CuDeviceArray{T}, n) where {T}
+            t = threadIdx().x
+            tr = n-t+1
 
-        s = @cuStaticSharedMem(T, 1024)
-        s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
+            s = @cuStaticSharedMem(T, 1024)
+            s2 = @cuStaticSharedMem(T, 1024)  # catch aliasing
 
-        s[t] = d[t]
-        s2[t] = d[t]
-        sync_threads()
-        d[t] = s[tr]
+            s[t] = d[t]
+            s2[t] = d[t]
+            sync_threads()
+            d[t] = s[tr]
 
-        return
+            return
+        end
+
+        a = rand(typ, n)
+        d_a = CuTestArray(a)
+
+        @cuda threads=n kernel(d_a, n)
+        @test reverse(a) == Array(d_a)
     end
-
-    a = rand(typ, n)
-    d_a = CuTestArray(a)
-
-    @cuda threads=n kernel(d_a, n)
-    @test reverse(a) == Array(d_a)
 end
 
 @testset "alignment" begin
@@ -474,35 +478,35 @@ end
 @testset "data movement and conversion" begin
 
 if capability(dev) >= v"3.0"
-@testset "shuffle" begin
+@testset "shuffle down" begin
 
-@eval struct AddableTuple
-    x::Int32
-    y::Int64
-    AddableTuple(val) = new(val, val*2)
-end
-Base.:(+)(a::AddableTuple, b::AddableTuple) = AddableTuple(a.x+b.x)
-
-n = 14
-
-@testset "down" for T in [Int32, Int64, Float32, Float64, AddableTuple]
-    function kernel(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        if t <= n
-            d[t] += shfl_down(d[t], n÷2)
-        end
-        return
+    @eval struct AddableTuple
+        x::Int32
+        y::Int64
+        AddableTuple(val) = new(val, val*2)
     end
+    Base.:(+)(a::AddableTuple, b::AddableTuple) = AddableTuple(a.x+b.x)
 
-    a = T[T(i) for i in 1:n]
-    d_a = CuTestArray(a)
+    n = 14
 
-    threads = nearest_warpsize(dev, n)
-    @cuda threads=threads kernel(d_a, n)
+    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple]
+        function kernel(d::CuDeviceArray{T}, n) where {T}
+            t = threadIdx().x
+            if t <= n
+                d[t] += shfl_down(d[t], n÷2)
+            end
+            return
+        end
 
-    a[1:n÷2] += a[n÷2+1:end]
-    @test a == Array(d_a)
-end
+        a = T[T(i) for i in 1:n]
+        d_a = CuTestArray(a)
+
+        threads = nearest_warpsize(dev, n)
+        @cuda threads=threads kernel(d_a, n)
+
+        a[1:n÷2] += a[n÷2+1:end]
+        @test a == Array(d_a)
+    end
 
 end
 end
