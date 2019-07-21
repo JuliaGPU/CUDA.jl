@@ -82,3 +82,134 @@ end
     arg_tuple = Expr(:tuple, arg_exprs...)
     call_function(llvm_f, Int32, Tuple{arg_types...}, arg_tuple)
 end
+
+
+## print-like functionality
+
+export @cuprint, @cuprintln
+
+# simple conversions, defining an expression and the resulting argument type. nothing fancy,
+# `@cuprint` pretty directly maps to `@cuprintf`; we should just support `write(::IO)`.
+# FIXME: this might be confusing, being able to `@cuprint(::Int8)` since its aka `Cchar`.
+#        better add explicit entries to `cuprint_specifiers`?
+const cuprint_conversions = Dict(
+    Char        => (x->:(Cchar($x)),               Cchar),
+    Float32     => (x->:(Float64($x)),             Float64),
+    Ptr{<:Any}  => (x->:(convert(Ptr{Cvoid}, $x)), Ptr{Cvoid})
+)
+
+# format specifiers
+const cuprint_specifiers = Dict(
+    # integers
+    Int16       => "%hd",
+    Int32       => "%d",
+    Int64       => Sys.iswindows() ? "%lld" : "%ld",
+    UInt16      => "%hu",
+    UInt32      => "%u",
+    UInt64      => Sys.iswindows() ? "%llu" : "%lu",
+
+    # floating-point
+    Float64     => "%f",
+
+    # other
+    Cchar       => "%c",
+    Ptr{Cvoid}  => "%p",
+)
+
+@generated function _cuprint(parts...)
+    fmt = ""
+    args = Expr[]
+
+    for i in 1:length(parts)
+        part = :(parts[$i])
+        T = parts[i]
+
+        # put literals directly in the format string
+        if T <: Val
+            fmt *= string(T.parameters[1])
+            continue
+        end
+
+        # try to convert arguments if they are not supported directly
+        if !haskey(cuprint_specifiers, T)
+            for Tmatch in keys(cuprint_conversions)
+                if T <: Tmatch
+                    conv, T = cuprint_conversions[Tmatch]
+                    part = conv(part)
+                    break
+                end
+            end
+        end
+
+        # render the argument
+        if haskey(cuprint_specifiers, T)
+            fmt *= cuprint_specifiers[T]
+            push!(args, part)
+        elseif T <: String
+            @error("@cuprint does not support non-literal strings")
+        else
+            @error("@cuprint does not support values of type $T")
+        end
+    end
+
+    quote
+        Base.@_inline_meta
+        @cuprintf($fmt, $(args...))
+    end
+end
+
+"""
+    @cuprint(xs...)
+    @cuprintln(xs...)
+
+Print a textual representation of values `xs` to standard output from the GPU. The
+functionality builds on `@cuprintf`, and is intended as a more use friendly alternative of
+that API. However, that also means there's only limited support for argument types, handling
+16/32/64 signed and unsigned integers, 32 and 64-bit floating point numbers, chars and
+pointers. For more complex output, use `@cuprintf` directly.
+
+Limited string interpolation is also possible:
+
+    @cuprint("Hello, World ", 42, "\n")
+    @cuprint "Hello, World $(42)\n"
+
+"""
+macro cuprint(parts...)
+    args = Union{Val,Expr,Symbol}[]
+
+    parts = [parts...]
+    while true
+        isempty(parts) && break
+
+        part = popfirst!(parts)
+
+        # handle string interpolation
+        if isa(part, Expr) && part.head == :string
+            parts = vcat(part.args, parts)
+            continue
+        end
+
+        # expose literals to the generator by using Val types
+        if isbits(part) # literal numbers, etc
+            push!(args, Val(part))
+        elseif isa(part, QuoteNode) # literal symbols
+            push!(args, Val(part.value))
+        elseif isa(part, String) # literal strings need to be interned
+            push!(args, Val(Symbol(part)))
+        else # actual values that will be passed to printf
+            push!(args, part)
+        end
+    end
+
+    quote
+        _cuprint($(map(esc, args)...))
+    end
+end
+
+@doc (@doc @cuprint) ->
+macro cuprintln(parts...)
+    parts = map(part -> isa(part, Expr) || isa(part, Symbol) ? esc(part) : part, parts)
+    quote
+        @cuprint($(parts...), "\n")
+    end
+end
