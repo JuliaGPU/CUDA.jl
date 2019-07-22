@@ -22,6 +22,7 @@ import Base.GC: gc
 
 const pool_lock = ReentrantLock()
 
+const usage = Ref(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
 function __init_pool_()
@@ -228,6 +229,7 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
           stats.actual_nfree += 1
           stats.cuda_time += Base.@elapsed Mem.free(buf)
           stats.actual_free += bytes
+          usage[] -= bytes
 
           target_bytes -= bytes
           target_bytes <= 0 && return true
@@ -245,9 +247,7 @@ end
 function try_cuda_alloc(bytes)
   # check the memory allocation limit
   if usage_limit[] !== nothing
-    allocated  = sum(poolsize(pid) * length(pl) for (pid, pl) in enumerate(pools_used))
-    allocated += sum(poolsize(pid) * length(pl) for (pid, pl) in enumerate(pools_avail))
-    if allocated + bytes > usage_limit[]
+    if usage[] + bytes > usage_limit[]
       return
     end
   end
@@ -256,6 +256,7 @@ function try_cuda_alloc(bytes)
   try
     stats.cuda_time += Base.@elapsed begin
       buf = Mem.alloc(Mem.Device, bytes)
+      usage[] += bytes
     end
     stats.actual_nalloc += 1
     stats.actual_alloc += bytes
@@ -428,6 +429,7 @@ function dealloc(buf, bytes)
       end
     else
       @timeit to[] "large dealloc" Mem.free(buf)
+      usage[] -= bytes
     end
   end
 
