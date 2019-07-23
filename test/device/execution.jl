@@ -641,7 +641,7 @@ end
 
 @testset "unreachable" begin
     function unreachable()
-        @cuprintf("go home ptxas you're drunk")
+        @cuprintln("go home ptxas you're drunk")
         Base.llvmcall("unreachable", Cvoid, Tuple{})
     end
 
@@ -841,13 +841,13 @@ end
 
 @testset "basic usage" begin
     function hello()
-        @cuprintf("Hello, ")
+        @cuprint("Hello, ")
         @cuda dynamic=true world()
         return
     end
 
     @eval function world()
-        @cuprintf("World!")
+        @cuprint("World!")
         return
     end
 
@@ -860,8 +860,8 @@ end
 
 @testset "anonymous functions" begin
     function hello()
-        @cuprintf("Hello, ")
-        world = () -> (@cuprintf("World!"); nothing)
+        @cuprint("Hello, ")
+        world = () -> (@cuprint("World!"); nothing)
         @cuda dynamic=true world()
         return
     end
@@ -877,8 +877,8 @@ if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved 
 @testset "closures" begin
     function hello()
         x = 1
-        @cuprintf("Hello, ")
-        world = () -> (@cuprintf("World %d!", Cint(x)); nothing)
+        @cuprint("Hello, ")
+        world = () -> (@cuprint("World $(x)!"); nothing)
         @cuda dynamic=true world()
         return
     end
@@ -895,7 +895,7 @@ end
     ## padding
 
     function kernel(a, b, c)
-        @cuprintf("%d %d %d", Cint(a), Cint(b), Cint(c))
+        @cuprint("$a $b $c")
         return
     end
 
@@ -931,10 +931,10 @@ end
 @testset "self-recursion" begin
     @eval function kernel(x::Bool)
         if x
-            @cuprintf("recurse ")
+            @cuprint("recurse ")
             @cuda dynamic=true kernel(false)
         else
-            @cuprintf("stop")
+            @cuprint("stop")
         end
        return
     end
@@ -948,24 +948,24 @@ end
 
 @testset "deep recursion" begin
     @eval function kernel_a(x::Bool)
-        @cuprintf("a ")
+        @cuprint("a ")
         @cuda dynamic=true kernel_b(x)
         return
     end
 
     @eval function kernel_b(x::Bool)
-        @cuprintf("b ")
+        @cuprint("b ")
         @cuda dynamic=true kernel_c(x)
         return
     end
 
     @eval function kernel_c(x::Bool)
-        @cuprintf("c ")
+        @cuprint("c ")
         if x
-            @cuprintf("recurse ")
+            @cuprint("recurse ")
             @cuda dynamic=true kernel_a(false)
         else
-            @cuprintf("stop")
+            @cuprint("stop")
         end
         return
     end

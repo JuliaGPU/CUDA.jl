@@ -384,7 +384,7 @@ end
 
     # common pattern in Julia 0.7: outlined throw to avoid a GC frame in the calling code
     @noinline function inner(x)
-        @cuprintf("%d\n", x.y)
+        @cuprintln(x.y)
         nothing
     end
 
