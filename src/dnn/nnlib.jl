@@ -1,8 +1,8 @@
+import ..CuArrays: CuVecOrMat, CuVector
+
 import NNlib: conv!, ∇conv_filter!, ∇conv_data!,
   maxpool!, meanpool!, ∇maxpool!, ∇meanpool!,
   softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
-import ..CuArrays: CuVecOrMat, CuVector
-using CUDAnative
 
 
 # Softmax

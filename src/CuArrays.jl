@@ -37,6 +37,7 @@ let
             Base.include_dependency(path)
         end
         @eval global const $lib = $path
+        @eval macro $lib() $lib === nothing ? error($"Your installation does not provide $lib, CuArrays.$(uppercase(name)) is unavailable") : $lib end
     end
 end
 
@@ -65,7 +66,7 @@ include("sparse/CUSPARSE.jl")
 include("solver/CUSOLVER.jl")
 include("fft/CUFFT.jl")
 include("rand/CURAND.jl")
-libcudnn !== nothing && include("dnn/CUDNN.jl")
+include("dnn/CUDNN.jl")
 
 include("nnlib.jl")
 
@@ -89,7 +90,7 @@ function __init__()
         CUSOLVER._sparse_handle[] = C_NULL
         CUSPARSE._handle[] = C_NULL
         CURAND._generator[] = nothing
-        isdefined(CuArrays, :CUDNN) && (CUDNN._handle[] = C_NULL)
+        CUDNN._handle[] = C_NULL
     end
     push!(CUDAnative.device!_listeners, callback)
 

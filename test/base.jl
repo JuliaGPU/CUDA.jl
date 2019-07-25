@@ -121,7 +121,7 @@ end
   @test testf(x -> log.(x), rand(3,3))
   @test testf((x,xs) -> log.(x.+xs), Ref(1), rand(3,3))
 
-  if isdefined(CuArrays, :CUDNN)
+  if CuArrays.libcudnn !== nothing
     using NNlib
 
     @test testf(x -> logσ.(x), rand(5))
