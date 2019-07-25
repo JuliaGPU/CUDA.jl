@@ -36,10 +36,13 @@ include("libcutensor.jl")
 include("highlevel.jl")
 include("wrappers.jl")
 
-# FIXME: unsupported
-#version() = VersionNumber(cutensorGetProperty(CUDAapi.MAJOR_VERSION),
-#                          cutensorGetProperty(CUDAapi.MINOR_VERSION),
-#                          cutensorGetProperty(CUDAapi.PATCH_LEVEL))
+function version()
+    ver = cutensorGetVersion()
+    major, ver = divrem(ver, 10000)
+    minor, patch = divrem(ver, 100)
+
+    VersionNumber(major, minor, patch)
+end
 
 function __init__()
     Libdl.dlopen(CuArrays.CUBLAS.libcublas, RTLD_NOW | RTLD_DEEPBIND | RTLD_GLOBAL)

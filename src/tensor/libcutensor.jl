@@ -6,6 +6,10 @@ using CUDAdrv: CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
 cutensorGetErrorString(status) = ccall((:cutensorGetErrorString,libcutensor), Cstring,
                                        (cutensorStatus_t,), status)
 
+cutensorGetVersion() = ccall((:cutensorGetVersion,libcutensor), Csize_t, ())
+
+cutensorGetCudartVersion() = ccall((:cutensorGetCudartVersion,libcutensor), Csize_t, ())
+
 function cutensorCreate()
   handle = Ref{cutensorHandle_t}()
   @check ccall((:cutensorCreate, libcutensor), cutensorStatus_t,

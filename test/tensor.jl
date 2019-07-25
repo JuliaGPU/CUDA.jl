@@ -4,7 +4,7 @@ if !isdefined(CuArrays, :CUTENSOR)
 @warn "Not testing CUTENSOR"
 else
 using CuArrays.CUTENSOR
-@info "Testing CUTENSOR"
+@info "Testing CUTENSOR $(CUTENSOR.version())"
 
 @testset "Elementwise binary" begin
     eltypes = ((Float16, Float16), (Float16, Float32),
