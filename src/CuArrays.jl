@@ -32,8 +32,12 @@ let
     for name in ("cudnn", "cutensor")
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
+        mod = uppercase(name)
         if path !== nothing
             Base.include_dependency(path)
+            @debug "Found $mod at $path"
+        else
+            @warn "You installation does not provide $lib, CuArrays.$mod will be unavailable"
         end
 
         # provide a global constant that returns the path to the library,
