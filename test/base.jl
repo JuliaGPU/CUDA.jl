@@ -200,6 +200,12 @@ end
     copyto!(cpu, y)
     @test cpu == Array(y)
   end
+
+  # bug in parentindices conversion
+  let x = CuArray{Int}(undef, 1, 1)
+    x[1,:] .= 42
+    @test Array(x)[1,1] == 42
+  end
 end
 
 @testset "reshape" begin
