@@ -19,9 +19,9 @@ export @cuprintf
 end
 
 """
-Print a formatted string in device context on the host standard output:
-
     @cuprintf("%Fmt", args...)
+
+Print a formatted string in device context on the host standard output.
 
 Note that this is not a fully C-compliant `printf` implementation; see the CUDA
 documentation for supported options and inputs.
@@ -167,9 +167,10 @@ pointers. For more complex output, use `@cuprintf` directly.
 
 Limited string interpolation is also possible:
 
+```julia
     @cuprint("Hello, World ", 42, "\n")
     @cuprint "Hello, World \$(42)\n"
-
+```
 """
 macro cuprint(parts...)
     args = Union{Val,Expr,Symbol}[]
