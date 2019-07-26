@@ -59,4 +59,4 @@ end
 # (can't do this eagerly or the view constructor wouldn't be able to boundscheck)
 # FIXME: alternatively, have users do `cu(view(cu(A), inds))`, but that seems redundant
 Adapt.adapt_structure(to::CUDAnative.Adaptor, A::SubArray) =
-    SubArray(adapt(to, parent(A)), adapt(to, map(CuArray, parentindices(A))))
+    SubArray(adapt(to, parent(A)), adapt(to, adapt(CuArray, parentindices(A))))
