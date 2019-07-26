@@ -168,7 +168,7 @@ pointers. For more complex output, use `@cuprintf` directly.
 Limited string interpolation is also possible:
 
     @cuprint("Hello, World ", 42, "\n")
-    @cuprint "Hello, World $(42)\n"
+    @cuprint "Hello, World \$(42)\n"
 
 """
 macro cuprint(parts...)
