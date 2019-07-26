@@ -214,7 +214,8 @@ cudaconvert(arg) = adapt(Adaptor(), arg)
 abstract type AbstractKernel{F,TT} end
 
 # FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
-#        so attach it to the type
+#        so attach it to the type -- https://github.com/JuliaDocs/Documenter.jl/issues/558
+
 """
     (::HostKernel)(args...; kwargs...)
     (::DeviceKernel)(args...; kwargs...)
