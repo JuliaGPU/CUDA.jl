@@ -303,6 +303,55 @@ end # level 1 testset
             @test y ≈ h_y
         end
 
+        @testset "ldiv!(::UpperTriangular, ::CuVector)" begin
+            A = copy(sA)
+            dA = CuArray(A)
+            dy = copy(dx)
+            ldiv!(UpperTriangular(dA), dy)
+            y = UpperTriangular(A) \ x
+            @test y ≈ Array(dy)
+        end
+        @testset "ldiv!(::AdjointUpperTriangular, ::CuVector)" begin
+            A = copy(sA)
+            dA = CuArray(A)
+            dy = copy(dx)
+            ldiv!(adjoint(UpperTriangular(dA)), dy)
+            y = adjoint(UpperTriangular(A)) \ x
+            @test y ≈ Array(dy)
+        end
+        @testset "ldiv!(::TransposeUpperTriangular, ::CuVector)" begin
+            A = copy(sA)
+            dA = CuArray(A)
+            dy = copy(dx)
+            ldiv!(transpose(UpperTriangular(dA)), dy)
+            y = transpose(UpperTriangular(A)) \ x
+            @test y ≈ Array(dy)
+        end
+        @testset "ldiv!(::UpperTriangular, ::CuVector)" begin
+            A = copy(sA)
+            dA = CuArray(A)
+            dy = copy(dx)
+            ldiv!(LowerTriangular(dA), dy)
+            y = LowerTriangular(A) \ x
+            @test y ≈ Array(dy)
+        end
+        @testset "ldiv!(::AdjointUpperTriangular, ::CuVector)" begin
+            A = copy(sA)
+            dA = CuArray(A)
+            dy = copy(dx)
+            ldiv!(adjoint(LowerTriangular(dA)), dy)
+            y = adjoint(LowerTriangular(A)) \ x
+            @test y ≈ Array(dy)
+        end
+        @testset "ldiv!(::TransposeUpperTriangular, ::CuVector)" begin
+            A = copy(sA)
+            dA = CuArray(A)
+            dy = copy(dx)
+            ldiv!(transpose(LowerTriangular(dA)), dy)
+            y = transpose(LowerTriangular(A)) \ x
+            @test y ≈ Array(dy)
+        end
+
         A = rand(elty,m,m)
         x = rand(elty,m)
         y = rand(elty,m)
