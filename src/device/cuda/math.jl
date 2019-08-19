@@ -103,6 +103,9 @@
 @inline ldexp(x::Float64, y::Int32) = @wrap __nv_ldexp(x::double, y::i32)::double
 @inline ldexp(x::Float32, y::Int32) = @wrap __nv_ldexpf(x::float, y::i32)::float
 
+@inline exp(x::Complex{Float64}) = exp(x.re) * (cos(x.im) + 1.0im * sin(x.im))
+@inline exp(x::Complex{Float32}) = exp(x.re) * (cos(x.im) + 1.0im * sin(x.im))
+@inline exp_fast(x::Complex{Float32}) = exp_fast(x.re) * (cos_fast(x.im) + 1.0im * sin_fast(x.im))
 
 ## error
 
@@ -170,6 +173,8 @@
 @inline abs(f::Float32) = @wrap __nv_fabsf(f::float)::float
 @inline abs(x::Int64) =   @wrap __nv_llabs(x::i64)::i64
 
+@inline abs(x::Complex{Float64}) = hypot(x.re, x.im)
+@inline abs(x::Complex{Float32}) = hypot(x.re, x.im)
 
 ## roots and powers
 
@@ -191,6 +196,9 @@
 @inline pow(x::Float64, y::Int32) =   @wrap __nv_powi(x::double, y::i32)::double
 @inline pow(x::Float32, y::Int32) =   @wrap __nv_powif(x::float, y::i32)::float
 @inline pow(x::Union{Float32, Float64}, y::Int64) = pow(x, Int32(y))
+
+@inline abs2(x::Complex{Float64}) = x.re * x.re + x.im * x.im
+@inline abs2(x::Complex{Float32}) = x.re * x.re + x.im * x.im
 
 ## rounding and selection
 
