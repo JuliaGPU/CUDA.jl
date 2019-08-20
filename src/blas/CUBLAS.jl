@@ -24,8 +24,8 @@ function handle()
 
             # enable tensor math mode if our device supports it, and fast math is enabled
             dev = CUDAdrv.device(context)
-            if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0"
-              cublasSetMathMode(CUBLAS_TENSOR_OP_MATH, handle)
+            if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0" && version() >= v"9"
+                cublasSetMathMode(CUBLAS_TENSOR_OP_MATH, handle)
             end
 
             atexit(()->CUDAdrv.isvalid(context) && cublasDestroy_v2(handle))
@@ -51,13 +51,13 @@ function xt_handle()
     return _xt_handle[]
 end
 
+version() = VersionNumber(cublasGetProperty(CUDAapi.MAJOR_VERSION),
+                          cublasGetProperty(CUDAapi.MINOR_VERSION),
+                          cublasGetProperty(CUDAapi.PATCH_LEVEL))
+
 include("libcublas.jl")
 include("util.jl")
 include("wrappers.jl")
 include("highlevel.jl")
-
-version() = VersionNumber(cublasGetProperty(CUDAapi.MAJOR_VERSION),
-                          cublasGetProperty(CUDAapi.MINOR_VERSION),
-                          cublasGetProperty(CUDAapi.PATCH_LEVEL))
 
 end
