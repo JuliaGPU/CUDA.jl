@@ -1977,12 +1977,15 @@ function cublasGetProperty(property::CUDAapi.libraryPropertyType)
   value_ref[]
 end
 
-# NOTE: this method needs to take an explicit handle since we call it from its "constructor"
-cublasSetMathMode(mode::CUBLASMathMode, handle=handle()) =
-  @check ccall((:cublasSetMathMode, libcublas),
-               cublasStatus_t,
-               (cublasHandle_t, Cint),
-               handle, Cint(mode))
+
+if version() >= v"9"
+  # NOTE: this method needs to take an explicit handle since we call it from its "constructor"
+  cublasSetMathMode(mode::CUBLASMathMode, handle=handle()) =
+    @check ccall((:cublasSetMathMode, libcublas),
+                cublasStatus_t,
+                (cublasHandle_t, Cint),
+                handle, Cint(mode))
+end
 
 
 function cublasDgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
