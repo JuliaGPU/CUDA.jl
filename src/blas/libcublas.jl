@@ -1323,7 +1323,7 @@ end
 function cublasCsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
   @check ccall((:cublasCsyrkx, libcublas),
                cublasStatus_t,
-               (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint, 
+               (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
                 PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
                 CuPtr{cuComplex}, Cint),
                handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
@@ -2261,7 +2261,7 @@ end
 function cublasXtCsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
   @check ccall((:cublasXtCsyrkx, libcublas),
                cublasStatus_t,
-               (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint, 
+               (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
                 PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
                 CuPtr{cuComplex}, Cint),
                handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)

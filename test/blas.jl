@@ -58,7 +58,7 @@ end # level 1 testset
     beta = convert(elty,3)
 
     @testset "Level 2" begin
-        @testset "gemv" begin 
+        @testset "gemv" begin
             @test testf(*, rand(elty, m, n), rand(elty, n))
             @test testf(*, transpose(rand(elty, m, n)), rand(elty, m))
             @test testf(*, rand(elty, m, n)', rand(elty, m))
@@ -144,7 +144,7 @@ end # level 1 testset
                     h_y = Array(d_y)
                     @test y ≈ h_y
                 end
-                @testset "sbmv" begin 
+                @testset "sbmv" begin
                     d_y = CuArrays.CUBLAS.sbmv('U',nbands,d_AB,d_x)
                     y = A*x
                     # compare
@@ -180,7 +180,7 @@ end # level 1 testset
             AB = band(A,0,nbands)
             d_AB = CuArray(AB)
             @testset "tbmv!" begin
-                y = rand(elty, m) 
+                y = rand(elty, m)
                 # move to host
                 d_y = CuArray(y)
                 # tbmv!
@@ -224,7 +224,7 @@ end # level 1 testset
         hA = hA + hA'
         dhA = CuArray(hA)
         x = rand(elty,m)
-        dx = CuArray(x) 
+        dx = CuArray(x)
         @testset "symv!" begin
             # generate vectors
             y = rand(elty,m)
@@ -259,7 +259,7 @@ end # level 1 testset
                 hy = Array(dy)
                 @test y ≈ hy
             end
-            @testset "hemv" begin 
+            @testset "hemv" begin
                 y = BLAS.hemv('U',hA,x)
                 # execute on device
                 dy = CuArrays.CUBLAS.hemv('U',dhA,dx)
@@ -280,7 +280,7 @@ end # level 1 testset
             @test y ≈ h_y
         end
 
-        @testset "trmv" begin 
+        @testset "trmv" begin
             d_y = CuArrays.CUBLAS.trmv('U','N','N',dA,dx)
             y = A*x
             # compare
@@ -383,7 +383,7 @@ end # level 1 testset
         end
         if elty <: Complex
             @testset "her!" begin
-                dB = copy(dhA) 
+                dB = copy(dhA)
                 # perform rank one update
                 CuArrays.CUBLAS.her!('U',alpha,dx,dB)
                 B = (alpha*x)*x' + hA
@@ -395,7 +395,7 @@ end # level 1 testset
             end
 
             @testset "her2!" begin
-                dB = copy(dhA) 
+                dB = copy(dhA)
                 CuArrays.CUBLAS.her2!('U',alpha,dx,dy,dB)
                 B = (alpha*x)*y' + y*(alpha*x)' + hA
                 # move to host and compare upper triangles
@@ -491,7 +491,7 @@ end # level 1 testset
             end
         end
 
-        @testset "gemm_batched" begin 
+        @testset "gemm_batched" begin
             bd_C = CuArrays.CUBLAS.gemm_batched('N','N',bd_A,bd_B)
             for i in 1:length(bA)
                 bC = bA[i]*bB[i]
@@ -517,7 +517,7 @@ end # level 1 testset
             @test bC ≈ h_C
         end
 
-        @testset "gemm_strided_batched" begin 
+        @testset "gemm_strided_batched" begin
             bd_C = CuArrays.CUBLAS.gemm_strided_batched('N', 'N', bd_A, bd_B)
 
             for i in 1:nbatch
@@ -812,7 +812,7 @@ end # level 1 testset
             @test C ≈ h_C
         end
         if elty <: Complex
-            @testset "herk!" begin 
+            @testset "herk!" begin
                 d_C = CuArray(dhA)
                 CuArrays.CUBLAS.herk!('U','N',alpha,d_A,beta,d_C)
                 C = alpha*(A*A') + beta*C
@@ -831,7 +831,7 @@ end # level 1 testset
                 h_C = triu(C)
                 @test C ≈ h_C
             end
-            @testset "xt_herk!" begin 
+            @testset "xt_herk!" begin
                 d_C = CuArray(dhA)
                 CuArrays.CUBLAS.xt_herk!('U','N',alpha,d_A,beta,d_C)
                 C = alpha*(A*A') + beta*C
