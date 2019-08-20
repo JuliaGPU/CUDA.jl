@@ -121,7 +121,7 @@ end
   @test testf(x -> log.(x), rand(3,3))
   @test testf((x,xs) -> log.(x.+xs), Ref(1), rand(3,3))
 
-  if isdefined(CuArrays, :CUDNN)
+  if CuArrays.libcudnn !== nothing
     using NNlib
 
     @test testf(x -> logσ.(x), rand(5))
@@ -226,7 +226,7 @@ end
 end
 
 @testset "Utilities" begin
-  t = @elapsed ret = CuArrays.@sync begin
+  t = Base.@elapsed ret = CuArrays.@sync begin
     # TODO: do something that takes a while on the GPU
     #       (need to wrap clock64 in CUDAnative for that)
     42

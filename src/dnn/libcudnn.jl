@@ -1,103 +1,103 @@
-cudnnGetVersion() = ccall((:cudnnGetVersion,libcudnn), Cint, ())
+cudnnGetVersion() = ccall((:cudnnGetVersion,@libcudnn), Cint, ())
 
-cudnnGetErrorString(status) = ccall((:cudnnGetErrorString,libcudnn), Ptr{UInt8}, (cudnnStatus_t,), status)
+cudnnGetErrorString(status) = ccall((:cudnnGetErrorString,@libcudnn), Ptr{UInt8}, (cudnnStatus_t,), status)
 
 function cudnnCreate()
     handle = Ref{cudnnHandle_t}()
-    @check ccall((:cudnnCreate,libcudnn), cudnnStatus_t, (Ptr{cudnnHandle_t},), handle)
+    @check ccall((:cudnnCreate,@libcudnn), cudnnStatus_t, (Ptr{cudnnHandle_t},), handle)
     return handle[]
 end
 
 function cudnnDestroy(handle)
-    @check ccall((:cudnnDestroy,libcudnn), cudnnStatus_t, (cudnnHandle_t,), handle)
+    @check ccall((:cudnnDestroy,@libcudnn), cudnnStatus_t, (cudnnHandle_t,), handle)
 end
 
 function cudnnCreateTensorDescriptor(tensorDesc)
-    @check ccall((:cudnnCreateTensorDescriptor,libcudnn),
+    @check ccall((:cudnnCreateTensorDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (Ptr{cudnnTensorDescriptor_t},),
                  tensorDesc)
 end
 
 function cudnnSetTensorNdDescriptor(tensorDesc,dataType,nbDims,dimA,strideA)
-    @check ccall((:cudnnSetTensorNdDescriptor,libcudnn),
+    @check ccall((:cudnnSetTensorNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnTensorDescriptor_t,cudnnDataType_t,Cint,Ptr{Cint},Ptr{Cint}),
                  tensorDesc,dataType,nbDims,dimA,strideA)
 end
 
 function cudnnGetTensorNdDescriptor(tensorDesc,nbDimsRequested,dataType,nbDims,dimA,strideA)
-    @check ccall((:cudnnGetTensorNdDescriptor,libcudnn),
+    @check ccall((:cudnnGetTensorNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnTensorDescriptor_t,Cint,Ptr{cudnnDataType_t},Ptr{Cint},Ptr{Cint},Ptr{Cint}),
                  tensorDesc,nbDimsRequested,dataType,nbDims,dimA,strideA)
 end
 
 function cudnnDestroyTensorDescriptor(tensorDesc)
-    @check ccall((:cudnnDestroyTensorDescriptor,libcudnn),
+    @check ccall((:cudnnDestroyTensorDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnTensorDescriptor_t,),
                  tensorDesc)
 end
 
 function cudnnCreateFilterDescriptor(filterDesc)
-    @check ccall((:cudnnCreateFilterDescriptor,libcudnn),
+    @check ccall((:cudnnCreateFilterDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (Ptr{cudnnFilterDescriptor_t},),
                  filterDesc)
 end
 
 function cudnnSetFilterNdDescriptor(filterDesc,dataType,nbDims,filterDimA)
-    @check ccall((:cudnnSetFilterNdDescriptor,libcudnn),
+    @check ccall((:cudnnSetFilterNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnFilterDescriptor_t,cudnnDataType_t,Cint,Ptr{Cint}),
                  filterDesc,dataType,nbDims,filterDimA)
 end
 
 function cudnnSetFilterNdDescriptor(filterDesc,dataType,format,nbDims,filterDimA)
-    @check ccall((:cudnnSetFilterNdDescriptor,libcudnn),
+    @check ccall((:cudnnSetFilterNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnFilterDescriptor_t,cudnnDataType_t,cudnnTensorFormat_t,Cint,Ptr{Cint}),
                  filterDesc,dataType,format,nbDims,filterDimA)
 end
 
 function cudnnSetFilterNdDescriptor_v4(filterDesc,dataType,format,nbDims,filterDimA)
-    @check ccall((:cudnnSetFilterNdDescriptor_v4,libcudnn),
+    @check ccall((:cudnnSetFilterNdDescriptor_v4,@libcudnn),
                  cudnnStatus_t,
                  (cudnnFilterDescriptor_t,cudnnDataType_t,cudnnTensorFormat_t,Cint,Ptr{Cint}),
                  filterDesc,dataType,format,nbDims,filterDimA)
 end
 
 function cudnnGetFilterNdDescriptor(filterDesc,nbDimsRequested,dataType,nbDims,filterDimA)
-    @check ccall((:cudnnGetFilterNdDescriptor,libcudnn),
+    @check ccall((:cudnnGetFilterNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnFilterDescriptor_t,Cint,Ptr{cudnnDataType_t},Ptr{Cint},Ptr{Cint}),
                  filterDesc,nbDimsRequested,dataType,nbDims,filterDimA)
 end
 
 function cudnnGetFilterNdDescriptor_v4(filterDesc,nbDimsRequested,dataType,format,nbDims,filterDimA)
-    @check ccall((:cudnnGetFilterNdDescriptor_v4,libcudnn),
+    @check ccall((:cudnnGetFilterNdDescriptor_v4,@libcudnn),
                  cudnnStatus_t,
                  (cudnnFilterDescriptor_t,Cint,Ptr{cudnnDataType_t},Ptr{cudnnTensorFormat_t},Ptr{Cint},Ptr{Cint}),
                  filterDesc,nbDimsRequested,dataType,format,nbDims,filterDimA)
 end
 
 function cudnnDestroyFilterDescriptor(filterDesc)
-    @check ccall((:cudnnDestroyFilterDescriptor,libcudnn),
+    @check ccall((:cudnnDestroyFilterDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnFilterDescriptor_t,),
                  filterDesc)
 end
 
 function cudnnCreateConvolutionDescriptor(convDesc)
-    @check ccall((:cudnnCreateConvolutionDescriptor,libcudnn),
+    @check ccall((:cudnnCreateConvolutionDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (Ptr{cudnnConvolutionDescriptor_t},),
                  convDesc)
 end
 
 function cudnnSetConvolutionNdDescriptor(convDesc,arrayLength,padA,filterStrideA,dilationA,mode,dataType)
-    @check ccall((:cudnnSetConvolutionNdDescriptor,libcudnn),
+    @check ccall((:cudnnSetConvolutionNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnConvolutionDescriptor_t,Cint,Ptr{Cint},Ptr{Cint},Ptr{Cint},
                   cudnnConvolutionMode_t,cudnnDataType_t),
@@ -105,7 +105,7 @@ function cudnnSetConvolutionNdDescriptor(convDesc,arrayLength,padA,filterStrideA
 end
 
 function cudnnGetConvolutionNdDescriptor(convDesc,arrayLengthRequested,arrayLength,padA,strideA,dilationA,mode,dataType)
-    @check ccall((:cudnnGetConvolutionNdDescriptor,libcudnn),
+    @check ccall((:cudnnGetConvolutionNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnConvolutionDescriptor_t,Cint,Ptr{Cint},Ptr{Cint},Ptr{Cint},Ptr{Cint},
                   Ptr{cudnnConvolutionMode_t},Ptr{cudnnDataType_t}),
@@ -113,28 +113,28 @@ function cudnnGetConvolutionNdDescriptor(convDesc,arrayLengthRequested,arrayLeng
 end
 
 function cudnnDestroyConvolutionDescriptor(convDesc)
-    @check ccall((:cudnnDestroyConvolutionDescriptor,libcudnn),
+    @check ccall((:cudnnDestroyConvolutionDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnConvolutionDescriptor_t,),
                  convDesc)
 end
 
 function cudnnSetConvolutionMathType(convDesc, mathType)
-    @check ccall((:cudnnSetConvolutionMathType,libcudnn),
+    @check ccall((:cudnnSetConvolutionMathType,@libcudnn),
                  cudnnStatus_t,
                  (cudnnConvolutionDescriptor_t, cudnnMathType_t),
                  convDesc, mathType)
 end
 
 function cudnnCreatePoolingDescriptor(poolingDesc)
-    @check ccall((:cudnnCreatePoolingDescriptor,libcudnn),
+    @check ccall((:cudnnCreatePoolingDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (Ptr{cudnnPoolingDescriptor_t},),
                  poolingDesc)
 end
 
 function cudnnSetPoolingNdDescriptor(poolingDesc,mode,maxpoolingNanOpt,nbDims,windowDimA,paddingA,strideA)
-    @check ccall((:cudnnSetPoolingNdDescriptor,libcudnn),
+    @check ccall((:cudnnSetPoolingNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnPoolingDescriptor_t,cudnnPoolingMode_t,cudnnNanPropagation_t,
                   Cint,Ptr{Cint},Ptr{Cint},Ptr{Cint}),
@@ -142,7 +142,7 @@ function cudnnSetPoolingNdDescriptor(poolingDesc,mode,maxpoolingNanOpt,nbDims,wi
 end
 
 function cudnnGetPoolingNdDescriptor(poolingDesc,nbDimsRequested,mode,maxpoolingNanOpt,nbDims,windowDimA,paddingA,strideA)
-    @check ccall((:cudnnGetPoolingNdDescriptor,libcudnn),
+    @check ccall((:cudnnGetPoolingNdDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnPoolingDescriptor_t,Cint,Ptr{cudnnPoolingMode_t},
                   Ptr{cudnnNanPropagation_t},Ptr{Cint},Ptr{Cint},Ptr{Cint},Ptr{Cint}),
@@ -150,14 +150,14 @@ function cudnnGetPoolingNdDescriptor(poolingDesc,nbDimsRequested,mode,maxpooling
 end
 
 function cudnnDestroyPoolingDescriptor(poolingDesc)
-    @check ccall((:cudnnDestroyPoolingDescriptor,libcudnn),
+    @check ccall((:cudnnDestroyPoolingDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnPoolingDescriptor_t,),
                  poolingDesc)
 end
 
 function cudnnSetActivationDescriptor(activationDesc, mode, reluNanOpt, coeff)
-    @check ccall((:cudnnSetActivationDescriptor,libcudnn),
+    @check ccall((:cudnnSetActivationDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnActivationDescriptor_t,cudnnActivationMode_t,
                   cudnnNanPropagation_t,Cdouble),
@@ -165,7 +165,7 @@ function cudnnSetActivationDescriptor(activationDesc, mode, reluNanOpt, coeff)
 end
 
 function cudnnGetActivationDescriptor(activationDesc, mode, reluNanOpt, coeff)
-    @check ccall((:cudnnGetActivationDescriptor,libcudnn),
+    @check ccall((:cudnnGetActivationDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnActivationDescriptor_t,Ptr{cudnnActivationMode_t},
                   Ptr{cudnnNanPropagation_t},Ptr{Cdouble}),
@@ -173,21 +173,21 @@ function cudnnGetActivationDescriptor(activationDesc, mode, reluNanOpt, coeff)
 end
 
 function cudnnCreateActivationDescriptor(activationDesc)
-    @check ccall((:cudnnCreateActivationDescriptor,libcudnn),
+    @check ccall((:cudnnCreateActivationDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (Ptr{cudnnActivationDescriptor_t},),
                  activationDesc)
 end
 
 function cudnnDestroyActivationDescriptor(activationDesc)
-    @check ccall((:cudnnDestroyActivationDescriptor,libcudnn),
+    @check ccall((:cudnnDestroyActivationDescriptor,@libcudnn),
                  cudnnStatus_t,
                  (cudnnActivationDescriptor_t,),
                  activationDesc)
 end
 
 function cudnnSoftmaxForward(algo,mode,alpha,xDesc,x,beta,yDesc,y)
-    @check ccall((:cudnnSoftmaxForward,libcudnn),
+    @check ccall((:cudnnSoftmaxForward,@libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t,cudnnSoftmaxAlgorithm_t,cudnnSoftmaxMode_t,Ptr{Nothing},
                   cudnnTensorDescriptor_t,CuPtr{Nothing},Ptr{Nothing},cudnnTensorDescriptor_t,
@@ -207,7 +207,7 @@ function cudnnSoftmaxForward(src::CuArray{T,4}, dest::CuArray{T,4}=src;
 end
 
 function cudnnSoftmaxBackward(algo,mode,alpha,yDesc,y,dyDesc,dy,beta,dxDesc,dx)
-    @check ccall((:cudnnSoftmaxBackward,libcudnn),
+    @check ccall((:cudnnSoftmaxBackward,@libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t,cudnnSoftmaxAlgorithm_t,cudnnSoftmaxMode_t,Ptr{Nothing},
                   cudnnTensorDescriptor_t,CuPtr{Nothing},cudnnTensorDescriptor_t,CuPtr{Nothing},
@@ -228,7 +228,7 @@ function cudnnSoftmaxBackward(src::CuArray{T,4}, srcDiff::CuArray{T,4}, destDiff
 end
 
 function cudnnConvolutionBiasActivationForward(alpha1, xDesc, x, wDesc, w, convDesc, algo, workspace, workspace_size, alpha2, biasDesc, bias, activationDesc, yDesc, y)
-    @check ccall((:cudnnConvolutionBiasActivationForward, libcudnn),
+    @check ccall((:cudnnConvolutionBiasActivationForward, @libcudnn),
                 cudnnStatus_t,
                 (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing},
                  cudnnFilterDescriptor_t, CuPtr{Nothing}, cudnnConvolutionDescriptor_t,
@@ -252,7 +252,7 @@ function cudnnConvolutionBiasActivationForward(y::CuArray{T,N}, x::CuArray{T,N},
 end
 
 function cudnnConvolutionForward(alpha, xDesc, x, wDesc, w, convDesc, algo, workspace, workspace_size, beta, yDesc, y)
-    @check ccall((:cudnnConvolutionForward, libcudnn),
+    @check ccall((:cudnnConvolutionForward, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing},
                   cudnnFilterDescriptor_t, CuPtr{Nothing}, cudnnConvolutionDescriptor_t,
@@ -273,7 +273,7 @@ function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,
 end
 
 function cudnnGetConvolutionForwardWorkspaceSize(xDesc, wDesc, convDesc, yDesc, algo, workspace_size)
-    @check ccall((:cudnnGetConvolutionForwardWorkspaceSize, libcudnn),
+    @check ccall((:cudnnGetConvolutionForwardWorkspaceSize, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnFilterDescriptor_t,
                   cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
@@ -292,7 +292,7 @@ function cudnnGetConvolutionForwardWorkspaceSize(y::CuArray{T,N}, x::CuArray{T,N
 end
 
 function cudnnConvolutionBackwardData(alpha, wDesc, w, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dxDesc, dx)
-    @check ccall((:cudnnConvolutionBackwardData, libcudnn),
+    @check ccall((:cudnnConvolutionBackwardData, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnFilterDescriptor_t, CuPtr{Nothing},
                   cudnnTensorDescriptor_t, CuPtr{Nothing}, cudnnConvolutionDescriptor_t,
@@ -313,7 +313,7 @@ function cudnnConvolutionBackwardData(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuA
 end
 
 function cudnnGetConvolutionBackwardDataWorkspaceSize(wDesc, dyDesc, convDesc, dxDesc, algo, workspace_size)
-    @check ccall((:cudnnGetConvolutionBackwardDataWorkspaceSize, libcudnn),
+    @check ccall((:cudnnGetConvolutionBackwardDataWorkspaceSize, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t,
                   cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
@@ -332,7 +332,7 @@ function cudnnGetConvolutionBackwardDataWorkspaceSize(dx::CuArray{T,N}, w::CuArr
 end
 
 function cudnnConvolutionBackwardFilter(alpha, xDesc, x, dyDesc, dy, convDesc, algo, workspace, workspace_size, beta, dwDesc, dw)
-    @check ccall((:cudnnConvolutionBackwardFilter, libcudnn),
+    @check ccall((:cudnnConvolutionBackwardFilter, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing},
                   cudnnTensorDescriptor_t, CuPtr{Nothing}, cudnnConvolutionDescriptor_t,
@@ -353,7 +353,7 @@ function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, dy::C
 end
 
 function cudnnGetConvolutionBackwardFilterWorkspaceSize(xDesc, dyDesc, convDesc, dwDesc, algo, workspace_size)
-    @check ccall((:cudnnGetConvolutionBackwardFilterWorkspaceSize, libcudnn),
+    @check ccall((:cudnnGetConvolutionBackwardFilterWorkspaceSize, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                   cudnnConvolutionDescriptor_t, cudnnFilterDescriptor_t,
@@ -372,7 +372,7 @@ function cudnnGetConvolutionBackwardFilterWorkspaceSize(dw::CuArray{T,N}, x::CuA
 end
 
 function cudnnConvolutionBackwardBias(alpha, dyDesc, dy, beta, dbDesc, db)
-    @check ccall((:cudnnConvolutionBackwardBias, libcudnn),
+    @check ccall((:cudnnConvolutionBackwardBias, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing},
                   Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing}),
@@ -385,7 +385,7 @@ function cudnnConvolutionBackwardBias(db::CuArray{T,N}, dy::CuArray{T,N}; alpha=
 end
 
 function cudnnPoolingForward(poolingDesc,alpha,xDesc,x,beta,yDesc,y)
-    @check ccall((:cudnnPoolingForward,libcudnn),
+    @check ccall((:cudnnPoolingForward,@libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t,cudnnPoolingDescriptor_t,Ptr{Nothing},cudnnTensorDescriptor_t,
                   CuPtr{Nothing},Ptr{Nothing},cudnnTensorDescriptor_t,CuPtr{Nothing}),
@@ -393,7 +393,7 @@ function cudnnPoolingForward(poolingDesc,alpha,xDesc,x,beta,yDesc,y)
 end
 
 function cudnnPoolingBackward(poolingDesc,alpha,yDesc,y,dyDesc,dy,xDesc,x,beta,dxDesc,dx)
-    @check ccall((:cudnnPoolingBackward,libcudnn),
+    @check ccall((:cudnnPoolingBackward,@libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t,cudnnPoolingDescriptor_t,Ptr{Nothing},cudnnTensorDescriptor_t,
                   CuPtr{Nothing},cudnnTensorDescriptor_t,CuPtr{Nothing},cudnnTensorDescriptor_t,
@@ -420,7 +420,7 @@ function cudnnPoolingBackward(dx::CuArray{T,N}, dy::CuArray{T,N}, x::CuArray{T,N
 end
 
 function cudnnActivationForward(activationDesc, alpha, xDesc, x, beta, yDesc, y)
-    @check ccall((:cudnnActivationForward, libcudnn),
+    @check ccall((:cudnnActivationForward, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, cudnnActivationDescriptor_t, Ptr{Nothing},
                   cudnnTensorDescriptor_t, CuPtr{Nothing}, Ptr{Nothing},
@@ -436,7 +436,7 @@ function cudnnActivationForward(y::CuArray{T,N}, x::CuArray{T,N}; mode=CUDNN_ACT
 end
 
 function cudnnActivationBackward(activationDesc, alpha, yDesc, y, dyDesc, dy, xDesc, x, beta, dxDesc, dx)
-    @check ccall((:cudnnActivationBackward, libcudnn),
+    @check ccall((:cudnnActivationBackward, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, cudnnActivationDescriptor_t, Ptr{Nothing},
                   cudnnTensorDescriptor_t, CuPtr{Nothing}, cudnnTensorDescriptor_t,
@@ -454,7 +454,7 @@ function cudnnActivationBackward(dx::CuArray{T,N}, x::CuArray{T,N}, y::CuArray{T
 end
 
 function cudnnAddTensor(alpha, aDesc, A, beta, cDesc, C)
-    @check ccall((:cudnnAddTensor, libcudnn),
+    @check ccall((:cudnnAddTensor, @libcudnn),
                  cudnnStatus_t,
                  (cudnnHandle_t, Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing},
                   Ptr{Nothing}, cudnnTensorDescriptor_t, CuPtr{Nothing}),
@@ -471,7 +471,7 @@ end
 
 function cudnnGetProperty(property::CUDAapi.libraryPropertyType)
   value_ref = Ref{Cint}()
-  @check ccall((:cudnnGetProperty, libcudnn),
+  @check ccall((:cudnnGetProperty, @libcudnn),
                cudnnStatus_t,
                (Cint, Ptr{Cint}),
                property, value_ref)
