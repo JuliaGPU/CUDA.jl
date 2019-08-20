@@ -226,7 +226,7 @@ end
 end
 
 @testset "Utilities" begin
-  t = @elapsed ret = CuArrays.@sync begin
+  t = Base.@elapsed ret = CuArrays.@sync begin
     # TODO: do something that takes a while on the GPU
     #       (need to wrap clock64 in CUDAnative for that)
     42
