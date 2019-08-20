@@ -9,25 +9,25 @@
 
 ## seeding
 
-seed!(rng::RNG=generator()) = generate_seeds(rng)
+seed!(rng::RNG=generator()) = curandGenerateSeeds(rng)
 
 
 ## in-place
 
 # uniform
-Random.rand!(rng::RNG, A::CuArray{Float32}) = generate_uniform(rng, A)
-Random.rand!(rng::RNG, A::CuArray{Float64}) = generate_uniform_double(rng, A)
+Random.rand!(rng::RNG, A::CuArray{Float32}) = curandGenerateUniform(rng, A)
+Random.rand!(rng::RNG, A::CuArray{Float64}) = curandGenerateUniformDouble(rng, A)
 
 # normal
-Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = generate_normal(rng, A, mean, stddev)
-Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = generate_normal_double(rng, A, mean, stddev)
+Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = curandGenerateNormal(rng, A, mean, stddev)
+Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = curandGenerateNormalDouble(rng, A, mean, stddev)
 
 # log-normal
-rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = generate_log_normal(rng, A, mean, stddev)
-rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = generate_log_normal_double(rng, A, mean, stddev)
+rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = curandGenerateLogNormal(rng, A, mean, stddev)
+rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = curandGenerateLogNormalDouble(rng, A, mean, stddev)
 
 # log-normal
-rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1) = generate_poisson(rng, A, lambda)
+rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1) = curandGeneratePoisson(rng, A, lambda)
 
 
 ## out of place
