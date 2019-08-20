@@ -62,10 +62,6 @@ function Base.show(io::IO, F::CuQR)
     show(io, F.R)
 end
 
-# https://github.com/JuliaLang/julia/pull/32887
-LinearAlgebra.det(Q::CuQRPackedQ{<:Real}) = isodd(count(!iszero, Q.τ)) ? -1 : 1
-LinearAlgebra.det(Q::CuQRPackedQ) = prod(τ -> iszero(τ) ? one(τ) : -sign(τ)^2, Q.τ)
-
 # Singular Value Decomposition
 
 struct CuSVD{T,Tr,A<:AbstractMatrix{T}} <: LinearAlgebra.Factorization{T}
