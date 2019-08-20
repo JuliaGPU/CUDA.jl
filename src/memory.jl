@@ -515,8 +515,8 @@ function pool_status()
 
   pool_ratio = (used_pool_bytes + avail_pool_bytes) / used_bytes
 
-  println("Total GPU memory usage: $(100*round(used_ratio; digits=2))% ($(Base.format_bytes(used_bytes))/$(Base.format_bytes(total_bytes)))")
-  println("CuArrays.jl pool usage: $(100*round(pool_ratio; digits=2))% ($(Base.format_bytes(used_pool_bytes)) in use by $used_pool_buffers buffer(s), $(Base.format_bytes(avail_pool_bytes)) idle)")
+  @printf("Total GPU memory usage: %.2f%% (%s/%s)\n", 100*used_ratio, Base.format_bytes(used_bytes), Base.format_bytes(total_bytes))
+  @printf("CuArrays.jl pool usage: %.2f%% (%s in use by %d buffers, %s idle)\n", 100*pool_ratio, Base.format_bytes(used_pool_bytes), used_pool_buffers, Base.format_bytes(avail_pool_bytes))
 
   return
 end
