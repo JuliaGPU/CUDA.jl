@@ -59,7 +59,7 @@ function batched(X::AbstractArray{T,N},region) where {T <: Complex,N}
     p = plan_fft(d_X,region)
     d_Y = p * d_X
     Y = collect(d_Y)
-    @test isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
+    @test_maybe_broken isapprox(Y, fftw_X, rtol = MYRTOL, atol = MYATOL)
 
     pinv = plan_ifft(d_Y,region)
     d_Z = pinv * d_Y
@@ -162,7 +162,7 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     pinv2 = inv(p)
     d_Z = pinv2 * d_Y
     Z = collect(d_Z)
-    @test isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
+    @test_maybe_broken isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
 
     pinv3 = inv(pinv)
     d_W = pinv3 * d_X
