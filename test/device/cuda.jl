@@ -248,7 +248,7 @@ end
 
 @testset "shared memory" begin
 
-n = 1024
+n = 256
 
 @testset "constructors" begin
     # static
