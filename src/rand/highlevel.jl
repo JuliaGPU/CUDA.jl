@@ -15,37 +15,77 @@ seed!(rng::RNG=generator()) = curandGenerateSeeds(rng)
 ## in-place
 
 # uniform
+const UniformTypes = Union{Float32,Float64}
 Random.rand!(rng::RNG, A::CuArray{Float32}) = curandGenerateUniform(rng, A)
 Random.rand!(rng::RNG, A::CuArray{Float64}) = curandGenerateUniformDouble(rng, A)
 
+# some functions need pow2 lengths: use a padded array and copy back to the original one
+function inplace_pow2(A, f)
+    len = length(A)
+    if len > 1 && ispow2(len)
+        f(A)
+    else
+        padlen = max(2, nextpow(2, len))
+        B = similar(A, padlen)
+        f(B)
+        copyto!(A, 1, B, 1, len)
+        CuArrays.unsafe_free!(B)
+    end
+    A
+end
+
 # normal
-Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = curandGenerateNormal(rng, A, mean, stddev)
-Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = curandGenerateNormalDouble(rng, A, mean, stddev)
+const NormalTypes = Union{Float32,Float64}
+Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateNormal(rng, B, mean, stddev))
+Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateNormalDouble(rng, B, mean, stddev))
 
 # log-normal
-rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = curandGenerateLogNormal(rng, A, mean, stddev)
-rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = curandGenerateLogNormalDouble(rng, A, mean, stddev)
+const LognormalTypes = Union{Float32,Float64}
+rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateLogNormal(rng, B, mean, stddev))
+rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateLogNormalDouble(rng, B, mean, stddev))
 
-# log-normal
+# poisson
+const PoissonTypes = Union{Cuint}
 rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1) = curandGeneratePoisson(rng, A, lambda)
 
 
 ## out of place
 
-Random.rand(rng::RNG, ::Type{X}, dims::Dims) where {X} = rand!(rng, CuArray{X}(undef, dims))
-Random.randn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = randn!(rng, CuArray{X}(undef, dims); kwargs...)
-rand_logn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_logn!(rng, CuArray{X}(undef, dims); kwargs...)
-rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} = rand_poisson!(rng, CuArray{X}(undef, dims); kwargs...)
+# some functions need pow2 lengths: construct a compatible array and return part of it
+function outofplace_pow2(shape, ctor, f)
+    len = prod(shape)
+    if ispow2(len)
+        A = ctor(shape)
+        f(A)
+    else
+        padlen = max(2, nextpow(2, len))
+        A = ctor(padlen)
+        f(A)
+        B = reshape(A[1:len], shape)
+        return B
+    end
+end
+
+Random.rand(rng::RNG, ::Type{X}, dims::Dims) where {X} =
+    Random.rand!(rng, CuArray{X}(undef, dims))
+Random.randn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
+    outofplace_pow2(dims, shape->CuArray{X}(undef, dims), A->randn!(rng, A; kwargs...))
+rand_logn(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
+    outofplace_pow2(dims, shape->CuArray{X}(undef, dims), A->rand_logn!(rng, A; kwargs...))
+rand_poisson(rng::RNG, ::Type{X}, dims::Dims; kwargs...) where {X} =
+    rand_poisson!(rng, CuArray{X}(undef, dims); kwargs...)
 
 # specify default types
-Random.rand(rng::RNG, dims::Integer...; kwargs...) = rand(rng, Float32, dims...; kwargs...)
-Random.randn(rng::RNG, dims::Integer...; kwargs...) = randn(rng, Float32, dims...; kwargs...)
-rand_logn(rng::RNG, dims::Integer...; kwargs...) = rand_logn(rng, Float32, dims...; kwargs...)
-rand_poisson(rng::RNG, dims::Integer...; kwargs...) = rand_poisson(rng, Cuint, dims...; kwargs...)
+Random.rand(rng::RNG, dims::Dims; kwargs...) = Random.rand(rng, Float32, dims; kwargs...)
+Random.randn(rng::RNG, dims::Dims; kwargs...) = Random.randn(rng, Float32, dims; kwargs...)
+rand_logn(rng::RNG, dims::Dims; kwargs...) = rand_logn(rng, Float32, dims; kwargs...)
+rand_poisson(rng::RNG, dims::Dims; kwargs...) = rand_poisson(rng, Cuint, dims; kwargs...)
 
-# convenience
+# support all dimension specifications
+Random.rand(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    Random.rand(rng, X, Dims((dim1, dims...)); kwargs...)
 Random.randn(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
-    randn(rng, X, Dims((dim1, dims...)); kwargs...)
+    Random.randn(rng, X, Dims((dim1, dims...)); kwargs...)
 rand_logn(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
     rand_logn(rng, X, Dims((dim1, dims...)); kwargs...)
 rand_poisson(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
@@ -54,36 +94,56 @@ rand_poisson(rng::RNG, ::Type{X}, dim1::Integer, dims::Integer...; kwargs...) wh
 
 ## functions that dispatch to either CURAND or GPUArrays
 
-uniform_rng(::CuArray{<:Union{Float32,Float64}}) = generator()
-uniform_rng(A::CuArray) = GPUArrays.global_rng(A)
+# CURAND in-place
+Random.rand!(A::CuArray{X}; kwargs...) where {X <: UniformTypes} = Random.rand!(generator(), A; kwargs...)
+Random.randn!(A::CuArray{X}; kwargs...) where {X <: NormalTypes} = Random.randn!(generator(), A; kwargs...)
+rand_logn!(A::CuArray{X}; kwargs...) where {X <: LognormalTypes} = rand_logn!(generator(), A; kwargs...)
+rand_poisson!(A::CuArray{X}; kwargs...) where {X <: PoissonTypes} = rand_poisson!(generator(), A; kwargs...)
 
-normal_rng(::CuArray{<:Union{Float32,Float64}}) = generator()
-normal_rng(::CuArray{T}) where {T} =
-    error("CuArrays does not support generating normally distributed numbers of type $T")
+# CURAND out-of-place
+rand(::Type{X}, dims::Dims; kwargs...) where {X <: UniformTypes} = Random.rand(generator(), X, dims; kwargs...)
+randn(::Type{X}, dims::Dims; kwargs...) where {X <: NormalTypes} = Random.randn(generator(), X, dims; kwargs...)
+rand_logn(rng::Type{X}, dims::Dims; kwargs...) where {X <: LognormalTypes} = rand_logn(generator(), X, dims; kwargs...)
+rand_poisson(rng::Type{X}, dims::Dims; kwargs...) where {X <: PoissonTypes} = rand_poisson(generator(), X, dims; kwargs...)
 
-logn_rng(::CuArray{<:Union{Float32,Float64}}) = generator()
-logn_rng(::CuArray{T}) where {T} =
-    error("CuArrays does not support generating lognormally distributed numbers of type $T")
+# support all dimension specifications
+rand(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X <: UniformTypes} =
+    Random.rand(generator(), X, Dims((dim1, dims...)); kwargs...)
+randn(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X <: NormalTypes} =
+    Random.randn(generator(), X, Dims((dim1, dims...)); kwargs...)
+rand_logn(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X <: LognormalTypes} =
+    rand_logn(generator(), X, Dims((dim1, dims...)); kwargs...)
+rand_poisson(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X <: PoissonTypes} =
+    rand_poisson(generator(), X, Dims((dim1, dims...)); kwargs...)
 
-poisson_rng(::CuArray{Cuint}) = generator()
-poisson_rng(::CuArray{T}) where {T} =
-    error("CuArrays does not support generating Poisson distributed numbers of type $T")
+# GPUArrays in-place
+Random.rand!(A::CuArray{X}; kwargs...) where {X} = Random.rand!(GPUArrays.global_rng(A), A; kwargs...)
+Random.randn!(A::CuArray{X}; kwargs...) where {X} = error("CuArrays does not support generating normally-distrubyted random numbers of type $X")
+rand_logn!(A::CuArray{X}; kwargs...) where {X} = error("CuArrays does not support generating lognormally-distributed random numbers of type $X")
+rand_poisson!(A::CuArray{X}; kwargs...) where {X} = error("CuArrays does not support generating Poisson-distributed random numbers of type $X")
 
+# GPUArrays out-of-place
+rand(::Type{X}, dims::Dims; kwargs...) where {X} = Random.rand!(CuArray{X}(undef, dims...); kwargs...)
+randn(::Type{X}, dims::Dims; kwargs...) where {X} = Random.randn!(CuArray{X}(undef, dims...); kwargs...)
+rand_logn(rng::Type{X}, dims::Dims; kwargs...) where {X} = rand_logn!(CuArray{X}(undef, dims...); kwargs...)
+rand_poisson(rng::Type{X}, dims::Dims; kwargs...) where {X} = rand_poisson!(CuArray{X}(undef, dims...); kwargs...)
 
-Random.rand!(A::CuArray; kwargs...) = rand!(uniform_rng(A), A; kwargs...)
-Random.randn!(A::CuArray; kwargs...) = randn!(normal_rng(A), A; kwargs...)
-rand_logn!(A::CuArray; kwargs...) = rand_logn!(logn_rng(A), A; kwargs...)
-rand_poisson!(A::CuArray; kwargs...) = rand_poisson!(poisson_rng(A), A; kwargs...)
-rand_logn(A::CuArray; kwargs...) = rand_logn!(logn_rng(A), A; kwargs...)
-rand_poisson(A::CuArray; kwargs...) = rand_poisson!(poisson_rng(A), A; kwargs...)
+# support all dimension specifications
+rand(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    Random.rand!(CuArray{X}(undef, dim1, dims...); kwargs...)
+randn(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    Random.randn!(CuArray{X}(undef, dim1, dims...); kwargs...)
+rand_logn(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    rand_logn!(CuArray{X}(undef, dim1, dims...); kwargs...)
+rand_poisson(::Type{X}, dim1::Integer, dims::Integer...; kwargs...) where {X} =
+    rand_poisson!(CuArray{X}(undef, dim1, dims...); kwargs...)
 
-rand(::Type{X}, args...; kwargs...) where {X} = rand!(CuArray{X}(undef, args...); kwargs...)
-randn(::Type{X}, args...; kwargs...) where {X} = randn!(CuArray{X}(undef, args...); kwargs...)
-rand_logn(::Type{X}, args...; kwargs...) where {X} = rand_logn!(CuArray{X}(undef, args...); kwargs...)
-rand_poisson(::Type{X}, args...; kwargs...) where {X} = rand_poisson!(CuArray{X}(undef, args...); kwargs...)
-
-# specify default types
-rand(args...; kwargs...) where {X} = rand(Float32, args...; kwargs...)
-randn(args...; kwargs...) where {X} = randn(Float32, args...; kwargs...)
-rand_logn(args...; kwargs...) where {X} = rand_logn(Float32, args...; kwargs...)
-rand_poisson(args...; kwargs...) where {X} = rand_poisson(Cuint, args...; kwargs...)
+# default to CURAND
+rand(dim1::Integer, dims::Integer...; kwargs...) =
+    Random.rand(generator(), Dims((dim1, dims...)); kwargs...)
+randn(dim1::Integer, dims::Integer...; kwargs...) =
+    Random.randn(generator(), Dims((dim1, dims...)); kwargs...)
+rand_logn(dim1::Integer, dims::Integer...; kwargs...) =
+    rand_logn(generator(), Dims((dim1, dims...)); kwargs...)
+rand_poisson(dim1::Integer, dims::Integer...; kwargs...) =
+    rand_poisson(generator(), Dims((dim1, dims...)); kwargs...)
