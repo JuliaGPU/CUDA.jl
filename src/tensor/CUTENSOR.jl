@@ -5,7 +5,7 @@ import CUDAapi
 import CUDAdrv: CUDAdrv, CuContext
 
 using ..CuArrays
-using ..CuArrays: libcutensor, active_context
+using ..CuArrays: libcutensor, @libcutensor, active_context
 
 using Libdl
 
@@ -45,8 +45,10 @@ function version()
 end
 
 function __init__()
-    Libdl.dlopen(CuArrays.CUBLAS.libcublas, RTLD_NOW | RTLD_DEEPBIND | RTLD_GLOBAL)
-    Libdl.dlopen(libcutensor, RTLD_LAZY | RTLD_DEEPBIND | RTLD_GLOBAL)
+    if libcutensor !== nothing
+        Libdl.dlopen(CuArrays.CUBLAS.libcublas, RTLD_NOW | RTLD_DEEPBIND | RTLD_GLOBAL)
+        Libdl.dlopen(libcutensor, RTLD_LAZY | RTLD_DEEPBIND | RTLD_GLOBAL)
+    end
 end
 
 end

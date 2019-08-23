@@ -3,29 +3,29 @@
 using CUDAapi: cudaDataType
 using CUDAdrv: CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
 
-cutensorGetErrorString(status) = ccall((:cutensorGetErrorString,libcutensor), Cstring,
+cutensorGetErrorString(status) = ccall((:cutensorGetErrorString,@libcutensor), Cstring,
                                        (cutensorStatus_t,), status)
 
-cutensorGetVersion() = ccall((:cutensorGetVersion,libcutensor), Csize_t, ())
+cutensorGetVersion() = ccall((:cutensorGetVersion,@libcutensor), Csize_t, ())
 
-cutensorGetCudartVersion() = ccall((:cutensorGetCudartVersion,libcutensor), Csize_t, ())
+cutensorGetCudartVersion() = ccall((:cutensorGetCudartVersion,@libcutensor), Csize_t, ())
 
 function cutensorCreate()
   handle = Ref{cutensorHandle_t}()
-  @check ccall((:cutensorCreate, libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorCreate, @libcutensor), cutensorStatus_t,
                (Ptr{cutensorHandle_t},), handle)
   handle[]
 end
 
 function cutensorDestroy(handle)
-  @check ccall((:cutensorDestroy, libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorDestroy, @libcutensor), cutensorStatus_t,
                (cutensorHandle_t,), handle)
 end
 
 function cutensorCreateTensorDescriptor(numModes, extent, stride, dataType, unaryOp,
                                         vectorWidth, vectorModeIndex)
   desc = Ref{cutensorTensorDescriptor_t}(C_NULL)
-  @check ccall((:cutensorCreateTensorDescriptor, libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorCreateTensorDescriptor, @libcutensor), cutensorStatus_t,
                (Ref{cutensorTensorDescriptor_t}, Cuint, Ptr{Int64}, Ptr{Int64},
                 cudaDataType, cutensorOperator_t, Cuint, Cuint),
                desc, numModes, extent, stride,
@@ -34,7 +34,7 @@ function cutensorCreateTensorDescriptor(numModes, extent, stride, dataType, unar
 end
 
 function cutensorDestroyTensorDescriptor(desc::cutensorTensorDescriptor_t)
-  @check ccall((:cutensorDestroyTensorDescriptor, libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorDestroyTensorDescriptor, @libcutensor), cutensorStatus_t,
                (cutensorTensorDescriptor_t,), desc)
 end
 
@@ -44,7 +44,7 @@ function cutensorElementwiseTrinary(handle,
                                     gamma, C, descC, modeC,
                                            D, descD, modeD,
                                     opAB, opABC, typeCompute, stream)
-  @check ccall((:cutensorElementwiseTrinary,libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorElementwiseTrinary,@libcutensor), cutensorStatus_t,
                (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                 Ptr{Cint}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                 Ptr{Cint}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
@@ -59,7 +59,7 @@ function cutensorElementwiseBinary(handle,
                                    gamma, C, descC, modeC,
                                           D, descD, modeD,
                                    opAC, typeCompute, stream)
-  @check ccall((:cutensorElementwiseBinary,libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorElementwiseBinary,@libcutensor), cutensorStatus_t,
                (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                 Ptr{Cint}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                 Ptr{Cint}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
@@ -72,7 +72,7 @@ function cutensorPermutation(handle,
                              alpha, A, descA, modeA,
                                     B, descB, modeB,
                              typeCompute, stream)
-  @check ccall((:cutensorPermutation,libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorPermutation,@libcutensor), cutensorStatus_t,
                (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                 Ptr{Cint}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
                 cudaDataType, CuStream_t),
@@ -85,7 +85,7 @@ function cutensorContraction(handle,
                              beta, C, descC, modeC,
                                    D, descD, modeD,
                              opOut, typeCompute, algo, workspace, workspaceSize, stream)
-  @check ccall((:cutensorContraction,libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorContraction,@libcutensor), cutensorStatus_t,
                (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid},
                 cutensorTensorDescriptor_t, Ptr{Cint},
                 CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
@@ -104,7 +104,7 @@ function cutensorContractionGetWorkspace(handle,
                                          C, descC, modeC,
                                          D, descD, modeD,
                                          opOut, typeCompute, algo, pref, workspaceSize)
-  @check ccall((:cutensorContractionGetWorkspace,libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorContractionGetWorkspace,@libcutensor), cutensorStatus_t,
                (cutensorHandle_t, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
                 CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
                 CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
@@ -117,7 +117,7 @@ end
 
 function cutensorContractionMaxAlgos()
   max_algos = Ref{Cint}()
-  @check ccall((:cutensorContractionMaxAlgos,libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorContractionMaxAlgos,@libcutensor), cutensorStatus_t,
                (Ptr{Cint},), max_algos)
   return max_algos
 end
@@ -127,7 +127,7 @@ function cutensorReduction(handle,
                             beta, C, descC, modeC,
                                 D, descD, modeD,
                             opReduce, typeCompute, workspace, workspaceSize, stream)
-  @check ccall((:cutensorReduction,libcutensor), cutensorStatus_t,
+  @check ccall((:cutensorReduction,@libcutensor), cutensorStatus_t,
                (cutensorHandle_t,
                 Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
                 Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
@@ -142,7 +142,7 @@ function cutensorReductionGetWorkspace(handle,
                                         C, descC, modeC,
                                         D, descD, modeD,
                                         opReduce, typeCompute, workspaceSize)
-    @check ccall((:cutensorReductionGetWorkspace,libcutensor), cutensorStatus_t,
+    @check ccall((:cutensorReductionGetWorkspace,@libcutensor), cutensorStatus_t,
                  (cutensorHandle_t,
                   CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},
                   CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Cint},

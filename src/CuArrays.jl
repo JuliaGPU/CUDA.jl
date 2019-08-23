@@ -32,12 +32,8 @@ let
     for name in ("cudnn", "cutensor")
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
-        mod = uppercase(name)
         if path !== nothing
             Base.include_dependency(path)
-            @debug "Found $mod at $path"
-        else
-            @warn "You installation does not provide $lib, CuArrays.$mod will be unavailable"
         end
 
         # provide a global constant that returns the path to the library,
@@ -81,7 +77,7 @@ include("solver/CUSOLVER.jl")
 include("fft/CUFFT.jl")
 include("rand/CURAND.jl")
 include("dnn/CUDNN.jl")
-libcutensor !== nothing && include("tensor/CUTENSOR.jl")
+include("tensor/CUTENSOR.jl")
 
 include("nnlib.jl")
 
@@ -105,7 +101,7 @@ function __init__()
         CUSPARSE._handle[] = C_NULL
         CURAND._generator[] = nothing
         CUDNN._handle[] = C_NULL
-        isdefined(CuArrays, :CUTENSOR) && (CUTENSOR._handle[] = C_NULL)
+        CUTENSOR._handle[] = C_NULL
     end
     push!(CUDAnative.device!_listeners, callback)
 

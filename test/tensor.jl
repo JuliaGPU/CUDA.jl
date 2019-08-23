@@ -1,9 +1,10 @@
 @testset "CUTENSOR" begin
 
-if !isdefined(CuArrays, :CUTENSOR)
+using CuArrays.CUTENSOR
+
+if CuArrays.libcutensor === nothing
 @warn "Not testing CUTENSOR"
 else
-using CuArrays.CUTENSOR
 @info "Testing CUTENSOR $(CUTENSOR.version())"
 
 @testset "Elementwise binary" begin
