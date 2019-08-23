@@ -43,6 +43,7 @@ version() = VersionNumber(curandGetProperty(CUDAapi.MAJOR_VERSION),
 
 end
 
+const seed! = CURAND.seed!
 const rand = CURAND.rand
 const randn = CURAND.randn
 const rand_logn = CURAND.rand_logn

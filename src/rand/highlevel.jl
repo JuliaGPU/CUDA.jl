@@ -4,12 +4,19 @@
 # - functions that extend the Random standard library, and take an RNG as first argument,
 #   will only ever dispatch to CURAND and as a result are limited in the types they support.
 # - functions that take an array will dispatch to either CURAND or GPUArrays
-# - `cu`-prefixed functions are provided for constructing GPU arrays from only an eltype
+# - non-exported functions are provided for constructing GPU arrays from only an eltype
 
 
 ## seeding
 
 seed!(rng::RNG=generator()) = curandGenerateSeeds(rng)
+
+seed!(seed::Int64, offset::Int64=0) = seed!(generator(), seed, offset)
+function seed!(rng::RNG, seed::Int64, offset::Int64)
+    curandSetPseudoRandomGeneratorSeed(rng, seed)
+    curandSetGeneratorOffset(rng, offset)
+    curandGenerateSeeds(rng)
+end
 
 
 ## in-place
