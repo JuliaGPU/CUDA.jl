@@ -4,6 +4,7 @@ using CuArrays.CUTENSOR
 
 if CuArrays.libcutensor === nothing
 @warn "Not testing CUTENSOR"
+haskey(ENV, "CI") && error("All optional libraries should be available on CI")
 else
 @info "Testing CUTENSOR $(CUTENSOR.version())"
 
