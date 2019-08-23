@@ -1,7 +1,10 @@
 module CUSPARSE
 
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
 import CUDAapi
+
+import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
+
+import CUDAnative
 
 using ..CuArrays
 using ..CuArrays: libcusparse, active_context, unsafe_free!
@@ -29,7 +32,7 @@ const _handle = Ref{cusparseHandle_t}()
 
 function handle()
     if _handle[] == C_NULL
-        @assert isassigned(active_context) # some other call should have initialized CUDA
+        CUDAnative.maybe_initialize("CUSPARSE")
         _handle[] = get!(_handles, active_context[]) do
             context = active_context[]
             handle = cusparseCreate()

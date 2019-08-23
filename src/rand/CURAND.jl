@@ -1,7 +1,10 @@
 module CURAND
 
-import CUDAdrv: CUDAdrv, CuContext, CuPtr
 import CUDAapi
+
+import CUDAdrv: CUDAdrv, CuContext, CuPtr
+
+import CUDAnative
 
 using ..CuArrays
 using ..CuArrays: libcurand, active_context
@@ -20,7 +23,7 @@ const _generator = Ref{Union{Nothing,RNG}}(nothing)
 
 function generator()
     if _generator[] == nothing
-        @assert isassigned(active_context) # some other call should have initialized CUDA
+        CUDAnative.maybe_initialize("CURAND")
         _generator[] = get!(_generators, active_context[]) do
             context = active_context[]
             generator = curandCreateGenerator()
