@@ -1,7 +1,10 @@
 module CUBLAS
 
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL, devices
 import CUDAapi
+
+import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL, devices
+
+import CUDAnative
 
 using ..CuArrays
 using ..CuArrays: libcublas, active_context, unsafe_free!
@@ -17,7 +20,7 @@ const _xt_handle = Ref{cublasXtHandle_t}(C_NULL)
 
 function handle()
     if _handle[] == C_NULL
-        @assert isassigned(active_context) # some other call should have initialized CUDA
+        CUDAnative.maybe_initialize("CUBLAS")
         _handle[] = get!(_handles, active_context[]) do
             context = active_context[]
             handle = cublasCreate_v2()

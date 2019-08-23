@@ -1,13 +1,16 @@
 module CUSOLVER
 
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
 import CUDAapi
+
+import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
+
+import CUDAnative
 
 using ..CuArrays
 using ..CuArrays: libcusolver, active_context, _getindex, unsafe_free!
 
 using LinearAlgebra
-using SparseArrays 
+using SparseArrays
 
 import Base.one
 import Base.zero
@@ -25,7 +28,7 @@ const _sparse_handle = Ref{cusolverSpHandle_t}(C_NULL)
 
 function dense_handle()
     if _dense_handle[] == C_NULL
-        @assert isassigned(active_context) # some other call should have initialized CUDA
+        CUDAnative.maybe_initialize("CUSOLVER")
         _dense_handle[] = get!(_dense_handles, active_context[]) do
             context = active_context[]
             handle = cusolverDnCreate()
@@ -38,7 +41,7 @@ end
 
 function sparse_handle()
     if _sparse_handle[] == C_NULL
-        @assert isassigned(active_context) # some other call should have initialized CUDA
+        CUDAnative.maybe_initialize("CUSOLVER")
         _sparse_handle[] = get!(_sparse_handles, active_context[]) do
             context = active_context[]
             handle = cusolverSpCreate()
