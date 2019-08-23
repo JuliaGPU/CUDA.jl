@@ -22,8 +22,15 @@ import Base.GC: gc
 
 const pool_lock = ReentrantLock()
 
+const usage = Ref(0)
+const usage_limit = Ref{Union{Nothing,Int}}(nothing)
+
 function __init_pool_()
   pool_timings!()
+
+  if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
+    usage_limit[] = parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
+  end
 end
 
 
@@ -222,6 +229,7 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
           stats.actual_nfree += 1
           stats.cuda_time += Base.@elapsed Mem.free(buf)
           stats.actual_free += bytes
+          usage[] -= bytes
 
           target_bytes -= bytes
           target_bytes <= 0 && return true
@@ -237,18 +245,27 @@ end
 ## allocator state machine
 
 function try_cuda_alloc(bytes)
-  buf = nothing
+  # check the memory allocation limit
+  if usage_limit[] !== nothing
+    if usage[] + bytes > usage_limit[]
+      return
+    end
+  end
+
+  # try the actual allocation
   try
     stats.cuda_time += Base.@elapsed begin
       buf = Mem.alloc(Mem.Device, bytes)
+      usage[] += bytes
     end
     stats.actual_nalloc += 1
     stats.actual_alloc += bytes
+    return buf
   catch ex
     ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
   end
 
-  return buf
+  return
 end
 
 function try_alloc(bytes, pid=-1)
@@ -412,6 +429,7 @@ function dealloc(buf, bytes)
       end
     else
       @timeit to[] "large dealloc" Mem.free(buf)
+      usage[] -= bytes
     end
   end
 
