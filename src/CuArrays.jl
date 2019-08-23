@@ -36,8 +36,15 @@ let
         if path !== nothing
             Base.include_dependency(path)
         end
+
+        # provide a global constant that returns the path to the library,
+        # or nothing if the library is not available (for use in conditional expressions)
         @eval global const $lib = $path
-        @eval macro $lib() $lib === nothing ? error($"Your installation does not provide $lib, CuArrays.$(uppercase(name)) is unavailable") : $lib end
+
+        # provide a macro that either returns the path to the library,
+        # or a run-time error if the library is not available (for use in ccall expressions)
+        exception = :(error($"Your installation does not provide $lib, CuArrays.$(uppercase(name)) is unavailable"))
+        @eval macro $lib() $lib === nothing ? $(QuoteNode(exception)) : $lib end
     end
 end
 
