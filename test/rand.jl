@@ -52,4 +52,18 @@ end
 @test_throws ErrorException rand_logn!(CuArray{Cuint}(undef, 10))
 @test_throws ErrorException rand_poisson!(CuArray{Float64}(undef, 10))
 
+# scalars
+@allowscalar begin
+    for f in (CuArrays.rand, CuArrays.randn, CuArrays.rand_logn, CuArrays.rand_poisson)
+        @test isa(f(), Number)
+    end
+    for (f,T) in ((CuArrays.rand,Float32), (CuArrays.randn,Float32), (CuArrays.rand_logn,Float32),
+                (CuArrays.rand,Float64), (CuArrays.randn,Float64), (CuArrays.rand_logn,Float64),
+                (CuArrays.rand_poisson,Cuint),
+                (rand,Float32), (randn,Float32),
+                (rand,Float64), (randn,Float64))
+        @test isa(f(T), T)
+    end
+end
+
 end
