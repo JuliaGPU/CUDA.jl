@@ -144,11 +144,11 @@
 @inline isfinite(x::Float32) = (@wrap __nv_finitef(x::float)::i32) != 0
 @inline isfinite(x::Float64) = (@wrap __nv_isfinited(x::double)::i32) != 0
 
-@inline isinf(x::Float32) = (@wrap __nv_isinfd(x::double)::i32) != 0
-@inline isinf(x::Float64) = (@wrap __nv_isinff(x::float)::i32) != 0
+@inline isinf(x::Float64) = (@wrap __nv_isinfd(x::double)::i32) != 0
+@inline isinf(x::Float32) = (@wrap __nv_isinff(x::float)::i32) != 0
 
-@inline isnan(x::Float32) = (@wrap __nv_isnand(x::double)::i32) != 0
-@inline isnan(x::Float64) = (@wrap __nv_isnanf(x::float)::i32) != 0
+@inline isnan(x::Float64) = (@wrap __nv_isnand(x::double)::i32) != 0
+@inline isnan(x::Float32) = (@wrap __nv_isnanf(x::float)::i32) != 0
 
 @inline nearbyint(x::Float64) = @wrap __nv_nearbyint(x::double)::double
 @inline nearbyint(x::Float32) = @wrap __nv_nearbyintf(x::float)::float
