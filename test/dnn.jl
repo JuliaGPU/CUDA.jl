@@ -7,6 +7,8 @@ if CuArrays.libcudnn === nothing
 else
 @info "Testing CUDNN $(CUDNN.version())"
 
+@test has_cudnn()
+
 @testset "NNlib" begin
   using NNlib
   using NNlib: ∇conv_data, ∇conv_filter,
