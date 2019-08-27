@@ -45,6 +45,10 @@ let
         # or a run-time error if the library is not available (for use in ccall expressions)
         exception = :(error($"Your installation does not provide $lib, CuArrays.$(uppercase(name)) is unavailable"))
         @eval macro $lib() $lib === nothing ? $(QuoteNode(exception)) : $lib end
+
+        # provide a function for external use (a la CUDAapi.has_cuda)
+        fn = Symbol("has_$name")
+        @eval (export $fn; $fn() = $lib !== nothing)
     end
 end
 
