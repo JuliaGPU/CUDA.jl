@@ -477,3 +477,207 @@ function cudnnGetProperty(property::CUDAapi.libraryPropertyType)
                property, value_ref)
   value_ref[]
 end
+
+# Flux DNN
+
+function cudnnCreateDropoutDescriptor(d)
+    @check ccall((:cudnnCreateDropoutDescriptor,@libcudnn),
+                 cudnnStatus_t,
+                 (Ptr{Ptr{Nothing}},),
+                 d)
+end
+
+function cudnnDropoutGetStatesSize(s)
+    @check ccall((:cudnnDropoutGetStatesSize,@libcudnn),
+                 cudnnStatus_t,
+                 (Ptr{Nothing},Ptr{Csize_t}),
+                 handle(), s)
+end
+
+function cudnnSetDropoutDescriptor(desc, ρ, states, seed)
+  @check ccall((:cudnnSetDropoutDescriptor,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing},Ptr{Nothing},Cfloat,CuPtr{Nothing},Csize_t,Culonglong),
+               desc, handle(), ρ, states, length(states), seed)
+end
+
+function cudnnDestroyDropoutDescriptor(x)
+    @check ccall((:cudnnDestroyDropoutDescriptor,@libcudnn),
+                 cudnnStatus_t,
+                 (Ptr{Nothing},),
+                 x)
+end
+
+function cudnnBatchNormalizationForwardTraining(mode, alpha, beta, xd, x, yd, y, gd, g, b,
+                                                momentum, running_mean, running_var, eps,
+                                                mean, ivar)
+    @check ccall((:cudnnBatchNormalizationForwardTraining,@libcudnn),
+                 cudnnStatus_t,
+                 (cudnnHandle_t,cudnnBatchNormMode_t,
+                  Ptr{Cvoid}, Ptr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
+                  Cdouble, CuPtr{Cvoid}, CuPtr{Cvoid},
+                  Cdouble, CuPtr{Cvoid}, CuPtr{Cvoid}),
+                 handle(), mode,
+                  alpha, beta,
+                  xd, x,
+                  yd, y,
+                  gd, g, b,
+                  momentum, running_mean, running_var,
+                  eps, mean, ivar)
+end
+
+function cudnnBatchNormalizationForwardInference(mode, alpha, beta, xd, x, yd, y, gd, g,
+                                                 bias, running_mean, running_var, eps)
+    @check ccall((:cudnnBatchNormalizationForwardInference,@libcudnn),
+                 cudnnStatus_t,
+                 (Ptr{cudnnHandle_t},cudnnBatchNormMode_t,
+                  Ptr{Cvoid}, Ptr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
+                  CuPtr{Cvoid}, CuPtr{Cvoid},
+                  Cdouble),
+                 handle(), mode,
+                  alpha, beta,
+                  xd, x,
+                  yd, y,
+                  gd, g, bias,
+                  running_mean, running_var,
+                  eps)
+end
+
+function cudnnBatchNormalizationBackward(mode, alpha, beta, dalpha, dbeta, xd, x, dyd, dy,
+                                         dxd, dx, gd, g, dg, db, eps, mean, ivar)
+    @check ccall((:cudnnBatchNormalizationBackward,@libcudnn),
+                 cudnnStatus_t,
+                 (cudnnHandle_t, cudnnBatchNormMode_t,
+                  Ptr{Cvoid}, Ptr{Cvoid},
+                  Ptr{Cvoid}, Ptr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid},
+                  cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid},
+                  Cdouble, CuPtr{Cvoid}, CuPtr{Cvoid}),
+                 handle(), mode,
+                  alpha, beta,
+                  dalpha, dbeta,
+                  xd, x,
+                  dyd, dy,
+                  dxd, dx,
+                  gd, g, dg, db,
+                  eps, mean, ivar)
+end
+
+# TODO: enums etc
+const BATCHNORM_SPATIAL = 1
+const BATCHNORM_ACTIVATION = 0
+const BATCHNORM_MIN_EPS = 1e-5
+
+
+# Flux RNN
+
+# TODO: descriptors instead of Ptr{Nothing}
+
+function cudnnGetRNNParamsSize(rnnDesc, xDesc, sizeInBytes, dataType)
+  @check ccall((:cudnnGetRNNParamsSize,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing}, Ptr{Nothing}, Ptr{Nothing}, Ptr{Csize_t}, Cint),
+               handle(), rnnDesc, xDesc, sizeInBytes, dataType)
+end
+
+function cudnnCreateRNNDescriptor(d)
+  @check ccall((:cudnnCreateRNNDescriptor,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Ptr{Nothing}},),
+               d)
+end
+
+function cudnnSetRNNDescriptor_v6(d, hidden, layers, dropoutDesc, inputMode, direction,
+                                  mode, algo, mathPrec)
+  @check ccall((:cudnnSetRNNDescriptor_v6,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing}, Ptr{Nothing}, Cint, Cint, Ptr{Nothing}, Cint, Cint, Cint,
+                Cint, Cint),
+               handle(), d, hidden, layers, dropoutDesc, inputMode, direction, mode, algo,
+               mathPrec)
+end
+
+function cudnnDestroyRNNDescriptor(x)
+  @check ccall((:cudnnDestroyRNNDescriptor,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing},),x)
+end
+
+function cudnnGetRNNWorkspaceSize(r, seqlen, xdesc, size)
+  @check ccall((:cudnnGetRNNWorkspaceSize,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing},Ptr{Nothing},Cint,Ptr{Ptr{Nothing}},Ptr{Csize_t}),
+               handle(), r, seqlen, xdesc, size)
+end
+
+function cudnnGetRNNTrainingReserveSize(r, seqlen, xdesc, size)
+  @check ccall((:cudnnGetRNNTrainingReserveSize,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing}, Ptr{Nothing}, Cint, Ptr{Ptr{Nothing}}, Ptr{Csize_t}),
+               handle(), r, seqlen, xdesc, size)
+end
+
+function cudnnRNNForwardInference(rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y, hod, ho,
+                                  cod, co, workspace)
+  @check ccall((:cudnnRNNForwardInference,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing}, Ptr{Nothing}, Cint,
+                Ptr{Ptr{Nothing}}, CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing},
+                CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Ptr{Nothing}}, CuPtr{Cvoid},
+                Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid},
+                CuPtr{Nothing}, Csize_t),
+               handle(), rnn, seqlen,
+               xd, x, hd, h, cd, c, wd, w, yd, y, hod, ho, cod, co,
+               workspace, length(workspace))
+end
+
+function cudnnRNNForwardTraining(rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y, hod, ho,
+                                 cod, co, workspace, reserve)
+  @check ccall((:cudnnRNNForwardTraining,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing}, Ptr{Nothing}, Cint,
+                Ptr{Ptr{Nothing}}, CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing},
+                CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Ptr{Nothing}}, CuPtr{Cvoid},
+                Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, CuPtr{Nothing},
+                Csize_t, CuPtr{Nothing}, Csize_t),
+               handle(), rnn, seqlen,
+               xd, x, hd, h, cd, c, wd, w, yd, y, hod, ho, cod, co,
+               workspace, length(workspace), reserve, length(reserve))
+end
+
+function cudnnRNNBackwardData(rnn, seqlen, yd, y, dyd, dy, dhod, dho, dcod, dco,
+                              wd, w, hd, h, cd, c, dxd, dx, dhd, dh, dcd, dc, ws, rs)
+  @check ccall((:cudnnRNNBackwardData,@libcudnn),
+               cudnnStatus_t,
+               (Ptr{Nothing}, Ptr{Nothing}, Cint,
+                Ptr{Ptr{Nothing}}, CuPtr{Cvoid}, Ptr{Ptr{Nothing}}, CuPtr{Cvoid},
+                Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing},
+                CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid},
+                Ptr{Ptr{Nothing}}, CuPtr{Cvoid}, Ptr{Nothing}, CuPtr{Cvoid}, Ptr{Nothing},
+                CuPtr{Cvoid}, CuPtr{Nothing}, Csize_t, CuPtr{Nothing}, Csize_t),
+               handle(), rnn, seqlen, yd, y, dyd, dy, dhod, dho, dcod, dco,
+               wd, w, hd, h, cd, c, dxd, dx, dhd, dh, dcd, dc, ws, length(ws), rs,
+               length(rs))
+end
+
+function cudnnRNNBackwardWeights(rnn, seqlen, xd, x, hd, h, yd, y, dwd, dw,
+                                 workspace, reserve) where T
+  @check ccall((:cudnnRNNBackwardWeights,@libcudnn), cudnnStatus_t,
+               (Ptr{Nothing}, Ptr{Nothing}, Cint,  # handle, rnnDesc, seqLength
+                Ptr{Ptr{Nothing}}, CuPtr{Cvoid}, #x
+                Ptr{Nothing}, CuPtr{Cvoid}, #hx
+                Ptr{Ptr{Nothing}}, CuPtr{Cvoid}, #y
+                CuPtr{Nothing}, Csize_t, #ws
+                Ptr{Nothing}, CuPtr{Cvoid}, #dw
+                CuPtr{Nothing}, Csize_t), #rs
+               handle(), rnn, seqlen, xd, x, hd, h, yd, y,
+               workspace, length(workspace), dwd, dw, reserve, length(reserve))
+end
