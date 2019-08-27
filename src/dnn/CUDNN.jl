@@ -4,14 +4,17 @@ import CUDAapi
 
 import CUDAdrv: CUDAdrv, CuContext, CuPtr, CU_NULL
 
+import CUDAnative
+
 using ..CuArrays
-using ..CuArrays: libcudnn, active_context, unsafe_free!
+using ..CuArrays: @libcudnn, active_context, unsafe_free!
 using ..CuArrays: CuVecOrMat, CuVector
+
 using NNlib
 import NNlib: conv!, ∇conv_filter!, ∇conv_data!, stride, dilation, flipkernel,
   maxpool!, meanpool!, ∇maxpool!, ∇meanpool!, spatial_dims, padding, kernel_size,
   softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
-using CUDAnative
+
 include("libcudnn_types.jl")
 include("error.jl")
 
@@ -20,7 +23,7 @@ const _handle = Ref{cudnnHandle_t}(C_NULL)
 
 function handle()
     if _handle[] == C_NULL
-        @assert isassigned(active_context) # some other call should have initialized CUDA
+        CUDAnative.maybe_initialize("CUDNN")
         _handle[] = get!(_handles, active_context[]) do
             context = active_context[]
             handle = cudnnCreate()

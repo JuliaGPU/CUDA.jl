@@ -81,6 +81,50 @@ LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Transpose{<:Any, CuMatrix{T
 LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(Y, 'T', A.parent, B)
 LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasComplex = gemv_wrapper!(Y, 'C', A.parent, B)
 
+# TRSV
+
+function LinearAlgebra.ldiv!(
+    A::UpperTriangular{T, <:CuMatrix{T}},
+    x::CuVector{T},
+) where T<:CublasFloat
+    return CUBLAS.trsv!('U', 'N', 'N', parent(A), x)
+end
+
+function LinearAlgebra.ldiv!(
+    A::Adjoint{T, <:UpperTriangular{T, CuMatrix{T}}},
+    x::CuVector{T},
+) where {T<:CUBLAS.CublasFloat}
+    return CUBLAS.trsv!('U', 'C', 'N', parent(parent(A)), x)
+end
+
+function LinearAlgebra.ldiv!(
+    A::Transpose{T, <:UpperTriangular{T, CuMatrix{T}}},
+    x::CuVector{T},
+) where {T<:CUBLAS.CublasFloat}
+    return CUBLAS.trsv!('U', 'T', 'N', parent(parent(A)), x)
+end
+
+function LinearAlgebra.ldiv!(
+    A::LowerTriangular{T, <:CuMatrix{T}},
+    x::CuVector{T},
+) where T<:CublasFloat
+    return CUBLAS.trsv!('L', 'N', 'N', parent(A), x)
+end
+
+function LinearAlgebra.ldiv!(
+    A::Adjoint{T, <:LowerTriangular{T, CuMatrix{T}}},
+    x::CuVector{T},
+) where {T<:CUBLAS.CublasFloat}
+    return CUBLAS.trsv!('L', 'C', 'N', parent(parent(A)), x)
+end
+
+function LinearAlgebra.ldiv!(
+    A::Transpose{T, <:LowerTriangular{T, CuMatrix{T}}},
+    x::CuVector{T},
+) where {T<:CUBLAS.CublasFloat}
+    return CUBLAS.trsv!('L', 'T', 'N', parent(parent(A)), x)
+end
+
 
 
 #

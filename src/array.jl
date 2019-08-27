@@ -181,7 +181,9 @@ Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), 
 
 function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
+  @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
+  @boundscheck checkbounds(src, soffs)
   @boundscheck checkbounds(src, soffs+n-1)
   Mem.copy!(buffer(dest, doffs), pointer(src, soffs), n*sizeof(T))
   return dest
@@ -189,7 +191,9 @@ end
 
 function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
                       n::Integer) where T
+  @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
+  @boundscheck checkbounds(src, soffs)
   @boundscheck checkbounds(src, soffs+n-1)
   Mem.copy!(pointer(dest, doffs), buffer(src, soffs), n*sizeof(T))
   return dest
@@ -197,7 +201,9 @@ end
 
 function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
                       n::Integer) where T
+  @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
+  @boundscheck checkbounds(src, soffs)
   @boundscheck checkbounds(src, soffs+n-1)
   Mem.copy!(buffer(dest, doffs), buffer(src, soffs), n*sizeof(T))
   return dest

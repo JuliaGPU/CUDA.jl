@@ -36,7 +36,19 @@ let
         if path !== nothing
             Base.include_dependency(path)
         end
+
+        # provide a global constant that returns the path to the library,
+        # or nothing if the library is not available (for use in conditional expressions)
         @eval global const $lib = $path
+
+        # provide a macro that either returns the path to the library,
+        # or a run-time error if the library is not available (for use in ccall expressions)
+        exception = :(error($"Your installation does not provide $lib, CuArrays.$(uppercase(name)) is unavailable"))
+        @eval macro $lib() $lib === nothing ? $(QuoteNode(exception)) : $lib end
+
+        # provide a function for external use (a la CUDAapi.has_cuda)
+        fn = Symbol("has_$name")
+        @eval (export $fn; $fn() = $lib !== nothing)
     end
 end
 
@@ -65,7 +77,7 @@ include("sparse/CUSPARSE.jl")
 include("solver/CUSOLVER.jl")
 include("fft/CUFFT.jl")
 include("rand/CURAND.jl")
-libcudnn !== nothing && include("dnn/CUDNN.jl")
+include("dnn/CUDNN.jl")
 
 include("nnlib.jl")
 
@@ -89,7 +101,7 @@ function __init__()
         CUSOLVER._sparse_handle[] = C_NULL
         CUSPARSE._handle[] = C_NULL
         CURAND._generator[] = nothing
-        isdefined(CuArrays, :CUDNN) && (CUDNN._handle[] = C_NULL)
+        CUDNN._handle[] = C_NULL
     end
     push!(CUDAnative.device!_listeners, callback)
 

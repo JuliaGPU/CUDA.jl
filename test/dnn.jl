@@ -1,10 +1,13 @@
 @testset "CUDNN" begin
 
-if !isdefined(CuArrays, :CUDNN)
+using CuArrays.CUDNN
+
+if CuArrays.libcudnn === nothing
 @warn "Not testing CUDNN"
 else
-using CuArrays.CUDNN
 @info "Testing CUDNN $(CUDNN.version())"
+
+@test has_cudnn()
 
 @testset "NNlib" begin
   using NNlib
@@ -52,7 +55,7 @@ using CuArrays.CUDNN
     @test testf((dy, y, x) -> ∇maxpool(dy, y, x, pdims), dy, y, x)
     @test testf(x -> maxpool(x, pdims), x)
     @test testf((dy, y, x) -> ∇maxpool(dy, y, x, pdims), dy, y, x)
-  
+
     # CPU implementation of ∇conv_bias!
     db = zeros(Float64, 1, 1, 3, 1)
     function CuArrays.CUDNN.∇conv_bias!(db, y)

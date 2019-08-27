@@ -1323,7 +1323,7 @@ end
 function cublasCsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
   @check ccall((:cublasCsyrkx, libcublas),
                cublasStatus_t,
-               (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint, 
+               (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
                 PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
                 CuPtr{cuComplex}, Cint),
                handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
@@ -1977,12 +1977,15 @@ function cublasGetProperty(property::CUDAapi.libraryPropertyType)
   value_ref[]
 end
 
-# NOTE: this method needs to take an explicit handle since we call it from its "constructor"
-cublasSetMathMode(mode::CUBLASMathMode, handle=handle()) =
-  @check ccall((:cublasSetMathMode, libcublas),
-               cublasStatus_t,
-               (cublasHandle_t, Cint),
-               handle, Cint(mode))
+
+if version() >= v"9"
+  # NOTE: this method needs to take an explicit handle since we call it from its "constructor"
+  cublasSetMathMode(mode::CUBLASMathMode, handle=handle()) =
+    @check ccall((:cublasSetMathMode, libcublas),
+                cublasStatus_t,
+                (cublasHandle_t, Cint),
+                handle, Cint(mode))
+end
 
 
 function cublasDgemmStridedBatched(handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
@@ -2258,7 +2261,7 @@ end
 function cublasXtCsyrkx(handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
   @check ccall((:cublasXtCsyrkx, libcublas),
                cublasStatus_t,
-               (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint, 
+               (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
                 PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
                 CuPtr{cuComplex}, Cint),
                handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
