@@ -99,6 +99,52 @@ end
         val = Array(buf)
         @test val[] ≈ x^y
     end
+
+    @testset "isinf" begin
+      buf = CuTestArray(zeros(Bool))
+
+      function isinf_kernel(a, x)
+          a[] = CUDAnative.isinf(x)
+          return
+      end
+
+      for x in (Inf32, Inf, NaN32, NaN)
+        @cuda isinf_kernel(buf, x)
+        val = Array(buf)
+        @test val[] == isinf(x)
+      end
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isinf,
+                                             Tuple{Float32}, optimize=false)[1])
+      @test !occursin("Float64", codeinfo_str)
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isinf,
+                                             Tuple{Float64}, optimize=false)[1])
+      @test !occursin("Float32", codeinfo_str)
+    end
+
+    @testset "isnan" begin
+      buf = CuTestArray(zeros(Bool))
+
+      function isnan_kernel(a, x)
+          a[] = CUDAnative.isnan(x)
+          return
+      end
+
+      for x in (Inf32, Inf, NaN32, NaN)
+        @cuda isnan_kernel(buf, x)
+        val = Array(buf)
+        @test val[] == isnan(x)
+      end
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isnan,
+                                             Tuple{Float32}, optimize=false)[1])
+      @test !occursin("Float64", codeinfo_str)
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isnan,
+                                             Tuple{Float64}, optimize=false)[1])
+      @test !occursin("Float32", codeinfo_str)
+    end
 end
 
 
