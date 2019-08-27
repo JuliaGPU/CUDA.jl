@@ -140,6 +140,19 @@ end
 
   @test testf(x -> sum(x), rand(2, 3))
   @test testf(x -> prod(x), rand(2, 3))
+
+  @test testf(x -> minimum(x), rand(2, 3))
+  @test testf(x -> minimum(x, dims=2), rand(2, 3))
+  @test testf(x -> minimum(x, dims=(2,3)), rand(2, 3, 4))
+
+  @test testf(x -> maximum(x), rand(2, 3))
+  @test testf(x -> maximum(x, dims=2), rand(2, 3))
+  @test testf(x -> maximum(x, dims=(2,3)), rand(2, 3, 4))
+
+  myreducer(x1, x2) = x1+x2 # bypass optimisations for sum()
+  @test testf(x -> reduce(myreducer, x, dims=(2,3), init=0.0), rand(2, 3, 4))
+  @test testf(x -> reduce(myreducer, x, init=0.0), rand(2, 3))
+  @test testf(x -> reduce(myreducer, x, dims=2, init=42.0), rand(2, 3))
 end
 
 @testset "0D" begin
