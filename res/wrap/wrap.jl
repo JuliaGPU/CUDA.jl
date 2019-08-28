@@ -166,13 +166,21 @@ function rewrite_pointers(x, state)
                 offset += tt.args[2*i-1].fullspan
                 if replacements[i] !== nothing
                     ptr = types[i].args[1]
-                    push!(state.edits, Edit(offset+1:offset+ptr.fullspan, replacements[i]))
+                    push!(state.edits, Edit(offset+1:offset+ptr.span, replacements[i]))
                 end
                 offset += types[i].fullspan
             end
 
             println()
         end
+    end
+end
+
+# replace handles from the CUDA runtime library with CUDA driver API equivalents
+function rewrite_runtime(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.IDENTIFIER && x.val == "cudaStream_t"
+        offset = state.offset
+        push!(state.edits, Edit(offset+1:offset+x.span, "CuStream_t"))
     end
 end
 
@@ -198,6 +206,9 @@ function process(args...; kwargs...)
 
     state.offset = 0
     pass(ast, state, rewrite_pointers)
+
+    state.offset = 0
+    pass(ast, state, rewrite_runtime)
 
     # apply
     state.offset = 0
