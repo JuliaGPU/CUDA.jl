@@ -97,11 +97,11 @@ function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
 end
 
 import Base.minimum, Base.maximum, Base.reduce
-_initarray(x::CuArray{T}, ::Colon, init) where {T} = fill!(similar(x, T, Base.reduced_indices(x, 1:ndims(x))), init)
-_initarray(x::CuArray{T}, dims, init) where {T} = fill!(similar(x, T, Base.reduced_indices(x, dims)), init)
 
+_reduced_dims(x::CuArray, ::Colon) = Tuple(ones(Int, ndims(x)))
+_reduced_dims(x::CuArray, dims) = Base.reduced_indices(x, dims)
 
-reduce(op, x::CuArray; dims=:, init) where {T} = _reduce(op, x, init, dims)
+_initarray(x::CuArray{T}, dims, init) where {T} = fill!(similar(x, T,     _reduced_dims(x, dims)), init)
 
 function _reduce(op, x::CuArray, init, ::Colon)
     mx = _initarray(x, :, init)
@@ -113,6 +113,13 @@ function _reduce(op, x::CuArray, init, dims)
     mx = _initarray(x, dims, init)
     Base._mapreducedim!(identity, op, mx, x)
 end
+
+"""
+    reduce(op, x::CuArray; dims=:, init)
+
+The initial value `init` is mandatory for `reduce` on `CuArray`'s. It must be a neutral element for `op`.
+"""
+reduce(op, x::CuArray; dims=:, init) = _reduce(op, x, init, dims)
 
 minimum(x::CuArray{T}; dims=:) where {T} = _reduce(min, x, typemax(T), dims)
 maximum(x::CuArray{T}; dims=:) where {T} = _reduce(max, x, typemin(T), dims)
