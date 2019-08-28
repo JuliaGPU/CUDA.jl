@@ -1,10 +1,13 @@
 module CUDNN
 
-import CUDAapi
+using CUDAapi
+using CUDAapi: libraryPropertyType
 
-import CUDAdrv: CUDAdrv, CuContext, CuPtr, CU_NULL
+import CUDAdrv: CUDAdrv, CuContext, CuPtr, PtrOrCuPtr, CU_NULL, CuStream_t
 
 import CUDAnative
+
+using CEnum
 
 using ..CuArrays
 using ..CuArrays: @libcudnn, active_context, unsafe_free!
@@ -15,7 +18,7 @@ import NNlib: conv!, ∇conv_filter!, ∇conv_data!, stride, dilation, flipkerne
   maxpool!, meanpool!, ∇maxpool!, ∇meanpool!, spatial_dims, padding, kernel_size,
   softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
 
-include("libcudnn_types.jl")
+include("libcudnn_common.jl")
 include("error.jl")
 
 const _handles = Dict{CuContext,cudnnHandle_t}()

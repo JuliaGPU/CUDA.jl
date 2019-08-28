@@ -24,7 +24,6 @@ end
 mutable struct TensorDesc; ptr; end
 free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
 Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
-Base.unsafe_convert(::Type{Ptr{Nothing}}, td::TensorDesc) = convert(Ptr{Nothing}, td.ptr)
 
 function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(size)) where N
     sz = Cint.(size) |> reverse |> collect
@@ -44,7 +43,6 @@ mutable struct FilterDesc
 end
 free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
 Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
-Base.unsafe_convert(::Type{Ptr{Nothing}}, fd::FilterDesc)=fd.ptr
 
 function createFilterDesc()
   d = Ref{cudnnFilterDescriptor_t}()
@@ -100,9 +98,13 @@ end
 function ConvDesc(T, N, padding, stride, dilation, mode)
     cd = Ref{cudnnConvolutionDescriptor_t}()
     cudnnCreateConvolutionDescriptor(cd)
-    version() >= v"4" ? cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T)) :
-    version() >= v"3" ? cudnnSetConvolutionNdDescriptor_v3(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T)) :
-    cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode)
+    if version() >= v"4"
+        cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T))
+    elseif version() >= v"3"
+        cudnnSetConvolutionNdDescriptor_v3(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode,cudnnDataType(T))
+    else
+        cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode)
+    end
     this = ConvDesc(cd[])
     finalizer(free, this)
     return this
