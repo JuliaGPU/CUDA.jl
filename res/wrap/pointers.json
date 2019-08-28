@@ -1,0 +1,1698 @@
+{
+  "cudnnConvolutionForward": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnReorderFilterAndBias": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr"
+  ],
+  "cudnnCreateFilterDescriptor": [
+    null
+  ],
+  "cudnnCreateSpatialTransformerDescriptor": [
+    null
+  ],
+  "cudnnActivationBackward": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnConvolutionBackwardFilter": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnSetFusedOpsVariantParamPackAttribute": [
+    null,
+    null,
+    "PtrOrCuPtr"
+  ],
+  "cudnnSoftmaxForward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnGetLRNDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnBatchNormalizationForwardInference": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateTensorTransformDescriptor": [
+    null
+  ],
+  "cudnnGetAlgorithmPerformance": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetTensorNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetStream": [
+    null,
+    null
+  ],
+  "cudnnTransformTensor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateFusedOpsConstParamPack": [
+    null,
+    null
+  ],
+  "cudnnCreateAttnDescriptor": [
+    null
+  ],
+  "cudnnFindConvolutionForwardAlgorithm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnFindConvolutionForwardAlgorithmEx": [
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetFilterNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnPoolingForward": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnRestoreAlgorithm": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnMultiHeadAttnForward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr"
+  ],
+  "cudnnGetReductionIndicesSize": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnSetFilterNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnReduceTensor": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnGetConvolutionBackwardDataWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetBatchNormalizationTrainingExReserveSpaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnSpatialTfSamplerBackward": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr"
+  ],
+  "cudnnCreateAlgorithmDescriptor": [
+    null
+  ],
+  "cudnnMakeFusedOpsPlan": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnBatchNormalizationBackward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionBackwardDataAlgorithm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnRNNBackwardWeightsEx": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    null
+  ],
+  "cudnnGetRNNForwardTrainingAlgorithmMaxCount": [
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateCTCLossDescriptor": [
+    null
+  ],
+  "cudnnGetCallback": [
+    null,
+    null,
+    null
+  ],
+  "cudnnSetPoolingNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetTensorTransformDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetProperty": [
+    null,
+    null
+  ],
+  "cudnnGetRNNDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnFindRNNBackwardDataAlgorithmEx": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnFindConvolutionBackwardDataAlgorithm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionForwardAlgorithm_v7": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetAlgorithmSpaceSize": [
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionForwardAlgorithmMaxCount": [
+    null,
+    null
+  ],
+  "cudnnGetTensor4dDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetPoolingNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnFindRNNForwardInferenceAlgorithmEx": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnBatchNormalizationForwardTraining": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetRNNMatrixMathType": [
+    null,
+    null
+  ],
+  "cudnnCreateTensorDescriptor": [
+    null
+  ],
+  "cudnnRNNGetClip": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnRNNForwardTraining": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetBatchNormalizationBackwardExWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnFindConvolutionBackwardDataAlgorithmEx": [
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetConvolution2dForwardOutputDim": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateAlgorithmPerformance": [
+    null,
+    null
+  ],
+  "cudnnGetOpTensorDescriptor": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionForwardAlgorithm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnFindRNNForwardTrainingAlgorithmEx": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnRNNBackwardDataEx": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnQueryRuntimeError": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateLRNDescriptor": [
+    null
+  ],
+  "cudnnGetCTCLossDescriptor": [
+    null,
+    null
+  ],
+  "cudnnGetCTCLossDescriptorEx": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnSetCallback": [
+    null,
+    null,
+    null
+  ],
+  "cudnnLRNCrossChannelBackward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnSaveAlgorithm": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnIm2Col": [
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnMultiHeadAttnBackwardData": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr"
+  ],
+  "cudnnSetTensorNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnConvolutionBiasActivationForward": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnBatchNormalizationBackwardEx": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetFilter4dDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateFusedOpsPlan": [
+    null,
+    null
+  ],
+  "cudnnSetRNNDataDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionBackwardFilterAlgorithmMaxCount": [
+    null,
+    null
+  ],
+  "cudnnGetAttnDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateConvolutionDescriptor": [
+    null
+  ],
+  "cudnnTransformFilter": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnPoolingBackward": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnCTCLoss": [
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetPooling2dDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnScaleTensor": [
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetConvolutionForwardWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetMultiHeadAttnBuffers": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionMathType": [
+    null,
+    null
+  ],
+  "cudnnGetRNNTrainingReserveSize": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreatePersistentRNNPlan": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnDestroyAlgorithmPerformance": [
+    null,
+    null
+  ],
+  "cudnnGetSeqDataDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateOpTensorDescriptor": [
+    null
+  ],
+  "cudnnFindRNNBackwardWeightsAlgorithmEx": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    null
+  ],
+  "cudnnSetTensor": [
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnMultiHeadAttnBackwardWeights": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr"
+  ],
+  "cudnnRNNForwardTrainingEx": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnSoftmaxBackward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnDropoutBackward": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null
+  ],
+  "cudnnTransformTensorEx": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnBatchNormalizationForwardTrainingEx": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetConvolutionBackwardFilterAlgorithm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnSetTensorTransformDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetFusedOpsConstParamPackAttribute": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnRNNBackwardWeights": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    null
+  ],
+  "cudnnConvolutionBackwardBias": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnRNNForwardInference": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null
+  ],
+  "cudnnGetPooling2dForwardOutputDim": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateSeqDataDescriptor": [
+    null
+  ],
+  "cudnnCreate": [
+    null
+  ],
+  "cudnnGetConvolutionBackwardFilterWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetRNNProjectionLayers": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetRNNWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateDropoutDescriptor": [
+    null
+  ],
+  "cudnnGetFusedOpsVariantParamPackAttribute": [
+    null,
+    null,
+    "PtrOrCuPtr"
+  ],
+  "cudnnCreateFusedOpsVariantParamPack": [
+    null,
+    null
+  ],
+  "cudnnGetConvolutionReorderType": [
+    null,
+    null
+  ],
+  "cudnnSetSeqDataDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetMultiHeadAttnWeights": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr"
+  ],
+  "cudnnGetCTCLossWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnActivationForward": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnCreatePoolingDescriptor": [
+    null
+  ],
+  "cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetPoolingNdForwardOutputDim": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateActivationDescriptor": [
+    null
+  ],
+  "cudnnDivisiveNormalizationForward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnRNNBackwardData": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetConvolutionBackwardDataAlgorithm_v7": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateReduceTensorDescriptor": [
+    null
+  ],
+  "cudnnCreateRNNDataDescriptor": [
+    null
+  ],
+  "cudnnSetFusedOpsConstParamPackAttribute": [
+    null,
+    null,
+    null
+  ],
+  "cudnnSpatialTfSamplerForward": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnDropoutGetReserveSpaceSize": [
+    null,
+    null
+  ],
+  "cudnnGetDropoutDescriptor": [
+    null,
+    null,
+    "CuPtr",
+    null,
+    null
+  ],
+  "cudnnSetDropoutDescriptor": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null
+  ],
+  "cudnnGetConvolution2dDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetFilterSizeInBytes": [
+    null,
+    null
+  ],
+  "cudnnGetRNNLinLayerBiasParams": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null
+  ],
+  "cudnnFindConvolutionBackwardFilterAlgorithmEx": [
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnGetActivationDescriptor": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnSpatialTfGridGeneratorForward": [
+    null,
+    null,
+    "CuPtr",
+    "CuPtr"
+  ],
+  "cudnnGetRNNParamsSize": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetRNNBiasMode": [
+    null,
+    null
+  ],
+  "cudnnGetRNNBackwardWeightsAlgorithmMaxCount": [
+    null,
+    null,
+    null
+  ],
+  "cudnnSetTensorNdDescriptorEx": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnAddTensor": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnConvolutionBackwardData": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnRestoreDropoutDescriptor": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null
+  ],
+  "cudnnOpTensor": [
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnGetReductionWorkspaceSize": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnFindConvolutionBackwardFilterAlgorithm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnInitTransformDest": [
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetRNNDataDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetAlgorithmDescriptor": [
+    null,
+    null
+  ],
+  "cudnnGetRNNBackwardDataAlgorithmMaxCount": [
+    null,
+    null,
+    null
+  ],
+  "cudnnCreateRNNDescriptor": [
+    null
+  ],
+  "cudnnGetRNNForwardInferenceAlgorithmMaxCount": [
+    null,
+    null,
+    null
+  ],
+  "cudnnDivisiveNormalizationBackward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    "CuPtr",
+    "CuPtr",
+    "CuPtr",
+    "CuPtr",
+    null,
+    null,
+    "CuPtr",
+    "CuPtr"
+  ],
+  "cudnnSetConvolutionNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnRNNForwardInferenceEx": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null
+  ],
+  "cudnnSetSpatialTransformerNdDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionBackwardDataAlgorithmMaxCount": [
+    null,
+    null
+  ],
+  "cudnnDropoutGetStatesSize": [
+    null,
+    null
+  ],
+  "cudnnGetConvolutionBackwardFilterAlgorithm_v7": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnDropoutForward": [
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    "CuPtr",
+    "CuPtr",
+    null
+  ],
+  "cudnnSpatialTfGridGeneratorBackward": [
+    null,
+    null,
+    "CuPtr",
+    "CuPtr"
+  ],
+  "cudnnGetRNNPaddingMode": [
+    null,
+    null
+  ],
+  "cudnnLRNCrossChannelForward": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    "CuPtr"
+  ],
+  "cudnnGetRNNLinLayerMatrixParams": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    "CuPtr",
+    null,
+    null,
+    null
+  ],
+  "cudnnGetReduceTensorDescriptor": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetConvolutionNdForwardOutputDim": [
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "cudnnGetTensorSizeInBytes": [
+    null,
+    null
+  ],
+  "cudnnGetConvolutionGroupCount": [
+    null,
+    null
+  ]
+}
