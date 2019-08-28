@@ -95,6 +95,8 @@ function psize(w, nd)
     throw(DimensionMismatch())
 end
 
+Base.cconvert(::Type{cudnnConvolutionMode_t}, x::Bool) = x ? CUDNN_CROSS_CORRELATION : CUDNN_CONVOLUTION
+
 function ConvDesc(T, N, padding, stride, dilation, mode)
     cd = Ref{cudnnConvolutionDescriptor_t}()
     cudnnCreateConvolutionDescriptor(cd)
@@ -126,7 +128,7 @@ Base.unsafe_convert(::Type{cudnnPoolingDescriptor_t}, pd::PoolDesc)=pd.ptr
 function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_PROPAGATE_NAN)
     pd = Ref{cudnnPoolingDescriptor_t}()
     cudnnCreatePoolingDescriptor(pd)
-    cudnnSetPoolingNdDescriptor(pd[],mode,maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
+    cudnnSetPoolingNdDescriptor(pd[],cudnnPoolingMode_t(mode),maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
     this = PoolDesc(pd[])
     finalizer(free, this)
     return this
@@ -167,7 +169,7 @@ function cudnnSoftmaxForward(src::CuArray{T,4}, dest::CuArray{T,4}=src;
                              algorithm=CUDNN_SOFTMAX_ACCURATE, # or CUDNN_SOFTMAX_FAST
                              mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                              alpha=1.0, beta=0.0) where T
-    cudnnSoftmaxForward(algorithm, mode,
+    cudnnSoftmaxForward(handle(), algorithm, mode,
                         cptr(alpha, src), TensorDesc(src), src,
                         cptr(beta, dest), TensorDesc(dest), dest)
     return dest
@@ -177,7 +179,7 @@ function cudnnSoftmaxBackward(src::CuArray{T,4}, srcDiff::CuArray{T,4}, destDiff
                               algorithm=CUDNN_SOFTMAX_ACCURATE, # or CUDNN_SOFTMAX_FAST
                               mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                               alpha=1.0, beta=0.0) where T
-    cudnnSoftmaxBackward(algorithm, mode,
+    cudnnSoftmaxBackward(handle(), algorithm, mode,
                          cptr(alpha, src), TensorDesc(src), src,
                          TensorDesc(srcDiff), srcDiff,
                          cptr(beta, destDiff), TensorDesc(destDiff), destDiff)
@@ -191,7 +193,7 @@ function cudnnConvolutionBiasActivationForward(y::CuArray{T,N}, x::CuArray{T,N},
                                                activationReluNanOpt=CUDNN_NOT_PROPAGATE_NAN) where {T,N}
     cd = ConvDesc(T, N-2, padding, stride, dilation, mode)
     ad = ActivationDesc(activationMode, T(activationCoeff), activationReluNanOpt)
-    cudnnConvolutionBiasActivationForward(Ref(T(alpha1)),TensorDesc(x),x,FilterDesc(w),w,cd,algo,workspace,
+    cudnnConvolutionBiasActivationForward(handle(), Ref(T(alpha1)),TensorDesc(x),x,FilterDesc(w),w,cd,cudnnConvolutionFwdAlgo_t(algo),workspace,
         workspace_size,Ref(T(alpha2)),TensorDesc(bias),bias,ad,TensorDesc(y),y)
     return y
 end
@@ -199,19 +201,19 @@ end
 function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
                                  cdims::DenseConvDims; algo=0, workspace=CU_NULL,
                                  workspace_size=0, alpha=1, beta=0) where {T,N}
-    cudnnConvolutionForward(
+    cudnnConvolutionForward(handle(),
       Ref(T(alpha)), TensorDesc(x), x, FilterDesc(w), w, ConvDesc(T,cdims),
-      algo, workspace, workspace_size, Ref(T(beta)), TensorDesc(y), y
+      cudnnConvolutionFwdAlgo_t(algo), workspace, workspace_size, Ref(T(beta)), TensorDesc(y), y
     )
     return y
 end
 
 function cudnnGetConvolutionForwardWorkspaceSize(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
                                                  cdims::DenseConvDims; algo=0) where {T,N}
-    workspace_size = Ref{Cint}()
-    cudnnGetConvolutionForwardWorkspaceSize(
+    workspace_size = Ref{Csize_t}()
+    cudnnGetConvolutionForwardWorkspaceSize(handle(),
         TensorDesc(x), FilterDesc(w), ConvDesc(T, cdims),
-        TensorDesc(y), algo, workspace_size
+        TensorDesc(y), cudnnConvolutionFwdAlgo_t(algo), workspace_size
     )
     return Int(workspace_size[])
 end
@@ -219,19 +221,19 @@ end
 function cudnnConvolutionBackwardData(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
                                       cdims::DenseConvDims; algo=0, workspace=CU_NULL,
                                       workspace_size=0, alpha=1, beta=0) where {T,N}
-    cudnnConvolutionBackwardData(
+    cudnnConvolutionBackwardData(handle(),
       Ref(T(alpha)), FilterDesc(w), w, TensorDesc(dy), dy, ConvDesc(T, cdims),
-      algo, workspace, workspace_size, Ref(T(beta)), TensorDesc(dx), dx
+      cudnnConvolutionBwdDataAlgo_t(algo), workspace, workspace_size, Ref(T(beta)), TensorDesc(dx), dx
     )
     return dx
 end
 
 function cudnnGetConvolutionBackwardDataWorkspaceSize(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
                                                       cdims::DenseConvDims; algo=0) where {T,N}
-    workspace_size = Ref{Cint}()
-    cudnnGetConvolutionBackwardDataWorkspaceSize(
+    workspace_size = Ref{Csize_t}()
+    cudnnGetConvolutionBackwardDataWorkspaceSize(handle(),
         FilterDesc(w), TensorDesc(dy), ConvDesc(T, cdims),
-        TensorDesc(dx), algo, workspace_size
+        TensorDesc(dx), cudnnConvolutionBwdDataAlgo_t(algo), workspace_size
     )
     return Int(workspace_size[])
 end
@@ -239,32 +241,32 @@ end
 function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
                                         cdims::DenseConvDims; algo=0, workspace=CU_NULL,
                                         workspace_size=0, alpha=1, beta=0) where {T,N}
-    cudnnConvolutionBackwardFilter(
+    cudnnConvolutionBackwardFilter(handle(),
         Ref(T(alpha)), TensorDesc(x), x, TensorDesc(dy), dy, ConvDesc(T, cdims),
-        algo, workspace, workspace_size, Ref(T(beta)), FilterDesc(dw), dw
+        cudnnConvolutionBwdFilterAlgo_t(algo), workspace, workspace_size, Ref(T(beta)), FilterDesc(dw), dw
     )
     return dw
 end
 
 function cudnnGetConvolutionBackwardFilterWorkspaceSize(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
                                                         cdims::DenseConvDims; algo=0) where {T,N}
-    workspace_size = Ref{Cint}()
-    cudnnGetConvolutionBackwardFilterWorkspaceSize(
+    workspace_size = Ref{Csize_t}()
+    cudnnGetConvolutionBackwardFilterWorkspaceSize(handle(),
         TensorDesc(x), TensorDesc(dy), ConvDesc(T, cdims),
-        FilterDesc(dw), algo, workspace_size
+        FilterDesc(dw), cudnnConvolutionBwdFilterAlgo_t(algo), workspace_size
     )
     return Int(workspace_size[])
 end
 
 function cudnnConvolutionBackwardBias(db::CuArray{T,N}, dy::CuArray{T,N}; alpha=1, beta=0) where {T,N}
-    cudnnConvolutionBackwardBias(Ref(T(alpha)), TensorDesc(dy), dy, Ref(T(beta)), TensorDesc(db), db)
+    cudnnConvolutionBackwardBias(handle(), Ref(T(alpha)), TensorDesc(dy), dy, Ref(T(beta)), TensorDesc(db), db)
     return db
 end
 
 function cudnnPoolingForward(y::CuArray{T,N}, x::CuArray{T,N}, pdims::PoolDims;
                              alpha=1, mode=0) where {T,N}
     beta = 0
-    cudnnPoolingForward(PoolDesc(pdims, mode), Ref(T(alpha)), TensorDesc(x), x, Ref(T(beta)), TensorDesc(y), y)
+    cudnnPoolingForward(handle(), PoolDesc(pdims, mode), Ref(T(alpha)), TensorDesc(x), x, Ref(T(beta)), TensorDesc(y), y)
     return y
 end
 
@@ -272,7 +274,7 @@ function cudnnPoolingBackward(dx::CuArray{T,N}, dy::CuArray{T,N}, x::CuArray{T,N
                               pdims::PoolDims; alpha=1, mode=0) where {T,N}
     if alpha!=1 && mode==0; error("Gradient of pool(alpha!=1,mode=0) broken in CUDNN"); end
     beta = 0
-    cudnnPoolingBackward(
+    cudnnPoolingBackward(handle(),
         PoolDesc(pdims, mode), Ref(T(alpha)), TensorDesc(y), y,
         TensorDesc(dy), dy, TensorDesc(x), x, Ref(T(beta)), TensorDesc(dx), dx
     )
@@ -282,7 +284,7 @@ end
 function cudnnActivationForward(y::CuArray{T,N}, x::CuArray{T,N}; mode=CUDNN_ACTIVATION_RELU, #CUDNN_ACTIVATION_IDENTITY will not work
                                 coeff=0.0, reluNanOpt=CUDNN_NOT_PROPAGATE_NAN, alpha=1, beta=0) where {T,N}
     ad = ActivationDesc(mode, T(coeff), reluNanOpt)
-    cudnnActivationForward(ad, Ref(T(alpha)), TensorDesc(x), x, Ref(T(beta)), TensorDesc(y), y)
+    cudnnActivationForward(handle(), ad, Ref(T(alpha)), TensorDesc(x), x, Ref(T(beta)), TensorDesc(y), y)
     return y
 end
 
@@ -290,7 +292,7 @@ function cudnnActivationBackward(dx::CuArray{T,N}, x::CuArray{T,N}, y::CuArray{T
                                  mode=CUDNN_ACTIVATION_RELU, #CUDNN_ACTIVATION_IDENTITY will not work
                                  coeff=0.0, reluNanOpt=CUDNN_NOT_PROPAGATE_NAN, alpha=1, beta=0) where {T,N}
     ad = ActivationDesc(mode, T(coeff), reluNanOpt)
-    cudnnActivationBackward(ad, Ref(T(alpha)), TensorDesc(y), y, TensorDesc(dy), dy, TensorDesc(x), x, Ref(T(beta)), TensorDesc(dx), dx)
+    cudnnActivationBackward(handle(), ad, Ref(T(alpha)), TensorDesc(y), y, TensorDesc(dy), dy, TensorDesc(x), x, Ref(T(beta)), TensorDesc(dx), dx)
     return dx
 end
 
@@ -298,7 +300,7 @@ function cudnnAddTensor(A::CuArray{T,N}, C::CuArray{T,N}; alpha=1,
                         beta=1) where {T,N}
     aDesc = TensorDesc(A)
     cDesc = TensorDesc(C)
-    cudnnAddTensor(Ref(T(alpha)), aDesc, A, Ref(T(beta)), cDesc, C)
+    cudnnAddTensor(handle(), Ref(T(alpha)), aDesc, A, Ref(T(beta)), cDesc, C)
     return C
 end
 
