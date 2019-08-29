@@ -125,7 +125,7 @@ function rewrite_pointers(x, state)
                 # print the cached result
                 for (i, (name,replacement)) in enumerate(replacements)
                     if is_pointer[i]
-                        println("- argument $i: $name::$(Expr(types[i])) is a ", something(replacement, "CPU pointer"))
+                        println("- argument $i: $name::$(Expr(types[i])) is a $replacement")
                     end
                 end
                 println()
@@ -148,14 +148,17 @@ function rewrite_pointers(x, state)
                 # generate replacements
                 replacements = OrderedDict{String,Any}()
                 for (i, arg) in enumerate(args)
-                    if i in gpu_pointers
-                        typename = "CuPtr"
-                    elseif i in dual_pointers
-                        typename = "PtrOrCuPtr"
+                    replacements[arg.val] = if is_pointer[i]
+                        if i in gpu_pointers
+                            "CuPtr"
+                        elseif i in dual_pointers
+                            "PtrOrCuPtr"
+                        else
+                            "Ptr"
+                        end
                     else
-                        typename = nothing
+                        nothing
                     end
-                    replacements[arg.val] = typename
                 end
             end
 
@@ -168,7 +171,7 @@ function rewrite_pointers(x, state)
             # generate edits
             for (i, (_,replacement)) in enumerate(replacements)
                 offset += tt.args[2*i-1].fullspan
-                if replacement !== nothing
+                if replacement !== nothing && replacement != "Ptr"
                     ptr = types[i].args[1]
                     push!(state.edits, Edit(offset+1:offset+ptr.span, replacement))
                 end

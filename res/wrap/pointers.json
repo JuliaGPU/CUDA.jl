@@ -1,7 +1,7 @@
 {
     "cudnnConvolutionForward": {
         "handle": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "wDesc": null,
@@ -10,7 +10,7 @@
         "algo": null,
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null,
-        "beta": null,
+        "beta": "Ptr",
         "yDesc": null,
         "y": "CuPtr"
     },
@@ -25,28 +25,28 @@
         "reorderedBiasData": "CuPtr"
     },
     "cudnnCreateFilterDescriptor": {
-        "filterDesc": null
+        "filterDesc": "Ptr"
     },
     "cudnnCreateSpatialTransformerDescriptor": {
-        "stDesc": null
+        "stDesc": "Ptr"
     },
     "cudnnActivationBackward": {
         "handle": null,
         "activationDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "yDesc": null,
         "y": "CuPtr",
         "dyDesc": null,
         "dy": "CuPtr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "dxDesc": null,
         "dx": "CuPtr"
     },
     "cudnnConvolutionBackwardFilter": {
         "handle": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "dyDesc": null,
@@ -55,7 +55,7 @@
         "algo": null,
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null,
-        "beta": null,
+        "beta": "Ptr",
         "dwDesc": null,
         "dw": "CuPtr"
     },
@@ -68,25 +68,25 @@
         "handle": null,
         "algo": null,
         "mode": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "yDesc": null,
         "y": "CuPtr"
     },
     "cudnnGetLRNDescriptor": {
         "normDesc": null,
-        "lrnN": null,
-        "lrnAlpha": null,
-        "lrnBeta": null,
-        "lrnK": null
+        "lrnN": "Ptr",
+        "lrnAlpha": "Ptr",
+        "lrnBeta": "Ptr",
+        "lrnK": "Ptr"
     },
     "cudnnBatchNormalizationForwardInference": {
         "handle": null,
         "mode": null,
-        "alpha": null,
-        "beta": null,
+        "alpha": "Ptr",
+        "beta": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "yDesc": null,
@@ -94,47 +94,47 @@
         "bnScaleBiasMeanVarDesc": null,
         "bnScale": "CuPtr",
         "bnBias": "CuPtr",
-        "estimatedMean": null,
-        "estimatedVariance": null,
+        "estimatedMean": "Ptr",
+        "estimatedVariance": "Ptr",
         "epsilon": null
     },
     "cudnnCreateTensorTransformDescriptor": {
-        "transformDesc": null
+        "transformDesc": "Ptr"
     },
     "cudnnGetAlgorithmPerformance": {
         "algoPerf": null,
-        "algoDesc": null,
-        "status": null,
-        "time": null,
-        "memory": null
+        "algoDesc": "Ptr",
+        "status": "Ptr",
+        "time": "Ptr",
+        "memory": "Ptr"
     },
     "cudnnGetTensorNdDescriptor": {
         "tensorDesc": null,
         "nbDimsRequested": null,
-        "dataType": null,
-        "nbDims": null,
-        "dimA": null,
-        "strideA": null
+        "dataType": "Ptr",
+        "nbDims": "Ptr",
+        "dimA": "Ptr",
+        "strideA": "Ptr"
     },
     "cudnnGetStream": {
         "handle": null,
-        "streamId": null
+        "streamId": "Ptr"
     },
     "cudnnTransformTensor": {
         "handle": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
-        "x": null,
-        "beta": null,
+        "x": "Ptr",
+        "beta": "Ptr",
         "yDesc": null,
-        "y": null
+        "y": "Ptr"
     },
     "cudnnCreateFusedOpsConstParamPack": {
-        "constPack": null,
+        "constPack": "Ptr",
         "ops": null
     },
     "cudnnCreateAttnDescriptor": {
-        "attnDesc": null
+        "attnDesc": "Ptr"
     },
     "cudnnFindConvolutionForwardAlgorithm": {
         "handle": null,
@@ -143,8 +143,8 @@
         "convDesc": null,
         "yDesc": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr"
     },
     "cudnnFindConvolutionForwardAlgorithmEx": {
         "handle": null,
@@ -156,32 +156,32 @@
         "yDesc": null,
         "y": "CuPtr",
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null,
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr",
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null
     },
     "cudnnGetFilterNdDescriptor": {
         "filterDesc": null,
         "nbDimsRequested": null,
-        "dataType": null,
-        "format": null,
-        "nbDims": null,
-        "filterDimA": null
+        "dataType": "Ptr",
+        "format": "Ptr",
+        "nbDims": "Ptr",
+        "filterDimA": "Ptr"
     },
     "cudnnPoolingForward": {
         "handle": null,
         "poolingDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "yDesc": null,
         "y": "CuPtr"
     },
     "cudnnRestoreAlgorithm": {
         "handle": null,
-        "algoSpace": null,
+        "algoSpace": "Ptr",
         "algoSpaceSizeInBytes": null,
         "algoDesc": null
     },
@@ -189,10 +189,10 @@
         "handle": null,
         "attnDesc": null,
         "currIdx": null,
-        "loWinIdx": null,
-        "hiWinIdx": null,
-        "seqLengthArrayQRO": null,
-        "seqLengthArrayKV": null,
+        "loWinIdx": "Ptr",
+        "hiWinIdx": "Ptr",
+        "seqLengthArrayQRO": "Ptr",
+        "seqLengthArrayKV": "Ptr",
         "qDesc": null,
         "queries": "CuPtr",
         "residuals": "CuPtr",
@@ -214,26 +214,26 @@
         "reduceTensorDesc": null,
         "aDesc": null,
         "cDesc": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnSetFilterNdDescriptor": {
         "filterDesc": null,
         "dataType": null,
         "format": null,
         "nbDims": null,
-        "filterDimA": null
+        "filterDimA": "Ptr"
     },
     "cudnnReduceTensor": {
         "handle": null,
         "reduceTensorDesc": null,
-        "indices": null,
+        "indices": "Ptr",
         "indicesSizeInBytes": null,
         "workspace": "CuPtr",
         "workspaceSizeInBytes": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "aDesc": null,
         "A": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "cDesc": null,
         "C": "CuPtr"
     },
@@ -244,7 +244,7 @@
         "convDesc": null,
         "dxDesc": null,
         "algo": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnGetBatchNormalizationTrainingExReserveSpaceSize": {
         "handle": null,
@@ -252,40 +252,40 @@
         "bnOps": null,
         "activationDesc": null,
         "xDesc": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnSpatialTfSamplerBackward": {
         "handle": null,
         "stDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "dxDesc": null,
         "dx": "CuPtr",
-        "alphaDgrid": null,
+        "alphaDgrid": "Ptr",
         "dyDesc": null,
         "dy": "CuPtr",
         "grid": "CuPtr",
-        "betaDgrid": null,
+        "betaDgrid": "Ptr",
         "dgrid": "CuPtr"
     },
     "cudnnCreateAlgorithmDescriptor": {
-        "algoDesc": null
+        "algoDesc": "Ptr"
     },
     "cudnnMakeFusedOpsPlan": {
         "handle": null,
         "plan": null,
         "constPack": null,
-        "workspaceSizeInBytes": null
+        "workspaceSizeInBytes": "Ptr"
     },
     "cudnnBatchNormalizationBackward": {
         "handle": null,
         "mode": null,
-        "alphaDataDiff": null,
-        "betaDataDiff": null,
-        "alphaParamDiff": null,
-        "betaParamDiff": null,
+        "alphaDataDiff": "Ptr",
+        "betaDataDiff": "Ptr",
+        "alphaParamDiff": "Ptr",
+        "betaParamDiff": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "dyDesc": null,
@@ -294,11 +294,11 @@
         "dx": "CuPtr",
         "dBnScaleBiasDesc": null,
         "bnScale": "CuPtr",
-        "dBnScaleResult": null,
-        "dBnBiasResult": null,
+        "dBnScaleResult": "CuPtr",
+        "dBnBiasResult": "CuPtr",
         "epsilon": null,
-        "savedMean": null,
-        "savedInvVariance": null
+        "savedMean": "CuPtr",
+        "savedInvVariance": "CuPtr"
     },
     "cudnnGetConvolutionBackwardDataAlgorithm": {
         "handle": null,
@@ -308,7 +308,7 @@
         "dxDesc": null,
         "preference": null,
         "memoryLimitInBytes": null,
-        "algo": null
+        "algo": "Ptr"
     },
     "cudnnRNNBackwardWeightsEx": {
         "handle": null,
@@ -329,57 +329,57 @@
     "cudnnGetRNNForwardTrainingAlgorithmMaxCount": {
         "handle": null,
         "rnnDesc": null,
-        "count": null
+        "count": "Ptr"
     },
     "cudnnCreateCTCLossDescriptor": {
-        "ctcLossDesc": null
+        "ctcLossDesc": "Ptr"
     },
     "cudnnGetCallback": {
-        "mask": null,
-        "udata": null,
-        "fptr": null
+        "mask": "Ptr",
+        "udata": "Ptr",
+        "fptr": "Ptr"
     },
     "cudnnSetPoolingNdDescriptor": {
         "poolingDesc": null,
         "mode": null,
         "maxpoolingNanOpt": null,
         "nbDims": null,
-        "windowDimA": null,
-        "paddingA": null,
-        "strideA": null
+        "windowDimA": "Ptr",
+        "paddingA": "Ptr",
+        "strideA": "Ptr"
     },
     "cudnnGetTensorTransformDescriptor": {
         "transformDesc": null,
         "nbDimsRequested": null,
-        "destFormat": null,
-        "padBeforeA": null,
-        "padAfterA": null,
-        "foldA": null,
-        "direction": null
+        "destFormat": "Ptr",
+        "padBeforeA": "Ptr",
+        "padAfterA": "Ptr",
+        "foldA": "Ptr",
+        "direction": "Ptr"
     },
     "cudnnGetProperty": {
         "type": null,
-        "value": null
+        "value": "Ptr"
     },
     "cudnnGetRNNDescriptor": {
         "handle": null,
         "rnnDesc": null,
-        "hiddenSize": null,
-        "numLayers": null,
-        "dropoutDesc": null,
-        "inputMode": null,
-        "direction": null,
-        "mode": null,
-        "algo": null,
-        "mathPrec": null
+        "hiddenSize": "Ptr",
+        "numLayers": "Ptr",
+        "dropoutDesc": "Ptr",
+        "inputMode": "Ptr",
+        "direction": "Ptr",
+        "mode": "Ptr",
+        "algo": "Ptr",
+        "mathPrec": "Ptr"
     },
     "cudnnFindRNNBackwardDataAlgorithmEx": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "yDesc": null,
+        "yDesc": "Ptr",
         "y": "CuPtr",
-        "dyDesc": null,
+        "dyDesc": "Ptr",
         "dy": "CuPtr",
         "dhyDesc": null,
         "dhy": "CuPtr",
@@ -391,7 +391,7 @@
         "hx": "CuPtr",
         "cxDesc": null,
         "cx": "CuPtr",
-        "dxDesc": null,
+        "dxDesc": "Ptr",
         "dx": "CuPtr",
         "dhxDesc": null,
         "dhx": "CuPtr",
@@ -399,8 +399,8 @@
         "dcx": "CuPtr",
         "findIntensity": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null,
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr",
         "workspace": "CuPtr",
         "workSpaceSizeInBytes": null,
         "reserveSpace": "CuPtr",
@@ -413,8 +413,8 @@
         "convDesc": null,
         "dxDesc": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr"
     },
     "cudnnGetConvolutionForwardAlgorithm_v7": {
         "handle": null,
@@ -423,45 +423,45 @@
         "convDesc": null,
         "destDesc": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr"
     },
     "cudnnGetAlgorithmSpaceSize": {
         "handle": null,
         "algoDesc": null,
-        "algoSpaceSizeInBytes": null
+        "algoSpaceSizeInBytes": "Ptr"
     },
     "cudnnGetConvolutionForwardAlgorithmMaxCount": {
         "handle": null,
-        "count": null
+        "count": "Ptr"
     },
     "cudnnGetTensor4dDescriptor": {
         "tensorDesc": null,
-        "dataType": null,
-        "n": null,
-        "c": null,
-        "h": null,
-        "w": null,
-        "nStride": null,
-        "cStride": null,
-        "hStride": null,
-        "wStride": null
+        "dataType": "Ptr",
+        "n": "Ptr",
+        "c": "Ptr",
+        "h": "Ptr",
+        "w": "Ptr",
+        "nStride": "Ptr",
+        "cStride": "Ptr",
+        "hStride": "Ptr",
+        "wStride": "Ptr"
     },
     "cudnnGetPoolingNdDescriptor": {
         "poolingDesc": null,
         "nbDimsRequested": null,
-        "mode": null,
-        "maxpoolingNanOpt": null,
-        "nbDims": null,
-        "windowDimA": null,
-        "paddingA": null,
-        "strideA": null
+        "mode": "Ptr",
+        "maxpoolingNanOpt": "Ptr",
+        "nbDims": "Ptr",
+        "windowDimA": "Ptr",
+        "paddingA": "Ptr",
+        "strideA": "Ptr"
     },
     "cudnnFindRNNForwardInferenceAlgorithmEx": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
+        "xDesc": "Ptr",
         "x": "CuPtr",
         "hxDesc": null,
         "hx": "CuPtr",
@@ -469,7 +469,7 @@
         "cx": "CuPtr",
         "wDesc": null,
         "w": "CuPtr",
-        "yDesc": null,
+        "yDesc": "Ptr",
         "y": "CuPtr",
         "hyDesc": null,
         "hy": "CuPtr",
@@ -477,16 +477,16 @@
         "cy": "CuPtr",
         "findIntensity": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null,
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr",
         "workspace": "CuPtr",
         "workSpaceSizeInBytes": null
     },
     "cudnnBatchNormalizationForwardTraining": {
         "handle": null,
         "mode": null,
-        "alpha": null,
-        "beta": null,
+        "alpha": "Ptr",
+        "beta": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "yDesc": null,
@@ -503,32 +503,32 @@
     },
     "cudnnGetRNNMatrixMathType": {
         "rnnDesc": null,
-        "mType": null
+        "mType": "Ptr"
     },
     "cudnnCreateTensorDescriptor": {
-        "tensorDesc": null
+        "tensorDesc": "Ptr"
     },
     "cudnnRNNGetClip": {
         "handle": null,
         "rnnDesc": null,
-        "clipMode": null,
-        "clipNanOpt": null,
-        "lclip": null,
-        "rclip": null
+        "clipMode": "Ptr",
+        "clipNanOpt": "Ptr",
+        "lclip": "Ptr",
+        "rclip": "Ptr"
     },
     "cudnnRNNForwardTraining": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
+        "xDesc": "Ptr",
         "x": "CuPtr",
         "hxDesc": null,
         "hx": "CuPtr",
         "cxDesc": null,
         "cx": "CuPtr",
         "wDesc": null,
-        "w": null,
-        "yDesc": null,
+        "w": "CuPtr",
+        "yDesc": "Ptr",
         "y": "CuPtr",
         "hyDesc": null,
         "hy": "CuPtr",
@@ -550,7 +550,7 @@
         "dxDesc": null,
         "dBnScaleBiasDesc": null,
         "activationDesc": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnFindConvolutionBackwardDataAlgorithmEx": {
         "handle": null,
@@ -562,8 +562,8 @@
         "dxDesc": null,
         "dx": "CuPtr",
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null,
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr",
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null
     },
@@ -571,20 +571,20 @@
         "convDesc": null,
         "inputTensorDesc": null,
         "filterDesc": null,
-        "n": null,
-        "c": null,
-        "h": null,
-        "w": null
+        "n": "Ptr",
+        "c": "Ptr",
+        "h": "Ptr",
+        "w": "Ptr"
     },
     "cudnnCreateAlgorithmPerformance": {
-        "algoPerf": null,
+        "algoPerf": "Ptr",
         "numberToCreate": null
     },
     "cudnnGetOpTensorDescriptor": {
         "opTensorDesc": null,
-        "opTensorOp": null,
-        "opTensorCompType": null,
-        "opTensorNanOpt": null
+        "opTensorOp": "Ptr",
+        "opTensorCompType": "Ptr",
+        "opTensorNanOpt": "Ptr"
     },
     "cudnnGetConvolutionForwardAlgorithm": {
         "handle": null,
@@ -594,13 +594,13 @@
         "yDesc": null,
         "preference": null,
         "memoryLimitInBytes": null,
-        "algo": null
+        "algo": "Ptr"
     },
     "cudnnFindRNNForwardTrainingAlgorithmEx": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
+        "xDesc": "Ptr",
         "x": "CuPtr",
         "hxDesc": null,
         "hx": "CuPtr",
@@ -608,7 +608,7 @@
         "cx": "CuPtr",
         "wDesc": null,
         "w": "CuPtr",
-        "yDesc": null,
+        "yDesc": "Ptr",
         "y": "CuPtr",
         "hyDesc": null,
         "hy": "CuPtr",
@@ -616,8 +616,8 @@
         "cy": "CuPtr",
         "findIntensity": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null,
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr",
         "workspace": "CuPtr",
         "workSpaceSizeInBytes": null,
         "reserveSpace": "CuPtr",
@@ -645,11 +645,11 @@
         "dxDesc": null,
         "dx": "CuPtr",
         "dhxDesc": null,
-        "dhx": null,
+        "dhx": "Ptr",
         "dcxDesc": null,
         "dcx": "CuPtr",
         "dkDesc": null,
-        "dkeys": null,
+        "dkeys": "Ptr",
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null,
         "reserveSpace": "CuPtr",
@@ -657,47 +657,47 @@
     },
     "cudnnQueryRuntimeError": {
         "handle": null,
-        "rstatus": null,
+        "rstatus": "Ptr",
         "mode": null,
-        "tag": null
+        "tag": "Ptr"
     },
     "cudnnCreateLRNDescriptor": {
-        "normDesc": null
+        "normDesc": "Ptr"
     },
     "cudnnGetCTCLossDescriptor": {
         "ctcLossDesc": null,
-        "compType": null
+        "compType": "Ptr"
     },
     "cudnnGetCTCLossDescriptorEx": {
         "ctcLossDesc": null,
-        "compType": null,
-        "normMode": null,
-        "gradMode": null
+        "compType": "Ptr",
+        "normMode": "Ptr",
+        "gradMode": "Ptr"
     },
     "cudnnSetCallback": {
         "mask": null,
-        "udata": null,
+        "udata": "Ptr",
         "fptr": null
     },
     "cudnnLRNCrossChannelBackward": {
         "handle": null,
         "normDesc": null,
         "lrnMode": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "yDesc": null,
         "y": "CuPtr",
         "dyDesc": null,
         "dy": "CuPtr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "dxDesc": null,
         "dx": "CuPtr"
     },
     "cudnnSaveAlgorithm": {
         "handle": null,
         "algoDesc": null,
-        "algoSpace": null,
+        "algoSpace": "Ptr",
         "algoSpaceSizeInBytes": null
     },
     "cudnnIm2Col": {
@@ -711,10 +711,10 @@
     "cudnnMultiHeadAttnBackwardData": {
         "handle": null,
         "attnDesc": null,
-        "loWinIdx": null,
-        "hiWinIdx": null,
-        "seqLengthArrayDQDO": null,
-        "seqLengthArrayDKDV": null,
+        "loWinIdx": "Ptr",
+        "hiWinIdx": "Ptr",
+        "seqLengthArrayDQDO": "Ptr",
+        "seqLengthArrayDKDV": "Ptr",
         "doDesc": null,
         "dout": "CuPtr",
         "dqDesc": null,
@@ -737,12 +737,12 @@
         "tensorDesc": null,
         "dataType": null,
         "nbDims": null,
-        "dimA": null,
-        "strideA": null
+        "dimA": "Ptr",
+        "strideA": "Ptr"
     },
     "cudnnConvolutionBiasActivationForward": {
         "handle": null,
-        "alpha1": null,
+        "alpha1": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "wDesc": null,
@@ -751,7 +751,7 @@
         "algo": null,
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null,
-        "alpha2": null,
+        "alpha2": "Ptr",
         "zDesc": null,
         "z": "CuPtr",
         "biasDesc": null,
@@ -764,10 +764,10 @@
         "handle": null,
         "mode": null,
         "bnOps": null,
-        "alphaDataDiff": null,
-        "betaDataDiff": null,
-        "alphaParamDiff": null,
-        "betaParamDiff": null,
+        "alphaDataDiff": "Ptr",
+        "betaDataDiff": "Ptr",
+        "alphaParamDiff": "Ptr",
+        "betaParamDiff": "Ptr",
         "xDesc": null,
         "xData": "CuPtr",
         "yDesc": null,
@@ -784,8 +784,8 @@
         "dBnScaleData": "CuPtr",
         "dBnBiasData": "CuPtr",
         "epsilon": null,
-        "savedMean": null,
-        "savedInvVariance": null,
+        "savedMean": "CuPtr",
+        "savedInvVariance": "CuPtr",
         "activationDesc": null,
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null,
@@ -794,15 +794,15 @@
     },
     "cudnnGetFilter4dDescriptor": {
         "filterDesc": null,
-        "dataType": null,
-        "format": null,
-        "k": null,
-        "c": null,
-        "h": null,
-        "w": null
+        "dataType": "Ptr",
+        "format": "Ptr",
+        "k": "Ptr",
+        "c": "Ptr",
+        "h": "Ptr",
+        "w": "Ptr"
     },
     "cudnnCreateFusedOpsPlan": {
-        "plan": null,
+        "plan": "Ptr",
         "ops": null
     },
     "cudnnSetRNNDataDescriptor": {
@@ -812,59 +812,59 @@
         "maxSeqLength": null,
         "batchSize": null,
         "vectorSize": null,
-        "seqLengthArray": null,
-        "paddingFill": null
+        "seqLengthArray": "Ptr",
+        "paddingFill": "Ptr"
     },
     "cudnnGetConvolutionBackwardFilterAlgorithmMaxCount": {
         "handle": null,
-        "count": null
+        "count": "Ptr"
     },
     "cudnnGetAttnDescriptor": {
         "attnDesc": null,
-        "queryMap": null,
-        "nHeads": null,
-        "smScaler": null,
-        "dataType": null,
-        "computePrec": null,
-        "mathType": null,
-        "attnDropoutDesc": null,
-        "postDropoutDesc": null,
-        "qSize": null,
-        "kSize": null,
-        "vSize": null,
-        "qProjSize": null,
-        "kProjSize": null,
-        "vProjSize": null,
-        "oProjSize": null,
-        "qoMaxSeqLength": null,
-        "kvMaxSeqLength": null,
-        "maxBatchSize": null,
-        "maxBeamSize": null
+        "queryMap": "Ptr",
+        "nHeads": "Ptr",
+        "smScaler": "Ptr",
+        "dataType": "Ptr",
+        "computePrec": "Ptr",
+        "mathType": "Ptr",
+        "attnDropoutDesc": "Ptr",
+        "postDropoutDesc": "Ptr",
+        "qSize": "Ptr",
+        "kSize": "Ptr",
+        "vSize": "Ptr",
+        "qProjSize": "Ptr",
+        "kProjSize": "Ptr",
+        "vProjSize": "Ptr",
+        "oProjSize": "Ptr",
+        "qoMaxSeqLength": "Ptr",
+        "kvMaxSeqLength": "Ptr",
+        "maxBatchSize": "Ptr",
+        "maxBeamSize": "Ptr"
     },
     "cudnnCreateConvolutionDescriptor": {
-        "convDesc": null
+        "convDesc": "Ptr"
     },
     "cudnnTransformFilter": {
         "handle": null,
         "transDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "srcDesc": null,
         "srcData": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "destDesc": null,
         "destData": "CuPtr"
     },
     "cudnnPoolingBackward": {
         "handle": null,
         "poolingDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "yDesc": null,
         "y": "CuPtr",
         "dyDesc": null,
         "dy": "CuPtr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "dxDesc": null,
         "dx": "CuPtr"
     },
@@ -872,9 +872,9 @@
         "handle": null,
         "probsDesc": null,
         "probs": "CuPtr",
-        "labels": null,
-        "labelLengths": null,
-        "inputLengths": null,
+        "labels": "Ptr",
+        "labelLengths": "Ptr",
+        "inputLengths": "Ptr",
         "costs": "CuPtr",
         "gradientsDesc": null,
         "gradients": "CuPtr",
@@ -885,20 +885,20 @@
     },
     "cudnnGetPooling2dDescriptor": {
         "poolingDesc": null,
-        "mode": null,
-        "maxpoolingNanOpt": null,
-        "windowHeight": null,
-        "windowWidth": null,
-        "verticalPadding": null,
-        "horizontalPadding": null,
-        "verticalStride": null,
-        "horizontalStride": null
+        "mode": "Ptr",
+        "maxpoolingNanOpt": "Ptr",
+        "windowHeight": "Ptr",
+        "windowWidth": "Ptr",
+        "verticalPadding": "Ptr",
+        "horizontalPadding": "Ptr",
+        "verticalStride": "Ptr",
+        "horizontalStride": "Ptr"
     },
     "cudnnScaleTensor": {
         "handle": null,
         "yDesc": null,
         "y": "CuPtr",
-        "alpha": null
+        "alpha": "Ptr"
     },
     "cudnnGetConvolutionForwardWorkspaceSize": {
         "handle": null,
@@ -907,65 +907,65 @@
         "convDesc": null,
         "yDesc": null,
         "algo": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnGetMultiHeadAttnBuffers": {
         "handle": null,
         "attnDesc": null,
-        "weightSizeInBytes": null,
-        "workSpaceSizeInBytes": null,
-        "reserveSpaceSizeInBytes": null
+        "weightSizeInBytes": "Ptr",
+        "workSpaceSizeInBytes": "Ptr",
+        "reserveSpaceSizeInBytes": "Ptr"
     },
     "cudnnGetConvolutionMathType": {
         "convDesc": null,
-        "mathType": null
+        "mathType": "Ptr"
     },
     "cudnnGetRNNTrainingReserveSize": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
-        "sizeInBytes": null
+        "xDesc": "Ptr",
+        "sizeInBytes": "Ptr"
     },
     "cudnnCreatePersistentRNNPlan": {
         "rnnDesc": null,
         "minibatch": null,
         "dataType": null,
-        "plan": null
+        "plan": "Ptr"
     },
     "cudnnDestroyAlgorithmPerformance": {
-        "algoPerf": null,
+        "algoPerf": "Ptr",
         "numberToDestroy": null
     },
     "cudnnGetSeqDataDescriptor": {
         "seqDataDesc": null,
-        "dataType": null,
-        "nbDims": null,
+        "dataType": "Ptr",
+        "nbDims": "Ptr",
         "nbDimsRequested": null,
-        "dimA": null,
-        "axes": null,
-        "seqLengthArraySize": null,
+        "dimA": "Ptr",
+        "axes": "Ptr",
+        "seqLengthArraySize": "Ptr",
         "seqLengthSizeRequested": null,
-        "seqLengthArray": null,
-        "paddingFill": null
+        "seqLengthArray": "Ptr",
+        "paddingFill": "Ptr"
     },
     "cudnnCreateOpTensorDescriptor": {
-        "opTensorDesc": null
+        "opTensorDesc": "Ptr"
     },
     "cudnnFindRNNBackwardWeightsAlgorithmEx": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
+        "xDesc": "Ptr",
         "x": "CuPtr",
         "hxDesc": null,
         "hx": "CuPtr",
-        "yDesc": null,
+        "yDesc": "Ptr",
         "y": "CuPtr",
         "findIntensity": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null,
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr",
         "workspace": "CuPtr",
         "workSpaceSizeInBytes": null,
         "dwDesc": null,
@@ -977,7 +977,7 @@
         "handle": null,
         "yDesc": null,
         "y": "CuPtr",
-        "valuePtr": null
+        "valuePtr": "Ptr"
     },
     "cudnnMultiHeadAttnBackwardWeights": {
         "handle": null,
@@ -1017,13 +1017,13 @@
         "cyDesc": null,
         "cy": "CuPtr",
         "kDesc": null,
-        "keys": null,
+        "keys": "CuPtr",
         "cDesc": null,
-        "cAttn": null,
+        "cAttn": "CuPtr",
         "iDesc": null,
-        "iAttn": null,
+        "iAttn": "CuPtr",
         "qDesc": null,
-        "queries": null,
+        "queries": "CuPtr",
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null,
         "reserveSpace": "CuPtr",
@@ -1033,12 +1033,12 @@
         "handle": null,
         "algo": null,
         "mode": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "yDesc": null,
         "y": "CuPtr",
         "dyDesc": null,
         "dy": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "dxDesc": null,
         "dx": "CuPtr"
     },
@@ -1055,19 +1055,19 @@
     "cudnnTransformTensorEx": {
         "handle": null,
         "transDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "srcDesc": null,
-        "srcData": null,
-        "beta": null,
+        "srcData": "Ptr",
+        "beta": "Ptr",
         "destDesc": null,
-        "destData": null
+        "destData": "Ptr"
     },
     "cudnnBatchNormalizationForwardTrainingEx": {
         "handle": null,
         "mode": null,
         "bnOps": null,
-        "alpha": null,
-        "beta": null,
+        "alpha": "Ptr",
+        "beta": "Ptr",
         "xDesc": null,
         "xData": "CuPtr",
         "zDesc": null,
@@ -1081,8 +1081,8 @@
         "resultRunningMean": "CuPtr",
         "resultRunningVariance": "CuPtr",
         "epsilon": null,
-        "resultSaveMean": null,
-        "resultSaveInvVariance": null,
+        "resultSaveMean": "CuPtr",
+        "resultSaveInvVariance": "CuPtr",
         "activationDesc": null,
         "workspace": "CuPtr",
         "workSpaceSizeInBytes": null,
@@ -1097,42 +1097,42 @@
         "dwDesc": null,
         "preference": null,
         "memoryLimitInBytes": null,
-        "algo": null
+        "algo": "Ptr"
     },
     "cudnnSetTensorTransformDescriptor": {
         "transformDesc": null,
         "nbDims": null,
         "destFormat": null,
-        "padBeforeA": null,
-        "padAfterA": null,
-        "foldA": null,
+        "padBeforeA": "Ptr",
+        "padAfterA": "Ptr",
+        "foldA": "Ptr",
         "direction": null
     },
     "cudnnGetFusedOpsConstParamPackAttribute": {
         "constPack": null,
         "paramLabel": null,
-        "param": null,
-        "isNULL": null
+        "param": "Ptr",
+        "isNULL": "Ptr"
     },
     "cudnnGetConvolutionNdDescriptor": {
         "convDesc": null,
         "arrayLengthRequested": null,
-        "arrayLength": null,
-        "padA": null,
-        "strideA": null,
-        "dilationA": null,
-        "mode": null,
-        "computeType": null
+        "arrayLength": "Ptr",
+        "padA": "Ptr",
+        "strideA": "Ptr",
+        "dilationA": "Ptr",
+        "mode": "Ptr",
+        "computeType": "Ptr"
     },
     "cudnnRNNBackwardWeights": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
+        "xDesc": "Ptr",
         "x": "CuPtr",
         "hxDesc": null,
         "hx": "CuPtr",
-        "yDesc": null,
+        "yDesc": "Ptr",
         "y": "CuPtr",
         "workspace": "CuPtr",
         "workSpaceSizeInBytes": null,
@@ -1143,10 +1143,10 @@
     },
     "cudnnConvolutionBackwardBias": {
         "handle": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "dyDesc": null,
         "dy": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "dbDesc": null,
         "db": "CuPtr"
     },
@@ -1154,15 +1154,15 @@
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
+        "xDesc": "Ptr",
         "x": "CuPtr",
         "hxDesc": null,
         "hx": "CuPtr",
         "cxDesc": null,
         "cx": "CuPtr",
         "wDesc": null,
-        "w": null,
-        "yDesc": null,
+        "w": "CuPtr",
+        "yDesc": "Ptr",
         "y": "CuPtr",
         "hyDesc": null,
         "hy": "CuPtr",
@@ -1174,16 +1174,16 @@
     "cudnnGetPooling2dForwardOutputDim": {
         "poolingDesc": null,
         "inputTensorDesc": null,
-        "n": null,
-        "c": null,
-        "h": null,
-        "w": null
+        "n": "Ptr",
+        "c": "Ptr",
+        "h": "Ptr",
+        "w": "Ptr"
     },
     "cudnnCreateSeqDataDescriptor": {
-        "seqDataDesc": null
+        "seqDataDesc": "Ptr"
     },
     "cudnnCreate": {
-        "handle": null
+        "handle": "Ptr"
     },
     "cudnnGetConvolutionBackwardFilterWorkspaceSize": {
         "handle": null,
@@ -1192,23 +1192,23 @@
         "convDesc": null,
         "gradDesc": null,
         "algo": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnGetRNNProjectionLayers": {
         "handle": null,
         "rnnDesc": null,
-        "recProjSize": null,
-        "outProjSize": null
+        "recProjSize": "Ptr",
+        "outProjSize": "Ptr"
     },
     "cudnnGetRNNWorkspaceSize": {
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "xDesc": null,
-        "sizeInBytes": null
+        "xDesc": "Ptr",
+        "sizeInBytes": "Ptr"
     },
     "cudnnCreateDropoutDescriptor": {
-        "dropoutDesc": null
+        "dropoutDesc": "Ptr"
     },
     "cudnnGetFusedOpsVariantParamPackAttribute": {
         "varPack": null,
@@ -1216,22 +1216,22 @@
         "ptr": "PtrOrCuPtr"
     },
     "cudnnCreateFusedOpsVariantParamPack": {
-        "varPack": null,
+        "varPack": "Ptr",
         "ops": null
     },
     "cudnnGetConvolutionReorderType": {
         "convDesc": null,
-        "reorderType": null
+        "reorderType": "Ptr"
     },
     "cudnnSetSeqDataDescriptor": {
         "seqDataDesc": null,
         "dataType": null,
         "nbDims": null,
-        "dimA": null,
-        "axes": null,
+        "dimA": "Ptr",
+        "axes": "Ptr",
         "seqLengthArraySize": null,
-        "seqLengthArray": null,
-        "paddingFill": null
+        "seqLengthArray": "Ptr",
+        "paddingFill": "Ptr"
     },
     "cudnnGetMultiHeadAttnWeights": {
         "handle": null,
@@ -1246,25 +1246,25 @@
         "handle": null,
         "probsDesc": null,
         "gradientsDesc": null,
-        "labels": null,
-        "labelLengths": null,
-        "inputLengths": null,
+        "labels": "Ptr",
+        "labelLengths": "Ptr",
+        "inputLengths": "Ptr",
         "algo": null,
         "ctcLossDesc": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnActivationForward": {
         "handle": null,
         "activationDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "yDesc": null,
         "y": "CuPtr"
     },
     "cudnnCreatePoolingDescriptor": {
-        "poolingDesc": null
+        "poolingDesc": "Ptr"
     },
     "cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize": {
         "handle": null,
@@ -1275,28 +1275,28 @@
         "yDesc": null,
         "bnScaleBiasMeanVarDesc": null,
         "activationDesc": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnGetPoolingNdForwardOutputDim": {
         "poolingDesc": null,
         "inputTensorDesc": null,
         "nbDims": null,
-        "outputTensorDimA": null
+        "outputTensorDimA": "Ptr"
     },
     "cudnnCreateActivationDescriptor": {
-        "activationDesc": null
+        "activationDesc": "Ptr"
     },
     "cudnnDivisiveNormalizationForward": {
         "handle": null,
         "normDesc": null,
         "mode": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "means": "CuPtr",
         "temp": "CuPtr",
         "temp2": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "yDesc": null,
         "y": "CuPtr"
     },
@@ -1304,9 +1304,9 @@
         "handle": null,
         "rnnDesc": null,
         "seqLength": null,
-        "yDesc": null,
+        "yDesc": "Ptr",
         "y": "CuPtr",
-        "dyDesc": null,
+        "dyDesc": "Ptr",
         "dy": "CuPtr",
         "dhyDesc": null,
         "dhy": "CuPtr",
@@ -1318,7 +1318,7 @@
         "hx": "CuPtr",
         "cxDesc": null,
         "cx": "CuPtr",
-        "dxDesc": null,
+        "dxDesc": "Ptr",
         "dx": "CuPtr",
         "dhxDesc": null,
         "dhx": "CuPtr",
@@ -1336,41 +1336,41 @@
         "convDesc": null,
         "gradDesc": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr"
     },
     "cudnnCreateReduceTensorDescriptor": {
-        "reduceTensorDesc": null
+        "reduceTensorDesc": "Ptr"
     },
     "cudnnCreateRNNDataDescriptor": {
-        "rnnDataDesc": null
+        "rnnDataDesc": "Ptr"
     },
     "cudnnSetFusedOpsConstParamPackAttribute": {
         "constPack": null,
         "paramLabel": null,
-        "param": null
+        "param": "Ptr"
     },
     "cudnnSpatialTfSamplerForward": {
         "handle": null,
         "stDesc": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "grid": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "yDesc": null,
         "y": "CuPtr"
     },
     "cudnnDropoutGetReserveSpaceSize": {
         "xdesc": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnGetDropoutDescriptor": {
         "dropoutDesc": null,
         "handle": null,
         "dropout": "CuPtr",
-        "states": null,
-        "seed": null
+        "states": "Ptr",
+        "seed": "Ptr"
     },
     "cudnnSetDropoutDescriptor": {
         "dropoutDesc": null,
@@ -1382,18 +1382,18 @@
     },
     "cudnnGetConvolution2dDescriptor": {
         "convDesc": null,
-        "pad_h": null,
-        "pad_w": null,
-        "u": null,
-        "v": null,
-        "dilation_h": null,
-        "dilation_w": null,
-        "mode": null,
-        "computeType": null
+        "pad_h": "Ptr",
+        "pad_w": "Ptr",
+        "u": "Ptr",
+        "v": "Ptr",
+        "dilation_h": "Ptr",
+        "dilation_w": "Ptr",
+        "mode": "Ptr",
+        "computeType": "Ptr"
     },
     "cudnnGetFilterSizeInBytes": {
         "filterDesc": null,
-        "size": null
+        "size": "Ptr"
     },
     "cudnnGetRNNLinLayerBiasParams": {
         "handle": null,
@@ -1404,7 +1404,7 @@
         "w": "CuPtr",
         "linLayerID": null,
         "linLayerBiasDesc": null,
-        "linLayerBias": null
+        "linLayerBias": "Ptr"
     },
     "cudnnFindConvolutionBackwardFilterAlgorithmEx": {
         "handle": null,
@@ -1416,16 +1416,16 @@
         "dwDesc": null,
         "dw": "CuPtr",
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null,
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr",
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null
     },
     "cudnnGetActivationDescriptor": {
         "activationDesc": null,
-        "mode": null,
-        "reluNanOpt": null,
-        "coef": null
+        "mode": "Ptr",
+        "reluNanOpt": "Ptr",
+        "coef": "Ptr"
     },
     "cudnnSpatialTfGridGeneratorForward": {
         "handle": null,
@@ -1437,37 +1437,37 @@
         "handle": null,
         "rnnDesc": null,
         "xDesc": null,
-        "sizeInBytes": null,
+        "sizeInBytes": "Ptr",
         "dataType": null
     },
     "cudnnGetRNNBiasMode": {
         "rnnDesc": null,
-        "biasMode": null
+        "biasMode": "Ptr"
     },
     "cudnnGetRNNBackwardWeightsAlgorithmMaxCount": {
         "handle": null,
         "rnnDesc": null,
-        "count": null
+        "count": "Ptr"
     },
     "cudnnSetTensorNdDescriptorEx": {
         "tensorDesc": null,
         "format": null,
         "dataType": null,
         "nbDims": null,
-        "dimA": null
+        "dimA": "Ptr"
     },
     "cudnnAddTensor": {
         "handle": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "aDesc": null,
         "A": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "cDesc": null,
         "C": "CuPtr"
     },
     "cudnnConvolutionBackwardData": {
         "handle": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "wDesc": null,
         "w": "CuPtr",
         "dyDesc": null,
@@ -1476,7 +1476,7 @@
         "algo": null,
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null,
-        "beta": null,
+        "beta": "Ptr",
         "dxDesc": null,
         "dx": "CuPtr"
     },
@@ -1491,13 +1491,13 @@
     "cudnnOpTensor": {
         "handle": null,
         "opTensorDesc": null,
-        "alpha1": null,
+        "alpha1": "Ptr",
         "aDesc": null,
         "A": "CuPtr",
-        "alpha2": null,
+        "alpha2": "Ptr",
         "bDesc": null,
         "B": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "cDesc": null,
         "C": "CuPtr"
     },
@@ -1506,7 +1506,7 @@
         "reduceTensorDesc": null,
         "aDesc": null,
         "cDesc": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnFindConvolutionBackwardFilterAlgorithm": {
         "handle": null,
@@ -1515,55 +1515,55 @@
         "convDesc": null,
         "dwDesc": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr"
     },
     "cudnnInitTransformDest": {
         "transformDesc": null,
         "srcDesc": null,
         "destDesc": null,
-        "destSizeInBytes": null
+        "destSizeInBytes": "Ptr"
     },
     "cudnnGetRNNDataDescriptor": {
         "rnnDataDesc": null,
-        "dataType": null,
-        "layout": null,
-        "maxSeqLength": null,
-        "batchSize": null,
-        "vectorSize": null,
+        "dataType": "Ptr",
+        "layout": "Ptr",
+        "maxSeqLength": "Ptr",
+        "batchSize": "Ptr",
+        "vectorSize": "Ptr",
         "arrayLengthRequested": null,
-        "seqLengthArray": null,
-        "paddingFill": null
+        "seqLengthArray": "Ptr",
+        "paddingFill": "Ptr"
     },
     "cudnnGetAlgorithmDescriptor": {
         "algoDesc": null,
-        "algorithm": null
+        "algorithm": "Ptr"
     },
     "cudnnGetRNNBackwardDataAlgorithmMaxCount": {
         "handle": null,
         "rnnDesc": null,
-        "count": null
+        "count": "Ptr"
     },
     "cudnnCreateRNNDescriptor": {
-        "rnnDesc": null
+        "rnnDesc": "Ptr"
     },
     "cudnnGetRNNForwardInferenceAlgorithmMaxCount": {
         "handle": null,
         "rnnDesc": null,
-        "count": null
+        "count": "Ptr"
     },
     "cudnnDivisiveNormalizationBackward": {
         "handle": null,
         "normDesc": null,
         "mode": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
         "means": "CuPtr",
         "dy": "CuPtr",
         "temp": "CuPtr",
         "temp2": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "dXdMeansDesc": null,
         "dx": "CuPtr",
         "dMeans": "CuPtr"
@@ -1571,9 +1571,9 @@
     "cudnnSetConvolutionNdDescriptor": {
         "convDesc": null,
         "arrayLength": null,
-        "padA": null,
-        "filterStrideA": null,
-        "dilationA": null,
+        "padA": "Ptr",
+        "filterStrideA": "Ptr",
+        "dilationA": "Ptr",
         "mode": null,
         "computeType": null
     },
@@ -1595,13 +1595,13 @@
         "cyDesc": null,
         "cy": "CuPtr",
         "kDesc": null,
-        "keys": null,
+        "keys": "Ptr",
         "cDesc": null,
-        "cAttn": null,
+        "cAttn": "Ptr",
         "iDesc": null,
-        "iAttn": null,
+        "iAttn": "Ptr",
         "qDesc": null,
-        "queries": null,
+        "queries": "CuPtr",
         "workSpace": "CuPtr",
         "workSpaceSizeInBytes": null
     },
@@ -1610,15 +1610,15 @@
         "samplerType": null,
         "dataType": null,
         "nbDims": null,
-        "dimA": null
+        "dimA": "Ptr"
     },
     "cudnnGetConvolutionBackwardDataAlgorithmMaxCount": {
         "handle": null,
-        "count": null
+        "count": "Ptr"
     },
     "cudnnDropoutGetStatesSize": {
         "handle": null,
-        "sizeInBytes": null
+        "sizeInBytes": "Ptr"
     },
     "cudnnGetConvolutionBackwardFilterAlgorithm_v7": {
         "handle": null,
@@ -1627,8 +1627,8 @@
         "convDesc": null,
         "gradDesc": null,
         "requestedAlgoCount": null,
-        "returnedAlgoCount": null,
-        "perfResults": null
+        "returnedAlgoCount": "Ptr",
+        "perfResults": "Ptr"
     },
     "cudnnDropoutForward": {
         "handle": null,
@@ -1648,16 +1648,16 @@
     },
     "cudnnGetRNNPaddingMode": {
         "rnnDesc": null,
-        "paddingMode": null
+        "paddingMode": "Ptr"
     },
     "cudnnLRNCrossChannelForward": {
         "handle": null,
         "normDesc": null,
         "lrnMode": null,
-        "alpha": null,
+        "alpha": "Ptr",
         "xDesc": null,
         "x": "CuPtr",
-        "beta": null,
+        "beta": "Ptr",
         "yDesc": null,
         "y": "CuPtr"
     },
@@ -1670,29 +1670,29 @@
         "w": "CuPtr",
         "linLayerID": null,
         "linLayerMatDesc": null,
-        "linLayerMat": null
+        "linLayerMat": "Ptr"
     },
     "cudnnGetReduceTensorDescriptor": {
         "reduceTensorDesc": null,
-        "reduceTensorOp": null,
-        "reduceTensorCompType": null,
-        "reduceTensorNanOpt": null,
-        "reduceTensorIndices": null,
-        "reduceTensorIndicesType": null
+        "reduceTensorOp": "Ptr",
+        "reduceTensorCompType": "Ptr",
+        "reduceTensorNanOpt": "Ptr",
+        "reduceTensorIndices": "Ptr",
+        "reduceTensorIndicesType": "Ptr"
     },
     "cudnnGetConvolutionNdForwardOutputDim": {
         "convDesc": null,
         "inputTensorDesc": null,
         "filterDesc": null,
         "nbDims": null,
-        "tensorOuputDimA": null
+        "tensorOuputDimA": "Ptr"
     },
     "cudnnGetTensorSizeInBytes": {
         "tensorDesc": null,
-        "size": null
+        "size": "Ptr"
     },
     "cudnnGetConvolutionGroupCount": {
         "convDesc": null,
-        "groupCount": null
+        "groupCount": "Ptr"
     }
 }
