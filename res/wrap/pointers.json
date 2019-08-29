@@ -495,11 +495,11 @@
     "CuPtr",
     "CuPtr",
     null,
+    "CuPtr",
+    "CuPtr",
     null,
-    null,
-    null,
-    null,
-    null
+    "CuPtr",
+    "CuPtr"
   ],
   "cudnnGetRNNMatrixMathType": [
     null,
@@ -1078,8 +1078,8 @@
     "CuPtr",
     "CuPtr",
     null,
-    null,
-    null,
+    "CuPtr",
+    "CuPtr",
     null,
     null,
     null,
