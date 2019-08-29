@@ -44,7 +44,7 @@ end
 #
 
 using CSTParser, Tokenize
-using JSON
+using JSON, DataStructures
 
 ## rewrite/pass infrastructure
 
@@ -114,7 +114,7 @@ function rewrite_pointers(x, state)
             #       since realistic headers might have huge amounts of replacements
             #       and you might want to resume the process later on.
             db = if isfile("pointers.json")
-                JSON.parsefile("pointers.json")
+                JSON.parsefile("pointers.json"; dicttype=DataStructures.OrderedDict)
             else
                 Dict{String, Any}()
             end
@@ -123,9 +123,9 @@ function rewrite_pointers(x, state)
                 replacements = db[fn]
 
                 # print the cached result
-                for (i, arg) in enumerate(args)
+                for (i, (name,replacement)) in enumerate(replacements)
                     if is_pointer[i]
-                        println("- argument $i: $(arg.val)::$(Expr(types[i])) is a ", something(replacements[i], "CPU pointer"))
+                        println("- argument $i: $name::$(Expr(types[i])) is a ", something(replacement, "CPU pointer"))
                     end
                 end
                 println()
@@ -146,27 +146,31 @@ function rewrite_pointers(x, state)
                 dual_pointers = parse.(Int, split(readline(stdin)))
 
                 # generate replacements
-                replacements = Union{Nothing,String}[nothing for _ in args]
+                replacements = OrderedDict{String,Any}()
                 for (i, arg) in enumerate(args)
                     if i in gpu_pointers
-                        replacements[i] = "CuPtr"
+                        typename = "CuPtr"
                     elseif i in dual_pointers
-                        replacements[i] = "PtrOrCuPtr"
+                        typename = "PtrOrCuPtr"
+                    else
+                        typename = nothing
                     end
-                end
-
-                db[fn] = replacements
-                open("pointers.json", "w") do io
-                    JSON.print(io, db, 4)
+                    replacements[arg.val] = typename
                 end
             end
 
+            # always save: the argument names might have changed in the current header
+            db[fn] = replacements
+            open("pointers.json", "w") do io
+                JSON.print(io, db, 4)
+            end
+
             # generate edits
-            for (i, arg) in enumerate(args)
+            for (i, (_,replacement)) in enumerate(replacements)
                 offset += tt.args[2*i-1].fullspan
-                if replacements[i] !== nothing
+                if replacement !== nothing
                     ptr = types[i].args[1]
-                    push!(state.edits, Edit(offset+1:offset+ptr.span, replacements[i]))
+                    push!(state.edits, Edit(offset+1:offset+ptr.span, replacement))
                 end
                 offset += types[i].fullspan
             end
