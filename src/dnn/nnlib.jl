@@ -1,7 +1,7 @@
 import ..CuArrays: CuVecOrMat, CuVector
 
-import NNlib: conv!, ∇conv_filter!, ∇conv_data!,
-  maxpool!, meanpool!, ∇maxpool!, ∇meanpool!,
+import NNlib: conv!, ∇conv_filter!, ∇conv_data!, stride, dilation, flipkernel,
+  maxpool!, meanpool!, ∇maxpool!, ∇meanpool!, spatial_dims, padding, kernel_size,
   softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
 
 
