@@ -41,11 +41,11 @@ for f in libdevice
 end
 
 #broadcast ^
-culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{0}) = one(x)
-culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{1}) = x
-culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{2}) = x*x
-culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{3}) = x*x*x
-culiteral_pow(::typeof(^), x::Union{Float32, Float64}, ::Val{p}) where p = CUDAnative.pow(x, Int32(p))
+culiteral_pow(::typeof(^), x::T, ::Val{0}) where {T<:Real} = one(x)
+culiteral_pow(::typeof(^), x::T, ::Val{1}) where {T<:Real} = x
+culiteral_pow(::typeof(^), x::T, ::Val{2}) where {T<:Real} = x * x
+culiteral_pow(::typeof(^), x::T, ::Val{3}) where {T<:Real} = x * x * x
+culiteral_pow(::typeof(^), x::T, ::Val{p}) where {T<:Real,p} = CUDAnative.pow(x, Int32(p))
 
 cufunc(::typeof(Base.literal_pow)) = culiteral_pow
 cufunc(::typeof(Base.:(^))) = CUDAnative.pow
