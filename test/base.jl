@@ -153,15 +153,15 @@ end
   @test testf(x -> reduce(myreducer, x, dims=(2, 3), init=0.0), rand(2, 3, 4))
   @test testf(x -> reduce(myreducer, x, init=0.0), rand(2, 3))
   @test testf(x -> reduce(myreducer, x, dims=2, init=42.0), rand(2, 3))
-  
+
   ex = ErrorException("Please supply a neutral element for &. E.g: mapreduce(f, &, A; init = 1)")
   @test_throws ex mapreduce(t -> t > 0.5, &, cu(rand(2, 3)))
-  @test testf(x -> mapreduce(t -> t > 0.5, &, x, init=true), rand(2, 3)) 
-  
+  @test testf(x -> mapreduce(t -> t > 0.5, &, x, init=true), rand(2, 3))
+
   ex = UndefKeywordError(:init)
   cub = map(t -> t > 0.5, cu(rand(2, 3)))
   @test_throws ex reduce(|, cub)
-  @test testf(x -> reduce(|, x, init=false), map(t -> t > 0.5, cu(rand(2, 3)))) 
+  @test testf(x -> reduce(|, x, init=false), map(t -> t > 0.5, cu(rand(2, 3))))
 end
 
 @testset "0D" begin
