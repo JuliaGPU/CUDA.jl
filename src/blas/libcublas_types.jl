@@ -104,22 +104,6 @@ if CUDAdrv.version() >= v"0.7.5"
     const CUBLAS_GEMM_ALGO5 = 5
     const CUBLAS_GEMM_ALGO6 = 6
     const CUBLAS_GEMM_ALGO7 = 7
-    # specify which DataType to use with cublas<t>gemmEx() and cublasGemmEx() (CUDA 7.5+) functions
-    const cudaDataType_t = UInt32
-    const CUDA_R_16F = UInt32(2)
-    const CUDA_C_16F = UInt32(6)
-    const CUDA_R_32F = UInt32(0)
-    const CUDA_C_32F = UInt32(4)
-    const CUDA_R_64F = UInt32(1)
-    const CUDA_C_64F = UInt32(5)
-    const CUDA_R_8I  = UInt32(3)
-    const CUDA_C_8I  = UInt32(7)
-    const CUDA_R_8U  = UInt32(8)
-    const CUDA_C_8U  = UInt32(9)
-    const CUDA_R_32I = UInt32(10)
-    const CUDA_C_32I = UInt32(11)
-    const CUDA_R_32U = UInt32(12)
-    const CUDA_C_32U = UInt32(13)
 end
 
 @enum CUBLASMathMode::Cint begin
