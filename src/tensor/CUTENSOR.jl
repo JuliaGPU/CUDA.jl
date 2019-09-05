@@ -7,8 +7,6 @@ import CUDAdrv: CUDAdrv, CuContext
 using ..CuArrays
 using ..CuArrays: libcutensor, @libcutensor, active_context
 
-using Libdl
-
 using LinearAlgebra
 
 export CuTensor
@@ -42,13 +40,6 @@ function version()
     minor, patch = divrem(ver, 100)
 
     VersionNumber(major, minor, patch)
-end
-
-function __init__()
-    if libcutensor !== nothing
-        Libdl.dlopen(CuArrays.CUBLAS.libcublas, RTLD_NOW | RTLD_DEEPBIND | RTLD_GLOBAL)
-        Libdl.dlopen(libcutensor, RTLD_LAZY | RTLD_DEEPBIND | RTLD_GLOBAL)
-    end
 end
 
 end
