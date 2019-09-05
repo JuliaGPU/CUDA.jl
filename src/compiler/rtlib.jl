@@ -84,13 +84,18 @@ end
 # NOTE: maybe we should use XDG_CACHE_PATH/%LOCALAPPDATA%, but other Julia cache files
 #       are put in .julia anyway so let's just follow suit for now.
 function cachedir()
-    # this mimicks Base.compilecache. we can't just call the function, or we micht actually
+    # this mimicks Base.compilecache. we can't just call the function, or we might actually
     # _generate_ a cache file, e.g., when running with `--compiled-modules=no`.
-    cachefile = abspath(DEPOT_PATH[1], Base.cache_file_entry(Base.PkgId(CUDAnative)))
+    if VERSION >= v"1.3.0-alpha.146"
+        entrypath, entryfile = Base.cache_file_entry(Base.PkgId(CUDAnative))
+        abspath(DEPOT_PATH[1], entrypath, entryfile)
+    else
+        cachefile = abspath(DEPOT_PATH[1], Base.cache_file_entry(Base.PkgId(CUDAnative)))
 
-    # the cachefile consists of `/depot/compiled/vXXX/CUDAnative/$slug.ji`
-    # transform that into `/depot/compiled/vXXX/CUDAnative/$slug/`
-    splitext(cachefile)[1]
+        # the cachefile consists of `/depot/compiled/vXXX/CUDAnative/$slug.ji`
+        # transform that into `/depot/compiled/vXXX/CUDAnative/$slug/`
+        splitext(cachefile)[1]
+    end
 end
 
 runtimedir() = joinpath(cachedir(), "runtime")
