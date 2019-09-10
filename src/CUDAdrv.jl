@@ -72,7 +72,11 @@ include("deprecated.jl")
 
 function __init__()
     if !ispath(libcuda) || version() != libcuda_version
-        cachefile = Base.compilecache(Base.PkgId(CUDAdrv))
+        cachefile = if VERSION >= v"1.3-"
+            Base.compilecache_path(Base.PkgId(CUDAdrv))
+        else
+            abspath(DEPOT_PATH[1], Base.cache_file_entry(Base.PkgId(CUDAdrv)))
+        end
         rm(cachefile)
         error("Your set-up changed, and CUDAdrv.jl needs to be reconfigured. Please load the package again.")
     end
