@@ -3,7 +3,7 @@ CUDAdrv.jl
 
 *A Julia wrapper for the CUDA driver API.*
 
-[![][docs-latest-img]][docs-latest-url] [![][codecov-img]][codecov-url] [![][doi-img]][doi-url]
+[![][docs-latest-img]][docs-latest-url] [![][discourse-img]][discourse-url] [![][codecov-img]][codecov-url] [![][doi-img]][doi-url]
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
@@ -13,6 +13,9 @@ CUDAdrv.jl
 
 [doi-img]: https://zenodo.org/badge/DOI/10.1109/TPDS.2018.2872064.svg
 [doi-url]: https://doi.org/10.1109/TPDS.2018.2872064
+
+[discourse-img]: https://img.shields.io/badge/discourse-julia%20%23gpu-red
+[discourse-url]: https://discourse.julialang.org/c/domain/gpu
 
 This package aims to provide high-level wrappers for the functionality exposed by the CUDA
 driver API, and is meant for users who need high- or low-level access to the CUDA toolkit or
