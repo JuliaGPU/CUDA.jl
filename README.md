@@ -3,11 +3,13 @@ CUDAapi.jl
 
 *Reusable components for CUDA development.*
 
-**Code coverage**: [![][codecov-img]][codecov-url]
+**Code coverage**: [![][discourse-img]][discourse-url] [![][codecov-img]][codecov-url]
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAapi.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAapi.jl
 
+[discourse-img]: https://img.shields.io/badge/discourse-julia%20%23gpu-red
+[discourse-url]: https://discourse.julialang.org/c/domain/gpu
 
 This package provides some reusable functionality for working with CUDA or
 NVIDIA APIs. It is intended for package developers, and does not provide
