@@ -1,12 +1,15 @@
 # CuArrays
 
-[![][docs-latest-img]][docs-latest-url] [![][codecov-img]][codecov-url]
+[![][docs-latest-img]][docs-latest-url] [![][discourse-img]][discourse-url] [![][codecov-img]][codecov-url]
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CuArrays.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CuArrays.jl
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://juliagpu.gitlab.io/CuArrays.jl/
+
+[discourse-img]: https://img.shields.io/badge/discourse-julia%20%23gpu-red
+[discourse-url]: https://discourse.julialang.org/c/domain/gpu
 
 CuArrays provides a fully-functional GPU array, which can give significant speedups over
 normal arrays without code changes. CuArrays are implemented fully in Julia, making the
