@@ -20,7 +20,7 @@ export gtsv!, gtsv, gtsv_nopivot!, gtsv_nopivot, gtsvStridedBatch!, gtsvStridedB
 """
     axpyi!(alpha::BlasFloat, X::CuSparseVector, Y::CuVector, index::SparseChar)
 
-Computes `alpha * X + Y` for sparse `X` and dense `Y`. 
+Computes `alpha * X + Y` for sparse `X` and dense `Y`.
 """
 axpyi!(alpha::BlasFloat, X::CuSparseVector, Y::CuVector, index::SparseChar)
 
@@ -58,14 +58,14 @@ end
 """
     doti!(X::CuSparseVector, Y::CuVector, index::SparseChar)
 
-Computes `dot(X,Y)` for sparse `X` and dense `Y`, without conjugation. 
+Computes `dot(X,Y)` for sparse `X` and dense `Y`, without conjugation.
 """
 function doti!(X::CuSparseVector, Y::CuVector, index::SparseChar) end
 
 """
     dotci!(X::CuSparseVector, Y::CuVector, index::SparseChar)
 
-Computes `dot(X,conj(Y))` for sparse `X` and dense `Y`. 
+Computes `dot(X,conj(Y))` for sparse `X` and dense `Y`.
 """
 function dotci!(X::CuSparseVector, Y::CuVector, index::SparseChar) end
 for (jname,fname,elty) in ((:doti, :cusparseSdoti, :Float32),
@@ -536,7 +536,7 @@ end
 
 Solve the problem `Y = op(A)\\ alpha*X`. The operation is determined by `transa`. `info` is
 the output of [`sv_analysis`](@ref). The arguments `transa`, `uplo`, and `index` must be the same
-between the `analysis` and `solve` steps. 
+between the `analysis` and `solve` steps.
 """
 function sv_solve!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixCSR, X::CuVector, Y::CuVector, info::cusparseSolveAnalysisInfo_t, index::SparseChar) end
 for (fname,elty) in ((:cusparseScsrsv_solve, :Float32),
@@ -961,7 +961,7 @@ end
     mm2!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
 
 Multiply the sparse matrix `A` by the dense matrix `B`, filling in dense matrix `C`.
-`C = alpha*op(A)*op(B) + beta*C`. `op(A)` can be nothing (`transa = N`), transpose 
+`C = alpha*op(A)*op(B) + beta*C`. `op(A)` can be nothing (`transa = N`), transpose
 (`transa = T`), or conjugate transpose (`transa = C`), and similarly for `op(B)` and
 `transb`.
 """
@@ -1018,7 +1018,7 @@ end
     mm!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
 
 Multiply the sparse matrix `A` by the dense matrix `B`, filling in dense matrix `C`.
-`C = alpha*op(A)*B + beta*C`. `op(A)` can be nothing (`transa = N`), transpose 
+`C = alpha*op(A)*B + beta*C`. `op(A)` can be nothing (`transa = N`), transpose
 (`transa = T`), or conjugate transpose (`transa = C`).
 """
 function mm!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar) end
@@ -1723,7 +1723,7 @@ end
 """
     gemm(transa::SparseChar, transb::SparseChar, A::CuSparseMatrix, B::CuSparseMatrix, indexA::SparseChar, indexB::SparseChar, indexC::SparseChar)
 
-Solves `C = op(A)*op(B)`. `op(A)` can be nothing (`transa = N`), transpose 
+Solves `C = op(A)*op(B)`. `op(A)` can be nothing (`transa = N`), transpose
 (`transa = T`), or conjugate transpose (`transa = C`), and similarly for `op(B)` and
 `transb`. All of `A`, `B`, and `C` are sparse.
 """

@@ -28,9 +28,9 @@ else
     C_in = 3
     C_out = 4
     batch_size = 1
-    x = rand(Float64, repeat([8], num_spatial_dims)..., C_in, batch_size)
-    w = rand(Float64, repeat([2], num_spatial_dims)..., C_in, C_out)
-    b = rand(Float64, repeat([1], num_spatial_dims)..., C_in, C_out)
+    x = rand(Float64, fill(8, num_spatial_dims)..., C_in, batch_size)
+    w = rand(Float64, fill(2, num_spatial_dims)..., C_in, C_out)
+    b = rand(Float64, fill(1, num_spatial_dims)..., C_in, C_out)
     options = (Dict(), Dict(:dilation => 2), Dict(:flipkernel => true), Dict(:stride => 2),)
     algos = (1, 0, 1, 1,)
 
