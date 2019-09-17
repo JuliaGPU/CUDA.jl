@@ -409,10 +409,12 @@ end # level 1 testset
     @testset "Level 3" begin
         A = rand(elty,m,k)
         B = rand(elty,k,n)
+        Bbad = rand(elty,k+1,n+1)
         C1 = rand(elty,m,n)
         C2 = copy(C1)
         d_A = CuArray(A)
         d_B = CuArray(B)
+        d_Bbad = CuArray(Bbad)
         d_C1 = CuArray(C1)
         d_C2 = CuArray(C2)
         hA = rand(elty,m,m)
@@ -455,6 +457,7 @@ end # level 1 testset
             # compare
             @test C1 ≈ h_C1
             @test C2 ≈ h_C2
+            @test_throws DimensionMismatch CuArrays.CUBLAS.xt_gemm!('N','N',alpha,d_A,d_Bbad,beta,d_C1)
         end
 
         @testset "xt_gemm" begin
@@ -475,10 +478,14 @@ end # level 1 testset
         bd_A = CuArray{elty, 2}[]
         bd_B = CuArray{elty, 2}[]
         bd_C = CuArray{elty, 2}[]
+        bd_bad = CuArray{elty, 2}[]
         for i in 1:length(bA)
             push!(bd_A,CuArray(bA[i]))
             push!(bd_B,CuArray(bB[i]))
             push!(bd_C,CuArray(bC[i]))
+            if i < length(bA) - 2
+                push!(bd_bad,CuArray(bC[i]))
+            end
         end
         @testset "gemm_batched!" begin
             # C = (alpha*A)*B + beta*C
@@ -489,6 +496,7 @@ end # level 1 testset
                 #compare
                 @test bC[i] ≈ h_C
             end
+            @test_throws DimensionMismatch CuArrays.CUBLAS.gemm_batched!('N','N',alpha,bd_A,bd_bad,beta,bd_C)
         end
 
         @testset "gemm_batched" begin
@@ -498,16 +506,19 @@ end # level 1 testset
                 h_C = Array(bd_C[i])
                 @test bC ≈ h_C
             end
+            @test_throws DimensionMismatch CuArrays.CUBLAS.gemm_batched('N','N',alpha,bd_A,bd_bad)
         end
 
         nbatch = 10
         bA = rand(elty, m, k, nbatch)
         bB = rand(elty, k, n, nbatch)
         bC = rand(elty, m, n, nbatch)
+        bbad = rand(elty, m+1, n+1, nbatch)
         # move to device
         bd_A = CuArray{elty, 3}(bA)
         bd_B = CuArray{elty, 3}(bB)
         bd_C = CuArray{elty, 3}(bC)
+        bd_bad = CuArray{elty, 3}(bbad)
         @testset "gemm_strided_batched!" begin
             CuArrays.CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_C)
             for i in 1:nbatch
@@ -515,6 +526,7 @@ end # level 1 testset
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+            @test_throws DimensionMismatch CuArrays.CUBLAS.gemm_strided_batched!('N', 'N', alpha, bd_A, bd_B, beta, bd_bad)
         end
 
         @testset "gemm_strided_batched" begin
@@ -539,18 +551,22 @@ end # level 1 testset
             end
             h_C = Array(bd_C)
             @test bC ≈ h_C
+            @test_throws DimensionMismatch CuArrays.CUBLAS.gemm_strided_batched('N', 'N', alpha, bd_A, bd_bad)
         end
 
         B = rand(elty,m,n)
         C = rand(elty,m,n)
+        Bbad = rand(elty,m+1,n+1)
         d_B = CuArray(B)
         d_C = CuArray(C)
+        d_Bbad = CuArray(Bbad)
         @testset "symm!" begin
             CuArrays.CUBLAS.symm!('L','U',alpha,dsA,d_B,beta,d_C)
             C = (alpha*sA)*B + beta*C
             # compare
             h_C = Array(d_C)
             @test C ≈ h_C
+            @test_throws DimensionMismatch CuArrays.CUBLAS.symm!('L','U',alpha,dsA,d_Bbad,beta,d_C)
         end
 
         @testset "symm" begin
@@ -559,6 +575,7 @@ end # level 1 testset
             # compare
             h_C = Array(d_C)
             @test C ≈ h_C
+            @test_throws DimensionMismatch CuArrays.CUBLAS.symm('L','U',dsA,d_Bbad)
         end
         @testset "xt_symm!" begin
             CuArrays.CUBLAS.xt_symm!('L','U',alpha,dsA,d_B,beta,d_C)
@@ -646,15 +663,21 @@ end # level 1 testset
             bA = [rand(elty,m,m) for i in 1:10]
             map!((x) -> triu(x), bA, bA)
             bB = [rand(elty,m,n) for i in 1:10]
+            bBbad = [rand(elty,m,n) for i in 1:9]
             # move to device
             bd_A = CuArray{elty, 2}[]
             bd_B = CuArray{elty, 2}[]
+            bd_Bbad = CuArray{elty, 2}[]
             for i in 1:length(bA)
                 push!(bd_A,CuArray(bA[i]))
                 push!(bd_B,CuArray(bB[i]))
             end
+            for i in 1:length(bBbad)
+                push!(bd_Bbad,CuArray(bBbad[i]))
+            end
             # compute
             CuArrays.CUBLAS.trsm_batched!('L','U','N','N',alpha,bd_A,bd_B)
+            @test_throws DimensionMismatch CuArrays.CUBLAS.trsm_batched!('L','U','N','N',alpha,bd_A,bd_Bbad)
             # move to host and compare
             for i in 1:length(bd_B)
                 bC = alpha*(bA[i]\bB[i])
@@ -700,8 +723,8 @@ end # level 1 testset
                 @test C ≈ h_C
             end
             @testset "hemm" begin
-                C = alpha*(hA*B)
-                d_C = CuArrays.CUBLAS.hemm('L','U',alpha,dhA,d_B)
+                C = hA*B
+                d_C = CuArrays.CUBLAS.hemm('L','U',dhA,d_B)
                 # move to host and compare
                 h_C = Array(d_C)
                 @test C ≈ h_C
@@ -715,8 +738,8 @@ end # level 1 testset
                 @test C ≈ h_C
             end
             @testset "xt_hemm" begin
-                C = alpha*(hA*B)
-                d_C = CuArrays.CUBLAS.xt_hemm('L','U',alpha,dhA,d_B)
+                C   = hA*B
+                d_C = CuArrays.CUBLAS.xt_hemm('L','U',dhA, d_B)
                 # move to host and compare
                 h_C = Array(d_C)
                 @test C ≈ h_C
@@ -811,11 +834,75 @@ end # level 1 testset
             h_C = triu(C)
             @test C ≈ h_C
         end
+        @testset "syrkx!" begin
+            # generate matrices
+            syrkx_A = rand(elty, n, k)
+            syrkx_B = rand(elty, n, k)
+            syrkx_C = rand(elty, n, n)
+            syrkx_C += syrkx_C'
+            d_syrkx_A = CuArray(syrkx_A)
+            d_syrkx_B = CuArray(syrkx_B)
+            d_syrkx_C = CuArray(syrkx_C)
+            # C = (alpha*A)*transpose(B) + beta*C
+            d_syrkx_C = CuArrays.CUBLAS.syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_syrkx_C)
+            final_C = (alpha*syrkx_A)*transpose(syrkx_B) + beta*syrkx_C
+            # move to host and compare
+            h_C = Array(d_syrkx_C)
+            @test triu(final_C) ≈ triu(h_C)
+            badC = rand(elty, m, n)
+            d_badC = CuArray(badC)
+            @test_throws DimensionMismatch CuArrays.CUBLAS.syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
+            badC = rand(elty, n+1, n+1)
+            d_badC = CuArray(badC)
+            @test_throws DimensionMismatch CuArrays.CUBLAS.syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
+        end
+        @testset "xt_syrkx!" begin
+            # generate matrices
+            syrkx_A = rand(elty, n, k)
+            syrkx_B = rand(elty, n, k)
+            syrkx_C = rand(elty, n, n)
+            syrkx_C += syrkx_C'
+            d_syrkx_A = CuArray(syrkx_A)
+            d_syrkx_B = CuArray(syrkx_B)
+            d_syrkx_C = CuArray(syrkx_C)
+            # C = (alpha*A)*transpose(B) + beta*C
+            d_syrkx_C = CuArrays.CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_syrkx_C)
+            final_C = (alpha*syrkx_A)*transpose(syrkx_B) + beta*syrkx_C
+            # move to host and compare
+            h_C = Array(d_syrkx_C)
+            @test triu(final_C) ≈ triu(h_C)
+            badC = rand(elty, m, n)
+            d_badC = CuArray(badC)
+            @test_throws DimensionMismatch CuArrays.CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
+            badC = rand(elty, n+1, n+1)
+            d_badC = CuArray(badC)
+            @test_throws DimensionMismatch CuArrays.CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
+        end
+        @testset "syrk" begin
+            # C = A*transpose(A)
+            d_C = CuArrays.CUBLAS.syrk('U','N',d_A)
+            C = A*transpose(A)
+            C = triu(C)
+            # move to host and compare
+            h_C = Array(d_C)
+            h_C = triu(C)
+            @test C ≈ h_C
+        end
+        @testset "xt_syrk" begin
+            # C = A*transpose(A)
+            d_C = CuArrays.CUBLAS.xt_syrk('U','N',d_A)
+            C = A*transpose(A)
+            C = triu(C)
+            # move to host and compare
+            h_C = Array(d_C)
+            h_C = triu(C)
+            @test C ≈ h_C
+        end
         if elty <: Complex
             @testset "herk!" begin
                 d_C = CuArray(dhA)
                 CuArrays.CUBLAS.herk!('U','N',alpha,d_A,beta,d_C)
-                C = alpha*(A*A') + beta*C
+                C = alpha*(A*A') + beta*hA
                 C = triu(C)
                 # move to host and compare
                 h_C = Array(d_C)
@@ -853,11 +940,13 @@ end # level 1 testset
         end
         A = rand(elty,m,k)
         B = rand(elty,m,k)
+        Bbad = rand(elty,m+1,k+1)
         C = rand(elty,m,m)
         C = C + transpose(C)
         # move to device
         d_A = CuArray(A)
         d_B = CuArray(B)
+        d_Bbad = CuArray(Bbad)
         d_C = CuArray(C)
         @testset "syr2k!" begin
             # compute
@@ -868,6 +957,7 @@ end # level 1 testset
             h_C = Array(d_C)
             h_C = triu(h_C)
             @test C ≈ h_C
+            @test_throws DimensionMismatch CuArrays.CUBLAS.syr2k!('U','N',alpha,d_A,d_Bbad,beta,d_C)
         end
 
         @testset "syr2k" begin
@@ -895,6 +985,7 @@ end # level 1 testset
                 h_C = Array(d_C)
                 h_C = triu(h_C)
                 @test C ≈ h_C
+                @test_throws DimensionMismatch CuArrays.CUBLAS.her2k!('U','N',α,d_A,d_Bbad,β,d_C)
             end
 
             @testset "her2k" begin
@@ -1056,6 +1147,8 @@ end # level 1 testset
                 h_C = Array(d_C[Cs])
                 @test C ≈ h_C
             end
+            push!(d_A, CuArray(rand(elty, m, m+1)))
+            @test_throws DimensionMismatch CuArrays.CUBLAS.matinv_batched(d_A)
         end
 
         @testset "geqrf_batched!" begin
@@ -1125,6 +1218,19 @@ end # level 1 testset
                 h_C = Array(d_C[Cs])
                 @test X ≈ h_C rtol=1e-2
             end
+            push!(d_C,CuArray(rand(elty,n,k)))
+            @test_throws DimensionMismatch CuArrays.CUBLAS.gels_batched!('N',d_A, d_C)
+            A = [rand(elty,n-1,n) for i in 1:10]
+            C = [rand(elty,n,k) for i in 1:10]
+            # move to device
+            d_A = CuArray{elty, 2}[]
+            d_C = CuArray{elty, 2}[]
+            for i in 1:length(A)
+                push!(d_A,CuArray(A[i]))
+                push!(d_C,CuArray(C[i]))
+            end
+            # system is now not overdetermined
+            @test_throws ArgumentError CuArrays.CUBLAS.gels_batched!('N',d_A, d_C)
         end
 
         @testset "gels_batched" begin
