@@ -28,7 +28,7 @@ include("dnn.jl")
 include("tensor.jl")
 include("forwarddiff.jl")
 
-CuArrays.pool_status()
+CuArrays.memory_status()
 CuArrays.pool_timings()
 
 end

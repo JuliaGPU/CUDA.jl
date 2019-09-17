@@ -25,7 +25,7 @@ const INVALID = Mem.alloc(Mem.Device, 0)
 
 function unsafe_free!(xs::CuArray{<:Any,N}) where {N}
   xs.buf === INVALID && return
-  Mem.release(xs.buf) && dealloc(xs.buf, prod(xs.dims)*sizeof(eltype(xs)))
+  Mem.release(xs.buf) && free(xs.buf)
   xs.dims = Tuple(0 for _ in 1:N)
   xs.buf = INVALID
   return
