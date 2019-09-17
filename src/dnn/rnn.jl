@@ -8,6 +8,8 @@
 # GRU: [weight, bias] × [input, hidden] × [reset, update, newmem]
 # LSTM: [weight, bias] × [input, hidden] × [input, forget, newmem, output]
 
+import LinearAlgebra: copy_transpose!
+
 function params(w::CuVector, input, hidden, n = 1)
   slice(offset, shape) = reshape(view(w, offset.+(1:prod(shape))), shape)
   wx = slice(0, (input, hidden*n))
@@ -54,6 +56,13 @@ function RNNDesc{T}(mode::cudnnRNNMode_t, input::Int, hidden::Int; layers = 1) w
     cudnnDestroyRNNDescriptor(x)
   end
   return rd
+end
+
+function setweights!(d::RNNDesc, Wi, Wh, b)
+  copy_transpose!(d.weights[1], Wi)
+  copy_transpose!(d.weights[2], Wh)
+  copy_transpose!(d.bias, b)
+  return
 end
 
 function cudnnGetRNNWorkspaceSize(r::RNNDesc, seqlen, xdesc)
