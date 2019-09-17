@@ -168,8 +168,14 @@ end
   x = CuArray{Float64}(undef)
   x .= 1
   @test collect(x)[] == 1
-  x /= 2
-  @test collect(x)[] == 0.5
+  if VERSION >= v"1.3-"
+    # broken test that throws
+    # https://github.com/JuliaGPU/GPUArrays.jl/issues/204
+    @test_throws CUDAnative.InvalidIRError x /= 2
+  else
+    x /= 2
+    @test collect(x)[] == 0.5
+  end
 end
 
 @testset "SubArray" begin
