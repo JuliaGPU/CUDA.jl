@@ -129,6 +129,13 @@ function rewrite_pointers(x, state)
                     end
                 end
                 println()
+
+                # regenerate replacements with the new argument names
+                old_replacements = collect(replacements)
+                replacements = OrderedDict{String,Any}()
+                for (i, arg) in enumerate(args)
+                    replacements[arg.val] = old_replacements[i].second
+                end
             else
                 # print pointer arguments and their types
                 for (i, arg) in enumerate(args)
