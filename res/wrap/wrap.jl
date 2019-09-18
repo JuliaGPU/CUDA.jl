@@ -94,7 +94,7 @@ function insert_check(x, state)
 end
 
 # change ::Ptr arguments to ::CuPtr / ::PtrOrCuPtr based on user input
-function rewrite_pointers(x, state)
+function rewrite_pointers(x, state, headers)
     if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
         # get the ccall arguments, skipping comma's and parentheses
         handle = x.args[3]
@@ -144,6 +144,10 @@ function rewrite_pointers(x, state)
                         println("- argument $i: $(arg.val)::$(Expr(types[i]))")
                     end
                 end
+                println()
+
+                # print some context from the header (some mention host/device pointer)
+                run(`awk "/\<$fn\>/,/;/" $headers`)
                 println()
 
                 # prompt
@@ -301,8 +305,8 @@ end
 
 using CUDAapi
 
-function process(args...; kwargs...)
-    path = wrap(args...; kwargs...)
+function process(name, headers...; kwargs...)
+    path = wrap(name, headers...; kwargs...)
     text = read(path, String)
 
 
@@ -314,7 +318,7 @@ function process(args...; kwargs...)
     pass(ast, state, insert_check)
 
     state.offset = 0
-    pass(ast, state, rewrite_pointers)
+    pass(ast, state, (x,state)->rewrite_pointers(x,state,headers))
 
     state.offset = 0
     pass(ast, state, rewrite_runtime)
