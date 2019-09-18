@@ -46,16 +46,11 @@ end
 using CSTParser, Tokenize
 using JSON, DataStructures
 
-## rewrite/pass infrastructure
+## pass infrastructure
 
 struct Edit{T}
     loc::T
     text::String
-end
-
-mutable struct State{T}
-    offset::Int
-    edits::T
 end
 
 function pass(x, state, f = (x, state)->nothing)
@@ -78,7 +73,13 @@ function apply(text, edit::Edit{UnitRange{Int}})
     string(text[1:prevind(text, first(edit.loc))], edit.text, text[nextind(text, last(edit.loc)):end])
 end
 
-## passes
+
+## rewrite passes
+
+mutable struct State
+    offset::Int
+    edits::Vector{Edit}
+end
 
 # insert `@check` before each `ccall` when it returns a xxxStatus_t
 function insert_check(x, state)
@@ -198,55 +199,101 @@ function rewrite_runtime(x, state)
     end
 end
 
-function wrap_ccall(x, state)
+
+## indenting passes
+
+mutable struct IndentState
+    offset::Int
+    lines
+    edits::Vector{Edit}
+end
+
+function get_lines(text)
+    lines = Tuple{Int,Int}[]
+    pt = Tokens.EMPTY_TOKEN(Tokens.Token)
+    for t in CSTParser.Tokenize.tokenize(text)
+        if pt.endpos[1] != t.startpos[1]
+            if t.kind == Tokens.WHITESPACE
+                nl = findfirst("\n", t.val) != nothing
+                if !nl
+                    push!(lines, (length(t.val), 0))
+                else
+                end
+            else
+                push!(lines, (0, 0))
+            end
+        elseif t.startpos[1] != t.endpos[1] && t.kind == Tokens.TRIPLE_STRING
+            nls = findall(x->x == '\n', t.val)
+            for nl in nls
+                push!(lines, (t.startpos[2] - 1, nl + t.startbyte))
+            end
+        elseif t.startpos[1] != t.endpos[1] && t.kind == Tokens.WHITESPACE
+            push!(lines, (t.endpos[2], t.endbyte - t.endpos[2] + 1))
+        end
+        pt = t
+    end
+    lines
+end
+
+function wrap_at_comma(x, state, indent, offset, column)
+    comma = nothing
+    for y in x
+        if column + y.fullspan > 92 && comma !== nothing
+            column = indent
+            push!(state.edits, Edit(comma, ",\n" * " "^column))
+            column += offset - comma[1] - 1 # other stuff might have snuck between the comma and the current expr
+            comma = nothing
+        elseif y.typ == CSTParser.PUNCTUATION && y.kind == Tokens.COMMA
+            comma = (offset+1):(offset+y.fullspan)
+        end
+        offset += y.fullspan
+        column += y.fullspan
+    end
+end
+
+function indent_ccall(x, state)
     if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
-        indent = 8
+        # figure out how much to indent by looking at where the expr starts
+        line = findlast(y -> state.offset >= y[2], state.lines) # index, not the actual number
+        line_indent, line_offset = state.lines[line]
+        expr_indent = state.offset - line_offset
+        indent = expr_indent + sum(x->x.fullspan, x.args[1:2])
 
         if length(x.args[7]) > 2    # non-empty tuple type
             # break before the tuple type
             offset = state.offset + sum(x->x.fullspan, x.args[1:6])
-            column = indent
-            push!(state.edits, Edit(offset:offset, "\n" * " "^column))
+            push!(state.edits, Edit(offset:offset, "\n" * " "^indent))
 
             # wrap tuple type
-            comma = nothing
-            for y in x.args[7]
-                if column + y.fullspan > 92 && comma !== nothing
-                    column = indent+1
-                    push!(state.edits, Edit(comma, ",\n" * " "^column))
-                    column += offset - comma[1] - 1 # other stuff might have snuck between the comma and the current expr
-                    comma = nothing
-                elseif y.typ == CSTParser.PUNCTUATION && y.kind == Tokens.COMMA
-                    comma = (offset+1):(offset+y.fullspan)
-                end
-                offset += y.fullspan
-                column += y.fullspan
-            end
+            wrap_at_comma(x.args[7], state, indent+1, offset, indent+1)
         end
 
         if length(x.args) > 9
             # break before the arguments
             offset = state.offset + sum(x->x.fullspan, x.args[1:8])
-            column = indent
-            push!(state.edits, Edit(offset:offset, "\n" * " "^column))
+            push!(state.edits, Edit(offset:offset, "\n" * " "^indent))
 
             # wrap arguments
-            comma = nothing
-            for y in x.args[9:end]
-                if column + y.fullspan > 92 && comma !== nothing
-                    column = indent
-                    push!(state.edits, Edit(comma, ",\n" * " "^column))
-                    column += offset - comma[1] - 1 # other stuff might have snuck between the comma and the current expr
-                    comma = nothing
-                elseif y.typ == CSTParser.PUNCTUATION && y.kind == Tokens.COMMA
-                    comma = (offset+1):(offset+y.fullspan)
-                end
-                offset += y.fullspan
-                column += y.fullspan
-            end
+            wrap_at_comma(x.args[9:end], state, indent, offset, indent)
         end
     end
 end
+
+function indent_definition(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.FunctionDef
+        # figure out how much to indent by looking at where the expr starts
+        line = findlast(y -> state.offset >= y[2], state.lines) # index, not the actual number
+        line_indent, line_offset = state.lines[line]
+        expr_indent = state.offset - line_offset
+        indent = expr_indent + x.args[1].fullspan + sum(x->x.fullspan, x.args[2].args[1:2])
+
+        if length(x.args[2]) > 2    # non-empty args
+            offset = state.offset + x.args[1].fullspan + sum(x->x.fullspan, x.args[2].args[1:2])
+            wrap_at_comma(x.args[2].args[3:end-1], state, indent, offset, indent)
+        end
+    end
+end
+
 
 #
 # Main application
@@ -257,6 +304,7 @@ using CUDAapi
 function process(args...; kwargs...)
     path = wrap(args...; kwargs...)
     text = read(path, String)
+
 
     # rewriting passes
     state = State(0, Edit[])
@@ -278,12 +326,17 @@ function process(args...; kwargs...)
         text = apply(text, state.edits[i])
     end
 
-    # formatting passes
-    state = State(0, Edit[])
+
+    # indentation passes
+    lines = get_lines(text)
+    state = IndentState(0, lines, Edit[])
     ast = CSTParser.parse(text, true)
 
     state.offset = 0
-    pass(ast, state, wrap_ccall)
+    pass(ast, state, indent_definition)
+
+    state.offset = 0
+    pass(ast, state, indent_ccall)
 
     # apply
     state.offset = 0
