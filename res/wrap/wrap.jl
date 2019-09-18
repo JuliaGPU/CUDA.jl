@@ -313,7 +313,8 @@ function process(name, headers...; kwargs...)
     text = read(path, String)
 
 
-    # rewriting passes
+    ## rewriting passes
+
     state = State(0, Edit[])
     ast = CSTParser.parse(text, true)
 
@@ -334,7 +335,8 @@ function process(name, headers...; kwargs...)
     end
 
 
-    # indentation passes
+    ## indentation passes
+
     lines = get_lines(text)
     state = IndentState(0, lines, Edit[])
     ast = CSTParser.parse(text, true)
@@ -352,7 +354,19 @@ function process(name, headers...; kwargs...)
         text = apply(text, state.edits[i])
     end
 
+
+    ## manual patches
+
     write(path, text)
+
+    patchdir = joinpath(@__DIR__, "patches")
+    for entry in readdir(patchdir)
+        if startswith(entry, name) && endswith(entry, ".patch")
+            path = joinpath(patchdir, entry)
+            run(`patch -p1 -i $path`)
+        end
+    end
+
     return
 end
 
