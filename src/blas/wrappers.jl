@@ -1050,6 +1050,52 @@ syrk(uplo::Char, trans::Char, A::CuVecOrMat) = syrk(uplo, trans,
                                                               one(eltype(A)),
                                                               A)
 
+for (fname, elty) in ((:cublasDsyrkx,:Float64),
+                      (:cublasSsyrkx,:Float32),
+                      (:cublasZsyrkx,:ComplexF64),
+                      (:cublasCsyrkx,:ComplexF32))
+   @eval begin
+       # cublasStatus_t cublasDsyrk(
+       #   cublasHandle_t handle, cublasFillMode_t uplo,
+       #   cublasOperation_t trans, int n, int k,
+       #   const double *alpha, const double *A, int lda,
+       #   const double *beta, double *C, int ldc)
+       function syrkx!(uplo::Char,
+                      trans::Char,
+                      alpha::($elty),
+                      A::CuVecOrMat{$elty},
+                      B::CuVecOrMat{$elty},
+                      beta::($elty),
+                      C::CuMatrix{$elty})
+           cuuplo = cublasfill(uplo)
+           cutrans = cublasop(trans)
+           mC, n = size(C)
+           if mC != n throw(DimensionMismatch("C must be square")) end
+           nn = size(A, trans == 'N' ? 1 : 2)
+           if nn != n throw(DimensionMismatch("syrkx!")) end
+           k  = size(A, trans == 'N' ? 2 : 1)
+           lda = max(1,stride(A,2))
+           ldb = max(1,stride(B,2))
+           ldc = max(1,stride(C,2))
+           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           C
+        end
+    end
+end
+function syrkx(uplo::Char,
+              trans::Char,
+              alpha::Number,
+              A::CuVecOrMat,
+              beta::Number,
+              B::CuVecOrMat)
+    T = eltype(A)
+    n = size(A, trans == 'N' ? 1 : 2)
+    syrkx!(uplo, trans, convert(T,alpha), A, B, convert(T,beta), similar(A, T, (n, n)))
+end
+syrkx(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) = syrkx(uplo, trans,
+                                                                 one(eltype(A)), A,
+                                                                 zero(eltype(B)), B)
+
 ## hemm
 for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
                       (:cublasChemm_v2,:ComplexF32))
@@ -1116,7 +1162,7 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
-           if nn != n throw(DimensionMismatch("syrk!")) end
+           if nn != n throw(DimensionMismatch("herk!")) end
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
@@ -1899,8 +1945,8 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
                       trans::Char,
                       alpha::($elty),
                       A::CuVecOrMat{$elty},
-                      beta::($elty),
                       B::CuVecOrMat{$elty},
+                      beta::($elty),
                       C::CuMatrix{$elty})
            cuuplo = cublasfill(uplo)
            cutrans = cublasop(trans)
@@ -1921,15 +1967,15 @@ function xt_syrkx(uplo::Char,
               trans::Char,
               alpha::Number,
               A::CuVecOrMat,
-              beta::Number,
-              B::CuVecOrMat)
+              B::CuVecOrMat,
+              beta::Number)
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
-    xt_syrk!(uplo, trans, convert(T,alpha), A, convert(T,beta), B, similar(A, T, (n, n)))
+    xt_syrkx!(uplo, trans, convert(T,alpha), A, B, convert(T,beta), similar(A, T, (n, n)))
 end
-xt_syrk(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) = xt_syrk(uplo, trans,
-                                                                 one(eltype(A)), A,
-                                                                 zero(eltype(B)), B)
+xt_syrkx(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) = xt_syrkx(uplo, trans,
+                                                                 one(eltype(A)), A, B,
+                                                                 zero(eltype(B)))
 
 for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
                       (:cublasXtCherk,:ComplexF32))
@@ -1950,7 +1996,7 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
-           if nn != n throw(DimensionMismatch("syrk!")) end
+           if nn != n throw(DimensionMismatch("herk!")) end
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
