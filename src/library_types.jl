@@ -1,3 +1,5 @@
+export cudaDataType, libraryPropertyType
+
 @enum libraryPropertyType::Cint begin
       MAJOR_VERSION = 0
       MINOR_VERSION
