@@ -1,6 +1,6 @@
 module CUBLAS
 
-import CUDAapi
+using CUDAapi
 
 import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL, devices
 
@@ -10,7 +10,9 @@ using ..CuArrays
 using ..CuArrays: libcublas, active_context, unsafe_free!
 using LinearAlgebra
 
-include("libcublas_types.jl")
+using CEnum
+
+include("libcublas_common.jl")
 include("error.jl")
 
 const _handles = Dict{CuContext,cublasHandle_t}()
@@ -59,8 +61,9 @@ version() = VersionNumber(cublasGetProperty(CUDAapi.MAJOR_VERSION),
                           cublasGetProperty(CUDAapi.PATCH_LEVEL))
 
 include("libcublas.jl")
-include("util.jl")
 include("wrappers.jl")
+include("util.jl")
 include("highlevel.jl")
+include("linalg.jl")
 
 end

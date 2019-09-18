@@ -372,11 +372,13 @@ end
 
 function main()
     # TODO: use CUDAapi to discover headers
-    process("cudnn", "/usr/include/cudnn.h"; library="@libcudnn")
-    # wrap("cublas", "/opt/cuda/include/cublas.h",
-    #                "/opt/cuda/include/cublas_api.h",
-    #                "/opt/cuda/include/cublasXt.h";
-    #      defines=["CUBLASAPI"=>""])
+
+    # process("cudnn", "/opt/cuda/include/cudnn.h"; library="@libcudnn")
+
+    process("cublas", "/opt/cuda/include/cublas_v2.h",
+                      "/opt/cuda/include/cublas_api.h",
+                      "/opt/cuda/include/cublasXt.h";
+            defines=["CUBLASAPI"=>""])
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

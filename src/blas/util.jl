@@ -29,3 +29,7 @@ function bandex(A::AbstractMatrix,kl,ku)
     B = unband(AB,m,kl,ku)
     return B
 end
+
+const CublasFloat = Union{Float64,Float32,ComplexF64,ComplexF32}
+const CublasReal = Union{Float64,Float32}
+const CublasComplex = Union{ComplexF64,ComplexF32}

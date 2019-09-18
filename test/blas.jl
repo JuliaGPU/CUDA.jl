@@ -14,11 +14,6 @@ k = 13
 @test_throws ArgumentError CUBLAS.cublasdiag('V')
 @test_throws ArgumentError CUBLAS.cublasside('V')
 
-# this is an internal function, but only used on some devices so make sure it works
-if CUBLAS.version() >= v"9"
-    CUBLAS.cublasSetMathMode(CUBLAS.CUBLAS_DEFAULT_MATH)
-end
-
 
 #################
 # level 1 tests #

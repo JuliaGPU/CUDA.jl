@@ -1700,7 +1700,7 @@
     },
     "cublasXtDeviceSelect": {
         "handle": null,
-        "nDevices": null,
+        "nbDevices": null,
         "deviceId": "Ptr"
     },
     "cublasXtCreate": {
@@ -1708,11 +1708,11 @@
     },
     "cublasXtGetBlockDim": {
         "handle": null,
-        "bd": "Ptr"
+        "blockDim": "Ptr"
     },
     "cublasXtGetPinningMemMode": {
         "handle": null,
-        "mm": "Ptr"
+        "mode": "Ptr"
     },
     "cublasGetVersion_v2": {
         "handle": null,
@@ -4191,7 +4191,7 @@
         "y": "CuPtr",
         "yType": null,
         "incy": null,
-        "executionType": null
+        "executiontype": null
     },
     "cublasCgemm3mEx": {
         "handle": null,
@@ -4368,8 +4368,8 @@
         "batchCount": null
     },
     "cublasGetProperty": {
-        "property": null,
-        "value_ref": "Ptr"
+        "type": null,
+        "value": "Ptr"
     },
     "cublasDgemmStridedBatched": {
         "handle": null,
@@ -5340,5 +5340,367 @@
         "opReduce": null,
         "typeCompute": null,
         "workspaceSize": "Ptr"
+    },
+    "cublasGetMathMode": {
+        "handle": null,
+        "mode": "Ptr"
+    },
+    "cublasGetLoggerCallback": {
+        "userCallback": "Ptr"
+    },
+    "cublasCopyEx": {
+        "handle": null,
+        "n": null,
+        "x": "CuPtr",
+        "xType": null,
+        "incx": null,
+        "y": "CuPtr",
+        "yType": null,
+        "incy": null
+    },
+    "cublasSwapEx": {
+        "handle": null,
+        "n": null,
+        "x": "CuPtr",
+        "xType": null,
+        "incx": null,
+        "y": "CuPtr",
+        "yType": null,
+        "incy": null
+    },
+    "cublasIamaxEx": {
+        "handle": null,
+        "n": null,
+        "x": "CuPtr",
+        "xType": null,
+        "incx": null,
+        "result": "PtrOrCuPtr"
+    },
+    "cublasIaminEx": {
+        "handle": null,
+        "n": null,
+        "x": "CuPtr",
+        "xType": null,
+        "incx": null,
+        "result": "PtrOrCuPtr"
+    },
+    "cublasAsumEx": {
+        "handle": null,
+        "n": null,
+        "x": "CuPtr",
+        "xType": null,
+        "incx": null,
+        "result": "PtrOrCuPtr",
+        "resultType": null,
+        "executiontype": null
+    },
+    "cublasRotEx": {
+        "handle": null,
+        "n": null,
+        "x": "CuPtr",
+        "xType": null,
+        "incx": null,
+        "y": "CuPtr",
+        "yType": null,
+        "incy": null,
+        "c": "PtrOrCuPtr",
+        "s": "PtrOrCuPtr",
+        "csType": null,
+        "executiontype": null
+    },
+    "cublasRotgEx": {
+        "handle": null,
+        "a": "PtrOrCuPtr",
+        "b": "PtrOrCuPtr",
+        "abType": null,
+        "c": "PtrOrCuPtr",
+        "s": "PtrOrCuPtr",
+        "csType": null,
+        "executiontype": null
+    },
+    "cublasRotmEx": {
+        "handle": null,
+        "n": null,
+        "x": "CuPtr",
+        "xType": null,
+        "incx": null,
+        "y": "CuPtr",
+        "yType": null,
+        "incy": null,
+        "param": "PtrOrCuPtr",
+        "paramType": null,
+        "executiontype": null
+    },
+    "cublasRotmgEx": {
+        "handle": null,
+        "d1": "PtrOrCuPtr",
+        "d1Type": null,
+        "d2": "PtrOrCuPtr",
+        "d2Type": null,
+        "x1": "PtrOrCuPtr",
+        "x1Type": null,
+        "y1": "PtrOrCuPtr",
+        "y1Type": null,
+        "param": "PtrOrCuPtr",
+        "paramType": null,
+        "executiontype": null
+    },
+    "cublasCgemm3m": {
+        "handle": null,
+        "transa": null,
+        "transb": null,
+        "m": null,
+        "n": null,
+        "k": null,
+        "alpha": "PtrOrCuPtr",
+        "A": "CuPtr",
+        "lda": null,
+        "B": "CuPtr",
+        "ldb": null,
+        "beta": "PtrOrCuPtr",
+        "C": "CuPtr",
+        "ldc": null
+    },
+    "cublasZgemm3m": {
+        "handle": null,
+        "transa": null,
+        "transb": null,
+        "m": null,
+        "n": null,
+        "k": null,
+        "alpha": "PtrOrCuPtr",
+        "A": "CuPtr",
+        "lda": null,
+        "B": "CuPtr",
+        "ldb": null,
+        "beta": "PtrOrCuPtr",
+        "C": "CuPtr",
+        "ldc": null
+    },
+    "cublasUint8gemmBias": {
+        "handle": null,
+        "transa": null,
+        "transb": null,
+        "transc": null,
+        "m": null,
+        "n": null,
+        "k": null,
+        "A": "CuPtr",
+        "A_bias": null,
+        "lda": null,
+        "B": "CuPtr",
+        "B_bias": null,
+        "ldb": null,
+        "C": "CuPtr",
+        "C_bias": null,
+        "ldc": null,
+        "C_mult": null,
+        "C_shift": null
+    },
+    "cublasCgemm3mBatched": {
+        "handle": null,
+        "transa": null,
+        "transb": null,
+        "m": null,
+        "n": null,
+        "k": null,
+        "alpha": "PtrOrCuPtr",
+        "Aarray": "CuPtr",
+        "lda": null,
+        "Barray": "CuPtr",
+        "ldb": null,
+        "beta": "PtrOrCuPtr",
+        "Carray": "CuPtr",
+        "ldc": null,
+        "batchCount": null
+    },
+    "cublasGemmBatchedEx": {
+        "handle": null,
+        "transa": null,
+        "transb": null,
+        "m": null,
+        "n": null,
+        "k": null,
+        "alpha": "PtrOrCuPtr",
+        "Aarray": "CuPtr",
+        "Atype": null,
+        "lda": null,
+        "Barray": "CuPtr",
+        "Btype": null,
+        "ldb": null,
+        "beta": "PtrOrCuPtr",
+        "Carray": "CuPtr",
+        "Ctype": null,
+        "ldc": null,
+        "batchCount": null,
+        "computeType": null,
+        "algo": null
+    },
+    "cublasGemmStridedBatchedEx": {
+        "handle": null,
+        "transa": null,
+        "transb": null,
+        "m": null,
+        "n": null,
+        "k": null,
+        "alpha": "PtrOrCuPtr",
+        "A": "CuPtr",
+        "Atype": null,
+        "lda": null,
+        "strideA": null,
+        "B": "CuPtr",
+        "Btype": null,
+        "ldb": null,
+        "strideB": null,
+        "beta": "PtrOrCuPtr",
+        "C": "CuPtr",
+        "Ctype": null,
+        "ldc": null,
+        "strideC": null,
+        "batchCount": null,
+        "computeType": null,
+        "algo": null
+    },
+    "cublasCgemm3mStridedBatched": {
+        "handle": null,
+        "transa": null,
+        "transb": null,
+        "m": null,
+        "n": null,
+        "k": null,
+        "alpha": "PtrOrCuPtr",
+        "A": "CuPtr",
+        "lda": null,
+        "strideA": null,
+        "B": "CuPtr",
+        "ldb": null,
+        "strideB": null,
+        "beta": "PtrOrCuPtr",
+        "C": "CuPtr",
+        "ldc": null,
+        "strideC": null,
+        "batchCount": null
+    },
+    "cublasSgetrsBatched": {
+        "handle": null,
+        "trans": null,
+        "n": null,
+        "nrhs": null,
+        "Aarray": "CuPtr",
+        "lda": null,
+        "devIpiv": "CuPtr",
+        "Barray": "CuPtr",
+        "ldb": null,
+        "info": "Ptr",
+        "batchSize": null
+    },
+    "cublasDgetrsBatched": {
+        "handle": null,
+        "trans": null,
+        "n": null,
+        "nrhs": null,
+        "Aarray": "CuPtr",
+        "lda": null,
+        "devIpiv": "CuPtr",
+        "Barray": "CuPtr",
+        "ldb": null,
+        "info": "Ptr",
+        "batchSize": null
+    },
+    "cublasCgetrsBatched": {
+        "handle": null,
+        "trans": null,
+        "n": null,
+        "nrhs": null,
+        "Aarray": "CuPtr",
+        "lda": null,
+        "devIpiv": "CuPtr",
+        "Barray": "CuPtr",
+        "ldb": null,
+        "info": "Ptr",
+        "batchSize": null
+    },
+    "cublasZgetrsBatched": {
+        "handle": null,
+        "trans": null,
+        "n": null,
+        "nrhs": null,
+        "Aarray": "CuPtr",
+        "lda": null,
+        "devIpiv": "CuPtr",
+        "Barray": "CuPtr",
+        "ldb": null,
+        "info": "Ptr",
+        "batchSize": null
+    },
+    "cublasXtGetNumBoards": {
+        "nbDevices": null,
+        "deviceId": "Ptr",
+        "nbBoards": "Ptr"
+    },
+    "cublasXtMaxBoards": {
+        "nbGpuBoards": "Ptr"
+    },
+    "cublasXtSetCpuRoutine": {
+        "handle": null,
+        "blasOp": null,
+        "type": null,
+        "blasFunctor": "Ptr"
+    },
+    "cublasXtSspmm": {
+        "handle": null,
+        "side": null,
+        "uplo": null,
+        "m": null,
+        "n": null,
+        "alpha": "Ptr",
+        "AP": "Ptr",
+        "B": "PtrOrCuPtr",
+        "ldb": null,
+        "beta": "Ptr",
+        "C": "PtrOrCuPtr",
+        "ldc": null
+    },
+    "cublasXtDspmm": {
+        "handle": null,
+        "side": null,
+        "uplo": null,
+        "m": null,
+        "n": null,
+        "alpha": "Ptr",
+        "AP": "Ptr",
+        "B": "PtrOrCuPtr",
+        "ldb": null,
+        "beta": "Ptr",
+        "C": "PtrOrCuPtr",
+        "ldc": null
+    },
+    "cublasXtCspmm": {
+        "handle": null,
+        "side": null,
+        "uplo": null,
+        "m": null,
+        "n": null,
+        "alpha": "Ptr",
+        "AP": "Ptr",
+        "B": "PtrOrCuPtr",
+        "ldb": null,
+        "beta": "Ptr",
+        "C": "PtrOrCuPtr",
+        "ldc": null
+    },
+    "cublasXtZspmm": {
+        "handle": null,
+        "side": null,
+        "uplo": null,
+        "m": null,
+        "n": null,
+        "alpha": "Ptr",
+        "AP": "Ptr",
+        "B": "PtrOrCuPtr",
+        "ldb": null,
+        "beta": "Ptr",
+        "C": "PtrOrCuPtr",
+        "ldc": null
     }
 }
