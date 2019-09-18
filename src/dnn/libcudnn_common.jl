@@ -3,7 +3,7 @@
 
 const CUDNN_MAJOR = 7
 const CUDNN_MINOR = 6
-const CUDNN_PATCHLEVEL = 2
+const CUDNN_PATCHLEVEL = 3
 const CUDNN_VERSION = CUDNN_MAJOR * 1000 + CUDNN_MINOR * 100 + CUDNN_PATCHLEVEL
 const CUDNN_DIM_MAX = 8
 const CUDNN_LRN_MIN_N = 1
@@ -12,6 +12,11 @@ const CUDNN_LRN_MIN_K = 1.0e-5
 const CUDNN_LRN_MIN_BETA = 0.01
 const CUDNN_BN_MIN_EPSILON = 0.0
 const CUDNN_SEQDATA_DIM_COUNT = 4
+const CUDNN_ATTN_QUERYMAP_ALL_TO_ONE = 0
+const CUDNN_ATTN_QUERYMAP_ONE_TO_ONE = UInt32(1) << 0
+const CUDNN_ATTN_DISABLE_PROJ_BIASES = 0
+const CUDNN_ATTN_ENABLE_PROJ_BIASES = UInt32(1) << 1
+const CUDNN_ATTN_WKIND_COUNT = 8
 
 @cenum cudnnSeverity_t::UInt32 begin
     CUDNN_SEV_FATAL = 0
@@ -364,13 +369,7 @@ end
 
 const cudnnSeqDataStruct = Cvoid
 const cudnnSeqDataDescriptor_t = Ptr{cudnnSeqDataStruct}
-
-@cenum cudnnAttnQueryMap_t::UInt32 begin
-    CUDNN_ATTN_QUERYMAP_ALL_TO_ONE = 0
-    CUDNN_ATTN_QUERYMAP_ONE_TO_ONE = 1
-end
-
-
+const cudnnAttnQueryMap_t = UInt32
 const cudnnAttnStruct = Cvoid
 const cudnnAttnDescriptor_t = Ptr{cudnnAttnStruct}
 
@@ -379,6 +378,10 @@ const cudnnAttnDescriptor_t = Ptr{cudnnAttnStruct}
     CUDNN_MH_ATTN_K_WEIGHTS = 1
     CUDNN_MH_ATTN_V_WEIGHTS = 2
     CUDNN_MH_ATTN_O_WEIGHTS = 3
+    CUDNN_MH_ATTN_Q_BIASES = 4
+    CUDNN_MH_ATTN_K_BIASES = 5
+    CUDNN_MH_ATTN_V_BIASES = 6
+    CUDNN_MH_ATTN_O_BIASES = 7
 end
 
 @cenum cudnnWgradMode_t::UInt32 begin
@@ -398,7 +401,10 @@ end
 
 
 # FIXME: can't use such a union as the type in a ccall expression
-#cudnnAlgorithm_t = Union{cudnnConvolutionFwdAlgo_t, cudnnConvolutionBwdFilterAlgo_t, cudnnConvolutionBwdDataAlgo_t, cudnnRNNAlgo_t, cudnnCTCLossAlgo_t}
+#Algorithm = Union{cudnnConvolutionFwdAlgo_t, cudnnConvolutionBwdFilterAlgo_t, cudnnConvolutionBwdDataAlgo_t, cudnnRNNAlgo_t, cudnnCTCLossAlgo_t}
+#struct cudnnAlgorithm_t
+#    algo::Algorithm
+#end
 cudnnAlgorithm_t = Cint
 
 struct cudnnDebug_t
