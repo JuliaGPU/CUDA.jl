@@ -127,6 +127,8 @@ function rewrite_pointers(x, state, headers)
                 for (i, (name,replacement)) in enumerate(replacements)
                     if is_pointer[i]
                         println("- argument $i: $name::$(Expr(types[i])) is a $replacement")
+                    else
+                        @assert replacement === nothing "Non-pointer argument has pointer type"
                     end
                 end
                 println()
@@ -156,6 +158,7 @@ function rewrite_pointers(x, state, headers)
                 gpu_pointers = parse.(Int, split(readline(stdin)))
                 print("Dual GPU/CPU pointers> ")
                 dual_pointers = parse.(Int, split(readline(stdin)))
+                @assert all(i->is_pointer[i], gpu_pointers ∪ dual_pointers) "You selected non-pointer arguments"
 
                 # generate replacements
                 replacements = OrderedDict{String,Any}()
