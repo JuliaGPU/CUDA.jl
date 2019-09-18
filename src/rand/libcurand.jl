@@ -53,11 +53,11 @@ end
 """
 Generate 64-bit quasirandom numbers.
 """
-function curandGenerate(rng::RNG, arr::CuArray, n::UInt)
+function curandGenerate(rng::RNG, arr::CuArray, n::UInt, num=length(arr))
     @check ccall((:curandGenerate, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{UInt32}, Csize_t),
-                 rng, arr, length(arr))
+                 rng, arr, num)
     return arr
 end
 
@@ -69,63 +69,63 @@ Valid RNG types are:
  - CURAND_RNG_QUASI_SOBOL64
  - CURAND_RNG_QUASI_SCRAMBLED_SOBOL64
 """
-function curandGenerateLongLong(rng::RNG, arr::CuArray)
+function curandGenerateLongLong(rng::RNG, arr::CuArray, num=length(arr))
     @check ccall((:curandGenerateLongLong, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Culonglong}, Csize_t),
-                 rng, arr, length(arr))
+                 rng, arr, num)
     return arr
 end
 
 # uniform
-function curandGenerateUniform(rng::RNG, arr::CuArray)
+function curandGenerateUniform(rng::RNG, arr::CuArray, num=length(arr))
     @check ccall((:curandGenerateUniform, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Float32}, Csize_t),
-                 rng, arr, length(arr))
+                 rng, arr, num)
     return arr
 end
 
-function curandGenerateUniformDouble(rng::RNG, arr::CuArray)
+function curandGenerateUniformDouble(rng::RNG, arr::CuArray, num=length(arr))
     @check ccall((:curandGenerateUniformDouble, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Float64}, Csize_t),
-                 rng, arr, length(arr))
+                 rng, arr, num)
     return arr
 end
 
 # normal
-function curandGenerateNormal(rng::RNG, arr::CuArray, mean, stddev)
+function curandGenerateNormal(rng::RNG, arr::CuArray, mean, stddev, num=length(arr))
     @check ccall((:curandGenerateNormal, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Cfloat}, Csize_t, Cfloat, Cfloat),
-                 rng, arr, length(arr), mean, stddev)
+                 rng, arr, num, mean, stddev)
     return arr
 end
 
-function curandGenerateNormalDouble(rng::RNG, arr::CuArray, mean, stddev)
+function curandGenerateNormalDouble(rng::RNG, arr::CuArray, mean, stddev, num=length(arr))
     @check ccall((:curandGenerateNormalDouble, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Cdouble}, Csize_t, Cdouble, Cdouble),
-                 rng, arr, length(arr), mean, stddev)
+                 rng, arr, num, mean, stddev)
     return arr
 end
 
 
 # lognormal
-function curandGenerateLogNormal(rng::RNG, arr::CuArray, mean, stddev)
+function curandGenerateLogNormal(rng::RNG, arr::CuArray, mean, stddev, num=length(arr))
     @check ccall((:curandGenerateLogNormal, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Cfloat}, Csize_t, Cfloat, Cfloat),
-                 rng, arr, length(arr), mean, stddev)
+                 rng, arr, num, mean, stddev)
     return arr
 end
 
-function curandGenerateLogNormalDouble(rng::RNG, arr::CuArray, mean, stddev)
+function curandGenerateLogNormalDouble(rng::RNG, arr::CuArray, mean, stddev, num=length(arr))
     @check ccall((:curandGenerateLogNormalDouble, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Cdouble}, Csize_t, Cdouble, Cdouble),
-                 rng, arr, length(arr), mean, stddev)
+                 rng, arr, num, mean, stddev)
     return arr
 end
 
@@ -151,11 +151,11 @@ function curandDestroyDistribution(dist::DiscreteDistribution)
 end
 
 """Generate Poisson-distributed unsigned ints."""
-function curandGeneratePoisson(rng::RNG, arr::CuArray, lambda)
+function curandGeneratePoisson(rng::RNG, arr::CuArray, lambda, num=length(arr))
     @check ccall((:curandGeneratePoisson, libcurand),
                  curandStatus_t,
                  (curandGenerator_t, CuPtr{Cuint}, Csize_t, Cdouble),
-                 rng, arr, length(arr), lambda)
+                 rng, arr, num, lambda)
     return arr
 end
 
