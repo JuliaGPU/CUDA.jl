@@ -198,8 +198,55 @@ function rewrite_runtime(x, state)
     end
 end
 
-# TODO: replace cudaStream_t to CuStream_t
+function wrap_ccall(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+        indent = 8
 
+        if length(x.args[7]) > 2    # non-empty tuple type
+            # break before the tuple type
+            offset = state.offset + sum(x->x.fullspan, x.args[1:6])
+            column = indent
+            push!(state.edits, Edit(offset:offset, "\n" * " "^column))
+
+            # wrap tuple type
+            comma = nothing
+            for y in x.args[7]
+                if column + y.fullspan > 92 && comma !== nothing
+                    column = indent+1
+                    push!(state.edits, Edit(comma, ",\n" * " "^column))
+                    column += offset - comma[1] - 1 # other stuff might have snuck between the comma and the current expr
+                    comma = nothing
+                elseif y.typ == CSTParser.PUNCTUATION && y.kind == Tokens.COMMA
+                    comma = (offset+1):(offset+y.fullspan)
+                end
+                offset += y.fullspan
+                column += y.fullspan
+            end
+        end
+
+        if length(x.args) > 9
+            # break before the arguments
+            offset = state.offset + sum(x->x.fullspan, x.args[1:8])
+            column = indent
+            push!(state.edits, Edit(offset:offset, "\n" * " "^column))
+
+            # wrap arguments
+            comma = nothing
+            for y in x.args[9:end]
+                if column + y.fullspan > 92 && comma !== nothing
+                    column = indent
+                    push!(state.edits, Edit(comma, ",\n" * " "^column))
+                    column += offset - comma[1] - 1 # other stuff might have snuck between the comma and the current expr
+                    comma = nothing
+                elseif y.typ == CSTParser.PUNCTUATION && y.kind == Tokens.COMMA
+                    comma = (offset+1):(offset+y.fullspan)
+                end
+                offset += y.fullspan
+                column += y.fullspan
+            end
+        end
+    end
+end
 
 #
 # Main application
@@ -211,7 +258,7 @@ function process(args...; kwargs...)
     path = wrap(args...; kwargs...)
     text = read(path, String)
 
-    # passes
+    # rewriting passes
     state = State(0, Edit[])
     ast = CSTParser.parse(text, true)
 
@@ -231,8 +278,21 @@ function process(args...; kwargs...)
         text = apply(text, state.edits[i])
     end
 
-    write(path, text)
+    # formatting passes
+    state = State(0, Edit[])
+    ast = CSTParser.parse(text, true)
 
+    state.offset = 0
+    pass(ast, state, wrap_ccall)
+
+    # apply
+    state.offset = 0
+    sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
+    for i = 1:length(state.edits)
+        text = apply(text, state.edits[i])
+    end
+
+    write(path, text)
     return
 end
 

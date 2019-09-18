@@ -821,7 +821,7 @@
     },
     "cudnnGetAttnDescriptor": {
         "attnDesc": null,
-        "queryMap": "Ptr",
+        "attnMode": "Ptr",
         "nHeads": "Ptr",
         "smScaler": "Ptr",
         "dataType": "Ptr",
