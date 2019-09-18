@@ -14,6 +14,7 @@ include("compatibility.jl")
 include("discovery.jl")
 include("availability.jl")
 
+include("complex.jl")
 include("library_types.jl")
 
 end
