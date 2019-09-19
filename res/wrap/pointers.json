@@ -4984,8 +4984,8 @@
         "ldc": null
     },
     "cufftGetProperty": {
-        "property": null,
-        "value_ref": "Ptr"
+        "type": null,
+        "value": "Ptr"
     },
     "cufftPlan1d": {
         "plan": "Ptr",
@@ -5702,5 +5702,151 @@
         "beta": "Ptr",
         "C": "PtrOrCuPtr",
         "ldc": null
+    },
+    "cufftMakePlan1d": {
+        "plan": null,
+        "nx": null,
+        "type": null,
+        "batch": null,
+        "workSize": "Ptr"
+    },
+    "cufftMakePlan2d": {
+        "plan": null,
+        "nx": null,
+        "ny": null,
+        "type": null,
+        "workSize": "Ptr"
+    },
+    "cufftMakePlan3d": {
+        "plan": null,
+        "nx": null,
+        "ny": null,
+        "nz": null,
+        "type": null,
+        "workSize": "Ptr"
+    },
+    "cufftMakePlanMany": {
+        "plan": null,
+        "rank": null,
+        "n": "Ptr",
+        "inembed": "Ptr",
+        "istride": null,
+        "idist": null,
+        "onembed": "Ptr",
+        "ostride": null,
+        "odist": null,
+        "type": null,
+        "batch": null,
+        "workSize": "Ptr"
+    },
+    "cufftMakePlanMany64": {
+        "plan": null,
+        "rank": null,
+        "n": "Ptr",
+        "inembed": "Ptr",
+        "istride": null,
+        "idist": null,
+        "onembed": "Ptr",
+        "ostride": null,
+        "odist": null,
+        "type": null,
+        "batch": null,
+        "workSize": "Ptr"
+    },
+    "cufftGetSizeMany64": {
+        "plan": null,
+        "rank": null,
+        "n": "Ptr",
+        "inembed": "Ptr",
+        "istride": null,
+        "idist": null,
+        "onembed": "Ptr",
+        "ostride": null,
+        "odist": null,
+        "type": null,
+        "batch": null,
+        "workSize": "Ptr"
+    },
+    "cufftEstimate1d": {
+        "nx": null,
+        "type": null,
+        "batch": null,
+        "workSize": "Ptr"
+    },
+    "cufftEstimate2d": {
+        "nx": null,
+        "ny": null,
+        "type": null,
+        "workSize": "Ptr"
+    },
+    "cufftEstimate3d": {
+        "nx": null,
+        "ny": null,
+        "nz": null,
+        "type": null,
+        "workSize": "Ptr"
+    },
+    "cufftEstimateMany": {
+        "rank": null,
+        "n": "Ptr",
+        "inembed": "Ptr",
+        "istride": null,
+        "idist": null,
+        "onembed": "Ptr",
+        "ostride": null,
+        "odist": null,
+        "type": null,
+        "batch": null,
+        "workSize": "Ptr"
+    },
+    "cufftCreate": {
+        "handle": "Ptr"
+    },
+    "cufftGetSize1d": {
+        "handle": null,
+        "nx": null,
+        "type": null,
+        "batch": null,
+        "workSize": "Ptr"
+    },
+    "cufftGetSize2d": {
+        "handle": null,
+        "nx": null,
+        "ny": null,
+        "type": null,
+        "workSize": "Ptr"
+    },
+    "cufftGetSize3d": {
+        "handle": null,
+        "nx": null,
+        "ny": null,
+        "nz": null,
+        "type": null,
+        "workSize": "Ptr"
+    },
+    "cufftGetSizeMany": {
+        "handle": null,
+        "rank": null,
+        "n": "Ptr",
+        "inembed": "Ptr",
+        "istride": null,
+        "idist": null,
+        "onembed": "Ptr",
+        "ostride": null,
+        "odist": null,
+        "type": null,
+        "batch": null,
+        "workArea": "Ptr"
+    },
+    "cufftGetSize": {
+        "handle": null,
+        "workSize": "Ptr"
+    },
+    "cufftSetWorkArea": {
+        "plan": null,
+        "workArea": "CuPtr"
+    },
+    "cufftGetVersion": {
+        "version": "Ptr"
     }
 }

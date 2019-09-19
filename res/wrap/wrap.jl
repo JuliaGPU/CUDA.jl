@@ -379,10 +379,12 @@ function main()
 
     # process("cudnn", "/opt/cuda/include/cudnn.h"; library="@libcudnn")
 
-    process("cublas", "/opt/cuda/include/cublas_v2.h",
-                      "/opt/cuda/include/cublas_api.h",
-                      "/opt/cuda/include/cublasXt.h";
-            defines=["CUBLASAPI"=>""])
+    # process("cublas", "/opt/cuda/include/cublas_v2.h",
+    #                   "/opt/cuda/include/cublas_api.h",
+    #                   "/opt/cuda/include/cublasXt.h";
+    #         defines=["CUBLASAPI"=>""])
+
+    process("cufft", "/opt/cuda/include/cufft.h")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

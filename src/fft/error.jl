@@ -1,12 +1,12 @@
 export CUFFTError
 
 struct CUFFTError <: Exception
-    code::cufftStatus_t
+    code::cufftResult
     msg::AbstractString
 end
 Base.show(io::IO, err::CUFFTError) = print(io, "CUFFTError(code $(err.code), $(err.msg))")
 
-function CUFFTError(code::cufftStatus_t)
+function CUFFTError(code::cufftResult)
     msg = status_message(code)
     return CUFFTError(code, msg)
 end
@@ -53,7 +53,7 @@ end
 
 macro check(fft_func)
     quote
-        local err::cufftStatus_t
+        local err::cufftResult
         err = $(esc(fft_func::Expr))
         if err != CUFFT_STATUS_SUCCESS
             throw(CUFFTError(err))

@@ -1,3 +1,11 @@
+const cufftNumber = Union{cufftDoubleReal,cufftReal,cufftDoubleComplex,cufftComplex}
+const cufftReals = Union{cufftDoubleReal,cufftReal}
+const cufftComplexes = Union{cufftDoubleComplex,cufftComplex}
+const cufftDouble = Union{cufftDoubleReal,cufftDoubleComplex}
+const cufftSingle = Union{cufftReal,cufftComplex}
+const cufftTypeDouble = Union{Type{cufftDoubleReal},Type{cufftDoubleComplex}}
+const cufftTypeSingle = Union{Type{cufftReal},Type{cufftComplex}}
+
 cufftfloat(x) = _cufftfloat(float(x))
 _cufftfloat(::Type{T}) where {T<:cufftReals} = T
 _cufftfloat(::Type{Float16}) = Float32
@@ -18,20 +26,3 @@ function copy1(::Type{T}, x) where T
     #copy!(y, x)
     y .= broadcast(xi->convert(T,xi),x)
 end
-
-# promote to a complex floating-point type (out-of-place only),
-# so implementations only need Complex{Float} methods
-for f in (:fft, :bfft, :ifft)
-    pf = Symbol("plan_", f)
-    @eval begin
-        $f(x::CuArray{<:Real}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::CuArray{<:Real}, region) = $pf(complexfloat(x), region)
-        $f(x::CuArray{<:Complex{<:Union{Integer,Rational}}}, region=1:ndims(x)) = $f(complexfloat(x), region)
-        $pf(x::CuArray{<:Complex{<:Union{Integer,Rational}}}, region) = $pf(complexfloat(x), region)
-    end
-end
-rfft(x::CuArray{<:Union{Integer,Rational}}, region=1:ndims(x)) = rfft(realfloat(x), region)
-plan_rfft(x::CuArray{<:Real}, region) = plan_rfft(realfloat(x), region)
-
-*(p::Plan{T}, x::CuArray) where {T} = p * copy1(T, x)
-*(p::ScaledPlan, x::CuArray) = rmul!(p.p * x, p.scale)
