@@ -32,6 +32,12 @@ git-tree-sha1 = "a4110b4078ec19240b9f79993a5f6498956da37f"
 uuid = "40e3b903-d033-50b4-a0cc-940c62c95e31"
 version = "0.9.1"
 
+[[Crayons]]
+deps = ["Test"]
+git-tree-sha1 = "f621b8ef51fd2004c7cf157ea47f027fdeac5523"
+uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
+version = "4.0.0"
+
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
 git-tree-sha1 = "0809951a1774dc724da22d26e4289bbaab77809a"

@@ -1,5 +1,8 @@
 # script to parse CUDA headers and generate Julia wrappers
 
+using Crayons
+
+
 #
 # Parsing
 #
@@ -108,7 +111,7 @@ function rewrite_pointers(x, state, headers)
         is_pointer = Bool[x.typ == CSTParser.Curly && x.args[1].val == "Ptr" for x in types]
         offset = state.offset + sum(x->x.fullspan, x.args[1:6])
         if any(is_pointer)
-            println(fn)
+            println(Crayon(foreground = :red), fn, Crayon(reset=true))
 
             # load the database of pointer argument types
             # NOTE: loading/writing of the db is purposefully done in this inner function,
@@ -149,8 +152,9 @@ function rewrite_pointers(x, state, headers)
                 println()
 
                 # print some context from the header (some mention host/device pointer)
+                print(Crayon(foreground=:yellow))
                 run(`awk "/\<$fn\>/,/;/" $headers`)
-                println()
+                println(Crayon(reset=true))
 
                 # prompt
                 run(pipeline(`echo -n $fn`, `xclip -i -selection clipboard`));
