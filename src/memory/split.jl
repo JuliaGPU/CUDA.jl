@@ -332,8 +332,9 @@ init() = return
 function deinit()
     @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
 
+    repopulate!(pending)
     incremental_compact!(freed)
-    @assert isempty(freed)
+    empty!(freed)
 
     for available in (available_small, available_large, available_huge)
         while !isempty(available)
