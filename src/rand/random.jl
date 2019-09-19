@@ -1,5 +1,11 @@
-# high-level interface for CURAND
-#
+# integration with Random
+
+using Random
+
+using GPUArrays
+
+export rand_logn!, rand_poisson!
+
 # the interface is split in two levels:
 # - functions that extend the Random standard library, and take an RNG as first argument,
 #   will only ever dispatch to CURAND and as a result are limited in the types they support.
@@ -7,15 +13,32 @@
 # - non-exported functions are provided for constructing GPU arrays from only an eltype
 
 
+mutable struct RNG <: Random.AbstractRNG
+    ptr::curandGenerator_t
+    typ::Int
+
+    function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
+        ptr = Ref{curandGenerator_t}()
+        curandCreateGenerator(ptr, typ)
+        obj = new(ptr[], typ)
+        finalizer(curandDestroyGenerator, obj)
+        return obj
+    end
+end
+
+Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.ptr
+
+
 ## seeding
 
-seed!(rng::RNG=generator()) = curandGenerateSeeds(rng)
+seed!(rng::RNG=generator()) = (curandGenerateSeeds(rng); return)
 
 seed!(seed::Int64, offset::Int64=0) = seed!(generator(), seed, offset)
 function seed!(rng::RNG, seed::Int64, offset::Int64)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)
     curandGenerateSeeds(rng)
+    return
 end
 
 
@@ -24,8 +47,14 @@ end
 # uniform
 const UniformType = Union{Type{Float32},Type{Float64}}
 const UniformArray = CuArray{<:Union{Float32,Float64}}
-Random.rand!(rng::RNG, A::CuArray{Float32}) = curandGenerateUniform(rng, A)
-Random.rand!(rng::RNG, A::CuArray{Float64}) = curandGenerateUniformDouble(rng, A)
+function Random.rand!(rng::RNG, A::CuArray{Float32})
+    curandGenerateUniform(rng, A, length(A))
+    return A
+end
+function Random.rand!(rng::RNG, A::CuArray{Float64})
+    curandGenerateUniformDouble(rng, A, length(A))
+    return A
+end
 
 # some functions need pow2 lengths: use a padded array and copy back to the original one
 function inplace_pow2(A, f)
@@ -45,19 +74,34 @@ end
 # normal
 const NormalType = Union{Type{Float32},Type{Float64}}
 const NormalArray = CuArray{<:Union{Float32,Float64}}
-Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateNormal(rng, B, mean, stddev))
-Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateNormalDouble(rng, B, mean, stddev))
+function Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1)
+    inplace_pow2(A, B->curandGenerateNormal(rng, B, length(B), mean, stddev))
+    return A
+end
+function Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1)
+    inplace_pow2(A, B->curandGenerateNormalDouble(rng, B, length(B), mean, stddev))
+    return A
+end
 
 # log-normal
 const LognormalType = Union{Type{Float32},Type{Float64}}
 const LognormalArray = CuArray{<:Union{Float32,Float64}}
-rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateLogNormal(rng, B, mean, stddev))
-rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1) = inplace_pow2(A, B->curandGenerateLogNormalDouble(rng, B, mean, stddev))
+function rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1)
+    inplace_pow2(A, B->curandGenerateLogNormal(rng, B, length(B), mean, stddev))
+    return A
+end
+function rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1)
+    inplace_pow2(A, B->curandGenerateLogNormalDouble(rng, B, length(B), mean, stddev))
+    return A
+end
 
 # poisson
 const PoissonType = Union{Type{Cuint}}
 const PoissonArray = CuArray{Cuint}
-rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1) = curandGeneratePoisson(rng, A, lambda)
+function rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1)
+    curandGeneratePoisson(rng, A, length(A), lambda)
+    return A
+end
 
 
 ## out of place

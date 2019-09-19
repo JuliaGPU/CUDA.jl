@@ -384,7 +384,9 @@ function main()
     #                   "/opt/cuda/include/cublasXt.h";
     #         defines=["CUBLASAPI"=>""])
 
-    process("cufft", "/opt/cuda/include/cufft.h")
+    # process("cufft", "/opt/cuda/include/cufft.h")
+
+    process("curand", "/opt/cuda/include/curand.h")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

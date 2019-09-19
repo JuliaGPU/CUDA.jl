@@ -5052,70 +5052,70 @@
         "odata": "CuPtr"
     },
     "curandCreateGenerator": {
-        "ptr": "Ptr",
-        "typ": null
+        "generator": "Ptr",
+        "rng_type": null
     },
     "curandGenerate": {
-        "rng": null,
-        "arr": "CuPtr",
+        "generator": null,
+        "outputPtr": "CuPtr",
         "num": null
     },
     "curandGenerateLongLong": {
-        "rng": null,
-        "arr": "CuPtr",
+        "generator": null,
+        "outputPtr": "CuPtr",
         "num": null
     },
     "curandGenerateUniform": {
-        "rng": null,
-        "arr": "CuPtr",
+        "generator": null,
+        "outputPtr": "CuPtr",
         "num": null
     },
     "curandGenerateUniformDouble": {
-        "rng": null,
-        "arr": "CuPtr",
+        "generator": null,
+        "outputPtr": "CuPtr",
         "num": null
     },
     "curandGenerateNormal": {
-        "rng": null,
-        "arr": "CuPtr",
-        "num": null,
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "n": null,
         "mean": null,
         "stddev": null
     },
     "curandGenerateNormalDouble": {
-        "rng": null,
-        "arr": "CuPtr",
-        "num": null,
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "n": null,
         "mean": null,
         "stddev": null
     },
     "curandGenerateLogNormal": {
-        "rng": null,
-        "arr": "CuPtr",
-        "num": null,
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "n": null,
         "mean": null,
         "stddev": null
     },
     "curandGenerateLogNormalDouble": {
-        "rng": null,
-        "arr": "CuPtr",
-        "num": null,
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "n": null,
         "mean": null,
         "stddev": null
     },
     "curandCreatePoissonDistribution": {
         "lambda": null,
-        "ptr": "Ptr"
+        "discrete_distribution": "Ptr"
     },
     "curandGeneratePoisson": {
-        "rng": null,
-        "arr": "CuPtr",
-        "num": null,
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "n": null,
         "lambda": null
     },
     "curandGetProperty": {
-        "property": null,
-        "value_ref": "Ptr"
+        "type": null,
+        "value": "Ptr"
     },
     "cusolverDnCreate": {
         "handle": "Ptr"
@@ -5848,5 +5848,48 @@
     },
     "cufftGetVersion": {
         "version": "Ptr"
+    },
+    "curandCreateGeneratorHost": {
+        "generator": "Ptr",
+        "rng_type": null
+    },
+    "curandGetVersion": {
+        "version": "Ptr"
+    },
+    "curandGeneratePoissonMethod": {
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "n": null,
+        "lambda": null,
+        "method": null
+    },
+    "curandGenerateBinomial": {
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "num": null,
+        "n": null,
+        "p": null
+    },
+    "curandGenerateBinomialMethod": {
+        "generator": null,
+        "outputPtr": "CuPtr",
+        "num": null,
+        "n": null,
+        "p": null,
+        "method": null
+    },
+    "curandGetDirectionVectors32": {
+        "vectors": "Ptr",
+        "set": null
+    },
+    "curandGetScrambleConstants32": {
+        "constants": "Ptr"
+    },
+    "curandGetDirectionVectors64": {
+        "vectors": "Ptr",
+        "set": null
+    },
+    "curandGetScrambleConstants64": {
+        "constants": "Ptr"
     }
 }
