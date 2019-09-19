@@ -1,7 +1,8 @@
 # wrappers of the low-level dense CUSOLVER functionality
-#
-# TODO: move raw ccall wrappers to libcusolver.jl
 
+import ..CUBLAS: cublasfill, cublasop, cublasside
+
+using LinearAlgebra
 using LinearAlgebra: BlasInt, checksquare
 using LinearAlgebra.LAPACK: chkargsok
 
@@ -29,18 +30,11 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cublasFillMode_t, Cint,
-                          CuPtr{$elty}, Cint, Ptr{Cint}),
-                         dense_handle(), cuuplo, n, A, lda, bufSize)
+            $bname(dense_handle(), cuuplo, n, A, lda, bufSize)
 
             buffer = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cublasFillMode_t, Cint,
-                          CuPtr{$elty}, Cint, CuPtr{$elty}, Cint, CuPtr{Cint}),
-                         dense_handle(), cuuplo, n, A, lda, buffer,
-                         bufSize[], devinfo)
+            $fname(dense_handle(), cuuplo, n, A, lda, buffer, bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = BlasInt(_getindex(devinfo, 1))
@@ -71,11 +65,7 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
             ldb  = max(1, stride(B, 2))
 
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cublasFillMode_t, Cint, Cint,
-                          CuPtr{$elty}, Cint, CuPtr{$elty}, Cint, CuPtr{Cint}),
-                         dense_handle(), cuuplo, n, nrhs, A, lda, B,
-                         ldb, devinfo)
+            $fname(dense_handle(), cuuplo, n, nrhs, A, lda, B, ldb, devinfo)
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -96,19 +86,12 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, CuPtr{$elty}, Cint,
-                          Ptr{Cint}), dense_handle(), m, n, A, lda,
-                         bufSize)
+            $bname(dense_handle(), m, n, A, lda, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devipiv = CuArray{Cint}(undef, min(m,n))
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, CuPtr{$elty},
-                          Cint, CuPtr{$elty}, CuPtr{Cint}, CuPtr{Cint}),
-                         dense_handle(), m, n, A, lda, buffer,
-                         devipiv, devinfo)
+            $fname(dense_handle(), m, n, A, lda, buffer, devipiv, devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -134,19 +117,12 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
             m, n    = size(A)
             lda     = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)),libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, CuPtr{$elty}, Cint,
-                          Ptr{Cint}), dense_handle(), m, n, A,
-                         lda, bufSize)
+            $bname(dense_handle(), m, n, A, lda, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             tau  = CuArray{$elty}(undef, min(m, n))
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, CuPtr{$elty},
-                          Cint, CuPtr{$elty}, CuPtr{$elty}, Cint, CuPtr{Cint}),
-                         dense_handle(), m, n, A, lda, tau, buffer,
-                         bufSize[], devinfo)
+            $fname(dense_handle(), m, n, A, lda, tau, buffer, bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -172,19 +148,12 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             n      = checksquare(A)
             lda = max(1, stride(A, 2))
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)),libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, CuPtr{$elty}, Cint,
-                          Ptr{Cint}), dense_handle(), n, A, lda,
-                         bufSize)
+            $bname(dense_handle(), n, A, lda, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devipiv = CuArray{Cint}(undef, n)
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cublasFillMode_t, Cint,
-                          CuPtr{$elty}, Cint, CuPtr{Cint}, CuPtr{$elty}, Cint,
-                          CuPtr{Cint}), dense_handle(), cuuplo, n, A,
-                         lda, devipiv, buffer, bufSize[], devinfo)
+            $fname(dense_handle(), cuuplo, n, A, lda, devipiv, buffer, bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -223,11 +192,7 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
             ldb  = max(1, stride(B, 2))
 
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cublasOperation_t, Cint, Cint,
-                          CuPtr{$elty}, Cint, CuPtr{Cint}, CuPtr{$elty}, Cint,
-                          CuPtr{Cint}), dense_handle(), cutrans, n, nrhs,
-                         A, lda, ipiv, B, ldb, devinfo)
+            $fname(dense_handle(), cutrans, n, nrhs, A, lda, ipiv, B, ldb, devinfo)
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -243,7 +208,8 @@ end
 for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :Float32),
                              (:cusolverDnDormqr_bufferSize, :cusolverDnDormqr, :Float64),
                              (:cusolverDnCunmqr_bufferSize, :cusolverDnCunmqr, :ComplexF32),
-                             (:cusolverDnZunmqr_bufferSize, :cusolverDnZunmqr, :ComplexF64))    @eval begin
+                             (:cusolverDnZunmqr_bufferSize, :cusolverDnZunmqr, :ComplexF64))
+    @eval begin
         function ormqr!(side::Char,
                         trans::Char,
                         A::CuMatrix{$elty},
@@ -270,24 +236,12 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             k       = length(tau)
 
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)),libcusolver), cusolverStatus_t,
-                          (cusolverDnHandle_t, cublasSideMode_t,
-                           cublasOperation_t, Cint, Cint, Cint, CuPtr{$elty},
-                           Cint, CuPtr{$elty}, CuPtr{$elty}, Cint, Ptr{Cint}),
-                          dense_handle(), cuside,
-                          cutrans, m, n, k, A,
-                          lda, tau, C, ldc, bufSize)
+            $bname(dense_handle(), cuside, cutrans, m, n, k, A, lda, tau, C, ldc, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)),libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cublasSideMode_t,
-                          cublasOperation_t, Cint, Cint, Cint, CuPtr{$elty},
-                          Cint, CuPtr{$elty}, CuPtr{$elty}, Cint, CuPtr{$elty},
-                          Cint, CuPtr{Cint}),
-                         dense_handle(), cuside,
-                         cutrans, m, n, k, A, lda, tau, C, ldc, buffer,
-                         bufSize[], devinfo)
+            $fname(dense_handle(), cuside, cutrans, m, n, k, A, lda, tau, C, ldc, buffer,
+                   bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -314,18 +268,11 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
             k = length(tau)
 
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                          (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{$elty}, Cint,
-                           CuPtr{$elty}, Ptr{Cint}),
-                          dense_handle(), m, n, k, A, lda, tau, bufSize)
+            $bname(dense_handle(), m, n, k, A, lda, tau, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, Cint, CuPtr{$elty},
-                          Cint, CuPtr{$elty}, CuPtr{$elty}, Cint, CuPtr{Cint}),
-                         dense_handle(), m, n, k, A,
-                         lda, tau, buffer, bufSize[], devinfo)
+            $fname(dense_handle(), m, n, k, A, lda, tau, buffer, bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -354,9 +301,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             lda     = max(1, stride(A, 2))
 
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                        dense_handle(), m, n, bufSize)
+            $bname(dense_handle(), m, n, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
@@ -365,12 +310,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             E       = CuArray{$relty}(undef, k) .= 0
             TAUQ    = CuArray{$elty}(undef, k)
             TAUP    = CuArray{$elty}(undef, k)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, CuPtr{$elty},
-                          Cint, CuPtr{$relty}, CuPtr{$relty}, CuPtr{$elty},
-                          CuPtr{$elty}, CuPtr{$elty}, Cint, CuPtr{Cint}),
-                         dense_handle(), m, n, A, lda, D, E, TAUQ,
-                         TAUP, buffer, bufSize[], devinfo)
+            $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -399,9 +339,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             lda     = max(1, stride(A, 2))
 
             lwork   = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cint, Cint, Ptr{Cint}),
-                        dense_handle(), m, n, lwork)
+            $bname(dense_handle(), m, n, lwork)
 
             if jobu === 'S' && m > n
                 U   = CuArray{$elty}(undef, m, n)
@@ -426,15 +364,8 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             work    = CuArray{$elty}(undef, lwork[])
             rwork   = CuArray{$relty}(undef, min(m, n) - 1)
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, Cuchar, Cuchar, Cint,
-                          Cint, CuPtr{$elty}, Cint, CuPtr{$relty},
-                          CuPtr{$elty}, Cint, CuPtr{$elty}, Cint,
-                          CuPtr{$elty}, Cint, CuPtr{$relty}, CuPtr{Cint}),
-                          dense_handle(), jobu, jobvt, m,
-                          n, A, lda, S,
-                          U, ldu, Vt, ldvt,
-                          work, lwork[], rwork, devinfo)
+            $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
+                   work, lwork[], rwork, devinfo)
             unsafe_free!(work)
             unsafe_free!(rwork)
 
@@ -487,27 +418,13 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
             cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
 
             lwork   = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
-                          Cint, CuPtr{$elty}, Cint, CuPtr{$relty},
-                          CuPtr{$elty}, Cint, CuPtr{$elty}, Cint,
-                          Ptr{Cint}, gesvdjInfo_t),
-                         dense_handle(), cujobz, Cint(econ), m,
-                         n, A, lda, S,
-                         U, ldu, V, ldv,
-                         lwork, params[])
+            $bname(dense_handle(), cujobz, Cint(econ), m, n, A, lda, S, U, ldu, V, ldv,
+                   lwork, params[])
 
             work  = CuArray{$elty}(undef, lwork[])
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigMode_t, Cint, Cint,
-                          Cint, CuPtr{$elty}, Cint, CuPtr{$relty},
-                          CuPtr{$elty}, Cint, CuPtr{$elty}, Cint,
-                          CuPtr{$elty}, Cint, CuPtr{Cint}, gesvdjInfo_t),
-                         dense_handle(), cujobz, econ, m,
-                         n, A, lda, S,
-                         U, ldu, V, ldv,
-                         work, lwork[], devinfo, params[])
+            $fname(dense_handle(), cujobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                   work, lwork[], devinfo, params[])
             unsafe_free!(work)
 
             info = _getindex(devinfo, 1)
@@ -538,18 +455,12 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
             W       = CuArray{$relty}(undef, n)
 
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t,
-                          Cint, CuPtr{$elty}, Cint, CuPtr{$relty}, Ptr{Cint}),
-                        dense_handle(), cujobz, cuuplo, n, A, lda, W, bufSize)
+            $bname(dense_handle(), cujobz, cuuplo, n, A, lda, W, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigMode_t, cublasFillMode_t,
-                          Cint, CuPtr{$elty}, Cint, CuPtr{$relty}, CuPtr{$elty},
-                          Cint, CuPtr{Cint}), dense_handle(), cujobz, cuuplo,
-                         n, A, lda, W, buffer, bufSize[], devinfo)
+            $fname(dense_handle(), cujobz, cuuplo, n, A, lda, W,
+                   buffer, bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -590,20 +501,12 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
 
             bufSize = Ref{Cint}(0)
             cuitype = cusolverEigType_t(itype)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t, cublasFillMode_t,
-                          Cint, CuPtr{$elty}, Cint, CuPtr{$elty}, Cint, CuPtr{$relty}, Ptr{Cint}),
-                         dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W, bufSize)
+            $bname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W, bufSize)
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigType_t,
-                          cusolverEigMode_t, cublasFillMode_t, Cint,
-                          CuPtr{$elty}, Cint, CuPtr{$elty}, Cint, CuPtr{$relty},
-                          CuPtr{$elty}, Cint, CuPtr{Cint}), dense_handle(), cuitype,
-                         cujobz, cuuplo, n, A, lda, B, ldb, W, buffer,
-                         bufSize[], devinfo)
+            $fname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
+                   buffer, bufSize[], devinfo)
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)
@@ -649,22 +552,14 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
             cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
 
             bufSize = Ref{Cint}(0)
-            @check ccall(($(string(bname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                          cublasFillMode_t, Cint, CuPtr{$elty}, Cint, CuPtr{$elty},
-                          Cint, CuPtr{$relty}, Ptr{Cint}, syevjInfo_t),
-                         dense_handle(), Cint(itype), cujobz, cuuplo, n, A, lda, B,
-                         ldb, W, bufSize, params[])
+            cuitype = cusolverEigType_t(itype)
+            $bname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
+                   bufSize, params[])
 
             buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            @check ccall(($(string(fname)), libcusolver), cusolverStatus_t,
-                         (cusolverDnHandle_t, cusolverEigType_t, cusolverEigMode_t,
-                          cublasFillMode_t, Cint, CuPtr{$elty}, Cint, CuPtr{$elty},
-                          Cint, CuPtr{$relty}, CuPtr{$elty}, Cint, CuPtr{Cint},
-                          syevjInfo_t), dense_handle(), Cint(itype), cujobz,
-                         cuuplo, n, A, lda, B, ldb, W, buffer, bufSize[],
-                         devinfo, params[])
+            $fname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
+                   buffer, bufSize[], devinfo, params[])
             unsafe_free!(buffer)
 
             info = _getindex(devinfo, 1)

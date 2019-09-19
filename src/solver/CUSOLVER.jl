@@ -1,25 +1,32 @@
 module CUSOLVER
 
-import CUDAapi
-
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
-
-import CUDAnative
-
 using ..CuArrays
 using ..CuArrays: libcusolver, active_context, _getindex, unsafe_free!
 
-using LinearAlgebra
-using SparseArrays
+using CUDAapi
 
-import Base.one
-import Base.zero
-import CuArrays.CUSPARSE.CuSparseMatrixCSR
-import CuArrays.CUSPARSE.CuSparseMatrixCSC
-import CuArrays.CUSPARSE.cusparseMatDescr_t
+using CUDAdrv
+using CUDAdrv: CuStream_t
 
-include("libcusolver_types.jl")
+import CUDAnative
+
+import ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
+import ..CUSPARSE: cusparseMatDescr_t
+
+using CEnum
+
+include("libcusolver_common.jl")
 include("error.jl")
+
+version() = VersionNumber(cusolverGetProperty(CUDAapi.MAJOR_VERSION),
+                          cusolverGetProperty(CUDAapi.MINOR_VERSION),
+                          cusolverGetProperty(CUDAapi.PATCH_LEVEL))
+
+include("libcusolver.jl")
+include("wrappers.jl")
+include("sparse.jl")
+include("dense.jl")
+include("highlevel.jl")
 
 const _dense_handles = Dict{CuContext,cusolverDnHandle_t}()
 const _dense_handle = Ref{cusolverDnHandle_t}(C_NULL)
@@ -51,14 +58,5 @@ function sparse_handle()
     end
     return _sparse_handle[]
 end
-
-include("libcusolver.jl")
-include("sparse.jl")
-include("dense.jl")
-include("highlevel.jl")
-
-version() = VersionNumber(cusolverGetProperty(CUDAapi.MAJOR_VERSION),
-                          cusolverGetProperty(CUDAapi.MINOR_VERSION),
-                          cusolverGetProperty(CUDAapi.PATCH_LEVEL))
 
 end
