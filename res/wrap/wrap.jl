@@ -160,6 +160,13 @@ function rewrite_pointers(x, state, headers)
                 run(pipeline(`echo -n $fn`, `xclip -i -selection clipboard`));
                 print("GPU pointers> ")
                 gpu_pointers = parse.(Int, split(readline(stdin)))
+                if gpu_pointers == [0]
+                    # 0 is special match for all pointers
+                    gpu_pointers = findall(is_pointer)
+                elseif all(i->i<0, gpu_pointers)
+                    # negative indicates all but these
+                    gpu_pointers = setdiff(findall(is_pointer), map(i->-i, gpu_pointers))
+                end
                 print("Dual GPU/CPU pointers> ")
                 dual_pointers = parse.(Int, split(readline(stdin)))
                 @assert all(i->is_pointer[i], gpu_pointers ∪ dual_pointers) "You selected non-pointer arguments"
