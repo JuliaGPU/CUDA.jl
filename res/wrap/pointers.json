@@ -5201,7 +5201,7 @@
         "handle": "Ptr"
     },
     "cutensorCreateTensorDescriptor": {
-        "desc": null,
+        "desc": "Ptr",
         "numModes": null,
         "extent": "Ptr",
         "stride": "Ptr",
@@ -5305,7 +5305,7 @@
         "workspaceSize": "Ptr"
     },
     "cutensorContractionMaxAlgos": {
-        "max_algos": "Ptr"
+        "maxNumAlgos": "Ptr"
     },
     "cutensorReduction": {
         "handle": null,
@@ -5329,13 +5329,13 @@
     "cutensorReductionGetWorkspace": {
         "handle": null,
         "A": "CuPtr",
-        "descA": null,
+        "descA_": null,
         "modeA": "Ptr",
         "C": "CuPtr",
-        "descC": null,
+        "descC_": null,
         "modeC": "Ptr",
         "D": "CuPtr",
-        "descD": null,
+        "descD_": null,
         "modeD": "Ptr",
         "opReduce": null,
         "typeCompute": null,
