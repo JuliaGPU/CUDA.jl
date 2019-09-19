@@ -111,8 +111,6 @@ function rewrite_pointers(x, state, headers)
         is_pointer = Bool[x.typ == CSTParser.Curly && x.args[1].val == "Ptr" for x in types]
         offset = state.offset + sum(x->x.fullspan, x.args[1:6])
         if any(is_pointer)
-            println(Crayon(foreground = :red), fn, Crayon(reset=true))
-
             # load the database of pointer argument types
             # NOTE: loading/writing of the db is purposefully done in this inner function,
             #       since realistic headers might have huge amounts of replacements
@@ -127,6 +125,7 @@ function rewrite_pointers(x, state, headers)
                 replacements = db[fn]
 
                 # print the cached result
+                println(fn)
                 for (i, (name,replacement)) in enumerate(replacements)
                     if is_pointer[i]
                         println("- argument $i: $name::$(Expr(types[i])) is a $replacement")
@@ -143,18 +142,19 @@ function rewrite_pointers(x, state, headers)
                     replacements[arg.val] = old_replacements[i].second
                 end
             else
+                # print some context from the header (some mention host/device pointer)
+                print(Crayon(foreground=:yellow))
+                run(`awk "/\<$fn\>/,/;/" $headers`)
+                println(Crayon(reset=true))
+
                 # print pointer arguments and their types
+                println(Crayon(foreground = :red), fn, Crayon(reset=true))
                 for (i, arg) in enumerate(args)
                     if is_pointer[i]
                         println("- argument $i: $(arg.val)::$(Expr(types[i]))")
                     end
                 end
                 println()
-
-                # print some context from the header (some mention host/device pointer)
-                print(Crayon(foreground=:yellow))
-                run(`awk "/\<$fn\>/,/;/" $headers`)
-                println(Crayon(reset=true))
 
                 # prompt
                 run(pipeline(`echo -n $fn`, `xclip -i -selection clipboard`));
