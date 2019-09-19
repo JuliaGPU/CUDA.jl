@@ -4,7 +4,7 @@ using SparseArrays
 
 using LinearAlgebra
 
-import ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, cusparseindex, CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, CUSPARSE_DIAG_TYPE_UNIT
+import ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, cusparseindex, CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, CUSPARSE_DIAG_TYPE_UNIT, cusparseMatDescr
 
 #csrlsvlu
 for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),
@@ -32,8 +32,8 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),
 
             Mat     = similar(A)
             transpose!(Mat, A)
-            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            rcudesca = Ref{cusparseMatDescr_t}(cudesca)
+            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            rcudesca = Ref(cudesca)
             singularity = Ref{Cint}(1)
             $fname(sparse_handle(), n, length(A.nzval), rcudesca, Mat.nzval,
                    convert(Vector{Cint},Mat.colptr), convert(Vector{Cint},Mat.rowval), b,
@@ -72,8 +72,8 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
 
-            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            rcudesca = Ref{cusparseMatDescr_t}(cudesca)
+            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            rcudesca = Ref(cudesca)
             singularity = Ref{Cint}(1)
             $fname(sparse_handle(), n, A.nnz, rcudesca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
@@ -110,8 +110,8 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
 
-            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            rcudesca = Ref{cusparseMatDescr_t}(cudesca)
+            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            rcudesca = Ref(cudesca)
             singularity = zeros(Cint,1)
             $fname(sparse_handle(), n, A.nnz, rcudesca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
@@ -147,8 +147,8 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsqvqrHost, :Float32, :Float32),
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
 
-            cudesca  = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            rcudesca = Ref{cusparseMatDescr_t}(cudesca)
+            cudesca  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            rcudesca = Ref(cudesca)
             p        = zeros(Cint,n)
             min_norm = zeros($relty,1)
             rankA    = zeros(Cint,1)
@@ -184,8 +184,8 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                 throw(DimensionMismatch("second dimension of A, $(size(A,2)), must match the length of x_0, $(length(x_0))"))
             end
 
-            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            rcudesca = Ref{cusparseMatDescr_t}(cudesca)
+            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            rcudesca = Ref(cudesca)
             x       = copy(x_0)
             μ       = CuArrays.zeros($elty,1)
             $fname(sparse_handle(), n, A.nnz, rcudesca, A.nzVal, A.rowPtr, A.colVal,
@@ -212,8 +212,8 @@ for (fname, elty, relty) in ((:cusolverSpScsreigsHost, :ComplexF32, :Float32),
                 throw(DimensionMismatch("A must be square!"))
             end
 
-            cudesca = cusparseMatDescr_t(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            rcudesca = Ref{cusparseMatDescr_t}(cudesca)
+            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            rcudesca = Ref(cudesca)
             numeigs = zeros(Cint,1)
             Mat     = similar(A)
             transpose!(Mat, A)

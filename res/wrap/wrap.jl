@@ -397,6 +397,8 @@ function main()
 
     # process("curand", "/opt/cuda/include/curand.h")
 
+    process("cusparse", "/opt/cuda/include/cusparse.h")
+
     process("cusolver", "/opt/cuda/include/cusolver_common.h",
                          "/opt/cuda/include/cusolverDn.h",
                         "/opt/cuda/include/cusolverSp.h")

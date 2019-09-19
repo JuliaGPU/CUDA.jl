@@ -1,31 +1,31 @@
 module CUSPARSE
 
-import CUDAapi
-
-import CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL
-
-import CUDAnative
-
 using ..CuArrays
 using ..CuArrays: libcusparse, active_context, unsafe_free!
 
-using SparseArrays
-using LinearAlgebra
+using CUDAapi
 
-import Base.one
-import Base.zero
+using CUDAdrv
+import CUDAdrv: CuStream_t
+
+import CUDAnative
+
+using CEnum
 
 const SparseChar = Char
-import Base.one
-import Base.zero
 
-export CuSparseMatrixCSC, CuSparseMatrixCSR,
-       CuSparseMatrixHYB, CuSparseMatrixBSR,
-       CuSparseMatrix, AbstractCuSparseMatrix,
-       CuSparseVector
-
-include("libcusparse_types.jl")
+include("libcusparse_common.jl")
 include("error.jl")
+
+version() = VersionNumber(cusparseGetProperty(CUDAapi.MAJOR_VERSION),
+                          cusparseGetProperty(CUDAapi.MINOR_VERSION),
+                          cusparseGetProperty(CUDAapi.PATCH_LEVEL))
+
+include("libcusparse.jl")
+include("array.jl")
+include("util.jl")
+include("wrappers.jl")
+include("linalg.jl")
 
 const _handles = Dict{CuContext,cusparseHandle_t}()
 const _handle = Ref{cusparseHandle_t}()
@@ -43,15 +43,5 @@ function handle()
 
     return _handle[]
 end
-
-include("libcusparse.jl")
-include("array.jl")
-include("util.jl")
-include("wrappers.jl")
-include("highlevel.jl")
-
-version() = VersionNumber(cusparseGetProperty(CUDAapi.MAJOR_VERSION),
-                          cusparseGetProperty(CUDAapi.MINOR_VERSION),
-                          cusparseGetProperty(CUDAapi.PATCH_LEVEL))
 
 end
