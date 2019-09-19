@@ -165,7 +165,9 @@ function rewrite_pointers(x, state, headers)
                     gpu_pointers = findall(is_pointer)
                 elseif all(i->i<0, gpu_pointers)
                     # negative indicates all but these
-                    gpu_pointers = setdiff(findall(is_pointer), map(i->-i, gpu_pointers))
+                    gpu_pointers = map(i->-i, gpu_pointers)
+                    @assert all(i->is_pointer[i], gpu_pointers) "You selected non-pointer arguments"
+                    gpu_pointers = setdiff(findall(is_pointer), gpu_pointers)
                 end
                 print("Dual GPU/CPU pointers> ")
                 dual_pointers = parse.(Int, split(readline(stdin)))
