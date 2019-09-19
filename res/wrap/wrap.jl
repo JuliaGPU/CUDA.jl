@@ -38,7 +38,25 @@ function wrap(name, headers...; library="lib$name", defines=[])
                   )
     run(context)
 
-    return output_file
+    return output_file, common_file
+end
+
+
+#
+# Pointer type database
+#
+
+const db = if isfile("pointers.json")
+    JSON.parsefile("pointers.json"; dicttype=DataStructures.OrderedDict)
+else
+    Dict{String, Any}()
+end
+
+function save_db()
+    global db
+    open("pointers.json", "w") do io
+        JSON.print(io, db, 4)
+    end
 end
 
 
@@ -111,35 +129,23 @@ function rewrite_pointers(x, state, headers)
         is_pointer = Bool[x.typ == CSTParser.Curly && x.args[1].val == "Ptr" for x in types]
         offset = state.offset + sum(x->x.fullspan, x.args[1:6])
         if any(is_pointer)
-            # load the database of pointer argument types
-            # NOTE: loading/writing of the db is purposefully done in this inner function,
-            #       since realistic headers might have huge amounts of replacements
-            #       and you might want to resume the process later on.
-            db = if isfile("pointers.json")
-                JSON.parsefile("pointers.json"; dicttype=DataStructures.OrderedDict)
-            else
-                Dict{String, Any}()
-            end
-
             if haskey(db, fn)
                 replacements = db[fn]
 
-                # print the cached result
-                println(fn)
-                for (i, (name,replacement)) in enumerate(replacements)
-                    if is_pointer[i]
-                        println("- argument $i: $name::$(Expr(types[i])) is a $replacement")
-                    else
-                        @assert replacement === nothing "Non-pointer argument has pointer type"
-                    end
-                end
-                println()
-
                 # regenerate replacements with the new argument names
+                changed = false
                 old_replacements = collect(replacements)
                 replacements = OrderedDict{String,Any}()
                 for (i, arg) in enumerate(args)
+                    if arg.val != old_replacements[i].first
+                        changed = true
+                    end
                     replacements[arg.val] = old_replacements[i].second
+                end
+
+                if changed
+                    db[fn] = replacements
+                    save_db()
                 end
             else
                 # print some context from the header (some mention host/device pointer)
@@ -188,12 +194,9 @@ function rewrite_pointers(x, state, headers)
                         nothing
                     end
                 end
-            end
 
-            # always save: the argument names might have changed in the current header
-            db[fn] = replacements
-            open("pointers.json", "w") do io
-                JSON.print(io, db, 4)
+                db[fn] = replacements
+                save_db()
             end
 
             # generate edits
@@ -322,8 +325,8 @@ end
 using CUDAapi
 
 function process(name, headers...; kwargs...)
-    path = wrap(name, headers...; kwargs...)
-    text = read(path, String)
+    output_file, common_file = wrap(name, headers...; kwargs...)
+    text = read(output_file, String)
 
 
     ## rewriting passes
@@ -370,7 +373,7 @@ function process(name, headers...; kwargs...)
 
     ## manual patches
 
-    write(path, text)
+    write(output_file, text)
 
     patchdir = joinpath(@__DIR__, "patches")
     for entry in readdir(patchdir)
@@ -380,28 +383,37 @@ function process(name, headers...; kwargs...)
         end
     end
 
+
+    ## move to destination
+
+    for src in (output_file, common_file)
+        dst = joinpath(dirname(dirname(@__DIR__)), "src", name[3:end], src)
+        cp(src, dst; force=true)
+    end
+
+
     return
 end
 
 function main()
     # TODO: use CUDAapi to discover headers
 
-    # process("cudnn", "/opt/cuda/include/cudnn.h"; library="@libcudnn")
+    process("cudnn", "/opt/cuda/include/cudnn.h"; library="@libcudnn")
 
-    # process("cublas", "/opt/cuda/include/cublas_v2.h",
-    #                   "/opt/cuda/include/cublas_api.h",
-    #                   "/opt/cuda/include/cublasXt.h";
-    #         defines=["CUBLASAPI"=>""])
+    process("cublas", "/opt/cuda/include/cublas_v2.h",
+                      "/opt/cuda/include/cublas_api.h",
+                      "/opt/cuda/include/cublasXt.h";
+            defines=["CUBLASAPI"=>""])
 
-    # process("cufft", "/opt/cuda/include/cufft.h")
+    process("cufft", "/opt/cuda/include/cufft.h")
 
-    # process("curand", "/opt/cuda/include/curand.h")
+    process("curand", "/opt/cuda/include/curand.h")
 
-    # process("cusparse", "/opt/cuda/include/cusparse.h")
+    process("cusparse", "/opt/cuda/include/cusparse.h")
 
-    # process("cusolver", "/opt/cuda/include/cusolver_common.h",
-    #                      "/opt/cuda/include/cusolverDn.h",
-    #                     "/opt/cuda/include/cusolverSp.h")
+    process("cusolver", "/opt/cuda/include/cusolver_common.h",
+                        "/opt/cuda/include/cusolverDn.h",
+                        "/opt/cuda/include/cusolverSp.h")
 
     process("cutensor", "/tmp/include/cutensor/types.h", "/tmp/include/cutensor.h")
 end
