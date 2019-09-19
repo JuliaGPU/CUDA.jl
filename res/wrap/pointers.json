@@ -8083,12 +8083,12 @@
     "cusolverDnXsyevjGetResidual": {
         "handle": null,
         "info": null,
-        "residual": "CuPtr"
+        "residual": "Ptr"
     },
     "cusolverDnXsyevjGetSweeps": {
         "handle": null,
         "info": null,
-        "executed_sweeps": "CuPtr"
+        "executed_sweeps": "Ptr"
     },
     "cusolverDnSsyevjBatched_bufferSize": {
         "handle": null,
@@ -8413,12 +8413,12 @@
     "cusolverDnXgesvdjGetResidual": {
         "handle": null,
         "info": null,
-        "residual": "CuPtr"
+        "residual": "Ptr"
     },
     "cusolverDnXgesvdjGetSweeps": {
         "handle": null,
         "info": null,
-        "executed_sweeps": "CuPtr"
+        "executed_sweeps": "Ptr"
     },
     "cusolverDnSgesvdjBatched_bufferSize": {
         "handle": null,
@@ -9619,30 +9619,30 @@
         "pBuffer": "CuPtr"
     },
     "cusolverGetVersion": {
-        "version": "CuPtr"
+        "version": "Ptr"
     },
     "cusparseCreateMatDescr": {
-        "descrA": "CuPtr"
+        "descrA": "Ptr"
     },
     "cusparseGetLevelInfo": {
         "handle": null,
         "info": null,
-        "nlevels": "CuPtr",
-        "levelPtr": "CuPtr",
-        "levelInd": "CuPtr"
+        "nlevels": "Ptr",
+        "levelPtr": "Ptr",
+        "levelInd": "Ptr"
     },
     "cusparseCreateCsru2csrInfo": {
-        "info": "CuPtr"
+        "info": "Ptr"
     },
     "cusparseCreateColorInfo": {
-        "info": "CuPtr"
+        "info": "Ptr"
     },
     "cusparseGetColorAlgs": {
         "info": null,
-        "alg": "CuPtr"
+        "alg": "Ptr"
     },
     "cusparseCreatePruneInfo": {
-        "info": "CuPtr"
+        "info": "Ptr"
     },
     "cusparseSaxpyi": {
         "handle": null,
@@ -9872,7 +9872,7 @@
         "m": null,
         "n": null,
         "nnz": null,
-        "pBufferSize": "CuPtr"
+        "pBufferSize": "Ptr"
     },
     "cusparseDgemvi": {
         "handle": null,
@@ -9896,7 +9896,7 @@
         "m": null,
         "n": null,
         "nnz": null,
-        "pBufferSize": "CuPtr"
+        "pBufferSize": "Ptr"
     },
     "cusparseCgemvi": {
         "handle": null,
@@ -9920,7 +9920,7 @@
         "m": null,
         "n": null,
         "nnz": null,
-        "pBufferSize": "CuPtr"
+        "pBufferSize": "Ptr"
     },
     "cusparseZgemvi": {
         "handle": null,
@@ -9944,7 +9944,7 @@
         "m": null,
         "n": null,
         "nnz": null,
-        "pBufferSize": "CuPtr"
+        "pBufferSize": "Ptr"
     },
     "cusparseScsrmv": {
         "handle": null,
@@ -11338,7 +11338,7 @@
         "ldx": null
     },
     "cusparseCreateCsrsm2Info": {
-        "info": "CuPtr"
+        "info": "Ptr"
     },
     "cusparseXcsrsm2_zeroPivot": {
         "handle": null,
@@ -11918,29 +11918,29 @@
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseDcsrilu02_numericBoost": {
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseCcsrilu02_numericBoost": {
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseZcsrilu02_numericBoost": {
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseXcsrilu02_zeroPivot": {
         "handle": null,
@@ -12135,29 +12135,29 @@
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseDbsrilu02_numericBoost": {
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseCbsrilu02_numericBoost": {
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseZbsrilu02_numericBoost": {
         "handle": null,
         "info": null,
         "enable_boost": null,
-        "tol": "CuPtr",
-        "boost_val": "CuPtr"
+        "tol": "Ptr",
+        "boost_val": "Ptr"
     },
     "cusparseXbsrilu02_zeroPivot": {
         "handle": null,
@@ -13514,7 +13514,7 @@
         "csrSortedColIndC": "CuPtr"
     },
     "cusparseCreateCsrgemm2Info": {
-        "info": "CuPtr"
+        "info": "Ptr"
     },
     "cusparseScsrgemm2_bufferSizeExt": {
         "handle": null,
@@ -16131,7 +16131,7 @@
         "copyValues": null,
         "idxBase": null,
         "alg": null,
-        "bufferSize": "CuPtr"
+        "bufferSize": "Ptr"
     },
     "cusparseCreateSpVec": {
         "spVecDescr": "Ptr",
@@ -16155,7 +16155,7 @@
     },
     "cusparseSpVecGetIndexBase": {
         "spVecDescr": null,
-        "idxBase": "CuPtr"
+        "idxBase": "Ptr"
     },
     "cusparseSpVecGetValues": {
         "spVecDescr": null,
@@ -16259,11 +16259,11 @@
     },
     "cusparseSpMatGetFormat": {
         "spMatDescr": null,
-        "format": "CuPtr"
+        "format": "Ptr"
     },
     "cusparseSpMatGetIndexBase": {
         "spMatDescr": null,
-        "idxBase": "CuPtr"
+        "idxBase": "Ptr"
     },
     "cusparseSpMatGetValues": {
         "spMatDescr": null,
@@ -16275,7 +16275,7 @@
     },
     "cusparseSpMatGetStridedBatch": {
         "spMatDescr": null,
-        "batchCount": "CuPtr"
+        "batchCount": "Ptr"
     },
     "cusparseCreateDnMat": {
         "dnMatDescr": "Ptr",
@@ -16305,8 +16305,8 @@
     },
     "cusparseDnMatGetStridedBatch": {
         "dnMatDescr": null,
-        "batchCount": "CuPtr",
-        "batchStride": "CuPtr"
+        "batchCount": "Ptr",
+        "batchStride": "Ptr"
     },
     "cusparseSpVV": {
         "handle": null,
@@ -16322,9 +16322,9 @@
         "opX": null,
         "vecX": null,
         "vecY": null,
-        "result": "CuPtr",
+        "result": "PtrOrCuPtr",
         "computeType": null,
-        "bufferSize": "CuPtr"
+        "bufferSize": "Ptr"
     },
     "cusparseSpMV": {
         "handle": null,
@@ -16341,14 +16341,14 @@
     "cusparseSpMV_bufferSize": {
         "handle": null,
         "opA": null,
-        "alpha": "CuPtr",
+        "alpha": "Ptr",
         "matA": null,
         "vecX": null,
-        "beta": "CuPtr",
+        "beta": "Ptr",
         "vecY": null,
         "computeType": null,
         "alg": null,
-        "bufferSize": "CuPtr"
+        "bufferSize": "Ptr"
     },
     "cusparseSpMM": {
         "handle": null,
@@ -16367,14 +16367,14 @@
         "handle": null,
         "opA": null,
         "opB": null,
-        "alpha": "CuPtr",
+        "alpha": "Ptr",
         "matA": null,
         "matB": null,
-        "beta": "CuPtr",
+        "beta": "Ptr",
         "matC": null,
         "computeType": null,
         "alg": null,
-        "bufferSize": "CuPtr"
+        "bufferSize": "Ptr"
     },
     "cusparseConstrainedGeMM": {
         "handle": null,
@@ -16392,12 +16392,12 @@
         "handle": null,
         "opA": null,
         "opB": null,
-        "alpha": "CuPtr",
+        "alpha": "Ptr",
         "matA": null,
         "matB": null,
-        "beta": "CuPtr",
+        "beta": "Ptr",
         "matC": null,
         "computeType": null,
-        "bufferSize": "CuPtr"
+        "bufferSize": "Ptr"
     }
 }

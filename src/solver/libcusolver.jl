@@ -10,7 +10,7 @@ end
 
 function cusolverGetVersion(version)
     @check ccall((:cusolverGetVersion, libcusolver), cusolverStatus_t,
-                 (CuPtr{Cint},),
+                 (Ptr{Cint},),
                  version)
 end
 # Julia wrapper for header: cusolverDn.h
@@ -1493,13 +1493,13 @@ end
 
 function cusolverDnXsyevjGetResidual(handle, info, residual)
     @check ccall((:cusolverDnXsyevjGetResidual, libcusolver), cusolverStatus_t,
-                 (cusolverDnHandle_t, syevjInfo_t, CuPtr{Cdouble}),
+                 (cusolverDnHandle_t, syevjInfo_t, Ptr{Cdouble}),
                  handle, info, residual)
 end
 
 function cusolverDnXsyevjGetSweeps(handle, info, executed_sweeps)
     @check ccall((:cusolverDnXsyevjGetSweeps, libcusolver), cusolverStatus_t,
-                 (cusolverDnHandle_t, syevjInfo_t, CuPtr{Cint}),
+                 (cusolverDnHandle_t, syevjInfo_t, Ptr{Cint}),
                  handle, info, executed_sweeps)
 end
 
@@ -1741,13 +1741,13 @@ end
 
 function cusolverDnXgesvdjGetResidual(handle, info, residual)
     @check ccall((:cusolverDnXgesvdjGetResidual, libcusolver), cusolverStatus_t,
-                 (cusolverDnHandle_t, gesvdjInfo_t, CuPtr{Cdouble}),
+                 (cusolverDnHandle_t, gesvdjInfo_t, Ptr{Cdouble}),
                  handle, info, residual)
 end
 
 function cusolverDnXgesvdjGetSweeps(handle, info, executed_sweeps)
     @check ccall((:cusolverDnXgesvdjGetSweeps, libcusolver), cusolverStatus_t,
-                 (cusolverDnHandle_t, gesvdjInfo_t, CuPtr{Cint}),
+                 (cusolverDnHandle_t, gesvdjInfo_t, Ptr{Cint}),
                  handle, info, executed_sweeps)
 end
 

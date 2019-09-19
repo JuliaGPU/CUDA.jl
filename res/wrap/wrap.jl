@@ -163,7 +163,7 @@ function rewrite_pointers(x, state, headers)
                 if gpu_pointers == [0]
                     # 0 is special match for all pointers
                     gpu_pointers = findall(is_pointer)
-                elseif all(i->i<0, gpu_pointers)
+                elseif !isempty(gpu_pointers) && all(i->i<0, gpu_pointers)
                     # negative indicates all but these
                     gpu_pointers = map(i->-i, gpu_pointers)
                     @assert all(i->is_pointer[i], gpu_pointers) "You selected non-pointer arguments"

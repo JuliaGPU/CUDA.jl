@@ -64,7 +64,7 @@ end
 
 function cusparseCreateMatDescr(descrA)
     @check ccall((:cusparseCreateMatDescr, libcusparse), cusparseStatus_t,
-                 (CuPtr{cusparseMatDescr_t},),
+                 (Ptr{cusparseMatDescr_t},),
                  descrA)
 end
 
@@ -142,8 +142,8 @@ end
 
 function cusparseGetLevelInfo(handle, info, nlevels, levelPtr, levelInd)
     @check ccall((:cusparseGetLevelInfo, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseSolveAnalysisInfo_t, CuPtr{Cint},
-                  CuPtr{Ptr{Cint}}, CuPtr{Ptr{Cint}}),
+                 (cusparseHandle_t, cusparseSolveAnalysisInfo_t, Ptr{Cint},
+                  Ptr{Ptr{Cint}}, Ptr{Ptr{Cint}}),
                  handle, info, nlevels, levelPtr, levelInd)
 end
 
@@ -245,7 +245,7 @@ end
 
 function cusparseCreateCsru2csrInfo(info)
     @check ccall((:cusparseCreateCsru2csrInfo, libcusparse), cusparseStatus_t,
-                 (CuPtr{csru2csrInfo_t},),
+                 (Ptr{csru2csrInfo_t},),
                  info)
 end
 
@@ -257,7 +257,7 @@ end
 
 function cusparseCreateColorInfo(info)
     @check ccall((:cusparseCreateColorInfo, libcusparse), cusparseStatus_t,
-                 (CuPtr{cusparseColorInfo_t},),
+                 (Ptr{cusparseColorInfo_t},),
                  info)
 end
 
@@ -275,13 +275,13 @@ end
 
 function cusparseGetColorAlgs(info, alg)
     @check ccall((:cusparseGetColorAlgs, libcusparse), cusparseStatus_t,
-                 (cusparseColorInfo_t, CuPtr{cusparseColorAlg_t}),
+                 (cusparseColorInfo_t, Ptr{cusparseColorAlg_t}),
                  info, alg)
 end
 
 function cusparseCreatePruneInfo(info)
     @check ccall((:cusparseCreatePruneInfo, libcusparse), cusparseStatus_t,
-                 (CuPtr{pruneInfo_t},),
+                 (Ptr{pruneInfo_t},),
                  info)
 end
 
@@ -471,7 +471,7 @@ end
 
 function cusparseSgemvi_bufferSize(handle, transA, m, n, nnz, pBufferSize)
     @check ccall((:cusparseSgemvi_bufferSize, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, CuPtr{Cint}),
+                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, Ptr{Cint}),
                  handle, transA, m, n, nnz, pBufferSize)
 end
 
@@ -487,7 +487,7 @@ end
 
 function cusparseDgemvi_bufferSize(handle, transA, m, n, nnz, pBufferSize)
     @check ccall((:cusparseDgemvi_bufferSize, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, CuPtr{Cint}),
+                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, Ptr{Cint}),
                  handle, transA, m, n, nnz, pBufferSize)
 end
 
@@ -503,7 +503,7 @@ end
 
 function cusparseCgemvi_bufferSize(handle, transA, m, n, nnz, pBufferSize)
     @check ccall((:cusparseCgemvi_bufferSize, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, CuPtr{Cint}),
+                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, Ptr{Cint}),
                  handle, transA, m, n, nnz, pBufferSize)
 end
 
@@ -520,7 +520,7 @@ end
 
 function cusparseZgemvi_bufferSize(handle, transA, m, n, nnz, pBufferSize)
     @check ccall((:cusparseZgemvi_bufferSize, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, CuPtr{Cint}),
+                 (cusparseHandle_t, cusparseOperation_t, Cint, Cint, Cint, Ptr{Cint}),
                  handle, transA, m, n, nnz, pBufferSize)
 end
 
@@ -1541,7 +1541,7 @@ end
 
 function cusparseCreateCsrsm2Info(info)
     @check ccall((:cusparseCreateCsrsm2Info, libcusparse), cusparseStatus_t,
-                 (CuPtr{csrsm2Info_t},),
+                 (Ptr{csrsm2Info_t},),
                  info)
 end
 
@@ -1953,26 +1953,26 @@ end
 
 function cusparseScsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseScsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, csrilu02Info_t, Cint, CuPtr{Cdouble}, CuPtr{Cfloat}),
+                 (cusparseHandle_t, csrilu02Info_t, Cint, Ptr{Cdouble}, Ptr{Cfloat}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
 function cusparseDcsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseDcsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, csrilu02Info_t, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}),
+                 (cusparseHandle_t, csrilu02Info_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
 function cusparseCcsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseCcsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, csrilu02Info_t, Cint, CuPtr{Cdouble}, CuPtr{cuComplex}),
+                 (cusparseHandle_t, csrilu02Info_t, Cint, Ptr{Cdouble}, Ptr{cuComplex}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
 function cusparseZcsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseZcsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, csrilu02Info_t, Cint, CuPtr{Cdouble},
-                  CuPtr{cuDoubleComplex}),
+                 (cusparseHandle_t, csrilu02Info_t, Cint, Ptr{Cdouble},
+                  Ptr{cuDoubleComplex}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
@@ -2146,26 +2146,26 @@ end
 
 function cusparseSbsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseSbsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, bsrilu02Info_t, Cint, CuPtr{Cdouble}, CuPtr{Cfloat}),
+                 (cusparseHandle_t, bsrilu02Info_t, Cint, Ptr{Cdouble}, Ptr{Cfloat}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
 function cusparseDbsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseDbsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, bsrilu02Info_t, Cint, CuPtr{Cdouble}, CuPtr{Cdouble}),
+                 (cusparseHandle_t, bsrilu02Info_t, Cint, Ptr{Cdouble}, Ptr{Cdouble}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
 function cusparseCbsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseCbsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, bsrilu02Info_t, Cint, CuPtr{Cdouble}, CuPtr{cuComplex}),
+                 (cusparseHandle_t, bsrilu02Info_t, Cint, Ptr{Cdouble}, Ptr{cuComplex}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
 function cusparseZbsrilu02_numericBoost(handle, info, enable_boost, tol, boost_val)
     @check ccall((:cusparseZbsrilu02_numericBoost, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, bsrilu02Info_t, Cint, CuPtr{Cdouble},
-                  CuPtr{cuDoubleComplex}),
+                 (cusparseHandle_t, bsrilu02Info_t, Cint, Ptr{Cdouble},
+                  Ptr{cuDoubleComplex}),
                  handle, info, enable_boost, tol, boost_val)
 end
 
@@ -3204,7 +3204,7 @@ end
 
 function cusparseCreateCsrgemm2Info(info)
     @check ccall((:cusparseCreateCsrgemm2Info, libcusparse), cusparseStatus_t,
-                 (CuPtr{csrgemm2Info_t},),
+                 (Ptr{csrgemm2Info_t},),
                  info)
 end
 
@@ -5224,8 +5224,7 @@ function cusparseCsr2cscEx2_bufferSize(handle, m, n, nnz, csrVal, csrRowPtr, csr
     @check ccall((:cusparseCsr2cscEx2_bufferSize, libcusparse), cusparseStatus_t,
                  (cusparseHandle_t, Cint, Cint, Cint, CuPtr{Cvoid}, CuPtr{Cint},
                   CuPtr{Cint}, CuPtr{Cvoid}, CuPtr{Cint}, CuPtr{Cint}, cudaDataType,
-                  cusparseAction_t, cusparseIndexBase_t, cusparseCsr2CscAlg_t,
-                  CuPtr{Csize_t}),
+                  cusparseAction_t, cusparseIndexBase_t, cusparseCsr2CscAlg_t, Ptr{Csize_t}),
                  handle, m, n, nnz, csrVal, csrRowPtr, csrColInd, cscVal, cscColPtr,
                  cscRowInd, valType, copyValues, idxBase, alg, bufferSize)
 end
@@ -5255,7 +5254,7 @@ end
 
 function cusparseSpVecGetIndexBase(spVecDescr, idxBase)
     @check ccall((:cusparseSpVecGetIndexBase, libcusparse), cusparseStatus_t,
-                 (cusparseSpVecDescr_t, CuPtr{cusparseIndexBase_t}),
+                 (cusparseSpVecDescr_t, Ptr{cusparseIndexBase_t}),
                  spVecDescr, idxBase)
 end
 
@@ -5369,13 +5368,13 @@ end
 
 function cusparseSpMatGetFormat(spMatDescr, format)
     @check ccall((:cusparseSpMatGetFormat, libcusparse), cusparseStatus_t,
-                 (cusparseSpMatDescr_t, CuPtr{cusparseFormat_t}),
+                 (cusparseSpMatDescr_t, Ptr{cusparseFormat_t}),
                  spMatDescr, format)
 end
 
 function cusparseSpMatGetIndexBase(spMatDescr, idxBase)
     @check ccall((:cusparseSpMatGetIndexBase, libcusparse), cusparseStatus_t,
-                 (cusparseSpMatDescr_t, CuPtr{cusparseIndexBase_t}),
+                 (cusparseSpMatDescr_t, Ptr{cusparseIndexBase_t}),
                  spMatDescr, idxBase)
 end
 
@@ -5399,7 +5398,7 @@ end
 
 function cusparseSpMatGetStridedBatch(spMatDescr, batchCount)
     @check ccall((:cusparseSpMatGetStridedBatch, libcusparse), cusparseStatus_t,
-                 (cusparseSpMatDescr_t, CuPtr{Cint}),
+                 (cusparseSpMatDescr_t, Ptr{Cint}),
                  spMatDescr, batchCount)
 end
 
@@ -5443,7 +5442,7 @@ end
 
 function cusparseDnMatGetStridedBatch(dnMatDescr, batchCount, batchStride)
     @check ccall((:cusparseDnMatGetStridedBatch, libcusparse), cusparseStatus_t,
-                 (cusparseDnMatDescr_t, CuPtr{Cint}, CuPtr{Int64}),
+                 (cusparseDnMatDescr_t, Ptr{Cint}, Ptr{Int64}),
                  dnMatDescr, batchCount, batchStride)
 end
 
@@ -5457,7 +5456,7 @@ end
 function cusparseSpVV_bufferSize(handle, opX, vecX, vecY, result, computeType, bufferSize)
     @check ccall((:cusparseSpVV_bufferSize, libcusparse), cusparseStatus_t,
                  (cusparseHandle_t, cusparseOperation_t, cusparseSpVecDescr_t,
-                  cusparseDnVecDescr_t, CuPtr{Cvoid}, cudaDataType, CuPtr{Csize_t}),
+                  cusparseDnVecDescr_t, PtrOrCuPtr{Cvoid}, cudaDataType, Ptr{Csize_t}),
                  handle, opX, vecX, vecY, result, computeType, bufferSize)
 end
 
@@ -5474,9 +5473,9 @@ end
 function cusparseSpMV_bufferSize(handle, opA, alpha, matA, vecX, beta, vecY, computeType,
                                  alg, bufferSize)
     @check ccall((:cusparseSpMV_bufferSize, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseOperation_t, CuPtr{Cvoid},
-                  cusparseSpMatDescr_t, cusparseDnVecDescr_t, CuPtr{Cvoid},
-                  cusparseDnVecDescr_t, cudaDataType, cusparseSpMVAlg_t, CuPtr{Csize_t}),
+                 (cusparseHandle_t, cusparseOperation_t, Ptr{Cvoid}, cusparseSpMatDescr_t,
+                  cusparseDnVecDescr_t, Ptr{Cvoid}, cusparseDnVecDescr_t, cudaDataType,
+                  cusparseSpMVAlg_t, Ptr{Csize_t}),
                  handle, opA, alpha, matA, vecX, beta, vecY, computeType, alg, bufferSize)
 end
 
@@ -5494,9 +5493,9 @@ end
 function cusparseSpMM_bufferSize(handle, opA, opB, alpha, matA, matB, beta, matC,
                                  computeType, alg, bufferSize)
     @check ccall((:cusparseSpMM_bufferSize, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t,
-                  CuPtr{Cvoid}, cusparseSpMatDescr_t, cusparseDnMatDescr_t, CuPtr{Cvoid},
-                  cusparseDnMatDescr_t, cudaDataType, cusparseSpMMAlg_t, CuPtr{Csize_t}),
+                 (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Ptr{Cvoid},
+                  cusparseSpMatDescr_t, cusparseDnMatDescr_t, Ptr{Cvoid},
+                  cusparseDnMatDescr_t, cudaDataType, cusparseSpMMAlg_t, Ptr{Csize_t}),
                  handle, opA, opB, alpha, matA, matB, beta, matC, computeType, alg,
                  bufferSize)
 end
@@ -5514,8 +5513,8 @@ end
 function cusparseConstrainedGeMM_bufferSize(handle, opA, opB, alpha, matA, matB, beta,
                                             matC, computeType, bufferSize)
     @check ccall((:cusparseConstrainedGeMM_bufferSize, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t,
-                  CuPtr{Cvoid}, cusparseDnMatDescr_t, cusparseDnMatDescr_t, CuPtr{Cvoid},
-                  cusparseSpMatDescr_t, cudaDataType, CuPtr{Csize_t}),
+                 (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Ptr{Cvoid},
+                  cusparseDnMatDescr_t, cusparseDnMatDescr_t, Ptr{Cvoid},
+                  cusparseSpMatDescr_t, cudaDataType, Ptr{Csize_t}),
                  handle, opA, opB, alpha, matA, matB, beta, matC, computeType, bufferSize)
 end
