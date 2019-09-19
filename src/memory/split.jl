@@ -142,9 +142,13 @@ function scan!(blocks, sz, max_overhead=typemax(Int))
 end
 
 function incremental_compact!(blocks)
+    # we mutate the list of blocks, so take a copy
+    blocks = Set(blocks)
+
     compacted = 0
     lock(pool_lock) do
-        for block in blocks
+        while !isempty(blocks)
+            block = pop!(blocks)
             szclass = size_class(sizeof(block))
             available = (available_small, available_large, available_huge)[szclass]
 
@@ -168,6 +172,7 @@ function incremental_compact!(blocks)
             if length(chain) > 1
                 for block in chain
                     delete!(available, block)
+                    delete!(blocks, block)
                 end
                 block = merge!(chain...)
                 @assert !in(block, available) "Collision in the available memory pool"
