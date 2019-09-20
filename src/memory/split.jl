@@ -213,6 +213,8 @@ function repopulate!(blocks)
             szclass = size_class(sizeof(block))
             available = (available_small, available_large, available_huge)[szclass]
             @assert !in(block, available) "Collision in the available memory pool"
+            @assert block.state == ALLOCATED
+            block.state = AVAILABLE
             push!(available, block)
         end
     end
@@ -320,7 +322,8 @@ function pool_alloc(sz)
 end
 
 function pool_free(block)
-    block.state = AVAILABLE
+    # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
+    # and to simplify locking (and prevent concurrent access during GC interventions)
     push!(freed, block)
 end
 
@@ -332,7 +335,7 @@ init() = return
 function deinit()
     @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
 
-    repopulate!(pending)
+    repopulate!(freed)
     incremental_compact!(freed)
     empty!(freed)
 
