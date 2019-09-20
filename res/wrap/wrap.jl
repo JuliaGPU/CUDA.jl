@@ -46,15 +46,19 @@ end
 # Pointer type database
 #
 
-const db = if isfile("pointers.json")
-    JSON.parsefile("pointers.json"; dicttype=DataStructures.OrderedDict)
+using JSON, DataStructures
+
+const db_path = joinpath(@__DIR__, "pointers.json")
+
+const db = if isfile(db_path)
+    JSON.parsefile(db_path; dicttype=DataStructures.OrderedDict)
 else
     Dict{String, Any}()
 end
 
 function save_db()
     global db
-    open("pointers.json", "w") do io
+    open(db_path, "w") do io
         JSON.print(io, db, 4)
     end
 end
@@ -65,7 +69,6 @@ end
 #
 
 using CSTParser, Tokenize
-using JSON, DataStructures
 
 ## pass infrastructure
 
@@ -396,26 +399,48 @@ function process(name, headers...; kwargs...)
 end
 
 function main()
-    # TODO: use CUDAapi to discover headers
+    # find the CUDA includes directory
+    toolkit = find_toolkit()
+    cuda_include = nothing
+    for dir in toolkit
+        cuda_include = joinpath(dir, "include")
+        isdir(cuda_include) && break
+    end
+    isdir(cuda_include) || error("Could not find an 'include' directory in any of the toolkit directories ($(join(toolkit, ", ", " or ")))")
+    @info "Found CUDA include directory at $cuda_include"
 
-    process("cudnn", "/opt/cuda/include/cudnn.h"; library="@libcudnn")
+    function process_if_existing(name, headers...; kwargs...)
+        env_var = uppercase(name) * "_INCLUDE"
+        include = get(ENV, env_var, cuda_include)
+        for header in headers
+            if !isfile(joinpath(include, header))
+                @error "Cannot wrap $name: could not find $header in $include (override the include directory with the $env_var environment variable)"
+                return
+            end
+        end
 
-    process("cublas", "/opt/cuda/include/cublas_v2.h",
-                      "/opt/cuda/include/cublas_api.h",
-                      "/opt/cuda/include/cublasXt.h";
-            defines=["CUBLASAPI"=>""])
+        headers = map(header->joinpath(include, header), headers)
+        process(name, headers...; kwargs...)
+    end
 
-    process("cufft", "/opt/cuda/include/cufft.h")
+    process_if_existing("cublas",
+                        "cublas_v2.h", "cublas_api.h", "cublasXt.h";
+                        defines=["CUBLASAPI"=>""])
 
-    process("curand", "/opt/cuda/include/curand.h")
+    process_if_existing("cufft", "cufft.h")
 
-    process("cusparse", "/opt/cuda/include/cusparse.h")
+    process_if_existing("curand", "curand.h")
 
-    process("cusolver", "/opt/cuda/include/cusolver_common.h",
-                        "/opt/cuda/include/cusolverDn.h",
-                        "/opt/cuda/include/cusolverSp.h")
+    process_if_existing("cusparse", "cusparse.h")
 
-    process("cutensor", "/tmp/include/cutensor/types.h", "/tmp/include/cutensor.h")
+    process_if_existing("cusolver",
+                        "cusolver_common.h", "cusolverDn.h", "cusolverSp.h")
+
+    process_if_existing("cudnn", "cudnn.h"; library="@libcudnn")
+
+    process_if_existing("cutensor",
+                        "cutensor/types.h", "cutensor.h";
+                        library="@libcutensor")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
