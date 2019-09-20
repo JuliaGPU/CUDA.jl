@@ -32,6 +32,7 @@ const HUGE_OVERHEAD  = 0
 using Printf
 
 @enum BlockState begin
+    INVALID
     AVAILABLE
     ALLOCATED
     FREED
@@ -51,7 +52,7 @@ mutable struct Block
 
     id::UInt
 
-    Block(buf, sz=sizeof(buf), off=0, state=AVAILABLE, prev=nothing, next=nothing) =
+    Block(buf, sz=sizeof(buf), off=0, state=INVALID, prev=nothing, next=nothing) =
         new(buf, sz, off, state, prev, next, block_id[]+=1)
 end
 
@@ -111,13 +112,11 @@ end
 
 function actual_free(block::Block)
     @assert iswhole(block) "Cannot free a split block"
-    if block.state == ALLOCATED
-        error("Cannot free an allocated block")
-    elseif block.state == FREED
-        error("Double-free")
+    if block.state != AVAILABLE
+        error("Cannot free a $(block.state) block")
     else
         actual_free(block.buf)
-        block.state = FREED
+        block.state = INVALID
     end
     return
 end
@@ -213,7 +212,7 @@ function repopulate!(blocks)
             szclass = size_class(sizeof(block))
             available = (available_small, available_large, available_huge)[szclass]
             @assert !in(block, available) "Collision in the available memory pool"
-            @assert block.state == ALLOCATED
+            @assert block.state == FREED
             block.state = AVAILABLE
             push!(available, block)
         end
@@ -273,11 +272,11 @@ function pool_alloc(sz)
         if !isempty(freed)
             @pool_timeit "$phase.1 repopulate + compact" begin
                 # `freed` may be modified concurrently, so take a copy
-                pending = copy(freed)
+                blocks = copy(freed)
                 empty!(freed)
 
-                repopulate!(pending)
-                incremental_compact!(pending)
+                repopulate!(blocks)
+                incremental_compact!(blocks)
             end
         end
 
@@ -312,6 +311,7 @@ function pool_alloc(sz)
         remainder = sizeof(block) - sz
         if szclass != HUGE && remainder > 0 && size_class(remainder) == szclass
             split = split!(block, sz)
+            split.state = AVAILABLE
             push!(available, split)
         end
 
@@ -324,6 +324,8 @@ end
 function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (and prevent concurrent access during GC interventions)
+    block.state == ALLOCATED || error("Cannot free a $(block.state) block")
+    block.state = FREED
     push!(freed, block)
 end
 
