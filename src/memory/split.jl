@@ -40,11 +40,11 @@ end
 
 const block_id = Ref(UInt(0))
 
-# TODO: it would be nice if this could be immutable, since that's what OrderedSet requires
+# TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
-    buf::Mem.Buffer     # base allocation
-    sz::Integer         # size into it
-    off::Integer        # offset into it
+    buf::Union{Nothing,Mem.Buffer}  # base allocation
+    sz::Integer                     # size into it
+    off::Integer                    # offset into it
 
     state::BlockState
     prev::Union{Nothing,Block}
@@ -52,8 +52,9 @@ mutable struct Block
 
     id::UInt
 
-    Block(buf, sz=sizeof(buf), off=0, state=INVALID, prev=nothing, next=nothing) =
-        new(buf, sz, off, state, prev, next, block_id[]+=1)
+    Block(buf; sz=sizeof(buf), off=0, state=INVALID,
+          prev=nothing, next=nothing, id=block_id[]+=1) =
+        new(buf, sz, off, state, prev, next, id)
 end
 
 Base.sizeof(block::Block) = block.sz
@@ -79,7 +80,7 @@ end
 # split a block at size `sz`, returning the newly created block
 function split!(block, sz)
     @assert sz < block.sz
-    split = Block(block.buf, sizeof(block) - sz, block.off + sz)
+    split = Block(block.buf; sz = sizeof(block) - sz, off = block.off + sz)
     block.sz = sz
 
     # update links
@@ -130,13 +131,35 @@ const pool_lock = SpinLock()   # protect against deletion from freelists
 function scan!(blocks, sz, max_overhead=typemax(Int))
     max_sz = max(sz + max_overhead, max_overhead)   # protect against overflow
     lock(pool_lock) do
-        for block in blocks
-            if sz <= sizeof(block) <= max_sz
-                delete!(blocks, block)
+        # semantically, the following code iterates and selects a block:
+        #   for block in blocks
+        #   if sz <= sizeof(block) <= max_sz
+        #       delete!(blocks, block)
+        #       return block
+        #   end
+        #   return nothing
+        # but since we know the sorted set is backed by a balanced tree, we can do better
+
+        # get the entry right before first sufficiently large one
+        lower_bound = Block(nothing; sz=sz, id=0)
+        i, exact = findkey(blocks.bt, lower_bound)
+        @assert !exact  # block id bits are zero, so this match can't be exact
+
+        if i == DataStructures.endloc(blocks.bt)
+            # last entry, none is following
+            return nothing
+        else
+            # a valid entry, make sure it isn't too large
+            i = DataStructures.nextloc0(blocks.bt, i)
+            block = blocks.bt.data[i].k
+            @assert sz <= sizeof(block)
+            if sz > max_sz
+                return nothing
+            else
+                delete!(blocks.bt, i)
                 return block
             end
         end
-        return nothing
     end
 end
 
