@@ -71,10 +71,10 @@ function cudnnGetRNNWorkspaceSize(r::RNNDesc, seqlen, xdesc)
   return Int(size[])
 end
 
-const _workspace = Ref(CuVector{UInt8}(undef, 0))
+const _workspace = Ref{Union{Nothing,CuVector{UInt8}}}(nothing)
 
 function Workspace(bytes)
-  if length(_workspace[]) < bytes
+  if _workspace === nothing || length(_workspace[]) < bytes
     _workspace[] = CuVector{UInt8}(undef, bytes)
   end
   _workspace[]
