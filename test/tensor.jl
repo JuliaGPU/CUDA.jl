@@ -2,6 +2,8 @@
 
 using CuArrays.CUTENSOR
 
+using LinearAlgebra
+
 if CuArrays.libcutensor === nothing
 @warn "Not testing CUTENSOR"
 haskey(ENV, "CI") && error("All optional libraries should be available on CI")

@@ -1,6 +1,14 @@
 using CUDAapi: cudaDataType
 using CUDAdrv: CuDefaultStream, CuStream
 
+function cutensorCreate()
+    handle = Ref{cutensorHandle_t}()
+    @check ccall((:cutensorCreate, libcutensor), cutensorStatus_t,
+                 (Ptr{cutensorHandle_t},),
+                 handle)
+    handle[]
+end
+
 const ModeType = AbstractVector{<:Union{Char, Integer}}
 
 is_unary(op::cutensorOperator_t) =
@@ -17,10 +25,11 @@ mutable struct CuTensorDescriptor
                                    vectorwidth = Cint(1), vectormodeindex = Cint(0))
         sz = collect(Int64, size)
         st = collect(Int64, strides)
-        desc = cutensorCreateTensorDescriptor(length(sz), sz, st,
-                                                cudaDataType(eltype), op,
-                                                vectorwidth, vectormodeindex)
-        obj = new(desc)
+        desc = Ref{cutensorTensorDescriptor_t}()
+        cutensorCreateTensorDescriptor(desc, length(sz), sz, st,
+                                       cudaDataType(eltype), op,
+                                       vectorwidth, vectormodeindex)
+        obj = new(desc[])
         finalizer(destroy!, obj)
         return obj
     end
@@ -55,6 +64,7 @@ function elementwiseTrinary!(
                                 D, descD, modeD, opAB, opABC, typeCompute, stream)
     return D
 end
+
 function elementwiseTrinary!(
     alpha::Number, A::Array, Ainds::ModeType, opA::cutensorOperator_t,
     beta::Number, B::Array, Binds::ModeType, opB::cutensorOperator_t,
@@ -104,6 +114,7 @@ function elementwiseBinary!(
                               modeC, D, descD, modeD, opAC, typeCompute, stream)
     return D
 end
+
 function elementwiseBinary!(
     alpha::Number, A::Array, Ainds::ModeType, opA::cutensorOperator_t,
     gamma::Number, C::Array{T}, Cinds::ModeType, opC::cutensorOperator_t,
@@ -125,6 +136,7 @@ function elementwiseBinary!(
                               modeC, D, descD, modeD, opAC, typeCompute, stream)
     return D
 end
+
 function elementwiseBinary!(
     alpha::Number, A::CuTensor, opA::cutensorOperator_t, gamma::Number, C::CuTensor{T}, opC::cutensorOperator_t, D::CuTensor{T}, opAC::cutensorOperator_t; stream::CuStream=CuDefaultStream()) where {T}
 
@@ -248,6 +260,7 @@ function contraction!(
                         stream)
     return C
 end
+
 function contraction!(alpha::Number,
     A::CuTensor, opA::cutensorOperator_t, B::CuTensor, opB::cutensorOperator_t,
     beta::Number, C::CuTensor, opC::cutensorOperator_t, opOut::cutensorOperator_t;

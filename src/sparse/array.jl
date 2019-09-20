@@ -1,10 +1,19 @@
 # custom extension of CuArray in CUDArt for sparse vectors/matrices
 # using CSC format for interop with Julia's native sparse functionality
 
+export CuSparseMatrixCSC, CuSparseMatrixCSR,
+       CuSparseMatrixHYB, CuSparseMatrixBSR,
+       CuSparseMatrix, AbstractCuSparseMatrix,
+       CuSparseVector
+
 import Base: length, size, ndims, eltype, similar, pointer, stride,
     copy, convert, reinterpret, show, summary, copyto!, get!, fill!, collect
+
+using LinearAlgebra
 import LinearAlgebra: BlasFloat, Hermitian, HermOrSym, issymmetric, Transpose, Adjoint,
     ishermitian, istriu, istril, Symmetric, UpperTriangular, LowerTriangular
+
+using SparseArrays
 import SparseArrays: sparse, SparseMatrixCSC
 
 abstract type AbstractCuSparseArray{Tv, N} <: AbstractSparseArray{Tv, Cint, N} end

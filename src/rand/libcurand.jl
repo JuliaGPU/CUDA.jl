@@ -1,182 +1,178 @@
-function curandCreateGenerator(typ::Int=CURAND_RNG_PSEUDO_DEFAULT)
-    ptr = Ref{curandGenerator_t}()
-    @check ccall((:curandCreateGenerator, libcurand),
-                 curandStatus_t,
-                 (Ptr{curandGenerator_t}, Cint), ptr, typ)
-    r = RNG(ptr[], typ)
-    finalizer(curandDestroyGenerator, r)
-    return r
+# Julia wrapper for header: curand.h
+# Automatically generated using Clang.jl
+
+
+function curandCreateGenerator(generator, rng_type)
+    @check ccall((:curandCreateGenerator, libcurand), curandStatus_t,
+                 (Ptr{curandGenerator_t}, curandRngType_t),
+                 generator, rng_type)
 end
 
-function curandDestroyGenerator(rng::RNG)
-    @check ccall((:curandDestroyGenerator, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t,), rng)
+function curandCreateGeneratorHost(generator, rng_type)
+    @check ccall((:curandCreateGeneratorHost, libcurand), curandStatus_t,
+                 (Ptr{curandGenerator_t}, curandRngType_t),
+                 generator, rng_type)
 end
 
-function curandGetVersion()
-    ver = Ref{Cint}()
-    @check ccall((:curandGetVersion, libcurand),
-                 curandStatus_t,
-                 (Ref{Cint},), ver)
-    return ver[]
+function curandDestroyGenerator(generator)
+    @check ccall((:curandDestroyGenerator, libcurand), curandStatus_t,
+                 (curandGenerator_t,),
+                 generator)
 end
 
-# TODO: curandSetStream
-
-function curandSetPseudoRandomGeneratorSeed(rng::RNG, seed::Int64)
-    @check ccall((:curandSetPseudoRandomGeneratorSeed, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t, Clonglong), rng, seed)
+function curandGetVersion(version)
+    @check ccall((:curandGetVersion, libcurand), curandStatus_t,
+                 (Ptr{Cint},),
+                 version)
 end
 
-function curandSetGeneratorOffset(rng::RNG, offset::Int64)
-    @check ccall((:curandSetGeneratorOffset, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t, Clonglong), rng, offset)
+function curandGetProperty(type, value)
+    @check ccall((:curandGetProperty, libcurand), curandStatus_t,
+                 (libraryPropertyType, Ptr{Cint}),
+                 type, value)
 end
 
-function curandSetGeneratorOrdering(rng::RNG, order::Int)
-    @check ccall((:curandSetGeneratorOrdering, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t, Cint), rng, order)
+function curandSetStream(generator, stream)
+    @check ccall((:curandSetStream, libcurand), curandStatus_t,
+                 (curandGenerator_t, CuStream_t),
+                 generator, stream)
 end
 
-function curandSetQuasiRandomGeneratorDimensions(rng::RNG, num_dimensions::UInt)
-    @check ccall((:curandSetQuasiRandomGeneratorDimensions, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t, Cuint),
-                 rng, num_dimensions)
+function curandSetPseudoRandomGeneratorSeed(generator, seed)
+    @check ccall((:curandSetPseudoRandomGeneratorSeed, libcurand), curandStatus_t,
+                 (curandGenerator_t, Culonglong),
+                 generator, seed)
 end
 
+function curandSetGeneratorOffset(generator, offset)
+    @check ccall((:curandSetGeneratorOffset, libcurand), curandStatus_t,
+                 (curandGenerator_t, Culonglong),
+                 generator, offset)
+end
 
-"""
-Generate 64-bit quasirandom numbers.
-"""
-function curandGenerate(rng::RNG, arr::CuArray, n::UInt)
-    @check ccall((:curandGenerate, libcurand),
-                 curandStatus_t,
+function curandSetGeneratorOrdering(generator, order)
+    @check ccall((:curandSetGeneratorOrdering, libcurand), curandStatus_t,
+                 (curandGenerator_t, curandOrdering_t),
+                 generator, order)
+end
+
+function curandSetQuasiRandomGeneratorDimensions(generator, num_dimensions)
+    @check ccall((:curandSetQuasiRandomGeneratorDimensions, libcurand), curandStatus_t,
+                 (curandGenerator_t, UInt32),
+                 generator, num_dimensions)
+end
+
+function curandGenerate(generator, outputPtr, num)
+    @check ccall((:curandGenerate, libcurand), curandStatus_t,
                  (curandGenerator_t, CuPtr{UInt32}, Csize_t),
-                 rng, arr, length(arr))
-    return arr
+                 generator, outputPtr, num)
 end
 
-
-"""
-Generate uniformly distributed floats.
-
-Valid RNG types are:
- - CURAND_RNG_QUASI_SOBOL64
- - CURAND_RNG_QUASI_SCRAMBLED_SOBOL64
-"""
-function curandGenerateLongLong(rng::RNG, arr::CuArray)
-    @check ccall((:curandGenerateLongLong, libcurand),
-                 curandStatus_t,
+function curandGenerateLongLong(generator, outputPtr, num)
+    @check ccall((:curandGenerateLongLong, libcurand), curandStatus_t,
                  (curandGenerator_t, CuPtr{Culonglong}, Csize_t),
-                 rng, arr, length(arr))
-    return arr
+                 generator, outputPtr, num)
 end
 
-# uniform
-function curandGenerateUniform(rng::RNG, arr::CuArray)
-    @check ccall((:curandGenerateUniform, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t, CuPtr{Float32}, Csize_t),
-                 rng, arr, length(arr))
-    return arr
+function curandGenerateUniform(generator, outputPtr, num)
+    @check ccall((:curandGenerateUniform, libcurand), curandStatus_t,
+                 (curandGenerator_t, CuPtr{Cfloat}, Csize_t),
+                 generator, outputPtr, num)
 end
 
-function curandGenerateUniformDouble(rng::RNG, arr::CuArray)
-    @check ccall((:curandGenerateUniformDouble, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t, CuPtr{Float64}, Csize_t),
-                 rng, arr, length(arr))
-    return arr
+function curandGenerateUniformDouble(generator, outputPtr, num)
+    @check ccall((:curandGenerateUniformDouble, libcurand), curandStatus_t,
+                 (curandGenerator_t, CuPtr{Cdouble}, Csize_t),
+                 generator, outputPtr, num)
 end
 
-# normal
-function curandGenerateNormal(rng::RNG, arr::CuArray, mean, stddev)
-    @check ccall((:curandGenerateNormal, libcurand),
-                 curandStatus_t,
+function curandGenerateNormal(generator, outputPtr, n, mean, stddev)
+    @check ccall((:curandGenerateNormal, libcurand), curandStatus_t,
                  (curandGenerator_t, CuPtr{Cfloat}, Csize_t, Cfloat, Cfloat),
-                 rng, arr, length(arr), mean, stddev)
-    return arr
+                 generator, outputPtr, n, mean, stddev)
 end
 
-function curandGenerateNormalDouble(rng::RNG, arr::CuArray, mean, stddev)
-    @check ccall((:curandGenerateNormalDouble, libcurand),
-                 curandStatus_t,
+function curandGenerateNormalDouble(generator, outputPtr, n, mean, stddev)
+    @check ccall((:curandGenerateNormalDouble, libcurand), curandStatus_t,
                  (curandGenerator_t, CuPtr{Cdouble}, Csize_t, Cdouble, Cdouble),
-                 rng, arr, length(arr), mean, stddev)
-    return arr
+                 generator, outputPtr, n, mean, stddev)
 end
 
-
-# lognormal
-function curandGenerateLogNormal(rng::RNG, arr::CuArray, mean, stddev)
-    @check ccall((:curandGenerateLogNormal, libcurand),
-                 curandStatus_t,
+function curandGenerateLogNormal(generator, outputPtr, n, mean, stddev)
+    @check ccall((:curandGenerateLogNormal, libcurand), curandStatus_t,
                  (curandGenerator_t, CuPtr{Cfloat}, Csize_t, Cfloat, Cfloat),
-                 rng, arr, length(arr), mean, stddev)
-    return arr
+                 generator, outputPtr, n, mean, stddev)
 end
 
-function curandGenerateLogNormalDouble(rng::RNG, arr::CuArray, mean, stddev)
-    @check ccall((:curandGenerateLogNormalDouble, libcurand),
-                 curandStatus_t,
+function curandGenerateLogNormalDouble(generator, outputPtr, n, mean, stddev)
+    @check ccall((:curandGenerateLogNormalDouble, libcurand), curandStatus_t,
                  (curandGenerator_t, CuPtr{Cdouble}, Csize_t, Cdouble, Cdouble),
-                 rng, arr, length(arr), mean, stddev)
-    return arr
+                 generator, outputPtr, n, mean, stddev)
 end
 
-# Poisson
-"""Construct the histogram array for a Poisson distribution."""
-function curandCreatePoissonDistribution(lambda)
-    ptr = Ref{curandDiscreteDistribution_t}()
-    @check ccall((:curandCreatePoissonDistribution, libcurand),
-                 curandStatus_t,
+function curandCreatePoissonDistribution(lambda, discrete_distribution)
+    @check ccall((:curandCreatePoissonDistribution, libcurand), curandStatus_t,
                  (Cdouble, Ptr{curandDiscreteDistribution_t}),
-                 lambda, ptr)
-    dist = DiscreteDistribution(ptr[])
-    finalizer(curandDestroyDistribution, dist)
-    return dist
+                 lambda, discrete_distribution)
 end
 
-"""Destroy the histogram array for a discrete distribution (e.g. Poisson)."""
-function curandDestroyDistribution(dist::DiscreteDistribution)
-    @check ccall((:curandDestroyDistribution, libcurand),
-                 curandStatus_t,
+function curandDestroyDistribution(discrete_distribution)
+    @check ccall((:curandDestroyDistribution, libcurand), curandStatus_t,
                  (curandDiscreteDistribution_t,),
-                 dist)
+                 discrete_distribution)
 end
 
-"""Generate Poisson-distributed unsigned ints."""
-function curandGeneratePoisson(rng::RNG, arr::CuArray, lambda)
-    @check ccall((:curandGeneratePoisson, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t, CuPtr{Cuint}, Csize_t, Cdouble),
-                 rng, arr, length(arr), lambda)
-    return arr
+function curandGeneratePoisson(generator, outputPtr, n, lambda)
+    @check ccall((:curandGeneratePoisson, libcurand), curandStatus_t,
+                 (curandGenerator_t, CuPtr{UInt32}, Csize_t, Cdouble),
+                 generator, outputPtr, n, lambda)
 end
 
-# seeds
-"""Generate the starting state of the generator. """
-function curandGenerateSeeds(rng::RNG)
-    @check ccall((:curandGenerateSeeds, libcurand),
-                 curandStatus_t,
-                 (curandGenerator_t,), rng)
+function curandGeneratePoissonMethod(generator, outputPtr, n, lambda, method)
+    @check ccall((:curandGeneratePoissonMethod, libcurand), curandStatus_t,
+                 (curandGenerator_t, CuPtr{UInt32}, Csize_t, Cdouble, curandMethod_t),
+                 generator, outputPtr, n, lambda, method)
 end
 
-# TODO: curandGetDirectionVectors32
-# TODO: curandGetScrambleConstants32
-# TODO: curandGetDirectionVectors64
-# TODO: curandGetScrambleConstants64
+function curandGenerateBinomial(generator, outputPtr, num, n, p)
+    @check ccall((:curandGenerateBinomial, libcurand), curandStatus_t,
+                 (curandGenerator_t, CuPtr{UInt32}, Csize_t, UInt32, Cdouble),
+                 generator, outputPtr, num, n, p)
+end
 
-function curandGetProperty(property::CUDAapi.libraryPropertyType)
-  value_ref = Ref{Cint}()
-  @check ccall((:curandGetProperty, libcurand),
-               curandStatus_t,
-               (Cint, Ptr{Cint}),
-               property, value_ref)
-  value_ref[]
+function curandGenerateBinomialMethod(generator, outputPtr, num, n, p, method)
+    @check ccall((:curandGenerateBinomialMethod, libcurand), curandStatus_t,
+                 (curandGenerator_t, CuPtr{UInt32}, Csize_t, UInt32, Cdouble,
+                  curandMethod_t),
+                 generator, outputPtr, num, n, p, method)
+end
+
+function curandGenerateSeeds(generator)
+    @check ccall((:curandGenerateSeeds, libcurand), curandStatus_t,
+                 (curandGenerator_t,),
+                 generator)
+end
+
+function curandGetDirectionVectors32(vectors, set)
+    @check ccall((:curandGetDirectionVectors32, libcurand), curandStatus_t,
+                 (Ptr{Ptr{curandDirectionVectors32_t}}, curandDirectionVectorSet_t),
+                 vectors, set)
+end
+
+function curandGetScrambleConstants32(constants)
+    @check ccall((:curandGetScrambleConstants32, libcurand), curandStatus_t,
+                 (Ptr{Ptr{UInt32}},),
+                 constants)
+end
+
+function curandGetDirectionVectors64(vectors, set)
+    @check ccall((:curandGetDirectionVectors64, libcurand), curandStatus_t,
+                 (Ptr{Ptr{curandDirectionVectors64_t}}, curandDirectionVectorSet_t),
+                 vectors, set)
+end
+
+function curandGetScrambleConstants64(constants)
+    @check ccall((:curandGetScrambleConstants64, libcurand), curandStatus_t,
+                 (Ptr{Ptr{Culonglong}},),
+                 constants)
 end

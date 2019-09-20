@@ -1,3 +1,8 @@
+# integration with high-level interfaces
+
+using LinearAlgebra
+
+
 # QR factorization
 
 struct CuQR{T,S<:AbstractMatrix} <: LinearAlgebra.Factorization{T}

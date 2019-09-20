@@ -1,5 +1,6 @@
+export CuTensor
+
 using LinearAlgebra
-import LinearAlgebra: axpy!, axpby!, mul!
 
 mutable struct CuTensor{T, N}
     data::CuArray{T, N}
@@ -39,10 +40,10 @@ function Base.:(-)(A::CuTensor, B::CuTensor)
     elementwiseBinary!(α, A, CUTENSOR_OP_IDENTITY, γ, B, CUTENSOR_OP_IDENTITY, C, CUTENSOR_OP_ADD)
 end
 
-axpy!(a, X::CuTensor, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, one(eltype(Y)), Y, CUTENSOR_OP_IDENTITY, similar(Y), CUTENSOR_OP_ADD)
-axpby!(a, X::CuTensor, b, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, b, Y, CUTENSOR_OP_IDENTITY, similar(Y), CUTENSOR_OP_ADD)
+LinearAlgebra.axpy!(a, X::CuTensor, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, one(eltype(Y)), Y, CUTENSOR_OP_IDENTITY, similar(Y), CUTENSOR_OP_ADD)
+LinearAlgebra.axpby!(a, X::CuTensor, b, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, b, Y, CUTENSOR_OP_IDENTITY, similar(Y), CUTENSOR_OP_ADD)
 
-mul!(C::CuTensor, A::CuTensor, B::CuTensor) = contraction!(one(eltype(C)), A, CUTENSOR_OP_IDENTITY, B, CUTENSOR_OP_IDENTITY, zero(eltype(C)), C, CUTENSOR_OP_IDENTITY, CUTENSOR_OP_IDENTITY)
+LinearAlgebra.mul!(C::CuTensor, A::CuTensor, B::CuTensor) = contraction!(one(eltype(C)), A, CUTENSOR_OP_IDENTITY, B, CUTENSOR_OP_IDENTITY, zero(eltype(C)), C, CUTENSOR_OP_IDENTITY, CUTENSOR_OP_IDENTITY)
 
 function Base.:(*)(A::CuTensor, B::CuTensor)
     tC = promote_type(eltype(A), eltype(B))

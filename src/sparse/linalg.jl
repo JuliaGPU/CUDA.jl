@@ -1,3 +1,6 @@
+# integration with LinearAlgebra stdlib
+
+using LinearAlgebra
 import LinearAlgebra: BlasFloat, mul!
 
 Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}}       = sm('N',A,B,'O')
