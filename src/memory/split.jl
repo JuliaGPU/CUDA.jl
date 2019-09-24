@@ -314,12 +314,14 @@ function pool_alloc(sz)
         end
         block === nothing || break
 
-        @pool_timeit "$phase.4 reclaim + alloc" begin
-            reclaim!(available_small, sz)
-            reclaim!(available_large, sz)
-            reclaim!(available_huge, sz)
-            buf = actual_alloc(sz)
+        # we're out of memory, try freeing up some memory. this is a fairly expensive
+        # operation, so start with the largest pool that is likely to free up much memory
+        # without requiring many calls to free.
+        for available in (available_huge, available_large, available_small)
+            @pool_timeit "$phase.4a reclaim" reclaim!(available, sz)
+            @pool_timeit "$phase.4b alloc" buf = actual_alloc(sz)
             block = buf === nothing ? nothing : Block(buf)
+            block === nothing || break
         end
         block === nothing || break
     end
