@@ -4,6 +4,8 @@ module SplittingPool
 
 import ..@pool_timeit, ..actual_alloc, ..actual_free
 
+import Base.@lock
+
 using DataStructures
 
 using CUDAdrv
@@ -43,8 +45,8 @@ const block_id = Ref(UInt(0))
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
     buf::Union{Nothing,Mem.Buffer}  # base allocation
-    sz::Integer                     # size into it
-    off::Integer                    # offset into it
+    sz::Int                         # size into it
+    off::Int                        # offset into it
 
     state::BlockState
     prev::Union{Nothing,Block}
@@ -130,7 +132,7 @@ const pool_lock = SpinLock()   # protect against deletion from freelists
 
 function scan!(blocks, sz, max_overhead=typemax(Int))
     max_sz = max(sz + max_overhead, max_overhead)   # protect against overflow
-    lock(pool_lock) do
+    @lock pool_lock begin
         # semantically, the following code iterates and selects a block:
         #   for block in blocks
         #   if sz <= sizeof(block) <= max_sz
@@ -163,12 +165,12 @@ function scan!(blocks, sz, max_overhead=typemax(Int))
     end
 end
 
-function incremental_compact!(blocks)
+function incremental_compact!(_blocks)
     # we mutate the list of blocks, so take a copy
-    blocks = Set(blocks)
+    blocks = Set(_blocks)
 
     compacted = 0
-    lock(pool_lock) do
+    @lock pool_lock begin
         while !isempty(blocks)
             block = pop!(blocks)
             szclass = size_class(sizeof(block))
@@ -181,7 +183,7 @@ function incremental_compact!(blocks)
             end
 
             # construct a chain of unallocated blocks
-            chain = [head]
+            chain = Block[head]
             let block = head
                 while block.next !== nothing && block.next.state == AVAILABLE
                     block = block.next
@@ -209,8 +211,9 @@ end
 # TODO: partial reclaim on ordered list?
 function reclaim!(blocks, sz)
     freed = 0
-    candidates = []
-    lock(pool_lock) do
+    candidates = Block[]
+
+    @lock pool_lock begin
         # mark non-split blocks
         for block in blocks
             if iswhole(block)
@@ -230,7 +233,7 @@ function reclaim!(blocks, sz)
 end
 
 function repopulate!(blocks)
-    lock(pool_lock) do
+    @lock pool_lock begin
         for block in blocks
             szclass = size_class(sizeof(block))
             available = (available_small, available_large, available_huge)[szclass]
