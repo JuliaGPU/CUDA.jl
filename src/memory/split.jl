@@ -222,7 +222,7 @@ function reclaim!(blocks, sz)
         for block in candidates
             delete!(blocks, block)
             freed += sizeof(block)
-            actual_free(block)
+            @pool_timeit "free" actual_free(block)
         end
     end
 
