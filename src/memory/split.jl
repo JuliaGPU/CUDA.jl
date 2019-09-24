@@ -293,14 +293,11 @@ function pool_alloc(sz)
         end
 
         if !isempty(freed)
-            @pool_timeit "$phase.1 repopulate + compact" begin
-                # `freed` may be modified concurrently, so take a copy
-                blocks = copy(freed)
-                empty!(freed)
-
-                repopulate!(blocks)
-                incremental_compact!(blocks)
-            end
+            # `freed` may be modified concurrently, so take a copy
+            blocks = copy(freed)
+            empty!(freed)
+            @pool_timeit "$phase.1a repopulate" repopulate!(blocks)
+            @pool_timeit "$phase.1b compact" incremental_compact!(blocks)
         end
 
         @pool_timeit "$phase.2 scan" begin
