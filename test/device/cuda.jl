@@ -552,15 +552,38 @@ end
 
     n = 14
 
-    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple]
-        function kernel(d::CuDeviceArray{T}, n) where {T}
-            t = threadIdx().x
-            if t <= n
-                d[t] += shfl_down(d[t], n÷2)
-            end
-            return
+    function kernel1(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        if t <= n
+            d[t] += shfl_down(d[t], n÷2)
         end
+        return
+    end
 
+    function kernel2(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        if t <= n
+            d[t] += shfl_down(d[t], n÷2, 32, 0xffffffff)
+        end
+        return
+    end
+
+    function kernel3(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        if t <= n
+            d[t] += shfl_down_sync(0xffffffff, d[t], n÷2, 32)
+        end
+        return
+    end
+
+    kernels = try
+        getfield(CUDAnative, :shfl_sync)
+        (kernel1, kernel2, kernel3)
+    catch
+        (kernel1,)
+    end
+
+    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple], kernel in kernels
         a = T[T(i) for i in 1:n]
         d_a = CuArray(a)
 

@@ -12,7 +12,7 @@ const ws = Int32(32)
 
 # "two packed values specifying a mask for logically splitting warps into sub-segments
 # and an upper bound for clamping the source lane index"
-@inline pack(width::UInt32, mask::UInt32)::UInt32 = (convert(UInt32, ws - width) << 8) | mask
+@inline pack(width, mask) = (convert(UInt32, ws - width) << 8) | convert(UInt32, mask)
 
 # NOTE: CUDA C disagrees with PTX on how shuffles are called
 for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
@@ -28,35 +28,32 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
         intrinsic = "llvm.nvvm.shfl.sync.$mode.i32"
 
         fname_sync = Symbol("$(fname)_sync")
+        __fname_sync = Symbol("__$(fname)_sync")
         @eval begin
             export $fname_sync
 
-            @inline $fname_sync(mask::UInt32, val::UInt32, src::UInt32, width::UInt32=$ws) =
+            # HACK: recurse_value_invocation and friends split the first argument of a call,
+            #       so swap mask and val for these tools to works.
+            @inline $fname_sync(mask, val, src, width=$ws) =
+                $__fname_sync(val, mask, src, width)
+            @inline $__fname_sync(val::UInt32, mask, src, width) =
                 ccall($intrinsic, llvmcall, UInt32,
                       (UInt32, UInt32, UInt32, UInt32),
                       mask, val, $(offset(:src)), pack(width, $mask))
 
-            # FIXME: replace this with a checked conversion once we have exceptions
-            @inline $fname_sync(mask::UInt32, val::UInt32, src::Integer, width::Integer=$ws) =
-                $fname_sync(mask, val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, width))
-
             # for backwards compatibility, have the non-synchronizing intrinsic dispatch
             # to the synchronizing one (with a full-lane default value for the mask)
-            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws, mask::UInt32=0xffffffff) =
+            @inline $fname(val::UInt32, src, width=$ws, mask::UInt32=0xffffffff) =
                 $fname_sync(mask, val, src, width)
         end
     else
         intrinsic = "llvm.nvvm.shfl.$mode.i32"
 
         @eval begin
-            @inline $fname(val::UInt32, src::UInt32, width::UInt32=$ws) =
+            @inline $fname(val::UInt32, src, width=$ws) =
                 ccall($intrinsic, llvmcall, UInt32,
                       (UInt32, UInt32, UInt32),
                       val, $(offset(:src)), pack(width, $mask))
-
-            # FIXME: replace this with a checked conversion once we have exceptions
-            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
-                $fname(val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, width))
         end
     end
 end
@@ -68,8 +65,8 @@ for name in ["_up", "_down", "_xor", ""]
     fname = Symbol("shfl$name")
     @eval @inline $fname(src, args...) = recurse_value_invocation($fname, src, args...)
 
-    fname_sync = Symbol("$(fname)_sync")
-    @eval @inline $fname_sync(src, args...) = recurse_value_invocation($fname, src, args...)
+    fname_sync = Symbol("__$(fname)_sync")
+    @eval @inline $fname_sync(src, args...) = recurse_value_invocation($fname_sync, src, args...)
 end
 
 
