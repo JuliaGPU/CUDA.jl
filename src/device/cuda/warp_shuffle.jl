@@ -22,38 +22,37 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
                            ("_xor",  :bfly, UInt32(0x1f)),
                            ("",      :idx,  UInt32(0x1f)))
     fname = Symbol("shfl$name")
+    @eval export $fname
 
     if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
-        instruction = Symbol("shfl.sync.$mode.b32")
+        # newer hardware/CUDA versions use synchronizing intrinsics, which take an extra
+        # mask argument indicating which threads in the lane should be synchronized
+        intrinsic = "llvm.nvvm.shfl.sync.$mode.i32"
+
         fname_sync = Symbol("$(fname)_sync")
-
-        # TODO: implement using LLVM intrinsics when we have D38090
-
         @eval begin
-            export $fname_sync, $fname
+            export $fname_sync
 
-            @inline $fname_sync(val::UInt32, src::UInt32, width::UInt32=$ws,
-                                threadmask::UInt32=0xffffffff) =
-                @asmcall($"$instruction \$0, \$1, \$2, \$3, \$4;", "=r,r,r,r,r", true,
-                         UInt32, NTuple{4,UInt32},
-                         val, src, pack(width, $mask), threadmask)
+            @inline $fname_sync(mask::UInt32, val::UInt32, src::UInt32, width::UInt32=$ws) =
+                ccall($intrinsic, llvmcall, UInt32,
+                      (UInt32, UInt32, UInt32, UInt32),
+                      mask, val, src, pack(width, $mask))
 
             # FIXME: replace this with a checked conversion once we have exceptions
-            @inline $fname_sync(val::UInt32, src::Integer, width::Integer=$ws,
-                                threadmask::UInt32=0xffffffff) =
-                $fname_sync(val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, width),
-                            threadmask)
+            @inline $fname_sync(mask::UInt32, val::UInt32, src::Integer, width::Integer=$ws) =
+                $fname_sync(mask, val, unsafe_trunc(UInt32, src), unsafe_trunc(UInt32, width))
 
-            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
-                $fname_sync(val, src, width)
+            # for backwards compatibility, have the non-synchronizing intrinsic dispatch
+            # to the synchronizing one (with a full-lane default value for the mask)
+            @inline $fname(val::UInt32, src::Integer, width::Integer=$ws, mask::UInt32=0xffffffff) =
+                $fname_sync(mask, val, src, width)
         end
     else
-        intrinsic = Symbol("llvm.nvvm.shfl.$mode.i32")
+        intrinsic = "llvm.nvvm.shfl.$mode.i32"
 
         @eval begin
-            export $fname
             @inline $fname(val::UInt32, src::UInt32, width::UInt32=$ws) =
-                ccall($"$intrinsic", llvmcall, UInt32,
+                ccall($intrinsic, llvmcall, UInt32,
                       (UInt32, UInt32, UInt32),
                       val, src, pack(width, $mask))
 
@@ -79,54 +78,62 @@ end
 # documentation
 
 @doc """
-    shfl(val, lane::Integer, width::Integer=32)
+    shfl(val, lane::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
-Shuffle a value from a directly indexed lane `lane`.
+Shuffle a value from a directly indexed lane `lane`. The argument `threadmask` for selecting
+which threads to synchronize is only available on recent hardware, and defaults to all
+threads in the warp.
 """ shfl
 
 @doc """
-    shfl_up(val, delta::Integer, width::Integer=32)
+    shfl_up(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
-Shuffle a value from a lane with lower ID relative to caller.
+Shuffle a value from a lane with lower ID relative to caller. The argument `threadmask` for
+selecting which threads to synchronize is only available on recent hardware, and defaults to
+all threads in the warp.
 """ shfl_up
 
 @doc """
-    shfl_down(val, delta::Integer, width::Integer=32)
+    shfl_down(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
-Shuffle a value from a lane with higher ID relative to caller.
+Shuffle a value from a lane with higher ID relative to caller. The argument `threadmask` for
+selecting which threads to synchronize is only available on recent hardware, and defaults to
+all threads in the warp.
 """ shfl_down
 
 @doc """
-    shfl_xor(val, mask::Integer, width::Integer=32)
+    shfl_xor(val, lanemask::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
 
-Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`.
+Shuffle a value from a lane based on bitwise XOR of own lane ID with `lanemask`. The
+argument `threadmask` for selecting which threads to synchronize is only available on recent
+hardware, and defaults to all threads in the warp.
 """ shfl_xor
 
 
 @doc """
-    shfl_sync(val, lane::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+    shfl_sync(threadmask::UInt32, val, lane::Integer, width::Integer=32)
 
-Shuffle a value from a directly indexed lane `lane`. The default value for `threadmask`
-performs the shuffle on all threads in the warp.
+Shuffle a value from a directly indexed lane `lane`, and synchronize threads according to
+`threadmask`.
 """ shfl_sync
 
 @doc """
-    shfl_up_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+    shfl_up_sync(threadmask::UInt32, val, delta::Integer, width::Integer=32)
 
-Shuffle a value from a lane with lower ID relative to caller. The default value for
-`threadmask` performs the shuffle on all threads in the warp.
+Shuffle a value from a lane with lower ID relative to caller, and synchronize threads
+according to `threadmask`.
 """ shfl_up_sync
 
 @doc """
-    shfl_down_sync(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+    shfl_down_sync(threadmask::UInt32, val, delta::Integer, width::Integer=32)
 
-Shuffle a value from a lane with higher ID relative to caller. The default value for
-`threadmask` performs the shuffle on all threads in the warp.
+Shuffle a value from a lane with higher ID relative to caller, and synchronize threads
+according to `threadmask`.
 """ shfl_down_sync
 
 @doc """
-    shfl_xor_sync(val, mask::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
+    shfl_xor_sync(threadmask::UInt32, val, mask::Integer, width::Integer=32)
 
-Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`. The default
-value for `threadmask` performs the shuffle on all threads in the warp.
+Shuffle a value from a lane based on bitwise XOR of own lane ID with `mask`, and synchronize
+threads according to `threadmask`.
 """ shfl_xor_sync
