@@ -16,8 +16,8 @@ cpu_val = reduce(+, input)
 
 # CUDAnative
 let
-    gpu_input = CuTestArray(input)
-    gpu_output = CuTestArray(output)
+    gpu_input = CuArray(input)
+    gpu_output = CuArray(output)
     gpu_reduce(+, gpu_input, gpu_output)
     gpu_val = Array(gpu_output)[1]
     @assert cpu_val == gpu_val

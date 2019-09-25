@@ -1,5 +1,7 @@
 using CUDAdrv, CUDAnative
-include(joinpath(@__DIR__, "..", "test", "array.jl"))   # real applications: use CuArrays.jl
+
+include(joinpath(@__DIR__, "..", "test", "array.jl"))
+const CuArray = CuTestArray    # real applications: use CuArrays.jl
 
 using Test
 
@@ -30,10 +32,10 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
     c = round.(rand(Float32, dims) * 100)
     out = similar(a)
 
-    d_a = CuTestArray(a)
-    d_b = CuTestArray(b)
-    d_c = CuTestArray(c)
-    d_out = CuTestArray(out)
+    d_a = CuArray(a)
+    d_b = CuArray(b)
+    d_c = CuArray(c)
+    d_out = CuArray(out)
 
     len = prod(dims)
     threads = min(len, 1024)
