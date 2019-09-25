@@ -1,7 +1,6 @@
 coverage:
   ignore:
-    - "deps/*"
-    - "src/device/*"
+    - "src/device"
   status:
     patch: false
     project: false
