@@ -75,13 +75,13 @@ Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,
 @inline function Base.getindex(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = Base.datatype_alignment(T)
-    Base.unsafe_load(pointer(A), index, Val(align))::T
+    unsafe_load(pointer(A), index, Val(align))::T
 end
 
 @inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
     align = Base.datatype_alignment(T)
-    Base.unsafe_store!(pointer(A), x, index, Val(align))
+    unsafe_store!(pointer(A), x, index, Val(align))
     return A
 end
 
