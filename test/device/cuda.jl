@@ -230,8 +230,12 @@ end
     _, out = @grab_output @on_device @cuprint(4, 2)
     @test out == "42"
 
+    # bug: @cuprintln failed to invokce @cuprint with endline in the case of interpolation
+    _, out = @grab_output @on_device @cuprintln("foobar $(42)")
+    @test out == "foobar 42\n"
 
-    # arugment types
+
+    # argument types
 
     # we're testing the generated functions now, so can't use literals
     function test_output(val, str)
