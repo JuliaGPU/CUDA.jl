@@ -122,7 +122,7 @@ end
 
 # ccall wrapper for calling functions in NVIDIA libraries
 const apicall_hook = Ref{Union{Nothing,Function}}(nothing)
-macro apicall(funspec, argtypes, args...)
+macro apicall_nothrow(funspec, argtypes, args...)
     isa(funspec, QuoteNode) || error("first argument to @apicall should be a symbol")
     fun = funspec.value
 
@@ -133,15 +133,19 @@ macro apicall(funspec, argtypes, args...)
         return :(throw(CuVersionError($(QuoteNode(fun)), $(minreq[fun]))))
     end
 
-    return quote
+    quote
         # NOTE: this hook is used by CUDAnative.jl to initialize upon the first API call
         apicall_hook[] !== nothing && apicall_hook[]($funspec)
 
-        status = ccall(($(QuoteNode(api_fun)), libcuda), CuError_t,
-                       $(esc(argtypes)), $(map(esc, args)...))
+        CuError(ccall(($(QuoteNode(api_fun)), libcuda), CuError_t,
+                      $(esc(argtypes)), $(map(esc, args)...)))
+    end
+end
+macro apicall(funspec, argtypes, args...)
+    quote
+        err = @apicall_nothrow($funspec, $(esc(argtypes)), $(map(esc, args)...))
 
-        if status != SUCCESS.code
-            err = CuError(status)
+        if err != SUCCESS
             throw(err)
         end
     end

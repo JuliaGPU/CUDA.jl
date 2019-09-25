@@ -32,14 +32,14 @@ mutable struct CuModule
         end
         optionKeys, optionVals = encode(options)
 
-        try
-            @apicall(:cuModuleLoadDataEx,
-                     (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-                     handle_ref, data, length(optionKeys), optionKeys, optionVals)
-        catch err
-            (err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX) || rethrow(err)
+        err = @apicall_nothrow(:cuModuleLoadDataEx,
+                               (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+                               handle_ref, data, length(optionKeys), optionKeys, optionVals)
+        if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX
             options = decode(optionKeys, optionVals)
-            rethrow(CuError(err.code, options[ERROR_LOG_BUFFER]))
+            throw(CuError(err.code, options[ERROR_LOG_BUFFER]))
+        elseif err != SUCCESS
+            throw(err)
         end
 
         @debug begin
