@@ -5,6 +5,7 @@ import LLVM
 
 include("util.jl")
 include("array.jl")
+const CuArray = CuTestArray
 
 @testset "CUDAnative" begin
 

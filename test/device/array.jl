@@ -61,8 +61,8 @@ end
 
     input = round.(rand(Float32, dims) * 100)
 
-    input_dev = CuTestArray(input)
-    output_dev = CuTestArray(input)
+    input_dev = CuArray(input)
+    output_dev = CuArray(input)
 
     @cuda threads=len kernel(input_dev, output_dev)
     output = Array(output_dev)
@@ -82,8 +82,8 @@ end
 
     input = round.(rand(Float32, dims) * 100)
 
-    input_dev = CuTestArray(input)
-    output_dev = CuTestArray(Float32[0])
+    input_dev = CuArray(input)
+    output_dev = CuArray(Float32[0])
 
     @cuda kernel(input_dev, output_dev)
     output = Array(output_dev)
@@ -118,7 +118,7 @@ end
     end
 
     array = zeros(Int64, 100)
-    array_dev = CuTestArray(array)
+    array_dev = CuArray(array)
 
     sub = view(array, 2:length(array)-1)
     for i in 1:length(sub)
@@ -149,8 +149,8 @@ end
 
     buf = IOBuffer()
 
-    a = CuTestArray([0])
-    b = CuTestArray([0])
+    a = CuArray([0])
+    b = CuArray([0])
     @device_code_ptx io=buf @cuda kernel(a, b, 1)
     @test Array(a) == Array(b)
 

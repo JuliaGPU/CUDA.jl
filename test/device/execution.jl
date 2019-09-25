@@ -167,8 +167,8 @@ len = prod(dims)
     input = round.(rand(Float32, dims) * 100)
     output = similar(input)
 
-    input_dev = CuTestArray(input)
-    output_dev = CuTestArray(output)
+    input_dev = CuArray(input)
+    output_dev = CuArray(output)
 
     @cuda threads=len kernel(convert(CuPtr{Float32}, input_dev.buf),
                              convert(CuPtr{Float32}, output_dev.buf))
@@ -190,8 +190,8 @@ end
     arr = round.(rand(Float32, dims) * 100)
     val = [0f0]
 
-    arr_dev = CuTestArray(arr)
-    val_dev = CuTestArray(val)
+    arr_dev = CuArray(arr)
+    val_dev = CuArray(val)
 
     @cuda threads=len kernel(convert(CuPtr{Float32}, arr_dev.buf),
                              convert(CuPtr{Float32}, val_dev.buf))
@@ -216,8 +216,8 @@ end
     arr = round.(rand(Float32, dims) * 100)
     val = [0f0]
 
-    arr_dev = CuTestArray(arr)
-    val_dev = CuTestArray(val)
+    arr_dev = CuArray(arr)
+    val_dev = CuArray(val)
 
     @cuda threads=len parent(convert(CuPtr{Float32}, arr_dev.buf),
                              convert(CuPtr{Float32}, val_dev.buf))
@@ -238,7 +238,7 @@ end
     end
 
     keeps = (true,)
-    d_out = CuTestArray(zeros(Int))
+    d_out = CuArray(zeros(Int))
 
     @cuda kernel(keeps, convert(CuPtr{Int}, d_out.buf))
     @test Array(d_out)[] == 1
@@ -253,9 +253,9 @@ end
     b = rand(Float32, len)
     c = similar(a)
 
-    d_a = CuTestArray(a)
-    d_b = CuTestArray(b)
-    d_c = CuTestArray(c)
+    d_a = CuArray(a)
+    d_b = CuArray(b)
+    d_c = CuArray(c)
 
     @eval struct ExecGhost end
 
@@ -292,7 +292,7 @@ end
         return
     end
 
-    arr = CuTestArray(zeros(Float32))
+    arr = CuArray(zeros(Float32))
     x = ComplexF32(2,2)
 
     @cuda kernel(convert(CuPtr{Float32}, arr.buf), x)
@@ -301,7 +301,7 @@ end
 
 
 @testset "automatic recompilation" begin
-    arr = CuTestArray(zeros(Int))
+    arr = CuArray(zeros(Int))
 
     function kernel(ptr)
         unsafe_store!(ptr, 1)
@@ -343,7 +343,7 @@ end
     end
 
     out = [0]
-    out_dev = CuTestArray(out)
+    out_dev = CuArray(out)
     out_ptr = convert(CuPtr{eltype(out)}, out_dev.buf)
 
     @cuda kernel(out_ptr, 1, 2)
@@ -376,7 +376,7 @@ end
     end
 
     a = [1.]
-    a_dev = CuTestArray(a)
+    a_dev = CuArray(a)
 
     outer(convert(CuPtr{Float64}, a_dev.buf), 2.)
 
@@ -394,7 +394,7 @@ end
     end
 
     a = [1.]
-    a_dev = CuTestArray(a)
+    a_dev = CuArray(a)
 
     outer(a_dev, 2.)
 
@@ -413,7 +413,7 @@ end
     out = [0]
 
     # convert arguments
-    out_dev = CuTestArray(out)
+    out_dev = CuArray(out)
     let arg = Host()
         @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
@@ -425,7 +425,7 @@ end
     end
 
     # convert tuples
-    out_dev = CuTestArray(out)
+    out_dev = CuArray(out)
     let arg = (Host(),)
         @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
@@ -437,7 +437,7 @@ end
     end
 
     # convert named tuples
-    out_dev = CuTestArray(out)
+    out_dev = CuArray(out)
     let arg = (a=Host(),)
         @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
@@ -449,7 +449,7 @@ end
     end
 
     # don't convert structs
-    out_dev = CuTestArray(out)
+    out_dev = CuArray(out)
     @eval struct Nested
         a::Host
     end
@@ -466,7 +466,7 @@ end
 
 @testset "argument count" begin
     val = [0]
-    val_dev = CuTestArray(val)
+    val_dev = CuArray(val)
     cuda_ptr = convert(CuPtr{Int}, val_dev.buf)
     ptr = CUDAnative.DevicePtr{Int}(cuda_ptr)
     for i in (1, 10, 20, 35)
@@ -509,7 +509,7 @@ end
             return
         end
 
-        arr = CuTestArray(zeros(T))
+        arr = CuArray(zeros(T))
         @cuda kernel(convert(CuPtr{T}, arr.buf))
 
         return Array(arr)[1]
@@ -624,7 +624,7 @@ end
     input = rand(Cint(1):Cint(100))
     N = 2
 
-    let output = CuTestArray(zeros(Cint, N))
+    let output = CuArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
         ptr = convert(CuPtr{eltype(input)}, output.buf)
@@ -632,7 +632,7 @@ end
         @test Array(output) == fill(input, N)
     end
 
-    let output = CuTestArray(zeros(Cint, N))
+    let output = CuArray(zeros(Cint, N))
         ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
         @test Array(output) == fill(input, N)
@@ -664,7 +664,7 @@ end
     input = rand(Cint(1):Cint(100))
     N = 2
 
-    let output = CuTestArray(zeros(Cint, N))
+    let output = CuArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
         ptr = convert(CuPtr{eltype(input)}, output.buf)
@@ -672,7 +672,7 @@ end
         @test Array(output) == fill(input, N)
     end
 
-    let output = CuTestArray(zeros(Cint, N))
+    let output = CuArray(zeros(Cint, N))
         ptr = convert(CuPtr{eltype(input)}, output.buf)
         @cuda threads=N kernel(input, ptr, true)
         @test Array(output) == fill(input, N)
@@ -680,12 +680,12 @@ end
 end
 
 @testset "mapreduce (full)" begin
-    function mapreduce_gpu(f::Function, op::Function, A::CuTestArray{T, N}; dims = :, init...) where {T, N}
+    function mapreduce_gpu(f::Function, op::Function, A::CuArray{T, N}; dims = :, init...) where {T, N}
         OT = Float32
         v0 =  0.0f0
 
         threads = 256
-        out = CuTestArray{OT,1}((1,))
+        out = CuArray{OT,1}((1,))
         @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
@@ -726,18 +726,18 @@ end
     end
 
     A = rand(Float32, 1000)
-    dA = CuTestArray(A)
+    dA = CuArray(A)
 
     @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
 end
 
 @testset "mapreduce (full, complex)" begin
-    function mapreduce_gpu(f::Function, op::Function, A::CuTestArray{T, N}; dims = :, init...) where {T, N}
+    function mapreduce_gpu(f::Function, op::Function, A::CuArray{T, N}; dims = :, init...) where {T, N}
         OT = Complex{Float32}
         v0 =  0.0f0+0im
 
         threads = 256
-        out = CuTestArray{OT,1}((1,))
+        out = CuArray{OT,1}((1,))
         @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
@@ -778,17 +778,17 @@ end
     end
 
     A = rand(Complex{Float32}, 1000)
-    dA = CuTestArray(A)
+    dA = CuArray(A)
 
     @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
 end
 
 @testset "mapreduce (reduced)" begin
-    function mapreduce_gpu(f::Function, op::Function, A::CuTestArray{T, N}) where {T, N}
+    function mapreduce_gpu(f::Function, op::Function, A::CuArray{T, N}) where {T, N}
         OT = Int
         v0 = 0
 
-        out = CuTestArray{OT,1}((1,))
+        out = CuArray{OT,1}((1,))
         @cuda threads=64 reduce_kernel(f, op, v0, A, out)
         Array(out)[1]
     end
@@ -828,7 +828,7 @@ end
     end
 
     A = rand(1:10, 100)
-    dA = CuTestArray(A)
+    dA = CuArray(A)
 
     @test mapreduce(identity, +, A) ≈ mapreduce_gpu(identity, +, dA)
 end
@@ -922,7 +922,7 @@ end
         return
     end
 
-    dA = CuTestArray{Int,1}((1,))
+    dA = CuArray{Int,1}((1,))
     @cuda kernel(dA)
     A = Array(dA)
     @test A == [3]
@@ -996,9 +996,9 @@ if capability(dev) >= v"6.0"
     a = round.(rand(Float32, (300, 40)) * 100)
     b = round.(rand(Float32, (300, 40)) * 100)
     c = zeros(Float32, (300, 40))
-    d_a = CuTestArray(a)
-    d_b = CuTestArray(b)
-    d_c = CuTestArray(c)  # output array
+    d_a = CuArray(a)
+    d_b = CuArray(b)
+    d_c = CuArray(c)  # output array
     @cuda cooperative=true threads=600 blocks=20 kernel_vadd(d_a, d_b, d_c)
     c = Array(d_c)
     @test all(c[1] .== c)
