@@ -213,8 +213,7 @@ function incremental_compact!(_blocks)
     return compacted
 end
 
-# TODO: partial reclaim on ordered list?
-function reclaim!(blocks, sz)
+function reclaim!(blocks, sz=typemax(Int))
     freed = 0
     candidates = Block[]
 
@@ -230,7 +229,8 @@ function reclaim!(blocks, sz)
         for block in candidates
             delete!(blocks, block)
             freed += sizeof(block)
-            @pool_timeit "free" actual_free(block)
+            actual_free(block)
+            freed >= sz && break
         end
     end
 
@@ -327,6 +327,14 @@ function pool_alloc(sz)
             block === nothing || break
         end
         block === nothing || break
+
+        # last-ditch effort, reclaim everything
+        @pool_timeit "$phase.5a reclaim" begin
+            reclaim!(available_huge)
+            reclaim!(available_large)
+            reclaim!(available_small)
+        end
+        @pool_timeit "$phase.5b alloc" block = actual_alloc(sz)
     end
 
     if block !== nothing
