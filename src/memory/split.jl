@@ -2,7 +2,7 @@ module SplittingPool
 
 # scan into a sorted list of free buffers, splitting buffers along the way
 
-import ..@pool_timeit, ..actual_alloc, ..actual_free
+import ..CuArrays, ..@pool_timeit
 
 import Base.@lock
 
@@ -113,12 +113,17 @@ function merge!(head, blocks...)
     return head
 end
 
+@inline function actual_alloc(sz)
+    @pool_timeit "alloc" buf = CuArrays.actual_alloc(sz)
+    block = buf === nothing ? nothing : Block(buf)
+end
+
 function actual_free(block::Block)
     @assert iswhole(block) "Cannot free a split block"
     if block.state != AVAILABLE
         error("Cannot free a $(block.state) block")
     else
-        actual_free(block.buf)
+        @pool_timeit "free" CuArrays.actual_free(block.buf)
         block.state = INVALID
     end
     return
@@ -309,8 +314,7 @@ function pool_alloc(sz)
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            buf = actual_alloc(sz)
-            block = buf === nothing ? nothing : Block(buf)
+            block = actual_alloc(sz)
         end
         block === nothing || break
 
@@ -319,8 +323,7 @@ function pool_alloc(sz)
         # without requiring many calls to free.
         for available in (available_huge, available_large, available_small)
             @pool_timeit "$phase.4a reclaim" reclaim!(available, sz)
-            @pool_timeit "$phase.4b alloc" buf = actual_alloc(sz)
-            block = buf === nothing ? nothing : Block(buf)
+            @pool_timeit "$phase.4b alloc" block = actual_alloc(sz)
             block === nothing || break
         end
         block === nothing || break
