@@ -206,8 +206,7 @@ end
 
 @doc (@doc @cuprint) ->
 macro cuprintln(parts...)
-    parts = map(part -> isa(part, Expr) || isa(part, Symbol) ? esc(part) : part, parts)
-    quote
-        @cuprint($(parts...), "\n")
-    end
+    esc(quote
+        CUDAnative.@cuprint($(parts...), "\n")
+    end)
 end
