@@ -96,7 +96,7 @@ end
 
 # split a block at size `sz`, returning the newly created block
 function split!(block, sz)
-    @assert sz < block.sz
+    @assert sz < block.sz "Cannot split a $block at too-large offset $sz"
     split = Block(block.buf; sz = sizeof(block) - sz, off = block.off + sz)
     block.sz = sz
 
@@ -114,7 +114,7 @@ end
 # merge a sequence of blocks `blocks`
 function merge!(head, blocks...)
     for block in blocks
-        @assert head.next === block
+        @assert head.next === block "Cannot merge $block with unrelated $head"
         head.sz += block.sz
 
         # update links
@@ -134,9 +134,9 @@ end
 end
 
 function actual_free(block::Block)
-    @assert iswhole(block) "Cannot free a split block"
+    @assert iswhole(block) "Cannot free $block: block is not whole"
     if block.state != AVAILABLE
-        error("Cannot free a $(block.state) block")
+        error("Cannot free $block: block is not available")
     else
         @pool_timeit "free" CuArrays.actual_free(block.buf)
         block.state = INVALID
@@ -207,7 +207,7 @@ function incremental_compact!(_blocks)
             let block = head
                 while block.next !== nothing && block.next.state == AVAILABLE
                     block = block.next
-                    @assert block in available
+                    @assert block in available "$block is marked available but not in in a pool"
                     push!(chain, block)
                 end
             end
@@ -219,7 +219,8 @@ function incremental_compact!(_blocks)
                     delete!(blocks, block)
                 end
                 block = merge!(chain...)
-                @assert !in(block, available) "Collision in the available memory pool"
+                @assert !in(block, available) "$block should not be in the pool"
+                @assert block.state == AVAILABLE
                 push!(available, block)
                 compacted += length(chain) - 1
             end
@@ -257,8 +258,8 @@ function repopulate!(blocks)
         for block in blocks
             szclass = size_class(sizeof(block))
             available = (available_small, available_large, available_huge)[szclass]
-            @assert !in(block, available) "Collision in the available memory pool"
-            @assert block.state == FREED
+            @assert !in(block, available) "$block should not be in the pool"
+            @assert block.state == FREED "$block should have been marked freed"
             block.state = AVAILABLE
             push!(available, block)
         end
@@ -365,8 +366,6 @@ function pool_alloc(sz)
             split.state = AVAILABLE
             push!(available, split)
         end
-
-        block.state = ALLOCATED
     end
 
     return block
@@ -375,7 +374,6 @@ end
 function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (and prevent concurrent access during GC interventions)
-    block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     block.state = FREED
     push!(freed, block)
 end
@@ -406,7 +404,8 @@ function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
         buf = convert(Mem.Buffer, block)
-        @assert !haskey(allocated, buf)
+        @assert !haskey(allocated, buf) "Newly-allocated block $block is already allocated"
+        block.state = ALLOCATED
         allocated[buf] = block
         return buf
     else
@@ -416,6 +415,7 @@ end
 
 function free(buf)
     block = allocated[buf]
+    block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     delete!(allocated, buf)
     pool_free(block)
     return
