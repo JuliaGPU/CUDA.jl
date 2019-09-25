@@ -2,8 +2,6 @@
 
 # TODO: does not work on sub-word (ie. Int16) or non-word divisible sized types
 
-# TODO: should shfl_idx conform to 1-based indexing?
-
 # TODO: these functions should dispatch based on the actual warp size
 const ws = Int32(32)
 
@@ -17,10 +15,10 @@ const ws = Int32(32)
 @inline pack(width::UInt32, mask::UInt32)::UInt32 = (convert(UInt32, ws - width) << 8) | mask
 
 # NOTE: CUDA C disagrees with PTX on how shuffles are called
-for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
-                           ("_down", :down, UInt32(0x1f)),
-                           ("_xor",  :bfly, UInt32(0x1f)),
-                           ("",      :idx,  UInt32(0x1f)))
+for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
+                                   ("_down", :down, UInt32(0x1f), src->src),
+                                   ("_xor",  :bfly, UInt32(0x1f), src->src),
+                                   ("",      :idx,  UInt32(0x1f), src->:($src-1)))
     fname = Symbol("shfl$name")
     @eval export $fname
 
@@ -36,7 +34,7 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
             @inline $fname_sync(mask::UInt32, val::UInt32, src::UInt32, width::UInt32=$ws) =
                 ccall($intrinsic, llvmcall, UInt32,
                       (UInt32, UInt32, UInt32, UInt32),
-                      mask, val, src, pack(width, $mask))
+                      mask, val, $(offset(:src)), pack(width, $mask))
 
             # FIXME: replace this with a checked conversion once we have exceptions
             @inline $fname_sync(mask::UInt32, val::UInt32, src::Integer, width::Integer=$ws) =
@@ -54,7 +52,7 @@ for (name, mode, mask) in (("_up",   :up,   UInt32(0x00)),
             @inline $fname(val::UInt32, src::UInt32, width::UInt32=$ws) =
                 ccall($intrinsic, llvmcall, UInt32,
                       (UInt32, UInt32, UInt32),
-                      val, src, pack(width, $mask))
+                      val, $(offset(:src)), pack(width, $mask))
 
             # FIXME: replace this with a checked conversion once we have exceptions
             @inline $fname(val::UInt32, src::Integer, width::Integer=$ws) =
