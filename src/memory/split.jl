@@ -2,11 +2,28 @@ module SplittingPool
 
 # scan into a sorted list of free buffers, splitting buffers along the way
 
-import ..@pool_timeit, ..actual_alloc, ..actual_free
+import ..CuArrays, ..@pool_timeit
 
 using DataStructures
 
 using CUDAdrv
+
+# use a macro-version of Base.lock to avoid closures
+if VERSION >= v"1.3.0-DEV.555"
+    import Base.@lock
+else
+    macro lock(l, expr)
+        quote
+            temp = $(esc(l))
+            lock(temp)
+            try
+                $(esc(expr))
+            finally
+                unlock(temp)
+            end
+        end
+    end
+end
 
 
 ## tunables
@@ -32,6 +49,7 @@ const HUGE_OVERHEAD  = 0
 using Printf
 
 @enum BlockState begin
+    INVALID
     AVAILABLE
     ALLOCATED
     FREED
@@ -39,11 +57,11 @@ end
 
 const block_id = Ref(UInt(0))
 
-# TODO: it would be nice if this could be immutable, since that's what OrderedSet requires
+# TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
-    buf::Mem.Buffer     # base allocation
-    sz::Integer         # size into it
-    off::Integer        # offset into it
+    buf::Union{Nothing,Mem.Buffer}  # base allocation
+    sz::Int                         # size into it
+    off::Int                        # offset into it
 
     state::BlockState
     prev::Union{Nothing,Block}
@@ -51,8 +69,9 @@ mutable struct Block
 
     id::UInt
 
-    Block(buf, sz=sizeof(buf), off=0, state=AVAILABLE, prev=nothing, next=nothing) =
-        new(buf, sz, off, state, prev, next, block_id[]+=1)
+    Block(buf; sz=sizeof(buf), off=0, state=INVALID,
+          prev=nothing, next=nothing, id=block_id[]+=1) =
+        new(buf, sz, off, state, prev, next, id)
 end
 
 Base.sizeof(block::Block) = block.sz
@@ -77,8 +96,8 @@ end
 
 # split a block at size `sz`, returning the newly created block
 function split!(block, sz)
-    @assert sz < block.sz
-    split = Block(block.buf, sizeof(block) - sz, block.off + sz)
+    @assert sz < block.sz "Cannot split a $block at too-large offset $sz"
+    split = Block(block.buf; sz = sizeof(block) - sz, off = block.off + sz)
     block.sz = sz
 
     # update links
@@ -95,7 +114,7 @@ end
 # merge a sequence of blocks `blocks`
 function merge!(head, blocks...)
     for block in blocks
-        @assert head.next === block
+        @assert head.next === block "Cannot merge $block with unrelated $head"
         head.sz += block.sz
 
         # update links
@@ -109,15 +128,18 @@ function merge!(head, blocks...)
     return head
 end
 
+@inline function actual_alloc(sz)
+    @pool_timeit "alloc" buf = CuArrays.actual_alloc(sz)
+    block = buf === nothing ? nothing : Block(buf)
+end
+
 function actual_free(block::Block)
-    @assert iswhole(block) "Cannot free a split block"
-    if block.state == ALLOCATED
-        error("Cannot free an allocated block")
-    elseif block.state == FREED
-        error("Double-free")
+    @assert iswhole(block) "Cannot free $block: block is not whole"
+    if block.state != AVAILABLE
+        error("Cannot free $block: block is not available")
     else
-        actual_free(block.buf)
-        block.state = FREED
+        @pool_timeit "free" CuArrays.actual_free(block.buf)
+        block.state = INVALID
     end
     return
 end
@@ -130,23 +152,45 @@ const pool_lock = SpinLock()   # protect against deletion from freelists
 
 function scan!(blocks, sz, max_overhead=typemax(Int))
     max_sz = max(sz + max_overhead, max_overhead)   # protect against overflow
-    lock(pool_lock) do
-        for block in blocks
-            if sz <= sizeof(block) <= max_sz
-                delete!(blocks, block)
+    @lock pool_lock begin
+        # semantically, the following code iterates and selects a block:
+        #   for block in blocks
+        #   if sz <= sizeof(block) <= max_sz
+        #       delete!(blocks, block)
+        #       return block
+        #   end
+        #   return nothing
+        # but since we know the sorted set is backed by a balanced tree, we can do better
+
+        # get the entry right before first sufficiently large one
+        lower_bound = Block(nothing; sz=sz, id=0)
+        i, exact = findkey(blocks.bt, lower_bound)
+        @assert !exact  # block id bits are zero, so this match can't be exact
+
+        if i == DataStructures.endloc(blocks.bt)
+            # last entry, none is following
+            return nothing
+        else
+            # a valid entry, make sure it isn't too large
+            i = DataStructures.nextloc0(blocks.bt, i)
+            block = blocks.bt.data[i].k
+            @assert sz <= sizeof(block)
+            if sz > max_sz
+                return nothing
+            else
+                delete!(blocks.bt, i)
                 return block
             end
         end
-        return nothing
     end
 end
 
-function incremental_compact!(blocks)
+function incremental_compact!(_blocks)
     # we mutate the list of blocks, so take a copy
-    blocks = Set(blocks)
+    blocks = Set(_blocks)
 
     compacted = 0
-    lock(pool_lock) do
+    @lock pool_lock begin
         while !isempty(blocks)
             block = pop!(blocks)
             szclass = size_class(sizeof(block))
@@ -159,11 +203,11 @@ function incremental_compact!(blocks)
             end
 
             # construct a chain of unallocated blocks
-            chain = [head]
+            chain = Block[head]
             let block = head
                 while block.next !== nothing && block.next.state == AVAILABLE
                     block = block.next
-                    @assert block in available
+                    @assert block in available "$block is marked available but not in in a pool"
                     push!(chain, block)
                 end
             end
@@ -175,7 +219,8 @@ function incremental_compact!(blocks)
                     delete!(blocks, block)
                 end
                 block = merge!(chain...)
-                @assert !in(block, available) "Collision in the available memory pool"
+                @assert !in(block, available) "$block should not be in the pool"
+                @assert block.state == AVAILABLE
                 push!(available, block)
                 compacted += length(chain) - 1
             end
@@ -184,11 +229,11 @@ function incremental_compact!(blocks)
     return compacted
 end
 
-# TODO: partial reclaim on ordered list?
-function reclaim!(blocks, sz)
+function reclaim!(blocks, sz=typemax(Int))
     freed = 0
-    candidates = []
-    lock(pool_lock) do
+    candidates = Block[]
+
+    @lock pool_lock begin
         # mark non-split blocks
         for block in blocks
             if iswhole(block)
@@ -201,6 +246,7 @@ function reclaim!(blocks, sz)
             delete!(blocks, block)
             freed += sizeof(block)
             actual_free(block)
+            freed >= sz && break
         end
     end
 
@@ -208,11 +254,13 @@ function reclaim!(blocks, sz)
 end
 
 function repopulate!(blocks)
-    lock(pool_lock) do
+    @lock pool_lock begin
         for block in blocks
             szclass = size_class(sizeof(block))
             available = (available_small, available_large, available_huge)[szclass]
-            @assert !in(block, available) "Collision in the available memory pool"
+            @assert !in(block, available) "$block should not be in the pool"
+            @assert block.state == FREED "$block should have been marked freed"
+            block.state = AVAILABLE
             push!(available, block)
         end
     end
@@ -269,14 +317,11 @@ function pool_alloc(sz)
         end
 
         if !isempty(freed)
-            @pool_timeit "$phase.1 repopulate + compact" begin
-                # `freed` may be modified concurrently, so take a copy
-                pending = copy(freed)
-                empty!(freed)
-
-                repopulate!(pending)
-                incremental_compact!(pending)
-            end
+            # `freed` may be modified concurrently, so take a copy
+            blocks = copy(freed)
+            empty!(freed)
+            @pool_timeit "$phase.1a repopulate" repopulate!(blocks)
+            @pool_timeit "$phase.1b compact" incremental_compact!(blocks)
         end
 
         @pool_timeit "$phase.2 scan" begin
@@ -285,19 +330,27 @@ function pool_alloc(sz)
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            buf = actual_alloc(sz)
-            block = buf === nothing ? nothing : Block(buf)
+            block = actual_alloc(sz)
         end
         block === nothing || break
 
-        @pool_timeit "$phase.4 reclaim + alloc" begin
-            reclaim!(available_small, sz)
-            reclaim!(available_large, sz)
-            reclaim!(available_huge, sz)
-            buf = actual_alloc(sz)
-            block = buf === nothing ? nothing : Block(buf)
+        # we're out of memory, try freeing up some memory. this is a fairly expensive
+        # operation, so start with the largest pool that is likely to free up much memory
+        # without requiring many calls to free.
+        for available in (available_huge, available_large, available_small)
+            @pool_timeit "$phase.4a reclaim" reclaim!(available, sz)
+            @pool_timeit "$phase.4b alloc" block = actual_alloc(sz)
+            block === nothing || break
         end
         block === nothing || break
+
+        # last-ditch effort, reclaim everything
+        @pool_timeit "$phase.5a reclaim" begin
+            reclaim!(available_huge)
+            reclaim!(available_large)
+            reclaim!(available_small)
+        end
+        @pool_timeit "$phase.5b alloc" block = actual_alloc(sz)
     end
 
     if block !== nothing
@@ -310,17 +363,18 @@ function pool_alloc(sz)
         remainder = sizeof(block) - sz
         if szclass != HUGE && remainder > 0 && size_class(remainder) == szclass
             split = split!(block, sz)
+            split.state = AVAILABLE
             push!(available, split)
         end
-
-        block.state = ALLOCATED
     end
 
     return block
 end
 
 function pool_free(block)
-    block.state = AVAILABLE
+    # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
+    # and to simplify locking (and prevent concurrent access during GC interventions)
+    block.state = FREED
     push!(freed, block)
 end
 
@@ -332,7 +386,7 @@ init() = return
 function deinit()
     @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
 
-    repopulate!(pending)
+    repopulate!(freed)
     incremental_compact!(freed)
     empty!(freed)
 
@@ -350,7 +404,8 @@ function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
         buf = convert(Mem.Buffer, block)
-        @assert !haskey(allocated, buf)
+        @assert !haskey(allocated, buf) "Newly-allocated block $block is already allocated"
+        block.state = ALLOCATED
         allocated[buf] = block
         return buf
     else
@@ -360,6 +415,7 @@ end
 
 function free(buf)
     block = allocated[buf]
+    block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     delete!(allocated, buf)
     pool_free(block)
     return

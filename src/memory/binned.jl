@@ -255,9 +255,6 @@ end
 deinit() = error("Not implemented")
 
 function alloc(bytes)
-  # 0-byte allocations shouldn't hit the pool
-  bytes == 0 && return Mem.alloc(Mem.Device, 0)
-
   # only manage small allocations in the pool
   if bytes <= MAX_POOL
     pid = poolidx(bytes)
@@ -287,9 +284,7 @@ function alloc(bytes)
 end
 
 function free(buf)
-  # 0-byte allocations shouldn't hit the pool
   bytes = sizeof(buf)
-  bytes == 0 && return
 
   # was this a pooled buffer?
   if bytes <= MAX_POOL

@@ -99,6 +99,10 @@ const pool = Ref{Union{Nothing,Module}}(nothing)
 const requested = Dict{Mem.Buffer,Int}()
 
 @inline function alloc(sz)
+  # 0-byte allocations shouldn't hit the pool
+  sz == 0 && return actual_alloc(sz)
+
+  @assert pool[] !== nothing "Cannot allocate before CuArrays has been initialized."
   alloc_stats.pool_time += Base.@elapsed begin
     @pool_timeit "pooled alloc" buf = pool[].alloc(sz)
   end
@@ -119,6 +123,9 @@ const requested = Dict{Mem.Buffer,Int}()
 end
 
 @inline function free(buf)
+  # 0-byte allocations shouldn't hit the pool
+  sizeof(buf) == 0 && return actual_free(buf)
+
   @assert haskey(requested, buf)
   delete!(requested, buf)
 
