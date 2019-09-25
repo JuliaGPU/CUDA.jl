@@ -4,11 +4,26 @@ module SplittingPool
 
 import ..CuArrays, ..@pool_timeit
 
-import Base.@lock
-
 using DataStructures
 
 using CUDAdrv
+
+# use a macro-version of Base.lock to avoid closures
+if VERSION >= v"1.3.0-DEV.555"
+    import Base.@lock
+else
+    macro lock(l, expr)
+        quote
+            temp = $(esc(l))
+            lock(temp)
+            try
+                $(esc(expr))
+            finally
+                unlock(temp)
+            end
+        end
+    end
+end
 
 
 ## tunables
