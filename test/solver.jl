@@ -167,9 +167,9 @@ k = 1
         h_TAUQ                        = collect(d_TAUQ)
         h_TAUP                        = collect(d_TAUP)
         A,d,e,q,p                     = LAPACK.gebrd!(A)
-        #@test A ≈ h_A
+        @test A ≈ h_A
         @test d ≈ h_D
-        @test e ≈ h_E
+        @test e[min(m,n)-1] ≈ h_E[min(m,n)-1]
         @test q ≈ h_TAUQ
         @test p ≈ h_TAUP
     end
