@@ -105,13 +105,22 @@ mutable struct State
     edits::Vector{Edit}
 end
 
-# insert `@check` before each `ccall` when it returns a xxxStatus_t
+# insert `@check` before each `ccall` when it returns a checked type
+const checked_types = [
+    "cublasStatus_t",
+    "cudnnStatus_t",
+    "cufftResult",
+    "curandStatus_t",
+    "cusolverStatus_t",
+    "cusparseStatus_t",
+    "cutensorStatus_t",
+]
 function insert_check(x, state)
     if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
         # get the ccall return type
         rv = x.args[5]
 
-        if endswith(rv.val, "Status_t")
+        if rv.val in checked_types
             push!(state.edits, Edit(state.offset, "@check "))
         end
     end
