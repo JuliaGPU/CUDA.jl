@@ -74,7 +74,7 @@ end
 const _workspace = Ref{Union{Nothing,CuVector{UInt8}}}(nothing)
 
 function Workspace(bytes)
-  if _workspace === nothing || length(_workspace[]) < bytes
+  if _workspace[] === nothing || length(_workspace[]) < bytes
     _workspace[] = CuVector{UInt8}(undef, bytes)
   end
   _workspace[]
