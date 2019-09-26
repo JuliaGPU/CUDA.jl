@@ -163,11 +163,13 @@ function out_of_place(X::AbstractArray{T,N}) where {T <: Real,N}
     d_Z = pinv2 * d_Y
     Z = collect(d_Z)
     @test_maybe_broken isapprox(Z, X, rtol = MYRTOL, atol = MYATOL)
+    # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714102
 
     pinv3 = inv(pinv)
     d_W = pinv3 * d_X
     W = collect(d_W)
     @test isapprox(W, Y, rtol = MYRTOL, atol = MYATOL)
+    # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714102
 end
 
 function batched(X::AbstractArray{T,N},region) where {T <: Real,N}

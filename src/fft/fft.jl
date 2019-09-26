@@ -381,20 +381,20 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftComplex,K,false,N},
                          x::CuArray{cufftComplex,N}, y::CuArray{cufftComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2C
-    cufftExecC2C(plan, x, y, K)
+    cufftExecC2C(plan, copy(x), y, K)   # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftComplex,K,false,N},
                          x::CuArray{cufftComplex,N}, y::CuArray{cufftReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_C2R
-    cufftExecC2R(plan, x, y)
+    cufftExecC2R(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftReal,K,false,N},
                          x::CuArray{cufftReal,N}, y::CuArray{cufftComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_R2C
-    cufftExecR2C(plan, x, y)
+    cufftExecR2C(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
 end
 
 function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,true,N},
@@ -412,20 +412,20 @@ function unsafe_execute!(plan::cCuFFTPlan{cufftDoubleComplex,K,false,N},
                          x::CuArray{cufftDoubleComplex,N}, y::CuArray{cufftDoubleComplex}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2Z
-    cufftExecZ2Z(plan, x, y, K)
+    cufftExecZ2Z(plan, copy(x), y, K)   # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
 end
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleComplex,K,false,N},
                          x::CuArray{cufftDoubleComplex,N}, y::CuArray{cufftDoubleReal}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_Z2D
-    cufftExecZ2D(plan, x, y)
+    cufftExecZ2D(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
 end
 
 function unsafe_execute!(plan::rCuFFTPlan{cufftDoubleReal,K,false,N},
                          x::CuArray{cufftDoubleReal,N}, y::CuArray{cufftDoubleComplex,N}
                          ) where {K,N}
     @assert plan.xtype == CUFFT_D2Z
-    cufftExecD2Z(plan, x, y)
+    cufftExecD2Z(plan, copy(x), y)  # JuliaGPU/CuArrays.jl#345, NVIDIA/cuFFT#2714055
 end
 
 function LinearAlgebra.mul!(y::CuArray{Ty}, p::CuFFTPlan{T,K,false}, x::CuArray{T}
