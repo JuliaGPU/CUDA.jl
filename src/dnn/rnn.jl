@@ -174,3 +174,24 @@ function backwardWeights(rnn::RNNDesc{T}, x, h, y, reserve) where T
     reserve, length(reserve))
   return params(dw, rnn.input, rnn.hidden, ngates(rnn))
 end
+
+function pullback(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}) where T <: Union{Float32,Float64}
+  reserve, (y, ho) = CUDNN.forwardTrain(rnn, x, h)
+  return (y, ho), function (dy, dho)
+    h_ = CUDNN.hBatch(x, h)
+    dx, dh = CUDNN.backwardData(rnn, y, dy, dho, h_, reserve)
+    (dWi, dWh), db = CUDNN.backwardWeights(rnn, x, h_, y, reserve)
+    return (x = dx, h = dh, Wi = dWi, Wh = dWh, b = db)
+  end
+end
+
+function pullback(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}, c::CuArray{T}) where T <: Union{Float32,Float64}
+  reserve, (y, ho, co) = CUDNN.forwardTrain(rnn, x, h, c)
+  return (y, ho, co), function (dy, dho, dco)
+    h_ = CUDNN.hBatch(x, h)
+    c_ = CUDNN.hBatch(x, c)
+    dx, dh, dc = CUDNN.backwardData(rnn, y, dy, dho, dco, h_, c_, reserve)
+    (dWi, dWh), db = CUDNN.backwardWeights(rnn, x, h_, y, reserve)
+    return (x = dx, h = dh, c = dc, Wi = dWi, Wh = dWh, b = db)
+  end
+end
