@@ -212,6 +212,11 @@ synchronized right before and after executing `ex` to exclude any external effec
 """
 macro time(ex)
     quote
+        # @time might surround an application, so be sure to initialize CUDA before that
+        # FIXME: this should be done in CUDAdrv (`synchronize(ctx=CuCurrentOrNewContext()`)
+        #        but the CUDA initialization mechanics are part of CUDAnative.jl
+        CUDAnative.maybe_initialize("@time")
+
         # coarse synchronization to exclude effects from previously-executed code
         CUDAdrv.synchronize()
 
