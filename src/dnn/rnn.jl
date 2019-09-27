@@ -142,7 +142,7 @@ function backwardData(rnn::RNNDesc{T}, y, dy_, dho, dco, h, c, reserve) where T
   dx = y isa AbstractVector ? similar(dy, rnn.input) : similar(dy, rnn.input, size(dy, 2))
   dh = similar(h)
   dc = c == nothing ? nothing : similar(c)
-  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, 1, yd))
+  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, 1, xDesc(dx)))
   cudnnRNNBackwardData(handle(), rnn, 1,
     yd, y, yd, dy, hDesc(dho)..., hDesc(dco)...,
     FilterDesc(T, (1, 1, length(rnn.params))), rnn.params,
