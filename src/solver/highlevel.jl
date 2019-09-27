@@ -54,7 +54,7 @@ LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) wher
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
 
 function Base.getindex(A::CuQRPackedQ{T, S}, i::Integer, j::Integer) where {T, S}
-    x = CuArray{T}(undef, size(A, 2)) .= 0
+    x = CuArrays.zeros(T, size(A, 2))
     x[j] = 1
     lmul!(A, x)
     return _getindex(x, i)
