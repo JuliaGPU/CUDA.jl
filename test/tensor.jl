@@ -493,7 +493,8 @@ end
             dC = CUTENSOR.reduction!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
             C = collect(dC)
             @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
-                prod(permutedims(A, p); dims = ((NC+1:NA)...,))
+                prod(permutedims(A, p); dims = ((NC+1:NA)...,)) atol=eps(Float16) rtol=Base.rtoldefault(Float16)
+            # NOTE: this test often yields values close to 0 that do not compare approximately
 
             # with non-trivial coefficients and conjugation
             opA = eltyA <: Complex ? CUTENSOR.CUTENSOR_OP_CONJ :
