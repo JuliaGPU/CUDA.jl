@@ -202,13 +202,25 @@ macro allocated(ex)
     end
 end
 
+
+"""
+    @time ex
+
+Run expression `ex` and report on execution time and GPU/CPU memory behavior. The GPU is
+synchronized right before and after executing `ex` to exclude any external effects.
+
+"""
 macro time(ex)
     quote
+        # coarse synchronization to exclude effects from previously-executed code
+        CUDAdrv.synchronize()
+
         local gpu_mem_stats0 = copy(alloc_stats)
         local cpu_mem_stats0 = Base.gc_num()
         local cpu_time0 = time_ns()
 
-        local val = $(esc(ex))
+        # fine-grained synchronization of the code under analysis
+        local val = @sync $(esc(ex))
 
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()
