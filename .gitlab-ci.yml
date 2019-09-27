@@ -47,7 +47,7 @@ flux:
                 Pkg.develop(PackageSpec(path=pwd()));
                 Pkg.build();'
     - julia -e 'using Pkg;
-                Pkg.add(PackageSpec(name="Flux", rev="tb/cuarrays_dnn"));
+                Pkg.add(PackageSpec(name="Flux", rev="master"));
                 Pkg.test("Flux");'
   allow_failure: true
 
