@@ -71,17 +71,6 @@ function cudnnGetRNNWorkspaceSize(r::RNNDesc, seqlen, xdesc)
   return Int(size[])
 end
 
-const _workspace = Ref{Union{Nothing,CuVector{UInt8}}}(nothing)
-
-function Workspace(bytes)
-  if _workspace[] === nothing || length(_workspace[]) < bytes
-    _workspace[] = CuVector{UInt8}(undef, bytes)
-  end
-  _workspace[]
-end
-
-Workspace(r::RNNDesc, seqlen, xdesc) = Workspace(cudnnGetRNNWorkspaceSize(r, seqlen, xdesc))
-
 function cudnnGetRNNTrainingReserveSize(r::RNNDesc, seqlen, xdesc)
   size = Csize_t[0]
   cudnnGetRNNTrainingReserveSize(handle(), r, seqlen, xdesc, size)
@@ -124,7 +113,7 @@ function forward(rnn::RNNDesc{T}, x::CuArray{T}, h_::CuArray{T}, c_ = nothing, t
   y = x isa AbstractVector ? similar(x, rnn.hidden) : similar(x, rnn.hidden, size(x, 2))
   ho = similar(h)
   ydesc = xDesc(y)
-  workspace = Workspace(rnn, seqLength, xdesc)
+  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, seqLength, xdesc))
   reserve = train == Val{true} ?
     CuVector{UInt8}(undef, cudnnGetRNNTrainingReserveSize(rnn, seqLength, xdesc)) :
     nothing
@@ -138,6 +127,7 @@ function forward(rnn::RNNDesc{T}, x::CuArray{T}, h_::CuArray{T}, c_ = nothing, t
                   hDesc(ho)...,
                   hDesc(co)...,
                   workspace, reserve)
+  unsafe_free!(workspace)
   result = c == nothing ? (y, ho) : (y, ho, co)
   return train == Val{true} ? (reserve, result) : result
 end
@@ -152,12 +142,13 @@ function backwardData(rnn::RNNDesc{T}, y, dy_, dho, dco, h, c, reserve) where T
   dx = y isa AbstractVector ? similar(dy, rnn.input) : similar(dy, rnn.input, size(dy, 2))
   dh = similar(h)
   dc = c == nothing ? nothing : similar(c)
-  workspace = Workspace(rnn, 1, yd)
+  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, 1, yd))
   cudnnRNNBackwardData(handle(), rnn, 1,
     yd, y, yd, dy, hDesc(dho)..., hDesc(dco)...,
     FilterDesc(T, (1, 1, length(rnn.params))), rnn.params,
     hDesc(h)..., hDesc(c)..., xDesc(dx), dx, hDesc(dh)..., hDesc(dc)...,
     workspace, length(workspace), reserve, length(reserve))
+  unsafe_free!(workspace)
   return c == nothing ? (dx, dh) : (dx, dh, dc)
 end
 
@@ -166,12 +157,13 @@ backwardData(rnn, y, dy, dho, hx, reserve) =
 
 function backwardWeights(rnn::RNNDesc{T}, x, h, y, reserve) where T
   dw = zero(rnn.params)
-  workspace = Workspace(rnn, 1, xDesc(x))
+  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, 1, xDesc(x)))
   cudnnRNNBackwardWeights(handle(), rnn, 1,
     xDesc(x), x, hDesc(h)..., xDesc(y), y,
     workspace, length(workspace),
     FilterDesc(T, (1, 1, length(dw))), dw,
     reserve, length(reserve))
+  unsafe_free!(workspace)
   return params(dw, rnn.input, rnn.hidden, ngates(rnn))
 end
 
