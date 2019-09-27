@@ -4,6 +4,7 @@ using CUDAapi
 
 using ..CuArrays
 using ..CuArrays: libcufft
+import ..CuArrays: unsafe_free!
 
 using CUDAdrv
 using CUDAdrv: CuStream_t

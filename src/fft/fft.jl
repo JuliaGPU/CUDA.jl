@@ -17,45 +17,53 @@ Base.:(*)(p::ScaledPlan, x::CuArray) = rmul!(p.p * x, p.scale)
 
 abstract type CuFFTPlan{T<:cufftNumber, K, inplace} <: Plan{T} end
 
+Base.unsafe_convert(::Type{cufftHandle}, p::CuFFTPlan) = p.handle
+
+# for some reason, cufftHandle is an integer and not a pointer...
+Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = Base.unsafe_convert(cufftHandle, p)
+
+function unsafe_free!(plan::CuFFTPlan)
+    cufftDestroy(plan)
+    unsafe_free!(plan.workarea)
+end
+
 mutable struct cCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
-    plan::cufftHandle
+    handle::cufftHandle
+    workarea::CuVector{Int8}
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
     xtype::cufftType
     region::Any
     pinv::ScaledPlan # required by AbstractFFT API
 
-    function cCuFFTPlan{T,K,inplace,N}(plan::cufftHandle, X::CuArray{T,N},
-                                       sizey::Tuple, region, xtype
+    function cCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
+                                       X::CuArray{T,N}, sizey::Tuple, region, xtype
                                        ) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(plan, size(X), sizey, xtype, region)
-        finalizer(destroy_plan, p)
+        p = new(handle, workarea, size(X), sizey, xtype, region)
+        finalizer(unsafe_free!, p)
         p
     end
 end
-
-cCuFFTPlan(plan,X,region,xtype) = cCuFFTPlan(plan,X,size(X),region,xtype)
 
 mutable struct rCuFFTPlan{T<:cufftNumber,K,inplace,N} <: CuFFTPlan{T,K,inplace}
-    plan::cufftHandle
+    handle::cufftHandle
+    workarea::CuVector{Int8}
     sz::NTuple{N,Int} # Julia size of input array
     osz::NTuple{N,Int} # Julia size of output array
     xtype::cufftType
     region::Any
     pinv::ScaledPlan # required by AbstractFFT API
 
-    function rCuFFTPlan{T,K,inplace,N}(plan::cufftHandle, X::CuArray{T,N},
-                                       sizey::Tuple, region, xtype
+    function rCuFFTPlan{T,K,inplace,N}(handle::cufftHandle, workarea::CuVector{Int8},
+                                       X::CuArray{T,N}, sizey::Tuple, region, xtype
                                        ) where {T<:cufftNumber,K,inplace,N}
         # maybe enforce consistency of sizey
-        p = new(plan, size(X), sizey, xtype, region)
-        finalizer(destroy_plan, p)
+        p = new(handle, workarea, size(X), sizey, xtype, region)
+        finalizer(unsafe_free!, p)
         p
     end
 end
-
-rCuFFTPlan(plan,X,region,xtype) = rCuFFTPlan(plan,X,size(X),region,xtype)
 
 const xtypenames = Dict{cufftType,String}(CUFFT_R2C => "real-to-complex",
                                           CUFFT_C2R => "complex-to-real",
@@ -83,12 +91,6 @@ function Base.show(io::IO, p::CuFFTPlan{T,K,inplace}) where {T,K,inplace}
     showfftdims(io, p.sz, T)
 end
 
-Base.unsafe_convert(::Type{cufftHandle}, p::CuFFTPlan) = p.plan
-
-Base.convert(::Type{cufftHandle}, p::CuFFTPlan) = p.plan
-
-destroy_plan(plan::CuFFTPlan) = cufftDestroy(plan)
-
 set_stream(plan::CuFFTPlan, stream::CuStream) = cufftSetStream(plan, stream)
 
 Base.size(p::CuFFTPlan) = p.sz
@@ -97,26 +99,33 @@ Base.size(p::CuFFTPlan) = p.sz
 ## plan methods
 
 # Note: we don't implement padded storage dimensions
-function _mkplan(xtype, xdims, region)
+function create_plan(xtype, xdims, region)
     nrank = length(region)
     sz = [xdims[i] for i in region]
     csz = copy(sz)
     csz[1] = div(sz[1],2) + 1
     batch = prod(xdims) ÷ prod(sz)
 
-    pp = Ref{cufftHandle}()
+    # initialize the plan handle
+    handle_ref = Ref{cufftHandle}()
+    cufftCreate(handle_ref)
+    handle = handle_ref[]
+    cufftSetAutoAllocation(handle, 0)
+
+    # make the plan
+    worksize_ref = Ref{Csize_t}()
     if (nrank == 1) && (batch == 1)
-        cufftPlan1d(pp, sz[1], xtype, 1)
+        cufftMakePlan1d(handle, sz[1], xtype, 1, worksize_ref)
     elseif (nrank == 2) && (batch == 1)
-        cufftPlan2d(pp, sz[2], sz[1], xtype)
+        cufftMakePlan2d(handle, sz[2], sz[1], xtype, worksize_ref)
     elseif (nrank == 3) && (batch == 1)
-        cufftPlan3d(pp, sz[3], sz[2], sz[1], xtype)
+        cufftMakePlan3d(handle, sz[3], sz[2], sz[1], xtype, worksize_ref)
     else
         rsz = (length(sz) > 1) ? rsz = reverse(sz) : sz
         if ((region...,) == ((1:nrank)...,))
             # handle simple case ... simply! (for robustness)
-           cufftPlanMany(pp, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
-                         xtype, batch)
+           cufftMakePlanMany(handle, nrank, Cint[rsz...], C_NULL, 1, 1, C_NULL, 1, 1,
+                             xtype, batch, worksize_ref)
         else
             if nrank==1 || all(diff(collect(region)) .== 1)
                 # _stride: successive elements in innermost dimension
@@ -207,12 +216,17 @@ function _mkplan(xtype, xdims, region)
                     inembed = cnembed
                 end
             end
-            cufftPlanMany(pp, nrank, Cint[rsz...],
-                          inembed, istride, idist, onembed, ostride, odist,
-                          xtype, batch)
+            cufftMakePlanMany(handle, nrank, Cint[rsz...],
+                              inembed, istride, idist, onembed, ostride, odist,
+                              xtype, batch, worksize_ref)
         end
     end
-    pp[]
+
+    # assign the workarea
+    workarea = CuArray{Int8}(undef, worksize_ref[])
+    cufftSetWorkArea(handle, workarea)
+
+    handle, workarea
 end
 
 # promote to a complex floating-point type (out-of-place only),
@@ -238,9 +252,9 @@ function plan_fft!(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
     inplace = true
     xtype = (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    pp = _mkplan(xtype, size(X), region)
+    pp = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
 end
 
 function plan_bfft!(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
@@ -248,9 +262,9 @@ function plan_bfft!(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
     inplace = true
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    pp = _mkplan(xtype, size(X), region)
+    pp = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
 end
 
 # out-of-place complex
@@ -259,9 +273,9 @@ function plan_fft(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
     inplace = false
 
-    pp = _mkplan(xtype, size(X), region)
+    pp = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
 end
 
 function plan_bfft(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
@@ -269,9 +283,9 @@ function plan_bfft(X::CuArray{T,N}, region) where {T<:cufftComplexes,N}
     inplace = false
     xtype =  (T == cufftComplex) ? CUFFT_C2C : CUFFT_Z2Z
 
-    pp = _mkplan(xtype, size(X), region)
+    pp = create_plan(xtype, size(X), region)
 
-    cCuFFTPlan{T,K,inplace,N}(pp, X, size(X), region, xtype)
+    cCuFFTPlan{T,K,inplace,N}(pp..., X, size(X), region, xtype)
 end
 
 # out-of-place real-to-complex
@@ -280,12 +294,12 @@ function plan_rfft(X::CuArray{T,N}, region) where {T<:cufftReals,N}
     inplace = false
     xtype =  (T == cufftReal) ? CUFFT_R2C : CUFFT_D2Z
 
-    pp = _mkplan(xtype, size(X), region)
+    pp = create_plan(xtype, size(X), region)
 
     ydims = collect(size(X))
     ydims[region[1]] = div(ydims[region[1]],2)+1
 
-    rCuFFTPlan{T,K,inplace,N}(pp, X, (ydims...,), region, xtype)
+    rCuFFTPlan{T,K,inplace,N}(pp..., X, (ydims...,), region, xtype)
 end
 
 function plan_brfft(X::CuArray{T,N}, d::Integer, region::Any) where {T<:cufftComplexes,N}
@@ -295,9 +309,9 @@ function plan_brfft(X::CuArray{T,N}, d::Integer, region::Any) where {T<:cufftCom
     ydims = collect(size(X))
     ydims[region[1]] = d
 
-    pp = _mkplan(xtype, (ydims...,), region)
+    pp = create_plan(xtype, (ydims...,), region)
 
-    rCuFFTPlan{T,K,inplace,N}(pp, X, (ydims...,), region, xtype)
+    rCuFFTPlan{T,K,inplace,N}(pp..., X, (ydims...,), region, xtype)
 end
 
 # FIXME: plan_inv methods allocate needlessly (to provide type parameters)
@@ -305,16 +319,16 @@ end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}) where {T,N,inplace}
     X = CuArray{T}(undef, p.sz)
-    pp = _mkplan(p.xtype, p.sz, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(pp, X, p.sz, p.region,
+    pp = create_plan(p.xtype, p.sz, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}(pp..., X, p.sz, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
 
 function plan_inv(p::cCuFFTPlan{T,CUFFT_INVERSE,inplace,N}) where {T,N,inplace}
     X = CuArray{T}(undef, p.sz)
-    pp = _mkplan(p.xtype, p.sz, p.region)
-    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(pp, X, p.sz, p.region,
+    pp = create_plan(p.xtype, p.sz, p.region)
+    ScaledPlan(cCuFFTPlan{T,CUFFT_FORWARD,inplace,N}(pp..., X, p.sz, p.region,
                                                      p.xtype),
                normalization(X, p.region))
 end
@@ -324,9 +338,8 @@ function plan_inv(p::rCuFFTPlan{T,CUFFT_INVERSE,inplace,N}
     X = CuArray{real(T)}(undef, p.osz)
     Y = CuArray{T}(undef, p.sz)
     xtype = p.xtype == CUFFT_C2R ? CUFFT_R2C : CUFFT_D2Z
-    pp = _mkplan(xtype, p.osz, p.region)
-    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,N}(pp, X, p.sz, p.region,
-                                                     xtype),
+    pp = create_plan(xtype, p.osz, p.region)
+    ScaledPlan(rCuFFTPlan{real(T),CUFFT_FORWARD,inplace,N}(pp..., X, p.sz, p.region, xtype),
                normalization(X, p.region))
 end
 
@@ -335,8 +348,8 @@ function plan_inv(p::rCuFFTPlan{T,CUFFT_FORWARD,inplace,N}
     X = CuArray{complex(T)}(undef, p.osz)
     Y = CuArray{T}(undef, p.sz)
     xtype = p.xtype == CUFFT_R2C ? CUFFT_C2R : CUFFT_Z2D
-    pp = _mkplan(xtype, p.sz, p.region)
-    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,N}(pp, X, p.sz,
+    pp = create_plan(xtype, p.sz, p.region)
+    ScaledPlan(rCuFFTPlan{complex(T),CUFFT_INVERSE,inplace,N}(pp..., X, p.sz,
                                                               p.region, xtype),
                normalization(Y, p.region))
 end
