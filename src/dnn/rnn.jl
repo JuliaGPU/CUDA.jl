@@ -8,7 +8,7 @@
 # GRU: [weight, bias] × [input, hidden] × [reset, update, newmem]
 # LSTM: [weight, bias] × [input, hidden] × [input, forget, newmem, output]
 
-import LinearAlgebra: copy_transpose!
+using LinearAlgebra: copy_transpose!
 
 function params(w::CuVector, input, hidden, n = 1)
   slice(offset, shape) = reshape(view(w, offset.+(1:prod(shape))), shape)

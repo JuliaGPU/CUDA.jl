@@ -2,7 +2,7 @@ module SimplePool
 
 # simple scan into a list of free buffers
 
-import ..@pool_timeit, ..actual_alloc, ..actual_free
+using ..CuArrays: @pool_timeit, actual_alloc, actual_free
 
 using CUDAdrv
 

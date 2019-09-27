@@ -1,4 +1,4 @@
-import NNlib: PoolDims
+using NNlib: PoolDims
 
 
 # descriptor

@@ -2,7 +2,7 @@ module DummyPool
 
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
-import ..@pool_timeit, ..actual_alloc, ..actual_free
+using ..CuArrays: @pool_timeit, actual_alloc, actual_free
 
 using CUDAdrv
 

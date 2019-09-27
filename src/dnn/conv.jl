@@ -1,4 +1,4 @@
-import NNlib: DenseConvDims
+using NNlib: DenseConvDims
 
 
 # descriptor

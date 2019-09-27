@@ -2,7 +2,8 @@ module SplittingPool
 
 # scan into a sorted list of free buffers, splitting buffers along the way
 
-import ..CuArrays, ..@pool_timeit
+using ..CuArrays
+using ..CuArrays: @pool_timeit
 
 using DataStructures
 
@@ -10,7 +11,7 @@ using CUDAdrv
 
 # use a macro-version of Base.lock to avoid closures
 if VERSION >= v"1.3.0-DEV.555"
-    import Base.@lock
+    using Base: @lock
 else
     macro lock(l, expr)
         quote

@@ -4,7 +4,10 @@ using SparseArrays
 
 using LinearAlgebra
 
-import ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, cusparseindex, CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, CUSPARSE_DIAG_TYPE_UNIT, cusparseMatDescr
+using ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, cusparseindex,
+                  CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER,
+                  CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT,
+                  CUSPARSE_DIAG_TYPE_UNIT, cusparseMatDescr
 
 #csrlsvlu
 for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),

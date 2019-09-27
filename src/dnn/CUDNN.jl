@@ -3,7 +3,8 @@ module CUDNN
 using CUDAapi
 using CUDAapi: libraryPropertyType
 
-import CUDAdrv: CUDAdrv, CuContext, CuPtr, PtrOrCuPtr, CU_NULL, CuStream_t
+using CUDAdrv
+using CUDAdrv: CuContext, CuPtr, PtrOrCuPtr, CU_NULL, CuStream_t
 
 import CUDAnative
 

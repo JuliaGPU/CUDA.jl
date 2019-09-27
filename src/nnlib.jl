@@ -1,8 +1,5 @@
 using NNlib
-import NNlib: conv!, ∇conv_filter!, ∇conv_data!,
-  maxpool!, meanpool!, ∇maxpool!, ∇meanpool!,
-  softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
-using CUDAnative
+
 
 # Activation functions
 @cufunc σ(x) = ifelse(x < -80, zero(x), one(x) / (one(x) + exp(-x)))
