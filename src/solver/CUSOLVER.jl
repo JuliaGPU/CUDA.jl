@@ -3,15 +3,15 @@ module CUSOLVER
 using ..CuArrays
 using ..CuArrays: libcusolver, active_context, _getindex, unsafe_free!
 
+using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
+using ..CUSPARSE: cusparseMatDescr_t
+
 using CUDAapi
 
 using CUDAdrv
 using CUDAdrv: CuStream_t
 
 import CUDAnative
-
-import ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
-import ..CUSPARSE: cusparseMatDescr_t
 
 using CEnum
 

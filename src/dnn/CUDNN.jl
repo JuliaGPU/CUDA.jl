@@ -1,21 +1,22 @@
 module CUDNN
 
-import CUDAapi
+using CUDAapi
+using CUDAapi: libraryPropertyType
 
-import CUDAdrv: CUDAdrv, CuContext, CuPtr, CU_NULL
+using CUDAdrv
+using CUDAdrv: CuContext, CuPtr, PtrOrCuPtr, CU_NULL, CuStream_t
 
 import CUDAnative
 
+using CEnum
+
 using ..CuArrays
-using ..CuArrays: @libcudnn, active_context, unsafe_free!
-using ..CuArrays: CuVecOrMat, CuVector
+using ..CuArrays: @libcudnn, active_context, CuVecOrMat, CuVector
+import ..CuArrays.unsafe_free!
 
-using NNlib
-import NNlib: conv!, ∇conv_filter!, ∇conv_data!, stride, dilation, flipkernel,
-  maxpool!, meanpool!, ∇maxpool!, ∇meanpool!, spatial_dims, padding, kernel_size,
-  softmax, softmax!, ∇softmax!, logsoftmax, logsoftmax!, ∇logsoftmax
+import NNlib
 
-include("libcudnn_types.jl")
+include("libcudnn_common.jl")
 include("error.jl")
 
 const _handles = Dict{CuContext,cudnnHandle_t}()
@@ -35,13 +36,23 @@ function handle()
     return _handle[]
 end
 
+include("base.jl")
 include("libcudnn.jl")
-include("helpers.jl")
-include("nnlib.jl")
-include("compat.jl")
 
-version() = VersionNumber(cudnnGetProperty(CUDAapi.MAJOR_VERSION),
-                          cudnnGetProperty(CUDAapi.MINOR_VERSION),
-                          cudnnGetProperty(CUDAapi.PATCH_LEVEL))
+include("helpers.jl")
+include("tensor.jl")
+include("conv.jl")
+include("pooling.jl")
+include("activation.jl")
+include("filter.jl")
+include("softmax.jl")
+include("batchnorm.jl")
+include("dropout.jl")
+include("rnn.jl")
+
+# interfaces with other software
+include("nnlib.jl")
+
+include("compat.jl")
 
 end

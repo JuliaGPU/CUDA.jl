@@ -1,6 +1,6 @@
 # wrappers of the low-level dense CUSOLVER functionality
 
-import ..CUBLAS: cublasfill, cublasop, cublasside
+using ..CUBLAS: cublasfill, cublasop, cublasside
 
 using LinearAlgebra
 using LinearAlgebra: BlasInt, checksquare

@@ -17,7 +17,7 @@ module BinnedPool
 #                       or just use unified memory for all allocations.
 # - per-device pools
 
-import ..@pool_timeit, ..actual_alloc, ..actual_free
+using ..CuArrays: @pool_timeit, actual_alloc, actual_free
 
 using CUDAdrv
 
