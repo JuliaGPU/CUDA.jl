@@ -1,7 +1,11 @@
 # descriptor
 
-mutable struct ActivationDesc; ptr; end
-free(ad::ActivationDesc)=cudnnDestroyActivationDescriptor(ad.ptr)
+mutable struct ActivationDesc
+    ptr::cudnnActivationDescriptor_t
+end
+
+unsafe_free!(ad::ActivationDesc)=cudnnDestroyActivationDescriptor(ad.ptr)
+
 Base.unsafe_convert(::Type{cudnnActivationDescriptor_t}, ad::ActivationDesc)=ad.ptr
 
 function ActivationDesc(mode, coeff, reluNanOpt=CUDNN_NOT_PROPAGATE_NAN)
@@ -9,7 +13,7 @@ function ActivationDesc(mode, coeff, reluNanOpt=CUDNN_NOT_PROPAGATE_NAN)
     cudnnCreateActivationDescriptor(ad)
     cudnnSetActivationDescriptor(ad[],mode,reluNanOpt,coeff)
     this = ActivationDesc(ad[])
-    finalizer(free, this)
+    finalizer(unsafe_free!, this)
     return this
 end
 

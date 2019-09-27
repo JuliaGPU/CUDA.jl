@@ -3,8 +3,12 @@ import NNlib: DenseConvDims
 
 # descriptor
 
-mutable struct ConvDesc; ptr; end
-free(cd::ConvDesc) = cudnnDestroyConvolutionDescriptor(cd.ptr)
+mutable struct ConvDesc
+    ptr::cudnnConvolutionDescriptor_t
+end
+
+unsafe_free!(cd::ConvDesc) = cudnnDestroyConvolutionDescriptor(cd.ptr)
+
 Base.unsafe_convert(::Type{cudnnConvolutionDescriptor_t}, cd::ConvDesc)=cd.ptr
 
 function cdsize(w, nd)
@@ -35,7 +39,7 @@ function ConvDesc(T, N, padding, stride, dilation, mode)
         cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode)
     end
     this = ConvDesc(cd[])
-    finalizer(free, this)
+    finalizer(unsafe_free!, this)
     return this
 end
 

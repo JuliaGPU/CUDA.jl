@@ -10,8 +10,8 @@ import CUDAnative
 using CEnum
 
 using ..CuArrays
-using ..CuArrays: @libcudnn, active_context, unsafe_free!
-using ..CuArrays: CuVecOrMat, CuVector
+using ..CuArrays: @libcudnn, active_context, CuVecOrMat, CuVector
+import ..CuArrays.unsafe_free!
 
 import NNlib
 

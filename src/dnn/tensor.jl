@@ -1,7 +1,11 @@
 # descriptor
 
-mutable struct TensorDesc; ptr; end
-free(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
+mutable struct TensorDesc
+    ptr::cudnnTensorDescriptor_t
+end
+
+unsafe_free!(td::TensorDesc) = cudnnDestroyTensorDescriptor(td.ptr)
+
 Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
 
 function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(size)) where N
@@ -11,7 +15,7 @@ function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer}
     cudnnCreateTensorDescriptor(d)
     cudnnSetTensorNdDescriptor(d[], cudnnDataType(T), length(sz), sz, st)
     this = TensorDesc(d[])
-    finalizer(free, this)
+    finalizer(unsafe_free!, this)
     return this
 end
 

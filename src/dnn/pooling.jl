@@ -3,8 +3,12 @@ import NNlib: PoolDims
 
 # descriptor
 
-mutable struct PoolDesc; ptr; end
-free(pd::PoolDesc)=cudnnDestroyPoolingDescriptor(pd.ptr)
+mutable struct PoolDesc
+    ptr::cudnnPoolingDescriptor_t
+end
+
+unsafe_free!(pd::PoolDesc)=cudnnDestroyPoolingDescriptor(pd.ptr)
+
 Base.unsafe_convert(::Type{cudnnPoolingDescriptor_t}, pd::PoolDesc)=pd.ptr
 
 function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_PROPAGATE_NAN)
@@ -12,7 +16,7 @@ function PoolDesc(nd, window, padding, stride, mode, maxpoolingNanOpt=CUDNN_NOT_
     cudnnCreatePoolingDescriptor(pd)
     cudnnSetPoolingNdDescriptor(pd[],cudnnPoolingMode_t(mode),maxpoolingNanOpt,nd,pdsize(window,nd),pdsize(padding,nd),pdsize(stride,nd))
     this = PoolDesc(pd[])
-    finalizer(free, this)
+    finalizer(unsafe_free!, this)
     return this
 end
 

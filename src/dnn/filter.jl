@@ -1,10 +1,12 @@
 # descriptor
 
 mutable struct FilterDesc
-  ptr
+  ptr::cudnnFilterDescriptor_t
 end
-free(fd::FilterDesc)=cudnnDestroyFilterDescriptor(fd.ptr)
-Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc)=fd.ptr
+
+unsafe_free!(fd::FilterDesc) = cudnnDestroyFilterDescriptor(fd.ptr)
+
+Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc) = fd.ptr
 
 function createFilterDesc()
   d = Ref{cudnnFilterDescriptor_t}()
@@ -22,7 +24,7 @@ function FilterDesc(T::Type, size::Tuple; format = CUDNN_TENSOR_NCHW)
         cudnnSetFilterNdDescriptor_v4(d, cudnnDataType(T), format, length(sz), sz) :
         cudnnSetFilterNdDescriptor(d, cudnnDataType(T), length(sz), sz)
     this = FilterDesc(d)
-    finalizer(free, this)
+    finalizer(unsafe_free!, this)
     return this
 end
 
