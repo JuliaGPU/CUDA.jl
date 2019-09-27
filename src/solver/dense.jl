@@ -222,7 +222,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                 ldc = size(C, 1)
                 n   = size(C, 2)
                 if m > ldc
-                    Ctemp = CuArray{$elty}(undef, m - ldc, n) .= 0
+                    Ctemp = CuArrays.zeros($elty, m - ldc, n)
                     C = [C; Ctemp]
                     ldc = m
                 end
@@ -307,7 +307,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             devinfo = CuArray{Cint}(undef, 1)
             k       = min(m, n)
             D       = CuArray{$relty}(undef, k)
-            E       = CuArray{$relty}(undef, k) .= 0
+            E       = CuArrays.zeros($relty, k)
             TAUQ    = CuArray{$elty}(undef, k)
             TAUP    = CuArray{$elty}(undef, k)
             $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, bufSize[], devinfo)
