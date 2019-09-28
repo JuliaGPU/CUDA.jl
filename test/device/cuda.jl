@@ -31,7 +31,7 @@ end
 ############################################################################################
 
 @testset "math" begin
-    buf = CuTestArray(zeros(Float32))
+    buf = CuArray(zeros(Float32))
 
     function kernel(a, i)
         a[] = CUDAnative.log10(i)
@@ -44,7 +44,7 @@ end
 
 
     @testset "pow" begin
-        buf = CuTestArray(zeros(Float32))
+        buf = CuArray(zeros(Float32))
 
         function pow_kernel(a, x, y)
             a[] = CUDAnative.pow(x, y)
@@ -100,6 +100,51 @@ end
         @test val[] ≈ x^y
     end
 
+    @testset "isinf" begin
+      buf = CuArray(zeros(Bool))
+
+      function isinf_kernel(a, x)
+          a[] = CUDAnative.isinf(x)
+          return
+      end
+
+      for x in (Inf32, Inf, NaN32, NaN)
+        @cuda isinf_kernel(buf, x)
+        val = Array(buf)
+        @test val[] == isinf(x)
+      end
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isinf,
+                                             Tuple{Float32}, optimize=false)[1])
+      @test !occursin("Float64", codeinfo_str)
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isinf,
+                                             Tuple{Float64}, optimize=false)[1])
+      @test !occursin("Float32", codeinfo_str)
+    end
+
+    @testset "isnan" begin
+      buf = CuArray(zeros(Bool))
+
+      function isnan_kernel(a, x)
+          a[] = CUDAnative.isnan(x)
+          return
+      end
+
+      for x in (Inf32, Inf, NaN32, NaN)
+        @cuda isnan_kernel(buf, x)
+        val = Array(buf)
+        @test val[] == isnan(x)
+      end
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isnan,
+                                             Tuple{Float32}, optimize=false)[1])
+      @test !occursin("Float64", codeinfo_str)
+
+      codeinfo_str = sprint(show, code_typed(CUDAnative.isnan,
+                                             Tuple{Float64}, optimize=false)[1])
+      @test !occursin("Float32", codeinfo_str)
+    end
 
     @testset "angle" begin
         buf  = CuTestArray(zeros(Float32))
@@ -257,7 +302,7 @@ endline = Sys.iswindows() ? "\r\n" : "\n"
         @cuprintf("%f %f\n", A[1], A[1])
         return
     end
-    x = CuTestArray(ones(2, 2))
+    x = CuArray(ones(2, 2))
     _, out = @grab_output begin
         @cuda kernel(x)
         synchronize()
@@ -304,8 +349,12 @@ end
     _, out = @grab_output @on_device @cuprint(4, 2)
     @test out == "42"
 
+    # bug: @cuprintln failed to invokce @cuprint with endline in the case of interpolation
+    _, out = @grab_output @on_device @cuprintln("foobar $(42)")
+    @test out == "foobar 42\n"
 
-    # arugment types
+
+    # argument types
 
     # we're testing the generated functions now, so can't use literals
     function test_output(val, str)
@@ -368,7 +417,7 @@ end
 
 @testset "shared memory" begin
 
-n = 1024
+n = 256
 
 @testset "constructors" begin
     # static
@@ -413,7 +462,7 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuTestArray(a)
+    d_a = CuArray(a)
 
     @cuda threads=n shmem=n*sizeof(Float32) kernel(d_a, n)
     @test reverse(a) == Array(d_a)
@@ -434,7 +483,7 @@ end
         end
 
         a = rand(T, n)
-        d_a = CuTestArray(a)
+        d_a = CuArray(a)
 
         @cuda threads=n shmem=n*sizeof(T) kernel(d_a, n)
         @test reverse(a) == Array(d_a)
@@ -476,7 +525,7 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuTestArray(a)
+    d_a = CuArray(a)
 
     @cuda threads=n kernel(d_a, n)
     @test reverse(a) == Array(d_a)
@@ -500,7 +549,7 @@ end
         end
 
         a = rand(typ, n)
-        d_a = CuTestArray(a)
+        d_a = CuArray(a)
 
         @cuda threads=n kernel(d_a, n)
         @test reverse(a) == Array(d_a)
@@ -546,10 +595,10 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuTestArray(a)
+    d_a = CuArray(a)
 
     b = rand(Float32, n)
-    d_b = CuTestArray(b)
+    d_b = CuArray(b)
 
     @cuda threads=n shmem=2*n*sizeof(Float32) kernel(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
@@ -577,10 +626,10 @@ end
     end
 
     a = rand(Float32, n)
-    d_a = CuTestArray(a)
+    d_a = CuArray(a)
 
     b = rand(Int64, n)
-    d_b = CuTestArray(b)
+    d_b = CuArray(b)
 
     @cuda threads=n shmem=(n*sizeof(Float32) + n*sizeof(Int64)) kernel(d_a, d_b, n)
     @test reverse(a) == Array(d_a)
@@ -598,8 +647,25 @@ end
 @testset "data movement and conversion" begin
 
 if capability(dev) >= v"3.0"
-@testset "shuffle down" begin
 
+@testset "shuffle idx" begin
+    function kernel(d)
+        i = threadIdx().x
+        j = 32 - i + 1
+
+        d[i] = shfl(d[i], j)
+
+        return
+    end
+
+    warpsize = CUDAdrv.warpsize(device())
+
+    a = CuTestArray([i for i in 1:warpsize])
+    @cuda threads=warpsize kernel(a)
+    @test Array(a) == [i for i in warpsize:-1:1]
+end
+
+@testset "shuffle down" begin
     @eval struct AddableTuple
         x::Int32
         y::Int64
@@ -609,17 +675,40 @@ if capability(dev) >= v"3.0"
 
     n = 14
 
-    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple]
-        function kernel(d::CuDeviceArray{T}, n) where {T}
-            t = threadIdx().x
-            if t <= n
-                d[t] += shfl_down(d[t], n÷2)
-            end
-            return
+    function kernel1(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        if t <= n
+            d[t] += shfl_down(d[t], n÷2)
         end
+        return
+    end
 
+    function kernel2(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        if t <= n
+            d[t] += shfl_down(d[t], n÷2, 32, 0xffffffff)
+        end
+        return
+    end
+
+    function kernel3(d::CuDeviceArray{T}, n) where {T}
+        t = threadIdx().x
+        if t <= n
+            d[t] += shfl_down_sync(0xffffffff, d[t], n÷2, 32)
+        end
+        return
+    end
+
+    kernels = try
+        getfield(CUDAnative, :shfl_sync)
+        (kernel1, kernel2, kernel3)
+    catch
+        (kernel1,)
+    end
+
+    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple], kernel in kernels
         a = T[T(i) for i in 1:n]
-        d_a = CuTestArray(a)
+        d_a = CuArray(a)
 
         threads = nearest_warpsize(dev, n)
         @cuda threads=threads kernel(d_a, n)
@@ -627,8 +716,8 @@ if capability(dev) >= v"3.0"
         a[1:n÷2] += a[n÷2+1:end]
         @test a == Array(d_a)
     end
-
 end
+
 end
 
 end
@@ -663,7 +752,7 @@ end
     end
 
     b_in = Int32[1, 1, 1, 0, 0]  # 3 true
-    d_b = CuTestArray(b_in)
+    d_b = CuArray(b_in)
     @cuda threads=5 kernel_barrier_count(d_b)
     b_out = Array(d_b)
 
@@ -678,7 +767,7 @@ end
     end
 
     a_in = Int32[1, 1, 1, 1, 1]  # all true
-    d_a = CuTestArray(a_in)
+    d_a = CuArray(a_in)
     @cuda threads=5 kernel_barrier_and(d_a)
     a_out = Array(d_a)
 
@@ -693,7 +782,7 @@ end
     end
 
     c_in = Int32[1, 0, 0, 0, 0]  # 1 true
-    d_c = CuTestArray(c_in)
+    d_c = CuArray(c_in)
     @cuda threads=5 kernel_barrier_or(d_c)
     c_out = Array(d_c)
 
@@ -710,7 +799,7 @@ end
     end
 
     b_in = Int32[1, 1, 1, 0, 0]  # 3 true
-    d_b = CuTestArray(b_in)
+    d_b = CuArray(b_in)
     @cuda threads=5 kernel_barrier_count(d_b)
     b_out = Array(d_b)
 
@@ -725,7 +814,7 @@ end
     end
 
     a_in = Int32[1, 1, 1, 1, 1]  # all true
-    d_a = CuTestArray(a_in)
+    d_a = CuArray(a_in)
     @cuda threads=5 kernel_barrier_and(d_a)
     a_out = Array(d_a)
 
@@ -740,7 +829,7 @@ end
     end
 
     c_in = Int32[1, 0, 0, 0, 0]  # 1 true
-    d_c = CuTestArray(c_in)
+    d_c = CuArray(c_in)
     @cuda threads=5 kernel_barrier_or(d_c)
     c_out = Array(d_c)
 
@@ -756,7 +845,7 @@ end
 @testset "voting" begin
 
 @testset "ballot" begin
-    d_a = CuTestArray(UInt32[0])
+    d_a = CuArray(UInt32[0])
 
     function kernel(a, i)
         vote = vote_ballot(threadIdx().x == i)
@@ -774,7 +863,7 @@ end
 end
 
 @testset "any" begin
-    d_a = CuTestArray(UInt32[0])
+    d_a = CuArray(UInt32[0])
 
     function kernel(a, i)
         vote = vote_any(threadIdx().x >= i)
@@ -795,7 +884,7 @@ end
 end
 
 @testset "all" begin
-    d_a = CuTestArray(UInt32[0])
+    d_a = CuArray(UInt32[0])
 
     function kernel(a, i)
         vote = vote_all(threadIdx().x >= i)
@@ -835,7 +924,7 @@ end
     cap >= v"6.0" && push!(types, Float64)
 
     @testset for T in types
-        a = CuTestArray([zero(T)])
+        a = CuArray([zero(T)])
 
         function kernel(a, b)
             CUDAnative.atomic_add!(pointer(a), b)
@@ -849,7 +938,7 @@ end
 
 @testset "atomic_sub" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuTestArray([T(2048)])
+        a = CuArray([T(2048)])
 
         function kernel(a, b)
             CUDAnative.atomic_sub!(pointer(a), b)
@@ -863,7 +952,7 @@ end
 
 @testset "atomic_inc" begin
     @testset for T in [Int32]
-        a = CuTestArray([zero(T)])
+        a = CuArray([zero(T)])
 
         function kernel(a, b)
             CUDAnative.atomic_inc!(pointer(a), b)
@@ -877,7 +966,7 @@ end
 
 @testset "atomic_dec" begin
     @testset for T in [Int32]
-        a = CuTestArray([T(1024)])
+        a = CuArray([T(1024)])
 
         function kernel(a, b)
             CUDAnative.atomic_dec!(pointer(a), b)
@@ -898,7 +987,7 @@ end
     cap >= v"6.0" && push!(types, Float64)
 
     @testset for T in types
-        a = CuTestArray([zero(T)])
+        a = CuArray([zero(T)])
 
         function kernel(T, a)
             @atomic a[1] = a[1] + T(1)
@@ -913,7 +1002,7 @@ end
 
 @testset "sub" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuTestArray([T(4096)])
+        a = CuArray([T(4096)])
 
         function kernel(T, a)
             @atomic a[1] = a[1] - T(1)
@@ -928,7 +1017,7 @@ end
 
 @testset "and" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuTestArray([~zero(T), ~zero(T)])
+        a = CuArray([~zero(T), ~zero(T)])
 
         function kernel(T, a)
             i = threadIdx().x
@@ -946,7 +1035,7 @@ end
 
 @testset "or" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuTestArray([zero(T), zero(T)])
+        a = CuArray([zero(T), zero(T)])
 
         function kernel(T, a)
             i = threadIdx().x
@@ -964,7 +1053,7 @@ end
 
 @testset "xor" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuTestArray([zero(T), zero(T)])
+        a = CuArray([zero(T), zero(T)])
 
         function kernel(T, a)
             i = threadIdx().x
@@ -983,7 +1072,7 @@ end
 
 @testset "max" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuTestArray([zero(T)])
+        a = CuArray([zero(T)])
 
         function kernel(T, a)
             i = threadIdx().x
@@ -998,7 +1087,7 @@ end
 
 @testset "min" begin
     @testset for T in [Int32, Int64, UInt32, UInt64]
-        a = CuTestArray([typemax(T)])
+        a = CuArray([typemax(T)])
 
         function kernel(T, a)
             i = threadIdx().x

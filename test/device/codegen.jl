@@ -11,7 +11,7 @@
         return
     end
 
-    arr = CuTestArray(zeros(Float64))
+    arr = CuArray(zeros(Float64))
     ptr = convert(CuPtr{Float64}, arr.buf)
 
     @cuda kernel(ptr, (1., 2., ))
@@ -24,7 +24,7 @@ end
     _a = rand(Int, 2, 1)
     b = ((1,9999),(1,9999))
 
-    out = CuTestArray(zeros(Int, 2,1))
+    out = CuArray(zeros(Int, 2,1))
     a = Tuple(_a)
 
     function kernel(out, a, b)
@@ -62,7 +62,7 @@ end
     end
 
     function gpu(input)
-        output = CuTestArray(zeros(eltype(input), 2))
+        output = CuArray(zeros(eltype(input), 2))
         ptr = convert(CuPtr{eltype(input)}, output.buf)
         ptr = reinterpret(Ptr{eltype(input)}, ptr)
 
@@ -83,6 +83,17 @@ end
 
     input = rand(1:100)
     @test cpu(input) == gpu(input)
+end
+
+@testset "assume" begin
+    foo(i) = cld(42, i)
+    ir = sprint(io->CUDAnative.code_llvm(io, foo, Tuple{Int}))
+    @test occursin("@ptx_report_exception", ir)
+
+
+    bar(i) = (CUDAnative.assume(i > 0); cld(42, i))
+    ir = sprint(io->CUDAnative.code_llvm(io, bar, Tuple{Int}))
+    @test !occursin("@ptx_report_exception", ir)
 end
 
 end

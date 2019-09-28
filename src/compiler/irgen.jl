@@ -34,7 +34,7 @@ function backtrace(job::CompilerJob, call_stack::Vector{Core.MethodInstance})
             # calls to overdub directly, the backtrace therefore is collapsed and we have to
             # lookup the overdubbed function, but only if we likely are using the generated variant.
             actual_sig = Tuple{method_instance.specTypes.parameters[3:end]...}
-            m = ccall(:jl_gf_invoke_lookup, Any, (Any, UInt), tt, typemax(UInt))
+            m = ccall(:jl_gf_invoke_lookup, Any, (Any, UInt), actual_sig, typemax(UInt))
             method = m.func::Method
         end
         frame = StackTraces.StackFrame(method.name, method.file, method.line)

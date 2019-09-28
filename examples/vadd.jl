@@ -1,7 +1,9 @@
 using Test
 
 using CUDAdrv, CUDAnative
-include(joinpath(@__DIR__, "..", "test", "array.jl"))   # real applications: use CuArrays.jl
+
+include(joinpath(@__DIR__, "..", "test", "array.jl"))
+const CuArray = CuTestArray    # real applications: use CuArrays.jl
 
 function vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -14,9 +16,9 @@ a = round.(rand(Float32, dims) * 100)
 b = round.(rand(Float32, dims) * 100)
 c = similar(a)
 
-d_a = CuTestArray(a)
-d_b = CuTestArray(b)
-d_c = CuTestArray(c)
+d_a = CuArray(a)
+d_b = CuArray(b)
+d_c = CuArray(c)
 
 len = prod(dims)
 @cuda threads=len vadd(d_a, d_b, d_c)

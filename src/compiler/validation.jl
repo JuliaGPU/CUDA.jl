@@ -264,10 +264,13 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
             frames = ccall(:jl_lookup_code_address, Any, (Ptr{Cvoid}, Cint,), ptr, 0)
             if length(frames) >= 1
                 @compiler_assert length(frames) == 1 job frames=frames
-                fn, file, line, linfo, fromC, inlined, ip = last(frames)
+                if VERSION >= v"1.4.0-DEV.123"
+                    fn, file, line, linfo, fromC, inlined = last(frames)
+                else
+                    fn, file, line, linfo, fromC, inlined, ip = last(frames)
+                end
                 push!(errors, (POINTER_FUNCTION, bt, fn))
             else
-                fn, file, line, linfo, fromC, inlined, ip = last(frames)
                 push!(errors, (POINTER_FUNCTION, bt, nothing))
             end
         end

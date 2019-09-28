@@ -13,8 +13,8 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
                    Float32, Float64,
                    LoadableStruct),
              cached in (false, true)
-    d_a = CuTestArray(ones(T))
-    d_b = CuTestArray(zeros(T))
+    d_a = CuArray(ones(T))
+    d_b = CuArray(zeros(T))
 
     ptr_a = CUDAnative.DevicePtr{T,AS.Global}(convert(CuPtr{T}, d_a.buf))
     ptr_b = CUDAnative.DevicePtr{T,AS.Global}(convert(CuPtr{T}, d_b.buf))
@@ -38,8 +38,8 @@ end
 
     T = Complex{Int8}
 
-    src = CuTestArray([T(1) T(9); T(3) T(4)])
-    dst = CuTestArray([0])
+    src = CuArray([T(1) T(9); T(3) T(4)])
+    dst = CuArray([0])
 
     @cuda kernel(
         CUDAnative.DevicePtr{T,AS.Global}(convert(CuPtr{T}, src.buf)),
