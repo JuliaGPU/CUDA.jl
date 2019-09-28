@@ -36,10 +36,10 @@
 @inline atan2(x::Float64, y::Float64) = @wrap __nv_atan2(x::double, y::double)::double
 @inline atan2(x::Float32, y::Float32) = @wrap __nv_atan2f(x::float, y::float)::float
 
-@inline angle(x::ComplexF64) = atan2(x.re, y.im)
-@inline angle(x::ComplexF32) = atan2(x.re, y.im)
-@inline angle(x::Float64) = 0.0
-@inline angle(x::Float32) = 0.0
+@inline angle(x::ComplexF64) = atan2(x.im, x.re)
+@inline angle(x::ComplexF32) = atan2(x.im, x.re)
+@inline angle(x::Float64) = signbit(x) * -3.141592653589793
+@inline angle(x::Float32) = signbit(x) * -3.1415927f0
 
 ## hyperbolic
 
