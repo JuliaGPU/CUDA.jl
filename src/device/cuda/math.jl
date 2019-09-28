@@ -38,8 +38,8 @@
 
 @inline angle(x::ComplexF64) = atan2(x.im, x.re)
 @inline angle(x::ComplexF32) = atan2(x.im, x.re)
-@inline angle(x::Float64) = signbit(x) * -3.141592653589793
-@inline angle(x::Float32) = signbit(x) * -3.1415927f0
+@inline angle(x::Float64) = signbit(x) * 3.141592653589793
+@inline angle(x::Float32) = signbit(x) * 3.1415927f0
 
 ## hyperbolic
 
