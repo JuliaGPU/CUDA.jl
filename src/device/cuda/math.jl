@@ -32,9 +32,14 @@
 @inline atan(x::Float64) = @wrap __nv_atan(x::double)::double
 @inline atan(x::Float32) = @wrap __nv_atanf(x::float)::float
 
+# ! CUDAnative.atan2 is equivalent to Base.atan
 @inline atan2(x::Float64, y::Float64) = @wrap __nv_atan2(x::double, y::double)::double
 @inline atan2(x::Float32, y::Float32) = @wrap __nv_atan2f(x::float, y::float)::float
 
+@inline angle(x::ComplexF64) = atan2(x.re, y.im)
+@inline angle(x::ComplexF32) = atan2(x.re, y.im)
+@inline angle(x::Float64) = 0.0
+@inline angle(x::Float32) = 0.0
 
 ## hyperbolic
 
@@ -65,6 +70,10 @@
 @inline log(x::Float64) = @wrap __nv_log(x::double)::double
 @inline log(x::Float32) = @wrap __nv_logf(x::float)::float
 @inline log_fast(x::Float32) = @wrap __nv_fast_logf(x::float)::float
+
+@inline log(x::ComplexF64) = log(abs(x)) + im * angle(x)
+@inline log(x::ComplexF32) = log(abs(x)) + im * angle(x)
+@inline log_fast(x::ComplexF32) = log_fast(abs(x)) + im * angle(x)
 
 @inline log10(x::Float64) = @wrap __nv_log10(x::double)::double
 @inline log10(x::Float32) = @wrap __nv_log10f(x::float)::float
