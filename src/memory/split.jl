@@ -185,16 +185,16 @@ function scan!(blocks, sz, max_overhead=typemax(Int))
     end
 end
 
-function incremental_compact!(_blocks)
-    # we mutate the list of blocks, so take a copy
-    blocks = Set(_blocks)
-
+# compact sequences of blocks into larger ones.
+# looks up possible sequences based on each block in the input set.
+# destroys the input set.
+# returns the net difference in amount of blocks.
+function incremental_compact!(blocks)
     compacted = 0
     @lock pool_lock begin
         while !isempty(blocks)
             block = pop!(blocks)
-            szclass = size_class(sizeof(block))
-            available = (available_small, available_large, available_huge)[szclass]
+            available = get_available(sizeof(block))
 
             # get the first unallocated node in a chain
             head = block
@@ -253,11 +253,11 @@ function reclaim!(blocks, sz=typemax(Int))
     return freed
 end
 
-function repopulate!(blocks)
+# repopulate the "available" pools from a list of freed blocks
+function repopulate(blocks)
     @lock pool_lock begin
         for block in blocks
-            szclass = size_class(sizeof(block))
-            available = (available_small, available_large, available_huge)[szclass]
+            available = get_available(sizeof(block))
             @assert !in(block, available) "$block should not be in the pool"
             @assert block.state == FREED "$block should have been marked freed"
             block.state = AVAILABLE
@@ -293,20 +293,43 @@ function size_class(sz)
     end
 end
 
+@inline function get_available(sz)
+    szclass = size_class(sz)
+    if szclass == SMALL
+        return available_small
+    elseif szclass == LARGE
+        return available_large
+    elseif szclass == HUGE
+        return available_huge
+    end
+end
+
 function pool_alloc(sz)
     szclass = size_class(sz)
 
     # round of the block size
     req_sz = sz
-    roundoff = (SMALL_ROUNDOFF, LARGE_ROUNDOFF, HUGE_ROUNDOFF)[szclass]
+    roundoff = if szclass == SMALL
+        SMALL_ROUNDOFF
+    elseif szclass == LARGE
+        LARGE_ROUNDOFF
+    elseif szclass == HUGE
+        HUGE_ROUNDOFF
+    end
     sz = cld(sz, roundoff) * roundoff
     szclass = size_class(sz)
 
     # select a pool
-    available = (available_small, available_large, available_huge)[szclass]
+    available = get_available(sz)
 
     # determine the maximum scan overhead
-    max_overhead = (SMALL_OVERHEAD, LARGE_OVERHEAD, HUGE_OVERHEAD)[szclass]
+    max_overhead = if szclass == SMALL
+        SMALL_OVERHEAD
+    elseif szclass == LARGE
+        LARGE_OVERHEAD
+    elseif szclass == HUGE
+        HUGE_OVERHEAD
+    end
 
     block = nothing
     for phase in 1:3
@@ -318,9 +341,9 @@ function pool_alloc(sz)
 
         if !isempty(freed)
             # `freed` may be modified concurrently, so take a copy
-            blocks = copy(freed)
+            blocks = Set(freed)
             empty!(freed)
-            @pool_timeit "$phase.1a repopulate" repopulate!(blocks)
+            @pool_timeit "$phase.1a repopulate" repopulate(blocks)
             @pool_timeit "$phase.1b compact" incremental_compact!(blocks)
         end
 
@@ -386,9 +409,9 @@ init() = return
 function deinit()
     @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
 
-    repopulate!(freed)
+    repopulate(freed)
     incremental_compact!(freed)
-    empty!(freed)
+    @assert isempty(freed)
 
     for available in (available_small, available_large, available_huge)
         while !isempty(available)
