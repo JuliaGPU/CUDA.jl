@@ -110,19 +110,13 @@ function split!(block, sz)
     return split
 end
 
-# merge a sequence of blocks `blocks`
-function merge!(head, blocks...)
-    for block in blocks
-        @assert head.next === block "Cannot merge $block with unrelated $head"
-        head.sz += block.sz
-
-        # update links
-        tail = block.next
-        head.next = tail
-        if tail !== nothing
-            tail.prev = head
-        end
+# merge a sequence of blocks that starts at `head` and ends with `tail` (inclusive)
+function merge!(head, tail)
+    head.next = tail.next
+    if tail.next !== nothing
+        tail.next.prev = head
     end
+    head.sz = tail.sz + (tail.off - head.off)
 
     return head
 end
@@ -194,35 +188,37 @@ function incremental_compact!(blocks)
     @lock pool_lock begin
         while !isempty(blocks)
             block = pop!(blocks)
+            @assert block.state == AVAILABLE
             available = get_available(sizeof(block))
 
-            # get the first unallocated node in a chain
+            # find the head of a sequence
             head = block
             while head.prev !== nothing && head.prev.state == AVAILABLE
                 head = head.prev
             end
 
-            # construct a chain of unallocated blocks
-            chain = Block[head]
-            let block = head
-                while block.next !== nothing && block.next.state == AVAILABLE
-                    block = block.next
-                    @assert block in available "$block is marked available but not in in a pool"
-                    push!(chain, block)
-                end
-            end
+            if head.next !== nothing && head.next.state == AVAILABLE
+                delete!(available, head)
 
-            # compact the chain into a single block
-            if length(chain) > 1
-                for block in chain
-                    delete!(available, block)
-                    delete!(blocks, block)
+                # find the tail (from the head, removing blocks as we go)
+                tail = head.next
+                while true
+                    delete!(available, tail)    # FIXME: allocates
+                    delete!(blocks, tail)
+                    tail.state = INVALID
+                    compacted += 1
+                    if tail.next !== nothing && tail.next.state == AVAILABLE
+                        tail = tail.next
+                    else
+                        break
+                    end
                 end
-                block = merge!(chain...)
-                @assert !in(block, available) "$block should not be in the pool"
-                @assert block.state == AVAILABLE
-                push!(available, block)
-                compacted += length(chain) - 1
+
+                # compact
+                head = merge!(head, tail)
+                @assert !in(head, available) "$head should not be in the pool"
+                @assert head.state == AVAILABLE
+                push!(available, head)
             end
         end
     end
