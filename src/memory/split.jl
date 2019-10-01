@@ -178,7 +178,7 @@ function scan!(blocks, sz, max_overhead=typemax(Int))
             if sz > max_sz
                 return nothing
             else
-                delete!(blocks.bt, i)
+                delete!(blocks.bt, i)   # FIXME: this allocates
                 return block
             end
         end
@@ -261,7 +261,7 @@ function repopulate!(blocks)
             @assert !in(block, available) "$block should not be in the pool"
             @assert block.state == FREED "$block should have been marked freed"
             block.state = AVAILABLE
-            push!(available, block)
+            push!(available, block) # FIXME: allocates
         end
     end
 end
