@@ -149,6 +149,7 @@ end
 using Base.Threads: SpinLock
 const pool_lock = SpinLock()   # protect against deletion from freelists
 
+const scan_lower_bound = Block(nothing, 0; id=0)
 function scan!(blocks, sz, max_overhead=typemax(Int))
     max_sz = max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
@@ -162,8 +163,8 @@ function scan!(blocks, sz, max_overhead=typemax(Int))
         # but since we know the sorted set is backed by a balanced tree, we can do better
 
         # get the entry right before first sufficiently large one
-        lower_bound = Block(nothing, sz; id=0)
-        i, exact = findkey(blocks.bt, lower_bound)
+        scan_lower_bound.sz = sz    # prevent allocations
+        i, exact = findkey(blocks.bt, scan_lower_bound)
         @assert !exact  # block id bits are zero, so this match can't be exact
 
         if i == DataStructures.endloc(blocks.bt)
