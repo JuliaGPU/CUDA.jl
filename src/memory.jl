@@ -1,5 +1,9 @@
 # GPU memory management and pooling
 
+using Printf
+using TimerOutputs
+
+
 ## allocation statistics
 
 mutable struct AllocStats
@@ -28,6 +32,10 @@ Base.copy(alloc_stats::AllocStats) =
 
 ## CUDA allocator
 
+const alloc_to = TimerOutput()
+
+alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
+
 const usage = Ref(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
@@ -42,8 +50,9 @@ function actual_alloc(bytes)
   # try the actual allocation
   try
     alloc_stats.actual_time += Base.@elapsed begin
-      buf = Mem.alloc(Mem.Device, bytes)
+      @timeit alloc_to "alloc" buf = Mem.alloc(Mem.Device, bytes)
     end
+    @assert sizeof(buf) == bytes
     alloc_stats.actual_nalloc += 1
     alloc_stats.actual_alloc += bytes
     usage[] += bytes
@@ -61,16 +70,16 @@ function actual_free(buf)
   usage[] -= sizeof(buf)
 
   if CUDAdrv.isvalid(buf.ctx)
-    alloc_stats.actual_time += Base.@elapsed Mem.free(buf)
+    @timeit alloc_to "free"  begin
+      alloc_stats.actual_time += Base.@elapsed Mem.free(buf)
+    end
   end
 
   return
 end
 
 
-## pool timings
-
-using TimerOutputs
+## memory pool
 
 const pool_to = TimerOutput()
 
@@ -78,8 +87,7 @@ macro pool_timeit(args...)
     TimerOutputs.timer_expr(__module__, false, :($CuArrays.pool_to), args...)
 end
 
-
-## pool implementations
+pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 
 # API:
 # - init()
@@ -137,45 +145,12 @@ end
   return
 end
 
-function __init_memory__()
-  if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
-    usage_limit[] = parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
-  end
-
-  if haskey(ENV, "CUARRAYS_MEMORY_POOL")
-    memory_pool!(
-      if ENV["CUARRAYS_MEMORY_POOL"] == "binned"
-        BinnedPool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "simple"
-        SimplePool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "split"
-        SplittingPool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "none"
-        DummyPool
-      else
-        error("Invalid allocator selected")
-      end)
-  else
-    memory_pool!()
-  end
-
-  # if the user hand-picked an allocator, be a little verbose
-  if haskey(ENV, "CUARRAYS_MEMORY_POOL")
-    atexit(()->begin
-      Core.println("""
-        CuArrays.jl $(nameof(pool[])) statistics:
-         - $(alloc_stats.pool_nalloc) pool allocations: $(Base.format_bytes(alloc_stats.pool_alloc)) in $(round(alloc_stats.pool_time; digits=2))s
-         - $(alloc_stats.actual_nalloc) CUDA allocations: $(Base.format_bytes(alloc_stats.actual_alloc)) in $(round(alloc_stats.actual_time; digits=2))s""")
-    end)
-  end
-end
-
 function memory_pool!(mod::Module=BinnedPool)
   if pool[] !== nothing
     pool[].deinit()
   end
 
-  TimerOutputs.reset_timer!(pool_to)
+  reset_timers!()
 
   pool[] = mod
   mod.init()
@@ -183,10 +158,10 @@ function memory_pool!(mod::Module=BinnedPool)
   return
 end
 
+pool_dump() = pool[].dump()
+
 
 ## utilities
-
-using Printf
 
 macro allocated(ex)
     quote
@@ -308,6 +283,43 @@ function memory_status()
   end
 end
 
-pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 
-pool_dump() = pool[].dump()
+## init
+
+function __init_memory__()
+  if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
+    usage_limit[] = parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
+  end
+
+  if haskey(ENV, "CUARRAYS_MEMORY_POOL")
+    memory_pool!(
+      if ENV["CUARRAYS_MEMORY_POOL"] == "binned"
+        BinnedPool
+      elseif ENV["CUARRAYS_MEMORY_POOL"] == "simple"
+        SimplePool
+      elseif ENV["CUARRAYS_MEMORY_POOL"] == "split"
+        SplittingPool
+      elseif ENV["CUARRAYS_MEMORY_POOL"] == "none"
+        DummyPool
+      else
+        error("Invalid allocator selected")
+      end)
+  else
+    memory_pool!()
+  end
+
+  # if the user hand-picked an allocator, be a little verbose
+  if haskey(ENV, "CUARRAYS_MEMORY_POOL")
+    atexit(()->begin
+      Core.println("""
+        CuArrays.jl $(nameof(pool[])) statistics:
+         - $(alloc_stats.pool_nalloc) pool allocations: $(Base.format_bytes(alloc_stats.pool_alloc)) in $(round(alloc_stats.pool_time; digits=2))s
+         - $(alloc_stats.actual_nalloc) CUDA allocations: $(Base.format_bytes(alloc_stats.actual_alloc)) in $(round(alloc_stats.actual_time; digits=2))s""")
+    end)
+  end
+end
+
+function reset_timers!()
+  TimerOutputs.reset_timer!(alloc_to)
+  TimerOutputs.reset_timer!(pool_to)
+end

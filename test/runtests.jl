@@ -30,5 +30,7 @@ include("forwarddiff.jl")
 
 CuArrays.memory_status()
 CuArrays.pool_timings()
+CuArrays.alloc_timings()
+CuArrays.reset_timers!()
 
 end

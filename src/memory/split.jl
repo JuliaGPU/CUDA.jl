@@ -130,7 +130,7 @@ function merge!(head, blocks...)
 end
 
 @inline function actual_alloc(sz)
-    @pool_timeit "alloc" buf = CuArrays.actual_alloc(sz)
+    buf = CuArrays.actual_alloc(sz)
     block = buf === nothing ? nothing : Block(buf)
 end
 
@@ -139,7 +139,7 @@ function actual_free(block::Block)
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
-        @pool_timeit "free" CuArrays.actual_free(block.buf)
+        CuArrays.actual_free(block.buf)
         block.state = INVALID
     end
     return
