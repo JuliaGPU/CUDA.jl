@@ -47,6 +47,19 @@ blockdim = 5
     y = sprand(n,0.2)
     d_y = CuSparseVector(y)
     @test_throws ArgumentError copyto!(d_y,d_x)
+    x = sprand(m,m,0.2)
+    d_x = Symmetric(CuSparseMatrixCSC(x + transpose(x)))
+    @test issymmetric(d_x)
+    x = sprand(ComplexF64, m, m, 0.2)
+    d_x = Hermitian(CuSparseMatrixCSC(x + x'))
+    @test ishermitian(d_x)
+    x = sprand(m,m,0.2)
+    d_x = UpperTriangular(CuSparseMatrixCSC(x))
+    @test istriu(d_x)
+    @test !istril(d_x)
+    d_x = LowerTriangular(CuSparseMatrixCSC(x))
+    @test !istriu(d_x)
+    @test istril(d_x)
 end
 
 @testset "char" begin

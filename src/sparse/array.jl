@@ -166,9 +166,9 @@ function size(g::CuSparseMatrix, d::Integer)
     end
 end
 
-issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR})= false
-ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) where T = false
-issymmetric(M::Symmetric{CuSparseMatrixCSC})= true
+issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
+ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
+issymmetric(M::Symmetric{CuSparseMatrixCSC}) = true
 ishermitian(M::Hermitian{CuSparseMatrixCSC}) = true
 
 istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = true
