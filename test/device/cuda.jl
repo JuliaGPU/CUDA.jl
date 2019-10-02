@@ -1100,6 +1100,29 @@ end
     end
 end
 
+@testset "macro" begin
+    using CUDAnative: AtomicError
+
+    @test_throws_macro AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
+        @atomic a[1] = 1
+    end
+    @test_throws_macro AtomicError("right-hand side of an @atomic assignment should be a call") @macroexpand begin
+        @atomic a[1] = b ? 1 : 2
+    end
+
+    @test_throws_macro AtomicError("right-hand side of a non-inplace @atomic assignment should reference the left-hand side") @macroexpand begin
+        @atomic a[1] = a[2] + 1
+    end
+
+    @test_throws_macro AtomicError("unknown @atomic expression") @macroexpand begin
+        @atomic wat(a[1])
+    end
+
+    @test_throws_macro AtomicError("@atomic should be applied to an array reference expression") @macroexpand begin
+        @atomic a = a + 1
+    end
+end
+
 end
 
 ############################################################################################

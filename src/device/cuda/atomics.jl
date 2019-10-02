@@ -299,6 +299,10 @@ const inplace_ops = Dict(
     :(⊻=) => :(⊻)
 )
 
+struct AtomicError <: Exception
+    msg::AbstractString
+end
+
 """
     @atomic a[I] = op(a[I], val)
     @atomic a[I] ...= val
@@ -319,10 +323,10 @@ macro atomic(ex)
     if ex.head == :(=)
         ref = ex.args[1]
         rhs = ex.args[2]
-        rhs.head == :call || error("right-hand side of an @atomic assignment should be a call")
+        Meta.isexpr(rhs, :call) || throw(AtomicError("right-hand side of an @atomic assignment should be a call"))
         op = rhs.args[1]
         if rhs.args[2] != ref
-            error("non-inplace @atomic assignment should reference the same array elements")
+            throw(AtomicError("right-hand side of a non-inplace @atomic assignment should reference the left-hand side"))
         end
         val = rhs.args[3]
     elseif haskey(inplace_ops, ex.head)
@@ -330,13 +334,11 @@ macro atomic(ex)
         ref = ex.args[1]
         val = ex.args[2]
     else
-        error("unknown @atomic expression")
+        throw(AtomicError("unknown @atomic expression"))
     end
 
     # decode array expression
-    if ref.head != :ref
-        error("@atomic should be applied to an array reference expression")
-    end
+    Meta.isexpr(ref, :ref) || throw(AtomicError("@atomic should be applied to an array reference expression"))
     array = ref.args[1]
     indices = Expr(:tuple, ref.args[2:end]...)
 

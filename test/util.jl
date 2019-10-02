@@ -17,6 +17,20 @@ macro test_throws_message(f, typ, ex...)
     end
 end
 
+# @test_throw, peeking into the load error for testing macro errors
+macro test_throws_macro(ty, ex)
+    return quote
+        Test.@test_throws $(esc(ty)) try
+            $(esc(ex))
+        catch err
+            @test err isa LoadError
+            @test err.file === $(string(__source__.file))
+            @test err.line === $(__source__.line + 1)
+            rethrow(err.error)
+        end
+    end
+end
+
 # NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
 macro grab_output(ex)
     quote
