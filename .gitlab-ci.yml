@@ -1,23 +1,48 @@
 variables:
   CI_IMAGE_TAG: 'cuda'
-  CI_DEV_PKGS: 'CUDAdrv LLVM'
 
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/common.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.0.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.2.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/coverage_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/documentation_v1.1.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/test.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
+
+
+# basic tests
+
+test:v1.0:
+  extends: .test:v1.0
+
+test:v1.1:
+  extends: .test:v1.1
+
+test:v1.2:
+  extends: .test:v1.2
+
+test:v1.3:
+  extends: .test:v1.3
 
 test:dev:
+  extends: .test:dev
   allow_failure: true
 
-coverage:
+
+# reverse tests
+
+# NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
+
+cuarrays:
+  extends: .test:v1.2
+  script:
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();'
+    - julia -e 'using Pkg;
+                Pkg.add(PackageSpec(name="CuArrays", rev="master"));
+                Pkg.test("CuArrays");'
   allow_failure: true
-  only:
-    - master
+
+
+# deployment
 
 pages:
   stage: deploy
@@ -28,18 +53,3 @@ pages:
     - public
   only:
     - master
-
-cuarrays:
-  stage: test
-  image: "juliagpu/julia:v1.1-cuda"
-  script:
-    - mkdir $JULIA_DEPOT_PATH # Pkg.jl#325
-    - julia -e 'using Pkg;
-                Pkg.develop([PackageSpec(path=pwd());
-                             [PackageSpec(name=pkg)
-                              for pkg in split(get(ENV,"CI_DEV_PKGS",""))]]);
-                Pkg.build("CUDAnative")'
-    - julia -e 'using Pkg;
-                Pkg.add("CuArrays");
-                Pkg.test("CuArrays")'
-  allow_failure: true
