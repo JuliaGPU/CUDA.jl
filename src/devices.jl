@@ -153,8 +153,24 @@ end
                           MAX_REGISTERS_PER_MULTIPROCESSOR,
                           MANAGED_MEMORY,
                           MULTI_GPU_BOARD,
-                          MULTI_GPU_BOARD_GROUP_ID)
-@assert Cint(MULTI_GPU_BOARD_GROUP_ID) == 85
+                          MULTI_GPU_BOARD_GROUP_ID,
+                          HOST_NATIVE_ATOMIC_SUPPORTED,
+                          SINGLE_TO_DOUBLE_PRECISION_PERF_RATIO,
+                          PAGEABLE_MEMORY_ACCESS,
+                          CONCURRENT_MANAGED_ACCESS,
+                          COMPUTE_PREEMPTION_SUPPORTED,
+                          CAN_USE_HOST_POINTER_FOR_REGISTERED_MEM,
+                          CAN_USE_STREAM_MEM_OPS,
+                          CAN_USE_64_BIT_STREAM_MEM_OPS,
+                          CAN_USE_STREAM_WAIT_VALUE_NOR,
+                          COOPERATIVE_LAUNCH,
+                          COOPERATIVE_MULTI_DEVICE_LAUNCH,
+                          MAX_SHARED_MEMORY_PER_BLOCK_OPTIN,
+                          CAN_FLUSH_REMOTE_WRITES,
+                          HOST_REGISTER_SUPPORTED,
+                          PAGEABLE_MEMORY_ACCESS_USES_HOST_PAGE_TABLES,
+                          DIRECT_MANAGED_MEM_ACCESS_FROM_HOST)
+@assert Cint(DIRECT_MANAGED_MEM_ACCESS_FROM_HOST) == 101
 
 """
     attribute(dev::CuDevice, code)

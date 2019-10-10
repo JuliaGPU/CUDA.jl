@@ -17,6 +17,9 @@ nb = sizeof(data)
 for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     dstTy in [Mem.Device, Mem.Host, Mem.Unified]
 
+    dummy = Mem.alloc(srcTy, 0)
+    Mem.free(dummy)
+
     src = Mem.alloc(srcTy, nb)
     if isa(src, Mem.Host)
         unsafe_copyto!(convert(Ptr{T}, src), pointer(data), N)
