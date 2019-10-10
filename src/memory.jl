@@ -184,7 +184,7 @@ the CPU, and makes it possible to perform faster memory copies to the GPU. Furth
 accesses are direct, and go through the PCI bus.
 """
 function alloc(::Type{HostBuffer}, bytesize::Integer, flags::CUmem_host_alloc=HOSTALLOC_DEFAULT)
-    bytesize == 0 && return HostBuffer(C_NULL, 0, CuContext(C_NULL), flags)
+    bytesize == 0 && return HostBuffer(C_NULL, 0, CuContext(C_NULL), false)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
     @apicall(:cuMemHostAlloc,
@@ -214,7 +214,7 @@ Allocate `bytesize` bytes of unified memory. This memory is accessible from both
 GPU, with the CUDA driver automatically copying upon first access.
 """
 function alloc(::Type{UnifiedBuffer}, bytesize::Integer, flags::CUmem_attach=ATTACH_GLOBAL)
-    bytesize == 0 && return UnifiedBuffer(C_NULL, 0, CuContext(C_NULL), flags)
+    bytesize == 0 && return UnifiedBuffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
     @apicall(:cuMemAllocManaged,
