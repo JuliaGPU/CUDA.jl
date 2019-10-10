@@ -359,3 +359,8 @@ end
     inds = rand(1:100, 150, 150)
     @test testf(x->permutedims(view(x, inds, :), (3, 2, 1)), rand(100, 100))
 end
+
+@testset "findall" begin
+    @test testf(x->findall(x), rand(Bool, 100))
+    @test testf(x->findall(y->y>0.5, x), rand(100))
+end
