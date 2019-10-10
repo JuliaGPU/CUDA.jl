@@ -25,33 +25,37 @@ function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::N
     Δ = 1   # Δ = 2^d
     n = ceil(Int, log2(length(v)))
 
-    num_threads = 256
-    num_blocks = ceil(Int, length(v) / num_threads)
+    # partial in-place accumulation
+    function kernel(op, vout, vin, Δ)
+        i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+
+        @inbounds if i <= length(vin)
+            if i > Δ
+                vout[i] = op(vin[i - Δ], vin[i])
+            else
+                vout[i] = vin[i]
+            end
+        end
+
+        return
+    end
+
+    function configurator(kernel)
+        fun = kernel.fun
+        config = launch_configuration(fun)
+        blocks = cld(length(v), config.threads)
+
+        return (threads=config.threads, blocks=blocks)
+    end
 
     for d in 0:n   # passes through data
-        @cuda blocks=num_blocks threads=num_threads _partial_accumulate!(op, vout, vin, Δ)
+        @cuda config=configurator kernel(op, vout, vin, Δ)
 
         vin, vout = vout, vin
         Δ *= 2
     end
 
     return vin
-end
-
-function _partial_accumulate!(op, vout, vin, Δ)
-    @inbounds begin
-        k = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-
-        if k <= length(vin)
-            if k > Δ
-                vout[k] = op(vin[k - Δ], vin[k])
-            else
-                vout[k] = vin[k]
-            end
-        end
-    end
-
-    return
 end
 
 Base.accumulate_pairwise!(op, result::CuVector, v::CuVector) = accumulate!(op, result, v)
