@@ -268,7 +268,9 @@ end
   @test cumsum(CuArray{Int}(undef, 2)) isa CuVector
   @test cumprod(CuArray{Int}(undef, 2)) isa CuVector
 
-  @test testf(x->accumulate(+, x), rand(2))
+  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
+    @test testf(x->accumulate(+, x), rand(n))
+  end
   @test testf(x->accumulate(+, x; dims=2), rand(2))
   @test testf(x->(accumulate!(+, x, copy(x)); x), rand(2))
   @test testf(cumsum, rand(2))

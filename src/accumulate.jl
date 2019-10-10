@@ -95,6 +95,8 @@ end
 
 function Base._accumulate!(f::Function, output::CuVector{T}, input::CuVector{T},
                            dims::Nothing, init::Nothing) where {T}
+    length(input) == 0 && return output
+
     # determine how many threads we can launch for the scan kernel
     args = (+, input, output)
     kernel_args = cudaconvert.(args)
