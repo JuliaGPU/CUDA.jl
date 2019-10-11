@@ -270,17 +270,26 @@ end
 end
 
 @testset "accumulate" begin
-  @test accumulate(+, CuArray{Int}(undef, 2)) isa CuVector
-  @test cumsum(CuArray{Int}(undef, 2)) isa CuVector
-  @test cumprod(CuArray{Int}(undef, 2)) isa CuVector
-
   for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
     @test testf(x->accumulate(+, x), rand(n))
   end
-  @test testf(x->accumulate(+, x; dims=2), rand(2))
+
+  # multidimensional
+  for (sizes, dims) in ((2,) => 2,
+                        (3,4,5) => 2,
+                        (1, 70, 50, 20) => 3)
+    @test testf(x->accumulate(+, x; dims=dims), rand(Int, sizes))
+  end
+
+  # using initializer
+  # TODO
+
+  # in place
   @test testf(x->(accumulate!(+, x, copy(x)); x), rand(2))
+
+  # specialized
   @test testf(cumsum, rand(2))
-  @test testf(cumprod, rand(2))
+  @test_broken testf(cumprod, rand(2))  # TODO
 end
 
 @testset "logical indexing" begin

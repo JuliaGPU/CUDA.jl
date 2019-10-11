@@ -1,7 +1,7 @@
 # TODO: features
 # - init::Some
-# - CuMatrix
 # - pairwise
+# - promote_op, and correctly handling e.g. cumsum(Bool[]) (without first converting to Int)
 
 # TODO: performance
 # - shuffle
@@ -11,19 +11,31 @@
 # work-efficient implementation after Blelloch (1990)
 #
 # number of threads needs to be a power-of-2
-function partial_scan(op::Function, input::CuDeviceVector{T}, output::CuDeviceVector{T},
-                      ::Val{inclusive}=Val(true)) where {T, inclusive}
+function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceArray{T,N},
+                      Rdim, Rpre, Rpost, Rother,
+                      ::Val{inclusive}=Val(true)) where {T, N, inclusive}
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
 
     temp = @cuDynamicSharedMem(T, (2*threads,))
 
-    i = (block-1) * threads + thread
+    # iterate the main dimension using threads and the first block dimension
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    # iterate the other dimensions using the remaining block dimensions
+    j = (blockIdx().z-1) * gridDim().y + blockIdx().y
+
+    if j > length(Rother)
+        return
+    end
+
+    I = Rother[j]
+    Ipre = Rpre[I[1]]
+    Ipost = Rpost[I[2]]
 
     # load input into shared memory
-    @inbounds temp[thread] = if i <= length(input)
-        input[i]
+    @inbounds temp[thread] = if i <= length(Rdim)
+        input[Ipre, i, Ipost]
     else
         zero(T)
     end
@@ -66,9 +78,9 @@ function partial_scan(op::Function, input::CuDeviceVector{T}, output::CuDeviceVe
     sync_threads()
 
     # write results to device memory
-    @inbounds if i <= length(input)
-        output[i] = if inclusive
-            op(temp[thread], input[i])
+    @inbounds if i <= length(Rdim)
+        output[Ipre, i, Ipost] = if inclusive
+            op(temp[thread], input[Ipre, i, Ipost])
         else
             temp[thread]
         end
@@ -78,54 +90,86 @@ function partial_scan(op::Function, input::CuDeviceVector{T}, output::CuDeviceVe
 end
 
 # aggregate the result of a partial scan by applying preceding block aggregates
-function aggregate_partial_scan(op::Function, output::CuDeviceVector{T},
-                                aggregates::CuDeviceVector{T}) where {T}
+function aggregate_partial_scan(op::Function, output::CuDeviceArray{T,N},
+                                aggregates::CuDeviceArray{T,N}, Rdim, Rpre, Rpost, Rother
+                               ) where {T,N}
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
 
-    i = (block-1) * threads + thread
+    # iterate the main dimension using threads and the first block dimension
+    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+    # iterate the other dimensions using the remaining block dimensions
+    j = (blockIdx().z-1) * gridDim().y + blockIdx().y
 
-    @inbounds if block > 1 && i <= length(output)
-        output[i] = op(aggregates[block-1], output[i])
+    @inbounds if block > 1 && i <= length(Rdim) && j <= length(Rother)
+        I = Rother[j]
+        Ipre = Rpre[I[1]]
+        Ipost = Rpost[I[2]]
+
+        output[Ipre, i, Ipost] = op(aggregates[Ipre, block-1, Ipost], output[Ipre, i, Ipost])
     end
 
     return
 end
 
-function Base._accumulate!(f::Function, output::CuVector{T}, input::CuVector{T},
-                           dims::Nothing, init::Nothing) where {T}
-    length(input) == 0 && return output
+function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N},
+                           dims::Integer, init::Nothing) where {T,N}
+    dims > 0 || throw(ArgumentError("dims must be a positive integer"))
+    inds_t = axes(input)
+    axes(output) == inds_t || throw(DimensionMismatch("shape of B must match A"))
+    dims > ndims(input) && return copyto!(output, input)
+    isempty(inds_t[dims]) && return output
+
+    # iteration domain across the main dimension
+    Rdim = CartesianIndices((size(input, dims),))
+
+    # iteration domain for the other dimensions
+    Rpre = CartesianIndices(size(input)[1:dims-1])
+    Rpost = CartesianIndices(size(input)[dims+1:end])
+    Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    args = (+, input, output)
+    args = (+, input, output, Rdim, Rpre, Rpost, Rother)
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_scan, kernel_tt)
     kernel_config = launch_configuration(kernel.fun; shmem=(threads)->2*threads*sizeof(T))
 
+    # determine the grid layout to cover the other dimensions
+    dev = CUDAdrv.device(kernel.fun.mod.ctx)
+    max_other_blocks = attribute(dev, CUDAdrv.MAX_GRID_DIM_Y)
+    blocks_other = (min(length(Rother), max_other_blocks),
+                    cld(length(Rother), max_other_blocks))
+
     # does that suffice to scan the array in one go?
-    full = nextpow(2, length(input))
+    full = nextpow(2, length(Rdim))
     if full <= kernel_config.threads
-        @cuda name="scan" threads=full shmem=2*full*sizeof(T) partial_scan(+, input, output)
+        @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
+              partial_scan(+, input, output, Rdim, Rpre, Rpost, Rother))
     else
         # perform partial scans of smaller thread blocks
         partial = prevpow(2, kernel_config.threads)
-        blocks = cld(length(input), partial)
-        @cuda threads=partial blocks=blocks shmem=2*partial*sizeof(T) partial_scan(f, input, output)
+        blocks_dim = cld(length(Rdim), partial)
+        @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
+              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother))
 
-        # calculate per-block totals
-        aggregates = CuArrays.zeros(T, nextpow(2, blocks))
-        copyto!(aggregates, output[partial:partial:end])
+        # calculate per-block totals across the scanning dimension
+        # (needs to be pow2 sized, hence the padding with zero)
+        # TODO: get avoid of that requirement, since it requires a neutral element
+        #       and might require a kernel to initialize non-consecutive memory
+        aggregates = zeros(T, Base.setindex(size(input), nextpow(2, blocks_dim), dims))
+        copyto!(aggregates, selectdim(output, dims, partial:partial:length(Rdim)))
 
         # scan block totals to get block aggregates
-        accumulate!(f, aggregates, aggregates)
+        accumulate!(f, aggregates, aggregates; dims=dims)
 
         # apply the block aggregates to the partial scan result
         # NOTE: we assume that this kernel requires fewer resources than the scan kernel.
         #       if that does not hold, launch with fewer threads and calculate
         #       the aggregate block index within the kernel itself.
-        @cuda threads=partial blocks=blocks aggregate_partial_scan(+, output, aggregates)
+        @cuda(threads=partial, blocks=(blocks_dim, blocks_other...),
+              aggregate_partial_scan(+, output, aggregates, Rdim, Rpre, Rpost, Rother))
 
         CuArrays.unsafe_free!(aggregates)
     end
@@ -133,20 +177,16 @@ function Base._accumulate!(f::Function, output::CuVector{T}, input::CuVector{T},
     return output
 end
 
-function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::Int,
-                           init::Nothing) where {T}
-    if dims != 1
-        return copyto!(vout, v)
-    end
-
-    return Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, nothing, nothing)
-end
-
-function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::Nothing,
-                           init::Nothing) where {T}
+function Base._accumulate!(op::Function, vout::CuArray{T}, v::CuArray, dims,
+                           init) where {T}
     vin = T.(v)  # convert to vector with eltype T
 
-    return Base._accumulate!(op::Function, vout::CuVector{T}, vin::CuVector, dims, init)
+    return Base._accumulate!(op::Function, vout, vin, dims, init)
+end
+
+function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector{T}, dims::Nothing,
+                           init::Nothing) where {T}
+    return Base._accumulate!(op::Function, vout, v, 1, init)
 end
 
 Base.accumulate_pairwise!(op, result::CuVector, v::CuVector) = accumulate!(op, result, v)
