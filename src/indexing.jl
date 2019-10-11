@@ -35,11 +35,12 @@ function Base.getindex(xs::CuArray{T}, bools::CuArray{Bool}) where {T}
     end
 
     function configurator(kernel)
-        fun = kernel.fun
-        config = launch_configuration(fun)
-        blocks = cld(length(indices), config.threads)
+        config = launch_configuration(kernel.fun)
 
-        return (threads=config.threads, blocks=blocks)
+        threads = min(length(indices), config.threads)
+        blocks = cld(length(indices), threads)
+
+        return (threads=threads, blocks=blocks)
     end
 
     @cuda name="logical_getindex" config=configurator kernel(ys, xs, bools, indices)
@@ -75,11 +76,12 @@ function Base.findall(bools::CuArray{Bool})
         end
 
         function configurator(kernel)
-            fun = kernel.fun
-            config = launch_configuration(fun)
-            blocks = cld(length(indices), config.threads)
+            config = launch_configuration(kernel.fun)
 
-            return (threads=config.threads, blocks=blocks)
+            threads = min(length(indices), config.threads)
+            blocks = cld(length(indices), threads)
+
+            return (threads=threads, blocks=blocks)
         end
 
         @cuda name="findall" config=configurator kernel(ys, bools, indices)
