@@ -130,7 +130,7 @@ function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    args = (+, input, output, Rdim, Rpre, Rpost, Rother)
+    args = (f, input, output, Rdim, Rpre, Rpost, Rother)
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_scan, kernel_tt)
@@ -146,7 +146,7 @@ function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N
     full = nextpow(2, length(Rdim))
     if full <= kernel_config.threads
         @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
-              partial_scan(+, input, output, Rdim, Rpre, Rpost, Rother))
+              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother))
     else
         # perform partial scans of smaller thread blocks
         partial = prevpow(2, kernel_config.threads)
@@ -169,7 +169,7 @@ function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N
         #       if that does not hold, launch with fewer threads and calculate
         #       the aggregate block index within the kernel itself.
         @cuda(threads=partial, blocks=(blocks_dim, blocks_other...),
-              aggregate_partial_scan(+, output, aggregates, Rdim, Rpre, Rpost, Rother))
+              aggregate_partial_scan(f, output, aggregates, Rdim, Rpre, Rpost, Rother))
 
         CuArrays.unsafe_free!(aggregates)
     end
