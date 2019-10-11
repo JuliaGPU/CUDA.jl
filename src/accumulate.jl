@@ -56,7 +56,7 @@ function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceA
 
     # clear the last element
     @inbounds if thread == 1
-        temp[threads] = 0
+        temp[threads] = zero(T)
     end
 
     # traverse down tree & build scan
