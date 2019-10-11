@@ -234,6 +234,12 @@ end
     x[1,:] .= 42
     @test Array(x)[1,1] == 42
   end
+
+  # bug in copyto!
+  ## needless N type parameter
+  @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(2,2))
+  ## inability to copyto! smaller destination
+  @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(3,3))
 end
 
 @testset "reshape" begin

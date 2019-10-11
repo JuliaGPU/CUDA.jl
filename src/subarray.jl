@@ -42,8 +42,8 @@ _cuview(A, I, ::NonContiguous) where {N} = invoke(view, Tuple{AbstractArray, typ
 
 # copyto! doesn't know how to deal with SubArrays, but broadcast does
 # FIXME: use the rules from Adapt.jl to define copyto! methods in GPUArrays.jl
-function Base.copyto!(dest::GPUArray{T,N}, src::SubArray{T,N,<:GPUArray{T,N}}) where {T,N}
-    dest .= src
+function Base.copyto!(dest::GPUArray{T,N}, src::SubArray{T,N,<:GPUArray{T}}) where {T,N}
+    view(dest, axes(src)...) .= src
     dest
 end
 
