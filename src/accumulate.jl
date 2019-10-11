@@ -148,23 +148,20 @@ function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N
         @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
               partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother))
     else
-        # perform partial scans of smaller thread blocks
+        # perform partial scans across the scanning dimension
         partial = prevpow(2, kernel_config.threads)
         blocks_dim = cld(length(Rdim), partial)
         @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
               partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother))
 
-        # calculate per-block totals across the scanning dimension
-        # (needs to be pow2 sized, hence the padding with zero)
-        # TODO: get avoid of that requirement, since it requires a neutral element
-        #       and might require a kernel to initialize non-consecutive memory
-        aggregates = zeros(T, Base.setindex(size(input), nextpow(2, blocks_dim), dims))
+        # get the total of each thread block (except the first) of the partial scans
+        aggregates = zeros(T, Base.setindex(size(input), blocks_dim, dims))
         copyto!(aggregates, selectdim(output, dims, partial:partial:length(Rdim)))
 
-        # scan block totals to get block aggregates
+        # scan these totals to get totals for the entire partial scan
         accumulate!(f, aggregates, aggregates; dims=dims)
 
-        # apply the block aggregates to the partial scan result
+        # add those totals to the partial scan result
         # NOTE: we assume that this kernel requires fewer resources than the scan kernel.
         #       if that does not hold, launch with fewer threads and calculate
         #       the aggregate block index within the kernel itself.
