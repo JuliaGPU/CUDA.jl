@@ -137,10 +137,14 @@ function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N
     kernel_config = launch_configuration(kernel.fun; shmem=(threads)->2*threads*sizeof(T))
 
     # determine the grid layout to cover the other dimensions
-    dev = CUDAdrv.device(kernel.fun.mod.ctx)
-    max_other_blocks = attribute(dev, CUDAdrv.MAX_GRID_DIM_Y)
-    blocks_other = (min(length(Rother), max_other_blocks),
-                    cld(length(Rother), max_other_blocks))
+    if length(Rother) > 1
+        dev = CUDAdrv.device(kernel.fun.mod.ctx)
+        max_other_blocks = attribute(dev, CUDAdrv.MAX_GRID_DIM_Y)
+        blocks_other = (min(length(Rother), max_other_blocks),
+                        cld(length(Rother), max_other_blocks))
+    else
+        blocks_other = (1, 1)
+    end
 
     # does that suffice to scan the array in one go?
     full = nextpow(2, length(Rdim))
