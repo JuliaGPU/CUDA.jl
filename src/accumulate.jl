@@ -186,4 +186,11 @@ function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector{T}, dims
     return Base._accumulate!(op::Function, vout, v, 1, init)
 end
 
+function Base._accumulate!(op::Function, vout::CuVector{T}, v::CuVector, dims::Nothing,
+                           init::Nothing) where {T}
+    vin = T.(v)  # convert to vector with eltype T
+
+    return Base._accumulate!(op::Function, vout, vin, 1, init)
+end
+
 Base.accumulate_pairwise!(op, result::CuVector, v::CuVector) = accumulate!(op, result, v)
