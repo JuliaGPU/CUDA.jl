@@ -53,9 +53,11 @@ function partial_scan(op::Function, output::CuDeviceArray{T}, input::CuDeviceArr
         return
     end
 
-    I = Rother[j]
-    Ipre = Rpre[I[1]]
-    Ipost = Rpost[I[2]]
+    @inbounds begin
+        I = Rother[j]
+        Ipre = Rpre[I[1]]
+        Ipost = Rpost[I[2]]
+    end
 
     # load input into shared memory (apply `op` to have the correct type)
     @inbounds temp[thread] = if i <= length(Rdim)
@@ -163,7 +165,7 @@ function scan!(f::Function, output::CuArray{T}, input::CuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    args = (f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init)
+    args = (f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_scan, kernel_tt)
@@ -183,13 +185,13 @@ function scan!(f::Function, output::CuArray{T}, input::CuArray;
     full = nextpow(2, length(Rdim))
     if full <= kernel_config.threads
         @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
-              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init))
+              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true)))
     else
         # perform partial scans across the scanning dimension
         partial = prevpow(2, kernel_config.threads)
         blocks_dim = cld(length(Rdim), partial)
         @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
-              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init))
+              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true)))
 
         # get the total of each thread block (except the first) of the partial scans
         aggregates = fill(neutral, Base.setindex(size(input), blocks_dim, dims))
