@@ -289,7 +289,7 @@ end
 
   # specialized
   @test testf(cumsum, rand(2))
-  @test_broken testf(cumprod, rand(2))  # TODO
+  @test testf(cumprod, rand(2))
 end
 
 @testset "logical indexing" begin

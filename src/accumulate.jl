@@ -7,12 +7,37 @@
 # - shuffle
 # - warp-aggregate atomics
 
+# FIXME: certain Base operations, like accumulate, don't allow to pass a neutral element
+#        since it is not required by the Base implementation (as opposed to eg. reduce).
+#        to stick to the API, we use global state to provide a callback.
+const neutral_elements = Dict{Function,Function}(
+    Base.:(+)       => zero,
+    Base.add_sum    => zero,
+    Base.:(*)       => one,
+    Base.mul_prod   => one,
+)
+function neutral_element!(op, f)
+    if haskey(neutral_elements, op)
+        @warn "Overriding neutral element for $op"
+    end
+    neutral_elements[op] = f
+end
+function neutral_element(op, T)
+    if !haskey(neutral_elements, op)
+        error("""CuArrays.jl needs to know the neutral element for your operator $op.
+                 Please register your operator using: `CuArrays.neutral_element!($op, f::Function)`,
+                 providing a function that returns a neutral element for a given element type.""")
+    end
+    f = neutral_elements[op]
+    return f(T)
+end
+
 # partial scan of individual thread blocks within a grid
 # work-efficient implementation after Blelloch (1990)
 #
 # number of threads needs to be a power-of-2
 function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceArray{T,N},
-                      Rdim, Rpre, Rpost, Rother,
+                      Rdim, Rpre, Rpost, Rother, neutral,
                       ::Val{inclusive}=Val(true)) where {T, N, inclusive}
     threads = blockDim().x
     thread = threadIdx().x
@@ -37,7 +62,7 @@ function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceA
     @inbounds temp[thread] = if i <= length(Rdim)
         input[Ipre, i, Ipost]
     else
-        zero(T)
+        neutral
     end
 
     # build sum in place up the tree
@@ -56,7 +81,7 @@ function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceA
 
     # clear the last element
     @inbounds if thread == 1
-        temp[threads] = zero(T)
+        temp[threads] = neutral
     end
 
     # traverse down tree & build scan
@@ -114,7 +139,8 @@ function aggregate_partial_scan(op::Function, output::CuDeviceArray{T,N},
 end
 
 function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N},
-                           dims::Integer, init::Nothing) where {T,N}
+                           dims::Integer, init::Nothing,
+                           neutral=neutral_element(f, T)) where {T,N}
     dims > 0 || throw(ArgumentError("dims must be a positive integer"))
     inds_t = axes(input)
     axes(output) == inds_t || throw(DimensionMismatch("shape of B must match A"))
@@ -130,7 +156,7 @@ function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    args = (f, input, output, Rdim, Rpre, Rpost, Rother)
+    args = (f, input, output, Rdim, Rpre, Rpost, Rother, neutral)
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_scan, kernel_tt)
@@ -150,13 +176,13 @@ function Base._accumulate!(f::Function, output::CuArray{T,N}, input::CuArray{T,N
     full = nextpow(2, length(Rdim))
     if full <= kernel_config.threads
         @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
-              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother))
+              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother, neutral))
     else
         # perform partial scans across the scanning dimension
         partial = prevpow(2, kernel_config.threads)
         blocks_dim = cld(length(Rdim), partial)
         @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
-              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother))
+              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother, neutral))
 
         # get the total of each thread block (except the first) of the partial scans
         aggregates = zeros(T, Base.setindex(size(input), blocks_dim, dims))
