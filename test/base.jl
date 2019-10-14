@@ -282,7 +282,11 @@ end
   end
 
   # using initializer
-  # TODO
+  for (sizes, dims) in ((2,) => 2,
+                        (3,4,5) => 2,
+                        (1, 70, 50, 20) => 3)
+    @test testf(x->accumulate(+, x; dims=dims, init=100.), rand(Int, sizes))
+  end
 
   # in place
   @test testf(x->(accumulate!(+, x, copy(x)); x), rand(2))
