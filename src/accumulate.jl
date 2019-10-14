@@ -35,9 +35,9 @@ end
 # - warp-aggregate atomics
 # - the ND case is quite a bit slower than the 1D case (not using Cartesian indices,
 #   before 35fcbde1f2987023229034370b0c9091e18c4137). optimize or special-case?
-function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceArray{T,N},
+function partial_scan(op::Function, output::CuDeviceArray{T}, input::CuDeviceArray,
                       Rdim, Rpre, Rpost, Rother, neutral, init,
-                      ::Val{inclusive}=Val(true)) where {T, N, inclusive}
+                      ::Val{inclusive}=Val(true)) where {T, inclusive}
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
@@ -57,11 +57,11 @@ function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceA
     Ipre = Rpre[I[1]]
     Ipost = Rpost[I[2]]
 
-    # load input into shared memory
+    # load input into shared memory (apply `op` to have the correct type)
     @inbounds temp[thread] = if i <= length(Rdim)
-        input[Ipre, i, Ipost]
+        op(neutral, input[Ipre, i, Ipost])
     else
-        neutral
+        op(neutral, neutral)
     end
 
     # build sum in place up the tree
@@ -118,9 +118,9 @@ function partial_scan(op::Function, input::CuDeviceArray{T,N}, output::CuDeviceA
 end
 
 # aggregate the result of a partial scan by applying preceding block aggregates
-function aggregate_partial_scan(op::Function, output::CuDeviceArray{T,N},
-                                aggregates::CuDeviceArray{T,N}, Rdim, Rpre, Rpost, Rother,
-                                init) where {T,N}
+function aggregate_partial_scan(op::Function, output::CuDeviceArray,
+                                aggregates::CuDeviceArray, Rdim, Rpre, Rpost, Rother,
+                                init)
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
@@ -145,12 +145,8 @@ function aggregate_partial_scan(op::Function, output::CuDeviceArray{T,N},
     return
 end
 
-function do_accumulate(f::Function, output::CuArray{T}, input::CuArray;
-                       dims::Integer, init=nothing, neutral=neutral_element(f, T)) where {T}
-    # FIXME: promote_op? how to do that with the shared memory buffer?
-    if eltype(input) !== T
-        input = T.(input)
-    end
+function scan!(f::Function, output::CuArray{T}, input::CuArray;
+               dims::Integer, init=nothing, neutral=neutral_element(f, T)) where {T}
 
     dims > 0 || throw(ArgumentError("dims must be a positive integer"))
     inds_t = axes(input)
@@ -167,7 +163,7 @@ function do_accumulate(f::Function, output::CuArray{T}, input::CuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    args = (f, input, output, Rdim, Rpre, Rpost, Rother, neutral, init)
+    args = (f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init)
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_scan, kernel_tt)
@@ -187,16 +183,16 @@ function do_accumulate(f::Function, output::CuArray{T}, input::CuArray;
     full = nextpow(2, length(Rdim))
     if full <= kernel_config.threads
         @cuda(threads=full, blocks=(1, blocks_other...), shmem=2*full*sizeof(T), name="scan",
-              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother, neutral, init))
+              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init))
     else
         # perform partial scans across the scanning dimension
         partial = prevpow(2, kernel_config.threads)
         blocks_dim = cld(length(Rdim), partial)
         @cuda(threads=partial, blocks=(blocks_dim, blocks_other...), shmem=2*partial*sizeof(T),
-              partial_scan(f, input, output, Rdim, Rpre, Rpost, Rother, neutral, init))
+              partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init))
 
         # get the total of each thread block (except the first) of the partial scans
-        aggregates = zeros(T, Base.setindex(size(input), blocks_dim, dims))
+        aggregates = fill(neutral, Base.setindex(size(input), blocks_dim, dims))
         copyto!(aggregates, selectdim(output, dims, partial:partial:length(Rdim)))
 
         # scan these totals to get totals for the entire partial scan
@@ -219,16 +215,15 @@ end
 ## Base interface
 
 Base._accumulate!(op, output::CuArray, input::CuVector, dims::Nothing, init::Nothing) =
-    do_accumulate(op, output, input; dims=1)
+    scan!(op, output, input; dims=1)
 
 Base._accumulate!(op, output::CuArray, input::CuArray, dims::Integer, init::Nothing) =
-    do_accumulate(op, output, input; dims=dims)
+    scan!(op, output, input; dims=dims)
 
 Base._accumulate!(op, output::CuArray, input::CuVector, dims::Nothing, init::Some) =
-    do_accumulate(op, output, input; dims=1, init=init)
+    scan!(op, output, input; dims=1, init=init)
 
 Base._accumulate!(op, output::CuArray, input::CuArray, dims::Integer, init::Some) =
-    do_accumulate(op, output, input; dims=dims, init=init)
+    scan!(op, output, input; dims=dims, init=init)
 
-# FIXME: is this correct?
 Base.accumulate_pairwise!(op, result::CuVector, v::CuVector) = accumulate!(op, result, v)
