@@ -26,24 +26,24 @@ function Base.getindex(xs::CuArray{T}, bools::CuArray{Bool}) where {T}
     function kernel(ys::CuDeviceArray{T}, xs::CuDeviceArray{T}, bools, indices)
         i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
 
-        if i <= length(xs) && bools[i]
+        @inbounds if i <= length(xs) && bools[i]
             b = indices[i]   # new position
             ys[b] = xs[i]
-
         end
 
         return
     end
 
     function configurator(kernel)
-        fun = kernel.fun
-        config = launch_configuration(fun)
-        blocks = cld(length(indices), config.threads)
+        config = launch_configuration(kernel.fun)
 
-        return (threads=config.threads, blocks=blocks)
+        threads = min(length(indices), config.threads)
+        blocks = cld(length(indices), threads)
+
+        return (threads=threads, blocks=blocks)
     end
 
-    @cuda config=configurator kernel(ys, xs, bools, indices)
+    @cuda name="logical_getindex" config=configurator kernel(ys, xs, bools, indices)
   end
 
   unsafe_free!(indices)
@@ -67,24 +67,24 @@ function Base.findall(bools::CuArray{Bool})
         function kernel(ys::CuDeviceArray{Int}, bools, indices)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
 
-            if i <= length(bools) && bools[i]
+            @inbounds if i <= length(bools) && bools[i]
                 b = indices[i]   # new position
                 ys[b] = i
-
             end
 
             return
         end
 
         function configurator(kernel)
-            fun = kernel.fun
-            config = launch_configuration(fun)
-            blocks = cld(length(indices), config.threads)
+            config = launch_configuration(kernel.fun)
 
-            return (threads=config.threads, blocks=blocks)
+            threads = min(length(indices), config.threads)
+            blocks = cld(length(indices), threads)
+
+            return (threads=threads, blocks=blocks)
         end
 
-        @cuda config=configurator kernel(ys, bools, indices)
+        @cuda name="findall" config=configurator kernel(ys, bools, indices)
     end
 
     unsafe_free!(indices)
