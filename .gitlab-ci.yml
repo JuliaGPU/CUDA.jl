@@ -26,6 +26,22 @@ test:dev:
   allow_failure: true
 
 
+# reverse tests
+
+# NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
+
+cudanative:
+  extends: .test:v1.2
+  script:
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();'
+    - julia -e 'using Pkg;
+                Pkg.add(PackageSpec(name="CUDAnative", rev="master"));
+                Pkg.test("CUDAnative");'
+  allow_failure: true
+
+
 # deployment
 
 pages:
