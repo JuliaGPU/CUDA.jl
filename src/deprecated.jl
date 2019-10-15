@@ -156,3 +156,11 @@ import Base: @deprecate_binding, @deprecate_moved false
 @deprecate_binding ADVISE_UNSET_PREFERRED_LOCATION MEM_ADVISE_UNSET_PREFERRED_LOCATION false
 @deprecate_binding ADVISE_SET_ACCESSED_BY MEM_ADVISE_SET_ACCESSED_BY false
 @deprecate_binding ADVISE_UNSET_ACCESSED_BY MEM_ADVISE_UNSET_ACCESSED_BY false
+
+@deprecate_binding CuContext_t CUcontext false
+@deprecate_binding CuStream_t CUstream false
+@deprecate_binding CuEvent_t CUevent false
+@deprecate_binding CuModule_t CUmodule false
+@deprecate_binding CuDevice_t CUdevice false
+@deprecate_binding CuFunction_t CUfunction false
+@deprecate_binding CuLinkState_t CUlinkState false
