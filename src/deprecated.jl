@@ -164,3 +164,6 @@ import Base: @deprecate_binding, @deprecate_moved false
 @deprecate_binding CuDevice_t CUdevice false
 @deprecate_binding CuFunction_t CUfunction false
 @deprecate_binding CuLinkState_t CUlinkState false
+
+# this function is broken, but let's at least keep downstream packages working
+@deprecate synchronize(ctx::CuContext) synchronize()
