@@ -19,8 +19,8 @@ struct CuDevice
     CuDevice(::Type{Bool}, handle::CuDevice_t) = new(handle)
 end
 
-const DEVICE_CPU = CuDevice(Bool, CuDevice_t(-1))
-const DEVICE_INVALID = CuDevice(Bool, CuDevice_t(-2))
+const CU_DEVICE_CPU = CuDevice(Bool, CuDevice_t(-1))
+const CU_DEVICE_INVALID = CuDevice(Bool, CuDevice_t(-2))
 
 function CuDevice(ordinal::Integer)
     device_ref = Ref{CuDevice_t}()
@@ -35,9 +35,9 @@ Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
 
 function Base.show(io::IO, dev::CuDevice)
   print(io, "CuDevice($(dev.handle)): ")
-  if dev == DEVICE_CPU
+  if dev == CU_DEVICE_CPU
       print(io, "CPU")
-  elseif dev == DEVICE_INVALID
+  elseif dev == CU_DEVICE_INVALID
       print(io, "INVALID")
   else
       print(io, "$(name(dev))")
@@ -120,7 +120,7 @@ export warpsize, capability
 
 Returns the warp size (in threads) of the device.
 """
-warpsize(dev::CuDevice) = attribute(dev, WARP_SIZE)
+warpsize(dev::CuDevice) = attribute(dev, CU_DEVICE_ATTRIBUTE_WARP_SIZE)
 
 """
     capability(dev::CuDevice)
@@ -128,6 +128,6 @@ warpsize(dev::CuDevice) = attribute(dev, WARP_SIZE)
 Returns the compute capability of the device.
 """
 function capability(dev::CuDevice)
-    return VersionNumber(attribute(dev, COMPUTE_CAPABILITY_MAJOR),
-                         attribute(dev, COMPUTE_CAPABILITY_MINOR))
+    return VersionNumber(attribute(dev, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR),
+                         attribute(dev, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR))
 end

@@ -29,8 +29,8 @@ function occupancy(fun::CuFunction, threads::Integer; shmem::Integer=0)
     ctx = mod.ctx
     dev = device(ctx)
 
-    threads_per_sm = attribute(dev, MAX_THREADS_PER_MULTIPROCESSOR)
-    warp_size = attribute(dev, WARP_SIZE)
+    threads_per_sm = attribute(dev, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_MULTIPROCESSOR)
+    warp_size = attribute(dev, CU_DEVICE_ATTRIBUTE_WARP_SIZE)
 
     return (blocks * threads ÷ warp_size) / (threads_per_sm ÷ warp_size)
 end

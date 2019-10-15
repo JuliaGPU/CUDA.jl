@@ -5,7 +5,7 @@ export Mem
 module Mem
 
 using ..CUDAdrv
-import ..@apicall, ..CuStream_t, ..CuDevice_t
+using ..CUDAdrv: @apicall, CuStream_t, CuDevice_t, CUmemAttach_flags, CUmem_advise
 
 
 ## abstract buffer type
@@ -160,30 +160,15 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer)
     return DeviceBuffer(ptr_ref[], bytesize, CuCurrentContext())
 end
 
-@enum CUmem_host_alloc::Cuint begin
-    HOSTALLOC_DEFAULT       = 0x00
-    HOSTALLOC_PORTABLE      = 0x01  # memory is portable between CUDA contexts
-    HOSTALLOC_DEVICEMAP     = 0x02  # memory is mapped into CUDA address space and
-                                    # cuMemHostGetDevicePointer may be called on the pointer
-    HOSTALLOC_WRITECOMBINED = 0x04  # memory is allocated as write-combined - fast to write,
-                                    # faster to DMA, slow to read except via SSE4 MOVNTDQA
-end
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUmem_host_alloc, y::CUmem_host_alloc) =
-    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-Base.:&(x::CUmem_host_alloc, y::CUmem_host_alloc) =
-    reinterpret(CUmem_host_alloc, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
-
 """
     alloc(HostBuffer, bytesize::Integer, [flags])
 
 Allocate `bytesize` bytes of page-locked memory on the host. This memory is accessible from
 the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
-`flags` is set to `HOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU. These
-accesses are direct, and go through the PCI bus.
+`flags` is set to `CU_MEMHOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
+These accesses are direct, and go through the PCI bus.
 """
-function alloc(::Type{HostBuffer}, bytesize::Integer, flags::CUmem_host_alloc=HOSTALLOC_DEFAULT)
+function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
     bytesize == 0 && return HostBuffer(C_NULL, 0, CuContext(C_NULL), false)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
@@ -191,21 +176,9 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags::CUmem_host_alloc=HO
              (Ptr{Ptr{Cvoid}}, Csize_t, Cuint),
              ptr_ref, bytesize, flags)
 
-    mapped = (flags & HOSTALLOC_DEVICEMAP) != HOSTALLOC_DEFAULT
+    mapped = (flags & CUDAdrv.CU_MEMHOSTALLOC_DEVICEMAP) != 0
     return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), mapped)
 end
-
-@enum CUmem_attach::Cuint begin
-    ATTACH_GLOBAL   = 0x01  # memory can be accessed by any stream on any device
-    ATTACH_HOST     = 0x02  # memory cannot be accessed by any stream on any device
-    ATTACH_SINGLE   = 0x04  # memory can only be accessed by a single stream on the associated device
-end
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUmem_attach, y::CUmem_attach) =
-    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-Base.:&(x::CUmem_attach, y::CUmem_attach) =
-    reinterpret(CUmem_attach, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
 
 """
     alloc(UnifiedBuffer, bytesize::Integer, [flags])
@@ -213,7 +186,8 @@ Base.:&(x::CUmem_attach, y::CUmem_attach) =
 Allocate `bytesize` bytes of unified memory. This memory is accessible from both the CPU and
 GPU, with the CUDA driver automatically copying upon first access.
 """
-function alloc(::Type{UnifiedBuffer}, bytesize::Integer, flags::CUmem_attach=ATTACH_GLOBAL)
+function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
+              flags::CUmemAttach_flags=CUDAdrv.CU_MEM_ATTACH_GLOBAL)
     bytesize == 0 && return UnifiedBuffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
@@ -236,38 +210,22 @@ function free(buf::HostBuffer)
     end
 end
 
-@enum CUmem_host_register::Cuint begin
-  HOSTREGISTER_DEFAULT   = 0x00
-  HOSTREGISTER_PORTABLE  = 0x01 # registered memory will be considered as pinned memory by
-                                # all CUDA contexts, not just the one that performed the allocation.
-  HOSTREGISTER_DEVICEMAP = 0x02 # maps the allocation into the CUDA address space
-  HOSTREGISTER_IOMEMORY  = 0x04 # pointer is treated as pointing to some I/O memory space,
-                                # e.g. the PCI Express resource of a 3rd party device.
-end
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUmem_host_register, y::CUmem_host_register) =
-    reinterpret(CUmem_host_register, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-Base.:&(x::CUmem_host_register, y::CUmem_host_register) =
-    reinterpret(CUmem_host_register, Base.cconvert(Unsigned, x) & Base.cconvert(Unsigned, y))
-
 """
     register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags::CUmem_host_register])
 
 Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
-be faster, and can be executed asynchronously. If the `HOSTREGISTER_DEVICEMAP` flag is
+be faster, and can be executed asynchronously. If the `CU_MEMHOSTREGISTER_DEVICEMAP` flag is
 specified, the buffer will also be accessible directly from the GPU. These accesses are
 direct, and go through the PCI bus.
 """
-function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer,
-                  flags::CUmem_host_register=HOSTREGISTER_DEFAULT)
+function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
     bytesize == 0 && throw(ArgumentError())
 
     @apicall(:cuMemHostRegister,
              (Ptr{Cvoid}, Csize_t, Cuint),
              ptr, bytesize, flags)
 
-    mapped = (flags & HOSTREGISTER_DEVICEMAP) != HOSTREGISTER_DEFAULT
+    mapped = (flags & CUDAdrv.CU_MEMHOSTREGISTER_DEVICEMAP) != 0
     return HostBuffer(ptr, bytesize, CuCurrentContext(), mapped)
 end
 
@@ -374,16 +332,6 @@ function prefetch(buf::UnifiedBuffer, bytes=sizeof(buf);
     @apicall(:cuMemPrefetchAsync,
              (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
              buf, bytes, device, stream)
-end
-
-@enum CUmem_advise::Cuint begin
-    ADVISE_SET_READ_MOSTLY          = 0x01  # data will mostly be read and only occasionally be written to
-    ADVISE_UNSET_READ_MOSTLY        = 0x02  #
-    ADVISE_SET_PREFERRED_LOCATION   = 0x03  # set the preferred location for the data as the specified device
-    ADVISE_UNSET_PREFERRED_LOCATION = 0x04  #
-    ADVISE_SET_ACCESSED_BY          = 0x05  # data will be accessed by the specified device,
-                                            # so prevent page faults as much as possible
-    ADVISE_UNSET_ACCESSED_BY        = 0x06  #
 end
 
 function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf),

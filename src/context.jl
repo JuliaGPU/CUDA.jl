@@ -10,7 +10,7 @@ const CuContext_t = Ptr{Cvoid}
 ## construction and destruction
 
 """
-    CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
+    CuContext(dev::CuDevice, flags::CUctx_flags=CU_CTX_SCHED_AUTO)
     CuContext(f::Function, ...)
 
 Create a CUDA context for device. A context on the GPU is analogous to a process on the CPU,
@@ -98,7 +98,7 @@ end
 Base.deepcopy_internal(::CuContext, ::IdDict) =
     error("CuContext cannot be copied")
 
-function CuContext(dev::CuDevice, flags::CUctx_flags=SCHED_AUTO)
+function CuContext(dev::CuDevice, flags::CUctx_flags=CU_CTX_SCHED_AUTO)
     handle_ref = Ref{CuContext_t}()
     @apicall(:cuCtxCreate, (Ptr{CuContext_t}, Cuint, Cint),
                            handle_ref, flags, dev)
