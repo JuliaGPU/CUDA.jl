@@ -21,9 +21,6 @@ Base.convert(::Type{CUresult}, err::CuError) = err.code
 
 Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 
-# NOTE: `name` and `description` require CUDA to be initialized
-#       (and do they work in case of error 100 or 999?)
-
 """
     name(err::CuError)
 
@@ -63,7 +60,7 @@ function description(err::CuError)
 end
 
 function Base.showerror(io::IO, err::CuError)
-    @printf(io, "CUDA error: %s (code #%d, %s)", description(err), Int(err.code), name(err))
+    print(io, "CUDA error: $(description(err)) (code #$(Int(err.code)), $(name(err)))")
 
     if err.meta != nothing
         print(io, "\n")
@@ -71,7 +68,7 @@ function Base.showerror(io::IO, err::CuError)
     end
 end
 
-Base.show(io::IO, err::CuError) = @printf(io, "CuError(%d, %s)", err.code, name(err))
+Base.show(io::IO, err::CuError) = print(io, "CuError($(err.code))")
 
 # define shorthands that give CuErryr objects
 for code in instances(cudaError_enum)
