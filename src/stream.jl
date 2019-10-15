@@ -16,13 +16,6 @@ Base.unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
-@enum(CUstream_flags, STREAM_DEFAULT      = 0x00,
-                      STREAM_NON_BLOCKING = 0x01)
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUstream_flags, y::CUstream_flags) =
-    reinterpret(CUstream_flags, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-
 """
     CuStream(flags=STREAM_DEFAULT)
 

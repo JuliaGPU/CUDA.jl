@@ -3,9 +3,6 @@
 export
     @profile, @cuprofile
 
-@enum(CUoutput_mode, CSV            = 0x00,
-                     KEY_VALUE_PAIR = 0x01)
-
 """
     @profile ex
 

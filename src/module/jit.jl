@@ -1,25 +1,3 @@
-@enum(CUjit_option, MAX_REGISTERS = Cint(0),
-                    THREADS_PER_BLOCK,
-                    WALL_TIME,
-                    INFO_LOG_BUFFER,
-                    INFO_LOG_BUFFER_SIZE_BYTES,
-                    ERROR_LOG_BUFFER,
-                    ERROR_LOG_BUFFER_SIZE_BYTES,
-                    OPTIMIZATION_LEVEL,
-                    TARGET_FROM_CUCONTEXT,
-                    TARGET,
-                    FALLBACK_STRATEGY,
-                    GENERATE_DEBUG_INFO,
-                    LOG_VERBOSE,
-                    GENERATE_LINE_INFO,
-                    CACHE_MODE)
-
-@enum(CUjit_input, CUBIN = Cint(0),
-                   PTX,
-                   FATBINARY,
-                   OBJECT,
-                   LIBRARY)
-
 function convert_bits(::Type{T}, data::UInt) where T
     if sizeof(data) == sizeof(T)
         return reinterpret(T, data)
@@ -86,7 +64,7 @@ function decode(keys::Vector{CUjit_option}, vals::Vector{Ptr{Cvoid}})
         end
     end
 
-    # convert some values to easier-to-handle types 
+    # convert some values to easier-to-handle types
     if haskey(options, INFO_LOG_BUFFER)
         buf = options[INFO_LOG_BUFFER]
         size = options[INFO_LOG_BUFFER_SIZE_BYTES]

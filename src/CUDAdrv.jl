@@ -2,6 +2,8 @@ module CUDAdrv
 
 using CUDAapi
 
+using CEnum
+
 using Printf
 using Libdl
 
@@ -46,6 +48,11 @@ end
 
 
 ## source code includes
+
+include("libcuda_common.jl")
+include("error.jl")
+include("libcuda.jl")
+include("libcuda_aliases.jl")
 
 include("base.jl")
 

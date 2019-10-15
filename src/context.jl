@@ -4,14 +4,6 @@ export
     CuContext, destroy!, CuCurrentContext, activate,
     synchronize, device
 
-@enum(CUctx_flags, SCHED_AUTO           = 0x00,
-                   SCHED_SPIN           = 0x01,
-                   SCHED_YIELD          = 0x02,
-                   SCHED_BLOCKING_SYNC  = 0x04,
-                   MAP_HOST             = 0x08,
-                   LMEM_RESIZE_TO_MAX   = 0x10)
-Base.@deprecate_binding BLOCKING_SYNC SCHED_BLOCKING_SYNC
-
 const CuContext_t = Ptr{Cvoid}
 
 
@@ -75,7 +67,7 @@ function invalidate!(ctx::CuContext)
 end
 
 function unsafe_destroy!(ctx::CuContext)
-    # finalizers do not respect _any_ oder during process teardown 
+    # finalizers do not respect _any_ oder during process teardown
     # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
     # TODO: can we check this only happens during teardown?
     if ctx.owned && isvalid(ctx)
@@ -201,11 +193,6 @@ synchronize(ctx::CuContext=CuCurrentContext()) =
 
 export cache_config, cache_config!
 
-@enum(CUfunc_cache, FUNC_CACHE_PREFER_NONE   = 0x00,
-                    FUNC_CACHE_PREFER_SHARED = 0x01,
-                    FUNC_CACHE_PREFER_L1     = 0x02,
-                    FUNC_CACHE_PREFER_EQUAL  = 0x03)
-
 function cache_config()
     config = Ref{CUfunc_cache}()
     @apicall(:cuCtxGetCacheConfig, (Ptr{CUfunc_cache},), config)
@@ -220,10 +207,6 @@ end
 ## shared memory config
 
 export shmem_config, shmem_config!
-
-@enum(CUsharedconfig, SHARED_MEM_CONFIG_DEFAULT_BANK_SIZE    = 0x00,
-                      SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE  = 0x01,
-                      SHARED_MEM_CONFIG_EIGHT_BYTE_BANK_SIZE = 0x02)
 
 function shmem_config()
     config = Ref{CUsharedconfig}()

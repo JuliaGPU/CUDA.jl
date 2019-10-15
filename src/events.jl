@@ -6,15 +6,6 @@ export CuEvent, record, synchronize, elapsed, @elapsed
 const CuEvent_t = Ptr{Cvoid}
 
 
-@enum(CUevent_flags, EVENT_DEFAULT = Cint(0),
-                     EVENT_BLOCKING_SYNC = Cint(1),
-                     EVENT_DISABLE_TIMING = Cint(2),
-                     EVENT_INTERPROCESS = Cint(4))
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUevent_flags, y::CUevent_flags) =
-    reinterpret(CUevent_flags, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-
 """
     CuEvent()
 
@@ -32,7 +23,7 @@ mutable struct CuEvent
         obj = new(handle_ref[], ctx)
         finalizer(unsafe_destroy!, obj)
         return obj
-    end 
+    end
 end
 
 function unsafe_destroy!(e::CuEvent)

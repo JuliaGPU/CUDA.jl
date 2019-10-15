@@ -185,17 +185,6 @@ end
 
 export attributes
 
-@enum(CUfunction_attribute, FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK            = 0x00,
-                            FUNC_ATTRIBUTE_SHARED_SIZE_BYTES                = 0x01,
-                            FUNC_ATTRIBUTE_CONST_SIZE_BYTES                 = 0x02,
-                            FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES                 = 0x03,
-                            FUNC_ATTRIBUTE_NUM_REGS                         = 0x04,
-                            FUNC_ATTRIBUTE_PTX_VERSION                      = 0x05,
-                            FUNC_ATTRIBUTE_BINARY_VERSION                   = 0x06,
-                            FUNC_ATTRIBUTE_CACHE_MODE_CA                    = 0x07,
-                            FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES    = 0x08,
-                            FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT = 0x09)
-
 struct AttributeDict <: AbstractDict{CUfunction_attribute,Cint}
     f::CuFunction
 end

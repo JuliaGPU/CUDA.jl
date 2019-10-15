@@ -68,32 +68,32 @@ function add_data!(link::CuLink, name::String, code::String)
     checked_data = Base.unsafe_convert(Cstring, data)
 
     @apicall(:cuLinkAddData,
-             (CuLinkState_t, CUjit_input, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+             (CuLinkState_t, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
 end
 
 """
-    add_data!(link::CuLink, name::String, data::Vector{UInt8}, type::CUjit_input)
+    add_data!(link::CuLink, name::String, data::Vector{UInt8}, type::CUjitInputType)
 
 Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
     @apicall(:cuLinkAddData,
-             (CuLinkState_t, CUjit_input, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+             (CuLinkState_t, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
 end
 
 """
-    add_file!(link::CuLink, path::String, typ::CUjit_input)
+    add_file!(link::CuLink, path::String, typ::CUjitInputType)
 
 Add data from a file to a link operation. The argument `typ` indicates the type of the
 contained data.
 """
-function add_file!(link::CuLink, path::String, typ::CUjit_input)
+function add_file!(link::CuLink, path::String, typ::CUjitInputType)
     @apicall(:cuLinkAddFile,
-             (CuLinkState_t, CUjit_input, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+             (CuLinkState_t, CUjitInputType, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, typ, path, 0, C_NULL, C_NULL)
 
     return nothing
