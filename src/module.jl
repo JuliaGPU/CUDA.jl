@@ -6,8 +6,6 @@ export
 include(joinpath("module", "jit.jl"))
 
 
-const CuModule_t = Ptr{Cvoid}
-
 """
     CuModule(data, options::Dict{CUjit_option,Any})
     CuModuleFile(path, options::Dict{CUjit_option,Any})
@@ -18,11 +16,11 @@ CUBIN, or a FATBIN.
 The `options` is an optional dictionary of JIT options and their respective value.
 """
 mutable struct CuModule
-    handle::CuModule_t
+    handle::CUmodule
     ctx::CuContext
 
     function CuModule(data, options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
-        handle_ref = Ref{CuModule_t}()
+        handle_ref = Ref{CUmodule}()
 
         options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
         @debug begin
@@ -33,7 +31,7 @@ mutable struct CuModule
         optionKeys, optionVals = encode(options)
 
         err = @apicall_nothrow(:cuModuleLoadDataEx,
-                               (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+                               (Ptr{CUmodule}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
                                handle_ref, data, length(optionKeys), optionKeys, optionVals)
         if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX
             options = decode(optionKeys, optionVals)
@@ -61,11 +59,11 @@ end
 
 function unsafe_unload!(mod::CuModule)
     if isvalid(mod.ctx)
-        @apicall(:cuModuleUnload, (CuModule_t,), mod)
+        @apicall(:cuModuleUnload, (CUmodule,), mod)
     end
 end
 
-Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
+Base.unsafe_convert(::Type{CUmodule}, mod::CuModule) = mod.handle
 
 Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
 Base.hash(mod::CuModule, h::UInt) = hash(mod.handle, h)

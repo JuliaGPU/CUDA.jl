@@ -15,7 +15,7 @@ struct CuGlobal{T}
     function CuGlobal{T}(mod::CuModule, name::String) where T
         ptr_ref = Ref{CuPtr{Cvoid}}()
         nbytes_ref = Ref{Cssize_t}()
-        @apicall(:cuModuleGetGlobal, (Ptr{CuPtr{Cvoid}}, Ptr{Cssize_t}, CuModule_t, Ptr{Cchar}),
+        @apicall(:cuModuleGetGlobal, (Ptr{CuPtr{Cvoid}}, Ptr{Cssize_t}, CUmodule, Ptr{Cchar}),
                                      ptr_ref, nbytes_ref, mod, name)
         if nbytes_ref[] != sizeof(T)
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))

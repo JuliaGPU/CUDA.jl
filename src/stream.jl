@@ -4,14 +4,12 @@ export
     CuStream, CuDefaultStream, synchronize
 
 
-const CuStream_t = Ptr{Cvoid}
-
 mutable struct CuStream
-    handle::CuStream_t
+    handle::CUstream
     ctx::CuContext
 end
 
-Base.unsafe_convert(::Type{CuStream_t}, s::CuStream) = s.handle
+Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
 
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
@@ -22,8 +20,8 @@ Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 Create a CUDA stream.
 """
 function CuStream(flags::CUstream_flags=STREAM_DEFAULT)
-    handle_ref = Ref{CuStream_t}()
-    @apicall(:cuStreamCreate, (Ptr{CuStream_t}, Cuint),
+    handle_ref = Ref{CUstream}()
+    @apicall(:cuStreamCreate, (Ptr{CUstream}, Cuint),
                               handle_ref, flags)
 
     ctx = CuCurrentContext()
@@ -34,7 +32,7 @@ end
 
 function unsafe_destroy!(s::CuStream)
     if isvalid(s.ctx)
-        @apicall(:cuStreamDestroy, (CuStream_t,), s)
+        @apicall(:cuStreamDestroy, (CUstream,), s)
     end
 end
 
@@ -43,11 +41,11 @@ end
 
 Return the default stream.
 """
-@inline CuDefaultStream() = CuStream(convert(CuStream_t, C_NULL), CuContext(C_NULL))
+@inline CuDefaultStream() = CuStream(convert(CUstream, C_NULL), CuContext(C_NULL))
 
 """
     synchronize(s::CuStream)
 
 Wait until a stream's tasks are completed.
 """
-synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CuStream_t,), s)
+synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CUstream,), s)

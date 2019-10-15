@@ -4,31 +4,29 @@ export
     CuDevice, name, totalmem, attribute
 
 
-const CuDevice_t = Cint
-
 """
     CuDevice(i::Integer)
 
 Get a handle to a compute device.
 """
 struct CuDevice
-    handle::CuDevice_t
+    handle::CUdevice
 
     # CuDevice is just an integer, but we need (?) to call cuDeviceGet to make sure this
     # integer is valid. to avoid ambiguity, add a bogus argument (cfr. `checkbounds`)
-    CuDevice(::Type{Bool}, handle::CuDevice_t) = new(handle)
+    CuDevice(::Type{Bool}, handle::CUdevice) = new(handle)
 end
 
-const DEVICE_CPU = CuDevice(Bool, CuDevice_t(-1))
-const DEVICE_INVALID = CuDevice(Bool, CuDevice_t(-2))
+const DEVICE_CPU = CuDevice(Bool, CUdevice(-1))
+const DEVICE_INVALID = CuDevice(Bool, CUdevice(-2))
 
 function CuDevice(ordinal::Integer)
-    device_ref = Ref{CuDevice_t}()
-    @apicall(:cuDeviceGet, (Ptr{CuDevice_t}, Cint), device_ref, ordinal)
+    device_ref = Ref{CUdevice}()
+    @apicall(:cuDeviceGet, (Ptr{CUdevice}, Cint), device_ref, ordinal)
     CuDevice(Bool, device_ref[])
 end
 
-Base.convert(::Type{CuDevice_t}, dev::CuDevice) = dev.handle
+Base.convert(::Type{CUdevice}, dev::CuDevice) = dev.handle
 
 Base.:(==)(a::CuDevice, b::CuDevice) = a.handle == b.handle
 Base.hash(dev::CuDevice, h::UInt) = hash(dev.handle, h)
@@ -52,7 +50,7 @@ Returns an identifier string for the device.
 function name(dev::CuDevice)
     buflen = 256
     buf = Vector{Cchar}(undef, buflen)
-    @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CuDevice_t),
+    @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CUdevice),
                                buf, buflen, dev)
     buf[end] = 0
     return unsafe_string(pointer(buf))
@@ -65,7 +63,7 @@ Returns the total amount of memory (in bytes) on the device.
 """
 function totalmem(dev::CuDevice)
     mem_ref = Ref{Csize_t}()
-    @apicall(:cuDeviceTotalMem, (Ptr{Csize_t}, CuDevice_t), mem_ref, dev)
+    @apicall(:cuDeviceTotalMem, (Ptr{Csize_t}, CUdevice), mem_ref, dev)
     return mem_ref[]
 end
 
@@ -77,7 +75,7 @@ Returns information about the device.
 """
 function attribute(dev::CuDevice, code::CUdevice_attribute)
     value_ref = Ref{Cint}()
-    @apicall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, CuDevice_t),
+    @apicall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, CUdevice),
                                     value_ref, code, dev)
     return value_ref[]
 end

@@ -5,7 +5,7 @@ export Mem
 module Mem
 
 using ..CUDAdrv
-using ..CUDAdrv: @apicall, CuStream_t, CuDevice_t, CUmemAttach_flags, CUmem_advise
+using ..CUDAdrv: @apicall, CUstream, CUdevice, CUmemAttach_flags, CUmem_advise
 
 
 ## abstract buffer type
@@ -258,7 +258,7 @@ for T in [UInt8, UInt16, UInt32]
           stream===nothing &&
               throw(ArgumentError("Asynchronous memory operations require a stream."))
             @apicall($(QuoteNode(fn_async)),
-                     (CuPtr{Cvoid}, $T, Csize_t, CuStream_t),
+                     (CuPtr{Cvoid}, $T, Csize_t, CUstream),
                      buf, value, len, stream)
         else
           stream===nothing ||
@@ -294,7 +294,7 @@ for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, AnyDeviceBuffe
             stream===nothing &&
                 throw(ArgumentError("Asynchronous memory operations require a stream."))
             @apicall($(QuoteNode(Symbol(f * "Async"))),
-                     ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t, CuStream_t),
+                     ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t, CUstream),
                      dst, src, nbytes, stream)
         else
             stream===nothing ||
@@ -330,7 +330,7 @@ function prefetch(buf::UnifiedBuffer, bytes=sizeof(buf);
                   device::CuDevice=device(), stream::CuStream=CuDefaultStream())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     @apicall(:cuMemPrefetchAsync,
-             (CuPtr{Cvoid}, Csize_t, CuDevice_t, CuStream_t),
+             (CuPtr{Cvoid}, Csize_t, CUdevice, CUstream),
              buf, bytes, device, stream)
 end
 
@@ -338,7 +338,7 @@ function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf),
                 device=device(buf.ctx))
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     @apicall(:cuMemAdvise,
-             (CuPtr{Cvoid}, Csize_t, Cuint, CuDevice_t),
+             (CuPtr{Cvoid}, Csize_t, Cuint, CUdevice),
              buf, bytes, advice, device)
 end
 

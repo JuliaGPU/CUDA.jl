@@ -4,15 +4,13 @@ export
     CuLink, add_data!, add_file!, complete
 
 
-const CuLinkState_t = Ptr{Cvoid}
-
 """
     CuLink()
 
 Creates a pending JIT linker invocation.
 """
 mutable struct CuLink
-    handle::CuLinkState_t
+    handle::CUlinkState
     ctx::CuContext
 
     options::Dict{CUjit_option,Any}
@@ -20,7 +18,7 @@ mutable struct CuLink
     optionVals::Vector{Ptr{Cvoid}}
 
     function CuLink(options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
-        handle_ref = Ref{CuLinkState_t}()
+        handle_ref = Ref{CUlinkState}()
 
         options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
         @debug begin
@@ -35,7 +33,7 @@ mutable struct CuLink
         end
         optionKeys, optionVals = encode(options)
 
-        @apicall(:cuLinkCreate, (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}, Ptr{CuLinkState_t}),
+        @apicall(:cuLinkCreate, (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}, Ptr{CUlinkState}),
                                 length(optionKeys), optionKeys, optionVals, handle_ref)
 
         ctx = CuCurrentContext()
@@ -47,11 +45,11 @@ end
 
 function unsafe_destroy!(link::CuLink)
     if isvalid(link.ctx)
-        @apicall(:cuLinkDestroy, (CuLinkState_t,), link)
+        @apicall(:cuLinkDestroy, (CUlinkState,), link)
     end
 end
 
-Base.unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
+Base.unsafe_convert(::Type{CUlinkState}, link::CuLink) = link.handle
 
 Base.:(==)(a::CuLink, b::CuLink) = a.handle == b.handle
 Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
@@ -68,7 +66,7 @@ function add_data!(link::CuLink, name::String, code::String)
     checked_data = Base.unsafe_convert(Cstring, data)
 
     @apicall(:cuLinkAddData,
-             (CuLinkState_t, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+             (CUlinkState, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, JIT_INPUT_PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
 end
 
@@ -79,7 +77,7 @@ Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
     @apicall(:cuLinkAddData,
-             (CuLinkState_t, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+             (CUlinkState, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, JIT_INPUT_OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
@@ -93,7 +91,7 @@ contained data.
 """
 function add_file!(link::CuLink, path::String, typ::CUjitInputType)
     @apicall(:cuLinkAddFile,
-             (CuLinkState_t, CUjitInputType, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
+             (CUlinkState, CUjitInputType, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
              link, typ, path, 0, C_NULL, C_NULL)
 
     return nothing
@@ -121,7 +119,7 @@ function complete(link::CuLink)
     size_ref = Ref{Csize_t}()
 
     err = @apicall_nothrow(:cuLinkComplete,
-                           (CuLinkState_t, Ptr{Ptr{Cvoid}}, Ptr{Csize_t}),
+                           (CUlinkState, Ptr{Ptr{Cvoid}}, Ptr{Csize_t}),
                            link, cubin_ref, size_ref)
     if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE
         options = decode(link.optionKeys, link.optionVals)
