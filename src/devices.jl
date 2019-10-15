@@ -22,7 +22,7 @@ const DEVICE_INVALID = CuDevice(Bool, CUdevice(-2))
 
 function CuDevice(ordinal::Integer)
     device_ref = Ref{CUdevice}()
-    @apicall(:cuDeviceGet, (Ptr{CUdevice}, Cint), device_ref, ordinal)
+    cuDeviceGet(device_ref, ordinal)
     CuDevice(Bool, device_ref[])
 end
 
@@ -50,8 +50,7 @@ Returns an identifier string for the device.
 function name(dev::CuDevice)
     buflen = 256
     buf = Vector{Cchar}(undef, buflen)
-    @apicall(:cuDeviceGetName, (Ptr{Cchar}, Cint, CUdevice),
-                               buf, buflen, dev)
+    cuDeviceGetName(pointer(buf), buflen, dev)
     buf[end] = 0
     return unsafe_string(pointer(buf))
 end
@@ -63,7 +62,7 @@ Returns the total amount of memory (in bytes) on the device.
 """
 function totalmem(dev::CuDevice)
     mem_ref = Ref{Csize_t}()
-    @apicall(:cuDeviceTotalMem, (Ptr{Csize_t}, CUdevice), mem_ref, dev)
+    cuDeviceTotalMem(mem_ref, dev)
     return mem_ref[]
 end
 
@@ -75,8 +74,7 @@ Returns information about the device.
 """
 function attribute(dev::CuDevice, code::CUdevice_attribute)
     value_ref = Ref{Cint}()
-    @apicall(:cuDeviceGetAttribute, (Ptr{Cint}, Cint, CUdevice),
-                                    value_ref, code, dev)
+    cuDeviceGetAttribute(value_ref, code, dev)
     return value_ref[]
 end
 
@@ -102,7 +100,7 @@ end
 
 function Base.length(::DeviceSet)
     count_ref = Ref{Cint}()
-    @apicall(:cuDeviceGetCount, (Ptr{Cint},), count_ref)
+    cuDeviceGetCount(count_ref)
     return count_ref[]
 end
 

@@ -24,8 +24,7 @@ end
 
 module Profile
 
-using CUDAdrv
-import CUDAdrv: @apicall
+using ..CUDAdrv
 
 
 """
@@ -34,7 +33,7 @@ import CUDAdrv: @apicall
 Enables profile collection by the active profiling tool for the current context. If
 profiling is already enabled, then this call has no effect.
 """
-start() = @apicall(:cuProfilerStart, (Ptr{Cvoid},), C_NULL)
+start() = CUDAdrv.cuProfilerStart()
 
 """
     stop()
@@ -42,6 +41,6 @@ start() = @apicall(:cuProfilerStart, (Ptr{Cvoid},), C_NULL)
 Disables profile collection by the active profiling tool for the current context. If
 profiling is already disabled, then this call has no effect.
 """
-stop() = @apicall(:cuProfilerStop, (Ptr{Cvoid},), C_NULL)
+stop() = CUDAdrv.cuProfilerStop()
 
 end

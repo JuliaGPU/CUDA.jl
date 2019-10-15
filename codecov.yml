@@ -1,7 +1,6 @@
 coverage:
   ignore:
-    - "deps/*"
-    - "src/util/*"
+    - "src/lib*.jl"
   status:
     patch: false
     project: false

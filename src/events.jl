@@ -14,7 +14,7 @@ mutable struct CuEvent
 
     function CuEvent(flags=EVENT_DEFAULT)
         handle_ref = Ref{CUevent}()
-        @apicall(:cuEventCreate, (Ptr{CUevent}, Cuint), handle_ref, flags)
+        cuEventCreate(handle_ref, flags)
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
@@ -25,7 +25,7 @@ end
 
 function unsafe_destroy!(e::CuEvent)
     if isvalid(e.ctx)
-        @apicall(:cuEventDestroy, (CUevent,), e)
+        cuEventDestroy(e)
     end
 end
 
@@ -40,14 +40,14 @@ Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 Record an event on a stream.
 """
 record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
-    @apicall(:cuEventRecord, (CUevent, CUstream), e, stream)
+    cuEventRecord(e, stream)
 
 """
     synchronize(e::CuEvent)
 
 Waits for an event to complete.
 """
-synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CUevent,), e)
+synchronize(e::CuEvent) = cuEventSynchronize(e)
 
 """
     wait(e::CuEvent, stream=CuDefaultStream())
@@ -56,7 +56,7 @@ Make a stream wait on a event. This only makes the stream wait, and not the host
 [`synchronize(::CuEvent)`](@ref) for that.
 """
 wait(e::CuEvent, stream::CuStream=CuDefaultStream()) =
-    @apicall(:cuStreamWaitEvent, (CUstream, CUevent, Cuint), stream, e, 0)
+    cuStreamWaitEvent(stream, e, 0)
 
 """
     elapsed(start::CuEvent, stop::CuEvent)
@@ -65,8 +65,7 @@ Computes the elapsed time between two events (in seconds).
 """
 function elapsed(start::CuEvent, stop::CuEvent)
     time_ref = Ref{Cfloat}()
-    @apicall(:cuEventElapsedTime, (Ptr{Cfloat}, CUevent, CUevent),
-                                  time_ref, start, stop)
+    cuEventElapsedTime(time_ref, start, stop)
     return time_ref[]/1000
 end
 

@@ -10,22 +10,6 @@ using Libdl
 
 ## discovery
 
-# minimal versions of certain API calls for during bootstrap
-macro pre_apicall(libpath, fn, types, args...)
-    quote
-        lib = Libdl.dlopen($(esc(libpath)))
-        sym = Libdl.dlsym(lib, $(esc(fn)))
-
-        ccall(sym, Cint, $(esc(types)), $(map(esc, args)...))
-    end
-end
-function pre_version(libpath)
-    ref = Ref{Cint}()
-    status = @pre_apicall(libpath, :cuDriverGetVersion, (Ptr{Cint}, ), ref)
-    @assert status == 0
-    return VersionNumber(ref[] ÷ 1000, mod(ref[], 100) ÷ 10)
-end
-
 let
     # NOTE: on macOS, the driver is part of the toolkit
     toolkit_dirs = find_toolkit()
@@ -36,9 +20,7 @@ let
     end
     Base.include_dependency(libcuda)
 
-    global const libcuda_version = pre_version(libcuda)
-
-    @debug "Found CUDA v$libcuda_version at $libcuda"
+    @debug "Found CUDA at $libcuda"
 
 
     # backwards-compatible flags
@@ -49,22 +31,24 @@ end
 
 ## source code includes
 
+# essential functionality
+include("pointer.jl")
+const CUdeviceptr = CuPtr{Cvoid}
+
+# low-level wrappers
 include("libcuda_common.jl")
 include("error.jl")
 include("libcuda.jl")
 include("libcuda_aliases.jl")
 
-include("base.jl")
-
-# CUDA Driver API wrappers
+# high-level wrappers
 include("init.jl")
-include("errors.jl")
 include("version.jl")
+global const libcuda_version = version()
 include("devices.jl")
 include("context.jl")
 include(joinpath("context", "primary.jl"))
 include("stream.jl")
-include("pointer.jl")
 include("memory.jl")
 include("module.jl")
 include("events.jl")

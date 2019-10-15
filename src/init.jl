@@ -7,5 +7,5 @@ This function is automatically called upon loading the package. You should not h
 this manually.
 """
 function init(flags::Int=0)
-    @apicall(:cuInit, (Cint,), flags)
+    cuInit(flags)
 end

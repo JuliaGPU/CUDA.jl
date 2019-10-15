@@ -1,0 +1,72 @@
+--- libcuda.jl	2019-10-15 13:44:09.097172403 +0200
++++ ../src/libcuda.jl	2019-10-15 13:46:59.554623706 +0200
+@@ -937,12 +937,6 @@
+                  stream, addr, value, flags)
+ end
+ 
+-function cuStreamBatchMemOp(stream, count, paramArray, flags)
+-    @check ccall((:cuStreamBatchMemOp, libcuda), CUresult,
+-                 (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32),
+-                 stream, count, paramArray, flags)
+-end
+-
+ function cuFuncGetAttribute(pi, attrib, hfunc)
+     @check ccall((:cuFuncGetAttribute, libcuda), CUresult,
+                  (Ptr{Cint}, CUfunction_attribute, CUfunction),
+--- libcuda_common.jl	2019-10-15 13:44:09.147173621 +0200
++++ ../src/libcuda_common.jl	2019-10-15 13:46:52.377783613 +0200
+@@ -33,8 +33,8 @@
+ const CUDA_VERSION = 10010
+ const IPC_HANDLE_SIZE = 64
+ 
+-# Skipping MacroDefinition: CU_STREAM_LEGACY ( ( CUstream ) 0x1 )
+-# Skipping MacroDefinition: CU_STREAM_PER_THREAD ( ( CUstream ) 0x2 )
++# Skipping MacroDefinition: STREAM_LEGACY ( ( CUstream ) 0x1 )
++# Skipping MacroDefinition: STREAM_PER_THREAD ( ( CUstream ) 0x2 )
+ 
+ const MEMHOSTALLOC_PORTABLE = 0x01
+ const MEMHOSTALLOC_DEVICEMAP = 0x02
+@@ -57,14 +57,14 @@
+ const TRSF_NORMALIZED_COORDINATES = 0x02
+ const TRSF_SRGB = 0x10
+ 
+-# Skipping MacroDefinition: CU_LAUNCH_PARAM_END ( ( void * ) 0x00 )
+-# Skipping MacroDefinition: CU_LAUNCH_PARAM_BUFFER_POINTER ( ( void * ) 0x01 )
+-# Skipping MacroDefinition: CU_LAUNCH_PARAM_BUFFER_SIZE ( ( void * ) 0x02 )
++# Skipping MacroDefinition: LAUNCH_PARAM_END ( ( void * ) 0x00 )
++# Skipping MacroDefinition: LAUNCH_PARAM_BUFFER_POINTER ( ( void * ) 0x01 )
++# Skipping MacroDefinition: LAUNCH_PARAM_BUFFER_SIZE ( ( void * ) 0x02 )
+ 
+ const PARAM_TR_DEFAULT = -1
+ 
+-# Skipping MacroDefinition: CU_DEVICE_CPU ( ( CUdevice ) - 1 )
+-# Skipping MacroDefinition: CU_DEVICE_INVALID ( ( CUdevice ) - 2 )
++# Skipping MacroDefinition: DEVICE_CPU ( ( CUdevice ) - 1 )
++# Skipping MacroDefinition: DEVICE_INVALID ( ( CUdevice ) - 2 )
+ 
+ const cuuint32_t = UInt32
+ const cuuint64_t = UInt64
+@@ -189,23 +189,6 @@
+ 
+ const CUstreamWriteValue_flags = CUstreamWriteValue_flags_enum
+ 
+-@cenum CUstreamBatchMemOpType_enum::UInt32 begin
+-    STREAM_MEM_OP_WAIT_VALUE_32 = 1
+-    STREAM_MEM_OP_WRITE_VALUE_32 = 2
+-    STREAM_MEM_OP_WAIT_VALUE_64 = 4
+-    STREAM_MEM_OP_WRITE_VALUE_64 = 5
+-    STREAM_MEM_OP_FLUSH_REMOTE_WRITES = 3
+-end
+-
+-
+-const CUstreamBatchMemOpType = CUstreamBatchMemOpType_enum
+-
+-struct CUstreamBatchMemOpParams_union
+-    waitValue::CUstreamMemOpWaitValueParams_st
+-end
+-
+-const CUstreamBatchMemOpParams = CUstreamBatchMemOpParams_union
+-
+ @cenum CUoccupancy_flags_enum::UInt32 begin
+     OCCUPANCY_DEFAULT = 0
+     OCCUPANCY_DISABLE_CACHING_OVERRIDE = 1

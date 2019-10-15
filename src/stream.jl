@@ -21,8 +21,7 @@ Create a CUDA stream.
 """
 function CuStream(flags::CUstream_flags=STREAM_DEFAULT)
     handle_ref = Ref{CUstream}()
-    @apicall(:cuStreamCreate, (Ptr{CUstream}, Cuint),
-                              handle_ref, flags)
+    cuStreamCreate(handle_ref, flags)
 
     ctx = CuCurrentContext()
     obj = CuStream(handle_ref[], ctx)
@@ -32,7 +31,7 @@ end
 
 function unsafe_destroy!(s::CuStream)
     if isvalid(s.ctx)
-        @apicall(:cuStreamDestroy, (CUstream,), s)
+        cuStreamDestroy(s)
     end
 end
 
@@ -48,4 +47,4 @@ Return the default stream.
 
 Wait until a stream's tasks are completed.
 """
-synchronize(s::CuStream) = @apicall(:cuStreamSynchronize, (CUstream,), s)
+synchronize(s::CuStream) = cuStreamSynchronize(s)

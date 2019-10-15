@@ -284,7 +284,7 @@ function process(name, headers...; kwargs...)
     patchdir = joinpath(@__DIR__, "patches")
     for entry in readdir(patchdir)
         if endswith(entry, ".patch")
-            @show path = joinpath(patchdir, entry)
+            path = joinpath(patchdir, entry)
             run(`patch -i $path`)
         end
     end

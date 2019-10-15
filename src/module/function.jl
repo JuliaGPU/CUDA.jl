@@ -16,8 +16,7 @@ struct CuFunction
     "Get a handle to a kernel function in a CUDA module."
     function CuFunction(mod::CuModule, name::String)
         handle_ref = Ref{CUfunction}()
-        @apicall(:cuModuleGetFunction, (Ptr{CUfunction}, CUmodule, Ptr{Cchar}),
-                                       handle_ref, mod, name)
+        cuModuleGetFunction(handle_ref, mod, name)
         new(handle_ref[], mod)
     end
 end

@@ -8,9 +8,7 @@ threads of a kernel `fun` requiring `shmem` bytes of dynamic shared memory.
 """
 function active_blocks(fun::CuFunction, threads::Integer; shmem::Integer=0)
     blocks_ref = Ref{Cint}()
-    @apicall(:cuOccupancyMaxActiveBlocksPerMultiprocessor,
-             (Ptr{Cint}, CUfunction, Cint, Csize_t),
-             blocks_ref, fun, threads, shmem)
+    cuOccupancyMaxActiveBlocksPerMultiprocessor(blocks_ref, fun, threads, shmem)
     return blocks_ref[]
 end
 
@@ -51,15 +49,11 @@ function launch_configuration(fun::CuFunction; shmem=0, max_threads::Integer=0)
     blocks_ref = Ref{Cint}()
     threads_ref = Ref{Cint}()
     if isa(shmem, Integer)
-        @apicall(:cuOccupancyMaxPotentialBlockSize,
-                (Ptr{Cint}, Ptr{Cint}, CUfunction, Ptr{Cvoid}, Csize_t, Cint),
-                blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
+        cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
     else
         shmem_cint = threads -> Cint(shmem(threads))
         cb = @cfunction($shmem_cint, Cint, (Cint,))
-        @apicall(:cuOccupancyMaxPotentialBlockSize,
-                (Ptr{Cint}, Ptr{Cint}, CUfunction, Ptr{Cvoid}, Csize_t, Cint),
-                blocks_ref, threads_ref, fun, cb, 0, max_threads)
+        cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
     end
     return (blocks=blocks_ref[], threads=threads_ref[])
 end

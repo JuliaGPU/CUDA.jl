@@ -30,14 +30,18 @@ mutable struct CuModule
         end
         optionKeys, optionVals = encode(options)
 
-        err = @apicall_nothrow(:cuModuleLoadDataEx,
-                               (Ptr{CUmodule}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-                               handle_ref, data, length(optionKeys), optionKeys, optionVals)
-        if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX
-            options = decode(optionKeys, optionVals)
-            throw(CuError(err.code, options[JIT_ERROR_LOG_BUFFER]))
-        elseif err != SUCCESS
-            throw(err)
+        try
+            GC.@preserve data cuModuleLoadDataEx(handle_ref, pointer(data),
+                                                 length(optionKeys), optionKeys, optionVals)
+        catch err
+            if isa(err, CuError) && (err.code == CUDA_ERROR_NO_BINARY_FOR_GPU ||
+                                     err.code == CUDA_ERROR_INVALID_IMAGE ||
+                                     err.code == CUDA_ERROR_INVALID_PTX)
+                options = decode(optionKeys, optionVals)
+                throw(CuError(err.code, options[JIT_ERROR_LOG_BUFFER]))
+            else
+                rethrow()
+            end
         end
 
         @debug begin
@@ -59,7 +63,7 @@ end
 
 function unsafe_unload!(mod::CuModule)
     if isvalid(mod.ctx)
-        @apicall(:cuModuleUnload, (CUmodule,), mod)
+        cuModuleUnload(mod)
     end
 end
 

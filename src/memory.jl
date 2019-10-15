@@ -5,7 +5,7 @@ export Mem
 module Mem
 
 using ..CUDAdrv
-using ..CUDAdrv: @apicall, CUstream, CUdevice, CUmemAttach_flags, CUmem_advise
+using ..CUDAdrv: CUstream, CUdevice, CUmemAttach_flags, CUmem_advise
 
 
 ## abstract buffer type
@@ -107,9 +107,7 @@ function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
     if buf.mapped
         pointer(buf) == C_NULL && return NULL
         ptr_ref = Ref{CuPtr{Cvoid}}()
-        @apicall(:cuMemHostGetDevicePointer,
-                 (Ptr{CuPtr{Cvoid}}, Ptr{Cvoid}, Cuint),
-                 ptr_ref, pointer(buf), #=flags=# 0)
+        CUDAdrv.cuMemHostGetDevicePointer(ptr_ref, pointer(buf), #=flags=# 0)
         convert(CuPtr{T}, ptr_ref[])
     else
         throw(ArgumentError("cannot take the GPU address of a pinned but not mapped CPU buffer"))
@@ -152,12 +150,10 @@ GPU, and requires explicit calls to `upload` and `download` for access on the CP
 function alloc(::Type{DeviceBuffer}, bytesize::Integer)
     bytesize == 0 && return DeviceBuffer(NULL, 0, CuContext(C_NULL))
 
-    ptr_ref = Ref{CuPtr{Cvoid}}()
-    @apicall(:cuMemAlloc,
-             (Ptr{CuPtr{Cvoid}}, Csize_t),
-             ptr_ref, bytesize)
+    ptr_ref = Ref{CUDAdrv.CUdeviceptr}()
+    CUDAdrv.cuMemAlloc(ptr_ref, bytesize)
 
-    return DeviceBuffer(ptr_ref[], bytesize, CuCurrentContext())
+    return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, CuCurrentContext())
 end
 
 """
@@ -172,9 +168,7 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
     bytesize == 0 && return HostBuffer(C_NULL, 0, CuContext(C_NULL), false)
 
     ptr_ref = Ref{Ptr{Cvoid}}()
-    @apicall(:cuMemHostAlloc,
-             (Ptr{Ptr{Cvoid}}, Csize_t, Cuint),
-             ptr_ref, bytesize, flags)
+    CUDAdrv.cuMemHostAlloc(ptr_ref, bytesize, flags)
 
     mapped = (flags & CUDAdrv.MEMHOSTALLOC_DEVICEMAP) != 0
     return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), mapped)
@@ -191,22 +185,20 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
     bytesize == 0 && return UnifiedBuffer(NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
-    @apicall(:cuMemAllocManaged,
-             (Ptr{CuPtr{Cvoid}}, Csize_t, Cuint),
-             ptr_ref, bytesize, flags)
+    CUDAdrv.cuMemAllocManaged(ptr_ref, bytesize, flags)
 
     return UnifiedBuffer(ptr_ref[], bytesize, CuCurrentContext())
 end
 
 function free(buf::Union{DeviceBuffer,UnifiedBuffer})
     if pointer(buf) != NULL
-        @apicall(:cuMemFree, (CuPtr{Cvoid},), buf)
+        CUDAdrv.cuMemFree(buf)
     end
 end
 
 function free(buf::HostBuffer)
     if pointer(buf) != NULL
-        @apicall(:cuMemFreeHost, (Ptr{Cvoid},), buf)
+        CUDAdrv.cuMemFreeHost(buf)
     end
 end
 
@@ -221,16 +213,14 @@ direct, and go through the PCI bus.
 function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
     bytesize == 0 && throw(ArgumentError())
 
-    @apicall(:cuMemHostRegister,
-             (Ptr{Cvoid}, Csize_t, Cuint),
-             ptr, bytesize, flags)
+    CUDAdrv.cuMemHostRegister(ptr, bytesize, flags)
 
     mapped = (flags & CUDAdrv.MEMHOSTREGISTER_DEVICEMAP) != 0
     return HostBuffer(ptr, bytesize, CuCurrentContext(), mapped)
 end
 
 function unregister(buf::HostBuffer)
-    @apicall(:cuMemHostUnregister, (Ptr{Cvoid},), buf)
+    CUDAdrv.cuMemHostUnregister(buf)
 end
 
 
@@ -257,15 +247,11 @@ for T in [UInt8, UInt16, UInt32]
         if async
           stream===nothing &&
               throw(ArgumentError("Asynchronous memory operations require a stream."))
-            @apicall($(QuoteNode(fn_async)),
-                     (CuPtr{Cvoid}, $T, Csize_t, CUstream),
-                     buf, value, len, stream)
+            CUDAdrv.$(QuoteNode(fn_async))(buf, value, len, stream)
         else
           stream===nothing ||
               throw(ArgumentError("Synchronous memory operations cannot be issues on a stream."))
-            @apicall($(QuoteNode(fn_sync)),
-                     (CuPtr{Cvoid}, $T, Csize_t),
-                     buf, value, len)
+            CUDAdrv.$(QuoteNode(fn_sync))(buf, value, len)
         end
     end
 end
@@ -293,15 +279,11 @@ for (f, dstTy, srcTy) in (("cuMemcpyDtoH", Union{Ref,HostBuffer}, AnyDeviceBuffe
         if async
             stream===nothing &&
                 throw(ArgumentError("Asynchronous memory operations require a stream."))
-            @apicall($(QuoteNode(Symbol(f * "Async"))),
-                     ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t, CUstream),
-                     dst, src, nbytes, stream)
+            $(getproperty(CUDAdrv, Symbol(f * "Async")))(dst, src, nbytes, stream)
         else
             stream===nothing ||
                 throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-            @apicall($(QuoteNode(Symbol(f))),
-                     ($dstPtrTy{Cvoid}, $srcPtrTy{Cvoid}, Csize_t),
-                     dst, src, nbytes)
+            $(getproperty(CUDAdrv, Symbol(f)))(dst, src, nbytes)
         end
         return dst
     end
@@ -329,17 +311,13 @@ copy!
 function prefetch(buf::UnifiedBuffer, bytes=sizeof(buf);
                   device::CuDevice=device(), stream::CuStream=CuDefaultStream())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    @apicall(:cuMemPrefetchAsync,
-             (CuPtr{Cvoid}, Csize_t, CUdevice, CUstream),
-             buf, bytes, device, stream)
+    CUDAdrv.cuMemPrefetchAsync(buf, bytes, device, stream)
 end
 
 function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf),
                 device=device(buf.ctx))
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
-    @apicall(:cuMemAdvise,
-             (CuPtr{Cvoid}, Csize_t, Cuint, CUdevice),
-             buf, bytes, advice, device)
+    CUDAdrv.cuMemAdvise(buf, bytes, advice, device)
 end
 
 
@@ -348,7 +326,7 @@ end
 function info()
     free_ref = Ref{Csize_t}()
     total_ref = Ref{Csize_t}()
-    @apicall(:cuMemGetInfo, (Ptr{Csize_t},Ptr{Csize_t}), free_ref, total_ref)
+    CUDAdrv.cuMemGetInfo(free_ref, total_ref)
     return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 

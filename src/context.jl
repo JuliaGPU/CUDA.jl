@@ -69,7 +69,7 @@ function unsafe_destroy!(ctx::CuContext)
     # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
     # TODO: can we check this only happens during teardown?
     if ctx.owned && isvalid(ctx)
-        @apicall(:cuCtxDestroy, (CUcontext,), ctx)
+        cuCtxDestroy(ctx)
         invalidate!(ctx)
     end
 end
@@ -98,8 +98,7 @@ Base.deepcopy_internal(::CuContext, ::IdDict) =
 
 function CuContext(dev::CuDevice, flags::CUctx_flags=CTX_SCHED_AUTO)
     handle_ref = Ref{CUcontext}()
-    @apicall(:cuCtxCreate, (Ptr{CUcontext}, Cuint, Cint),
-                           handle_ref, flags, dev)
+    cuCtxCreate(handle_ref, flags, dev)
     CuContext(handle_ref[])
 end
 
@@ -110,7 +109,7 @@ Return the current context, or `nothing` if there is no active context.
 """
 function CuCurrentContext()
     handle_ref = Ref{CUcontext}()
-    @apicall(:cuCtxGetCurrent, (Ptr{CUcontext},), handle_ref)
+    cuCtxGetCurrent(handle_ref)
     if handle_ref[] == C_NULL
         return nothing
     else
@@ -124,7 +123,7 @@ end
 Pushes a context on the current CPU thread.
 """
 Base.push!(::Type{CuContext}, ctx::CuContext) =
-    @apicall(:cuCtxPushCurrent, (CUcontext,), ctx)
+    cuCtxPushCurrent(ctx)
 
 """
     pop!(CuContext)
@@ -133,7 +132,7 @@ Pops the current CUDA context from the current CPU thread, and returns that cont
 """
 function Base.pop!(::Type{CuContext})
     handle_ref = Ref{CUcontext}()
-    @apicall(:cuCtxPopCurrent, (Ptr{CUcontext},), handle_ref)
+    cuCtxPopCurrent(handle_ref)
     CuContext(handle_ref[], false)
 end
 
@@ -142,7 +141,7 @@ end
 
 Binds the specified CUDA context to the calling CPU thread.
 """
-activate(ctx::CuContext) = @apicall(:cuCtxSetCurrent, (CUcontext,), ctx)
+activate(ctx::CuContext) = cuCtxSetCurrent(ctx)
 
 function CuContext(f::Function, args...)
     ctx = CuContext(args...)    # implicitly pushes
@@ -166,25 +165,22 @@ Returns the device for a context.
 function device(ctx::CuContext)
     push!(CuContext, ctx)
     device_ref = Ref{CUdevice}()
-    @apicall(:cuCtxGetDevice, (Ptr{Cint},), device_ref)
+    cuCtxGetDevice(device_ref)
     pop!(CuContext)
     return CuDevice(Bool, device_ref[])
 end
 function device()
     device_ref = Ref{CUdevice}()
-    @apicall(:cuCtxGetDevice, (Ptr{Cint},), device_ref)
+    cuCtxGetDevice(device_ref)
     return CuDevice(Bool, device_ref[])
 end
 
 """
-    synchronize(ctx::CuContext=CuCurrentContext())
+    synchronize()
 
-Block for a context's tasks to complete.
-
-The `ctx` parameter defaults to the current active context.
+Block for the current context's tasks to complete.
 """
-synchronize(ctx::CuContext=CuCurrentContext()) =
-    @apicall(:cuCtxSynchronize, (CUcontext,), ctx)
+synchronize() = cuCtxSynchronize()
 
 
 ## cache config
@@ -193,12 +189,12 @@ export cache_config, cache_config!
 
 function cache_config()
     config = Ref{CUfunc_cache}()
-    @apicall(:cuCtxGetCacheConfig, (Ptr{CUfunc_cache},), config)
+    cuCtxGetCacheConfig(config)
     return config[]
 end
 
 function cache_config!(config::CUfunc_cache)
-    @apicall(:cuCtxSetCacheConfig, (CUfunc_cache,), config)
+    cuCtxSetCacheConfig(config)
 end
 
 
@@ -208,10 +204,10 @@ export shmem_config, shmem_config!
 
 function shmem_config()
     config = Ref{CUsharedconfig}()
-    @apicall(:cuCtxGetSharedMemConfig, (Ptr{CUsharedconfig},), config)
+    cuCtxGetSharedMemConfig(config)
     return config[]
 end
 
 function shmem_config!(config::CUsharedconfig)
-    @apicall(:cuCtxSetSharedMemConfig, (CUsharedconfig,), config)
+    cuCtxSetSharedMemConfig(config)
 end

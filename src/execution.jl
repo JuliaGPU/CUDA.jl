@@ -89,30 +89,15 @@ function launch(f::CuFunction, args...; blocks::CuDim=1, threads::CuDim=1,
 
     pack_arguments(args...) do kernelParams
         if cooperative
-            @apicall(:cuLaunchCooperativeKernel, (
-                CUfunction,             # function
-                Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
-                Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
-                Cuint,                  # shared memory bytes,
-                CUstream,               # stream
-                Ptr{Ptr{Cvoid}}),       # kernel parameters
-                f,
-                blocks.x, blocks.y, blocks.z,
-                threads.x, threads.y, threads.z,
-                shmem, stream, kernelParams)
+            cuLaunchCooperativeKernel(f,
+                                      blocks.x, blocks.y, blocks.z,
+                                      threads.x, threads.y, threads.z,
+                                      shmem, stream, kernelParams)
         else
-            @apicall(:cuLaunchKernel, (
-                CUfunction,             # function
-                Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
-                Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
-                Cuint,                  # shared memory bytes,
-                CUstream,               # stream
-                Ptr{Ptr{Cvoid}},        # kernel parameters
-                Ptr{Ptr{Cvoid}}),       # extra parameters
-                f,
-                blocks.x, blocks.y, blocks.z,
-                threads.x, threads.y, threads.z,
-                shmem, stream, kernelParams, C_NULL)
+            cuLaunchKernel(f,
+                           blocks.x, blocks.y, blocks.z,
+                           threads.x, threads.y, threads.z,
+                           shmem, stream, kernelParams, C_NULL)
         end
     end
 end
@@ -193,11 +178,9 @@ attributes(f::CuFunction) = AttributeDict(f)
 
 function Base.getindex(dict::AttributeDict, attr::CUfunction_attribute)
     val = Ref{Cint}()
-    @apicall(:cuFuncGetAttribute, (Ptr{Cint}, CUfunction_attribute, CUfunction),
-             val, attr, dict.f)
+    cuFuncGetAttribute(val, attr, dict.f)
     return val[]
 end
 
 Base.setindex!(dict::AttributeDict, val::Integer, attr::CUfunction_attribute) =
-    @apicall(:cuFuncSetAttribute, (CUfunction, CUfunction_attribute, Cint),
-             dict.f, attr, val)
+    cuFuncSetAttribute(dict.f, attr, val)

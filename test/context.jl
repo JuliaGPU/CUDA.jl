@@ -26,7 +26,6 @@ end
 
 @test device(ctx) == dev
 @test device() == dev
-synchronize(ctx)
 synchronize()
 
 end

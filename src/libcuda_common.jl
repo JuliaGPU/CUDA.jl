@@ -2,32 +2,6 @@
 
 
 
-# Skipping MacroDefinition: cuMemcpyHtoD __CUDA_API_PTDS ( cuMemcpyHtoD_v2 )
-# Skipping MacroDefinition: cuMemcpyDtoH __CUDA_API_PTDS ( cuMemcpyDtoH_v2 )
-# Skipping MacroDefinition: cuMemcpyDtoD __CUDA_API_PTDS ( cuMemcpyDtoD_v2 )
-# Skipping MacroDefinition: cuMemcpyDtoA __CUDA_API_PTDS ( cuMemcpyDtoA_v2 )
-# Skipping MacroDefinition: cuMemcpyAtoD __CUDA_API_PTDS ( cuMemcpyAtoD_v2 )
-# Skipping MacroDefinition: cuMemcpyHtoA __CUDA_API_PTDS ( cuMemcpyHtoA_v2 )
-# Skipping MacroDefinition: cuMemcpyAtoH __CUDA_API_PTDS ( cuMemcpyAtoH_v2 )
-# Skipping MacroDefinition: cuMemcpyAtoA __CUDA_API_PTDS ( cuMemcpyAtoA_v2 )
-# Skipping MacroDefinition: cuMemcpyHtoAAsync __CUDA_API_PTSZ ( cuMemcpyHtoAAsync_v2 )
-# Skipping MacroDefinition: cuMemcpyAtoHAsync __CUDA_API_PTSZ ( cuMemcpyAtoHAsync_v2 )
-# Skipping MacroDefinition: cuMemcpy2D __CUDA_API_PTDS ( cuMemcpy2D_v2 )
-# Skipping MacroDefinition: cuMemcpy2DUnaligned __CUDA_API_PTDS ( cuMemcpy2DUnaligned_v2 )
-# Skipping MacroDefinition: cuMemcpy3D __CUDA_API_PTDS ( cuMemcpy3D_v2 )
-# Skipping MacroDefinition: cuMemcpyHtoDAsync __CUDA_API_PTSZ ( cuMemcpyHtoDAsync_v2 )
-# Skipping MacroDefinition: cuMemcpyDtoHAsync __CUDA_API_PTSZ ( cuMemcpyDtoHAsync_v2 )
-# Skipping MacroDefinition: cuMemcpyDtoDAsync __CUDA_API_PTSZ ( cuMemcpyDtoDAsync_v2 )
-# Skipping MacroDefinition: cuMemcpy2DAsync __CUDA_API_PTSZ ( cuMemcpy2DAsync_v2 )
-# Skipping MacroDefinition: cuMemcpy3DAsync __CUDA_API_PTSZ ( cuMemcpy3DAsync_v2 )
-# Skipping MacroDefinition: cuMemsetD8 __CUDA_API_PTDS ( cuMemsetD8_v2 )
-# Skipping MacroDefinition: cuMemsetD16 __CUDA_API_PTDS ( cuMemsetD16_v2 )
-# Skipping MacroDefinition: cuMemsetD32 __CUDA_API_PTDS ( cuMemsetD32_v2 )
-# Skipping MacroDefinition: cuMemsetD2D8 __CUDA_API_PTDS ( cuMemsetD2D8_v2 )
-# Skipping MacroDefinition: cuMemsetD2D16 __CUDA_API_PTDS ( cuMemsetD2D16_v2 )
-# Skipping MacroDefinition: cuMemsetD2D32 __CUDA_API_PTDS ( cuMemsetD2D32_v2 )
-
-
 # Skipping MacroDefinition: cuStreamBeginCapture __CUDA_API_PTSZ ( cuStreamBeginCapture_v2 )
 
 const CUDA_VERSION = 10010
@@ -68,7 +42,7 @@ const PARAM_TR_DEFAULT = -1
 
 const cuuint32_t = UInt32
 const cuuint64_t = UInt64
-const CUdeviceptr = Culonglong
+@assert sizeof(CUdeviceptr) == sizeof(Culonglong)
 const CUdevice = Cint
 const CUctx_st = Cvoid
 const CUcontext = Ptr{CUctx_st}
