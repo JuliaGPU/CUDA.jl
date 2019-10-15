@@ -7,7 +7,7 @@ let
         @test s != s2
     end
 
-    let s3 = CuStream(CUDAdrv.CU_STREAM_NON_BLOCKING)
+    let s3 = CuStream(CUDAdrv.STREAM_NON_BLOCKING)
         @test s != s3
     end
 

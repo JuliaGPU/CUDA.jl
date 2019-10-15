@@ -15,19 +15,19 @@ function encode(options::Dict{CUjit_option,Any})
 
     for (opt, val) in options
         push!(keys, opt)
-        if opt == CU_JIT_GENERATE_LINE_INFO ||
-           opt == CU_JIT_GENERATE_DEBUG_INFO ||
-           opt == CU_JIT_LOG_VERBOSE
+        if opt == JIT_GENERATE_LINE_INFO ||
+           opt == JIT_GENERATE_DEBUG_INFO ||
+           opt == JIT_LOG_VERBOSE
             push!(vals, convert(Ptr{Cvoid}, convert(Int, val::Bool)))
-        elseif opt == CU_JIT_INFO_LOG_BUFFER
+        elseif opt == JIT_INFO_LOG_BUFFER
             buf = val::Vector{UInt8}
             push!(vals, pointer(buf))
-            push!(keys, CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES)
+            push!(keys, JIT_INFO_LOG_BUFFER_SIZE_BYTES)
             push!(vals, sizeof(buf))
-        elseif opt == CU_JIT_ERROR_LOG_BUFFER
+        elseif opt == JIT_ERROR_LOG_BUFFER
             buf = val::Vector{UInt8}
             push!(vals, pointer(buf))
-            push!(keys, CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES)
+            push!(keys, JIT_ERROR_LOG_BUFFER_SIZE_BYTES)
             push!(vals, sizeof(buf))
         elseif isa(val, Ptr{Cvoid})
             push!(vals, val)
@@ -47,17 +47,17 @@ function decode(keys::Vector{CUjit_option}, vals::Vector{Ptr{Cvoid}})
     # decode the raw option value bits to their proper type
     for (opt, val) = zip(keys, vals)
         data = reinterpret(UInt, val)
-        if opt == CU_JIT_WALL_TIME
+        if opt == JIT_WALL_TIME
             options[opt] = convert_bits(Cfloat, data)
-        elseif opt == CU_JIT_GENERATE_LINE_INFO ||
-           opt == CU_JIT_GENERATE_DEBUG_INFO ||
-           opt == CU_JIT_LOG_VERBOSE
+        elseif opt == JIT_GENERATE_LINE_INFO ||
+           opt == JIT_GENERATE_DEBUG_INFO ||
+           opt == JIT_LOG_VERBOSE
             options[opt] = Bool(convert_bits(Cint, data))
-        elseif opt == CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES ||
-           opt == CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES
+        elseif opt == JIT_INFO_LOG_BUFFER_SIZE_BYTES ||
+           opt == JIT_ERROR_LOG_BUFFER_SIZE_BYTES
             options[opt] = convert_bits(Cuint, data)
-        elseif opt == CU_JIT_INFO_LOG_BUFFER ||
-           opt == CU_JIT_ERROR_LOG_BUFFER
+        elseif opt == JIT_INFO_LOG_BUFFER ||
+           opt == JIT_ERROR_LOG_BUFFER
             options[opt] = reinterpret(Ptr{UInt8}, data)
         else
             options[opt] = data
@@ -65,17 +65,17 @@ function decode(keys::Vector{CUjit_option}, vals::Vector{Ptr{Cvoid}})
     end
 
     # convert some values to easier-to-handle types
-    if haskey(options, CU_JIT_INFO_LOG_BUFFER)
-        buf = options[CU_JIT_INFO_LOG_BUFFER]
-        size = options[CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES]
-        delete!(options, CU_JIT_INFO_LOG_BUFFER_SIZE_BYTES)
-        options[CU_JIT_INFO_LOG_BUFFER] = unsafe_string(buf, Int(size / sizeof(UInt8)))
+    if haskey(options, JIT_INFO_LOG_BUFFER)
+        buf = options[JIT_INFO_LOG_BUFFER]
+        size = options[JIT_INFO_LOG_BUFFER_SIZE_BYTES]
+        delete!(options, JIT_INFO_LOG_BUFFER_SIZE_BYTES)
+        options[JIT_INFO_LOG_BUFFER] = unsafe_string(buf, Int(size / sizeof(UInt8)))
     end
-    if haskey(options, CU_JIT_ERROR_LOG_BUFFER)
-        buf = options[CU_JIT_ERROR_LOG_BUFFER]
-        size = options[CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES]
-        delete!(options, CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES)
-        options[CU_JIT_ERROR_LOG_BUFFER] = unsafe_string(buf, Int(size / sizeof(UInt8)))
+    if haskey(options, JIT_ERROR_LOG_BUFFER)
+        buf = options[JIT_ERROR_LOG_BUFFER]
+        size = options[JIT_ERROR_LOG_BUFFER_SIZE_BYTES]
+        delete!(options, JIT_ERROR_LOG_BUFFER_SIZE_BYTES)
+        options[JIT_ERROR_LOG_BUFFER] = unsafe_string(buf, Int(size / sizeof(UInt8)))
     end
 
     return options

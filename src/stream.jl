@@ -21,7 +21,7 @@ Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
 Create a CUDA stream.
 """
-function CuStream(flags::CUstream_flags=CU_STREAM_DEFAULT)
+function CuStream(flags::CUstream_flags=STREAM_DEFAULT)
     handle_ref = Ref{CuStream_t}()
     @apicall(:cuStreamCreate, (Ptr{CuStream_t}, Cuint),
                               handle_ref, flags)

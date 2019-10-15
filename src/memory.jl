@@ -105,7 +105,7 @@ Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
 
 function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
     if buf.mapped
-        pointer(buf) == C_NULL && return CU_NULL
+        pointer(buf) == C_NULL && return NULL
         ptr_ref = Ref{CuPtr{Cvoid}}()
         @apicall(:cuMemHostGetDevicePointer,
                  (Ptr{CuPtr{Cvoid}}, Ptr{Cvoid}, Cuint),
@@ -150,7 +150,7 @@ Allocate `bytesize` bytes of memory on the device. This memory is only accessibl
 GPU, and requires explicit calls to `upload` and `download` for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer)
-    bytesize == 0 && return DeviceBuffer(CU_NULL, 0, CuContext(C_NULL))
+    bytesize == 0 && return DeviceBuffer(NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
     @apicall(:cuMemAlloc,
@@ -165,7 +165,7 @@ end
 
 Allocate `bytesize` bytes of page-locked memory on the host. This memory is accessible from
 the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
-`flags` is set to `CU_MEMHOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
+`flags` is set to `MEMHOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
 These accesses are direct, and go through the PCI bus.
 """
 function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
@@ -176,7 +176,7 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
              (Ptr{Ptr{Cvoid}}, Csize_t, Cuint),
              ptr_ref, bytesize, flags)
 
-    mapped = (flags & CUDAdrv.CU_MEMHOSTALLOC_DEVICEMAP) != 0
+    mapped = (flags & CUDAdrv.MEMHOSTALLOC_DEVICEMAP) != 0
     return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), mapped)
 end
 
@@ -187,8 +187,8 @@ Allocate `bytesize` bytes of unified memory. This memory is accessible from both
 GPU, with the CUDA driver automatically copying upon first access.
 """
 function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
-              flags::CUmemAttach_flags=CUDAdrv.CU_MEM_ATTACH_GLOBAL)
-    bytesize == 0 && return UnifiedBuffer(CU_NULL, 0, CuContext(C_NULL))
+              flags::CUmemAttach_flags=CUDAdrv.MEM_ATTACH_GLOBAL)
+    bytesize == 0 && return UnifiedBuffer(NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
     @apicall(:cuMemAllocManaged,
@@ -199,13 +199,13 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
 end
 
 function free(buf::Union{DeviceBuffer,UnifiedBuffer})
-    if pointer(buf) != CU_NULL
+    if pointer(buf) != NULL
         @apicall(:cuMemFree, (CuPtr{Cvoid},), buf)
     end
 end
 
 function free(buf::HostBuffer)
-    if pointer(buf) != CU_NULL
+    if pointer(buf) != NULL
         @apicall(:cuMemFreeHost, (Ptr{Cvoid},), buf)
     end
 end
@@ -214,7 +214,7 @@ end
     register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags::CUmem_host_register])
 
 Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
-be faster, and can be executed asynchronously. If the `CU_MEMHOSTREGISTER_DEVICEMAP` flag is
+be faster, and can be executed asynchronously. If the `MEMHOSTREGISTER_DEVICEMAP` flag is
 specified, the buffer will also be accessible directly from the GPU. These accesses are
 direct, and go through the PCI bus.
 """
@@ -225,7 +225,7 @@ function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
              (Ptr{Cvoid}, Csize_t, Cuint),
              ptr, bytesize, flags)
 
-    mapped = (flags & CUDAdrv.CU_MEMHOSTREGISTER_DEVICEMAP) != 0
+    mapped = (flags & CUDAdrv.MEMHOSTREGISTER_DEVICEMAP) != 0
     return HostBuffer(ptr, bytesize, CuCurrentContext(), mapped)
 end
 

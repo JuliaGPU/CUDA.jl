@@ -24,10 +24,10 @@ mutable struct CuModule
     function CuModule(data, options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
         handle_ref = Ref{CuModule_t}()
 
-        options[CU_JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+        options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
         @debug begin
-            options[CU_JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-            options[CU_JIT_LOG_VERBOSE] = true
+            options[JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+            options[JIT_LOG_VERBOSE] = true
             "JIT compiling code" # FIXME: remove this useless message
         end
         optionKeys, optionVals = encode(options)
@@ -37,18 +37,18 @@ mutable struct CuModule
                                handle_ref, data, length(optionKeys), optionKeys, optionVals)
         if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX
             options = decode(optionKeys, optionVals)
-            throw(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
+            throw(CuError(err.code, options[JIT_ERROR_LOG_BUFFER]))
         elseif err != SUCCESS
             throw(err)
         end
 
         @debug begin
             options = decode(optionKeys, optionVals)
-            if isempty(options[CU_JIT_INFO_LOG_BUFFER])
+            if isempty(options[JIT_INFO_LOG_BUFFER])
                 """JIT info log is empty"""
             else
                 """JIT info log:
-                   $(options[CU_JIT_INFO_LOG_BUFFER])"""
+                   $(options[JIT_INFO_LOG_BUFFER])"""
             end
         end
 

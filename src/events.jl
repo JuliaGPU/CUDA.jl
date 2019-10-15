@@ -15,7 +15,7 @@ mutable struct CuEvent
     handle::CuEvent_t
     ctx::CuContext
 
-    function CuEvent(flags=CU_EVENT_DEFAULT)
+    function CuEvent(flags=EVENT_DEFAULT)
         handle_ref = Ref{CuEvent_t}()
         @apicall(:cuEventCreate, (Ptr{CuEvent_t}, Cuint), handle_ref, flags)
 

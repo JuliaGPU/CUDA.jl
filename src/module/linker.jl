@@ -22,16 +22,16 @@ mutable struct CuLink
     function CuLink(options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
         handle_ref = Ref{CuLinkState_t}()
 
-        options[CU_JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+        options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
         @debug begin
-            options[CU_JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-            options[CU_JIT_LOG_VERBOSE] = true
+            options[JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+            options[JIT_LOG_VERBOSE] = true
             "JIT compiling code" # FIXME: remove this useless message
         end
         if Base.JLOptions().debug_level == 1
-            options[CU_JIT_GENERATE_LINE_INFO] = true
+            options[JIT_GENERATE_LINE_INFO] = true
         elseif Base.JLOptions().debug_level >= 2
-            options[CU_JIT_GENERATE_DEBUG_INFO] = true
+            options[JIT_GENERATE_DEBUG_INFO] = true
         end
         optionKeys, optionVals = encode(options)
 
@@ -69,7 +69,7 @@ function add_data!(link::CuLink, name::String, code::String)
 
     @apicall(:cuLinkAddData,
              (CuLinkState_t, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-             link, CU_JIT_INPUT_PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
+             link, JIT_INPUT_PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
 end
 
 """
@@ -80,7 +80,7 @@ Add object code to a pending link operation.
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
     @apicall(:cuLinkAddData,
              (CuLinkState_t, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-             link, CU_JIT_INPUT_OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
+             link, JIT_INPUT_OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
 end
@@ -125,18 +125,18 @@ function complete(link::CuLink)
                            link, cubin_ref, size_ref)
     if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE
         options = decode(link.optionKeys, link.optionVals)
-        throw(CuError(err.code, options[CU_JIT_ERROR_LOG_BUFFER]))
+        throw(CuError(err.code, options[JIT_ERROR_LOG_BUFFER]))
     elseif err != SUCCESS
         throw(err)
     end
 
     @debug begin
         options = decode(link.optionKeys, link.optionVals)
-        if isempty(options[CU_JIT_INFO_LOG_BUFFER])
+        if isempty(options[JIT_INFO_LOG_BUFFER])
             """JIT info log is empty"""
         else
             """JIT info log:
-               $(options[CU_JIT_INFO_LOG_BUFFER])"""
+               $(options[JIT_INFO_LOG_BUFFER])"""
         end
     end
 

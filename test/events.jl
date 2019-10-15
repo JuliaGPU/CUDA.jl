@@ -16,8 +16,8 @@ end
 
 @test (CUDAdrv.@elapsed CuDefaultStream() begin end) > 0
 
-CuEvent(CUDAdrv.CU_EVENT_BLOCKING_SYNC)
-CuEvent(CUDAdrv.CU_EVENT_BLOCKING_SYNC | CUDAdrv.CU_EVENT_DISABLE_TIMING)
+CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC)
+CuEvent(CUDAdrv.EVENT_BLOCKING_SYNC | CUDAdrv.EVENT_DISABLE_TIMING)
 
 @testset "stream wait" begin
     event  = CuEvent()

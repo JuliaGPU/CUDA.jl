@@ -118,6 +118,14 @@ function insert_check(x, state)
     end
 end
 
+# remove CU_ prefix from enum values
+function remove_prefix(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.IDENTIFIER && startswith(x.val, "CU_")
+        offset = state.offset
+        push!(state.edits, Edit(offset+1:offset+x.span, x.val[4:end]))
+    end
+end
+
 
 ## indenting passes
 
@@ -235,6 +243,9 @@ function process(name, headers...; kwargs...)
         state.offset = 0
         pass(ast, state, insert_check)
 
+        state.offset = 0
+        pass(ast, state, remove_prefix)
+
         # apply
         state.offset = 0
         sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
@@ -272,9 +283,9 @@ function process(name, headers...; kwargs...)
 
     patchdir = joinpath(@__DIR__, "patches")
     for entry in readdir(patchdir)
-        if startswith(entry, name) && endswith(entry, ".patch")
-            path = joinpath(patchdir, entry)
-            run(`patch -p1 -i $path`)
+        if endswith(entry, ".patch")
+            @show path = joinpath(patchdir, entry)
+            run(`patch -i $path`)
         end
     end
 
