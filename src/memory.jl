@@ -260,11 +260,11 @@ for T in [UInt8, UInt16, UInt32]
         if async
           stream===nothing &&
               throw(ArgumentError("Asynchronous memory operations require a stream."))
-            CUDAdrv.$(QuoteNode(fn_async))(buf, value, len, stream)
+            $(getproperty(CUDAdrv, fn_async))(buf, value, len, stream)
         else
           stream===nothing ||
               throw(ArgumentError("Synchronous memory operations cannot be issues on a stream."))
-            CUDAdrv.$(QuoteNode(fn_sync))(buf, value, len)
+            $(getproperty(CUDAdrv, fn_sync))(buf, value, len)
         end
     end
 end
