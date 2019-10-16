@@ -43,6 +43,10 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
 
     @test data == ref
 
+    if isa(src, Mem.Device) || isa(src, Mem.Unified)
+        Mem.set!(src, UInt32(0), nb ÷ sizeof(UInt32))
+    end
+
     Mem.free(src)
     Mem.free(dst)
 end
@@ -50,8 +54,11 @@ end
 # asynchronous operations
 let
     src = Mem.alloc(Mem.Device, nb)
+
     @test_throws ArgumentError Mem.copy!(src, pointer(data), nb; async=true)
     Mem.copy!(src, pointer(data), nb; async=true, stream=CuDefaultStream())
+
+    Mem.set!(src, UInt32(0), nb ÷ sizeof(UInt32); async=true, stream=CuDefaultStream())
 
     Mem.free(src)
 end
