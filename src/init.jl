@@ -71,11 +71,16 @@ function device!(dev::CuDevice)
 end
 device!(dev::Integer) = device!(CuDevice(dev))
 
+const device_reset!_listeners = Set{Function}()
+
 """
     device_reset!(dev::CuDevice=device())
 
 Reset the CUDA state associated with a device. This call with release the underlying
 context, at which point any objects allocated in that context will be invalidated.
+
+If your library or code needs to perform an action when a device is resetted, add a
+callback of the signature `(::CuDevice, ::CuContext)` to the `device_reset!_listeners` set.
 """
 function device_reset!(dev::CuDevice=device())
     active_ctx = CuCurrentContext()
@@ -86,15 +91,9 @@ function device_reset!(dev::CuDevice=device())
     end
 
     if haskey(device_contexts, dev)
-        # invalidate compiled kernels
-        ctx = device_contexts[dev]
-        for id in collect(keys(compilecache))
-            kernel = compilecache[id]
-            if kernel.ctx == ctx
-                delete!(compilecache, id)
-            end
+        for listener in device_reset!_listeners
+            listener(dev, device_contexts[dev])
         end
-
         delete!(device_contexts, dev)
     end
 

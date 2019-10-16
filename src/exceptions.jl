@@ -17,6 +17,10 @@ Base.show(io::IO, err::KernelException) = print(io, "KernelException($(err.devic
 ## exception handling
 
 const exception_flags = Dict{CuDevice, Mem.HostBuffer}()
+push!(device_reset!_listeners, (dev, ctx) -> begin
+    # invalidate exception flags when the device resets
+    delete!(exception_flags, dev)
+end)
 
 # create a CPU/GPU exception flag for error signalling, and put it in the module
 #
