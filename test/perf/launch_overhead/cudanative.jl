@@ -8,7 +8,7 @@ using Statistics
 using Printf
 
 function kernel_dummy(ptr)
-    Base.pointerset(ptr, 0f0, Int(blockIdx().x), 8)
+    unsafe_store!(ptr, 0f0, Int(blockIdx().x), Val(8))
     return
 end
 
@@ -16,14 +16,14 @@ const len = 1000
 const ITERATIONS = 100
 
 function benchmark(gpu_buf)
-    @cuda threads=len kernel_dummy(convert(Ptr{Float32}, gpu_buf))
+    @cuda threads=len kernel_dummy(convert(CuPtr{Float32}, gpu_buf))
 end
 
-function main()    
+function main()
     cpu_time = Vector{Float64}(undef, ITERATIONS)
     gpu_time = Vector{Float64}(undef, ITERATIONS)
 
-    gpu_buf = Mem.alloc(len*sizeof(Float32))
+    gpu_buf = Mem.alloc(Mem.Device, len*sizeof(Float32))
     for i in 1:ITERATIONS
         i == ITERATIONS-4 && CUDAdrv.Profile.start()
 
