@@ -46,12 +46,14 @@ end
 
 function check_exceptions()
     for (ctx,buf) in exception_flags
-        ptr = convert(Ptr{Int}, buf)
-        flag = unsafe_load(ptr)
-        if flag !== 0
-            unsafe_store!(ptr, 0)
-            dev = device(ctx)
-            throw(KernelException(dev))
+        if CUDAdrv.isvalid(ctx)
+            ptr = convert(Ptr{Int}, buf)
+            flag = unsafe_load(ptr)
+            if flag !== 0
+                unsafe_store!(ptr, 0)
+                dev = device(ctx)
+                throw(KernelException(dev))
+            end
         end
     end
     return
