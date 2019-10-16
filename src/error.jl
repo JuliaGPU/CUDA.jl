@@ -87,11 +87,17 @@ macro check(ex)
     @assert Meta.isexpr(ex, :call)
     @assert ex.args[1] == :ccall
     @assert Meta.isexpr(ex.args[2], :tuple)
-    fun = ex.args[2].args[1]
+    fun = String(ex.args[2].args[1].value)
+
+    # strip any version tag (e.g. cuEventDestroy_v2 -> cuEventDestroy)
+    m = match(r"_v\d+$", fun)
+    if m !== nothing
+        fun = fun[1:end-length(m.match)]
+    end
 
     quote
         # NOTE: this hook is used by CUDAnative.jl to initialize upon the first API call
-        apicall_hook[] !== nothing && apicall_hook[]($fun)
+        apicall_hook[] !== nothing && apicall_hook[]($(QuoteNode(Symbol(fun))))
 
         res::CUresult = $(esc(ex))
         if res != CUDA_SUCCESS
