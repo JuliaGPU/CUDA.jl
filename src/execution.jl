@@ -89,30 +89,15 @@ function launch(f::CuFunction, args...; blocks::CuDim=1, threads::CuDim=1,
 
     pack_arguments(args...) do kernelParams
         if cooperative
-            @apicall(:cuLaunchCooperativeKernel, (
-                CuFunction_t,           # function
-                Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
-                Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
-                Cuint,                  # shared memory bytes,
-                CuStream_t,             # stream
-                Ptr{Ptr{Cvoid}}),       # kernel parameters
-                f,
-                blocks.x, blocks.y, blocks.z,
-                threads.x, threads.y, threads.z,
-                shmem, stream, kernelParams)
+            cuLaunchCooperativeKernel(f,
+                                      blocks.x, blocks.y, blocks.z,
+                                      threads.x, threads.y, threads.z,
+                                      shmem, stream, kernelParams)
         else
-            @apicall(:cuLaunchKernel, (
-                CuFunction_t,           # function
-                Cuint, Cuint, Cuint,    # grid dimensions (x, y, z)
-                Cuint, Cuint, Cuint,    # block dimensions (x, y, z)
-                Cuint,                  # shared memory bytes,
-                CuStream_t,             # stream
-                Ptr{Ptr{Cvoid}},        # kernel parameters
-                Ptr{Ptr{Cvoid}}),       # extra parameters
-                f,
-                blocks.x, blocks.y, blocks.z,
-                threads.x, threads.y, threads.z,
-                shmem, stream, kernelParams, C_NULL)
+            cuLaunchKernel(f,
+                           blocks.x, blocks.y, blocks.z,
+                           threads.x, threads.y, threads.z,
+                           shmem, stream, kernelParams, C_NULL)
         end
     end
 end
@@ -185,17 +170,6 @@ end
 
 export attributes
 
-@enum(CUfunction_attribute, FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK            = 0x00,
-                            FUNC_ATTRIBUTE_SHARED_SIZE_BYTES                = 0x01,
-                            FUNC_ATTRIBUTE_CONST_SIZE_BYTES                 = 0x02,
-                            FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES                 = 0x03,
-                            FUNC_ATTRIBUTE_NUM_REGS                         = 0x04,
-                            FUNC_ATTRIBUTE_PTX_VERSION                      = 0x05,
-                            FUNC_ATTRIBUTE_BINARY_VERSION                   = 0x06,
-                            FUNC_ATTRIBUTE_CACHE_MODE_CA                    = 0x07,
-                            FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES    = 0x08,
-                            FUNC_ATTRIBUTE_PREFERRED_SHARED_MEMORY_CARVEOUT = 0x09)
-
 struct AttributeDict <: AbstractDict{CUfunction_attribute,Cint}
     f::CuFunction
 end
@@ -204,11 +178,9 @@ attributes(f::CuFunction) = AttributeDict(f)
 
 function Base.getindex(dict::AttributeDict, attr::CUfunction_attribute)
     val = Ref{Cint}()
-    @apicall(:cuFuncGetAttribute, (Ptr{Cint}, CUfunction_attribute, CuFunction_t),
-             val, attr, dict.f)
+    cuFuncGetAttribute(val, attr, dict.f)
     return val[]
 end
 
 Base.setindex!(dict::AttributeDict, val::Integer, attr::CUfunction_attribute) =
-    @apicall(:cuFuncSetAttribute, (CuFunction_t, CUfunction_attribute, Cint),
-             dict.f, attr, val)
+    cuFuncSetAttribute(dict.f, attr, val)

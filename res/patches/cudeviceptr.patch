@@ -1,0 +1,11 @@
+--- libcuda_common.jl	2019-10-15 15:11:11.826266035 +0200
++++ ../src/libcuda_common.jl	2019-10-15 15:31:06.144762261 +0200
+@@ -42,7 +42,7 @@
+ 
+ const cuuint32_t = UInt32
+ const cuuint64_t = UInt64
+-const CUdeviceptr = Culonglong
++@assert sizeof(CUdeviceptr) == sizeof(Culonglong)
+ const CUdevice = Cint
+ const CUctx_st = Cvoid
+ const CUcontext = Ptr{CUctx_st}

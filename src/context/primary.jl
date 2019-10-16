@@ -38,13 +38,13 @@ The primary context will be released when the returned driver context is finaliz
 Contrary to the CUDA API, this call does push the context on the current CPU thread.
 """
 function CuContext(pctx::CuPrimaryContext)
-    handle = Ref{CuContext_t}()
-    @apicall(:cuDevicePrimaryCtxRetain, (Ptr{CuContext_t}, CuDevice_t,), handle, pctx.dev)
+    handle = Ref{CUcontext}()
+    cuDevicePrimaryCtxRetain(handle, pctx.dev)
     ctx = CuContext(handle[], false)    # CuContext shouldn't manage this ctx
     push!(CuContext, ctx)
     finalizer((ctx)->begin
         @assert isvalid(ctx)    # not owned by CuContext, so shouldn't have been invalidated
-        @apicall(:cuDevicePrimaryCtxRelease, (CuDevice_t,), pctx.dev)
+        cuDevicePrimaryCtxRelease(pctx.dev)
         invalidate!(ctx)
         delete!(pctx_instances[pctx], WeakRef(ctx))
     end, ctx)
@@ -55,8 +55,7 @@ end
 function state(pctx::CuPrimaryContext)
     flags = Ref{Cuint}()
     active = Ref{Cint}()
-    @apicall(:cuDevicePrimaryCtxGetState, (CuDevice_t, Ptr{Cuint}, Ptr{Cint}),
-             pctx.dev, flags, active)
+    cuDevicePrimaryCtxGetState(pctx.dev, flags, active)
     return (flags[], active[] == one(Cint))
 end
 
@@ -93,7 +92,7 @@ function unsafe_reset!(pctx::CuPrimaryContext, checked::Bool=true)
     #       However, we don't _need_ cuDevicePrimaryCtxReset because we already forced
     #       finalization (and hence cuDevicePrimaryCtxRelease) on all derived contexts
     #       through the GC, and asserted that there's no derived contexts left.
-    #@apicall(:cuDevicePrimaryCtxReset, (CuDevice_t,), pctx.dev)
+    #cuDevicePrimaryCtxReset(pctx.dev)
 
     if checked
         # NOTE: having finalized all derived contexts doesn't mean the primary context is
@@ -128,4 +127,4 @@ flags(pctx::CuPrimaryContext) = CUctx_flags(state(pctx)[1])
 Set the flags of a primary context.
 """
 setflags!(pctx::CuPrimaryContext, flags::CUctx_flags) =
-    @apicall(:cuDevicePrimaryCtxSetFlags, (CuDevice_t, Cuint), pctx.dev, flags)
+    cuDevicePrimaryCtxSetFlags(pctx.dev, flags)

@@ -7,7 +7,6 @@ using Test
 include("util.jl")
 include("array.jl")
 
-include("base.jl")
 include("pointer.jl")
 
 @test length(devices()) > 0

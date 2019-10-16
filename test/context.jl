@@ -26,7 +26,6 @@ end
 
 @test device(ctx) == dev
 @test device() == dev
-synchronize(ctx)
 synchronize()
 
 end
@@ -39,9 +38,9 @@ pctx = CuPrimaryContext(dev)
 unsafe_reset!(pctx)
 @test !isactive(pctx)
 
-@test flags(pctx) == CUDAdrv.SCHED_AUTO
-setflags!(pctx, CUDAdrv.SCHED_BLOCKING_SYNC)
-@test flags(pctx) == CUDAdrv.SCHED_BLOCKING_SYNC
+@test flags(pctx) == CUDAdrv.CTX_SCHED_AUTO
+setflags!(pctx, CUDAdrv.CTX_SCHED_BLOCKING_SYNC)
+@test flags(pctx) == CUDAdrv.CTX_SCHED_BLOCKING_SYNC
 
 CuContext(pctx) do ctx
     @test CUDAdrv.isvalid(ctx)

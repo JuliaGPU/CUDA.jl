@@ -3,45 +3,33 @@
 export CuEvent, record, synchronize, elapsed, @elapsed
 
 
-const CuEvent_t = Ptr{Cvoid}
-
-
-@enum(CUevent_flags, EVENT_DEFAULT = Cint(0),
-                     EVENT_BLOCKING_SYNC = Cint(1),
-                     EVENT_DISABLE_TIMING = Cint(2),
-                     EVENT_INTERPROCESS = Cint(4))
-
-# FIXME: EnumSet from JuliaLang/julia#19470
-Base.:|(x::CUevent_flags, y::CUevent_flags) =
-    reinterpret(CUevent_flags, Base.cconvert(Unsigned, x) | Base.cconvert(Unsigned, y))
-
 """
     CuEvent()
 
 Create a new CUDA event.
 """
 mutable struct CuEvent
-    handle::CuEvent_t
+    handle::CUevent
     ctx::CuContext
 
     function CuEvent(flags=EVENT_DEFAULT)
-        handle_ref = Ref{CuEvent_t}()
-        @apicall(:cuEventCreate, (Ptr{CuEvent_t}, Cuint), handle_ref, flags)
+        handle_ref = Ref{CUevent}()
+        cuEventCreate(handle_ref, flags)
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx)
         finalizer(unsafe_destroy!, obj)
         return obj
-    end 
+    end
 end
 
 function unsafe_destroy!(e::CuEvent)
     if isvalid(e.ctx)
-        @apicall(:cuEventDestroy, (CuEvent_t,), e)
+        cuEventDestroy(e)
     end
 end
 
-Base.unsafe_convert(::Type{CuEvent_t}, e::CuEvent) = e.handle
+Base.unsafe_convert(::Type{CUevent}, e::CuEvent) = e.handle
 
 Base.:(==)(a::CuEvent, b::CuEvent) = a.handle == b.handle
 Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
@@ -52,14 +40,14 @@ Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 Record an event on a stream.
 """
 record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
-    @apicall(:cuEventRecord, (CuEvent_t, CuStream_t), e, stream)
+    cuEventRecord(e, stream)
 
 """
     synchronize(e::CuEvent)
 
 Waits for an event to complete.
 """
-synchronize(e::CuEvent) = @apicall(:cuEventSynchronize, (CuEvent_t,), e)
+synchronize(e::CuEvent) = cuEventSynchronize(e)
 
 """
     wait(e::CuEvent, stream=CuDefaultStream())
@@ -68,7 +56,7 @@ Make a stream wait on a event. This only makes the stream wait, and not the host
 [`synchronize(::CuEvent)`](@ref) for that.
 """
 wait(e::CuEvent, stream::CuStream=CuDefaultStream()) =
-    @apicall(:cuStreamWaitEvent, (CuStream_t, CuEvent_t, Cuint), stream, e, 0)
+    cuStreamWaitEvent(stream, e, 0)
 
 """
     elapsed(start::CuEvent, stop::CuEvent)
@@ -77,8 +65,7 @@ Computes the elapsed time between two events (in seconds).
 """
 function elapsed(start::CuEvent, stop::CuEvent)
     time_ref = Ref{Cfloat}()
-    @apicall(:cuEventElapsedTime, (Ptr{Cfloat}, CuEvent_t, CuEvent_t),
-                                  time_ref, start, stop)
+    cuEventElapsedTime(time_ref, start, stop)
     return time_ref[]/1000
 end
 

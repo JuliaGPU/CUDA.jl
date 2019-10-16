@@ -1,0 +1,68 @@
+--- libcuda_common.jl	2019-10-15 14:56:06.113437493 +0200
++++ ../src/libcuda_common.jl	2019-10-15 15:10:16.201655128 +0200
+@@ -2,32 +2,6 @@
+ 
+ 
+ 
+-# Skipping MacroDefinition: cuMemcpyHtoD __CUDA_API_PTDS ( cuMemcpyHtoD_v2 )
+-# Skipping MacroDefinition: cuMemcpyDtoH __CUDA_API_PTDS ( cuMemcpyDtoH_v2 )
+-# Skipping MacroDefinition: cuMemcpyDtoD __CUDA_API_PTDS ( cuMemcpyDtoD_v2 )
+-# Skipping MacroDefinition: cuMemcpyDtoA __CUDA_API_PTDS ( cuMemcpyDtoA_v2 )
+-# Skipping MacroDefinition: cuMemcpyAtoD __CUDA_API_PTDS ( cuMemcpyAtoD_v2 )
+-# Skipping MacroDefinition: cuMemcpyHtoA __CUDA_API_PTDS ( cuMemcpyHtoA_v2 )
+-# Skipping MacroDefinition: cuMemcpyAtoH __CUDA_API_PTDS ( cuMemcpyAtoH_v2 )
+-# Skipping MacroDefinition: cuMemcpyAtoA __CUDA_API_PTDS ( cuMemcpyAtoA_v2 )
+-# Skipping MacroDefinition: cuMemcpyHtoAAsync __CUDA_API_PTSZ ( cuMemcpyHtoAAsync_v2 )
+-# Skipping MacroDefinition: cuMemcpyAtoHAsync __CUDA_API_PTSZ ( cuMemcpyAtoHAsync_v2 )
+-# Skipping MacroDefinition: cuMemcpy2D __CUDA_API_PTDS ( cuMemcpy2D_v2 )
+-# Skipping MacroDefinition: cuMemcpy2DUnaligned __CUDA_API_PTDS ( cuMemcpy2DUnaligned_v2 )
+-# Skipping MacroDefinition: cuMemcpy3D __CUDA_API_PTDS ( cuMemcpy3D_v2 )
+-# Skipping MacroDefinition: cuMemcpyHtoDAsync __CUDA_API_PTSZ ( cuMemcpyHtoDAsync_v2 )
+-# Skipping MacroDefinition: cuMemcpyDtoHAsync __CUDA_API_PTSZ ( cuMemcpyDtoHAsync_v2 )
+-# Skipping MacroDefinition: cuMemcpyDtoDAsync __CUDA_API_PTSZ ( cuMemcpyDtoDAsync_v2 )
+-# Skipping MacroDefinition: cuMemcpy2DAsync __CUDA_API_PTSZ ( cuMemcpy2DAsync_v2 )
+-# Skipping MacroDefinition: cuMemcpy3DAsync __CUDA_API_PTSZ ( cuMemcpy3DAsync_v2 )
+-# Skipping MacroDefinition: cuMemsetD8 __CUDA_API_PTDS ( cuMemsetD8_v2 )
+-# Skipping MacroDefinition: cuMemsetD16 __CUDA_API_PTDS ( cuMemsetD16_v2 )
+-# Skipping MacroDefinition: cuMemsetD32 __CUDA_API_PTDS ( cuMemsetD32_v2 )
+-# Skipping MacroDefinition: cuMemsetD2D8 __CUDA_API_PTDS ( cuMemsetD2D8_v2 )
+-# Skipping MacroDefinition: cuMemsetD2D16 __CUDA_API_PTDS ( cuMemsetD2D16_v2 )
+-# Skipping MacroDefinition: cuMemsetD2D32 __CUDA_API_PTDS ( cuMemsetD2D32_v2 )
+-
+-
+ # Skipping MacroDefinition: cuStreamBeginCapture __CUDA_API_PTSZ ( cuStreamBeginCapture_v2 )
+ 
+ const CUDA_VERSION = 10010
+--- libcuda_aliases.jl	2019-10-15 14:56:06.076770135 +0200
++++ ../src/libcuda_aliases.jl	2019-10-15 15:09:58.327912462 +0200
+@@ -8,6 +8,30 @@
+ const cuMemGetAddressRange = cuMemGetAddressRange_v2
+ const cuMemAllocHost = cuMemAllocHost_v2
+ const cuMemHostGetDevicePointer = cuMemHostGetDevicePointer_v2
++const cuMemcpyHtoD = cuMemcpyHtoD_v2
++const cuMemcpyDtoH = cuMemcpyDtoH_v2
++const cuMemcpyDtoD = cuMemcpyDtoD_v2
++const cuMemcpyDtoA = cuMemcpyDtoA_v2
++const cuMemcpyAtoD = cuMemcpyAtoD_v2
++const cuMemcpyHtoA = cuMemcpyHtoA_v2
++const cuMemcpyAtoH = cuMemcpyAtoH_v2
++const cuMemcpyAtoA = cuMemcpyAtoA_v2
++const cuMemcpyHtoAAsync = cuMemcpyHtoAAsync_v2
++const cuMemcpyAtoHAsync = cuMemcpyAtoHAsync_v2
++const cuMemcpy2D = cuMemcpy2D_v2
++const cuMemcpy2DUnaligned = cuMemcpy2DUnaligned_v2
++const cuMemcpy3D = cuMemcpy3D_v2
++const cuMemcpyHtoDAsync = cuMemcpyHtoDAsync_v2
++const cuMemcpyDtoHAsync = cuMemcpyDtoHAsync_v2
++const cuMemcpyDtoDAsync = cuMemcpyDtoDAsync_v2
++const cuMemcpy2DAsync = cuMemcpy2DAsync_v2
++const cuMemcpy3DAsync = cuMemcpy3DAsync_v2
++const cuMemsetD8 = cuMemsetD8_v2
++const cuMemsetD16 = cuMemsetD16_v2
++const cuMemsetD32 = cuMemsetD32_v2
++const cuMemsetD2D8 = cuMemsetD2D8_v2
++const cuMemsetD2D16 = cuMemsetD2D16_v2
++const cuMemsetD2D32 = cuMemsetD2D32_v2
+ const cuArrayCreate = cuArrayCreate_v2
+ const cuArrayGetDescriptor = cuArrayGetDescriptor_v2
+ const cuArray3DCreate = cuArray3DCreate_v2

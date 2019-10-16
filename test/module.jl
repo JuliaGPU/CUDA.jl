@@ -64,7 +64,7 @@ end
 
 let
     link = CuLink()
-    add_file!(link, joinpath(@__DIR__, "ptx/vadd_child.ptx"), CUDAdrv.PTX)
+    add_file!(link, joinpath(@__DIR__, "ptx/vadd_child.ptx"), CUDAdrv.JIT_INPUT_PTX)
     open(joinpath(@__DIR__, "ptx/vadd_parent.ptx")) do f
         add_data!(link, "vadd_parent", read(f, String))
     end
@@ -75,7 +75,7 @@ let
     vadd = CuFunction(md, "vadd")
 
     options = Dict{CUDAdrv.CUjit_option,Any}()
-    options[CUDAdrv.GENERATE_LINE_INFO] = true
+    options[CUDAdrv.JIT_GENERATE_LINE_INFO] = true
 
     md = CuModule(obj, options)
     vadd = CuFunction(md, "vadd")

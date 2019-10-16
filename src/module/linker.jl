@@ -4,15 +4,13 @@ export
     CuLink, add_data!, add_file!, complete
 
 
-const CuLinkState_t = Ptr{Cvoid}
-
 """
     CuLink()
 
 Creates a pending JIT linker invocation.
 """
 mutable struct CuLink
-    handle::CuLinkState_t
+    handle::CUlinkState
     ctx::CuContext
 
     options::Dict{CUjit_option,Any}
@@ -20,23 +18,22 @@ mutable struct CuLink
     optionVals::Vector{Ptr{Cvoid}}
 
     function CuLink(options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
-        handle_ref = Ref{CuLinkState_t}()
+        handle_ref = Ref{CUlinkState}()
 
-        options[ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+        options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
         @debug begin
-            options[INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-            options[LOG_VERBOSE] = true
+            options[JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+            options[JIT_LOG_VERBOSE] = true
             "JIT compiling code" # FIXME: remove this useless message
         end
         if Base.JLOptions().debug_level == 1
-            options[GENERATE_LINE_INFO] = true
+            options[JIT_GENERATE_LINE_INFO] = true
         elseif Base.JLOptions().debug_level >= 2
-            options[GENERATE_DEBUG_INFO] = true
+            options[JIT_GENERATE_DEBUG_INFO] = true
         end
         optionKeys, optionVals = encode(options)
 
-        @apicall(:cuLinkCreate, (Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}, Ptr{CuLinkState_t}),
-                                length(optionKeys), optionKeys, optionVals, handle_ref)
+        cuLinkCreate(length(optionKeys), optionKeys, optionVals, handle_ref)
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx, options, optionKeys, optionVals)
@@ -47,11 +44,11 @@ end
 
 function unsafe_destroy!(link::CuLink)
     if isvalid(link.ctx)
-        @apicall(:cuLinkDestroy, (CuLinkState_t,), link)
+        cuLinkDestroy(link)
     end
 end
 
-Base.unsafe_convert(::Type{CuLinkState_t}, link::CuLink) = link.handle
+Base.unsafe_convert(::Type{CUlinkState}, link::CuLink) = link.handle
 
 Base.:(==)(a::CuLink, b::CuLink) = a.handle == b.handle
 Base.hash(link::CuLink, h::UInt) = hash(link.handle, h)
@@ -67,34 +64,28 @@ function add_data!(link::CuLink, name::String, code::String)
     # there shouldn't be any embedded NULLs
     checked_data = Base.unsafe_convert(Cstring, data)
 
-    @apicall(:cuLinkAddData,
-             (CuLinkState_t, CUjit_input, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-             link, PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
+    cuLinkAddData(link, JIT_INPUT_PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
 end
 
 """
-    add_data!(link::CuLink, name::String, data::Vector{UInt8}, type::CUjit_input)
+    add_data!(link::CuLink, name::String, data::Vector{UInt8}, type::CUjitInputType)
 
 Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
-    @apicall(:cuLinkAddData,
-             (CuLinkState_t, CUjit_input, Ptr{Cvoid}, Csize_t, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-             link, OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
+    cuLinkAddData(link, JIT_INPUT_OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
 end
 
 """
-    add_file!(link::CuLink, path::String, typ::CUjit_input)
+    add_file!(link::CuLink, path::String, typ::CUjitInputType)
 
 Add data from a file to a link operation. The argument `typ` indicates the type of the
 contained data.
 """
-function add_file!(link::CuLink, path::String, typ::CUjit_input)
-    @apicall(:cuLinkAddFile,
-             (CuLinkState_t, CUjit_input, Cstring, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-             link, typ, path, 0, C_NULL, C_NULL)
+function add_file!(link::CuLink, path::String, typ::CUjitInputType)
+    cuLinkAddFile(link, typ, path, 0, C_NULL, C_NULL)
 
     return nothing
 end
@@ -120,23 +111,25 @@ function complete(link::CuLink)
     cubin_ref = Ref{Ptr{Cvoid}}()
     size_ref = Ref{Csize_t}()
 
-    err = @apicall_nothrow(:cuLinkComplete,
-                           (CuLinkState_t, Ptr{Ptr{Cvoid}}, Ptr{Csize_t}),
-                           link, cubin_ref, size_ref)
-    if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE
-        options = decode(link.optionKeys, link.optionVals)
-        throw(CuError(err.code, options[ERROR_LOG_BUFFER]))
-    elseif err != SUCCESS
-        throw(err)
+    try
+        cuLinkComplete(link, cubin_ref, size_ref)
+    catch err
+        if isa(err, CuError) && (err.code == ERROR_NO_BINARY_FOR_GPU ||
+                                 err.code == ERROR_INVALID_IMAGE)
+            options = decode(link.optionKeys, link.optionVals)
+            throw(CuError(err.code, options[JIT_ERROR_LOG_BUFFER]))
+        else
+            rethrow()
+        end
     end
 
     @debug begin
         options = decode(link.optionKeys, link.optionVals)
-        if isempty(options[INFO_LOG_BUFFER])
+        if isempty(options[JIT_INFO_LOG_BUFFER])
             """JIT info log is empty"""
         else
             """JIT info log:
-               $(options[INFO_LOG_BUFFER])"""
+               $(options[JIT_INFO_LOG_BUFFER])"""
         end
     end
 

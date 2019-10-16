@@ -2,22 +2,47 @@ variables:
   CI_IMAGE_TAG: 'cuda'
 
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/common.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v0.7.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.0.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_v1.2.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/test_dev.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/coverage_v1.1.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v4/documentation_v1.1.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/test.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
+
+
+# basic tests
+
+test:v1.0:
+  extends: .test:v1.0
+
+test:v1.1:
+  extends: .test:v1.1
+
+test:v1.2:
+  extends: .test:v1.2
+
+test:v1.3:
+  extends: .test:v1.3
 
 test:dev:
+  extends: .test:dev
   allow_failure: true
 
-coverage:
+
+# reverse tests
+
+# NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
+
+cudanative:
+  extends: .test:v1.2
+  script:
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();'
+    - julia -e 'using Pkg;
+                Pkg.add(PackageSpec(name="CUDAnative", rev="master"));
+                Pkg.test("CUDAnative");'
   allow_failure: true
-  only:
-    - master
+
+
+# deployment
 
 pages:
   stage: deploy

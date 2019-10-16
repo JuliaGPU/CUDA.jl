@@ -6,8 +6,6 @@ export
 include(joinpath("module", "jit.jl"))
 
 
-const CuModule_t = Ptr{Cvoid}
-
 """
     CuModule(data, options::Dict{CUjit_option,Any})
     CuModuleFile(path, options::Dict{CUjit_option,Any})
@@ -18,37 +16,41 @@ CUBIN, or a FATBIN.
 The `options` is an optional dictionary of JIT options and their respective value.
 """
 mutable struct CuModule
-    handle::CuModule_t
+    handle::CUmodule
     ctx::CuContext
 
     function CuModule(data, options::Dict{CUjit_option,Any}=Dict{CUjit_option,Any}())
-        handle_ref = Ref{CuModule_t}()
+        handle_ref = Ref{CUmodule}()
 
-        options[ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+        options[JIT_ERROR_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
         @debug begin
-            options[INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
-            options[LOG_VERBOSE] = true
+            options[JIT_INFO_LOG_BUFFER] = Vector{UInt8}(undef, 1024*1024)
+            options[JIT_LOG_VERBOSE] = true
             "JIT compiling code" # FIXME: remove this useless message
         end
         optionKeys, optionVals = encode(options)
 
-        err = @apicall_nothrow(:cuModuleLoadDataEx,
-                               (Ptr{CuModule_t}, Ptr{Cchar}, Cuint, Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-                               handle_ref, data, length(optionKeys), optionKeys, optionVals)
-        if err == ERROR_NO_BINARY_FOR_GPU || err == ERROR_INVALID_IMAGE || err == ERROR_INVALID_PTX
-            options = decode(optionKeys, optionVals)
-            throw(CuError(err.code, options[ERROR_LOG_BUFFER]))
-        elseif err != SUCCESS
-            throw(err)
+        try
+            GC.@preserve data cuModuleLoadDataEx(handle_ref, pointer(data),
+                                                 length(optionKeys), optionKeys, optionVals)
+        catch err
+            if isa(err, CuError) && (err.code == CUDA_ERROR_NO_BINARY_FOR_GPU ||
+                                     err.code == CUDA_ERROR_INVALID_IMAGE ||
+                                     err.code == CUDA_ERROR_INVALID_PTX)
+                options = decode(optionKeys, optionVals)
+                throw(CuError(err.code, options[JIT_ERROR_LOG_BUFFER]))
+            else
+                rethrow()
+            end
         end
 
         @debug begin
             options = decode(optionKeys, optionVals)
-            if isempty(options[INFO_LOG_BUFFER])
+            if isempty(options[JIT_INFO_LOG_BUFFER])
                 """JIT info log is empty"""
             else
                 """JIT info log:
-                   $(options[INFO_LOG_BUFFER])"""
+                   $(options[JIT_INFO_LOG_BUFFER])"""
             end
         end
 
@@ -61,11 +63,11 @@ end
 
 function unsafe_unload!(mod::CuModule)
     if isvalid(mod.ctx)
-        @apicall(:cuModuleUnload, (CuModule_t,), mod)
+        cuModuleUnload(mod)
     end
 end
 
-Base.unsafe_convert(::Type{CuModule_t}, mod::CuModule) = mod.handle
+Base.unsafe_convert(::Type{CUmodule}, mod::CuModule) = mod.handle
 
 Base.:(==)(a::CuModule, b::CuModule) = a.handle == b.handle
 Base.hash(mod::CuModule, h::UInt) = hash(mod.handle, h)

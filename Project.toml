@@ -3,16 +3,17 @@ uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
 version = "3.1.0"
 
 [deps]
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[compat]
+CUDAapi = "0.4.2, 0.5, 0.6, 1.0"
+julia = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Test"]
-
-[compat]
-julia = "0.7, 1"
-CUDAapi = "0.4.2, 0.5, 0.6, 1.0"
