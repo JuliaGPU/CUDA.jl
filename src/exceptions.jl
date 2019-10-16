@@ -11,7 +11,7 @@ function Base.showerror(io::IO, err::KernelException)
     print(io, "KernelException: exception thrown during kernel execution on device $(CUDAdrv.name(err.dev))")
 end
 
-Base.show(io::IO, err::KernelException) = print(io, "KernelException($(err.device))")
+Base.show(io::IO, err::KernelException) = print(io, "KernelException($(err.dev))")
 
 
 ## exception handling
