@@ -64,7 +64,7 @@ let
     Mem.free(src)
 
     # create a pinned and mapped buffer
-    src = Mem.alloc(Mem.Host, nb, CUDAdrv.MEMHOSTALLOC_DEVICEMAP)
+    src = Mem.alloc(Mem.Host, nb, Mem.HOSTALLOC_DEVICEMAP)
 
     # get the CPU address and copy some data
     cpu_ptr = convert(Ptr{T}, src)
@@ -93,7 +93,7 @@ let
     Mem.unregister(src)
 
     # register a pinned and mapped buffer
-    src = Mem.register(Mem.Host, pointer(data), nb, CUDAdrv.MEMHOSTREGISTER_DEVICEMAP)
+    src = Mem.register(Mem.Host, pointer(data), nb, Mem.HOSTREGISTER_DEVICEMAP)
 
     # get the GPU address and construct a fake device buffer
     gpu_ptr = convert(CuPtr{Cvoid}, src)
@@ -115,7 +115,7 @@ let
     src = Mem.alloc(Mem.Unified, nb)
 
     #Mem.prefetch(src, nb; device=CUDAdrv.DEVICE_CPU)
-    Mem.advise(src, CUDAdrv.MEM_ADVISE_SET_READ_MOSTLY)
+    Mem.advise(src, Mem.ADVISE_SET_READ_MOSTLY)
 
     # get the CPU address and copy some data
     cpu_ptr = convert(Ptr{T}, src)

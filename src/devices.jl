@@ -78,6 +78,8 @@ function attribute(dev::CuDevice, code::CUdevice_attribute)
     return value_ref[]
 end
 
+@enum_without_prefix CUdevice_attribute CU_
+
 
 ## device iteration
 

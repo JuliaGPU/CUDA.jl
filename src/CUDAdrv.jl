@@ -41,6 +41,8 @@ include("error.jl")
 include("libcuda.jl")
 include("libcuda_aliases.jl")
 
+include("util.jl")
+
 # high-level wrappers
 include("version.jl")
 global const libcuda_version = version()

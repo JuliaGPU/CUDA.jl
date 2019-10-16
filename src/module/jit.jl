@@ -1,3 +1,6 @@
+@enum_without_prefix CUjit_option CU_
+@enum_without_prefix CUjitInputType CU_
+
 function convert_bits(::Type{T}, data::UInt) where T
     if sizeof(data) == sizeof(T)
         return reinterpret(T, data)

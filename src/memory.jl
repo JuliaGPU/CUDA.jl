@@ -5,7 +5,9 @@ export Mem
 module Mem
 
 using ..CUDAdrv
-using ..CUDAdrv: CUstream, CUdevice, CUmemAttach_flags, CUmem_advise
+using ..CUDAdrv: @enum_without_prefix, CUstream, CUdevice
+
+using Base: @deprecate_binding
 
 
 ## abstract buffer type
@@ -156,12 +158,17 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer)
     return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, CuCurrentContext())
 end
 
+@deprecate_binding HOSTALLOC_DEFAULT 0 false
+const HOSTALLOC_PORTABLE = CUDAdrv.CU_MEMHOSTALLOC_PORTABLE
+const HOSTALLOC_DEVICEMAP = CUDAdrv.CU_MEMHOSTALLOC_DEVICEMAP
+const HOSTALLOC_WRITECOMBINED = CUDAdrv.CU_MEMHOSTALLOC_WRITECOMBINED
+
 """
     alloc(HostBuffer, bytesize::Integer, [flags])
 
 Allocate `bytesize` bytes of page-locked memory on the host. This memory is accessible from
 the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
-`flags` is set to `MEMHOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
+`flags` is set to `HOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
 These accesses are direct, and go through the PCI bus.
 """
 function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
@@ -170,18 +177,20 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
     ptr_ref = Ref{Ptr{Cvoid}}()
     CUDAdrv.cuMemHostAlloc(ptr_ref, bytesize, flags)
 
-    mapped = (flags & CUDAdrv.MEMHOSTALLOC_DEVICEMAP) != 0
+    mapped = (flags & HOSTALLOC_DEVICEMAP) != 0
     return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), mapped)
 end
 
+@enum_without_prefix CUDAdrv.CUmemAttach_flags CU_MEM_
+
 """
-    alloc(UnifiedBuffer, bytesize::Integer, [flags])
+    alloc(UnifiedBuffer, bytesize::Integer, [flags::CUmemAttach_flags])
 
 Allocate `bytesize` bytes of unified memory. This memory is accessible from both the CPU and
 GPU, with the CUDA driver automatically copying upon first access.
 """
 function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
-              flags::CUmemAttach_flags=CUDAdrv.MEM_ATTACH_GLOBAL)
+              flags::CUDAdrv.CUmemAttach_flags=ATTACH_GLOBAL)
     bytesize == 0 && return UnifiedBuffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
@@ -202,8 +211,12 @@ function free(buf::HostBuffer)
     end
 end
 
+const HOSTREGISTER_PORTABLE = CUDAdrv.CU_MEMHOSTREGISTER_PORTABLE
+const HOSTREGISTER_DEVICEMAP = CUDAdrv.CU_MEMHOSTREGISTER_DEVICEMAP
+const HOSTREGISTER_IOMEMORY = CUDAdrv.CU_MEMHOSTREGISTER_IOMEMORY
+
 """
-    register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags::CUmem_host_register])
+    register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags])
 
 Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
 be faster, and can be executed asynchronously. If the `MEMHOSTREGISTER_DEVICEMAP` flag is
@@ -215,7 +228,7 @@ function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
 
     CUDAdrv.cuMemHostRegister(ptr, bytesize, flags)
 
-    mapped = (flags & CUDAdrv.MEMHOSTREGISTER_DEVICEMAP) != 0
+    mapped = (flags & HOSTREGISTER_DEVICEMAP) != 0
     return HostBuffer(ptr, bytesize, CuCurrentContext(), mapped)
 end
 
@@ -314,7 +327,9 @@ function prefetch(buf::UnifiedBuffer, bytes=sizeof(buf);
     CUDAdrv.cuMemPrefetchAsync(buf, bytes, device, stream)
 end
 
-function advise(buf::UnifiedBuffer, advice::CUmem_advise, bytes=sizeof(buf),
+@enum_without_prefix CUDAdrv.CUmem_advise CU_MEM_
+
+function advise(buf::UnifiedBuffer, advice::CUDAdrv.CUmem_advise, bytes=sizeof(buf),
                 device=device(buf.ctx))
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     CUDAdrv.cuMemAdvise(buf, bytes, advice, device)
