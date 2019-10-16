@@ -31,7 +31,7 @@ ccall(:clock, Nothing, (Ptr{Int},), a)
 @test_throws Exception ccall(:clock, Nothing, (CuPtr{Int},), a)
 ccall(:clock, Nothing, (CUDAdrv.PtrOrCuPtr{Int},), a)
 
-buf = Mem.DeviceBuffer(NULL, 0, CuContext(C_NULL))
+buf = Mem.DeviceBuffer(CU_NULL, 0, CuContext(C_NULL))
 b = CuTestArray{eltype(a), ndims(a)}(buf, size(a))
 ccall(:clock, Nothing, (CuPtr{Int},), b)
 @test_throws Exception ccall(:clock, Nothing, (Ptr{Int},), b)

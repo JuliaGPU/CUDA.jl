@@ -105,7 +105,7 @@ Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
 
 function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
     if buf.mapped
-        pointer(buf) == C_NULL && return NULL
+        pointer(buf) == C_NULL && return CU_NULL
         ptr_ref = Ref{CuPtr{Cvoid}}()
         CUDAdrv.cuMemHostGetDevicePointer(ptr_ref, pointer(buf), #=flags=# 0)
         convert(CuPtr{T}, ptr_ref[])
@@ -148,7 +148,7 @@ Allocate `bytesize` bytes of memory on the device. This memory is only accessibl
 GPU, and requires explicit calls to `upload` and `download` for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer)
-    bytesize == 0 && return DeviceBuffer(NULL, 0, CuContext(C_NULL))
+    bytesize == 0 && return DeviceBuffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CUDAdrv.CUdeviceptr}()
     CUDAdrv.cuMemAlloc(ptr_ref, bytesize)
@@ -182,7 +182,7 @@ GPU, with the CUDA driver automatically copying upon first access.
 """
 function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
               flags::CUmemAttach_flags=CUDAdrv.MEM_ATTACH_GLOBAL)
-    bytesize == 0 && return UnifiedBuffer(NULL, 0, CuContext(C_NULL))
+    bytesize == 0 && return UnifiedBuffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CuPtr{Cvoid}}()
     CUDAdrv.cuMemAllocManaged(ptr_ref, bytesize, flags)
@@ -191,13 +191,13 @@ function alloc(::Type{UnifiedBuffer}, bytesize::Integer,
 end
 
 function free(buf::Union{DeviceBuffer,UnifiedBuffer})
-    if pointer(buf) != NULL
+    if pointer(buf) != CU_NULL
         CUDAdrv.cuMemFree(buf)
     end
 end
 
 function free(buf::HostBuffer)
-    if pointer(buf) != NULL
+    if pointer(buf) != CU_NULL
         CUDAdrv.cuMemFreeHost(buf)
     end
 end
