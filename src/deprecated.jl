@@ -144,3 +144,7 @@ import Base: @deprecate_binding, @deprecate_moved false
 
 # this function is broken, but let's at least keep downstream packages working
 @deprecate synchronize(ctx::CuContext) synchronize()
+
+import Base: get
+Base.@deprecate get(var::CuGlobal) getindex(var)
+Base.@deprecate set(var::CuGlobal, val) setindex!(var, val)

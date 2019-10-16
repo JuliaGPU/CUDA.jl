@@ -38,22 +38,23 @@ Return the element type of a global variable object.
 Base.eltype(::Type{CuGlobal{T}}) where {T} = T
 
 """
-    get(var::CuGlobal)
+    Base.getindex(var::CuGlobal)
 
 Return the current value of a global variable.
 """
-function Base.get(var::CuGlobal{T}) where T
+function Base.getindex(var::CuGlobal{T}) where T
     val_ref = Ref{T}()
     cuMemcpyDtoH(val_ref, var, var.buf.bytesize)
     return val_ref[]
 end
+# TODO: import Base: get?
 
 """
-    set(var::CuGlobal{T}, T)
+    Base.setindex(var::CuGlobal{T}, val::T)
 
 Set the value of a global variable to `val`
 """
-function set(var::CuGlobal{T}, val::T) where T
+function Base.setindex!(var::CuGlobal{T}, val::T) where T
     val_ref = Ref{T}(val)
     cuMemcpyHtoD(var, val_ref, var.buf.bytesize)
 end

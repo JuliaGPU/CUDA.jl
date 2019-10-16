@@ -38,8 +38,8 @@ end
 
     @test_throws ArgumentError CuGlobal{Int64}(md, "foobar")
 
-    set(var, Int32(42))
-    @test get(var) == Int32(42)
+    var[] = Int32(42)
+    @test var[] == Int32(42)
 end
 
 
