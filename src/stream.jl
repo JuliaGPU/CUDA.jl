@@ -14,6 +14,8 @@ Base.unsafe_convert(::Type{CUstream}, s::CuStream) = s.handle
 Base.:(==)(a::CuStream, b::CuStream) = a.handle == b.handle
 Base.hash(s::CuStream, h::UInt) = hash(s.handle, h)
 
+@enum_without_prefix CUstream_flags_enum CU_
+
 """
     CuStream(flags=STREAM_DEFAULT)
 

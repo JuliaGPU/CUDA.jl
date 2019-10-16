@@ -134,29 +134,6 @@ import Base: @deprecate_binding, @deprecate_moved false
 @deprecate_binding OBJECT JIT_INPUT_OBJECT false
 @deprecate_binding LIBRARY JIT_INPUT_LIBRARY false
 
-@deprecate_binding CSV OUT_CSV false
-@deprecate_binding KEY_VALUE_PAIR OUT_KEY_VALUE_PAIR false
-
-@deprecate_binding HOSTALLOC_DEFAULT 0 false
-@deprecate_binding HOSTALLOC_PORTABLE MEMHOSTALLOC_PORTABLE false
-@deprecate_binding HOSTALLOC_DEVICEMAP MEMHOSTALLOC_DEVICEMAP false
-@deprecate_binding HOSTALLOC_WRITECOMBINED MEMHOSTALLOC_WRITECOMBINED false
-
-@deprecate_binding ATTACH_GLOBAL MEM_ATTACH_GLOBAL false
-@deprecate_binding ATTACH_HOST MEM_ATTACH_HOST false
-@deprecate_binding ATTACH_SINGLE MEM_ATTACH_SINGLE false
-
-@deprecate_binding HOSTREGISTER_PORTABLE MEMHOSTREGISTER_PORTABLE false
-@deprecate_binding HOSTREGISTER_DEVICEMAP MEMHOSTREGISTER_DEVICEMAP false
-@deprecate_binding HOSTREGISTER_IOMEMORY MEMHOSTREGISTER_IOMEMORY false
-
-@deprecate_binding ADVISE_SET_READ_MOSTLY MEM_ADVISE_SET_READ_MOSTLY false
-@deprecate_binding ADVISE_UNSET_READ_MOSTLY MEM_ADVISE_UNSET_READ_MOSTLY false
-@deprecate_binding ADVISE_SET_PREFERRED_LOCATION MEM_ADVISE_SET_PREFERRED_LOCATION false
-@deprecate_binding ADVISE_UNSET_PREFERRED_LOCATION MEM_ADVISE_UNSET_PREFERRED_LOCATION false
-@deprecate_binding ADVISE_SET_ACCESSED_BY MEM_ADVISE_SET_ACCESSED_BY false
-@deprecate_binding ADVISE_UNSET_ACCESSED_BY MEM_ADVISE_UNSET_ACCESSED_BY false
-
 @deprecate_binding CuContext_t CUcontext false
 @deprecate_binding CuStream_t CUstream false
 @deprecate_binding CuEvent_t CUevent false

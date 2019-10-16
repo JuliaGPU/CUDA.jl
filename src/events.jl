@@ -3,6 +3,8 @@
 export CuEvent, record, synchronize, elapsed, @elapsed
 
 
+@enum_without_prefix CUevent_flags_enum CU_
+
 """
     CuEvent()
 

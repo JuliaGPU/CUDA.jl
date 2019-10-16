@@ -96,6 +96,8 @@ end
 Base.deepcopy_internal(::CuContext, ::IdDict) =
     error("CuContext cannot be copied")
 
+@enum_without_prefix CUctx_flags CU_
+
 function CuContext(dev::CuDevice, flags::CUctx_flags=CTX_SCHED_AUTO)
     handle_ref = Ref{CUcontext}()
     cuCtxCreate(handle_ref, flags, dev)
@@ -187,6 +189,8 @@ synchronize() = cuCtxSynchronize()
 
 export cache_config, cache_config!
 
+@enum_without_prefix CUfunc_cache CU_
+
 function cache_config()
     config = Ref{CUfunc_cache}()
     cuCtxGetCacheConfig(config)
@@ -201,6 +205,8 @@ end
 ## shared memory config
 
 export shmem_config, shmem_config!
+
+@enum_without_prefix CUsharedconfig CU_
 
 function shmem_config()
     config = Ref{CUsharedconfig}()

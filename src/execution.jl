@@ -176,6 +176,8 @@ end
 
 attributes(f::CuFunction) = AttributeDict(f)
 
+@enum_without_prefix CUfunction_attribute CU_
+
 function Base.getindex(dict::AttributeDict, attr::CUfunction_attribute)
     val = Ref{Cint}()
     cuFuncGetAttribute(val, attr, dict.f)

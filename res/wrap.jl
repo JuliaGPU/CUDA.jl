@@ -118,14 +118,6 @@ function insert_check(x, state)
     end
 end
 
-# remove CU_ prefix from enum values
-function remove_prefix(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.IDENTIFIER && startswith(x.val, "CU_")
-        offset = state.offset
-        push!(state.edits, Edit(offset+1:offset+x.span, x.val[4:end]))
-    end
-end
-
 
 ## indenting passes
 
@@ -242,9 +234,6 @@ function process(name, headers...; kwargs...)
 
         state.offset = 0
         pass(ast, state, insert_check)
-
-        state.offset = 0
-        pass(ast, state, remove_prefix)
 
         # apply
         state.offset = 0
