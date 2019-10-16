@@ -19,7 +19,7 @@ const mod = CuModuleFile("cuda.ptx")
 const fun = CuFunction(mod, "kernel_dummy")
 
 function benchmark(gpu_buf)
-    cudacall(fun, (Ptr{Float32},), gpu_buf; threads=1)
+    cudacall(fun, (CuPtr{Float32},), gpu_buf; threads=1)
     return
 end
 
@@ -28,7 +28,7 @@ function main()
     cpu_time = Vector{Float64}(undef, ITERATIONS)
     gpu_time = Vector{Float64}(undef, ITERATIONS)
 
-    gpu_buf = Mem.alloc(len*sizeof(Float32))
+    gpu_buf = Mem.alloc(Mem.Device, len*sizeof(Float32))
     for i in 1:ITERATIONS
         i == ITERATIONS-4 && CUDAdrv.Profile.start()
 
