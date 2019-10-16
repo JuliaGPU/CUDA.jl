@@ -93,11 +93,11 @@ macro check(ex)
         # NOTE: this hook is used by CUDAnative.jl to initialize upon the first API call
         apicall_hook[] !== nothing && apicall_hook[]($fun)
 
-        local err::CUresult
-        res = $(esc(ex))
+        res::CUresult = $(esc(ex))
         if res != CUDA_SUCCESS
             throw(CuError(res))
         end
-        res
+
+        return
     end
 end
