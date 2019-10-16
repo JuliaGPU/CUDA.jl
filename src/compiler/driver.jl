@@ -218,7 +218,6 @@ function codegen(target::Symbol, job::CompilerJob;
     end
 
     @timeit to[] "CUDA object generation" begin
-
         # enable debug options based on Julia's debug setting
         jit_options = Dict{CUDAdrv.CUjit_option,Any}()
         if Base.JLOptions().debug_level == 1

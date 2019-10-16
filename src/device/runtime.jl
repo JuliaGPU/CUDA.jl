@@ -104,8 +104,33 @@ function report_exception_frame(idx, func, file, line)
     return
 end
 
+if VERSION >= v"1.2.0-DEV.512"
+    @inline exception_flag() =
+        ccall("extern cudanativeExceptionFlag", llvmcall, Ptr{Cvoid}, ())
+else
+    import Base.Sys: WORD_SIZE
+    @eval @inline exception_flag() = Base.llvmcall(
+        $("declare i$WORD_SIZE @cudanativeExceptionFlag()",
+          "%rv = call i$WORD_SIZE @cudanativeExceptionFlag()
+           ret i$WORD_SIZE %rv"), Ptr{Cvoid}, Tuple{})
+end
+
+function signal_exception()
+    ptr = exception_flag()
+    if ptr !== C_NULL
+        unsafe_store!(convert(Ptr{Int}, ptr), 1)
+    else
+        @cuprintf("""
+            WARNING: could not signal exception status to the host, execution will continue.
+                     Please file a bug.
+            """)
+    end
+    return
+end
+
 compile(report_exception_frame, Nothing, (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
 compile(report_exception_name, Nothing, (Ptr{Cchar},))
+compile(signal_exception, Nothing, ())
 
 # NOTE: no throw functions are provided here, but replaced by an LLVM pass instead
 #       in order to provide some debug information without stack unwinding.

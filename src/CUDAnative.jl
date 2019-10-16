@@ -125,13 +125,14 @@ include(joinpath("device", "cuda.jl"))
 include(joinpath("device", "llvm.jl"))
 include(joinpath("device", "runtime.jl"))
 
+include("init.jl")
+
 include("compiler.jl")
 include("execution.jl")
+include("exceptions.jl")
 include("reflection.jl")
 
 include("deprecated.jl")
-
-include("init.jl")
 
 
 ## initialization
