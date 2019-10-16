@@ -104,8 +104,22 @@ function report_exception_frame(idx, func, file, line)
     return
 end
 
+function signal_exception()
+    ptr = ccall("extern cudanativeExceptionFlag", llvmcall, Ptr{Cvoid}, ())
+    if ptr !== C_NULL
+        unsafe_store!(convert(Ptr{Int}, ptr), 1)
+    else
+        @cuprintf("""
+            WARNING: could not signal exception status to the host, execution will continue.
+                     Please file a bug.
+            """)
+    end
+    return
+end
+
 compile(report_exception_frame, Nothing, (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
 compile(report_exception_name, Nothing, (Ptr{Cchar},))
+compile(signal_exception, Nothing, ())
 
 # NOTE: no throw functions are provided here, but replaced by an LLVM pass instead
 #       in order to provide some debug information without stack unwinding.

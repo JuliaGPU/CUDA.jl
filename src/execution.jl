@@ -399,6 +399,7 @@ when function changes, or when different types or keyword arguments are provided
                    Memory usage: $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, $(Base.format_bytes(mem.constant)) constant"""
             end
             compilecache[key] = kernel
+            create_exceptions!(mod)
         end
 
         return compilecache[key]::HostKernel{f,tt}

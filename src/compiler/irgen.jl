@@ -240,6 +240,9 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
         end
     end
 
+    # add the global exception indicator flag
+    emit_exception_flag!(mod)
+
     # rename the entry point
     if job.name !== nothing
         llvmfn = safe_fn(string("julia_", job.name))
@@ -374,6 +377,9 @@ function emit_exception!(builder, name, inst)
         end
     end
 
+    # signal the exception
+    call!(builder, Runtime.get(:signal_exception))
+
     trap = if haskey(functions(mod), "llvm.trap")
         functions(mod)["llvm.trap"]
     else
@@ -506,7 +512,7 @@ function hide_trap!(mod::LLVM.Module)
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()))
-    exit = InlineAsm(exit_ft, "trap;", "", true)
+    exit = InlineAsm(exit_ft, "exit;", "", true)
 
     if haskey(functions(mod), "llvm.trap")
         trap = functions(mod)["llvm.trap"]
@@ -527,4 +533,40 @@ function hide_trap!(mod::LLVM.Module)
 
     end
     return changed
+end
+
+# emit a global variable for storing the current exception status
+#
+# since we don't actually support globals, access to this variable is done by calling the
+# cudanativeExceptionFlag function (lowered here to actual accesses of the variable)
+function emit_exception_flag!(mod::LLVM.Module)
+    # add the global variable
+    T_ptr = convert(LLVMType, Ptr{Cvoid})
+    gv = GlobalVariable(mod, T_ptr, "exception_flag")
+    initializer!(gv, LLVM.ConstantInt(T_ptr, 0))
+    linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
+    extinit!(gv, true)
+
+    # lower uses of the getter
+    if haskey(functions(mod), "cudanativeExceptionFlag")
+        buf_getter = functions(mod)["cudanativeExceptionFlag"]
+        @assert return_type(eltype(llvmtype(buf_getter))) == eltype(llvmtype(gv))
+
+        # find uses
+        worklist = Vector{LLVM.CallInst}()
+        for use in uses(buf_getter)
+            call = user(use)::LLVM.CallInst
+            push!(worklist, call)
+        end
+
+        # replace uses by a load from the global variable
+        for call in worklist
+            Builder(JuliaContext()) do builder
+                position!(builder, call)
+                ptr = load!(builder, gv)
+                replace_uses!(call, ptr)
+            end
+            unsafe_delete!(LLVM.parent(call), call)
+        end
+    end
 end
