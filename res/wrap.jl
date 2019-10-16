@@ -290,9 +290,9 @@ function main()
     isdir(cupti_include) || error("Could not find the CUPTI include directory in any of the toolkit directories ($(join(toolkit, ", ", " or ")))")
     @info "Found CUPTI include directory directory at $cupti_include"
 
-    function wrap(name, headers...; kwargs...)
+    function wrap(name, dir, headers...; kwargs...)
         env_var = uppercase(name) * "_INCLUDE"
-        include = get(ENV, env_var, cupti_include)
+        include = get(ENV, env_var, dir)
         for header in headers
             if !isfile(joinpath(include, header))
                 @error "Cannot wrap $name: could not find $header in $include (override the include directory with the $env_var environment variable)"
@@ -304,14 +304,17 @@ function main()
         process(name, headers...; kwargs..., includes=[cuda_include, cupti_include])
     end
 
-    wrap("cupti",  "cupti_result.h", "cupti_version.h",
-                   "cupti_activity.h", "cupti_callbacks.h",
-                   "cupti_events.h", "cupti_metrics.h", # deprecated, but still required
-                   "cupti_profiler_target.h";
-                    defines=["__packed__"=>"", "aligned"=>""])
+    wrap("nvtx", cuda_include, "nvtx3/nvToolsExt.h", "nvtx3/nvToolsExtCuda.h")
+
+    wrap("cupti", cupti_include,  "cupti_result.h", "cupti_version.h",
+                                  "cupti_activity.h", "cupti_callbacks.h",
+                                  "cupti_events.h", "cupti_metrics.h", # deprecated, but still required
+                                  "cupti_profiler_target.h";
+                                   defines=["__packed__"=>"", "aligned"=>""])
     # NOTE: libclang (the C API) doesn't support/expose the __packed__/aligned attributes,
     #       so disable them (Julia doesn't support packed structs anyway)
-    wrap("nvperf", "nvperf_host.h")
+
+    wrap("nvperf", cupti_include, "nvperf_host.h")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
