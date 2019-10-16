@@ -16,10 +16,10 @@ Base.show(io::IO, err::KernelException) = print(io, "KernelException($(err.dev))
 
 ## exception handling
 
-const exception_flags = Dict{CuDevice, Mem.HostBuffer}()
+const exception_flags = Dict{CuContext, Mem.HostBuffer}()
 push!(device_reset!_listeners, (dev, ctx) -> begin
     # invalidate exception flags when the device resets
-    delete!(exception_flags, dev)
+    delete!(exception_flags, ctx)
 end)
 
 # create a CPU/GPU exception flag for error signalling, and put it in the module
@@ -27,10 +27,9 @@ end)
 # also see compiler/irgen.jl::emit_exception_flag!
 function create_exceptions!(mod::CuModule)
     ctx = mod.ctx
-    dev = device(ctx)
     try
         flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, "exception_flag")
-        exception_flag = get!(exception_flags, dev, Mem.alloc(Mem.Host, sizeof(Int),
+        exception_flag = get!(exception_flags, ctx, Mem.alloc(Mem.Host, sizeof(Int),
                             Mem.HOSTALLOC_DEVICEMAP))
         flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, exception_flag))
     catch err
@@ -46,11 +45,12 @@ function create_exceptions!(mod::CuModule)
 end
 
 function check_exceptions()
-    for (dev,buf) in exception_flags
+    for (ctx,buf) in exception_flags
         ptr = convert(Ptr{Int}, buf)
         flag = unsafe_load(ptr)
         if flag !== 0
             unsafe_store!(ptr, 0)
+            dev = device(ctx)
             throw(KernelException(dev))
         end
     end
