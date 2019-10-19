@@ -1,28 +1,35 @@
-variables:
-  CI_IMAGE_TAG: 'cuda'
-
 include:
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/test.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/coverage.yml'
-  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v5/documentation.yml'
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
+
+image: nvidia/cuda:latest
 
 
 # basic tests
 
-test:v1.0:
-  extends: .test:v1.0
+test:1.0:
+  extends:
+    - .julia:1.0
+    - .test
 
-test:v1.1:
-  extends: .test:v1.1
+test:1.1:
+  extends:
+    - .julia:1.1
+    - .test
 
-test:v1.2:
-  extends: .test:v1.2
+test:1.2:
+  extends:
+    - .julia:1.2
+    - .test
 
-test:v1.3:
-  extends: .test:v1.3
+test:1.3:
+  extends:
+    - .julia:1.3
+    - .test
 
-test:dev:
-  extends: .test:dev
+test:nightly:
+  extends:
+    - .julia:nightly
+    - .test
   allow_failure: true
 
 
@@ -31,7 +38,8 @@ test:dev:
 # NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
 
 cuarrays:
-  extends: .test:v1.2
+  extends: .julia:1.2
+  image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
   script:
     - julia -e 'using Pkg;
                 Pkg.develop(PackageSpec(path=pwd()));
@@ -42,7 +50,17 @@ cuarrays:
   allow_failure: true
 
 
-# deployment
+# other tasks
+
+coverage:
+  extends:
+    - .julia:1.2
+    - .coverage
+
+documentation:
+  extends:
+    - .julia:1.2
+    - .documentation
 
 pages:
   stage: deploy
