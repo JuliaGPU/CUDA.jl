@@ -1,7 +1,7 @@
 # E. Dynamic Parallelism
 
-import CUDAdrv: CuDim3, CuStream_t
-const cudaStream_t = CUDAdrv.CuStream_t
+import CUDAdrv: CuDim3, CUstream
+const cudaStream_t = CUDAdrv.CUstream
 
 if VERSION >= v"1.2.0-DEV.512"
     @inline cudaLaunchDevice(buf::Ptr{Cvoid}, stream::CuStream) =
@@ -108,7 +108,7 @@ end
     synchronize()
 
 Wait for the device to finish. This is the device side version,
-and should not be called from the host. 
+and should not be called from the host.
 
 `synchronize` acts as a synchronization point for
 child grids in the context of dynamic parallelism.

@@ -221,9 +221,9 @@ function codegen(target::Symbol, job::CompilerJob;
         # enable debug options based on Julia's debug setting
         jit_options = Dict{CUDAdrv.CUjit_option,Any}()
         if Base.JLOptions().debug_level == 1
-            jit_options[CUDAdrv.GENERATE_LINE_INFO] = true
+            jit_options[CUDAdrv.JIT_GENERATE_LINE_INFO] = true
         elseif Base.JLOptions().debug_level >= 2
-            jit_options[CUDAdrv.GENERATE_DEBUG_INFO] = true
+            jit_options[CUDAdrv.JIT_GENERATE_DEBUG_INFO] = true
         end
 
         # link the CUDA device library
@@ -240,7 +240,7 @@ function codegen(target::Symbol, job::CompilerJob;
             if !isempty(setdiff(undefined_fns, intrinsic_fns))
                 @timeit to[] "device runtime library" begin
                     linker = CUDAdrv.CuLink(jit_options)
-                    CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.LIBRARY)
+                    CUDAdrv.add_file!(linker, libcudadevrt, CUDAdrv.JIT_INPUT_LIBRARY)
                     CUDAdrv.add_data!(linker, kernel_fn, asm)
                     image = CUDAdrv.complete(linker)
                 end

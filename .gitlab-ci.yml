@@ -10,43 +10,66 @@ test:1.0:
   extends:
     - .julia:1.0
     - .test
+  tags:
+    - nvidia
+    - sm_75
 
 test:1.1:
   extends:
     - .julia:1.1
     - .test
+  tags:
+    - nvidia
+    - sm_75
 
 test:1.2:
   extends:
     - .julia:1.2
     - .test
+  tags:
+    - nvidia
+    - sm_75
 
 test:1.3:
   extends:
     - .julia:1.3
     - .test
+  tags:
+    - nvidia
+    - sm_75
 
 test:nightly:
   extends:
     - .julia:nightly
     - .test
+  tags:
+    - nvidia
+    - sm_75
   allow_failure: true
 
 
 # reverse tests
 
-# NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
+# NOTE: reverse testing is tricky because of Manifests. we instantiate both, give priority
+#       to this package's Manifest, and manually run tests outside of the test environment.
+#       that means we have to manually install CuArrays' test dependencies though.
 
 cuarrays:
   extends: .julia:1.2
+  tags:
+    - nvidia
+    - sm_75
   image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
   script:
+    - export CUARRAYS="$HOME/.julia/dev/CuArrays"
     - julia -e 'using Pkg;
-                Pkg.develop(PackageSpec(path=pwd()));
-                Pkg.build();'
-    - julia -e 'using Pkg;
-                Pkg.add(PackageSpec(name="CuArrays", rev="master"));
-                Pkg.test("CuArrays");'
+                Pkg.develop("CuArrays");'
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate()'
+    - julia --project=$CUARRAYS -e 'using Pkg;
+                                    Pkg.instantiate();
+                                    Pkg.add(["FFTW", "ForwardDiff"])'
+    - JULIA_LOAD_PATH=".:$CUARRAYS::" julia $CUARRAYS/test/runtests.jl
   allow_failure: true
 
 
@@ -61,6 +84,8 @@ documentation:
   extends:
     - .julia:1.2
     - .documentation
+  tags:
+    - nvidia
 
 pages:
   stage: deploy
