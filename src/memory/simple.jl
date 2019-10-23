@@ -2,7 +2,8 @@ module SimplePool
 
 # simple scan into a list of free buffers
 
-using ..CuArrays: @pool_timeit, actual_alloc, actual_free
+using ..CuArrays
+using ..CuArrays: @pool_timeit
 
 using CUDAdrv
 
@@ -23,16 +24,37 @@ function max_oversize(sz)
 end
 
 
+## block of memory
+
+struct Block
+    ptr::CuPtr{Nothing}
+    sz::Int
+end
+
+Base.pointer(block::Block) = block.ptr
+Base.sizeof(block::Block) = block.sz
+
+@inline function actual_alloc(sz)
+    ptr = CuArrays.actual_alloc(sz)
+    block = ptr === nothing ? nothing : Block(ptr, sz)
+end
+
+function actual_free(block::Block)
+    CuArrays.actual_free(pointer(block))
+    return
+end
+
+
 ## pooling
 
-const available = Set{Mem.Buffer}()
-const allocated = Set{Mem.Buffer}()
+const available = Set{Block}()
+const allocated = Dict{CuPtr{Nothing},Block}()
 
 function scan(sz)
-    for buf in available
-        if sz <= sizeof(buf) <= max_oversize(sz)
-            delete!(available, buf)
-            return buf
+    for block in available
+        if sz <= sizeof(block) <= max_oversize(sz)
+            delete!(available, block)
+            return block
         end
     end
     return
@@ -41,16 +63,16 @@ end
 function reclaim(sz)
     freed = 0
     while freed < sz && !isempty(available)
-        buf = pop!(available)
-        actual_free(buf)
-        freed += sizeof(buf)
+        block = pop!(available)
+        actual_free(pointer(block))
+        freed += sizeof(block)
     end
 
     return freed
 end
 
 function pool_alloc(sz)
-    buf = nothing
+    block = nothing
     for phase in 1:3
         if phase == 2
             @pool_timeit "$phase.0 gc(false)" GC.gc(false)
@@ -59,27 +81,28 @@ function pool_alloc(sz)
         end
 
         @pool_timeit "$phase.1 scan" begin
-            buf = scan(sz)
+            block = scan(sz)
         end
-        buf === nothing || break
+        block === nothing || break
 
         @pool_timeit "$phase.2 alloc" begin
-            buf = actual_alloc(sz)
+            block = actual_alloc(sz)
         end
-        buf === nothing || break
+        block === nothing || break
 
         @pool_timeit "$phase.3 reclaim + alloc" begin
             reclaim(sz)
-            buf = actual_alloc(sz)
+            block = actual_alloc(sz)
         end
-        buf === nothing || break
+        block === nothing || break
     end
 
-    return buf
+    return block
 end
 
-function pool_free(buf)
-    push!(available, buf)
+function pool_free(block)
+    @assert !in(block, available)
+    push!(available, block)
 end
 
 
@@ -90,8 +113,8 @@ init() = return
 function deinit()
     @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
 
-    for buf in available
-        actual_free(buf)
+    for block in available
+        actual_free(block)
     end
     empty!(available)
 
@@ -99,20 +122,24 @@ function deinit()
 end
 
 function alloc(sz)
-    buf = pool_alloc(sz)
-    if buf !== nothing
-        push!(allocated, buf)
+    block = pool_alloc(sz)
+    if block !== nothing
+        ptr = pointer(block)
+        allocated[ptr] = block
+        return ptr
+    else
+        return nothing
     end
-    return buf
 end
 
-function free(buf)
-    delete!(allocated, buf)
-    pool_free(buf)
+function free(ptr)
+    block = allocated[ptr]
+    delete!(allocated, block)
+    pool_free(block)
     return
 end
 
-used_memory() = isempty(allocated) ? 0 : sum(sizeof, allocated)
+used_memory() = isempty(allocated) ? 0 : sum(sizeof, values(allocated))
 
 cached_memory() = isempty(available) ? 0 : sum(sizeof, available)
 

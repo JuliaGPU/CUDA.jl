@@ -17,7 +17,8 @@ module BinnedPool
 #                       or just use unified memory for all allocations.
 # - per-device pools
 
-using ..CuArrays: @pool_timeit, actual_alloc, actual_free
+using ..CuArrays
+using ..CuArrays: @pool_timeit
 
 using CUDAdrv
 
@@ -38,10 +39,32 @@ const MIN_DELAY = 1.0
 const MAX_DELAY = 5.0
 
 
+## block of memory
+
+struct Block
+    ptr::CuPtr{Nothing}
+    sz::Int
+end
+
+Base.pointer(block::Block) = block.ptr
+Base.sizeof(block::Block) = block.sz
+
+@inline function actual_alloc(sz)
+    ptr = CuArrays.actual_alloc(sz)
+    block = ptr === nothing ? nothing : Block(ptr, sz)
+end
+
+function actual_free(block::Block)
+    CuArrays.actual_free(pointer(block))
+    return
+end
+
+
 ## infrastructure
 
-const pools_used = Vector{Set{Mem.Buffer}}()
-const pools_avail = Vector{Vector{Mem.Buffer}}()
+const pools_used = Vector{Set{Block}}()
+const pools_avail = Vector{Vector{Block}}()
+const allocated = Dict{CuPtr{Nothing},Block}()
 
 poolidx(n) = ceil(Int, log2(n))+1
 poolsize(idx) = 2^(idx-1)
@@ -58,8 +81,8 @@ function create_pools(idx)
     while length(pool_usage) < idx
       push!(pool_usage, 1)
       push!(pool_history, initial_usage)
-      push!(pools_used, Set{Mem.Buffer}())
-      push!(pools_avail, Vector{Mem.Buffer}())
+      push!(pools_used, Set{Block}())
+      push!(pools_avail, Vector{Block}())
     end
   end
 end
@@ -145,9 +168,9 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
       bufcount = pools_inactive[pid]
       @assert bufcount <= length(avail)
       for i in 1:bufcount
-        buf = pop!(avail)
+        block = pop!(avail)
 
-        actual_free(buf)
+        actual_free(block)
 
         target_bytes -= bytes
         target_bytes <= 0 && return true
@@ -168,8 +191,8 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "1. try alloc" begin
-    let buf = actual_alloc(bytes)
-      buf !== nothing && return buf
+    let block = actual_alloc(bytes)
+      block !== nothing && return block
     end
   end
 
@@ -189,8 +212,8 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "4. try alloc" begin
-    let buf = actual_alloc(bytes)
-      buf !== nothing && return buf
+    let block = actual_alloc(bytes)
+      block !== nothing && return block
     end
   end
 
@@ -207,8 +230,8 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "7. try alloc" begin
-    let buf = actual_alloc(bytes)
-      buf !== nothing && return buf
+    let block = actual_alloc(bytes)
+      block !== nothing && return block
     end
   end
 
@@ -217,8 +240,8 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "9. try alloc" begin
-    let buf = actual_alloc(bytes)
-      buf !== nothing && return buf
+    let block = actual_alloc(bytes)
+      block !== nothing && return block
     end
   end
 
@@ -265,11 +288,11 @@ function alloc(bytes)
     @inbounds avail = pools_avail[pid]
 
     lock(pool_lock) do
-      buf = pool_alloc(alloc_bytes, pid)
+      block = pool_alloc(alloc_bytes, pid)
 
-      if buf !== nothing
+      if block !== nothing
         # mark the buffer as used
-        push!(used, buf)
+        push!(used, block)
 
         # update pool usage
         current_usage = length(used) / (length(avail) + length(used))
@@ -277,14 +300,22 @@ function alloc(bytes)
       end
     end
   else
-    buf = pool_alloc(bytes)
+    block = pool_alloc(bytes)
   end
 
-  buf
+  if block !== nothing
+    ptr = pointer(block)
+    allocated[ptr] = block
+    return ptr
+  else
+    return nothing
+  end
 end
 
-function free(buf)
-  bytes = sizeof(buf)
+function free(ptr)
+  block = allocated[ptr]
+  delete!(allocated, ptr)
+  bytes = sizeof(block)
 
   # was this a pooled buffer?
   if bytes <= MAX_POOL
@@ -296,15 +327,15 @@ function free(buf)
 
     lock(pool_lock) do
       # mark the buffer as available
-      delete!(used, buf)
-      push!(avail, buf)
+      delete!(used, block)
+      push!(avail, block)
 
       # update pool usage
       current_usage = length(used) / (length(used) + length(avail))
       pool_usage[pid] = max(pool_usage[pid], current_usage)
     end
   else
-    actual_free(buf)
+    actual_free(block)
   end
 
   return

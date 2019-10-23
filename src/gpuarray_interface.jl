@@ -66,6 +66,6 @@ end
 function GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray,
                                       size::NTuple{N, Integer}) where {T, N}
 
-  return CuArray{T,N}(convert(CuPtr{T}, A.ptr), size; base=A.base, own=A.own)
+  return CuArray{T,N}(convert(CuPtr{T}, A.ptr), size; base=A.base, own=A.own, ctx=A.ctx)
 end
 

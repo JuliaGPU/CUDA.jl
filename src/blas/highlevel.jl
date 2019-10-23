@@ -811,7 +811,7 @@ for (fname, elty) in
 end
 
 # helper function to get a device array of device pointers
-function device_batch(batch::Array{T}) where {T<:CuArray}
+@inline function device_batch(batch::Array{T}) where {T<:CuArray}
   E = eltype(T)
   ptrs = [Base.unsafe_convert(CuPtr{E}, Base.cconvert(CuPtr{E}, arr)) for arr in batch]
   CuArray(ptrs)
@@ -1501,8 +1501,7 @@ for (fname, elty) in
         #   cublasHandle_t handle, int n, double **A,
         #   int lda, int *PivotArray, int *infoArray,
         #   int batchSize)
-        function getrf_batched!(A::Array{CuMatrix{$elty},1},
-                               Pivot::Bool)
+        function getrf_batched!(A::Vector{CuMatrix{$elty}}, Pivot::Bool)
             for As in A
                 m,n = size(As)
                 if m != n
@@ -1517,13 +1516,14 @@ for (fname, elty) in
             pivotArray  = Pivot ? CuArray{Int32}(undef, (n, length(A))) : CU_NULL
             $fname(handle(), n, Aptrs, lda, pivotArray, info, length(A))
             unsafe_free!(Aptrs)
+            # wrong: this makes it possible for Aptrs to be reused, even though the call might not have been executed yet...
 
             if !Pivot
                 pivotArray = CuArrays.zeros(Cint, (n, length(A)))
             end
             pivotArray, info, A
         end
-        function getrf_batched(A::Array{CuMatrix{$elty},1},
+        function getrf_batched(A::Vector{CuMatrix{$elty}},
                                Pivot::Bool)
             newA = copy(A)
             pivotarray, info = getrf_batched!(newA, Pivot)

@@ -1,13 +1,3 @@
-import CUDAnative: DevicePtr
-
-# maintain a mapping from the allocation base pointer to the CUDAdrv buffer object.
-# this keeps the CuArray type simple, without the need for a type unstable buffer field.
-# XXX: can different types of buffers result in colliding pointers?
-# XXX: handle multiple devices
-#
-# TODO: just don't use buffers in CuArrays, have the memory pool work with CuPtr directly.
-const buffers = Dict{CuPtr{Nothing},Mem.Buffer}()
-
 mutable struct CuArray{T,N} <: GPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
@@ -15,15 +5,14 @@ mutable struct CuArray{T,N} <: GPUArray{T,N}
   base::CuPtr{Nothing}
   own::Bool
 
+  ctx::CuContext
+
   function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}; base=convert(CuPtr{Nothing}, ptr),
-                        own::Bool=true) where {T,N}
-    xs = new{T,N}(ptr, dims, base, own)
+                        own::Bool=true, ctx=CuCurrentContext()) where {T,N}
+    xs = new{T,N}(ptr, dims, base, own, ctx)
     if own
-      @assert haskey(buffers, base)
       retain(base)
       finalizer(unsafe_free!, xs)
-    else
-      @assert !haskey(buffers, base)
     end
     return xs
   end
@@ -35,10 +24,8 @@ CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 function unsafe_free!(xs::CuArray{T,N}) where {T,N}
   xs.ptr === convert(CuPtr{T}, CU_NULL) && return
-  if release(xs.base)
-    buf = buffers[xs.base]
-    free(buf)
-    delete!(buffers, xs.base)
+  if xs.own && release(xs.base) && CUDAdrv.isvalid(xs.ctx)
+    free(xs.base)
   end
   xs.ptr = CU_NULL
   xs.dims = Tuple(0 for _ in 1:N)
@@ -84,20 +71,10 @@ end
 
 # type and dimensionality specified, accepting dims as tuples of Ints
 function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-  buf = alloc(prod(dims) * sizeof(T))
-  base = convert(CuPtr{Nothing}, buf)
-  if base === CU_NULL
-    # NOTE: we ignore null pointers because the allocator returns them
-    #       every time we request a buffer of 0 bytes.
-    own = false
-  else
-    if haskey(buffers, base)
-      @show base
-    end
-    @assert !haskey(buffers, base)
-    buffers[base] = buf
-    own = true
-  end
+  base = alloc(prod(dims) * sizeof(T))
+  # NOTE: we ignore null pointers because the allocator returns them
+  #       every time we request a buffer of 0 bytes.
+  own = base !== CU_NULL  # FIXME: still needed?
   CuArray{T,N}(convert(CuPtr{T}, base), dims; base=base, own=own)
 end
 
@@ -144,14 +121,19 @@ take ownership of the memory, calling `free` when the array is no longer referen
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
+  xs = CuArray{T, length(dims)}(p, dims; own=false, ctx=ctx)
   if own
     # TODO: what is this pointer isn't a DeviceBuffer (i.e. shouldn't be cuMemFree'd)?
     #       at least document that it should be a CUDA device pointer.
     base = convert(CuPtr{Cvoid}, p)
     buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T), ctx)
-    buffers[base] = buf
+    finalizer(xs) do obj
+      if CUDAdrv.isvalid(obj.ctx)
+        Mem.free(buf)
+      end
+    end
   end
-  return CuArray{T, length(dims)}(p, dims; own=own)
+  return xs
 end
 
 function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
@@ -207,8 +189,8 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 function Base._reshape(parent::CuArray, dims::Dims)
   n = length(parent)
   prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(parent.ptr, dims;
-                                              base=parent.base, own=parent.own)
+  return CuArray{eltype(parent),length(dims)}(parent.ptr, dims; base=parent.base,
+                                              own=parent.own, ctx=parent.ctx)
 end
 function Base._reshape(parent::CuArray{T,1}, dims::Tuple{Int}) where T
   n = length(parent)
@@ -228,6 +210,8 @@ Base.unsafe_convert(::Type{CuPtr{S}}, x::CuArray{T}) where {S,T} = convert(CuPtr
 
 
 ## interop with CUDAnative
+
+import CUDAnative: DevicePtr
 
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
   CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(pointer(a)))
