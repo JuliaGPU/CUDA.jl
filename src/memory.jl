@@ -30,40 +30,6 @@ Base.sizeof(buf::Buffer) = buf.bytesize
 Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr}}, buf::Buffer) = convert(T, buf)
 
 
-## refcounting
-
-const refcounts = Dict{Buffer, Int}()
-
-function refcount(buf::Buffer)
-    get(refcounts, buf, 0)
-end
-
-"""
-    retain(buf)
-
-Increase the refcount of a buffer.
-"""
-function retain(buf::Buffer)
-    refcount = get!(refcounts, buf, 0)
-    refcounts[buf] = refcount + 1
-    return
-end
-
-"""
-    release(buf)
-
-Decrease the refcount of a buffer. Returns `true` if the refcount has dropped to 0, and
-some action needs to be taken.
-"""
-function release(buf::Buffer)
-    haskey(refcounts, buf) || error("Release of unmanaged $buf")
-    refcount = refcounts[buf]
-    @assert refcount > 0 "Release of dead $buf"
-    refcounts[buf] = refcount - 1
-    return refcount==1
-end
-
-
 ## device buffer
 ##
 ## residing on the GPU
