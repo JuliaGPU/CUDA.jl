@@ -8,10 +8,15 @@ let
 end
 
 # dummy data
-T = Int
+T = UInt32
 N = 5
 data = rand(T, N)
 nb = sizeof(data)
+
+# buffers are untyped, so we use a convenience function to get a typed pointer
+# we prefer to return a device pointer (for managed buffers) to maximize CUDAdrv coverage
+typed_pointer(buf::Union{Mem.Device, Mem.Unified}, T) = convert(CuPtr{T}, buf)
+typed_pointer(buf::Mem.Host, T)                       = convert(Ptr{T},   buf)
 
 # allocations and copies
 for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
@@ -21,30 +26,18 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     Mem.free(dummy)
 
     src = Mem.alloc(srcTy, nb)
-    if isa(src, Mem.Host)
-        unsafe_copyto!(convert(Ptr{T}, src), pointer(data), N)
-    else
-        Mem.copy!(src, pointer(data), nb)
-    end
+    unsafe_copyto!(typed_pointer(src, T), pointer(data), N)
 
     dst = Mem.alloc(dstTy, nb)
-    if isa(src, Mem.Host) && isa(dst, Mem.Host)
-        unsafe_copyto!(convert(Ptr{T}, dst), convert(Ptr{T}, src), N)
-    else
-        Mem.copy!(dst, src, nb)
-    end
+    unsafe_copyto!(typed_pointer(dst, T), typed_pointer(src, T), N)
 
     ref = Array{T}(undef, N)
-    if isa(dst, Mem.Host)
-        unsafe_copyto!(pointer(ref), convert(Ptr{T}, dst), N)
-    else
-        Mem.copy!(pointer(ref), dst, nb)
-    end
+    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
 
     @test data == ref
 
     if isa(src, Mem.Device) || isa(src, Mem.Unified)
-        Mem.set!(src, UInt32(0), nb ÷ sizeof(UInt32))
+        Mem.set!(typed_pointer(src, T), zero(T), N)
     end
 
     Mem.free(src)
@@ -55,10 +48,10 @@ end
 let
     src = Mem.alloc(Mem.Device, nb)
 
-    @test_throws ArgumentError Mem.copy!(src, pointer(data), nb; async=true)
-    Mem.copy!(src, pointer(data), nb; async=true, stream=CuDefaultStream())
+    @test_throws ArgumentError unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true)
+    unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true, stream=CuDefaultStream())
 
-    Mem.set!(src, UInt32(0), nb ÷ sizeof(UInt32); async=true, stream=CuDefaultStream())
+    Mem.set!(typed_pointer(src, T), zero(T), N; async=true, stream=CuDefaultStream())
 
     Mem.free(src)
 end
@@ -85,7 +78,7 @@ let
 
     # copy data back from the GPU and compare
     ref = Array{T}(undef, N)
-    Mem.copy!(pointer(ref), dst, nb)
+    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
     @test ref == data
 
     Mem.free(src)
@@ -110,7 +103,7 @@ let
 
     # copy data back from the GPU and compare
     ref = Array{T}(undef, N)
-    Mem.copy!(pointer(ref), dst, nb)
+    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
     @test ref == data
 
     Mem.unregister(src)
@@ -136,7 +129,7 @@ let
 
     # copy data back from the GPU and compare
     ref = Array{T}(undef, N)
-    Mem.copy!(pointer(ref), dst, nb)
+    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
     @test ref == data
 
     Mem.free(src)
