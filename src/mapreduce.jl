@@ -72,9 +72,9 @@ function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
         kernel_threads = CUDAnative.maxthreads(parallel_kernel)
         ## by the device
         dev = CUDAdrv.device()
-        block_threads = (x=attribute(dev, CUDAdrv.MAX_BLOCK_DIM_X),
-                         y=attribute(dev, CUDAdrv.MAX_BLOCK_DIM_Y),
-                         total=attribute(dev, CUDAdrv.MAX_THREADS_PER_BLOCK))
+        block_threads = (x=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
+                         y=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
+                         total=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
 
         # figure out a legal launch configuration
         y_thr = min(nextpow(2, Rlength ÷ 512 + 1), 512, block_threads.y, kernel_threads)
