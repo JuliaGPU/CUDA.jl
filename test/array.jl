@@ -3,38 +3,42 @@
 ## ctor & finalizer
 
 mutable struct CuTestArray{T,N}
-    buf::Mem.DeviceBuffer
+    ptr::CuPtr{T}
     shape::NTuple{N,Int}
     function CuTestArray{T,N}(shape::NTuple{N,Int}) where {T,N}
         len = prod(shape)
         buf = Mem.alloc(Mem.Device, len*sizeof(T))
+        ptr = convert(CuPtr{T}, buf)
 
-        obj = new{T,N}(buf, shape)
-        finalizer(unsafe_free!, obj)
+        obj = new{T,N}(ptr, shape)
+        finalizer(obj) do a
+            CUDAdrv.isvalid(buf.ctx) && Mem.free(buf)
+        end
         return obj
+    end
+    function CuTestArray{T,N}(ptr::CuPtr{T}, shape::NTuple{N,Int}) where {T,N}
+        new{T,N}(ptr, shape)
     end
 end
 
-function unsafe_free!(a::CuTestArray)
-    CUDAdrv.isvalid(a.buf.ctx) && Mem.free(a.buf)
-end
-
-Base.cconvert(::Type{<:CuPtr}, x::CuTestArray) = x.buf
+Base.pointer(xs::CuTestArray) = xs.ptr
 
 Base.length(xs::CuTestArray) = prod(xs.shape)
+
+Base.unsafe_convert(::Type{<:CuPtr}, x::CuTestArray) = pointer(x)
 
 
 ## memory copy operations
 
 function CuTestArray(src::Array{T,N}) where {T,N}
     dst = CuTestArray{T,N}(size(src))
-    Mem.copy!(dst.buf, pointer(src), length(src) * sizeof(T))
+    unsafe_copyto!(pointer(dst), pointer(src), length(src))
     return dst
 end
 
 function Base.Array(src::CuTestArray{T,N}) where {T,N}
     dst = Array{T,N}(undef, src.shape)
-    Mem.copy!(pointer(dst), src.buf, length(src) * sizeof(T))
+    unsafe_copyto!(pointer(dst), pointer(src), length(src))
     return dst
 end
 
@@ -43,7 +47,7 @@ end
 
 using Adapt
 function Adapt.adapt_storage(::CUDAnative.Adaptor, a::CuTestArray{T,N}) where {T,N}
-    ptr = convert(CuPtr{T}, a.buf)
+    ptr = pointer(a)
     devptr = CUDAnative.DevicePtr{T,AS.Global}(ptr)
     CuDeviceArray{T,N,AS.Global}(a.shape, devptr)
 end

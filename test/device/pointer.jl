@@ -16,8 +16,8 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
     d_a = CuArray(ones(T))
     d_b = CuArray(zeros(T))
 
-    ptr_a = CUDAnative.DevicePtr{T,AS.Global}(convert(CuPtr{T}, d_a.buf))
-    ptr_b = CUDAnative.DevicePtr{T,AS.Global}(convert(CuPtr{T}, d_b.buf))
+    ptr_a = CUDAnative.DevicePtr{T,AS.Global}(pointer(d_a))
+    ptr_b = CUDAnative.DevicePtr{T,AS.Global}(pointer(d_b))
     @test Array(d_a) != Array(d_b)
 
     let ptr_a=ptr_a, ptr_b=ptr_b #JuliaLang/julia#15276
@@ -42,8 +42,8 @@ end
     dst = CuArray([0])
 
     @cuda kernel(
-        CUDAnative.DevicePtr{T,AS.Global}(convert(CuPtr{T}, src.buf)),
-        CUDAnative.DevicePtr{T,AS.Global}(convert(CuPtr{T}, dst.buf))
+        CUDAnative.DevicePtr{T,AS.Global}(pointer(src)),
+        CUDAnative.DevicePtr{T,AS.Global}(pointer(dst))
     )
 
     @test Array(src)[4] == Array(dst)[1]
