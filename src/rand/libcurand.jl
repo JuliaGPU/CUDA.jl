@@ -34,7 +34,7 @@ end
 
 function curandSetStream(generator, stream)
     @check ccall((:curandSetStream, libcurand), curandStatus_t,
-                 (curandGenerator_t, CuStream_t),
+                 (curandGenerator_t, CUstream),
                  generator, stream)
 end
 

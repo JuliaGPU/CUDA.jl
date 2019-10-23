@@ -4,7 +4,7 @@ using CUDAapi
 using CUDAapi: libraryPropertyType
 
 using CUDAdrv
-using CUDAdrv: CuContext, CuPtr, PtrOrCuPtr, CU_NULL, CuStream_t
+using CUDAdrv: CUstream
 
 import CUDAnative
 

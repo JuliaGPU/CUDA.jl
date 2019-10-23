@@ -414,7 +414,7 @@ struct cudnnDebug_t
     time_usec::UInt32
     time_delta::UInt32
     handle::cudnnHandle_t
-    stream::CuStream_t
+    stream::CUstream
     pid::Culonglong
     tid::Culonglong
     cudaDeviceId::Cint

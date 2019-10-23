@@ -35,13 +35,13 @@ end
 
 function cublasSetStream_v2(handle, streamId)
     @check ccall((:cublasSetStream_v2, libcublas), cublasStatus_t,
-                 (cublasHandle_t, CuStream_t),
+                 (cublasHandle_t, CUstream),
                  handle, streamId)
 end
 
 function cublasGetStream_v2(handle, streamId)
     @check ccall((:cublasGetStream_v2, libcublas), cublasStatus_t,
-                 (cublasHandle_t, Ptr{CuStream_t}),
+                 (cublasHandle_t, Ptr{CUstream}),
                  handle, streamId)
 end
 
@@ -125,25 +125,25 @@ end
 
 function cublasSetVectorAsync(n, elemSize, hostPtr, incx, devicePtr, incy, stream)
     @check ccall((:cublasSetVectorAsync, libcublas), cublasStatus_t,
-                 (Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint, CuStream_t),
+                 (Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint, CUstream),
                  n, elemSize, hostPtr, incx, devicePtr, incy, stream)
 end
 
 function cublasGetVectorAsync(n, elemSize, devicePtr, incx, hostPtr, incy, stream)
     @check ccall((:cublasGetVectorAsync, libcublas), cublasStatus_t,
-                 (Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint, CuStream_t),
+                 (Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint, CUstream),
                  n, elemSize, devicePtr, incx, hostPtr, incy, stream)
 end
 
 function cublasSetMatrixAsync(rows, cols, elemSize, A, lda, B, ldb, stream)
     @check ccall((:cublasSetMatrixAsync, libcublas), cublasStatus_t,
-                 (Cint, Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint, CuStream_t),
+                 (Cint, Cint, Cint, Ptr{Cvoid}, Cint, CuPtr{Cvoid}, Cint, CUstream),
                  rows, cols, elemSize, A, lda, B, ldb, stream)
 end
 
 function cublasGetMatrixAsync(rows, cols, elemSize, A, lda, B, ldb, stream)
     @check ccall((:cublasGetMatrixAsync, libcublas), cublasStatus_t,
-                 (Cint, Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint, CuStream_t),
+                 (Cint, Cint, Cint, CuPtr{Cvoid}, Cint, Ptr{Cvoid}, Cint, CUstream),
                  rows, cols, elemSize, A, lda, B, ldb, stream)
 end
 

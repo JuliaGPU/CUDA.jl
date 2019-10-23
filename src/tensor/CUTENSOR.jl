@@ -6,7 +6,7 @@ using ..CuArrays: libcutensor, @libcutensor, active_context
 using CUDAapi
 
 using CUDAdrv
-using CUDAdrv: CuStream_t
+using CUDAdrv: CUstream
 
 using CEnum
 const cudaDataType_t = cudaDataType

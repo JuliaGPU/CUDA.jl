@@ -230,7 +230,7 @@ end
 function rewrite_runtime(x, state)
     if x isa CSTParser.EXPR && x.typ == CSTParser.IDENTIFIER && x.val == "cudaStream_t"
         offset = state.offset
-        push!(state.edits, Edit(offset+1:offset+x.span, "CuStream_t"))
+        push!(state.edits, Edit(offset+1:offset+x.span, "CUstream"))
     end
 end
 
@@ -338,54 +338,58 @@ using CUDAapi
 
 function process(name, headers...; kwargs...)
     output_file, common_file = wrap(name, headers...; kwargs...)
-    text = read(output_file, String)
+
+    for file in (output_file, common_file)
+        text = read(file, String)
 
 
-    ## rewriting passes
+        ## rewriting passes
 
-    state = State(0, Edit[])
-    ast = CSTParser.parse(text, true)
+        state = State(0, Edit[])
+        ast = CSTParser.parse(text, true)
 
-    state.offset = 0
-    pass(ast, state, insert_check)
+        state.offset = 0
+        pass(ast, state, insert_check)
 
-    state.offset = 0
-    pass(ast, state, (x,state)->rewrite_pointers(x,state,headers))
+        state.offset = 0
+        pass(ast, state, (x,state)->rewrite_pointers(x,state,headers))
 
-    state.offset = 0
-    pass(ast, state, rewrite_runtime)
+        state.offset = 0
+        pass(ast, state, rewrite_runtime)
 
-    # apply
-    state.offset = 0
-    sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
-    for i = 1:length(state.edits)
-        text = apply(text, state.edits[i])
-    end
+        # apply
+        state.offset = 0
+        sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
+        for i = 1:length(state.edits)
+            text = apply(text, state.edits[i])
+        end
 
 
-    ## indentation passes
+        ## indentation passes
 
-    lines = get_lines(text)
-    state = IndentState(0, lines, Edit[])
-    ast = CSTParser.parse(text, true)
+        lines = get_lines(text)
+        state = IndentState(0, lines, Edit[])
+        ast = CSTParser.parse(text, true)
 
-    state.offset = 0
-    pass(ast, state, indent_definition)
+        state.offset = 0
+        pass(ast, state, indent_definition)
 
-    state.offset = 0
-    pass(ast, state, indent_ccall)
+        state.offset = 0
+        pass(ast, state, indent_ccall)
 
-    # apply
-    state.offset = 0
-    sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
-    for i = 1:length(state.edits)
-        text = apply(text, state.edits[i])
+        # apply
+        state.offset = 0
+        sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
+        for i = 1:length(state.edits)
+            text = apply(text, state.edits[i])
+        end
+
+
+        write(file, text)
     end
 
 
     ## manual patches
-
-    write(output_file, text)
 
     patchdir = joinpath(@__DIR__, "patches")
     for entry in readdir(patchdir)

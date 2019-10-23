@@ -40,13 +40,13 @@ end
 
 function cusparseSetStream(handle, streamId)
     @check ccall((:cusparseSetStream, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, CuStream_t),
+                 (cusparseHandle_t, CUstream),
                  handle, streamId)
 end
 
 function cusparseGetStream(handle, streamId)
     @check ccall((:cusparseGetStream, libcusparse), cusparseStatus_t,
-                 (cusparseHandle_t, Ptr{CuStream_t}),
+                 (cusparseHandle_t, Ptr{CUstream}),
                  handle, streamId)
 end
 

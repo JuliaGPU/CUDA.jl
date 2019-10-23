@@ -190,7 +190,7 @@ end
 
 function cufftSetStream(plan, stream)
     @check ccall((:cufftSetStream, libcufft), cufftResult,
-                 (cufftHandle, CuStream_t),
+                 (cufftHandle, CUstream),
                  plan, stream)
 end
 

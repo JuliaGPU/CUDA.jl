@@ -40,7 +40,7 @@ function cutensorElementwiseTrinary(handle, alpha, A, descA, modeA, beta, B, des
                   Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                   Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                   Ptr{Int32}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Int32},
-                  cutensorOperator_t, cutensorOperator_t, cudaDataType_t, CuStream_t),
+                  cutensorOperator_t, cutensorOperator_t, cudaDataType_t, CUstream),
                  handle, alpha, A, descA, modeA, beta, B, descB, modeB, gamma, C, descC,
                  modeC, D, descD, modeD, opAB, opABC, typeCompute, stream)
 end
@@ -51,7 +51,7 @@ function cutensorElementwiseBinary(handle, alpha, A, descA, modeA, gamma, C, des
                  (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                   Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                   Ptr{Int32}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Int32},
-                  cutensorOperator_t, cudaDataType_t, CuStream_t),
+                  cutensorOperator_t, cudaDataType_t, CUstream),
                  handle, alpha, A, descA, modeA, gamma, C, descC, modeC, D, descD, modeD,
                  opAC, typeCompute, stream)
 end
@@ -61,7 +61,7 @@ function cutensorPermutation(handle, alpha, A, descA, modeA, B, descB, modeB, ty
     @check ccall((:cutensorPermutation, @libcutensor), cutensorStatus_t,
                  (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                   Ptr{Int32}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Int32},
-                  cudaDataType_t, CuStream_t),
+                  cudaDataType_t, CUstream),
                  handle, alpha, A, descA, modeA, B, descB, modeB, typeCompute, stream)
 end
 
@@ -73,7 +73,7 @@ function cutensorContraction(handle, alpha, A, descA, modeA, B, descB, modeB, be
                   Ptr{Int32}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Int32},
                   Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Int32},
                   CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Int32}, cutensorOperator_t,
-                  cudaDataType_t, cutensorAlgo_t, CuPtr{Cvoid}, UInt64, CuStream_t),
+                  cudaDataType_t, cutensorAlgo_t, CuPtr{Cvoid}, UInt64, CUstream),
                  handle, alpha, A, descA, modeA, B, descB, modeB, beta, C, descC, modeC, D,
                  descD, modeD, opOut, typeCompute, algo, workspace, workspaceSize, stream)
 end
@@ -103,7 +103,7 @@ function cutensorReduction(handle, alpha, A, descA, modeA, beta, C, descC, modeC
                  (cutensorHandle_t, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                   Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid}, cutensorTensorDescriptor_t,
                   Ptr{Int32}, CuPtr{Cvoid}, cutensorTensorDescriptor_t, Ptr{Int32},
-                  cutensorOperator_t, cudaDataType_t, CuPtr{Cvoid}, UInt64, CuStream_t),
+                  cutensorOperator_t, cudaDataType_t, CuPtr{Cvoid}, UInt64, CUstream),
                  handle, alpha, A, descA, modeA, beta, C, descC, modeC, D, descD, modeD,
                  opReduce, typeCompute, workspace, workspaceSize, stream)
 end

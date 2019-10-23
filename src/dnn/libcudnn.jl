@@ -43,13 +43,13 @@ end
 
 function cudnnSetStream(handle, streamId)
     @check ccall((:cudnnSetStream, @libcudnn), cudnnStatus_t,
-                 (cudnnHandle_t, CuStream_t),
+                 (cudnnHandle_t, CUstream),
                  handle, streamId)
 end
 
 function cudnnGetStream(handle, streamId)
     @check ccall((:cudnnGetStream, @libcudnn), cudnnStatus_t,
-                 (cudnnHandle_t, Ptr{CuStream_t}),
+                 (cudnnHandle_t, Ptr{CUstream}),
                  handle, streamId)
 end
 

@@ -31,13 +31,13 @@ end
 
 function cusolverDnSetStream(handle, streamId)
     @check ccall((:cusolverDnSetStream, libcusolver), cusolverStatus_t,
-                 (cusolverDnHandle_t, CuStream_t),
+                 (cusolverDnHandle_t, CUstream),
                  handle, streamId)
 end
 
 function cusolverDnGetStream(handle, streamId)
     @check ccall((:cusolverDnGetStream, libcusolver), cusolverStatus_t,
-                 (cusolverDnHandle_t, Ptr{CuStream_t}),
+                 (cusolverDnHandle_t, Ptr{CUstream}),
                  handle, streamId)
 end
 
@@ -2020,13 +2020,13 @@ end
 
 function cusolverSpSetStream(handle, streamId)
     @check ccall((:cusolverSpSetStream, libcusolver), cusolverStatus_t,
-                 (cusolverSpHandle_t, CuStream_t),
+                 (cusolverSpHandle_t, CUstream),
                  handle, streamId)
 end
 
 function cusolverSpGetStream(handle, streamId)
     @check ccall((:cusolverSpGetStream, libcusolver), cusolverStatus_t,
-                 (cusolverSpHandle_t, Ptr{CuStream_t}),
+                 (cusolverSpHandle_t, Ptr{CUstream}),
                  handle, streamId)
 end
 
