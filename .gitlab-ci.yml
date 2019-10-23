@@ -4,41 +4,42 @@ include:
 image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
 
 
-# basic tests
+# Julia versions
 
-test:1.0:
+julia:1.0:
   extends:
     - .julia:1.0
     - .test
   tags:
     - nvidia
-    - sm_75
 
-test:1.1:
+julia:1.1:
   extends:
     - .julia:1.1
     - .test
   tags:
     - nvidia
-    - sm_75
 
-test:1.2:
+# the "primary" target, where we require thorough tests
+# (this requires a recent GPU)
+julia:1.2:
   extends:
     - .julia:1.2
     - .test
   tags:
     - nvidia
     - sm_75
+  variables:
+    CI_THOROUGH: 'true'
 
-test:1.3:
+julia:1.3:
   extends:
     - .julia:1.3
     - .test
   tags:
     - nvidia
-    - sm_75
 
-test:nightly:
+julia:nightly:
   extends:
     - .julia:nightly
     - .test
@@ -50,13 +51,30 @@ test:nightly:
 
 # special tests
 
-test:split:
+pool:none:
   extends:
     - .julia:1.2
     - .test
   tags:
     - nvidia
-    - sm_75
+  variables:
+    CUARRAYS_MEMORY_POOL: 'none'
+
+pool:simple:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+  variables:
+    CUARRAYS_MEMORY_POOL: 'simple'
+
+pool:split:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
   variables:
     CUARRAYS_MEMORY_POOL: 'split'
 

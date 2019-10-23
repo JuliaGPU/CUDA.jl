@@ -4,7 +4,7 @@ using CuArrays.CUDNN
 
 if CuArrays.libcudnn === nothing
 @warn "Not testing CUDNN"
-haskey(ENV, "CI") && error("All optional libraries should be available on CI")
+haskey(ENV, "CI_THOROUGH") && error("All optional libraries should be available on this CI")
 else
 @info "Testing CUDNN $(CUDNN.version())"
 

@@ -7,8 +7,9 @@ Random.seed!(1)
 
 using CuArrays
 using CUDAnative
+using CUDAdrv
 
-using GPUArrays
+import GPUArrays
 import GPUArrays: allowscalar, @allowscalar
 
 testf(f, xs...; kwargs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...; kwargs...)

@@ -4,9 +4,9 @@ using CuArrays.CUTENSOR
 
 using LinearAlgebra
 
-if CuArrays.libcutensor === nothing
+if CuArrays.libcutensor === nothing || capability(device()) < v"7.5" # FIXME: actual cutoff?
 @warn "Not testing CUTENSOR"
-haskey(ENV, "CI") && error("All optional libraries should be available on CI")
+haskey(ENV, "CI_THOROUGH") && error("All optional libraries should be available on this CI")
 else
 @info "Testing CUTENSOR $(CUTENSOR.version())"
 
