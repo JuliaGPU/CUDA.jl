@@ -31,8 +31,10 @@ function _cuview(A, I, ::Contiguous)
 end
 
 # for contiguous views just return a new CuArray
-_cuview(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M} =
-    CuArray{T,M}(A.buf, dims; offset=A.offset + compute_offset1(A, 1, I) * sizeof(T), own=A.own)
+function _cuview(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
+    offset = compute_offset1(A, 1, I) * sizeof(T)
+    CuArray{T,M}(A.ptr + offset, dims; base=A.base, own=A.own)
+end
 
 # fallback to SubArray when the view is not contiguous
 _cuview(A, I, ::NonContiguous) where {N} = invoke(view, Tuple{AbstractArray, typeof(I).parameters...}, A, I...)
