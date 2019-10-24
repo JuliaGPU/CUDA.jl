@@ -34,7 +34,7 @@ function unsafe_free!(xs::CuArray{T,N}) where {T,N}
 
   @assert xs.refcount >= 0
   if xs.parent !== nothing
-    # derived object: should have no refcount
+    # derived object: defer to the parent
     unsafe_free!(xs.parent)
   elseif release(xs)
     # primary array with all references gone
@@ -54,12 +54,12 @@ function unsafe_free!(xs::CuArray{T,N}) where {T,N}
   return
 end
 
-function retain(a::CuArray)
+@inline function retain(a::CuArray)
   a.refcount += 1
   return
 end
 
-function release(a::CuArray)
+@inline function release(a::CuArray)
   a.refcount -= 1
   return a.refcount == 0
 end
@@ -114,7 +114,7 @@ Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,
 Wrap a `CuArray` object around the data at the address given by `ptr`. The pointer
 element type `T` determines the array element type. `dims` is either an integer (for a 1d
 array) or a tuple of the array dimensions. `own` optionally specified whether Julia should
-take ownership of the memory, calling `free` when the array is no longer referenced. The
+take ownership of the memory, calling `cudaFree` when the array is no longer referenced. The
 `ctx` argument determines the CUDA context where the data is allocated in.
 """
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
@@ -122,8 +122,6 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
                           own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
   xs = CuArray{T, length(dims)}(p, dims, false; ctx=ctx)
   if own
-    # TODO: what is this pointer isn't a DeviceBuffer (i.e. shouldn't be cuMemFree'd)?
-    #       at least document that it should be a CUDA device pointer.
     base = convert(CuPtr{Cvoid}, p)
     buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T), ctx)
     finalizer(xs) do obj
