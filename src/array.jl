@@ -28,7 +28,7 @@ function unsafe_free!(xs::CuArray{T,N}) where {T,N}
     free(xs.base)
   end
   xs.ptr = CU_NULL
-  xs.dims = Tuple(0 for _ in 1:N)
+  xs.dims = ntuple(zero, N)
   return
 end
 
