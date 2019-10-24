@@ -2,80 +2,79 @@ mutable struct CuArray{T,N} <: GPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
 
-  base::CuPtr{Nothing}
+  parent::Union{Nothing,CuArray}
+  refcount::Int
   own::Bool
 
   ctx::CuContext
 
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}; base=convert(CuPtr{Nothing}, ptr),
-                        own::Bool=true, ctx=CuCurrentContext()) where {T,N}
-    xs = new{T,N}(ptr, dims, base, own, ctx)
-    if own
-      retain(base)
-      finalizer(unsafe_free!, xs)
-    end
-    return xs
+  # primary array
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, own::Bool=true;
+                        ctx=CuCurrentContext()) where {T,N}
+    self = new{T,N}(ptr, dims, nothing, 0, own, ctx)
+    retain(self)
+    finalizer(unsafe_free!, self)
+    return self
+  end
+
+  # derived array (e.g. view, reinterpret, ...)
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::CuArray) where {T,N}
+    parent = something(parent.parent, parent)
+    self = new{T,N}(ptr, dims, parent, 0, false, parent.ctx)
+    retain(parent)
+    finalizer(unsafe_free!, self)
+    return self
   end
 end
 
-CuVector{T} = CuArray{T,1}
-CuMatrix{T} = CuArray{T,2}
-CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
-
 function unsafe_free!(xs::CuArray{T,N}) where {T,N}
-  xs.ptr === convert(CuPtr{T}, CU_NULL) && return
-  if xs.own && release(xs.base) && CUDAdrv.isvalid(xs.ctx)
-    free(xs.base)
+  # has unsafe_free! already been called before (e.g. manually, outside of the GC)
+  ptr = convert(CuPtr{Nothing}, xs.ptr)
+  ptr == CU_NULL && return
+
+  @assert xs.refcount >= 0
+  if xs.parent !== nothing
+    # derived object: should have no refcount
+    unsafe_free!(xs.parent)
+  elseif release(xs)
+    # primary array with all references gone
+    if xs.own && CUDAdrv.isvalid(xs.ctx)
+      free(ptr)
+    end
+  else
+    # primary array with still some references
+    return
   end
+  @assert xs.refcount == 0
+
+  # wipe the object
   xs.ptr = CU_NULL
   xs.dims = ntuple(zero, N)
+
   return
 end
 
-
-## refcounting
-
-const refcounts = Dict{CuPtr{Nothing}, Int}()
-
-function refcount(ptr::CuPtr{Nothing})
-    get(refcounts, ptr, 0)
+function retain(a::CuArray)
+  a.refcount += 1
+  return
 end
 
-"""
-    retain(ptr)
-
-Increase the refcount of a base pointer.
-"""
-function retain(ptr::CuPtr{Nothing})
-    refcount = get!(refcounts, ptr, 0)
-    refcounts[ptr] = refcount + 1
-    return
-end
-
-"""
-    release(ptr)
-
-Decrease the refcount of a base pointer. Returns `true` if the refcount has dropped to 0,
-and some action needs to be taken.
-"""
-function release(ptr::CuPtr{Nothing})
-    haskey(refcounts, ptr) || error("Release of unmanaged $ptr")
-    refcount = refcounts[ptr]
-    @assert refcount > 0 "Release of dead $ptr"
-    refcounts[ptr] = refcount - 1
-    return refcount==1
+function release(a::CuArray)
+  a.refcount -= 1
+  return a.refcount == 0
 end
 
 
 ## construction
 
+CuVector{T} = CuArray{T,1}
+CuMatrix{T} = CuArray{T,2}
+CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
+
 # type and dimensionality specified, accepting dims as tuples of Ints
 function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-  base = alloc(prod(dims) * sizeof(T))
-  # NOTE: we ignore null pointers because the allocator returns them
-  #       every time we request a buffer of 0 bytes.
-  own = base !== CU_NULL  # FIXME: still needed?
-  CuArray{T,N}(convert(CuPtr{T}, base), dims; base=base, own=own)
+  ptr = alloc(prod(dims) * sizeof(T))
+  CuArray{T,N}(convert(CuPtr{T}, ptr), dims)
 end
 
 # type and dimensionality specified, accepting dims as series of Ints
@@ -121,7 +120,7 @@ take ownership of the memory, calling `free` when the array is no longer referen
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
-  xs = CuArray{T, length(dims)}(p, dims; own=false, ctx=ctx)
+  xs = CuArray{T, length(dims)}(p, dims, false; ctx=ctx)
   if own
     # TODO: what is this pointer isn't a DeviceBuffer (i.e. shouldn't be cuMemFree'd)?
     #       at least document that it should be a CUDA device pointer.
@@ -156,8 +155,6 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 Base.pointer(x::CuArray) = x.ptr
 Base.pointer(x::CuArray, i::Integer) = x.ptr + (i-1) * Base.elsize(x)
 
-basepointer(x::CuArray) = convert(CuPtr{Nothing}, pointer(x) - x.offset)
-
 
 ## interop with other arrays
 
@@ -189,8 +186,7 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 function Base._reshape(parent::CuArray, dims::Dims)
   n = length(parent)
   prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(parent.ptr, dims; base=parent.base,
-                                              own=parent.own, ctx=parent.ctx)
+  return CuArray{eltype(parent),length(dims)}(parent.ptr, dims, parent)
 end
 function Base._reshape(parent::CuArray{T,1}, dims::Tuple{Int}) where T
   n = length(parent)
