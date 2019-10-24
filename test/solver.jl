@@ -73,6 +73,15 @@ k = 1
         @test_throws DimensionMismatch CUSOLVER.getrs!('N',d_A,d_ipiv,d_B)
     end
 
+    @testset "Matrix division" begin
+        A = rand(elty,n,n)
+        B = rand(elty,n,n)
+        C = A \ B
+        A = CuArray(A)
+        B = CuArray(B)
+        @test C ≈ A \ B
+    end
+
     @testset "geqrf!" begin
         A         = rand(elty,m,n)
         d_A       = CuArray(A)
