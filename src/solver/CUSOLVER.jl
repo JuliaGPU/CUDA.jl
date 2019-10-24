@@ -9,7 +9,7 @@ using ..CUSPARSE: cusparseMatDescr_t
 using CUDAapi
 
 using CUDAdrv
-using CUDAdrv: CuStream_t
+using CUDAdrv: CUstream
 
 import CUDAnative
 

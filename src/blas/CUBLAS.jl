@@ -2,7 +2,8 @@ module CUBLAS
 
 using CUDAapi
 
-using CUDAdrv: CUDAdrv, CuContext, CuStream_t, CuPtr, PtrOrCuPtr, CU_NULL, devices
+using CUDAdrv
+using CUDAdrv: CUstream
 
 import CUDAnative
 

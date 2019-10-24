@@ -6,7 +6,7 @@ using ..CuArrays: libcurand, active_context
 using CUDAapi
 
 using CUDAdrv
-using CUDAdrv: CuStream_t
+using CUDAdrv: CUstream
 
 import CUDAnative
 

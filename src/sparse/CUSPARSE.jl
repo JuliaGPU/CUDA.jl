@@ -6,7 +6,7 @@ using ..CuArrays: libcusparse, active_context, unsafe_free!
 using CUDAapi
 
 using CUDAdrv
-using CUDAdrv: CuStream_t
+using CUDAdrv: CUstream
 
 import CUDAnative
 

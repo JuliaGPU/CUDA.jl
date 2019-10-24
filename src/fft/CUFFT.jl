@@ -7,7 +7,7 @@ using ..CuArrays: libcufft
 import ..CuArrays: unsafe_free!
 
 using CUDAdrv
-using CUDAdrv: CuStream_t
+using CUDAdrv: CUstream
 
 using CEnum
 

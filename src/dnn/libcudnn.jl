@@ -43,13 +43,13 @@ end
 
 function cudnnSetStream(handle, streamId)
     @check ccall((:cudnnSetStream, @libcudnn), cudnnStatus_t,
-                 (cudnnHandle_t, CuStream_t),
+                 (cudnnHandle_t, CUstream),
                  handle, streamId)
 end
 
 function cudnnGetStream(handle, streamId)
     @check ccall((:cudnnGetStream, @libcudnn), cudnnStatus_t,
-                 (cudnnHandle_t, Ptr{CuStream_t}),
+                 (cudnnHandle_t, Ptr{CUstream}),
                  handle, streamId)
 end
 
@@ -1708,7 +1708,7 @@ function cudnnGetMultiHeadAttnWeights(handle, attnDesc, wKind, weightSizeInBytes
 end
 
 function cudnnMultiHeadAttnForward(handle, attnDesc, currIdx, loWinIdx, hiWinIdx,
-                                   seqLengthArrayQRO, seqLengthArrayKV, qDesc, queries,
+                                   devSeqLengthsQO, devSeqLengthsKV, qDesc, queries,
                                    residuals, kDesc, keys, vDesc, values, oDesc, out,
                                    weightSizeInBytes, weights, workSpaceSizeInBytes,
                                    workSpace, reserveSpaceSizeInBytes, reserveSpace)
@@ -1719,16 +1719,16 @@ function cudnnMultiHeadAttnForward(handle, attnDesc, currIdx, loWinIdx, hiWinIdx
                   cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, cudnnSeqDataDescriptor_t,
                   CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t,
                   CuPtr{Cvoid}),
-                 handle, attnDesc, currIdx, loWinIdx, hiWinIdx, seqLengthArrayQRO,
-                 seqLengthArrayKV, qDesc, queries, residuals, kDesc, keys, vDesc, values,
+                 handle, attnDesc, currIdx, loWinIdx, hiWinIdx, devSeqLengthsQO,
+                 devSeqLengthsKV, qDesc, queries, residuals, kDesc, keys, vDesc, values,
                  oDesc, out, weightSizeInBytes, weights, workSpaceSizeInBytes, workSpace,
                  reserveSpaceSizeInBytes, reserveSpace)
 end
 
 function cudnnMultiHeadAttnBackwardData(handle, attnDesc, loWinIdx, hiWinIdx,
-                                        seqLengthArrayDQDO, seqLengthArrayDKDV, doDesc,
-                                        dout, dqDesc, dqueries, queries, dkDesc, dkeys,
-                                        keys, dvDesc, dvalues, values, weightSizeInBytes,
+                                        devSeqLengthsDQDO, devSeqLengthsDKDV, doDesc, dout,
+                                        dqDesc, dqueries, queries, dkDesc, dkeys, keys,
+                                        dvDesc, dvalues, values, weightSizeInBytes,
                                         weights, workSpaceSizeInBytes, workSpace,
                                         reserveSpaceSizeInBytes, reserveSpace)
     @check ccall((:cudnnMultiHeadAttnBackwardData, @libcudnn), cudnnStatus_t,
@@ -1738,9 +1738,9 @@ function cudnnMultiHeadAttnBackwardData(handle, attnDesc, loWinIdx, hiWinIdx,
                   cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
                   cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t,
                   CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}),
-                 handle, attnDesc, loWinIdx, hiWinIdx, seqLengthArrayDQDO,
-                 seqLengthArrayDKDV, doDesc, dout, dqDesc, dqueries, queries, dkDesc,
-                 dkeys, keys, dvDesc, dvalues, values, weightSizeInBytes, weights,
+                 handle, attnDesc, loWinIdx, hiWinIdx, devSeqLengthsDQDO,
+                 devSeqLengthsDKDV, doDesc, dout, dqDesc, dqueries, queries, dkDesc, dkeys,
+                 keys, dvDesc, dvalues, values, weightSizeInBytes, weights,
                  workSpaceSizeInBytes, workSpace, reserveSpaceSizeInBytes, reserveSpace)
 end
 

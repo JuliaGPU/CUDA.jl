@@ -3,7 +3,7 @@
 
 const CUDNN_MAJOR = 7
 const CUDNN_MINOR = 6
-const CUDNN_PATCHLEVEL = 3
+const CUDNN_PATCHLEVEL = 4
 const CUDNN_VERSION = CUDNN_MAJOR * 1000 + CUDNN_MINOR * 100 + CUDNN_PATCHLEVEL
 const CUDNN_DIM_MAX = 8
 const CUDNN_LRN_MIN_N = 1
@@ -414,7 +414,7 @@ struct cudnnDebug_t
     time_usec::UInt32
     time_delta::UInt32
     handle::cudnnHandle_t
-    stream::CuStream_t
+    stream::CUstream
     pid::Culonglong
     tid::Culonglong
     cudaDeviceId::Cint
