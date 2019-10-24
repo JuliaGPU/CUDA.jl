@@ -39,16 +39,20 @@ uuid = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 version = "1.2.0"
 
 [[CUDAdrv]]
-deps = ["CUDAapi", "Libdl", "Printf"]
-git-tree-sha1 = "9ce99b5732c70e06ed97c042187baed876fb1698"
+deps = ["CEnum", "CUDAapi", "Libdl", "Printf"]
+git-tree-sha1 = "d3dfd3fce18a4b6a5ac906e06572ade530ad7874"
+repo-rev = "master"
+repo-url = "https://github.com/JuliaGPU/CUDAdrv.jl.git"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
 version = "3.1.0"
 
 [[CUDAnative]]
 deps = ["Adapt", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Printf", "TimerOutputs"]
-git-tree-sha1 = "52ae1ce10ebfa686e227655c47b19add89308623"
+git-tree-sha1 = "a02e7177d713a0e8d8e808de8ccf012cbbaad9f9"
+repo-rev = "master"
+repo-url = "https://github.com/JuliaGPU/CUDAnative.jl.git"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
-version = "2.3.1"
+version = "2.4.0"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
