@@ -1,4 +1,3 @@
-using ForwardDiff: Dual
 using LinearAlgebra
 using Adapt: adapt
 
@@ -124,10 +123,6 @@ end
     using NNlib
 
     @test testf(x -> logσ.(x), rand(5))
-
-    f(x) = logσ.(x)
-    ds = Dual.(rand(5),1)
-    @test f(ds) ≈ collect(f(CuArray(ds)))
   end
 end
 
