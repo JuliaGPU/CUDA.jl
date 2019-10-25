@@ -833,10 +833,10 @@ for (fname, elty) in
         function gemm_batched!(transA::Char,
                                transB::Char,
                                alpha::($elty),
-                               A::Array{CuMatrix{$elty},1},
-                               B::Array{CuMatrix{$elty},1},
+                               A::Vector{<:CuMatrix{$elty}},
+                               B::Vector{<:CuMatrix{$elty}},
                                beta::($elty),
-                               C::Array{CuMatrix{$elty},1})
+                               C::Vector{<:CuMatrix{$elty}})
             if length(A) != length(B) || length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
@@ -871,15 +871,15 @@ for (fname, elty) in
         function gemm_batched(transA::Char,
                       transB::Char,
                       alpha::($elty),
-                      A::Array{CuMatrix{$elty},1},
-                      B::Array{CuMatrix{$elty},1})
+                      A::Vector{<:CuMatrix{$elty}},
+                      B::Vector{<:CuMatrix{$elty}})
             C = CuMatrix{$elty}[similar( B[1], $elty, (size(A[1], transA == 'N' ? 1 : 2),size(B[1], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
             gemm_batched!(transA, transB, alpha, A, B, zero($elty), C )
         end
         function gemm_batched(transA::Char,
                       transB::Char,
-                      A::Array{CuMatrix{$elty},1},
-                      B::Array{CuMatrix{$elty},1})
+                      A::Vector{<:CuMatrix{$elty}},
+                      B::Vector{<:CuMatrix{$elty}})
             gemm_batched(transA, transB, one($elty), A, B)
         end
     end
@@ -1392,8 +1392,8 @@ for (fname, elty) in
                                transa::Char,
                                diag::Char,
                                alpha::($elty),
-                               A::Array{CuMatrix{$elty},1},
-                               B::Array{CuMatrix{$elty},1})
+                               A::Vector{<:CuMatrix{$elty}},
+                               B::Vector{<:CuMatrix{$elty}})
             cuside = cublasside(side)
             cuuplo = cublasfill(uplo)
             cutransa = cublasop(transa)
@@ -1424,8 +1424,8 @@ for (fname, elty) in
                               transa::Char,
                               diag::Char,
                               alpha::($elty),
-                              A::Array{CuMatrix{$elty},1},
-                              B::Array{CuMatrix{$elty},1})
+                              A::Vector{<:CuMatrix{$elty}},
+                              B::Vector{<:CuMatrix{$elty}})
             trsm_batched!(side, uplo, transa, diag, alpha, A, copy(B) )
         end
     end
@@ -1544,7 +1544,7 @@ for (fname, elty) in
         #   cublasHandle_t handle, int n, double **A,
         #   int lda, int *PivotArray, double **C,
         #   int ldc, int *info, int batchSize)
-        function getri_batched(A::Array{CuMatrix{$elty},1},
+        function getri_batched(A::Vector{<:CuMatrix{$elty}},
                               pivotArray::CuMatrix{Cint})
             for As in A
                 m,n = size(As)
@@ -1581,7 +1581,7 @@ for (fname, elty) in
         #   cublasHandle_t handle, int n, double **A,
         #   int lda, double **C, int ldc,
         #   int *info, int batchSize)
-        function matinv_batched(A::Array{CuMatrix{$elty},1})
+        function matinv_batched(A::Vector{<:CuMatrix{$elty}})
             for As in A
                 m,n = size(As)
                 if m != n
@@ -1640,7 +1640,7 @@ for (fname, elty) in
 
             TauArray, A
         end
-        function geqrf_batched(A::Array{CuMatrix{$elty},1})
+        function geqrf_batched(A::Vector{<:CuMatrix{$elty}})
             geqrf_batched!(copy(A))
         end
     end
@@ -1660,8 +1660,8 @@ for (fname, elty) in
         #   double **C, int ldc, int *infoArray,
         #   int *devInfoArray, int batchSize)
         function gels_batched!(trans::Char,
-                              A::Array{CuMatrix{$elty},1},
-                              C::Array{CuMatrix{$elty},1})
+                              A::Vector{<:CuMatrix{$elty}},
+                              C::Vector{<:CuMatrix{$elty}})
             cutrans = cublasop(trans)
             if length(A) != length(C)
                 throw(DimensionMismatch(""))
@@ -1696,8 +1696,8 @@ for (fname, elty) in
             A, C, infoarray
         end
         function gels_batched(trans::Char,
-                             A::Array{CuMatrix{$elty},1},
-                             C::Array{CuMatrix{$elty},1})
+                             A::Vector{<:CuMatrix{$elty}},
+                             C::Vector{<:CuMatrix{$elty}})
             gels_batched!(trans, copy(A), copy(C))
         end
     end
