@@ -64,7 +64,7 @@ function reclaim(sz)
     freed = 0
     while freed < sz && !isempty(available)
         block = pop!(available)
-        actual_free(pointer(block))
+        actual_free(block)
         freed += sizeof(block)
     end
 
