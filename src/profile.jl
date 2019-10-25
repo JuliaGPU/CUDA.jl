@@ -25,7 +25,6 @@ end
 module Profile
 
 using ..CUDAdrv
-using Distributed, Libdl
 
 const nsight = Ref{Union{Nothing,String}}(nothing)
 
@@ -67,19 +66,16 @@ end
 
 function __init__()
     # find the active Nsight Systems profiler
-    libs = Libdl.dllist()
-    filter!(path->occursin("ToolsInjection", basename(path)), libs)
-    if isempty(libs)
-        nsight[] = nothing
-    else
-        dirs = unique(map(dirname, libs))
-        @assert length(dirs) == 1
-        dir = dirs[1]
+    if haskey(ENV, "CUDA_INJECTION64_PATH")
+        lib = ENV["CUDA_INJECTION64_PATH"]
+        dir = dirname(lib)
 
         nsight[] = joinpath(dir, "nsys")
         @assert isfile(nsight[])
 
         @info "Running under Nsight Systems, CUDAdrv.@profile will automatically start the profiler"
+    else
+        nsight[] = nothing
     end
 end
 
