@@ -43,7 +43,8 @@ function start()
         @warn("""Calling CUDAdrv.@profile only informs an external profiler to start.
                  The user is responsible for launching Julia under a CUDA profiler like `nvprof`.
 
-                 For improved usability, launch Julia under the Nsight Systems profiler.""",
+                 For improved usability, launch Julia under the Nsight Systems profiler:
+                 nsys launch -t cuda,cublas,cudnn,nvtx julia""",
               maxlog=1)
     end
     CUDAdrv.cuProfilerStart()
@@ -58,6 +59,7 @@ profiling is already disabled, then this call has no effect.
 function stop()
     if nsight[] !== nothing
         run(`$(nsight[]) stop`)
+        @info "Profiling has finished, open the report listed above with `nsight-sys`"
     else
         CUDAdrv.cuProfilerStop()
     end
