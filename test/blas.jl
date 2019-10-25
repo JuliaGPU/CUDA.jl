@@ -1105,6 +1105,83 @@ end # level 1 testset
             end
         end
 
+        @testset "getrf_strided_batched!" begin
+            Random.seed!(1)
+            local k
+            # generate strided matrix
+            A = rand(elty,m,m,10)
+            # move to device
+            d_A = CuArray(A)
+            pivot, info = CuArrays.CUBLAS.getrf_strided_batched!(d_A, false)
+            h_info = Array(info)
+            for As in 1:size(d_A, 3)
+                C   = lu!(copy(A[:,:,As]), Val(false)) # lu(A[As],pivot=false)
+                h_A = Array(d_A[:,:,As])
+                #reconstruct L,U
+                dL = Matrix(one(elty)*I, m, m)
+                dU = zeros(elty,(m,m))
+                k = h_info[As]
+                if( k >= 0 )
+                    dL += tril(h_A,-k-1)
+                    dU += triu(h_A,k)
+                end
+                #compare
+                @test C.L ≈ dL rtol=1e-2
+                @test C.U ≈ dU rtol=1e-2
+            end
+            d_A = CuArray(A)
+            pivot, info = CuArrays.CUBLAS.getrf_strided_batched!(d_A, true)
+            h_info = Array(info)
+            h_pivot = Array(pivot)
+            for As in 1:size(d_A, 3)
+                C   = lu(A[:,:,As])
+                h_A = Array(d_A[:,:,As])
+                #reconstruct L,U
+                dL = Matrix(one(elty)*I, m, m)
+                dU = zeros(elty,(m,m))
+                k = h_info[As]
+                if( k >= 0 )
+                    dL += tril(h_A,-k-1)
+                    dU += triu(h_A,k)
+                end
+                #compare pivots
+                @test length(setdiff(h_pivot[:,As],C.p)) == 0
+                #make device pivot matrix
+                P = Matrix(1.0*I, m, m)
+                for row in 1:m
+                    temp = copy(P[row,:])
+                    P[row,:] = P[h_pivot[row,As],:]
+                    P[h_pivot[row,As],:] = temp
+                end
+                @test inv(P)*dL*dU ≈ inv(C.P) * C.L * C.U
+            end
+        end
+
+        @testset "getrf_strided_batched" begin
+            local k
+            # generate strided matrix
+            A = rand(elty,m,m,10)
+            # move to device
+            d_A = CuArray(A)
+            pivot, info, d_B = CuArrays.CUBLAS.getrf_strided_batched(d_A, false)
+            h_info = Array(info)
+            for Bs in 1:size(d_B, 3)
+                C   = lu!(copy(A[:,:,Bs]),Val(false)) # lu(A[Bs],pivot=false)
+                h_B = Array(d_B[:,:,Bs])
+                #reconstruct L,U
+                dL = Matrix(one(elty)*I, m, m)
+                dU = zeros(elty,(m,m))
+                k = h_info[Bs]
+                if( h_info[Bs] >= 0 )
+                    dU += triu(h_B,k)
+                    dL += tril(h_B,-k-1)
+                end
+                #compare
+                @test C.L ≈ dL rtol=1e-2
+                @test C.U ≈ dU rtol=1e-2
+            end
+        end
+
         @testset "getri_batched" begin
             # generate matrices
             A = [rand(elty,m,m) for i in 1:10]
