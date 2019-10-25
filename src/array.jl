@@ -2,58 +2,62 @@ mutable struct CuArray{T,N,P} <: GPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
 
-  parent::P
+  parent::P       # parent array (for, e.g., contiguous views keeping their parent alive)
+  own::Bool       # is this memory owned, and should we free it?
+
+  # for early freeing outside of the GC
   refcount::Int
-  own::Bool
+  freed::Bool
 
   ctx::CuContext
 
   # constrain P
-  CuArray{T,N,P}(ptr, dims, parent::Union{Nothing,CuArray}, refcount, own, ctx) where {T,N,P} =
-    new(ptr, dims, parent, refcount, own, ctx)
+  CuArray{T,N,P}(ptr, dims, parent::Union{Nothing,CuArray}, own, ctx) where {T,N,P} =
+    new(ptr, dims, parent, own, 0, false, ctx)
 end
 
 # primary array
 function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, own::Bool=true;
                       ctx=CuCurrentContext()) where {T,N}
-  self = CuArray{T,N,Nothing}(ptr, dims, nothing, 0, own, ctx)
+  self = CuArray{T,N,Nothing}(ptr, dims, nothing, own, ctx)
   retain(self)
   finalizer(unsafe_free!, self)
   return self
 end
 
 # derived array (e.g. view, reinterpret, ...)
-function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::CuArray) where {T,N}
-  parent = something(parent.parent, parent)::CuArray{<:Any,<:Any,Nothing}
-  self = CuArray{T,N,typeof(parent)}(ptr, dims, parent, 0, false, parent.ctx)
+function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::P) where {T,N,P<:CuArray}
+  self = CuArray{T,N,P}(ptr, dims, parent, false, parent.ctx)
+  retain(self)
   retain(parent)
   finalizer(unsafe_free!, self)
   return self
 end
 
-function unsafe_free!(xs::CuArray{<:Any,N}) where {N}
-  # has unsafe_free! already been called before (e.g. manually, outside of the GC)
-  ptr = convert(CuPtr{Nothing}, xs.ptr)
-  ptr == CU_NULL && return
+function unsafe_free!(xs::CuArray)
+  # this call should only have an effect once, becuase both the user and the GC can call it
+  xs.freed && return
+  _unsafe_free!(xs)
+  xs.freed = true
+  return
+end
 
+function _unsafe_free!(xs::CuArray)
   @assert xs.refcount >= 0
-  if xs.parent !== nothing
-    # derived object: defer to the parent
-    unsafe_free!(xs.parent)
-  elseif release(xs)
-    # primary array with all references gone
-    if xs.own && CUDAdrv.isvalid(xs.ctx)
-      free(ptr)
+  if release(xs)
+    if xs.parent === nothing
+      # primary array with all references gone
+      if xs.own && CUDAdrv.isvalid(xs.ctx)
+        free(convert(CuPtr{Nothing}, xs.ptr))
+      end
+    else
+      # derived object
+      _unsafe_free!(xs.parent)
     end
-  else
-    # primary array with still some references
-    return
-  end
-  @assert xs.refcount == 0
 
-  # wipe the object
-  xs.ptr = CU_NULL
-  xs.dims = ntuple(zero, N)
+    # the object is dead, so we can also wipe the pointer
+    xs.ptr = CU_NULL
+  end
 
   return
 end
@@ -242,6 +246,7 @@ Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), 
 
 function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
+  @assert !dest.freed "Use of freed memory"
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -252,6 +257,7 @@ end
 
 function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
                       n::Integer) where T
+  @assert !src.freed "Use of freed memory"
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -262,6 +268,7 @@ end
 
 function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
                       n::Integer) where T
+  @assert !dest.freed && !src.freed "Use of freed memory"
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
