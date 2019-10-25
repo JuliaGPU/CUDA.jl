@@ -60,9 +60,9 @@ const block_id = Ref(UInt(0))
 
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
-    buf::Union{Nothing,Mem.Buffer}  # base allocation
-    sz::Int                         # size into it
-    off::Int                        # offset into it
+    ptr::Union{Nothing,CuPtr{Nothing}}  # base allocation
+    sz::Int                             # size into it
+    off::Int                            # offset into it
 
     state::BlockState
     prev::Union{Nothing,Block}
@@ -70,15 +70,13 @@ mutable struct Block
 
     id::UInt
 
-    Block(buf; sz=sizeof(buf), off=0, state=INVALID,
+    Block(ptr, sz; off=0, state=INVALID,
           prev=nothing, next=nothing, id=block_id[]+=1) =
-        new(buf, sz, off, state, prev, next, id)
+        new(ptr, sz, off, state, prev, next, id)
 end
 
 Base.sizeof(block::Block) = block.sz
-Base.pointer(block::Block) = pointer(block.buf) + block.off
-
-Base.convert(::Type{Mem.Buffer}, block::Block) = similar(block.buf, pointer(block), sizeof(block))
+Base.pointer(block::Block) = block.ptr + block.off
 
 iswhole(block::Block) = block.prev === nothing && block.next === nothing
 
@@ -98,7 +96,7 @@ end
 # split a block at size `sz`, returning the newly created block
 function split!(block, sz)
     @assert sz < block.sz "Cannot split a $block at too-large offset $sz"
-    split = Block(block.buf; sz = sizeof(block) - sz, off = block.off + sz)
+    split = Block(block.ptr, sizeof(block) - sz; off = block.off + sz)
     block.sz = sz
 
     # update links
@@ -130,8 +128,8 @@ function merge!(head, blocks...)
 end
 
 @inline function actual_alloc(sz)
-    buf = CuArrays.actual_alloc(sz)
-    block = buf === nothing ? nothing : Block(buf)
+    ptr = CuArrays.actual_alloc(sz)
+    block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
 function actual_free(block::Block)
@@ -139,7 +137,7 @@ function actual_free(block::Block)
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
-        CuArrays.actual_free(block.buf)
+        CuArrays.actual_free(block.ptr)
         block.state = INVALID
     end
     return
@@ -164,7 +162,7 @@ function scan!(blocks, sz, max_overhead=typemax(Int))
         # but since we know the sorted set is backed by a balanced tree, we can do better
 
         # get the entry right before first sufficiently large one
-        lower_bound = Block(nothing; sz=sz, id=0)
+        lower_bound = Block(nothing, sz; id=0)
         i, exact = findkey(blocks.bt, lower_bound)
         @assert !exact  # block id bits are zero, so this match can't be exact
 
@@ -281,7 +279,7 @@ const UniqueIncreasingSize = Base.By(unique_sizeof)
 const available_small = SortedSet{Block}(UniqueIncreasingSize)
 const available_large = SortedSet{Block}(UniqueIncreasingSize)
 const available_huge  = SortedSet{Block}(UniqueIncreasingSize)
-const allocated = Dict{Mem.Buffer,Block}()
+const allocated = Dict{CuPtr{Nothing},Block}()
 const freed = Vector{Block}()
 
 function size_class(sz)
@@ -404,20 +402,20 @@ end
 function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
-        buf = convert(Mem.Buffer, block)
-        @assert !haskey(allocated, buf) "Newly-allocated block $block is already allocated"
+        ptr = pointer(block)
+        @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
         block.state = ALLOCATED
-        allocated[buf] = block
-        return buf
+        allocated[ptr] = block
+        return ptr
     else
         return nothing
     end
 end
 
-function free(buf)
-    block = allocated[buf]
+function free(ptr)
+    block = allocated[ptr]
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
-    delete!(allocated, buf)
+    delete!(allocated, ptr)
     pool_free(block)
     return
 end
@@ -427,12 +425,12 @@ used_memory() = mapreduce(sizeof, +, values(allocated); init=0)
 cached_memory() = mapreduce(sizeof, +, union(available_small, available_large, available_huge); init=0)
 
 function dump()
-    println("Allocated buffers: $((Base.format_bytes(used_memory())))")
+    println("Allocated blocks: $((Base.format_bytes(used_memory())))")
     for block in sort(collect(values(allocated)); by=sizeof)
         println(" - ", block)
     end
 
-    println("Available, but fragmented buffers: $((Base.format_bytes(cached_memory())))")
+    println("Available, but fragmented blocks: $((Base.format_bytes(cached_memory())))")
     for block in available_small
         println(" - small ", block)
     end

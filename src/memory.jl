@@ -39,7 +39,9 @@ alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 const usage = Ref(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
-function actual_alloc(bytes)
+const allocated = Dict{CuPtr{Nothing},Mem.DeviceBuffer}()
+
+function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
   # check the memory allocation limit
   if usage_limit[] !== nothing
     if usage[] + bytes > usage_limit[]
@@ -56,7 +58,10 @@ function actual_alloc(bytes)
     alloc_stats.actual_nalloc += 1
     alloc_stats.actual_alloc += bytes
     usage[] += bytes
-    return buf
+    ptr = convert(CuPtr{Nothing}, buf)
+    @assert !haskey(allocated, ptr)
+    allocated[ptr] = buf
+    return ptr
   catch ex
     ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
   end
@@ -64,15 +69,17 @@ function actual_alloc(bytes)
   return nothing
 end
 
-function actual_free(buf)
-  alloc_stats.actual_nfree += 1
-  alloc_stats.actual_free += sizeof(buf)
-  usage[] -= sizeof(buf)
+function actual_free(ptr::CuPtr{Nothing})
+  buf = allocated[ptr]
+  delete!(allocated, ptr)
+  bytes = sizeof(buf)
 
-  if CUDAdrv.isvalid(buf.ctx)
-    @timeit alloc_to "free"  begin
-      alloc_stats.actual_time += Base.@elapsed Mem.free(buf)
-    end
+  alloc_stats.actual_nfree += 1
+  alloc_stats.actual_free += bytes
+  usage[] -= bytes
+
+  @timeit alloc_to "free"  begin
+    alloc_stats.actual_time += Base.@elapsed Mem.free(buf)
   end
 
   return
@@ -92,8 +99,8 @@ pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 # API:
 # - init()
 # - deinit()
-# - alloc(sz)::Mem.Buffer
-# - free(::Mem.Buffer)
+# - alloc(sz)::CuPtr{Nothing}
+# - free(::CuPtr{Nothing})
 # - used_memory()
 # - cached_memory()
 
@@ -104,42 +111,42 @@ include("memory/dummy.jl")
 
 const pool = Ref{Union{Nothing,Module}}(nothing)
 
-const requested = Dict{Mem.Buffer,Int}()
+const requested = Dict{CuPtr{Nothing},Int}()
 
-@inline function alloc(sz)
+@inline function alloc(sz)::CuPtr{Nothing}
   # 0-byte allocations shouldn't hit the pool
-  sz == 0 && return actual_alloc(sz)
+  sz == 0 && return CU_NULL
 
   @assert pool[] !== nothing "Cannot allocate before CuArrays has been initialized."
   alloc_stats.pool_time += Base.@elapsed begin
-    @pool_timeit "pooled alloc" buf = pool[].alloc(sz)
+    @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)
   end
-  if buf === nothing
+  if ptr === nothing
     @error "Out of GPU memory trying to allocate $(Base.format_bytes(sz))"
     pool[].dump()
     memory_status()
     throw(OutOfMemoryError())
   end
 
-  @assert sizeof(buf) >= sz
   alloc_stats.pool_nalloc += 1
   alloc_stats.pool_alloc += sz
-  @assert !haskey(requested, buf)
-  requested[buf] = sz
+  @assert !haskey(requested, ptr)
+  requested[ptr] = sz
 
-  return buf
+  return ptr
 end
 
-@inline function free(buf)
+@inline function free(ptr::CuPtr{Nothing})
   # 0-byte allocations shouldn't hit the pool
-  sizeof(buf) == 0 && return actual_free(buf)
+  ptr == CU_NULL && return
 
-  @assert haskey(requested, buf)
-  delete!(requested, buf)
+  @assert haskey(requested, ptr)
+  sz = requested[ptr]
+  delete!(requested, ptr)
 
   alloc_stats.pool_nfree += 1
   alloc_stats.pool_time += Base.@elapsed begin
-    @pool_timeit "pooled free" pool[].free(buf)
+    @pool_timeit "pooled free" pool[].free(ptr)
   end
 
   return

@@ -1,6 +1,6 @@
 import Base: view
 
-using Base: ScalarIndex, ViewIndex, Slice, @_inline_meta, @boundscheck,
+using Base: ScalarIndex, ViewIndex, Slice, @boundscheck,
             to_indices, compute_offset1, unsafe_length, _maybe_reshape_parent, index_ndims
 
 
@@ -17,25 +17,27 @@ CuIndexStyle(i1::AbstractUnitRange, ::ScalarIndex...) = Contiguous()
 CuIndexStyle(i1::Colon, I...) = CuIndexStyle(I...)
 
 cuviewlength() = ()
-cuviewlength(::Real, I...) = (@_inline_meta; cuviewlength(I...)) # skip scalars
-cuviewlength(i1::AbstractUnitRange, I...) = (@_inline_meta; (unsafe_length(i1), cuviewlength(I...)...))
-cuviewlength(i1::AbstractUnitRange, ::ScalarIndex...) = (@_inline_meta; (unsafe_length(i1),))
+@inline cuviewlength(::Real, I...) = cuviewlength(I...) # skip scalar
+@inline cuviewlength(i1::AbstractUnitRange, I...) = (unsafe_length(i1), cuviewlength(I...)...)
+@inline cuviewlength(i1::AbstractUnitRange, ::ScalarIndex...) = (unsafe_length(i1),)
 
-view(A::CuArray, I::Vararg{Any,N}) where {N} = (@_inline_meta; _cuview(A, I, CuIndexStyle(I...)))
+@inline view(A::CuArray, I::Vararg{Any,N}) where {N} = _cuview(A, I, CuIndexStyle(I...))
 
-function _cuview(A, I, ::Contiguous)
-    @_inline_meta
+@inline function _cuview(A, I, ::Contiguous)
     J = to_indices(A, I)
     @boundscheck checkbounds(A, J...)
     _cuview(_maybe_reshape_parent(A, index_ndims(J...)), J, cuviewlength(J...))
 end
 
 # for contiguous views just return a new CuArray
-_cuview(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M} =
-    CuArray{T,M}(A.buf, dims; offset=A.offset + compute_offset1(A, 1, I) * sizeof(T), own=A.own)
+@inline function _cuview(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
+    offset = compute_offset1(A, 1, I) * sizeof(T)
+    CuArray{T,M}(A.ptr + offset, dims, A)
+end
 
 # fallback to SubArray when the view is not contiguous
-_cuview(A, I, ::NonContiguous) where {N} = invoke(view, Tuple{AbstractArray, typeof(I).parameters...}, A, I...)
+@inline _cuview(A, I, ::NonContiguous) where {N} =
+    invoke(view, Tuple{AbstractArray, typeof(I).parameters...}, A, I...)
 
 
 ## operations

@@ -10,10 +10,10 @@ init() = return
 
 deinit() = @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
 
-const allocated = Set{Mem.Buffer}()
+const allocated = Dict{CuPtr{Nothing},Int}()
 
 function alloc(sz)
-    buf = nothing
+    ptr = nothing
     for phase in 1:3
         if phase == 2
             @pool_timeit "$phase.0 gc(false)" GC.gc(false)
@@ -22,24 +22,27 @@ function alloc(sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            buf = actual_alloc(sz)
+            ptr = actual_alloc(sz)
         end
-        buf === nothing || break
+        ptr === nothing || break
     end
 
-    if buf !== nothing
-        push!(allocated, buf)
-        return buf
+    if ptr !== nothing
+        allocated[ptr] = sz
+        return ptr
+    else
+        return nothing
     end
 end
 
-function free(buf)
-    delete!(allocated, buf)
-    actual_free(buf)
+function free(ptr)
+    sz = allocated[ptr]
+    delete!(allocated, ptr)
+    actual_free(ptr)
     return
 end
 
-used_memory() = isempty(allocated) ? 0 : sum(sizeof, allocated)
+used_memory() = isempty(allocated) ? 0 : sum(sizeof, values(allocated))
 
 cached_memory() = 0
 

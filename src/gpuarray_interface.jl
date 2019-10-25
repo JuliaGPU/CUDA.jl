@@ -63,5 +63,8 @@ function GPUArrays._gpu_call(::CuArrayBackend, f, A, args::Tuple,
 end
 
 # Save reinterpret and reshape implementation use this in GPUArrays
-GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray, size::NTuple{N, Integer}) where {T, N} =
-    CuArray{T, N}(A.buf, size)
+function GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray,
+                                      size::NTuple{N, Integer}) where {T, N}
+
+  return CuArray{T,N}(convert(CuPtr{T}, A.ptr), size, A)
+end
