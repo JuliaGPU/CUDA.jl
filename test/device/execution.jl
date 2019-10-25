@@ -170,8 +170,7 @@ len = prod(dims)
     input_dev = CuArray(input)
     output_dev = CuArray(output)
 
-    @cuda threads=len kernel(convert(CuPtr{Float32}, input_dev.buf),
-                             convert(CuPtr{Float32}, output_dev.buf))
+    @cuda threads=len kernel(pointer(input_dev), pointer(output_dev))
     @test input ≈ Array(output_dev)
 end
 
@@ -193,8 +192,7 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda threads=len kernel(convert(CuPtr{Float32}, arr_dev.buf),
-                             convert(CuPtr{Float32}, val_dev.buf))
+    @cuda threads=len kernel(pointer(arr_dev), pointer(val_dev))
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -219,8 +217,7 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda threads=len parent(convert(CuPtr{Float32}, arr_dev.buf),
-                             convert(CuPtr{Float32}, val_dev.buf))
+    @cuda threads=len parent(pointer(arr_dev), pointer(val_dev))
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -240,7 +237,7 @@ end
     keeps = (true,)
     d_out = CuArray(zeros(Int))
 
-    @cuda kernel(keeps, convert(CuPtr{Int}, d_out.buf))
+    @cuda kernel(keeps, pointer(d_out))
     @test Array(d_out)[] == 1
 end
 
@@ -264,10 +261,7 @@ end
         unsafe_store!(c, unsafe_load(a,i)+unsafe_load(b,i), i)
         return
     end
-    @cuda threads=len kernel(ExecGhost(),
-                             convert(CuPtr{Float32}, d_a.buf),
-                             convert(CuPtr{Float32}, d_b.buf),
-                             convert(CuPtr{Float32}, d_c.buf))
+    @cuda threads=len kernel(ExecGhost(), pointer(d_a), pointer(d_b), pointer(d_c))
     @test a+b == Array(d_c)
 
 
@@ -278,7 +272,7 @@ end
         unsafe_store!(out, aggregate[1], i)
         return
     end
-    @cuda threads=len kernel(ExecGhost(), convert(CuPtr{Float32}, d_c.buf), (42,))
+    @cuda threads=len kernel(ExecGhost(), pointer(d_c), (42,))
 
     @test all(val->val==42, Array(d_c))
 end
@@ -295,7 +289,7 @@ end
     arr = CuArray(zeros(Float32))
     x = ComplexF32(2,2)
 
-    @cuda kernel(convert(CuPtr{Float32}, arr.buf), x)
+    @cuda kernel(pointer(arr), x)
     @test Array(arr)[] == imag(x)
 end
 
@@ -308,7 +302,7 @@ end
         return
     end
 
-    @cuda kernel(convert(CuPtr{Int}, arr.buf))
+    @cuda kernel(pointer(arr))
     @test Array(arr)[] == 1
 
     function kernel(ptr)
@@ -316,7 +310,7 @@ end
         return
     end
 
-    @cuda kernel(convert(CuPtr{Int}, arr.buf))
+    @cuda kernel(pointer(arr))
     @test Array(arr)[] == 2
 end
 
@@ -344,7 +338,7 @@ end
 
     out = [0]
     out_dev = CuArray(out)
-    out_ptr = convert(CuPtr{eltype(out)}, out_dev.buf)
+    out_ptr = pointer(out_dev)
 
     @cuda kernel(out_ptr, 1, 2)
     @test Array(out_dev)[1] == 3
@@ -378,7 +372,7 @@ end
     a = [1.]
     a_dev = CuArray(a)
 
-    outer(convert(CuPtr{Float64}, a_dev.buf), 2.)
+    outer(pointer(a_dev), 2.)
 
     @test Array(a_dev) ≈ [2.]
 end
@@ -390,7 +384,7 @@ end
             unsafe_store!(a, val)
             return
        end
-       @cuda inner(convert(CuPtr{Float64}, a_dev.buf))
+       @cuda inner(pointer(a_dev))
     end
 
     a = [1.]
@@ -420,7 +414,7 @@ end
             unsafe_store!(out, convert(Int, arg))
             return
         end
-        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, pointer(out_dev))
         @test Array(out_dev) ≈ [2]
     end
 
@@ -432,7 +426,7 @@ end
             unsafe_store!(out, convert(Int, arg[1]))
             return
         end
-        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, pointer(out_dev))
         @test Array(out_dev) ≈ [2]
     end
 
@@ -444,7 +438,7 @@ end
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, pointer(out_dev))
         @test Array(out_dev) ≈ [2]
     end
 
@@ -459,7 +453,7 @@ end
             unsafe_store!(out, convert(Int, arg.a))
             return
         end
-        @cuda kernel(arg, convert(CuPtr{Int}, out_dev.buf))
+        @cuda kernel(arg, pointer(out_dev))
         @test Array(out_dev) ≈ [1]
     end
 end
@@ -467,7 +461,7 @@ end
 @testset "argument count" begin
     val = [0]
     val_dev = CuArray(val)
-    cuda_ptr = convert(CuPtr{Int}, val_dev.buf)
+    cuda_ptr = pointer(val_dev)
     ptr = CUDAnative.DevicePtr{Int}(cuda_ptr)
     for i in (1, 10, 20, 35)
         variables = ('a':'z'..., 'A':'Z'...)
@@ -510,7 +504,7 @@ end
         end
 
         arr = CuArray(zeros(T))
-        @cuda kernel(convert(CuPtr{T}, arr.buf))
+        @cuda kernel(pointer(arr))
 
         return Array(arr)[1]
     end
@@ -536,8 +530,9 @@ script = """
 
     cpu = zeros(Int)
     gpu = CUDAdrv.Mem.alloc(CUDAdrv.Mem.Device, sizeof(cpu))
-    @cuda kernel(convert(CUDAdrv.CuPtr{Int}, gpu), 1.2)
-    CUDAdrv.Mem.copy!(pointer(cpu), gpu, sizeof(Int))
+    gpu_ptr = convert(CUDAdrv.CuPtr{Int}, gpu)
+    @cuda kernel(gpu_ptr, 1.2)
+    unsafe_copyto!(pointer(cpu), gpu_ptr, 1)
 """
 
 let (code, out, err) = julia_script(script, `-g0`)
@@ -623,13 +618,13 @@ end
     let output = CuArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        ptr = convert(CuPtr{eltype(input)}, output.buf)
+        ptr = pointer(output)
         @cuda threads=N kernel(input, ptr)
         @test Array(output) == fill(input, N)
     end
 
     let output = CuArray(zeros(Cint, N))
-        ptr = convert(CuPtr{eltype(input)}, output.buf)
+        ptr = pointer(output)
         @cuda threads=N kernel(input, ptr, true)
         @test Array(output) == fill(input, N)
     end
@@ -663,13 +658,13 @@ end
     let output = CuArray(zeros(Cint, N))
         # defaulting to `true` embeds this info in the PTX module,
         # allowing `ptxas` to emit validly-structured code.
-        ptr = convert(CuPtr{eltype(input)}, output.buf)
+        ptr = pointer(output)
         @cuda threads=N kernel(input, ptr)
         @test Array(output) == fill(input, N)
     end
 
     let output = CuArray(zeros(Cint, N))
-        ptr = convert(CuPtr{eltype(input)}, output.buf)
+        ptr = pointer(output)
         @cuda threads=N kernel(input, ptr, true)
         @test Array(output) == fill(input, N)
     end

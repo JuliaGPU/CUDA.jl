@@ -12,7 +12,7 @@
     end
 
     arr = CuArray(zeros(Float64))
-    ptr = convert(CuPtr{Float64}, arr.buf)
+    ptr = pointer(arr)
 
     @cuda kernel(ptr, (1., 2., ))
     @test Array(arr)[] == 1.
@@ -63,7 +63,7 @@ end
 
     function gpu(input)
         output = CuArray(zeros(eltype(input), 2))
-        ptr = convert(CuPtr{eltype(input)}, output.buf)
+        ptr = pointer(output)
         ptr = reinterpret(Ptr{eltype(input)}, ptr)
 
         @cuda threads=2 kernel(input, ptr, 99)
