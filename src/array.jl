@@ -3,7 +3,7 @@ mutable struct CuArray{T,N,P} <: GPUArray{T,N}
   dims::Dims{N}
 
   parent::P       # parent array (for, e.g., contiguous views keeping their parent alive)
-  own::Bool       # is this memory owned, and should we free it?
+  pooled::Bool    # is this memory backed by the memory pool?
 
   # for early freeing outside of the GC
   refcount::Int
@@ -12,14 +12,14 @@ mutable struct CuArray{T,N,P} <: GPUArray{T,N}
   ctx::CuContext
 
   # constrain P
-  CuArray{T,N,P}(ptr, dims, parent::Union{Nothing,CuArray}, own, ctx) where {T,N,P} =
-    new(ptr, dims, parent, own, 0, false, ctx)
+  CuArray{T,N,P}(ptr, dims, parent::Union{Nothing,CuArray}, pooled, ctx) where {T,N,P} =
+    new(ptr, dims, parent, pooled, 0, false, ctx)
 end
 
 # primary array
-function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, own::Bool=true;
+function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, pooled::Bool=true;
                       ctx=CuCurrentContext()) where {T,N}
-  self = CuArray{T,N,Nothing}(ptr, dims, nothing, own, ctx)
+  self = CuArray{T,N,Nothing}(ptr, dims, nothing, pooled, ctx)
   retain(self)
   finalizer(unsafe_free!, self)
   return self
@@ -47,7 +47,7 @@ function _unsafe_free!(xs::CuArray)
   if release(xs)
     if xs.parent === nothing
       # primary array with all references gone
-      if xs.own && CUDAdrv.isvalid(xs.ctx)
+      if xs.pooled && CUDAdrv.isvalid(xs.ctx)
         free(convert(CuPtr{Nothing}, xs.ptr))
       end
     else
