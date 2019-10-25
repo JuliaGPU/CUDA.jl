@@ -77,9 +77,9 @@ function gemv_wrapper!(y::CuVector{T}, tA::Char, A::CuMatrix{T}, x::CuVector{T},
 end
 
 LinearAlgebra.mul!(Y::CuVector{T}, A::CuMatrix{T}, B::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(Y, 'N', A,  B)
-LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Transpose{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(Y, 'T', A.parent, B)
-LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(Y, 'T', A.parent, B)
-LinearAlgebra.lmul!(Y::CuVector{T}, A::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasComplex = gemv_wrapper!(Y, 'C', A.parent, B)
+LinearAlgebra.lmul!(Y::CuVector{T}, A::Transpose{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(Y, 'T', A.parent, B)
+LinearAlgebra.lmul!(Y::CuVector{T}, A::Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasFloat = gemv_wrapper!(Y, 'T', A.parent, B)
+LinearAlgebra.lmul!(Y::CuVector{T}, A::Adjoint{<:Any, CuMatrix{T}}, B::CuVector{T}) where T<:CublasComplex = gemv_wrapper!(Y, 'C', A.parent, B)
 
 # TRSV
 
@@ -91,14 +91,14 @@ function LinearAlgebra.ldiv!(
 end
 
 function LinearAlgebra.ldiv!(
-    A::Adjoint{T, <:UpperTriangular{T, CuMatrix{T}}},
+    A::Adjoint{T, <:UpperTriangular{T, <:CuMatrix{T}}},
     x::CuVector{T},
 ) where {T<:CUBLAS.CublasFloat}
     return CUBLAS.trsv!('U', 'C', 'N', parent(parent(A)), x)
 end
 
 function LinearAlgebra.ldiv!(
-    A::Transpose{T, <:UpperTriangular{T, CuMatrix{T}}},
+    A::Transpose{T, <:UpperTriangular{T, <:CuMatrix{T}}},
     x::CuVector{T},
 ) where {T<:CUBLAS.CublasFloat}
     return CUBLAS.trsv!('U', 'T', 'N', parent(parent(A)), x)
@@ -112,14 +112,14 @@ function LinearAlgebra.ldiv!(
 end
 
 function LinearAlgebra.ldiv!(
-    A::Adjoint{T, <:LowerTriangular{T, CuMatrix{T}}},
+    A::Adjoint{T, <:LowerTriangular{T, <:CuMatrix{T}}},
     x::CuVector{T},
 ) where {T<:CUBLAS.CublasFloat}
     return CUBLAS.trsv!('L', 'C', 'N', parent(parent(A)), x)
 end
 
 function LinearAlgebra.ldiv!(
-    A::Transpose{T, <:LowerTriangular{T, CuMatrix{T}}},
+    A::Transpose{T, <:LowerTriangular{T, <:CuMatrix{T}}},
     x::CuVector{T},
 ) where {T<:CUBLAS.CublasFloat}
     return CUBLAS.trsv!('L', 'T', 'N', parent(parent(A)), x)
@@ -161,31 +161,31 @@ end
 
 # Mutating
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}) where T<:CublasFloat = gemm_wrapper!(C, 'N', 'N', A, B)
-LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     gemm_wrapper!(C, 'T', 'N', parent(trA), B)
-LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, trB::Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'N', 'T', A, parent(trB))
-LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuMatrix{T}}, trB::Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB))
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'N', parent(adjA), B)
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     gemm_wrapper!(C, 'C', 'N', parent(adjA), B)
-LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'N', 'T', A, parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'N', 'C', A, parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, CuMatrix{T}}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuMatrix{T}}, adjB::Adjoint{<:Any, CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuMatrix{T}}, adjB::Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuMatrix{T}}, adjB::Adjoint{T, <:CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, trA::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}, adjB::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuMatrix{T}}, adjB::Adjoint{<:Any, <:CuMatrix{T}}) where T<:CublasFloat =
     gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB))
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{T, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasReal =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{T, <:CuMatrix{T}}, trB::Transpose{<:Any, <:CuMatrix{T}}) where T<:CublasReal =
     gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB))
-LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix{T}}, trB::LinearAlgebra.Transpose{<:Any, <:CuMatrix{T}}) where T <: CublasFloat =
+LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuMatrix{T}}, trB::Transpose{<:Any, <:CuMatrix{T}}) where T <: CublasFloat =
     gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB))
 
 
@@ -193,58 +193,58 @@ LinearAlgebra.mul!(C::CuMatrix{T}, adjA::LinearAlgebra.Adjoint{<:Any, <:CuMatrix
 
 # ldiv!
 ## No transpose/adjoint
-LinearAlgebra.ldiv!(A::UpperTriangular{T,CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::UpperTriangular{T, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'U', 'N', 'N', one(T), parent(A), B)
-LinearAlgebra.ldiv!(A::UnitUpperTriangular{T,CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::UnitUpperTriangular{T, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'U', 'N', 'U', one(T), parent(A), B)
-LinearAlgebra.ldiv!(A::LowerTriangular{T,CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::LowerTriangular{T, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'L', 'N', 'N', one(T), parent(A), B)
-LinearAlgebra.ldiv!(A::UnitLowerTriangular{T,CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::UnitLowerTriangular{T, <:CuMatrix{T}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'L', 'N', 'U', one(T), parent(A), B)
 ## Adjoint
-LinearAlgebra.ldiv!(A::Adjoint{T,UpperTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Adjoint{T,<:UpperTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'U', 'C', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::Adjoint{T,UnitUpperTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Adjoint{T,<:UnitUpperTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'U', 'C', 'U', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::Adjoint{T,LowerTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Adjoint{T,<:LowerTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'L', 'C', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::Adjoint{T,UnitLowerTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Adjoint{T,<:UnitLowerTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'L', 'C', 'U', one(T), parent(parent(A)), B)
 ## Transpose
-LinearAlgebra.ldiv!(A::Transpose{T,UpperTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Transpose{T,<:UpperTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'U', 'T', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::Transpose{T,UnitUpperTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Transpose{T,<:UnitUpperTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'U', 'T', 'U', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::Transpose{T,LowerTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Transpose{T,<:LowerTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'L', 'T', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::Transpose{T,UnitLowerTriangular{T,CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
+LinearAlgebra.ldiv!(A::Transpose{T,<:UnitLowerTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'L', 'T', 'U', one(T), parent(parent(A)), B)
 
 # rdiv!
 ## No transpose/adjoint
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::UpperTriangular{T,CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::UpperTriangular{T, <:CuMatrix{T}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'U', 'N', 'N', one(T), parent(B), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::UnitUpperTriangular{T,CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::UnitUpperTriangular{T, <:CuMatrix{T}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'U', 'N', 'U', one(T), parent(B), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::LowerTriangular{T,CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::LowerTriangular{T, <:CuMatrix{T}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'L', 'N', 'N', one(T), parent(B), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::UnitLowerTriangular{T,CuMatrix{T}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::UnitLowerTriangular{T, <:CuMatrix{T}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'L', 'N', 'U', one(T), parent(B), A)
 ## Adjoint
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,UpperTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,<:UpperTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'U', 'C', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,UnitUpperTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,<:UnitUpperTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'U', 'C', 'U', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,LowerTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,<:LowerTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'L', 'C', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,UnitLowerTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Adjoint{T,<:UnitLowerTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'L', 'C', 'U', one(T), parent(parent(B)), A)
 ## Transpose
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,UpperTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,<:UpperTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'U', 'T', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,UnitUpperTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,<:UnitUpperTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'U', 'T', 'U', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,LowerTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,<:LowerTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'L', 'T', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,UnitLowerTriangular{T,CuMatrix{T}}}) where T<:CublasFloat =
+LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,<:UnitLowerTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'L', 'T', 'U', one(T), parent(parent(B)), A)

@@ -1,33 +1,37 @@
-mutable struct CuArray{T,N} <: GPUArray{T,N}
+mutable struct CuArray{T,N,P} <: GPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
 
-  parent::Union{Nothing,CuArray}
+  parent::P
   refcount::Int
   own::Bool
 
   ctx::CuContext
 
-  # primary array
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, own::Bool=true;
-                        ctx=CuCurrentContext()) where {T,N}
-    self = new{T,N}(ptr, dims, nothing, 0, own, ctx)
-    retain(self)
-    finalizer(unsafe_free!, self)
-    return self
-  end
-
-  # derived array (e.g. view, reinterpret, ...)
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::CuArray) where {T,N}
-    parent = something(parent.parent, parent)
-    self = new{T,N}(ptr, dims, parent, 0, false, parent.ctx)
-    retain(parent)
-    finalizer(unsafe_free!, self)
-    return self
-  end
+  # constrain P
+  CuArray{T,N,P}(ptr, dims, parent::Union{Nothing,CuArray}, refcount, own, ctx) where {T,N,P} =
+    new(ptr, dims, parent, refcount, own, ctx)
 end
 
-function unsafe_free!(xs::CuArray{T,N}) where {T,N}
+# primary array
+function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, own::Bool=true;
+                      ctx=CuCurrentContext()) where {T,N}
+  self = CuArray{T,N,Nothing}(ptr, dims, nothing, 0, own, ctx)
+  retain(self)
+  finalizer(unsafe_free!, self)
+  return self
+end
+
+# derived array (e.g. view, reinterpret, ...)
+function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::CuArray) where {T,N}
+  parent = something(parent.parent, parent)::CuArray{<:Any,<:Any,Nothing}
+  self = CuArray{T,N,typeof(parent)}(ptr, dims, parent, 0, false, parent.ctx)
+  retain(parent)
+  finalizer(unsafe_free!, self)
+  return self
+end
+
+function unsafe_free!(xs::CuArray{<:Any,N}) where {N}
   # has unsafe_free! already been called before (e.g. manually, outside of the GC)
   ptr = convert(CuPtr{Nothing}, xs.ptr)
   ptr == CU_NULL && return
@@ -65,7 +69,13 @@ end
 end
 
 
-## construction
+## convenience constructors
+
+# discard the P typevar
+#
+# P is just used to specialize the parent field, and does not actually affect the object,
+# so we can safely discard this information when creating similar objects (`typeof(A)(...)`)
+CuArray{T,N,P}(args...) where {T,N,P} = CuArray{T,N}(args...)
 
 CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
