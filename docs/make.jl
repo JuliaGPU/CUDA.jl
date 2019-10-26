@@ -2,7 +2,9 @@ using Documenter, Literate
 using CUDAapi, CUDAdrv, CUDAnative, CuArrays
 
 @info "Building Literate.jl documentation"
-Literate.markdown("src/tutorials/introduction.jl", "src/tutorials")
+cd(joinpath(@__DIR__, "src")) do
+    Literate.markdown("tutorials/introduction.jl", "tutorials")
+end
 
 @info "Generating Documenter.jl site"
 makedocs(
