@@ -1,0 +1,21 @@
+include:
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
+
+image: nvidia/cuda:latest
+
+documentation:
+  extends:
+    - .julia:1.2
+    - .documentation
+  tags:
+    - nvidia
+
+pages:
+  stage: deploy
+  script:
+    - mv docs/build public
+  artifacts:
+    paths:
+    - public
+  only:
+    - master
