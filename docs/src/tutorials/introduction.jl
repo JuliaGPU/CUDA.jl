@@ -97,25 +97,27 @@ using BenchmarkTools
 # manager](https://docs.julialang.org/en/latest/stdlib/Pkg/):
 
 # ```julia
-# pkg> add CUDAdrv CUDAnative CuArrays
+# pkg> add CUDA
 # ```
 
-# If this is your first time, it's not a bad idea to test whether your GPU is working:
+# If this is your first time, it's not a bad idea to test whether your GPU is working by
+# testing the individual packages that make up CUDA.jl
 
 # ```julia
-# pkg> test CuArrays
+# pkg> add CUDAdrv CUDAnative CuArrays
+# pkg> test CUDAdrv CUDAnative CuArrays
 # ```
 
 
 # ### Parallelization on the GPU
 
+using CUDA
+
 # We'll first demonstrate GPU computations at a high level, without explicitly writing a
 # kernel function:
 
-using CuArrays
-
-x_d = CuArrays.fill(1.0f0, N)  # a vector stored on the GPU filled with 1.0 (Float32)
-y_d = CuArrays.fill(2.0f0, N)  # a vector stored on the GPU filled with 2.0
+x_d = CUDA.fill(1.0f0, N)  # a vector stored on the GPU filled with 1.0 (Float32)
+y_d = CUDA.fill(2.0f0, N)  # a vector stored on the GPU filled with 2.0
 
 # Here the `d` means "device," in contrast with "host". Now let's do the increment:
 
@@ -126,15 +128,15 @@ y_d .+= x_d
 # want to benchmark this, let's put it in a function:
 
 function add_broadcast!(y, x)
-    CuArrays.@sync y .+= x
+    CUDA.@sync y .+= x
     return
 end
 
-@btime add_broadcast!(y_d, x_d)
+@btime add_broadcast!($y_d, $x_d)
 
-# The most interesting part of this is the call to `CuArrays.@sync`. The CPU can assign
+# The most interesting part of this is the call to `CUDA.@sync`. The CPU can assign
 # jobs to the GPU and then go do other stuff (such as assigning *more* jobs to the GPU)
-# while the GPU completes its tasks. Wrapping the execution in a `CuArrays.@sync` block
+# while the GPU completes its tasks. Wrapping the execution in a `CUDA.@sync` block
 # will make the CPU block until the queued GPU tasks are done, similar to how `Base.@sync`
 # waits for distributed CPU tasks. Without such a synchronization, you'd be measuring the
 # time takes to launch the computation, not the time to perform the computation. But most
@@ -149,11 +151,9 @@ end
 
 # ### Writing your first GPU kernel
 
-# Using the high-level functionality of CuArrays made it easy to perform this computation
+# Using the high-level GPU array functionality made it easy to perform this computation
 # on the GPU. However, we didn't learn about what's going on under the hood, and that's the
 # main goal of this tutorial. So let's implement the same functionality with a GPU kernel.
-
-using CUDAnative
 
 function gpu_add1!(y, x)
     for i = 1:length(y)
@@ -175,12 +175,12 @@ fill!(y_d, 2)
 # Let's benchmark this:
 
 function bench_gpu1!(y, x)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda gpu_add1!(y, x)
     end
 end
 
-@btime bench_gpu1!(y_d, x_d)
+@btime bench_gpu1!($y_d, $x_d)
 
 # That's a *lot* slower than version above based on broadcasting. What happened?
 
@@ -220,7 +220,7 @@ CUDAdrv.@profile bench_gpu1!(y_d, x_d)
 
 # You can see that 100% of the time was spent in `ptxcall_gpu_add1__1`, the name of the
 # kernel that `CUDAnative` assigned when compiling `gpu_add1!` for these inputs. (Had you
-# created arrays of multiple data types, e.g., `xu_d = CuArrays.fill(0x01, N)`, you might
+# created arrays of multiple data types, e.g., `xu_d = CUDA.fill(0x01, N)`, you might
 # have also seen `ptxcall_gpu_add1__2` and so on. Like the rest of Julia, you can define a
 # single method and it will be specialized at compile time for the particular data types
 # you're using.)
@@ -272,12 +272,12 @@ fill!(y_d, 2)
 # Now let's try benchmarking it:
 
 function bench_gpu2!(y, x)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda threads=256 gpu_add2!(y, x)
     end
 end
 
-@btime bench_gpu2!(y_d, x_d)
+@btime bench_gpu2!($y_d, $x_d)
 
 # Much better!
 
@@ -302,7 +302,7 @@ function gpu_add3!(y, x)
     for i = index:stride:length(y)
         @inbounds y[i] += x[i]
     end
-    return nothing
+    return
 end
 
 numblocks = ceil(Int, N/256)
@@ -315,12 +315,12 @@ fill!(y_d, 2)
 
 function bench_gpu3!(y, x)
     numblocks = ceil(Int, length(y)/256)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda threads=256 blocks=numblocks gpu_add3!(y, x)
     end
 end
 
-@btime bench_gpu3!(y_d, x_d)
+@btime bench_gpu3!($y_d, $x_d)
 
 # Finally, we've achieved the similar performance to what we got with the broadcasted
 # version. Let's run `nvprof` again to confirm this launch configuration:
@@ -335,12 +335,12 @@ end
 # ### Printing
 
 # When debugging, it's not uncommon to want to print some values. This is achieved with
-# `@cuprintf`:
+# `@cuprint`:
 
 function gpu_add2_print!(y, x)
     index = threadIdx().x    # this example only requires linear indexing, so just use `x`
     stride = blockDim().x
-    @cuprintf("threadIdx %ld, blockDim %ld\n", index, stride)
+    @cuprintln("thread $index, block $stride")
     for i = index:stride:length(y)
         @inbounds y[i] += x[i]
     end
@@ -351,7 +351,7 @@ end
 synchronize()
 
 # Note that the printed output is only generated when synchronizing the entire GPU with
-# `CUDAdrv.synchronize()`. This is similar to `CuArrays.@sync`, and is the counterpart of
+# `synchronize()`. This is similar to `CUDA.@sync`, and is the counterpart of
 # `cudaDeviceSynchronize` in CUDA C++.
 
 

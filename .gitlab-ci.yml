@@ -3,6 +3,9 @@ include:
 
 image: nvidia/cuda:latest
 
+variables:
+  JULIA_NUM_THREADS: "4"
+
 documentation:
   extends:
     - .julia:1.2

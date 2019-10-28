@@ -8,14 +8,12 @@ end
 
 @info "Generating Documenter.jl site"
 makedocs(
-    modules = [CUDAapi, CUDAdrv, CUDAnative, CuArrays],
-    doctest = false,
-    clean = true,
+    sitename = "CUDA.jl",
+    authors = "Tim Besard",
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
-    sitename = "CUDA.jl",
-    authors = "Tim Besard",
+    doctest = false,
     pages = Any[
         "Home" => "index.md",
         "Tutorials" => Any[
