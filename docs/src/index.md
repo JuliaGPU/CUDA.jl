@@ -5,10 +5,10 @@ hardware. Some of these packages give uncompromising access to the low-level CUD
 programming interfaces and development tools, while others aim to raise the abstraction
 level and even make it possible to use GPUs without specific programming experience.
 
-The goal of this site is to provide documentation and examples on how to use the packages
-that make up the Julia/CUDA stack. The documentation is a work in progress, so any feedback
-or contributions are appreciated and can be made on the
-[CUDAdocs.jl](https://github.com/JuliaGPU/CUDAdocs.jl) repository page. For specific API
+The CUDA.jl package bundles all this functionality, and this accompanying site provides
+documentation on how to use each part. It is is a work in progress, so any feedback or
+contributions are appreciated and can be made on the
+[CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) repository page. For specific API
 documentation, refer to the documentation of each package. If you have any other questions,
 please feel free to use the `#gpu` channel on the [Julia
 slack](https://julialang.slack.com/), or the [GPU domain of the Julia
@@ -21,26 +21,26 @@ Much of the software in this ecosystem was developed as part of academic researc
 would like to help support it, please star the relevant repository as such metrics may help
 us secure funding in the future. If you use our software as part of your research, teaching,
 or other activities, we would be grateful if you could cite our work. The
-[CITATION.bib](https://github.com/JuliaGPU/CUDAdocs.jl/blob/master/CITATION.bib) at the top
-of this repository lists the relevant papers.
+[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/master/CITATION.bib) at the top of
+this repository lists the relevant papers.
 
 
 ## Getting Started
 
 ### Installation
 
-Most users will want to install the CuArrays.jl package, which provides essential
-functionality for allocating GPU arrays and performing operations on it:
+Most users will want to install and use the CUDA.jl package, which reexports
+functionality from several other Julia packages:
 
 ```julia
 using Pkg
-Pkg.add("CuArrays")
+Pkg.add("CUDA")
 ```
 
 To load the package, use the command:
 
 ```julia
-using CuArrays
+using CUDA
 ```
 
 To understand the Julia/CUDA stack in more detail, check out the following tutorials in this

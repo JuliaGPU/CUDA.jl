@@ -1,5 +1,7 @@
-# CUDAdocs
+# CUDA.jl
 
-This repository hosts the common documentation for the Julia/CUDA stack of packages
-(CUDAnative.jl, CuArrays.jl, etc), and is accessible at
-[juliagpu.gitlab.io](https://juliagpu.gitlab.io/).
+*CUDA programming in Julia*
+
+This repository hosts the common interface and documentation of several Julia packages for
+CUDA GPU programming. The documentation is accessible at
+[juliagpu.gitlab.io](https://juliagpu.gitlab.io/CUDA.jl/).

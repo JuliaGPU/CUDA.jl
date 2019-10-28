@@ -1,1 +1,10 @@
-# dummy project file to be compatible with the Gitlab CI templates
+name = "CUDA"
+uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
+version = "0.1"
+
+[deps]
+CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
+CUDAdrv = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
+CUDAnative = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
+CuArrays = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"

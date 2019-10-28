@@ -14,7 +14,7 @@ makedocs(
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true"
     ),
-    sitename = "Julia/CUDA",
+    sitename = "CUDA.jl",
     authors = "Tim Besard",
     pages = Any[
         "Home" => "index.md",
