@@ -968,6 +968,27 @@ end
     @test out == "a b c recurse a b c stop"
 end
 
+@testset "streams" begin
+    function hello()
+        @cuprint("Hello, ")
+        s = CuDeviceStream()
+        @cuda dynamic=true stream=s world()
+        CUDAnative.unsafe_destroy!(s)
+        return
+    end
+
+    @eval function world()
+        @cuprint("World!")
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda hello()
+        synchronize()
+    end
+    @test out == "Hello, World!"
+end
+
 end
 
 ############################################################################################

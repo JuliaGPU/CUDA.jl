@@ -432,8 +432,8 @@ end
 
 # FIXME: duplication with CUDAdrv.cudacall
 @generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type, args...;
-                                     blocks::CuDim=1, threads::CuDim=1, shmem::Integer=0,
-                                     stream::CuStream=CuDefaultStream())
+                                     blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
+                                     stream=CuDefaultStream())
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     ex = quote
@@ -475,16 +475,8 @@ No keyword arguments are supported.
     delayed_cufunction(Val(f), Val(tt))
 
 # marker function that will get picked up during compilation
-if VERSION >= v"1.2.0-DEV.512"
-    @inline cudanativeCompileKernel(id::Int) =
-        ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
-else
-    import Base.Sys: WORD_SIZE
-    @eval @inline cudanativeCompileKernel(id::Int) = Base.llvmcall(
-        $("declare i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE)",
-          "%rv = call i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE %0)
-           ret i$WORD_SIZE %rv"), Ptr{Cvoid}, Tuple{Int}, id)
-end
+@inline cudanativeCompileKernel(id::Int) =
+    ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
 
 const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
 @generated function delayed_cufunction(::Val{f}, ::Val{tt}) where {f,tt}

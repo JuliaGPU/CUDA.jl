@@ -140,9 +140,6 @@ const special_fns = (
     "vprintf", "__assertfail", "malloc", "free",
     # libdevice
     "__nvvm_reflect",
-    # libcudevrt
-    "cudaDeviceSynchronize", "cudaGetParameterBufferV2", "cudaLaunchDeviceV2",
-    "cudaCGGetIntrinsicHandle", "cudaCGSynchronize"
 )
 
 const libjulia = Ref{Ptr{Cvoid}}(C_NULL)
@@ -208,7 +205,7 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
                     f, args = user.(uses(args))
                     ## first store into the args buffer is a direct store
                     f = first(operands(f::LLVM.StoreInst))::ConstantExpr
-                else 
+                else
                     f, args, nargs, _ = operands(inst)
                 end
 
@@ -231,7 +228,8 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
         end
 
         # detect calls to undefined functions
-        if isdeclaration(dest) && intrinsic_id(dest) == 0 && !(fn in special_fns)
+        if isdeclaration(dest) && intrinsic_id(dest) == 0 &&
+           !(fn in special_fns || startswith(fn, "cuda"))
             # figure out if the function lives in the Julia runtime library
             if libjulia[] == C_NULL
                 paths = filter(Libdl.dllist()) do path
