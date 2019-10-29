@@ -285,9 +285,10 @@ Evaluates the expression `ex` and dumps all intermediate forms of code to the di
 """
 macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
+    localUnique = 1
     function hook(job::CompilerJob; dir::AbstractString)
         name = something(job.name, nameof(job.f))
-        fn = "$(name)_$(globalUnique+1)"
+        fn = "$(name)_$(localUnique)"
         mkpath(dir)
 
         open(joinpath(dir, "$fn.lowered.jl"), "w") do io
@@ -319,6 +320,8 @@ macro device_code(ex...)
         open(joinpath(dir, "$fn.sass"), "w") do io
             code_sass(io, job)
         end
+
+        localUnique += 1
     end
     emit_hooked_compilation(hook, ex...)
 end
