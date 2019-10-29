@@ -43,7 +43,7 @@ function start()
                  The user is responsible for launching Julia under a CUDA profiler like `nvprof`.
 
                  For improved usability, launch Julia under the Nsight Systems profiler:
-                 nsys launch -t cuda,cublas,cudnn,nvtx julia""",
+                 \$ nsys launch -t cuda,cublas,cudnn,nvtx julia""",
               maxlog=1)
     end
     CUDAdrv.cuProfilerStart()
@@ -64,16 +64,17 @@ function stop()
     end
 end
 
+if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 1
+    @warn "Precompiling while running under Nsight Systems; make sure you disable OSRT tracing to prevent segmentation faults (exit code 11)"
+end
+
 function __init__()
     # find the active Nsight Systems profiler
-    if haskey(ENV, "CUDA_INJECTION64_PATH")
-        lib = ENV["CUDA_INJECTION64_PATH"]
-        dir = dirname(lib)
-
-        nsight[] = joinpath(dir, "nsys")
-        @assert isfile(nsight[])
-
+    if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 0
         @info "Running under Nsight Systems, CUDAdrv.@profile will automatically start the profiler"
+
+        nsight[] = ENV["_"]
+        @assert isfile(nsight[])
     else
         nsight[] = nothing
     end
