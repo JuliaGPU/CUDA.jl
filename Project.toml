@@ -4,6 +4,7 @@ version = "2.4.0"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 CUDAdrv = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
@@ -19,7 +20,7 @@ Adapt = "0.4, 1.0"
 CUDAapi = "0.6, 1.0"
 CUDAdrv = "3.1"
 LLVM = "1.2"
-julia = "1.0"
+julia = "1.2"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

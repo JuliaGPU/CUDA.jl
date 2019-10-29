@@ -208,7 +208,7 @@ function check_ir!(job, errors::Vector{IRError}, inst::LLVM.CallInst)
                     f, args = user.(uses(args))
                     ## first store into the args buffer is a direct store
                     f = first(operands(f::LLVM.StoreInst))::ConstantExpr
-                else 
+                else
                     f, args, nargs, _ = operands(inst)
                 end
 

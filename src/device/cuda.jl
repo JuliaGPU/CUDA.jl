@@ -28,6 +28,8 @@ include(joinpath("cuda", "math.jl"))
 # The libcudadevrt library is a collection of PTX bitcode functions that implement parts of
 # the CUDA API for execution on the device, such as device synchronization primitives,
 # dynamic kernel APIs, etc.
-const cudaError_t = Cint
+using CEnum
+include(joinpath("cuda", "libcudadevrt_common.jl"))
+include(joinpath("cuda", "libcudadevrt.jl"))
 include(joinpath("cuda", "cooperative_groups.jl"))
 include(joinpath("cuda", "dynamic_parallelism.jl"))
