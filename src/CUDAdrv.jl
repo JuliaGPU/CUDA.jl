@@ -5,7 +5,6 @@ using CUDAapi
 using CEnum
 
 using Printf
-using Libdl
 
 
 ## discovery
