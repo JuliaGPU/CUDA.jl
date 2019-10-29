@@ -17,4 +17,4 @@ Waits until all threads in all blocks in the grid `grid_handle` have reached thi
 all global memory accesses made by these threads prior to `sync_grid()` are visible to all
 threads in the grid. A 32-bit integer `cudaError_t` is returned.
 """
-sync_grid(handle::Culonglong) = cudaCGSynchronize(handle, 0)
+sync_grid(handle) = cudaCGSynchronize(handle, 0)

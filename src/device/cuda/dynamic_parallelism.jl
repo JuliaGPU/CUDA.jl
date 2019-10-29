@@ -14,7 +14,7 @@ const cudaStream_t = CUDAdrv.CUstream
     return
 end
 
-@generated function parameter_buffer(f, blocks::CuDim3, threads::CuDim3, shmem, args...)
+@generated function parameter_buffer(f, blocks, threads, shmem, args...)
     # allocate a buffer
     ex = quote
         Base.@_inline_meta

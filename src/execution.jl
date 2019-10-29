@@ -432,8 +432,8 @@ end
 
 # FIXME: duplication with CUDAdrv.cudacall
 @generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type, args...;
-                                     blocks::CuDim=1, threads::CuDim=1, shmem::Integer=0,
-                                     stream::CuStream=CuDefaultStream())
+                                     blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
+                                     stream=CuDefaultStream())
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     ex = quote
