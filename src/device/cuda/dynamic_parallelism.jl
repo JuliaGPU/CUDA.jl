@@ -1,7 +1,31 @@
 # E. Dynamic Parallelism
 
-import CUDAdrv: CuDim3, CUstream
-const cudaStream_t = CUDAdrv.CUstream
+
+## streams
+
+export CuDeviceStream
+
+struct CuDeviceStream
+    handle::cudaStream_t
+
+    function CuDeviceStream(flags=cudaStreamNonBlocking)
+        handle_ref = Ref{cudaStream_t}()
+        cudaStreamCreateWithFlags(handle_ref, flags)
+        return new(handle_ref[])
+    end
+end
+
+Base.unsafe_convert(::Type{cudaStream_t}, s::CuDeviceStream) = s.handle
+
+function unsafe_destroy!(s::CuDeviceStream)
+    cudaStreamDestroy(s)
+    return
+end
+
+
+## execution
+
+using CUDAdrv: CuDim3
 
 # device-side counterpart of CUDAdrv.launch
 @inline function launch(f, blocks, threads, shmem, stream, args...)
@@ -44,6 +68,9 @@ end
 
     return ex
 end
+
+
+## synchronization
 
 """
     synchronize()
