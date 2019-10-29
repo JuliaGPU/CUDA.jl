@@ -78,10 +78,10 @@ end
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Aggregate}))
-    @test occursin(r"@julia_kernel_\d+\({ i64 }( addrspace\(\d+\))?\*", ir)
+    @test occursin(r"@julia_kernel_\d+\(({ i64 }|\[1 x i64\]) addrspace\(\d+\)?\*", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Aggregate}; kernel=true))
-    @test occursin(r"@ptxcall_kernel_\d+\({ i64 }\)", ir)
+    @test occursin(r"@ptxcall_kernel_\d+\(({ i64 }|\[1 x i64\])\)", ir)
 end
 
 @testset "property_annotations" begin
