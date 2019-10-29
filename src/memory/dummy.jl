@@ -16,9 +16,9 @@ function alloc(sz)
     ptr = nothing
     for phase in 1:3
         if phase == 2
-            @pool_timeit "$phase.0 gc(false)" GC.gc(false)
+            @pool_timeit "$phase.0 gc (incremental)" GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Incremental : false)
         elseif phase == 3
-            @pool_timeit "$phase.0 gc(true)" GC.gc(true)
+            @pool_timeit "$phase.0 gc (full)" GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Full : true)
         end
 
         @pool_timeit "$phase.1 alloc" begin
