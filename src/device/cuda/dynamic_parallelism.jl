@@ -67,10 +67,10 @@ else
                 f, blocks_x, blocks_y, blocks_z, threads_x, threads_y, threads_z, shmem)
 end
 
-@generated function parameter_buffer(f::Ptr{Cvoid}, blocks::CuDim3, threads::CuDim3,
-                                     shmem::Int, args...)
+@generated function parameter_buffer(f, blocks::CuDim3, threads::CuDim3, shmem, args...)
     # allocate a buffer
     ex = quote
+        Base.@_inline_meta
         buf = cudaGetParameterBuffer(f, blocks, threads, shmem)
     end
 
@@ -83,10 +83,13 @@ end
     # > parameter buffer is 4KB.
     offset = 0
     for i in 1:length(args)
-        buf_index = Base.ceil(Int, offset / sizeof(args[i])) + 1
-        offset = buf_index * sizeof(args[i])
+        T = args[i]
+        align = sizeof(T)
+        buf_index = Base.ceil(Int, offset / align) + 1
+        offset = buf_index * align
+        ptr = :(Base.unsafe_convert(Ptr{$T}, buf))
         push!(ex.args, :(
-            unsafe_store!(Base.unsafe_convert(Ptr{$(args[i])}, buf), args[$i], $buf_index)
+            Base.pointerset($ptr, args[$i], $buf_index, $align)
         ))
     end
 
