@@ -217,3 +217,18 @@ end
 function shmem_config!(config::CUsharedconfig)
     cuCtxSetSharedMemConfig(config)
 end
+
+
+## limits
+
+export limit, limit!
+
+@enum_without_prefix CUlimit CU_
+
+function limit(lim::CUlimit)
+    val = Ref{Csize_t}()
+    cuCtxGetLimit(val, lim)
+    return Int(val[])
+end
+
+limit!(lim::CUlimit, val) = cuCtxSetLimit(lim, val)

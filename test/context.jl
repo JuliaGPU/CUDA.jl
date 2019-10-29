@@ -76,3 +76,14 @@ shmem_config!(CUDAdrv.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE)
 @test shmem_config() == CUDAdrv.SHARED_MEM_CONFIG_FOUR_BYTE_BANK_SIZE
 
 end
+
+
+@testset "limits" begin
+
+lim = limit(CUDAdrv.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
+
+lim += 1
+limit!(CUDAdrv.LIMIT_DEV_RUNTIME_SYNC_DEPTH, lim)
+@test lim == limit(CUDAdrv.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
+
+end
