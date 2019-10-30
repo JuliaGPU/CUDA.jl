@@ -104,6 +104,18 @@ function cuda_support(driver_version, toolkit_version)
 end
 
 function __init__()
+    if ccall(:jl_generating_output, Cint, ()) == 1
+        # don't initialize when we, or any package that depends on us, is precompiling.
+        # this makes it possible to precompile on systems without CUDA,
+        # at the expense of using the packages in global scope.
+        return
+    end
+
+    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+    Base.invokelatest(__hidden_init__)
+end
+
+function __hidden_init__()
     ## target support
 
     # LLVM.jl
