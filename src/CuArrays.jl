@@ -50,7 +50,15 @@ include("deprecated.jl")
 
 
 ## initialization
+
 function __init__()
+    if ccall(:jl_generating_output, Cint, ()) == 1
+        # don't initialize when we, or any package that depends on us, is precompiling.
+        # this makes it possible to precompile on systems without CUDA,
+        # at the expense of using the packages in global scope.
+        return
+    end
+
     # discovery
     toolkit = find_toolkit()
     ## required libraries that are part of the CUDA toolkit
@@ -81,9 +89,14 @@ function __init__()
         @eval (export $fn; $fn() = $(path !== nothing))
     end
 
+    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+    Base.invokelatest(__hidden_init__)
+end
+
+function __hidden_init__()
     # compatibility
-    if Base.invokelatest(has_cutensor)
-        ver = CUTENSOR.version()
+    if has_cutensor()
+        ver = Base.invokelatest(CUTENSOR.version)
         if ver.major != 0 || ver.minor != 2
             error("CuArrays.jl only supports CUTENSOR 0.2")
         end
