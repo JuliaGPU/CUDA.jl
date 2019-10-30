@@ -43,9 +43,13 @@ CuError(1, ERROR_INVALID_VALUE)
 ```
 """
 function name(err::CuError)
-    str_ref = Ref{Cstring}()
-    cuGetErrorName(err, str_ref)
-    unsafe_string(str_ref[])[6:end]
+    if err.code == -1%UInt32
+        "ERROR_USING_STUBS"
+    else
+        str_ref = Ref{Cstring}()
+        cuGetErrorName(err, str_ref)
+        unsafe_string(str_ref[])[6:end]
+    end
 end
 
 """
@@ -54,13 +58,17 @@ end
 Gets the string description of an error code.
 """
 function description(err::CuError)
-    str_ref = Ref{Cstring}()
-    cuGetErrorString(err, str_ref)
-    unsafe_string(str_ref[])
+    if err.code == -1%UInt32
+        "Cannot use the CUDA stub libraries."
+    else
+        str_ref = Ref{Cstring}()
+        cuGetErrorString(err, str_ref)
+        unsafe_string(str_ref[])
+    end
 end
 
 function Base.showerror(io::IO, err::CuError)
-    print(io, "CUDA error: $(description(err)) (code #$(Int(err.code)), $(name(err)))")
+    print(io, "CUDA error: $(description(err)) (code $(reinterpret(Int32, err.code)), $(name(err)))")
 
     if err.meta != nothing
         print(io, "\n")
