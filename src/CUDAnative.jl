@@ -16,17 +16,14 @@ using Libdl
 ## global state
 
 # version compatibility
-const cuda_driver_version = Ref{VersionNumber}()
 const target_support = Ref{Vector{VersionNumber}}()
 const ptx_support = Ref{Vector{VersionNumber}}()
 
 # paths
-## required
 const libdevice = Ref{Union{String,Dict{VersionNumber,String}}}()
 const libcudadevrt = Ref{String}()
-## optional
-const nvdisasm = Ref{Union{String,Nothing}}()
-const ptxas = Ref{Union{String,Nothing}}()
+const nvdisasm = Ref{String}()
+const ptxas = Ref{String}()
 
 
 ## source code includes
@@ -141,19 +138,25 @@ function __init__()
 
     @debug("CUDAnative supports devices $(verlist(target_support[])); PTX $(verlist(ptx_support[]))")
 
-    # discover other CUDA toolkit artifacts
-    ## required
     let val = find_libdevice(target_support[], toolkit_dirs)
-        val === nothing && error("Available CUDA toolchain does not provide libdevice")
+        val === nothing && error("Your CUDA installation does not provide libdevice")
         libdevice[] = val
     end
+
     let val = find_libcudadevrt(toolkit_dirs)
-        val === nothing && error("Available CUDA toolchain does not provide libcudadevrt")
+        val === nothing && error("Your CUDA installation does not provide libcudadevrt")
         libcudadevrt[] = val
     end
-    ## optional
-    nvdisasm[] = find_cuda_binary("nvdisasm", toolkit_dirs)
-    ptxas[] = find_cuda_binary("ptxas", toolkit_dirs)
+
+    let val = find_cuda_binary("nvdisasm", toolkit_dirs)
+        val === nothing && error("Your CUDA installation does not provide the nvdisasm binary")
+        nvdisasm[] = val
+    end
+
+    let val = find_cuda_binary("ptxas", toolkit_dirs)
+        val === nothing && error("Your CUDA installation does not provide the ptxas binary")
+        ptxas[] = val
+    end
 
 
     ## actual initialization

@@ -103,9 +103,6 @@ function code_sass(io::IO, job::CompilerJob)
     if !job.kernel
         error("Can only generate SASS code for kernel functions")
     end
-    if ptxas[] === nothing || nvdisasm[] === nothing
-        error("Your CUDA installation does not provide ptxas or nvdisasm, both of which are required for code_sass")
-    end
 
     ptx, _ = codegen(:ptx, job)
 
