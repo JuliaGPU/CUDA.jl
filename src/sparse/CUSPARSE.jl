@@ -1,7 +1,7 @@
 module CUSPARSE
 
 using ..CuArrays
-using ..CuArrays: libcusparse, active_context, unsafe_free!
+using ..CuArrays: active_context, unsafe_free!
 
 using CUDAapi
 

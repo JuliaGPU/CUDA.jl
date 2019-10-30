@@ -2,7 +2,7 @@
 
 using CuArrays.CUDNN
 
-if CuArrays.libcudnn === nothing
+if !has_cudnn()
 @warn "Not testing CUDNN"
 haskey(ENV, "CI_THOROUGH") && error("All optional libraries should be available on this CI")
 else

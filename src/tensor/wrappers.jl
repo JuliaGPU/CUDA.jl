@@ -3,9 +3,7 @@ using CUDAdrv: CuDefaultStream, CuStream
 
 function cutensorCreate()
     handle = Ref{cutensorHandle_t}()
-    @check ccall((:cutensorCreate, libcutensor), cutensorStatus_t,
-                 (Ptr{cutensorHandle_t},),
-                 handle)
+    cutensorCreate(handle)
     handle[]
 end
 

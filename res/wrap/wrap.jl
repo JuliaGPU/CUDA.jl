@@ -9,7 +9,7 @@ using Crayons
 
 using Clang
 
-function wrap(name, headers...; library="lib$name", defines=[])
+function wrap(name, headers...; library=":lib$name", defines=[])
     include_dirs = map(dir->joinpath(dir, "include"), find_toolkit())
     filter!(isdir, include_dirs)
 
@@ -449,11 +449,9 @@ function main()
     process_if_existing("cusolver",
                         "cusolver_common.h", "cusolverDn.h", "cusolverSp.h")
 
-    process_if_existing("cudnn", "cudnn.h"; library="@libcudnn")
+    process_if_existing("cudnn", "cudnn.h")
 
-    process_if_existing("cutensor",
-                        "cutensor/types.h", "cutensor.h";
-                        library="@libcutensor")
+    process_if_existing("cutensor", "cutensor/types.h", "cutensor.h")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

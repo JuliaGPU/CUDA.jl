@@ -1,7 +1,7 @@
 module CUTENSOR
 
 using ..CuArrays
-using ..CuArrays: libcutensor, @libcutensor, active_context
+using ..CuArrays: active_context
 
 using CUDAapi
 
