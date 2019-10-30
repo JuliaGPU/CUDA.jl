@@ -13,7 +13,45 @@ using DataStructures
 using Libdl
 
 
-## discovery
+## global state
+
+# version compatibility
+const cuda_driver_version = Ref{VersionNumber}()
+const target_support = Ref{Vector{VersionNumber}}()
+const ptx_support = Ref{Vector{VersionNumber}}()
+
+# paths
+## required
+const libdevice = Ref{Union{String,Dict{VersionNumber,String}}}()
+const libcudadevrt = Ref{String}()
+## optional
+const nvdisasm = Ref{Union{String,Nothing}}()
+const ptxas = Ref{Union{String,Nothing}}()
+
+
+## source code includes
+
+include("utils.jl")
+
+# needs to be loaded _before_ the compiler infrastructure, because of generated functions
+include(joinpath("device", "tools.jl"))
+include(joinpath("device", "pointer.jl"))
+include(joinpath("device", "array.jl"))
+include(joinpath("device", "cuda.jl"))
+include(joinpath("device", "llvm.jl"))
+include(joinpath("device", "runtime.jl"))
+
+include("init.jl")
+
+include("compiler.jl")
+include("execution.jl")
+include("exceptions.jl")
+include("reflection.jl")
+
+include("deprecated.jl")
+
+
+## initialization
 
 verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
 
@@ -69,7 +107,9 @@ function cuda_support(driver_version, toolkit_version)
     return target_support, ptx_support
 end
 
-let
+function __init__()
+    ## target support
+
     # LLVM.jl
 
     llvm_version = LLVM.version()
@@ -88,60 +128,38 @@ let
 
     toolkit_dirs = find_toolkit()
     cuda_toolkit_version = find_toolkit_version(toolkit_dirs)
+    if cuda_toolkit_version <= v"9"
+        @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(version()))"
+    end
 
-    global const cuda_driver_version = CUDAdrv.version()
-    cuda_targets, cuda_isas = cuda_support(cuda_driver_version, cuda_toolkit_version)
+    cuda_targets, cuda_isas = cuda_support(CUDAdrv.version(), cuda_toolkit_version)
 
-    global const target_support = sort(collect(llvm_targets ∩ cuda_targets))
-    isempty(target_support) && error("Your toolchain does not support any device target")
+    target_support[] = sort(collect(llvm_targets ∩ cuda_targets))
+    isempty(target_support[]) && error("Your toolchain does not support any device target")
 
-    global const ptx_support = sort(collect(llvm_isas ∩ cuda_isas))
-    isempty(target_support) && error("Your toolchain does not support any PTX ISA")
+    ptx_support[] = sort(collect(llvm_isas ∩ cuda_isas))
+    isempty(ptx_support[]) && error("Your toolchain does not support any PTX ISA")
 
-    @debug("CUDAnative supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
+    @debug("CUDAnative supports devices $(verlist(target_support[])); PTX $(verlist(ptx_support[]))")
 
     # discover other CUDA toolkit artifacts
     ## required
-    global const libdevice = find_libdevice(target_support, toolkit_dirs)
-    libdevice === nothing && error("Available CUDA toolchain does not provide libdevice")
-    global const libcudadevrt = find_libcudadevrt(toolkit_dirs)
-    libcudadevrt === nothing && error("Available CUDA toolchain does not provide libcudadevrt")
-    Base.include_dependency(libcudadevrt)
+    let val = find_libdevice(target_support[], toolkit_dirs)
+        val === nothing && error("Available CUDA toolchain does not provide libdevice")
+        libdevice[] = val
+    end
+    let val = find_libcudadevrt(toolkit_dirs)
+        val === nothing && error("Available CUDA toolchain does not provide libcudadevrt")
+        libcudadevrt[] = val
+    end
     ## optional
-    global const nvdisasm = find_cuda_binary("nvdisasm", toolkit_dirs)
-    global const ptxas = find_cuda_binary("ptxas", toolkit_dirs)
-end
+    nvdisasm[] = find_cuda_binary("nvdisasm", toolkit_dirs)
+    ptxas[] = find_cuda_binary("ptxas", toolkit_dirs)
 
 
-## source code includes
+    ## actual initialization
 
-include("utils.jl")
-
-# needs to be loaded _before_ the compiler infrastructure, because of generated functions
-include(joinpath("device", "tools.jl"))
-include(joinpath("device", "pointer.jl"))
-include(joinpath("device", "array.jl"))
-include(joinpath("device", "cuda.jl"))
-include(joinpath("device", "llvm.jl"))
-include(joinpath("device", "runtime.jl"))
-
-include("init.jl")
-
-include("compiler.jl")
-include("execution.jl")
-include("exceptions.jl")
-include("reflection.jl")
-
-include("deprecated.jl")
-
-
-## initialization
-
-function __init__()
     __init_compiler__()
-
-    # automatic cache file invalidation (when CUDA or LLVM changes)
-    # because of the dependency on CUDAdrv.jl and LLVM.jl
 
     CUDAdrv.apicall_hook[] = maybe_initialize
 end

@@ -22,11 +22,9 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
     fname = Symbol("shfl$name")
     @eval export $fname
 
-    if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
-        # newer hardware/CUDA versions use synchronizing intrinsics, which take an extra
-        # mask argument indicating which threads in the lane should be synchronized
-        intrinsic = "llvm.nvvm.shfl.sync.$mode.i32"
-
+    # newer hardware/CUDA versions use synchronizing intrinsics, which take an extra
+    # mask argument indicating which threads in the lane should be synchronized
+    let intrinsic = "llvm.nvvm.shfl.sync.$mode.i32"
         fname_sync = Symbol("$(fname)_sync")
         __fname_sync = Symbol("__$(fname)_sync")
         @eval begin
@@ -40,15 +38,13 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
                 ccall($intrinsic, llvmcall, UInt32,
                       (UInt32, UInt32, UInt32, UInt32),
                       mask, val, $(offset(:src)), pack(width, $mask))
-
-            # for backwards compatibility, have the non-synchronizing intrinsic dispatch
-            # to the synchronizing one (with a full-lane default value for the mask)
-            @inline $fname(val::UInt32, src, width=$ws, mask::UInt32=0xffffffff) =
-                $fname_sync(mask, val, src, width)
         end
-    else
-        intrinsic = "llvm.nvvm.shfl.$mode.i32"
+    end
 
+    # FIXME: if we only support CUDA 9+, should we not always use the sync version?
+    #@inline $fname(val::UInt32, src, width=$ws, mask::UInt32=0xffffffff) =
+    #    $fname_sync(mask, val, src, width)
+    let intrinsic = "llvm.nvvm.shfl.$mode.i32"
         @eval begin
             @inline $fname(val::UInt32, src, width=$ws) =
                 ccall($intrinsic, llvmcall, UInt32,
