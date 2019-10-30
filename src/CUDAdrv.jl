@@ -39,16 +39,27 @@ include("deprecated.jl")
 ## initialization
 
 function __init__()
-    if ccall(:jl_generating_output, Cint, ()) == 0
-        if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-            @warn "Running under rr, which is incompatible with CUDA; disabling initialization."
-        else
-            cuInit(0)
-        end
+    if ccall(:jl_generating_output, Cint, ()) == 1
+        # don't initialize when we, or any package that depends on us, is precompiling.
+        # this makes it possible to precompile on systems without CUDA,
+        # at the expense of using the packages in global scope.
+        return
+    end
 
-        if version() <= v"9"
-            @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
-        end
+    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+        @warn "Running under rr, which is incompatible with CUDA; disabling initialization."
+        return
+    end
+
+    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+    Base.invokelatest(__hidden_init__)
+end
+
+function __hidden_init__()
+    cuInit(0)
+
+    if version() <= v"9"
+        @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
     end
 end
 
