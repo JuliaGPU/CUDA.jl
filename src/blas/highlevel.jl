@@ -810,11 +810,18 @@ for (fname, elty) in
     end
 end
 
-# helper function to get a device array of device pointers
-@inline function device_batch(batch::Array{T}) where {T<:CuArray}
-  E = eltype(T)
-  ptrs = [Base.unsafe_convert(CuPtr{E}, Base.cconvert(CuPtr{E}, arr)) for arr in batch]
-  CuArray(ptrs)
+# create a batch of pointers in device memory from a batch of device arrays
+@inline function unsafe_batch(batch::Vector{<:CuArray{T}}) where {T}
+    ptrs = pointer.(batch)
+    return CuArray(ptrs)
+end
+
+# create a batch of pointers in device memory from a strided device array
+@inline function unsafe_strided_batch(strided::CuArray{T}) where {T}
+    batchsize = last(size(strided))
+    stride = prod(size(strided)[1:end-1])
+    ptrs = [pointer(strided, (i-1)*stride + 1) for i in 1:batchsize]
+    return CuArray(ptrs)
 end
 
 ## (GE) general matrix-matrix multiplication batched
@@ -833,10 +840,10 @@ for (fname, elty) in
         function gemm_batched!(transA::Char,
                                transB::Char,
                                alpha::($elty),
-                               A::Array{CuMatrix{$elty},1},
-                               B::Array{CuMatrix{$elty},1},
+                               A::Vector{<:CuMatrix{$elty}},
+                               B::Vector{<:CuMatrix{$elty}},
                                beta::($elty),
-                               C::Array{CuMatrix{$elty},1})
+                               C::Vector{<:CuMatrix{$elty}})
             if length(A) != length(B) || length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
@@ -857,9 +864,9 @@ for (fname, elty) in
             lda = max(1,stride(A[1],2))
             ldb = max(1,stride(B[1],2))
             ldc = max(1,stride(C[1],2))
-            Aptrs = device_batch(A)
-            Bptrs = device_batch(B)
-            Cptrs = device_batch(C)
+            Aptrs = unsafe_batch(A)
+            Bptrs = unsafe_batch(B)
+            Cptrs = unsafe_batch(C)
             $fname(handle(), cutransA,cutransB, m, n, k, [alpha], Aptrs, lda, Bptrs,
                    ldb, [beta], Cptrs, ldc, length(A))
             unsafe_free!(Cptrs)
@@ -871,15 +878,15 @@ for (fname, elty) in
         function gemm_batched(transA::Char,
                       transB::Char,
                       alpha::($elty),
-                      A::Array{CuMatrix{$elty},1},
-                      B::Array{CuMatrix{$elty},1})
+                      A::Vector{<:CuMatrix{$elty}},
+                      B::Vector{<:CuMatrix{$elty}})
             C = CuMatrix{$elty}[similar( B[1], $elty, (size(A[1], transA == 'N' ? 1 : 2),size(B[1], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
             gemm_batched!(transA, transB, alpha, A, B, zero($elty), C )
         end
         function gemm_batched(transA::Char,
                       transB::Char,
-                      A::Array{CuMatrix{$elty},1},
-                      B::Array{CuMatrix{$elty},1})
+                      A::Vector{<:CuMatrix{$elty}},
+                      B::Vector{<:CuMatrix{$elty}})
             gemm_batched(transA, transB, one($elty), A, B)
         end
     end
@@ -1392,8 +1399,8 @@ for (fname, elty) in
                                transa::Char,
                                diag::Char,
                                alpha::($elty),
-                               A::Array{CuMatrix{$elty},1},
-                               B::Array{CuMatrix{$elty},1})
+                               A::Vector{<:CuMatrix{$elty}},
+                               B::Vector{<:CuMatrix{$elty}})
             cuside = cublasside(side)
             cuuplo = cublasfill(uplo)
             cutransa = cublasop(transa)
@@ -1411,8 +1418,8 @@ for (fname, elty) in
             m,n = size(B[1])
             lda = max(1,stride(A[1],2))
             ldb = max(1,stride(B[1],2))
-            Aptrs = device_batch(A)
-            Bptrs = device_batch(B)
+            Aptrs = unsafe_batch(A)
+            Bptrs = unsafe_batch(B)
             $fname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], Aptrs, lda, Bptrs, ldb, length(A))
             unsafe_free!(Bptrs)
             unsafe_free!(Aptrs)
@@ -1424,8 +1431,8 @@ for (fname, elty) in
                               transa::Char,
                               diag::Char,
                               alpha::($elty),
-                              A::Array{CuMatrix{$elty},1},
-                              B::Array{CuMatrix{$elty},1})
+                              A::Vector{<:CuMatrix{$elty}},
+                              B::Vector{<:CuMatrix{$elty}})
             trsm_batched!(side, uplo, transa, diag, alpha, A, copy(B) )
         end
     end
@@ -1501,36 +1508,51 @@ for (fname, elty) in
         #   cublasHandle_t handle, int n, double **A,
         #   int lda, int *PivotArray, int *infoArray,
         #   int batchSize)
-        function getrf_batched!(A::Vector{CuMatrix{$elty}}, Pivot::Bool)
-            for As in A
-                m,n = size(As)
-                if m != n
-                    throw(DimensionMismatch("All matrices must be square!"))
-                end
+        function getrf_batched!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::Bool)
+            batchSize = length(ptrs)
+            info = CuArray{Cint}(undef, batchSize)
+            if pivot
+                pivotArray = CuArray{Cint}(undef, (n, batchSize))
+                $fname(handle(), n, ptrs, lda, pivotArray, info, batchSize)
+            else
+                $fname(handle(), n, ptrs, lda, CU_NULL, info, batchSize)
+                pivotArray = CuArrays.zeros(Cint, (n, batchSize))
             end
+            unsafe_free!(ptrs)
 
-            m,n = size(A[1])
-            lda = max(1,stride(A[1],2))
-            Aptrs = device_batch(A)
-            info  = CuArray{Cint}(undef, length(A))
-            pivotArray  = Pivot ? CuArray{Int32}(undef, (n, length(A))) : CU_NULL
-            $fname(handle(), n, Aptrs, lda, pivotArray, info, length(A))
-            unsafe_free!(Aptrs)
-            # wrong: this makes it possible for Aptrs to be reused, even though the call might not have been executed yet...
-
-            if !Pivot
-                pivotArray = CuArrays.zeros(Cint, (n, length(A)))
-            end
-            pivotArray, info, A
-        end
-        function getrf_batched(A::Vector{CuMatrix{$elty}},
-                               Pivot::Bool)
-            newA = copy(A)
-            pivotarray, info = getrf_batched!(newA, Pivot)
-            pivotarray, info, newA
+            return pivotArray, info
         end
     end
 end
+
+function getrf_batched!(A::Vector{<:CuMatrix}, pivot::Bool)
+    for As in A
+        m,n = size(As)
+        if m != n
+            throw(DimensionMismatch("All matrices must be square!"))
+        end
+    end
+    m,n = size(A[1])
+    lda = max(1,stride(A[1],2))
+
+    Aptrs = unsafe_batch(A)
+    return getrf_batched!(n, Aptrs, lda, pivot)..., A
+end
+getrf_batched(A::Vector{<:CuMatrix}, pivot::Bool) = getrf_batched!(copy(A), pivot)
+
+# CUDA has no strided batched getrf, but we can at least avoid constructing costly views
+function getrf_strided_batched!(A::CuArray{<:Any, 3}, pivot::Bool)
+    m,n = size(A,1), size(A,2)
+    if m != n
+        throw(DimensionMismatch("All matrices must be square!"))
+    end
+    lda = max(1,stride(A,2))
+
+    Aptrs = unsafe_strided_batch(A)
+    return getrf_batched!(n, Aptrs, lda, pivot)..., A
+end
+getrf_strided_batched(A::CuArray{<:Any, 3}, pivot::Bool) = getrf_strided_batched!(copy(A), pivot)
+
 
 ## getriBatched - performs batched matrix inversion
 
@@ -1544,7 +1566,7 @@ for (fname, elty) in
         #   cublasHandle_t handle, int n, double **A,
         #   int lda, int *PivotArray, double **C,
         #   int ldc, int *info, int batchSize)
-        function getri_batched(A::Array{CuMatrix{$elty},1},
+        function getri_batched(A::Vector{<:CuMatrix{$elty}},
                               pivotArray::CuMatrix{Cint})
             for As in A
                 m,n = size(As)
@@ -1557,8 +1579,8 @@ for (fname, elty) in
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(C[1],2))
-            Aptrs = device_batch(A)
-            Cptrs = device_batch(C)
+            Aptrs = unsafe_batch(A)
+            Cptrs = unsafe_batch(C)
             info = CuArrays.zeros(Cint,length(A))
             $fname(handle(), n, Aptrs, lda, pivotArray, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
@@ -1581,7 +1603,7 @@ for (fname, elty) in
         #   cublasHandle_t handle, int n, double **A,
         #   int lda, double **C, int ldc,
         #   int *info, int batchSize)
-        function matinv_batched(A::Array{CuMatrix{$elty},1})
+        function matinv_batched(A::Vector{<:CuMatrix{$elty}})
             for As in A
                 m,n = size(As)
                 if m != n
@@ -1596,8 +1618,8 @@ for (fname, elty) in
             n = size(A[1])[1]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(C[1],2))
-            Aptrs = device_batch(A)
-            Cptrs = device_batch(C)
+            Aptrs = unsafe_batch(A)
+            Cptrs = unsafe_batch(C)
             info = CuArrays.zeros(Cint,length(A))
             $fname(handle(), n, Aptrs, lda, Cptrs, ldc, info, length(A))
             unsafe_free!(Cptrs)
@@ -1620,16 +1642,16 @@ for (fname, elty) in
         #   cublasHandle_t handle, int n, int m,
         #   double **A, int lda, double **TauArray,
         #   int *infoArray, int batchSize)
-        function geqrf_batched!(A::Array{CuMatrix{$elty},1})
+        function geqrf_batched!(A::Vector{<:CuMatrix{$elty}})
             m,n = size(A[1])
             lda = max(1,stride(A[1],2))
-            Aptrs = device_batch(A)
+            Aptrs = unsafe_batch(A)
             hTauArray = [zeros($elty, min(m,n)) for i in 1:length(A)]
             TauArray = CuArray{$elty,1}[]
             for i in 1:length(A)
                 push!(TauArray, CuArray(hTauArray[i]))
             end
-            Tauptrs = device_batch(TauArray)
+            Tauptrs = unsafe_batch(TauArray)
             info    = zero(Cint)
             $fname(handle(), m, n, Aptrs, lda, Tauptrs, [info], length(A))
             unsafe_free!(Tauptrs)
@@ -1640,7 +1662,7 @@ for (fname, elty) in
 
             TauArray, A
         end
-        function geqrf_batched(A::Array{CuMatrix{$elty},1})
+        function geqrf_batched(A::Vector{<:CuMatrix{$elty}})
             geqrf_batched!(copy(A))
         end
     end
@@ -1660,8 +1682,8 @@ for (fname, elty) in
         #   double **C, int ldc, int *infoArray,
         #   int *devInfoArray, int batchSize)
         function gels_batched!(trans::Char,
-                              A::Array{CuMatrix{$elty},1},
-                              C::Array{CuMatrix{$elty},1})
+                              A::Vector{<:CuMatrix{$elty}},
+                              C::Vector{<:CuMatrix{$elty}})
             cutrans = cublasop(trans)
             if length(A) != length(C)
                 throw(DimensionMismatch(""))
@@ -1681,8 +1703,8 @@ for (fname, elty) in
             nrhs = size(C[1])[2]
             lda = max(1,stride(A[1],2))
             ldc = max(1,stride(A[1],2))
-            Aptrs = device_batch(A)
-            Cptrs = device_batch(C)
+            Aptrs = unsafe_batch(A)
+            Cptrs = unsafe_batch(C)
             info  = zero(Cint)
             infoarray = CuArrays.zeros(Cint, length(A))
             $fname(handle(), cutrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, [info], infoarray, length(A))
@@ -1696,8 +1718,8 @@ for (fname, elty) in
             A, C, infoarray
         end
         function gels_batched(trans::Char,
-                             A::Array{CuMatrix{$elty},1},
-                             C::Array{CuMatrix{$elty},1})
+                             A::Vector{<:CuMatrix{$elty}},
+                             C::Vector{<:CuMatrix{$elty}})
             gels_batched!(trans, copy(A), copy(C))
         end
     end
