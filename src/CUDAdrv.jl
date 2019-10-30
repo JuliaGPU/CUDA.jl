@@ -45,6 +45,10 @@ function __init__()
         else
             cuInit(0)
         end
+
+        if version() <= v"9"
+            @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
+        end
     end
 end
 
