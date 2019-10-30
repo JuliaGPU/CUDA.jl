@@ -50,10 +50,12 @@ function launch_configuration(fun::CuFunction; shmem=0, max_threads::Integer=0)
     threads_ref = Ref{Cint}()
     if isa(shmem, Integer)
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
-    else
+    elseif Sys.ARCH == :x86 || Sys.ARCH == :x86_64
         shmem_cint = threads -> Cint(shmem(threads))
         cb = @cfunction($shmem_cint, Cint, (Cint,))
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
+    else
+        error("launch_configuration with a shmem callback is not supported on your architecture")
     end
     return (blocks=blocks_ref[], threads=threads_ref[])
 end
