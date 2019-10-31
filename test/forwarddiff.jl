@@ -37,7 +37,7 @@
         x32 += 1
         x64 += 1
       end
-      
+
       @test testf(cuf, f, x32)
       @test testf(cuf, f, x64)
 
@@ -75,7 +75,7 @@
   end
 
   @testset "Broadcast Fix" begin
-    if CuArrays.libcudnn !== nothing
+    if CuArrays.has_cudnn()
       using NNlib
 
       f(x) = logσ.(x)

@@ -1,7 +1,7 @@
 module CURAND
 
 using ..CuArrays
-using ..CuArrays: libcurand, active_context
+using ..CuArrays: active_context
 
 using CUDAapi
 

@@ -5,51 +5,15 @@ using CUDAapi, CUDAdrv, CUDAnative
 using GPUArrays
 
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
+export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUDNN, CUTENSOR
 
 import LinearAlgebra
 
 using Adapt
 
+using Libdl
+
 using Requires
-
-## discovery
-
-let
-    toolkit = find_toolkit()
-
-    # required libraries that are part of the CUDA toolkit
-    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand")
-        lib = Symbol("lib$name")
-        path = find_cuda_library(name, toolkit)
-        if path === nothing
-            error("Could not find library '$name' (it should be part of the CUDA toolkit)")
-        end
-        Base.include_dependency(path)
-        @eval global const $lib = $path
-    end
-
-    # optional libraries
-    for name in ("cudnn", "cutensor")
-        lib = Symbol("lib$name")
-        path = find_cuda_library(name, toolkit)
-        if path !== nothing
-            Base.include_dependency(path)
-        end
-
-        # provide a global constant that returns the path to the library,
-        # or nothing if the library is not available (for use in conditional expressions)
-        @eval global const $lib = $path
-
-        # provide a macro that either returns the path to the library,
-        # or a run-time error if the library is not available (for use in ccall expressions)
-        exception = :(error($"Your installation does not provide $lib, CuArrays.$(uppercase(name)) is unavailable"))
-        @eval macro $lib() $lib === nothing ? $(QuoteNode(exception)) : $lib end
-
-        # provide a function for external use (a la CUDAapi.has_cuda)
-        fn = Symbol("has_$name")
-        @eval (export $fn; $fn() = $lib !== nothing)
-    end
-end
 
 
 ## source code includes
@@ -86,7 +50,58 @@ include("deprecated.jl")
 
 
 ## initialization
+
 function __init__()
+    if ccall(:jl_generating_output, Cint, ()) == 1
+        # don't initialize when we, or any package that depends on us, is precompiling.
+        # this makes it possible to precompile on systems without CUDA,
+        # at the expense of using the packages in global scope.
+        return
+    end
+
+    # discovery
+    toolkit = find_toolkit()
+    ## required libraries that are part of the CUDA toolkit
+    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand")
+        lib = Symbol("lib$name")
+        path = find_cuda_library(name, toolkit)
+        if path === nothing
+            error("Could not find library '$name' (it should be part of the CUDA toolkit)")
+        end
+        dir = dirname(path)
+        if !(dir in Libdl.DL_LOAD_PATH)
+            push!(Libdl.DL_LOAD_PATH, dir)
+        end
+    end
+    ## optional libraries
+    for name in ("cudnn", "cutensor")
+        lib = Symbol("lib$name")
+        path = find_cuda_library(name, toolkit)
+        if path !== nothing
+            dir = dirname(path)
+            if !(dir in Libdl.DL_LOAD_PATH)
+                push!(Libdl.DL_LOAD_PATH, dir)
+            end
+        end
+
+        # function to check for availability
+        fn = Symbol("has_$name")
+        @eval (export $fn; $fn() = $(path !== nothing))
+    end
+
+    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+    Base.invokelatest(__hidden_init__)
+end
+
+function __hidden_init__()
+    # compatibility
+    if has_cutensor()
+        ver = Base.invokelatest(CUTENSOR.version)
+        if ver.major != 0 || ver.minor != 2
+            error("CuArrays.jl only supports CUTENSOR 0.2")
+        end
+    end
+
     # package integrations
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 
