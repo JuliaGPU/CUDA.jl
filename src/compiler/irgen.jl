@@ -512,7 +512,7 @@ function hide_trap!(mod::LLVM.Module)
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()))
-    exit = if job.cap <= v"3.5"
+    exit = if job.cap < v"7"
         # ptxas for old compute capabilities has a bug where it messes up the
         # synchronization stack in the presence of shared memory and thread-divergend exit.
         InlineAsm(exit_ft, "trap;", "", true)
