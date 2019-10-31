@@ -50,8 +50,13 @@ function __init__()
         return
     end
 
-    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
-    Base.invokelatest(__hidden_init__)
+    try
+        # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+        Base.invokelatest(__hidden_init__)
+    catch ex
+        # don't actually fail to keep the package loadable
+        @error "CUDAdrv.jl failed to initialize" exception=(ex, catch_backtrace())
+    end
 end
 
 function __hidden_init__()
