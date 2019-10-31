@@ -45,21 +45,25 @@ function __init__()
         return
     end
 
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        @warn "Running under rr, which is incompatible with CUDA; disabling initialization."
-        return
-    end
-
+    silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
     try
         # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
         Base.invokelatest(__hidden_init__)
+        @eval functional() = true
     catch ex
         # don't actually fail to keep the package loadable
-        @error "CUDAdrv.jl failed to initialize" exception=(ex, catch_backtrace())
+        silent || @error """CUDAdrv.jl failed to initialize; the package will not be functional.
+                            To silence this message, import with ENV["CUDA_INIT_SILENT"]=true,
+                            and be sure to inspect the value of CUDAdrv.functional().""" exception=(ex, catch_backtrace())
+        @eval functional() = false
     end
 end
 
 function __hidden_init__()
+    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+        error("Running under rr, which is incompatible with CUDA")
+    end
+
     cuInit(0)
 
     if version() <= v"9"
