@@ -686,27 +686,18 @@ end
     function kernel2(d::CuDeviceArray{T}, n) where {T}
         t = threadIdx().x
         if t <= n
-            d[t] += shfl_down(d[t], n÷2, 32, 0xffffffff)
-        end
-        return
-    end
-
-    function kernel3(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        if t <= n
             d[t] += shfl_down_sync(0xffffffff, d[t], n÷2, 32)
         end
         return
     end
 
-    kernels = try
-        getfield(CUDAnative, :shfl_sync)
-        (kernel1, kernel2, kernel3)
-    catch
-        (kernel1,)
+    kernel = if CUDAdrv.version() >= v"9.0" && v"6.0" in CUDAnative.ptx_support[]
+        kernel2
+    else
+        kernel1
     end
 
-    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple], kernel in kernels
+    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple]
         a = T[T(i) for i in 1:n]
         d_a = CuArray(a)
 
@@ -729,7 +720,10 @@ end
 @testset "clock and nanosleep" begin
 @on_device clock(UInt32)
 @on_device clock(UInt64)
-@on_device nanosleep(UInt32(16))
+
+if CUDAdrv.version() >= v"10.0" && v"6.2" in CUDAnative.ptx_support[]
+    @on_device nanosleep(UInt32(16))
+end
 end
 
 @testset "parallel synchronization and communication" begin

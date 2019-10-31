@@ -13,7 +13,42 @@ using DataStructures
 using Libdl
 
 
-## discovery
+## global state
+
+# version compatibility
+const target_support = Ref{Vector{VersionNumber}}()
+const ptx_support = Ref{Vector{VersionNumber}}()
+
+# paths
+const libdevice = Ref{Union{String,Dict{VersionNumber,String}}}()
+const libcudadevrt = Ref{String}()
+const nvdisasm = Ref{String}()
+const ptxas = Ref{String}()
+
+
+## source code includes
+
+include("utils.jl")
+
+# needs to be loaded _before_ the compiler infrastructure, because of generated functions
+include(joinpath("device", "tools.jl"))
+include(joinpath("device", "pointer.jl"))
+include(joinpath("device", "array.jl"))
+include(joinpath("device", "cuda.jl"))
+include(joinpath("device", "llvm.jl"))
+include(joinpath("device", "runtime.jl"))
+
+include("init.jl")
+
+include("compiler.jl")
+include("execution.jl")
+include("exceptions.jl")
+include("reflection.jl")
+
+include("deprecated.jl")
+
+
+## initialization
 
 verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
 
@@ -50,9 +85,8 @@ function cuda_support(driver_version, toolkit_version)
     # but the version number returned by libcuda is only major.minor.
     toolkit_version = VersionNumber(toolkit_version.major, toolkit_version.minor)
     if toolkit_version > driver_version
-        error("""
-            CUDA $(toolkit_version.major).$(toolkit_version.minor) is not supported by
-            your driver (which supports up to $(driver_version.major).$(driver_version.minor))""")
+        @warn("""CUDA $(toolkit_version.major).$(toolkit_version.minor) is not supported by
+                 your driver (which supports up to $(driver_version.major).$(driver_version.minor))""")
     end
 
     driver_target_support = CUDAapi.devices_for_cuda(driver_version)
@@ -69,7 +103,21 @@ function cuda_support(driver_version, toolkit_version)
     return target_support, ptx_support
 end
 
-let
+function __init__()
+    if ccall(:jl_generating_output, Cint, ()) == 1
+        # don't initialize when we, or any package that depends on us, is precompiling.
+        # this makes it possible to precompile on systems without CUDA,
+        # at the expense of using the packages in global scope.
+        return
+    end
+
+    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+    Base.invokelatest(__hidden_init__)
+end
+
+function __hidden_init__()
+    ## target support
+
     # LLVM.jl
 
     llvm_version = LLVM.version()
@@ -88,60 +136,44 @@ let
 
     toolkit_dirs = find_toolkit()
     cuda_toolkit_version = find_toolkit_version(toolkit_dirs)
+    if cuda_toolkit_version <= v"9"
+        @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(version()))"
+    end
 
-    global const cuda_driver_version = CUDAdrv.version()
-    cuda_targets, cuda_isas = cuda_support(cuda_driver_version, cuda_toolkit_version)
+    cuda_targets, cuda_isas = cuda_support(CUDAdrv.version(), cuda_toolkit_version)
 
-    global const target_support = sort(collect(llvm_targets ∩ cuda_targets))
-    isempty(target_support) && error("Your toolchain does not support any device target")
+    target_support[] = sort(collect(llvm_targets ∩ cuda_targets))
+    isempty(target_support[]) && error("Your toolchain does not support any device target")
 
-    global const ptx_support = sort(collect(llvm_isas ∩ cuda_isas))
-    isempty(target_support) && error("Your toolchain does not support any PTX ISA")
+    ptx_support[] = sort(collect(llvm_isas ∩ cuda_isas))
+    isempty(ptx_support[]) && error("Your toolchain does not support any PTX ISA")
 
-    @debug("CUDAnative supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
+    @debug("CUDAnative supports devices $(verlist(target_support[])); PTX $(verlist(ptx_support[]))")
 
-    # discover other CUDA toolkit artifacts
-    ## required
-    global const libdevice = find_libdevice(target_support, toolkit_dirs)
-    libdevice === nothing && error("Available CUDA toolchain does not provide libdevice")
-    global const libcudadevrt = find_libcudadevrt(toolkit_dirs)
-    libcudadevrt === nothing && error("Available CUDA toolchain does not provide libcudadevrt")
-    Base.include_dependency(libcudadevrt)
-    ## optional
-    global const nvdisasm = find_cuda_binary("nvdisasm", toolkit_dirs)
-    global const ptxas = find_cuda_binary("ptxas", toolkit_dirs)
-end
+    let val = find_libdevice(target_support[], toolkit_dirs)
+        val === nothing && error("Your CUDA installation does not provide libdevice")
+        libdevice[] = val
+    end
 
+    let val = find_libcudadevrt(toolkit_dirs)
+        val === nothing && error("Your CUDA installation does not provide libcudadevrt")
+        libcudadevrt[] = val
+    end
 
-## source code includes
+    let val = find_cuda_binary("nvdisasm", toolkit_dirs)
+        val === nothing && error("Your CUDA installation does not provide the nvdisasm binary")
+        nvdisasm[] = val
+    end
 
-include("utils.jl")
-
-# needs to be loaded _before_ the compiler infrastructure, because of generated functions
-include(joinpath("device", "tools.jl"))
-include(joinpath("device", "pointer.jl"))
-include(joinpath("device", "array.jl"))
-include(joinpath("device", "cuda.jl"))
-include(joinpath("device", "llvm.jl"))
-include(joinpath("device", "runtime.jl"))
-
-include("init.jl")
-
-include("compiler.jl")
-include("execution.jl")
-include("exceptions.jl")
-include("reflection.jl")
-
-include("deprecated.jl")
+    let val = find_cuda_binary("ptxas", toolkit_dirs)
+        val === nothing && error("Your CUDA installation does not provide the ptxas binary")
+        ptxas[] = val
+    end
 
 
-## initialization
+    ## actual initialization
 
-function __init__()
     __init_compiler__()
-
-    # automatic cache file invalidation (when CUDA or LLVM changes)
-    # because of the dependency on CUDAdrv.jl and LLVM.jl
 
     CUDAdrv.apicall_hook[] = maybe_initialize
 end

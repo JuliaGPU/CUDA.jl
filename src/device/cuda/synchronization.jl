@@ -72,15 +72,9 @@ the warp.
 !!! note
    Requires CUDA >= 9.0 and sm_6.2
 """
-sync_warp
-
-if cuda_driver_version >= v"9.0" && v"6.0" in ptx_support
-    @inline function sync_warp(mask::Integer=0xffffffff)
-        @asmcall("bar.warp.sync \$0;", "r", true,
-                 Cvoid, Tuple{UInt32}, convert(UInt32, mask))
-    end
-else
-    @inline sync_warp(mask::Integer=0xffffffff) = nothing
+@inline function sync_warp(mask::Integer=0xffffffff)
+    @asmcall("bar.warp.sync \$0;", "r", true,
+             Cvoid, Tuple{UInt32}, convert(UInt32, mask))
 end
 
 """
