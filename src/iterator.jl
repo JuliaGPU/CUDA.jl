@@ -10,7 +10,11 @@ pool_key(x) = eltype(x) => size(x)
 
 function Base.iterate(c::CuIterator, state...)
     item = iterate(c.batches, state...)
-    item === nothing && return nothing
+    if item === nothing
+        map(batch -> map(unsafe_free!, batch), c.pool)
+        empty!(c.pool)
+        return nothing
+    end
     batch, next_state = item
     i = findfirst(allocated -> pool_key.(allocated) == pool_key.(batch), c.pool)
     if i === nothing
