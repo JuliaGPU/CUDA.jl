@@ -111,11 +111,24 @@ function __init__()
         return
     end
 
-    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
-    Base.invokelatest(__hidden_init__)
+    silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
+    try
+        # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+        Base.invokelatest(__hidden_init__)
+        @eval functional() = true
+    catch ex
+        # don't actually fail to keep the package loadable
+        silent || @error """CUDAnative.jl failed to initialize; the package will not be functional.
+                            To silence this message, import with ENV["CUDA_INIT_SILENT"]=true,
+                            and be sure to inspect the value of CUDAnative.functional().""" exception=(ex, catch_backtrace())
+        @eval functional() = false
+    end
 end
 
 function __hidden_init__()
+    CUDAdrv.functional() || error("CUDAdrv.jl is not functional")
+
+
     ## target support
 
     # LLVM.jl
