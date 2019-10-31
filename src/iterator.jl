@@ -11,7 +11,7 @@ pool_key(x) = eltype(x) => size(x)
 function Base.iterate(c::CuIterator, state...)
     item = iterate(c.batches, state...)
     if item === nothing
-        map(batch -> map(unsafe_free!, batch), c.pool)
+        foreach(batch -> foreach(unsafe_free!, batch), c.pool)
         empty!(c.pool)
         return nothing
     end
