@@ -1,4 +1,4 @@
-# integration with high-level interfaces
+# implementation of LinearAlgebra interfaces
 
 using LinearAlgebra
 

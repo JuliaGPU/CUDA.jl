@@ -16,10 +16,10 @@ version = "1.0.0"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "Logging", "SHA"]
-git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
+deps = ["Libdl", "SHA"]
+git-tree-sha1 = "29995a7b317bbd06be147e1974a3541ce2502dca"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.6"
+version = "0.5.7"
 
 [[CEnum]]
 git-tree-sha1 = "62847acab40e6855a9b5905ccb99c2b5cf6b3ebb"
@@ -28,9 +28,9 @@ version = "0.2.0"
 
 [[CSTParser]]
 deps = ["Tokenize"]
-git-tree-sha1 = "c69698c3d4a7255bc1b4bc2afc09f59db910243b"
+git-tree-sha1 = "99dda94f5af21a4565dc2b97edf6a95485f116c3"
 uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "0.6.2"
+version = "1.0.0"
 
 [[CUDAapi]]
 deps = ["Libdl", "Logging"]
@@ -39,16 +39,16 @@ uuid = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 version = "1.2.0"
 
 [[CUDAdrv]]
-deps = ["CEnum", "CUDAapi", "Libdl", "Printf"]
-git-tree-sha1 = "a808ad33765eb029cfe11cda3e92eb1fc8ecce07"
+deps = ["CEnum", "Printf"]
+git-tree-sha1 = "038ec84825fb6f7081e9ed0a074c5066eb3ac4e4"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaGPU/CUDAdrv.jl.git"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "3.1.0"
+version = "4.0.0"
 
 [[CUDAnative]]
-deps = ["Adapt", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Printf", "TimerOutputs"]
-git-tree-sha1 = "da1c10d8bbc65cec4d7d3ed836c4827893fcda91"
+deps = ["Adapt", "CEnum", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Printf", "TimerOutputs"]
+git-tree-sha1 = "0d6ac51d31bfb99bd0c6da77d3be8f35f03365e9"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaGPU/CUDAnative.jl.git"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
@@ -98,9 +98,9 @@ version = "1.0.1"
 
 [[FillArrays]]
 deps = ["LinearAlgebra", "Random", "SparseArrays"]
-git-tree-sha1 = "a2e22cd210dfa3ad1e1e6291fb733741dfabcc9f"
+git-tree-sha1 = "de38b0253ade98340fabaf220f368f6144541938"
 uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
-version = "0.7.3"
+version = "0.7.4"
 
 [[GPUArrays]]
 deps = ["Adapt", "FFTW", "FillArrays", "LinearAlgebra", "Printf", "Random", "Serialization", "StaticArrays", "Test"]

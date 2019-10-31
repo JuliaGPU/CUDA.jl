@@ -11,20 +11,17 @@ using CUDAdrv: CUstream
 using CEnum
 const cudaDataType_t = cudaDataType
 
+# core library
 include("libcutensor_common.jl")
 include("error.jl")
-
-function version()
-    ver = cutensorGetVersion()
-    major, ver = divrem(ver, 10000)
-    minor, patch = divrem(ver, 100)
-
-    VersionNumber(major, minor, patch)
-end
-
 include("libcutensor.jl")
-include("highlevel.jl")
+
+# low-level wrappers
+include("tensor.jl")
 include("wrappers.jl")
+
+# high-level integrations
+include("interfaces.jl")
 
 const _handles = Dict{CuContext,cutensorHandle_t}()
 const _handle = Ref{cutensorHandle_t}(C_NULL)

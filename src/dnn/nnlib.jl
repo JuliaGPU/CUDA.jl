@@ -1,3 +1,5 @@
+# interfacing with NNlib.jl
+
 import ..CuArrays: CuVecOrMat, CuVector
 
 import NNlib: conv!, ∇conv_filter!, ∇conv_data!, stride, dilation, flipkernel,

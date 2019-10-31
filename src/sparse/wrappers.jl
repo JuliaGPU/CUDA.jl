@@ -1,6 +1,5 @@
-# wrappers of the low-level CUSPARSE functionality
+# wrappers of low-level functionality
 
-#utilities
 import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \, mul!
 
 export switch2csr, switch2csc, switch2bsr, switch2hyb
@@ -26,6 +25,10 @@ function cusparseGetProperty(property::CUDAapi.libraryPropertyType)
     cusparseGetProperty(property, value_ref)
     value_ref[]
 end
+
+version() = VersionNumber(cusparseGetProperty(CUDAapi.MAJOR_VERSION),
+                          cusparseGetProperty(CUDAapi.MINOR_VERSION),
+                          cusparseGetProperty(CUDAapi.PATCH_LEVEL))
 
 
 # Type conversion

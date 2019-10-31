@@ -16,8 +16,28 @@ import ..CuArrays.unsafe_free!
 
 import NNlib
 
+# core library
 include("libcudnn_common.jl")
 include("error.jl")
+include("libcudnn.jl")
+
+# low-level wrappers
+include("util.jl")
+include("base.jl")
+include("tensor.jl")
+include("conv.jl")
+include("pooling.jl")
+include("activation.jl")
+include("filter.jl")
+include("softmax.jl")
+include("batchnorm.jl")
+include("dropout.jl")
+include("rnn.jl")
+
+# high-level integrations
+include("nnlib.jl")
+
+include("compat.jl")
 
 const _handles = Dict{CuContext,cudnnHandle_t}()
 const _handle = Ref{cudnnHandle_t}(C_NULL)
@@ -35,24 +55,5 @@ function handle()
 
     return _handle[]
 end
-
-include("base.jl")
-include("libcudnn.jl")
-
-include("helpers.jl")
-include("tensor.jl")
-include("conv.jl")
-include("pooling.jl")
-include("activation.jl")
-include("filter.jl")
-include("softmax.jl")
-include("batchnorm.jl")
-include("dropout.jl")
-include("rnn.jl")
-
-# interfaces with other software
-include("nnlib.jl")
-
-include("compat.jl")
 
 end
