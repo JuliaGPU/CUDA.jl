@@ -17,10 +17,12 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]
 Adapt = "0.4, 1.0"
+CEnum = "0.2"
 CUDAapi = "0.6, 1.0"
 CUDAdrv = "4.0"
-LLVM = "1.2"
+DataStructures = "0.15, 0.16, 0.17"
 julia = "1.2"
+LLVM = "1.2"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
