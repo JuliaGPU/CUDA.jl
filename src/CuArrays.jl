@@ -59,25 +59,28 @@ function __init__()
         return
     end
 
+    silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
+
     # discovery
     toolkit = find_toolkit()
     ## required libraries that are part of the CUDA toolkit
     for name in ("cublas", "cusparse", "cusolver", "cufft", "curand")
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
-        if path === nothing
-            error("Could not find library '$name' (it should be part of the CUDA toolkit)")
-        end
-        dir = dirname(path)
-        if !(dir in Libdl.DL_LOAD_PATH)
-            push!(Libdl.DL_LOAD_PATH, dir)
+        if path !== nothing
+            dir = dirname(path)
+            if !(dir in Libdl.DL_LOAD_PATH)
+                push!(Libdl.DL_LOAD_PATH, dir)
+            end
         end
     end
     ## optional libraries
     for name in ("cudnn", "cutensor")
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
-        if path !== nothing
+        if path === nothing
+            silent || @warn "Could not find $lib, CuArrays.$(uppercase(name)) will be unavailable."
+        else
             dir = dirname(path)
             if !(dir in Libdl.DL_LOAD_PATH)
                 push!(Libdl.DL_LOAD_PATH, dir)
@@ -89,12 +92,32 @@ function __init__()
         @eval (export $fn; $fn() = $(path !== nothing))
     end
 
-    # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
-    Base.invokelatest(__hidden_init__)
+    try
+        # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
+        Base.invokelatest(__hidden_init__)
+        @eval functional() = true
+    catch ex
+        # don't actually fail to keep the package loadable
+        silent || @error """CuArrays.jl failed to initialize; the package will not be functional.
+                            To silence this message, import with ENV["CUDA_INIT_SILENT"]=true,
+                            and be sure to inspect the value of CuArrays.functional().""" exception=(ex, catch_backtrace())
+        @eval functional() = false
+    end
 end
 
 function __hidden_init__()
-    # compatibility
+    # package dependencies
+    CUDAdrv.functional() || error("CUDAdrv.jl is not functional")
+    CUDAnative.functional() || error("CUDAnative.jl is not functional")
+
+    # library dependencies
+    CUBLAS.version()
+    CUSPARSE.version()
+    CUSOLVER.version()
+    CUFFT.version()
+    CURAND.version()
+
+    # library compatibility
     if has_cutensor()
         ver = Base.invokelatest(CUTENSOR.version)
         if ver.major != 0 || ver.minor != 2
