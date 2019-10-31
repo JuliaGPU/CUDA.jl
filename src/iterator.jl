@@ -23,6 +23,6 @@ function Base.iterate(c::CuIterator, state...)
     else
         cubatch = map(copyto!, c.pool[i], batch)
     end
-    length(c.pool) > c.pool_limit && map(unsafe_free!, popfirst!(c.pool))
+    length(c.pool) > c.pool_limit && foreach(unsafe_free!, popfirst!(c.pool))
     return cubatch, next_state
 end
