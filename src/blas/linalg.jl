@@ -1,5 +1,4 @@
-# integration with LinearAlgebra
-
+# interfacing with LinearAlgebra standard library
 
 cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 

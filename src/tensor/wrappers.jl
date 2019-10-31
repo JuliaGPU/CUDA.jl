@@ -1,5 +1,15 @@
+# wrappers of low-level functionality
+
 using CUDAapi: cudaDataType
 using CUDAdrv: CuDefaultStream, CuStream
+
+function version()
+    ver = cutensorGetVersion()
+    major, ver = divrem(ver, 10000)
+    minor, patch = divrem(ver, 100)
+
+    VersionNumber(major, minor, patch)
+end
 
 function cutensorCreate()
     handle = Ref{cutensorHandle_t}()

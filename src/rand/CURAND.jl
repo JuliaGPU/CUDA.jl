@@ -12,15 +12,15 @@ import CUDAnative
 
 using CEnum
 
+# core library
 include("libcurand_common.jl")
 include("error.jl")
-
-version() = VersionNumber(curandGetProperty(CUDAapi.MAJOR_VERSION),
-                          curandGetProperty(CUDAapi.MINOR_VERSION),
-                          curandGetProperty(CUDAapi.PATCH_LEVEL))
-
 include("libcurand.jl")
+
+# low-level wrappers
 include("wrappers.jl")
+
+# high-level integrations
 include("random.jl")
 
 const _generators = Dict{CuContext,RNG}()

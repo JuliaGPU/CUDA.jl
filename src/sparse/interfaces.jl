@@ -1,4 +1,4 @@
-# integration with LinearAlgebra stdlib
+# interfacing with other packages
 
 using LinearAlgebra
 using LinearAlgebra: BlasFloat

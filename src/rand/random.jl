@@ -1,4 +1,4 @@
-# integration with Random
+# interfacing with Random standard library
 
 using Random
 

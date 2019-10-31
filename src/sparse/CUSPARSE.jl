@@ -14,18 +14,18 @@ using CEnum
 
 const SparseChar = Char
 
+# core library
 include("libcusparse_common.jl")
 include("error.jl")
-
-version() = VersionNumber(cusparseGetProperty(CUDAapi.MAJOR_VERSION),
-                          cusparseGetProperty(CUDAapi.MINOR_VERSION),
-                          cusparseGetProperty(CUDAapi.PATCH_LEVEL))
-
 include("libcusparse.jl")
+
+# low-level wrappers
 include("array.jl")
 include("util.jl")
 include("wrappers.jl")
-include("linalg.jl")
+
+# high-level integrations
+include("interfaces.jl")
 
 const _handles = Dict{CuContext,cusparseHandle_t}()
 const _handle = Ref{cusparseHandle_t}()
