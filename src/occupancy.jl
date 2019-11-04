@@ -33,6 +33,11 @@ function occupancy(fun::CuFunction, threads::Integer; shmem::Integer=0)
     return (blocks * threads ÷ warp_size) / (threads_per_sm ÷ warp_size)
 end
 
+# HACK: callback function for `launch_configuration` on platforms without support for
+#       trampolines as used by `@cfunction` (JuliaLang/julia#27174, JuliaLang/julia#32154)
+_shmem_cb = nothing
+_shmem_cint_cb(x::Cint) = Cint(something(_shmem_cb)(x))
+
 """
     launch_configuration(fun::CuFunction; shmem=0, max_threads=0)
 
@@ -45,7 +50,8 @@ In the case of a variable amount of shared memory, pass a callable object for `s
 instead, taking a single integer representing the block size and returning the amount of
 dynamic shared memory for that configuration.
 """
-function launch_configuration(fun::CuFunction; shmem=0, max_threads::Integer=0)
+function launch_configuration(fun::CuFunction; shmem::Union{Integer,Base.Callable}=0,
+                              max_threads::Integer=0)
     blocks_ref = Ref{Cint}()
     threads_ref = Ref{Cint}()
     if isa(shmem, Integer)
@@ -55,7 +61,11 @@ function launch_configuration(fun::CuFunction; shmem=0, max_threads::Integer=0)
         cb = @cfunction($shmem_cint, Cint, (Cint,))
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
     else
-        error("launch_configuration with a shmem callback is not supported on your architecture")
+        global _shmem_cb
+        _shmem_cb = shmem
+        cb = @cfunction(_shmem_cint_cb, Cint, (Cint,))
+        cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
+        _shmem_cb = nothing
     end
     return (blocks=blocks_ref[], threads=threads_ref[])
 end
