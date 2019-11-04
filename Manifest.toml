@@ -22,11 +22,9 @@ version = "1.2.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "Printf"]
-git-tree-sha1 = "038ec84825fb6f7081e9ed0a074c5066eb3ac4e4"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaGPU/CUDAdrv.jl.git"
+git-tree-sha1 = "90fa52c4acb2fadf7be48b0d73d9865c16ab9908"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "4.0.0"
+version = "4.0.1"
 
 [[Crayons]]
 deps = ["Test"]
