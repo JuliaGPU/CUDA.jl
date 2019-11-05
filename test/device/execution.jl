@@ -993,7 +993,7 @@ end
 
 ############################################################################################
 
-if capability(dev) >= v"6.0"
+if capability(dev) >= v"6.0" && attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_COOPERATIVE_LAUNCH) == 1
 
 @testset "cooperative groups" begin
     function kernel_vadd(a, b, c)

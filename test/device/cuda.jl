@@ -351,7 +351,7 @@ end
 
     # bug: @cuprintln failed to invokce @cuprint with endline in the case of interpolation
     _, out = @grab_output @on_device @cuprintln("foobar $(42)")
-    @test out == "foobar 42\n"
+    @test out == "foobar 42$endline"
 
 
     # argument types
@@ -375,7 +375,7 @@ end
 
     for typ in (Ptr{Cvoid}, Ptr{Int})
         ptr = convert(typ, Int(0x12345))
-        test_output(ptr, "0x12345")
+        test_output(ptr, Sys.iswindows() ? "0000000000012345" : "0x12345")
     end
 
 
@@ -387,7 +387,7 @@ end
 
     kernel2(val) = (@cuprintln(val); nothing)
     _, out = @grab_output @on_device kernel2(42)
-    @test out == "42\n"
+    @test out == "42$endline"
 end
 
 
