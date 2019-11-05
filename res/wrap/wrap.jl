@@ -9,7 +9,7 @@ using Crayons
 
 using Clang
 
-function wrap(name, headers...; library=":lib$name", defines=[])
+function wrap(name, headers...; library="lib$name", defines=[])
     include_dirs = map(dir->joinpath(dir, "include"), find_toolkit())
     filter!(isdir, include_dirs)
 
