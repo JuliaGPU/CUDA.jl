@@ -61,35 +61,15 @@ function __init__()
 
     silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
 
-    # discovery
+    # discover libraries
+    # NOTE: we can't just ccall by soname because that's not possible on Windows,
+    #       and CUDA libraries there contain a version number in the filename.
     toolkit = find_toolkit()
-    ## required libraries that are part of the CUDA toolkit
-    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand")
+    for name in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudnn", "cutensor")
+        mod = getfield(CuArrays, Symbol(uppercase(name)))
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
-        if path !== nothing
-            dir = dirname(path)
-            if !(dir in Libdl.DL_LOAD_PATH)
-                push!(Libdl.DL_LOAD_PATH, dir)
-            end
-        end
-    end
-    ## optional libraries
-    for name in ("cudnn", "cutensor")
-        lib = Symbol("lib$name")
-        path = find_cuda_library(name, toolkit)
-        if path === nothing
-            silent || @warn "Could not find $lib, CuArrays.$(uppercase(name)) will be unavailable."
-        else
-            dir = dirname(path)
-            if !(dir in Libdl.DL_LOAD_PATH)
-                push!(Libdl.DL_LOAD_PATH, dir)
-            end
-        end
-
-        # function to check for availability
-        fn = Symbol("has_$name")
-        @eval (export $fn; $fn() = $(path !== nothing))
+        @eval mod const $lib = $path
     end
 
     try
@@ -105,6 +85,10 @@ function __init__()
     end
 end
 
+export has_cudnn, has_cutensor
+has_cudnn() = CUDNN.libcudnn !== nothing
+has_cutensor() = CUTENSOR.libcutensor !== nothing
+
 function __hidden_init__()
     # package dependencies
     CUDAdrv.functional() || error("CUDAdrv.jl is not functional")
@@ -116,6 +100,8 @@ function __hidden_init__()
     CUSOLVER.version()
     CUFFT.version()
     CURAND.version()
+    has_cudnn() || @warn "Could not find libcudnn, CuArrays.CUDNN will be unavailable."
+    has_cutensor() || @warn "Could not find libcutensor, CuArrays.CUTENSOR will be unavailable."
 
     # library compatibility
     if has_cutensor()
