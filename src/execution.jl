@@ -384,7 +384,7 @@ when function changes, or when different types or keyword arguments are provided
             agecache[key] = age
         end
 
-        # compile the function
+        # generate a key for indexing the compilation cache
         ctx = CuCurrentContext()
         key = hash(age, $precomp_key)
         key = hash(ctx, key)
@@ -394,11 +394,46 @@ when function changes, or when different types or keyword arguments are provided
             # mix in the values of any captured variable
             key = hash(getfield(f, nf), key)
         end
+
+        # compile the function
         if !haskey(compilecache, key)
+            # compile to PTX
             dev = device(ctx)
             cap = supported_capability(dev)
-            fun, mod = compile(:cuda, cap, f, tt; name=name, kwargs...)
+            asm, kernel_fn, undefined_fns =
+                compile(:ptx, cap, f, tt; name=name, strict=true, kwargs...)
+
+            # settings to JIT based on Julia's debug setting
+            jit_options = Dict{CUDAdrv.CUjit_option,Any}()
+            if Base.JLOptions().debug_level == 1
+                jit_options[CUDAdrv.JIT_GENERATE_LINE_INFO] = true
+            elseif Base.JLOptions().debug_level >= 2
+                jit_options[CUDAdrv.JIT_GENERATE_DEBUG_INFO] = true
+            end
+
+            # link the CUDA device library
+            image = asm
+            # linking the device runtime library requires use of the CUDA linker,
+            # which in turn switches compilation to device relocatable code (-rdc) mode.
+            #
+            # even if not doing any actual calls that need -rdc (i.e., calls to the runtime
+            # library), this significantly hurts performance, so don't do it unconditionally
+            intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
+                            "__nvvm_reflect" #= TODO: should have been optimized away =#]
+            if !isempty(setdiff(undefined_fns, intrinsic_fns))
+                @timeit to[] "device runtime library" begin
+                    linker = CUDAdrv.CuLink(jit_options)
+                    CUDAdrv.add_file!(linker, libcudadevrt[], CUDAdrv.JIT_INPUT_LIBRARY)
+                    CUDAdrv.add_data!(linker, kernel_fn, asm)
+                    image = CUDAdrv.complete(linker)
+                end
+            end
+
+            # JIT into an executable kernel object
+            mod = CuModule(image, jit_options)
+            fun = CuFunction(mod, kernel_fn)
             kernel = HostKernel{f,tt}(ctx, mod, fun)
+
             @debug begin
                 ver = version(kernel)
                 mem = memory(kernel)

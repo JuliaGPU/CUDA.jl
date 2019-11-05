@@ -204,56 +204,8 @@ function codegen(target::Symbol, job::CompilerJob;
         asm = @timeit to[] "machine-code generation" mcgen(job, ir, kernel)
     end
 
-    target == :ptx && return asm, kernel_fn
-
-
-    ## CUDA objects
-
-    if !strict
-        # NOTE: keep in sync with strict check above
-        @timeit to[] "validation" begin
-            check_invocation(job, kernel)
-            check_ir(job, ir)
-        end
-    end
-
-    @timeit to[] "CUDA object generation" begin
-        # enable debug options based on Julia's debug setting
-        jit_options = Dict{CUDAdrv.CUjit_option,Any}()
-        if Base.JLOptions().debug_level == 1
-            jit_options[CUDAdrv.JIT_GENERATE_LINE_INFO] = true
-        elseif Base.JLOptions().debug_level >= 2
-            jit_options[CUDAdrv.JIT_GENERATE_DEBUG_INFO] = true
-        end
-
-        # link the CUDA device library
-        image = asm
-        if libraries
-            # linking the device runtime library requires use of the CUDA linker,
-            # which in turn switches compilation to device relocatable code (-rdc) mode.
-            #
-            # even if not doing any actual calls that need -rdc (i.e., calls to the runtime
-            # library), this significantly hurts performance, so don't do it unconditionally
-            undefined_fns = LLVM.name.(decls(ir))
-            intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
-                             "__nvvm_reflect" #= TODO: should have been optimized away =#]
-            if !isempty(setdiff(undefined_fns, intrinsic_fns))
-                @timeit to[] "device runtime library" begin
-                    linker = CUDAdrv.CuLink(jit_options)
-                    CUDAdrv.add_file!(linker, libcudadevrt[], CUDAdrv.JIT_INPUT_LIBRARY)
-                    CUDAdrv.add_data!(linker, kernel_fn, asm)
-                    image = CUDAdrv.complete(linker)
-                end
-            end
-        end
-
-        @timeit to[] "compilation" begin
-            cuda_mod = CuModule(image, jit_options)
-            cuda_fun = CuFunction(cuda_mod, kernel_fn)
-        end
-    end
-
-    target == :cuda && return cuda_fun, cuda_mod
+    undefined_fns = LLVM.name.(decls(ir))
+    target == :ptx && return asm, kernel_fn, undefined_fns
 
 
     error("Unknown compilation target $target")
