@@ -96,6 +96,19 @@ cuarrays:
 
 # other tasks
 
+precompile:
+  extends: .julia:1.2
+  image: ubuntu:bionic
+  script:
+    - julia -e 'using InteractiveUtils;
+                versioninfo()'
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build();
+                          Pkg.API.precompile()'
+    - julia --project -e 'using CUDAnative;
+                          CUDAnative.load_runtime(v"7.0")'
+
 coverage:
   extends:
     - .julia:1.2
