@@ -375,7 +375,7 @@ end
 
     for typ in (Ptr{Cvoid}, Ptr{Int})
         ptr = convert(typ, Int(0x12345))
-        test_output(ptr, "0x12345")
+        test_output(ptr, Sys.iswindows() ? "0000000000012345" : "0x12345")
     end
 
 
