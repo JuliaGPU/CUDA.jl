@@ -12,6 +12,7 @@ include("pointer.jl")
 const CUdeviceptr = CuPtr{Cvoid}
 
 # low-level wrappers
+const libcuda = Sys.iswindows() ? :nvcuda : :libcuda
 include("libcuda_common.jl")
 include("error.jl")
 include("libcuda.jl")
