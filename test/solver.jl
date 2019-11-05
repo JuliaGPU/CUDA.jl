@@ -3,6 +3,7 @@
 using CuArrays.CUSOLVER
 
 using LinearAlgebra
+using LinearAlgebra: BlasInt
 
 m = 15
 n = 10
@@ -47,7 +48,7 @@ k = 1
         d_A,d_ipiv = CUSOLVER.getrf!(d_A)
         h_A        = collect(d_A)
         h_ipiv     = collect(d_ipiv)
-        alu        = LinearAlgebra.LU(h_A, convert(Vector{Int},h_ipiv), zero(Int))
+        alu        = LinearAlgebra.LU(h_A, convert(Vector{BlasInt},h_ipiv), zero(BlasInt))
         @test A ≈ Array(alu)
         A    = zeros(elty,n,n)
         d_A  = CuArray(A)
