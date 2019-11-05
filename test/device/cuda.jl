@@ -351,7 +351,7 @@ end
 
     # bug: @cuprintln failed to invokce @cuprint with endline in the case of interpolation
     _, out = @grab_output @on_device @cuprintln("foobar $(42)")
-    @test out == "foobar 42\n"
+    @test out == "foobar 42$endline"
 
 
     # argument types
@@ -387,7 +387,7 @@ end
 
     kernel2(val) = (@cuprintln(val); nothing)
     _, out = @grab_output @on_device kernel2(42)
-    @test out == "42\n"
+    @test out == "42$endline"
 end
 
 
