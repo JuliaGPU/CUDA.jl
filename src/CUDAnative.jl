@@ -31,12 +31,12 @@ const ptxas = Ref{String}()
 include("utils.jl")
 
 # needs to be loaded _before_ the compiler infrastructure, because of generated functions
-include(joinpath("device", "tools.jl"))
-include(joinpath("device", "pointer.jl"))
-include(joinpath("device", "array.jl"))
-include(joinpath("device", "cuda.jl"))
-include(joinpath("device", "llvm.jl"))
-include(joinpath("device", "runtime.jl"))
+include("device/tools.jl")
+include("device/pointer.jl")
+include("device/array.jl")
+include("device/cuda.jl")
+include("device/llvm.jl")
+include("device/runtime.jl")
 
 include("init.jl")
 
