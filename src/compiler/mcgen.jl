@@ -7,12 +7,7 @@ function machine(cap::VersionNumber, triple::String)
 
     InitializeNVPTXTargetMC()
     cpu = "sm_$(cap.major)$(cap.minor)"
-    if CUDAdrv.version() >= v"9.0" && v"6.0" in ptx_support[]
-        # in the case of CUDA 9, we use sync intrinsics from PTX ISA 6.0+
-        feat = "+ptx60"
-    else
-        feat = ""
-    end
+    feat = "+ptx60" # we only support CUDA 9.0+ and LLVM 6.0+
     tm = TargetMachine(t, triple, cpu, feat)
     asm_verbosity!(tm, true)
 

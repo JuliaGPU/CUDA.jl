@@ -1,6 +1,6 @@
 # JIT compilation of Julia code to PTX
 
-const to = Ref{TimerOutput}()
+const to = Ref(TimerOutput())
 
 function timings!(new=TimerOutput())
   global to
