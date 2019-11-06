@@ -1,6 +1,6 @@
 name = "CUDAnative"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
-version = "2.5.1"
+version = "2.5.2"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
@@ -22,7 +22,7 @@ CUDAdrv = "4.0.1"
 DataStructures = "0.15, 0.16, 0.17"
 LLVM = "1.2"
 TimerOutputs = "0.4, 0.5"
-julia = "1.2"
+julia = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
