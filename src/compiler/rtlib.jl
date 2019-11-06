@@ -81,14 +81,14 @@ end
 # get the path to a directory where we can put cache files (machine-specific, ephemeral)
 # NOTE: maybe we should use XDG_CACHE_PATH/%LOCALAPPDATA%, but other Julia cache files
 #       are put in .julia anyway so let's just follow suit for now.
-function cachedir()
+function cachedir(depot=DEPOT_PATH[1])
     # this mimicks Base.compilecache. we can't just call the function, or we might actually
     # _generate_ a cache file, e.g., when running with `--compiled-modules=no`.
     if VERSION >= v"1.3.0-alpha.146"
         entrypath, entryfile = Base.cache_file_entry(Base.PkgId(CUDAnative))
-        abspath(DEPOT_PATH[1], entrypath, entryfile)
+        abspath(depot, entrypath, entryfile)
     else
-        cachefile = abspath(DEPOT_PATH[1], Base.cache_file_entry(Base.PkgId(CUDAnative)))
+        cachefile = abspath(depot, Base.cache_file_entry(Base.PkgId(CUDAnative)))
 
         # the cachefile consists of `/depot/compiled/vXXX/CUDAnative/$slug.ji`
         # transform that into `/depot/compiled/vXXX/CUDAnative/$slug/`
@@ -96,11 +96,11 @@ function cachedir()
     end
 end
 
-runtimedir() = joinpath(cachedir(), "runtime")
-
-# remove existing runtime libraries globally,
-# so any change to CUDAnative triggers recompilation
-rm(runtimedir(); recursive=true, force=true)
+# remove the existing cache globally, so any change to CUDAnative triggers recompilation.
+rm(cachedir(); recursive=true, force=true)
+# create an empty cache directory. since we only ever load from the first existing cachedir,
+# this effectively invalidates preexisting caches in lower layers of the depot.
+mkdir(cachedir())
 
 
 ## higher-level functionality to work with runtime functions
@@ -158,9 +158,26 @@ function build_runtime(cap)
 end
 
 function load_runtime(cap)
-    mkpath(runtimedir())
-    name = "cudanative.$(cap.major)$(cap.minor).bc"
-    path = joinpath(runtimedir(), name)
+    # find the first existing cache directory (for when dealing with layered depots)
+    cachedirs = [cachedir(depot) for depot in DEPOT_PATH]
+    filter!(isdir, cachedirs)
+    @assert !isempty(cachedirs)
+    input_dir = first(cachedirs)
+
+    # we are only guaranteed to be able to write in the current depot
+    output_dir = cachedir()
+
+    # if both aren't equal, copy pregenerated runtime libraries to our depot
+    # NOTE: we don't just lazily read from the one and write to the other, because
+    #       once we generate additional runtimes in the output dir we don't know if
+    #       it's safe to load from other layers (since those could have been invalidated)
+    if input_dir != output_dir
+        mkpath(dirname(output_dir))
+        cp(input_dir, output_dir)
+    end
+
+    name = "runtime_$(cap.major)$(cap.minor).bc"
+    path = joinpath(output_dir, name)
 
     get!(libcache, path) do
         if ispath(path)
