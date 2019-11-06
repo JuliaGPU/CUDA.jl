@@ -6,6 +6,20 @@ image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
 
 # Julia versions
 
+julia:1.0:
+  extends:
+    - .julia:1.0
+    - .test
+  tags:
+    - nvidia
+
+julia:1.1:
+  extends:
+    - .julia:1.1
+    - .test
+  tags:
+    - nvidia
+
 # the "primary" target, where we require thorough tests
 # (this requires a recent GPU)
 julia:1.2:
