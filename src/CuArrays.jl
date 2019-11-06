@@ -106,8 +106,7 @@ function __hidden_init__()
     CUSOLVER.version()
     CUFFT.version()
     CURAND.version()
-    has_cudnn() || @warn "Could not find libcudnn, CuArrays.CUDNN will be unavailable."
-    has_cutensor() || @warn "Could not find libcutensor, CuArrays.CUTENSOR will be unavailable."
+    # CUDNN and CUTENSOR are optional
 
     # library compatibility
     if has_cutensor()
