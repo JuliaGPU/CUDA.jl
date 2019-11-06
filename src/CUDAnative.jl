@@ -103,8 +103,10 @@ function cuda_support(driver_version, toolkit_version)
     return target_support, ptx_support
 end
 
-if !isdefined(Base, :inferencebarrier)
-    Base.inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
+if VERSION >= v"1.3.0-DEV.35"
+    using Base: inferencebarrier
+else
+    inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
 end
 
 function __init__()
@@ -118,7 +120,7 @@ function __init__()
     silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
     try
         # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
-        Base.inferencebarrier(__hidden_init__)()
+        inferencebarrier(__hidden_init__)()
         @eval functional() = true
     catch ex
         # don't actually fail to keep the package loadable
