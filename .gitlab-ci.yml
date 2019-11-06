@@ -6,6 +6,20 @@ image: nvidia/cuda:latest
 
 # Julia versions
 
+julia:1.0:
+  extends:
+    - .julia:1.0
+    - .test
+  tags:
+    - nvidia
+
+julia:1.1:
+  extends:
+    - .julia:1.1
+    - .test
+  tags:
+    - nvidia
+
 # the "primary" target, where we require a new GPU to make sure all tests are run
 julia:1.2:
   extends:

@@ -475,8 +475,16 @@ No keyword arguments are supported.
     delayed_cufunction(Val(f), Val(tt))
 
 # marker function that will get picked up during compilation
-@inline cudanativeCompileKernel(id::Int) =
-    ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
+if VERSION >= v"1.2.0-DEV.512"
+    @inline cudanativeCompileKernel(id::Int) =
+        ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
+else
+    import Base.Sys: WORD_SIZE
+    @eval @inline cudanativeCompileKernel(id::Int) = Base.llvmcall(
+        $("declare i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE)",
+          "%rv = call i$WORD_SIZE @cudanativeCompileKernel(i$WORD_SIZE %0)
+           ret i$WORD_SIZE %rv"), Ptr{Cvoid}, Tuple{Int}, id)
+end
 
 const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
 @generated function delayed_cufunction(::Val{f}, ::Val{tt}) where {f,tt}
