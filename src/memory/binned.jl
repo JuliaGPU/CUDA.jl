@@ -218,7 +218,7 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "5. gc (full)" begin
-    GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Incremental : false)
+    GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Full : true)
   end
 
   if pid != -1 && !isempty(pools_avail[pid])
