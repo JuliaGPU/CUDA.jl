@@ -4,10 +4,6 @@ using Adapt: adapt
 import CUDAdrv
 import CUDAdrv: CuPtr, CU_NULL
 
-@testset "GPUArrays test suite" begin
-  GPUArrays.test(CuArray)
-end
-
 @testset "Memory" begin
   CuArrays.alloc(0)
 

@@ -1,22 +1,30 @@
-using Test
+using CuArrays, Test
 
 include("util.jl")
 
 using Random
 Random.seed!(1)
 
-using CuArrays
 using CUDAnative
 using CUDAdrv
 
+# GPUArrays has a testsuite that isn't part of the main package.
+# Include it directly.
 import GPUArrays
-import GPUArrays: allowscalar, @allowscalar
+gpuarrays = pathof(GPUArrays)
+gpuarrays_root = dirname(dirname(gpuarrays))
+include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 
-testf(f, xs...; kwargs...) = GPUArrays.TestSuite.compare(f, CuArray, xs...; kwargs...)
+testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
+import CuArrays: allowscalar, @allowscalar
 allowscalar(false)
 
 @testset "CuArrays" begin
+
+@testset "GPUArrays test suite" begin
+  TestSuite.test(CuArray)
+end
 
 include("base.jl")
 include("blas.jl")
