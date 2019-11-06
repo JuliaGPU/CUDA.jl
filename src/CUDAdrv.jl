@@ -38,6 +38,12 @@ include("deprecated.jl")
 
 ## initialization
 
+if VERSION >= v"1.3.0-DEV.35"
+    using Base: inferencebarrier
+else
+    inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
+end
+
 function __init__()
     if ccall(:jl_generating_output, Cint, ()) == 1
         # don't initialize when we, or any package that depends on us, is precompiling.
@@ -48,8 +54,8 @@ function __init__()
 
     silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
     try
-        # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
-        Base.invokelatest(__hidden_init__)
+        # barrier to avoid compiling `ccall`s to unavailable libraries
+        inferencebarrier(__hidden_init__)()
         @eval functional() = true
     catch ex
         # don't actually fail to keep the package loadable
