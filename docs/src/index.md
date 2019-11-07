@@ -67,6 +67,7 @@ generally available, and the development tools you can use.
 ```@contents
 Pages = [
     "usage/overview.md",
+    "usage/conditional.md",
     ]
 Depth = 1
 ```

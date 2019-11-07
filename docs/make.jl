@@ -33,6 +33,7 @@ makedocs(
         ],
         "Usage" => Any[
             "usage/overview.md",
+            "usage/conditional.md",
             "usage/faq.md",
         ],
         "Development" => Any[
