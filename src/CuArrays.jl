@@ -63,7 +63,12 @@ function __init__()
         mod = getfield(CuArrays, Symbol(uppercase(name)))
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
-        @eval mod const $lib = $path
+        if path !== nothing
+            dir = dirname(path)
+            if !(dir in Libdl.DL_LOAD_PATH)
+                push!(Libdl.DL_LOAD_PATH, dir)
+            end
+        end
     end
 
     try
