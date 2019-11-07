@@ -51,22 +51,10 @@ include("deprecated.jl")
 
 ## initialization
 
-if VERSION >= v"1.3.0-DEV.35"
-    using Base: inferencebarrier
-else
-    inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
-end
+const __initialized__ = Ref(false)
+functional() = __initialized__[]
 
 function __init__()
-    if ccall(:jl_generating_output, Cint, ()) == 1
-        # don't initialize when we, or any package that depends on us, is precompiling.
-        # this makes it possible to precompile on systems without CUDA,
-        # at the expense of using the packages in global scope.
-        return
-    end
-
-    silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
-
     # discover libraries
     # NOTE: we can't just ccall by soname because that's not possible on Windows,
     #       and CUDA libraries there contain a version number in the filename.
@@ -75,25 +63,34 @@ function __init__()
         mod = getfield(CuArrays, Symbol(uppercase(name)))
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
-        @eval mod const $lib = $path
+        if path !== nothing
+            dir = dirname(path)
+            if !(dir in Libdl.DL_LOAD_PATH)
+                push!(Libdl.DL_LOAD_PATH, dir)
+            end
+        end
     end
 
     try
         # barrier to avoid compiling `ccall`s to unavailable libraries
         inferencebarrier(__hidden_init__)()
-        @eval functional() = true
+        __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        silent || @error """CuArrays.jl failed to initialize; the package will not be functional.
-                            To silence this message, import with ENV["CUDA_INIT_SILENT"]=true,
-                            and be sure to inspect the value of CuArrays.functional().""" exception=(ex, catch_backtrace())
-        @eval functional() = false
+        @debug("CuArrays.jl failed to initialize; the package will not be functional.",
+               exception=(ex, catch_backtrace()))
     end
 end
 
 export has_cudnn, has_cutensor
 has_cudnn() = CUDNN.libcudnn !== nothing
 has_cutensor() = CUTENSOR.libcutensor !== nothing
+
+if VERSION >= v"1.3.0-DEV.35"
+    using Base: inferencebarrier
+else
+    inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
+end
 
 function __hidden_init__()
     # package dependencies

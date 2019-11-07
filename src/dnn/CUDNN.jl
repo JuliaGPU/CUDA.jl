@@ -16,6 +16,22 @@ import ..CuArrays.unsafe_free!
 
 import NNlib
 
+const libcudnn = if Sys.iswindows()
+    # no ccall by soname, we need the filename
+    # NOTE: we discover the full path here, while only the wordsize and toolkit versions
+    #       would have been enough to construct "cudnn64_10.dll"
+    toolkit = find_toolkit()
+    path = find_cuda_library("cudnn", toolkit)
+    if path === nothing
+        nothing
+    else
+        basename(path)
+    end
+else
+    # ccall by soname; CuArrays.__init__ will have populated Libdl.DL_LOAD_PATH
+    "libcudnn"
+end
+
 # core library
 include("libcudnn_common.jl")
 include("error.jl")
