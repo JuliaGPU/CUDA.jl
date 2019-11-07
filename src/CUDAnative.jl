@@ -50,85 +50,25 @@ include("deprecated.jl")
 
 ## initialization
 
-verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
+const __initialized__ = Ref(false)
+functional() = __initialized__[]
 
-function llvm_support(version)
-    @debug("Using LLVM v$version")
-
-    # https://github.com/JuliaGPU/CUDAnative.jl/issues/428
-    if version >= v"8.0" && VERSION < v"1.3.0-DEV.547"
-        error("LLVM 8.0 requires a newer version of Julia")
+function __init__()
+    try
+        # barrier to avoid compiling `ccall`s to unavailable libraries
+        inferencebarrier(__hidden_init__)()
+        __initialized__[] = true
+    catch ex
+        # don't actually fail to keep the package loadable
+        @debug("CUDAnative.jl failed to initialize; the package will not be functional.",
+               exception=(ex, catch_backtrace()))
     end
-
-    InitializeAllTargets()
-    haskey(targets(), "nvptx") ||
-        error("""
-            Your LLVM does not support the NVPTX back-end.
-
-            This is very strange; both the official binaries
-            and an unmodified build should contain this back-end.""")
-
-    target_support = sort(collect(CUDAapi.devices_for_llvm(version)))
-
-    ptx_support = CUDAapi.isas_for_llvm(version)
-    push!(ptx_support, v"6.0") # JuliaLang/julia#23817
-    ptx_support = sort(collect(ptx_support))
-
-    @debug("LLVM supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
-    return target_support, ptx_support
-end
-
-function cuda_support(driver_version, toolkit_version)
-    @debug("Using CUDA driver v$driver_version and toolkit v$toolkit_version")
-
-    # the toolkit version as reported contains major.minor.patch,
-    # but the version number returned by libcuda is only major.minor.
-    toolkit_version = VersionNumber(toolkit_version.major, toolkit_version.minor)
-    if toolkit_version > driver_version
-        @warn("""CUDA $(toolkit_version.major).$(toolkit_version.minor) is not supported by
-                 your driver (which supports up to $(driver_version.major).$(driver_version.minor))""")
-    end
-
-    driver_target_support = CUDAapi.devices_for_cuda(driver_version)
-    toolkit_target_support = CUDAapi.devices_for_cuda(toolkit_version)
-    target_support = sort(collect(driver_target_support ∩ toolkit_target_support))
-
-    driver_ptx_support = CUDAapi.isas_for_cuda(driver_version)
-    toolkit_ptx_support = CUDAapi.isas_for_cuda(toolkit_version)
-    ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
-
-    @debug("CUDA driver supports devices $(verlist(driver_target_support)); PTX $(verlist(driver_ptx_support))")
-    @debug("CUDA toolkit supports devices $(verlist(toolkit_target_support)); PTX $(verlist(toolkit_ptx_support))")
-
-    return target_support, ptx_support
 end
 
 if VERSION >= v"1.3.0-DEV.35"
     using Base: inferencebarrier
 else
     inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
-end
-
-function __init__()
-    if ccall(:jl_generating_output, Cint, ()) == 1
-        # don't initialize when we, or any package that depends on us, is precompiling.
-        # this makes it possible to precompile on systems without CUDA,
-        # at the expense of using the packages in global scope.
-        return
-    end
-
-    silent = parse(Bool, get(ENV, "CUDA_INIT_SILENT", "false"))
-    try
-        # compiler barrier to avoid *seeing* `ccall`s to unavailable libraries
-        inferencebarrier(__hidden_init__)()
-        @eval functional() = true
-    catch ex
-        # don't actually fail to keep the package loadable
-        silent || @error """CUDAnative.jl failed to initialize; the package will not be functional.
-                            To silence this message, import with ENV["CUDA_INIT_SILENT"]=true,
-                            and be sure to inspect the value of CUDAnative.functional().""" exception=(ex, catch_backtrace())
-        @eval functional() = false
-    end
 end
 
 function __hidden_init__()
@@ -195,6 +135,59 @@ function __hidden_init__()
     __init_compiler__()
 
     CUDAdrv.apicall_hook[] = maybe_initialize
+end
+
+verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
+
+function llvm_support(version)
+    @debug("Using LLVM v$version")
+
+    # https://github.com/JuliaGPU/CUDAnative.jl/issues/428
+    if version >= v"8.0" && VERSION < v"1.3.0-DEV.547"
+        error("LLVM 8.0 requires a newer version of Julia")
+    end
+
+    InitializeAllTargets()
+    haskey(targets(), "nvptx") ||
+        error("""
+            Your LLVM does not support the NVPTX back-end.
+
+            This is very strange; both the official binaries
+            and an unmodified build should contain this back-end.""")
+
+    target_support = sort(collect(CUDAapi.devices_for_llvm(version)))
+
+    ptx_support = CUDAapi.isas_for_llvm(version)
+    push!(ptx_support, v"6.0") # JuliaLang/julia#23817
+    ptx_support = sort(collect(ptx_support))
+
+    @debug("LLVM supports devices $(verlist(target_support)); PTX $(verlist(ptx_support))")
+    return target_support, ptx_support
+end
+
+function cuda_support(driver_version, toolkit_version)
+    @debug("Using CUDA driver v$driver_version and toolkit v$toolkit_version")
+
+    # the toolkit version as reported contains major.minor.patch,
+    # but the version number returned by libcuda is only major.minor.
+    toolkit_version = VersionNumber(toolkit_version.major, toolkit_version.minor)
+    if toolkit_version > driver_version
+        @warn("""CUDA $(toolkit_version.major).$(toolkit_version.minor) is not supported by
+                 your driver (which supports up to $(driver_version.major).$(driver_version.minor))""")
+    end
+
+    driver_target_support = CUDAapi.devices_for_cuda(driver_version)
+    toolkit_target_support = CUDAapi.devices_for_cuda(toolkit_version)
+    target_support = sort(collect(driver_target_support ∩ toolkit_target_support))
+
+    driver_ptx_support = CUDAapi.isas_for_cuda(driver_version)
+    toolkit_ptx_support = CUDAapi.isas_for_cuda(toolkit_version)
+    ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
+
+    @debug("CUDA driver supports devices $(verlist(driver_target_support)); PTX $(verlist(driver_ptx_support))")
+    @debug("CUDA toolkit supports devices $(verlist(toolkit_target_support)); PTX $(verlist(toolkit_ptx_support))")
+
+    return target_support, ptx_support
 end
 
 end
