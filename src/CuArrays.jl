@@ -107,7 +107,7 @@ function __hidden_init__()
 
     # library compatibility
     if has_cutensor()
-        ver = Base.invokelatest(CUTENSOR.version)
+        ver = inferencebarrier(CUTENSOR.version)()
         if ver.major != 0 || ver.minor != 2
             error("CuArrays.jl only supports CUTENSOR 0.2")
         end
