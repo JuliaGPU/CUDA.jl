@@ -54,15 +54,19 @@ include("deprecated.jl")
 const __initialized__ = Ref(false)
 functional() = __initialized__[]
 
+export has_cudnn, has_cutensor
+const libraries = Dict{String,Union{String,Nothing}}()
+has_cudnn() = libraries["cudnn"] !== nothing && CUDNN.libcudnn !== nothing
+has_cutensor() = libraries["cutensor"] !== nothing && CUTENSOR.libcutensor !== nothing
+
 function __init__()
     # discover libraries
-    # NOTE: we can't just ccall by soname because that's not possible on Windows,
-    #       and CUDA libraries there contain a version number in the filename.
     toolkit = find_toolkit()
     for name in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudnn", "cutensor")
         mod = getfield(CuArrays, Symbol(uppercase(name)))
         lib = Symbol("lib$name")
         path = find_cuda_library(name, toolkit)
+        libraries[name] = path
         if path !== nothing
             dir = dirname(path)
             if !(dir in Libdl.DL_LOAD_PATH)
@@ -81,10 +85,6 @@ function __init__()
                exception=(ex, catch_backtrace()))
     end
 end
-
-export has_cudnn, has_cutensor
-has_cudnn() = CUDNN.libcudnn !== nothing
-has_cutensor() = CUTENSOR.libcutensor !== nothing
 
 if VERSION >= v"1.3.0-DEV.35"
     using Base: inferencebarrier
@@ -107,7 +107,7 @@ function __hidden_init__()
 
     # library compatibility
     if has_cutensor()
-        ver = Base.invokelatest(CUTENSOR.version)
+        ver = inferencebarrier(CUTENSOR.version)()
         if ver.major != 0 || ver.minor != 2
             error("CuArrays.jl only supports CUTENSOR 0.2")
         end
