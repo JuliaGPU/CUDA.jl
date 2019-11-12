@@ -58,8 +58,11 @@ function __init__()
         __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        @debug("CUDAdrv.jl failed to initialize; the package will not be functional.",
-               exception=(ex, catch_backtrace()))
+        @debug begin
+            @error("Error thrown during package initialization",
+                   exception=(ex, catch_backtrace()))
+            "CUDAdrv.jl failed to initialize; the package will not be functional."
+        end
     end
 end
 
