@@ -2,6 +2,8 @@ using CUDAapi
 
 using Test
 
+import Libdl
+
 
 @testset "library types" begin
     @test CUDAapi.PATCH_LEVEL == CUDAapi.libraryPropertyType(2)
@@ -75,4 +77,16 @@ end
 @testset "availability" begin
     @test isa(has_cuda(), Bool)
     @test isa(has_cuda_gpu(), Bool)
+end
+
+@testset "call" begin
+    # ccall throws if the lib doesn't exist, even if not called
+    foo(x) = (x && ccall((:whatever, "nonexisting"), Cvoid, ()); 42)
+    @test_throws ErrorException foo(false)
+
+    # @runtime_ccall prevents that
+    bar(x) = (x && @runtime_ccall((:whatever, "nonexisting"), Cvoid, ()); 42)
+    @test bar(false) == 42
+    # but should still error nicely if actually calling the library
+    @test_throws ErrorException bar(true)
 end
