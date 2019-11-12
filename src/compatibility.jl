@@ -134,6 +134,7 @@ const isa_llvm_db = Dict(
     v"6.0" => v"6.0":highest,
     v"6.1" => v"7.0":highest,
     v"6.3" => v"8.0":highest,
+    v"6.4" => v"9.0":highest,
 )
 
 function isas_for_llvm(ver::VersionNumber)
