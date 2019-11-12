@@ -25,8 +25,8 @@ macro test_something(ex)
 end
 
 @testset "discovery" begin
-    find_binary([Sys.iswindows() ? "CHKDSK" : "true"])
-    find_library([Sys.iswindows() ? "NTDLL" : "c"])
+    CUDAapi.find_binary([Sys.iswindows() ? "CHKDSK" : "true"])
+    CUDAapi.find_library([Sys.iswindows() ? "NTDLL" : "c"])
 
     dirs = find_toolkit()
     @test !isempty(dirs)

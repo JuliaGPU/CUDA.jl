@@ -1,5 +1,4 @@
-export find_library, find_binary,
-       find_cuda_library, find_cuda_binary,
+export find_cuda_library, find_cuda_binary,
        find_toolkit, find_toolkit_version,
        find_libdevice, find_libcudadevrt,
        find_host_compiler, find_toolchain
