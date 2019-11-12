@@ -91,11 +91,18 @@ end
 const apicall_hook = Ref{Union{Nothing,Function}}(nothing)
 
 macro check(ex)
-    # check is used in front of `ccall`s that work on a tuple (fun, lib)
-    @assert Meta.isexpr(ex, :call)
-    @assert ex.args[1] == :ccall
-    @assert Meta.isexpr(ex.args[2], :tuple)
-    fun = String(ex.args[2].args[1].value)
+    # check is used in front of `ccall` or `@runtime_ccall`s that work on a tuple (fun, lib)
+    if Meta.isexpr(ex, :call)
+        @assert ex.args[1] == :ccall
+        @assert Meta.isexpr(ex.args[2], :tuple)
+        fun = String(ex.args[2].args[1].value)
+    elseif Meta.isexpr(ex, :macrocall)
+        @assert ex.args[1] == Symbol("@runtime_ccall")
+        @assert Meta.isexpr(ex.args[3], :tuple)
+        fun = String(ex.args[3].args[1].value)
+    else
+        error("@check should prefix ccall or @runtime_ccall")
+    end
 
     # strip any version tag (e.g. cuEventDestroy_v2 -> cuEventDestroy)
     m = match(r"_v\d+$", fun)

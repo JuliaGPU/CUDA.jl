@@ -1,5 +1,7 @@
 module CUDAdrv
 
+using CUDAapi
+
 using CEnum
 
 using Printf
@@ -43,31 +45,24 @@ functional() = __initialized__[]
 
 function __init__()
     try
-        # barrier to avoid compiling `ccall`s to unavailable libraries
-        inferencebarrier(__hidden_init__)()
+        if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+            error("Running under rr, which is incompatible with CUDA")
+        end
+
+        cuInit(0)
+
+        if version() <= v"9"
+            @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
+        end
+
         __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        @debug("CUDAdrv.jl failed to initialize; the package will not be functional.",
-               exception=(ex, catch_backtrace()))
-    end
-end
-
-if VERSION >= v"1.3.0-DEV.35"
-    using Base: inferencebarrier
-else
-    inferencebarrier(@nospecialize(x)) = Ref{Any}(x)[]
-end
-
-function __hidden_init__()
-    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        error("Running under rr, which is incompatible with CUDA")
-    end
-
-    cuInit(0)
-
-    if version() <= v"9"
-        @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
+        @debug begin
+            @error("Error thrown during package initialization",
+                   exception=(ex, catch_backtrace()))
+            "CUDAdrv.jl failed to initialize; the package will not be functional."
+        end
     end
 end
 
