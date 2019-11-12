@@ -8,65 +8,6 @@ strip_patch(ver) = VersionNumber(ver.major, ver.minor)
 strip_minor(ver) = VersionNumber(ver.major)
 
 
-## GCC compilers supported by the CUDA toolkit
-
-# Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
-const cuda_gcc_db = Dict(
-    v"5.5"  => lowest:v"4.8",  # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
-    v"6.0"  => lowest:v"4.8",  # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
-    v"6.5"  => lowest:v"4.8",  # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 8)) && #error
-    v"7.0"  => lowest:v"4.9",  # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
-    v"7.5"  => lowest:v"4.9",  # (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 9)) && #error
-    v"8.0"  => lowest:v"6-",   # (__GNUC__ > 5)                                          && #error
-    v"9.0"  => lowest:v"7-",   # (__GNUC__ > 6)                                          && #error
-    v"9.1"  => lowest:v"7-",   # (__GNUC__ > 6)                                          && #error
-    v"9.2"  => lowest:v"8-",   # (__GNUC__ > 7)                                          && #error
-    v"10.0" => lowest:v"8-",   # (__GNUC__ > 7)                                          && #error
-    v"10.1" => lowest:v"9-",   # (__GNUC__ > 8)                                          && #error
-)
-
-function gcc_supported(gcc::VersionNumber, toolkit::VersionNumber)
-    gcc_range = get(cuda_gcc_db, strip_patch(toolkit)) do
-        error("no support for CUDA $toolkit")
-    end
-
-    return in(strip_patch(gcc), gcc_range)
-end
-
-
-## MSVC compilers supported by the CUDA toolkit
-
-# Source: CUDA/include/host_config.h or include/crt/host_config.h on 9.0+
-#
-# NOTE: plain integers, because from MSVC 14.1 on the number increases monotonically
-#       https://blogs.msdn.microsoft.com/vcblog/2016/10/05/visual-c-compiler-version/
-const cuda_msvc_db = Dict(
-    v"5.5"     => 1500:1700,  # (_MSC_VER < 1500 || _MSC_VER > 1700) && #error
-    v"6.0"     => 1500:1700,  # (_MSC_VER < 1500 || _MSC_VER > 1700) && #error
-    v"6.5"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
-    v"7.0"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
-    v"7.5"     => 1600:1800,  # (_MSC_VER < 1600 || _MSC_VER > 1800) && #error
-    v"8.0"     => 1600:1900,  # (_MSC_VER < 1600 || _MSC_VER > 1900) && #error
-    v"9.0"     => 1600:1910,  # (_MSC_VER < 1600 || _MSC_VER > 1910) && #error
-    v"9.0.176" => 1600:1911,  # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
-    v"9.1"     => 1600:1911,  # (_MSC_VER < 1600 || _MSC_VER > 1911) && #error
-    v"9.2"     => 1600:1913,  # (_MSC_VER < 1600 || _MSC_VER > 1913) && #error
-    v"10.0"    => 1700:1920,  # (_MSC_VER < 1700 || _MSC_VER > 1920) && #error
-    v"10.1"    => 1700:1930,  # (_MSC_VER < 1700 || _MSC_VER > 1930) && #error
-)
-
-function msvc_supported(msvc::VersionNumber, toolkit::VersionNumber)
-    msvc_range = get(cuda_msvc_db, toolkit) do
-        get(cuda_msvc_db, strip_patch(toolkit)) do
-            error("no support for CUDA $toolkit")
-        end
-    end
-
-    msvc_num = msvc.major * 100 + msvc.minor
-    return in(msvc_num, msvc_range)
-end
-
-
 ## devices supported by the CUDA toolkit
 
 # Source:

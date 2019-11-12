@@ -9,8 +9,6 @@ using Test
 end
 
 @testset "properties" begin
-    @test !CUDAapi.gcc_supported(v"5.0", v"5.5")
-    @test CUDAapi.gcc_supported(v"5.0", v"8.0")
     CUDAapi.devices_for_cuda(v"8.0")
     CUDAapi.devices_for_llvm(v"5.0")
     CUDAapi.isas_for_cuda(v"8.0")
@@ -41,13 +39,6 @@ end
         @test_something find_cuda_library("nvtx", dirs)
         @test_something find_libdevice([v"3.0"], dirs)
         @test_something find_libcudadevrt(dirs)
-        @test_something find_toolchain(dirs)
-        @test_something find_toolchain(dirs, ver)
-    end
-
-    @testset "host tools and libraries" begin
-        @test_something find_host_compiler()
-        @test_something find_host_compiler(ver)
     end
 
     if haskey(ENV, "CI")
