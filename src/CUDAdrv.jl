@@ -44,6 +44,10 @@ const __initialized__ = Ref(false)
 functional() = __initialized__[]
 
 function __init__()
+    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false"))
+    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
+    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+
     try
         if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
             error("Running under rr, which is incompatible with CUDA")
@@ -58,10 +62,12 @@ function __init__()
         __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        @debug begin
-            @error("Error thrown during package initialization",
-                   exception=(ex, catch_backtrace()))
-            "CUDAdrv.jl failed to initialize; the package will not be functional."
+        if !silent && !precompiling
+            if verbose
+                @error "CUDAdrv.jl failed to initialize" exception=(ex, catch_backtrace())
+            else
+                @info "CUDAdrv.jl failed to initialized, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)"
+            end
         end
     end
 end
