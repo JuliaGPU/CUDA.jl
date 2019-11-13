@@ -76,7 +76,7 @@ function __init__()
         toolkit_dirs = find_toolkit()
         cuda_toolkit_version = find_toolkit_version(toolkit_dirs)
         if cuda_toolkit_version <= v"9"
-            @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(version()))"
+            @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(cuda_toolkit_version))"
         end
 
         cuda_targets, cuda_isas = cuda_support(CUDAdrv.version(), cuda_toolkit_version)
