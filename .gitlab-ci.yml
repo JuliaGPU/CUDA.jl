@@ -3,6 +3,9 @@ include:
 
 image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
 
+variables:
+  JULIA_CUDA_VERBOSE: 'true'
+
 
 # Julia versions
 
