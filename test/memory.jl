@@ -86,7 +86,7 @@ let
 end
 
 # pinned memory with existing memory
-let
+if attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     # can only get GPU pointer if the pinned buffer is mapped
     src = Mem.register(Mem.Host, pointer(data), nb)
     @test_throws ArgumentError convert(CuPtr{T}, src)
