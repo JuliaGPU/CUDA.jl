@@ -109,7 +109,7 @@ include("memory/simple.jl")
 include("memory/split.jl")
 include("memory/dummy.jl")
 
-const pool = Ref{Union{Nothing,Module}}(nothing)
+const pool = Ref{Module}(BinnedPool)
 
 const requested = Dict{CuPtr{Nothing},Int}()
 
@@ -117,7 +117,6 @@ const requested = Dict{CuPtr{Nothing},Int}()
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
-  @assert pool[] !== nothing "Cannot allocate before CuArrays has been initialized."
   alloc_stats.pool_time += Base.@elapsed begin
     @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)
   end
@@ -152,10 +151,8 @@ end
   return
 end
 
-function memory_pool!(mod::Module=BinnedPool)
-  if pool[] !== nothing
-    pool[].deinit()
-  end
+function memory_pool!(mod::Module)
+  pool[].deinit()
 
   reset_timers!()
 
@@ -311,8 +308,6 @@ function __init_memory__()
       else
         error("Invalid allocator selected")
       end)
-  else
-    memory_pool!()
   end
 
   # if the user hand-picked an allocator, be a little verbose
