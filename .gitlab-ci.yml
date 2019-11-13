@@ -3,6 +3,9 @@ include:
 
 image: nvidia/cuda:latest
 
+variables:
+  JULIA_CUDA_VERBOSE: 'true'
+
 
 # basic tests
 
@@ -50,6 +53,18 @@ cudanative:
 
 
 # other tasks
+
+precompile:
+  extends: .julia:1.2
+  image: ubuntu:18.04
+  script:
+    - julia -e 'using InteractiveUtils;
+                versioninfo()'
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build();
+                          Pkg.API.precompile()'
+    - julia --project -e 'using CUDAdrv'
 
 coverage:
   extends:

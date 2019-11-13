@@ -90,6 +90,10 @@ end
 
 const apicall_hook = Ref{Union{Nothing,Function}}(nothing)
 
+# TODO: for the next breaking version
+# const call_hooks = Set{Function}()
+# @noinline do_call_hooks(fun) = filter!(hook->hook(fun), call_hooks)
+
 macro check(ex)
     # check is used in front of `ccall` or `@runtime_ccall`s that work on a tuple (fun, lib)
     if Meta.isexpr(ex, :call)
