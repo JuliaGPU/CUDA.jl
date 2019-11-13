@@ -141,7 +141,7 @@ function __init__()
             if verbose
                 @error "CuArrays.jl failed to initialize" exception=(ex, catch_backtrace())
             else
-                @info "CuArrays.jl failed to initialized and will be unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)"
+                @info "CuArrays.jl failed to initialize and will be unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)"
             end
         end
     end
