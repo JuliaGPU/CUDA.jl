@@ -104,18 +104,50 @@ function Base.findall(f::Function, A::CuArray)
     return ys
 end
 
+function Base.findfirst(testf::Function, xs::CuArray)
+    I = if VERSION >= v"1.2"
+        keytype(xs)
+    else
+        eltype(keys(xs))
+    end
+
+    y = CuArray([typemax(Int)])
+
+    function kernel(y::CuDeviceArray, xs::CuDeviceArray)
+        i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+
+        @inbounds if i <= length(xs) && testf(xs[i])
+            CUDAnative.@atomic y[1] = min(y[1], i)
+        end
+
+        return
+    end
+
+    function configurator(kernel)
+        config = launch_configuration(kernel.fun)
+
+        threads = min(length(xs), config.threads)
+        blocks = cld(length(xs), threads)
+
+        return (threads=threads, blocks=blocks)
+    end
+
+    @cuda name="findfirst" config=configurator kernel(y, xs)
+
+    first_i = _getindex(y, 1)
+    return keys(xs)[first_i]
+end
+
+Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
+
 function Base.findmin(a::CuArray)
     m = minimum(a)
-    bools = a .== m
-    indices = findall(bools)
-    i = CuArrays._getindex(indices, 1)
+    i = findfirst(x->x==m, a)
     return (m, i)
 end
 
 function Base.findmax(a::CuArray)
     m = maximum(a)
-    bools = a .== m
-    indices = findall(bools)
-    i = CuArrays._getindex(indices, 1)
+    i = findfirst(x->x==m, a)
     return (m, i)
 end
