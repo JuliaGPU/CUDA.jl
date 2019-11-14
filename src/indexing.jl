@@ -55,21 +55,20 @@ end
 ## findall
 
 function Base.findall(bools::CuArray{Bool})
-    indices = cumsum(bools)
+    I = keytype(bools)
+    indices = cumsum(reshape(bools, prod(size(bools))))
 
     n = _getindex(indices, length(indices))
-    ys = CuArray{Int}(undef, n)
+    ys = CuArray{I}(undef, n)
 
     if n > 0
-        num_threads = min(n, 256)
-        num_blocks = ceil(Int, length(indices) / num_threads)
-
-        function kernel(ys::CuDeviceArray{Int}, bools, indices)
+        function kernel(ys::CuDeviceArray, bools, indices)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+            i′ = CartesianIndices(bools)[i]
 
             @inbounds if i <= length(bools) && bools[i]
                 b = indices[i]   # new position
-                ys[b] = i
+                ys[b] = i′
             end
 
             return
