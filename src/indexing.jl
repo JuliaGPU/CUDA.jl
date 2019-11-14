@@ -70,9 +70,9 @@ function Base.findall(bools::CuArray{Bool})
     if n > 0
         function kernel(ys::CuDeviceArray, bools, indices)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-            i′ = CartesianIndices(bools)[i]
 
             @inbounds if i <= length(bools) && bools[i]
+                i′ = CartesianIndices(bools)[i]
                 b = indices[i]   # new position
                 ys[b] = i′
             end
