@@ -52,24 +52,29 @@ function Base.getindex(xs::CuArray{T}, bools::CuArray{Bool}) where {T}
 end
 
 
-## findall
+## find*
 
 function Base.findall(bools::CuArray{Bool})
-    indices = cumsum(bools)
+    I = if VERSION >= v"1.2"
+        keytype(bools)
+    elseif bools isa CuVector
+        Int
+    else
+        CartesianIndex{ndims(bools)}
+    end
+    indices = cumsum(reshape(bools, prod(size(bools))))
 
     n = _getindex(indices, length(indices))
-    ys = CuArray{Int}(undef, n)
+    ys = CuArray{I}(undef, n)
 
     if n > 0
-        num_threads = min(n, 256)
-        num_blocks = ceil(Int, length(indices) / num_threads)
-
-        function kernel(ys::CuDeviceArray{Int}, bools, indices)
+        function kernel(ys::CuDeviceArray, bools, indices)
             i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
 
             @inbounds if i <= length(bools) && bools[i]
+                i′ = CartesianIndices(bools)[i]
                 b = indices[i]   # new position
-                ys[b] = i
+                ys[b] = i′
             end
 
             return
@@ -97,4 +102,52 @@ function Base.findall(f::Function, A::CuArray)
     ys = findall(bools)
     unsafe_free!(bools)
     return ys
+end
+
+function Base.findfirst(testf::Function, xs::CuArray)
+    I = if VERSION >= v"1.2"
+        keytype(xs)
+    else
+        eltype(keys(xs))
+    end
+
+    y = CuArray([typemax(Int)])
+
+    function kernel(y::CuDeviceArray, xs::CuDeviceArray)
+        i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
+
+        @inbounds if i <= length(xs) && testf(xs[i])
+            CUDAnative.@atomic y[1] = min(y[1], i)
+        end
+
+        return
+    end
+
+    function configurator(kernel)
+        config = launch_configuration(kernel.fun)
+
+        threads = min(length(xs), config.threads)
+        blocks = cld(length(xs), threads)
+
+        return (threads=threads, blocks=blocks)
+    end
+
+    @cuda name="findfirst" config=configurator kernel(y, xs)
+
+    first_i = _getindex(y, 1)
+    return keys(xs)[first_i]
+end
+
+Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
+
+function Base.findmin(a::CuArray)
+    m = minimum(a)
+    i = findfirst(x->x==m, a)
+    return (m, i)
+end
+
+function Base.findmax(a::CuArray)
+    m = maximum(a)
+    i = findfirst(x->x==m, a)
+    return (m, i)
 end
