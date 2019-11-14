@@ -384,3 +384,21 @@ end
       @test findall(y->y>0.5, x) == Array(findall(y->y>0.5, CuArray(x)))
     end
 end
+
+@testset "findmin" begin
+  let x = rand(Float32, 100)
+      @test findmin(x) == findmin(CuArray(x))
+  end
+  let x = rand(Float32, 10, 10)
+      @test findmin(x) == findmin(CuArray(x))
+  end
+end
+
+@testset "findmax" begin
+  let x = rand(Float32, 100)
+      @test findmax(x) == findmax(CuArray(x))
+  end
+  let x = rand(Float32, 10, 10)
+      @test findmax(x) == findmax(CuArray(x))
+  end
+end

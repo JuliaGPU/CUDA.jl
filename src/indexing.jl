@@ -52,7 +52,7 @@ function Base.getindex(xs::CuArray{T}, bools::CuArray{Bool}) where {T}
 end
 
 
-## findall
+## find*
 
 function Base.findall(bools::CuArray{Bool})
     I = keytype(bools)
@@ -96,4 +96,20 @@ function Base.findall(f::Function, A::CuArray)
     ys = findall(bools)
     unsafe_free!(bools)
     return ys
+end
+
+function Base.findmin(a::CuArray)
+    m = minimum(a)
+    bools = a .== m
+    indices = findall(bools)
+    i = CuArrays._getindex(indices, 1)
+    return (m, i)
+end
+
+function Base.findmax(a::CuArray)
+    m = maximum(a)
+    bools = a .== m
+    indices = findall(bools)
+    i = CuArrays._getindex(indices, 1)
+    return (m, i)
 end
