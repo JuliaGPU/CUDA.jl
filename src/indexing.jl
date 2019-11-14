@@ -55,7 +55,13 @@ end
 ## find*
 
 function Base.findall(bools::CuArray{Bool})
-    I = keytype(bools)
+    I = if VERSION >= v"1.2"
+        keytype(bools)
+    elseif bools isa CuVector
+        Int
+    else
+        CartesianIndex{ndims(bools)}
+    end
     indices = cumsum(reshape(bools, prod(size(bools))))
 
     n = _getindex(indices, length(indices))
