@@ -22,11 +22,9 @@ version = "2.0.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "CUDAapi", "Printf"]
-git-tree-sha1 = "c41a9c87604c2afd2cf89c4ed4aa3bf86e7c6a82"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaGPU/CUDAdrv.jl.git"
+git-tree-sha1 = "0f39fddace3324707469ace7fbcbc7b28d5cf921"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "4.0.3"
+version = "4.0.4"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
