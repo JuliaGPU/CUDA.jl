@@ -140,13 +140,19 @@ end
 
 Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
 
-function Base.findmin(a::CuArray)
+function Base.findmin(a::CuArray; dims=:)
+    if dims != Colon()
+        error("Unsupported")
+    end
     m = minimum(a)
     i = findfirst(x->x==m, a)
     return (m, i)
 end
 
-function Base.findmax(a::CuArray)
+function Base.findmax(a::CuArray; dims=:)
+    if dims != Colon()
+        error("Unsupported")
+    end
     m = maximum(a)
     i = findfirst(x->x==m, a)
     return (m, i)

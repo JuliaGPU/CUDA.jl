@@ -46,9 +46,6 @@ function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where 
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
 
-Base.argmin(xs::CublasArray{<:CublasReal}) = iamin(xs)
-Base.argmax(xs::CublasArray{<:CublasReal}) = iamax(xs)
-
 
 
 #

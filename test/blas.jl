@@ -33,10 +33,7 @@ k = 13
     @test testf(BLAS.asum, rand(T, m))
     @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
 
-    if T <: Real
-        @test testf(argmin, rand(T, m))
-        @test testf(argmax, rand(T, m))
-    else
+    if T <: Complex
         @test testf(BLAS.dotu, rand(T, m), rand(T, m))
         x = rand(T, m)
         y = rand(T, m)

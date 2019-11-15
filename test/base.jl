@@ -399,7 +399,14 @@ end
     end
 end
 
-@testset "findmin" begin
+@testset "findmax & findmin" begin
+  let x = rand(Float32, 100)
+      @test findmax(x) == findmax(CuArray(x))
+  end
+  let x = rand(Float32, 10, 10)
+      @test findmax(x) == findmax(CuArray(x))
+  end
+
   let x = rand(Float32, 100)
       @test findmin(x) == findmin(CuArray(x))
   end
@@ -408,11 +415,10 @@ end
   end
 end
 
-@testset "findmax" begin
-  let x = rand(Float32, 100)
-      @test findmax(x) == findmax(CuArray(x))
-  end
-  let x = rand(Float32, 10, 10)
-      @test findmax(x) == findmax(CuArray(x))
-  end
+@testset "argmax & argmin" begin
+    @test testf(argmax, rand(Int, 10))
+    @test testf(argmax, -rand(Int, 10))
+
+    @test testf(argmin, rand(Int, 10))
+    @test testf(argmin, -rand(Int, 10))
 end
