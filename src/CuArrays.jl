@@ -78,10 +78,16 @@ function __init__()
             lib = Symbol("lib$name")
             path = find_cuda_library(name, toolkit)
             libraries[name] = path
+
+            # only push the load path if we couldn't find the library
             if path !== nothing
-                dir = dirname(path)
-                if !(dir in Libdl.DL_LOAD_PATH)
-                    push!(Libdl.DL_LOAD_PATH, dir)
+                file = basename(path)
+                handle = first(split(file,'.'))
+                if Libdl.dlopen_e(handle) == C_NULL
+                    dir = dirname(path)
+                    if !(dir in Libdl.DL_LOAD_PATH)
+                        push!(Libdl.DL_LOAD_PATH, dir)
+                    end
                 end
             end
         end
