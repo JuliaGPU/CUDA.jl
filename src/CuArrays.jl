@@ -133,6 +133,8 @@ function __init__()
         end
 
         __init_memory__()
+
+        __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
         silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false"))
