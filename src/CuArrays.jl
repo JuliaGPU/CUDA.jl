@@ -70,7 +70,6 @@ function __init__()
         return
     end
 
-    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     try
         # discover libraries
         toolkit = find_toolkit()
