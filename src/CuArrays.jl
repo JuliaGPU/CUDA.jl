@@ -70,10 +70,6 @@ function __init__()
         return
     end
 
-    # if any dependent GPU package failed, expect it to have logged an error and bail out
-    CUDAdrv.functional() || return
-    CUDAnative.functional() || return
-
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
     try
         # discover libraries
