@@ -15,15 +15,23 @@ const device_contexts = Dict{CuDevice,CuContext}()
 #
 # feel free to open a PR adding additional API calls, if you have a specific use for them.
 const preinit_apicalls = Set{Symbol}([
+    :cuInit,
+    # error getters
+    :cuGetErrorString,
+    :cuGetErrorName,
+    # version getter
     :cuDriverGetVersion,
-    # device calls, commonly used to determine the most appropriate device
+    # device querying
     :cuDeviceGet,
-    :cuDeviceGetAttribute,
     :cuDeviceGetCount,
     :cuDeviceGetName,
+    :cuDeviceGetUuid,
     :cuDeviceTotalMem,
-    # context calls, for testing
-    :cuCtxGetCurrent
+    :cuDeviceGetAttribute,
+    :cuDeviceGetProperties,
+    :cuDeviceComputeCapability,
+    # context getter
+    :cuCtxGetCurrent,
 ])
 
 function maybe_initialize(apicall)
