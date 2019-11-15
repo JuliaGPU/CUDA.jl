@@ -9,6 +9,8 @@ const CuArray = CuTestArray
 
 @testset "CUDAnative" begin
 
+@test CUDAnative.functional()
+
 # see if we have a device to run tests on
 # (do this early so that the codegen tests can target the same compute capability)
 global dev, cap
