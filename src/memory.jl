@@ -151,17 +151,6 @@ end
   return
 end
 
-function memory_pool!(mod::Module)
-  pool[].deinit()
-
-  reset_timers!()
-
-  pool[] = mod
-  mod.init()
-
-  return
-end
-
 pool_dump() = pool[].dump()
 
 
@@ -296,7 +285,7 @@ function __init_memory__()
   end
 
   if haskey(ENV, "CUARRAYS_MEMORY_POOL")
-    memory_pool!(
+    pool[] =
       if ENV["CUARRAYS_MEMORY_POOL"] == "binned"
         BinnedPool
       elseif ENV["CUARRAYS_MEMORY_POOL"] == "simple"
@@ -307,8 +296,9 @@ function __init_memory__()
         DummyPool
       else
         error("Invalid allocator selected")
-      end)
+      end
   end
+  pool[].init()
 
   # if the user hand-picked an allocator, be a little verbose
   if haskey(ENV, "CUARRAYS_MEMORY_POOL")
@@ -319,6 +309,8 @@ function __init_memory__()
          - $(alloc_stats.actual_nalloc) CUDA allocations: $(Base.format_bytes(alloc_stats.actual_alloc)) in $(round(alloc_stats.actual_time; digits=2))s""")
     end)
   end
+
+  reset_timers!()
 end
 
 function reset_timers!()
