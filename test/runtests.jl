@@ -9,6 +9,8 @@ include("array.jl")
 
 include("pointer.jl")
 
+@test CUDAdrv.functional()
+
 @test length(devices()) > 0
 if length(devices()) > 0
     @test CuCurrentContext() == nothing
