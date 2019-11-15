@@ -4,6 +4,8 @@ using Adapt: adapt
 import CUDAdrv
 import CUDAdrv: CuPtr, CU_NULL
 
+@test CuArrays.functional()
+
 @testset "Memory" begin
   CuArrays.alloc(0)
 

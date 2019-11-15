@@ -275,7 +275,12 @@ function init()
   end
 end
 
-deinit() = error("Not implemented")
+function deinit()
+    @assert sum(length, pools_used) == 0 "Cannot deinitialize memory pool with outstanding allocations"
+    reclam(fulll)
+
+    return
+end
 
 function alloc(bytes)
   # only manage small allocations in the pool
