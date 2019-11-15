@@ -140,20 +140,108 @@ end
 
 Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
 
-function Base.findmin(a::CuArray; dims=:)
-    if dims != Colon()
-        error("Unsupported")
+function Base.findfirst(vals::CuArray, xs::CuArray)
+    # figure out which dimension was reduced
+    @assert ndims(vals) == ndims(xs)
+    dims = [i for i in 1:ndims(xs) if size(xs,i)!=1 && size(vals,i)==1]
+    @assert length(dims) == 1
+    dim = dims[1]
+
+
+    ## find the first matching element
+
+    indices = fill(typemax(Int), size(vals))
+
+    # iteration domain across the main dimension
+    Rdim = CartesianIndices((size(xs, dim),))
+
+    # iteration domain for the other dimensions
+    Rpre = CartesianIndices(size(xs)[1:dim-1])
+    Rpost = CartesianIndices(size(xs)[dim+1:end])
+    Rother = CartesianIndices((length(Rpre), length(Rpost)))
+
+    function kernel(xs, vals, indices, Rdim, Rpre, Rpost, Rother)
+        # iterate the main dimension using threads and the first block dimension
+        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
+        # iterate the other dimensions using the remaining block dimensions
+        j = (blockIdx().z-1) * gridDim().y + blockIdx().y
+
+        if i <= length(Rdim) && j <= length(Rother)
+            I = Rother[j]
+            Ipre = Rpre[I[1]]
+            Ipost = Rpost[I[2]]
+
+            @inbounds if xs[Ipre, i, Ipost] == vals[Ipre, Ipost]
+                full_index = LinearIndices(xs)[Ipre, i, Ipost]   # atomic_min only works with integers
+                reduced_index = LinearIndices(indices)[Ipre, Ipost] # FIXME: @atomic doesn't handle array ref with CartesianIndices
+                CUDAnative.@atomic indices[reduced_index] = min(indices[reduced_index], full_index)
+            end
+        end
+
+        return
     end
-    m = minimum(a)
-    i = findfirst(x->x==m, a)
-    return (m, i)
+
+    function configurator(kernel)
+        # what's a good launch configuration for this kernel?
+        config = launch_configuration(kernel.fun)
+
+        # blocks to cover the main dimension
+        threads = min(length(Rdim), config.threads)
+        blocks_dim = cld(length(Rdim), threads)
+        # NOTE: the grid X dimension is virtually unconstrained
+
+        # blocks to cover the remaining dimensions
+        dev = CUDAdrv.device(kernel.fun.mod.ctx)
+        max_other_blocks = attribute(dev, CUDAdrv.MAX_GRID_DIM_Y)
+        blocks_other = (min(length(Rother), max_other_blocks),
+                        cld(length(Rother), max_other_blocks))
+
+        return (threads=threads, blocks=(blocks_dim, blocks_other...))
+    end
+
+    @cuda config=configurator kernel(xs, vals, indices, Rdim, Rpre, Rpost, Rother)
+
+
+    ## convert the linear indices to an appropriate type
+
+    kt = if VERSION >= v"1.2"
+        keytype(xs)
+    else
+        eltype(keys(xs))
+    end
+
+    if kt == Int
+        return indices
+    else
+        indices′ = CuArray{kt}(undef, size(indices))
+        broadcast!(indices′, indices, Ref(keys(xs))) do index, keys
+            keys[index]
+        end
+
+        return indices′
+    end
+end
+
+function Base.findmin(a::CuArray; dims=:)
+    if dims == Colon()
+        m = minimum(a)
+        i = findfirst(x->x==m, a)
+        return m,i
+    else
+        minima = minimum(a; dims=dims)
+        i = findfirst(minima, a)
+        return minima,i
+    end
 end
 
 function Base.findmax(a::CuArray; dims=:)
-    if dims != Colon()
-        error("Unsupported")
+    if dims == Colon()
+        m = maximum(a)
+        i = findfirst(x->x==m, a)
+        return m,i
+    else
+        maxima = maximum(a; dims=dims)
+        i = findfirst(maxima, a)
+        return maxima,i
     end
-    m = maximum(a)
-    i = findfirst(x->x==m, a)
-    return (m, i)
 end

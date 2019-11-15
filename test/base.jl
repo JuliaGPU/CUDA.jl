@@ -404,16 +404,20 @@ end
 @testset "findmax & findmin" begin
   let x = rand(Float32, 100)
       @test findmax(x) == findmax(CuArray(x))
+      @test findmax(x; dims=1) == Array.(findmax(CuArray(x); dims=1))
   end
   let x = rand(Float32, 10, 10)
       @test findmax(x) == findmax(CuArray(x))
+      @test findmax(x; dims=1) == Array.(findmax(CuArray(x); dims=1))
   end
 
   let x = rand(Float32, 100)
       @test findmin(x) == findmin(CuArray(x))
+      @test findmin(x; dims=1) == Array.(findmin(CuArray(x); dims=1))
   end
   let x = rand(Float32, 10, 10)
       @test findmin(x) == findmin(CuArray(x))
+      @test findmin(x; dims=1) == Array.(findmin(CuArray(x); dims=1))
   end
 end
 
