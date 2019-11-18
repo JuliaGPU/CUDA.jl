@@ -22,7 +22,7 @@ if length(devices()) > 0
             dev = newdev
         end
     end
-    @info "Testing using device $(name(dev))"
+    @info "Testing using device $(name(dev)) with capability $(capability(dev)) on CUDA driver $(CUDAdrv.version())"
 
     global ctx = CuContext(dev)
     @test CuCurrentContext() != nothing
