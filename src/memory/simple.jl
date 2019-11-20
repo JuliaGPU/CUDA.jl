@@ -60,14 +60,13 @@ function scan(sz)
     return
 end
 
-function reclaim(sz)
+function reclaim(sz::Int=typemax(Int))
     freed = 0
     while freed < sz && !isempty(available)
         block = pop!(available)
-        actual_free(block)
         freed += sizeof(block)
+        actual_free(block)
     end
-
     return freed
 end
 
@@ -109,17 +108,6 @@ end
 ## interface
 
 init() = return
-
-function deinit()
-    @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
-
-    for block in available
-        actual_free(block)
-    end
-    empty!(available)
-
-    return
-end
 
 function alloc(sz)
     block = pool_alloc(sz)

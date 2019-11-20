@@ -8,8 +8,6 @@ using CUDAdrv
 
 init() = return
 
-deinit() = @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
-
 const allocated = Dict{CuPtr{Nothing},Int}()
 
 function alloc(sz)
@@ -41,6 +39,8 @@ function free(ptr)
     actual_free(ptr)
     return
 end
+
+reclaim(target_bytes::Int=typemax(Int)) = return 0
 
 used_memory() = isempty(allocated) ? 0 : sum(sizeof, values(allocated))
 

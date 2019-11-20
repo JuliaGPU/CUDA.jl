@@ -17,6 +17,8 @@ module BinnedPool
 #                       or just use unified memory for all allocations.
 # - per-device pools
 
+# TODO: move the management thread one level up, to be shared by all allocators
+
 using ..CuArrays
 using ..CuArrays: @pool_timeit
 
@@ -132,7 +134,7 @@ function scan()
 end
 
 # reclaim unused buffers
-function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
+function reclaim(target_bytes::Int=typemax(Int); full::Bool=true)
   # find inactive buffers
   @pool_timeit "scan" begin
     pools_inactive = Vector{Int}(undef, length(pools_avail)) # pid => buffers that can be freed
@@ -161,6 +163,7 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
 
   # reclaim buffers (in reverse, to discard largest buffers first)
   @pool_timeit "reclaim" begin
+    freed = 0
     for pid in reverse(eachindex(pools_inactive))
       bytes = poolsize(pid)
       avail = pools_avail[pid]
@@ -172,13 +175,14 @@ function reclaim(full::Bool=false, target_bytes::Int=typemax(Int))
 
         actual_free(block)
 
-        target_bytes -= bytes
-        target_bytes <= 0 && return true
+        freed += bytes
+        if freed >= target_bytes
+          return freed
+        end
       end
     end
+    return freed
   end
-
-  return false
 end
 
 
@@ -208,7 +212,7 @@ function pool_alloc(bytes, pid=-1)
   #       would require proper block splitting + compaction to be any efficient.
 
   @pool_timeit "3. reclaim unused" begin
-    reclaim(true, bytes)
+    reclaim(bytes)
   end
 
   @pool_timeit "4. try alloc" begin
@@ -226,7 +230,7 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "6. reclaim unused" begin
-    reclaim(true, bytes)
+    reclaim(bytes)
   end
 
   @pool_timeit "7. try alloc" begin
@@ -236,7 +240,7 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "8. reclaim everything" begin
-    reclaim(true)
+    reclaim()
   end
 
   @pool_timeit "9. try alloc" begin
@@ -266,20 +270,13 @@ function init()
             delay = min(delay*2, MAX_DELAY)
           end
 
-          reclaim()
+          reclaim(full=false)
         end
 
         sleep(delay)
       end
     end
   end
-end
-
-function deinit()
-    @assert sum(length, pools_used) == 0 "Cannot deinitialize memory pool with outstanding allocations"
-    reclam(fulll)
-
-    return
 end
 
 function alloc(bytes)

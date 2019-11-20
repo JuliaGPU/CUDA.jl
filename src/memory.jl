@@ -86,7 +86,7 @@ function actual_free(ptr::CuPtr{Nothing})
 end
 
 
-## memory pool
+## memory pools
 
 const pool_to = TimerOutput()
 
@@ -96,11 +96,11 @@ end
 
 pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 
-# API:
+# pool API:
 # - init()
-# - deinit()
 # - alloc(sz)::CuPtr{Nothing}
 # - free(::CuPtr{Nothing})
+# - reclaim(nb::Int=typemax(Int))::Int
 # - used_memory()
 # - cached_memory()
 
@@ -110,6 +110,9 @@ include("memory/split.jl")
 include("memory/dummy.jl")
 
 const pool = Ref{Module}(BinnedPool)
+
+
+## interface
 
 const requested = Dict{CuPtr{Nothing},Int}()
 
@@ -151,7 +154,7 @@ end
   return
 end
 
-pool_dump() = pool[].dump()
+reclaim(sz::Int=typemax(Int)) = pool[].reclaim(sz)
 
 
 ## utilities

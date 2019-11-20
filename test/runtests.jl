@@ -39,9 +39,13 @@ include("dnn.jl")
 include("tensor.jl")
 include("forwarddiff.jl")
 
+# allocator API
+CuArrays.reclaim(1024)
+CuArrays.reclaim()
 CuArrays.memory_status()
 CuArrays.pool_timings()
 CuArrays.alloc_timings()
+
 CuArrays.reset_timers!()
 
 end
