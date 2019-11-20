@@ -114,7 +114,18 @@ const pool = Ref{Module}(BinnedPool)
 
 ## interface
 
+export OutOfGPUMemoryError
+
 const requested = Dict{CuPtr{Nothing},Int}()
+
+struct OutOfGPUMemoryError <: Exception
+  sz::Int
+end
+
+function Base.showerror(io::IO, err::OutOfGPUMemoryError)
+    println(io, "Out of GPU memory trying to allocate $(Base.format_bytes(err.sz))")
+    memory_status(io)
+end
 
 @inline function alloc(sz)::CuPtr{Nothing}
   # 0-byte allocations shouldn't hit the pool
@@ -124,10 +135,7 @@ const requested = Dict{CuPtr{Nothing},Int}()
     @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)
   end
   if ptr === nothing
-    @error "Out of GPU memory trying to allocate $(Base.format_bytes(sz))"
-    pool[].dump()
-    memory_status()
-    throw(OutOfMemoryError())
+    throw(OutOfGPUMemoryError(sz))
   end
 
   alloc_stats.pool_nalloc += 1
@@ -241,41 +249,84 @@ macro time(ex)
     end
 end
 
-function memory_status()
+function memory_status(io::IO=stdout)
   free_bytes, total_bytes = CUDAdrv.Mem.info()
   used_bytes = total_bytes - free_bytes
   used_ratio = used_bytes / total_bytes
 
-  @printf("Effective GPU memory usage: %.2f%% (%s/%s)\n",
-          100*used_ratio, Base.format_bytes(used_bytes),
-          Base.format_bytes(total_bytes))
+  @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
+              100*used_ratio, Base.format_bytes(used_bytes),
+              Base.format_bytes(total_bytes))
 
-  @printf("CuArrays GPU memory usage: %s", Base.format_bytes(usage[]))
+  @printf(io, "CuArrays GPU memory usage: %s", Base.format_bytes(usage[]))
   if usage_limit[] !== nothing
-    @printf(" (capped at %s)", Base.format_bytes(usage_limit[]))
+    @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[]))
   end
-  println()
+  println(io)
 
   alloc_used_bytes = pool[].used_memory()
   alloc_cached_bytes = pool[].cached_memory()
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
 
-  @printf("%s usage: %s (%s allocated, %s cached)\n", nameof(pool[]),
-          Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
-          Base.format_bytes(alloc_cached_bytes))
+  @printf(io, "%s usage: %s (%s allocated, %s cached)\n", nameof(pool[]),
+              Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
+              Base.format_bytes(alloc_cached_bytes))
 
   requested_bytes = reduce(+, values(requested); init=0)
 
-  @printf("%s efficiency: %.2f%% (%s requested, %s allocated)\n", nameof(pool[]),
-          100*requested_bytes/usage[],
-          Base.format_bytes(requested_bytes),
-          Base.format_bytes(usage[]))
+  @printf(io, "%s efficiency: %.2f%% (%s requested, %s allocated)\n", nameof(pool[]),
+              100*requested_bytes/usage[],
+              Base.format_bytes(requested_bytes),
+              Base.format_bytes(usage[]))
 
   # check if the memory usage as counted by the CUDA allocator wrapper
   # matches what is reported by the pool implementation
   discrepancy = usage[] - alloc_total_bytes
   if discrepancy != 0
     @debug "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator"
+  end
+end
+
+"""
+  extalloc(f::Function; check::Function=isa(OutOfGPUMemoryError), nb::Integer=typemax(Int))
+
+Run a function `f` repeatedly until it successfully allocates the memory it needs. Only
+out-of-memory exceptions that pass `check` are considered for retry; this defaults to
+checking for the CuArrays out-of-memory exception but should be customized as to detect how
+an out-of-memory situation is reported by the function `f`. The argument `nb` indicates how
+many bytes of memory `f` requires, and serves as a hint for how much memory to reclaim
+before trying `f` again.
+"""
+function extalloc(f::Function; check::Function=ex->isa(ex,OutOfGPUMemoryError), nb::Integer=typemax(Int))
+  phase = 0
+  while true
+    phase += 1
+    return try
+      f()
+    catch ex
+      check(ex) || rethrow()
+
+      # incrementally costly reclaim of more and more memory
+      if phase == 1
+        reclaim(nb)
+      elseif phase == 2
+        GC.gc(false)
+        reclaim(nb)
+      elseif phase == 3
+        GC.gc(true)
+        reclaim(nb)
+      elseif phase == 4
+        # maybe the user lied, so try reclaiming all memory
+        GC.gc(true)
+        reclaim()
+      else
+        # give up
+        rethrow()
+      end
+
+      # try again
+      continue
+    end
   end
 end
 
