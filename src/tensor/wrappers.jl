@@ -26,28 +26,25 @@ is_binary(op::cutensorOperator_t) =
     (op ∈ (CUTENSOR_OP_ADD, CUTENSOR_OP_MUL, CUTENSOR_OP_MAX, CUTENSOR_OP_MIN))
 
 mutable struct CuTensorDescriptor
-    desc::cutensorTensorDescriptor_t
+    desc::Ref{cutensorTensorDescriptor_t}
 
     function CuTensorDescriptor(a; size = size(a), strides = strides(a), eltype = eltype(a),
-                                   op = CUTENSOR_OP_IDENTITY,
-                                   vectorwidth = Cint(1), vectormodeindex = Cint(0))
+                                   op = CUTENSOR_OP_IDENTITY)
         sz = collect(Int64, size)
         st = collect(Int64, strides)
         desc = Ref{cutensorTensorDescriptor_t}()
-        cutensorCreateTensorDescriptor(desc, length(sz), sz, st,
-                                       cudaDataType(eltype), op,
-                                       vectorwidth, vectormodeindex)
-        obj = new(desc[])
-        finalizer(destroy!, obj)
+        cutensorInitTensorDescriptor(handle(), desc, length(sz), sz, st,
+                                     cudaDataType(eltype), op)
+        obj = new(desc)
         return obj
     end
 end
-destroy!(obj::CuTensorDescriptor) = cutensorDestroyTensorDescriptor(obj.desc)
-Base.cconvert(::Type{cutensorTensorDescriptor_t}, obj::CuTensorDescriptor) = obj.desc
+
+Base.cconvert(::Type{Ptr{cutensorTensorDescriptor_t}}, obj::CuTensorDescriptor) = obj.desc
 
 function elementwiseTrinary!(
     alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-    beta::Number, B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
+    beta::Number,  B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
     gamma::Number, C::CuArray{T}, Cinds::ModeType, opC::cutensorOperator_t,
     D::CuArray{T}, Dinds::ModeType, opAB::cutensorOperator_t,
     opABC::cutensorOperator_t; stream::CuStream=CuDefaultStream()) where {T}
@@ -62,14 +59,18 @@ function elementwiseTrinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
+    #typeCompute = cudaDataType(T)
     typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
-    cutensorElementwiseTrinary(handle(), T[alpha], A, descA, modeA,
-                                T[beta], B, descB, modeB, T[gamma], C, descC, modeC,
-                                D, descD, modeD, opAB, opABC, typeCompute, stream)
+    cutensorElementwiseTrinary(handle(),
+                                T[alpha], A, descA, modeA,
+                                T[beta],  B, descB, modeB,
+                                T[gamma], C, descC, modeC,
+                                          D, descD, modeD,
+                                opAB, opABC, typeCompute, stream)
     return D
 end
 
@@ -95,9 +96,12 @@ function elementwiseTrinary!(
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
-    cutensorElementwiseTrinary(handle(), T[alpha], A, descA, modeA,
-                                T[beta], B, descB, modeB, T[gamma], C, descC, modeC,
-                                D, descD, modeD, opAB, opABC, typeCompute, stream)
+    cutensorElementwiseTrinary(handle(),
+                               T[alpha], A, descA, modeA,
+                               T[beta],  B, descB, modeB,
+                               T[gamma], C, descC, modeC,
+                                         D, descD, modeD,
+                               opAB, opABC, typeCompute, stream)
     return D
 end
 
@@ -118,8 +122,11 @@ function elementwiseBinary!(
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
-    cutensorElementwiseBinary(handle(), T[alpha], A, descA, modeA, T[gamma], C, descC,
-                              modeC, D, descD, modeD, opAC, typeCompute, stream)
+    cutensorElementwiseBinary(handle(),
+                              T[alpha], A, descA, modeA,
+                              T[gamma], C, descC, modeC,
+                                        D, descD, modeD,
+                              opAC, typeCompute, stream)
     return D
 end
 
@@ -140,8 +147,11 @@ function elementwiseBinary!(
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
-    cutensorElementwiseBinary(handle(), T[alpha], A, descA, modeA, T[gamma], C, descC,
-                              modeC, D, descD, modeD, opAC, typeCompute, stream)
+    cutensorElementwiseBinary(handle(),
+                              T[alpha], A, descA, modeA,
+                              T[gamma], C, descC, modeC,
+                                        D, descD, modeD,
+                              opAC, typeCompute, stream)
     return D
 end
 
@@ -156,9 +166,11 @@ function elementwiseBinary!(
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
     typeCompute = cudaDataType(T)
-    cutensorElementwiseBinary(handle(), T[alpha], A.data, descA, A.inds, T[gamma], C.data,
-                              descC, C.inds, D.data, descD, C.inds, opAC, typeCompute,
-                              stream)
+    cutensorElementwiseBinary(handle(),
+                              T[alpha], A.data, descA, A.inds,
+                              T[gamma], C.data, descC, C.inds,
+                                        D.data, descD, C.inds,
+                              opAC, typeCompute, stream)
     return D
 end
 
@@ -191,9 +203,9 @@ end
 
 function contraction!(
     alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-    B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
-    beta::Number, C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
-    opOut::cutensorOperator_t;
+                   B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
+    beta::Number,  C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
+                                                opOut::cutensorOperator_t,
     pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
     algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream())
 
@@ -206,15 +218,35 @@ function contraction!(
     descC = CuTensorDescriptor(C; op = opC)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
     T = eltype(C)
-    typeCompute = cudaDataType(T)
+    computeType = cutensorComputeType(T) #CUTENSOR_R_MIN_64F #TODO cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
 
+    alignmentRequirementA = Ref{UInt32}(C_NULL)
+    cutensorGetAlignmentRequirement(handle(), A, descA, alignmentRequirementA)
+    alignmentRequirementB = Ref{UInt32}(C_NULL)
+    cutensorGetAlignmentRequirement(handle(), B, descB, alignmentRequirementB)
+    alignmentRequirementC = Ref{UInt32}(C_NULL)
+    cutensorGetAlignmentRequirement(handle(), C, descC, alignmentRequirementC)
+    desc = Ref(cutensorContractionDescriptor_t(ntuple(i->0, Val(256))))
+    cutensorInitContractionDescriptor(handle(),
+                                      desc,
+                   descA, modeA, alignmentRequirementA[],
+                   descB, modeB, alignmentRequirementB[],
+                   descC, modeC, alignmentRequirementC[],
+                   descC, modeC, alignmentRequirementC[],
+                   computeType)
+
+    find = Ref(cutensorContractionFind_t(ntuple(i->0, Val(64))))
+    cutensorInitContractionFind(handle(), find, algo)
+
     workspaceSize = Ref{UInt64}(C_NULL)
-    cutensorContractionGetWorkspace(handle(), A, descA, modeA, B, descB, modeB, C, descC,
-                                    modeC, C, descC, modeC, opOut, typeCompute, algo, pref,
-                                    workspaceSize)
+    cutensorContractionGetWorkspace(handle(), desc, find, pref, workspaceSize)
+
+    plan = Ref(cutensorContractionPlan_t(ntuple(i->0, Val(640))))
+    cutensorInitContractionPlan(handle(), plan, desc, find, workspaceSize[])
+
     workspace = CuArray{UInt8}(undef, 0)
     try
         workspace = CuArray{UInt8}(undef, workspaceSize[])
@@ -223,90 +255,89 @@ function contraction!(
     end
     workspaceSize[] = length(workspace)
 
-    cutensorContraction(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T[beta], C,
-                        descC, modeC, C, descC, modeC, opOut, typeCompute, algo, workspace,
-                        workspaceSize[], stream)
+    cutensorContraction(handle(), plan,
+                        T[alpha], A, B,
+                        T[beta],  C, C,
+                        workspace, workspaceSize[], stream)
     return C
 end
 
-function contraction!(
-    alpha::Number, A::Array, Ainds::ModeType, opA::cutensorOperator_t,
-    B::Array, Binds::ModeType, opB::cutensorOperator_t,
-    beta::Number, C::Array, Cinds::ModeType, opC::cutensorOperator_t,
-    opOut::cutensorOperator_t;
-    pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
-    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream())
-
-    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
-    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
-    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
-    !is_unary(opOut)  && throw(ArgumentError("opOut must be a unary op!"))
-    descA = CuTensorDescriptor(A; op = opA)
-    descB = CuTensorDescriptor(B; op = opB)
-    descC = CuTensorDescriptor(C; op = opC)
-    # for now, D must be identical to C (and thus, descD must be identical to descC)
-    T = eltype(C)
-    typeCompute = cudaDataType(T)
-    modeA = collect(Cint, Ainds)
-    modeB = collect(Cint, Binds)
-    modeC = collect(Cint, Cinds)
-
-    workspaceSize = Ref{UInt64}(C_NULL)
-    cutensorContractionGetWorkspace(handle(), A, descA, modeA, B, descB, modeB, C, descC,
-                                    modeC, C, descC, modeC, opOut, typeCompute, algo, pref,
-                                    workspaceSize)
-    workspace = CuArray{UInt8}(undef, 0)
-    try
-        workspace = CuArray{UInt8}(undef, workspaceSize[])
-    catch
-        workspace = CuArray{UInt8}(undef, 1<<27)
-    end
-    workspaceSize[] = length(workspace)
-
-    cutensorContraction(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T[beta], C,
-                        descC, modeC, C, descC, modeC, opOut, typeCompute, algo, CU_NULL, 0,
-                        stream)
-    return C
-end
-
-function contraction!(alpha::Number,
-    A::CuTensor, opA::cutensorOperator_t, B::CuTensor, opB::cutensorOperator_t,
-    beta::Number, C::CuTensor, opC::cutensorOperator_t, opOut::cutensorOperator_t;
-    pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
-    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream())
-
-    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
-    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
-    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
-    !is_unary(opOut)  && throw(ArgumentError("opOut must be a unary op!"))
-    descA = CuTensorDescriptor(A; op = opA)
-    descB = CuTensorDescriptor(B; op = opB)
-    descC = CuTensorDescriptor(C; op = opC)
-    # for now, D must be identical to C (and thus, descD must be identical to descC)
-    T = eltype(C)
-    typeCompute = cudaDataType(T)
-
-    workspaceSize = Ref{UInt64}(C_NULL)
-    cutensorContractionGetWorkspace(handle(), A.data, descA, A.inds, B.data, descB, B.inds,
-                                    C.data, descC, C.inds, C.data, descC, C.inds, opOut,
-                                    typeCompute, algo, pref, workspaceSize)
-    workspace = CuArray{UInt8}(undef, 0)
-    try
-        workspace = CuArray{UInt8}(undef, workspaceSize[])
-    catch
-        workspace = CuArray{UInt8}(undef, 1<<27)
-    end
-    workspaceSize[] = length(workspace)
-
-    cutensorContraction(handle(), T[alpha], A.data, descA, A.inds, B.data, descB, B.inds,
-                        T[beta], C.data, descC, C.inds, C.data, descC, C.inds, opOut,
-                        typeCompute, algo, workspace, workspaceSize[], stream)
-    return C
-end
+#function contraction!(
+#    alpha::Number, A::Array, Ainds::ModeType, opA::cutensorOperator_t,
+#                   B::Array, Binds::ModeType, opB::cutensorOperator_t,
+#    beta::Number,  C::Array, Cinds::ModeType, opC::cutensorOperator_t,
+#    pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
+#    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream())
+#
+#    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
+#    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
+#    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
+#    descA = CuTensorDescriptor(A; op = opA)
+#    descB = CuTensorDescriptor(B; op = opB)
+#    descC = CuTensorDescriptor(C; op = opC)
+#    # for now, D must be identical to C (and thus, descD must be identical to descC)
+#    T = eltype(C)
+#    typeCompute = cudaDataType(T)
+#    modeA = collect(Cint, Ainds)
+#    modeB = collect(Cint, Binds)
+#    modeC = collect(Cint, Cinds)
+#
+#    workspaceSize = Ref{UInt64}(C_NULL)
+#    cutensorContractionGetWorkspace(handle(), A, descA, modeA, B, descB, modeB, C, descC,
+#                                    modeC, C, descC, modeC, typeCompute, algo, pref,
+#                                    workspaceSize)
+#    workspace = CuArray{UInt8}(undef, 0)
+#    try
+#        workspace = CuArray{UInt8}(undef, workspaceSize[])
+#    catch
+#        workspace = CuArray{UInt8}(undef, 1<<27)
+#    end
+#    workspaceSize[] = length(workspace)
+#
+#    cutensorContraction(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T[beta], C,
+#                        descC, modeC, C, descC, modeC, typeCompute, algo, CU_NULL, 0,
+#                        stream)
+#    return C
+#end
+#
+#function contraction!(
+#    alpha::Number, A::CuTensor, opA::cutensorOperator_t,
+#                   B::CuTensor, opB::cutensorOperator_t,
+#    beta::Number,  C::CuTensor, opC::cutensorOperator_t,
+#    pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
+#    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream())
+#
+#    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
+#    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
+#    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
+#    descA = CuTensorDescriptor(A; op = opA)
+#    descB = CuTensorDescriptor(B; op = opB)
+#    descC = CuTensorDescriptor(C; op = opC)
+#    # for now, D must be identical to C (and thus, descD must be identical to descC)
+#    T = eltype(C)
+#    typeCompute = cudaDataType(T)
+#
+#    workspaceSize = Ref{UInt64}(C_NULL)
+#    cutensorContractionGetWorkspace(handle(), A.data, descA, A.inds, B.data, descB, B.inds,
+#                                    C.data, descC, C.inds, C.data, descC, C.inds,
+#                                    typeCompute, algo, pref, workspaceSize)
+#    workspace = CuArray{UInt8}(undef, 0)
+#    try
+#        workspace = CuArray{UInt8}(undef, workspaceSize[])
+#    catch
+#        workspace = CuArray{UInt8}(undef, 1<<27)
+#    end
+#    workspaceSize[] = length(workspace)
+#
+#    cutensorContraction(handle(), T[alpha], A.data, descA, A.inds, B.data, descB, B.inds,
+#                        T[beta], C.data, descC, C.inds, C.data, descC, C.inds,
+#                        typeCompute, algo, workspace, workspaceSize[], stream)
+#    return C
+#end
 
 function reduction!(
     alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-    beta::Number, C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
+    beta::Number,  C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
     opReduce::cutensorOperator_t; stream::CuStream=CuDefaultStream())
 
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
@@ -316,14 +347,16 @@ function reduction!(
     descC = CuTensorDescriptor(C; op = opC)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
     T = eltype(C)
-    typeCompute = cudaDataType(T)
+    typeCompute = cutensorComputeType(T)
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
 
     workspaceSize = Ref{UInt64}(C_NULL)
-    cutensorReductionGetWorkspace(handle(), A, descA, modeA,
-                                    C, descC, modeC, C, descC, modeC,
-                                    opReduce, typeCompute, workspaceSize)
+    cutensorReductionGetWorkspace(handle(),
+                                  A, descA, modeA,
+                                  C, descC, modeC,
+                                  C, descC, modeC,
+                                  opReduce, typeCompute, workspaceSize)
     workspace = CuArray{UInt8}(undef, 0)
     try
         workspace = CuArray{UInt8}(undef, workspaceSize[])
@@ -332,8 +365,10 @@ function reduction!(
     end
     workspaceSize[] = length(workspace)
 
-    cutensorReduction(handle(), T[alpha], A, descA, modeA, T[beta], C, descC, modeC,
-                        C, descC, modeC, opReduce, typeCompute, workspace,
-                        workspaceSize[], stream)
+    cutensorReduction(handle(),
+                      T[alpha], A, descA, modeA,
+                      T[beta],  C, descC, modeC,
+                                C, descC, modeC,
+                       opReduce, typeCompute, workspace, workspaceSize[], stream)
     return C
 end

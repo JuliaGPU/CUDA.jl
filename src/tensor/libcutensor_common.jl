@@ -1,12 +1,48 @@
 # Automatically generated using Clang.jl
 
 
+const CUTENSOR_MAJOR = 1
+const CUTENSOR_MINOR = 0
+const CUTENSOR_PATCH = 0
+
+@cenum cutensorAlgo_t::Int32 begin
+    CUTENSOR_ALGO_GETT = -4
+    CUTENSOR_ALGO_TGETT = -3
+    CUTENSOR_ALGO_TTGT = -2
+    CUTENSOR_ALGO_DEFAULT = -1
+end
+
+@cenum cutensorWorksizePreference_t::UInt32 begin
+    CUTENSOR_WORKSPACE_MIN = 1
+    CUTENSOR_WORKSPACE_RECOMMENDED = 2
+    CUTENSOR_WORKSPACE_MAX = 3
+end
+
 @cenum cutensorOperator_t::UInt32 begin
     CUTENSOR_OP_IDENTITY = 1
     CUTENSOR_OP_SQRT = 2
     CUTENSOR_OP_RELU = 8
     CUTENSOR_OP_CONJ = 9
     CUTENSOR_OP_RCP = 10
+    CUTENSOR_OP_SIGMOID = 11
+    CUTENSOR_OP_TANH = 12
+    CUTENSOR_OP_EXP = 22
+    CUTENSOR_OP_LOG = 23
+    CUTENSOR_OP_ABS = 24
+    CUTENSOR_OP_NEG = 25
+    CUTENSOR_OP_SIN = 26
+    CUTENSOR_OP_COS = 27
+    CUTENSOR_OP_TAN = 28
+    CUTENSOR_OP_SINH = 29
+    CUTENSOR_OP_COSH = 30
+    CUTENSOR_OP_ASIN = 31
+    CUTENSOR_OP_ACOS = 32
+    CUTENSOR_OP_ATAN = 33
+    CUTENSOR_OP_ASINH = 34
+    CUTENSOR_OP_ACOSH = 35
+    CUTENSOR_OP_ATANH = 36
+    CUTENSOR_OP_CEIL = 37
+    CUTENSOR_OP_FLOOR = 38
     CUTENSOR_OP_ADD = 3
     CUTENSOR_OP_MUL = 5
     CUTENSOR_OP_MAX = 6
@@ -31,25 +67,62 @@ end
     CUTENSOR_STATUS_INSUFFICIENT_DRIVER = 20
 end
 
-@cenum cutensorAlgo_t::Int32 begin
-    CUTENSOR_ALGO_TGETT = -7
-    CUTENSOR_ALGO_GETT = -6
-    CUTENSOR_ALGO_LOG_TENSOR_OP = -5
-    CUTENSOR_ALGO_LOG = -4
-    CUTENSOR_ALGO_TTGT_TENSOR_OP = -3
-    CUTENSOR_ALGO_TTGT = -2
-    CUTENSOR_ALGO_DEFAULT = -1
+@cenum cutensorComputeType_t::UInt32 begin
+    CUTENSOR_R_MIN_16F = 1
+    CUTENSOR_C_MIN_16F = 2
+    CUTENSOR_R_MIN_32F = 4
+    CUTENSOR_C_MIN_32F = 8
+    CUTENSOR_R_MIN_64F = 16
+    CUTENSOR_C_MIN_64F = 32
+    CUTENSOR_R_MIN_8U = 64
+    CUTENSOR_R_MIN_32U = 128
+    CUTENSOR_R_MIN_8I = 256
+    CUTENSOR_R_MIN_32I = 512
 end
 
-@cenum cutensorWorksizePreference_t::UInt32 begin
-    CUTENSOR_WORKSPACE_MIN = 1
-    CUTENSOR_WORKSPACE_RECOMMENDED = 2
-    CUTENSOR_WORKSPACE_MAX = 3
+function cutensorComputeType(T::DataType)
+    if T == Float32
+        return CUTENSOR_R_MIN_32F
+    elseif T == ComplexF32
+        return CUTENSOR_C_MIN_32F
+    elseif T == Float16
+        return CUTENSOR_R_MIN_16F
+    elseif T == ComplexF16
+        return CUTENSOR_C_MIN_16F
+    elseif T == Float64
+        return CUTENSOR_R_MIN_64F
+    elseif T == ComplexF64
+        return CUTENSOR_C_MIN_64F
+    elseif T == Int8
+        return CUTENSOR_R_MIN_8I
+    elseif T == Int32
+        return CUTENSOR_R_MIN_32I
+    elseif T == UInt8
+        return CUTENSOR_R_MIN_8U
+    elseif T == UInt32
+        return CUTENSOR_R_MIN_32U
+    else
+        throw(ArgumentError("cutensorComputeType equivalent for input type $T does not exist!"))
+    end
 end
 
 
-const cutensorHandle_t = Ptr{Cvoid}
-const cutensorTensorDescriptor_t = Ptr{Cvoid}
-const CUTENSOR_MAJOR = 0
-const CUTENSOR_MINOR = 2
-const CUTENSOR_PATCH = 2
+struct cutensorHandle_t
+    fields::NTuple{512, Int64}
+end
+
+struct cutensorTensorDescriptor_t
+    fields::NTuple{64, Int64}
+end
+
+struct cutensorContractionDescriptor_t
+    fields::NTuple{256, Int64}
+end
+
+struct cutensorContractionPlan_t
+    fields::NTuple{640, Int64}
+end
+
+struct cutensorContractionFind_t
+    fields::NTuple{64, Int64}
+end

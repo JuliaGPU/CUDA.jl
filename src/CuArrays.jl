@@ -103,8 +103,8 @@ function __init__()
         # library compatibility
         if has_cutensor()
             ver = CUTENSOR.version()
-            if ver.major != 0 || ver.minor != 2
-                error("CuArrays.jl only supports CUTENSOR 0.2")
+            if ver.major != 1
+                error("CuArrays.jl only supports CUTENSOR 1.x")
             end
         end
 
@@ -123,7 +123,7 @@ function __init__()
             CUSPARSE._handle[] = C_NULL
             CURAND._generator[] = nothing
             CUDNN._handle[] = C_NULL
-            CUTENSOR._handle[] = C_NULL
+            CUTENSOR._handle[] = nothing
         end
         push!(CUDAnative.device!_listeners, callback)
 

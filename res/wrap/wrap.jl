@@ -9,7 +9,7 @@ using Crayons
 
 using Clang
 
-function wrap(name, headers...; library="lib$name", defines=[])
+function wrap(name, headers...; wrapped_headers=headers, library="lib$name", defines=[])
     include_dirs = map(dir->joinpath(dir, "include"), find_toolkit())
     filter!(isdir, include_dirs)
 
@@ -32,7 +32,7 @@ function wrap(name, headers...; library="lib$name", defines=[])
                     common_file = common_file,
                     clang_includes = [include_dirs..., CLANG_INCLUDE],
                     clang_args = clang_args,
-                    header_wrapped = (root, current)->root == current,
+                    header_wrapped = (root, current)->any(header->endswith(current, header), wrapped_headers),
                     header_library = x->library,
                     clang_diagnostics = true,
                   )
@@ -105,7 +105,8 @@ mutable struct State
     edits::Vector{Edit}
 end
 
-# insert `@check` before each `ccall` when it returns a checked type
+# insert `@check` before each `ccall` when it returns a checked type,
+# and make it a `@runtime_ccall`
 const checked_types = [
     "cublasStatus_t",
     "cudnnStatus_t",
@@ -115,13 +116,15 @@ const checked_types = [
     "cusparseStatus_t",
     "cutensorStatus_t",
 ]
-function insert_check(x, state)
+function rewrite_ccall(x, state)
     if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
         # get the ccall return type
         rv = x.args[5]
 
         if rv.val in checked_types
-            push!(state.edits, Edit(state.offset, "@check "))
+            push!(state.edits, Edit(state.offset, "@check @runtime_"))
+        else
+            push!(state.edits, Edit(state.offset, "@runtime_"))
         end
     end
 end
@@ -287,7 +290,7 @@ function wrap_at_comma(x, state, indent, offset, column)
 end
 
 function indent_ccall(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+    if x isa CSTParser.EXPR && x.typ == CSTParser.MacroCall && x.args[1].args[2].val == "runtime_ccall"
         # figure out how much to indent by looking at where the expr starts
         line = findlast(y -> state.offset >= y[2], state.lines) # index, not the actual number
         line_indent, line_offset = state.lines[line]
@@ -349,7 +352,7 @@ function process(name, headers...; kwargs...)
         ast = CSTParser.parse(text, true)
 
         state.offset = 0
-        pass(ast, state, insert_check)
+        pass(ast, state, rewrite_ccall)
 
         state.offset = 0
         pass(ast, state, (x,state)->rewrite_pointers(x,state,headers))
@@ -436,8 +439,8 @@ function main()
         process(name, headers...; kwargs...)
     end
 
-    process_if_existing("cublas",
-                        "cublas_v2.h", "cublas_api.h", "cublasXt.h";
+    process_if_existing("cublas", "cublas_v2.h", "cublasXt.h";
+                        wrapped_headers=["cublas_v2.h", "cublas_api.h", "cublasXt.h"],
                         defines=["CUBLASAPI"=>""])
 
     process_if_existing("cufft", "cufft.h")
@@ -446,12 +449,13 @@ function main()
 
     process_if_existing("cusparse", "cusparse.h")
 
-    process_if_existing("cusolver",
-                        "cusolver_common.h", "cusolverDn.h", "cusolverSp.h")
+    process_if_existing("cusolver", "cusolverDn.h", "cusolverSp.h";
+                        wrapped_headers=["cusolver_common.h", "cusolverDn.h", "cusolverSp.h"])
 
     process_if_existing("cudnn", "cudnn.h")
 
-    process_if_existing("cutensor", "cutensor/types.h", "cutensor.h")
+    process_if_existing("cutensor", "cutensor.h";
+                        wrapped_headers=["cutensor.h", "cutensor/types.h"])
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

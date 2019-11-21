@@ -36,4 +36,7 @@ using LinearAlgebra
 LinearAlgebra.axpy!(a, X::CuTensor, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, one(eltype(Y)), Y, CUTENSOR_OP_IDENTITY, similar(Y), CUTENSOR_OP_ADD)
 LinearAlgebra.axpby!(a, X::CuTensor, b, Y::CuTensor) = elementwiseBinary!(a, X, CUTENSOR_OP_IDENTITY, b, Y, CUTENSOR_OP_IDENTITY, similar(Y), CUTENSOR_OP_ADD)
 
-LinearAlgebra.mul!(C::CuTensor, A::CuTensor, B::CuTensor) = contraction!(one(eltype(C)), A, CUTENSOR_OP_IDENTITY, B, CUTENSOR_OP_IDENTITY, zero(eltype(C)), C, CUTENSOR_OP_IDENTITY, CUTENSOR_OP_IDENTITY)
+function LinearAlgebra.mul!(C::CuTensor, A::CuTensor, B::CuTensor) 
+   contraction!(one(eltype(C)), A.data, A.inds, CUTENSOR_OP_IDENTITY, B.data, B.inds, CUTENSOR_OP_IDENTITY, zero(eltype(C)), C.data, C.inds, CUTENSOR_OP_IDENTITY, CUTENSOR_OP_IDENTITY)
+   return C
+end
