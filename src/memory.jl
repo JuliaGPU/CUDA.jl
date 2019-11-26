@@ -52,7 +52,7 @@ function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
   # try the actual allocation
   try
     alloc_stats.actual_time += Base.@elapsed begin
-      @timeit alloc_to "alloc" buf = Mem.alloc(Mem.Device, bytes)
+      @timeit_debug alloc_to "alloc" buf = Mem.alloc(Mem.Device, bytes)
     end
     @assert sizeof(buf) == bytes
     alloc_stats.actual_nalloc += 1
@@ -78,7 +78,7 @@ function actual_free(ptr::CuPtr{Nothing})
   alloc_stats.actual_free += bytes
   usage[] -= bytes
 
-  @timeit alloc_to "free"  begin
+  @timeit_debug alloc_to "free"  begin
     alloc_stats.actual_time += Base.@elapsed Mem.free(buf)
   end
 
@@ -91,7 +91,7 @@ end
 const pool_to = TimerOutput()
 
 macro pool_timeit(args...)
-    TimerOutputs.timer_expr(__module__, false, :($CuArrays.pool_to), args...)
+    TimerOutputs.timer_expr(CuArrays, true, :($CuArrays.pool_to), args...)
 end
 
 pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
@@ -278,6 +278,8 @@ end
 
 
 ## init
+
+enable_timings() = (TimerOutputs.enable_debug_timings(CuArrays); return)
 
 function __init_memory__()
   if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")

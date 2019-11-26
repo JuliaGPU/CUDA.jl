@@ -20,6 +20,8 @@ testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 import CuArrays: allowscalar, @allowscalar
 allowscalar(false)
 
+CuArrays.enable_timings()
+
 @testset "CuArrays" begin
 
 @testset "GPUArrays test suite" begin
