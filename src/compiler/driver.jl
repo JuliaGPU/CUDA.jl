@@ -54,9 +54,9 @@ function codegen(target::Symbol, job::CompilerJob;
                  strip::Bool=false,strict::Bool=true)
     ## Julia IR
 
-    @timeit to[] "validation" check_method(job)
+    @timeit_debug to "validation" check_method(job)
 
-    @timeit to[] "Julia front-end" begin
+    @timeit_debug to "Julia front-end" begin
 
         # get the method instance
         world = typemax(UInt)
@@ -95,30 +95,30 @@ function codegen(target::Symbol, job::CompilerJob;
         runtime_fns = LLVM.name.(defs(runtime))
     end
 
-    @timeit to[] "LLVM middle-end" begin
-        ir, kernel = @timeit to[] "IR generation" irgen(job, method_instance, world)
+    @timeit_debug to "LLVM middle-end" begin
+        ir, kernel = @timeit_debug to "IR generation" irgen(job, method_instance, world)
 
         if libraries
             undefined_fns = LLVM.name.(decls(ir))
             if any(fn->startswith(fn, "__nv_"), undefined_fns)
                 libdevice = load_libdevice(job.cap)
-                @timeit to[] "device library" link_libdevice!(job, ir, libdevice)
+                @timeit_debug to "device library" link_libdevice!(job, ir, libdevice)
             end
         end
 
         if optimize
-            kernel = @timeit to[] "optimization" optimize!(job, ir, kernel)
+            kernel = @timeit_debug to "optimization" optimize!(job, ir, kernel)
         end
 
         if libraries
             undefined_fns = LLVM.name.(decls(ir))
             if any(fn -> fn in runtime_fns, undefined_fns)
-                @timeit to[] "runtime library" link_library!(job, ir, runtime)
+                @timeit_debug to "runtime library" link_library!(job, ir, runtime)
             end
         end
 
         if ccall(:jl_is_debugbuild, Cint, ()) == 1
-            @timeit to[] "verification" verify(ir)
+            @timeit_debug to "verification" verify(ir)
         end
 
         kernel_fn = LLVM.name(kernel)
@@ -183,14 +183,14 @@ function codegen(target::Symbol, job::CompilerJob;
 
     if strict
         # NOTE: keep in sync with non-strict check below
-        @timeit to[] "validation" begin
+        @timeit_debug to "validation" begin
             check_invocation(job, kernel)
             check_ir(job, ir)
         end
     end
 
     if strip
-        @timeit to[] "strip debug info" strip_debuginfo!(ir)
+        @timeit_debug to "strip debug info" strip_debuginfo!(ir)
     end
 
     target == :llvm && return ir, kernel
@@ -198,10 +198,10 @@ function codegen(target::Symbol, job::CompilerJob;
 
     ## PTX machine code
 
-    @timeit to[] "LLVM back-end" begin
-        @timeit to[] "preparation" prepare_execution!(job, ir)
+    @timeit_debug to "LLVM back-end" begin
+        @timeit_debug to "preparation" prepare_execution!(job, ir)
 
-        asm = @timeit to[] "machine-code generation" mcgen(job, ir, kernel)
+        asm = @timeit_debug to "machine-code generation" mcgen(job, ir, kernel)
     end
 
     undefined_fns = LLVM.name.(decls(ir))

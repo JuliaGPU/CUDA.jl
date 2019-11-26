@@ -160,11 +160,11 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
 end
 
 function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
-    entry, dependencies = @timeit to[] "emission" compile_method_instance(job, method_instance, world)
+    entry, dependencies = @timeit_debug to "emission" compile_method_instance(job, method_instance, world)
     mod = LLVM.parent(entry)
 
     # link in dependent modules
-    @timeit to[] "linking" begin
+    @timeit_debug to "linking" begin
         # we disable Julia's compilation cache not to poison it with GPU-specific code.
         # as a result, we might get multiple modules for a single method instance.
         cache = Dict{String,String}()
@@ -204,7 +204,7 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     end
 
     # clean up incompatibilities
-    @timeit to[] "clean-up" for llvmf in functions(mod)
+    @timeit_debug to "clean-up" for llvmf in functions(mod)
         llvmfn = LLVM.name(llvmf)
 
         # only occurs in debug builds
@@ -256,7 +256,7 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     LLVM.name!(entry, llvmfn)
 
     # minimal required optimization
-    @timeit to[] "rewrite" ModulePassManager() do pm
+    @timeit_debug to "rewrite" ModulePassManager() do pm
         global current_job
         current_job = job
 
@@ -283,7 +283,7 @@ end
 function lower_throw!(mod::LLVM.Module)
     job = current_job::CompilerJob
     changed = false
-    @timeit to[] "lower throw" begin
+    @timeit_debug to "lower throw" begin
 
     throw_functions = Dict{String,String}(
         "jl_throw"                      => "exception",
@@ -401,7 +401,7 @@ end
 function hide_unreachable!(fun::LLVM.Function)
     job = current_job::CompilerJob
     changed = false
-    @timeit to[] "hide unreachable" begin
+    @timeit_debug to "hide unreachable" begin
 
     # remove `noreturn` attributes
     #
@@ -412,7 +412,7 @@ function hide_unreachable!(fun::LLVM.Function)
 
     # build a map of basic block predecessors
     predecessors = Dict(bb => Set{LLVM.BasicBlock}() for bb in blocks(fun))
-    @timeit to[] "predecessors" for bb in blocks(fun)
+    @timeit_debug to "predecessors" for bb in blocks(fun)
         insts = instructions(bb)
         if !isempty(insts)
             inst = last(insts)
@@ -426,7 +426,7 @@ function hide_unreachable!(fun::LLVM.Function)
 
     # scan for unreachable terminators and alternative successors
     worklist = Pair{LLVM.BasicBlock, Union{Nothing,LLVM.BasicBlock}}[]
-    @timeit to[] "find" for bb in blocks(fun)
+    @timeit_debug to "find" for bb in blocks(fun)
         unreachable = terminator(bb)
         if isa(unreachable, LLVM.UnreachableInst)
             unsafe_delete!(bb, unreachable)
@@ -474,7 +474,7 @@ function hide_unreachable!(fun::LLVM.Function)
     end
 
     # apply the pending terminator rewrites
-    @timeit to[] "replace" if !isempty(worklist)
+    @timeit_debug to "replace" if !isempty(worklist)
         let builder = Builder(JuliaContext())
             for (bb, fallthrough) in worklist
                 position!(builder, bb)
@@ -508,7 +508,7 @@ end
 function hide_trap!(mod::LLVM.Module)
     job = current_job::CompilerJob
     changed = false
-    @timeit to[] "hide trap" begin
+    @timeit_debug to "hide trap" begin
 
     # inline assembly to exit a thread, hiding control flow from LLVM
     exit_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()))
