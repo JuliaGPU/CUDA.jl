@@ -402,23 +402,6 @@ end
 
 init() = return
 
-function deinit()
-    @assert isempty(allocated) "Cannot deinitialize memory pool with outstanding allocations"
-
-    repopulate(freed)
-    incremental_compact!(Set(freed))
-    empty!(freed)
-
-    for available in (available_small, available_large, available_huge)
-        while !isempty(available)
-            block = pop!(available)
-            actual_free(block)
-        end
-    end
-
-    return
-end
-
 function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
@@ -438,6 +421,15 @@ function free(ptr)
     delete!(allocated, ptr)
     pool_free(block)
     return
+end
+
+function reclaim(sz::Int=typemax(Int))
+    freed = 0
+    for available in (available_huge, available_large, available_small)
+        freed >= sz && break
+        freed += reclaim!(available, sz-freed)
+    end
+    return freed
 end
 
 used_memory() = mapreduce(sizeof, +, values(allocated); init=0)
