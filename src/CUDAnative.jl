@@ -54,9 +54,9 @@ const __initialized__ = Ref(false)
 functional() = __initialized__[]
 
 function __init__()
-    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false"))
-    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false")) || precompiling
+    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
 
     # if any dependent GPU package failed, expect it to have logged an error and bail out
     if !CUDAdrv.functional()
@@ -86,7 +86,7 @@ function __init__()
         toolkit_dirs = find_toolkit()
         cuda_toolkit_version = find_toolkit_version(toolkit_dirs)
         if cuda_toolkit_version <= v"9"
-            @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(cuda_toolkit_version))"
+            silent || @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(cuda_toolkit_version))"
         end
 
         cuda_targets, cuda_isas = cuda_support(CUDAdrv.version(), cuda_toolkit_version)
@@ -129,7 +129,7 @@ function __init__()
         __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        if !silent && !precompiling
+        if !silent
             if verbose
                 @error "CUDAnative.jl failed to initialize" exception=(ex, catch_backtrace())
             else
