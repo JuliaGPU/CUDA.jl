@@ -60,9 +60,9 @@ has_cudnn() = libraries["cudnn"] !== nothing && CUDNN.libcudnn !== nothing
 has_cutensor() = libraries["cutensor"] !== nothing && CUTENSOR.libcutensor !== nothing
 
 function __init__()
-    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false"))
-    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false")) || precompiling
+    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
 
     # if any dependent GPU package failed, expect it to have logged an error and bail out
     if !CUDAdrv.functional() || !CUDAnative.functional()
@@ -104,7 +104,7 @@ function __init__()
         if has_cutensor()
             ver = CUTENSOR.version()
             if ver.major != 1
-                error("CuArrays.jl only supports CUTENSOR 1.x")
+                silent || @warn("CuArrays.jl only supports CUTENSOR 1.x")
             end
         end
 
@@ -138,9 +138,7 @@ function __init__()
         __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false"))
-        if !silent && !precompiling
-            verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
+        if !silent
             if verbose
                 @error "CuArrays.jl failed to initialize" exception=(ex, catch_backtrace())
             else
