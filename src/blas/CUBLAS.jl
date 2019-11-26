@@ -13,20 +13,7 @@ using LinearAlgebra
 
 using CEnum
 
-const libcublas = if Sys.iswindows()
-    # no ccall by soname, we need the filename
-    # NOTE: we discover the full path here, while only the wordsize and toolkit versions
-    #       would have been enough to construct "cublas64_10.dll"
-    toolkit = find_toolkit()
-    path = find_cuda_library("cublas", toolkit)
-    if path === nothing
-        error("Could not find libcublas")
-    end
-    const libcublas = basename(path)
-else
-    # ccall by soname; CuArrays.__init__ will have populated Libdl.DL_LOAD_PATH
-    const libcublas = "libcublas"
-end
+const libcublas = Ref("libcublas")
 
 # core library
 include("libcublas_common.jl")
