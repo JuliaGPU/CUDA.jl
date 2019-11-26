@@ -28,16 +28,16 @@ CuArrays.enable_timings()
   TestSuite.test(CuArray)
 end
 
-#=include("base.jl")
+include("base.jl")
 include("blas.jl")
 include("rand.jl")
 include("fft.jl")
 include("sparse.jl")
 include("solver.jl")
 include("sparse_solver.jl")
-include("dnn.jl")=#
+include("dnn.jl")
 include("tensor.jl")
-#include("forwarddiff.jl")
+include("forwarddiff.jl")
 
 CuArrays.memory_status()
 CuArrays.pool_timings()
