@@ -111,7 +111,7 @@ flux:
   tags:
     - nvidia
   script:
-    - export FLUX="$HOME/.julia/dev/Flux"
+    - export FLUX=".julia/dev/Flux"
     - julia -e 'using Pkg;
                 Pkg.develop("Flux");'
     - julia --project -e 'using Pkg;
