@@ -55,9 +55,8 @@ const __initialized__ = Ref(false)
 functional() = __initialized__[]
 
 export has_cudnn, has_cutensor
-const libraries = Dict{String,Union{String,Nothing}}()
-has_cudnn() = libraries["cudnn"] !== nothing && CUDNN.libcudnn !== nothing
-has_cutensor() = libraries["cutensor"] !== nothing && CUTENSOR.libcutensor !== nothing
+has_cudnn() = Libdl.dlopen_e(CUDNN.libcudnn[]) !== C_NULL
+has_cutensor() = Libdl.dlopen_e(CUTENSOR.libcutensor[]) !== C_NULL
 
 function __init__()
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
@@ -76,18 +75,20 @@ function __init__()
         for name in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudnn", "cutensor")
             mod = getfield(CuArrays, Symbol(uppercase(name)))
             lib = Symbol("lib$name")
-            path = find_cuda_library(name, toolkit)
-            libraries[name] = path
+            handle = getfield(mod, lib)
 
-            # only push the load path if we couldn't find the library
-            if path !== nothing
-                file = basename(path)
-                handle = first(split(file,'.'))
-                if Libdl.dlopen_e(handle) == C_NULL
-                    dir = dirname(path)
-                    if !(dir in Libdl.DL_LOAD_PATH)
-                        push!(Libdl.DL_LOAD_PATH, dir)
-                    end
+            # on Windows, the library name is version dependent
+            if Sys.iswindows()
+                cuda = CUDAnative.version()
+                suffix = cuda >= v"10.1" ? "$(cuda.major)" : "$(cuda.major)$(cuda.minor)"
+                handle[] = "$(name)$(Sys.WORD_SIZE)_$(suffix)"
+            end
+
+            # check if we can't find the library
+            if Libdl.dlopen_e(handle[]) == C_NULL
+                path = find_cuda_library(name, toolkit)
+                if path !== nothing
+                    handle[] = path
                 end
             end
         end
