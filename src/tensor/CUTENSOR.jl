@@ -1,7 +1,7 @@
 module CUTENSOR
 
 using ..CuArrays
-using ..CuArrays: active_context
+using ..CuArrays: active_context, @argout, @workspace
 
 using CUDAapi
 

@@ -241,24 +241,18 @@ function contraction!(
     find = Ref(cutensorContractionFind_t(ntuple(i->0, Val(64))))
     cutensorInitContractionFind(handle(), find, algo)
 
-    workspaceSize = Ref{UInt64}(C_NULL)
-    cutensorContractionGetWorkspace(handle(), desc, find, pref, workspaceSize)
+    @workspace fallback=1<<27 size=@argout(
+            cutensorContractionGetWorkspace(handle(), desc, find, pref,
+                                            out(Ref{UInt64}(C_NULL)))
+        )[] workspace->begin
+            plan = Ref(cutensorContractionPlan_t(ntuple(i->0, Val(640))))
+            cutensorInitContractionPlan(handle(), plan, desc, find, sizeof(workspace))
 
-    plan = Ref(cutensorContractionPlan_t(ntuple(i->0, Val(640))))
-    cutensorInitContractionPlan(handle(), plan, desc, find, workspaceSize[])
-
-    workspace = CuArray{UInt8}(undef, 0)
-    try
-        workspace = CuArray{UInt8}(undef, workspaceSize[])
-    catch
-        workspace = CuArray{UInt8}(undef, 1<<27)
-    end
-    workspaceSize[] = length(workspace)
-
-    cutensorContraction(handle(), plan,
-                        T[alpha], A, B,
-                        T[beta],  C, C,
-                        workspace, workspaceSize[], stream)
+            cutensorContraction(handle(), plan,
+                                T[alpha], A, B,
+                                T[beta],  C, C,
+                                workspace, sizeof(workspace), stream)
+        end
     return C
 end
 
@@ -351,24 +345,21 @@ function reduction!(
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
 
-    workspaceSize = Ref{UInt64}(C_NULL)
-    cutensorReductionGetWorkspace(handle(),
-                                  A, descA, modeA,
-                                  C, descC, modeC,
-                                  C, descC, modeC,
-                                  opReduce, typeCompute, workspaceSize)
-    workspace = CuArray{UInt8}(undef, 0)
-    try
-        workspace = CuArray{UInt8}(undef, workspaceSize[])
-    catch
-        workspace = CuArray{UInt8}(undef, 1<<13)
-    end
-    workspaceSize[] = length(workspace)
+    @workspace fallback=1<<13 size=@argout(
+            cutensorReductionGetWorkspace(handle(),
+                A, descA, modeA,
+                C, descC, modeC,
+                C, descC, modeC,
+                opReduce, typeCompute,
+                out(Ref{UInt64}(C_NULL)))
+        )[] workspace->begin
+            cutensorReduction(handle(),
+                T[alpha], A, descA, modeA,
+                T[beta],  C, descC, modeC,
+                        C, descC, modeC,
+                opReduce, typeCompute,
+                workspace, sizeof(workspace), stream)
+        end
 
-    cutensorReduction(handle(),
-                      T[alpha], A, descA, modeA,
-                      T[beta],  C, descC, modeC,
-                                C, descC, modeC,
-                       opReduce, typeCompute, workspace, workspaceSize[], stream)
     return C
 end

@@ -123,13 +123,14 @@ macro argout(ex)
 end
 
 """
-    @workspace size=getWorkspaceSize(args...) [eltyp=UInt8] buffer -> begin
+    @workspace size=getWorkspaceSize(args...) [eltyp=UInt8] [fallback=nothing] buffer->begin
       useWorkspace(workspace, sizeof(workspace))
     end
 
 Create a GPU workspace vector with element type `eltyp` and size in number of elements (in
 the default case of an UInt8 element type this equals to the amount of bytes) determined by
-calling `getWorkspaceSize`, and pass it to the  closure for use in calling `useWorkspace`.
+calling `getWorkspaceSize`, and pass it to the closure for use in calling `useWorkspace`.
+A fallback workspace size `fallback` can be specified if the regular size would lead to OOM.
 Afterwards, the buffer is put back into the memory pool for reuse.
 
 This helper protects against the rare but real issue of `getWorkspaceSize` returning
@@ -147,18 +148,20 @@ macro workspace(ex...)
 
     sz = nothing
     eltyp = :UInt8
+    fallback = nothing
     for kwarg in kwargs
         key,val = kwarg.args
         if key == :size
             sz = val
         elseif key == :eltyp
             eltyp = val
+        elseif key == :fallback
+            fallback = val
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
     end
 
-    # TODO: support a fallback size, in the case the workspace can't be allocated (for CUTENSOR)
     if sz === nothing
         throw(ArgumentError("@workspace macro needs a size argument"))
     end
@@ -172,9 +175,15 @@ macro workspace(ex...)
     return quote
         sz = $(esc(sz))
         workspace = nothing
-        while workspace === nothing || length(workspace) < sz
-            workspace = CuArray{$(esc(eltyp))}(undef, sz)
-            sz = $(esc(sz))
+        try
+          while workspace === nothing || length(workspace) < sz
+              workspace = CuArray{$(esc(eltyp))}(undef, sz)
+              sz = $(esc(sz))
+          end
+        catch ex
+            $fallback === nothing && rethrow()
+            isa(ex, OutOfGPUMemoryError) || rethrow()
+            workspace = CuArray{UInt8}(undef, $fallback)
         end
 
         let $(esc(code_arg)) = workspace
