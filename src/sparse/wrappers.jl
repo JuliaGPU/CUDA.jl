@@ -620,22 +620,23 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             info = bsrsv2Info_t[0]
             cusparseCreateBsrsv2Info(info)
             @workspace size=@argout(
-                $bname(handle(), cudir, cutransa, mb, A.nnz,
-                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
-                       info[1], out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), cudir, cutransa, mb, A.nnz,
-                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
-                       info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXbsrsv2_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), cudir, cutransa, mb, A.nnz,
+                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                           info[1], out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), cudir, cutransa, mb, A.nnz,
+                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                           info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXbsrsv2_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), cudir, cutransa, mb, A.nnz,
+                           [alpha], Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
+                           A.blockDim, info[1], X, X,
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), cudir, cutransa, mb, A.nnz,
-                       [alpha], Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
-                       A.blockDim, info[1], X, X,
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyBsrsv2Info(info[1])
             X
         end
@@ -860,22 +861,23 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
-                $bname(handle(), cutransa, m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), cutransa, m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), cutransa, m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), cutransa, m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), cutransa, m,
+                           A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
+                           A.colVal, info[1], X, X,
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), cutransa, m,
-                       A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
-                       A.colVal, info[1], X, X,
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyCsrsv2Info(info[1])
             X
         end
@@ -917,22 +919,23 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
-                $bname(handle(), cutransa, m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), cutransa, m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), cutransa, m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), cutransa, m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), cutransa, m,
+                           A.nnz, [alpha], Ref(cudesc), A.nzVal, A.colPtr,
+                           A.rowVal, info[1], X, X,
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), cutransa, m,
-                       A.nnz, [alpha], Ref(cudesc), A.nzVal, A.colPtr,
-                       A.rowVal, info[1], X, X,
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyCsrsv2Info(info[1])
             X
         end
@@ -1657,24 +1660,25 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             info = bsrsm2Info_t[0]
             cusparseCreateBsrsm2Info(info)
             @workspace size=@argout(
-                $bname(handle(), cudir, cutransa, cutransxy,
-                       mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
-                       A.colVal, A.blockDim, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), cudir, cutransa, cutransxy,
-                       mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
-                       A.colVal, A.blockDim, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXbsrsm2_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), cudir, cutransa, cutransxy,
+                           mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
+                           A.colVal, A.blockDim, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), cudir, cutransa, cutransxy,
+                           mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
+                           A.colVal, A.blockDim, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXbsrsm2_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), cudir, cutransa, cutransxy, mb,
+                           nX, A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
+                           A.colVal, A.blockDim, info[1], X, ldx, X, ldx,
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), cudir, cutransa, cutransxy, mb,
-                       nX, A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
-                       A.colVal, A.blockDim, info[1], X, ldx, X, ldx,
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyBsrsm2Info(info[1])
             X
         end
@@ -1992,21 +1996,22 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             info = csric02Info_t[0]
             cusparseCreateCsric02Info(info)
             @workspace size=@argout(
-                $bname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXcsric02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsric02_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyCsric02Info(info[1])
             A
         end
@@ -2030,21 +2035,22 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             info = csric02Info_t[0]
             cusparseCreateCsric02Info(info)
             @workspace size=@argout(
-                $bname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.colPtr, A.rowVal, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.colPtr, A.rowVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXcsric02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.colPtr, A.rowVal, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.colPtr, A.rowVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsric02_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyCsric02Info(info[1])
             A
         end
@@ -2119,21 +2125,22 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             info = csrilu02Info_t[0]
             cusparseCreateCsrilu02Info(info)
             @workspace size=@argout(
-                $bname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyCsrilu02Info(info[1])
             A
         end
@@ -2157,21 +2164,22 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             info = csrilu02Info_t[0]
             cusparseCreateCsrilu02Info(info)
             @workspace size=@argout(
-                $bname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.colPtr, A.rowVal, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), m, A.nnz, Ref(cudesc),
-                       A.nzVal, A.colPtr, A.rowVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.colPtr, A.rowVal, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                           A.nzVal, A.colPtr, A.rowVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), m, A.nnz,
+                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), m, A.nnz,
-                       Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyCsrilu02Info(info[1])
             A
         end
@@ -2197,21 +2205,22 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
             info = bsric02Info_t[0]
             cusparseCreateBsric02Info(info)
             @workspace size=@argout(
-                $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXbsric02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXbsric02_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), cudir, mb, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyBsric02Info(info[1])
             A
         end
@@ -2237,21 +2246,22 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
             info = bsrilu02Info_t[0]
             cusparseCreateBsrilu02Info(info)
             @workspace size=@argout(
-                $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
-                       out(Ref{Cint}(1))))[] buffer->begin
-                $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-                posit = Ref{Cint}(1)
-                cusparseXbsrilu02_zeroPivot(handle(), info[1], posit)
-                if posit[] >= 0
-                    throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                           out(Ref{Cint}(1)))
+                )[] buffer->begin
+                    $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXbsrilu02_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                           A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
-                $sname(handle(), cudir, mb, A.nnz, Ref(cudesc),
-                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
-                       CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
-            end
             cusparseDestroyBsrilu02Info(info[1])
             A
         end
