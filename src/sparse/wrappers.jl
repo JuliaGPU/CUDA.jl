@@ -619,9 +619,10 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             end
             info = bsrsv2Info_t[0]
             cusparseCreateBsrsv2Info(info)
-            @workspace $bname(handle(), cudir, cutransa, mb, A.nnz,
-                              Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
-                              A.blockDim, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), cudir, cutransa, mb, A.nnz,
+                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                       info[1], out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), cudir, cutransa, mb, A.nnz,
                        Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
                        info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -858,9 +859,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             end
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
-            @workspace $bname(handle(), cutransa, m, A.nnz,
-                              Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
-                              info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), cutransa, m, A.nnz,
+                       Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), cutransa, m, A.nnz,
                        Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -914,9 +916,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             end
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
-            @workspace $bname(handle(), cutransa, m, A.nnz,
-                              Ref(cudesc), A.nzVal, A.colPtr, A.rowVal,
-                              info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), cutransa, m, A.nnz,
+                       Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), cutransa, m, A.nnz,
                        Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -1653,9 +1656,11 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             ldx = max(1,stride(X,2))
             info = bsrsm2Info_t[0]
             cusparseCreateBsrsm2Info(info)
-            @workspace $bname(handle(), cudir, cutransa, cutransxy, mb, nX, A.nnz,
-                              Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
-                              A.blockDim, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), cudir, cutransa, cutransxy,
+                       mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
+                       A.colVal, A.blockDim, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), cudir, cutransa, cutransxy,
                        mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
                        A.colVal, A.blockDim, info[1],
@@ -1986,8 +1991,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             end
             info = csric02Info_t[0]
             cusparseCreateCsric02Info(info)
-            @workspace $bname(handle(), m, A.nnz, Ref(cudesc), A.nzVal,
-                              A.rowPtr, A.colVal, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), m, A.nnz, Ref(cudesc),
+                       A.nzVal, A.rowPtr, A.colVal, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), m, A.nnz, Ref(cudesc),
                        A.nzVal, A.rowPtr, A.colVal, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2022,8 +2029,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             end
             info = csric02Info_t[0]
             cusparseCreateCsric02Info(info)
-            @workspace $bname(handle(), m, A.nnz, Ref(cudesc), A.nzVal,
-                              A.colPtr, A.rowVal, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), m, A.nnz, Ref(cudesc),
+                       A.nzVal, A.colPtr, A.rowVal, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), m, A.nnz, Ref(cudesc),
                        A.nzVal, A.colPtr, A.rowVal, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2109,8 +2118,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             end
             info = csrilu02Info_t[0]
             cusparseCreateCsrilu02Info(info)
-            @workspace $bname(handle(), m, A.nnz, Ref(cudesc), A.nzVal,
-                              A.rowPtr, A.colVal, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), m, A.nnz, Ref(cudesc),
+                       A.nzVal, A.rowPtr, A.colVal, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), m, A.nnz, Ref(cudesc),
                        A.nzVal, A.rowPtr, A.colVal, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2145,8 +2156,10 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             end
             info = csrilu02Info_t[0]
             cusparseCreateCsrilu02Info(info)
-            @workspace $bname(handle(), m, A.nnz, Ref(cudesc), A.nzVal,
-                              A.colPtr, A.rowVal, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), m, A.nnz, Ref(cudesc),
+                       A.nzVal, A.colPtr, A.rowVal, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), m, A.nnz, Ref(cudesc),
                        A.nzVal, A.colPtr, A.rowVal, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2183,9 +2196,10 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
             mb = div(m,A.blockDim)
             info = bsric02Info_t[0]
             cusparseCreateBsric02Info(info)
-            @workspace $bname(handle(), cudir, mb, A.nnz,
-                              Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
-                              A.blockDim, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
                        A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
@@ -2222,9 +2236,10 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
             mb = div(m,A.blockDim)
             info = bsrilu02Info_t[0]
             cusparseCreateBsrilu02Info(info)
-            @workspace $bname(handle(), cudir, mb, A.nnz,
-                              Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
-                              A.blockDim, info[1], output(Ref{Cint}(1))) do buffer
+            @workspace size=@argout(
+                $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                       A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
+                       out(Ref{Cint}(1))))[] buffer->begin
                 $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
                        A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                        CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)

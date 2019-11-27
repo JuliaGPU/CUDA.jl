@@ -73,8 +73,9 @@ end
 
 function cudnnRNNForward(rnn::RNNDesc{T}, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y, hod,
                          ho, cod, co, reserve=nothing) where T
-  @workspace cudnnGetRNNWorkspaceSize(handle(), rnn, seqlen, xd,
-                                      output(Ref{Csize_t}())) do workspace
+  @workspace size=@argout(
+    cudnnGetRNNWorkspaceSize(handle(), rnn, seqlen, xd,
+                             out(Ref{Csize_t}())))[] workspace->begin
     if reserve == nothing
       cudnnRNNForwardInference(handle(), rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y,
                               hod, ho, cod, co, workspace, sizeof(workspace))
@@ -134,8 +135,9 @@ forwardTrain(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}, c = nothing) where T
 function cudnnRNNBackwardData(rnnDesc, seqLength, yDesc, y, dyDesc, dy, dhyDesc,
                               dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc,
                               dx, dhxDesc, dhx, dcxDesc, dcx, reserve)
-  @workspace cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, dxDesc,
-                                      output(Ref{Csize_t}())) do workspace
+  @workspace size=@argout(
+    cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, dxDesc,
+                             out(Ref{Csize_t}())))[] workspace->begin
     cudnnRNNBackwardData(handle(), rnnDesc, seqLength, yDesc, y, dyDesc, dy, dhyDesc,
                          dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc,
                          dx, dhxDesc, dhx, dcxDesc, dcx, workspace, sizeof(workspace),
@@ -161,8 +163,9 @@ backwardData(rnn, y, dy, dho, hx, reserve) =
 
 function cudnnRNNBackwardWeights(rnnDesc, seqLength, xDesc, x, hxDesc, hx, yDesc,
                                  y, dwDesc, dw, reserve)
-  @workspace cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, xDesc,
-                                      output(Ref{Csize_t}())) do workspace
+  @workspace size=@argout(
+    cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, xDesc,
+                             out(Ref{Csize_t}())))[] workspace->begin
     cudnnRNNBackwardWeights(handle(), rnnDesc, seqLength, xDesc, x, hxDesc, hx, yDesc,
                             y, workspace, sizeof(workspace), dwDesc, dw,
                             reserve, sizeof(reserve))

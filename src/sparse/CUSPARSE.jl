@@ -1,7 +1,7 @@
 module CUSPARSE
 
 using ..CuArrays
-using ..CuArrays: active_context, unsafe_free!, @workspace
+using ..CuArrays: active_context, unsafe_free!, @argout, @workspace
 
 using CUDAapi
 

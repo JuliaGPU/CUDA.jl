@@ -69,11 +69,12 @@ end
 
 function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
                                  cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
-    @workspace cudnnGetConvolutionForwardWorkspaceSize(handle(), TensorDesc(x),
-                                                       FilterDesc(w), ConvDesc(T, cdims),
-                                                       TensorDesc(y),
-                                                       cudnnConvolutionFwdAlgo_t(algo),
-                                                       output( Ref{Csize_t}())) do workspace
+    @workspace size=@argout(
+        cudnnGetConvolutionForwardWorkspaceSize(handle(), TensorDesc(x),
+                                                FilterDesc(w), ConvDesc(T, cdims),
+                                                TensorDesc(y),
+                                                cudnnConvolutionFwdAlgo_t(algo),
+                                                out(Ref{Csize_t}())))[] workspace->begin
         cudnnConvolutionForward(handle(), Ref(T(alpha)), TensorDesc(x), x, FilterDesc(w), w,
                                 ConvDesc(T,cdims), cudnnConvolutionFwdAlgo_t(algo), workspace,
                                 sizeof(workspace), Ref(T(beta)), TensorDesc(y), y
@@ -84,12 +85,13 @@ end
 
 function cudnnConvolutionBackwardData(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
                                       cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
-    @workspace cudnnGetConvolutionBackwardDataWorkspaceSize(handle(), FilterDesc(w),
-                                                            TensorDesc(dy),
-                                                            ConvDesc(T, cdims),
-                                                            TensorDesc(dx),
-                                                            cudnnConvolutionBwdDataAlgo_t(algo),
-                                                            output(Ref{Csize_t}())) do workspace
+    @workspace size=@argout(
+        cudnnGetConvolutionBackwardDataWorkspaceSize(handle(), FilterDesc(w),
+                                                     TensorDesc(dy),
+                                                     ConvDesc(T, cdims),
+                                                     TensorDesc(dx),
+                                                     cudnnConvolutionBwdDataAlgo_t(algo),
+                                                     out(Ref{Csize_t}())))[] workspace->begin
         cudnnConvolutionBackwardData(handle(), Ref(T(alpha)), FilterDesc(w), w,
                                      TensorDesc(dy), dy, ConvDesc(T, cdims),
                                      cudnnConvolutionBwdDataAlgo_t(algo), workspace,
@@ -100,12 +102,13 @@ end
 
 function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
                                         cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
-    @workspace cudnnGetConvolutionBackwardFilterWorkspaceSize(handle(), TensorDesc(x),
-                                                              TensorDesc(dy),
-                                                              ConvDesc(T, cdims),
-                                                              FilterDesc(dw),
-                                                              cudnnConvolutionBwdFilterAlgo_t(algo),
-                                                              output(Ref{Csize_t}())) do workspace
+    @workspace size=@argout(
+        cudnnGetConvolutionBackwardFilterWorkspaceSize(handle(), TensorDesc(x),
+                                                       TensorDesc(dy),
+                                                       ConvDesc(T, cdims),
+                                                       FilterDesc(dw),
+                                                       cudnnConvolutionBwdFilterAlgo_t(algo),
+                                                       out(Ref{Csize_t}())))[] workspace->begin
         cudnnConvolutionBackwardFilter(handle(), Ref(T(alpha)), TensorDesc(x), x,
                                        TensorDesc(dy), dy, ConvDesc(T, cdims),
                                        cudnnConvolutionBwdFilterAlgo_t(algo), workspace,
