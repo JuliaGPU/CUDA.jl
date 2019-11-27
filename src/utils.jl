@@ -84,3 +84,79 @@ macro sync(ex)
         ret
     end
 end
+
+"""
+    @workspace getWorkspaceSize(args...) do workspace
+      useWorkspace(workspace, sizeof(workspace))
+    end
+
+Create GPU workspace of type `CuVector{UInt8}` with size in bytes determined by calling
+`getWorkspaceSize`, and pass it to the do-block closure for use in calling `useWorkspace`.
+Afterwards, the buffer is put back into the memory pool for reuse.
+
+This helper protects against the rare but real issue of `getWorkspaceSize` returning
+different results based on the GPU device memory pressure, which might change _after_
+initial allocation of the workspace (which can cause a GC collection).
+
+Use of this macro should be as physically close as possible to the function that actually
+uses the workspace, to minimize the risk of GC interventions between the allocation and use
+of the workspace.
+
+If one of the `args` passed to `getWorkspaceSize` is wrapped with the (nonexistent) `output`
+function, e.g. `getWorkspaceSize(a, output(b), c)`, this is interpreted as an
+dereferenceable output argument that returns the workspace size in stead of the function.
+The most common use case is for this to be a `Ref`, for example, `output(Ref{Cint}())`.
+There can only be one such argument.
+
+"""
+macro workspace(ex)
+    # TODO: make the workspacesize a kwarg
+    # TODO: support a fallback size, in the case the workspace can't be allocated (for CUTENSOR)
+    Meta.isexpr(ex, :do)
+    sz = ex.args[1]
+    code = ex.args[2]
+
+    # if the workspace getter is a function call that passes a newly constructed Ref{T}()[]
+    # this indicates an output argument that returns the worksize.
+    if Meta.isexpr(sz, :call)
+        # look for an output argument (`output(...)`)
+        output_arg = 0
+        args = sz.args[2:end]
+        for (i,arg) in enumerate(args)
+            if Meta.isexpr(arg, :call) && arg.args[1] == :output
+                @assert output_arg==0 "@workspace: multiple output arguments detected"
+                output_arg = i
+            end
+        end
+
+        # if we have an output argument, replace the size getter
+        if output_arg != 0
+            Largs = sz.args[2:output_arg]
+            ref_arg = sz.args[output_arg+1].args[2] # strip the call to `output`
+            Rargs = sz.args[output_arg+2:end]
+
+            @gensym ref_val
+            sz.args[output_arg+1] = ref_val
+            sz = quote
+                $ref_val = $ref_arg
+                $sz
+                $ref_val[]
+            end
+        end
+    end
+
+    return quote
+        sz = $(esc(sz))
+        workspace = nothing
+        while workspace === nothing || sizeof(workspace) < sz
+            workspace = CuArray{UInt8}(undef, sz)
+            sz = $(esc(sz))
+        end
+
+        try
+          $(esc(code))(workspace)
+        finally
+          unsafe_free!(workspace)
+        end
+    end
+end

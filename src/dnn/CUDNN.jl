@@ -11,7 +11,7 @@ import CUDAnative
 using CEnum
 
 using ..CuArrays
-using ..CuArrays: active_context, CuVecOrMat, CuVector
+using ..CuArrays: active_context, @workspace
 import ..CuArrays.unsafe_free!
 
 import NNlib

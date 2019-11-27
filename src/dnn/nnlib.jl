@@ -47,12 +47,7 @@ function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::DenseConvDims
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
 
-  workspace_size = cudnnGetConvolutionForwardWorkspaceSize(y, x, w, cdims, algo=algo)
-
-  CuVector{UInt8}(undef, workspace_size) do workspace
-    cudnnConvolutionForward(y, x, w, cdims, alpha=alpha, algo=algo,
-                            workspace=workspace, workspace_size=workspace_size)
-  end
+  cudnnConvolutionForward(y, x, w, cdims, alpha=alpha, algo=algo)
 end
 
 function ∇conv_filter!(dw::CuArray{T}, x::CuArray{T}, dy::CuArray{T},
@@ -61,12 +56,7 @@ function ∇conv_filter!(dw::CuArray{T}, x::CuArray{T}, dy::CuArray{T},
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
 
-  workspace_size = cudnnGetConvolutionBackwardFilterWorkspaceSize(dw, x, dy, cdims, algo=algo)
-
-  CuVector{UInt8}(undef, workspace_size) do workspace
-    cudnnConvolutionBackwardFilter(dw, x, dy, cdims, alpha=alpha, algo=algo,
-                                   workspace=workspace, workspace_size=workspace_size)
-  end
+  cudnnConvolutionBackwardFilter(dw, x, dy, cdims, alpha=alpha, algo=algo)
 end
 
 function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, w::CuArray{T},
@@ -75,12 +65,7 @@ function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, w::CuArray{T},
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
 
-  workspace_size =
-    cudnnGetConvolutionBackwardDataWorkspaceSize(dx, w, dy, cdims; algo=algo)
-  CuVector{UInt8}(undef, workspace_size) do workspace
-    cudnnConvolutionBackwardData(dx, w, dy, cdims, alpha=alpha, algo=algo,
-                                 workspace=workspace, workspace_size=workspace_size)
-  end
+  cudnnConvolutionBackwardData(dx, w, dy, cdims, alpha=alpha, algo=algo)
 end
 
 ∇conv_bias!(db::CuArray{T}, dy::CuArray{T}; alpha=1, beta=0) where T<:CUDNNFloat =

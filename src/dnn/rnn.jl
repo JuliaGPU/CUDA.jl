@@ -65,47 +65,23 @@ function setweights!(d::RNNDesc, Wi, Wh, b)
   return
 end
 
-function cudnnGetRNNWorkspaceSize(r::RNNDesc, seqlen, xdesc)
-  size = Csize_t[0]
-  cudnnGetRNNWorkspaceSize(handle(), r, seqlen, xdesc, size)
-  return Int(size[])
-end
-
 function cudnnGetRNNTrainingReserveSize(r::RNNDesc, seqlen, xdesc)
   size = Csize_t[0]
   cudnnGetRNNTrainingReserveSize(handle(), r, seqlen, xdesc, size)
   return Int(size[])
 end
 
-macro workspace(ex)
-    Meta.isexpr(ex, :do)
-    sz = ex.args[1]
-    code = ex.args[2]
-
-    return quote
-        sz = $(esc(sz))
-        workspace = nothing
-        while workspace === nothing || length(workspace) < sz
-            workspace = CuArray{UInt8}(undef, sz)
-            sz = $(esc(sz))
-        end
-
-        $(esc(code))(workspace)
-
-        unsafe_free!(workspace)
-    end
-end
-
 function cudnnRNNForward(rnn::RNNDesc{T}, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y, hod,
                          ho, cod, co, reserve=nothing) where T
-  @workspace cudnnGetRNNWorkspaceSize(rnn, seqlen, xd) do workspace
+  @workspace cudnnGetRNNWorkspaceSize(handle(), rnn, seqlen, xd,
+                                      output(Ref{Csize_t}())) do workspace
     if reserve == nothing
       cudnnRNNForwardInference(handle(), rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y,
-                              hod, ho, cod, co, workspace, length(workspace))
+                              hod, ho, cod, co, workspace, sizeof(workspace))
     else
       cudnnRNNForwardTraining(handle(), rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y,
-                              hod, ho, cod, co, workspace, length(workspace),
-                              reserve, length(reserve))
+                              hod, ho, cod, co, workspace, sizeof(workspace),
+                              reserve, sizeof(reserve))
     end
   end
 end
@@ -158,11 +134,12 @@ forwardTrain(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}, c = nothing) where T
 function cudnnRNNBackwardData(rnnDesc, seqLength, yDesc, y, dyDesc, dy, dhyDesc,
                               dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc,
                               dx, dhxDesc, dhx, dcxDesc, dcx, reserve)
-  @workspace cudnnGetRNNWorkspaceSize(rnnDesc, seqLength, dxDesc) do workspace
+  @workspace cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, dxDesc,
+                                      output(Ref{Csize_t}())) do workspace
     cudnnRNNBackwardData(handle(), rnnDesc, seqLength, yDesc, y, dyDesc, dy, dhyDesc,
                          dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc,
-                         dx, dhxDesc, dhx, dcxDesc, dcx, workspace, length(workspace),
-                         reserve, length(reserve))
+                         dx, dhxDesc, dhx, dcxDesc, dcx, workspace, sizeof(workspace),
+                         reserve, sizeof(reserve))
   end
 end
 
@@ -184,16 +161,16 @@ backwardData(rnn, y, dy, dho, hx, reserve) =
 
 function cudnnRNNBackwardWeights(rnnDesc, seqLength, xDesc, x, hxDesc, hx, yDesc,
                                  y, dwDesc, dw, reserve)
-  @workspace cudnnGetRNNWorkspaceSize(rnnDesc, seqLength, xDesc) do workspace
+  @workspace cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, xDesc,
+                                      output(Ref{Csize_t}())) do workspace
     cudnnRNNBackwardWeights(handle(), rnnDesc, seqLength, xDesc, x, hxDesc, hx, yDesc,
-                            y, workspace, length(workspace), dwDesc, dw,
-                            reserve, length(reserve))
+                            y, workspace, sizeof(workspace), dwDesc, dw,
+                            reserve, sizeof(reserve))
   end
 end
 
 function backwardWeights(rnn::RNNDesc{T}, x, h, y, reserve) where T
   dw = zero(rnn.params)
-  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, 1, xDesc(x)))
   cudnnRNNBackwardWeights(rnn, 1, xDesc(x), x, hDesc(h)..., xDesc(y), y,
                           FilterDesc(T, (1, 1, length(dw))), dw, reserve)
   return params(dw, rnn.input, rnn.hidden, ngates(rnn))
