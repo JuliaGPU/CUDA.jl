@@ -171,7 +171,7 @@ macro cuda(ex...)
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
-                    local kernel_args = cudaconvert.(($(var_exprs...),))
+                    local kernel_args = map(cudaconvert, ($(var_exprs...),))
                     local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
                     local kernel = cufunction($(esc(f)), kernel_tt;
                                               $(map(esc, compiler_kwargs)...))
