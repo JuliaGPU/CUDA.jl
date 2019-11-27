@@ -65,27 +65,27 @@ function setweights!(d::RNNDesc, Wi, Wh, b)
   return
 end
 
-function cudnnGetRNNWorkspaceSize(r::RNNDesc, seqlen, xdesc)
-  size = Csize_t[0]
-  cudnnGetRNNWorkspaceSize(handle(), r, seqlen, xdesc, size)
-  return Int(size[])
-end
-
 function cudnnGetRNNTrainingReserveSize(r::RNNDesc, seqlen, xdesc)
   size = Csize_t[0]
   cudnnGetRNNTrainingReserveSize(handle(), r, seqlen, xdesc, size)
   return Int(size[])
 end
 
-function cudnnRNNForward(rnn::RNNDesc{T}, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y, hod, ho, cod, co,
-                         workspace, reserve=nothing) where T
-  if reserve == nothing
-    cudnnRNNForwardInference(handle(), rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y,
-                                   hod, ho, cod, co, workspace, length(workspace))
-  else
-    cudnnRNNForwardTraining(handle(), rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y,
-                                  hod, ho, cod, co, workspace, length(workspace), reserve, length(reserve))
-  end
+function cudnnRNNForward(rnn::RNNDesc{T}, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y, hod,
+                         ho, cod, co, reserve=nothing) where T
+  @workspace size=@argout(
+      cudnnGetRNNWorkspaceSize(handle(), rnn, seqlen, xd,
+                               out(Ref{Csize_t}()))
+    )[] workspace->begin
+      if reserve == nothing
+        cudnnRNNForwardInference(handle(), rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y,
+                                hod, ho, cod, co, workspace, sizeof(workspace))
+      else
+        cudnnRNNForwardTraining(handle(), rnn, seqlen, xd, x, hd, h, cd, c, wd, w, yd, y,
+                                hod, ho, cod, co, workspace, sizeof(workspace),
+                                reserve, sizeof(reserve))
+      end
+    end
 end
 
 xDesc(x) = [TensorDesc(eltype(x), (1, size(x, 1), size(x, 2)))]
@@ -113,7 +113,6 @@ function forward(rnn::RNNDesc{T}, x::CuArray{T}, h_::CuArray{T}, c_ = nothing, t
   y = x isa AbstractVector ? similar(x, rnn.hidden) : similar(x, rnn.hidden, size(x, 2))
   ho = similar(h)
   ydesc = xDesc(y)
-  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, seqLength, xdesc))
   reserve = train == Val{true} ?
     CuVector{UInt8}(undef, cudnnGetRNNTrainingReserveSize(rnn, seqLength, xdesc)) :
     nothing
@@ -126,14 +125,27 @@ function forward(rnn::RNNDesc{T}, x::CuArray{T}, h_::CuArray{T}, c_ = nothing, t
                   ydesc, y,
                   hDesc(ho)...,
                   hDesc(co)...,
-                  workspace, reserve)
-  unsafe_free!(workspace)
+                  reserve)
   result = c == nothing ? (y, ho) : (y, ho, co)
   return train == Val{true} ? (reserve, result) : result
 end
 
 forwardTrain(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}, c = nothing) where T =
   forward(rnn, x, h, c, Val{true})
+
+function cudnnRNNBackwardData(rnnDesc, seqLength, yDesc, y, dyDesc, dy, dhyDesc,
+                              dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc,
+                              dx, dhxDesc, dhx, dcxDesc, dcx, reserve)
+  @workspace size=@argout(
+      cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, dxDesc,
+                               out(Ref{Csize_t}()))
+    )[] workspace->begin
+      cudnnRNNBackwardData(handle(), rnnDesc, seqLength, yDesc, y, dyDesc, dy, dhyDesc,
+                           dhy, dcyDesc, dcy, wDesc, w, hxDesc, hx, cxDesc, cx, dxDesc,
+                           dx, dhxDesc, dhx, dcxDesc, dcx, workspace, sizeof(workspace),
+                           reserve, sizeof(reserve))
+    end
+end
 
 function backwardData(rnn::RNNDesc{T}, y, dy_, dho, dco, h, c, reserve) where T
   # Same as above, any more efficient way?
@@ -142,28 +154,31 @@ function backwardData(rnn::RNNDesc{T}, y, dy_, dho, dco, h, c, reserve) where T
   dx = y isa AbstractVector ? similar(dy, rnn.input) : similar(dy, rnn.input, size(dy, 2))
   dh = similar(h)
   dc = c == nothing ? nothing : similar(c)
-  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, 1, xDesc(dx)))
-  cudnnRNNBackwardData(handle(), rnn, 1,
-    yd, y, yd, dy, hDesc(dho)..., hDesc(dco)...,
-    FilterDesc(T, (1, 1, length(rnn.params))), rnn.params,
-    hDesc(h)..., hDesc(c)..., xDesc(dx), dx, hDesc(dh)..., hDesc(dc)...,
-    workspace, length(workspace), reserve, length(reserve))
-  unsafe_free!(workspace)
+  cudnnRNNBackwardData(rnn, 1, yd, y, yd, dy, hDesc(dho)..., hDesc(dco)...,
+                       FilterDesc(T, (1, 1, length(rnn.params))), rnn.params, hDesc(h)...,
+                       hDesc(c)..., xDesc(dx), dx, hDesc(dh)..., hDesc(dc)..., reserve)
   return c == nothing ? (dx, dh) : (dx, dh, dc)
 end
 
 backwardData(rnn, y, dy, dho, hx, reserve) =
   backwardData(rnn, y, dy, dho, nothing, hx, nothing, reserve)
 
+function cudnnRNNBackwardWeights(rnnDesc, seqLength, xDesc, x, hxDesc, hx, yDesc,
+                                 y, dwDesc, dw, reserve)
+  @workspace size=@argout(
+      cudnnGetRNNWorkspaceSize(handle(), rnnDesc, seqLength, xDesc,
+                               out(Ref{Csize_t}()))
+    )[] workspace->begin
+      cudnnRNNBackwardWeights(handle(), rnnDesc, seqLength, xDesc, x, hxDesc, hx, yDesc,
+                              y, workspace, sizeof(workspace), dwDesc, dw,
+                              reserve, sizeof(reserve))
+    end
+end
+
 function backwardWeights(rnn::RNNDesc{T}, x, h, y, reserve) where T
   dw = zero(rnn.params)
-  workspace = CuVector{UInt8}(undef, cudnnGetRNNWorkspaceSize(rnn, 1, xDesc(x)))
-  cudnnRNNBackwardWeights(handle(), rnn, 1,
-    xDesc(x), x, hDesc(h)..., xDesc(y), y,
-    workspace, length(workspace),
-    FilterDesc(T, (1, 1, length(dw))), dw,
-    reserve, length(reserve))
-  unsafe_free!(workspace)
+  cudnnRNNBackwardWeights(rnn, 1, xDesc(x), x, hDesc(h)..., xDesc(y), y,
+                          FilterDesc(T, (1, 1, length(dw))), dw, reserve)
   return params(dw, rnn.input, rnn.hidden, ngates(rnn))
 end
 

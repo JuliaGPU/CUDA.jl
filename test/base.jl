@@ -6,6 +6,16 @@ import CUDAdrv: CuPtr, CU_NULL
 
 @test CuArrays.functional()
 
+@testset "essential utilities" begin
+  f() = 1
+  f(a) = 2
+  f(a,b) = 3
+
+  @test CuArrays.@argout(f()) == nothing
+  @test CuArrays.@argout(f(out(4))) == 4
+  @test CuArrays.@argout(f(out(5), out(6))) == (5,6)
+end
+
 @testset "Memory" begin
   CuArrays.alloc(0)
 
