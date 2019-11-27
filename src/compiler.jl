@@ -1,14 +1,10 @@
 # JIT compilation of Julia code to PTX
 
-const to = Ref(TimerOutput())
+const to = TimerOutput()
 
-function timings!(new=TimerOutput())
-  global to
-  to[] = new
-  return
-end
+timings() = (TimerOutputs.print_timer(to); println())
 
-timings() = (TimerOutputs.print_timer(to[]); println())
+enable_timings() = (TimerOutputs.enable_debug_timings(CUDAnative); return)
 
 include("compiler/common.jl")
 include("compiler/irgen.jl")
@@ -23,5 +19,5 @@ function __init_compiler__()
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
 
-    timings!()
+    TimerOutputs.reset_timer!(to)
 end
