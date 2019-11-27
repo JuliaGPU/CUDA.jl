@@ -163,6 +163,12 @@ macro workspace(ex...)
         throw(ArgumentError("@workspace macro needs a size argument"))
     end
 
+    # break down the closure to a let block to prevent JuliaLang/julia#15276
+    Meta.isexpr(code, :(->)) || throw(ArgumentError("@workspace macro should be applied to a closure"))
+    length(code.args) == 2 || throw(ArgumentError("@workspace closure should take exactly one argument"))
+    code_arg = code.args[1]
+    code = code.args[2]
+
     return quote
         sz = $(esc(sz))
         workspace = nothing
@@ -171,6 +177,8 @@ macro workspace(ex...)
             sz = $(esc(sz))
         end
 
-        $(esc(code))(workspace)
+        let $(esc(code_arg)) = workspace
+            $(esc(code))
+        end
     end
 end
