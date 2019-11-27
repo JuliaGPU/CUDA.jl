@@ -278,13 +278,11 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
             cuuplo  = cublasfill(uplo)
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), cuuplo, n, A, lda, bufSize)
 
-            buffer = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), cuuplo, n, A, lda, buffer, bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), cuuplo, n, A, lda, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), cuuplo, n, A, lda, buffer, sizeof(buffer), devinfo)
+            end
 
             info = BlasInt(_getindex(devinfo, 1))
             unsafe_free!(devinfo)
@@ -334,14 +332,12 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
         function getrf!(A::CuMatrix{$elty})
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), m, n, A, lda, bufSize)
 
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devipiv = CuArray{Cint}(undef, min(m,n))
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), m, n, A, lda, buffer, devipiv, devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), m, n, A, lda, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), m, n, A, lda, buffer, devipiv, devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -365,14 +361,12 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
         function geqrf!(A::CuMatrix{$elty})
             m, n    = size(A)
             lda     = max(1, stride(A, 2))
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), m, n, A, lda, bufSize)
 
-            buffer  = CuArray{$elty}(undef, bufSize[])
             tau  = CuArray{$elty}(undef, min(m, n))
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), m, n, A, lda, tau, buffer, bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), m, n, A, lda, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), m, n, A, lda, tau, buffer, sizeof(buffer), devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -396,14 +390,12 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
             cuuplo = cublasfill(uplo)
             n      = checksquare(A)
             lda = max(1, stride(A, 2))
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), n, A, lda, bufSize)
 
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devipiv = CuArray{Cint}(undef, n)
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), cuuplo, n, A, lda, devipiv, buffer, bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), n, A, lda, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), cuuplo, n, A, lda, devipiv, buffer, sizeof(buffer), devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -484,14 +476,12 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
             end
             k       = length(tau)
 
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), cuside, cutrans, m, n, k, A, lda, tau, C, ldc, bufSize)
-
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), cuside, cutrans, m, n, k, A, lda, tau, C, ldc, buffer,
-                   bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), cuside, cutrans, m, n, k, A, lda, tau, C, ldc,
+                              output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), cuside, cutrans, m, n, k, A, lda, tau, C, ldc,
+                       buffer, sizeof(buffer), devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -516,13 +506,10 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
             lda = max(1, stride(A, 2))
             k = length(tau)
 
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), m, n, k, A, lda, tau, bufSize)
-
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), m, n, k, A, lda, tau, buffer, bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), m, n, k, A, lda, tau, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), m, n, k, A, lda, tau, buffer, sizeof(buffer), devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -549,18 +536,15 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
             m, n    = size(A)
             lda     = max(1, stride(A, 2))
 
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), m, n, bufSize)
-
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
             k       = min(m, n)
             D       = CuArray{$relty}(undef, k)
             E       = CuArrays.zeros($relty, k)
             TAUQ    = CuArray{$elty}(undef, k)
             TAUP    = CuArray{$elty}(undef, k)
-            $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), m, n, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, sizeof(buffer), devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -587,9 +571,6 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             end
             lda     = max(1, stride(A, 2))
 
-            lwork   = Ref{Cint}(0)
-            $bname(dense_handle(), m, n, lwork)
-
             if jobu === 'S' && m > n
                 U   = CuArray{$elty}(undef, m, n)
             elseif jobu === 'N'
@@ -610,12 +591,12 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
             end
             ldvt    = max(1, stride(Vt, 2))
 
-            work    = CuArray{$elty}(undef, lwork[])
             rwork   = CuArray{$relty}(undef, min(m, n) - 1)
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
-                   work, lwork[], rwork, devinfo)
-            unsafe_free!(work)
+            @workspace $bname(dense_handle(), m, n, output(Ref{Cint}(0))) do work
+                $fname(dense_handle(), jobu, jobvt, m, n, A, lda, S, U, ldu, Vt, ldvt,
+                    work, sizeof(work), rwork, devinfo)
+            end
             unsafe_free!(rwork)
 
             info = _getindex(devinfo, 1)
@@ -666,15 +647,12 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
             cusolverDnXgesvdjSetTolerance(params[], tol)
             cusolverDnXgesvdjSetMaxSweeps(params[], max_sweeps)
 
-            lwork   = Ref{Cint}(0)
-            $bname(dense_handle(), cujobz, Cint(econ), m, n, A, lda, S, U, ldu, V, ldv,
-                   lwork, params[])
-
-            work  = CuArray{$elty}(undef, lwork[])
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), cujobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
-                   work, lwork[], devinfo, params[])
-            unsafe_free!(work)
+            @workspace $bname(dense_handle(), cujobz, Cint(econ), m, n, A, lda, S, U, ldu,
+                              V, ldv, output(Ref{Cint}(0)), params[]) do work
+                $fname(dense_handle(), cujobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                       work, sizeof(work), devinfo, params[])
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -703,14 +681,11 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
             lda     = max(1, stride(A, 2))
             W       = CuArray{$relty}(undef, n)
 
-            bufSize = Ref{Cint}(0)
-            $bname(dense_handle(), cujobz, cuuplo, n, A, lda, W, bufSize)
-
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), cujobz, cuuplo, n, A, lda, W,
-                   buffer, bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), cujobz, cuuplo, n, A, lda, W, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), cujobz, cuuplo, n, A, lda, W,
+                    buffer, sizeof(buffer), devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -748,15 +723,14 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
             ldb     = max(1, stride(B, 2))
             W       = CuArray{$relty}(undef, n)
 
-            bufSize = Ref{Cint}(0)
             cuitype = cusolverEigType_t(itype)
-            $bname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W, bufSize)
 
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
-                   buffer, bufSize[], devinfo)
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb,
+                              W, output(Ref{Cint}(0))) do buffer
+                $fname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
+                       buffer, sizeof(buffer), devinfo)
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
@@ -800,16 +774,14 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
             cusolverDnXsyevjSetTolerance(params[], tol)
             cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
 
-            bufSize = Ref{Cint}(0)
             cuitype = cusolverEigType_t(itype)
-            $bname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
-                   bufSize, params[])
 
-            buffer  = CuArray{$elty}(undef, bufSize[])
             devinfo = CuArray{Cint}(undef, 1)
-            $fname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
-                   buffer, bufSize[], devinfo, params[])
-            unsafe_free!(buffer)
+            @workspace $bname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
+                              output(Ref{Cint}(0)), params[]) do buffer
+                $fname(dense_handle(), cuitype, cujobz, cuuplo, n, A, lda, B, ldb, W,
+                    buffer, sizeof(buffer), devinfo, params[])
+            end
 
             info = _getindex(devinfo, 1)
             unsafe_free!(devinfo)
