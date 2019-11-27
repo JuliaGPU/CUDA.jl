@@ -123,12 +123,13 @@ macro argout(ex)
 end
 
 """
-    @workspace size=getWorkspaceSize(args...) buffer -> begin
+    @workspace size=getWorkspaceSize(args...) [eltyp=UInt8] buffer -> begin
       useWorkspace(workspace, sizeof(workspace))
     end
 
-Create GPU workspace of type `CuVector{UInt8}` with size in bytes determined by calling
-`getWorkspaceSize`, and pass it to the  closure for use in calling `useWorkspace`.
+Create a GPU workspace vector with element type `eltyp` and size in number of elements (in
+the default case of an UInt8 element type this equals to the amount of bytes) determined by
+calling `getWorkspaceSize`, and pass it to the  closure for use in calling `useWorkspace`.
 Afterwards, the buffer is put back into the memory pool for reuse.
 
 This helper protects against the rare but real issue of `getWorkspaceSize` returning
@@ -145,10 +146,13 @@ macro workspace(ex...)
     kwargs = ex[1:end-1]
 
     sz = nothing
+    eltyp = :UInt8
     for kwarg in kwargs
         key,val = kwarg.args
         if key == :size
             sz = val
+        elseif key == :eltyp
+            eltyp = val
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
@@ -156,14 +160,14 @@ macro workspace(ex...)
 
     # TODO: support a fallback size, in the case the workspace can't be allocated (for CUTENSOR)
     if sz === nothing
-            throw(ArgumentError("@workspace macro needs a size argument"))
+        throw(ArgumentError("@workspace macro needs a size argument"))
     end
 
     return quote
         sz = $(esc(sz))
         workspace = nothing
         while workspace === nothing || length(workspace) < sz
-            workspace = CuArray{UInt8}(undef, sz)
+            workspace = CuArray{$(esc(eltyp))}(undef, sz)
             sz = $(esc(sz))
         end
 
