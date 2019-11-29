@@ -286,7 +286,8 @@ end
 ## utilities
 
 cu(xs) = adapt(CuArray{Float32}, xs)
-cu(::Type{Array{T,N}}) where {T,N} = CuArray{T,N}
+cu(::Type{Array{T,N}}) where {T,N} = CuArray{T,N,Nothing}
+cu(::Type{Array{T}}) where {T} = CuArray{T}
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 zeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 0)
