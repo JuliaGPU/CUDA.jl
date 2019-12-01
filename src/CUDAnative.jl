@@ -15,6 +15,9 @@ using Libdl
 
 ## global state
 
+const toolkit_version = Ref{VersionNumber}()
+version() = toolkit_version[]
+
 # version compatibility
 const target_support = Ref{Vector{VersionNumber}}()
 const ptx_support = Ref{Vector{VersionNumber}}()
@@ -84,12 +87,12 @@ function __init__()
         # CUDA
 
         toolkit_dirs = find_toolkit()
-        cuda_toolkit_version = find_toolkit_version(toolkit_dirs)
-        if cuda_toolkit_version <= v"9"
-            silent || @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(cuda_toolkit_version))"
+        toolkit_version[] = find_toolkit_version(toolkit_dirs)
+        if toolkit_version[] <= v"9"
+            silent || @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(toolkit_version[]))"
         end
 
-        cuda_targets, cuda_isas = cuda_support(CUDAdrv.version(), cuda_toolkit_version)
+        cuda_targets, cuda_isas = cuda_support(CUDAdrv.version(), toolkit_version[])
 
         target_support[] = sort(collect(llvm_targets ∩ cuda_targets))
         isempty(target_support[]) && error("Your toolchain does not support any device target")

@@ -11,6 +11,8 @@ const CuArray = CuTestArray
 
 @test CUDAnative.functional()
 
+CUDAnative.version()
+
 CUDAnative.enable_timings()
 
 # see if we have a device to run tests on
