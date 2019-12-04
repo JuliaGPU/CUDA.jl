@@ -33,6 +33,8 @@ julia:1.2:
   tags:
     - nvidia
     - sm_75
+  variables:
+    CI_THOROUGH: 'true'
 
 julia:1.3:
   extends:
