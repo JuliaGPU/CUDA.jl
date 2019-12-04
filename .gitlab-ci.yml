@@ -65,7 +65,7 @@ platform:arm64:
 # NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
 
 cudanative:
-  image: nvidia/cuda:latest
+  image: nvidia/cuda:10.1-devel
   extends: .julia:1.2
   tags:
     - nvidia
