@@ -1,7 +1,7 @@
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
 
-image: nvidia/cuda:latest
+image: nvidia/cuda:10.1-devel
 
 variables:
   JULIA_CUDA_VERBOSE: 'true'
