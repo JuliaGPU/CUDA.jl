@@ -268,9 +268,7 @@ const HUGE  = 3
 
 # sorted containers need unique keys, which the size of a block isn't.
 # mix in the block address to keep the key sortable, but unique.
-# the size is shifted 24 bits, and as many identifier bits are
-# mixed in, supporting 16777216 unique allocations of up to 1 TiB.
-unique_sizeof(block::Block) = (UInt64(sizeof(block))<<24) | (UInt64(block.id) & (2<<24-1))
+unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(block.id)
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
 const available_small = SortedSet{Block}(UniqueIncreasingSize)
