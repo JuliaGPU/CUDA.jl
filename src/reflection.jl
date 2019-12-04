@@ -90,16 +90,18 @@ The following keyword arguments are supported:
 
 - `cap` which device to generate code for
 - `kernel`: treat the function as an entry-point kernel
+- `verbose`: enable verbose mode, which displays code generation statistics
 
 See also: [`@device_code_sass`](@ref)
 """
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types);
-                   cap::VersionNumber=current_capability(), kernel::Bool=true, kwargs...)
+                   cap::VersionNumber=current_capability(), kernel::Bool=true,
+                   verbose::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
-    code_sass(io, job)
+    code_sass(io, job; verbose=verbose)
 end
-function code_sass(io::IO, job::CompilerJob)
+function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
     if !job.kernel
         error("Can only generate SASS code for kernel functions")
     end
@@ -111,7 +113,8 @@ function code_sass(io::IO, job::CompilerJob)
     # NOTE: this might not match what is being executed, due to the PTX->SASS conversion
     #       by the driver possibly not matching what `ptxas` (part of the toolkit) does.
     # TODO: see how `nvvp` extracts SASS code when doing PC sampling, and copy that.
-    Base.run(`$(ptxas[]) --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
+    verbosity = verbose ? ["--verbose"] : []
+    Base.run(`$(ptxas[]) $verbosity --gpu-name $gpu --output-file $fn --input-as-string $ptx`)
     try
         cmd = `$(nvdisasm[]) --print-code --print-line-info $fn`
         for line in readlines(cmd)
