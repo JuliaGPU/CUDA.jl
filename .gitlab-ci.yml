@@ -98,6 +98,7 @@ partial:
   image: nvidia/cuda:10.1-devel-ubuntu18.04
   tags:
     - nvidia
+  allow_failure: true
 
 
 # reverse tests
