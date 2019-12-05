@@ -176,7 +176,8 @@ Base.pointer(x::CuArray, i::Integer) = x.ptr + (i-1) * Base.elsize(x)
   return A
 end
 
-CuArray{T,N}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(map(T, xs))
+# FIXME: `map(T, xs)`, https://github.com/FluxML/Flux.jl/issues/958
+CuArray{T,N}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}((x -> T(x)).(xs))
 
 # underspecified constructors
 CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
