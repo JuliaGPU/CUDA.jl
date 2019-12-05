@@ -172,15 +172,11 @@ Base.pointer(x::CuArray, i::Integer) = x.ptr + (i-1) * Base.elsize(x)
 
 @inline function CuArray{T,N}(xs::AbstractArray{T,N}) where {T,N}
   A = CuArray{T,N}(undef, size(xs))
-  if isbits(xs)
-    A .= xs
-  else
-    copyto!(A, collect(xs))
-  end
+  copyto!(A, xs)
   return A
 end
 
-CuArray{T,N}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}((x -> T(x)).(xs))
+CuArray{T,N}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(map(T, xs))
 
 # underspecified constructors
 CuArray{T}(xs::AbstractArray{S,N}) where {T,N,S} = CuArray{T,N}(xs)
