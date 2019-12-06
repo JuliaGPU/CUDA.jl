@@ -1,7 +1,6 @@
 export find_cuda_library, find_cuda_binary,
        find_toolkit, find_toolkit_version,
-       find_libdevice, find_libcudadevrt,
-       find_host_compiler, find_toolchain
+       find_libdevice, find_libcudadevrt
 
 function resolve(path)
     if islink(path)
@@ -17,9 +16,6 @@ function valid_dirs(dirs)
     map!(resolve, dirs, dirs)
     filter(isdir, unique(dirs))
 end
-
-const gcc_major_versions = 3:9
-const gcc_minor_versions = 0:9
 
 
 ## generic discovery routines
