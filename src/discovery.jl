@@ -269,19 +269,19 @@ function find_toolkit()
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
         if isdir(basedir)
             entries = map(dir -> joinpath(basedir, dir), readdir(basedir))
-            reverse!(entries) # we want to search starting from the newest CUDA version
             append!(default_dirs, entries)
         end
     else
         # CUDA versions are installed in unversioned dirs, or suffixed with the version
         basedirs = ["/usr/local/cuda", "/opt/cuda"]
-        for dir in basedirs
-            append!(default_dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
+        for ver in cuda_versions["toolkit"], dir in basedirs
+            push!(default_dirs, "$dir-$(ver.major).$(ver.minor)")
         end
         append!(default_dirs, basedirs)
         push!(default_dirs, "/usr/lib/nvidia-cuda-toolkit")
         push!(default_dirs, "/usr/share/cuda")
     end
+    reverse!(default_dirs) # we want to search starting from the newest CUDA version
     default_dirs = valid_dirs(default_dirs)
     if !isempty(default_dirs)
         @trace "Looking for CUDA toolkit via default installation directories" dirs=default_dirs
