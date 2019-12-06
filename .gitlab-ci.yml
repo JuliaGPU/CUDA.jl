@@ -109,8 +109,7 @@ cuarrays:
   extends: .julia:1.2
   tags:
     - nvidia
-    - sm_75
-  image: juliagpu/cuda:10.1-cudnn7-cutensor-devel-ubuntu18.04
+  image: nvidia/cuda:10.1-devel
   script:
     - export CUARRAYS=".julia/dev/CuArrays"
     - julia -e 'using Pkg;
