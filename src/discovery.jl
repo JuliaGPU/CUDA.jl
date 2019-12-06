@@ -237,15 +237,15 @@ function find_toolkit()
 
 
     # look for the compiler binary (in the case PATH points to the installation)
-    nvcc_path = find_cuda_binary("nvcc")
-    if nvcc_path !== nothing
-        nvcc_dir = dirname(nvcc_path)
-        if occursin(r"^bin(32|64)?$", basename(nvcc_dir))
-            nvcc_dir = dirname(nvcc_dir)
+    ptxas_path = find_cuda_binary("ptxas")
+    if ptxas_path !== nothing
+        ptxas_dir = dirname(ptxas_path)
+        if occursin(r"^bin(32|64)?$", basename(ptxas_dir))
+            ptxas_dir = dirname(ptxas_dir)
         end
 
-        @trace "Looking for CUDA toolkit via nvcc binary" path=nvcc_path dir=nvcc_dir
-        push!(dirs, nvcc_dir)
+        @trace "Looking for CUDA toolkit via ptxas binary" path=ptxas_path dir=ptxas_dir
+        push!(dirs, ptxas_dir)
     end
 
     # look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
@@ -293,19 +293,19 @@ function find_toolkit()
     return dirs
 end
 
-# figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
+# figure out the CUDA toolkit version (by looking at the `ptxas --version` output)
 function find_toolkit_version(toolkit_dirs)
-    nvcc_path = find_cuda_binary("nvcc", toolkit_dirs)
-    if nvcc_path === nothing
-        error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain nvcc")
+    ptxas_path = find_cuda_binary("ptxas", toolkit_dirs)
+    if ptxas_path === nothing
+        error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain ptxas")
     end
 
-    # parse the nvcc version string
+    # parse the ptxas version string
     verstr = withenv("LANG"=>"C") do
-        read(`$nvcc_path --version`, String)
+        read(`$ptxas_path --version`, String)
     end
     m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
-    m !== nothing || error("could not parse NVCC version info (\"$verstr\")")
+    m !== nothing || error("could not parse ptxas version info (\"$verstr\")")
 
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
