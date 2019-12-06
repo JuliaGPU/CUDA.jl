@@ -224,14 +224,15 @@ function find_toolkit()
 
     # look for environment variables to override discovery
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
-    envdict = Dict(Symbol(var) => ENV[var] for var in envvars if haskey(ENV, var))
-    if length(envdict) > 0
-        if length(unique(values(envdict))) > 1
-            @warn "Multiple CUDA environment variables set to different values" envdict...
+    filter!(var -> haskey(ENV, var) && ispath(ENV[var]), envvars)
+    if !isempty(envvars)
+        paths = unique(map(var->ENV[var], envvars))
+        if length(paths) > 1
+            @warn "Multiple CUDA environment variables set to different values: $(join(paths, ", "))"
         end
 
-        @trace "Looking for CUDA toolkit via environment variables" envdict...
-        append!(dirs, collect(values(envdict)))
+        @trace "Looking for CUDA toolkit via environment variables $(join(envvars, ", "))"
+        append!(dirs, paths)
         return dirs
     end
 
