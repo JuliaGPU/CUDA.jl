@@ -3,6 +3,9 @@ include:
 
 image: nvidia/cuda:10.1-devel
 
+variables:
+  JULIA_DEBUG: 'CUDAapi'
+
 
 # Julia versions
 
