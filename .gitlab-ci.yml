@@ -1,7 +1,7 @@
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
 
-image: juliagpu/cuda:10.1-cudnn7-cutensor1-devel-ubuntu18.04
+image: nvidia/cuda:10.1-cudnn7-devel
 
 variables:
   JULIA_CUDA_VERBOSE: 'true'
@@ -26,6 +26,7 @@ julia:1.1:
 # the "primary" target, where we require thorough tests
 # (this requires a recent GPU)
 julia:1.2:
+  image: juliagpu/cuda:10.1-cudnn7-cutensor1-devel-ubuntu18.04
   extends:
     - .julia:1.2
     - .test
@@ -49,6 +50,36 @@ julia:nightly:
   tags:
     - nvidia
   allow_failure: true
+
+
+# CUDA versions
+
+# NOTE: we support those CUDA versions for which the latest cuDNN is available
+#       https://developer.nvidia.com/rdp/cudnn-archive
+
+cuda:10.1:
+  image: nvidia/cuda:10.1-cudnn7-devel
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+
+cuda:10.0:
+  image: nvidia/cuda:10.0-cudnn7-devel
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+
+cuda:9.2:
+  image: nvidia/cuda:9.2-cudnn7-devel
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
 
 
 # special tests
@@ -90,15 +121,6 @@ precompile:
                           Pkg.instantiate();
                           Pkg.build();
                           Pkg.API.precompile()'
-
-partial:
-  extends:
-    - .julia:1.2
-    - .test
-  image: nvidia/cuda:10.1-devel-ubuntu18.04
-  tags:
-    - nvidia
-  allow_failure: true
 
 
 # reverse tests
