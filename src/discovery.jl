@@ -1,7 +1,6 @@
 export find_cuda_library, find_cuda_binary,
        find_toolkit, find_toolkit_version,
-       find_libdevice, find_libcudadevrt,
-       find_host_compiler, find_toolchain
+       find_libdevice, find_libcudadevrt
 
 function resolve(path)
     if islink(path)
@@ -17,9 +16,6 @@ function valid_dirs(dirs)
     map!(resolve, dirs, dirs)
     filter(isdir, unique(dirs))
 end
-
-const gcc_major_versions = 3:9
-const gcc_minor_versions = 0:9
 
 
 ## generic discovery routines
@@ -168,7 +164,7 @@ const cuda_versions = Dict(
                     v"7.0", v"7.5",
                     v"8.0",
                     v"9.0", v"9.1", v"9.2",
-                    v"10.0", v"10.1"],
+                    v"10.0", v"10.1", v"10.2"],
     # https://developer.nvidia.com/rdp/cudnn-archive
     "cudnn"     => [v"1.0",
                     v"2.0",
@@ -228,28 +224,29 @@ function find_toolkit()
 
     # look for environment variables to override discovery
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]
-    envdict = Dict(Symbol(var) => ENV[var] for var in envvars if haskey(ENV, var))
-    if length(envdict) > 0
-        if length(unique(values(envdict))) > 1
-            @warn "Multiple CUDA environment variables set to different values" envdict...
+    filter!(var -> haskey(ENV, var) && ispath(ENV[var]), envvars)
+    if !isempty(envvars)
+        paths = unique(map(var->ENV[var], envvars))
+        if length(paths) > 1
+            @warn "Multiple CUDA environment variables set to different values: $(join(paths, ", "))"
         end
 
-        @trace "Looking for CUDA toolkit via environment variables" envdict...
-        append!(dirs, collect(values(envdict)))
+        @trace "Looking for CUDA toolkit via environment variables $(join(envvars, ", "))"
+        append!(dirs, paths)
         return dirs
     end
 
 
     # look for the compiler binary (in the case PATH points to the installation)
-    nvcc_path = find_cuda_binary("nvcc")
-    if nvcc_path !== nothing
-        nvcc_dir = dirname(nvcc_path)
-        if occursin(r"^bin(32|64)?$", basename(nvcc_dir))
-            nvcc_dir = dirname(nvcc_dir)
+    ptxas_path = find_cuda_binary("ptxas")
+    if ptxas_path !== nothing
+        ptxas_dir = dirname(ptxas_path)
+        if occursin(r"^bin(32|64)?$", basename(ptxas_dir))
+            ptxas_dir = dirname(ptxas_dir)
         end
 
-        @trace "Looking for CUDA toolkit via nvcc binary" path=nvcc_path dir=nvcc_dir
-        push!(dirs, nvcc_dir)
+        @trace "Looking for CUDA toolkit via ptxas binary" path=ptxas_path dir=ptxas_dir
+        push!(dirs, ptxas_dir)
     end
 
     # look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
@@ -272,19 +269,19 @@ function find_toolkit()
         basedir = joinpath(program_files, "NVIDIA GPU Computing Toolkit", "CUDA")
         if isdir(basedir)
             entries = map(dir -> joinpath(basedir, dir), readdir(basedir))
-            reverse!(entries) # we want to search starting from the newest CUDA version
             append!(default_dirs, entries)
         end
     else
         # CUDA versions are installed in unversioned dirs, or suffixed with the version
         basedirs = ["/usr/local/cuda", "/opt/cuda"]
-        for dir in basedirs
-            append!(default_dirs, "$dir-$(ver.major).$(ver.minor)" for ver in cuda_versions["toolkit"])
+        for ver in cuda_versions["toolkit"], dir in basedirs
+            push!(default_dirs, "$dir-$(ver.major).$(ver.minor)")
         end
         append!(default_dirs, basedirs)
         push!(default_dirs, "/usr/lib/nvidia-cuda-toolkit")
         push!(default_dirs, "/usr/share/cuda")
     end
+    reverse!(default_dirs) # we want to search starting from the newest CUDA version
     default_dirs = valid_dirs(default_dirs)
     if !isempty(default_dirs)
         @trace "Looking for CUDA toolkit via default installation directories" dirs=default_dirs
@@ -297,19 +294,19 @@ function find_toolkit()
     return dirs
 end
 
-# figure out the CUDA toolkit version (by looking at the `nvcc --version` output)
+# figure out the CUDA toolkit version (by looking at the `ptxas --version` output)
 function find_toolkit_version(toolkit_dirs)
-    nvcc_path = find_cuda_binary("nvcc", toolkit_dirs)
-    if nvcc_path === nothing
-        error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain nvcc")
+    ptxas_path = find_cuda_binary("ptxas", toolkit_dirs)
+    if ptxas_path === nothing
+        error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain ptxas")
     end
 
-    # parse the nvcc version string
+    # parse the ptxas version string
     verstr = withenv("LANG"=>"C") do
-        read(`$nvcc_path --version`, String)
+        read(`$ptxas_path --version`, String)
     end
     m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
-    m !== nothing || error("could not parse NVCC version info (\"$verstr\")")
+    m !== nothing || error("could not parse ptxas version info (\"$verstr\")")
 
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),

@@ -1,7 +1,10 @@
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
 
-image: nvidia/cuda:latest
+image: nvidia/cuda:10.1-devel
+
+variables:
+  JULIA_DEBUG: 'CUDAapi'
 
 
 # Julia versions
@@ -41,6 +44,44 @@ julia:nightly:
   tags:
     - nvidia
   allow_failure: true
+
+
+# CUDA versions
+
+# NOTE: we support those CUDA versions for which the latest cuDNN is available
+#       https://developer.nvidia.com/rdp/cudnn-archive
+
+cuda:10.1:
+  image: nvidia/cuda:10.1-devel
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+
+cuda:10.0:
+  image: nvidia/cuda:10.0-devel
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+
+cuda:9.2:
+  image: nvidia/cuda:9.2-devel
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+
+cuda:9.0:
+  image: nvidia/cuda:9.0-devel
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
 
 
 # other tasks

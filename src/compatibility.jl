@@ -74,6 +74,7 @@ const isa_cuda_db = Dict(
     v"6.2" => v"9.2":highest,
     v"6.3" => v"10.0":highest,
     v"6.4" => v"10.1":highest,
+    v"6.5" => v"10.2":highest,
 )
 
 function isas_for_cuda(ver::VersionNumber)
