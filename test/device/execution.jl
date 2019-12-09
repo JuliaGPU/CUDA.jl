@@ -676,7 +676,7 @@ end
         v0 =  0.0f0
 
         threads = 256
-        out = CuArray{OT,1}((1,))
+        out = CuArray{OT}(undef, (1,))
         @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
@@ -728,7 +728,7 @@ end
         v0 =  0.0f0+0im
 
         threads = 256
-        out = CuArray{OT,1}((1,))
+        out = CuArray{OT}(undef, (1,))
         @cuda threads=threads reduce_kernel(f, op, v0, A, Val{threads}(), out)
         Array(out)[1]
     end
@@ -779,7 +779,7 @@ end
         OT = Int
         v0 = 0
 
-        out = CuArray{OT,1}((1,))
+        out = CuArray{OT}(undef, (1,))
         @cuda threads=64 reduce_kernel(f, op, v0, A, out)
         Array(out)[1]
     end
@@ -913,7 +913,7 @@ end
         return
     end
 
-    dA = CuArray{Int,1}((1,))
+    dA = CuArray{Int}(undef, (1,))
     @cuda kernel(dA)
     A = Array(dA)
     @test A == [3]

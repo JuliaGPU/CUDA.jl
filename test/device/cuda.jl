@@ -147,8 +147,8 @@ end
     end
 
     @testset "angle" begin
-        buf  = CuTestArray(zeros(Float32))
-        cbuf = CuTestArray(zeros(Float32))
+        buf  = CuArray(zeros(Float32))
+        cbuf = CuArray(zeros(Float32))
 
         function cuda_kernel(a, x)
             a[] = CUDAnative.angle(x)
@@ -203,7 +203,7 @@ end
     @testset "$key" for key=keys(ops)
         cpu_op, cuda_op = ops[key]
 
-        buf = CuTestArray(zeros(Float32))
+        buf = CuArray(zeros(Float32))
 
         function cuda_kernel(a, x)
             a[] = cuda_op(x)
@@ -240,7 +240,7 @@ end
     @testset "Complex - $key" for key=keys(ops)
         cpu_op, cuda_op = ops[key]
 
-        buf = CuTestArray(zeros(Complex{Float32}))
+        buf = CuArray(zeros(Complex{Float32}))
 
         function cuda_kernel(a, x)
             a[] = cuda_op(x)
@@ -660,7 +660,7 @@ if capability(dev) >= v"3.0"
 
     warpsize = CUDAdrv.warpsize(device())
 
-    a = CuTestArray([i for i in 1:warpsize])
+    a = CuArray([i for i in 1:warpsize])
     @cuda threads=warpsize kernel(a)
     @test Array(a) == [i for i in warpsize:-1:1]
 end

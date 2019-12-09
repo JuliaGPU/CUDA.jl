@@ -3,10 +3,7 @@
 #
 # Based on https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch39.html
 
-using CUDAdrv, CUDAnative
-
-include(joinpath(@__DIR__, "..", "test", "array.jl"))
-const CuArray = CuTestArray    # real applications: use CuArrays.jl
+using CUDAdrv, CUDAnative, CuArrays
 
 function cpu_accumulate!(op::Function, data::Matrix{T}) where {T}
     cols = size(data,2)

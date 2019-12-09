@@ -1,9 +1,6 @@
 # calculate pairwise distance between every point in a vector
 
-using CUDAdrv, CUDAnative
-
-include(joinpath(@__DIR__, "..", "test", "array.jl"))
-const CuArray = CuTestArray    # real applications: use CuArrays.jl
+using CUDAdrv, CUDAnative, CuArrays
 
 
 function haversine_cpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float32, radius::Float32)
