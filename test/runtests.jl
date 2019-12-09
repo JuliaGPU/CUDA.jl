@@ -1,11 +1,9 @@
 using Test
 
-using CUDAnative, CUDAdrv
-import LLVM
+using CUDAnative, CuArrays, CUDAdrv
+import Adapt, LLVM
 
 include("util.jl")
-include("array.jl")
-const CuArray = CuTestArray
 
 @testset "CUDAnative" begin
 

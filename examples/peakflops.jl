@@ -1,7 +1,4 @@
-using CUDAdrv, CUDAnative
-
-include(joinpath(@__DIR__, "..", "test", "array.jl"))
-const CuArray = CuTestArray    # real applications: use CuArrays.jl
+using CUDAdrv, CUDAnative, CuArrays
 
 using Test
 
