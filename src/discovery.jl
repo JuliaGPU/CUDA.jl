@@ -164,7 +164,7 @@ const cuda_versions = Dict(
                     v"7.0", v"7.5",
                     v"8.0",
                     v"9.0", v"9.1", v"9.2",
-                    v"10.0", v"10.1"],
+                    v"10.0", v"10.1", v"10.2"],
     # https://developer.nvidia.com/rdp/cudnn-archive
     "cudnn"     => [v"1.0",
                     v"2.0",

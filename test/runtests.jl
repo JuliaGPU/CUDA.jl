@@ -33,16 +33,6 @@ end
     dirs = find_toolkit()
     @test !isempty(dirs)
 
-    ver = find_toolkit_version(dirs)
-
-    @testset "CUDA tools and libraries" begin
-        @test_something find_cuda_binary("nvcc", dirs)
-        @test_something find_cuda_library("cudart", dirs)
-        @test_something find_cuda_library("nvtx", dirs)
-        @test_something find_libdevice([v"3.0"], dirs)
-        @test_something find_libcudadevrt(dirs)
-    end
-
     if haskey(ENV, "CI")
         # CI deals with plenty of CUDA versions, which makes discovery tricky.
         # dump a relevant tree of files to help debugging
@@ -62,6 +52,20 @@ end
             println("File tree of toolkit directory $dir:")
             traverse(dir)
         end
+    end
+
+    ver = find_toolkit_version(dirs)
+
+    @testset "CUDA tools and libraries" begin
+        @test_something find_cuda_binary("nvcc", dirs)
+        @test_something find_cuda_library("cudart", dirs)
+        if Sys.isapple() && ver.major == 10 && ver.minor == 2
+            # libnvToolsExt isn't part of this release anymore?
+        else
+            @test_something find_cuda_library("nvtx", dirs)
+        end
+        @test_something find_libdevice([v"3.0"], dirs)
+        @test_something find_libcudadevrt(dirs)
     end
 end
 
