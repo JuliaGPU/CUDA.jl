@@ -32,7 +32,7 @@ DataStructures = "0.17"
 GPUArrays = "2.0"
 MacroTools = "0.5"
 NNlib = "0.6"
-Requires = "0.5"
+Requires = "0.5, 1.0"
 TimerOutputs = "0.5"
 julia = "1"
 
