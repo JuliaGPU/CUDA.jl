@@ -1,7 +1,7 @@
 # Conditional Usage
 
 The GPU stack and its packages are special in that developers may want to depend on them
-even though users might not have a GPU. In this section, we describe three different usage
+even though users might not have a GPU. In this section, we describe two different usage
 scenarios and how to implement them. Key to remember is that the CUDA packages **will always
 load**, which means you need to manually **check if they are functional**.
 
@@ -9,22 +9,35 @@ Because the packages are always loadable, you should just depend on them like an
 package (and not use, e.g., Requires.jl). This ensures that breaking changes to the GPU
 stack will be taken into account by the package resolver when installing your package.
 
-If you want to know *why* one of the GPU packages fails to load, enable debug logging:
+If the packages fail to initialize, a message will be print:
 
+```julia
+julia> using CuArrays
+[ Info: CuArrays.jl failed to initialize, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)
 ```
-$ julia -e "using CUDAdrv; @show CUDAdrv.functional()"
 
-$ JULIA_DEBUG=all julia -e "using CUDAdrv; @show CUDAdrv.functional()"
-┌ Debug: CUDAdrv.jl failed to initialize; the package will not be functional.
+To silence this message in your application, set the environment variable
+`JULIA_CUDA_SILENT` to `true`. Correspondingly, setting `JULIA_CUDA_VERBOSE` to `true` will
+print more information, and is required information for debugging or for filing an issue:
+
+```julia
+julia> ENV["JULIA_CUDA_VERBOSE"] = true
+julia> using CuArrays
+┌ Error: CuArrays.jl failed to initialize
 │   exception =
-│    error compiling __hidden_init__: error compiling cuInit: could not load library "libcuda"
+│    could not load library "libcuda"
 │    libcuda.so: cannot open shared object file: No such file or directory
-└ @ CUDAdrv ~/Julia/pkg/CUDAdrv/src/CUDAdrv.jl:51
-CUDAdrv.functional() = false
+│    Stacktrace:
+│     ...
+└
 ```
 
+You can query whether the package has successfully initialized and is ready to use by
+calling the `functional()` method. Let's illustrate with two scenario's, one where having a
+GPU is required, and one where it's optional.
 
-## Required
+
+## Scenario 1: GPU is required
 
 If your application requires a GPU, and its functionality is not designed to work without
 CUDA, you should just import the necessary packages and inspect if they are functional:
@@ -34,9 +47,9 @@ using CuArrays
 @assert CuArrays.functional()
 ```
 
-If your application may need to be precompiled on a system without CUDA (e.g. the log-in
-node of a cluster, or the build phase of a container), you should only check at run time
-whether the packages work as expected:
+If you are developing a package, you should take care only to perform this check at run
+time. This ensures that your module can always be precompiled, even on a system without a
+GPU:
 
 ```julia
 module MyApplication
@@ -52,9 +65,9 @@ This of course also implies that you should avoid any calls to the GPU stack fro
 scope, since the packages might not be functional.
 
 
-## Optional
+## Scenario 2: GPU is optional
 
-IF your application does not require a GPU, and can work without the CUDA packages, there is
+If your application does not require a GPU, and can work without the CUDA packages, there is
 a tradeoff. As an example, let's define a function that uploads an array to the GPU if
 available:
 
