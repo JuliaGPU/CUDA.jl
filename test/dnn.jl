@@ -78,6 +78,16 @@ end
   @test testf(CuArrays.CUDNN.cudnnAddTensor, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationForward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
   @test testf(CuArrays.CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
+
+  # activations defined in src/nnlib.jl
+  for dims in ((5,5), (5,))
+    for f in (σ, logσ, elu, swish, gelu, selu, softplus)
+      @test testf(x -> f.(x), rand(Float64, dims))
+    end
+  end
+  # softplus does not give `Inf` for large arguments
+  x = cu([1000.])
+  @test all(softplus.(x) .== x)
 end
 
 @testset "Batchnorm" begin
