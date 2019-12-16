@@ -33,6 +33,7 @@ function main()
                 "usage/overview.md",
                 "usage/workflow.md",
                 "usage/memory.md",
+                "usage/multigpu.md",
                 "usage/conditional.md",
                 "usage/faq.md",
             ],
