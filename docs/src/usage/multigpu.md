@@ -17,11 +17,11 @@ using Distributed, CUDAdrv
 addprocs(length(devices()))
 
 # assign devices
-using CUDAnative, CuArrays
+using CUDAnative
 asyncmap((zip(workers(), devices()))) do (p, d)
     remotecall_wait(p) do
         @info "Worker $p uses $d"
-        CUDAnative.device!(d)
+        device!(d)
     end
 end
 ```
@@ -75,7 +75,7 @@ The data allocated here uses the GPU id as a the outermost dimension, which can 
 extract views of contiguous memory that represent the slice to be processed by a single GPU:
 
 ```julia
-for (gpu,dev) in enumerate(devices())
+for (gpu, dev) in enumerate(devices())
     device!(dev)
     @views d_c[:, :, gpu] .= d_a[:, :, gpu] .+ d_b[:, :, gpu]
 end
