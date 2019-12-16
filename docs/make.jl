@@ -32,6 +32,7 @@ function main()
             "Usage" => Any[
                 "usage/overview.md",
                 "usage/workflow.md",
+                "usage/memory.md",
                 "usage/conditional.md",
                 "usage/faq.md",
             ],
