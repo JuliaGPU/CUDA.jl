@@ -1,42 +1,56 @@
-CUDAnative.jl
-=============
+# CUDAnative.jl
 
 *Support for compiling and executing native Julia kernels on CUDA hardware.*
 
-[![][docs-latest-img]][docs-latest-url] [![][discourse-img]][discourse-url] [![][codecov-img]][codecov-url] [![][doi-img]][doi-url]
+| **Documentation**                                                       | **Build Status**                                              |
+|:-----------------------------------------------------------------------:|:-------------------------------------------------------------:|
+| [![][docs-usage-img]][docs-usage-url] [![][docs-api-img]][docs-api-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAnative.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAnative.jl/commits/master
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAnative.jl
 
-[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: https://juliagpu.gitlab.io/CUDAnative.jl/
+[docs-usage-img]: https://img.shields.io/badge/docs-usage-blue.svg
+[docs-usage-url]: https://juliagpu.gitlab.io/CUDA.jl/
 
-[doi-img]: https://zenodo.org/badge/DOI/10.1109/TPDS.2018.2872064.svg
-[doi-url]: https://doi.org/10.1109/TPDS.2018.2872064
-
-[discourse-img]: https://img.shields.io/badge/discourse-julia%20%23gpu-red
-[discourse-url]: https://discourse.julialang.org/c/domain/gpu
+[docs-api-img]: https://img.shields.io/badge/docs-api-blue.svg
+[docs-api-url]: https://juliagpu.gitlab.io/CUDAnative.jl/
 
 
 
-Installation
-------------
+## Quick start
 
-CUDAnative is a registered package, and can be installed using the Julia package manager:
+The package can be installed with the Julia package manager.
+From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 
-```julia
-Pkg.add("CUDAnative")
+```
+pkg> add CUDAnative
 ```
 
-**NOTE**: the current version of this package requires Julia 1.0. Only older versions of this package, v0.6.x or older, work with Julia 0.6, and require a source-build of Julia.
+Or, equivalently, via the `Pkg` API:
+
+```julia
+julia> import Pkg; Pkg.add("CUDAnative")
+```
+
+For usage instructions and other information, check-out the [CUDA.jl
+documentation](https://juliagpu.gitlab.io/CUDA.jl/).
 
 
-License
--------
+## Project Status
 
-CUDAnative.jl is licensed under the [MIT license](LICENSE.md).
+The package is tested against, and being developed for, Julia `1.0` and above. Main
+development and testing happens on Linux, but the package is expected to work on macOS and
+Windows as well.
 
-If you use this package in your research, please cite the paper [Besard, Foket,
-De Sutter (2018)](https://doi.org/10.1109/TPDS.2018.2872064).  For your
-convenience, a BibTeX entry is provided in the [`CITATION.bib`](CITATION.bib)
-file.
+
+## Questions and Contributions
+
+Usage questions can be posted on the [Julia Discourse
+forum](https://discourse.julialang.org/c/domain/gpu) under the GPU domain and/or in the #gpu
+channel of the [Julia Slack](https://julialang.org/community/).
+
+Contributions are very welcome, as are feature requests and suggestions. Please open an
+[issue](https://github.com/JuliaGPU/CUDAnative.jl/issues) if you encounter any problems.
