@@ -1,22 +1,38 @@
-using Documenter
-using Literate
-
+using Documenter, Literate
 using CuArrays
 
-# generate tutorials
-OUTPUT = joinpath(@__DIR__, "src/tutorials/generated")
-Literate.markdown(joinpath(@__DIR__, "src/tutorials/intro.jl"), OUTPUT;
-    repo_root_url="https://github.com/JuliaGPU/CuArrays.jl/blob/master")
+const src = "https://github.com/JuliaGPU/CuArrays.jl"
+const dst = "https://juliagpu.gitlab.io/CuArrays.jl/"
 
-makedocs(
-    modules = [CuArrays],
-    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
-    sitename = "CuArrays.jl",
-    pages = [
-        "Home" => "index.md",
-        "Tutorials"  => [
-            "tutorials/generated/intro.md"
-        ],
-    ],
-    doctest = true
-)
+function main()
+    makedocs(
+        sitename = "CuArrays.jl",
+        authors = "Tim Besard",
+        repo = "$src/blob/{commit}{path}#{line}",
+        format = Documenter.HTML(
+            # Use clean URLs on CI
+            prettyurls = get(ENV, "CI", nothing) == "true",
+            canonical = dst,
+            assets = ["assets/favicon.ico"],
+            analytics = "UA-154489943-3",
+        ),
+        doctest = false,
+        pages = Any[
+            "Home" => "index.md",
+            "APIs" => Any[
+                "memory.md",
+            ],
+            "Libraries" => Any[
+                "lib/blas.md",
+                "lib/rand.md",
+                "lib/fft.md",
+                "lib/solver.md",
+                "lib/sparse.md",
+                "lib/dnn.md",
+                "lib/tensor.md",
+            ],
+        ]
+    )
+end
+
+isinteractive() || main()

@@ -34,6 +34,12 @@ Base.copy(alloc_stats::AllocStats) =
 
 const alloc_to = TimerOutput()
 
+"""
+    alloc_timings()
+
+Show the timings of the CUDA allocator. Assumes [`CuArrays.enable_timings()`](@ref) has been
+called.
+"""
 alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 
 const usage = Ref(0)
@@ -94,6 +100,12 @@ macro pool_timeit(args...)
     TimerOutputs.timer_expr(CuArrays, true, :($CuArrays.pool_to), args...)
 end
 
+"""
+    pool_timings()
+
+Show the timings of the currently active memory pool. Assumes
+[`CuArrays.enable_timings()`](@ref) has been called.
+"""
 pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 
 # pool API:
@@ -118,6 +130,12 @@ export OutOfGPUMemoryError
 
 const requested = Dict{CuPtr{Nothing},Int}()
 
+"""
+    OutOfGPUMemoryError()
+
+An operation allocated too much GPU memory for either the system or the memory pool to
+handle properly.
+"""
 struct OutOfGPUMemoryError <: Exception
   sz::Int
 end
@@ -127,6 +145,12 @@ function Base.showerror(io::IO, err::OutOfGPUMemoryError)
     memory_status(io)
 end
 
+"""
+    alloc(sz)
+
+Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
+a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
+"""
 @inline function alloc(sz)::CuPtr{Nothing}
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
@@ -146,6 +170,11 @@ end
   return ptr
 end
 
+"""
+    free(sz)
+
+Releases a buffer pointed to by `ptr` to the memory pool.
+"""
 @inline function free(ptr::CuPtr{Nothing})
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
@@ -162,11 +191,70 @@ end
   return
 end
 
+"""
+    reclaim([sz=typemax(Int)])
+
+Reclaims `sz` bytes of cached memory. Use this to free GPU memory before calling into
+functionality that does not use the CuArrays memory pool. Returns the number of bytes
+actually reclaimed.
+"""
 reclaim(sz::Int=typemax(Int)) = pool[].reclaim(sz)
+
+"""
+    extalloc(f::Function; check::Function=isa(OutOfGPUMemoryError), nb::Integer=typemax(Int))
+
+Run a function `f` repeatedly until it successfully allocates the memory it needs. Only
+out-of-memory exceptions that pass `check` are considered for retry; this defaults to
+checking for the CuArrays out-of-memory exception but should be customized as to detect how
+an out-of-memory situation is reported by the function `f`. The argument `nb` indicates how
+many bytes of memory `f` requires, and serves as a hint for how much memory to reclaim
+before trying `f` again.
+
+This function is intended to be used with external functionality that allocates but does not
+use the CuArrays memory pool, thus conflicting with its caching behavior.
+"""
+function extalloc(f::Function; check::Function=ex->isa(ex,OutOfGPUMemoryError), nb::Integer=typemax(Int))
+  phase = 0
+  while true
+    phase += 1
+    return try
+      f()
+    catch ex
+      check(ex) || rethrow()
+
+      # incrementally costly reclaim of more and more memory
+      if phase == 1
+        reclaim(nb)
+      elseif phase == 2
+        GC.gc(false)
+        reclaim(nb)
+      elseif phase == 3
+        GC.gc(true)
+        reclaim(nb)
+      elseif phase == 4
+        # maybe the user lied, so try reclaiming all memory
+        GC.gc(true)
+        reclaim()
+      else
+        # give up
+        rethrow()
+      end
+
+      # try again
+      continue
+    end
+  end
+end
 
 
 ## utilities
 
+"""
+    @allocated
+
+A macro to evaluate an expression, discarding the resulting value, instead returning the
+total number of bytes allocated during evaluation of the expression.
+"""
 macro allocated(ex)
     quote
         let
@@ -249,6 +337,11 @@ macro time(ex)
     end
 end
 
+"""
+    memory_status([io=stdout])
+
+Report to `io` on the memory status of the current GPU and the active memory pool.
+"""
 function memory_status(io::IO=stdout)
   free_bytes, total_bytes = CUDAdrv.Mem.info()
   used_bytes = total_bytes - free_bytes
@@ -287,52 +380,14 @@ function memory_status(io::IO=stdout)
   end
 end
 
-"""
-  extalloc(f::Function; check::Function=isa(OutOfGPUMemoryError), nb::Integer=typemax(Int))
-
-Run a function `f` repeatedly until it successfully allocates the memory it needs. Only
-out-of-memory exceptions that pass `check` are considered for retry; this defaults to
-checking for the CuArrays out-of-memory exception but should be customized as to detect how
-an out-of-memory situation is reported by the function `f`. The argument `nb` indicates how
-many bytes of memory `f` requires, and serves as a hint for how much memory to reclaim
-before trying `f` again.
-"""
-function extalloc(f::Function; check::Function=ex->isa(ex,OutOfGPUMemoryError), nb::Integer=typemax(Int))
-  phase = 0
-  while true
-    phase += 1
-    return try
-      f()
-    catch ex
-      check(ex) || rethrow()
-
-      # incrementally costly reclaim of more and more memory
-      if phase == 1
-        reclaim(nb)
-      elseif phase == 2
-        GC.gc(false)
-        reclaim(nb)
-      elseif phase == 3
-        GC.gc(true)
-        reclaim(nb)
-      elseif phase == 4
-        # maybe the user lied, so try reclaiming all memory
-        GC.gc(true)
-        reclaim()
-      else
-        # give up
-        rethrow()
-      end
-
-      # try again
-      continue
-    end
-  end
-end
-
 
 ## init
 
+"""
+    enable_timings()
+
+Enable the recording of debug timings.
+"""
 enable_timings() = (TimerOutputs.enable_debug_timings(CuArrays); return)
 
 function __init_memory__()
@@ -369,6 +424,11 @@ function __init_memory__()
   reset_timers!()
 end
 
+"""
+    reset_timers!()
+
+Reset all debug timers. This is automatically called at initialization time,
+"""
 function reset_timers!()
   TimerOutputs.reset_timer!(alloc_to)
   TimerOutputs.reset_timer!(pool_to)
