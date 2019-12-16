@@ -59,7 +59,12 @@ Usage](@ref) section.
 
 To understand the toolchain in more detail, check out the tutorials in this manual. **It is
 highly recommended that new users start with the [Introduction](@ref) tutorial**. For an
-overview of the available functionality, check the [Overview](@ref) page.
+overview of the available functionality, check the [Overview](@ref) page. The following
+resources may also be of interest:
+
+- Effectively using GPUs with Julia: [video](https://www.youtube.com/watch?v=7Yq1UyncDNc),
+  [slides](https://docs.google.com/presentation/d/1l-BuAtyKgoVYakJSijaSqaTL3friESDyTOnU2OLqGoA/)
+- How Julia is compiled to GPUs: [video](https://www.youtube.com/watch?v=Fz-ogmASMAE)
 
 
 ## Acknowledgements
