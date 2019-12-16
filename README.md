@@ -1,56 +1,59 @@
-CUDAdrv.jl
-==========
+# CUDAdrv.jl
 
 *A Julia wrapper for the CUDA driver API.*
 
-[![][docs-latest-img]][docs-latest-url] [![][discourse-img]][discourse-url] [![][codecov-img]][codecov-url] [![][doi-img]][doi-url]
+| **Documentation**                                                       | **Build Status**                                              |
+|:-----------------------------------------------------------------------:|:-------------------------------------------------------------:|
+| [![][docs-usage-img]][docs-usage-url] [![][docs-api-img]][docs-api-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
 
-[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: https://juliagpu.gitlab.io/CUDAdrv.jl/
+[docs-usage-img]: https://img.shields.io/badge/docs-usage-blue.svg
+[docs-usage-url]: https://juliagpu.gitlab.io/CUDA.jl/
 
-[doi-img]: https://zenodo.org/badge/DOI/10.1109/TPDS.2018.2872064.svg
-[doi-url]: https://doi.org/10.1109/TPDS.2018.2872064
+[docs-api-img]: https://img.shields.io/badge/docs-api-blue.svg
+[docs-api-url]: https://juliagpu.gitlab.io/CUDAdrv.jl/
 
-[discourse-img]: https://img.shields.io/badge/discourse-julia%20%23gpu-red
-[discourse-url]: https://discourse.julialang.org/c/domain/gpu
-
-This package aims to provide high-level wrappers for the functionality exposed by the CUDA
-driver API, and is meant for users who need high- or low-level access to the CUDA toolkit or
-the underlying hardware.
+CUDAdrv.jl proviudes high-level wrappers for the functionality exposed by the CUDA driver
+API, and is meant for users who need high- or low-level access to the CUDA toolkit or the
+underlying hardware.
 
 
-Installation
-------------
+## Quick start
 
-CUDAdrv is a registered package, and can be installed using the Julia package manager:
+The package can be installed with the Julia package manager.
+From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
+
+```
+pkg> add CUDAdrv
+```
+
+Or, equivalently, via the `Pkg` API:
 
 ```julia
-Pkg.add("CUDAdrv")
+julia> import Pkg; Pkg.add("CUDAdrv")
 ```
 
-Julia 1.0 and higher is supported, with limited effort to keep the package working on
-current master as well. Refer to [the documentation][docs-latest-url] for more information
-on how to install or use this package.
+For usage instructions and other information, check-out the [CUDA.jl
+documentation](https://juliagpu.gitlab.io/CUDA.jl/).
 
 
-License
--------
+## Project Status
 
-CUDAdrv.jl is licensed under the [MIT license](LICENSE.md).
+The package is tested against, and being developed for, Julia `1.0` and above. Main
+development and testing happens on Linux, but the package is expected to work on macOS and
+Windows as well.
 
-If you use this package in your research, please cite the [following
-paper](https://ieeexplore.ieee.org/document/8471188):
 
-```
-@article{besard:2017,
-  author    = {Besard, Tim and Foket, Christophe and De Sutter, Bjorn},
-  title     = {Effective Extensible Programming: Unleashing {Julia} on {GPUs}},
-  journal   = {IEEE Transactions on Parallel and Distributed Systems},
-  year      = {2018},
-  doi       = {10.1109/TPDS.2018.2872064},
-  ISSN      = {1045-9219},
-}
-```
+## Questions and Contributions
+
+Usage questions can be posted on the [Julia Discourse
+forum](https://discourse.julialang.org/c/domain/gpu) under the GPU domain and/or in the #gpu
+channel of the [Julia Slack](https://julialang.org/community/).
+
+Contributions are very welcome, as are feature requests and suggestions. Please open an
+[issue](https://github.com/JuliaGPU/CUDAdrv.jl/issues) if you encounter any problems.
