@@ -1,17 +1,28 @@
 using Documenter, CUDAdrv
 
-makedocs(
-    modules = [CUDAdrv],
-    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
-    sitename = "CUDAdrv.jl",
-    pages = [
-        "Home"    => "index.md",
-        "Manual"  => [
-            "man/usage.md"
-        ],
-        "Library" => [
-            "lib/api.md",
+const src = "https://github.com/JuliaGPU/CUDAdrv.jl"
+const dst = "https://juliagpu.gitlab.io/CUDAdrv.jl/"
+
+function main()
+    makedocs(
+        sitename = "CUDAdrv.jl",
+        authors = "Tim Besard",
+        repo = "$src/blob/{commit}{path}#{line}",
+        format = Documenter.HTML(
+            # Use clean URLs on CI
+            prettyurls = get(ENV, "CI", nothing) == "true",
+            canonical = dst,
+            assets = ["assets/favicon.ico"],
+            analytics = "UA-154489943-5",
+        ),
+        doctest = false,
+        pages = Any[
+            "Home"    => "index.md",
+            "APIs" => [
+                "driver.md",
+            ]
         ]
-    ],
-    doctest = true
-)
+    )
+end
+
+isinteractive() || main()
