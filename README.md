@@ -1,72 +1,58 @@
 # CuArrays
 
-[![][docs-latest-img]][docs-latest-url] [![][discourse-img]][discourse-url] [![][codecov-img]][codecov-url]
+| **Documentation**                                                       | **Build Status**                                              |
+|:-----------------------------------------------------------------------:|:-------------------------------------------------------------:|
+| [![][docs-usage-img]][docs-usage-url] [![][docs-api-img]][docs-api-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CuArrays.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CuArrays.jl/commits/master
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CuArrays.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CuArrays.jl
 
-[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: https://juliagpu.gitlab.io/CuArrays.jl/
+[docs-usage-img]: https://img.shields.io/badge/docs-usage-blue.svg
+[docs-usage-url]: https://juliagpu.gitlab.io/CUDA.jl/
 
-[discourse-img]: https://img.shields.io/badge/discourse-julia%20%23gpu-red
-[discourse-url]: https://discourse.julialang.org/c/domain/gpu
+[docs-api-img]: https://img.shields.io/badge/docs-api-blue.svg
+[docs-api-url]: https://juliagpu.gitlab.io/CuArrays.jl/
 
 CuArrays provides a fully-functional GPU array, which can give significant speedups over
 normal arrays without code changes. CuArrays are implemented fully in Julia, making the
 implementation [elegant and extremely
 generic](http://mikeinnes.github.io/2017/08/24/cudanative.html).
 
-Documentation for this package is sparse, and for many of the array operations you should
-refer to the official Julia documentation. The following resources can be useful to get a
-better understanding of the characteristics and performance trade offs that come with GPU
-arrays:
 
-- Introductory tutorial on [GPU programming with Julia](https://juliagpu.gitlab.io/CuArrays.jl/tutorials/generated/intro/)
-- Slide deck on [effectively using GPUs with Julia](https://docs.google.com/presentation/d/1l-BuAtyKgoVYakJSijaSqaTL3friESDyTOnU2OLqGoA/)
+## Quick start
 
-## Installation
+The package can be installed with the Julia package manager.
+From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 
-CuArrays should work **out-of-the-box** on stable releases of Julia 1.x. You
-only need to have a proper set-up of CUDA, meaning the rest of the Julia CUDA
-stack should work (notably CUDAapi.jl, CUDAdrv.jl and CUDAnative.jl). If you
-encounter any issues with CuArrays.jl, please make sure those other packages are
-working as expected.
-
-Some parts of CuArrays.jl depend on **optional libraries**, such as
-[cuDNN](https://developer.nvidia.com/cudnn). The build process should notify
-about missing dependencies, i.e. inspect the output of `Pkg.build("CuArrays")`
-to see whether your installation is complete.
-
-
-## Features
-
-```julia
-xs = cu(rand(5, 5))
-ys = cu[1, 2, 3]
-xs_cpu = collect(xs)
+```
+pkg> add CuArrays
 ```
 
-Because `CuArray` is an `AbstractArray`, it doesn't have much of a learning curve; just use your favourite array ops as usual. The following are supported (on arbitrary numbers of arguments, dimensions etc):
-
-* Conversions and `copy!` with CPU arrays
-* General indexing (`xs[1:2, 5, :]`)
-* `permutedims`
-* Concatenation (`vcat(x, y)`, `cat(3, xs, ys, zs)`)
-* `map`, fused broadcast (`zs .= xs.^2 .+ ys .* 2`)
-* `fill!(xs, 0)`
-* Reduction over dimensions (`reducedim(+, xs, 3)`, `sum(x -> x^2, xs, 1)` etc)
-* Reduction to scalar (`reduce(*, 1, xs)`, `sum(xs)` etc)
-* Various BLAS operations (matrix\*matrix, matrix\*vector)
-* FFTs, using the AbstractFFTs API
-
-We welcome issues or PRs for functionality not on this list.
-
-Note that some operations not on this list will work, but be slow, due to Base's generic
-implementations. This is intentional, to enable a "make it work, then make it fast"
-workflow. When you're ready you can disable slow fallback methods:
+Or, equivalently, via the `Pkg` API:
 
 ```julia
-julia> CuArrays.allowscalar(false)
-julia> xs[5]
-ERROR: getindex is disabled
+julia> import Pkg; Pkg.add("CuArrays")
 ```
+
+For usage instructions and other information, check-out the [CUDA.jl
+documentation](https://juliagpu.gitlab.io/CUDA.jl/).
+
+
+## Project Status
+
+The package is tested against, and being developed for, Julia `1.0` and above. Main
+development and testing happens on Linux, but the package is expected to work on macOS and
+Windows as well.
+
+
+## Questions and Contributions
+
+Usage questions can be posted on the [Julia Discourse
+forum](https://discourse.julialang.org/c/domain/gpu) under the GPU domain and/or in the #gpu
+channel of the [Julia Slack](https://julialang.org/community/).
+
+Contributions are very welcome, as are feature requests and suggestions. Please open an
+[issue](https://github.com/JuliaGPU/CuArrays.jl/issues) if you encounter any problems.
