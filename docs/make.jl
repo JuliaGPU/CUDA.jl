@@ -1,5 +1,4 @@
-using Documenter, Literate
-using CuArrays
+using Documenter, CuArrays
 
 const src = "https://github.com/JuliaGPU/CuArrays.jl"
 const dst = "https://juliagpu.gitlab.io/CuArrays.jl/"
