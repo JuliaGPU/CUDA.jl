@@ -105,7 +105,7 @@ in CUDAdrv. To avoid confusion, you need to prefix device-side API interactions 
 CUDAnative module, e.g., `CUDAnative.synchronize`.
 
 ```@docs
-CUDAnative.device_synchronize
+CUDAnative.synchronize
 ```
 
 

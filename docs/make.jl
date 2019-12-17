@@ -1,27 +1,34 @@
-using Documenter
+using Documenter, CUDAnative
 
-using CUDAnative
+const src = "https://github.com/JuliaGPU/CUDAnative.jl"
+const dst = "https://juliagpu.gitlab.io/CUDAnative.jl/"
 
-makedocs(
-    modules = [CUDAnative],
-    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
-    sitename = "CUDAnative.jl",
-    pages = [
-        "Home"    => "index.md",
-        "Manual"  => [
-            "man/usage.md",
-            "man/troubleshooting.md",
-            "man/performance.md",
-            "man/hacking.md"
-        ],
-        "Library" => [
-            "lib/compilation.md",
-            "lib/reflection.md",
-            "Device Code" => [
-                "lib/device/cuda.md",
-                "lib/device/array.md"
+function main()
+    makedocs(
+        sitename = "CUDAnative.jl",
+        authors = "Tim Besard",
+        repo = "$src/blob/{commit}{path}#{line}",
+        format = Documenter.HTML(
+            # Use clean URLs on CI
+            prettyurls = get(ENV, "CI", nothing) == "true",
+            canonical = dst,
+            assets = ["assets/favicon.ico"],
+            analytics = "UA-154489943-4",
+        ),
+        doctest = false,
+        pages = Any[
+            "Home"    => "index.md",
+            "Host" => [
+                "host/initialization.md",
+                "host/execution.md",
+                "host/reflection.md",
+            ],
+            "Device" => [
+                "device/cuda.md",
+                "device/array.md"
             ]
         ]
-    ],
-    doctest = true
-)
+    )
+end
+
+isinteractive() || main()

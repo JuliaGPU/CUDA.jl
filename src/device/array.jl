@@ -93,7 +93,7 @@ aliased instance, is not written to for the duration of the current kernel.
 
 This function can only be used on devices with compute capability 3.5 or higher.
 
-See also: [`Base.getindex`](@ref)
+See also: `Base.getindex`
 """
 @inline function ldg(A::CuDeviceArray{T}, index::Integer) where {T}
     # FIXME: this only works on sm_35+, but we can't verify that for now

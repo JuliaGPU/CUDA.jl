@@ -28,7 +28,7 @@ The following keyword arguments are supported:
 - `dump_module`: display the entire module instead of just the function
 - `strict`: verify generate code as early as possible
 
-See also: [`@device_code_llvm`](@ref), [`InteractiveUtils.code_llvm`](@ref)
+See also: [`@device_code_llvm`](@ref), InteractiveUtils.code_llvm
 """
 function code_llvm(io::IO, @nospecialize(func), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=false,
@@ -186,9 +186,9 @@ end
     @device_code_lowered ex
 
 Evaluates the expression `ex` and returns the result of
-[`InteractiveUtils.code_lowered`](@ref) for every compiled CUDA kernel.
+InteractiveUtils.code_lowered for every compiled CUDA kernel.
 
-See also: [`InteractiveUtils.@code_lowered`](@ref)
+See also: InteractiveUtils.@code_lowered
 """
 macro device_code_lowered(ex...)
     quote
@@ -205,9 +205,9 @@ end
     @device_code_typed ex
 
 Evaluates the expression `ex` and returns the result of
-[`InteractiveUtils.code_typed`](@ref) for every compiled CUDA kernel.
+InteractiveUtils.code_typed for every compiled CUDA kernel.
 
-See also: [`InteractiveUtils.@code_typed`](@ref)
+See also: InteractiveUtils.@code_typed
 """
 macro device_code_typed(ex...)
     quote
@@ -228,9 +228,9 @@ end
     @device_code_warntype [io::IO=stdout] ex
 
 Evaluates the expression `ex` and prints the result of
-[`InteractiveUtils.code_warntype`](@ref) to `io` for every compiled CUDA kernel.
+InteractiveUtils.code_warntype to `io` for every compiled CUDA kernel.
 
-See also: [`InteractiveUtils.@code_warntype`](@ref)
+See also: InteractiveUtils.@code_warntype
 """
 macro device_code_warntype(ex...)
     function hook(job::CompilerJob; io::IO=stdout, kwargs...)
@@ -242,11 +242,11 @@ end
 """
     @device_code_llvm [io::IO=stdout, ...] ex
 
-Evaluates the expression `ex` and prints the result of [`InteractiveUtils.code_llvm`](@ref)
+Evaluates the expression `ex` and prints the result of InteractiveUtils.code_llvm
 to `io` for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_llvm`](@ref).
 
-See also: [`InteractiveUtils.@code_llvm`](@ref)
+See also: InteractiveUtils.@code_llvm
 """
 macro device_code_llvm(ex...)
     hook(job::CompilerJob; io::IO=stdout, kwargs...) = code_llvm(io, job; kwargs...)
