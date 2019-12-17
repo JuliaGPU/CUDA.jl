@@ -21,6 +21,8 @@ abstract type Buffer end
 # - ptr, bytesize and ctx fields
 # - convert() to certain pointers
 
+CUDAdrv.device(buf::Buffer) = device(buf.ctx)
+
 Base.sizeof(buf::Buffer) = buf.bytesize
 
 # ccall integration
@@ -31,9 +33,13 @@ Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr}}, buf::Buffer) = convert(T, buf)
 
 
 ## device buffer
-##
-## residing on the GPU
 
+"""
+    Mem.DeviceBuffer
+    Mem.Device
+
+A buffer of device memory residing on the GPU.
+"""
 struct DeviceBuffer <: Buffer
     ptr::CuPtr{Cvoid}
     bytesize::Int
@@ -52,7 +58,7 @@ Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
 
 
 """
-    alloc(DeviceBuffer, bytesize::Integer)
+    Mem.alloc(DeviceBuffer, bytesize::Integer)
 
 Allocate `bytesize` bytes of memory on the device. This memory is only accessible on the
 GPU, and requires explicit calls to `upload` and `download` for access on the CPU.
@@ -66,11 +72,6 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer)
     return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, CuCurrentContext())
 end
 
-@deprecate_binding HOSTALLOC_DEFAULT 0 false
-const HOSTALLOC_PORTABLE = CUDAdrv.CU_MEMHOSTALLOC_PORTABLE
-const HOSTALLOC_DEVICEMAP = CUDAdrv.CU_MEMHOSTALLOC_DEVICEMAP
-const HOSTALLOC_WRITECOMBINED = CUDAdrv.CU_MEMHOSTALLOC_WRITECOMBINED
-
 
 function free(buf::DeviceBuffer)
     if buf.ptr != CU_NULL
@@ -80,9 +81,13 @@ end
 
 
 ## host buffer
-##
-## pinned memory on the CPU, possibly accessible on the GPU
 
+"""
+    Mem.HostBuffer
+    Mem.Host
+
+A buffer of pinned memory on the CPU, possible accessible on the GPU.
+"""
 struct HostBuffer <: Buffer
     ptr::Ptr{Cvoid}
     bytesize::Int
@@ -110,8 +115,13 @@ function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
 end
 
 
+@deprecate_binding HOSTALLOC_DEFAULT 0 false
+const HOSTALLOC_PORTABLE = CUDAdrv.CU_MEMHOSTALLOC_PORTABLE
+const HOSTALLOC_DEVICEMAP = CUDAdrv.CU_MEMHOSTALLOC_DEVICEMAP
+const HOSTALLOC_WRITECOMBINED = CUDAdrv.CU_MEMHOSTALLOC_WRITECOMBINED
+
 """
-    alloc(HostBuffer, bytesize::Integer, [flags])
+    Mem.alloc(HostBuffer, bytesize::Integer, [flags])
 
 Allocate `bytesize` bytes of page-locked memory on the host. This memory is accessible from
 the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
@@ -128,11 +138,13 @@ function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
     return HostBuffer(ptr_ref[], bytesize, CuCurrentContext(), mapped)
 end
 
-@enum_without_prefix CUDAdrv.CUmemAttach_flags CU_MEM_
 
+const HOSTREGISTER_PORTABLE = CUDAdrv.CU_MEMHOSTREGISTER_PORTABLE
+const HOSTREGISTER_DEVICEMAP = CUDAdrv.CU_MEMHOSTREGISTER_DEVICEMAP
+const HOSTREGISTER_IOMEMORY = CUDAdrv.CU_MEMHOSTREGISTER_IOMEMORY
 
 """
-    register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags])
+    Mem.register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags])
 
 Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
 be faster, and can be executed asynchronously. If the `MEMHOSTREGISTER_DEVICEMAP` flag is
@@ -148,6 +160,11 @@ function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
     return HostBuffer(ptr, bytesize, CuCurrentContext(), mapped)
 end
 
+"""
+    Mem.unregister(HostBuffer)
+
+Unregisters a memory range that was registered with [`Mem.register`](@ref).
+"""
 function unregister(buf::HostBuffer)
     CUDAdrv.cuMemHostUnregister(buf)
 end
@@ -161,9 +178,13 @@ end
 
 
 ## unified buffer
-##
-## managed buffer that is accessible on both the CPU and GPU
 
+"""
+    Mem.UnifiedBuffer
+    Mem.Unified
+
+A managed buffer that is accessible on both the CPU and GPU.
+"""
 struct UnifiedBuffer <: Buffer
     ptr::CuPtr{Cvoid}
     bytesize::Int
@@ -180,8 +201,10 @@ Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
 Base.convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
     convert(CuPtr{T}, buf.ptr)
 
+@enum_without_prefix CUDAdrv.CUmemAttach_flags CU_MEM_
+
 """
-    alloc(UnifiedBuffer, bytesize::Integer, [flags::CUmemAttach_flags])
+    Mem.alloc(UnifiedBuffer, bytesize::Integer, [flags::CUmemAttach_flags])
 
 Allocate `bytesize` bytes of unified memory. This memory is accessible from both the CPU and
 GPU, with the CUDA driver automatically copying upon first access.
@@ -204,12 +227,13 @@ function free(buf::UnifiedBuffer)
 end
 
 
-const HOSTREGISTER_PORTABLE = CUDAdrv.CU_MEMHOSTREGISTER_PORTABLE
-const HOSTREGISTER_DEVICEMAP = CUDAdrv.CU_MEMHOSTREGISTER_DEVICEMAP
-const HOSTREGISTER_IOMEMORY = CUDAdrv.CU_MEMHOSTREGISTER_IOMEMORY
+"""
+    prefecth(::UnifiedBuffer, [bytes::Integer]; [device::CuDevice], [stream::CuStream])
 
-function prefetch(buf::UnifiedBuffer, bytes=sizeof(buf);
-                  device::CuDevice=device(), stream::CuStream=CuDefaultStream())
+Prefetches memory to the specified destination device.
+"""
+function prefetch(buf::UnifiedBuffer, bytes::Integer=sizeof(buf);
+                  device::CuDevice=device(buf), stream::CuStream=CuDefaultStream())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     CUDAdrv.cuMemPrefetchAsync(buf, bytes, device, stream)
 end
@@ -217,8 +241,13 @@ end
 
 @enum_without_prefix CUDAdrv.CUmem_advise CU_MEM_
 
-function advise(buf::UnifiedBuffer, advice::CUDAdrv.CUmem_advise, bytes=sizeof(buf),
-                device=device(buf.ctx))
+"""
+    advise(::UnifiedBuffer, advice::CUDAdrv.CUmem_advise, [bytes::Integer]; [device::CuDevice])
+
+Advise about the usage of a given memory range.
+"""
+function advise(buf::UnifiedBuffer, advice::CUDAdrv.CUmem_advise, bytes::Integer=sizeof(buf);
+                device::CuDevice=device(buf))
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     CUDAdrv.cuMemAdvise(buf, bytes, advice, device)
 end
@@ -239,8 +268,8 @@ const Unified = UnifiedBuffer
 ## initialization
 
 """
-    set!(buf::CuPtr, value::Union{UInt8,UInt16,UInt32}, len::Integer;
-         async::Bool=false, stream::CuStream)
+    Mem.set!(buf::CuPtr, value::Union{UInt8,UInt16,UInt32}, len::Integer;
+             async::Bool=false, stream::CuStream)
 
 Initialize device memory by copying `val` for `len` times. Executed asynchronously if
 `async` is true, in which case a valid `stream` is required.

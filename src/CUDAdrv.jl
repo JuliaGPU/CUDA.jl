@@ -44,9 +44,9 @@ const __initialized__ = Ref(false)
 functional() = __initialized__[]
 
 function __init__()
-    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false"))
-    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
     precompiling = ccall(:jl_generating_output, Cint, ()) != 0
+    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false")) || precompiling
+    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
 
     try
         if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
@@ -56,13 +56,13 @@ function __init__()
         cuInit(0)
 
         if version() <= v"9"
-            @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
+            silent || @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
         end
 
         __initialized__[] = true
     catch ex
         # don't actually fail to keep the package loadable
-        if !silent && !precompiling
+        if !silent
             if verbose
                 @error "CUDAdrv.jl failed to initialize" exception=(ex, catch_backtrace())
             else
