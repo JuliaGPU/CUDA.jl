@@ -88,11 +88,9 @@ end
 
 ## API call wrapper
 
-const apicall_hook = Ref{Union{Nothing,Function}}(nothing)
-
-# TODO: for the next breaking version
-# const call_hooks = Set{Function}()
-# @noinline do_call_hooks(fun) = filter!(hook->hook(fun), call_hooks)
+const api_hooks = []
+@noinline _call_api_hooks(fun::Symbol) = foreach(hook->hook(fun), api_hooks)
+atapicall(f::Function) = (pushfirst!(api_hooks, f); nothing)
 
 macro check(ex)
     # check is used in front of `ccall` or `@runtime_ccall`s that work on a tuple (fun, lib)
@@ -115,8 +113,7 @@ macro check(ex)
     end
 
     quote
-        # NOTE: this hook is used by CUDAnative.jl to initialize upon the first API call
-        apicall_hook[] !== nothing && apicall_hook[]($(QuoteNode(Symbol(fun))))
+        _call_api_hooks($(QuoteNode(Symbol(fun))))
 
         res::CUresult = $(esc(ex))
         if res != CUDA_SUCCESS
