@@ -131,7 +131,7 @@ function __init__()
         fill!(thread_contexts, nothing)
         CUDAdrv.atapicall(maybe_initialize)
 
-        CUDAdrv.atapicall(check_exception_hook)
+        CUDAdrv.atapicall(check_exceptions)
 
         __initialized__[] = true
     catch ex

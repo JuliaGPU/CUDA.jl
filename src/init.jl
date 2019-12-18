@@ -75,8 +75,6 @@ function device!(dev::CuDevice)
 end
 device!(dev::Integer) = device!(CuDevice(dev))
 
-const device_reset!_listeners = Set{Function}()
-
 """
     device_reset!(dev::CuDevice=device())
 
@@ -89,7 +87,6 @@ callback of the signature `(::CuDevice, ::CuContext)` to the `device_reset!_list
 function device_reset!(dev::CuDevice=device())
     pctx = CuPrimaryContext(dev)
     ctx = CuContext(pctx)
-    foreach(listener->listener(dev, ctx), device_reset!_listeners)
 
     # unconditionally reset the primary context (don't just release it),
     # as there might be users outside of CUDAnative.jl
@@ -110,7 +107,6 @@ end
 Sets the active device for the duration of `f`.
 """
 function device!(f::Function, dev::CuDevice)
-    # FIXME: should use Push/Pop
     old_ctx = CuCurrentContext()
     try
         device!(dev)
