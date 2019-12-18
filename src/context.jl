@@ -18,13 +18,14 @@ the system cleans up the resources allocated to it.
 When you are done using the context, call [`unsafe_destroy!`](@ref) to mark it for deletion,
 or use do-block syntax with this constructor.
 """
-struct CuContext
+mutable struct CuContext
     handle::CUcontext
 
     function CuContext(handle::CUcontext)
         handle == C_NULL && return new(C_NULL)
-        push!(valid_context_handles, handle)
-        return new(handle)
+        return get!(valid_contexts, handle) do
+            new(handle)
+        end
     end
 end
 
@@ -32,10 +33,12 @@ end
 # early-freed it ourselves before the GC kicked in), and to make sure we don't free derived
 # resources after the owning context has been destroyed (which can happen due to
 # out-of-order finalizer execution)
-const valid_context_handles = Set{CUcontext}()
-isvalid(ctx::CuContext) = in(ctx.handle, valid_context_handles)
+const valid_contexts = Dict{CUcontext,CuContext}()
+isvalid(ctx::CuContext) = any(x->x===ctx, values(valid_contexts))
+# NOTE: we can't just look up by the handle, because contexts derived from a primary one
+#       have the same handle even though they might have been destroyed in the meantime.
 function invalidate!(ctx::CuContext)
-    delete!(valid_context_handles, ctx.handle)
+    delete!(valid_contexts, ctx.handle)
     return
 end
 

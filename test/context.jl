@@ -61,6 +61,26 @@ CuContext(pctx) do ctx
     @test !CUDAdrv.isvalid(ctx)
 end
 
+let
+    @test !isactive(pctx)
+
+    ctx1 = CuContext(pctx)
+    @test isactive(pctx)
+    @test CUDAdrv.isvalid(ctx1)
+
+    unsafe_reset!(pctx)
+    @test !isactive(pctx)
+    @test !CUDAdrv.isvalid(ctx1)
+    CUDAdrv.valid_contexts
+
+    ctx2 = CuContext(pctx)
+    @test isactive(pctx)
+    @test !CUDAdrv.isvalid(ctx1)
+    @test CUDAdrv.isvalid(ctx2)
+
+    unsafe_reset!(pctx)
+end
+
 end
 
 
