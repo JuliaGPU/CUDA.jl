@@ -48,8 +48,6 @@ if length(devices()) > 0
         include("occupancy.jl")
     end
 
-    include("gc.jl")
-
     include("examples.jl")
 end
 

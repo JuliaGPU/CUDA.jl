@@ -1,7 +1,7 @@
 # Context management
 
 export
-    CuContext, destroy!, CuCurrentContext, activate,
+    CuContext, CuCurrentContext, activate,
     synchronize, device
 
 
@@ -15,60 +15,41 @@ Create a CUDA context for device. A context on the GPU is analogous to a process
 with its own distinct address space and allocated resources. When a context is destroyed,
 the system cleans up the resources allocated to it.
 
-Contexts are unique instances which need to be `destroy`ed after use. For automatic
-management, prefer the `do` block syntax, which implicitly calls `destroy`.
+When you are done using the context, call [`unsafe_destroy!`](@ref) to mark it for deletion,
+or use do-block syntax with this constructor.
 """
 mutable struct CuContext
     handle::CUcontext
-    owned::Bool
-    valid::Bool
 
-    """
-    The `owned` argument indicates whether the caller owns this context. If so, the context
-    should get destroyed when it goes out of scope. If not, it is up to the caller to do so.
-    """
-    function CuContext(handle::CUcontext, owned=true)
-        handle == C_NULL && return new(C_NULL, false, true)
-
-        # we need unique context instances for garbage collection reasons
-        #
-        # refcounting the context handle doesn't work, because having multiple instances can
-        # cause the first instance (if without any use) getting gc'd before a new instance
-        # (eg. through getting the current context, _with_ actual uses) is created
-        #
-        # instead, we force unique instances, and keep a reference alive in a global dict.
-        # this prevents contexts from getting collected, requiring the user to destroy it.
-        ctx = get!(context_instances, handle) do
-            obj = new(handle, owned, true)
-            finalizer(unsafe_destroy!, obj)
-            return obj
+    function CuContext(handle::CUcontext)
+        handle == C_NULL && return new(C_NULL)
+        return get!(valid_contexts, handle) do
+            new(handle)
         end
-
-        if owned && !ctx.owned
-            # trying to get a non-owned handle on an already-owned context is common,
-            # eg. construct a context, and call a function doing CuCurrentContext()
-            #
-            # the inverse isn't true: constructing an owning-object on using a handle
-            # which was the result of a non-owning API call really shouldn't happen
-            warn("Ownership conflict on context $ctx")
-        end
-
-        ctx
     end
 end
-const context_instances = Dict{CUcontext,CuContext}()
 
-isvalid(ctx::CuContext) = ctx.valid
+# the `valid` bit serves two purposes: make sure we don't double-free a context (in case we
+# early-freed it ourselves before the GC kicked in), and to make sure we don't free derived
+# resources after the owning context has been destroyed (which can happen due to
+# out-of-order finalizer execution)
+const valid_contexts = Dict{CUcontext,CuContext}()
+isvalid(ctx::CuContext) = any(x->x===ctx, values(valid_contexts))
+# NOTE: we can't just look up by the handle, because contexts derived from a primary one
+#       have the same handle even though they might have been destroyed in the meantime.
 function invalidate!(ctx::CuContext)
-    ctx.valid = false
-    nothing
+    delete!(valid_contexts, ctx.handle)
+    return
 end
 
+"""
+    unsafe_destroy!(ctx::CuContext)
+
+Immediately destroy a context, freeing up all resources associated with it. This does not
+respect any users of the context, and might make other objects unusable.
+"""
 function unsafe_destroy!(ctx::CuContext)
-    # finalizers do not respect _any_ oder during process teardown
-    # (ie. it doesn't respect active instances carefully set-up in `gc.jl`)
-    # TODO: can we check this only happens during teardown?
-    if ctx.owned && isvalid(ctx)
+    if isvalid(ctx)
         cuCtxDestroy(ctx)
         invalidate!(ctx)
     end
@@ -79,29 +60,12 @@ Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
 Base.hash(ctx::CuContext, h::UInt) = hash(ctx.handle, h)
 
-"""
-    destroy!(ctx::CuContext)
-
-Mark a context for destruction.
-
-This does not immediately destroy the context, as there might still be dependent resources
-which have not been collected yet. The context will get freed as soon as all outstanding
-instances have been finalized.
-"""
-function destroy!(ctx::CuContext)
-    delete!(context_instances, ctx.handle)
-    return
-end
-
-Base.deepcopy_internal(::CuContext, ::IdDict) =
-    error("CuContext cannot be copied")
-
 @enum_without_prefix CUctx_flags CU_
 
 function CuContext(dev::CuDevice, flags::CUctx_flags=CTX_SCHED_AUTO)
     handle_ref = Ref{CUcontext}()
     cuCtxCreate(handle_ref, flags, dev)
-    CuContext(handle_ref[])
+    return CuContext(handle_ref[])
 end
 
 """
@@ -115,7 +79,7 @@ function CuCurrentContext()
     if handle_ref[] == C_NULL
         return nothing
     else
-        return CuContext(handle_ref[], false)
+        return CuContext(handle_ref[])
     end
 end
 
@@ -124,8 +88,7 @@ end
 
 Pushes a context on the current CPU thread.
 """
-Base.push!(::Type{CuContext}, ctx::CuContext) =
-    cuCtxPushCurrent(ctx)
+Base.push!(::Type{CuContext}, ctx::CuContext) = cuCtxPushCurrent(ctx)
 
 """
     pop!(CuContext)
@@ -135,7 +98,7 @@ Pops the current CUDA context from the current CPU thread, and returns that cont
 function Base.pop!(::Type{CuContext})
     handle_ref = Ref{CUcontext}()
     cuCtxPopCurrent(handle_ref)
-    CuContext(handle_ref[], false)
+    CuContext(handle_ref[])
 end
 
 """
@@ -145,13 +108,13 @@ Binds the specified CUDA context to the calling CPU thread.
 """
 activate(ctx::CuContext) = cuCtxSetCurrent(ctx)
 
-function CuContext(f::Function, args...)
-    ctx = CuContext(args...)    # implicitly pushes
+function CuContext(f::Function, dev::CuDevice, args...)
+    ctx = CuContext(dev, args...)    # implicitly pushes
     try
         f(ctx)
     finally
         @assert pop!(CuContext) == ctx
-        destroy!(ctx)
+        unsafe_destroy!(ctx)
     end
 end
 
