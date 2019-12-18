@@ -48,17 +48,25 @@ end
     device!(CuDevice(0))
 end
 
-const device!_listeners = Set{Function}()
+"""
+    CUDAnative.atdeviceswitch(f::Function)
+
+Register a function to be called after switching devices on a thread. The function is
+passed two arguments: the `CuDevice` switched to, and the corresponding `CuContext`.
+"""
+atdeviceswitch(f::Function) = (pushfirst!(device!_listeners, f); nothing)
+const device!_listeners = []
 
 """
     device!(dev)
 
 Sets `dev` as the current active device for the calling host thread. Devices can be
 specified by integer id, or as a `CuDevice`. This is intended to be a low-cost operation,
-only performing significant work when calling it for the first time for each device.
+only performing significant work when calling it for the first time for each device on each
+thread.
 
 If your library or code needs to perform an action when the active device changes, add a
-callback of the signature `(::CuDevice, ::CuContext)` to the `device!_listeners` set.
+hook using [`CUDAnative.atdeviceswitch`](@ref).
 """
 function device!(dev::CuDevice)
     tid = Threads.threadid()
