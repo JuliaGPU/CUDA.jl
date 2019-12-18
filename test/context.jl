@@ -3,8 +3,6 @@
 @test ctx == CuCurrentContext()
 @test ctx === CuCurrentContext()
 
-@test_throws ErrorException deepcopy(ctx)
-
 let ctx2 = CuContext(dev)
     @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
     activate(ctx)
@@ -12,21 +10,22 @@ let ctx2 = CuContext(dev)
 
     @test device(ctx2) == dev
 
-    destroy!(ctx2)
+    CUDAdrv.unsafe_destroy!(ctx2)
 end
 
-instances = length(CUDAdrv.context_instances)
-CuContext(dev) do ctx2
-    @test length(CUDAdrv.context_instances) == instances+1
-    @test ctx2 == CuCurrentContext()
-    @test ctx != ctx2
-end
-@test length(CUDAdrv.context_instances) == instances
-@test ctx == CuCurrentContext()
+let global_ctx2 = nothing
+    CuContext(dev) do ctx2
+        @test ctx2 == CuCurrentContext()
+        @test ctx != ctx2
+        global_ctx2 = ctx2
+    end
+    @test !CUDAdrv.isvalid(global_ctx2)
+    @test ctx == CuCurrentContext()
 
-@test device(ctx) == dev
-@test device() == dev
-synchronize()
+    @test device(ctx) == dev
+    @test device() == dev
+    synchronize()
+end
 
 end
 
@@ -42,12 +41,15 @@ unsafe_reset!(pctx)
 setflags!(pctx, CUDAdrv.CTX_SCHED_BLOCKING_SYNC)
 @test flags(pctx) == CUDAdrv.CTX_SCHED_BLOCKING_SYNC
 
-CuContext(pctx) do ctx
-    @test CUDAdrv.isvalid(ctx)
-    @test isactive(pctx)
+let global_ctx = nothing
+    CuContext(pctx) do ctx
+        @test CUDAdrv.isvalid(ctx)
+        @test isactive(pctx)
+        global_ctx = ctx
+    end
+    @test !isactive(pctx)
+    @test !CUDAdrv.isvalid(global_ctx)
 end
-GC.gc()
-@test !isactive(pctx)
 
 CuContext(pctx) do ctx
     @test CUDAdrv.isvalid(ctx)

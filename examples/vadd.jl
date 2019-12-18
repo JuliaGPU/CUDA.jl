@@ -23,4 +23,4 @@ cudacall(vadd, Tuple{CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}}, d_a, d_b, d_c; 
 
 @test a+b ≈ Array(d_c)
 
-destroy!(ctx)
+CUDAdrv.unsafe_destroy!(ctx)
