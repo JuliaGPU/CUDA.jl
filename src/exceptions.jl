@@ -39,8 +39,6 @@ function create_exceptions!(mod::CuModule)
         end
     end
 
-    CUDAdrv.apicall_hook[] = check_exception_hook
-
     return
 end
 

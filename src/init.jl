@@ -2,9 +2,7 @@
 
 export device!, device_reset!
 
-
-const initialized = Ref{Bool}(false)
-const device_contexts = Dict{CuDevice,CuContext}()
+const thread_contexts = Union{Nothing,CuContext}[]
 
 # FIXME: support for flags (see `cudaSetDeviceFlags`)
 
@@ -30,22 +28,24 @@ const preinit_apicalls = Set{Symbol}([
     :cuDeviceGetAttribute,
     :cuDeviceGetProperties,
     :cuDeviceComputeCapability,
-    # context getter
+    # context management
     :cuCtxGetCurrent,
+    :cuCtxPushCurrent,
+    :cuDevicePrimaryCtxRetain,
 ])
 
 function maybe_initialize(apicall)
-    initialized[] && return
-    apicall in preinit_apicalls && return
-    @debug "Initializing CUDA after call to $apicall"
-    initialize()
+    tid = Threads.threadid()
+    if @inbounds thread_contexts[tid] !== nothing || in(apicall, preinit_apicalls)
+        return
+    end
+
+    initialize(apicall)
 end
 
-function initialize(dev = CuDevice(0))
-    # NOTE: we could do something smarter here,
-    #       eg. select the most powerful device,
-    #       or skip devices without free memory
-    device!(dev)
+@noinline function initialize(apicall)
+    @debug "Initializing CUDA on thread $(Threads.threadid()) after call to $apicall"
+    device!(CuDevice(0))
 end
 
 const device!_listeners = Set{Function}()
@@ -61,21 +61,17 @@ If your library or code needs to perform an action when the active device change
 callback of the signature `(::CuDevice, ::CuContext)` to the `device!_listeners` set.
 """
 function device!(dev::CuDevice)
-    if !initialized[]
-        initialized[] = true
-        CUDAdrv.apicall_hook[] = nothing
-    end
+    tid = Threads.threadid()
 
-    ctx = get!(device_contexts, dev) do
-        pctx = CuPrimaryContext(dev)
-        CuContext(pctx)
-        pop!(CuContext) # we don't maintain a stack...
-    end
-    activate(ctx)       # replace the top of the stack
+    # get the primary context
+    pctx = CuPrimaryContext(dev)
+    ctx = CuContext(pctx)
 
-    for listener in device!_listeners
-        listener(dev, device_contexts[dev])
-    end
+    # update the thread-local state
+    @inbounds thread_contexts[tid] = ctx
+    activate(ctx)
+
+    foreach(listener->listener(dev, ctx), device!_listeners)
 end
 device!(dev::Integer) = device!(CuDevice(dev))
 
@@ -87,33 +83,22 @@ const device_reset!_listeners = Set{Function}()
 Reset the CUDA state associated with a device. This call with release the underlying
 context, at which point any objects allocated in that context will be invalidated.
 
-If your library or code needs to perform an action when a device is resetted, add a
+If your library or code needs to perform an action when a device is reset, add a
 callback of the signature `(::CuDevice, ::CuContext)` to the `device_reset!_listeners` set.
 """
 function device_reset!(dev::CuDevice=device())
-    active_ctx = CuCurrentContext()
-    if active_ctx == nothing
-        active_dev = nothing
-    else
-        active_dev = device(active_ctx)
-    end
-
-    if haskey(device_contexts, dev)
-        for listener in device_reset!_listeners
-            listener(dev, device_contexts[dev])
-        end
-        delete!(device_contexts, dev)
-    end
-
-    # unconditionally reset the primary context,
-    # as there might be users outside of CUDAnative.jl
     pctx = CuPrimaryContext(dev)
+    ctx = CuContext(pctx)
+    foreach(listener->listener(dev, ctx), device_reset!_listeners)
+
+    # unconditionally reset the primary context (don't just release it),
+    # as there might be users outside of CUDAnative.jl
     unsafe_reset!(pctx)
 
-    if dev == active_dev
-        # unless the user switches devices, new API calls should trigger initialization
-        CUDAdrv.apicall_hook[] = maybe_initialize
-        initialized[] = false
+    for (tid, thread_ctx) in enumerate(thread_contexts)
+        if thread_ctx == ctx
+            thread_contexts[tid] = nothing
+        end
     end
 
     return

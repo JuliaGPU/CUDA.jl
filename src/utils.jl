@@ -12,7 +12,7 @@ end
 
 # return the capability of the current context's device, or a sane fall-back
 function current_capability()
-    if initialized[]
+    if CuCurrentContext() !== nothing
         return supported_capability(device())
     else
         # newer devices tend to support cleaner code (higher-level instructions, etc)
