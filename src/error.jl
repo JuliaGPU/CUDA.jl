@@ -88,9 +88,14 @@ end
 
 ## API call wrapper
 
-const api_hooks = []
-@noinline _call_api_hooks(fun::Symbol) = foreach(hook->hook(fun), api_hooks)
+"""
+    CUDAdrv.atapicall(f::Function)
+
+Register a function to be called before a CUDA API call is made. The function is passed a
+single argument: a symbol indicating the function that will be called.
+"""
 atapicall(f::Function) = (pushfirst!(api_hooks, f); nothing)
+const api_hooks = []
 
 macro check(ex)
     # check is used in front of `ccall` or `@runtime_ccall`s that work on a tuple (fun, lib)
@@ -113,7 +118,7 @@ macro check(ex)
     end
 
     quote
-        _call_api_hooks($(QuoteNode(Symbol(fun))))
+        foreach(hook->hook($(QuoteNode(Symbol(fun)))), api_hooks)
 
         res::CUresult = $(esc(ex))
         if res != CUDA_SUCCESS
