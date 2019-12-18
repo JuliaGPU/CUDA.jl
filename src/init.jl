@@ -71,6 +71,11 @@ hook using [`CUDAnative.atdeviceswitch`](@ref).
 function device!(dev::CuDevice)
     tid = Threads.threadid()
 
+    # bail out if switching to the current device
+    if @inbounds thread_contexts[tid] !== nothing && dev == device()
+        return
+    end
+
     # get the primary context
     pctx = CuPrimaryContext(dev)
     ctx = CuContext(pctx)
