@@ -1,6 +1,6 @@
 # ccall wrapper for calling functions in libraries that might not be available
 
-export @runtime_ccall
+export @runtime_ccall, decode_ccall_function
 
 """
     @runtime_ccall((function_name, library), returntype, (argtype1, ...), argvalue1, ...)
@@ -41,4 +41,28 @@ macro runtime_ccall(target, args...)
     end
 
     return
+end
+
+# decode `ccall` or `@runtime_ccall` invocations and extract the function that is called
+function decode_ccall_function(ex)
+    # check is used in front of `ccall` or `@runtime_ccall`s that work on a tuple (fun, lib)
+    if Meta.isexpr(ex, :call)
+        @assert ex.args[1] == :ccall
+        @assert Meta.isexpr(ex.args[2], :tuple)
+        fun = String(ex.args[2].args[1].value)
+    elseif Meta.isexpr(ex, :macrocall)
+        @assert ex.args[1] == Symbol("@runtime_ccall")
+        @assert Meta.isexpr(ex.args[3], :tuple)
+        fun = String(ex.args[3].args[1].value)
+    else
+        error("@check should prefix ccall or @runtime_ccall")
+    end
+
+    # strip any version tag (e.g. cuEventDestroy_v2 -> cuEventDestroy)
+    m = match(r"_v\d+$", fun)
+    if m !== nothing
+        fun = fun[1:end-length(m.match)]
+    end
+
+    return fun
 end
