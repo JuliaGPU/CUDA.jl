@@ -17,6 +17,12 @@ the system cleans up the resources allocated to it.
 
 When you are done using the context, call [`unsafe_destroy!`](@ref) to mark it for deletion,
 or use do-block syntax with this constructor.
+
+!!! warning
+
+    Contexts are unique, and should be compared using `===` and not `isequal` or `==`: With
+    primary device contexts, identical handles might be returned after resetting the context
+    (device) and all associated resources.
 """
 mutable struct CuContext
     handle::CUcontext

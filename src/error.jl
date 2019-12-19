@@ -88,41 +88,61 @@ end
 
 ## API call wrapper
 
-"""
-    CUDAdrv.atapicall(f::Function)
+# API calls that are allowed without a functional context
+const preinit_apicalls = Set{Symbol}([
+    :cuInit,
+    :cuDriverGetVersion,
+    # error getters
+    :cuGetErrorString,
+    :cuGetErrorName,
+    # device querying
+    :cuDeviceGet,
+    :cuDeviceGetCount,
+    :cuDeviceGetName,
+    :cuDeviceGetUuid,
+    :cuDeviceTotalMem,
+    :cuDeviceGetAttribute,
+    :cuDeviceGetProperties,
+    :cuDeviceComputeCapability,
+    # context management
+    :cuCtxGetCurrent,
+    :cuCtxPushCurrent,
+    :cuDevicePrimaryCtxRetain
+])
 
-Register a function to be called before a CUDA API call is made. The function is passed a
-single argument: a symbol indicating the function that will be called.
 """
-atapicall(f::Function) = (pushfirst!(api_hooks, f); nothing)
-const api_hooks = []
+    CUDAdrv.initializer(f::Function)
+
+Register a function to be called before making a CUDA API call that requires an initialized
+context. The function is passed a single argument: the name of the function that will be
+called.
+"""
+initializer(f::Function) = (api_initializer[] = f; nothing)
+const api_initializer = Union{Nothing,Function}[nothing]
+
+# outlined functionality to avoid GC frame allocation
+@noinline function initialize_api(fun)
+    hook = @inbounds api_initializer[]
+    if hook !== nothing
+        hook(fun)
+    end
+    return
+end
+@noinline function throw_api_error(res)
+    throw(CuError(res))
+end
 
 macro check(ex)
-    # check is used in front of `ccall` or `@runtime_ccall`s that work on a tuple (fun, lib)
-    if Meta.isexpr(ex, :call)
-        @assert ex.args[1] == :ccall
-        @assert Meta.isexpr(ex.args[2], :tuple)
-        fun = String(ex.args[2].args[1].value)
-    elseif Meta.isexpr(ex, :macrocall)
-        @assert ex.args[1] == Symbol("@runtime_ccall")
-        @assert Meta.isexpr(ex.args[3], :tuple)
-        fun = String(ex.args[3].args[1].value)
-    else
-        error("@check should prefix ccall or @runtime_ccall")
+    fun = Symbol(decode_ccall_function(ex))
+    init = if !in(fun, preinit_apicalls)
+        :(initialize_api($(QuoteNode(fun))))
     end
-
-    # strip any version tag (e.g. cuEventDestroy_v2 -> cuEventDestroy)
-    m = match(r"_v\d+$", fun)
-    if m !== nothing
-        fun = fun[1:end-length(m.match)]
-    end
-
     quote
-        foreach(hook->hook($(QuoteNode(Symbol(fun)))), api_hooks)
+        $init
 
-        res::CUresult = $(esc(ex))
+        res = $(esc(ex))
         if res != CUDA_SUCCESS
-            throw(CuError(res))
+            throw_api_error(res)
         end
 
         return
