@@ -84,4 +84,8 @@ end
     @test bar(false) == 42
     # but should still error nicely if actually calling the library
     @test_throws ErrorException bar(true)
+
+    # decoding ccall/@runtime_ccall
+    @test decode_ccall_function(:(ccall((:fun, :lib)))) == "fun"
+    @test decode_ccall_function(:(@runtime_ccall((:fun, :lib)))) == "fun"
 end
