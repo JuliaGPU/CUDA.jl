@@ -22,17 +22,18 @@ if length(devices()) > 0
     # the API shouldn't have been initialized
     @test CuCurrentContext() == nothing
 
-    device_callbacked = nothing
-    device_callback = (dev, ctx) -> begin
-        device_callbacked = dev
+    callback_data = nothing
+    CUDAnative.atcontextswitch() do tid, ctx, dev
+        callback_data = (tid, ctx, dev)
     end
-    push!(CUDAnative.device!_listeners, device_callback)
 
     # now cause initialization
-    Mem.alloc(Mem.Device, 1)
-    @test CuCurrentContext() != nothing
-    @test device(CuCurrentContext()) == CuDevice(0)
-    @test device_callbacked == CuDevice(0)
+    ctx = CuGetContext()
+    @test CuCurrentContext() === ctx
+    @test device(ctx) == CuDevice(0)
+    @test callback_data[1] == Threads.threadid()
+    @test callback_data[2] === ctx
+    @test callback_data[3] == CuDevice(0)
 
     device!(CuDevice(0))
     device!(CuDevice(0)) do

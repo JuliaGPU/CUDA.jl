@@ -129,9 +129,7 @@ function __init__()
 
         resize!(thread_contexts, Threads.nthreads())
         fill!(thread_contexts, nothing)
-        CUDAdrv.atapicall(maybe_initialize)
-
-        CUDAdrv.atapicall(check_exceptions)
+        CUDAdrv.initializer(maybe_initialize)
 
         __initialized__[] = true
     catch ex

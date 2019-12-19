@@ -16,13 +16,15 @@ version = "0.2.0"
 
 [[CUDAapi]]
 deps = ["Libdl", "Logging"]
-git-tree-sha1 = "6eee47385c81ed3b3f716b745697869c712c2df3"
+git-tree-sha1 = "ca1c7f639c5f6326919ee2834fa0dffb5002ff60"
+repo-rev = "master"
+repo-url = "https://github.com/JuliaGPU/CUDAapi.jl.git"
 uuid = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 version = "2.0.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "CUDAapi", "Printf"]
-git-tree-sha1 = "6a37ab472ce31c28b8ddba857c45d1bbc3d69681"
+git-tree-sha1 = "5a9dd9ec20a5a2c78c784c31361cf5a813c7a9c2"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaGPU/CUDAdrv.jl.git"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"

@@ -38,7 +38,7 @@ function create_exceptions!(mod::CuModule)
 end
 
 # check the exception flags on every API call, similarly to how CUDA handles errors
-function check_exceptions(apicall)
+function check_exceptions()
     for (ctx,buf) in exception_flags
         if CUDAdrv.isvalid(ctx)
             ptr = convert(Ptr{Int}, buf)
