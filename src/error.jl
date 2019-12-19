@@ -93,9 +93,26 @@ end
 
 Register a function to be called before a CUDA API call is made. The function is passed a
 single argument: a symbol indicating the function that will be called.
+
+!!! warning
+
+    For performance reasons, only a single API call hook is supported, and its use is
+    currently reserved for CUDAnative.jl to perform lazy CUDA API initialization.
 """
-atapicall(f::Function) = (pushfirst!(api_hooks, f); nothing)
-const api_hooks = []
+atapicall(f::Function) = (apicall_hook[] = f; nothing)
+const apicall_hook = Union{Nothing,Function}[nothing]
+
+# outlined functionality to avoid GC frame allocation
+@noinline function _atapicall(fun)
+    hook = @inbounds apicall_hook[]
+    if hook !== nothing
+        hook(fun)
+    end
+    return
+end
+@noinline function throw_cuerror(res)
+    throw(CuError(res))
+end
 
 macro check(ex)
     # check is used in front of `ccall` or `@runtime_ccall`s that work on a tuple (fun, lib)
@@ -118,11 +135,11 @@ macro check(ex)
     end
 
     quote
-        foreach(hook->hook($(QuoteNode(Symbol(fun)))), api_hooks)
+        _atapicall($(QuoteNode(Symbol(fun))))
 
-        res::CUresult = $(esc(ex))
+        res = $(esc(ex))
         if res != CUDA_SUCCESS
-            throw(CuError(res))
+            throw_cuerror(res)
         end
 
         return
