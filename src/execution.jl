@@ -335,15 +335,6 @@ end
 
 const agecache = Dict{UInt, UInt}()
 const compilecache = Dict{UInt, HostKernel}()
-push!(device_reset!_listeners, (dev, ctx) -> begin
-    # invalidate compiled kernels when the device resets
-    for id in collect(keys(compilecache))
-        kernel = compilecache[id]
-        if kernel.ctx == ctx
-            delete!(compilecache, id)
-        end
-    end
-end)
 
 """
     cufunction(f, tt=Tuple{}; kwargs...)
@@ -387,7 +378,7 @@ when function changes, or when different types or keyword arguments are provided
         # generate a key for indexing the compilation cache
         ctx = CuCurrentContext()
         key = hash(age, $precomp_key)
-        key = hash(ctx, key)
+        key = hash(pointer_from_objref(ctx), key) # contexts are unique, but handles might alias
         key = hash(name, key)
         key = hash(kwargs, key)
         for nf in 1:nfields(f)

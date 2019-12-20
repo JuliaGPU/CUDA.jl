@@ -127,7 +127,9 @@ function __init__()
 
         __init_compiler__()
 
-        CUDAdrv.apicall_hook[] = maybe_initialize
+        resize!(thread_contexts, Threads.nthreads())
+        fill!(thread_contexts, nothing)
+        CUDAdrv.initializer(maybe_initialize)
 
         __initialized__[] = true
     catch ex

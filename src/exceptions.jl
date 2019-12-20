@@ -1,4 +1,3 @@
-
 # support for device-side exceptions
 
 ## exception type
@@ -17,10 +16,6 @@ Base.show(io::IO, err::KernelException) = print(io, "KernelException($(err.dev))
 ## exception handling
 
 const exception_flags = Dict{CuContext, Mem.HostBuffer}()
-push!(device_reset!_listeners, (dev, ctx) -> begin
-    # invalidate exception flags when the device resets
-    delete!(exception_flags, ctx)
-end)
 
 # create a CPU/GPU exception flag for error signalling, and put it in the module
 #
@@ -39,11 +34,10 @@ function create_exceptions!(mod::CuModule)
         end
     end
 
-    CUDAdrv.apicall_hook[] = check_exception_hook
-
     return
 end
 
+# check the exception flags on every API call, similarly to how CUDA handles errors
 function check_exceptions()
     for (ctx,buf) in exception_flags
         if CUDAdrv.isvalid(ctx)
@@ -57,12 +51,4 @@ function check_exceptions()
         end
     end
     return
-end
-
-# check the exception flags on every API call, similarly to how CUDA handles errors
-function check_exception_hook(apicall)
-    # ... but don't do it for some very frequently called functions
-    if apicall !== :cuCtxGetCurrent
-        check_exceptions()
-    end
 end
