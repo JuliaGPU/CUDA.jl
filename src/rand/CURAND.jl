@@ -30,8 +30,8 @@ const active_generators = Vector{Union{Nothing,RNG}}()
 function generator()
     tid = Threads.threadid()
     if @inbounds active_generators[tid] === nothing
-        context = CuGetContext()
-        active_generators[tid] = get!(created_generators, context) do
+        ctx = context()
+        active_generators[tid] = get!(created_generators, ctx) do
             RNG()
         end
     end
@@ -42,7 +42,7 @@ function __init__()
     resize!(active_generators, Threads.nthreads())
     fill!(active_generators, nothing)
 
-    CUDAnative.atcontextswitch() do tid, ctx, dev
+    CUDAnative.atcontextswitch() do tid, ctx
         # we don't eagerly initialize handles, but do so lazily when requested
         active_generators[tid] = nothing
     end

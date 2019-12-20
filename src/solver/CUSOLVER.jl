@@ -37,10 +37,10 @@ const active_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
 function dense_handle()
     tid = Threads.threadid()
     if @inbounds active_dense_handles[tid] === nothing
-        context = CuGetContext()
-        active_dense_handles[tid] = get!(created_dense_handles, context) do
+        ctx = context()
+        active_dense_handles[tid] = get!(created_dense_handles, ctx) do
             handle = cusolverDnCreate()
-            atexit(()->CUDAdrv.isvalid(context) && cusolverDnDestroy(handle))
+            atexit(()->CUDAdrv.isvalid(ctx) && cusolverDnDestroy(handle))
             handle
         end
     end
@@ -50,11 +50,10 @@ end
 function sparse_handle()
     tid = Threads.threadid()
     if @inbounds active_sparse_handles[tid] === nothing
-        CUDAnative.maybe_initialize("cublasXtGetHandle")
-        context = CuCurrentContext()
-        active_sparse_handles[tid] = get!(created_sparse_handles, context) do
+        ctx = context()
+        active_sparse_handles[tid] = get!(created_sparse_handles, ctx) do
             handle = cusolverSpCreate()
-            atexit(()->CUDAdrv.isvalid(context) && cusolverSpDestroy(handle))
+            atexit(()->CUDAdrv.isvalid(ctx) && cusolverSpDestroy(handle))
             handle
         end
     end
@@ -68,7 +67,7 @@ function __init__()
     resize!(active_sparse_handles, Threads.nthreads())
     fill!(active_sparse_handles, nothing)
 
-    CUDAnative.atcontextswitch() do tid, ctx, dev
+    CUDAnative.atcontextswitch() do tid, ctx
         # we don't eagerly initialize handles, but do so lazily when requested
         active_dense_handles[tid] = nothing
         active_sparse_handles[tid] = nothing

@@ -63,7 +63,7 @@ end
 macro check(ex)
     fun = Symbol(decode_ccall_function(ex))
     init = if !in(fun, preinit_apicalls)
-        :(CUDAnative.maybe_initialize($(QuoteNode(fun))))
+        :(CUDAnative.maybe_initialize())
     end
     quote
         $init

@@ -47,10 +47,10 @@ const active_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 function handle()
     tid = Threads.threadid()
     if @inbounds active_handles[tid] === nothing
-        context = CuGetContext()
-        active_handles[tid] = get!(created_handles, context) do
+        ctx = context()
+        active_handles[tid] = get!(created_handles, ctx) do
             handle = cudnnCreate()
-            atexit(()->CUDAdrv.isvalid(context) && cudnnDestroy(handle))
+            atexit(()->CUDAdrv.isvalid(ctx) && cudnnDestroy(handle))
             handle
         end
     end
@@ -61,7 +61,7 @@ function __init__()
     resize!(active_handles, Threads.nthreads())
     fill!(active_handles, nothing)
 
-    CUDAnative.atcontextswitch() do tid, ctx, dev
+    CUDAnative.atcontextswitch() do tid, ctx
         # we don't eagerly initialize handles, but do so lazily when requested
         active_handles[tid] = nothing
     end
