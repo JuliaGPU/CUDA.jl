@@ -1,6 +1,6 @@
 name = "CuArrays"
 uuid = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
-version = "1.5.0"
+version = "1.5.1"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -25,8 +25,8 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 AbstractFFTs = "0.4, 0.5"
 Adapt = "1.0"
 CEnum = "0.2"
-CUDAapi = "2"
-CUDAdrv = "4.0.1"
+CUDAapi = "2.1"
+CUDAdrv = "5.0"
 CUDAnative = "2.6"
 DataStructures = "0.17"
 GPUArrays = "2.0"
