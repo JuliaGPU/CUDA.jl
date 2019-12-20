@@ -114,17 +114,16 @@ const preinit_apicalls = Set{Symbol}([
     CUDAdrv.initializer(f::Function)
 
 Register a function to be called before making a CUDA API call that requires an initialized
-context. The function is passed a single argument: the name of the function that will be
-called.
+context.
 """
 initializer(f::Function) = (api_initializer[] = f; nothing)
 const api_initializer = Union{Nothing,Function}[nothing]
 
 # outlined functionality to avoid GC frame allocation
-@noinline function initialize_api(fun)
+@noinline function initialize_api()
     hook = @inbounds api_initializer[]
     if hook !== nothing
-        hook(fun)
+        hook()
     end
     return
 end
@@ -135,7 +134,7 @@ end
 macro check(ex)
     fun = Symbol(decode_ccall_function(ex))
     init = if !in(fun, preinit_apicalls)
-        :(initialize_api($(QuoteNode(fun))))
+        :(initialize_api())
     end
     quote
         $init
