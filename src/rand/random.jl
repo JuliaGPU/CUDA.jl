@@ -14,19 +14,27 @@ export rand_logn!, rand_poisson!
 
 
 mutable struct RNG <: Random.AbstractRNG
-    ptr::curandGenerator_t
+    handle::curandGenerator_t
+    ctx::CuContext
     typ::Int
 
     function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
-        ptr = Ref{curandGenerator_t}()
-        @allocates curandCreateGenerator(ptr, typ)
-        obj = new(ptr[], typ)
-        finalizer(curandDestroyGenerator, obj)
+        handle_ref = Ref{curandGenerator_t}()
+        @allocates curandCreateGenerator(handle_ref, typ)
+
+        obj = new(handle_ref[], CuCurrentContext(), typ)
+        finalizer(unsafe_destroy!, obj)
         return obj
     end
 end
 
-Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.ptr
+function unsafe_destroy!(rng::RNG)
+    if CUDAdrv.isvalid(rng.ctx)
+        curandDestroyGenerator(e)
+    end
+end
+
+Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.handle
 
 
 ## seeding

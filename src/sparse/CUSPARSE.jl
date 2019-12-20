@@ -1,14 +1,14 @@
 module CUSPARSE
 
 using ..CuArrays
-using ..CuArrays: active_context, unsafe_free!, @argout, @workspace
+using ..CuArrays: unsafe_free!, @argout, @workspace
 
 using CUDAapi
 
 using CUDAdrv
 using CUDAdrv: CUstream
 
-import CUDAnative
+using CUDAnative
 
 using CEnum
 
@@ -29,21 +29,30 @@ include("wrappers.jl")
 # high-level integrations
 include("interfaces.jl")
 
-const _handles = Dict{CuContext,cusparseHandle_t}()
-const _handle = Ref{cusparseHandle_t}()
+const created_handles = IdDict{CuContext,cusparseHandle_t}()
+const active_handles = Vector{Union{Nothing,cusparseHandle_t}}()
 
 function handle()
-    if _handle[] == C_NULL
-        CUDAnative.maybe_initialize("CUSPARSE")
-        _handle[] = get!(_handles, active_context[]) do
-            context = active_context[]
+    tid = Threads.threadid()
+    if @inbounds active_handles[tid] === nothing
+        ctx = context()
+        active_handles[tid] = get!(created_handles, ctx) do
             handle = cusparseCreate()
-            atexit(()->CUDAdrv.isvalid(context) && cusparseDestroy(handle))
+            atexit(()->CUDAdrv.isvalid(ctx) && cusparseDestroy(handle))
             handle
         end
     end
+    @inbounds active_handles[tid]
+end
 
-    return _handle[]
+function __init__()
+    resize!(active_handles, Threads.nthreads())
+    fill!(active_handles, nothing)
+
+    CUDAnative.atcontextswitch() do tid, ctx
+        # we don't eagerly initialize handles, but do so lazily when requested
+        active_handles[tid] = nothing
+    end
 end
 
 end

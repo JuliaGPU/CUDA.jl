@@ -41,13 +41,35 @@ function status_message( status )
     end
 end
 
-macro check(sparse_func)
-    quote
-        local err = $(esc(sparse_func::Expr))
-        if err != CUSPARSE_STATUS_SUCCESS
-            throw(CUSPARSEError(cusparseStatus_t(err)))
-        end
-        err
-    end
+
+## API call wrapper
+
+# API calls that are allowed without a functional context
+const preinit_apicalls = Set{Symbol}([
+    :cusparseGetVersion,
+    :cusparseGetProperty,
+    :cusparseGetErrorName,
+    :cusparseGetErrorString,
+])
+
+# outlined functionality to avoid GC frame allocation
+@noinline function throw_api_error(res)
+    throw(CUSPARSEError(res))
 end
 
+macro check(ex)
+    fun = Symbol(decode_ccall_function(ex))
+    init = if !in(fun, preinit_apicalls)
+        :(CUDAnative.maybe_initialize())
+    end
+    quote
+        $init
+
+        res = $(esc(ex))
+        if res != CUSPARSE_STATUS_SUCCESS
+            throw_api_error(res)
+        end
+
+        return
+    end
+end

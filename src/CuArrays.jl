@@ -32,10 +32,6 @@ include("linalg.jl")
 
 include("gpuarray_interface.jl")
 
-# many libraries need to be initialized per-device (per-context, really, but we assume users
-# of CuArrays and/or CUDAnative only use a single context), so keep track of the active one.
-const active_context = Ref{CuContext}()
-
 include("blas/CUBLAS.jl")
 include("sparse/CUSPARSE.jl")
 include("solver/CUSOLVER.jl")
@@ -111,28 +107,6 @@ function __init__()
 
         # package integrations
         @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
-
-        # update the active context when we switch devices
-        callback = (::CuDevice, ctx::CuContext) -> begin
-            active_context[] = ctx
-
-            # wipe the active handles
-            CUBLAS._handle[] = C_NULL
-            CUBLAS._xt_handle[] = C_NULL
-            CUSOLVER._dense_handle[] = C_NULL
-            CUSOLVER._sparse_handle[] = C_NULL
-            CUSPARSE._handle[] = C_NULL
-            CURAND._generator[] = nothing
-            CUDNN._handle[] = C_NULL
-            CUTENSOR._handle[] = nothing
-        end
-        push!(CUDAnative.device!_listeners, callback)
-
-        # a device might be active already
-        existing_ctx = CUDAdrv.CuCurrentContext()
-        if existing_ctx !== nothing
-            active_context[] = existing_ctx
-        end
 
         __init_memory__()
 

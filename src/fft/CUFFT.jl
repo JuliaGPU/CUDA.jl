@@ -8,6 +8,8 @@ import ..CuArrays: unsafe_free!
 using CUDAdrv
 using CUDAdrv: CUstream
 
+using CUDAnative
+
 using CEnum
 
 const libcufft = Ref("libcufft")

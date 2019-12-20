@@ -45,12 +45,34 @@ function statusmessage( status )
     end
 end
 
-macro check(tensor_func)
+
+## API call wrapper
+
+# API calls that are allowed without a functional context
+const preinit_apicalls = Set{Symbol}([
+    :cutensorGetVersion,
+    :cutensorGetCudartVersion,
+    :cutensorGetErrorString,
+])
+
+# outlined functionality to avoid GC frame allocation
+@noinline function throw_api_error(res)
+    throw(CUTENSORError(res))
+end
+
+macro check(ex)
+    fun = Symbol(decode_ccall_function(ex))
+    init = if !in(fun, preinit_apicalls)
+        :(CUDAnative.maybe_initialize())
+    end
     quote
-        local err = $(esc(tensor_func::Expr))
-        if err != CUTENSOR_STATUS_SUCCESS
-            throw(CUTENSORError(cutensorStatus_t(err)))
+        $init
+
+        res = $(esc(ex))
+        if res != CUTENSOR_STATUS_SUCCESS
+            throw_api_error(res)
         end
-        err
+
+        return
     end
 end

@@ -37,13 +37,34 @@ function status_message(status)
     end
 end
 
-macro check(blas_func)
+
+## API call wrapper
+
+# API calls that are allowed without a functional context
+const preinit_apicalls = Set{Symbol}([
+    :cublasGetVersion,
+    :cublasGetProperty,
+    :cublasGetCudartVersion
+])
+
+# outlined functionality to avoid GC frame allocation
+@noinline function throw_api_error(res)
+    throw(CuError(res))
+end
+
+macro check(ex)
+    fun = Symbol(decode_ccall_function(ex))
+    init = if !in(fun, preinit_apicalls)
+        :(CUDAnative.maybe_initialize())
+    end
     quote
-        local err::cublasStatus_t
-        err = $(esc(blas_func::Expr))
-        if err != CUBLAS_STATUS_SUCCESS
-            throw(CUBLASError(err))
+        $init
+
+        res = $(esc(ex))
+        if res != CUBLAS_STATUS_SUCCESS
+            throw_api_error(res)
         end
-        err
+
+        return
     end
 end

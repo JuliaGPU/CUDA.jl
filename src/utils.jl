@@ -199,3 +199,13 @@ macro workspace(ex...)
         end
     end
 end
+
+if VERSION <= v"1.1"
+  # JuliaLang/julia#30187-like functionality, but only for CuContext dicts to avoid clashes
+  function Base.get!(default::Base.Callable, d::IdDict{CuContext,V}, @nospecialize(key)) where {V}
+    if !haskey(d, key)
+      d[key] = default()
+    end
+    return d[key]
+  end
+end

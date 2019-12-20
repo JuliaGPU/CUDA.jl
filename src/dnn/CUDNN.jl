@@ -6,12 +6,12 @@ using CUDAapi: libraryPropertyType
 using CUDAdrv
 using CUDAdrv: CUstream
 
-import CUDAnative
+using CUDAnative
 
 using CEnum
 
 using ..CuArrays
-using ..CuArrays: active_context, @argout, @workspace
+using ..CuArrays: @argout, @workspace
 import ..CuArrays.unsafe_free!
 
 import NNlib
@@ -41,21 +41,30 @@ include("nnlib.jl")
 
 include("compat.jl")
 
-const _handles = Dict{CuContext,cudnnHandle_t}()
-const _handle = Ref{cudnnHandle_t}(C_NULL)
+const created_handles = IdDict{CuContext,cudnnHandle_t}()
+const active_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 
 function handle()
-    if _handle[] == C_NULL
-        CUDAnative.maybe_initialize("CUDNN")
-        _handle[] = get!(_handles, active_context[]) do
-            context = active_context[]
+    tid = Threads.threadid()
+    if @inbounds active_handles[tid] === nothing
+        ctx = context()
+        active_handles[tid] = get!(created_handles, ctx) do
             handle = cudnnCreate()
-            atexit(()->CUDAdrv.isvalid(context) && cudnnDestroy(handle))
+            atexit(()->CUDAdrv.isvalid(ctx) && cudnnDestroy(handle))
             handle
         end
     end
+    @inbounds active_handles[tid]
+end
 
-    return _handle[]
+function __init__()
+    resize!(active_handles, Threads.nthreads())
+    fill!(active_handles, nothing)
+
+    CUDAnative.atcontextswitch() do tid, ctx
+        # we don't eagerly initialize handles, but do so lazily when requested
+        active_handles[tid] = nothing
+    end
 end
 
 end
