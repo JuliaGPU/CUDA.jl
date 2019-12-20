@@ -1,7 +1,7 @@
 module CUSOLVER
 
 using ..CuArrays
-using ..CuArrays: active_context, _getindex, unsafe_free!, @argout, @workspace
+using ..CuArrays: _getindex, unsafe_free!, @argout, @workspace
 
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t
@@ -11,7 +11,7 @@ using CUDAapi
 using CUDAdrv
 using CUDAdrv: CUstream
 
-import CUDAnative
+using CUDAnative
 
 using CEnum
 
@@ -29,35 +29,50 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-const _dense_handles = Dict{CuContext,cusolverDnHandle_t}()
-const _dense_handle = Ref{cusolverDnHandle_t}(C_NULL)
-const _sparse_handles = Dict{CuContext,cusolverSpHandle_t}()
-const _sparse_handle = Ref{cusolverSpHandle_t}(C_NULL)
+const created_dense_handles = IdDict{CuContext,cusolverDnHandle_t}()
+const created_sparse_handles = IdDict{CuContext,cusolverSpHandle_t}()
+const active_dense_handles = Vector{Union{Nothing,cusolverDnHandle_t}}()
+const active_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
 
 function dense_handle()
-    if _dense_handle[] == C_NULL
-        CUDAnative.maybe_initialize("CUSOLVER")
-        _dense_handle[] = get!(_dense_handles, active_context[]) do
-            context = active_context[]
+    tid = Threads.threadid()
+    if @inbounds active_dense_handles[tid] === nothing
+        context = CuGetContext()
+        active_dense_handles[tid] = get!(created_dense_handles, context) do
             handle = cusolverDnCreate()
             atexit(()->CUDAdrv.isvalid(context) && cusolverDnDestroy(handle))
             handle
         end
     end
-    return _dense_handle[]
+    @inbounds active_dense_handles[tid]
 end
 
 function sparse_handle()
-    if _sparse_handle[] == C_NULL
-        CUDAnative.maybe_initialize("CUSOLVER")
-        _sparse_handle[] = get!(_sparse_handles, active_context[]) do
-            context = active_context[]
+    tid = Threads.threadid()
+    if @inbounds active_sparse_handles[tid] === nothing
+        CUDAnative.maybe_initialize("cublasXtGetHandle")
+        context = CuCurrentContext()
+        active_sparse_handles[tid] = get!(created_sparse_handles, context) do
             handle = cusolverSpCreate()
             atexit(()->CUDAdrv.isvalid(context) && cusolverSpDestroy(handle))
             handle
         end
     end
-    return _sparse_handle[]
+    @inbounds active_sparse_handles[tid]
+end
+
+function __init__()
+    resize!(active_dense_handles, Threads.nthreads())
+    fill!(active_dense_handles, nothing)
+
+    resize!(active_sparse_handles, Threads.nthreads())
+    fill!(active_sparse_handles, nothing)
+
+    CUDAnative.atcontextswitch() do tid, ctx, dev
+        # we don't eagerly initialize handles, but do so lazily when requested
+        active_dense_handles[tid] = nothing
+        active_sparse_handles[tid] = nothing
+    end
 end
 
 end

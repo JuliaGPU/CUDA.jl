@@ -43,13 +43,33 @@ function status_message(status)
     end
 end
 
-macro check(func)
+
+## API call wrapper
+
+# API calls that are allowed without a functional context
+const preinit_apicalls = Set{Symbol}([
+    :curandGetVersion,
+    :curandGetProperty
+])
+
+# outlined functionality to avoid GC frame allocation
+@noinline function throw_api_error(res)
+    throw(CURANDError(res))
+end
+
+macro check(ex)
+    fun = Symbol(decode_ccall_function(ex))
+    init = if !in(fun, preinit_apicalls)
+        :(CUDAnative.maybe_initialize($(QuoteNode(fun))))
+    end
     quote
-        local err::curandStatus_t
-        err = $(esc(func::Expr))
-        if err != CURAND_STATUS_SUCCESS
-            throw(CURANDError(err))
+        $init
+
+        res = $(esc(ex))
+        if res != CURAND_STATUS_SUCCESS
+            throw_api_error(res)
         end
-        err
+
+        return
     end
 end

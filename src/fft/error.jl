@@ -51,13 +51,33 @@ function status_message(status)
     end
 end
 
-macro check(fft_func)
+
+## API call wrapper
+
+# API calls that are allowed without a functional context
+const preinit_apicalls = Set{Symbol}([
+    :cufftGetVersion,
+    :cufftGetProperty,
+])
+
+# outlined functionality to avoid GC frame allocation
+@noinline function throw_api_error(res)
+    throw(CUFFTError(res))
+end
+
+macro check(ex)
+    fun = Symbol(decode_ccall_function(ex))
+    init = if !in(fun, preinit_apicalls)
+        :(CUDAnative.maybe_initialize($(QuoteNode(fun))))
+    end
     quote
-        local err::cufftResult
-        err = $(esc(fft_func::Expr))
-        if err != CUFFT_SUCCESS
-            throw(CUFFTError(err))
+        $init
+
+        res = $(esc(ex))
+        if res != CUFFT_SUCCESS
+            throw_api_error(res)
         end
-        err
+
+        return
     end
 end

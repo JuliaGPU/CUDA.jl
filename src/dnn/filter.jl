@@ -10,7 +10,7 @@ Base.unsafe_convert(::Type{cudnnFilterDescriptor_t}, fd::FilterDesc) = fd.ptr
 
 function createFilterDesc()
   d = Ref{cudnnFilterDescriptor_t}()
-  @check cudnnCreateFilterDescriptor(d)
+  cudnnCreateFilterDescriptor(d)
   return d[]
 end
 

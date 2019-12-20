@@ -1,14 +1,13 @@
 module CURAND
 
 using ..CuArrays
-using ..CuArrays: active_context
 
 using CUDAapi
 
 using CUDAdrv
 using CUDAdrv: CUstream
 
-import CUDAnative
+using CUDAnative
 
 using CEnum
 
@@ -25,19 +24,28 @@ include("wrappers.jl")
 # high-level integrations
 include("random.jl")
 
-const _generators = Dict{CuContext,RNG}()
-const _generator = Ref{Union{Nothing,RNG}}(nothing)
+const created_generators = IdDict{CuContext,RNG}()
+const active_generators = Vector{Union{Nothing,RNG}}()
 
 function generator()
-    if _generator[] == nothing
-        CUDAnative.maybe_initialize("CURAND")
-        _generator[] = get!(_generators, active_context[]) do
-            context = active_context[]
+    tid = Threads.threadid()
+    if @inbounds active_generators[tid] === nothing
+        context = CuGetContext()
+        active_generators[tid] = get!(created_generators, context) do
             RNG()
         end
     end
+    @inbounds active_generators[tid]
+end
 
-    return _generator[]::RNG
+function __init__()
+    resize!(active_generators, Threads.nthreads())
+    fill!(active_generators, nothing)
+
+    CUDAnative.atcontextswitch() do tid, ctx, dev
+        # we don't eagerly initialize handles, but do so lazily when requested
+        active_generators[tid] = nothing
+    end
 end
 
 end

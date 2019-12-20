@@ -33,13 +33,33 @@ function status_message(status)
     end
 end
 
-macro check(solver_func)
+
+## API call wrapper
+
+# API calls that are allowed without a functional context
+const preinit_apicalls = Set{Symbol}([
+    :cusolverGetVersion,
+    :cusolverGetProperty,
+])
+
+# outlined functionality to avoid GC frame allocation
+@noinline function throw_api_error(res)
+    throw(CUSOLVERError(res))
+end
+
+macro check(ex)
+    fun = Symbol(decode_ccall_function(ex))
+    init = if !in(fun, preinit_apicalls)
+        :(CUDAnative.maybe_initialize($(QuoteNode(fun))))
+    end
     quote
-        local err::cusolverStatus_t
-        err = $(esc(solver_func::Expr))
-        if err != CUSOLVER_STATUS_SUCCESS
-            throw(CUSOLVERError(err))
+        $init
+
+        res = $(esc(ex))
+        if res != CUSOLVER_STATUS_SUCCESS
+            throw_api_error(res)
         end
-        err
+
+        return
     end
 end
