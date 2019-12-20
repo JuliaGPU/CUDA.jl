@@ -364,8 +364,6 @@ when function changes, or when different types or keyword arguments are provided
     quote
         Base.@_inline_meta
 
-        CUDAnative.maybe_initialize("cufunction")
-
         # look-up the method age
         key = hash(world_age(), $precomp_key)
         if haskey(agecache, key)
@@ -376,7 +374,7 @@ when function changes, or when different types or keyword arguments are provided
         end
 
         # generate a key for indexing the compilation cache
-        ctx = CuCurrentContext()
+        ctx = context()
         key = hash(age, $precomp_key)
         key = hash(pointer_from_objref(ctx), key) # contexts are unique, but handles might alias
         key = hash(name, key)

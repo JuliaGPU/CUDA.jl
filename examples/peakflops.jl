@@ -21,35 +21,34 @@ function kernel_100fma(a, b, c, out)
 end
 
 function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
-    ctx = CuContext(dev)
+    device!(dev) do
+        dims = (n, n)
+        a = round.(rand(Float32, dims) * 100)
+        b = round.(rand(Float32, dims) * 100)
+        c = round.(rand(Float32, dims) * 100)
+        out = similar(a)
 
-    dims = (n, n)
-    a = round.(rand(Float32, dims) * 100)
-    b = round.(rand(Float32, dims) * 100)
-    c = round.(rand(Float32, dims) * 100)
-    out = similar(a)
+        d_a = CuArray(a)
+        d_b = CuArray(b)
+        d_c = CuArray(c)
+        d_out = CuArray(out)
 
-    d_a = CuArray(a)
-    d_b = CuArray(b)
-    d_c = CuArray(c)
-    d_out = CuArray(out)
+        len = prod(dims)
+        threads = min(len, 1024)
+        blocks = len ÷ threads
 
-    len = prod(dims)
-    threads = min(len, 1024)
-    blocks = len ÷ threads
+        # warm-up
+        @cuda kernel_100fma(d_a, d_b, d_c, d_out)
+        synchronize()
 
-    # warm-up
-    @cuda kernel_100fma(d_a, d_b, d_c, d_out)
-    synchronize(ctx)
+        secs = CUDAdrv.@elapsed begin
+            @cuda blocks=blocks threads=threads kernel_100fma(d_a, d_b, d_c, d_out)
+        end
+        flopcount = 200*len
+        flops = flopcount / secs
 
-    secs = CUDAdrv.@elapsed begin
-        @cuda blocks=blocks threads=threads kernel_100fma(d_a, d_b, d_c, d_out)
+        return flops
     end
-    flopcount = 200*len
-    flops = flopcount / secs
-
-    CUDAdrv.unsafe_destroy!(ctx)
-    return flops
 end
 
 println(peakflops())

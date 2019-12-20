@@ -23,17 +23,16 @@ if length(devices()) > 0
     @test CuCurrentContext() == nothing
 
     callback_data = nothing
-    CUDAnative.atcontextswitch() do tid, ctx, dev
-        callback_data = (tid, ctx, dev)
+    CUDAnative.atcontextswitch() do tid, ctx
+        callback_data = (tid, ctx)
     end
 
     # now cause initialization
-    ctx = CuGetContext()
+    ctx = context()
     @test CuCurrentContext() === ctx
-    @test device(ctx) == CuDevice(0)
+    @test device() == CuDevice(0)
     @test callback_data[1] == Threads.threadid()
     @test callback_data[2] === ctx
-    @test callback_data[3] == CuDevice(0)
 
     device!(CuDevice(0))
     device!(CuDevice(0)) do
@@ -44,13 +43,14 @@ if length(devices()) > 0
 
     # test the device selection functionality
     if length(devices()) > 1
+        device!(0)
         device!(1) do
-            @test device(CuCurrentContext()) == CuDevice(1)
+            @test device() == CuDevice(1)
         end
-        @test device(CuCurrentContext()) == CuDevice(0)
+        @test device() == CuDevice(0)
 
         device!(1)
-        @test device(CuCurrentContext()) == CuDevice(1)
+        @test device() == CuDevice(1)
     end
 
     # pick a suiteable device (by available memory,
