@@ -7,11 +7,9 @@ version = "0.2.0"
 
 [[CUDAapi]]
 deps = ["Libdl", "Logging"]
-git-tree-sha1 = "ca1c7f639c5f6326919ee2834fa0dffb5002ff60"
-repo-rev = "master"
-repo-url = "https://github.com/JuliaGPU/CUDAapi.jl.git"
+git-tree-sha1 = "56a813440ac98a1aa64672ab460a1512552211a7"
 uuid = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
-version = "2.0.0"
+version = "2.1.0"
 
 [[Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
