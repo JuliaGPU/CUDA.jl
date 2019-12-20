@@ -30,7 +30,7 @@ end
 
 function unsafe_destroy!(rng::RNG)
     if CUDAdrv.isvalid(rng.ctx)
-        curandDestroyGenerator(e)
+        curandDestroyGenerator(rng)
     end
 end
 
