@@ -49,7 +49,7 @@ const preinit_apicalls = Set{Symbol}([
 
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
-    throw(CuError(res))
+    throw(CUBLASError(res))
 end
 
 macro check(ex)
