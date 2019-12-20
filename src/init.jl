@@ -1,59 +1,34 @@
-# Initialization
+# Initialization and Context Management
 
-export device!, device_reset!, CuGetContext
+export context, context!, device!, device_reset!
 
 const thread_contexts = Union{Nothing,CuContext}[]
+
+
+## initialization
 
 # FIXME: support for flags (see `cudaSetDeviceFlags`)
 
 """
-    CuGetContext()::CuContext
-
-Get or create a CUDA context for the current thread (as opposed to
-`CUDAdrv.CuCurrentContext` which may return `nothing` if there is no context bound to the
-current thread).
-"""
-function CuGetContext()::CuContext
-    maybe_initialize("CuGetContext")
-    ctx = CuCurrentContext()
-    @assert @inbounds thread_contexts[Threads.threadid()] === ctx
-    # TODO: once we trust our initialization logic, we can just return from thread_contexts
-    ctx
-end
-
-# TODO: for proper threading, we need a setter-counterpart of CuGetContext. For example,
-#       when creating an array we use `CuGetContext` to initialize and get a device context,
-#       when doing operations on it we will need to make sure that context is also active.
-#
-#       The API will need to be very fast (so, e.g., we won't be able to go from devices to
-#       or from contexts because both cuGetDevice and cuPrimaryContextRetain are slow),
-#       and should also not look to much like the low-level CUDAdrv context API
-#       (`CuGetContext` is probably too generic a name in that regard).
-#
-#       We should also think about reducing the necessary code changes, i.e., having every
-#       CuArray method call `CuSetContext(a.ctx)` is much too invasive. Worst case, we just
-#       document that users should do this, e.g., with a user-friendly `activate(CuArray)`.
-
-"""
-    CUDAnative.maybe_initialize(apicall::Symbol)
+    CUDAnative.maybe_initialize()
 
 Initialize a GPU device if none is bound to the current thread yet. Call this function
 before any functionality that requires a functioning GPU context.
 
 This is designed to be a very fast call (couple of ns).
 """
-function maybe_initialize(apicall)
+function maybe_initialize()
     tid = Threads.threadid()
     if @inbounds thread_contexts[tid] !== nothing
         check_exceptions() # FIXME: This doesn't really belong here
         return
     end
 
-    initialize(apicall)
+    initialize()
 end
 
-@noinline function initialize(apicall)
-    @debug "Initializing CUDA on thread $(Threads.threadid()) after call to $apicall"
+@noinline function initialize()
+    @debug "Initializing CUDA on thread $(Threads.threadid())"
     device!(CuDevice(0))
 end
 
@@ -61,46 +36,110 @@ end
     CUDAnative.atcontextswitch(f::Function)
 
 Register a function to be called after switching contexts on a thread. The function is
-passed three arguments: the thread ID, new context, and corresponding device. If the context
-is nothing, this indicates that the thread is unbounds with the device representing the
-previously bound device.
+passed two arguments: the thread ID, and a context object. If the context is `nothing`, this
+indicates that the thread is unbounds from its context (typically during device reset).
 """
 atcontextswitch(f::Function) = (pushfirst!(context_hooks, f); nothing)
 const context_hooks = []
-_atcontextswitch(tid, ctx, dev) = foreach(listener->listener(tid, ctx, dev), context_hooks)
+_atcontextswitch(tid, ctx) = foreach(listener->listener(tid, ctx), context_hooks)
+
+
+## context-based API
 
 """
-    device!(dev)
+    context()::CuContext
 
-Sets `dev` as the current active device for the calling host thread. Devices can be
-specified by integer id, or as a `CuDevice`. This is intended to be a low-cost operation,
-only performing significant work when calling it for the first time for each device on each
-thread.
-
-If your library or code needs to perform an action when the active device context changes,
-add a hook using [`CUDAnative.atcontextswitch`](@ref).
+Get or create a CUDA context for the current thread (as opposed to
+`CUDAdrv.CuCurrentContext` which may return `nothing` if there is no context bound to the
+current thread).
 """
-function device!(dev::CuDevice)
+function context()::CuContext
     tid = Threads.threadid()
 
-    # NOTE: this call is fairly "expensive" (50-100ns); see TODO on top
+    maybe_initialize()
+    ctx = @inbounds thread_contexts[tid]
+    @assert ctx === CuCurrentContext()  # remove once we trust our initialization logic
+    ctx
+end
 
-    # bail out if switching to the current device
-    if @inbounds thread_contexts[tid] !== nothing && dev == device() # FIXME: expensive
+"""
+    context!(ctx::CuContext)
+
+Bind the current host thread to the context `ctx`.
+
+Note that the contexts used with this call should be previously acquired by calling
+[`context`](@ref), and not arbirary contexts created by calling the `CuContext` constructor.
+
+If your library or code needs to perform an action when the active context changes,
+add a hook using [`CUDAnative.atcontextswitch`](@ref).
+"""
+function context!(ctx::CuContext)
+    tid = Threads.threadid()
+
+    # bail out if switching to the current context
+    if @inbounds thread_contexts[tid] === ctx
         return
     end
-
-    # get the primary context
-    pctx = CuPrimaryContext(dev)
-    ctx = CuContext(pctx)   # FIXME: expensive
 
     # update the thread-local state
     @inbounds thread_contexts[tid] = ctx
     activate(ctx)
 
-    _atcontextswitch(tid, ctx, dev)
+    _atcontextswitch(tid, ctx)
+
+    return
+end
+
+
+## device-based API
+
+"""
+    device!(dev::Integer)
+    device!(dev::CuDevice)
+
+Sets `dev` as the current active device for the calling host thread. Devices can be
+specified by integer id, or as a `CuDevice` (slightly faster).
+
+Although this call is fairly cheap (50-100ns), it is only intended for interactive use, or
+for initial set-up of the environment. If you need to switch devices on a regular basis,
+work with contexts instead and call [`context!`](@ref) directly (5-10ns).
+
+If your library or code needs to perform an action when the active context changes,
+add a hook using [`CUDAnative.atcontextswitch`](@ref).
+"""
+function device!(dev::CuDevice)
+    tid = Threads.threadid()
+
+    # bail out if switching to the current device
+    if @inbounds thread_contexts[tid] !== nothing && dev == device()
+        return
+    end
+
+    # get the primary context
+    pctx = CuPrimaryContext(dev)
+    ctx = CuContext(pctx)
+
+    context!(ctx)
 end
 device!(dev::Integer) = device!(CuDevice(dev))
+
+"""
+    device!(f, dev)
+
+Sets the active device for the duration of `f`.
+"""
+function device!(f::Function, dev::CuDevice)
+    old_ctx = CuCurrentContext()
+    try
+        device!(dev)
+        f()
+    finally
+        if old_ctx != nothing
+            context!(old_ctx)
+        end
+    end
+end
+device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
 """
     device_reset!(dev::CuDevice=device())
@@ -120,28 +159,10 @@ function device_reset!(dev::CuDevice=device())
     for (tid, thread_ctx) in enumerate(thread_contexts)
         if thread_ctx == ctx
             thread_contexts[tid] = nothing
-            _atcontextswitch(tid, nothing, dev)
+            _atcontextswitch(tid, nothing)
             # TODO: actually unbind the CUDA threads with `activate(CuContext(CU_NULL))`?
         end
     end
 
     return
 end
-
-"""
-    device!(f, dev)
-
-Sets the active device for the duration of `f`.
-"""
-function device!(f::Function, dev::CuDevice)
-    old_ctx = CuCurrentContext()
-    try
-        device!(dev)
-        f()
-    finally
-        if old_ctx != nothing
-            activate(old_ctx)
-        end
-    end
-end
-device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
