@@ -104,16 +104,8 @@ function report_exception_frame(idx, func, file, line)
     return
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    @inline exception_flag() =
-        ccall("extern cudanativeExceptionFlag", llvmcall, Ptr{Cvoid}, ())
-else
-    import Base.Sys: WORD_SIZE
-    @eval @inline exception_flag() = Base.llvmcall(
-        $("declare i$WORD_SIZE @cudanativeExceptionFlag()",
-          "%rv = call i$WORD_SIZE @cudanativeExceptionFlag()
-           ret i$WORD_SIZE %rv"), Ptr{Cvoid}, Tuple{})
-end
+@inline exception_flag() =
+    ccall("extern cudanativeExceptionFlag", llvmcall, Ptr{Cvoid}, ())
 
 function signal_exception()
     ptr = exception_flag()
