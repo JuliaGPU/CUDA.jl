@@ -83,6 +83,11 @@ function __init__()
             error("LLVM $llvm_version incompatible with Julia's LLVM $julia_llvm_version")
         end
 
+        if v"8.0" <= llvm_version < v"9.0"
+            # NOTE: corresponding functionality in irgen.jl
+            silent || @warn "LLVM pre-9.0 detected, disabling debug info emission for CUDA kernels"
+        end
+
 
         # CUDA
 
