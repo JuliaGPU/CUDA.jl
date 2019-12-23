@@ -27,9 +27,23 @@ function maybe_initialize()
     initialize()
 end
 
+const initializing = Ref(false)
 @noinline function initialize()
-    @debug "Initializing CUDA on thread $(Threads.threadid())"
-    device!(CuDevice(0))
+    if !initializing[]
+        initializing[] = true
+        try
+            @debug "Initializing CUDA on thread $(Threads.threadid())"
+            ctx = CuCurrentContext()
+            dev = if ctx === nothing
+                CuDevice(0)
+            else
+                device()
+            end
+            device!(dev)
+        finally
+            initializing[] = false
+        end
+    end
 end
 
 """
@@ -160,7 +174,6 @@ function device_reset!(dev::CuDevice=device())
         if thread_ctx == ctx
             thread_contexts[tid] = nothing
             _atcontextswitch(tid, nothing)
-            # TODO: actually unbind the CUDA threads with `activate(CuContext(CU_NULL))`?
         end
     end
 
