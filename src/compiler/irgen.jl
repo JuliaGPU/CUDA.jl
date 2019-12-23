@@ -137,9 +137,13 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
         debug_info_kind = if Base.JLOptions().debug_level == 0
             LLVM.API.LLVMDebugEmissionKindNoDebug
         elseif Base.JLOptions().debug_level == 1
-            LLVM.API.LLVMDebugEmissionKindDebugDirectivesOnly
+            LLVM.API.LLVMDebugEmissionKindLineTablesOnly
         elseif Base.JLOptions().debug_level >= 2
             LLVM.API.LLVMDebugEmissionKindFullDebug
+        end
+        if LLVM.version() < v"9.0"
+            # NOTE: corresponding warning in __init__
+            debug_info_kind = LLVM.API.LLVMDebugEmissionKindNoDebug
         end
         push!(param_kwargs, :debug_info_kind => Cint(debug_info_kind))
     end
