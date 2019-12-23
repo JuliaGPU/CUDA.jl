@@ -1,4 +1,4 @@
-# Conditional Usage
+# Conditional Dependency
 
 The GPU stack and its packages are special in that developers may want to depend on them
 even though users might not have a GPU. In this section, we describe two different usage

@@ -29,14 +29,18 @@ function main()
             "Tutorials" => Any[
                 "tutorials/introduction.md",
             ],
+            "Installation" => Any[
+                "installation/overview.md",
+                "installation/conditional.md",
+                "installation/troubleshooting.md",
+            ],
             "Usage" => Any[
                 "usage/overview.md",
                 "usage/workflow.md",
                 "usage/memory.md",
                 "usage/multigpu.md",
-                "usage/conditional.md",
-                "usage/faq.md",
             ],
+            "FAQ" => "faq.md",
         ]
     )
 end
