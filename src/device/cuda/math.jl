@@ -113,8 +113,8 @@
 @inline ldexp(x::Float32, y::Int32) = @wrap __nv_ldexpf(x::float, y::i32)::float
 
 @inline exp(x::Complex{Float64}) = exp(x.re) * (cos(x.im) + 1.0im * sin(x.im))
-@inline exp(x::Complex{Float32}) = exp(x.re) * (cos(x.im) + 1.0im * sin(x.im))
-@inline exp_fast(x::Complex{Float32}) = exp_fast(x.re) * (cos_fast(x.im) + 1.0im * sin_fast(x.im))
+@inline exp(x::Complex{Float32}) = exp(x.re) * (cos(x.im) + 1.0f0im * sin(x.im))
+@inline exp_fast(x::Complex{Float32}) = exp_fast(x.re) * (cos_fast(x.im) + 1.0f0im * sin_fast(x.im))
 
 ## error
 
