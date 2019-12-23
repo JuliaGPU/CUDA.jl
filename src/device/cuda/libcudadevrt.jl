@@ -33,15 +33,8 @@ function cudaDeviceGetSharedMemConfig(pConfig)
           pConfig)
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    function cudaDeviceSynchronize()
-        ccall("extern cudaDeviceSynchronize", llvmcall, cudaError_t, ())
-    end
-else
-    @eval cudaDeviceSynchronize() = Base.llvmcall(
-        $("declare i32 @cudaDeviceSynchronize()",
-          "%rv = call i32 @cudaDeviceSynchronize()
-           ret i32 %rv"), cudaError_t, Tuple{})
+function cudaDeviceSynchronize()
+    ccall("extern cudaDeviceSynchronize", llvmcall, cudaError_t, ())
 end
 
 function cudaGetLastError()
@@ -76,37 +69,16 @@ function cudaGetDevice(device)
           device)
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    function cudaStreamCreateWithFlags(pStream, flags)
-        ccall("extern cudaStreamCreateWithFlags", llvmcall, cudaError_t,
-            (Ptr{cudaStream_t}, UInt32),
-            pStream, flags)
-    end
-else
-    @eval cudaStreamCreateWithFlags(pStream, flags) = Base.llvmcall(
-        $("declare i32 @cudaStreamCreateWithFlags(i8**, i32)",
-          "%pStream = inttoptr i$WORD_SIZE %0 to i8**
-           %rv = call i32 @cudaStreamCreateWithFlags(i8** %pStream, i32 %1)
-           ret i32 %rv"), cudaError_t,
-           Tuple{Ptr{cudaStream_t}, UInt32},
-           Base.unsafe_convert(Ptr{cudaStream_t}, Base.cconvert(Ptr{cudaStream_t}, pStream)),
-           Base.unsafe_convert(UInt32, Base.cconvert(UInt32, flags)))
+function cudaStreamCreateWithFlags(pStream, flags)
+    ccall("extern cudaStreamCreateWithFlags", llvmcall, cudaError_t,
+        (Ptr{cudaStream_t}, UInt32),
+        pStream, flags)
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    function cudaStreamDestroy(stream)
-        ccall("extern cudaStreamDestroy", llvmcall, cudaError_t,
-            (cudaStream_t,),
-            stream)
-    end
-else
-    @eval cudaStreamDestroy(stream) = Base.llvmcall(
-        $("declare i32 @cudaStreamDestroy(i8*)",
-          "%stream = inttoptr i$WORD_SIZE %0 to i8*
-           %rv = call i32 @cudaStreamDestroy(i8* %stream)
-           ret i32 %rv"), cudaError_t,
-           Tuple{cudaStream_t},
-           Base.unsafe_convert(cudaStream_t, Base.cconvert(cudaStream_t, stream)))
+function cudaStreamDestroy(stream)
+    ccall("extern cudaStreamDestroy", llvmcall, cudaError_t,
+        (cudaStream_t,),
+        stream)
 end
 
 function cudaStreamWaitEvent(stream, event, flags)
@@ -249,31 +221,10 @@ function cudaGetParameterBuffer(alignment, size)
           alignment, size)
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    function cudaGetParameterBufferV2(func, gridDimension, blockDimension, sharedMemSize)
-        ccall("extern cudaGetParameterBufferV2", llvmcall, Ptr{Cvoid},
-            (Ptr{Cvoid}, dim3, dim3, UInt32),
-            func, gridDimension, blockDimension, sharedMemSize)
-    end
-else
-    @eval cudaGetParameterBufferV2(func, gridDimension, blockDimension, sharedMemSize) =
-            Base.llvmcall(
-                $("declare i8* @cudaGetParameterBufferV2(i8*, {i32,i32,i32}, {i32,i32,i32}, i32)",
-                  "%func = inttoptr i$WORD_SIZE %0 to i8*
-                   %gridDimension.x = insertvalue { i32, i32, i32 } undef, i32 %1, 0
-                   %gridDimension.y = insertvalue { i32, i32, i32 } %gridDimension.x, i32 %2, 1
-                   %gridDimension.z = insertvalue { i32, i32, i32 } %gridDimension.y, i32 %3, 2
-                   %blockDimension.x = insertvalue { i32, i32, i32 } undef, i32 %4, 0
-                   %blockDimension.y = insertvalue { i32, i32, i32 } %blockDimension.x, i32 %5, 1
-                   %blockDimension.z = insertvalue { i32, i32, i32 } %blockDimension.y, i32 %6, 2
-                   %rv = call i8* @cudaGetParameterBufferV2(i8* %func, {i32,i32,i32} %gridDimension.z, {i32,i32,i32} %blockDimension.z, i32 %7)
-                   %buf = ptrtoint i8* %rv to i$WORD_SIZE
-                   ret i$WORD_SIZE %buf"), Ptr{Cvoid},
-                Tuple{Ptr{Cvoid}, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint, Cuint},
-                Base.unsafe_convert(Ptr{Cvoid}, Base.cconvert(Ptr{Cvoid}, func)),
-                gridDimension.x, gridDimension.y, gridDimension.z,    # known to be Cuint
-                blockDimension.x, blockDimension.y, blockDimension.z, # known to be Cuint
-                Base.unsafe_convert(Cuint, Base.cconvert(Cuint, sharedMemSize)))
+function cudaGetParameterBufferV2(func, gridDimension, blockDimension, sharedMemSize)
+    ccall("extern cudaGetParameterBufferV2", llvmcall, Ptr{Cvoid},
+        (Ptr{Cvoid}, dim3, dim3, UInt32),
+        func, gridDimension, blockDimension, sharedMemSize)
 end
 
 function cudaLaunchDevice_ptsz(func, parameterBuffer, gridDimension, blockDimension,
@@ -296,23 +247,10 @@ function cudaLaunchDevice(func, parameterBuffer, gridDimension, blockDimension,
           func, parameterBuffer, gridDimension, blockDimension, sharedMemSize, stream)
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    function cudaLaunchDeviceV2(parameterBuffer, stream)
-        ccall("extern cudaLaunchDeviceV2", llvmcall, cudaError_t,
-            (Ptr{Cvoid}, cudaStream_t),
-            parameterBuffer, stream)
-    end
-else
-    @eval cudaLaunchDeviceV2(parameterBuffer, stream) =
-            Base.llvmcall(
-                $("declare i32 @cudaLaunchDeviceV2(i8*, i8*)",
-                  "%buf = inttoptr i$WORD_SIZE %0 to i8*
-                   %stream = inttoptr i$WORD_SIZE %1 to i8*
-                   %rv = call i32 @cudaLaunchDeviceV2(i8* %buf, i8* %stream)
-                   ret i32 %rv"), cudaError_t,
-                Tuple{Ptr{Cvoid}, cudaStream_t},
-                Base.unsafe_convert(Ptr{Cvoid}, Base.cconvert(Ptr{Cvoid}, parameterBuffer)),
-                Base.unsafe_convert(cudaStream_t, Base.cconvert(cudaStream_t, stream)))
+function cudaLaunchDeviceV2(parameterBuffer, stream)
+    ccall("extern cudaLaunchDeviceV2", llvmcall, cudaError_t,
+        (Ptr{Cvoid}, cudaStream_t),
+        parameterBuffer, stream)
 end
 
 function cudaOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks, func, blockSize,
@@ -329,35 +267,16 @@ function cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks, func,
           numBlocks, func, blockSize, dynamicSmemSize, flags)
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    function cudaCGGetIntrinsicHandle(scope)
-        ccall("extern cudaCGGetIntrinsicHandle", llvmcall, Culonglong,
-            (cudaCGScope,),
-            scope)
-    end
-else
-    @eval cudaCGGetIntrinsicHandle(scope) = Base.llvmcall(
-        $("declare i64 @cudaCGGetIntrinsicHandle(i32)",
-          "%rv = call i64 @cudaCGGetIntrinsicHandle(i32 1)
-           ret i64 %rv"), Culonglong,
-        Tuple{cudaCGScope},
-        Base.unsafe_convert(cudaCGScope, Base.cconvert(cudaCGScope, scope)))
+function cudaCGGetIntrinsicHandle(scope)
+    ccall("extern cudaCGGetIntrinsicHandle", llvmcall, Culonglong,
+        (cudaCGScope,),
+        scope)
 end
 
-if VERSION >= v"1.2.0-DEV.512"
-    function cudaCGSynchronize(handle, flags)
-        ccall("extern cudaCGSynchronize", llvmcall, cudaError_t,
-            (Culonglong, UInt32),
-            handle, flags)
-    end
-else
-    @eval cudaCGSynchronize(handle, flags) = Base.llvmcall(
-        $("declare i32 @cudaCGSynchronize(i64, i32)",
-         "%rv = call i32 @cudaCGSynchronize(i64 %0, i32 %1)
-           ret i32 %rv"), cudaError_t,
-        Tuple{Culonglong, UInt32},
-        Base.unsafe_convert(Culonglong, Base.cconvert(Culonglong, handle)),
-        Base.unsafe_convert(UInt32, Base.cconvert(UInt32, flags)))
+function cudaCGSynchronize(handle, flags)
+    ccall("extern cudaCGSynchronize", llvmcall, cudaError_t,
+        (Culonglong, UInt32),
+        handle, flags)
 end
 
 function cudaCGSynchronizeGrid(handle, flags)
