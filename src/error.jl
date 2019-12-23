@@ -78,7 +78,7 @@ end
 
 Base.show(io::IO, err::CuError) = print(io, "CuError($(err.code))")
 
-# define shorthands that give CuErryr objects
+# define shorthands that give CuError objects
 for code in instances(cudaError_enum)
     name = String(Symbol(code))
     shorthand = Symbol(name[6:end]) # strip the CUDA_ prefix
@@ -88,26 +88,31 @@ end
 
 ## API call wrapper
 
-# API calls that are allowed without a functional context
+# API calls that should not initialize the API because they are often used before that,
+# e.g., to determine which device to use and initialize for.
 const preinit_apicalls = Set{Symbol}([
-    :cuInit,
-    :cuDriverGetVersion,
-    # error getters
+    # error handling
     :cuGetErrorString,
     :cuGetErrorName,
-    # device querying
+    # initialization
+    :cuInit,
+    # version management
+    :cuDriverGetVersion,
+    # device management
     :cuDeviceGet,
+    :cuDeviceGetAttribute,
     :cuDeviceGetCount,
     :cuDeviceGetName,
     :cuDeviceGetUuid,
     :cuDeviceTotalMem,
-    :cuDeviceGetAttribute,
-    :cuDeviceGetProperties,
-    :cuDeviceComputeCapability,
+    :cuDeviceGetProperties,     # deprecated
+    :cuDeviceComputeCapability, # deprecated
     # context management
     :cuCtxGetCurrent,
+    # calls that were required before JuliaGPU/CUDAnative.jl#518
+    # TODO: remove on CUDAdrv v6+
     :cuCtxPushCurrent,
-    :cuDevicePrimaryCtxRetain
+    :cuDevicePrimaryCtxRetain,
 ])
 
 """
