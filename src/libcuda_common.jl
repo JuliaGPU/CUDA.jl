@@ -42,7 +42,6 @@ const CU_PARAM_TR_DEFAULT = -1
 
 const cuuint32_t = UInt32
 const cuuint64_t = UInt64
-@assert sizeof(CUdeviceptr) == sizeof(Culonglong)
 const CUdevice = Cint
 const CUctx_st = Cvoid
 const CUcontext = Ptr{CUctx_st}
