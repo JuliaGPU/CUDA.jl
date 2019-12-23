@@ -441,3 +441,11 @@ end
     @test testf(argmin, rand(Int, 10))
     @test testf(argmin, -rand(Int, 10))
 end
+
+@testset "issue #543" begin
+  x = CuArrays.rand(ComplexF32, 1)
+  @test x isa CuArray{Complex{Float32}}
+
+  y = exp.(x)
+  @test y isa CuArray{Complex{Float32}}
+end
