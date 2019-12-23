@@ -38,7 +38,9 @@ function hasfieldcount(@nospecialize(dt))
     return true
 end
 
-function explain_nonisbits(@nospecialize(dt), depth=1)
+function explain_nonisbits(@nospecialize(dt), depth=1; maxdepth=10)
+    dt===Module && return ""    # work around JuliaLang/julia#33347
+    depth > maxdepth && return ""
     hasfieldcount(dt) || return ""
     msg = ""
     for (ft, fn) in zip(fieldtypes(dt), fieldnames(dt))
