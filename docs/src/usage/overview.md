@@ -19,7 +19,7 @@ use this type, if only to manage memory because it is much easier then doing man
 management:
 
 ```julia
-using Cuarrays
+using CuArrays
 
 a = CuArray{Int}(undef, 1024)
 
