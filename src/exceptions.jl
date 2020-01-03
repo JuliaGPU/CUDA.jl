@@ -25,7 +25,7 @@ function create_exceptions!(mod::CuModule)
     try
         flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, "exception_flag")
         exception_flag = get!(exception_flags, ctx, Mem.alloc(Mem.Host, sizeof(Int),
-                            Mem.HOSTALLOC_DEVICEMAP))
+                              Mem.HOSTALLOC_DEVICEMAP))
         flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, exception_flag))
     catch err
         # modules that do not throw exceptions will not contain the indicator flag
