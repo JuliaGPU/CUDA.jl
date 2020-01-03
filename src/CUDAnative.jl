@@ -143,7 +143,7 @@ function __init__()
             if verbose
                 @error "CUDAnative.jl failed to initialize" exception=(ex, catch_backtrace())
             else
-                @info "CUDAnative.jl failed to initialized, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)"
+                @info "CUDAnative.jl failed to initialize, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)"
             end
         end
     end
