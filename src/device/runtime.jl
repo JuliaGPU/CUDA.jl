@@ -111,6 +111,7 @@ function signal_exception()
     ptr = exception_flag()
     if ptr !== C_NULL
         unsafe_store!(convert(Ptr{Int}, ptr), 1)
+        threadfence_system()
     else
         @cuprintf("""
             WARNING: could not signal exception status to the host, execution will continue.
