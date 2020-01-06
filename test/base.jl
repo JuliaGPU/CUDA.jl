@@ -176,7 +176,7 @@ end
   if VERSION >= v"1.3-"
     # broken test that throws
     # https://github.com/JuliaGPU/GPUArrays.jl/issues/204
-    @test_throws CUDAnative.InvalidIRError x /= 2
+    @test_throws ErrorException x /= 2
   else
     x /= 2
     @test collect(x)[] == 0.5
