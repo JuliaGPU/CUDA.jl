@@ -18,7 +18,7 @@ end
 
 # primary array
 function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, pooled::Bool=true;
-                      ctx=CuCurrentContext()) where {T,N}
+                      ctx=context()) where {T,N}
   self = CuArray{T,N,Nothing}(ptr, dims, nothing, pooled, ctx)
   retain(self)
   finalizer(unsafe_free!, self)
@@ -123,7 +123,7 @@ Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,
 
 
 """
-  unsafe_wrap(::CuArray, ptr::CuPtr{T}, dims; own=false, ctx=CuCurrentContext())
+  unsafe_wrap(::CuArray, ptr::CuPtr{T}, dims; own=false, ctx=context())
 
 Wrap a `CuArray` object around the data at the address given by `ptr`. The pointer
 element type `T` determines the array element type. `dims` is either an integer (for a 1d
@@ -133,7 +133,7 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 """
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::CuPtr{T}, dims::NTuple{N,Int};
-                          own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T,N}
+                          own::Bool=false, ctx::CuContext=context()) where {T,N}
   xs = CuArray{T, length(dims)}(p, dims, false; ctx=ctx)
   if own
     base = convert(CuPtr{Cvoid}, p)
@@ -149,7 +149,7 @@ end
 
 function Base.unsafe_wrap(Atype::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,1}}},
                           p::CuPtr{T}, dim::Integer;
-                          own::Bool=false, ctx::CuContext=CuCurrentContext()) where {T}
+                          own::Bool=false, ctx::CuContext=context()) where {T}
   unsafe_wrap(Atype, p, (dim,); own=own, ctx=ctx)
 end
 
