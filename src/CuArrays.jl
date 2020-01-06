@@ -99,9 +99,27 @@ function __init__()
 
         # library compatibility
         if has_cutensor()
-            ver = CUTENSOR.version()
-            if ver.major != 1
-                silent || @warn("CuArrays.jl only supports CUTENSOR 1.x")
+            cutensor = CUTENSOR.version()
+            if cutensor < v"1"
+                silent || @warn("CuArrays.jl only supports CUTENSOR 1.0 or higher")
+            end
+
+            cuda = CUDAnative.version()
+            cutensor_cuda = CUDNN.cuda_version()
+            if cutensor_cuda.major != cuda.major || cutensor_cuda.minor != cuda.minor
+                silent || @warn("You are using CUTENSOR $cutensor for CUDA $cutensor_cuda with CUDA toolkit $cuda; these might be incompatible.")
+            end
+        end
+        if has_cudnn()
+            cudnn = CUDNN.version()
+            if cudnn < v"7.6"
+                silent || @warn("CuArrays.jl only supports CUDNN v7.6 or higher")
+            end
+
+            cuda = CUDAnative.version()
+            cudnn_cuda = CUDNN.cuda_version()
+            if cudnn_cuda.major != cuda.major || cudnn_cuda.minor != cuda.minor
+                silent || @warn("You are using CUDNN $cudnn for CUDA $cudnn_cuda with CUDA toolkit $cuda; these might be incompatible.")
             end
         end
 

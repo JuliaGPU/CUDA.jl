@@ -11,6 +11,14 @@ function version()
     VersionNumber(major, minor, patch)
 end
 
+function cuda_version()
+  ver = cudnnGetCudartVersion()
+  major, ver = divrem(ver, 1000)
+  minor, patch = divrem(ver, 10)
+
+  VersionNumber(major, minor, patch)
+end
+
 function cutensorCreate()
     handle = Ref{cutensorHandle_t}()
     cutensorCreate(handle)
