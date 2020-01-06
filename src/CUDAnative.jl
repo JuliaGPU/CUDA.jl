@@ -133,17 +133,15 @@ function __init__()
         end
 
         let val = find_cuda_library("nvtx", toolkit_dirs)
-            if val !== nothing
-                NVTX.libnvtx[] = val
-            end
+            val === nothing && error("Your CUDA installation does not provide the NVTX library")
+            NVTX.libnvtx[] = val
         end
 
         toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
         cupti_dirs = map(dir->joinpath(dir, "CUPTI"), toolkit_extras_dirs)
         let val = find_cuda_library("cupti", cupti_dirs)
-            if val !== nothing
-                CUPTI.libcupti[] = val
-            end
+            val === nothing && error("Your CUDA installation does not provide the CUPTI library")
+            CUPTI.libcupti[] = val
         end
 
 
