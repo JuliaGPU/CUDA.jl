@@ -8,7 +8,6 @@ struct Domain
     handle::nvtxDomainHandle_t
 
     function Domain(name::String)
-        info("Creating domain $name")
         handle = nvtxDomainCreateA(name)
         new(handle)
     end

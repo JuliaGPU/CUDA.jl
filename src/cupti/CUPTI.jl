@@ -10,6 +10,8 @@ struct CUuuid
     bytes::NTuple{16,Int8}
 end
 
+using ..CUDAnative
+
 using CEnum
 
 const libcupti = Ref("libcupti")

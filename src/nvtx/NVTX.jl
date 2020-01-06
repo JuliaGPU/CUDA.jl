@@ -2,7 +2,7 @@ module NVTX
 
 using CUDAapi
 
-using ..CUDAdrv: CUstream, CUdevice, CUcontext, CUevent
+using CUDAdrv: CUstream, CUdevice, CUcontext, CUevent
 
 using CEnum
 

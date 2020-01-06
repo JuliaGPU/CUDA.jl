@@ -15,6 +15,7 @@ function name(err::CUPTIError)
     unsafe_string(str_ref[])
 end
 
+## COV_EXCL_START
 function description(err)
     if err.code == CUPTI_SUCCESS
         "no error"
@@ -100,6 +101,7 @@ function description(err)
         "unknown status"
     end
 end
+## COV_EXCL_STOP
 
 
 ## API call wrapper

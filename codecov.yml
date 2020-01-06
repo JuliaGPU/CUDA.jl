@@ -1,5 +1,6 @@
 coverage:
   ignore:
+    - "src/*/lib*.jl"
     - "src/device"
   status:
     patch: false

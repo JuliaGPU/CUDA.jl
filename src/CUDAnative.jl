@@ -138,7 +138,7 @@ function __init__()
         end
 
         toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
-        cupti_dirs = map(dir->joinpath(dir, "CUPTI"), toolkit_extras_dirs)
+        cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
         let val = find_cuda_library("cupti", cupti_dirs)
             val === nothing && error("Your CUDA installation does not provide the CUPTI library")
             CUPTI.libcupti[] = val
