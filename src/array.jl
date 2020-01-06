@@ -87,6 +87,8 @@ CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
 # type and dimensionality specified, accepting dims as tuples of Ints
 function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
+  Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
+  Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
   ptr = alloc(prod(dims) * sizeof(T))
   CuArray{T,N}(convert(CuPtr{T}, ptr), dims)
 end
