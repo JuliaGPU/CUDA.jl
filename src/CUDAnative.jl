@@ -42,7 +42,6 @@ include("device/llvm.jl")
 include("device/runtime.jl")
 
 include("cupti/CUPTI.jl")
-include("nvperf/NVPerf.jl")
 include("nvtx/NVTX.jl")
 
 include("init.jl")
@@ -54,7 +53,7 @@ include("reflection.jl")
 
 include("deprecated.jl")
 
-export CUPTI, NVPerf, NVTX
+export CUPTI, NVTX
 
 
 ## initialization
@@ -141,16 +140,9 @@ function __init__()
 
         toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
         cupti_dirs = map(dir->joinpath(dir, "CUPTI"), toolkit_extras_dirs)
-
         let val = find_cuda_library("cupti", cupti_dirs)
             if val !== nothing
                 CUPTI.libcupti[] = val
-            end
-        end
-
-        let val = find_cuda_library("nvperf_host", cupti_dirs)
-            if val !== nothing
-                NVPerf.libnvperf[] = val
             end
         end
 
