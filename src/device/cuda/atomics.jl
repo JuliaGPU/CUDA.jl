@@ -303,6 +303,9 @@ struct AtomicError <: Exception
     msg::AbstractString
 end
 
+Base.showerror(io::IO, err::AtomicError) =
+    print(io, "AtomicError: ", err.msg)
+
 """
     @atomic a[I] = op(a[I], val)
     @atomic a[I] ...= val
