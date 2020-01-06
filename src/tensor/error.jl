@@ -2,46 +2,46 @@ export CUTENSORError
 
 struct CUTENSORError <: Exception
     code::cutensorStatus_t
-    msg::AbstractString
-end
-Base.show(io::IO, err::CUTENSORError) = print(io, "CUTENSORError(code $(err.code), $(err.msg))")
-
-function CUTENSORError(code::cutensorStatus_t)
-    msg = statusmessage(code)
-    return CUTENSORError(code, msg)
 end
 
-function statusmessage( status )
-    if status == CUTENSOR_STATUS_SUCCESS
-        return "the operation completed successfully"
-    elseif status == CUTENSOR_STATUS_NOT_INITIALIZED
-        return "the library was not initialized"
-    elseif status == CUTENSOR_STATUS_ALLOC_FAILED
-        return "the resource allocation failed"
-    elseif status == CUTENSOR_STATUS_INVALID_VALUE
-        return "an invalid value was used as an argument"
-    elseif status == CUTENSOR_STATUS_ARCH_MISMATCH
-        return "an absent device architectural feature is required"
-    elseif status == CUTENSOR_STATUS_MAPPING_ERROR
-        return "an access to GPU memory space failed"
-    elseif status == CUTENSOR_STATUS_EXECUTION_FAILED
-        return "the GPU program failed to execute"
-    elseif status == CUTENSOR_STATUS_INTERNAL_ERROR
-        return "an internal operation failed"
-    elseif status == CUTENSOR_STATUS_NOT_SUPPORTED
-        return "operation not supported (yet)"
-    elseif status == CUTENSOR_STATUS_LICENSE_ERROR
-        return "error detected trying to check the license"
-    elseif status == CUTENSOR_STATUS_CUBLAS_ERROR
-        return "error occurred during a CUBLAS operation"
-    elseif status == CUTENSOR_STATUS_CUDA_ERROR
-        return "error occurred during a CUDA operation"
-    elseif status == CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE
-        return "insufficient workspace memory for this operation"
-    elseif status == CUTENSOR_STATUS_INSUFFICIENT_DRIVER
-        return "insufficient driver version"
+Base.convert(::Type{cutensorStatus_t}, err::CUTENSORError) = err.code
+
+Base.showerror(io::IO, err::CUTENSORError) =
+    print(io, "CUTENSORError: ", description(err), " (code $(reinterpret(Int32, err.code)), $(name(err)))")
+
+name(err::CUTENSORError) = unsafe_string(cutensorGetErrorString(err))
+
+function description(err::CUTENSORError)
+    if err.code == CUTENSOR_STATUS_SUCCESS
+        "the operation completed successfully"
+    elseif err.code == CUTENSOR_STATUS_NOT_INITIALIZED
+        "the library was not initialized"
+    elseif err.code == CUTENSOR_STATUS_ALLOC_FAILED
+        "the resource allocation failed"
+    elseif err.code == CUTENSOR_STATUS_INVALID_VALUE
+        "an invalid value was used as an argument"
+    elseif err.code == CUTENSOR_STATUS_ARCH_MISMATCH
+        "an absent device architectural feature is required"
+    elseif err.code == CUTENSOR_STATUS_MAPPING_ERROR
+        "an access to GPU memory space failed"
+    elseif err.code == CUTENSOR_STATUS_EXECUTION_FAILED
+        "the GPU program failed to execute"
+    elseif err.code == CUTENSOR_STATUS_INTERNAL_ERROR
+        "an internal operation failed"
+    elseif err.code == CUTENSOR_STATUS_NOT_SUPPORTED
+        "operation not supported (yet)"
+    elseif err.code == CUTENSOR_STATUS_LICENSE_ERROR
+        "error detected trying to check the license"
+    elseif err.code == CUTENSOR_STATUS_CUBLAS_ERROR
+        "error occurred during a CUBLAS operation"
+    elseif err.code == CUTENSOR_STATUS_CUDA_ERROR
+        "error occurred during a CUDA operation"
+    elseif err.code == CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE
+        "insufficient workspace memory for this operation"
+    elseif err.code == CUTENSOR_STATUS_INSUFFICIENT_DRIVER
+        "insufficient driver version"
     else
-        return "unknown status"
+        "no description for this error"
     end
 end
 

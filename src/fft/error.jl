@@ -2,52 +2,52 @@ export CUFFTError
 
 struct CUFFTError <: Exception
     code::cufftResult
-    msg::AbstractString
-end
-Base.show(io::IO, err::CUFFTError) = print(io, "CUFFTError(code $(err.code), $(err.msg))")
-
-function CUFFTError(code::cufftResult)
-    msg = status_message(code)
-    return CUFFTError(code, msg)
 end
 
-function status_message(status)
-    if status == CUFFT_SUCCESS
-        return "the operation completed successfully"
-    elseif status == CUFFT_INVALID_PLAN
-        return "cuFFT was passed an invalid plan handle"
-    elseif status == CUFFT_ALLOC_FAILED
-        return "cuFFT failed to allocate GPU or CPU memory"
-    elseif status == CUFFT_INVALID_TYPE
-        return "cuFFT invalid type " # No longer used
-    elseif status == CUFFT_INVALID_VALUE
-        return "User specified an invalid pointer or parameter"
-    elseif status == CUFFT_INTERNAL_ERROR
-        return "Driver or internal cuFFT library error"
-    elseif status == CUFFT_EXEC_FAILED
-        return "Failed to execute an FFT on the GPU"
-    elseif status == CUFFT_SETUP_FAILED
-        return "The cuFFT library failed to initialize"
-    elseif status == CUFFT_INVALID_SIZE
-        return "User specified an invalid transform size"
-    elseif status == CUFFT_UNALIGNED_DATA
-        return "cuFFT unaligned data" # No longer used
-    elseif status == CUFFT_INCOMPLETE_PARAMETER_LIST
-        return "Missing parameters in call"
-    elseif status == CUFFT_INVALID_DEVICE
-        return "Execution of a plan was on different GPU than plan creation"
-    elseif status == CUFFT_PARSE_ERROR
-        return "Internal plan database error"
-    elseif status == CUFFT_NO_WORKSPACE
-        return "No workspace has been provided prior to plan execution"
-    elseif status == CUFFT_NOT_IMPLEMENTED
-        return "Function does not implement functionality for parameters given."
-    elseif status == CUFFT_LICENSE_ERROR
-        return "cuFFT license error" # Used in previous versions.
-    elseif status == CUFFT_NOT_SUPPORTED
-        return "Operation is not supported for parameters given."
+Base.convert(::Type{cufftResult}, err::CUFFTError) = err.code
+
+Base.showerror(io::IO, err::CUFFTError) =
+    print(io, "CUFFTError: ", description(err), " (code $(reinterpret(Int32, err.code)), $(name(err)))")
+
+name(err::CUFFTError) = string(err.code)
+
+function description(err::CUFFTError)
+    if err.code == CUFFT_SUCCESS
+        "the operation completed successfully"
+    elseif err.code == CUFFT_INVALID_PLAN
+        "cuFFT was passed an invalid plan handle"
+    elseif err.code == CUFFT_ALLOC_FAILED
+        "cuFFT failed to allocate GPU or CPU memory"
+    elseif err.code == CUFFT_INVALID_TYPE
+        "cuFFT invalid type " # No longer used
+    elseif err.code == CUFFT_INVALID_VALUE
+        "user specified an invalid pointer or parameter"
+    elseif err.code == CUFFT_INTERNAL_ERROR
+        "driver or internal cuFFT library error"
+    elseif err.code == CUFFT_EXEC_FAILED
+        "failed to execute an FFT on the GPU"
+    elseif err.code == CUFFT_SETUP_FAILED
+        "the cuFFT library failed to initialize"
+    elseif err.code == CUFFT_INVALID_SIZE
+        "user specified an invalid transform size"
+    elseif err.code == CUFFT_UNALIGNED_DATA
+        "cuFFT unaligned data" # No longer used
+    elseif err.code == CUFFT_INCOMPLETE_PARAMETER_LIST
+        "missing parameters in call"
+    elseif err.code == CUFFT_INVALID_DEVICE
+        "execution of a plan was on different GPU than plan creation"
+    elseif err.code == CUFFT_PARSE_ERROR
+        "internal plan database error"
+    elseif err.code == CUFFT_NO_WORKSPACE
+        "no workspace has been provided prior to plan execution"
+    elseif err.code == CUFFT_NOT_IMPLEMENTED
+        "function does not implement functionality for parameters given."
+    elseif err.code == CUFFT_LICENSE_ERROR
+        "cuFFT license error" # Used in previous versions.
+    elseif err.code == CUFFT_NOT_SUPPORTED
+        "operation is not supported for parameters given."
     else
-        return "unknown status"
+        "no description for this error"
     end
 end
 

@@ -2,44 +2,44 @@ export CURANDError
 
 struct CURANDError <: Exception
     code::curandStatus_t
-    msg::AbstractString
-end
-Base.show(io::IO, err::CURANDError) = print(io, "CURANDError(code $(err.code), $(err.msg))")
-
-function CURANDError(code::curandStatus_t)
-    msg = status_message(code)
-    return CURANDError(code, msg)
 end
 
-function status_message(status)
-    if status == CURAND_STATUS_SUCCESS
-        return "generator was created successfully"
-    elseif status == CURAND_STATUS_VERSION_MISMATCH
-        return "Header file and linked library version do not match"
-    elseif status == CURAND_STATUS_NOT_INITIALIZED
-        return "Generator not initialized"
-    elseif status == CURAND_STATUS_ALLOCATION_FAILED
-        return "Memory allocation failed"
-    elseif status == CURAND_STATUS_TYPE_ERROR
-        return "Generator is wrong type"
-    elseif status == CURAND_STATUS_OUT_OF_RANGE
-        return "Argument out of range"
-    elseif status == CURAND_STATUS_LENGTH_NOT_MULTIPLE
-        return "Length requested is not a multple of dimension"
-    elseif status == CURAND_STATUS_DOUBLE_PRECISION_REQUIRED
-        return "GPU does not have double precision required by MRG32k3a"
-    elseif status == CURAND_STATUS_LAUNCH_FAILURE
-        return "Kernel launch failure"
-    elseif status == CURAND_STATUS_PREEXISTING_FAILURE
-        return "Preexisting failure on library entry"
-    elseif status == CURAND_STATUS_INITIALIZATION_FAILED
-        return "Initialization of CUDA failed"
-    elseif status == CURAND_STATUS_ARCH_MISMATCH
-        return "Architecture mismatch, GPU does not support requested feature"
-    elseif status == CURAND_STATUS_INTERNAL_ERROR
-        return "Internal library error"
+Base.convert(::Type{curandStatus_t}, err::CURANDError) = err.code
+
+Base.showerror(io::IO, err::CURANDError) =
+    print(io, "CURANDError: ", description(err), " (code $(reinterpret(Int32, err.code)), $(name(err)))")
+
+name(err::CURANDError) = string(err.code)
+
+function description(err)
+    if err.code == CURAND_STATUS_SUCCESS
+        "generator was created successfully"
+    elseif err.code == CURAND_STATUS_VERSION_MISMATCH
+        "header file and linked library version do not match"
+    elseif err.code == CURAND_STATUS_NOT_INITIALIZED
+        "generator not initialized"
+    elseif err.code == CURAND_STATUS_ALLOCATION_FAILED
+        "memory allocation failed"
+    elseif err.code == CURAND_STATUS_TYPE_ERROR
+        "generator is wrong type"
+    elseif err.code == CURAND_STATUS_OUT_OF_RANGE
+        "argument out of range"
+    elseif err.code == CURAND_STATUS_LENGTH_NOT_MULTIPLE
+        "length requested is not a multple of dimension"
+    elseif err.code == CURAND_STATUS_DOUBLE_PRECISION_REQUIRED
+        "GPU does not have double precision required by MRG32k3a"
+    elseif err.code == CURAND_STATUS_LAUNCH_FAILURE
+        "kernel launch failure"
+    elseif err.code == CURAND_STATUS_PREEXISTING_FAILURE
+        "preexisting failure on library entry"
+    elseif err.code == CURAND_STATUS_INITIALIZATION_FAILED
+        "initialization of CUDA failed"
+    elseif err.code == CURAND_STATUS_ARCH_MISMATCH
+        "architecture mismatch, GPU does not support requested feature"
+    elseif err.code == CURAND_STATUS_INTERNAL_ERROR
+        "internal library error"
     else
-        return "unknown status"
+        "no description for this error"
     end
 end
 
