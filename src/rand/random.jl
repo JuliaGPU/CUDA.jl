@@ -22,7 +22,7 @@ mutable struct RNG <: Random.AbstractRNG
         handle_ref = Ref{curandGenerator_t}()
         @allocates curandCreateGenerator(handle_ref, typ)
 
-        obj = new(handle_ref[], CuCurrentContext(), typ)
+        obj = new(handle_ref[], context(), typ)
         finalizer(unsafe_destroy!, obj)
         return obj
     end
