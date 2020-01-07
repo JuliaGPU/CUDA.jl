@@ -301,7 +301,7 @@ end
 function pool_alloc(sz)
     szclass = size_class(sz)
 
-    # round of the block size
+    # round off the block size
     req_sz = sz
     roundoff = if szclass == SMALL
         SMALL_ROUNDOFF
@@ -422,12 +422,19 @@ function free(ptr)
 end
 
 function reclaim(sz::Int=typemax(Int))
-    freed = 0
-    for available in (available_huge, available_large, available_small)
-        freed >= sz && break
-        freed += reclaim!(available, sz-freed)
+    if !isempty(freed)
+        blocks = Set(freed)
+        empty!(freed)
+        repopulate(blocks)
+        incremental_compact!(blocks)
     end
-    return freed
+
+    freed_sz = 0
+    for available in (available_huge, available_large, available_small)
+        freed_sz >= sz && break
+        freed_sz += reclaim!(available, sz-freed_sz)
+    end
+    return freed_sz
 end
 
 used_memory() = mapreduce(sizeof, +, values(allocated); init=0)
