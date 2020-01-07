@@ -462,3 +462,36 @@ function Base.reverse(input::CuVector{T}, start=1, stop=length(input)) where {T}
 
     return output
 end
+
+
+## resizing
+
+"""
+  resize!(a::CuVector, n::Int)
+
+Resize `a` to contain `n` elements. If `n` is smaller than the current collection length,
+the first `n` elements will be retained. If `n` is larger, the new elements are not
+guaranteed to be initialized.
+
+Several restrictions apply to which types of `CuArray`s can be resized:
+
+- the array should be backed by the memory pool, and not have been constructed with `unsafe_wrap`
+- the array cannot be derived (view, reshape) from another array
+- the array cannot have any derived arrays itself
+
+"""
+function Base.resize!(A::CuVector{T}, n::Int) where T
+  A.parent === nothing || error("cannot resize derived CuArray")
+  A.refcount == 1 || error("cannot resize shared CuArray")
+  A.pooled || error("cannot resize wrapped CuArray")
+
+  ptr = convert(CuPtr{T}, alloc(n * sizeof(T)))
+  m = min(length(A), n)
+  unsafe_copyto!(ptr, pointer(A), m)
+
+  free(convert(CuPtr{Nothing}, pointer(A)))
+  A.dims = (n,)
+  A.ptr = ptr
+
+  A
+end
