@@ -449,3 +449,26 @@ end
   y = exp.(x)
   @test y isa CuArray{Complex{Float32}}
 end
+
+@testset "resizing" begin
+    a = CuArray([1,2,3])
+
+    resize!(a, 3)
+    @test length(a) == 3
+    @test Array(a) == [1,2,3]
+
+    resize!(a, 5)
+    @test length(a) == 5
+    @test Array(a)[1:3] == [1,2,3]
+
+    resize!(a, 2)
+    @test length(a) == 2
+    @test Array(a)[1:2] == [1,2]
+
+    b = view(a, 1:2)
+    @test_throws ErrorException resize!(a, 2)
+    @test_throws ErrorException resize!(b, 2)
+
+    c = unsafe_wrap(CuArray{Int}, pointer(b), 2)
+    @test_throws ErrorException resize!(c, 2)
+end
