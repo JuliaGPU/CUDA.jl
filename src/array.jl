@@ -27,7 +27,7 @@ end
 
 # derived array (e.g. view, reinterpret, ...)
 function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::P) where {T,N,P<:CuArray}
-  self = CuArray{T,N,P}(ptr, dims, parent, false, parent.ctx)
+  self = CuArray{T,N,P}(ptr, dims, parent, parent.pooled, parent.ctx)
   retain(self)
   retain(parent)
   finalizer(unsafe_free!, self)
