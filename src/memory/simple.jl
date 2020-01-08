@@ -74,9 +74,9 @@ function pool_alloc(sz)
     block = nothing
     for phase in 1:3
         if phase == 2
-            @pool_timeit "$phase.0 gc (incremental)" GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Incremental : false)
+            @pool_timeit "$phase.0 gc (incremental)" GC.gc(false)
         elseif phase == 3
-            @pool_timeit "$phase.0 gc (full)" GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Full : true)
+            @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
         @pool_timeit "$phase.1 scan" begin

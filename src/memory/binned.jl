@@ -201,7 +201,7 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "2. gc (incremental)" begin
-    GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Incremental : false)
+    GC.gc(false)
   end
 
   if pid != -1 && !isempty(pools_avail[pid])
@@ -222,7 +222,7 @@ function pool_alloc(bytes, pid=-1)
   end
 
   @pool_timeit "5. gc (full)" begin
-    GC.gc(VERSION >= v"1.4.0-DEV.257" ? GC.Full : true)
+    GC.gc(true)
   end
 
   if pid != -1 && !isempty(pools_avail[pid])
