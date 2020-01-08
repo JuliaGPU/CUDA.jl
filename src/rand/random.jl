@@ -42,7 +42,7 @@ Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.handle
 seed!(rng::RNG=generator()) = (curandGenerateSeeds(rng); return)
 
 seed!(seed::Int64, offset::Int64=0) = seed!(generator(), seed, offset)
-function seed!(rng::RNG, seed::Int64, offset::Int64)
+function seed!(rng::RNG, seed::Int64, offset::Int64=0)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)
     @allocates curandGenerateSeeds(rng)

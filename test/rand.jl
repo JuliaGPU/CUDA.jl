@@ -3,6 +3,13 @@
 using CuArrays.CURAND
 
 CURAND.seed!()
+CURAND.seed!(1)
+CURAND.seed!(1, 0)
+
+rng = CURAND.generator()
+CURAND.seed!(rng)
+CURAND.seed!(rng, 1)
+CURAND.seed!(rng, 1, 0)
 
 # NOTE: tests should cover both pow2 and non-pow2 dims
 
