@@ -35,6 +35,8 @@
 # ! CUDAnative.atan2 is equivalent to Base.atan
 @inline atan2(x::Float64, y::Float64) = ccall("extern __nv_atan2", llvmcall, Cdouble, (Cdouble, Cdouble), x, y)
 @inline atan2(x::Float32, y::Float32) = ccall("extern __nv_atan2f", llvmcall, Cfloat, (Cfloat, Cfloat), x, y)
+@inline atan(x::Float64, y::Float64) = atan2(x, y)
+@inline atan(x::Float32, y::Float32) = atan2(x, y)
 
 @inline angle(x::ComplexF64) = atan2(x.im, x.re)
 @inline angle(x::ComplexF32) = atan2(x.im, x.re)
