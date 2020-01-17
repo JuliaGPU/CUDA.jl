@@ -49,7 +49,7 @@ function assign_args!(code, args)
     # assign arguments to variables
     vars = Tuple(gensym() for arg in args)
     map(vars, args) do var,arg
-        push!(code.args, :($var = $(esc(arg))))
+        push!(code.args, :($var = $arg))
     end
 
     # convert the arguments, compile the function and call the kernel
@@ -149,6 +149,9 @@ macro cuda(ex...)
         end
     end
 
+    # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
+    #        we esc() the whole thing now, necessitating gensyms...
+    @gensym kernel_args kernel_tt kernel
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -159,9 +162,9 @@ macro cuda(ex...)
         push!(code.args,
             quote
                 # we're in kernel land already, so no need to cudaconvert arguments
-                local kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
-                local kernel = dynamic_cufunction($(esc(f)), kernel_tt)
-                kernel($(var_exprs...); $(map(esc, call_kwargs)...))
+                local $kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
+                local $kernel = $dynamic_cufunction($f, $kernel_tt)
+                $kernel($(var_exprs...); $(call_kwargs...))
              end)
     else
         # regular, host-side kernel launch
@@ -171,16 +174,14 @@ macro cuda(ex...)
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
-                    local kernel_args = map(cudaconvert, ($(var_exprs...),))
-                    local kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-                    local kernel = cufunction($(esc(f)), kernel_tt;
-                                              $(map(esc, compiler_kwargs)...))
-                    kernel(kernel_args...; $(map(esc, call_kwargs)...))
+                    local $kernel_args = map($cudaconvert, ($(var_exprs...),))
+                    local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
+                    local $kernel = $cufunction($f, $kernel_tt; $(compiler_kwargs...))
+                    $kernel($kernel_args...; $(call_kwargs...))
                 end
              end)
     end
-
-    return code
+    return esc(code)
 end
 
 

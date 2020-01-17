@@ -48,17 +48,18 @@ end
 
 # Run some code on-device, returning captured standard output
 macro on_device(ex)
-    quote
+    @gensym kernel
+    esc(quote
         let
-            function kernel()
-                $(esc(ex))
+            function $kernel()
+                $ex
                 return
             end
 
-            @cuda kernel()
+            @cuda $kernel()
             synchronize()
         end
-    end
+    end)
 end
 
 # helper function for sinking a value to prevent the callee from getting optimized away
