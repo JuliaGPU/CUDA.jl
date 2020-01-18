@@ -105,7 +105,7 @@ function __init__()
             end
 
             cuda = CUDAnative.version()
-            cutensor_cuda = CUDNN.cuda_version()
+            cutensor_cuda = CUTENSOR.cuda_version()
             if cutensor_cuda.major != cuda.major || cutensor_cuda.minor != cuda.minor
                 silent || @warn("You are using CUTENSOR $cutensor for CUDA $cutensor_cuda with CUDA toolkit $cuda; these might be incompatible.")
             end

@@ -12,17 +12,11 @@ function version()
 end
 
 function cuda_version()
-  ver = cudnnGetCudartVersion()
+  ver = cutensorGetCudartVersion()
   major, ver = divrem(ver, 1000)
   minor, patch = divrem(ver, 10)
 
   VersionNumber(major, minor, patch)
-end
-
-function cutensorCreate()
-    handle = Ref{cutensorHandle_t}()
-    cutensorCreate(handle)
-    handle[]
 end
 
 const ModeType = AbstractVector{<:Union{Char, Integer}}
