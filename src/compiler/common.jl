@@ -1,6 +1,6 @@
 # common functionality
 
-struct CompilerJob
+Base.@kwdef struct CompilerJob
     # core invocation
     f::Base.Callable
     tt::DataType
@@ -8,17 +8,15 @@ struct CompilerJob
     kernel::Bool
 
     # optional properties
-    minthreads::Union{Nothing,CuDim}
-    maxthreads::Union{Nothing,CuDim}
-    blocks_per_sm::Union{Nothing,Integer}
-    maxregs::Union{Nothing,Integer}
-    name::Union{Nothing,String}
-
-    CompilerJob(f, tt, cap, kernel; name=nothing,
-                    minthreads=nothing, maxthreads=nothing,
-                    blocks_per_sm=nothing, maxregs=nothing) =
-        new(f, tt, cap, kernel, minthreads, maxthreads, blocks_per_sm, maxregs, name)
+    minthreads::Union{Nothing,CuDim} = nothing
+    maxthreads::Union{Nothing,CuDim} = nothing
+    blocks_per_sm::Union{Nothing,Integer} = nothing
+    maxregs::Union{Nothing,Integer} = nothing
+    name::Union{Nothing,String} = nothing
 end
+
+CompilerJob(f, tt, cap, kernel; kwargs...) =
+    CompilerJob(f=f, tt=tt, cap=cap, kernel=kernel; kwargs...)
 
 # global job reference
 # FIXME: thread through `job` everywhere (deadlocks the Julia compiler when doing so with
