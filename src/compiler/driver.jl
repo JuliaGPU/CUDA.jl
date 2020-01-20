@@ -1,5 +1,10 @@
 # compiler driver and main interface
 
+# NOTE: the keyword arguments to compile/codegen control those aspects of compilation that
+#       might have to be changed (e.g. set libraries=false when recursing, or set
+#       strip=true for reflection). What remains defines the compilation job itself,
+#       and those values are contained in the CompilerJob struct.
+
 # (::CompilerJob)
 const compile_hook = Ref{Union{Nothing,Function}}(nothing)
 
@@ -17,12 +22,12 @@ The following keyword arguments are supported:
 - `libraries`: link the CUDAnative runtime and `libdevice` libraries (if required)
 - `dynamic_parallelism`: resolve dynamic parallelism (if required)
 - `optimize`: optimize the code (default: true)
-- `strip`: strip non-functional metadata and debug information  (default: false)
+- `strip`: strip non-functional metadata and debug information (default: false)
 - `strict`: perform code validation either as early or as late as possible
 
 Other keyword arguments can be found in the documentation of [`cufunction`](@ref).
 """
-compile(target::Symbol, cap::VersionNumber, @nospecialize(f::Core.Function),
+compile(target::Symbol, cap::VersionNumber, @nospecialize(f::Base.Callable),
         @nospecialize(tt), kernel::Bool=true; libraries::Bool=true,
         dynamic_parallelism::Bool=true, optimize::Bool=true,
         strip::Bool=false, strict::Bool=true, kwargs...) =
@@ -51,7 +56,7 @@ end
 
 function codegen(target::Symbol, job::CompilerJob;
                  libraries::Bool=true, dynamic_parallelism::Bool=true, optimize::Bool=true,
-                 strip::Bool=false,strict::Bool=true)
+                 strip::Bool=false, strict::Bool=true)
     ## Julia IR
 
     @timeit_debug to "validation" check_method(job)
