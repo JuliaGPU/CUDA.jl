@@ -7,7 +7,6 @@
 # TODO:
 # - scoped atomics: _system and _block versions (see CUDA programming guide, sm_60+)
 #   https://github.com/Microsoft/clang/blob/86d4513d3e0daa4d5a29b0b1de7c854ca15f9fe5/test/CodeGen/builtins-nvptx.c#L293
-# - atomic_cas!
 
 ## LLVM
 
@@ -84,6 +83,20 @@ end
 
 
 ## NVVM
+
+# atomic_cas! with integer operations using NVVM intrinsics
+
+ptxtype(::Type{Int32}) = "i32"
+ptxtype(::Type{Int64}) = "i64"
+
+for A in (AS.Generic, AS.Global, AS.Shared)
+    for T in (Int32, Int64)
+        typ = ptxtype(T)
+        intr = "llvm.nvvm.atomic.cas.gen.i.sys.$typ.p0$typ"
+        @eval @inline atomic_cas!(ptr::DevicePtr{$T,$A}, cmp::$T, val::$T) =
+            ccall($intr, llvmcall, $T, (Ref{$T}, $T, $T), ptr, cmp, val)
+    end
+end
 
 # floating-point operations using NVVM intrinsics
 
@@ -165,6 +178,17 @@ end
 
 
 ## documentation
+
+"""
+    atomic_cas!(ptr::DevicePtr{T}, cmp::T, val::T)
+
+Reads the value `old` located at address `ptr` and compare with `cmp`. If `old` equals to
+`cmp`, stores `val` at the same address. Otherwise, doesn't change the value `old`. These
+operations are performed in one atomic transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_cas!
 
 """
     atomic_xchg!(ptr::DevicePtr{T}, val::T)

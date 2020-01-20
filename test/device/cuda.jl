@@ -972,6 +972,20 @@ end
     end
 end
 
+@testset "atomic_cas" begin
+    @testset for T in [Int32, Int64]
+        a = CuArray([zero(T)])
+
+        function kernel(a, b, c)
+            CUDAnative.atomic_cas!(pointer(a), b, c)
+            return
+        end
+
+        @cuda threads=1024 kernel(a, zero(T), one(T))
+        @test Array(a)[1] == one(T)
+    end
+end
+
 end
 
 @testset "atomics (high-level)" begin
