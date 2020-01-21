@@ -43,7 +43,7 @@ function handle()
             # enable tensor math mode if our device supports it, and fast math is enabled
             dev = CUDAdrv.device()
             if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0" && version() >= v"9"
-                cublasSetMathMode(CUBLAS_TENSOR_OP_MATH, handle)
+                cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH)
             end
 
             handle
