@@ -1,0 +1,60 @@
+name: update_manifest
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+
+jobs:
+  update_manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@latest
+      - name: Update packages
+        id: update
+        run: |
+          log=$(julia --project -e "using Pkg; Pkg.update()")
+          log="${log//'%'/'%25'}"
+          log="${log//$'\n'/'%0A'}"
+          log="${log//$'\r'/'%0D'}"
+          echo "::set-output name=log::$log"
+      - name: Get status
+        id: status
+        run: |
+          log=$(julia --project -e "using Pkg; Pkg.status(diff=true)")
+          log="${log//'%'/'%25'}"
+          log="${log//$'\n'/'%0A'}"
+          log="${log//$'\r'/'%0D'}"
+          echo "::set-output name=log::$log"
+      - name: Get Julia version
+        id: version
+        run: |
+          log=$(julia -e "println(Base.VERSION)")
+          echo "::set-output name=log::$log"
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            Update dependencies.
+            ${{ steps.status.outputs.log }}
+          title: Update manifest
+          reviewers: maleadt
+          body: |
+            This pull request updates the manifest for Julia v${{ steps.version.outputs.log }}:
+
+            ```
+            ${{ steps.status.outputs.log }}
+            ```
+
+            <details><summary>Click here for the full update log.</summary>
+            <p>
+
+            ```
+            ${{ steps.update.outputs.log }}
+            ```
+
+            </p>
+            </details>
+          branch: update_manifest
+
