@@ -12,7 +12,7 @@ cpu = rand(Float32, 1024)
 # allocate on the GPU
 gpu = CuArray{Float32}(undef, 1024)
 
-# copy to the CPU
+# copy from the CPU to the GPU
 copyto!(gpu, cpu)
 
 # download and verify
