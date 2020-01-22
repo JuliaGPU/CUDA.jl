@@ -11,6 +11,7 @@ Base.showerror(io::IO, err::CUFFTError) =
 
 name(err::CUFFTError) = string(err.code)
 
+## COV_EXCL_START
 function description(err::CUFFTError)
     if err.code == CUFFT_SUCCESS
         "the operation completed successfully"
@@ -50,6 +51,7 @@ function description(err::CUFFTError)
         "no description for this error"
     end
 end
+## COV_EXCL_STOP
 
 
 ## API call wrapper

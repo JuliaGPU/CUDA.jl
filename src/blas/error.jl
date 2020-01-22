@@ -11,6 +11,7 @@ Base.showerror(io::IO, err::CUBLASError) =
 
 name(err::CUBLASError) = string(err.code)
 
+## COV_EXCL_START
 function description(err)
     if err.code == CUBLAS_STATUS_SUCCESS
         "the operation completed successfully"
@@ -36,6 +37,7 @@ function description(err)
         "no description for this error"
     end
 end
+## COV_EXCL_STOP
 
 
 ## API call wrapper

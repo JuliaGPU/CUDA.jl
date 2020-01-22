@@ -11,6 +11,7 @@ Base.showerror(io::IO, err::CURANDError) =
 
 name(err::CURANDError) = string(err.code)
 
+## COV_EXCL_START
 function description(err)
     if err.code == CURAND_STATUS_SUCCESS
         "generator was created successfully"
@@ -42,6 +43,7 @@ function description(err)
         "no description for this error"
     end
 end
+## COV_EXCL_STOP
 
 
 ## API call wrapper
