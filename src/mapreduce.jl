@@ -1,5 +1,7 @@
 using CuArrays: @cuindex, cudims
 
+## COV_EXCL_START
+
 function mapreducedim_kernel_serial(f, op, R, A, range)
     I = @cuindex R
     newrange = map((r, i) -> r === nothing ? i : r, range, I)
@@ -52,6 +54,8 @@ function mapreducedim_kernel_parallel(f, op, R::CuDeviceArray{T}, A::CuDeviceArr
     end
     return
 end
+
+## COV_EXCL_STOP
 
 function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
     # the kernel as generated from `f` and `op` can require lots of registers (eg. #160),
