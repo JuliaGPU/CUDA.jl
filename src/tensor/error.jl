@@ -11,6 +11,7 @@ Base.showerror(io::IO, err::CUTENSORError) =
 
 name(err::CUTENSORError) = unsafe_string(cutensorGetErrorString(err))
 
+## COV_EXCL_START
 function description(err::CUTENSORError)
     if err.code == CUTENSOR_STATUS_SUCCESS
         "the operation completed successfully"
@@ -44,6 +45,7 @@ function description(err::CUTENSORError)
         "no description for this error"
     end
 end
+## COV_EXCL_STOP
 
 
 ## API call wrapper

@@ -11,6 +11,7 @@ Base.showerror(io::IO, err::CUSOLVERError) =
 
 name(err::CUSOLVERError) = string(err.code)
 
+## COV_EXCL_START
 function description(err)
     if err.code == CUSOLVER_STATUS_SUCCESS
         "the operation completed successfully"
@@ -32,6 +33,7 @@ function description(err)
         "no description for this error"
     end
 end
+## COV_EXCL_STOP
 
 
 ## API call wrapper
