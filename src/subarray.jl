@@ -44,14 +44,14 @@ end
 
 # copyto! doesn't know how to deal with SubArrays, but broadcast does
 # FIXME: use the rules from Adapt.jl to define copyto! methods in GPUArrays.jl
-function Base.copyto!(dest::GPUArray{T,N}, src::SubArray{T,N,<:GPUArray{T}}) where {T,N}
+function Base.copyto!(dest::AbstractGPUArray{T,N}, src::SubArray{T,N,<:AbstractGPUArray{T}}) where {T,N}
     view(dest, axes(src)...) .= src
     dest
 end
 
 # copying to a CPU array requires an intermediate copy
 # TODO: support other copyto! invocations (GPUArrays.jl copyto! defs + Adapt.jl rules)
-function Base.copyto!(dest::AbstractArray{T,N}, src::SubArray{T,N,AT}) where {T,N,AT<:GPUArray{T}}
+function Base.copyto!(dest::AbstractArray{T,N}, src::SubArray{T,N,AT}) where {T,N,AT<:AbstractGPUArray{T}}
     temp = similar(AT, axes(src))
     copyto!(temp, src)
     copyto!(dest, temp)
