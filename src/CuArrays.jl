@@ -18,20 +18,23 @@ using Requires
 
 ## source code includes
 
+# core array functionality
 include("memory.jl")
 include("array.jl")
+include("gpuarrays.jl")
 include("subarray.jl")
-include("permuteddimsarray.jl")
 include("utils.jl")
+
+# integrations and specialized functionality
+include("permuteddimsarray.jl")
 include("indexing.jl")
 include("broadcast.jl")
-include("matmul.jl")
 include("mapreduce.jl")
 include("accumulate.jl")
 include("linalg.jl")
+include("nnlib.jl")
 
-include("gpuarray_interface.jl")
-
+# vendor libraries
 include("blas/CUBLAS.jl")
 include("sparse/CUSPARSE.jl")
 include("solver/CUSOLVER.jl")
@@ -39,8 +42,6 @@ include("fft/CUFFT.jl")
 include("rand/CURAND.jl")
 include("dnn/CUDNN.jl")
 include("tensor/CUTENSOR.jl")
-
-include("nnlib.jl")
 
 include("deprecated.jl")
 

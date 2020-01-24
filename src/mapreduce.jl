@@ -1,5 +1,3 @@
-using CuArrays: @cuindex, cudims
-
 ## COV_EXCL_START
 
 function mapreducedim_kernel_serial(f, op, R, A, range)

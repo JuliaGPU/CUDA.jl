@@ -1,4 +1,4 @@
-mutable struct CuArray{T,N,P} <: GPUArray{T,N}
+mutable struct CuArray{T,N,P} <: AbstractGPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
 

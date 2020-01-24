@@ -173,14 +173,10 @@ end
   x = CuArray{Float64}(undef)
   x .= 1
   @test collect(x)[] == 1
-  if VERSION >= v"1.3-"
-    # broken test that throws
-    # https://github.com/JuliaGPU/GPUArrays.jl/issues/204
-    @test_throws ErrorException x /= 2
-  else
-    x /= 2
-    @test collect(x)[] == 0.5
-  end
+  # broken test that throws
+  # https://github.com/JuliaGPU/GPUArrays.jl/issues/204
+  @test_throws ErrorException x /= 2
+  #@test collect(x)[] == 0.5
 end
 
 @testset "SubArray" begin
