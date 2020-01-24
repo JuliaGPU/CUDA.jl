@@ -1,11 +1,42 @@
 # GPUArrays.jl interface
 
-import GPUArrays
+
+## host
+
+function GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray,
+                                      size::NTuple{N, Integer}) where {T, N}
+  return CuArray{T,N}(convert(CuPtr{T}, A.ptr), size, A)
+end
+
+# execution
 
 struct CuArrayBackend <: AbstractGPUBackend end
 GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
 
 struct CuKernelState end
+
+function GPUArrays._gpu_call(::CuArrayBackend, f, A, args::Tuple,
+                             blocks_threads::Tuple{T, T}) where {N, T <: NTuple{N, Integer}}
+    blk, thr = blocks_threads
+    @cuda blocks=blk threads=thr f(CuKernelState(), args...)
+end
+
+GPUArrays.synchronize(A::CuArray) = CUDAdrv.synchronize()
+
+# device properties
+
+GPUArrays.device(A::CuArray) = CUDAdrv.device(CUDAdrv.CuCurrentContext())
+
+GPUArrays.threads(dev::CUDAdrv.CuDevice) =
+    CUDAdrv.attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+
+# linear algebra
+
+GPUArrays.blas_module(::CuArray) = CuArrays.CUBLAS
+GPUArrays.blasbuffer(x::CuArray) = x
+
+
+## device
 
 @inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{dims}, ::Val{id}
                                       ) where {T, dims, id}
@@ -13,18 +44,7 @@ struct CuKernelState end
     CuDeviceArray(dims, DevicePtr{T, CUDAnative.AS.Shared}(ptr))
 end
 
-@inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
-
-## blas
-
-GPUArrays.blas_module(::CuArray) = CuArrays.CUBLAS
-GPUArrays.blasbuffer(x::CuArray) = x
-
-"""
-Blocks until all operations are finished on `A`
-"""
-GPUArrays.synchronize(A::CuArray) =
-    CUDAdrv.synchronize()
+# indexing
 
 for (i, sym) in enumerate((:x, :y, :z))
     for (f, fcu) in (
@@ -39,22 +59,6 @@ for (i, sym) in enumerate((:x, :y, :z))
     end
 end
 
-# devices() = CUDAdrv.devices()
-GPUArrays.device(A::CuArray) = CUDAdrv.device(CUDAdrv.CuCurrentContext())
+# synchronization
 
-# device properties
-GPUArrays.threads(dev::CUDAdrv.CuDevice) =
-    CUDAdrv.attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-
-function GPUArrays._gpu_call(::CuArrayBackend, f, A, args::Tuple,
-                             blocks_threads::Tuple{T, T}) where {N, T <: NTuple{N, Integer}}
-    blk, thr = blocks_threads
-    @cuda blocks=blk threads=thr f(CuKernelState(), args...)
-end
-
-# Save reinterpret and reshape implementation use this in GPUArrays
-function GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray,
-                                      size::NTuple{N, Integer}) where {T, N}
-
-  return CuArray{T,N}(convert(CuPtr{T}, A.ptr), size, A)
-end
+@inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
