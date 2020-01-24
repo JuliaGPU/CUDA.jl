@@ -1,7 +1,5 @@
 # indexing
 
-using GPUArrays: allowscalar, @allowscalar
-
 
 ## utilities
 

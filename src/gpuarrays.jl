@@ -2,18 +2,16 @@
 
 import GPUArrays
 
-struct CuArrayBackend <: GPUArrays.GPUBackend end
+struct CuArrayBackend <: AbstractGPUBackend end
 GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
 
 struct CuKernelState end
 
-@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{N}, ::Val{id}
-                                      ) where {T, N, id}
-    ptr = CUDAnative._shmem(Val(id), T, Val(prod(N)))
-    CuDeviceArray(N, DevicePtr{T, CUDAnative.AS.Shared}(ptr))
+@inline function GPUArrays.LocalMemory(::CuKernelState, ::Type{T}, ::Val{dims}, ::Val{id}
+                                      ) where {T, dims, id}
+    ptr = CUDAnative._shmem(Val(id), T, Val(prod(dims)))
+    CuDeviceArray(dims, DevicePtr{T, CUDAnative.AS.Shared}(ptr))
 end
-
-GPUArrays.AbstractDeviceArray(A::CUDAnative.CuDeviceArray, shape) = CUDAnative.CuDeviceArray(shape, pointer(A))
 
 @inline GPUArrays.synchronize_threads(::CuKernelState) = CUDAnative.sync_threads()
 
