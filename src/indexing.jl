@@ -130,13 +130,7 @@ end
 ## find*
 
 function Base.findall(bools::CuArray{Bool})
-    I = if VERSION >= v"1.2"
-        keytype(bools)
-    elseif bools isa CuVector
-        Int
-    else
-        CartesianIndex{ndims(bools)}
-    end
+    I = keytype(bools)
     indices = cumsum(reshape(bools, prod(size(bools))))
 
     n = _getindex(indices, length(indices))
@@ -180,11 +174,7 @@ function Base.findall(f::Function, A::CuArray)
 end
 
 function Base.findfirst(testf::Function, xs::CuArray)
-    I = if VERSION >= v"1.2"
-        keytype(xs)
-    else
-        eltype(keys(xs))
-    end
+    I = keytype(xs)
 
     y = CuArray([typemax(Int)])
 
@@ -279,11 +269,7 @@ function Base.findfirst(vals::CuArray, xs::CuArray)
 
     ## convert the linear indices to an appropriate type
 
-    kt = if VERSION >= v"1.2"
-        keytype(xs)
-    else
-        eltype(keys(xs))
-    end
+    kt = keytype(xs)
 
     if kt == Int
         return indices
