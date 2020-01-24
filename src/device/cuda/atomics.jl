@@ -86,12 +86,12 @@ end
 
 # atomic_cas! with integer operations using NVVM intrinsics
 
-ptxtype(::Type{Int32}) = "i32"
-ptxtype(::Type{Int64}) = "i64"
+nvvmtype(::Type{Int32}) = "i32"
+nvvmtype(::Type{Int64}) = "i64"
 
 for A in (AS.Generic, AS.Global, AS.Shared)
     for T in (Int32, Int64)
-        typ = ptxtype(T)
+        typ = nvvmtype(T)
         intr = "llvm.nvvm.atomic.cas.gen.i.sys.$typ.p0$typ"
         @eval @inline atomic_cas!(ptr::DevicePtr{$T,$A}, cmp::$T, val::$T) =
             ccall($intr, llvmcall, $T, (Ref{$T}, $T, $T), ptr, cmp, val)
@@ -210,18 +210,6 @@ for T in [Float32, Float64]
             end
         end
     end
-
-    # @eval @inline function atomic_generic(ptr::DevicePtr{$T,<:$ASs}, args...)
-    #     IT = inttype($T)
-    #     old = Base.unsafe_load(ptr, 1)
-    #     while true
-    #         new = $op(old, val)
-    #         cmp = Core.Intrinsics.bitcast(IT, old)
-    #         new_I = Core.Intrinsics.bitcast(IT, new)
-    #         old = CUDAnative.atomic_cas!(ptr, cmp, new_I)
-    #         old == cmp && return new
-    #     end
-    # end
 end
 
 
@@ -268,9 +256,32 @@ Reads the value `old` located at address `ptr`, computes `old - val`, and stores
 back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float32
+and Float64.
 """
 atomic_sub!
+
+"""
+    atomic_mul!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `*(old, val)`, and stores the
+result back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Float32 andd Float64.
+"""
+atomic_mul!
+
+"""
+    atomic_div!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `/(old, val)`, and stores the
+result back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported for values of type Float32 and Float64.
+"""
+atomic_div!
 
 """
     atomic_and!(ptr::DevicePtr{T}, val::T)
@@ -312,18 +323,20 @@ Reads the value `old` located at address `ptr`, computes `min(old, val)`, and st
 result back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float32
+and Float64.
 """
 atomic_min!
 
 """
     atomic_max!(ptr::DevicePtr{T}, val::T)
 
-Reads the value `old` located at address `ptr`, computes `min(old, val)`, and stores the
+Reads the value `old` located at address `ptr`, computes `max(old, val)`, and stores the
 result back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float32
+and Float64.
 """
 atomic_max!
 
