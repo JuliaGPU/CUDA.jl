@@ -931,7 +931,7 @@ end
 end
 
 @testset "atomic_sub" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64]
+    @testset for T in [Int32, Int64, UInt32, UInt64, Float32, Float64]
         a = CuArray([T(2048)])
 
         function kernel(a, b)
@@ -972,8 +972,82 @@ end
     end
 end
 
+@testset "atomic_xchg" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuArray([zero(T)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_xchg!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=1024 kernel(a, one(T))
+        @test Array(a)[1] == one(T)
+    end
+end
+
+@testset "atomic_and" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuArray([T(1023)])
+
+        function kernel(a, T)
+            i = threadIdx().x - 1
+            k = 1
+            for i = 1:i
+                k *= 2
+            end
+            b = 1023 - k  # 1023 - 2^i
+            CUDAnative.atomic_and!(pointer(a), T(b))
+            return
+        end
+
+        @cuda threads=10 kernel(a, T)
+        @test Array(a)[1] == zero(T)
+    end
+end
+
+@testset "atomic_or" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuArray([zero(T)])
+
+        function kernel(a, T)
+            i = threadIdx().x
+            b = 1  # 2^(i-1)
+            for i = 1:i
+                b *= 2
+            end
+            b /= 2
+            CUDAnative.atomic_or!(pointer(a), T(b))
+            return
+        end
+
+        @cuda threads=10 kernel(a, T)
+        @test Array(a)[1] == T(1023)
+    end
+end
+
+@testset "atomic_xor" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64]
+        a = CuArray([T(1023)])
+
+        function kernel(a, T)
+            i = threadIdx().x
+            b = 1  # 2^(i-1)
+            for i = 1:i
+                b *= 2
+            end
+            b /= 2
+            CUDAnative.atomic_xor!(pointer(a), T(b))
+            return
+        end
+
+        @cuda threads=10 kernel(a, T)
+        @test Array(a)[1] == zero(T)
+    end
+end
+
 @testset "atomic_cas" begin
-    @testset for T in [Int32, Int64]
+    @testset for T in [Int32, Int64, Float32, Float64]
         a = CuArray([zero(T)])
 
         function kernel(a, b, c)
@@ -982,6 +1056,64 @@ end
         end
 
         @cuda threads=1024 kernel(a, zero(T), one(T))
+        @test Array(a)[1] == one(T)
+    end
+end
+
+@testset "atomic_max" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64, Float32, Float64]
+        a = CuArray([zero(T)])
+
+        function kernel(a, T)
+            i = threadIdx().x
+            CUDAnative.atomic_max!(pointer(a), T(i))
+            return
+        end
+
+        @cuda threads=1024 kernel(a, T)
+        @test Array(a)[1] == T(1024)
+    end
+end
+
+@testset "atomic_min" begin
+    @testset for T in [Int32, Int64, UInt32, UInt64, Float32, Float64]
+        a = CuArray([T(1024)])
+
+        function kernel(a, T)
+            i = threadIdx().x
+            CUDAnative.atomic_min!(pointer(a), T(i))
+            return
+        end
+
+        @cuda threads=1024 kernel(a, T)
+        @test Array(a)[1] == one(T)
+    end
+end
+
+@testset "atomic_mul" begin
+    @testset for T in [Float32, Float64]
+        a = CuArray([one(T)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_mul!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=10 kernel(a, T(2))
+        @test Array(a)[1] == T(1024)
+    end
+end
+
+@testset "atomic_div" begin
+    @testset for T in [Float32, Float64]
+        a = CuArray([T(1024)])
+
+        function kernel(a, b)
+            CUDAnative.atomic_div!(pointer(a), b)
+            return
+        end
+
+        @cuda threads=10 kernel(a, T(2))
         @test Array(a)[1] == one(T)
     end
 end
