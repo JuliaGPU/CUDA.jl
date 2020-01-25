@@ -18,6 +18,10 @@ blockdim = 5
     @test size(d_x,1) == m
     @test size(d_x,2) == 1
     @test ndims(d_x)  == 1
+    @test nnz(d_x)    == nnz(x)
+    @test Array(nonzeros(d_x)) == nonzeros(x)
+    @test Array(SparseArrays.nonzeroinds(d_x)) == SparseArrays.nonzeroinds(x)
+    @test nnz(d_x)    == length(nonzeros(d_x))
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
     @test length(d_x) == m*n
@@ -26,6 +30,9 @@ blockdim = 5
     @test size(d_x,2) == n
     @test size(d_x,3) == 1
     @test ndims(d_x)  == 2
+    @test nnz(d_x)    == nnz(x)
+    @test Array(nonzeros(d_x)) == nonzeros(x)
+    @test nnz(d_x)    == length(nonzeros(d_x))
     @test !issymmetric(d_x)
     @test !ishermitian(d_x)
     @test_throws ArgumentError size(d_x,0)
