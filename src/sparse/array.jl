@@ -14,7 +14,7 @@ import LinearAlgebra: BlasFloat, Hermitian, HermOrSym, issymmetric, Transpose, A
     ishermitian, istriu, istril, Symmetric, UpperTriangular, LowerTriangular
 
 using SparseArrays
-import SparseArrays: sparse, SparseMatrixCSC
+import SparseArrays: sparse, SparseMatrixCSC, nnz, nonzeros, nonzeroinds
 
 abstract type AbstractCuSparseArray{Tv, N} <: AbstractSparseArray{Tv, Cint, N} end
 const AbstractCuSparseVector{Tv} = AbstractCuSparseArray{Tv,1}
@@ -165,6 +165,11 @@ function size(g::CuSparseMatrix, d::Integer)
         throw(ArgumentError("dimension must be ≥ 1, got $d"))
     end
 end
+
+nnz(g::AbstractCuSparseArray) = g.nnz
+nonzeros(g::AbstractCuSparseArray) = g.nzVal
+
+nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
 
 issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
 ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
