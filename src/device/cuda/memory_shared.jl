@@ -2,10 +2,6 @@
 
 export @cuStaticSharedMem, @cuDynamicSharedMem
 
-# FIXME: `shmem_id` increment in the macro isn't correct, as multiple parametrically typed
-#        functions will alias the id (but the size might be a parameter). but incrementing in
-#        the @generated function doesn't work, as it is supposed to be pure and identical
-#        invocations will erroneously share (and even cause multiple shmem globals).
 shmem_id = 0
 
 """
@@ -17,12 +13,15 @@ inferable and the dimensions should be constant, or an error will be thrown and 
 generator function will be called dynamically.
 """
 macro cuStaticSharedMem(T, dims)
-    global shmem_id
-    id = shmem_id::Int += 1
+    # FIXME: generating a unique id in the macro is incorrect, as multiple parametrically typed
+    #        functions will alias the id (and the size might be a parameter). but incrementing in
+    #        the @generated function doesn't work, as it is supposed to be pure and identical
+    #        invocations will erroneously share (and even cause multiple shmem globals).
+    id = gensym("static_shmem")
 
     quote
         len = prod($(esc(dims)))
-        ptr = _shmem(Val($id), $(esc(T)), Val(len))
+        ptr = _shmem(Val($(QuoteNode(id))), $(esc(T)), Val(len))
         CuDeviceArray($(esc(dims)), ptr)
     end
 end
@@ -41,14 +40,13 @@ pointer can be specified. This is useful when dealing with a heterogeneous buffe
 shared memory; in the case of a homogeneous multi-part buffer it is preferred to use `view`.
 """
 macro cuDynamicSharedMem(T, dims, offset=0)
-    global shmem_id
-    id = shmem_id::Int += 1
+    id = gensym("dynamic_shmem")
 
     # TODO: boundscheck against %dynamic_smem_size (currently unsupported by LLVM)
 
     quote
         len = prod($(esc(dims)))
-        ptr = _shmem(Val($id), $(esc(T))) + $(esc(offset))
+        ptr = _shmem(Val($(QuoteNode(id))), $(esc(T))) + $(esc(offset))
         CuDeviceArray($(esc(dims)), ptr)
     end
 end
@@ -66,7 +64,7 @@ end
     # create the global variable
     mod = LLVM.parent(llvm_f)
     gv_typ = LLVM.ArrayType(eltyp, len)
-    gv = GlobalVariable(mod, gv_typ, "shmem$id", #=addrspace=# 3)
+    gv = GlobalVariable(mod, gv_typ, safe_fn(string(id)), #=addrspace=# 3)
     if len > 0
         # static shared memory should be demoted to local variables, whenever possible.
         # this is done by the NVPTX ASM printer:
