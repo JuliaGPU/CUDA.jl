@@ -228,7 +228,7 @@ end
 
 
 """
-    prefecth(::UnifiedBuffer, [bytes::Integer]; [device::CuDevice], [stream::CuStream])
+    prefetch(::UnifiedBuffer, [bytes::Integer]; [device::CuDevice], [stream::CuStream])
 
 Prefetches memory to the specified destination device.
 """
