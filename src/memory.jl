@@ -1,6 +1,6 @@
 # Raw memory management
 
-export Mem
+export Mem, memory_type, CUmemorytype, MEMORYTYPE_DEVICE, MEMORYTYPE_HOST, MEMORYTYPE_ARRAY, MEMORYTYPE_UNIFIED
 
 module Mem
 
@@ -347,3 +347,17 @@ available_memory() = Mem.info()[1]
 Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
 """
 total_memory() = Mem.info()[2]
+
+@enum_without_prefix CUDAdrv.CUmemorytype CU_
+
+function memory_type(x::CuPtr)
+    dat = Ref{CUmemorytype}()
+    cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, x)
+    return CUmemorytype(dat[])
+end
+
+function is_managed(x::CuPtr)
+    dat = Ref{UInt32}()
+    cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_IS_MANAGED, x)
+    return convert(Bool, dat[])
+end

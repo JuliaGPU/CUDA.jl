@@ -41,8 +41,8 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     end
     # test the memory-type attribute
     if isa(src, Mem.Device)
-        @test CUDAdrv.memory_type(src.ptr) == CUDAdrv.CU_MEMORYTYPE_DEVICE
-        @test CUDAdrv.memory_type(typed_pointer(src, T)) == CUDAdrv.CU_MEMORYTYPE_DEVICE
+        @test CUDAdrv.memory_type(src.ptr)               == Mem.MEMORYTYPE_DEVICE
+        @test CUDAdrv.memory_type(typed_pointer(src, T)) == Mem.MEMORYTYPE_DEVICE
     end
     # test the is-managed attribute
     if isa(src, Mem.Device)

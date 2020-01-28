@@ -122,15 +122,3 @@ function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
     end
     return Base.bitcast(PtrOrCuPtr{T}, ptr)
 end
-
-function memory_type(x::CuPtr)
-    dat = Ref{CUmemorytype}()
-    cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, x)
-    return dat[]
-end
-
-function is_managed(x::CuPtr)
-    dat = Ref{UInt32}()
-    cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_IS_MANAGED, x)
-    return convert(Bool, dat[])
-end
