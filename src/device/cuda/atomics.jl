@@ -277,8 +277,9 @@ Reads the value `old` located at address `ptr`, computes `old - val`, and stores
 back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float32
-and Float64.
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
+Float64 are supported.
 """
 atomic_sub!
 
@@ -289,7 +290,8 @@ Reads the value `old` located at address `ptr`, computes `*(old, val)`, and stor
 result back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Float32 andd Float64.
+This operation is supported on GPU hardware with compute capability 6.0+ for values of type
+Float32 and Float64.
 """
 atomic_mul!
 
@@ -300,7 +302,8 @@ Reads the value `old` located at address `ptr`, computes `/(old, val)`, and stor
 result back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Float32 and Float64.
+This operation is supported on GPU hardware with compute capability 6.0+ for values of type
+Float32 and Float64.
 """
 atomic_div!
 
@@ -344,8 +347,9 @@ Reads the value `old` located at address `ptr`, computes `min(old, val)`, and st
 result back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float32
-and Float64.
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
+Float64 are supported.
 """
 atomic_min!
 
@@ -356,8 +360,9 @@ Reads the value `old` located at address `ptr`, computes `max(old, val)`, and st
 result back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
-This operation is supported for values of type Int32, Int64, UInt32, UInt64, Float32
-and Float64.
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
+Float64 are supported.
 """
 atomic_max!
 

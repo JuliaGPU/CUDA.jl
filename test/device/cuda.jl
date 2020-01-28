@@ -931,7 +931,10 @@ end
 end
 
 @testset "atomic_sub" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64, Float32, Float64]
+    types = [Int32, Int64, UInt32, UInt64]
+    cap >= v"6.0" && append!(types, [Float32, Float64])
+
+    @testset for T in types
         a = CuArray([T(2048)])
 
         function kernel(a, b)
@@ -1046,6 +1049,8 @@ end
     end
 end
 
+if capability(dev) >= v"6.0"
+
 @testset "atomic_cas" begin
     @testset for T in [Int32, Int64, Float32, Float64]
         a = CuArray([zero(T)])
@@ -1060,8 +1065,13 @@ end
     end
 end
 
+end
+
 @testset "atomic_max" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64, Float32, Float64]
+    types = [Int32, Int64, UInt32, UInt64]
+    cap >= v"6.0" && append!(types, [Float32, Float64])
+
+    @testset for T in types
         a = CuArray([zero(T)])
 
         function kernel(a, T)
@@ -1076,7 +1086,10 @@ end
 end
 
 @testset "atomic_min" begin
-    @testset for T in [Int32, Int64, UInt32, UInt64, Float32, Float64]
+    types = [Int32, Int64, UInt32, UInt64]
+    cap >= v"6.0" && append!(types, [Float32, Float64])
+
+    @testset for T in types
         a = CuArray([T(1024)])
 
         function kernel(a, T)
@@ -1089,6 +1102,8 @@ end
         @test Array(a)[1] == one(T)
     end
 end
+
+if capability(dev) >= v"6.0"
 
 @testset "atomic_mul" begin
     @testset for T in [Float32, Float64]
@@ -1116,6 +1131,8 @@ end
         @cuda threads=10 kernel(a, T(2))
         @test Array(a)[1] == one(T)
     end
+end
+
 end
 
 end
