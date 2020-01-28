@@ -64,7 +64,7 @@ end
     # create the global variable
     mod = LLVM.parent(llvm_f)
     gv_typ = LLVM.ArrayType(eltyp, len)
-    gv = GlobalVariable(mod, gv_typ, safe_fn(string(id)), #=addrspace=# 3)
+    gv = GlobalVariable(mod, gv_typ, safe_name(string(id)), #=addrspace=# 3)
     if len > 0
         # static shared memory should be demoted to local variables, whenever possible.
         # this is done by the NVPTX ASM printer:

@@ -112,7 +112,7 @@ end
 
 @testset "function name mangling" begin
     name = "julia_^"
-    @test CUDAnative.safe_fn(name) != name
+    @test CUDAnative.safe_name(name) != name
 
     @eval @noinline $(Symbol("dummy_^"))(x) = x
 
