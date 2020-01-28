@@ -193,10 +193,10 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     end
 end
 
-# Provide atomic floating-point operations via atomic_cas!
 
-const opnames = Dict{Symbol, Symbol}(:- => :sub, :* => :mul, :/ => :div)
-const ASs = Union{AS.Generic, AS.Global, AS.Shared}
+## Julia
+
+# floating-point CAS via bitcasting
 
 inttype(::Type{T}) where {T<:Integer} = T
 inttype(::Type{Float16}) = Int16
@@ -204,20 +204,24 @@ inttype(::Type{Float32}) = Int32
 inttype(::Type{Float64}) = Int64
 
 for T in [Float32, Float64]
-    @eval @inline function atomic_cas!(ptr::DevicePtr{$T,<:$ASs}, cmp::$T, new::$T)
+    @eval @inline function atomic_cas!(ptr::DevicePtr{$T}, cmp::$T, new::$T)
         IT = inttype($T)
-        cmp_i = Core.Intrinsics.bitcast(IT, cmp)
-        new_i = Core.Intrinsics.bitcast(IT, new)
+        cmp_i = reinterpret(IT, cmp)
+        new_i = reinterpret(IT, new)
         old_i = atomic_cas!(convert(DevicePtr{IT}, ptr), cmp_i, new_i)
-        return Core.Intrinsics.bitcast($T, old_i)
+        return reinterpret($T, old_i)
     end
 end
+
+# floating-point operations via atomic_cas!
+
+const opnames = Dict{Symbol, Symbol}(:- => :sub, :* => :mul, :/ => :div)
 
 for T in [Float32, Float64]
     for op in [:-, :*, :/, :max, :min]
         opname = get(opnames, op, op)
         fn = Symbol("atomic_$(opname)!")
-        @eval @inline function $fn(ptr::DevicePtr{$T,<:$ASs}, val::$T)
+        @eval @inline function $fn(ptr::DevicePtr{$T}, val::$T)
             old = Base.unsafe_load(ptr, 1)
             while true
                 cmp = old
