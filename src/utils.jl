@@ -20,3 +20,8 @@ function current_capability()
         return maximum(target_support[])
     end
 end
+
+# make function names safe for PTX
+safe_name(fn::String) = replace(fn, r"[^A-Za-z0-9_]"=>"_")
+safe_name(f::Core.Function) = safe_name(String(nameof(f)))
+safe_name(f::LLVM.Function) = safe_name(LLVM.name(f))
