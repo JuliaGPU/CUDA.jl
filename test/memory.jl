@@ -39,6 +39,20 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     if isa(src, Mem.Device) || isa(src, Mem.Unified)
         Mem.set!(typed_pointer(src, T), zero(T), N)
     end
+    # test the memory-type attribute
+    if isa(src, Mem.Device)
+        @test CUDAdrv.memory_type(src.ptr) == CUDAdrv.CU_MEMORYTYPE_DEVICE
+        @test CUDAdrv.memory_type(typed_pointer(src, T)) == CUDAdrv.CU_MEMORYTYPE_DEVICE
+    end
+    # test the is-managed attribute
+    if isa(src, Mem.Device)
+        @test !CUDAdrv.is_managed(typed_pointer(src, T))
+        @test !CUDAdrv.is_managed(src.ptr)
+    end
+    if isa(src, Mem.Unified) 
+        @test CUDAdrv.is_managed(typed_pointer(src, T))
+        @test CUDAdrv.is_managed(src.ptr)
+    end
 
     Mem.free(src)
     Mem.free(dst)
