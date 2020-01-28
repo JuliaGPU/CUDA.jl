@@ -7,7 +7,6 @@
 # TODO:
 # - scoped atomics: _system and _block versions (see CUDA programming guide, sm_60+)
 #   https://github.com/Microsoft/clang/blob/86d4513d3e0daa4d5a29b0b1de7c854ca15f9fe5/test/CodeGen/builtins-nvptx.c#L293
-# - atomic_cas!
 
 ## LLVM
 
@@ -21,8 +20,7 @@
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
 
-@generated function llvm_atomic(::Val{binop}, ptr::DevicePtr{T,A}, val::T, ::Val{ordering}) where
-                               {binop, T, A, ordering}
+@generated function llvm_atomic_op(::Val{binop}, ptr::DevicePtr{T,A}, val::T) where {binop, T, A}
     T_val = convert(LLVMType, T)
     T_ptr = convert(LLVMType, DevicePtr{T,A})
     T_actual_ptr = LLVM.PointerType(T_val)
@@ -37,7 +35,7 @@
 
         rv = atomic_rmw!(builder, binop,
                          actual_ptr, parameters(llvm_f)[2],
-                         ordering, #=single_threaded=# false)
+                         acquire_release, #=single_threaded=# false)
 
         ret!(builder, rv)
     end
@@ -60,8 +58,9 @@ const binops = Dict(
 
 # all atomic operations have acquire and/or release semantics,
 # depending on whether they load or store values (mimics Base)
-const aquire = LLVM.API.LLVMAtomicOrderingAcquire
-const aquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+const acquire = LLVM.API.LLVMAtomicOrderingAcquire
+const release = LLVM.API.LLVMAtomicOrderingRelease
+const acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
@@ -78,8 +77,38 @@ for T in (Int32, Int64, UInt32, UInt64)
 
         fn = Symbol("atomic_$(op)!")
         @eval @inline $fn(ptr::DevicePtr{$T,<:$ASs}, val::$T) =
-            llvm_atomic($(Val(binops[rmw])), ptr, val, Val(aquire_release))
+            llvm_atomic_op($(Val(binops[rmw])), ptr, val)
     end
+end
+
+@generated function llvm_atomic_cas(ptr::DevicePtr{T,A}, cmp::T, val::T) where {T, A}
+    T_val = convert(LLVMType, T)
+    T_ptr = convert(LLVMType, DevicePtr{T,A})
+    T_actual_ptr = LLVM.PointerType(T_val)
+
+    llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
+
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
+        position!(builder, entry)
+
+        actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+
+        res = atomic_cmpxchg!(builder, actual_ptr, parameters(llvm_f)[2],
+                              parameters(llvm_f)[3], acquire_release, acquire,
+                              #=single threaded=# false)
+
+        rv = extract_value!(builder, res, 0)
+
+        ret!(builder, rv)
+    end
+
+    call_function(llvm_f, T, Tuple{DevicePtr{T,A}, T, T}, :((ptr,cmp,val)))
+end
+
+for T in (Int32, Int64, UInt32, UInt64)
+    @eval @inline atomic_cas!(ptr::DevicePtr{$T}, cmp::$T, val::$T) =
+        llvm_atomic_cas(ptr, cmp, val)
 end
 
 
@@ -164,7 +193,58 @@ for A in (AS.Generic, AS.Global, AS.Shared)
 end
 
 
+## Julia
+
+# floating-point CAS via bitcasting
+
+inttype(::Type{T}) where {T<:Integer} = T
+inttype(::Type{Float16}) = Int16
+inttype(::Type{Float32}) = Int32
+inttype(::Type{Float64}) = Int64
+
+for T in [Float32, Float64]
+    @eval @inline function atomic_cas!(ptr::DevicePtr{$T}, cmp::$T, new::$T)
+        IT = inttype($T)
+        cmp_i = reinterpret(IT, cmp)
+        new_i = reinterpret(IT, new)
+        old_i = atomic_cas!(convert(DevicePtr{IT}, ptr), cmp_i, new_i)
+        return reinterpret($T, old_i)
+    end
+end
+
+# floating-point operations via atomic_cas!
+
+const opnames = Dict{Symbol, Symbol}(:- => :sub, :* => :mul, :/ => :div)
+
+for T in [Float32, Float64]
+    for op in [:-, :*, :/, :max, :min]
+        opname = get(opnames, op, op)
+        fn = Symbol("atomic_$(opname)!")
+        @eval @inline function $fn(ptr::DevicePtr{$T}, val::$T)
+            old = Base.unsafe_load(ptr, 1)
+            while true
+                cmp = old
+                new = $op(old, val)
+                old = atomic_cas!(ptr, cmp, new)
+                (old == cmp) && return new
+            end
+        end
+    end
+end
+
+
 ## documentation
+
+"""
+    atomic_cas!(ptr::DevicePtr{T}, cmp::T, val::T)
+
+Reads the value `old` located at address `ptr` and compare with `cmp`. If `old` equals to
+`cmp`, stores `val` at the same address. Otherwise, doesn't change the value `old`. These
+operations are performed in one atomic transaction. The function returns `old`.
+
+This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+"""
+atomic_cas!
 
 """
     atomic_xchg!(ptr::DevicePtr{T}, val::T)
@@ -197,8 +277,34 @@ back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
+Float64 are supported.
 """
 atomic_sub!
+
+"""
+    atomic_mul!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `*(old, val)`, and stores the
+result back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported on GPU hardware with compute capability 6.0+ for values of type
+Float32 and Float64.
+"""
+atomic_mul!
+
+"""
+    atomic_div!(ptr::DevicePtr{T}, val::T)
+
+Reads the value `old` located at address `ptr`, computes `/(old, val)`, and stores the
+result back to memory at the same address. These operations are performed in one atomic
+transaction. The function returns `old`.
+
+This operation is supported on GPU hardware with compute capability 6.0+ for values of type
+Float32 and Float64.
+"""
+atomic_div!
 
 """
     atomic_and!(ptr::DevicePtr{T}, val::T)
@@ -241,17 +347,21 @@ result back to memory at the same address. These operations are performed in one
 transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
+Float64 are supported.
 """
 atomic_min!
 
 """
     atomic_max!(ptr::DevicePtr{T}, val::T)
 
-Reads the value `old` located at address `ptr`, computes `min(old, val)`, and stores the
+Reads the value `old` located at address `ptr`, computes `max(old, val)`, and stores the
 result back to memory at the same address. These operations are performed in one atomic
 transaction. The function returns `old`.
 
 This operation is supported for values of type Int32, Int64, UInt32 and UInt64.
+Additionally, on GPU hardware with compute capability 6.0+, values of type Float32 and
+Float64 are supported.
 """
 atomic_max!
 
