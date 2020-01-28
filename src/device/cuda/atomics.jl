@@ -20,8 +20,8 @@
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
 
-@generated function llvm_atomic(::Val{binop}, ptr::DevicePtr{T,A}, val::T, ::Val{ordering}) where
-                               {binop, T, A, ordering}
+@generated function llvm_atomic_op(::Val{binop}, ptr::DevicePtr{T,A}, val::T, ::Val{ordering}) where
+                                  {binop, T, A, ordering}
     T_val = convert(LLVMType, T)
     T_ptr = convert(LLVMType, DevicePtr{T,A})
     T_actual_ptr = LLVM.PointerType(T_val)
@@ -77,26 +77,43 @@ for T in (Int32, Int64, UInt32, UInt64)
 
         fn = Symbol("atomic_$(op)!")
         @eval @inline $fn(ptr::DevicePtr{$T,<:$ASs}, val::$T) =
-            llvm_atomic($(Val(binops[rmw])), ptr, val, Val(aquire_release))
+            llvm_atomic_op($(Val(binops[rmw])), ptr, val, Val(aquire_release))
     end
+end
+
+@generated function llvm_atomic_cas(ptr::DevicePtr{T,A}, cmp::T, val::T, ::Val{ordering}) where
+                                   {T, A, ordering}
+    T_val = convert(LLVMType, T)
+    T_ptr = convert(LLVMType, DevicePtr{T,A})
+    T_actual_ptr = LLVM.PointerType(T_val)
+
+    llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
+
+    Builder(JuliaContext()) do builder
+        entry = BasicBlock(llvm_f, "entry", JuliaContext())
+        position!(builder, entry)
+
+        actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+
+        res = atomic_cmpxchg!(builder, actual_ptr, parameters(llvm_f)[2],
+                              parameters(llvm_f)[3], ordering, aquire,
+                              #=single threaded=# false)
+
+        rv = extract_value!(builder, res, 0)
+
+        ret!(builder, rv)
+    end
+
+    call_function(llvm_f, T, Tuple{DevicePtr{T,A}, T, T}, :((ptr,cmp,val)))
+end
+
+for T in (Int32, Int64, UInt32, UInt64)
+    @eval @inline atomic_cas!(ptr::DevicePtr{$T}, cmp::$T, val::$T) =
+        llvm_atomic_cas(ptr, cmp, val, Val(aquire_release))
 end
 
 
 ## NVVM
-
-# atomic_cas! with integer operations using NVVM intrinsics
-
-nvvmtype(::Type{Int32}) = "i32"
-nvvmtype(::Type{Int64}) = "i64"
-
-for A in (AS.Generic, AS.Global, AS.Shared)
-    for T in (Int32, Int64)
-        typ = nvvmtype(T)
-        intr = "llvm.nvvm.atomic.cas.gen.i.sys.$typ.p0$typ"
-        @eval @inline atomic_cas!(ptr::DevicePtr{$T,$A}, cmp::$T, val::$T) =
-            ccall($intr, llvmcall, $T, (Ref{$T}, $T, $T), ptr, cmp, val)
-    end
-end
 
 # floating-point operations using NVVM intrinsics
 
