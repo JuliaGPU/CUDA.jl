@@ -20,8 +20,7 @@
 # > - The pointer must be either a global pointer, a shared pointer, or a generic pointer
 # >   that points to either the global address space or the shared address space.
 
-@generated function llvm_atomic_op(::Val{binop}, ptr::DevicePtr{T,A}, val::T, ::Val{ordering}) where
-                                  {binop, T, A, ordering}
+@generated function llvm_atomic_op(::Val{binop}, ptr::DevicePtr{T,A}, val::T) where {binop, T, A}
     T_val = convert(LLVMType, T)
     T_ptr = convert(LLVMType, DevicePtr{T,A})
     T_actual_ptr = LLVM.PointerType(T_val)
@@ -36,7 +35,7 @@
 
         rv = atomic_rmw!(builder, binop,
                          actual_ptr, parameters(llvm_f)[2],
-                         ordering, #=single_threaded=# false)
+                         acquire_release, #=single_threaded=# false)
 
         ret!(builder, rv)
     end
@@ -59,8 +58,9 @@ const binops = Dict(
 
 # all atomic operations have acquire and/or release semantics,
 # depending on whether they load or store values (mimics Base)
-const aquire = LLVM.API.LLVMAtomicOrderingAcquire
-const aquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+const acquire = LLVM.API.LLVMAtomicOrderingAcquire
+const release = LLVM.API.LLVMAtomicOrderingRelease
+const acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
@@ -77,12 +77,11 @@ for T in (Int32, Int64, UInt32, UInt64)
 
         fn = Symbol("atomic_$(op)!")
         @eval @inline $fn(ptr::DevicePtr{$T,<:$ASs}, val::$T) =
-            llvm_atomic_op($(Val(binops[rmw])), ptr, val, Val(aquire_release))
+            llvm_atomic_op($(Val(binops[rmw])), ptr, val)
     end
 end
 
-@generated function llvm_atomic_cas(ptr::DevicePtr{T,A}, cmp::T, val::T, ::Val{ordering}) where
-                                   {T, A, ordering}
+@generated function llvm_atomic_cas(ptr::DevicePtr{T,A}, cmp::T, val::T) where {T, A}
     T_val = convert(LLVMType, T)
     T_ptr = convert(LLVMType, DevicePtr{T,A})
     T_actual_ptr = LLVM.PointerType(T_val)
@@ -96,7 +95,7 @@ end
         actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
         res = atomic_cmpxchg!(builder, actual_ptr, parameters(llvm_f)[2],
-                              parameters(llvm_f)[3], ordering, aquire,
+                              parameters(llvm_f)[3], acquire_release, acquire,
                               #=single threaded=# false)
 
         rv = extract_value!(builder, res, 0)
@@ -109,7 +108,7 @@ end
 
 for T in (Int32, Int64, UInt32, UInt64)
     @eval @inline atomic_cas!(ptr::DevicePtr{$T}, cmp::$T, val::$T) =
-        llvm_atomic_cas(ptr, cmp, val, Val(aquire_release))
+        llvm_atomic_cas(ptr, cmp, val)
 end
 
 
