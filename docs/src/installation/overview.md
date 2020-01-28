@@ -11,6 +11,86 @@ To make sure you have everything set-up, you can try executing some of the appli
 the driver and toolkit provide. On Linux, you can verify driver availability by executing
 `nvidia-smi`, and you have installed CUDA successfully if you can execute `ptxas --version`.
 
+## Installation of CUDA toolkit
+If you had problem installing CUDA, we will guide you through the process:
+
+- System Requirements
+  -------------------
+
+  - Check if your system has [CUDA-capable GPU](https://developer.nvidia.com/cuda-gpus) or by entering `lspci | grep -i nvidia`. If you don't see anything, update PCI hardware database by `update-pciids` and re-run the previous `lspci` command.
+
+  - Check if you have supported version of linux by entering `uname -m` and `cat /etc/*release`.
+
+  - Check if the system has correct Kernel Headers and Development Packages installed by entering `uname -r`. If not installed, then you can install them by `sudo apt-get install linux-headers-$(uname -r)` on Ubuntu. For other linux distributions check the installation page.
+
+  - Check if your [GCC version](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html) `gcc --version` is compatible with the version of CUDA toolkit you are about to install.
+
+    - If you don't have compatible GCC version, then you can either build from source (not recommended) or follow the below mentioned steps:
+
+      - `sudo apt-get install gcc-xx g++-xx cc-xx`
+      - `sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-x 100 --slave /usr/bin/g++ g++ /usr/bin/g++-x`
+      - `sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-xx 50 --slave /usr/bin/g++ g++ /usr/bin/g++-xx`
+
+  - If any previous NVIDIA CUDA toolkit or drivers are present purge them by:
+
+  `sudo apt-get remove --purge '^nvidia-.*'`
+  `sudo /usr/local/cuda-X.Y/bin/uninstall_cuda_X.Y.pl`
+  `sudo /usr/bin/nvidia-uninstall`
+  `sudo apt-get --purge remove <package_name>`
+
+  - If Nouveau drivers are present, then disable them otherwise it will create problems while downloading NVIDIA drivers by:
+
+  `sudo stop lightdm`
+  Create a file:
+  `sudo nano /etc/modprobe.d/blacklist-nouveau.conf`
+  Write both the lines in the file:
+  `blacklist nouveau`
+  `options nouveau modeset=0`
+  Then update the initramfs and don't forget to reboot:
+  `sudo update-initramfs -u`
+  `sudo reboot`
+
+  - Check for the NVIDIA drivers availability by executing `nvidia-smi`. If driver is not installed then you can find for your [compatible driver version](https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver) and [download](https://www.nvidia.com/Download/index.aspx) and install it. If any propriety drivers are in use, it is strongly recommend not to use any of those.
+
+- Download CUDA Toolkit
+  ---------------------
+
+  - Download the [CUDA toolkit](https://developer.nvidia.com/cuda-downloads). It is recommended to use distribution-specific packages (RPM and Deb packages) rather than distribution-independent packages(runfile packages). Distribution-independent packages has the advantage of working across a wider set of linux distributions but doesn't update the distribution's native package management system. Follow the mentioned instructions to install CUDA and then follow the EULA instructions.
+
+- Post-Installation
+  -----------------
+
+- Add the path of installed CUDA package to the PATH variable:
+
+`export PATH=/usr/local/cuda-10.2/bin:/usr/local/cuda-10.2/NsightCompute-2019.1${PATH:+:${PATH}}`
+
+- Change the environment variables for 32-bit/64-bit operating systems:
+
+`export LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib64\${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}`
+
+or
+
+`export LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib\${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}`
+
+- Install Writable Samples:
+
+`cuda-install-samples-10.2.sh <dir>`
+
+- Verify the installation:
+
+  - Verify the driver version
+  
+  `cat /proc/driver/nvidia/version`
+
+  - Compiling the examples
+
+  `nvcc -V` to check the version of CUDA Toolkit.
+  `cd ~/NVIDIA_CUDA-10.2_Samples`
+  `make`
+
+  - Running the binaries
+
+  `./deviceQuery` If Result = PASS appears then CUDA is installed properly.
 
 ## CUDA discovery
 
