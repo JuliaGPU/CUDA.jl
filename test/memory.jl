@@ -42,22 +42,36 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
 
     # test the memory-type attribute
     if isa(src, Mem.Device)
-        @test CUDAdrv.memory_type(src.ptr)               == CUDAdrv.MEMORYTYPE_DEVICE
         @test CUDAdrv.memory_type(typed_pointer(src, T)) == CUDAdrv.MEMORYTYPE_DEVICE
+    elseif isa(src, Mem.Host)
+        @test CUDAdrv.memory_type(convert(Ptr{T}, src)) == CUDAdrv.MEMORYTYPE_HOST
+    elseif isa(src, Mem.Unified)
+        # unified memory can reside in either place
+        # FIXME: does this depend on the current migration, or on the configuration?
+        @test CUDAdrv.memory_type(convert(CuPtr{T}, src)) == CUDAdrv.MEMORYTYPE_HOST ||
+              CUDAdrv.memory_type(convert(CuPtr{T}, src)) == CUDAdrv.MEMORYTYPE_DEVICE ||
+        @test CUDAdrv.memory_type(convert(CuPtr{T}, src)) == CUDAdrv.memory_type(convert(Ptr{T}, src))
     end
 
     # test the is-managed attribute
-    if isa(src, Mem.Device)
-        @test !CUDAdrv.is_managed(typed_pointer(src, T))
-        @test !CUDAdrv.is_managed(src.ptr)
-    end
     if isa(src, Mem.Unified)
-        @test CUDAdrv.is_managed(typed_pointer(src, T))
-        @test CUDAdrv.is_managed(src.ptr)
+        @test CUDAdrv.is_managed(convert(Ptr{T}, src))
+        @test CUDAdrv.is_managed(convert(CuPtr{T}, src))
+    else
+        @test !CUDAdrv.is_managed(typed_pointer(src, T))
     end
 
     Mem.free(src)
     Mem.free(dst)
+end
+
+# pointer attributes
+let
+    src = Mem.alloc(Mem.Device, nb)
+
+    attribute!(typed_pointer(src, T), CUDAdrv.POINTER_ATTRIBUTE_SYNC_MEMOPS, 0)
+
+    Mem.free(src)
 end
 
 # asynchronous operations
@@ -84,10 +98,12 @@ let
 
     # get the CPU address and copy some data
     cpu_ptr = convert(Ptr{T}, src)
+    @test CUDAdrv.memory_type(cpu_ptr) == CUDAdrv.MEMORYTYPE_HOST
     unsafe_copyto!(cpu_ptr, pointer(data), N)
 
     # get the GPU address and construct a fake device buffer
     gpu_ptr = convert(CuPtr{Cvoid}, src)
+    @test CUDAdrv.memory_type(gpu_ptr) == CUDAdrv.MEMORYTYPE_HOST
     gpu_obj = Mem.alloc(Mem.Device, nb)
     dst = similar(gpu_obj, gpu_ptr)
     Mem.free(gpu_obj)

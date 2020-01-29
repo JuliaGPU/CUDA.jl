@@ -1,6 +1,6 @@
 # Raw memory management
 
-export Mem, memory_type, is_managed
+export Mem, attribute, attribute!, memory_type, is_managed
 
 module Mem
 
@@ -346,16 +346,34 @@ total_memory() = Mem.info()[2]
 
 ## pointer attributes
 
+"""
+    attribute(ptr::Union{Ptr,CuPtr}, attr)
+
+Returns information about the pointer.
+"""
+function attribute(ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute) where {T}
+    ptr = reinterpret(CuPtr{T}, ptr)
+    data_ref = Ref{Cint}()
+    cuPointerGetAttribute(data_ref, attr, ptr)
+    return data_ref[]
+end
+
+"""
+    attribute!(ptr::Union{Ptr,CuPtr}, attr, val)
+
+Sets an attribute about a pointer to `val`.
+"""
+function attribute!(ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute, val) where {T}
+    ptr = reinterpret(CuPtr{T}, ptr)
+    cuPointerSetAttribute(Ref(val), attr, ptr)
+    return
+end
+
+@enum_without_prefix CUpointer_attribute CU_
+
+# some common attributes
+
 @enum_without_prefix CUmemorytype CU_
+memory_type(x) = CUmemorytype(attribute(x, POINTER_ATTRIBUTE_MEMORY_TYPE))
 
-function memory_type(x)
-    dat = Ref{CUmemorytype}()
-    cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, x)
-    return CUmemorytype(dat[])
-end
-
-function is_managed(x)
-    dat = Ref{UInt32}()
-    cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_IS_MANAGED, x)
-    return convert(Bool, dat[])
-end
+is_managed(x) = convert(Bool, attribute(x, POINTER_ATTRIBUTE_IS_MANAGED))
