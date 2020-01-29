@@ -152,7 +152,7 @@ specified, the buffer will also be accessible directly from the GPU. These acces
 direct, and go through the PCI bus.
 """
 function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
-    bytesize == 0 && throw(ArgumentError())
+    bytesize == 0 && throw(ArgumentError("Cannot register an empty range of memory."))
 
     CUDAdrv.cuMemHostRegister(ptr, bytesize, flags)
 
