@@ -6,19 +6,6 @@
 using Base.Cartesian
 
 
-## non-asserting indexing
-
-function _getindex(xs::CuArray{T}, i::Integer) where T
-  buf = Array{T}(undef)
-  copyto!(buf, 1, xs, i, 1)
-  buf[]
-end
-
-function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
-  copyto!(xs, i, T[v], 1, 1)
-end
-
-
 ## logical indexing
 
 Base.getindex(xs::CuArray, bools::AbstractArray{Bool}) = getindex(xs, CuArray(bools))
@@ -27,7 +14,7 @@ function Base.getindex(xs::CuArray{T}, bools::CuArray{Bool}) where {T}
   bools = reshape(bools, prod(size(bools)))
   indices = cumsum(bools)  # unique indices for elements that are true
 
-  n = _getindex(indices, length(indices))  # number that are true
+  n = @allowscalar indices[end]  # number that are true
   ys = CuArray{T}(undef, n)
 
   if n > 0
@@ -66,7 +53,7 @@ function Base.findall(bools::CuArray{Bool})
     I = keytype(bools)
     indices = cumsum(reshape(bools, prod(size(bools))))
 
-    n = _getindex(indices, length(indices))
+    n = @allowscalar indices[end]
     ys = CuArray{I}(undef, n)
 
     if n > 0
@@ -132,7 +119,7 @@ function Base.findfirst(testf::Function, xs::CuArray)
 
     @cuda name="findfirst" config=configurator kernel(y, xs)
 
-    first_i = _getindex(y, 1)
+    first_i = @allowscalar y[1]
     return keys(xs)[first_i]
 end
 
