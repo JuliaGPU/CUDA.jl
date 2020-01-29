@@ -80,7 +80,7 @@ Base.show(io::IO, err::CuError) = print(io, "CuError($(err.code))")
 
 # define shorthands that give CuError objects
 for code in instances(cudaError_enum)
-    name = String(Symbol(code))
+    local name = String(Symbol(code))
     shorthand = Symbol(name[6:end]) # strip the CUDA_ prefix
     @eval const $shorthand = CuError($code)
 end
