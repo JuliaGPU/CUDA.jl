@@ -1,6 +1,6 @@
 # Raw memory management
 
-export Mem
+export Mem, attribute, attribute!, memory_type, is_managed
 
 module Mem
 
@@ -318,11 +318,6 @@ for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr, Ptr),
 end
 
 
-
-#
-# utilities
-#
-
 ## memory info
 
 function info()
@@ -332,7 +327,7 @@ function info()
     return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 
-end
+end # module Mem
 
 """
     available_memory()
@@ -347,3 +342,38 @@ available_memory() = Mem.info()[1]
 Returns the total amount of memory (in bytes), available for allocation by the CUDA context.
 """
 total_memory() = Mem.info()[2]
+
+
+## pointer attributes
+
+"""
+    attribute(ptr::Union{Ptr,CuPtr}, attr)
+
+Returns information about the pointer.
+"""
+function attribute(ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute) where {T}
+    ptr = reinterpret(CuPtr{T}, ptr)
+    data_ref = Ref{Cint}()
+    cuPointerGetAttribute(data_ref, attr, ptr)
+    return data_ref[]
+end
+
+"""
+    attribute!(ptr::Union{Ptr,CuPtr}, attr, val)
+
+Sets an attribute about a pointer to `val`.
+"""
+function attribute!(ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute, val) where {T}
+    ptr = reinterpret(CuPtr{T}, ptr)
+    cuPointerSetAttribute(Ref(val), attr, ptr)
+    return
+end
+
+@enum_without_prefix CUpointer_attribute CU_
+
+# some common attributes
+
+@enum_without_prefix CUmemorytype CU_
+memory_type(x) = CUmemorytype(attribute(x, POINTER_ATTRIBUTE_MEMORY_TYPE))
+
+is_managed(x) = convert(Bool, attribute(x, POINTER_ATTRIBUTE_IS_MANAGED))
