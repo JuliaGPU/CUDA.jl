@@ -78,9 +78,9 @@ k = 1
         A = rand(elty,n,n)
         B = rand(elty,n,n)
         C = A \ B
-        A = CuArray(A)
-        B = CuArray(B)
-        @test C ≈ A \ B
+        d_A = CuArray(A)
+        d_B = CuArray(B)
+        @test C ≈ Array(d_A \ d_B)
     end
 
     @testset "geqrf!" begin
