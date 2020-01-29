@@ -59,9 +59,9 @@ function RNNDesc{T}(mode::cudnnRNNMode_t, input::Int, hidden::Int; layers = 1) w
 end
 
 function setweights!(d::RNNDesc, Wi, Wh, b)
-  copy_transpose!(d.weights[1], Wi)
-  copy_transpose!(d.weights[2], Wh)
-  copy_transpose!(d.bias, b)
+  transpose!(d.weights[1], Wi)
+  transpose!(d.weights[2], Wh)
+  transpose!(d.bias, b)
   return
 end
 
