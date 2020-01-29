@@ -1,7 +1,7 @@
 module CUSOLVER
 
 using ..CuArrays
-using ..CuArrays: _getindex, unsafe_free!, @argout, @workspace
+using ..CuArrays: @allowscalar, unsafe_free!, @argout, @workspace
 
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t

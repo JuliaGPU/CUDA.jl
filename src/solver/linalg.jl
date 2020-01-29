@@ -57,7 +57,7 @@ function Base.getindex(A::CuQRPackedQ{T, S}, i::Integer, j::Integer) where {T, S
     x = CuArrays.zeros(T, size(A, 2))
     x[j] = 1
     lmul!(A, x)
-    return _getindex(x, i)
+    return @allowscalar x[i]
 end
 
 function Base.show(io::IO, F::CuQR)

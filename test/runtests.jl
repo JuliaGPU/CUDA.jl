@@ -17,11 +17,6 @@ include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 
 testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
-import CuArrays: allowscalar, @allowscalar
-allowscalar(false)
-
-CuArrays.enable_timings()
-
 # pick a suiteable device (by available memory,
 # but also by capability if testing needs to be thorough)
 candidates = [(dev=dev,
@@ -39,6 +34,10 @@ pick = last(candidates)
 device!(pick.dev)
 
 @testset "CuArrays" begin
+
+CuArrays.allowscalar(false)
+
+CuArrays.enable_timings()
 
 @testset "GPUArrays test suite" begin
   TestSuite.test(CuArray)

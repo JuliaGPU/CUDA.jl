@@ -5,84 +5,6 @@
 
 using Base.Cartesian
 
-function cudims(n::Integer)
-  threads = min(n, 256)
-  ceil(Int, n / threads), threads
-end
-
-cudims(a::AbstractArray) = cudims(length(a))
-
-# COV_EXCL_START
-@inline ind2sub_(a::AbstractArray{T,0}, i) where T = ()
-@inline ind2sub_(a, i) = Tuple(CartesianIndices(a)[i])
-
-macro cuindex(A)
-  quote
-    A = $(esc(A))
-    i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-    i > length(A) && return
-    ind2sub_(A, i)
-  end
-end
-
-@generated function nindex(i::T, ls::NTuple{N,T}) where {N,T}
-  na = one(i)
-  quote
-    Base.@_inline_meta
-    $(foldr((n, els) -> :(i ≤ ls[$n] ? ($n, i) : (i -= ls[$n]; $els)), :($na, $na), one(i):i(N)))
-  end
-end
-
-@inline function catindex(dim, I::NTuple{N}, shapes) where N
-  @inbounds x, i = nindex(I[dim], getindex.(shapes, dim))
-  x, ntuple(n -> n == dim ? i : I[n], Val{N})
-end
-# COV_EXCL_STOP
-
-function growdims(dim, x)
-  if ndims(x) >= dim
-    x
-  else
-    reshape(x, size.((x,), 1:dim)...)
-  end
-end
-
-function _cat(dim, dest, xs...)
-  function kernel(dim, dest, xs)
-    I = @cuindex dest
-    @inbounds n, I′ = catindex(dim, Int.(I), size.(xs))
-    @inbounds dest[I...] = xs[n][I′...]
-    return
-  end
-  xs = growdims.(dim, xs)
-  blk, thr = cudims(dest)
-  @cuda blocks=blk threads=thr kernel(dim, dest, xs)
-  return dest
-end
-
-function Base.cat_t(dims::Integer, T::Type, x::CuArray, xs::CuArray...)
-  catdims = Base.dims2cat(dims)
-  shape = Base.cat_shape(catdims, (), size.((x, xs...))...)
-  dest = Base.cat_similar(x, T, shape)
-  _cat(dims, dest, x, xs...)
-end
-
-Base.vcat(xs::CuArray...) = cat(xs..., dims=1)
-Base.hcat(xs::CuArray...) = cat(xs..., dims=2)
-
-
-## non-asserting indexing
-
-function _getindex(xs::CuArray{T}, i::Integer) where T
-  buf = Array{T}(undef)
-  copyto!(buf, 1, xs, i, 1)
-  buf[]
-end
-
-function _setindex!(xs::CuArray{T}, v::T, i::Integer) where T
-  copyto!(xs, i, T[v], 1, 1)
-end
-
 
 ## logical indexing
 
@@ -92,7 +14,7 @@ function Base.getindex(xs::CuArray{T}, bools::CuArray{Bool}) where {T}
   bools = reshape(bools, prod(size(bools)))
   indices = cumsum(bools)  # unique indices for elements that are true
 
-  n = _getindex(indices, length(indices))  # number that are true
+  n = @allowscalar indices[end]  # number that are true
   ys = CuArray{T}(undef, n)
 
   if n > 0
@@ -131,7 +53,7 @@ function Base.findall(bools::CuArray{Bool})
     I = keytype(bools)
     indices = cumsum(reshape(bools, prod(size(bools))))
 
-    n = _getindex(indices, length(indices))
+    n = @allowscalar indices[end]
     ys = CuArray{I}(undef, n)
 
     if n > 0
@@ -197,7 +119,7 @@ function Base.findfirst(testf::Function, xs::CuArray)
 
     @cuda name="findfirst" config=configurator kernel(y, xs)
 
-    first_i = _getindex(y, 1)
+    first_i = @allowscalar y[1]
     return keys(xs)[first_i]
 end
 

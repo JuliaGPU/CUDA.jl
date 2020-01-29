@@ -1,14 +1,5 @@
 ## COV_EXCL_START
 
-function mapreducedim_kernel_serial(f, op, R, A, range)
-    I = @cuindex R
-    newrange = map((r, i) -> r === nothing ? i : r, range, I)
-    for I′ in CartesianIndices(newrange)
-        @inbounds R[I...] = op(R[I...], f(A[I′]))
-    end
-    return
-end
-
 @inline function reduce_block(arr::CuDeviceArray, op)
     sync_threads()
     len = blockDim().x
@@ -84,15 +75,8 @@ function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
                     ceil(Int, block_threads.total/y_thr),
                     ceil(Int, kernel_threads/y_thr))
 
-        if x_thr >= 8
-            blk, thr = (Rlength - 1) ÷ y_thr + 1, (x_thr, y_thr, 1)
-            parallel_kernel(parallel_kargs...; threads=thr, blocks=blk)
-        else
-            # not enough work, fall back to serial reduction
-            range = ifelse.(length.(axes(R)) .== 1, axes(A), nothing)
-            blk, thr = cudims(R)
-            @cuda(blocks=blk, threads=thr, mapreducedim_kernel_serial(f, op, R, A, range))
-        end
+        blk, thr = (Rlength - 1) ÷ y_thr + 1, (x_thr, y_thr, 1)
+        parallel_kernel(parallel_kargs...; threads=thr, blocks=blk)
     end
 
     return R

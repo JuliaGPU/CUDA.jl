@@ -286,9 +286,9 @@ for (bname, fname,elty) in ((:cusolverDnSpotrf_bufferSize, :cusolverDnSpotrf, :F
                     $fname(dense_handle(), cuuplo, n, A, lda, buffer, length(buffer), devinfo)
                 end
 
-            info = BlasInt(_getindex(devinfo, 1))
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            chkargsok(info)
+            chkargsok(BlasInt(info))
 
             A, info
         end
@@ -316,7 +316,7 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
             devinfo = CuArray{Cint}(undef, 1)
             $fname(dense_handle(), cuuplo, n, nrhs, A, lda, B, ldb, devinfo)
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             chkargsok(BlasInt(info))
 
@@ -343,7 +343,7 @@ for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :F
                     $fname(dense_handle(), m, n, A, lda, buffer, devipiv, devinfo)
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -373,7 +373,7 @@ for (bname, fname,elty) in ((:cusolverDnSgeqrf_bufferSize, :cusolverDnSgeqrf, :F
                 $fname(dense_handle(), m, n, A, lda, tau, buffer, length(buffer), devinfo)
             end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -404,7 +404,7 @@ for (bname, fname,elty) in ((:cusolverDnSsytrf_bufferSize, :cusolverDnSsytrf, :F
                     $fname(dense_handle(), cuuplo, n, A, lda, devipiv, buffer, length(buffer), devinfo)
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -442,7 +442,7 @@ for (fname,elty) in ((:cusolverDnSgetrs, :Float32),
             devinfo = CuArray{Cint}(undef, 1)
             $fname(dense_handle(), cutrans, n, nrhs, A, lda, ipiv, B, ldb, devinfo)
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -492,7 +492,7 @@ for (bname, fname, elty) in ((:cusolverDnSormqr_bufferSize, :cusolverDnSormqr, :
                         buffer, length(buffer), devinfo)
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -522,7 +522,7 @@ for (bname, fname, elty) in ((:cusolverDnSorgqr_bufferSize, :cusolverDnSorgqr, :
                     $fname(dense_handle(), m, n, k, A, lda, tau, buffer, length(buffer), devinfo)
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -559,7 +559,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgebrd_bufferSize, :cusolverDnSg
                     $fname(dense_handle(), m, n, A, lda, D, E, TAUQ, TAUP, buffer, length(buffer), devinfo)
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -614,7 +614,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvd_bufferSize, :cusolverDnSg
                 end
             unsafe_free!(rwork)
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -671,7 +671,7 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                         work, sizeof(work), devinfo, params[])
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -707,7 +707,7 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
                         buffer, length(buffer), devinfo)
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -754,7 +754,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
                         buffer, length(buffer), devinfo)
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
@@ -807,7 +807,7 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
                         buffer, length(buffer), devinfo, params[])
                 end
 
-            info = _getindex(devinfo, 1)
+            info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
             if info < 0
                 throw(ArgumentError("The $(info)th parameter is wrong"))
