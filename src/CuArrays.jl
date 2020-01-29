@@ -26,7 +26,6 @@ include("subarray.jl")
 include("utils.jl")
 
 # integrations and specialized functionality
-include("permuteddimsarray.jl")
 include("indexing.jl")
 include("broadcast.jl")
 include("mapreduce.jl")

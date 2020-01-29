@@ -336,13 +336,6 @@ end
     end
 end
 
-@testset "permutedims" begin
-    @test testf(x->permutedims(x, [1, 2]), rand(4, 4))
-
-    inds = rand(1:100, 150, 150)
-    @test testf(x->permutedims(view(x, inds, :), (3, 2, 1)), rand(100, 100))
-end
-
 @testset "findall" begin
     # 1D
     @test testf(x->findall(x), rand(Bool, 100))
