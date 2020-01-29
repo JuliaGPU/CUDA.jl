@@ -1,6 +1,6 @@
 # Raw memory management
 
-export Mem, memory_type, CUmemorytype, MEMORYTYPE_DEVICE, MEMORYTYPE_HOST, MEMORYTYPE_ARRAY, MEMORYTYPE_UNIFIED
+export Mem, memory_type, is_managed
 
 module Mem
 
@@ -318,11 +318,6 @@ for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr, Ptr),
 end
 
 
-
-#
-# utilities
-#
-
 ## memory info
 
 function info()
@@ -332,7 +327,7 @@ function info()
     return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 
-end
+end # module Mem
 
 """
     available_memory()
@@ -348,7 +343,10 @@ Returns the total amount of memory (in bytes), available for allocation by the C
 """
 total_memory() = Mem.info()[2]
 
-@enum_without_prefix CUDAdrv.CUmemorytype CU_
+
+## pointer attributes
+
+@enum_without_prefix CUmemorytype CU_
 
 function memory_type(x::CuPtr)
     dat = Ref{CUmemorytype}()
