@@ -347,13 +347,14 @@ total_memory() = Mem.info()[2]
 ## pointer attributes
 
 """
-    attribute(ptr::Union{Ptr,CuPtr}, attr)
+    attribute(X, ptr::Union{Ptr,CuPtr}, attr)
 
-Returns information about the pointer.
+Returns attribute `attr` about pointer `ptr`. The type of the returned value depends on the
+attribute, and as such must be passed as the `X` parameter.
 """
-function attribute(ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute) where {T}
+function attribute(X::Type, ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute) where {T}
     ptr = reinterpret(CuPtr{T}, ptr)
-    data_ref = Ref{Cint}()
+    data_ref = Ref{X}()
     cuPointerGetAttribute(data_ref, attr, ptr)
     return data_ref[]
 end
@@ -361,7 +362,7 @@ end
 """
     attribute!(ptr::Union{Ptr,CuPtr}, attr, val)
 
-Sets an attribute about a pointer to `val`.
+Sets attribute` attr` on a pointer `ptr` to `val`.
 """
 function attribute!(ptr::Union{Ptr{T},CuPtr{T}}, attr::CUpointer_attribute, val) where {T}
     ptr = reinterpret(CuPtr{T}, ptr)
@@ -374,6 +375,6 @@ end
 # some common attributes
 
 @enum_without_prefix CUmemorytype CU_
-memory_type(x) = CUmemorytype(attribute(x, POINTER_ATTRIBUTE_MEMORY_TYPE))
+memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE))
 
-is_managed(x) = convert(Bool, attribute(x, POINTER_ATTRIBUTE_IS_MANAGED))
+is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
