@@ -348,13 +348,13 @@ total_memory() = Mem.info()[2]
 
 @enum_without_prefix CUmemorytype CU_
 
-function memory_type(x::CuPtr)
+function memory_type(x)
     dat = Ref{CUmemorytype}()
     cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, x)
     return CUmemorytype(dat[])
 end
 
-function is_managed(x::CuPtr)
+function is_managed(x)
     dat = Ref{UInt32}()
     cuPointerGetAttribute(dat, CU_POINTER_ATTRIBUTE_IS_MANAGED, x)
     return convert(Bool, dat[])
