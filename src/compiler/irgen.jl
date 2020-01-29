@@ -136,10 +136,13 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
         elseif Base.JLOptions().debug_level >= 2
             LLVM.API.LLVMDebugEmissionKindFullDebug
         end
-        if LLVM.version() < v"9.0"
-            # NOTE: corresponding warning in __init__
+
+        #if CUDAdrv.version() < v"10.2"
+            # FIXME: LLVM's debug info crashes CUDA
+            # FIXME: this ought to be fixed on 10.2?
             debug_info_kind = LLVM.API.LLVMDebugEmissionKindNoDebug
-        end
+        #end
+
         push!(param_kwargs, :debug_info_kind => Cint(debug_info_kind))
     end
     params = Base.CodegenParams(;param_kwargs...)
