@@ -86,6 +86,8 @@ debug:
     - .test
   tags:
     - nvidia
+  variables:
+    JULIA_DEBUG: 'CUDAnative'
   script:
     - julia --project -g2 -e 'using Pkg;
                               Pkg.instantiate();
