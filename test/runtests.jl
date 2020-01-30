@@ -55,9 +55,11 @@ include("dnn.jl")
 include("tensor.jl")
 include("forwarddiff.jl")
 
-CuArrays.memory_status()
-CuArrays.pool_timings()
-CuArrays.alloc_timings()
+if haskey(ENV, "CI")
+  CuArrays.memory_status()
+  CuArrays.pool_timings()
+  CuArrays.alloc_timings()
+end
 
 CuArrays.reset_timers!()
 
