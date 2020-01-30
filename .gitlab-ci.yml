@@ -100,7 +100,9 @@ debug:
 #       that means we have to manually install CuArrays' test dependencies though.
 
 cuarrays:
-  extends: .julia:1.3
+  extends:
+    - .julia:1.3
+    - .test
   tags:
     - nvidia
   image: nvidia/cuda:10.1-devel
@@ -120,7 +122,9 @@ cuarrays:
 # other tasks
 
 precompile:
-  extends: .julia:1.3
+  extends:
+    - .julia:1.3
+    - .test
   image: ubuntu:bionic
   script:
     - julia --project -e 'using Pkg;
