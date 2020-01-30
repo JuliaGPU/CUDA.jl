@@ -242,6 +242,9 @@ end
   @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(2,2))
   ## inability to copyto! smaller destination
   @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(3,3))
+
+  # but in conversion of indices (#506)
+  show(devnull, cu(view(ones(1), [1])))
 end
 
 @testset "reshape" begin
