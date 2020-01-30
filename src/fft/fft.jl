@@ -1,6 +1,8 @@
 # integration with AbstractFFTs.jl
 
-import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!,
+@reexport using AbstractFFTs
+
+import AbstractFFTs: plan_fft, plan_fft!, plan_bfft, plan_bfft!, plan_ifft,
     plan_rfft, plan_brfft, plan_inv, normalization, fft, bfft, ifft, rfft,
     Plan, ScaledPlan
 
