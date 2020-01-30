@@ -55,6 +55,11 @@ end
 @generated function _shmem(::Val{id}, ::Type{T}, ::Val{len}=Val(0)) where {id,T,len}
     eltyp = convert(LLVMType, T)
 
+    # old versions of GPUArrays invoke _shmem with an integer id; make sure those are unique
+    if !isa(id, String) || !isa(id, Symbol)
+        id = "shmem$id"
+    end
+
     T_ptr = convert(LLVMType, DevicePtr{T,AS.Shared})
     T_actual_ptr = LLVM.PointerType(eltyp)
 
