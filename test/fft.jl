@@ -4,7 +4,7 @@ using CuArrays.CUFFT
 
 using CUDAdrv
 
-using FFTW
+import FFTW
 
 # notes:
 #   plan_bfft does not need separate testing since it is used by plan_ifft

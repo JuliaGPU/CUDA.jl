@@ -12,6 +12,8 @@ using CUDAnative
 
 using CEnum
 
+using Reexport
+
 const libcufft = Ref("libcufft")
 
 # core library
