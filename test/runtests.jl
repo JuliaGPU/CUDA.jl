@@ -92,6 +92,6 @@ else
     end
 end
 
-CUDAnative.timings()
+haskey(ENV, "CI") && CUDAnative.timings()
 
 end
