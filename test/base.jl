@@ -39,9 +39,10 @@ end
   @test cu(1:3) === 1:3
   @test Base.elsize(xs) == sizeof(Int)
   @test CuArray{Int, 2}(xs) === xs
-  @test cu(Array{Float64,1}) == CuArray{Float64,1, Nothing}
-  @test cu(Array{Float64,4}) == CuArray{Float64,4, Nothing}
-  @test cu(Array{Float64}) == CuArray{Float64}
+
+  # test aggressive conversion to Float32, but only for floats
+  @test cu([1]) isa AbstractArray{Int}
+  @test cu(Float64[1]) isa AbstractArray{Float32}
 
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
@@ -241,6 +242,9 @@ end
   @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(2,2))
   ## inability to copyto! smaller destination
   @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(3,3))
+
+  # but in conversion of indices (#506)
+  show(devnull, cu(view(ones(1), [1])))
 end
 
 @testset "reshape" begin
