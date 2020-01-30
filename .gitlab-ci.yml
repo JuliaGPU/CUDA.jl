@@ -68,7 +68,9 @@ platform:arm64:
 
 cudanative:
   image: nvidia/cuda:10.1-devel
-  extends: .julia:1.2
+  extends:
+    - .julia:1.2
+    - .test
   tags:
     - nvidia
   script:
@@ -84,7 +86,9 @@ cudanative:
 # other tasks
 
 precompile:
-  extends: .julia:1.2
+  extends:
+    - .julia:1.2
+    - .test
   variables:
     NVIDIA_VISIBLE_DEVICES: ''
     NVIDIA_DRIVER_CAPABILITIES: ''
