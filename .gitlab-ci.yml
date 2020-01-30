@@ -62,6 +62,37 @@ platform:arm64:
     - nvidia-arm64
 
 
+# special tests
+
+precompile:
+  extends:
+    - .julia:1.2
+    - .test
+  variables:
+    NVIDIA_VISIBLE_DEVICES: ''
+    NVIDIA_DRIVER_CAPABILITIES: ''
+  script:
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build();
+                          Pkg.API.precompile()'
+    - julia --project -e 'using CUDAdrv'
+
+debug:
+  extends:
+    - .julia:1.2
+    - .test
+  tags:
+    - nvidia
+  variables:
+    JULIA_DEBUG: 'CUDAdrv'
+  script:
+    - julia --project -g2 -e 'using Pkg;
+                              Pkg.instantiate();
+                              Pkg.build();
+                              Pkg.test(; coverage=true);'
+
+
 # reverse tests
 
 # NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
@@ -84,20 +115,6 @@ cudanative:
 
 
 # other tasks
-
-precompile:
-  extends:
-    - .julia:1.2
-    - .test
-  variables:
-    NVIDIA_VISIBLE_DEVICES: ''
-    NVIDIA_DRIVER_CAPABILITIES: ''
-  script:
-    - julia --project -e 'using Pkg;
-                          Pkg.instantiate();
-                          Pkg.build();
-                          Pkg.API.precompile()'
-    - julia --project -e 'using CUDAdrv'
 
 coverage:
   extends:
