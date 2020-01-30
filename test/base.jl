@@ -39,9 +39,6 @@ end
   @test cu(1:3) === 1:3
   @test Base.elsize(xs) == sizeof(Int)
   @test CuArray{Int, 2}(xs) === xs
-  @test cu(Array{Float64,1}) == CuArray{Float64,1, Nothing}
-  @test cu(Array{Float64,4}) == CuArray{Float64,4, Nothing}
-  @test cu(Array{Float64}) == CuArray{Float64}
 
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
