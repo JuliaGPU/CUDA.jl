@@ -233,13 +233,18 @@ Adapt.adapt_storage(::CUDAnative.Adaptor, xs::CuArray{T,N}) where {T,N} =
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
 
-Adapt.adapt_storage(::Type{<:CuArray}, xs::AbstractArray) =
+Adapt.adapt_storage(::Type{CuArray}, xs::AbstractArray) =
   isbits(xs) ? xs : convert(CuArray, xs)
 
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray{<:Real}) where T <: AbstractFloat =
+# aggressively convert arrays of floats to float32
+Adapt.adapt_storage(::Type{CuArray}, xs::AbstractArray{<:AbstractFloat}) =
+  isbits(xs) ? xs : convert(CuArray{Float32}, xs)
+
+# if an element type is specified, convert to it
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray) where {T} =
   isbits(xs) ? xs : convert(CuArray{T}, xs)
 
-Adapt.adapt_storage(::Type{<:Array}, xs::CuArray) = convert(Array, xs)
+Adapt.adapt_storage(::Type{Array}, xs::CuArray) = convert(Array, xs)
 
 Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
@@ -311,7 +316,7 @@ end
 
 ## utilities
 
-cu(xs) = adapt(CuArray{Float32}, xs)
+cu(xs) = adapt(CuArray, xs)
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
 
 zeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 0)

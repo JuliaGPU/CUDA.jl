@@ -40,6 +40,10 @@ end
   @test Base.elsize(xs) == sizeof(Int)
   @test CuArray{Int, 2}(xs) === xs
 
+  # test aggressive conversion to Float32, but only for floats
+  @test cu([1]) isa AbstractArray{Int}
+  @test cu(Float64[1]) isa AbstractArray{Float32}
+
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
 
