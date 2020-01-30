@@ -56,7 +56,7 @@ julia:nightly:
 
 platform:arm64:
   extends:
-    - .julia:1.2
+    - .julia:1.3
     - .test
   tags:
     - nvidia-arm64
@@ -66,7 +66,7 @@ platform:arm64:
 
 precompile:
   extends:
-    - .julia:1.2
+    - .julia:1.3
     - .test
   variables:
     NVIDIA_VISIBLE_DEVICES: ''
@@ -80,7 +80,7 @@ precompile:
 
 debug:
   extends:
-    - .julia:1.2
+    - .julia:1.3
     - .test
   tags:
     - nvidia
@@ -100,7 +100,7 @@ debug:
 cudanative:
   image: nvidia/cuda:10.1-devel
   extends:
-    - .julia:1.2
+    - .julia:1.3
     - .test
   tags:
     - nvidia
@@ -118,12 +118,12 @@ cudanative:
 
 coverage:
   extends:
-    - .julia:1.2
+    - .julia:1.3
     - .coverage
 
 documentation:
   extends:
-    - .julia:1.2
+    - .julia:1.3
     - .documentation
   tags:
     - nvidia
