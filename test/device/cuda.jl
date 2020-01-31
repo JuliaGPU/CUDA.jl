@@ -20,7 +20,7 @@
 
     @testset "range metadata" begin
         foobar() = threadIdx().x
-        ir = sprint(io->CUDAnative.code_llvm(io, foobar, Tuple{}))
+        ir = sprint(io->CUDAnative.code_llvm(io, foobar, Tuple{}; raw=true))
 
         @test occursin(r"call .+ @llvm.nvvm.read.ptx.sreg.tid.x.+ !range", ir)
     end
