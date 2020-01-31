@@ -32,21 +32,21 @@ See also: [`@device_code_llvm`](@ref), InteractiveUtils.code_llvm
 """
 function code_llvm(io::IO, @nospecialize(func), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=false,
-                   optimize::Bool=true, raw::Bool=false,
+                   optimize::Bool=true, raw::Bool=false, debuginfo::Symbol=:default,
                    dump_module::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
     job = CompilerJob(func, tt, cap, kernel; kwargs...)
-    code_llvm(io, job; optimize=optimize,
-              raw=raw, dump_module=dump_module, strict=strict)
+    code_llvm(io, job; optimize=optimize, raw=raw, debuginfo=debuginfo,
+              dump_module=dump_module, strict=strict)
 end
 function code_llvm(io::IO, job::CompilerJob; optimize::Bool=true, raw::Bool=false,
-                   dump_module::Bool=false, strict::Bool=false)
-    ir, entry = codegen(:llvm, job; optimize=optimize, strip=!raw, strict=strict)
-    if dump_module
-        show(io, ir)
-    else
-        show(io, entry)
-    end
+                   debuginfo::Symbol=:default, dump_module::Bool=false, strict::Bool=false)
+    # NOTE: jl_dump_function_ir supports stripping metadata, so don't do it in the driver
+    ir, entry = codegen(:llvm, job; optimize=optimize, strip=false, strict=strict)
+    str = ccall(:jl_dump_function_ir, Ref{String},
+                (Ptr{Cvoid}, Bool, Bool, Ptr{UInt8}),
+                LLVM.ref(entry), !raw, dump_module, debuginfo)
+    print(io, str)
 end
 code_llvm(@nospecialize(func), @nospecialize(types); kwargs...) =
     code_llvm(stdout, func, types; kwargs...)
