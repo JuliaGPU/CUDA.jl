@@ -170,16 +170,6 @@ end
   @test testf(x -> reduce(|, x, init=false), map(t -> t > 0.5, cu(rand(2, 3))))
 end
 
-@testset "0D" begin
-  x = CuArray{Float64}(undef)
-  x .= 1
-  @test collect(x)[] == 1
-  # broken test that throws
-  # https://github.com/JuliaGPU/GPUArrays.jl/issues/204
-  @test_throws ErrorException x /= 2
-  #@test collect(x)[] == 0.5
-end
-
 @testset "SubArray" begin
   @test testf(rand(5)) do x
     y = x[2:4]

@@ -1,25 +1,29 @@
-import Base.Broadcast: Broadcasted, Extruded, BroadcastStyle, ArrayStyle
+# broadcasting
 
-BroadcastStyle(::Type{<:CuArray}) = ArrayStyle{CuArray}()
+using Base.Broadcast: BroadcastStyle, Broadcasted
 
-function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}) where T
+struct CuArrayStyle{N} <: AbstractGPUArrayStyle{N} end
+CuArrayStyle(::Val{N}) where N = CuArrayStyle{N}()
+CuArrayStyle{M}(::Val{N}) where {N,M} = CuArrayStyle{N}()
+
+BroadcastStyle(::Type{<:CuArray{T,N}}) where {T,N} = CuArrayStyle{N}()
+
+Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}) where {N,T} =
     similar(CuArray{T}, axes(bc))
-end
 
-function Base.similar(bc::Broadcasted{ArrayStyle{CuArray}}, ::Type{T}, dims...) where {T}
-    similar(CuArray{T}, dims...)
-end
+Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}, dims...) where {N,T} =
+    CuArray{T}(undef, dims...)
 
-# replace base functions with libdevice alternatives
-# TODO: do this with Cassette.jl
+
+## replace base functions with libdevice alternatives
 
 cufunc(f) = f
 cufunc(::Type{T}) where T = (x...) -> T(x...) # broadcasting type ctors isn't GPU compatible
 
-Broadcast.broadcasted(::ArrayStyle{CuArray}, f, args...) =
-  Broadcasted{ArrayStyle{CuArray}}(cufunc(f), args, nothing)
+Broadcast.broadcasted(::CuArrayStyle{N}, f, args...) where {N} =
+  Broadcasted{CuArrayStyle{N}}(cufunc(f), args, nothing)
 
-libdevice = :[
+const libdevice = :[
   cos, cospi, sin, sinpi, tan, acos, asin, atan,
   cosh, sinh, tanh, acosh, asinh, atanh,
   log, log10, log1p, log2, logb, ilogb,
@@ -40,7 +44,8 @@ for f in libdevice
   @eval cufunc(::typeof(Base.$f)) = CUDAnative.$f
 end
 
-#broadcast ^
+# broadcast ^
+
 culiteral_pow(::typeof(^), x::T, ::Val{0}) where {T<:Real} = one(x)
 culiteral_pow(::typeof(^), x::T, ::Val{1}) where {T<:Real} = x
 culiteral_pow(::typeof(^), x::T, ::Val{2}) where {T<:Real} = x * x
