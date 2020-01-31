@@ -61,7 +61,7 @@ end
 function setweights!(d::RNNDesc, Wi, Wh, b)
   transpose!(d.weights[1], Wi)
   transpose!(d.weights[2], Wh)
-  transpose!(d.bias, b)
+  copyto!(d.bias, b)
   return
 end
 
