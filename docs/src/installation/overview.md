@@ -7,90 +7,115 @@ should be manually installed. If you are a Linux user, you should consider insta
 dependencies using a package manager instead of downloading them from the NVIDIA homepage;
 refer to your distribution's documentation for more details.
 
+[CUDA installation docs](https://docs.nvidia.com/cuda/index.html#installation-guides) are the best source and step-by-step guide for CUDA toolkit and driver installation.
+
+CUDA toolkit consists of two main components:
+
+- the CUDA runtime development libraries
+- the driver components
+
+The driver components are further divided into:
+
+- the kernel mode components (the 'display' driver)
+- the user mode components (the CUDA driver, the OpenGL driver, etc.)
+
+The interlink between CUDA runtime libraries and CUDA driver (especially `libcuda.so`) forces the user to update the entire driver stack to use the latest CUDA software. Starting with CUDA 10.0, NVIDIA introduced a new forward-compatible upgrade path that allows the kernel mode components on the system to remain untouched, while the CUDA driver is upgraded and the path minimizes the risks associated with new driver deployments. Both the CUDA driver and the CUDA runtime are not source compatible across the different SDK releases. APIs can be deprecated and removed, requiring changes to the application. Although driver APIs can change, they are versioned so they will function on a minimum supported driver.
+
+The CUDA Toolkit can be installed using either of two different installation mechanisms:
+
+- distribution-specific packages (RPM and Deb packages)
+
+The Package Manager installation interfaces with your system's package management system. If those packages are available in an online repository, they will be automatically downloaded in a later step. Otherwise, the repository package also installs a local repository containing the installation packages on the system. 
+
+- distribution-independent package (runfile packages)
+
+The Runfile installation installs the NVIDIA Driver, the CUDA Toolkit, and CUDA Samples, via an interactive ncurses-based interface. The Runfile installation does not include support for cross-platform development. 
+
+The distribution-independent package has the advantage of working across a wider set of Linux distributions, but does not update the distribution's native package management system. The distribution-specific packages interface with the distribution's native package management system. It is recommended to use the distribution-specific packages, where possible.
+
+`lsmod` formats the contents of the `/proc/modules`, showing what kernel modules are currently loaded. `lsmod | grep nvidia` shows which all NVIDIA modules are loaded. If not then you need to install the NVIDIA driver.
+
+Before that check for your GPU by executing `nvidia-smi`. Find the appropriate driver for your GPU. `dmesg` obtains its data by reading the kernel ring buffer and is useful when troubleshooting or obtaining information about the hardware on a system. If the `dmesg` doesn't contain any information about NVIDIA then you need to add another driver.
+
+You need to install the NVIDIA driver before installing the CUDA toolkit. Before installing the driver, exit the X server and terminate all OpenGL applications. You should also set the default run level on your system such that it will boot to a VGA console, and not directly to X. Doing so will make it easier to recover if there is a problem during the installation process. If NVIDIA installer is being installed on a system that is set up to use the Nouveau driver, then you should first disable it. Build dependencies of nvidia-installer including `ncurses pciutils`. `nvidia-installer` will install itself to `/usr/bin/nvidia-installer`, which may be used to uninstall drivers, auto-download updated drivers. NVIDIA drivers can be downloaded from the [NVIDIA website](http://www.nvidia.com). Check [NVIDIA driver installation documentation](https://download.nvidia.com/XFree86/Linux-x86_64/410.104/README/introduction.html) for further details.
+
+User interface shared libraries are built into `nvidia-installer` to avoid potential problems with
+the installer not being able to find the user interface libraries (or finding the wrong ones, etc) after the shared library is built, the utility `gen-ui-array` is run on it to create a source file storing a byte array of the data that is the shared library.  When the installer runs, it writes this byte data to a temporary file and then `dlopens()` it. It contains source for a simple tool `mkprecompiled`, which is a standalone utility that can be used to build a precompiled kernel interface package independently of `nvidia-installer` and is used for stamping nv-linux.o's (aka the kernel interfaces) with the necessary information so that the installer can match it to a running kernel. `nvidia-installer` can automate the process of building a precompiled kernel interface package when used with the installer's `--add-this-kernel` option.
+
 To make sure you have everything set-up, you can try executing some of the applications that
 the driver and toolkit provide. On Linux, you can verify driver availability by executing
-`nvidia-smi`, and you have installed CUDA successfully if you can execute `ptxas --version`.
+`nvidia-smi`, and you have installed CUDA successfully if you can execute `ptxas --version` or `nvcc -V` and if doesn't display anything, you need to install CUDA toolkit.
 
-## Installation of CUDA toolkit
-If you had problem installing CUDA, we will guide you through the process:
+If you are still not sure if CUDA is installed and PATH is set, try running a C hello world program in CUDA which is as follows:
 
-- System Requirements
-  -------------------
+```
+#include<stdio.h>
+__global__ void cuda_hello(){
+    printf("Hello World from GPU!\n");
+}
 
-  - Check if your system has [CUDA-capable GPU](https://developer.nvidia.com/cuda-gpus) or by entering `lspci | grep -i nvidia`. If you don't see anything, update PCI hardware database by `update-pciids` and re-run the previous `lspci` command.
+int main() {
+    cuda_hello<<<1,1>>>(); 
+    return 0;
+}
 
-  - Check if you have supported version of linux by entering `uname -m` and `cat /etc/*release`.
+```
+Compile it by executing `nvcc hello.cu -o hello` in a bourne shell. If the program compiles without any errors, then CUDA is installed properly in your system.
 
-  - Check if the system has correct Kernel Headers and Development Packages installed by entering `uname -r`. If not installed, then you can install them by `sudo apt-get install linux-headers-$(uname -r)` on Ubuntu. For other linux distributions check the installation page.
+JULIA uses the CUDA driver to compile PTX code to GPU assembly, whereas nvcc does this upfront. So even though your CUDA set-up might work fine with CUDA C, it doesn't with CUDAnative because of using JIT compiling code with the driver. CUDA also needs to be compatible with `sm_20` for the specific GPU-architecture on the system.
 
-  - Check if your [GCC version](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html) `gcc --version` is compatible with the version of CUDA toolkit you are about to install.
+In case there is not enough GPU cards available, you can submit passive jobs, using `sbatch`. You can compile CUDA applications on a node without GPU, using the same modules. Reserve a node with one GPU for interactive development, load the necessary modules, and save them for a quick restore.
+```
 
-    - If you don't have compatible GCC version, then you can either build from source (not recommended) or follow the below mentioned steps:
+> srun -p gpu  -n1 -c1 --gres=gpu:1 --pty bash -i
+$ module av cuda compiler/gcc
+$ module load compiler/LLVM system/CUDA
+$ nvidia-smi
+$ module save cuda
 
-      - `sudo apt-get install gcc-xx g++-xx cc-xx`
-      - `sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-x 100 --slave /usr/bin/g++ g++ /usr/bin/g++-x`
-      - `sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-xx 50 --slave /usr/bin/g++ g++ /usr/bin/g++-xx`
+```
 
-  - If any previous NVIDIA CUDA toolkit or drivers are present purge them by:
+Below is an example of `sbatch` file : 
 
-  `sudo apt-get remove --purge '^nvidia-.*'`
-  `sudo /usr/local/cuda-X.Y/bin/uninstall_cuda_X.Y.pl`
-  `sudo /usr/bin/nvidia-uninstall`
-  `sudo apt-get --purge remove <package_name>`
+```
 
-  - If Nouveau drivers are present, then disable them otherwise it will create problems while downloading NVIDIA drivers by:
+#!/bin/bash -l
+#SBATCH --job-name="GPU build"
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-core=1
+#SBATCH --time=0-00:10:00
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --qos=qos-gpu
 
-  `sudo stop lightdm`
-  Create a file:
-  `sudo nano /etc/modprobe.d/blacklist-nouveau.conf`
-  Write both the lines in the file:
-  `blacklist nouveau`
-  `options nouveau modeset=0`
-  Then update the initramfs and don't forget to reboot:
-  `sudo update-initramfs -u`
-  `sudo reboot`
+if [ -z "$1" ]
+then
+    echo "Missing required source (.cu), and optional execution arguments."
+    exit
+fi
 
-  - Check for the NVIDIA drivers availability by executing `nvidia-smi`. If driver is not installed then you can find for your [compatible driver version](https://docs.nvidia.com/deploy/cuda-compatibility/index.html#binary-compatibility__table-toolkit-driver) and [download](https://www.nvidia.com/Download/index.aspx) and install it. If any propriety drivers are in use, it is strongly recommend not to use any of those.
+src=${1}
+exe=$(basename ${1/cu/out})
+ptx=$(basename ${1/cu/ptx})
+prf=$(basename ${1/cu/prof})
+shift
+args=$*
 
-- Download CUDA Toolkit
-  ---------------------
+# after the module profile is saved (see above)
+module restore cuda
 
-  - Download the [CUDA toolkit](https://developer.nvidia.com/cuda-downloads). It is recommended to use distribution-specific packages (RPM and Deb packages) rather than distribution-independent packages(runfile packages). Distribution-independent packages has the advantage of working across a wider set of linux distributions but doesn't update the distribution's native package management system. Follow the mentioned instructions to install CUDA and then follow the EULA instructions.
+# compile
+srun nvcc -arch=compute_70 -o ./$exe $src
+# save ptx
+srun nvcc -ptx -arch=compute_70 -o ./$ptx $src
+# execute
+srun ./$exe $args
+# profile
+srun nvprof --log-file ./$prf ./$exe $args
+echo "file: $prf"
+cat ./$prf
 
-- Post-Installation
-  -----------------
-
-- Add the path of installed CUDA package to the PATH variable:
-
-`export PATH=/usr/local/cuda-10.2/bin:/usr/local/cuda-10.2/NsightCompute-2019.1${PATH:+:${PATH}}`
-
-- Change the environment variables for 32-bit/64-bit operating systems:
-
-`export LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib64\${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}`
-
-or
-
-`export LD_LIBRARY_PATH=/usr/local/cuda-10.2/lib\${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}`
-
-- Install Writable Samples:
-
-`cuda-install-samples-10.2.sh <dir>`
-
-- Verify the installation:
-
-  - Verify the driver version
-  
-  `cat /proc/driver/nvidia/version`
-
-  - Compiling the examples
-
-  `nvcc -V` to check the version of CUDA Toolkit.
-  `cd ~/NVIDIA_CUDA-10.2_Samples`
-  `make`
-
-  - Running the binaries
-
-  `./deviceQuery` If Result = PASS appears then CUDA is installed properly.
+```
 
 ## CUDA discovery
 
