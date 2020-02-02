@@ -3,6 +3,8 @@
 let
     s = CuStream()
     synchronize(s)
+    @test CUDAdrv.query(s) == true
+
     let s2 = CuStream()
         @test s != s2
     end
