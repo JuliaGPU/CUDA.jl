@@ -196,6 +196,20 @@ if VERSION >= v"1.0.2"
 end
 end
 
+@testset "ghost values" begin
+    @eval struct Singleton end
+
+    ir = sprint(io->CUDAnative.code_llvm(io, unsafe_load,
+                                         Tuple{CUDAnative.DevicePtr{Singleton,AS.Global}}))
+    @test occursin("ret void", ir)
+    @test unsafe_load(reinterpret(CUDAnative.DevicePtr{Singleton,AS.Global}, C_NULL)) === Singleton()
+
+    ir = sprint(io->CUDAnative.code_llvm(io, unsafe_store!,
+                                         Tuple{CUDAnative.DevicePtr{Singleton,AS.Global},
+                                         Singleton}))
+    @test !occursin("\bstore\b", ir)
+end
+
 end
 
 
