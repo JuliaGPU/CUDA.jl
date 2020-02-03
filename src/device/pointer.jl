@@ -104,6 +104,11 @@ Base.:(+)(x::Integer, y::DevicePtr) = y + x
 
 ## memory operations
 
+# TODO: we should not have unsafe_load/unsafe_store! perform codegen, or even use these
+#       APIs for loading/setting array values, but implement arrayref/set and pointerref/set
+#       instead. They have slightly different semantics.
+#       See jl_builtin_arrayset vs emit_pointerset.
+
 Base.convert(::Type{Int}, ::Type{AS.Generic})  = 0
 Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
 Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
@@ -129,6 +134,7 @@ tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.n
 
 @generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
                                      ::Val{align}=Val(1)) where {T,A,align}
+    sizeof(T) == 0 && return reinterpret(T, nothing)
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -164,6 +170,7 @@ end
 
 @generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
                                        ::Val{align}=Val(1)) where {T,A,align}
+    sizeof(T) == 0 && return
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -223,6 +230,7 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
     #       1) Julia passes pointer arguments as plain integers
     #       2) we need to addrspacecast the pointer argument
 
+    sizeof(T) == 0 && return
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
