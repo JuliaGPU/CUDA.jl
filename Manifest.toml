@@ -40,9 +40,11 @@ version = "5.0.1"
 
 [[CUDAnative]]
 deps = ["Adapt", "CEnum", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Printf", "TimerOutputs"]
-git-tree-sha1 = "e0c2805c9a7d338823c0d8f574242e284410fa61"
+git-tree-sha1 = "f38cf81a0c6c08cb532b7324eb85f3e2d438bed7"
+repo-rev = "0f65bc6ebc9c490c068d65436dc42b93c7650fce"
+repo-url = "https://github.com/JuliaGPU/CUDAnative.jl.git"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
-version = "2.9.1"
+version = "2.10.0"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
@@ -60,8 +62,8 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "64bf1d9f7634b35e1383955213cafbda3a9ac184"
-repo-rev = "a89fa3c84e97488f88449036d6a860db689669f2"
+git-tree-sha1 = "1bc994886f5c6fa82e60da92debfc9be79400993"
+repo-rev = "cc7bb3030ed18c8e545539c540b675171ff1b73e"
 repo-url = "https://github.com/JuliaGPU/GPUArrays.jl.git"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 version = "2.0.1"
