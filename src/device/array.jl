@@ -82,6 +82,7 @@ end
     @boundscheck checkbounds(A, index)
     align = datatype_align(T)
     Base.unsafe_store!(pointer(A), x, index, Val(align))
+    return A
 end
 
 """
