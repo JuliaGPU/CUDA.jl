@@ -11,6 +11,7 @@ include("cuda/assertion.jl")
 include("cuda/memory_dynamic.jl")
 include("cuda/atomics.jl")
 include("cuda/misc.jl")
+include("cuda/wmma.jl")
 
 # functionality from libdevice
 #

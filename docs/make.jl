@@ -25,6 +25,7 @@ function main()
             ],
             "Device" => [
                 "device/cuda.md",
+                "device/wmma.md",
                 "device/array.md"
             ]
         ]

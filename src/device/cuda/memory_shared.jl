@@ -83,8 +83,9 @@ end
         initializer!(gv, null(gv_typ))
     end
     # by requesting a larger-than-datatype alignment, we might be able to vectorize.
-    # we pick 16 bytes since this is the largest transaction size as supported by PTX.
-    alignment!(gv, Base.max(16, datatype_align(T)))
+    # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
+    # TODO: Make the alignment configurable
+    alignment!(gv, Base.max(32, datatype_align(T)))
 
     # generate IR
     Builder(JuliaContext()) do builder

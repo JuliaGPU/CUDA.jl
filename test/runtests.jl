@@ -87,6 +87,7 @@ else
         include("device/pointer.jl")
         include("device/array.jl")
         include("device/cuda.jl")
+        include("device/wmma.jl")
 
         include("examples.jl")
     end
