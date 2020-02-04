@@ -111,6 +111,10 @@ function codegen(target::Symbol, job::CompilerJob;
             end
         end
 
+        if job.kernel
+            kernel = @timeit_debug to "promote kernel" promote_kernel!(job, ir, kernel)
+        end
+
         if optimize
             kernel = @timeit_debug to "optimization" optimize!(job, ir, kernel)
         end
