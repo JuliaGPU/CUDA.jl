@@ -85,7 +85,7 @@ end
     # by requesting a larger-than-datatype alignment, we might be able to vectorize.
     # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
     # TODO: Make the alignment configurable
-    alignment!(gv, Base.max(32, datatype_align(T)))
+    alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
 
     # generate IR
     Builder(JuliaContext()) do builder

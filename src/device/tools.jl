@@ -1,18 +1,5 @@
 # Tools for implementing device functionality
 
-# julia.h: jl_datatype_align
-Base.@pure function datatype_align(::Type{T}) where {T}
-    # typedef struct {
-    #     uint32_t nfields;
-    #     uint32_t alignment : 9;
-    #     uint32_t haspadding : 1;
-    #     uint32_t npointers : 20;
-    #     uint32_t fielddesc_type : 2;
-    # } jl_datatype_layout_t;
-    field = T.layout + sizeof(UInt32)
-    unsafe_load(convert(Ptr{UInt16}, field)) & convert(Int16, 2^9-1)
-end
-
 
 # generalization of word-based primitives
 
