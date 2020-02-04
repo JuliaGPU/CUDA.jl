@@ -74,13 +74,13 @@ Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,
 
 @inline function Base.getindex(A::CuDeviceArray{T}, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = datatype_align(T)
+    align = Base.datatype_alignment(T)
     Base.unsafe_load(pointer(A), index, Val(align))::T
 end
 
 @inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Integer) where {T}
     @boundscheck checkbounds(A, index)
-    align = datatype_align(T)
+    align = Base.datatype_alignment(T)
     Base.unsafe_store!(pointer(A), x, index, Val(align))
     return A
 end
@@ -99,7 +99,7 @@ See also: `Base.getindex`
 @inline function ldg(A::CuDeviceArray{T}, index::Integer) where {T}
     # FIXME: this only works on sm_35+, but we can't verify that for now
     @boundscheck checkbounds(A, index)
-    align = datatype_align(T)
+    align = Base.datatype_alignment(T)
     unsafe_cached_load(pointer(A), index, Val(align))::T
 end
 
