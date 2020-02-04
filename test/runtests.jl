@@ -53,18 +53,24 @@ if length(devices()) > 0
         @test device() == CuDevice(1)
     end
 
-    # pick a suiteable device (by available memory,
-    # but also by capability if testing needs to be thorough)
+    # pick a suiteable device
     candidates = [(dev=dev,
                    cap=capability(dev),
                    mem=CuContext(ctx->CUDAdrv.available_memory(), dev))
                   for dev in devices()]
+    ## pick a device that is fully supported by our CUDA installation, or tools can fail
+    ## NOTE: we don't reuse target_support[] which is also bounded by LLVM support,
+    #        and is used to pick a codegen target regardless of the actual device.
+    cuda_support = CUDAnative.cuda_compat()
+    filter!(x->x.cap in cuda_support.cap, candidates)
+    ## order by available memory, but also by capability if testing needs to be thorough
     thorough = parse(Bool, get(ENV, "CI_THOROUGH", "false"))
     if thorough
         sort!(candidates, by=x->(x.cap, x.mem))
     else
         sort!(candidates, by=x->x.mem)
     end
+    isempty(candidates) && error("Could not find any suitable device for this configuration")
     pick = last(candidates)
     @info("Testing using device $(name(pick.dev)) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem)) available memory) on CUDA driver $(CUDAdrv.version()) and toolkit $(CUDAnative.version())")
     device!(pick.dev)
