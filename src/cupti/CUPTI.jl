@@ -11,10 +11,9 @@ struct CUuuid
 end
 
 using ..CUDAnative
+using ..CUDAnative: libcupti
 
 using CEnum
-
-const libcupti = Ref("libcupti")
 
 # core library
 include("libcupti_common.jl")

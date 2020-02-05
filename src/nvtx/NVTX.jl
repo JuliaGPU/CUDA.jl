@@ -6,7 +6,8 @@ using CUDAdrv: CUstream, CUdevice, CUcontext, CUevent
 
 using CEnum
 
-const libnvtx = Ref("libnvtx")
+using ..CUDAnative
+using ..CUDAnative: libnvtx
 
 # core library
 include("libnvtx_common.jl")
