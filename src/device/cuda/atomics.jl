@@ -35,7 +35,7 @@
 
         rv = atomic_rmw!(builder, binop,
                          actual_ptr, parameters(llvm_f)[2],
-                         acquire_release, #=single_threaded=# false)
+                         atomic_acquire_release, #=single_threaded=# false)
 
         ret!(builder, rv)
     end
@@ -58,9 +58,9 @@ const binops = Dict(
 
 # all atomic operations have acquire and/or release semantics,
 # depending on whether they load or store values (mimics Base)
-const acquire = LLVM.API.LLVMAtomicOrderingAcquire
-const release = LLVM.API.LLVMAtomicOrderingRelease
-const acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
+const atomic_acquire = LLVM.API.LLVMAtomicOrderingAcquire
+const atomic_release = LLVM.API.LLVMAtomicOrderingRelease
+const atomic_acquire_release = LLVM.API.LLVMAtomicOrderingAcquireRelease
 
 for T in (Int32, Int64, UInt32, UInt64)
     ops = [:xchg, :add, :sub, :and, :or, :xor, :max, :min]
@@ -95,7 +95,7 @@ end
         actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
         res = atomic_cmpxchg!(builder, actual_ptr, parameters(llvm_f)[2],
-                              parameters(llvm_f)[3], acquire_release, acquire,
+                              parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
                               #=single threaded=# false)
 
         rv = extract_value!(builder, res, 0)
