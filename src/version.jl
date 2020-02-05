@@ -14,3 +14,10 @@ function version()
 
     return VersionNumber(major, minor)
 end
+
+"""
+    release()
+
+Returns the CUDA release part of the version as returned by [`version`](@ref).
+"""
+release() = VersionNumber(version().major, version().minor)
