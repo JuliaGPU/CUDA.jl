@@ -137,7 +137,7 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
             LLVM.API.LLVMDebugEmissionKindFullDebug
         end
 
-        #if CUDAdrv.version() < v"10.2"
+        #if CUDAdrv.release() < v"10.2"
             # FIXME: LLVM's debug info crashes CUDA
             # FIXME: this ought to be fixed on 10.2?
             debug_info_kind = LLVM.API.LLVMDebugEmissionKindNoDebug
