@@ -257,6 +257,11 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     llvmfn *= "_$globalUnique"
     LLVM.name!(entry, llvmfn)
 
+    # promote entry-points to kernels
+    if job.kernel
+        entry = promote_kernel!(job, mod, entry)
+    end
+
     # minimal required optimization
     @timeit_debug to "rewrite" ModulePassManager() do pm
         global current_job
