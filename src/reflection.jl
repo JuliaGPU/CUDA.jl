@@ -149,7 +149,6 @@ function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
     mktemp() do cubin_path,cubin_io
         write(cubin_io, cubin[])
         flush(cubin_io)
-        read(`nvdisasm --print-code --print-line-info $cubin_path`, String)
 
         cmd = `$(nvdisasm[]) --print-code --print-line-info $cubin_path`
         for line in readlines(cmd)
