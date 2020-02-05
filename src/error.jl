@@ -147,15 +147,16 @@ macro checked(ex)
 
     # generate a "safe" version that performs a check
     safe_body = Expr(:block, body.args[1], :(@check $(body.args[2])))
-    safe_def = Expr(:function, sig, safe_body)
+    safe_sig = Expr(:call, esc(sig.args[1]), sig.args[2:end]...)
+    safe_def = Expr(:function, safe_sig, safe_body)
 
     # generate a "unsafe" version that returns the error code instead
-    unsafe_sig = Expr(:call, Symbol("unsafe_$(sig.args[1])"), sig.args[2:end]...)
+    unsafe_sig = Expr(:call, esc(Symbol("unsafe_", sig.args[1])), sig.args[2:end]...)
     unsafe_def = Expr(:function, unsafe_sig, body)
 
     return quote
-        @eval $safe_def
-        @eval $unsafe_def
+        $safe_def
+        $unsafe_def
     end
 end
 
