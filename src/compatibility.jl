@@ -3,10 +3,6 @@
 const lowest = v"0"
 const highest = v"999"
 
-# some version comparisons need to ignore part of the version number
-strip_patch(ver) = VersionNumber(ver.major, ver.minor)
-strip_minor(ver) = VersionNumber(ver.major)
-
 verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
 
 
@@ -40,7 +36,7 @@ const cuda_cap_db = Dict(
 function cuda_cap_support(ver::VersionNumber)
     caps = Set{VersionNumber}()
     for (cap,r) in cuda_cap_db
-        if strip_patch(ver) in r
+        if ver in r
             push!(caps, cap)
         end
     end
@@ -82,7 +78,7 @@ const cuda_ptx_db = Dict(
 function cuda_ptx_support(ver::VersionNumber)
     caps = Set{VersionNumber}()
     for (cap,r) in cuda_ptx_db
-        if strip_patch(ver) in r
+        if ver in r
             push!(caps, cap)
         end
     end
@@ -114,7 +110,7 @@ const llvm_cap_db = Dict(
 function llvm_cap_support(ver::VersionNumber)
     caps = Set{VersionNumber}()
     for (cap,r) in llvm_cap_db
-        if strip_patch(ver) in r
+        if ver in r
             push!(caps, cap)
         end
     end
@@ -143,7 +139,7 @@ const llvm_ptx_db = Dict(
 function llvm_ptx_support(ver::VersionNumber)
     caps = Set{VersionNumber}()
     for (cap,r) in llvm_ptx_db
-        if strip_patch(ver) in r
+        if ver in r
             push!(caps, cap)
         end
     end
@@ -179,23 +175,22 @@ function llvm_compat(version=LLVM.version())
     return (cap=cap_support, ptx=ptx_support)
 end
 
-function cuda_compat(driver_version=CUDAdrv.version(), toolkit_version=CUDAnative.version())
-    @debug("Using CUDA driver v$driver_version and toolkit v$toolkit_version")
+function cuda_compat(driver_release=CUDAdrv.release(), toolkit_release=CUDAnative.release())
+    @debug("Using CUDA driver v$driver_release and toolkit v$toolkit_release")
 
     # the toolkit version as reported contains major.minor.patch,
     # but the version number returned by libcuda is only major.minor.
-    toolkit_version = VersionNumber(toolkit_version.major, toolkit_version.minor)
-    if toolkit_version > driver_version
-        @warn("""CUDA $(toolkit_version.major).$(toolkit_version.minor) is not supported by
-                 your driver (which supports up to $(driver_version.major).$(driver_version.minor))""")
+    if toolkit_release > driver_release
+        @warn("""CUDA $toolkit_release is not supported by
+                 your driver (which supports up to $driver_release)""")
     end
 
-    driver_cap_support = cuda_cap_support(driver_version)
-    toolkit_cap_support = cuda_cap_support(toolkit_version)
+    driver_cap_support = cuda_cap_support(driver_release)
+    toolkit_cap_support = cuda_cap_support(toolkit_release)
     cap_support = sort(collect(driver_cap_support ∩ toolkit_cap_support))
 
-    driver_ptx_support = cuda_ptx_support(driver_version)
-    toolkit_ptx_support = cuda_ptx_support(toolkit_version)
+    driver_ptx_support = cuda_ptx_support(driver_release)
+    toolkit_ptx_support = cuda_ptx_support(toolkit_release)
     ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
 
     @debug("CUDA driver supports capabilities $(verlist(driver_cap_support)) with PTX $(verlist(driver_ptx_support))")

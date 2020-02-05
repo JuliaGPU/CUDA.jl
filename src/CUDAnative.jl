@@ -16,7 +16,20 @@ using Libdl
 ## global state
 
 const toolkit_version = Ref{VersionNumber}()
+
+"""
+    version()
+
+Returns the version of the CUDA toolkit in use.
+"""
 version() = toolkit_version[]
+
+"""
+    release()
+
+Returns the CUDA release part of the version as returned by [`version`](@ref).
+"""
+release() = VersionNumber(toolkit_version[].major, toolkit_version[].minor)
 
 # version compatibility
 const target_support = Ref{Vector{VersionNumber}}()
@@ -88,7 +101,7 @@ function __init__()
             error("LLVM $llvm_version incompatible with Julia's LLVM $julia_llvm_version")
         end
 
-        if llvm_version >= v"8.0" #&& CUDAdrv.version() < v"10.2"
+        if llvm_version >= v"8.0" #&& CUDAdrv.release() < v"10.2"
             # NOTE: corresponding functionality in irgen.jl
             silent || @warn "Incompatibility detected between CUDA and LLVM 8.0+; disabling debug info emission for CUDA kernels"
         end
@@ -98,8 +111,11 @@ function __init__()
 
         toolkit_dirs = find_toolkit()
         toolkit_version[] = find_toolkit_version(toolkit_dirs)
-        if toolkit_version[] <= v"9"
-            silent || @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(toolkit_version[]))"
+        if release() < v"9"
+            silent || @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(release()))"
+        elseif release() > CUDAdrv.release()
+            silent || @warn """You are using CUDA toolkit $(release()) with a driver that only supports up to $(CUDAdrv.release()).
+                               It is recommended to upgrade your driver."""
         end
 
         llvm_support = llvm_compat(llvm_version)

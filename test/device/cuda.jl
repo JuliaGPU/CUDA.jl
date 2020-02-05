@@ -691,7 +691,7 @@ end
         return
     end
 
-    kernel = if CUDAdrv.version() >= v"9.0" && v"6.0" in CUDAnative.ptx_support[]
+    kernel = if CUDAdrv.release() >= v"9.0" && v"6.0" in CUDAnative.ptx_support[]
         kernel2
     else
         kernel1
@@ -721,7 +721,7 @@ end
 @on_device clock(UInt32)
 @on_device clock(UInt64)
 
-if CUDAdrv.version() >= v"10.0" && v"6.2" in CUDAnative.ptx_support[]
+if CUDAdrv.release() >= v"10.0" && v"6.2" in CUDAnative.ptx_support[]
     @on_device nanosleep(UInt32(16))
 end
 end
