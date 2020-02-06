@@ -2,21 +2,11 @@ using CUDAapi
 
 using Test
 
-import Libdl
-
+@testset "CUDAapi" begin
 
 @testset "library types" begin
     @test CUDAapi.PATCH_LEVEL == CUDAapi.libraryPropertyType(2)
     @test CUDAapi.C_32U == CUDAapi.cudaDataType(Complex{UInt32})
-end
-
-# helper macro to test for non-nothingness
-macro test_something(ex)
-    quote
-        local rv = $(esc(ex))
-        @test rv !== nothing
-        rv
-    end
 end
 
 @testset "discovery" begin
@@ -50,15 +40,15 @@ end
     ver = find_toolkit_version(dirs)
 
     @testset "CUDA tools and libraries" begin
-        @test_something find_cuda_binary("nvcc", dirs)
-        @test_something find_cuda_library("cudart", dirs)
+        @test !isnothing(find_cuda_binary("nvcc", dirs))
+        @test !isnothing(find_cuda_library("cudart", dirs))
         if Sys.isapple() && ver.major == 10 && ver.minor == 2
             # libnvToolsExt isn't part of this release anymore?
         else
-            @test_something find_cuda_library("nvtx", dirs)
+            @test !isnothing(find_cuda_library("nvtx", dirs))
         end
-        @test_something find_libdevice([v"3.0"], dirs)
-        @test_something find_libcudadevrt(dirs)
+        @test !isnothing(find_libdevice([v"3.0"], dirs))
+        @test !isnothing(find_libcudadevrt(dirs))
     end
 end
 
@@ -96,5 +86,7 @@ using ..CUDAapi
 end
 
 @test Foo.ENUM_VALUE == Foo.MY_ENUM_VALUE
+
+end
 
 end
