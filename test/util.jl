@@ -18,14 +18,14 @@ macro grab_output(ex)
 end
 
 # variant on @test_throws that checks the CuError error code
-macro test_throws_cuerror(kind, ex)
+macro test_throws_cuerror(code, ex)
     # generate a test only returning CuError if it is the correct one
     test = quote
         try
             $(esc(ex))
         catch err
             isa(err, CuError) || rethrow()
-            err == $kind      || rethrow(ErrorException(string("Wrong CuError kind: ", err, " instead of ", $kind)))
+            err.code == $code || error("Wrong CuError: ", err.code, " instead of ", $code)
             rethrow()
         end
     end
@@ -44,9 +44,9 @@ Test.record(ts::NoThrowTestSet, t::Test.Result) = (push!(ts.results, t); t)
 Test.finish(ts::NoThrowTestSet) = ts.results
 fails = @testset NoThrowTestSet begin
     # OK
-    @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN throw(CUDAdrv.ERROR_UNKNOWN)
+    @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN throw(CuError(CUDAdrv.ERROR_UNKNOWN))
     # Fail, wrong CuError
-    @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN throw(CUDAdrv.ERROR_INVALID_VALUE)
+    @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN throw(CuError(CUDAdrv.ERROR_INVALID_VALUE))
     # Fail, wrong Exception
     @test_throws_cuerror CUDAdrv.ERROR_UNKNOWN error()
 end

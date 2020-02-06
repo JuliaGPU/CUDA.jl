@@ -103,18 +103,33 @@ mutable struct State
     edits::Vector{Edit}
 end
 
-# insert `@check` before each `ccall` when it returns a checked type
+# insert `@checked` before each function with a `ccall` returning a checked type`
 const checked_types = [
     "CUresult",
 ]
 function insert_check(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+    if x isa CSTParser.EXPR && x.typ == CSTParser.FunctionDef
+        _, def, body, _ = x.args
+        @assert body isa CSTParser.EXPR && body.typ == CSTParser.Block
+        @assert length(body.args) == 1
+
+        # Clang.jl-generated ccalls should be directly part of a function definition
+        call = body.args[1]
+        @assert call isa CSTParser.EXPR && call.typ == CSTParser.Call && call.args[1].val == "ccall"
+
         # get the ccall return type
-        rv = x.args[5]
+        rv = call.args[5]
 
         if rv.val in checked_types
-            push!(state.edits, Edit(state.offset, "@check "))
+            push!(state.edits, Edit(state.offset, "@checked "))
         end
+    end
+end
+
+# rewrite ordinary `ccall`s to `@runtime_ccall`
+function rewrite_ccall(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+        push!(state.edits, Edit(state.offset, "@runtime_"))
     end
 end
 
@@ -171,7 +186,7 @@ function wrap_at_comma(x, state, indent, offset, column)
 end
 
 function indent_ccall(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+    if x isa CSTParser.EXPR && x.typ == CSTParser.MacroCall && x.args[1].args[2].val == "runtime_ccall"
         # figure out how much to indent by looking at where the expr starts
         line = findlast(y -> state.offset >= y[2], state.lines) # index, not the actual number
         line_indent, line_offset = state.lines[line]
@@ -234,6 +249,9 @@ function process(name, headers...; kwargs...)
 
         state.offset = 0
         pass(ast, state, insert_check)
+
+        state.offset = 0
+        pass(ast, state, rewrite_ccall)
 
         # apply
         state.offset = 0

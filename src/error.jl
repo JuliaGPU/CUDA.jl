@@ -78,12 +78,7 @@ end
 
 Base.show(io::IO, err::CuError) = print(io, "CuError($(err.code))")
 
-# define shorthands that give CuError objects
-for code in instances(cudaError_enum)
-    local name = String(Symbol(code))
-    shorthand = Symbol(name[6:end]) # strip the CUDA_ prefix
-    @eval const $shorthand = CuError($code)
-end
+@enum_without_prefix cudaError_enum CUDA_
 
 
 ## API call wrapper
@@ -136,6 +131,27 @@ end
     throw(CuError(res))
 end
 
+macro checked(ex)
+    # parse the function definition
+    @assert Meta.isexpr(ex, :function)
+    sig = ex.args[1]
+    @assert Meta.isexpr(sig, :call)
+    body = ex.args[2]
+    @assert Meta.isexpr(body, :block)
+    @assert length(body.args) == 2      # line number node and a single call
+
+    # generate a "safe" version that performs a check
+    safe_body = Expr(:block, body.args[1], :(@check $(body.args[2])))
+    safe_sig = Expr(:call, sig.args[1], sig.args[2:end]...)
+    safe_def = Expr(:function, safe_sig, safe_body)
+
+    # generate a "unsafe" version that returns the error code instead
+    unsafe_sig = Expr(:call, Symbol("unsafe_", sig.args[1]), sig.args[2:end]...)
+    unsafe_def = Expr(:function, unsafe_sig, body)
+
+    return esc(:($safe_def, $unsafe_def))
+end
+
 macro check(ex)
     fun = Symbol(decode_ccall_function(ex))
     init = if !in(fun, preinit_apicalls)
@@ -145,7 +161,7 @@ macro check(ex)
         $init
 
         res = $(esc(ex))
-        if res != CUDA_SUCCESS
+        if res != SUCCESS
             throw_api_error(res)
         end
 

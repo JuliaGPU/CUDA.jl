@@ -111,16 +111,12 @@ function complete(link::CuLink)
     cubin_ref = Ref{Ptr{Cvoid}}()
     size_ref = Ref{Csize_t}()
 
-    try
-        cuLinkComplete(link, cubin_ref, size_ref)
-    catch err
-        if isa(err, CuError) && (err.code == ERROR_NO_BINARY_FOR_GPU ||
-                                 err.code == ERROR_INVALID_IMAGE)
-            options = decode(link.optionKeys, link.optionVals)
-            throw(CuError(err.code, options[JIT_ERROR_LOG_BUFFER]))
-        else
-            rethrow()
-        end
+    res = unsafe_cuLinkComplete(link, cubin_ref, size_ref)
+    if res == CUDA_ERROR_NO_BINARY_FOR_GPU || res == CUDA_ERROR_INVALID_IMAGE
+        options = decode(link.optionKeys, link.optionVals)
+        throw(CuError(res, options[JIT_ERROR_LOG_BUFFER]))
+    elseif res != SUCCESS
+        throw_api_error(res)
     end
 
     @debug begin
