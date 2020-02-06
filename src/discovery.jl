@@ -1,5 +1,5 @@
 export find_cuda_library, find_cuda_binary,
-       find_toolkit, find_toolkit_version,
+       find_toolkit, parse_toolkit_version,
        find_libdevice, find_libcudadevrt
 
 function resolve(path)
@@ -278,7 +278,7 @@ function find_toolkit()
 end
 
 # figure out the CUDA toolkit version (by looking at the output of a tool like `nvdisasm`)
-function find_toolkit_version(tool_path)
+function parse_toolkit_version(tool_path)
     # parse the version string
     verstr = withenv("LANG"=>"C") do
         read(`$tool_path --version`, String)

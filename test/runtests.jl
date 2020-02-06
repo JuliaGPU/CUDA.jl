@@ -47,7 +47,7 @@ end
     @testset "CUDA tools and libraries" begin
         @test !isnothing(find_cuda_binary("ptxas", dirs))
         ptxas = find_cuda_binary("ptxas", dirs)
-        ver = find_toolkit_version(ptxas)
+        ver = parse_toolkit_version(ptxas)
         @test !isnothing(find_cuda_library("cudart", dirs, [ver]))
         if Sys.isapple() && ver.major == 10 && ver.minor == 2
             # libnvToolsExt isn't part of this release anymore?
