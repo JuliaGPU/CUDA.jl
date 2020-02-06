@@ -154,7 +154,7 @@ end
 
 @checked function cuCtxSynchronize()
     @runtime_ccall((:cuCtxSynchronize, libcuda), CUresult, ())
-         end
+end
 
 @checked function cuCtxSetLimit(limit, value)
     @runtime_ccall((:cuCtxSetLimit, libcuda), CUresult,
@@ -276,18 +276,19 @@ end
                    numOptions, options, optionValues, stateOut)
 end
 
-@checked function cuLinkAddData_v2(state, type, data, size, name, numOptions, options, optionValues)
+@checked function cuLinkAddData_v2(state, type, data, size, name, numOptions, options,
+                                   optionValues)
     @runtime_ccall((:cuLinkAddData_v2, libcuda), CUresult,
                    (CUlinkState, CUjitInputType, Ptr{Cvoid}, Csize_t, Cstring, UInt32,
                     Ptr{CUjit_option}, Ptr{Ptr{Cvoid}}),
-                 state, type, data, size, name, numOptions, options, optionValues)
+                   state, type, data, size, name, numOptions, options, optionValues)
 end
 
 @checked function cuLinkAddFile_v2(state, type, path, numOptions, options, optionValues)
     @runtime_ccall((:cuLinkAddFile_v2, libcuda), CUresult,
                    (CUlinkState, CUjitInputType, Cstring, UInt32, Ptr{CUjit_option},
                     Ptr{Ptr{Cvoid}}),
-                 state, type, path, numOptions, options, optionValues)
+                   state, type, path, numOptions, options, optionValues)
 end
 
 @checked function cuLinkComplete(state, cubinOut, sizeOut)
@@ -512,7 +513,8 @@ end
                    dst, src, ByteCount, hStream)
 end
 
-@checked function cuMemcpyPeerAsync(dstDevice, dstContext, srcDevice, srcContext, ByteCount, hStream)
+@checked function cuMemcpyPeerAsync(dstDevice, dstContext, srcDevice, srcContext,
+                                    ByteCount, hStream)
     @runtime_ccall((:cuMemcpyPeerAsync, libcuda), CUresult,
                    (CUdeviceptr, CUcontext, CUdeviceptr, CUcontext, Csize_t, CUstream),
                    dstDevice, dstContext, srcDevice, srcContext, ByteCount, hStream)
@@ -710,11 +712,12 @@ end
                    data, dataSize, attribute, devPtr, count)
 end
 
-@checked function cuMemRangeGetAttributes(data, dataSizes, attributes, numAttributes, devPtr, count)
+@checked function cuMemRangeGetAttributes(data, dataSizes, attributes, numAttributes,
+                                          devPtr, count)
     @runtime_ccall((:cuMemRangeGetAttributes, libcuda), CUresult,
                    (Ptr{Ptr{Cvoid}}, Ptr{Csize_t}, Ptr{CUmem_range_attribute}, Csize_t,
                     CUdeviceptr, Csize_t),
-                 data, dataSizes, attributes, numAttributes, devPtr, count)
+                   data, dataSizes, attributes, numAttributes, devPtr, count)
 end
 
 @checked function cuPointerSetAttribute(value, attribute, ptr)
@@ -871,14 +874,14 @@ end
     @runtime_ccall((:cuExternalMemoryGetMappedBuffer, libcuda), CUresult,
                    (Ptr{CUdeviceptr}, CUexternalMemory,
                     Ptr{CUDA_EXTERNAL_MEMORY_BUFFER_DESC}),
-                 devPtr, extMem, bufferDesc)
+                   devPtr, extMem, bufferDesc)
 end
 
 @checked function cuExternalMemoryGetMappedMipmappedArray(mipmap, extMem, mipmapDesc)
     @runtime_ccall((:cuExternalMemoryGetMappedMipmappedArray, libcuda), CUresult,
                    (Ptr{CUmipmappedArray}, CUexternalMemory,
                     Ptr{CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC}),
-                 mipmap, extMem, mipmapDesc)
+                   mipmap, extMem, mipmapDesc)
 end
 
 @checked function cuDestroyExternalMemory(extMem)
@@ -893,18 +896,19 @@ end
                    extSem_out, semHandleDesc)
 end
 
-@checked function cuSignalExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems, stream)
+@checked function cuSignalExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems,
+                                                  stream)
     @runtime_ccall((:cuSignalExternalSemaphoresAsync, libcuda), CUresult,
                    (Ptr{CUexternalSemaphore}, Ptr{CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS},
                     UInt32, CUstream),
-                 extSemArray, paramsArray, numExtSems, stream)
+                   extSemArray, paramsArray, numExtSems, stream)
 end
 
 @checked function cuWaitExternalSemaphoresAsync(extSemArray, paramsArray, numExtSems, stream)
     @runtime_ccall((:cuWaitExternalSemaphoresAsync, libcuda), CUresult,
                    (Ptr{CUexternalSemaphore}, Ptr{CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS},
                     UInt32, CUstream),
-                 extSemArray, paramsArray, numExtSems, stream)
+                   extSemArray, paramsArray, numExtSems, stream)
 end
 
 @checked function cuDestroyExternalSemaphore(extSem)
@@ -961,22 +965,23 @@ end
                    hfunc, config)
 end
 
-@checked function cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
-                                 sharedMemBytes, hStream, kernelParams, extra)
+@checked function cuLaunchKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
+                                 blockDimZ, sharedMemBytes, hStream, kernelParams, extra)
     @runtime_ccall((:cuLaunchKernel, libcuda), CUresult,
                    (CUfunction, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32,
                     CUstream, Ptr{Ptr{Cvoid}}, Ptr{Ptr{Cvoid}}),
-                 f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
-                 sharedMemBytes, hStream, kernelParams, extra)
+                   f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
+                   sharedMemBytes, hStream, kernelParams, extra)
 end
 
-@checked function cuLaunchCooperativeKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY,
-                                            blockDimZ, sharedMemBytes, hStream, kernelParams)
+@checked function cuLaunchCooperativeKernel(f, gridDimX, gridDimY, gridDimZ, blockDimX,
+                                            blockDimY, blockDimZ, sharedMemBytes, hStream,
+                                            kernelParams)
     @runtime_ccall((:cuLaunchCooperativeKernel, libcuda), CUresult,
                    (CUfunction, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32, UInt32,
                     CUstream, Ptr{Ptr{Cvoid}}),
-                    f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
-                    sharedMemBytes, hStream, kernelParams)
+                   f, gridDimX, gridDimY, gridDimZ, blockDimX, blockDimY, blockDimZ,
+                   sharedMemBytes, hStream, kernelParams)
 end
 
 @checked function cuLaunchCooperativeKernelMultiDevice(launchParamsList, numDevices, flags)
@@ -1057,7 +1062,8 @@ end
                    phGraph, flags)
 end
 
-@checked function cuGraphAddKernelNode(phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
+@checked function cuGraphAddKernelNode(phGraphNode, hGraph, dependencies, numDependencies,
+                                       nodeParams)
     @runtime_ccall((:cuGraphAddKernelNode, libcuda), CUresult,
                    (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
                     Ptr{CUDA_KERNEL_NODE_PARAMS}),
@@ -1097,11 +1103,11 @@ end
 end
 
 @checked function cuGraphAddMemsetNode(phGraphNode, hGraph, dependencies, numDependencies,
-                        memsetParams, ctx)
+                                       memsetParams, ctx)
     @runtime_ccall((:cuGraphAddMemsetNode, libcuda), CUresult,
                    (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
                     Ptr{CUDA_MEMSET_NODE_PARAMS}, CUcontext),
-                 phGraphNode, hGraph, dependencies, numDependencies, memsetParams, ctx)
+                   phGraphNode, hGraph, dependencies, numDependencies, memsetParams, ctx)
 end
 
 @checked function cuGraphMemsetNodeGetParams(hNode, nodeParams)
@@ -1116,11 +1122,12 @@ end
                    hNode, nodeParams)
 end
 
-@checked function cuGraphAddHostNode(phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
+@checked function cuGraphAddHostNode(phGraphNode, hGraph, dependencies, numDependencies,
+                                     nodeParams)
     @runtime_ccall((:cuGraphAddHostNode, libcuda), CUresult,
                    (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t,
                     Ptr{CUDA_HOST_NODE_PARAMS}),
-                 phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
+                   phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
 end
 
 @checked function cuGraphHostNodeGetParams(hNode, nodeParams)
@@ -1135,8 +1142,8 @@ end
                    hNode, nodeParams)
 end
 
-@checked function cuGraphAddChildGraphNode(phGraphNode, hGraph, dependencies, numDependencies,
-                                           childGraph)
+@checked function cuGraphAddChildGraphNode(phGraphNode, hGraph, dependencies,
+                                           numDependencies, childGraph)
     @runtime_ccall((:cuGraphAddChildGraphNode, libcuda), CUresult,
                    (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, CUgraph),
                    phGraphNode, hGraph, dependencies, numDependencies, childGraph)
@@ -1257,30 +1264,33 @@ end
                    numBlocks, func, blockSize, dynamicSMemSize)
 end
 
-@checked function cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks, func, blockSize,
-                                                              dynamicSMemSize, flags)
+@checked function cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags(numBlocks, func,
+                                                                       blockSize,
+                                                                       dynamicSMemSize,
+                                                                       flags)
     @runtime_ccall((:cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags, libcuda), CUresult,
                    (Ptr{Cint}, CUfunction, Cint, Csize_t, UInt32),
                    numBlocks, func, blockSize, dynamicSMemSize, flags)
 end
 
 @checked function cuOccupancyMaxPotentialBlockSize(minGridSize, blockSize, func,
-                                   blockSizeToDynamicSMemSize, dynamicSMemSize,
-                                   blockSizeLimit)
+                                                   blockSizeToDynamicSMemSize,
+                                                   dynamicSMemSize, blockSizeLimit)
     @runtime_ccall((:cuOccupancyMaxPotentialBlockSize, libcuda), CUresult,
                    (Ptr{Cint}, Ptr{Cint}, CUfunction, CUoccupancyB2DSize, Csize_t, Cint),
-                   minGridSize, blockSize, func, blockSizeToDynamicSMemSize, dynamicSMemSize,
-                 blockSizeLimit)
+                   minGridSize, blockSize, func, blockSizeToDynamicSMemSize,
+                   dynamicSMemSize, blockSizeLimit)
 end
 
 @checked function cuOccupancyMaxPotentialBlockSizeWithFlags(minGridSize, blockSize, func,
-                                            blockSizeToDynamicSMemSize,
-                                            dynamicSMemSize, blockSizeLimit, flags)
+                                                            blockSizeToDynamicSMemSize,
+                                                            dynamicSMemSize,
+                                                            blockSizeLimit, flags)
     @runtime_ccall((:cuOccupancyMaxPotentialBlockSizeWithFlags, libcuda), CUresult,
                    (Ptr{Cint}, Ptr{Cint}, CUfunction, CUoccupancyB2DSize, Csize_t, Cint,
                     UInt32),
-                 minGridSize, blockSize, func, blockSizeToDynamicSMemSize, dynamicSMemSize,
-                 blockSizeLimit, flags)
+                   minGridSize, blockSize, func, blockSizeToDynamicSMemSize,
+                   dynamicSMemSize, blockSizeLimit, flags)
 end
 
 @checked function cuTexRefSetArray(hTexRef, hArray, Flags)
@@ -1337,7 +1347,8 @@ end
                    hTexRef, bias)
 end
 
-@checked function cuTexRefSetMipmapLevelClamp(hTexRef, minMipmapLevelClamp, maxMipmapLevelClamp)
+@checked function cuTexRefSetMipmapLevelClamp(hTexRef, minMipmapLevelClamp,
+                                              maxMipmapLevelClamp)
     @runtime_ccall((:cuTexRefSetMipmapLevelClamp, libcuda), CUresult,
                    (CUtexref, Cfloat, Cfloat),
                    hTexRef, minMipmapLevelClamp, maxMipmapLevelClamp)
@@ -1409,7 +1420,8 @@ end
                    pbias, hTexRef)
 end
 
-@checked function cuTexRefGetMipmapLevelClamp(pminMipmapLevelClamp, pmaxMipmapLevelClamp, hTexRef)
+@checked function cuTexRefGetMipmapLevelClamp(pminMipmapLevelClamp, pmaxMipmapLevelClamp,
+                                              hTexRef)
     @runtime_ccall((:cuTexRefGetMipmapLevelClamp, libcuda), CUresult,
                    (Ptr{Cfloat}, Ptr{Cfloat}, CUtexref),
                    pminMipmapLevelClamp, pmaxMipmapLevelClamp, hTexRef)
@@ -1461,7 +1473,7 @@ end
     @runtime_ccall((:cuTexObjectCreate, libcuda), CUresult,
                    (Ptr{CUtexObject}, Ptr{CUDA_RESOURCE_DESC}, Ptr{CUDA_TEXTURE_DESC},
                     Ptr{CUDA_RESOURCE_VIEW_DESC}),
-                 pTexObject, pResDesc, pTexDesc, pResViewDesc)
+                   pTexObject, pResDesc, pTexDesc, pResViewDesc)
 end
 
 @checked function cuTexObjectDestroy(texObject)
@@ -1589,8 +1601,8 @@ end
 
 @checked function cuProfilerStart()
     @runtime_ccall((:cuProfilerStart, libcuda), CUresult, ())
-         end
+end
 
 @checked function cuProfilerStop()
     @runtime_ccall((:cuProfilerStop, libcuda), CUresult, ())
-         end
+end
