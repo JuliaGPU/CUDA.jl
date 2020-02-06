@@ -1,5 +1,9 @@
 # Module-scope global variables
 
+# TODO: improve this interface:
+# - should be more dict-like: get and setindex(::name), haskey(::name)
+# - globals(::Type)?
+
 export
     CuGlobal, get, set
 
