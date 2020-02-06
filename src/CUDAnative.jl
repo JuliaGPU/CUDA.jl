@@ -15,6 +15,15 @@ using Libdl
 
 ## global state
 
+const toolkit_dirs = Ref{Vector{String}}()
+
+"""
+    prefix()
+
+Returns the installation prefix directories of the CUDA toolkit in use.
+"""
+prefix() = toolkit_dirs[]
+
 const toolkit_version = Ref{VersionNumber}()
 
 """
@@ -39,7 +48,6 @@ const ptx_support = Ref{Vector{VersionNumber}}()
 const libdevice = Ref{Union{String,Dict{VersionNumber,String}}}()
 const libcudadevrt = Ref{String}()
 const nvdisasm = Ref{String}()
-const ptxas = Ref{String}()
 
 
 ## source code includes
@@ -109,13 +117,41 @@ function __init__()
 
         # CUDA
 
-        toolkit_dirs = find_toolkit()
-        toolkit_version[] = find_toolkit_version(toolkit_dirs)
+        toolkit_dirs[] = find_toolkit()
+
+        let val = find_cuda_binary("nvdisasm", toolkit_dirs[])
+            val === nothing && error("Your CUDA installation does not provide the nvdisasm binary")
+            nvdisasm[] = val
+        end
+
+        toolkit_version[] = parse_toolkit_version(nvdisasm[])
         if release() < v"9"
             silent || @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(release()))"
         elseif release() > CUDAdrv.release()
             silent || @warn """You are using CUDA toolkit $(release()) with a driver that only supports up to $(CUDAdrv.release()).
                                It is recommended to upgrade your driver."""
+        end
+
+        let val = find_libdevice(toolkit_dirs[])
+            val === nothing && error("Your CUDA installation does not provide libdevice")
+            libdevice[] = val
+        end
+
+        let val = find_libcudadevrt(toolkit_dirs[])
+            val === nothing && error("Your CUDA installation does not provide libcudadevrt")
+            libcudadevrt[] = val
+        end
+
+        let val = find_cuda_library("nvtx", toolkit_dirs[], [v"1"])
+            val === nothing && error("Your CUDA installation does not provide the NVTX library")
+            NVTX.libnvtx[] = val
+        end
+
+        toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs[])
+        cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
+        let val = find_cuda_library("cupti", cupti_dirs, [toolkit_version[]])
+            val === nothing && error("Your CUDA installation does not provide the CUPTI library")
+            CUPTI.libcupti[] = val
         end
 
         llvm_support = llvm_compat(llvm_version)
@@ -128,38 +164,6 @@ function __init__()
         isempty(ptx_support[]) && error("Your toolchain does not support any PTX ISA")
 
         @debug("CUDAnative supports devices $(verlist(target_support[])); PTX $(verlist(ptx_support[]))")
-
-        let val = find_libdevice(target_support[], toolkit_dirs)
-            val === nothing && error("Your CUDA installation does not provide libdevice")
-            libdevice[] = val
-        end
-
-        let val = find_libcudadevrt(toolkit_dirs)
-            val === nothing && error("Your CUDA installation does not provide libcudadevrt")
-            libcudadevrt[] = val
-        end
-
-        let val = find_cuda_binary("nvdisasm", toolkit_dirs)
-            val === nothing && error("Your CUDA installation does not provide the nvdisasm binary")
-            nvdisasm[] = val
-        end
-
-        let val = find_cuda_binary("ptxas", toolkit_dirs)
-            val === nothing && error("Your CUDA installation does not provide the ptxas binary")
-            ptxas[] = val
-        end
-
-        let val = find_cuda_library("nvtx", toolkit_dirs)
-            val === nothing && error("Your CUDA installation does not provide the NVTX library")
-            NVTX.libnvtx[] = val
-        end
-
-        toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
-        cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
-        let val = find_cuda_library("cupti", cupti_dirs)
-            val === nothing && error("Your CUDA installation does not provide the CUPTI library")
-            CUPTI.libcupti[] = val
-        end
 
 
         ## actual initialization

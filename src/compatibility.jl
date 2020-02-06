@@ -6,6 +6,23 @@ const highest = v"999"
 verlist(vers) = join(map(ver->"$(ver.major).$(ver.minor)", sort(collect(vers))), ", ", " and ")
 
 
+## version range
+
+struct VersionRange
+    lower::VersionNumber
+    upper::VersionNumber
+end
+
+Base.in(v::VersionNumber, r::VersionRange) = (v >= r.lower && v <= r.upper)
+
+import Base.(:)
+(:)(a::VersionNumber, b::VersionNumber) = VersionRange(a, b)
+
+Base.intersect(v::VersionNumber, r::VersionRange) =
+    v < r.lower ? (r.lower:v) :
+    v > r.upper ? (v:r.upper) : (v:v)
+
+
 ## devices supported by the CUDA toolkit
 
 # Source:
