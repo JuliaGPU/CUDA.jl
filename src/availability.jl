@@ -24,7 +24,7 @@ function has_cuda()
     toolkit_dirs = find_toolkit()
 
     # check for the CUDA driver library
-    libcuda = find_cuda_library("cuda", VersionNumber[], toolkit_dirs)
+    libcuda = find_cuda_library("cuda", toolkit_dirs)
     return libcuda !== nothing
 end
 
@@ -40,7 +40,7 @@ function has_cuda_gpu()
     toolkit_dirs = find_toolkit()
 
     # find the CUDA driver library
-    libcuda = find_cuda_library("cuda", VersionNumber[], toolkit_dirs)
+    libcuda = find_cuda_library("cuda", toolkit_dirs)
     if libcuda === nothing
         return false
     end

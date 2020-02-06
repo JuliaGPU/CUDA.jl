@@ -165,8 +165,8 @@ const cuda_versions = [v"1.0", v"1.1",
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-find_cuda_library(name::String, versions::Vector{VersionNumber}=VersionNumber[],
-                  toolkit_dirs::Vector{String}=String[]; kwargs...) =
+find_cuda_library(name::String, toolkit_dirs::Vector{String}=String[],
+                  versions::Vector{VersionNumber}=VersionNumber[]; kwargs...) =
     find_library(get(cuda_names, name, [name]);
                  versions=versions, locations=toolkit_dirs, kwargs...)
 find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]; kwargs...) =
@@ -233,7 +233,7 @@ function find_toolkit()
     end
 
     # look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
-    libcudart_path = find_cuda_library("cudart", cuda_versions)
+    libcudart_path = find_cuda_library("cudart", String[], cuda_versions)
     if libcudart_path !== nothing
         libcudart_dir = dirname(libcudart_path)
         if occursin(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
