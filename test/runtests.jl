@@ -39,6 +39,13 @@ end
 
     ver = find_toolkit_version(dirs)
 
+    if VERSION < v"1.1.0-DEV.472"
+        isnothing(::Any) = false
+        isnothing(::Nothing) = true
+    else
+        isnothing = Base.isnothing
+    end
+
     @testset "CUDA tools and libraries" begin
         @test !isnothing(find_cuda_binary("nvcc", dirs))
         @test !isnothing(find_cuda_library("cudart", dirs))
