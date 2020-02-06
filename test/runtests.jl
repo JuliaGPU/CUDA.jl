@@ -86,3 +86,15 @@ end
     @test decode_ccall_function(:(ccall((:fun, :lib)))) == "fun"
     @test decode_ccall_function(:(@runtime_ccall((:fun, :lib)))) == "fun"
 end
+
+@testset "enum" begin
+
+@eval module Foo
+using ..CUDAapi
+@enum MY_ENUM MY_ENUM_VALUE
+@enum_without_prefix MY_ENUM MY_
+end
+
+@test Foo.ENUM_VALUE == Foo.MY_ENUM_VALUE
+
+end
