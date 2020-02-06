@@ -1,6 +1,6 @@
 # ccall wrapper for calling functions in libraries that might not be available
 
-export @runtime_ccall, decode_ccall_function
+export @runtime_ccall, decode_ccall_function, @checked
 
 """
     @runtime_ccall((function_name, library), returntype, (argtype1, ...), argvalue1, ...)
@@ -65,4 +65,35 @@ function decode_ccall_function(ex)
     end
 
     return fun
+end
+
+"""
+    @checked function foo(...)
+        ccall(...)
+    end
+
+Macro for wrapping a function definition containing a single `ccall` expression. Two
+versions of the function will be generated: `foo`, with the `ccall` wrapped by an invocation
+of the `@check` macro (to be implemented by the caller of this macro), and `unsafe_foo`
+where no such invocation is present.
+"""
+macro checked(ex)
+    # parse the function definition
+    @assert Meta.isexpr(ex, :function)
+    sig = ex.args[1]
+    @assert Meta.isexpr(sig, :call)
+    body = ex.args[2]
+    @assert Meta.isexpr(body, :block)
+    @assert length(body.args) == 2      # line number node and a single call
+
+    # generate a "safe" version that performs a check
+    safe_body = Expr(:block, body.args[1], :(@check $(body.args[2])))
+    safe_sig = Expr(:call, sig.args[1], sig.args[2:end]...)
+    safe_def = Expr(:function, safe_sig, safe_body)
+
+    # generate a "unsafe" version that returns the error code instead
+    unsafe_sig = Expr(:call, Symbol("unsafe_", sig.args[1]), sig.args[2:end]...)
+    unsafe_def = Expr(:function, unsafe_sig, body)
+
+    return esc(:($safe_def, $unsafe_def))
 end
