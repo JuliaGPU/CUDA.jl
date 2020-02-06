@@ -115,7 +115,7 @@ function complete(link::CuLink)
     if res == CUDA_ERROR_NO_BINARY_FOR_GPU || res == CUDA_ERROR_INVALID_IMAGE
         options = decode(link.optionKeys, link.optionVals)
         throw(CuError(res, options[JIT_ERROR_LOG_BUFFER]))
-    elseif res != CUDA_SUCCESS
+    elseif res != SUCCESS
         throw_api_error(res)
     end
 

@@ -1,6 +1,6 @@
 name = "CUDAdrv"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "5.1"
+version = "5.1.0"
 
 [deps]
 CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
@@ -9,7 +9,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
 CEnum = "0.2"
-CUDAapi = "2.1"
+CUDAapi = "3.0"
 julia = "1.0"
 
 [extras]
