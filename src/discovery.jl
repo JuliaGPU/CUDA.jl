@@ -145,47 +145,30 @@ end
 
 ## CUDA-specific discovery routines
 
-# FIXME: CUDA on 32-bit Windows isn't supported
-
 const cuda_names = Dict(
     "cuda"      => Sys.iswindows() ? ["nvcuda"] : ["cuda"],
     "nvml"      => Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"],
     "nvtx"      => ["nvToolsExt"]
 )
 
-const cuda_versions = Dict(
-    # https://developer.nvidia.com/cuda-toolkit-archive
-    "toolkit"   => [v"1.0", v"1.1",
-                    v"2.0", v"2.1", v"2.2",
-                    v"3.0", v"3.1", v"3.2",
-                    v"4.0", v"4.1", v"4.2",
-                    v"5.0", v"5.5",
-                    v"6.0", v"6.5",
-                    v"7.0", v"7.5",
-                    v"8.0",
-                    v"9.0", v"9.1", v"9.2",
-                    v"10.0", v"10.1", v"10.2"],
-    # https://developer.nvidia.com/rdp/cudnn-archive
-    "cudnn"     => [v"1.0",
-                    v"2.0",
-                    v"3.0",
-                    v"4.0",
-                    v"5.0", v"5.1",
-                    v"6.0",
-                    v"7.0", v"7.1", v"7.2", v"7.3", v"7.4"],
-    "nvtx"      => [v"1.0.0"]
-)
+const cuda_versions = [v"1.0", v"1.1",
+                       v"2.0", v"2.1", v"2.2",
+                       v"3.0", v"3.1", v"3.2",
+                       v"4.0", v"4.1", v"4.2",
+                       v"5.0", v"5.5",
+                       v"6.0", v"6.5",
+                       v"7.0", v"7.5",
+                       v"8.0",
+                       v"9.0", v"9.1", v"9.2",
+                       v"10.0", v"10.1", v"10.2"]
 
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-find_cuda_library(name::String, toolkit_dirs::Vector{String}=String[];
-                  versions::Vector{VersionNumber}=reverse(get(cuda_versions, name, cuda_versions["toolkit"])),
-                  kwargs...) =
+find_cuda_library(name::String, versions::Vector{VersionNumber}=VersionNumber[],
+                  toolkit_dirs::Vector{String}=String[]; kwargs...) =
     find_library(get(cuda_names, name, [name]);
-                 versions=versions,
-                 locations=toolkit_dirs,
-                 kwargs...)
+                 versions=versions, locations=toolkit_dirs, kwargs...)
 find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]; kwargs...) =
     find_binary(get(cuda_names, name, [name]);
                 locations=toolkit_dirs,
@@ -250,7 +233,7 @@ function find_toolkit()
     end
 
     # look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
-    libcudart_path = find_cuda_library("cudart")
+    libcudart_path = find_cuda_library("cudart", cuda_versions)
     if libcudart_path !== nothing
         libcudart_dir = dirname(libcudart_path)
         if occursin(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
@@ -274,7 +257,7 @@ function find_toolkit()
     else
         # CUDA versions are installed in unversioned dirs, or suffixed with the version
         basedirs = ["/usr/local/cuda", "/opt/cuda"]
-        for ver in cuda_versions["toolkit"], dir in basedirs
+        for ver in cuda_versions, dir in basedirs
             push!(default_dirs, "$dir-$(ver.major).$(ver.minor)")
         end
         append!(default_dirs, basedirs)
@@ -294,19 +277,14 @@ function find_toolkit()
     return dirs
 end
 
-# figure out the CUDA toolkit version (by looking at the `ptxas --version` output)
-function find_toolkit_version(toolkit_dirs)
-    ptxas_path = find_cuda_binary("ptxas", toolkit_dirs)
-    if ptxas_path === nothing
-        error("CUDA toolkit at $(join(toolkit_dirs, ", ")) doesn't contain ptxas")
-    end
-
-    # parse the ptxas version string
+# figure out the CUDA toolkit version (by looking at the output of a tool like `nvdisasm`)
+function find_toolkit_version(tool_path)
+    # parse the version string
     verstr = withenv("LANG"=>"C") do
-        read(`$ptxas_path --version`, String)
+        read(`$tool_path --version`, String)
     end
     m = match(r"\bV(?<major>\d+).(?<minor>\d+).(?<patch>\d+)\b", verstr)
-    m !== nothing || error("could not parse ptxas version info (\"$verstr\")")
+    m !== nothing || error("could not parse version info (\"$verstr\")")
 
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
@@ -316,15 +294,15 @@ function find_toolkit_version(toolkit_dirs)
 end
 
 """
-    find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs::Vector{String})
+    find_libdevice(toolkit_dirs::Vector{String})
 
 Look for the CUDA device library supporting `targets` in any of the CUDA toolkit directories
 `toolkit_dirs`. On CUDA >= 9.0, a single library unified library is discovered and returned
 as a string. On older toolkits, individual libraries for each of the targets are returned as
 a vector of strings.
 """
-function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
-    @trace "Request to look for libdevice $(join(targets, ", "))" locations=toolkit_dirs
+function find_libdevice(toolkit_dirs)
+    @trace "Request to look for libdevice" locations=toolkit_dirs
 
     # figure out locations
     dirs = String[]
@@ -336,31 +314,13 @@ function find_libdevice(targets::Vector{VersionNumber}, toolkit_dirs)
 
     # filter
     dirs = valid_dirs(dirs)
-    @trace "Look for libdevice $(join(targets, ", "))" locations=dirs
+    @trace "Look for libdevice" locations=dirs
 
     for dir in dirs
-        # parse filenames
-        libraries = Dict{VersionNumber,String}()
-        for target in targets
-            path = joinpath(dir, "libdevice.compute_$(target.major)$(target.minor).10.bc")
-            if isfile(path)
-                libraries[target] = path
-            end
-        end
-        library = nothing
-        let path = joinpath(dir, "libdevice.10.bc")
-            if isfile(path)
-                library = path
-            end
-        end
-
-        # select
-        if library !== nothing
-            @debug "Found unified device library at $library"
-            return library
-        elseif !isempty(libraries)
-            @debug "Found split device libraries at $(join(libraries, ", "))"
-            return libraries
+        path = joinpath(dir, "libdevice.10.bc")
+        if isfile(path)
+            @debug "Found unified device library at $path"
+            return path
         end
     end
 

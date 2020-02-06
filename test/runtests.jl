@@ -37,8 +37,6 @@ end
         end
     end
 
-    ver = find_toolkit_version(dirs)
-
     if VERSION < v"1.1.0-DEV.472"
         isnothing(::Any) = false
         isnothing(::Nothing) = true
@@ -47,14 +45,16 @@ end
     end
 
     @testset "CUDA tools and libraries" begin
-        @test !isnothing(find_cuda_binary("nvcc", dirs))
-        @test !isnothing(find_cuda_library("cudart", dirs))
+        @test !isnothing(find_cuda_binary("ptxas", dirs))
+        ptxas = find_cuda_binary("ptxas", dirs)
+        ver = find_toolkit_version(ptxas)
+        @test !isnothing(find_cuda_library("cudart", [ver], dirs))
         if Sys.isapple() && ver.major == 10 && ver.minor == 2
             # libnvToolsExt isn't part of this release anymore?
         else
-            @test !isnothing(find_cuda_library("nvtx", dirs))
+            @test !isnothing(find_cuda_library("nvtx", [v"1"], dirs))
         end
-        @test !isnothing(find_libdevice([v"3.0"], dirs))
+        @test !isnothing(find_libdevice(dirs))
         @test !isnothing(find_libcudadevrt(dirs))
     end
 end
