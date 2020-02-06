@@ -79,14 +79,17 @@ end
     # but should still error nicely if actually calling the library
     @test_throws ErrorException bar(true)
 
-    # ccall also doesn't support non-constant arguments
-    lib = Ref("libjulia")
-    baz() = ccall((:getpid, lib[]), Cint, ())
-    @test_throws TypeError baz()
+    # FIXME: make this test work on Windows
+    if !Sys.iswindows()
+        # ccall also doesn't support non-constant arguments
+        lib = Ref("libjulia")
+        baz() = ccall((:getpid, lib[]), Cint, ())
+        @test_throws TypeError baz()
 
-    # @runtime_ccall supports that
-    qux() = @runtime_ccall((:getpid, lib[]), Cint, ())
-    @test qux() == getpid()
+        # @runtime_ccall supports that
+        qux() = @runtime_ccall((:getpid, lib[]), Cint, ())
+        @test qux() == getpid()
+    end
 
     # decoding ccall/@runtime_ccall
     @test decode_ccall_function(:(ccall((:fun, :lib)))) == "fun"
