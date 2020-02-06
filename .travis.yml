@@ -51,6 +51,13 @@ matrix:
       dist: xenial
       julia: nightly
 
+addons:
+  homebrew:
+    packages:
+    - bash
+    - p7zip
+    - gnu-tar
+
 install:
-  - if [[ $TRAVIS_OS_NAME == "linux" ]]; then ./.travis.linux; fi
-  - if [[ $TRAVIS_OS_NAME == "osx" ]];   then ./.travis.osx;   fi
+  - if [[ $TRAVIS_OS_NAME == "linux" ]];   then                   ./.travis.linux;   fi
+  - if [[ $TRAVIS_OS_NAME == "osx" ]];     then /usr/local/bin/bash .travis.osx;     fi
