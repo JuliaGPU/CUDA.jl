@@ -77,7 +77,11 @@ end
 @testset "call" begin
     # ccall throws if the lib doesn't exist, even if not called
     foo(x) = (x && ccall((:whatever, "nonexisting"), Cvoid, ()); 42)
-    @test_throws ErrorException foo(false)
+    if VERSION < v"1.4.0-DEV.653"
+        @test_throws ErrorException foo(false)
+    else
+        foo(false)
+    end
 
     # @runtime_ccall prevents that
     bar(x) = (x && @runtime_ccall((:whatever, "nonexisting"), Cvoid, ()); 42)

@@ -17,6 +17,13 @@ macro runtime_ccall(target, args...)
     Meta.isexpr(target, :tuple) || error("Expected (function_name, library) tuple")
     function_name, library = target.args
 
+    # this has been fixed on 1.4
+    if VERSION >= v"1.4.0-DEV.653"
+        return esc(quote
+            ccall($target, $(args...))
+        end)
+    end
+
     # global const ref to hold the function pointer
     @gensym fptr_cache
     @eval __module__ begin
