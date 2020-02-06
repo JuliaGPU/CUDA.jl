@@ -1,20 +1,4 @@
-export VersionRange, @enum_without_prefix
-
-## version range
-
-struct VersionRange
-    lower::VersionNumber
-    upper::VersionNumber
-end
-
-Base.in(v::VersionNumber, r::VersionRange) = (v >= r.lower && v <= r.upper)
-
-import Base.(:)
-(:)(a::VersionNumber, b::VersionNumber) = VersionRange(a, b)
-
-Base.intersect(v::VersionNumber, r::VersionRange) =
-    v < r.lower ? (r.lower:v) :
-    v > r.upper ? (v:r.upper) : (v:v)
+export @enum_without_prefix
 
 
 ## redeclare enum values without a prefix

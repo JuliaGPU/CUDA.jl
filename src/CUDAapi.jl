@@ -10,7 +10,6 @@ end
 
 include("util.jl")
 
-include("compatibility.jl")
 include("discovery.jl")
 include("availability.jl")
 

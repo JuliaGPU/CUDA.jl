@@ -10,13 +10,6 @@ import Libdl
     @test CUDAapi.C_32U == CUDAapi.cudaDataType(Complex{UInt32})
 end
 
-@testset "properties" begin
-    CUDAapi.devices_for_cuda(v"8.0")
-    CUDAapi.devices_for_llvm(v"5.0")
-    CUDAapi.isas_for_cuda(v"8.0")
-    CUDAapi.isas_for_llvm(v"5.0")
-end
-
 # helper macro to test for non-nothingness
 macro test_something(ex)
     quote
