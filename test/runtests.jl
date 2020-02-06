@@ -72,6 +72,15 @@ end
     # but should still error nicely if actually calling the library
     @test_throws ErrorException bar(true)
 
+    # ccall also doesn't support non-constant arguments
+    lib = Ref("libjulia")
+    baz() = ccall((:getpid, lib[]), Cint, ())
+    @test_throws TypeError baz()
+
+    # @runtime_ccall supports that
+    qux() = @runtime_ccall((:getpid, lib[]), Cint, ())
+    @test qux() == getpid()
+
     # decoding ccall/@runtime_ccall
     @test decode_ccall_function(:(ccall((:fun, :lib)))) == "fun"
     @test decode_ccall_function(:(@runtime_ccall((:fun, :lib)))) == "fun"
@@ -79,13 +88,13 @@ end
 
 @testset "enum" begin
 
-@eval module Foo
-using ..CUDAapi
-@enum MY_ENUM MY_ENUM_VALUE
-@enum_without_prefix MY_ENUM MY_
-end
+    @eval module Foo
+    using ..CUDAapi
+    @enum MY_ENUM MY_ENUM_VALUE
+    @enum_without_prefix MY_ENUM MY_
+    end
 
-@test Foo.ENUM_VALUE == Foo.MY_ENUM_VALUE
+    @test Foo.ENUM_VALUE == Foo.MY_ENUM_VALUE
 
 end
 
