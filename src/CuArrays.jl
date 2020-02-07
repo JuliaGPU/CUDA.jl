@@ -82,7 +82,7 @@ function __init__()
 
             # check if we can't find the library
             if Libdl.dlopen_e(handle[]) == C_NULL
-                path = find_cuda_library(name, toolkit)
+                path = find_cuda_library(name, CUDAnative.prefix(), [CUDAnative.version()])
                 if path !== nothing
                     handle[] = path
                 end

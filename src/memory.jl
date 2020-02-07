@@ -69,7 +69,7 @@ function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
     allocated[ptr] = buf
     return ptr
   catch ex
-    ex == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
+    ex.code == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
   end
 
   return nothing
