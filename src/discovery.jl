@@ -70,6 +70,7 @@ function find_library(names::Vector{String};
         push!(all_locations, location)
         if Sys.iswindows()
             push!(all_locations, joinpath(location, "bin"))
+            push!(all_locations, joinpath(location, "bin", Sys.WORD_SIZE==64 ? "x64" : "Win32"))
         else
             push!(all_locations, joinpath(location, "lib"))
             if word_size == 64
@@ -188,21 +189,15 @@ function find_toolkit()
 
     # NVTX library (special case for Windows)
     if Sys.iswindows()
-        var = "NVTOOLSEXT_PATH"
-        basedir = get(ENV, var, nothing)
-        if basedir !== nothing && isdir(basedir)
-            @trace "Looking for NVTX library via environment variable" var
-            suffix = Sys.WORD_SIZE == 64 ? "x64" : "Win32"
-            dir = joinpath(basedir, "bin", suffix)
-            isdir(dir) && push!(dirs, dir)
+        if haskey(ENV, "NVTOOLSEXT_PATH")
+            dir = ENV["NVTOOLSEXT_PATH"]
+            @trace "Looking for NVTX library via environment variable" dir
         else
             program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
-            basedir = joinpath(program_files, "NVIDIA Corporation", "NvToolsExt")
-            @trace "Looking for NVTX library in the default directory" basedir
-            suffix = Sys.WORD_SIZE == 64 ? "x64" : "Win32"
-            dir = joinpath(basedir, "bin", suffix)
-            isdir(dir) && push!(dirs, dir)
+            dir = joinpath(program_files, "NVIDIA Corporation", "NvToolsExt")
+            @trace "Looking for NVTX library in the default directory" dir
         end
+        isdir(dir) && push!(dirs, dir)
     end
 
     # look for environment variables to override discovery
@@ -278,7 +273,7 @@ function find_toolkit()
 end
 
 # figure out the CUDA toolkit version (by looking at the output of a tool like `nvdisasm`)
-function parse_toolkit_version(tool_path)
+function parse_toolkit_version(tool_path::String)
     # parse the version string
     verstr = withenv("LANG"=>"C") do
         read(`$tool_path --version`, String)

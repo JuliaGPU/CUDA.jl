@@ -49,11 +49,7 @@ end
         ptxas = find_cuda_binary("ptxas", dirs)
         ver = parse_toolkit_version(ptxas)
         @test !isnothing(find_cuda_library("cudart", dirs, [ver]))
-        if Sys.isapple() && ver.major == 10 && ver.minor == 2
-            # libnvToolsExt isn't part of this release anymore?
-        else
-            @test !isnothing(find_cuda_library("nvtx", dirs, [v"1"]))
-        end
+        @test !isnothing(find_cuda_library("nvtx", dirs, [v"1"]))
         @test !isnothing(find_libdevice(dirs))
         @test !isnothing(find_libcudadevrt(dirs))
     end
