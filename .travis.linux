@@ -15,7 +15,7 @@ components["10.1"]="cuda-drivers cuda-core-10-1 cuda-cudart-dev-10-1 cuda-nvtx-1
 components["10.2"]="cuda-drivers cuda-core-10-2 cuda-cudart-dev-10-2 cuda-nvtx-10-2"
 
 installer=${installers[$CUDA]}
-wget -O cuda.deb "$installer"
+wget -nv -O cuda.deb "$installer"
 
 sudo apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/7fa2af80.pub
 sudo dpkg -i cuda.deb

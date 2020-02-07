@@ -15,7 +15,7 @@ installers["10.2"]="http://developer.download.nvidia.com/compute/cuda/10.2/Prod/
 
 
 installer=${installers[$CUDA]}
-wget -O cuda.dmg "$installer"
+wget -nv -O cuda.dmg "$installer"
 
 7z x cuda.dmg
 [[ -f 5.hfs ]] && 7z x 5.hfs
