@@ -35,8 +35,6 @@ matrix:
       os: osx
     - env: CUDA=10.1
       os: osx
-    - env: CUDA=10.2
-      os: osx
     # julia nightly
     - env: CUDA=10.0
       os: linux
