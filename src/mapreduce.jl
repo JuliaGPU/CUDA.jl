@@ -87,7 +87,7 @@ import Base.minimum, Base.maximum, Base.reduce
 _reduced_dims(x::CuArray, ::Colon) = Tuple(Base.ones(Int, ndims(x)))
 _reduced_dims(x::CuArray, dims) = Base.reduced_indices(x, dims)
 
-_initarray(x::CuArray{T}, dims, init) where {T} = fill!(similar(x, T,     _reduced_dims(x, dims)), init)
+_initarray(x::CuArray{T}, dims, init) where {T} = fill!(similar(x, T, _reduced_dims(x, dims)), init)
 
 function _reduce(op, x::CuArray, init, ::Colon)
     mx = _initarray(x, :, init)
