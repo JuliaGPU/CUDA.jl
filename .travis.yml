@@ -35,17 +35,6 @@ matrix:
       os: osx
     - env: CUDA=10.1
       os: osx
-    # windows builds
-    - env: CUDA=9.0
-      os: windows
-    - env: CUDA=9.2
-      os: windows
-    - env: CUDA=10.0
-      os: windows
-    - env: CUDA=10.1
-      os: windows
-    - env: CUDA=10.2
-      os: windows
     # julia nightly
     - env: CUDA=10.0
       os: linux
@@ -61,4 +50,3 @@ addons:
 install:
   - if [[ $TRAVIS_OS_NAME == "linux" ]];   then                   ./.travis.linux;   fi
   - if [[ $TRAVIS_OS_NAME == "osx" ]];     then /usr/local/bin/bash .travis.osx;     fi
-  - if [[ $TRAVIS_OS_NAME == "windows" ]]; then                   ./.travis.windows; fi
