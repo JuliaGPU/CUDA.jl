@@ -132,26 +132,22 @@ function __init__()
                                It is recommended to upgrade your driver."""
         end
 
-        let val = find_libdevice(toolkit_dirs[])
-            val === nothing && error("Your CUDA installation does not provide libdevice")
-            libdevice[] = val
-        end
+        libdevice[] = find_libdevice(toolkit_dirs[])
+        libdevice[] === nothing && error("Your CUDA installation does not provide libdevice")
 
-        let val = find_libcudadevrt(toolkit_dirs[])
-            val === nothing && error("Your CUDA installation does not provide libcudadevrt")
-            libcudadevrt[] = val
-        end
+        libcudadevrt[] = find_libcudadevrt(toolkit_dirs[])
+        libcudadevrt[] === nothing && error("Your CUDA installation does not provide libcudadevrt")
 
-        let val = find_cuda_library("nvtx", toolkit_dirs[], [v"1"])
-            val === nothing && error("Your CUDA installation does not provide the NVTX library")
-            NVTX.libnvtx[] = val
+        NVTX.libnvtx[] = find_cuda_library("nvtx", toolkit_dirs[], [v"1"])
+        if NVTX.libnvtx[] === nothing
+            silent || @warn("Your CUDA installation does not provide the NVTX library, CUDAnative.NVTX will be unavailable")
         end
 
         toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs[])
         cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
-        let val = find_cuda_library("cupti", cupti_dirs, [toolkit_version[]])
-            val === nothing && error("Your CUDA installation does not provide the CUPTI library")
-            CUPTI.libcupti[] = val
+        CUPTI.libcupti[] = find_cuda_library("cupti", cupti_dirs, [toolkit_version[]])
+        if CUPTI.libcupti[] === nothing
+            silent || @warn("Your CUDA installation does not provide the CUPTI library, CUDAnative.@code_sass will be unavailable")
         end
 
         llvm_support = llvm_compat(llvm_version)
