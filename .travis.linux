@@ -8,11 +8,11 @@ installers["10.1"]="http://developer.download.nvidia.com/compute/cuda/repos/ubun
 installers["10.2"]="http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1604/x86_64/cuda-repo-ubuntu1604_10.2.89-1_amd64.deb"
 
 declare -A components
-components["9.0"]="cuda-drivers cuda-core-9-0 cuda-cudart-dev-9-0"
-components["9.2"]="cuda-drivers cuda-core-9-2 cuda-cudart-dev-9-2 cuda-nvtx-9-2"
-components["10.0"]="cuda-drivers cuda-core-10-0 cuda-cudart-dev-10-0 cuda-nvtx-10-0"
-components["10.1"]="cuda-drivers cuda-core-10-1 cuda-cudart-dev-10-1 cuda-nvtx-10-1"
-components["10.2"]="cuda-drivers cuda-core-10-2 cuda-cudart-dev-10-2 cuda-nvtx-10-2"
+components["9.0"]="cuda-drivers cuda-core-9-0 cuda-cudart-dev-9-0 cuda-command-line-tools-9-0"
+components["9.2"]="cuda-drivers cuda-core-9-2 cuda-cudart-dev-9-2 cuda-nvtx-9-2 cuda-cupti-9-2"
+components["10.0"]="cuda-drivers cuda-core-10-0 cuda-cudart-dev-10-0 cuda-nvtx-10-0 cuda-cupti-10-0"
+components["10.1"]="cuda-drivers cuda-core-10-1 cuda-cudart-dev-10-1 cuda-nvtx-10-1 cuda-cupti-10-1"
+components["10.2"]="cuda-drivers cuda-core-10-2 cuda-cudart-dev-10-2 cuda-nvtx-10-2 cuda-cupti-10-2"
 
 installer=${installers[$CUDA]}
 wget -nv -O cuda.deb "$installer"
