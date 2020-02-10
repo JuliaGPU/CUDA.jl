@@ -143,9 +143,7 @@ function __init__()
             silent || @warn("Your CUDA installation does not provide the NVTX library, CUDAnative.NVTX will be unavailable")
         end
 
-        toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs[])
-        cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
-        CUPTI.libcupti[] = find_cuda_library("cupti", cupti_dirs, [toolkit_version[]])
+        CUPTI.libcupti[] = find_cuda_library("cupti", toolkit_dirs[], [toolkit_version[]])
         if CUPTI.libcupti[] === nothing
             silent || @warn("Your CUDA installation does not provide the CUPTI library, CUDAnative.@code_sass will be unavailable")
         end
