@@ -68,14 +68,14 @@ function find_library(names::Vector{String};
     all_locations = String[]
     for location in locations
         push!(all_locations, location)
+        push!(all_locations, joinpath(location, "lib"))
+        if word_size == 64
+            push!(all_locations, joinpath(location, "lib64"))
+            push!(all_locations, joinpath(location, "libx64"))
+        end
         if Sys.iswindows()
             push!(all_locations, joinpath(location, "bin"))
             push!(all_locations, joinpath(location, "bin", Sys.WORD_SIZE==64 ? "x64" : "Win32"))
-        else
-            push!(all_locations, joinpath(location, "lib"))
-            if word_size == 64
-                push!(all_locations, joinpath(location, "lib64"))
-            end
         end
     end
 
