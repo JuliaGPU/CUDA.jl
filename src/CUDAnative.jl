@@ -45,7 +45,7 @@ const target_support = Ref{Vector{VersionNumber}}()
 const ptx_support = Ref{Vector{VersionNumber}}()
 
 # paths
-const libdevice = Ref{Union{String,Dict{VersionNumber,String}}}()
+const libdevice = Ref{String}()
 const libcudadevrt = Ref{String}()
 const nvdisasm = Ref{String}()
 
@@ -119,9 +119,11 @@ function __init__()
 
         toolkit_dirs[] = find_toolkit()
 
-        let val = find_cuda_binary("nvdisasm", toolkit_dirs[])
-            val === nothing && error("Your CUDA installation does not provide the nvdisasm binary")
-            nvdisasm[] = val
+        path = find_cuda_binary("nvdisasm", toolkit_dirs[])
+        if path === nothing
+            error("Your CUDA installation does not provide the nvdisasm binary")
+        else
+            nvdisasm[] = path
         end
 
         toolkit_version[] = parse_toolkit_version(nvdisasm[])
@@ -132,20 +134,32 @@ function __init__()
                                It is recommended to upgrade your driver."""
         end
 
-        libdevice[] = find_libdevice(toolkit_dirs[])
-        libdevice[] === nothing && error("Your CUDA installation does not provide libdevice")
-
-        libcudadevrt[] = find_libcudadevrt(toolkit_dirs[])
-        libcudadevrt[] === nothing && error("Your CUDA installation does not provide libcudadevrt")
-
-        NVTX.libnvtx[] = find_cuda_library("nvtx", toolkit_dirs[], [v"1"])
-        if NVTX.libnvtx[] === nothing
-            silent || @warn("Your CUDA installation does not provide the NVTX library, CUDAnative.NVTX will be unavailable")
+        path = find_libdevice(toolkit_dirs[])
+        if path === nothing
+            error("Your CUDA installation does not provide libdevice")
+        else
+            libdevice[] = path
         end
 
-        CUPTI.libcupti[] = find_cuda_library("cupti", toolkit_dirs[], [toolkit_version[]])
-        if CUPTI.libcupti[] === nothing
+        path = find_libcudadevrt(toolkit_dirs[])
+        if path === nothing
+            error("Your CUDA installation does not provide libcudadevrt")
+        else
+            libcudadevrt[] = path
+        end
+
+        path = find_cuda_library("nvtx", toolkit_dirs[], [v"1"])
+        if path === nothing
+            silent || @warn("Your CUDA installation does not provide the NVTX library, CUDAnative.NVTX will be unavailable")
+        else
+            NVTX.libnvtx[] = path
+        end
+
+        path = find_cuda_library("cupti", toolkit_dirs[], [toolkit_version[]])
+        if path === nothing
             silent || @warn("Your CUDA installation does not provide the CUPTI library, CUDAnative.@code_sass will be unavailable")
+        else
+            CUPTI.libcupti[] = path
         end
 
         llvm_support = llvm_compat(llvm_version)
