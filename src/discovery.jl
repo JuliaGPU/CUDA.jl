@@ -68,14 +68,14 @@ function find_library(names::Vector{String};
     all_locations = String[]
     for location in locations
         push!(all_locations, location)
+        push!(all_locations, joinpath(location, "lib"))
+        if word_size == 64
+            push!(all_locations, joinpath(location, "lib64"))
+            push!(all_locations, joinpath(location, "libx64"))
+        end
         if Sys.iswindows()
             push!(all_locations, joinpath(location, "bin"))
             push!(all_locations, joinpath(location, "bin", Sys.WORD_SIZE==64 ? "x64" : "Win32"))
-        else
-            push!(all_locations, joinpath(location, "lib"))
-            if word_size == 64
-                push!(all_locations, joinpath(location, "lib64"))
-            end
         end
     end
 
@@ -166,10 +166,33 @@ const cuda_versions = [v"1.0", v"1.1",
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-find_cuda_library(name::String, toolkit_dirs::Vector{String}=String[],
-                  versions::Vector{VersionNumber}=VersionNumber[]; kwargs...) =
-    find_library(get(cuda_names, name, [name]);
-                 versions=versions, locations=toolkit_dirs, kwargs...)
+function find_cuda_library(name::String, toolkit_dirs::Vector{String}=String[],
+                           versions::Vector{VersionNumber}=VersionNumber[]; kwargs...)
+    locations = toolkit_dirs
+
+    # CUPTI is in the "extras" directory of the toolkit
+    if name == "cupti"
+        toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
+        cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
+        append!(locations, cupti_dirs)
+    end
+
+    # NVTX is located in an entirely different location on Windows
+    if name == "nvtx" && Sys.iswindows()
+        if haskey(ENV, "NVTOOLSEXT_PATH")
+            dir = ENV["NVTOOLSEXT_PATH"]
+            @trace "Looking for NVTX library via environment variable" dir
+        else
+            program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
+            dir = joinpath(program_files, "NVIDIA Corporation", "NvToolsExt")
+            @trace "Looking for NVTX library in the default directory" dir
+        end
+        isdir(dir) && push!(locations, dir)
+    end
+
+    names = get(cuda_names, name, [name])
+    find_library(names; versions=versions, locations=locations, kwargs...)
+end
 find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]; kwargs...) =
     find_binary(get(cuda_names, name, [name]);
                 locations=toolkit_dirs,
@@ -186,19 +209,6 @@ The behavior of this function can be overridden by defining the `CUDA_PATH`, `CU
 """
 function find_toolkit()
     dirs = String[]
-
-    # NVTX library (special case for Windows)
-    if Sys.iswindows()
-        if haskey(ENV, "NVTOOLSEXT_PATH")
-            dir = ENV["NVTOOLSEXT_PATH"]
-            @trace "Looking for NVTX library via environment variable" dir
-        else
-            program_files = ENV[Sys.WORD_SIZE == 64 ? "ProgramFiles" : "ProgramFiles(x86)"]
-            dir = joinpath(program_files, "NVIDIA Corporation", "NvToolsExt")
-            @trace "Looking for NVTX library in the default directory" dir
-        end
-        isdir(dir) && push!(dirs, dir)
-    end
 
     # look for environment variables to override discovery
     envvars = ["CUDA_PATH", "CUDA_HOME", "CUDA_ROOT"]

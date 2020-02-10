@@ -49,7 +49,8 @@ end
         ptxas = find_cuda_binary("ptxas", dirs)
         ver = parse_toolkit_version(ptxas)
         @test !isnothing(find_cuda_library("cudart", dirs, [ver]))
-        @test !isnothing(find_cuda_library("nvtx", dirs, [v"1"]))
+        @test !isnothing(find_cuda_library("cupti", dirs, [ver]))   # in extras
+        @test !isnothing(find_cuda_library("nvtx", dirs, [v"1"]))   # somewhere else
         @test !isnothing(find_libdevice(dirs))
         @test !isnothing(find_libcudadevrt(dirs))
     end
