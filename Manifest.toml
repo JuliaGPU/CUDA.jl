@@ -39,8 +39,10 @@ uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
 version = "6.0.0"
 
 [[CUDAnative]]
-deps = ["Adapt", "CEnum", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Printf", "TimerOutputs"]
-git-tree-sha1 = "f86269ff60ebe082a2806ecbce51f3cadc68afe9"
+deps = ["Adapt", "BinaryProvider", "CEnum", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Pkg", "Printf", "TimerOutputs"]
+git-tree-sha1 = "f5863b95140711306d1d6b31ada234d7bfea2416"
+repo-rev = "7c1311b19a0f1eda7e0de724f2fd5f27b70daf1e"
+repo-url = "https://github.com/JuliaGPU/CUDAnative.jl.git"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
 version = "2.10.2"
 
@@ -77,6 +79,7 @@ uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
 version = "1.3.3"
 
 [[LibGit2]]
+deps = ["Printf"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
 [[Libdl]]
@@ -112,7 +115,7 @@ uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.1.0"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Test", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Printf]]

@@ -1,7 +1,7 @@
 module CUSPARSE
 
 using ..CuArrays
-using ..CuArrays: unsafe_free!, @argout, @workspace
+using ..CuArrays: libcusparse, unsafe_free!, @argout, @workspace
 
 using CUDAapi
 
@@ -13,8 +13,6 @@ using CUDAnative
 using CEnum
 
 const SparseChar = Char
-
-const libcusparse = Ref("libcusparse")
 
 # core library
 include("libcusparse_common.jl")

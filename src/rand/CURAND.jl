@@ -1,6 +1,7 @@
 module CURAND
 
 using ..CuArrays
+using ..CuArrays: libcurand
 
 using CUDAapi
 
@@ -10,8 +11,6 @@ using CUDAdrv: CUstream
 using CUDAnative
 
 using CEnum
-
-const libcurand = Ref("libcurand")
 
 # core library
 include("libcurand_common.jl")

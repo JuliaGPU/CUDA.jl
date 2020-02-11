@@ -1,7 +1,7 @@
 module CUSOLVER
 
 using ..CuArrays
-using ..CuArrays: @allowscalar, unsafe_free!, @argout, @workspace
+using ..CuArrays: libcusolver, @allowscalar, unsafe_free!, @argout, @workspace
 
 using ..CUBLAS: cublasFillMode_t, cublasOperation_t, cublasSideMode_t, cublasDiagType_t
 using ..CUSPARSE: cusparseMatDescr_t
@@ -14,8 +14,6 @@ using CUDAdrv: CUstream
 using CUDAnative
 
 using CEnum
-
-const libcusolver = Ref("libcusolver")
 
 # core library
 include("libcusolver_common.jl")

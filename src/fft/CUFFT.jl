@@ -3,7 +3,7 @@ module CUFFT
 using CUDAapi
 
 using ..CuArrays
-import ..CuArrays: unsafe_free!
+import ..CuArrays: libcufft, unsafe_free!
 
 using CUDAdrv
 using CUDAdrv: CUstream
@@ -13,8 +13,6 @@ using CUDAnative
 using CEnum
 
 using Reexport
-
-const libcufft = Ref("libcufft")
 
 # core library
 include("libcufft_common.jl")

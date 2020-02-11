@@ -1,7 +1,7 @@
 module CUTENSOR
 
 using ..CuArrays
-using ..CuArrays: @argout, @workspace
+using ..CuArrays: libcutensor, @argout, @workspace
 
 using CUDAapi
 
@@ -13,8 +13,6 @@ using CUDAnative
 using CEnum
 
 const cudaDataType_t = cudaDataType
-
-const libcutensor = Ref("libcutensor")
 
 # core library
 include("libcutensor_common.jl")
