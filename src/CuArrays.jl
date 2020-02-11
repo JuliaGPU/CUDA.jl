@@ -67,8 +67,13 @@ function __init__()
 
     try
         # discover libraries
-        toolkit = find_toolkit()
-        for name in ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudnn", "cutensor")
+        for (name,version) in  (("cublas", CUDAnative.version()),
+                                ("cusparse", CUDAnative.version()),
+                                ("cusolver", CUDAnative.version()),
+                                ("cufft", CUDAnative.version()),
+                                ("curand", CUDAnative.version()),
+                                ("cudnn", v"7"),
+                                ("cutensor", v"1"))
             mod = getfield(CuArrays, Symbol(uppercase(name)))
             lib = Symbol("lib$name")
             handle = getfield(mod, lib)
@@ -82,7 +87,7 @@ function __init__()
 
             # check if we can't find the library
             if Libdl.dlopen_e(handle[]) == C_NULL
-                path = find_cuda_library(name, CUDAnative.prefix(), [CUDAnative.version()])
+                path = find_cuda_library(name, CUDAnative.prefix(), [version])
                 if path !== nothing
                     handle[] = path
                 end
