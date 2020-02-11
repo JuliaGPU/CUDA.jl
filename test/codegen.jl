@@ -210,6 +210,16 @@ end
     @test !occursin("\bstore\b", ir)
 end
 
+@testset "CUDAnative.jl#553" begin
+    function kernel(ptr)
+       unsafe_store!(ptr, CUDAnative.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+       return
+    end
+
+    ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Ptr{Float32}}))
+    @test !occursin("@__nv_fmaf", ir)
+end
+
 end
 
 
