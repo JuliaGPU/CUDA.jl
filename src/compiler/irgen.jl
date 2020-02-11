@@ -273,7 +273,6 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
         add!(pm, ModulePass("LowerThrow", lower_throw!))
         add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
         add!(pm, ModulePass("HideTrap", hide_trap!))
-        always_inliner!(pm)
         run!(pm, mod)
     end
 

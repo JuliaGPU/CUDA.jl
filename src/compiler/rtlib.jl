@@ -68,7 +68,6 @@ function link_libdevice!(job::CompilerJob, mod::LLVM.Module, lib::LLVM.Module)
     ModulePassManager() do pm
         push!(metadata(mod), "nvvm-reflect-ftz",
               MDNode([ConstantInt(Int32(1), JuliaContext())]))
-        # TODO: run the reflect pass?
         run!(pm, mod)
     end
 end
