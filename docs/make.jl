@@ -40,6 +40,9 @@ function main()
                 "usage/memory.md",
                 "usage/multigpu.md",
             ],
+            "Development" => Any[
+                "development/profiling.md",
+            ],
             "FAQ" => "faq.md",
         ]
     )
