@@ -24,6 +24,10 @@ VERSION >= v"1.4.0-DEV.666"
     ```
     then make sure you are running Julia v1.4.0-DEV.666 or later!
 
+!!! note
+
+    For optimal performance, you should use Julia `v1.5.0-DEV.324` or later.
+
 ## Introduction of Terminology
 
 The WMMA operations perform a matrix multiply-accumulate.
