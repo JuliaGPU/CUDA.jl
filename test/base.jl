@@ -416,3 +416,16 @@ end
     c = unsafe_wrap(CuArray{Int}, pointer(b), 2)
     @test_throws ErrorException resize!(c, 2)
 end
+
+@testset "aliasing" begin
+  x = CuArray([1,2])
+  y = view(x, 2:2)
+
+  a = copy(y)::typeof(x)
+  a .= 3
+  @test Array(y) == [2]
+
+  b = Base.unaliascopy(y)::typeof(y)
+  b .= 3
+  @test Array(y) == [2]
+end
