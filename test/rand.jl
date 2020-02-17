@@ -2,14 +2,10 @@
 
 using CuArrays.CURAND
 
-CURAND.seed!()
-CURAND.seed!(1)
-CURAND.seed!(1, 0)
-
 rng = CURAND.generator()
-CURAND.seed!(rng)
-CURAND.seed!(rng, 1)
-CURAND.seed!(rng, 1, 0)
+Random.seed!(rng)
+Random.seed!(rng, 1)
+Random.seed!(rng, 1, 0)
 
 # NOTE: tests should cover both pow2 and non-pow2 dims
 
@@ -58,5 +54,21 @@ end
 @test_throws ErrorException randn!(CuArray{Cuint}(undef, 10))
 @test_throws ErrorException rand_logn!(CuArray{Cuint}(undef, 10))
 @test_throws ErrorException rand_poisson!(CuArray{Float64}(undef, 10))
+
+# seeding of both generators
+CURAND.seed!()
+CURAND.seed!(1)
+## CuArrays CURAND
+CURAND.seed!(1)
+A = CuArrays.rand(Float32, 1)
+CURAND.seed!(1)
+B = CuArrays.rand(Float32, 1)
+@test all(A .== B)
+## GPUArrays fallback
+CURAND.seed!(1)
+A = CuArrays.rand(Int64, 1)
+CURAND.seed!(1)
+B = CuArrays.rand(Int64, 1)
+@test all(A .== B)
 
 end
