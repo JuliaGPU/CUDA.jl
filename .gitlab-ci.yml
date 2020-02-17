@@ -4,6 +4,7 @@ include:
 image: ubuntu:bionic
 
 variables:
+  JULIA_DEBUG: 'CUDAnative'
   JULIA_CUDA_VERBOSE: 'true'
   NVIDIA_VISIBLE_DEVICES: 'all'
   NVIDIA_DRIVER_CAPABILITIES: 'all'
@@ -123,8 +124,6 @@ debug:
     - .test
   tags:
     - nvidia
-  variables:
-    JULIA_DEBUG: 'CUDAnative'
   script:
     - julia --project -g2 -e 'using Pkg;
                               Pkg.instantiate();
