@@ -172,7 +172,7 @@ function __init_bindeps__(; silent=false, verbose=false)
 
     if llvm_version >= v"8.0" #&& CUDAdrv.release() < v"10.2"
         # NOTE: corresponding functionality in irgen.jl
-        silent || @warn "Incompatibility detected between CUDA and LLVM 8.0+; disabling debug info emission for CUDA kernels"
+        @debug "Incompatibility detected between CUDA and LLVM 8.0+; disabling debug info emission for CUDA kernels"
     end
 
 
