@@ -11,12 +11,10 @@ using CUDAnative
 using CEnum
 
 using ..CuArrays
-using ..CuArrays: @argout, @workspace
+using ..CuArrays: libcudnn, @argout, @workspace
 import ..CuArrays.unsafe_free!
 
 import NNlib
-
-const libcudnn = Ref("libcudnn")
 
 # core library
 include("libcudnn_common.jl")

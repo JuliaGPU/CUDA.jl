@@ -1,10 +1,14 @@
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
 
-image: nvidia/cuda:10.1-cudnn7-devel
+image: ubuntu:bionic
 
 variables:
+  JULIA_DEBUG: 'CuArrays'
   JULIA_CUDA_VERBOSE: 'true'
+  CI_APT_INSTALL: 'libgomp1'
+  NVIDIA_VISIBLE_DEVICES: 'all'
+  NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
 
 
 # Julia versions
@@ -12,7 +16,6 @@ variables:
 # the "primary" target, where we require thorough tests
 # (this requires a recent GPU)
 julia:1.3:
-  image: juliagpu/cuda:10.1-cudnn7-cutensor1-devel-ubuntu18.04
   extends:
     - .julia:1.3
     - .test
@@ -37,28 +40,55 @@ julia:nightly:
 #       https://developer.nvidia.com/rdp/cudnn-archive
 
 cuda:10.1:
-  image: nvidia/cuda:10.1-cudnn7-devel
   extends:
     - .julia:1.3
     - .test
+  variables:
+    JULIA_CUDA_VERSION: '10.1'
   tags:
     - nvidia
 
 cuda:10.0:
-  image: nvidia/cuda:10.0-cudnn7-devel
   extends:
     - .julia:1.3
     - .test
+  variables:
+    JULIA_CUDA_VERSION: '10.0'
   tags:
     - nvidia
 
 cuda:9.2:
-  image: nvidia/cuda:9.2-cudnn7-devel
   extends:
     - .julia:1.3
     - .test
+  variables:
+    JULIA_CUDA_VERSION: '9.2'
   tags:
     - nvidia
+
+# NOTE: CUDA 9.0 is broken
+
+cuda:local:
+  extends:
+    - .julia:1.3
+    - .test
+  image: nvidia/cuda:10.1-devel-ubuntu18.04
+  variables:
+    JULIA_CUDA_USE_BINARYBUILDER: 'false'
+  tags:
+    - nvidia
+
+cuda:none:
+  extends:
+    - .julia:1.3
+    - .test
+  variables:
+    JULIA_CUDA_USE_BINARYBUILDER: 'false'
+  script:
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build();
+                          Pkg.API.precompile()'
 
 
 # hardware platforms
@@ -101,25 +131,12 @@ pool:split:
   variables:
     CUARRAYS_MEMORY_POOL: 'split'
 
-precompile:
-  extends:
-    - .julia:1.3
-    - .test
-  image: ubuntu:bionic
-  script:
-    - julia --project -e 'using Pkg;
-                          Pkg.instantiate();
-                          Pkg.build();
-                          Pkg.API.precompile()'
-
 debug:
   extends:
     - .julia:1.3
     - .test
   tags:
     - nvidia
-  variables:
-    JULIA_DEBUG: 'CuArrays'
   script:
     - julia --project -g2 -e 'using Pkg;
                               Pkg.instantiate();

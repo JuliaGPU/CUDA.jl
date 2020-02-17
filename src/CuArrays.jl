@@ -18,6 +18,8 @@ using Requires
 
 ## source code includes
 
+include("bindeps.jl")
+
 # core array functionality
 include("memory.jl")
 include("array.jl")
@@ -66,67 +68,7 @@ function __init__()
     end
 
     try
-        # discover libraries
-        for (name,version) in  (("cublas", CUDAnative.version()),
-                                ("cusparse", CUDAnative.version()),
-                                ("cusolver", CUDAnative.version()),
-                                ("cufft", CUDAnative.version()),
-                                ("curand", CUDAnative.version()),
-                                ("cudnn", v"7"),
-                                ("cutensor", v"1"))
-            mod = getfield(CuArrays, Symbol(uppercase(name)))
-            lib = Symbol("lib$name")
-            handle = getfield(mod, lib)
-
-            # on Windows, the library name is version dependent
-            if Sys.iswindows()
-                cuda = CUDAnative.version()
-                suffix = cuda >= v"10.1" ? "$(cuda.major)" : "$(cuda.major)$(cuda.minor)"
-                handle[] = "$(name)$(Sys.WORD_SIZE)_$(suffix)"
-            end
-
-            # check if we can't find the library
-            if Libdl.dlopen_e(handle[]) == C_NULL
-                path = find_cuda_library(name, CUDAnative.prefix(), [version])
-                if path !== nothing
-                    handle[] = path
-                end
-            end
-        end
-
-        # library dependencies
-        CUBLAS.version()
-        CUSPARSE.version()
-        CUSOLVER.version()
-        CUFFT.version()
-        CURAND.version()
-        # CUDNN and CUTENSOR are optional
-
-        # library compatibility
-        if has_cutensor()
-            cutensor = CUTENSOR.version()
-            if cutensor < v"1"
-                silent || @warn("CuArrays.jl only supports CUTENSOR 1.0 or higher")
-            end
-
-            cuda = CUDAnative.version()
-            cutensor_cuda = CUTENSOR.cuda_version()
-            if cutensor_cuda.major != cuda.major || cutensor_cuda.minor != cuda.minor
-                silent || @warn("You are using CUTENSOR $cutensor for CUDA $cutensor_cuda with CUDA toolkit $cuda; these might be incompatible.")
-            end
-        end
-        if has_cudnn()
-            cudnn = CUDNN.version()
-            if cudnn < v"7.6"
-                silent || @warn("CuArrays.jl only supports CUDNN v7.6 or higher")
-            end
-
-            cuda = CUDAnative.version()
-            cudnn_cuda = CUDNN.cuda_version()
-            if cudnn_cuda.major != cuda.major || cudnn_cuda.minor != cuda.minor
-                silent || @warn("You are using CUDNN $cudnn for CUDA $cudnn_cuda with CUDA toolkit $cuda; these might be incompatible.")
-            end
-        end
+        __init_bindeps__(silent=silent, verbose=verbose)
 
         # package integrations
         @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")

@@ -8,12 +8,10 @@ using CUDAdrv: CUstream
 using CUDAnative
 
 using ..CuArrays
-using ..CuArrays: unsafe_free!
+using ..CuArrays: libcublas, unsafe_free!
 using LinearAlgebra
 
 using CEnum
-
-const libcublas = Ref("libcublas")
 
 # core library
 include("libcublas_common.jl")
