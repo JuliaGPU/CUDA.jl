@@ -72,6 +72,21 @@ end
   return a.refcount == 0
 end
 
+Base.parent(A::CuArray{<:Any,<:Any,Nothing})     = A
+Base.parent(A::CuArray{<:Any,<:Any,P}) where {P} = A.parent
+
+Base.dataids(A::CuArray{<:Any,<:Any,Nothing})     = (UInt(pointer(A)),)
+Base.dataids(A::CuArray{<:Any,<:Any,P}) where {P} = (Base.dataids(A.parent)..., UInt(pointer(A)),)
+
+# TODO: implement array alias detection from https://github.com/JuliaLang/julia/pull/25890
+
+Base.unaliascopy(A::CuArray{<:Any,<:Any,Nothing}) = copy(A)
+function Base.unaliascopy(A::CuArray{<:Any,<:Any,P}) where {P}
+  offset = pointer(A) - pointer(A.parent)
+  new_parent = Base.unaliascopy(A.parent)
+  typeof(A)(pointer(new_parent) + offset, A.dims, new_parent, A.pooled, A.ctx)
+end
+
 
 ## convenience constructors
 
