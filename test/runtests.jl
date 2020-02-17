@@ -9,8 +9,8 @@ include("util.jl")
 
 @test CUDAnative.functional()
 
-CUDAnative.prefix()
 CUDAnative.version()
+CUDAnative.release()
 
 CUDAnative.enable_timings()
 
