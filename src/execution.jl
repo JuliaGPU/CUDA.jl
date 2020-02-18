@@ -387,6 +387,8 @@ when function changes, or when different types or keyword arguments are provided
 
         # compile the function
         if !haskey(compilecache, key)
+            start = time_ns()
+
             # compile to PTX
             dev = device(ctx)
             cap = supported_capability(dev)
@@ -424,16 +426,18 @@ when function changes, or when different types or keyword arguments are provided
             fun = CuFunction(mod, kernel_fn)
             kernel = HostKernel{f,tt}(ctx, mod, fun)
 
+            create_exceptions!(mod)
+
+            compilecache[key] = kernel
+            stop = time_ns()
             @debug begin
                 ver = version(kernel)
                 mem = memory(kernel)
                 reg = registers(kernel)
                 fn = something(name, nameof(f))
-                """Compiled $fn to PTX $(ver.ptx) for SM $(ver.binary) using $reg registers.
-                   Memory usage: $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, $(Base.format_bytes(mem.constant)) constant"""
+                """Compiled $fn($(join(tt.parameters, ", "))) to PTX $(ver.ptx) for SM $(ver.binary) in $(round((time_ns() - start) / 1000000; digits=2)) ms.
+                   Kernel uses $reg registers, and $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, and $(Base.format_bytes(mem.constant)) constant memory."""
             end
-            compilecache[key] = kernel
-            create_exceptions!(mod)
         end
 
         return compilecache[key]::HostKernel{f,tt}

@@ -167,8 +167,6 @@ end
 ## high-level functions that return target and isa support
 
 function llvm_compat(version=LLVM.version())
-    @debug("Using LLVM v$version")
-
     # https://github.com/JuliaGPU/CUDAnative.jl/issues/428
     if version >= v"8.0" && VERSION < v"1.3.0-DEV.547"
         error("LLVM 8.0 requires a newer version of Julia")
@@ -188,13 +186,10 @@ function llvm_compat(version=LLVM.version())
     push!(ptx_support, v"6.0") # JuliaLang/julia#23817
     ptx_support = sort(collect(ptx_support))
 
-    @debug("LLVM supports capabilities $(verlist(cap_support)) with PTX $(verlist(ptx_support))")
     return (cap=cap_support, ptx=ptx_support)
 end
 
 function cuda_compat(driver_release=CUDAdrv.release(), toolkit_release=CUDAnative.release())
-    @debug("Using CUDA driver v$driver_release and toolkit v$toolkit_release")
-
     # the toolkit version as reported contains major.minor.patch,
     # but the version number returned by libcuda is only major.minor.
     if toolkit_release > driver_release
@@ -209,9 +204,6 @@ function cuda_compat(driver_release=CUDAdrv.release(), toolkit_release=CUDAnativ
     driver_ptx_support = cuda_ptx_support(driver_release)
     toolkit_ptx_support = cuda_ptx_support(toolkit_release)
     ptx_support = sort(collect(driver_ptx_support ∩ toolkit_ptx_support))
-
-    @debug("CUDA driver supports capabilities $(verlist(driver_cap_support)) with PTX $(verlist(driver_ptx_support))")
-    @debug("CUDA toolkit supports capabilities $(verlist(toolkit_cap_support)) with PTX $(verlist(toolkit_ptx_support))")
 
     return (cap=cap_support, ptx=ptx_support)
 end

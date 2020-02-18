@@ -160,19 +160,8 @@ end
 function __init_bindeps__(; silent=false, verbose=false)
     # LLVM
 
-    llvm_version = LLVM.version()
-
-
-    # Julia
-
-    julia_llvm_version = Base.libllvm_version
-    if julia_llvm_version != llvm_version
-        error("LLVM $llvm_version incompatible with Julia's LLVM $julia_llvm_version")
-    end
-
-    if llvm_version >= v"8.0" #&& CUDAdrv.release() < v"10.2"
-        # NOTE: corresponding functionality in irgen.jl
-        @debug "Incompatibility detected between CUDA and LLVM 8.0+; disabling debug info emission for CUDA kernels"
+    if Base.libllvm_version != LLVM.version()
+        error("LLVM $(LLVM.version()) incompatible with Julia's LLVM $(Base.libllvm_version)")
     end
 
 
@@ -196,7 +185,7 @@ function __init_bindeps__(; silent=false, verbose=false)
                            It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
 
-    llvm_support = llvm_compat(llvm_version)
+    llvm_support = llvm_compat()
     cuda_support = cuda_compat()
 
     target_support[] = sort(collect(llvm_support.cap ∩ cuda_support.cap))
@@ -205,5 +194,5 @@ function __init_bindeps__(; silent=false, verbose=false)
     ptx_support[] = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
     isempty(ptx_support[]) && error("Your toolchain does not support any PTX ISA")
 
-    @debug("CUDAnative supports devices $(verlist(target_support[])); PTX $(verlist(ptx_support[]))")
+    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDAdrv.version()) and toolkit $(CUDAnative.version()) supports devices $(verlist(target_support[])); PTX $(verlist(ptx_support[]))")
 end
