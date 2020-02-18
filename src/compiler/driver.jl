@@ -41,12 +41,7 @@ function compile(target::Symbol, job::CompilerJob;
     @debug "(Re)compiling function" job
 
     if compile_hook[] != nothing
-        global globalUnique
-        previous_globalUnique = globalUnique
-
         compile_hook[](job)
-
-        globalUnique = previous_globalUnique
     end
 
     return codegen(target, job;

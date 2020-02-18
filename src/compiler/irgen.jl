@@ -249,12 +249,9 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     if job.name !== nothing
         llvmfn = safe_name(string("julia_", job.name))
     else
+        # strip the globalUnique counter
         llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
     end
-    ## append a global unique counter
-    global globalUnique
-    globalUnique += 1
-    llvmfn *= "_$globalUnique"
     LLVM.name!(entry, llvmfn)
 
     # promote entry-points to kernels
@@ -276,8 +273,58 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
         run!(pm, mod)
     end
 
+    # name mangling
+    LLVM.name!(entry, mangle_call(entry, job.tt))
+
     return mod, entry
 end
+
+
+## name mangling
+
+# we generate function names that look like C++ functions, because many NVIDIA tools
+# support them, e.g., grouping different instantiations of the same kernel together.
+
+function mangle_param(t)
+    t == Nothing && return "v"
+
+    if isa(t, DataType) || isa(t, Core.Function)
+        tn = safe_name(t)
+        str = "$(length(tn))$tn"
+
+        if !isempty(t.parameters)
+            str *= "I"
+            for t in t.parameters
+                str *= mangle_param(t)
+            end
+            str *= "E"
+        end
+
+        str
+    elseif isa(t, Integer)
+        "Li$(t)E"
+    else
+        tn = safe_name(t)
+        "$(length(tn))$tn"
+    end
+end
+
+function mangle_call(f, tt)
+    fn = safe_name(f)
+    str = "_Z$(length(fn))$fn"
+
+    for t in tt.parameters
+        str *= mangle_param(t)
+    end
+
+    return str
+end
+
+# make names safe for ptxas
+safe_name(fn::String) = replace(fn, r"[^A-Za-z0-9_]"=>"_")
+safe_name(f::Union{Core.Function,DataType}) = safe_name(String(nameof(f)))
+safe_name(f::LLVM.Function) = safe_name(LLVM.name(f))
+safe_name(x) = safe_name(repr(x))
 
 
 ## exception handling
