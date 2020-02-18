@@ -156,9 +156,9 @@ function Base.findfirst(vals::CuArray, xs::CuArray)
             Ipre = Rpre[I[1]]
             Ipost = Rpost[I[2]]
 
-            @inbounds if xs[Ipre, i, Ipost] == vals[Ipre, Ipost]
+            @inbounds if xs[Ipre, i, Ipost] == vals[Ipre, 1, Ipost]
                 full_index = LinearIndices(xs)[Ipre, i, Ipost]   # atomic_min only works with integers
-                reduced_index = LinearIndices(indices)[Ipre, Ipost] # FIXME: @atomic doesn't handle array ref with CartesianIndices
+                reduced_index = LinearIndices(indices)[Ipre, 1, Ipost] # FIXME: @atomic doesn't handle array ref with CartesianIndices
                 CUDAnative.@atomic indices[reduced_index] = min(indices[reduced_index], full_index)
             end
         end
