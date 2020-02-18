@@ -31,7 +31,9 @@ function generator()
     if @inbounds active_generators[tid] === nothing
         ctx = context()
         active_generators[tid] = get!(created_generators, ctx) do
-            RNG()
+            rng = RNG()
+            Random.seed!(rng)
+            rng
         end
     end
     @inbounds active_generators[tid]
