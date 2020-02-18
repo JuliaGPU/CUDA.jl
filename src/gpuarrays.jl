@@ -17,8 +17,24 @@ struct CuArrayBackend <: AbstractGPUBackend end
 
 struct CuKernelContext <: AbstractKernelContext end
 
-function GPUArrays.gpu_call(::CuArrayBackend, f, args...; threads::Int, blocks::Int)
-    @cuda threads=threads blocks=blocks f(CuKernelContext(), args...)
+# use the CUDA occupancy API to determine a launch configuration
+function GPUArrays.gpu_call(::CuArrayBackend, f, args, total_threads::Int;
+                            name::Union{String,Nothing})
+    function configurator(kernel)
+        config = launch_configuration(kernel.fun)
+
+        threads = min(total_threads, config.threads)
+        blocks = cld(total_threads, threads)
+
+        return (threads=threads, blocks=blocks)
+    end
+
+    @cuda config=configurator name=name f(CuKernelContext(), args...)
+end
+
+function GPUArrays.gpu_call(::CuArrayBackend, f, args, threads::Int, blocks::Int;
+                            name::Union{String,Nothing})
+    @cuda threads=threads blocks=blocks name=name f(CuKernelContext(), args...)
 end
 
 GPUArrays.synchronize(A::CuArray) = CUDAdrv.synchronize()
