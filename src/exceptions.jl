@@ -27,7 +27,7 @@ function create_exceptions!(mod::CuModule)
         flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, exception_flag))
     catch err
         # modules that do not throw exceptions will not contain the indicator flag
-        err.code == CUDAdrv.ERROR_NOT_FOUND || rethrow()
+        (isa(err, CuError) && err.code == CUDAdrv.ERROR_NOT_FOUND) || rethrow()
     end
 
     return
