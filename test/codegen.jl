@@ -11,7 +11,7 @@
     ir = sprint(io->CUDAnative.code_llvm(io, valid_kernel, Tuple{}; optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
-    @test occursin("define void @julia_valid_kernel", ir)
+    @test occursin(r"define void @.*julia_valid_kernel.*\(\)", ir)
     @test !occursin("define %jl_value_t* @jlcall_", ir)
 
     # there should be no debug metadata
@@ -77,10 +77,10 @@ end
     end
 
     ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Aggregate}))
-    @test occursin(r"@julia_kernel_\d+\(({ i64 }|\[1 x i64\]) addrspace\(\d+\)?\*", ir)
+    @test occursin(r"@.*julia_kernel.+\(({ i64 }|\[1 x i64\]) addrspace\(\d+\)?\*", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Aggregate}; kernel=true))
-    @test occursin(r"@ptxcall_kernel_\d+\(({ i64 }|\[1 x i64\])\)", ir)
+    @test occursin(r"@.*ptxcall_kernel.+\(({ i64 }|\[1 x i64\])\)", ir)
 end
 
 @testset "property_annotations" begin
@@ -257,9 +257,9 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, entry, Tuple{Int64}; kernel=true))
-    @test occursin(r"\.visible \.entry ptxcall_entry_", asm)
-    @test !occursin(r"\.visible \.func julia_nonentry_", asm)
-    @test occursin(r"\.func julia_nonentry_", asm)
+    @test occursin(r"\.visible \.entry .*ptxcall_entry", asm)
+    @test !occursin(r"\.visible \.func .*julia_nonentry", asm)
+    @test occursin(r"\.func .*julia_nonentry", asm)
 
 @testset "property_annotations" begin
     asm = sprint(io->CUDAnative.code_ptx(io, entry, Tuple{Int64}; kernel=true))

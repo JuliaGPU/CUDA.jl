@@ -95,7 +95,3 @@ macro compiler_assert(ex, job, kwargs...)
                                                       $(map(esc, kwargs)...)))
             )
 end
-
-
-# maintain our own "global unique" suffix for disambiguating kernels
-globalUnique = 0
