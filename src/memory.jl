@@ -68,8 +68,8 @@ function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
     @assert !haskey(allocated, ptr)
     allocated[ptr] = buf
     return ptr
-  catch ex
-    ex.code == CUDAdrv.ERROR_OUT_OF_MEMORY || rethrow()
+  catch err
+    (isa(err, CuError) && err.code == CUDAdrv.ERROR_OUT_OF_MEMORY) || rethrow()
   end
 
   return nothing
