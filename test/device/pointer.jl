@@ -21,7 +21,7 @@ Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
     @test Array(d_a) != Array(d_b)
 
     let ptr_a=ptr_a, ptr_b=ptr_b #JuliaLang/julia#15276
-        if cached && capability(dev) >= v"3.2"
+        if cached && capability(device()) >= v"3.2"
             @on_device unsafe_store!(ptr_b, unsafe_cached_load(ptr_a))
         else
             @on_device unsafe_store!(ptr_b, unsafe_load(ptr_a))

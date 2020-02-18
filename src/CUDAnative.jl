@@ -13,8 +13,6 @@ using DataStructures
 
 ## source code includes
 
-include("utils.jl")
-
 # needs to be loaded _before_ the compiler infrastructure, because of generated functions
 include("device/tools.jl")
 include("device/pointer.jl")

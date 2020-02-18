@@ -646,7 +646,7 @@ end
 
 @testset "data movement and conversion" begin
 
-if capability(dev) >= v"3.0"
+if capability(device()) >= v"3.0"
 
 @testset "shuffle idx" begin
     function kernel(d)
@@ -701,7 +701,7 @@ end
         a = T[T(i) for i in 1:n]
         d_a = CuArray(a)
 
-        threads = nearest_warpsize(dev, n)
+        threads = nearest_warpsize(device(), n)
         @cuda threads=threads kernel(d_a, n)
 
         a[1:n÷2] += a[n÷2+1:end]
@@ -915,7 +915,7 @@ end
 
 @testset "atomic_add" begin
     types = [Int32, Int64, UInt32, UInt64, Float32]
-    cap >= v"6.0" && push!(types, Float64)
+    capability(device()) >= v"6.0" && push!(types, Float64)
 
     @testset for T in types
         a = CuArray([zero(T)])
@@ -932,7 +932,7 @@ end
 
 @testset "atomic_sub" begin
     types = [Int32, Int64, UInt32, UInt64]
-    cap >= v"6.0" && append!(types, [Float32, Float64])
+    capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
     @testset for T in types
         a = CuArray([T(2048)])
@@ -1049,7 +1049,7 @@ end
     end
 end
 
-if capability(dev) >= v"6.0"
+if capability(device()) >= v"6.0"
 
 @testset "atomic_cas" begin
     @testset for T in [Int32, Int64, Float32, Float64]
@@ -1069,7 +1069,7 @@ end
 
 @testset "atomic_max" begin
     types = [Int32, Int64, UInt32, UInt64]
-    cap >= v"6.0" && append!(types, [Float32, Float64])
+    capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
     @testset for T in types
         a = CuArray([zero(T)])
@@ -1087,7 +1087,7 @@ end
 
 @testset "atomic_min" begin
     types = [Int32, Int64, UInt32, UInt64]
-    cap >= v"6.0" && append!(types, [Float32, Float64])
+    capability(device()) >= v"6.0" && append!(types, [Float32, Float64])
 
     @testset for T in types
         a = CuArray([T(1024)])
@@ -1103,7 +1103,7 @@ end
     end
 end
 
-if capability(dev) >= v"6.0"
+if capability(device()) >= v"6.0"
 
 @testset "atomic_mul" begin
     @testset for T in [Float32, Float64]
@@ -1141,7 +1141,7 @@ end
 
 @testset "add" begin
     types = [Int32, Int64, UInt32, UInt64, Float32]
-    cap >= v"6.0" && push!(types, Float64)
+    capability(device()) >= v"6.0" && push!(types, Float64)
 
     @testset for T in types
         a = CuArray([zero(T)])

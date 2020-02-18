@@ -4,8 +4,8 @@ if VERSION < v"1.4.0-DEV.666"
     exit()
 end
 
-using CUDAnative
-if CUDAnative.current_capability() < v"7.0"
+using CUDAnative, CUDAdrv
+if capability(device()) < v"7.0"
     exit()
 end
 
