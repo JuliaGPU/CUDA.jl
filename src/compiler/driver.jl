@@ -38,8 +38,6 @@ compile(target::Symbol, cap::VersionNumber, @nospecialize(f::Base.Callable),
 function compile(target::Symbol, job::CompilerJob;
                  libraries::Bool=true, dynamic_parallelism::Bool=true,
                  optimize::Bool=true, strip::Bool=false, strict::Bool=true)
-    @debug "(Re)compiling function" job
-
     if compile_hook[] != nothing
         compile_hook[](job)
     end

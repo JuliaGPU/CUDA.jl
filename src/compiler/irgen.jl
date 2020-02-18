@@ -140,6 +140,7 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
         #if CUDAdrv.release() < v"10.2"
             # FIXME: LLVM's debug info crashes CUDA
             # FIXME: this ought to be fixed on 10.2?
+            @debug "Incompatibility detected between CUDA and LLVM 8.0+; disabling debug info emission" maxlog=1
             debug_info_kind = LLVM.API.LLVMDebugEmissionKindNoDebug
         #end
 
