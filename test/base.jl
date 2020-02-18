@@ -366,6 +366,13 @@ end
   let x = rand(Float32, 10, 10)
       @test findmax(x) == findmax(CuArray(x))
       @test findmax(x; dims=1) == Array.(findmax(CuArray(x); dims=1))
+      @test findmax(x; dims=2) == Array.(findmax(CuArray(x); dims=2))
+  end
+  let x = rand(Float32, 10, 10, 10)
+      @test findmax(x) == findmax(CuArray(x))
+      @test findmax(x; dims=1) == Array.(findmax(CuArray(x); dims=1))
+      @test findmax(x; dims=2) == Array.(findmax(CuArray(x); dims=2))
+      @test findmax(x; dims=3) == Array.(findmax(CuArray(x); dims=3))
   end
 
   let x = rand(Float32, 100)
@@ -375,6 +382,13 @@ end
   let x = rand(Float32, 10, 10)
       @test findmin(x) == findmin(CuArray(x))
       @test findmin(x; dims=1) == Array.(findmin(CuArray(x); dims=1))
+      @test findmin(x; dims=2) == Array.(findmin(CuArray(x); dims=2))
+  end
+  let x = rand(Float32, 10, 10, 10)
+      @test findmin(x) == findmin(CuArray(x))
+      @test findmin(x; dims=1) == Array.(findmin(CuArray(x); dims=1))
+      @test findmin(x; dims=2) == Array.(findmin(CuArray(x); dims=2))
+      @test findmin(x; dims=3) == Array.(findmin(CuArray(x); dims=3))
   end
 end
 
