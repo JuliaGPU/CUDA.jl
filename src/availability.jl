@@ -1,4 +1,4 @@
-export has_cuda, has_cuda_gpu
+export has_cuda, has_cuda_gpu, usable_cuda_gpus
 
 """
     has_cuda()::Bool
@@ -60,4 +60,37 @@ function has_cuda_gpu()
     status = ccall(cuDeviceGetCount, Cint, (Ptr{Cint},), count_ref)
     @assert status == 0
     return count_ref[] > 0
+end
+
+"""
+    usable_cuda_gpus(; suppress_output=false)::Int
+
+Returns the number of CUDA GPUs that are available for use on the local system.
+
+Note that this function initializes the CUDA API in order to check for the number of GPUs.
+"""
+function usable_cuda_gpus(; suppress_output=false)
+    toolkit_dirs = find_toolkit()
+
+    # find the CUDA driver library
+    libcuda = find_cuda_library("cuda", toolkit_dirs)
+    if libcuda === nothing
+        return 0
+    end
+    lib = Libdl.dlopen(libcuda)
+
+    # initialize the API
+    cuInit = Libdl.dlsym(lib, :cuInit)
+    status = ccall(cuInit, Cint, (Cuint,), 0)
+    if status != 0
+        !suppress_output && @warn "CUDA is installed, but fails to load (error code $status)"
+        return -1
+    end
+
+    # count the GPUs
+    cuDeviceGetCount = Libdl.dlsym(lib, :cuDeviceGetCount)
+    count_ref = Ref{Cint}()
+    status = ccall(cuDeviceGetCount, Cint, (Ptr{Cint},), count_ref)
+    @assert status == 0
+    return Int(count_ref[])
 end
