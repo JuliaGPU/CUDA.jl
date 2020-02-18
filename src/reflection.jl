@@ -6,6 +6,19 @@ using .CUPTI: CUpti_CallbackDomain, CUpti_CallbackId, CUpti_SubscriberHandle,
               CUpti_ResourceData, CUpti_ModuleResourceData
 
 
+# return the capability of the current context's device, or a sane fall-back
+# only use this within reflection; just use `capability(device())` otherwise
+function current_capability()
+    if CuCurrentContext() !== nothing
+        return supported_capability(device())
+    else
+        # newer devices tend to support cleaner code (higher-level instructions, etc)
+        # so target the most recent device as supported by this toolchain
+        return maximum(target_support[])
+    end
+end
+
+
 #
 # code_* replacements
 #

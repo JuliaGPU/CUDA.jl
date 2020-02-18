@@ -16,8 +16,6 @@ CUDAnative.enable_timings()
 
 # see if we have a device to run tests on
 # (do this early so that the codegen tests can target the same compute capability)
-global dev, cap
-dev = nothing
 @test length(devices()) > 0
 if length(devices()) > 0
     # the API shouldn't have been initialized
@@ -75,18 +73,16 @@ if length(devices()) > 0
     pick = last(candidates)
     @info("Testing using device $(name(pick.dev)) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem)) available memory) on CUDA driver $(CUDAdrv.version()) and toolkit $(CUDAnative.version())")
     device!(pick.dev)
-    dev = pick.dev
 end
-cap = CUDAnative.current_capability()
 
 include("base.jl")
 include("pointer.jl")
 include("codegen.jl")
 
-if dev === nothing
+if isempty(devices())
     @warn("No CUDA-capable devices available; skipping on-device tests.")
 else
-    if capability(dev) < v"2.0"
+    if capability(device()) < v"2.0"
         @warn("native execution not supported on SM < 2.0")
     else
         include("device/codegen.jl")
