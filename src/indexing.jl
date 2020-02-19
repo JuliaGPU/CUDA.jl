@@ -126,40 +126,30 @@ end
 Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
 
 function Base.findfirst(vals::CuArray, xs::CuArray)
-    # figure out which dimension was reduced
-    @assert ndims(vals) == ndims(xs)
-    dims = [i for i in 1:ndims(xs) if size(xs,i)!=1 && size(vals,i)==1]
-    @assert length(dims) == 1
-    dim = dims[1]
-
-
     ## find the first matching element
+
+    # NOTE: this kernel performs global atomic operations for the sake of simplicity.
+    #       if this turns out to be a bottleneck, we will need to cache in local memory.
+    #       that requires the dimension-under-reduction to be iterated in first order.
+    #       this can be done by splitting the iteration domain eagerly; see the
+    #       accumulate kernel for an example, or git history from before this comment.
 
     indices = fill(typemax(Int), size(vals))
 
-    # iteration domain across the main dimension
-    Rdim = CartesianIndices((size(xs, dim),))
-
-    # iteration domain for the other dimensions
-    Rpre = CartesianIndices(size(xs)[1:dim-1])
-    Rpost = CartesianIndices(size(xs)[dim+1:end])
-    Rother = CartesianIndices((length(Rpre), length(Rpost)))
-
-    function kernel(xs, vals, indices, Rdim, Rpre, Rpost, Rother)
-        # iterate the main dimension using threads and the first block dimension
+    function kernel(xs, vals, indices)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        # iterate the other dimensions using the remaining block dimensions
-        j = (blockIdx().z-1) * gridDim().y + blockIdx().y
 
-        if i <= length(Rdim) && j <= length(Rother)
-            I = Rother[j]
-            Ipre = Rpre[I[1]]
-            Ipost = Rpost[I[2]]
+        R = CartesianIndices(xs)
 
-            @inbounds if xs[Ipre, i, Ipost] == vals[Ipre, 1, Ipost]
-                full_index = LinearIndices(xs)[Ipre, i, Ipost]   # atomic_min only works with integers
-                reduced_index = LinearIndices(indices)[Ipre, 1, Ipost] # FIXME: @atomic doesn't handle array ref with CartesianIndices
-                CUDAnative.@atomic indices[reduced_index] = min(indices[reduced_index], full_index)
+        if i <= length(R)
+            I = R[i]
+            Jmax = last(CartesianIndices(vals))
+            J = min(I, Jmax)
+
+            @inbounds if xs[I] == vals[J]
+                I′ = LinearIndices(xs)[I]      # atomic_min only works with integers
+                J′ = LinearIndices(indices)[J] # FIXME: @atomic doesn't handle array ref with CartesianIndices
+                CUDAnative.@atomic indices[J′] = min(indices[J′], I′)
             end
         end
 
@@ -167,24 +157,15 @@ function Base.findfirst(vals::CuArray, xs::CuArray)
     end
 
     function configurator(kernel)
-        # what's a good launch configuration for this kernel?
         config = launch_configuration(kernel.fun)
 
-        # blocks to cover the main dimension
-        threads = min(length(Rdim), config.threads)
-        blocks_dim = cld(length(Rdim), threads)
-        # NOTE: the grid X dimension is virtually unconstrained
+        threads = min(length(xs), config.threads)
+        blocks = cld(length(xs), threads)
 
-        # blocks to cover the remaining dimensions
-        dev = CUDAdrv.device(kernel.fun.mod.ctx)
-        max_other_blocks = attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
-        blocks_other = (min(length(Rother), max_other_blocks),
-                        cld(length(Rother), max_other_blocks))
-
-        return (threads=threads, blocks=(blocks_dim, blocks_other...))
+        return (threads=threads, blocks=blocks)
     end
 
-    @cuda config=configurator kernel(xs, vals, indices, Rdim, Rpre, Rpost, Rother)
+    @cuda config=configurator kernel(xs, vals, indices)
 
 
     ## convert the linear indices to an appropriate type
