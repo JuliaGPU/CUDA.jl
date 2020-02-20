@@ -61,6 +61,7 @@ pop_range() = nvtxRangePop()
 
 """
     @range "msg" ex
+    @range function ... end
 
 Create a new range and execute `ex`. The range is popped automatically afterwards.
 
@@ -73,4 +74,21 @@ macro range(msg, ex)
         pop_range()
         ret
     end
+end
+macro range(ex)
+    Meta.isexpr(ex, :function) ||
+        error("NVTX.@range without a message can only be applied to function definitions")
+    decl = ex.args[1]
+    @assert Meta.isexpr(decl, :call)
+    fn = decl.args[1]::Symbol
+    def = ex.args[2]
+
+    Expr(:function, esc(decl), quote
+        push_range($(String(fn)))
+        try
+            $(esc(def))
+        finally
+            pop_range()
+        end
+    end)
 end

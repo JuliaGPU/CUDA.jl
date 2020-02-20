@@ -92,6 +92,8 @@ else
         include("device/cuda.jl")
         include("device/wmma.jl")
 
+        include("nvtx.jl")
+
         include("examples.jl")
     end
 end
