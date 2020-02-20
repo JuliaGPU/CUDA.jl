@@ -93,6 +93,11 @@ julia> CUDAdrv.@profile sin.(a);
 
 ### `nvprof` and `nvvp`
 
+!!! warning
+
+    These tools are deprecated, and will be removed from future versions of CUDA.
+    Prefer to use the Nsight tools described below.
+
 For simple profiling, prefix your Julia command-line invocation with the `nvprof` utility.
 For a better timeline, be sure to use `CUDAdrv.@profile` to delimit interesting code and
 start `nvprof` with the option `--profile-from-start off`:
@@ -139,7 +144,7 @@ version from the NVIDIA website), you need to launch Julia from the command-line
 the `nsys` utility from NSight Systems:
 
 ```
-$ nsys launch -t cuda,cublas,cudnn,nvtx julia
+$ nsys launch julia
 ```
 
 You can then execute whatever code you want in the REPL, including e.g. loading Revise so
@@ -167,7 +172,57 @@ stop executed
 
 You can open the resulding `.qdrep` file with `nsight-sys`:
 
-!["NVIDIA Nsight Systems"](nsight.png)
+!["NVIDIA Nsight Systems"](nsight_systems.png)
+
+### NVIDIA Nsight Compute
+
+If you want details on the execution properties of a kernel, or inspect API interactions,
+Nsight Compute is the tool for you. It is again possible to use this profiler with an
+interactive session of Julia, and debug or profile only those sections of your application
+that are marked with `CUDAdrv.@profile`.
+
+Start with launching Julia under the Nsight Compute CLI tool:
+
+```
+$ nv-nsight-cu-cli --mode=launch julia
+```
+
+You will get an interactive REPL, where you can execute whatever code you want:
+
+```julia
+julia> using CuArrays, CUDAdrv
+
+# Julia hangs!
+```
+
+As soon as you import any CUDA package, your Julia process will hang. This is expected, as
+the tool breaks upon the very first call to the CUDA API, at which point you are expected to
+launch the Nsight Compute GUI utility and attach to the running session:
+
+!["NVIDIA Nsight Compute - Attaching to a session"](nsight_compute-attach.png)
+
+You will see that the tool has breaked on the call to `cuInit`. Now check
+`Profile > Auto Profile` to make Nsight Compute gather statistics on our kernels, and clock
+`Debug > Resume` to resume your session.
+
+Now our CLI session comes to life again, and we can enter the rest of our script:
+
+```julia
+julia> a = CuArrays.rand(1024,1024,1024);
+
+julia> sin.(a);
+
+julia> CUDAdrv.@profile sin.(a);
+```
+
+Once that's finished, the Nsight Compute GUI window will have plenty details on our kernel:
+
+!["NVIDIA Nsight Compute - Kernel profiling"](nsight_compute-kernel.png)
+
+At any point in time, you can also pause your application from the debug menu, and inspect
+the API calls that have been made:
+
+!["NVIDIA Nsight Compute - API inspection"](nsight_compute-api.png)
 
 
 ## Source-code annotations
