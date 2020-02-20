@@ -201,7 +201,7 @@ launch the Nsight Compute GUI utility and attach to the running session:
 
 !["NVIDIA Nsight Compute - Attaching to a session"](nsight_compute-attach.png)
 
-You will see that the tool has breaked on the call to `cuInit`. Now check
+You will see that the tool has stopped execution on the call to `cuInit`. Now check
 `Profile > Auto Profile` to make Nsight Compute gather statistics on our kernels, and clock
 `Debug > Resume` to resume your session.
 
@@ -232,13 +232,13 @@ or expensive CPU operations, you can use the NVTX library. Wrappers for this lib
 included in recent versions of CUDAnative:
 
 ```julia
-using CUDAnative, CUDAnative.NVTX
+using CUDAnative
 
-@range "doing X" begin
+NVTX.@range "doing X" begin
     ...
 end
 
-@mark "reached Y"
+NVTX.@mark "reached Y"
 ```
 
 
@@ -249,3 +249,7 @@ profiling. CUDAnative will by default emit the necessary source line information
 can disable by launching Julia with `-g0`. Conversely, launching with `-g2` will emit
 additional debug information, which can be useful in combination with tools like `cuda-gdb`,
 but might hurt performance or code size.
+
+!!! warning
+
+    Due to bugs in LLVM and CUDA, this support is unavailable in Julia 1.4 and higher.
