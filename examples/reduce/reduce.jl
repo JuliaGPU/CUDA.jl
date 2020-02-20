@@ -44,7 +44,7 @@ end
     sync_threads()
 
     # read from shared memory only if that warp existed
-    @inbounds val = (threadIdx().x <= fld(blockDim().x, CUDAnative.warpsize())) ? shared[lane] : zero(T)
+    @inbounds val = (threadIdx().x <= fld1(blockDim().x, CUDAnative.warpsize())) ? shared[lane] : zero(T)
 
     # final reduce within first warp
     if wid == 1
