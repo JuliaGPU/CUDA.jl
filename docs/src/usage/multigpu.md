@@ -39,8 +39,14 @@ receive buffers to point-to-point and collective operations to avoid going throu
 In a similar vein to the multi-process solution, one can work with multiple devices from
 within a single process by calling `CUDAnative.device!` to switch to a specific device.
 Allocations are however currently not tied to a device, so one should take care to only
-work with data on the device it was allocated on. Note that the memory pool isn't aware of
-multiple devices either, so this could run into issues.
+work with data on the device it was allocated on.
+
+!!! warning
+
+    The CuArrays memory pool is not device-aware yet, effectively breaking
+    multi-gpu-single-process concurrency. Don't use this approach for serious work
+    unless you can support with cross-device memory operations (e.g. with
+    `cuCtxEnablePeerAccess`).
 
 To avoid these difficulties, you can use unified memory that is accessible from all devices.
 These APIs are available through high-level wrappers, but not exposed by the `CuArray`

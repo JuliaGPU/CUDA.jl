@@ -170,7 +170,14 @@ Saved report file to "report.qdrep"
 stop executed
 ```
 
-You can open the resulding `.qdrep` file with `nsight-sys`:
+!!! note
+
+    Even with a warm-up iteration, the first kernel or API call might seem to take
+    significantly longer in the profiler. If you are analyzing short executions, instead
+    of whole applications, repeat the operation twice (optionally separated by a call to
+    `CUDAdrv.synchronize()` or wrapping in `CuArrays.@sync`)
+
+You can open the resulting `.qdrep` file with `nsight-sys`:
 
 !["NVIDIA Nsight Systems"](nsight_systems.png)
 
@@ -252,4 +259,4 @@ but might hurt performance or code size.
 
 !!! warning
 
-    Due to bugs in LLVM and CUDA, this support is unavailable in Julia 1.4 and higher.
+    Due to bugs in LLVM and CUDA, debug info emission is unavailable in Julia 1.4 and higher.
