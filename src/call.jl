@@ -20,12 +20,14 @@ macro runtime_ccall(target, args...)
     # global const ref to hold the function pointer
     @gensym fptr_cache
     @eval __module__ begin
-        const $fptr_cache = Ref(C_NULL)
+        # uses atomics (release store, acquire load) for thread safety.
+        # see https://github.com/JuliaGPU/CUDAapi.jl/issues/106 for details
+        const $fptr_cache = Threads.Atomic{Int}(0)
     end
 
     return quote
         # use a closure to hold the lookup and avoid code bloat in the caller
-        @noinline function lookup_fptr()
+        @noinline function cache_fptr!()
             library = Libdl.dlopen($(esc(library)))
             $(esc(fptr_cache))[] = Libdl.dlsym(library, $(esc(function_name)))
 
@@ -33,11 +35,11 @@ macro runtime_ccall(target, args...)
         end
 
         fptr = $(esc(fptr_cache))[]
-        if fptr == C_NULL   # folded into the null check performed by ccall
-            fptr = lookup_fptr()
+        if fptr == 0        # folded into the null check performed by ccall
+            fptr = cache_fptr!()
         end
 
-        ccall(fptr, $(map(esc, args)...))
+        ccall(reinterpret(Ptr{Cvoid}, fptr), $(map(esc, args)...))
     end
 
     return
