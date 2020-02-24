@@ -248,5 +248,47 @@ using CUDAnative.WMMA
     end
 
 ################################################################################
+
+# Need https://github.com/JuliaLang/julia/pull/34760
+# See https://github.com/JuliaGPU/CUDAnative.jl/issues/548
+if VERSION >= v"1.5.0-DEV.324"
+    @testset "Codegen addressing" begin
+        @testset "Global" begin
+            function kernel(d)
+                conf = WMMA.Config{16, 16, 16, Float32}
+
+                d_frag = WMMA.fill_c(Float32(0), conf)
+                WMMA.store_d(pointer(d), d_frag, 16, WMMA.ColMajor, conf)
+
+                return
+            end
+
+            ptx = sprint(io -> CUDAnative.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDAnative.AS.Global},)))
+
+            @test !occursin("wmma.store.d.sync.aligned.col.m16n16k16.f32", ptx)
+            @test  occursin("wmma.store.d.sync.aligned.col.m16n16k16.global.f32", ptx)
+        end
+
+        @testset "Shared" begin
+            function kernel()
+                shmem = @cuStaticSharedMem(Float32, (16, 16))
+                conf = WMMA.Config{16, 16, 16, Float32}
+
+                d_frag = WMMA.fill_c(Float32(0), conf)
+                WMMA.store_d(pointer(shmem), d_frag, 16, WMMA.ColMajor, conf)
+
+                return
+            end
+
+            ptx = sprint(io -> CUDAnative.code_ptx(io, kernel, ()))
+
+            @test !occursin("wmma.store.d.sync.aligned.col.m16n16k16.f32", ptx)
+            @test  occursin("wmma.store.d.sync.aligned.col.m16n16k16.shared.f32", ptx)
+        end
+    end
+end
+
+################################################################################
+
 end
 end

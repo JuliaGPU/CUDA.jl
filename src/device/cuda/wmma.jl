@@ -7,6 +7,9 @@ using CUDAnative: AS, DevicePtr
 # CONSTANTS
 ################################################################################
 
+# Determines whether or not to Core.AddrSpacePtr is available
+const addrspaceptr_available = (VERSION >= v"1.5.0-DEV.324")
+
 # Maps PTX types to Julia array types
 const map_ptx_to_jl_array = Dict(
                                  "f16" => Float16,
@@ -48,6 +51,25 @@ get_frag_info(matrix, ptx_el_type) = (
         )
 
 get_addrspace_info(addr_space) = convert(Int, map_ptx_as_to_as_ty[addr_space])
+
+if addrspaceptr_available
+@generated function Base.cconvert(::Type{Core.AddrSpacePtr{T, as}}, x::DevicePtr{T, AS}) where {T, as, AS}
+    # Addrspacecast from i8* to i8* is invalid in LLVM
+    if as == 0
+        return quote
+            return Base.bitcast(Core.AddrSpacePtr{T, as}, x)
+        end
+    else
+        ir = "%p = inttoptr i64 %0 to i8*
+            %ptr = addrspacecast i8* %p to i8 addrspace($as)*
+            ret i8 addrspace($as)* %ptr"
+
+        return quote
+            return Base.llvmcall($ir, Core.AddrSpacePtr{T, as}, Tuple{Int64}, Base.bitcast(Int64, x))
+        end
+    end
+end
+end
 
 ################################################################################
 # LOW LEVEL API
@@ -103,7 +125,9 @@ for mat in ["a", "b", "c"],
 
     ccall_name = "extern $llvm_intr"
 
-    @eval $func_name(src_addr, stride) = ccall($ccall_name, llvmcall, NTuple{$sz, $frag_ty}, (Ref{$arr_ty}, Int32), src_addr, stride)
+    ptr_ty = addrspaceptr_available ? Core.AddrSpacePtr{arr_ty, addr_space_int} : Ref{arr_ty}
+
+    @eval $func_name(src_addr, stride) = ccall($ccall_name, llvmcall, NTuple{$sz, $frag_ty}, ($ptr_ty, Int32), src_addr, stride)
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_load) $func_name
 end
@@ -155,7 +179,9 @@ for mat in ["d"],
     frag_types = ntuple(i -> frag_ty, sz)
     frag_vars = ntuple(i -> :(data[$i]), sz)
 
-    @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, (Ref{$arr_ty}, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
+    ptr_ty = addrspaceptr_available ? Core.AddrSpacePtr{arr_ty, addr_space_int} : Ref{arr_ty}
+
+    @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_store) $func_name
 end
