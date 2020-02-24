@@ -78,17 +78,14 @@ end
 macro range(ex)
     Meta.isexpr(ex, :function) ||
         error("NVTX.@range without a message can only be applied to function definitions")
-    decl = ex.args[1]
-    @assert Meta.isexpr(decl, :call)
-    fn = decl.args[1]::Symbol
-    def = ex.args[2]
-
-    Expr(:function, esc(decl), quote
-        push_range($(String(fn)))
+    def = splitdef(ex)
+    def[:body] = quote
+        $push_range($(string(def[:name])))
         try
-            $(esc(def))
+            $(def[:body])
         finally
-            pop_range()
+            $pop_range()
         end
-    end)
+    end
+    esc(MacroTools.combinedef(def))
 end
