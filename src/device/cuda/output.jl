@@ -92,7 +92,8 @@ export @cuprint, @cuprintln
 # `@cuprint` pretty directly maps to `@cuprintf`; we should just support `write(::IO)`.
 const cuprint_conversions = Dict(
     Float32     => (x->:(Float64($x)),             Float64),
-    Ptr{<:Any}  => (x->:(convert(Ptr{Cvoid}, $x)), Ptr{Cvoid})
+    Ptr{<:Any}  => (x->:(convert(Ptr{Cvoid}, $x)), Ptr{Cvoid}),
+    Bool        => (x->:(Int32($x)),               Int32),
 )
 
 # format specifiers
