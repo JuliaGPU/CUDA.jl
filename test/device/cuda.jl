@@ -701,7 +701,7 @@ end
         a = T[T(i) for i in 1:n]
         d_a = CuArray(a)
 
-        threads = nearest_warpsize(device(), n)
+        threads = nextwarp(device(), n)
         @cuda threads=threads kernel(d_a, n)
 
         a[1:n÷2] += a[n÷2+1:end]

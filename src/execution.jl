@@ -1,6 +1,6 @@
 # Native execution support
 
-export @cuda, cudaconvert, cufunction, dynamic_cufunction, nearest_warpsize
+export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 
 
 ## helper functions
@@ -527,13 +527,18 @@ end
 ## other
 
 """
-    nearest_warpsize(dev::CuDevice, threads::Integer)
+    nextwarp(dev, threads)
+    prevwarp(dev, threads)
 
-Return the nearest number of threads that is a multiple of the warp size of a device.
-
-This is a common requirement, eg. when using shuffle intrinsics.
+Returns the next or previous nearest number of threads that is a multiple of the warp size
+of a device `dev`. This is a common requirement when using intra-warp communication.
 """
-function nearest_warpsize(dev::CuDevice, threads::Integer)
+function nextwarp(dev::CuDevice, threads::Integer)
     ws = CUDAdrv.warpsize(dev)
     return threads + (ws - threads % ws) % ws
+end
+
+@doc (@doc nextwarp) function prevwarp(dev::CuDevice, threads::Integer)
+    ws = CUDAdrv.warpsize(dev)
+    return threads - Base.rem(threads, ws)
 end

@@ -17,5 +17,5 @@ CUDAnative.dynamic_cufunction
 
 ```@docs
 CUDAnative.cudaconvert
-CUDAnative.nearest_warpsize
+CUDAnative.nextwarp
 ```
