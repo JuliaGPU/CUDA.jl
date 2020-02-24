@@ -378,6 +378,9 @@ end
         test_output(ptr, Sys.iswindows() ? "0000000000012345" : "0x12345")
     end
 
+    test_output(true, "1")
+    test_output(false, "0")
+
 
     # escaping
 
