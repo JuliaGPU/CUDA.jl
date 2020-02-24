@@ -207,9 +207,10 @@ function contraction!(
     alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
                    B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
     beta::Number,  C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
-                                                opOut::cutensorOperator_t,
+                                                opOut::cutensorOperator_t;
     pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
-    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream())
+    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream(),
+    compute_type::Type=eltype(C), plan::Union{cutensorContractionPlan_t, Nothing}=nothing)
 
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
@@ -239,7 +240,6 @@ function contraction!(
                    descC, modeC, alignmentRequirementC[],
                    descC, modeC, alignmentRequirementC[],
                    computeType)
-
     find = Ref(cutensorContractionFind_t(ntuple(i->0, Val(64))))
     cutensorInitContractionFind(handle(), find, algo)
 
@@ -247,15 +247,64 @@ function contraction!(
             cutensorContractionGetWorkspace(handle(), desc, find, pref,
                                             out(Ref{UInt64}(C_NULL)))
         )[] workspace->begin
-            plan = Ref(cutensorContractionPlan_t(ntuple(i->0, Val(640))))
-            cutensorInitContractionPlan(handle(), plan, desc, find, sizeof(workspace))
-
-            cutensorContraction(handle(), plan,
-                                T[alpha], A, B,
-                                T[beta],  C, C,
+            plan_ref = Ref(cutensorContractionPlan_t(ntuple(i->0, Val(640))))
+            if isnothing(plan)
+                cutensorInitContractionPlan(handle(), plan_ref, desc, find, sizeof(workspace))
+            else
+                plan_ref = Ref(plan)
+            end
+            cutensorContraction(handle(), plan_ref,
+                                T[convert(T, alpha)], A, B,
+                                T[convert(T, beta)],  C, C,
                                 workspace, sizeof(workspace), stream)
         end
     return C
+end
+
+function contraction_plan(
+    A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
+    B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
+    C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
+                                                opOut::cutensorOperator_t;
+    pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
+    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
+
+    !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
+    !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
+    !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
+    !is_unary(opOut)  && throw(ArgumentError("opOut must be a unary op!"))
+    descA = CuTensorDescriptor(A; op = opA)
+    descB = CuTensorDescriptor(B; op = opB)
+    descC = CuTensorDescriptor(C; op = opC)
+    # for now, D must be identical to C (and thus, descD must be identical to descC)
+    computeType = cutensorComputeType(compute_type)
+    T     = sizeof(compute_type) < sizeof(eltype(C)) ? eltype(C) : compute_type
+    modeA = collect(Cint, Ainds)
+    modeB = collect(Cint, Binds)
+    modeC = collect(Cint, Cinds)
+
+    alignmentRequirementA = Ref{UInt32}(C_NULL)
+    cutensorGetAlignmentRequirement(handle(), A, descA, alignmentRequirementA)
+    alignmentRequirementB = Ref{UInt32}(C_NULL)
+    cutensorGetAlignmentRequirement(handle(), B, descB, alignmentRequirementB)
+    alignmentRequirementC = Ref{UInt32}(C_NULL)
+    cutensorGetAlignmentRequirement(handle(), C, descC, alignmentRequirementC)
+    desc = Ref(cutensorContractionDescriptor_t(ntuple(i->0, Val(256))))
+    cutensorInitContractionDescriptor(handle(),
+                                      desc,
+                   descA, modeA, alignmentRequirementA[],
+                   descB, modeB, alignmentRequirementB[],
+                   descC, modeC, alignmentRequirementC[],
+                   descC, modeC, alignmentRequirementC[],
+                   computeType)
+
+    find = Ref(cutensorContractionFind_t(ntuple(i->0, Val(64))))
+    cutensorInitContractionFind(handle(), find, algo)
+    plan = Ref(cutensorContractionPlan_t(ntuple(i->0, Val(640))))
+    workspace_size = Ref{UInt64}(C_NULL)
+    cutensorContractionGetWorkspace(handle(), desc, find, pref, workspace_size)
+    cutensorInitContractionPlan(handle(), plan, desc, find, workspace_size[])
+    return plan[]
 end
 
 function reduction!(
