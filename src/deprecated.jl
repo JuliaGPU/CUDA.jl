@@ -6,5 +6,7 @@ macro profile(ex)
         CUDAdrv.@profile begin
             $(esc(ex))
         end
-    end 
+    end
 end
+
+@deprecate nearest_warpsize(dev::CuDevice, threads::Integer) nextwarp(dev, threads)
