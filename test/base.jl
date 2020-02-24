@@ -138,38 +138,6 @@ end
   end
 end
 
-@testset "Reduce" begin
-  @test testf(x -> sum(x, dims=1), rand(2, 3))
-  @test testf(x -> sum(x, dims=2), rand(2, 3))
-  @test testf(x -> sum(x -> x^2, x, dims=1), rand(2, 3))
-  @test testf(x -> prod(x, dims=2), rand(2, 3))
-
-  @test testf(x -> sum(x), rand(2, 3))
-  @test testf(x -> prod(x), rand(2, 3))
-
-  @test testf(x -> minimum(x), rand(2, 3))
-  @test testf(x -> minimum(x, dims=2), rand(2, 3))
-  @test testf(x -> minimum(x, dims=(2, 3)), rand(2, 3, 4))
-
-  @test testf(x -> maximum(x), rand(2, 3))
-  @test testf(x -> maximum(x, dims=2), rand(2, 3))
-  @test testf(x -> maximum(x, dims=(2, 3)), rand(2, 3, 4))
-
-  myreducer(x1, x2) = x1 + x2 # bypass optimisations for sum()
-  @test testf(x -> reduce(myreducer, x, dims=(2, 3), init=0.0), rand(2, 3, 4))
-  @test testf(x -> reduce(myreducer, x, init=0.0), rand(2, 3))
-  @test testf(x -> reduce(myreducer, x, dims=2, init=42.0), rand(2, 3))
-
-  ex = ErrorException("Please supply a neutral element for &. E.g: mapreduce(f, &, A; init = 1)")
-  @test_throws ex mapreduce(t -> t > 0.5, &, cu(rand(2, 3)))
-  @test testf(x -> mapreduce(t -> t > 0.5, &, x, init=true), rand(2, 3))
-
-  ex = UndefKeywordError(:init)
-  cub = map(t -> t > 0.5, cu(rand(2, 3)))
-  @test_throws ex reduce(|, cub)
-  @test testf(x -> reduce(|, x, init=false), map(t -> t > 0.5, cu(rand(2, 3))))
-end
-
 @testset "SubArray" begin
   @test testf(rand(5)) do x
     y = x[2:4]
