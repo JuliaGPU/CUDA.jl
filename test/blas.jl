@@ -634,6 +634,13 @@ end # level 1 testset
             h_C = Array(dC)
             @test C ≈ h_C
         end
+        @testset "xt_trsm" begin
+            C  = alpha*(A\B)
+            dC = CuArrays.CUBLAS.xt_trsm('L','U','N','N',alpha,dA,dB)
+            # move to host and compare
+            h_C = Array(dC)
+            @test C ≈ h_C
+        end
         @testset "trsm" begin
             Br = rand(elty,m,n)
             Bl = rand(elty,n,m)
@@ -782,50 +789,6 @@ end # level 1 testset
         end
         A = rand(elty,m,k)
         d_A = CuArray(A)
-        @testset "syrk!" begin
-            # generate matrices
-            d_C = CuArray(sA)
-            # C = (alpha*A)*transpose(A) + beta*C
-            CuArrays.CUBLAS.syrk!('U','N',alpha,d_A,beta,d_C)
-            C = (alpha*A)*transpose(A) + beta*sA
-            C = triu(C)
-            # move to host and compare
-            h_C = Array(d_C)
-            h_C = triu(C)
-            @test C ≈ h_C
-        end
-        @testset "xt_syrk!" begin
-            # generate matrices
-            d_C = CuArray(sA)
-            # C = (alpha*A)*transpose(A) + beta*C
-            CuArrays.CUBLAS.xt_syrk!('U','N',alpha,d_A,beta,d_C)
-            C = (alpha*A)*transpose(A) + beta*sA
-            C = triu(C)
-            # move to host and compare
-            h_C = Array(d_C)
-            h_C = triu(C)
-            @test C ≈ h_C
-        end
-        @testset "syrk" begin
-            # C = A*transpose(A)
-            d_C = CuArrays.CUBLAS.syrk('U','N',d_A)
-            C = A*transpose(A)
-            C = triu(C)
-            # move to host and compare
-            h_C = Array(d_C)
-            h_C = triu(C)
-            @test C ≈ h_C
-        end
-        @testset "xt_syrk" begin
-            # C = A*transpose(A)
-            d_C = CuArrays.CUBLAS.xt_syrk('U','N',d_A)
-            C = A*transpose(A)
-            C = triu(C)
-            # move to host and compare
-            h_C = Array(d_C)
-            h_C = triu(C)
-            @test C ≈ h_C
-        end
         @testset "syrkx!" begin
             # generate matrices
             syrkx_A = rand(elty, n, k)
@@ -869,6 +832,17 @@ end # level 1 testset
             badC = rand(elty, n+1, n+1)
             d_badC = CuArray(badC)
             @test_throws DimensionMismatch CuArrays.CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_badC)
+        end
+        @testset "xt_syrkx" begin
+            # generate matrices
+            syrkx_A = rand(elty, n, k)
+            syrkx_B = rand(elty, n, k)
+            d_syrkx_A = CuArray(syrkx_A)
+            d_syrkx_B = CuArray(syrkx_B)
+            d_syrkx_C = CuArrays.CUBLAS.xt_syrkx('U','N',d_syrkx_A,d_syrkx_B)
+            final_C = syrkx_A*transpose(syrkx_B)
+            # move to host and compare
+            h_C = Array(d_syrkx_C)
         end
         @testset "syrk" begin
             # C = A*transpose(A)
@@ -999,6 +973,17 @@ end # level 1 testset
                 d_C = CuArray(C)
                 C = α*(A*B') + conj(α)*(B*A') + β*C
                 CuArrays.CUBLAS.xt_her2k!('U','N',α,d_A,d_B,β,d_C)
+                # move back to host and compare
+                C = triu(C)
+                h_C = Array(d_C)
+                h_C = triu(h_C)
+                @test C ≈ h_C
+            end
+            @testset "xt_her2k" begin
+                # generate parameters
+                C = C + C'
+                C = (A*B') + (B*A')
+                d_C = CuArrays.CUBLAS.xt_her2k('U','N',d_A,d_B)
                 # move back to host and compare
                 C = triu(C)
                 h_C = Array(d_C)
