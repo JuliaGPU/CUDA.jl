@@ -45,6 +45,7 @@ struct MethodSubstitutionWarning <: Exception
 end
 Base.showerror(io::IO, err::MethodSubstitutionWarning) =
     print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
+const method_substitution_whitelist = [:hypot]
 
 function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
     function postprocess(ir)
@@ -102,7 +103,8 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
         # FIXME: this might be too coarse
         method = method_instance.def
         if Base.moduleroot(method.module) == Base &&
-           isdefined(CUDAnative, method_instance.def.name)
+           isdefined(CUDAnative, method_instance.def.name) &&
+           !in(method_instance.def.name, method_substitution_whitelist)
             substitute_function = getfield(CUDAnative, method.name)
             tt = Tuple{method_instance.specTypes.parameters[2:end]...}
             if hasmethod(substitute_function, tt)
