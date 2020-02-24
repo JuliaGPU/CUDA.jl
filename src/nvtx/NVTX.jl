@@ -6,6 +6,8 @@ using CUDAdrv: CUstream, CUdevice, CUcontext, CUevent
 
 using CEnum
 
+using MacroTools
+
 using ..CUDAnative
 using ..CUDAnative: libnvtx
 
