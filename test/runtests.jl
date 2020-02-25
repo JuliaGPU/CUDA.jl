@@ -12,6 +12,11 @@ include("util.jl")
 CUDAnative.version()
 CUDAnative.release()
 
+# ensure CI is using the requested version
+if haskey(ENV, "CI") && haskey(ENV, "JULIA_CUDA_VERSION")
+  @test CUDAnative.release() == VersionNumber(ENV["JULIA_CUDA_VERSION"])
+end
+
 CUDAnative.enable_timings()
 
 # see if we have a device to run tests on
