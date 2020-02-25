@@ -3,6 +3,35 @@
 using Pkg, Pkg.Artifacts
 using Libdl
 
+
+## global state
+
+const toolkit_dirs = Ref{Vector{String}}()
+
+"""
+    prefix()
+
+Returns the installation prefix directories of the CUDA toolkit in use.
+"""
+prefix() = toolkit_dirs[]
+
+const toolkit_version = Ref{VersionNumber}()
+
+"""
+    version()
+
+Returns the version of the CUDA toolkit in use.
+"""
+version() = toolkit_version[]
+
+"""
+    release()
+
+Returns the CUDA release part of the version as returned by [`version`](@ref).
+"""
+release() = VersionNumber(toolkit_version[].major, toolkit_version[].minor)
+
+# paths
 const libcublas = Ref{String}("cublas")
 const libcusparse = Ref{String}("cusparse")
 const libcusolver = Ref{String}("cusolver")
@@ -25,6 +54,7 @@ const cuda_artifacts = Dict(
 )
 
 # utilities to look up stuff in the artifact (at known locations, so not using CUDAapi)
+get_binary(artifact, name) = joinpath(artifact, "bin", Sys.iswindows() ? "$name.exe" : name)
 function get_library(artifact, name)
     filename = if Sys.iswindows()
         "$name.dll"
@@ -60,6 +90,10 @@ function use_artifact_cuda()
     end
     artifact == nothing && error("Could not find a compatible artifact.")
 
+    nvdisasm = get_binary(artifact, "nvdisasm")
+    @assert isfile(nvdisasm)
+    version = parse_toolkit_version(nvdisasm)
+
     # discover libraries
     for name in  ("cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CuArrays, Symbol("lib$name"))
@@ -74,7 +108,7 @@ function use_artifact_cuda()
     end
 
     @debug "Using CUDA $(release) from an artifact at $(artifact)"
-    return release, [artifact]
+    return version, [artifact]
 end
 
 # try to use CUDA from a local installation
@@ -107,9 +141,9 @@ const cudnn_artifacts = Dict(
     v"9.0"  => ()->artifact"CUDNN+CUDA9.0",
 )
 
-function use_artifact_cudnn(cuda_release)
+function use_artifact_cudnn()
     artifact = try
-        cudnn_artifacts[cuda_release]()
+        cudnn_artifacts[release()]()
     catch ex
         @debug "Could not use CUDNN from artifacts" exception=(ex, catch_backtrace())
         return
@@ -120,8 +154,8 @@ function use_artifact_cudnn(cuda_release)
     @debug "Using CUDNN from an artifact at $(artifact)"
 end
 
-function use_local_cudnn(cuda_dirs)
-    path = find_cuda_library("cudnn", cuda_dirs, [v"7"])
+function use_local_cudnn()
+    path = find_cuda_library("cudnn", prefix(), [v"7"])
     if path !== nothing
         libcudnn[] = path
         @debug "Using local CUDNN at $(path)"
@@ -133,9 +167,9 @@ const cutensor_artifacts = Dict(
     v"10.1" => ()->artifact"CUTENSOR+CUDA10.1",
 )
 
-function use_artifact_cutensor(cuda_release)
+function use_artifact_cutensor()
     artifact = try
-        cutensor_artifacts[cuda_release]()
+        cutensor_artifacts[release()]()
     catch ex
         @debug "Could not use CUTENSOR from artifacts" exception=(ex, catch_backtrace())
         return
@@ -146,8 +180,8 @@ function use_artifact_cutensor(cuda_release)
     @debug "Using CUTENSOR from an artifact at $(artifact)"
 end
 
-function use_local_cutensor(cuda_dirs)
-    path = find_cuda_library("cutensor", cuda_dirs, [v"1"])
+function use_local_cutensor()
+    path = find_cuda_library("cutensor", prefix(), [v"1"])
     if path !== nothing
         libcutensor[] = path
         @debug "Using local CUTENSOR at $(path)"
@@ -155,19 +189,17 @@ function use_local_cutensor(cuda_dirs)
 end
 
 function __init_bindeps__(; silent=false, verbose=false)
-    cuda = try
+    try
         parse(Bool, get(ENV, "JULIA_CUDA_USE_BINARYBUILDER", "true")) ||
             error("Use of CUDA artifacts not allowed by user")
-        cuda_release, artifact = use_artifact_cuda()
-        use_artifact_cudnn(cuda_release)
-        use_artifact_cutensor(cuda_release)
-        cuda_release
+        toolkit_version[], toolkit_dirs[] = use_artifact_cuda()
+        use_artifact_cudnn()
+        use_artifact_cutensor()
     catch ex
         @debug "Could not use CUDA from artifacts" exception=(ex, catch_backtrace())
-        cuda_version, cuda_dirs = use_local_cuda()
-        use_local_cudnn(cuda_dirs)
-        use_local_cutensor(cuda_dirs)
-        VersionNumber(cuda_version.major, cuda_version.minor)
+        toolkit_version[], toolkit_dirs[] = use_local_cuda()
+        use_local_cudnn()
+        use_local_cutensor()
     end
 
     # library dependencies
@@ -179,6 +211,7 @@ function __init_bindeps__(; silent=false, verbose=false)
     # CUDNN and CUTENSOR are optional
 
     # library compatibility
+    cuda = version()
     if has_cutensor()
         cutensor = CUTENSOR.version()
         if cutensor < v"1"
