@@ -220,6 +220,11 @@ end
     @test !occursin("@__nv_fmaf", ir)
 end
 
+@testset "reinterpret(Nothing, nothing)" begin
+    kernel(ptr) = Base.unsafe_load(ptr)
+    CUDAnative.code_llvm(devnull, kernel, Tuple{CUDAnative.DevicePtr{Nothing,CUDAnative.AS.Global}}; strict=true)
+end
+
 end
 
 
