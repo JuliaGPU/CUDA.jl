@@ -2,16 +2,7 @@
 
 @testset "unsafe_load & unsafe_store!" begin
 
-@eval struct LoadableStruct
-    a::Int64
-    b::UInt8
-end
-Base.one(::Type{LoadableStruct}) = LoadableStruct(1,1)
-Base.zero(::Type{LoadableStruct}) = LoadableStruct(0,0)
-
-@testset for T in (Int8, UInt16, Int32, UInt32, Int64, UInt64, Int128,
-                   Float32, Float64,
-                   LoadableStruct),
+@testset for T in (Int8, UInt16, Int32, UInt32, Int64, UInt64, Int128, Float32, Float64),
              cached in (false, true)
     d_a = CuArray(ones(T))
     d_b = CuArray(zeros(T))
@@ -32,11 +23,12 @@ end
 
 @testset "indexing" begin
     function kernel(src, dst)
-        unsafe_store!(dst, CUDAnative.unsafe_cached_load(src, 4))
+        unsafe_store!(dst, unsafe_cached_load(src, 4))
         return
     end
 
     T = Complex{Int8}
+    # this also tests the fallback for unsafe_cached_load
 
     src = CuArray([T(1) T(9); T(3) T(4)])
     dst = CuArray([0])

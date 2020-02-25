@@ -20,6 +20,14 @@ struct Local    <: AddressSpace end
 
 end
 
+Base.convert(::Type{Int}, ::Type{AS.Generic})  = 0
+Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
+Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
+Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
+Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
+
+tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.name.name)))
+
 
 #
 # Device pointer
@@ -101,39 +109,9 @@ Base.:(-)(x::DevicePtr, y::Integer) = oftype(x, Base.sub_ptr(UInt(x), (y % UInt)
 Base.:(+)(x::Integer, y::DevicePtr) = y + x
 
 
-
 ## memory operations
 
-# TODO: we should not have unsafe_load/unsafe_store! perform codegen, or even use these
-#       APIs for loading/setting array values, but implement arrayref/set and pointerref/set
-#       instead. They have slightly different semantics.
-#       See jl_builtin_arrayset vs emit_pointerset.
-
-Base.convert(::Type{Int}, ::Type{AS.Generic})  = 0
-Base.convert(::Type{Int}, ::Type{AS.Global})   = 1
-Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
-Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
-Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
-
-function tbaa_make_child(name::String, constant::Bool=false; ctx::LLVM.Context=JuliaContext())
-    tbaa_root = MDNode([MDString("ptxtbaa", ctx)], ctx)
-    tbaa_struct_type =
-        MDNode([MDString("ptxtbaa_$name", ctx),
-                tbaa_root,
-                LLVM.ConstantInt(0, ctx)], ctx)
-    tbaa_access_tag =
-        MDNode([tbaa_struct_type,
-                tbaa_struct_type,
-                LLVM.ConstantInt(0, ctx),
-                LLVM.ConstantInt(constant ? 1 : 0, ctx)], ctx)
-
-    return tbaa_access_tag
-end
-
-tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.name.name)))
-
-@generated function Base.unsafe_load(p::DevicePtr{T,A}, i::Integer=1,
-                                     ::Val{align}=Val(1)) where {T,A,align}
+@generated function pointerref(p::DevicePtr{T,A}, i::Int, ::Val{align}) where {T,A,align}
     sizeof(T) == 0 && return T===Nothing ? nothing : reinterpret(T, nothing)
     eltyp = convert(LLVMType, T)
 
@@ -168,8 +146,7 @@ tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.n
     call_function(llvm_f, T, Tuple{DevicePtr{T,A}, Int}, :((p, Int(i-one(i)))))
 end
 
-@generated function Base.unsafe_store!(p::DevicePtr{T,A}, x, i::Integer=1,
-                                       ::Val{align}=Val(1)) where {T,A,align}
+@generated function pointerset(p::DevicePtr{T,A}, x::T, i::Int, ::Val{align}) where {T,A,align}
     sizeof(T) == 0 && return
     eltyp = convert(LLVMType, T)
 
@@ -206,32 +183,19 @@ end
                   :((p, convert(T,x), Int(i-one(i)))))
 end
 
-## loading through the texture cache
-
-export unsafe_cached_load
-
+# operand types supported by llvm.nvvm.ldg.global
 # NOTE: CUDA 8.0 supports more caching modifiers, but those aren't supported by LLVM yet
+const LDGTypes = Union{UInt8, UInt16, UInt32, UInt64,
+                       Int8, Int16, Int32, Int64,
+                       Float32, Float64}
 
 # TODO: this functionality should throw <sm_32
-
-# operand types supported by llvm.nvvm.ldg.global
-const CachedLoadOperands = Union{UInt8, UInt16, UInt32, UInt64,
-                                 Int8, Int16, Int32, Int64,
-                                 Float32, Float64}
-
-# containing DevicePtr types
-const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
-                                 for T in Base.uniontypes(CachedLoadOperands))...}
-
-@generated function unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1,
-                                       ::Val{align}=Val(1)) where
-                                      {T<:CachedLoadOperands,align}
-    # NOTE: we can't `ccall(..., llvmcall)`, because
-    #       1) Julia passes pointer arguments as plain integers
-    #       2) we need to addrspacecast the pointer argument
-
-    sizeof(T) == 0 && return
+@generated function pointerref_ldg(p::DevicePtr{T,AS.Global}, i::Int,
+                                   ::Val{align}) where {T<:LDGTypes,align}
+    sizeof(T) == 0 && return T===Nothing ? nothing : reinterpret(T, nothing)
     eltyp = convert(LLVMType, T)
+
+    # TODO: ccall the intrinsic directly with AddrSpacePtr
 
     T_int = convert(LLVMType, Int)
     T_int32 = LLVM.Int32Type(JuliaContext())
@@ -281,6 +245,19 @@ const CachedLoadPointers = Union{Tuple(DevicePtr{T,AS.Global}
     call_function(llvm_f, T, Tuple{DevicePtr{T,AS.Global}, Int}, :((p, Int(i-one(i)))))
 end
 
-@inline unsafe_cached_load(p::DevicePtr{T,AS.Global}, i::Integer=1, args...) where {T} =
-    recurse_pointer_invocation(unsafe_cached_load, p+sizeof(T)*Int(i-one(i)),
-                               CachedLoadPointers, 1, args...)
+# interface
+
+export unsafe_cached_load
+
+Base.unsafe_load(p::DevicePtr{T}, i::Integer=1, align::Val=Val(1)) where {T} =
+    pointerref(p, Int(i), align)
+
+Base.unsafe_store!(p::DevicePtr{T}, x, i::Integer=1, align::Val=Val(1)) where {T} =
+    pointerset(p, convert(T, x), Int(i), align)
+
+unsafe_cached_load(p::DevicePtr{<:LDGTypes,AS.Global}, i::Integer=1, align::Val=Val(1)) =
+    pointerref_ldg(p, Int(i), align)
+# NOTE: fall back to normal pointerref for unsupported types. we could be smarter here,
+#       e.g. destruct/load/reconstruct, but that's too complicated for what's it worth.
+unsafe_cached_load(p::DevicePtr, i::Integer=1, align::Val=Val(1)) =
+    pointerref(p, Int(i), align)

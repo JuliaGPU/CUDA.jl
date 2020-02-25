@@ -1,6 +1,22 @@
 # Tools for implementing device functionality
 
 
+function tbaa_make_child(name::String, constant::Bool=false; ctx::LLVM.Context=JuliaContext())
+    tbaa_root = MDNode([MDString("ptxtbaa", ctx)], ctx)
+    tbaa_struct_type =
+        MDNode([MDString("ptxtbaa_$name", ctx),
+                tbaa_root,
+                LLVM.ConstantInt(0, ctx)], ctx)
+    tbaa_access_tag =
+        MDNode([tbaa_struct_type,
+                tbaa_struct_type,
+                LLVM.ConstantInt(0, ctx),
+                LLVM.ConstantInt(constant ? 1 : 0, ctx)], ctx)
+
+    return tbaa_access_tag
+end
+
+
 # generalization of word-based primitives
 
 ## extract bits from a larger value
@@ -113,82 +129,6 @@ end
         for field in fields
             push!(ctor.args, :(
                 recurse_value_invocation(op, getfield(val, $(QuoteNode(field))), args...) ))
-        end
-        push!(ex.args, ctor)
-    end
-
-    return ex
-end
-
-# split the invocation of a function `op` on a pointer `ptr` with non-struct eltype
-# into multiple smaller invocations on any supported pointer as listed in `supported_ptrs`.
-@generated function split_pointer_invocation(op::Function, ptr, ::Type{supported_ptrs},
-                                             args...) where {supported_ptrs}
-    T = eltype(ptr)
-    elsize(x) = Core.sizeof(eltype(x))
-    supported_ptrs = reverse(Base.uniontypes(supported_ptrs))
-
-    ex = quote
-        Base.@_inline_meta
-    end
-
-    # disassemble
-    vals = Tuple{Symbol,Int,Type}[]
-    offset = 0
-    while offset < Core.sizeof(T)
-        val = Symbol("value.$(length(vals)+1)")
-
-        # greedy selection of next pointer type
-        remaining = Core.sizeof(T)-offset
-        valid = filter(ptr->elsize(ptr)<=remaining, supported_ptrs)
-        if isempty(valid)
-            error("Cannot partition $T into values of $supported_typs")
-        end
-        ptr = first(sort(collect(valid); by=elsize, rev=true))
-
-        push!(vals, (val, offset, ptr))
-        offset += elsize(ptr)
-    end
-
-    # perform the operation
-    for (val, offset, ptr) in vals
-        subptr = :(convert($ptr, ptr+$offset))
-        push!(ex.args, :( $val = op($subptr, args...)) )
-    end
-
-    # reassemble
-    push!(ex.args, :( out = zero($T) ))
-    for (val, offset, ptr) in vals
-        push!(ex.args, :( out = insert_value(out, $val, Val($offset)) ))
-    end
-
-    push!(ex.args, :( out ))
-    return ex
-end
-
-# split the invocation of a function `op` on a pointer `ptr`
-# by invoking the function on a pointer to each of its fields
-@generated function recurse_pointer_invocation(op::Function, ptr, ::Type{supported_ptrs},
-                                               args...) where {supported_ptrs}
-    T = eltype(ptr)
-
-    ex = quote
-        Base.@_inline_meta
-    end
-
-    fields = fieldnames(T)
-    if isempty(fields)
-        push!(ex.args, :( split_pointer_invocation(op, ptr, supported_ptrs, args...) ))
-    else
-        ctor = Expr(:new, T)
-        for (i,field) in enumerate(fields)
-            field_typ = fieldtype(T, i)
-            field_offset = fieldoffset(T, i)
-            field_ptr_typ = :($(ptr.name.wrapper){$field_typ})
-            # NOTE: this ctor is a leap of faith
-            subptr = :(convert($field_ptr_typ, ptr+$field_offset))
-            push!(ctor.args, :(
-                recurse_pointer_invocation(op, $subptr, supported_ptrs, args...) ))
         end
         push!(ex.args, ctor)
     end
