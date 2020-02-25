@@ -112,7 +112,7 @@ Base.:(+)(x::Integer, y::DevicePtr) = y + x
 ## memory operations
 
 @generated function pointerref(p::DevicePtr{T,A}, i::Int, ::Val{align}) where {T,A,align}
-    sizeof(T) == 0 && return T===Nothing ? nothing : reinterpret(T, nothing)
+    sizeof(T) == 0 && return T.instance
     eltyp = convert(LLVMType, T)
 
     T_int = convert(LLVMType, Int)
@@ -192,7 +192,7 @@ const LDGTypes = Union{UInt8, UInt16, UInt32, UInt64,
 # TODO: this functionality should throw <sm_32
 @generated function pointerref_ldg(p::DevicePtr{T,AS.Global}, i::Int,
                                    ::Val{align}) where {T<:LDGTypes,align}
-    sizeof(T) == 0 && return T===Nothing ? nothing : reinterpret(T, nothing)
+    sizeof(T) == 0 && return T.instance
     eltyp = convert(LLVMType, T)
 
     # TODO: ccall the intrinsic directly with AddrSpacePtr
