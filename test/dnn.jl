@@ -59,11 +59,11 @@ else
 
     # CPU implementation of ∇conv_bias!
     db = zeros(Float64, 1, 1, 3, 1)
-    function CuArrays.CUDNN.∇conv_bias!(db, y)
+    function CUDNN.∇conv_bias!(db, y)
       db .= sum(y, dims=(1:(ndims(y)-2)))
       return db
     end
-    #@test testf(CuArrays.CUDNN.∇conv_bias!, db, y)
+    #@test testf(CUDNN.∇conv_bias!, db, y)
   end
 
   for dims in [(5,5), (5,)]
@@ -75,9 +75,9 @@ else
 end
 
 @testset "Activations and Other Ops" begin
-  @test testf(CuArrays.CUDNN.cudnnAddTensor, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
-  @test testf(CuArrays.CUDNN.cudnnActivationForward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
-  @test testf(CuArrays.CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
+  @test testf(CUDNN.cudnnAddTensor, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
+  @test testf(CUDNN.cudnnActivationForward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
+  @test testf(CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
 
   # activations defined in src/nnlib.jl
   for dims in ((5,5), (5,))
@@ -94,7 +94,7 @@ end
   v = rand(2) |> cu
   m = rand(2, 5) |> cu
   for training in (false, true)
-    CuArrays.CUDNN.batchnorm(v, v, m, v, v, 1.0; training=training)
+    CUDNN.batchnorm(v, v, m, v, v, 1.0; training=training)
   end
 end
 

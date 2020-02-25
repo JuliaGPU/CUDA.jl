@@ -99,12 +99,11 @@ end
   @test Array(Whatever{Int}.(CuArray([1]))) == Whatever{Int}.([1])
 end
 
-@testset "Cufunc" begin
+@testset "cufunc" begin
   gelu1(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
   sig(x) = one(x) / (one(x) + exp(-x))
   f(x) = gelu1(log(x)) * sig(x) * tanh(x)
   g(x) = x^7 - 2 * x^f(x^2) + 3
-
 
   CuArrays.@cufunc gelu1(x) = oftype(x, 0.5) * x * (1 + tanh(oftype(x, √(2/π))*(x + oftype(x, 0.044715) * x^3)))
   CuArrays.@cufunc sig(x) = one(x) / (one(x) + exp(-x))
@@ -115,10 +114,11 @@ end
   @test :sig ∈ CuArrays.cufuncs()
   @test :f ∈ CuArrays.cufuncs()
   @test :g ∈ CuArrays.cufuncs()
-  @test testf((x)  -> gelu1.(x), rand(3,3))
-  @test testf((x)  -> sig.(x),  rand(3,3))
-  @test testf((x)  -> f.(x),    rand(3,3))
-  @test testf((x)  -> g.(x),    rand(3,3))
+
+  @test testf(x -> gelu1.(x), rand(3,3))
+  @test testf(x -> sig.(x),   rand(3,3))
+  @test testf(x -> f.(x),     rand(3,3))
+  @test testf(x -> g.(x),     rand(3,3))
 end
 
 # https://github.com/JuliaGPU/CUDAnative.jl/issues/223
