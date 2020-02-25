@@ -489,16 +489,13 @@ end
     foobar(i) = sin(i)
 
     # NOTE: we don't use test_logs in order to test all of the warning (exception, backtrace)
-    logs, _ = Test.collect_test_logs() do
-        CUDAnative.code_llvm(devnull, foobar, Tuple{Int})
+    logs, _ = Test.collect_test_logs(min_level=Info) do
+        withenv("JULIA_DEBUG" => nothing) do
+            CUDAnative.code_llvm(devnull, foobar, Tuple{Int})
+        end
     end
-    if LLVM.version() >= v"8.0" && VERSION >= v"1.3.0-DEV.547"
-        @test length(logs) == 2
-        record = logs[2]
-    else
-        @test length(logs) == 1
-        record = logs[1]
-    end
+    @test length(logs) == 1
+    record = logs[1]
     @test record.level == Base.CoreLogging.Warn
     @test record.message == "calls to Base intrinsics might be GPU incompatible"
     @test haskey(record.kwargs, :exception)

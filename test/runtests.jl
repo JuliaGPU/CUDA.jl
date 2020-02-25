@@ -1,4 +1,5 @@
-using Test
+using Test, Base.CoreLogging
+import Base.CoreLogging: Info
 
 using CUDAnative, CuArrays, CUDAdrv
 import Adapt, LLVM
