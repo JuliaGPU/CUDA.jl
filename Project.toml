@@ -25,6 +25,7 @@ CUDAapi = "3.1"
 CUDAdrv = "6.0"
 DataStructures = "0.15, 0.16, 0.17"
 LLVM = "1.2"
+MacroTools = "0.5"
 TimerOutputs = "0.5"
 julia = "1.3"
 
