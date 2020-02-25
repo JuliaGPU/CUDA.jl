@@ -35,6 +35,11 @@ device!(pick.dev)
 
 @testset "CuArrays" begin
 
+# ensure CI is using the requested version
+if haskey(ENV, "CI") && haskey(ENV, "JULIA_CUDA_VERSION")
+  @test CuArrays.release() == VersionNumber(ENV["JULIA_CUDA_VERSION"])
+end
+
 CuArrays.allowscalar(false)
 
 CuArrays.enable_timings()
