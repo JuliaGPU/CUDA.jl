@@ -487,8 +487,13 @@ end
     logs, _ = Test.collect_test_logs() do
         CUDAnative.code_llvm(devnull, foobar, Tuple{Int})
     end
-    @test length(logs) == 1
-    record = logs[1]
+    if LLVM.version() >= v"8.0" && VERSION >= v"1.3.0-DEV.547"
+        @test length(logs) == 2
+        record = logs[2]
+    else
+        @test length(logs) == 1
+        record = logs[1]
+    end
     @test record.level == Base.CoreLogging.Warn
     @test record.message == "calls to Base intrinsics might be GPU incompatible"
     @test haskey(record.kwargs, :exception)
