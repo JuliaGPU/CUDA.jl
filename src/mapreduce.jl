@@ -1,111 +1,205 @@
 ## COV_EXCL_START
 
-@inline function reduce_block(arr::CuDeviceArray, op)
-    sync_threads()
-    len = blockDim().x
-    while len != 1
-        sync_threads()
-        skip = (len + 1) >> 1
-        reduce_to = threadIdx().x - skip
-        if 0 < reduce_to <= (len >> 1)
-            arr[reduce_to] = op(arr[reduce_to], arr[threadIdx().x])
-        end
-        len = skip
-    end
-    sync_threads()
+# TODO
+# - serial version for lower latency
+# - block-stride loop to delay need for second kernel launch
+
+# Reduce a value across a warp
+@inline function reduce_warp(op, val)
+    # offset = CUDAnative.warpsize() ÷ 2
+    # while offset > 0
+    #     val = op(val, shfl_down_sync(0xffffffff, val, offset))
+    #     offset ÷= 2
+    # end
+
+    # Loop unrolling for warpsize = 32
+    val = op(val, shfl_down_sync(0xffffffff, val, 16, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 8, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 4, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 2, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 1, 32))
+
+    return val
 end
 
-function mapreducedim_kernel_parallel(f, op, R::CuDeviceArray{T}, A::CuDeviceArray{T},
-                             CIS, Rlength, Slength) where {T}
-    for Ri_base in 0:(gridDim().x * blockDim().y):(Rlength-1)
-        Ri = Ri_base + (blockIdx().x - 1) * blockDim().y + threadIdx().y
-        Ri > Rlength && return
-        RI = Tuple(CartesianIndices(R)[Ri])
-        S = @cuStaticSharedMem(T, 512)
-        Si_folded_base = (threadIdx().y - 1) * blockDim().x
-        Si_folded = Si_folded_base + threadIdx().x
-        # serial reduction of A into S by Slength ÷ xthreads
-        for Si_base in 0:blockDim().x:(Slength-1)
-            Si = Si_base + threadIdx().x
-            Si > Slength && break
-            SI = Tuple(CIS[Si])
-            AI = ifelse.(size(R) .== 1, SI, RI)
-            if Si_base == 0
-                S[Si_folded] = f(A[AI...])
-            else
-                S[Si_folded] = op(S[Si_folded], f(A[AI...]))
-            end
-        end
-        # block-parallel reduction of S to S[1] by xthreads
-        reduce_block(view(S, (Si_folded_base + 1):512), op)
-        # reduce S[1] into R
-        threadIdx().x == 1 && (R[Ri] = op(R[Ri], S[Si_folded]))
+# Reduce a value across a block, using shared memory for communication
+@inline function reduce_block(op, val::T, neutral, shuffle::Val{true}) where T
+    # shared mem for 32 partial sums
+    shared = @cuStaticSharedMem(T, 32)  # NOTE: this is an upper bound; better detect it
+
+    wid, lane = fldmod1(threadIdx().x, CUDAnative.warpsize())
+
+    # each warp performs partial reduction
+    val = reduce_warp(op, val)
+
+    # write reduced value to shared memory
+    if lane == 1
+        @inbounds shared[wid] = val
     end
+
+    # wait for all partial reductions
+    sync_threads()
+
+    # read from shared memory only if that warp existed
+    val = if threadIdx().x <= fld1(blockDim().x, CUDAnative.warpsize())
+         @inbounds shared[lane]
+    else
+        neutral
+    end
+
+    # final reduce within first warp
+    if wid == 1
+        val = reduce_warp(op, val)
+    end
+
+    return val
+end
+@inline function reduce_block(op, val::T, neutral, shuffle::Val{false}) where T
+    threads = blockDim().x
+    thread = threadIdx().x
+
+    # shared mem for a complete reduction
+    shared = @cuDynamicSharedMem(T, (2*threads,))
+    @inbounds shared[thread] = val
+
+    # perform a reduction
+    d = threads>>1
+    while d > 0
+        sync_threads()
+        if thread <= d
+            shared[thread] = op(shared[thread], shared[thread+d])
+        end
+        d >>= 1
+    end
+
+    # load the final value on the first thread
+    if thread == 1
+        val = @inbounds shared[thread]
+    end
+
+    return val
+end
+
+# Partially reduce an array across the grid. The reduction is partial, with multiple
+# blocks `gridDim_reduce` working on reducing data from `A` and writing it to multiple
+# outputs in `R`. All elements to be processed can be addressed by the product of the
+# two iterators `Rreduce` and `Rother`, where the latter iterator will have singleton
+# entries for the dimensions that should be reduced (and vice versa). The output array
+# is expected to have an additional dimension with as size the number of reduced values
+# for every reduction (i.e. more than one if there's multiple blocks participating).
+function partial_mapreduce_grid(f, op, A, R, neutral, Rreduce, Rother, gridDim_reduce, shuffle)
+    # decompose the 1D hardware indices into separate ones for reduction (across threads
+    # and possibly blocks if it doesn't fit) and other elements (remaining blocks)
+    threadIdx_reduce = threadIdx().x
+    blockDim_reduce = blockDim().x
+    blockIdx_other, blockIdx_reduce = fldmod1(blockIdx().x, gridDim_reduce)
+
+    # block-based indexing into the values outside of the reduction dimension
+    # (that means we can safely synchronize threads within this block)
+    iother = blockIdx_other
+    @inbounds if iother <= length(Rother)
+        Iother = Rother[iother]
+
+        # load the neutral value
+        Iout = CartesianIndex(Tuple(Iother)..., blockIdx_reduce)
+        neutral = if neutral === nothing
+            R[Iout]
+        else
+            neutral
+        end
+
+        # get a value that should be reduced
+        ireduce = threadIdx_reduce + (blockIdx_reduce - 1) * blockDim_reduce
+        val = if ireduce <= length(Rreduce)
+            Ireduce = Rreduce[ireduce]
+            J = max(Iother, Ireduce)
+            f(A[J])
+        else
+            neutral
+        end
+        val = op(val, neutral)
+
+        val = reduce_block(op, val, neutral, shuffle)
+
+        # write back to memory
+        if threadIdx_reduce == 1
+            R[Iout] = val
+        end
+    end
+
     return
 end
 
 ## COV_EXCL_STOP
 
-function Base._mapreducedim!(f, op, R::CuArray{T}, A::CuArray{T}) where {T}
-    # the kernel as generated from `f` and `op` can require lots of registers (eg. #160),
-    # so we need to be careful about how many threads we launch not to run out of them.
-    Rlength = length(R)
-    Ssize = ifelse.(size(R) .== 1, size(A), 1)
-    Slength = prod(Ssize)
-    CIS = CartesianIndices(Ssize)
+NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, A::AbstractArray, init=nothing) where T
+    Base.check_reducedims(R, A)
+    isempty(A) && return R
 
-    parallel_args = (f, op, R, A, CIS, Rlength, Slength)
-    GC.@preserve parallel_args begin
-        parallel_kargs = cudaconvert.(parallel_args)
-        parallel_tt = Tuple{Core.Typeof.(parallel_kargs)...}
-        parallel_kernel = cufunction(mapreducedim_kernel_parallel, parallel_tt)
+    f = cufunc(f)
+    op = cufunc(op)
 
-        # we are limited in how many threads we can launch...
-        ## by the kernel
-        kernel_threads = CUDAnative.maxthreads(parallel_kernel)
-        ## by the device
-        dev = CUDAdrv.device()
-        block_threads = (x=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X),
-                         y=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y),
-                         total=attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK))
+    # be conservative about using shuffle instructions
+    shuffle = true
+    shuffle &= capability(device()) >= v"3.0"
+    shuffle &= T in (Int32, Int64, Float32, Float64, ComplexF32, ComplexF64)
+    # TODO: add support for Bool (CUDAnative.jl#420)
 
-        # figure out a legal launch configuration
-        y_thr = min(nextpow(2, Rlength ÷ 512 + 1), 512, block_threads.y, kernel_threads)
-        x_thr = min(512 ÷ y_thr, Slength, block_threads.x,
-                    ceil(Int, block_threads.total/y_thr),
-                    ceil(Int, kernel_threads/y_thr))
+    # iteration domain, split in two: one part covers the dimensions that should
+    # be reduced, and the other covers the rest. combining both covers all values.
+    Rall = CartesianIndices(A)
+    Rother = CartesianIndices(R)
+    Rreduce = CartesianIndices(ifelse.(axes(A) .== axes(R), Ref(Base.OneTo(1)), axes(A)))
+    # NOTE: we hard-code `OneTo` (`first.(axes(A))` would work too) or we get a
+    #       CartesianIndices object with UnitRanges that behave badly on the GPU.
+    @assert length(Rall) == length(Rother) * length(Rreduce)
 
-        blk, thr = (Rlength - 1) ÷ y_thr + 1, (x_thr, y_thr, 1)
-        parallel_kernel(parallel_kargs...; threads=thr, blocks=blk)
+    # allocate an additional, empty dimension to write the reduced value to.
+    # this does not affect the actual location in memory of the final values,
+    # but allows us to write a generalized kernel supporting partial reductions.
+    R′ = reshape(R, (size(R)..., 1))
+
+    # determine how many threads we can launch
+    args = (f, op, A, R′, init, Rreduce, Rother, 1, Val(shuffle))
+    kernel_args = cudaconvert.(args)
+    kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
+    kernel = cufunction(partial_mapreduce_grid, kernel_tt)
+    kernel_config =
+        launch_configuration(kernel.fun; shmem = shuffle ? 0 : threads->2*threads*sizeof(T))
+
+    # determine the launch configuration
+    dev = device()
+    reduce_threads = shuffle ? nextwarp(dev, length(Rreduce)) : nextpow(2, length(Rreduce))
+    if reduce_threads > kernel_config.threads
+        reduce_threads = shuffle ? prevwarp(dev, kernel_config.threads) : prevpow(2, kernel_config.threads)
+    end
+    reduce_blocks = cld(length(Rreduce), reduce_threads)
+    other_blocks = length(Rother)
+    threads, blocks = reduce_threads, reduce_blocks*other_blocks
+    shmem = shuffle ? 0 : 2*threads*sizeof(T)
+
+    # perform the actual reduction
+    if reduce_blocks == 1
+        # we can cover the dimensions to reduce using a single block
+        @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
+            f, op, A, R′, init, Rreduce, Rother, 1, Val(shuffle))
+    else
+        # we need multiple steps to cover all values to reduce
+        partial = similar(R, (size(R)..., reduce_blocks))
+        if init === nothing
+            # without an explicit initializer we need to copy from the output container
+            sz = prod(size(R))
+            for i in 1:reduce_blocks
+                # TODO: async copies (or async fill!, but then we'd need to load first)
+                #       or maybe just broadcast since that extends singleton dimensions
+                copyto!(partial, (i-1)*sz+1, R, 1, sz)
+            end
+        end
+        @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
+            f, op, A, partial, init, Rreduce, Rother, reduce_blocks, Val(shuffle))
+
+        GPUArrays.mapreducedim!(identity, op, R′, partial, init)
     end
 
     return R
 end
-
-import Base.minimum, Base.maximum, Base.reduce
-
-_reduced_dims(x::CuArray, ::Colon) = Tuple(Base.ones(Int, ndims(x)))
-_reduced_dims(x::CuArray, dims) = Base.reduced_indices(x, dims)
-
-_initarray(x::CuArray{T}, dims, init) where {T} = fill!(similar(x, T, _reduced_dims(x, dims)), init)
-
-function _reduce(op, x::CuArray, init, ::Colon)
-    mx = _initarray(x, :, init)
-    Base._mapreducedim!(identity, op, mx, x)
-    collect(mx)[1]
-end
-
-function _reduce(op, x::CuArray, init, dims)
-    mx = _initarray(x, dims, init)
-    Base._mapreducedim!(identity, op, mx, x)
-end
-
-"""
-    reduce(op, x::CuArray; dims=:, init)
-
-The initial value `init` is mandatory for `reduce` on `CuArray`'s. It must be a neutral element for `op`.
-"""
-reduce(op, x::CuArray; dims=:, init) = _reduce(op, x, init, dims)
-
-minimum(x::CuArray{T}; dims=:) where {T} = _reduce(min, x, typemax(T), dims)
-maximum(x::CuArray{T}; dims=:) where {T} = _reduce(max, x, typemin(T), dims)

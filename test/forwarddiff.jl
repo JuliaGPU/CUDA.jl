@@ -12,7 +12,7 @@
       return
     end
     CUDAnative.@cuda kernel(buf, x)
-    return buf[]
+    return CuArrays.@allowscalar buf[]
   end
 
   testf(cuf, f, x) = test_derivative(cuf, x) ≈ ForwardDiff.derivative(f, x)

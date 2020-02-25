@@ -1,30 +1,5 @@
 # scan and accumulate
 
-# FIXME: certain Base operations, like accumulate, don't allow to pass a neutral element
-#        since it is not required by the Base implementation (as opposed to eg. reduce).
-#        to stick to the API, we use global state to provide a callback.
-const neutral_elements = Dict{Function,Function}(
-    Base.:(+)       => zero,
-    Base.add_sum    => zero,
-    Base.:(*)       => one,
-    Base.mul_prod   => one,
-)
-function neutral_element!(op, f)
-    if haskey(neutral_elements, op)
-        @warn "Overriding neutral element for $op"
-    end
-    neutral_elements[op] = f
-end
-function neutral_element(op, T)
-    if !haskey(neutral_elements, op)
-        error("""CuArrays.jl needs to know the neutral element for your operator $op.
-                 Please register your operator using: `CuArrays.neutral_element!($op, f::Function)`,
-                 providing a function that returns a neutral element for a given element type.""")
-    end
-    f = neutral_elements[op]
-    return f(T)
-end
-
 ## COV_EXCL_START
 
 # partial scan of individual thread blocks within a grid
@@ -152,13 +127,14 @@ end
 ## COV_EXCL_STOP
 
 function scan!(f::Function, output::CuArray{T}, input::CuArray;
-               dims::Integer, init=nothing, neutral=neutral_element(f, T)) where {T}
-
+               dims::Integer, init=nothing, neutral=GPUArrays.neutral_element(f, T)) where {T}
     dims > 0 || throw(ArgumentError("dims must be a positive integer"))
     inds_t = axes(input)
     axes(output) == inds_t || throw(DimensionMismatch("shape of B must match A"))
     dims > ndims(input) && return copyto!(output, input)
     isempty(inds_t[dims]) && return output
+
+    f = cufunc(f)
 
     # iteration domain across the main dimension
     Rdim = CartesianIndices((size(input, dims),))
