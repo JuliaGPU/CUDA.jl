@@ -59,6 +59,7 @@ end
 @testset "availability" begin
     @test isa(has_cuda(), Bool)
     @test isa(has_cuda_gpu(), Bool)
+    @test isa(usable_cuda_gpus(), Int)
 end
 
 @testset "call" begin
