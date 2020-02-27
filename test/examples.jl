@@ -19,10 +19,10 @@ cd(examples_dir) do
     examples = relpath.(examples, Ref(examples_dir))
     @testset for example in examples
         # construct a command
-        cmd = `$(Base.julia_cmd())`
+        cmd = `$(Base.julia_cmd()) --startup=no`
         if Base.JLOptions().project != C_NULL
             # --project isn't preserved by julia_cmd()
-            cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project)) --startup=no`
+            cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
         end
         cmd = `$cmd $example`
 
