@@ -24,16 +24,17 @@ function backtrace(inst::LLVM.Instruction, bt = StackTraces.StackFrame[])
     f = LLVM.parent(LLVM.parent(inst))
     ## functions can be used as a *value* in eg. constant expressions, so filter those out
     callers = filter(val -> isa(user(val), LLVM.CallInst), collect(uses(f)))
+    ## get rid of calls without debug info
+    filter!(callers) do call
+        md = metadata(user(call))
+        haskey(md, LLVM.MD_dbg)
+    end
     if !isempty(callers)
         # figure out the call sites of this instruction
         call_sites = unique(callers) do call
             # there could be multiple calls, originating from the same source location
             md = metadata(user(call))
-            if haskey(md, LLVM.MD_dbg)
-                md[LLVM.MD_dbg]
-            else
-                nothing
-            end
+            md[LLVM.MD_dbg]
         end
 
         if length(call_sites) > 1
