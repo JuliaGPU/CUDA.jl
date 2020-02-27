@@ -103,16 +103,11 @@ A device-side launch, aka. dynamic parallelism, is similar but more restricted:
 """
 macro cuda(ex...)
     # destructure the `@cuda` expression
-    if length(ex) > 0 && ex[1].head == :tuple
-        error("The tuple argument to @cuda has been replaced by keywords: `@cuda threads=... fun(args...)`")
-    end
     call = ex[end]
     kwargs = ex[1:end-1]
 
     # destructure the kernel call
-    if call.head != :call
-        throw(ArgumentError("second argument to @cuda should be a function call"))
-    end
+    Meta.isexpr(call, :call) || throw(ArgumentError("second argument to @cuda should be a function call"))
     f = call.args[1]
     args = call.args[2:end]
 
