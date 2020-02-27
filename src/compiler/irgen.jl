@@ -349,6 +349,7 @@ function lower_throw!(mod::LLVM.Module)
         "jl_error"                      => "error",
         "jl_too_few_args"               => "too few arguments exception",
         "jl_too_many_args"              => "too many arguments exception",
+        "jl_type_error"                 => "type error",
         "jl_type_error_rt"              => "type error",
         "jl_undefined_var_error"        => "undefined variable error",
         "jl_bounds_error"               => "bounds error",
