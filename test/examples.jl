@@ -22,7 +22,7 @@ cd(examples_dir) do
         cmd = `$(Base.julia_cmd())`
         if Base.JLOptions().project != C_NULL
             # --project isn't preserved by julia_cmd()
-            cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
+            cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project)) --startup=no`
         end
         cmd = `$cmd $example`
 
