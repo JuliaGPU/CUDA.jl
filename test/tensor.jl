@@ -457,7 +457,7 @@ end
             opB = CUTENSOR.CUTENSOR_OP_IDENTITY
             opC = CUTENSOR.CUTENSOR_OP_IDENTITY
             opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
-            plan = CUTENSOR.contraction_plan(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut)
+            plan  = CUTENSOR.plan_contraction(dA, indsA, opA, dB, indsB, opB, dC, indsC, opC, opOut)
             dC = CUTENSOR.contraction!(1, dA, indsA, opA, dB, indsB, opB,
                                         0, dC, indsC, opC, opOut, plan=plan)
             C = collect(dC)

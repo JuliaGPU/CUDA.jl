@@ -261,7 +261,7 @@ function contraction!(
     return C
 end
 
-function contraction_plan(
+function plan_contraction(
     A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
     B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
     C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
