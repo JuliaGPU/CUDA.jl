@@ -258,6 +258,6 @@ Base.unsafe_store!(p::DevicePtr{T}, x, i::Integer=1, align::Val=Val(1)) where {T
 unsafe_cached_load(p::DevicePtr{<:LDGTypes,AS.Global}, i::Integer=1, align::Val=Val(1)) =
     pointerref_ldg(p, Int(i), align)
 # NOTE: fall back to normal pointerref for unsupported types. we could be smarter here,
-#       e.g. destruct/load/reconstruct, but that's too complicated for what's it worth.
+#       e.g. destruct/load/reconstruct, but that's too complicated for what it's worth.
 unsafe_cached_load(p::DevicePtr, i::Integer=1, align::Val=Val(1)) =
     pointerref(p, Int(i), align)
