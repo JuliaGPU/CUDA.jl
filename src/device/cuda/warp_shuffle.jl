@@ -57,15 +57,22 @@ for fname in (:shfl_up_sync, :shfl_down_sync, :shfl_xor_sync, :shfl_sync)
 end
 
 # unsigned integers
-shfl_recurse(op, x::UInt64) = (UInt64(op((x >>> 32) % UInt32)) << 32) | op((x & typemax(UInt32)) % UInt32)
+shfl_recurse(op, x::UInt8)   = op(UInt32(x)) % UInt8
+shfl_recurse(op, x::UInt16)  = op(UInt32(x)) % UInt16
+shfl_recurse(op, x::UInt64)  = (UInt64(op((x >>> 32) % UInt32)) << 32) | op((x & typemax(UInt32)) % UInt32)
+shfl_recurse(op, x::UInt128) = (UInt128(op((x >>> 64) % UInt64)) << 64) | op((x & typemax(UInt64)) % UInt64)
 
 # signed integers
-shfl_recurse(op, x::Int64) = reinterpret(Int64, shfl_recurse(op, reinterpret(UInt64, x)))
+shfl_recurse(op, x::Int8)  = reinterpret(Int8, shfl_recurse(op, reinterpret(UInt8, x)))
+shfl_recurse(op, x::Int16)  = reinterpret(Int16, shfl_recurse(op, reinterpret(UInt16, x)))
+shfl_recurse(op, x::Int64)  = reinterpret(Int64, shfl_recurse(op, reinterpret(UInt64, x)))
+shfl_recurse(op, x::Int128) = reinterpret(Int128, shfl_recurse(op, reinterpret(UInt128, x)))
 
 # floating point numbers
 shfl_recurse(op, x::Float64) = reinterpret(Float64, shfl_recurse(op, reinterpret(UInt64, x)))
 
 # other
+shfl_recurse(op, x::Bool)    = op(UInt32(x)) % Bool
 shfl_recurse(op, x::Complex) = Complex(op(real(x)), op(imag(x)))
 
 
