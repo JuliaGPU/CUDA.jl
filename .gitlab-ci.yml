@@ -34,6 +34,16 @@ julia:nightly:
     CI_THOROUGH: 'true'
   allow_failure: true
 
+julia:debug:
+  extends:
+    - .julia:source
+    - .test
+  tags:
+    - nvidia
+  variables:
+    CI_BUILD_ARGS: 'debug'
+  allow_failure: true
+
 
 # CUDA versions
 
