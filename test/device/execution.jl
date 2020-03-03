@@ -316,6 +316,26 @@ end
 end
 
 
+@testset "automatic recompilation (bis)" begin
+    arr = CuArray(zeros(Int))
+
+    @eval doit(ptr) = unsafe_store!(ptr, 1)
+
+    function kernel(ptr)
+        doit(ptr)
+        return
+    end
+
+    @cuda kernel(pointer(arr))
+    @test Array(arr)[] == 1
+
+    @eval doit(ptr) = unsafe_store!(ptr, 2)
+
+    @cuda kernel(pointer(arr))
+    @test Array(arr)[] == 2
+end
+
+
 @testset "non-isbits arguments" begin
     function kernel1(T, i)
         sink(i)
