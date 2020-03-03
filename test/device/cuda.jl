@@ -651,56 +651,35 @@ end
 
 if capability(device()) >= v"3.0"
 
-@testset "shuffle idx" begin
+@testset "native shuffle idx" begin
     function kernel(d)
         i = threadIdx().x
         j = 32 - i + 1
 
-        d[i] = shfl(d[i], j)
+        d[i] = shfl_sync(FULL_MASK, d[i], j)
 
         return
     end
 
     warpsize = CUDAdrv.warpsize(device())
 
-    a = CuArray([i for i in 1:warpsize])
+    a = CuArray{Int32}([i for i in 1:warpsize])
     @cuda threads=warpsize kernel(a)
     @test Array(a) == [i for i in warpsize:-1:1]
 end
 
-@testset "shuffle down" begin
-    @eval struct AddableTuple
-        x::Int32
-        y::Int64
-        AddableTuple(val) = new(val, val*2)
-    end
-    Base.:(+)(a::AddableTuple, b::AddableTuple) = AddableTuple(a.x+b.x)
-
+@testset "extended shuffle down" begin
     n = 14
 
-    function kernel1(d::CuDeviceArray{T}, n) where {T}
+    function kernel(d::CuDeviceArray{T}, n) where {T}
         t = threadIdx().x
         if t <= n
-            d[t] += shfl_down(d[t], n÷2)
+            d[t] += shfl_down_sync(FULL_MASK, d[t], n÷2, 32)
         end
         return
     end
 
-    function kernel2(d::CuDeviceArray{T}, n) where {T}
-        t = threadIdx().x
-        if t <= n
-            d[t] += shfl_down_sync(0xffffffff, d[t], n÷2, 32)
-        end
-        return
-    end
-
-    kernel = if CUDAdrv.release() >= v"9.0" && v"6.0" in CUDAnative.ptx_support[]
-        kernel2
-    else
-        kernel1
-    end
-
-    @testset for T in [Int32, Int64, Float32, Float64, AddableTuple]
+    @testset for T in [UInt32, UInt64, Int32, Int64, Float32, Float64, ComplexF32, ComplexF64]
         a = T[T(i) for i in 1:n]
         d_a = CuArray(a)
 
