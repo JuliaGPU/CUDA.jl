@@ -71,6 +71,22 @@ if addrspaceptr_available
 end
 end
 
+# Fix for https://github.com/JuliaGPU/CUDAnative.jl/issues/587.
+# Instead of ccall'ing the intrinsics with NTuple{N, T} (which gets lowered to
+# [N x llvmT]), we generate custom structs LLVMStructN{T}, containing N fields
+# of type T, and use those as return type. After
+# https://github.com/JuliaLang/julia/pull/34996, these structs are lowered to
+# { llvmT, llvmT, ... }, which is the return type LLVM expects.
+for N in unique(values(map_frag_sizes))
+    struct_ty = Symbol("LLVMStruct$N")
+
+    @eval struct $struct_ty{T}
+        Base.Cartesian.@nexprs $N i -> x_i::T
+    end
+
+    @eval Base.convert(::Type{NTuple{$N, T}}, x::$struct_ty{T}) where {T} = ntuple(i -> getfield(x, i), $N)
+end
+
 ################################################################################
 # LOW LEVEL API
 ################################################################################
@@ -126,8 +142,9 @@ for mat in ["a", "b", "c"],
     ccall_name = "extern $llvm_intr"
 
     ptr_ty = addrspaceptr_available ? Core.AddrSpacePtr{arr_ty, addr_space_int} : Ref{arr_ty}
+    struct_ty = Symbol("LLVMStruct$sz")
 
-    @eval $func_name(src_addr, stride) = ccall($ccall_name, llvmcall, NTuple{$sz, $frag_ty}, ($ptr_ty, Int32), src_addr, stride)
+    @eval $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_load) $func_name
 end
@@ -245,7 +262,9 @@ for a_layout in ["col", "row"],
     b_vars = ntuple(i -> :(b[$i]), b_sz)
     c_vars = ntuple(i -> :(c[$i]), c_sz)
 
-    @eval $func_name(a, b, c) = ccall($ccall_name, llvmcall, NTuple{$d_sz, $d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...))
+    struct_ty = Symbol("LLVMStruct$d_sz")
+
+    @eval $func_name(a, b, c) = convert(NTuple{$d_sz, $d_frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$d_frag_ty}, ($(a_types...), $(b_types...), $(c_types...)), $(a_vars...), $(b_vars...), $(c_vars...)))
     @eval export $func_name
     @eval @doc (@doc llvm_wmma_mma) $func_name
 end
