@@ -1,14 +1,18 @@
 # Warp Shuffle (B.14)
 
+export FULL_MASK
+
 # TODO: does not work on sub-word (ie. Int16) or non-word divisible sized types
 
 # TODO: these functions should dispatch based on the actual warp size
 const ws = Int32(32)
 
+const FULL_MASK = 0xffffffff
+
 # TODO: this functionality should throw <sm_30
 
 
-# primitive intrinsics
+# core intrinsics
 
 # "two packed values specifying a mask for logically splitting warps into sub-segments
 # and an upper bound for clamping the source lane index"
@@ -19,87 +23,60 @@ for (name, mode, mask, offset) in (("_up",   :up,   UInt32(0x00), src->src),
                                    ("_down", :down, UInt32(0x1f), src->src),
                                    ("_xor",  :bfly, UInt32(0x1f), src->src),
                                    ("",      :idx,  UInt32(0x1f), src->:($src-1)))
-    fname = Symbol("shfl$name")
+    fname = Symbol("shfl$(name)_sync")
     @eval export $fname
 
-    # newer hardware/CUDA versions use synchronizing intrinsics, which take an extra
-    # mask argument indicating which threads in the lane should be synchronized
-    let intrinsic = "llvm.nvvm.shfl.sync.$mode.i32"
-        fname_sync = Symbol("$(fname)_sync")
-        __fname_sync = Symbol("__$(fname)_sync")
+    # LLVM intrinsics
+    for (T,typ) in ((Int32, "i32"), (UInt32, "i32"), (Float32, "f32"))
+        intrinsic = "llvm.nvvm.shfl.sync.$mode.$typ"
         @eval begin
-            export $fname_sync
-
-            # HACK: recurse_value_invocation and friends split the first argument of a call,
-            #       so swap mask and val for these tools to works.
-            @inline $fname_sync(mask, val, src, width=$ws) =
-                $__fname_sync(val, mask, src, width)
-            @inline $__fname_sync(val::UInt32, mask, src, width) =
-                ccall($intrinsic, llvmcall, UInt32,
-                      (UInt32, UInt32, UInt32, UInt32),
-                      mask, val, $(offset(:src)), pack(width, $mask))
-        end
-    end
-
-    # FIXME: if we only support CUDA 9+, should we not always use the sync version?
-    #@inline $fname(val::UInt32, src, width=$ws, mask::UInt32=0xffffffff) =
-    #    $fname_sync(mask, val, src, width)
-    let intrinsic = "llvm.nvvm.shfl.$mode.i32"
-        @eval begin
-            @inline $fname(val::UInt32, src, width=$ws) =
-                ccall($intrinsic, llvmcall, UInt32,
-                      (UInt32, UInt32, UInt32),
-                      val, $(offset(:src)), pack(width, $mask))
+            @inline $fname(mask, val::$T, src, width=$ws) =
+                ccall($intrinsic, llvmcall, $T,
+                    (UInt32, $T, UInt32, UInt32),
+                    mask, val, $(offset(:src)), pack(width, $mask))
         end
     end
 end
 
 
-# wide and aggregate intrinsics
+# extended versions
 
-for name in ["_up", "_down", "_xor", ""]
-    fname = Symbol("shfl$name")
-    @eval @inline $fname(src, args...) = recurse_value_invocation($fname, src, args...)
+"""
+    shfl_recurse(op, x::T)::T
 
-    fname_sync = Symbol("__$(fname)_sync")
-    @eval @inline $fname_sync(src, args...) = recurse_value_invocation($fname_sync, src, args...)
+Register how a shuffle operation `op` should be applied to a value `x` of type `T` that is
+not natively supported by the shuffle intrinsics.
+"""
+shfl_recurse(op, x) = throw(ArgumentError("Unsupported value type for shuffle operation"))
+
+for fname in (:shfl_up_sync, :shfl_down_sync, :shfl_xor_sync, :shfl_sync)
+    @eval begin
+        @inline $fname(mask, val, src, width=$ws) =
+            shfl_recurse(x->$fname(mask, x, src, width), val)
+    end
 end
+
+# unsigned integers
+shfl_recurse(op, x::UInt8)   = op(UInt32(x)) % UInt8
+shfl_recurse(op, x::UInt16)  = op(UInt32(x)) % UInt16
+shfl_recurse(op, x::UInt64)  = (UInt64(op((x >>> 32) % UInt32)) << 32) | op((x & typemax(UInt32)) % UInt32)
+shfl_recurse(op, x::UInt128) = (UInt128(op((x >>> 64) % UInt64)) << 64) | op((x & typemax(UInt64)) % UInt64)
+
+# signed integers
+shfl_recurse(op, x::Int8)  = reinterpret(Int8, shfl_recurse(op, reinterpret(UInt8, x)))
+shfl_recurse(op, x::Int16)  = reinterpret(Int16, shfl_recurse(op, reinterpret(UInt16, x)))
+shfl_recurse(op, x::Int64)  = reinterpret(Int64, shfl_recurse(op, reinterpret(UInt64, x)))
+shfl_recurse(op, x::Int128) = reinterpret(Int128, shfl_recurse(op, reinterpret(UInt128, x)))
+
+# floating point numbers
+shfl_recurse(op, x::Float64) = reinterpret(Float64, shfl_recurse(op, reinterpret(UInt64, x)))
+
+# other
+shfl_recurse(op, x::Bool)    = op(UInt32(x)) % Bool
+shfl_recurse(op, x::Complex) = Complex(op(real(x)), op(imag(x)))
 
 
 # documentation
-
-@doc """
-    shfl(val, lane::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
-
-Shuffle a value from a directly indexed lane `lane`. The argument `threadmask` for selecting
-which threads to synchronize is only available on recent hardware, and defaults to all
-threads in the warp.
-""" shfl
-
-@doc """
-    shfl_up(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
-
-Shuffle a value from a lane with lower ID relative to caller. The argument `threadmask` for
-selecting which threads to synchronize is only available on recent hardware, and defaults to
-all threads in the warp.
-""" shfl_up
-
-@doc """
-    shfl_down(val, delta::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
-
-Shuffle a value from a lane with higher ID relative to caller. The argument `threadmask` for
-selecting which threads to synchronize is only available on recent hardware, and defaults to
-all threads in the warp.
-""" shfl_down
-
-@doc """
-    shfl_xor(val, lanemask::Integer, width::Integer=32, threadmask::UInt32=0xffffffff)
-
-Shuffle a value from a lane based on bitwise XOR of own lane ID with `lanemask`. The
-argument `threadmask` for selecting which threads to synchronize is only available on recent
-hardware, and defaults to all threads in the warp.
-""" shfl_xor
-
 
 @doc """
     shfl_sync(threadmask::UInt32, val, lane::Integer, width::Integer=32)

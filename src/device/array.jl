@@ -66,44 +66,68 @@ Base.length(g::CuDeviceArray) = prod(g.shape)
 Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
 
 
-## indexing
+## indexing intrinsics
+
+# NOTE: these intrinsics are now implemented using plain and simple pointer operations;
+#       when adding support for isbits union arrays we will need to implement that here.
 
 # TODO: arrays as allocated by the CUDA APIs are 256-byte aligned. we should keep track of
 #       this information, because it enables optimizations like Load Store Vectorization
 #       (cfr. shared memory and its wider-than-datatype alignment)
 
-@inline function Base.getindex(A::CuDeviceArray{T}, index::Integer) where {T}
+@inline function arrayref(A::CuDeviceArray{T}, index::Int) where {T}
     @boundscheck checkbounds(A, index)
     align = Base.datatype_alignment(T)
-    unsafe_load(pointer(A), index, Val(align))::T
+    unsafe_load(pointer(A), index, Val(align))
 end
 
-@inline function Base.setindex!(A::CuDeviceArray{T}, x, index::Integer) where {T}
+@inline function arrayset(A::CuDeviceArray{T}, x::T, index::Int) where {T}
     @boundscheck checkbounds(A, index)
     align = Base.datatype_alignment(T)
     unsafe_store!(pointer(A), x, index, Val(align))
     return A
 end
 
-"""
-    ldg(A, i)
-
-Index the array `A` with the linear index `i`, but loads the value through the read-only
-texture cache for improved cache behavior. You should make sure the array `A`, or any
-aliased instance, is not written to for the duration of the current kernel.
-
-This function can only be used on devices with compute capability 3.5 or higher.
-
-See also: `Base.getindex`
-"""
-@inline function ldg(A::CuDeviceArray{T}, index::Integer) where {T}
-    # FIXME: this only works on sm_35+, but we can't verify that for now
+@inline function const_arrayref(A::CuDeviceArray{T}, index::Int) where {T}
     @boundscheck checkbounds(A, index)
     align = Base.datatype_alignment(T)
-    unsafe_cached_load(pointer(A), index, Val(align))::T
+    unsafe_cached_load(pointer(A), index, Val(align))
 end
 
+
+## indexing
+
+Base.getindex(A::CuDeviceArray, i1::Int) = arrayref(A, i1)
+Base.setindex!(A::CuDeviceArray{T}, x, i1::Int) where {T} = arrayset(A, convert(T,x)::T, i1)
+
 Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
+
+
+## const indexing
+
+"""
+    Const(A::CuDeviceArray)
+
+Mark a CuDeviceArray as constant/read-only. The invariant guaranteed is that you will not
+modify an CuDeviceArray for the duration of the current kernel.
+
+This API can only be used on devices with compute capability 3.5 or higher.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
+"""
+struct Const{T,N,AS} <: DenseArray{T,N}
+    a::CuDeviceArray{T,N,AS}
+end
+Base.Experimental.Const(A::CuDeviceArray) = Const(A)
+
+Base.IndexStyle(::Type{<:Const}) = IndexLinear()
+Base.size(C::Const) = size(C.a)
+Base.axes(C::Const) = axes(C.a)
+@inline Base.getindex(A::Const, i1::Int) = const_arrayref(A.a, i1)
+
+# deprecated
+@inline ldg(A::CuDeviceArray, i1::Integer) = const_arrayref(A, Int(i1))
 
 
 ## other

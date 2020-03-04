@@ -141,9 +141,9 @@ end
     load_index(da)
 end
 
-@testset "ldg" begin
+@testset "Const" begin
     function kernel(a, b, i)
-        b[i] = ldg(a, i)
+        b[i] = Base.Experimental.Const(a)[i]
         return
     end
 

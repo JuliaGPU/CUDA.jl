@@ -225,6 +225,11 @@ end
     CUDAnative.code_llvm(devnull, kernel, Tuple{CUDAnative.DevicePtr{Nothing,CUDAnative.AS.Global}}; strict=true)
 end
 
+@testset "ldg" begin
+    ir = sprint(io->CUDAnative.code_llvm(io, CUDAnative.pointerref_ldg, Tuple{CUDAnative.DevicePtr{Int,CUDAnative.AS.Global},Int,Val{1}}))
+    @test occursin("@llvm.nvvm.ldg", ir)
+end
+
 end
 
 
