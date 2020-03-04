@@ -19,9 +19,10 @@ testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 # pick a suiteable device (by available memory,
 # but also by capability if testing needs to be thorough)
-candidates = [(dev=dev,
+candidates = [(device!(dev);
+               (dev=dev,
                 cap=capability(dev),
-                mem=CuContext(ctx->CUDAdrv.available_memory(), dev))
+                mem=CUDAdrv.available_memory()))
               for dev in devices()]
 thorough = parse(Bool, get(ENV, "CI_THOROUGH", "false"))
 if thorough
