@@ -360,14 +360,14 @@ function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
     create_exceptions!(mod)
 
     stop = time_ns()
-    @debug begin
-        ver = version(kernel)
-        mem = memory(kernel)
-        reg = registers(kernel)
-        fn = something(name, nameof(f))
-        """Compiled $fn($(join(tt.parameters, ", "))) to PTX $(ver.ptx) for SM $(ver.binary) in $(round((time_ns() - start) / 1000000; digits=2)) ms.
-            Kernel uses $reg registers, and $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, and $(Base.format_bytes(mem.constant)) constant memory."""
-    end
+    # @trace begin
+    #     ver = version(kernel)
+    #     mem = memory(kernel)
+    #     reg = registers(kernel)
+    #     fn = something(name, nameof(f))
+    #     """Compiled $fn($(join(tt.parameters, ", "))) to PTX $(ver.ptx) for SM $(ver.binary) in $(round((time_ns() - start) / 1000000; digits=2)) ms.
+    #         Kernel uses $reg registers, and $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, and $(Base.format_bytes(mem.constant)) constant memory."""
+    # end
 
     return kernel
 end
