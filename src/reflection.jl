@@ -256,16 +256,12 @@ See also: InteractiveUtils.@code_typed
 """
 macro device_code_typed(ex...)
     quote
-        buf = Any[]
+        output = Dict{CompilerJob,Any}()
         function hook(job::CompilerJob)
-            if VERSION >= v"1.1.0"
-                append!(buf, code_typed(job.f, job.tt, debuginfo=:source))
-            else
-                append!(buf, code_typed(job.f, job.tt))
-            end
+            output[job] = code_typed(job.f, job.tt)
         end
         $(emit_hooked_compilation(:hook, ex...))
-        buf
+        output
     end
 end
 
@@ -279,6 +275,8 @@ See also: InteractiveUtils.@code_warntype
 """
 macro device_code_warntype(ex...)
     function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+        println(io, "$job")
+        println(io)
         code_warntype(io, job.f, job.tt; kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
@@ -294,7 +292,10 @@ to `io` for every compiled CUDA kernel. For other supported keywords, see
 See also: InteractiveUtils.@code_llvm
 """
 macro device_code_llvm(ex...)
-    hook(job::CompilerJob; io::IO=stdout, kwargs...) = code_llvm(io, job; kwargs...)
+    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+        println(io, "; $job")
+        code_llvm(io, job; kwargs...)
+    end
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -306,7 +307,11 @@ for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    hook(job::CompilerJob; io::IO=stdout, kwargs...) = code_ptx(io, job; kwargs...)
+    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+        println(io, "// $job")
+        println(io)
+        code_ptx(io, job; kwargs...)
+    end
     emit_hooked_compilation(hook, ex...)
 end
 
@@ -318,7 +323,11 @@ Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    hook(job::CompilerJob; io::IO=stdout, kwargs...) = code_sass(io, job; kwargs...)
+    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+        println(io, "// $job")
+        println(io)
+        code_sass(io, job; kwargs...)
+    end
     emit_hooked_compilation(hook, ex...)
 end
 

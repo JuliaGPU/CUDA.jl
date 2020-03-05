@@ -18,6 +18,19 @@ end
 CompilerJob(f, tt, cap, kernel; kwargs...) =
     CompilerJob(f=f, tt=tt, cap=cap, kernel=kernel; kwargs...)
 
+function Base.show(io::IO, job::CompilerJob)
+    print(io, "CUDAnative.CompilerJob for $(job.f)($(join(job.tt.parameters, ", ")))")
+
+    print(io, " (cap=$(job.cap.major).$(job.cap.minor)")
+    job.kernel && print(io, ", kernel=true")
+    job.minthreads !== nothing && print(io, ", minthreads=$(job.minthreads)")
+    job.maxthreads !== nothing && print(io, ", maxthreads=$(job.maxthreads)")
+    job.blocks_per_sm !== nothing && print(io, ", blocks_per_sm=$(job.blocks_per_sm)")
+    job.maxregs !== nothing && print(io, ", maxregs=$(job.maxregs)")
+    job.name !== nothing && print(io, ", name=$(job.name)")
+    print(io, ")")
+end
+
 # global job reference
 # FIXME: thread through `job` everywhere (deadlocks the Julia compiler when doing so with
 #        the LLVM passes in CUDAnative)
