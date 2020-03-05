@@ -1,7 +1,7 @@
 using NNlib
 
-
 # Activation functions
+
 @cufunc σ(x) = ifelse(x < -80, zero(x), one(x) / (one(x) + exp(-x)))
 
 @cufunc function logσ(x)
@@ -29,3 +29,18 @@ end
 end
 
 @cufunc softplus(x) = ifelse(x > 0, x + log1p(exp(-x)), log1p(exp(x)))
+
+# Batched matrix multiplication
+
+_BATCHED_GEMM_LIST = [
+    (:(CuArray{T, 3}), 'N'),
+    (:(NNlib.BatchedTranspose{T, <:CuArray{T, 3}}), 'T'),
+    (:(NNlib.BatchedAdjoint{T, <:CuArray{T, 3}}), 'C')
+]
+
+for (TA, transA) in _BATCHED_GEMM_LIST, (TB, transB) in _BATCHED_GEMM_LIST
+    @eval function NNlib.batched_mul!(C::CuArray{T, 3}, A::$TA, B::$TB) where {T<:NNlib._GemmFloat}
+        CuArrays.CUBLAS.gemm_strided_batched!($transA, $transB, one(T), NNlib._unbatch(A), NNlib._unbatch(B), zero(T), C)
+        C
+    end
+end
