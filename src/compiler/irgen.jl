@@ -253,13 +253,14 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
         llvmfn = safe_name(string("julia_", job.name))
     else
         # strip the globalUnique counter
-        llvmfn = replace(LLVM.name(entry), r"_\d+$"=>"")
+        llvmfn = LLVM.name(entry)
     end
     LLVM.name!(entry, llvmfn)
 
-    # promote entry-points to kernels
+    # promote entry-points to kernels and mangle its name
     if job.kernel
         entry = promote_kernel!(job, mod, entry)
+        LLVM.name!(entry, mangle_call(entry, job.tt))
     end
 
     # minimal required optimization
@@ -275,9 +276,6 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
         add!(pm, ModulePass("HideTrap", hide_trap!))
         run!(pm, mod)
     end
-
-    # name mangling
-    LLVM.name!(entry, mangle_call(entry, job.tt))
 
     return mod, entry
 end
@@ -718,7 +716,8 @@ function wrap_entry!(job::CompilerJob, mod::LLVM.Module, entry_f::LLVM.Function)
     wrapper_types = LLVM.LLVMType[wrapper_type(julia_t, codegen_t)
                                   for (julia_t, codegen_t)
                                   in zip(julia_types, parameters(entry_ft))]
-    wrapper_fn = replace(LLVM.name(entry_f), r"^.+?_"=>"ptxcall_") # change the CC tag
+    wrapper_fn = LLVM.name(entry_f)
+    LLVM.name!(entry_f, wrapper_fn * ".inner")
     wrapper_ft = LLVM.FunctionType(LLVM.VoidType(JuliaContext()), wrapper_types)
     wrapper_f = LLVM.Function(mod, wrapper_fn, wrapper_ft)
 
