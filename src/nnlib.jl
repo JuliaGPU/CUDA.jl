@@ -32,6 +32,8 @@ end
 
 # Batched matrix multiplication
 
+const _GemmFloat = Union{Float64, Float32, ComplexF64, ComplexF32}
+
 _BATCHED_GEMM_LIST = [
     (:(CuArray{T, 3}), 'N'),
     (:(NNlib.BatchedTranspose{T, <:CuArray{T, 3}}), 'T'),
@@ -39,7 +41,7 @@ _BATCHED_GEMM_LIST = [
 ]
 
 for (TA, transA) in _BATCHED_GEMM_LIST, (TB, transB) in _BATCHED_GEMM_LIST
-    @eval function NNlib.batched_mul!(C::CuArray{T, 3}, A::$TA, B::$TB) where {T<:NNlib._GemmFloat}
+    @eval function NNlib.batched_mul!(C::CuArray{T, 3}, A::$TA, B::$TB) where {T<:_GemmFloat}
         CuArrays.CUBLAS.gemm_strided_batched!($transA, $transB, one(T), NNlib._unbatch(A), NNlib._unbatch(B), zero(T), C)
         C
     end
