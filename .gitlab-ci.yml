@@ -4,7 +4,7 @@ include:
 image: ubuntu:latest
 
 variables:
-  JULIA_CUDA_VERBOSE: 'true'
+  JULIA_DEBUG: 'CUDAdrv'
   NVIDIA_VISIBLE_DEVICES: 'all'
   NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
 
