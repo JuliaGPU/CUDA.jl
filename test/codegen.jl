@@ -80,7 +80,7 @@ end
     @test occursin(r"@.*julia_kernel.+\(({ i64 }|\[1 x i64\]) addrspace\(\d+\)?\*", ir)
 
     ir = sprint(io->CUDAnative.code_llvm(io, kernel, Tuple{Aggregate}; kernel=true))
-    @test occursin(r"@.*ptxcall_kernel.+\(({ i64 }|\[1 x i64\])\)", ir)
+    @test occursin(r"@.*julia_kernel.+\(({ i64 }|\[1 x i64\])\)", ir)
 end
 
 @testset "property_annotations" begin
@@ -140,9 +140,9 @@ end
     end
 
     test_name(regular, "julia_regular")
-    test_name(regular, "ptxcall_regular"; kernel=true)
+    test_name(regular, "julia_regular"; kernel=true)
     test_name(closure, "julia_anonymous")
-    test_name(closure, "ptxcall_anonymous"; kernel=true)
+    test_name(closure, "julia_anonymous"; kernel=true)
 end
 
 @testset "PTX TBAA" begin
@@ -267,7 +267,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, entry, Tuple{Int64}; kernel=true))
-    @test occursin(r"\.visible \.entry .*ptxcall_entry", asm)
+    @test occursin(r"\.visible \.entry .*julia_entry", asm)
     @test !occursin(r"\.visible \.func .*julia_nonentry", asm)
     @test occursin(r"\.func .*julia_nonentry", asm)
 
@@ -396,9 +396,9 @@ end
     end
 
     test_name(regular, "julia_regular")
-    test_name(regular, "ptxcall_regular"; kernel=true)
+    test_name(regular, "julia_regular"; kernel=true)
     test_name(closure, "julia_anonymous")
-    test_name(closure, "ptxcall_anonymous"; kernel=true)
+    test_name(closure, "julia_anonymous"; kernel=true)
 end
 
 @testset "exception arguments" begin
