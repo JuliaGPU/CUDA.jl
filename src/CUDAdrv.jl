@@ -14,7 +14,6 @@ include("pointer.jl")
 const CUdeviceptr = CuPtr{Cvoid}
 
 # low-level wrappers
-const libcuda = Sys.iswindows() ? :nvcuda : :libcuda
 include("libcuda_common.jl")
 include("error.jl")
 include("libcuda.jl")
@@ -38,36 +37,47 @@ include("deprecated.jl")
 
 ## initialization
 
-const __initialized__ = Ref(false)
-functional() = __initialized__[]
+# initialization of CUDA is deferred to run-time (to avoid package import latency,
+# and to improve use on systems without a GPU), at the point of the first ccall.
 
-function __init__()
-    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false")) || precompiling
-    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
+const __initialized__ = Ref{Union{Nothing,Bool}}(nothing)
+const __libcuda = Sys.iswindows() ? :nvcuda : :libcuda
 
-    try
-        if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-            error("Running under rr, which is incompatible with CUDA")
-        end
+"""
+    functional(show_reason=false)
 
-        cuInit(0)
+Check if the package has been initialized successfully and is ready to use.
 
-        if version() < v"9"
-            silent || @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
-        end
-
-        __initialized__[] = true
-    catch ex
-        # don't actually fail to keep the package loadable
-        if !silent
-            if verbose
-                @error "CUDAdrv.jl failed to initialize" exception=(ex, catch_backtrace())
-            else
-                @info "CUDAdrv.jl failed to initialize, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)"
-            end
-        end
+This call is intended for packages that support conditionally using an available GPU. If you
+fail to check whether CUDA is functional, actual use of functionality might warn and error.
+"""
+function functional(show_reason::Bool=false)
+    if __initialized__[] === nothing
+        __runtime_init__(show_reason)
     end
+    __initialized__[]
+end
+
+function __runtime_init__(show_reason::Bool)
+    __initialized__[] = false
+
+    if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
+        show_reason && @error("Running under rr, which is incompatible with CUDA")
+        return
+    end
+
+    @debug "Initializing CUDA driver"
+    ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
+    __initialized__[] = true
+
+    if version() < v"9"
+        @warn "CUDAdrv.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
+    end
+end
+
+function libcuda()
+    @assert functional(true) "CUDAdrv.jl is not functional"
+    __libcuda
 end
 
 end

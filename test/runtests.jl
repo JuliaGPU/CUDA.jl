@@ -9,7 +9,7 @@ include("array.jl")
 
 include("pointer.jl")
 
-@test CUDAdrv.functional()
+@test CUDAdrv.functional(true)
 
 @test length(devices()) > 0
 if length(devices()) > 0
