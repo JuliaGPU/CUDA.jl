@@ -5,7 +5,6 @@ image: ubuntu:bionic
 
 variables:
   JULIA_DEBUG: 'CuArrays'
-  JULIA_CUDA_VERBOSE: 'true'
   CI_APT_INSTALL: 'libgomp1'
   NVIDIA_VISIBLE_DEVICES: 'all'
   NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
