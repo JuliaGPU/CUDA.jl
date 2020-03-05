@@ -40,40 +40,21 @@ export CUPTI, NVTX
 
 ## initialization
 
-const __initialized__ = Ref(false)
-functional() = __initialized__[]
-
 function __init__()
-    precompiling = ccall(:jl_generating_output, Cint, ()) != 0
-    silent = parse(Bool, get(ENV, "JULIA_CUDA_SILENT", "false")) || precompiling
-    verbose = parse(Bool, get(ENV, "JULIA_CUDA_VERBOSE", "false"))
+    # enable generation of FMA instructions to mimic behavior of nvcc
+    LLVM.clopts("-nvptx-fma-level=1")
 
-    # if any dependent GPU package failed, expect it to have logged an error and bail out
-    if !CUDAdrv.functional()
-        verbose && @warn "CUDAnative.jl did not initialize because CUDAdrv.jl failed to"
-        return
-    end
+    TimerOutputs.reset_timer!(to)
 
-    try
-        __init_bindeps__(silent=silent, verbose=verbose)
+    resize!(thread_contexts, Threads.nthreads())
+    fill!(thread_contexts, nothing)
 
-        __init_compiler__()
+    CUDAdrv.initializer(maybe_initialize)
 
-        resize!(thread_contexts, Threads.nthreads())
-        fill!(thread_contexts, nothing)
-        CUDAdrv.initializer(maybe_initialize)
-
-        __initialized__[] = true
-    catch ex
-        # don't actually fail to keep the package loadable
-        if !silent
-            if verbose
-                @error "CUDAnative.jl failed to initialize" exception=(ex, catch_backtrace())
-            else
-                @info "CUDAnative.jl failed to initialize, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)"
-            end
-        end
-    end
+    # NOTE: we only perform minimal initialization here that does not require CUDA or a GPU.
+    #       most of the actual initialization is deferred to run time:
+    #       see bindeps.jl for initialization of CUDA binary dependencies,
+    #       and init.jl for initialization of per-device/thread CUDA contexts.
 end
 
 end

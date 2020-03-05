@@ -14,10 +14,3 @@ include("compiler/rtlib.jl")
 include("compiler/mcgen.jl")
 include("compiler/debug.jl")
 include("compiler/driver.jl")
-
-function __init_compiler__()
-    # enable generation of FMA instructions to mimic behavior of nvcc
-    LLVM.clopts("-nvptx-fma-level=1")
-
-    TimerOutputs.reset_timer!(to)
-end

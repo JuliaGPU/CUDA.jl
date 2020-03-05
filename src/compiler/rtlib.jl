@@ -36,7 +36,7 @@ const libcache = Dict{String, LLVM.Module}()
 #
 
 function load_libdevice(cap)
-    path = libdevice[]
+    path = libdevice()
 
     get!(libcache, path) do
         open(path) do io

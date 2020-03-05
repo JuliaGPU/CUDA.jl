@@ -708,7 +708,7 @@ end
 @on_device clock(UInt32)
 @on_device clock(UInt64)
 
-if CUDAdrv.release() >= v"10.0" && v"6.2" in CUDAnative.ptx_support[]
+if CUDAdrv.release() >= v"10.0" && v"6.2" in CUDAnative.ptx_support()
     @on_device nanosleep(UInt32(16))
 end
 end

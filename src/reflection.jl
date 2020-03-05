@@ -14,7 +14,7 @@ function current_capability()
     else
         # newer devices tend to support cleaner code (higher-level instructions, etc)
         # so target the most recent device as supported by this toolchain
-        return maximum(target_support[])
+        return maximum(target_support())
     end
 end
 
@@ -163,7 +163,7 @@ function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
         write(cubin_io, cubin[])
         flush(cubin_io)
 
-        cmd = `$(nvdisasm[]) --print-code --print-line-info $cubin_path`
+        cmd = `$(nvdisasm()) --print-code --print-line-info $cubin_path`
         for line in readlines(cmd)
             # nvdisasm output is pretty verbose;
             # perform some clean-up and make it look like @code_native
