@@ -346,7 +346,7 @@ function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
     if !isempty(setdiff(undefined_fns, intrinsic_fns))
         @timeit_debug to "device runtime library" begin
             linker = CUDAdrv.CuLink(jit_options)
-            CUDAdrv.add_file!(linker, libcudadevrt[], CUDAdrv.JIT_INPUT_LIBRARY)
+            CUDAdrv.add_file!(linker, libcudadevrt(), CUDAdrv.JIT_INPUT_LIBRARY)
             CUDAdrv.add_data!(linker, kernel_fn, asm)
             image = CUDAdrv.complete(linker)
         end

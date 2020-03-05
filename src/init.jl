@@ -1,4 +1,4 @@
-# Initialization and Context Management
+# CUDA Initialization and Context Management
 
 export context, context!, device!, device_reset!
 

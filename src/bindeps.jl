@@ -6,41 +6,19 @@ using Libdl
 
 ## global state
 
-const toolkit_dirs = Ref{Vector{String}}()
-
-"""
-    prefix()
-
-Returns the installation prefix directories of the CUDA toolkit in use.
-"""
-prefix() = toolkit_dirs[]
-
-const toolkit_version = Ref{VersionNumber}()
-
-"""
-    version()
-
-Returns the version of the CUDA toolkit in use.
-"""
-version() = toolkit_version[]
-
-"""
-    release()
-
-Returns the CUDA release part of the version as returned by [`version`](@ref).
-"""
-release() = VersionNumber(toolkit_version[].major, toolkit_version[].minor)
+const __dirs = Ref{Vector{String}}()
+const __version = Ref{VersionNumber}()
 
 # paths
-const nvdisasm = Ref{String}("nvdisasm")
-const libcupti = Ref{String}("cupti")
-const libnvtx = Ref{String}("nvtx")
-const libdevice = Ref{String}()
-const libcudadevrt = Ref{String}()
+const __nvdisasm = Ref{String}()
+const __libcupti = Ref{String}()
+const __libnvtx = Ref{String}()
+const __libdevice = Ref{String}()
+const __libcudadevrt = Ref{String}()
 
 # device compatibility
-const target_support = Ref{Vector{VersionNumber}}()
-const ptx_support = Ref{Vector{VersionNumber}}()
+const __target_support = Ref{Vector{VersionNumber}}()
+const __ptx_support = Ref{Vector{VersionNumber}}()
 
 
 ## discovery
@@ -57,6 +35,8 @@ const cuda_artifacts = Dict(
 
 # try use CUDA from an artifact
 function use_artifact_cuda()
+    @debug "Trying to use artifacts..."
+
     # select compatible artifacts
     if haskey(ENV, "JULIA_CUDA_VERSION")
         wanted_version = VersionNumber(ENV["JULIA_CUDA_VERSION"])
@@ -68,19 +48,21 @@ function use_artifact_cuda()
 
     # download and install
     artifact = nothing
-    release = nothing
-    for version in sort(collect(keys(cuda_artifacts)); rev=true)
+    for release in sort(collect(keys(cuda_artifacts)); rev=true)
         try
-            artifact = cuda_artifacts[version]()
-            release = version
+            artifact = (release=release, dir=cuda_artifacts[release]())
             break
         catch
         end
     end
-    artifact == nothing && error("Could not find a compatible artifact.")
+    if artifact == nothing
+        @debug "Could not find a compatible artifact."
+        return false
+    end
+    __dirs[] = [artifact.dir]
 
     # utilities to look up stuff in the artifact (at known locations, so not using CUDAapi)
-    get_binary(name) = joinpath(artifact, "bin", Sys.iswindows() ? "$name.exe" : name)
+    get_binary(name) = joinpath(artifact.dir, "bin", Sys.iswindows() ? "$name.exe" : name)
     function get_library(name)
         filename = if Sys.iswindows()
             "$name.dll"
@@ -89,110 +71,173 @@ function use_artifact_cuda()
         else
             "lib$name.so"
         end
-        joinpath(artifact, Sys.iswindows() ? "bin" : "lib", filename)
+        joinpath(artifact.dir, Sys.iswindows() ? "bin" : "lib", filename)
     end
-    get_static_library(name) = joinpath(artifact, "lib", Sys.iswindows() ? "$name.lib" : "lib$name.a")
-    get_file(path) = joinpath(artifact, path)
+    get_static_library(name) = joinpath(artifact.dir, "lib", Sys.iswindows() ? "$name.lib" : "lib$name.a")
+    get_file(path) = joinpath(artifact.dir, path)
 
-    nvdisasm[] = get_binary("nvdisasm")
-    @assert isfile(nvdisasm[])
-    version = parse_toolkit_version(nvdisasm[])
+    __nvdisasm[] = get_binary("nvdisasm")
+    @assert isfile(__nvdisasm[])
+    __version[] = parse_toolkit_version(__nvdisasm[])
 
     # Windows libraries are tagged with the CUDA release
-    long = "$(release.major)$(release.minor)"
-    short = release >= v"10.1" ? string(release.major) : long
+    long = "$(artifact.release.major)$(artifact.release.minor)"
+    short = artifact.release >= v"10.1" ? string(artifact.release.major) : long
 
-    libcupti[] = get_library(Sys.iswindows() ? "cupti64_$long" : "cupti")
-    Libdl.dlopen(libcupti[])
-    libnvtx[] = get_library(Sys.iswindows() ? "nvToolsExt64_1" : "nvToolsExt")
-    Libdl.dlopen(libnvtx[])
+    __libcupti[] = get_library(Sys.iswindows() ? "cupti64_$long" : "cupti")
+    __libnvtx[] = get_library(Sys.iswindows() ? "nvToolsExt64_1" : "nvToolsExt")
 
-    libcudadevrt[] = get_static_library("cudadevrt")
-    @assert isfile(libcudadevrt[])
-    libdevice[] = get_file(joinpath("share", "libdevice", "libdevice.10.bc"))
-    @assert isfile(libdevice[])
+    __libcudadevrt[] = get_static_library("cudadevrt")
+    @assert isfile(__libcudadevrt[])
+    __libdevice[] = get_file(joinpath("share", "libdevice", "libdevice.10.bc"))
+    @assert isfile(__libdevice[])
 
-    return version, [artifact]
+    @debug "Using CUDA $(__version[]) from an artifact at $(artifact.dir)"
+    return true
 end
 
 # try to use CUDA from a local installation
-function use_local_cuda(; silent=false, verbose=false)
-    dirs = find_toolkit()
+function use_local_cuda()
+    @debug "Trying to use local installation..."
 
-    path = find_cuda_binary("nvdisasm")
-    if path == nothing
-        error("Your CUDA installation does not provide the nvdisasm binary")
-    else
-        nvdisasm[] = path
-    end
-    version = parse_toolkit_version(nvdisasm[])
+    cuda_dirs = find_toolkit()
+    __dirs[] = cuda_dirs
 
-    cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), dirs) |> x->filter(isdir,x)
-    path = find_cuda_library("cupti", [dirs; cupti_dirs], [version])
-    if path == nothing
-        silent || @warn("Your CUDA installation does not provide the CUPTI library, CUDAnative.@code_sass will be unavailable")
-    else
-        libcupti[] = path
+    __nvdisasm[] = find_cuda_binary("nvdisasm")
+    if __nvdisasm[] === nothing
+        @debug "Could not find nvdisasm"
+        return false
     end
-    path = find_cuda_library("nvtx", dirs, [v"1"])
-    if path== nothing
-        silent || @warn("Your CUDA installation does not provide the NVTX library, CUDAnative.NVTX will be unavailable")
-    else
-        libnvtx[] = path
-    end
+    cuda_version = parse_toolkit_version(__nvdisasm[])
+    __version[] = cuda_version
 
-    path = find_libcudadevrt(dirs)
-    if path === nothing
-        error("Your CUDA installation does not provide libcudadevrt")
-    else
-        libcudadevrt[] = path
+    cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), cuda_dirs) |> x->filter(isdir,x)
+    __libcupti[] = find_cuda_library("cupti", [cuda_dirs; cupti_dirs], [cuda_version])
+    __libnvtx[] = find_cuda_library("nvtx", cuda_dirs, [v"1"])
+
+    __libcudadevrt[] = find_libcudadevrt(cuda_dirs)
+    if __libcudadevrt[] === nothing
+        @debug "Could not find libcudadevrt"
+        return false
     end
-    path = find_libdevice(dirs)
-    if path === nothing
-        error("Your CUDA installation does not provide libdevice")
-    else
-        libdevice[] = path
+    __libdevice[] = find_libdevice(cuda_dirs)
+    if __libdevice[] === nothing
+        @debug "Could not find libdevice"
+        return false
     end
 
-    return version, dirs
+    @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
+    return true
 end
 
-function __init_bindeps__(; silent=false, verbose=false)
-    # LLVM
+
+## initialization
+
+const __initialized__ = Ref{Union{Nothing,Bool}}(nothing)
+
+"""
+    functional(show_reason=false)
+
+Check if the package has been initialized successfully and is ready to use.
+
+This call is intended for packages that support conditionally using an available GPU. If you
+fail to check whether CUDA is functional, actual use of functionality might warn and error.
+"""
+function functional(show_reason::Bool=false)
+    if __initialized__[] === nothing
+        __runtime_init__(show_reason)
+    end
+    __initialized__[]
+end
+
+function __runtime_init__(show_reason::Bool)
+    __initialized__[] = false
+
+    # if any dependent GPU package failed, expect it to have logged an error and bail out
+    if !CUDAdrv.functional(show_reason)
+        show_reason && @warn "CUDAnative.jl did not initialize because CUDAdrv.jl failed to"
+        return
+    end
 
     if Base.libllvm_version != LLVM.version()
-        error("LLVM $(LLVM.version()) incompatible with Julia's LLVM $(Base.libllvm_version)")
+        show_reason && @error("LLVM $(LLVM.version()) incompatible with Julia's LLVM $(Base.libllvm_version)")
+        return
     end
 
 
-    # CUDA
+    # CUDA toolkit
 
-    try
-        parse(Bool, get(ENV, "JULIA_CUDA_USE_BINARYBUILDER", "true")) ||
-            error("Use of CUDA artifacts not allowed by user")
-        toolkit_version[], toolkit_dirs[] = use_artifact_cuda()
-        @debug "Using CUDA $(toolkit_version[]) from an artifact at $(join(toolkit_dirs[], ", "))"
-    catch ex
-        @error "Could not use CUDA from artifacts" exception=(ex, catch_backtrace())
-        toolkit_version[], toolkit_dirs[] = use_local_cuda(silent=silent, verbose=verbose)
-        @debug "Using local CUDA $(toolkit_version[]) at $(join(toolkit_dirs[], ", "))"
+    if parse(Bool, get(ENV, "JULIA_CUDA_USE_BINARYBUILDER", "true"))
+        __initialized__[] = use_artifact_cuda()
+    end
+
+    if !__initialized__[]
+        __initialized__[] = use_local_cuda()
+    end
+
+    if !__initialized__[]
+        show_reason && @error "Could not find a suitable CUDA installation"
+        return
     end
 
     if release() < v"9"
-        silent || @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(release()))"
+        @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(release()))"
     elseif release() > CUDAdrv.release()
-        silent || @warn """You are using CUDA toolkit $(release()) with a driver that only supports up to $(CUDAdrv.release()).
-                           It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
+         @warn """You are using CUDA toolkit $(release()) with a driver that only supports up to $(CUDAdrv.release()).
+                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
     end
+
+
+    # device compatibility
 
     llvm_support = llvm_compat()
     cuda_support = cuda_compat()
 
-    target_support[] = sort(collect(llvm_support.cap ∩ cuda_support.cap))
-    isempty(target_support[]) && error("Your toolchain does not support any device capability")
+    __target_support[] = sort(collect(llvm_support.cap ∩ cuda_support.cap))
+    isempty(__target_support[]) && error("Your toolchain does not support any device capability")
 
-    ptx_support[] = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
-    isempty(ptx_support[]) && error("Your toolchain does not support any PTX ISA")
+    __ptx_support[] = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
+    isempty(__ptx_support[]) && error("Your toolchain does not support any PTX ISA")
 
-    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDAdrv.version()) and toolkit $(CUDAnative.version()) supports devices $(verlist(target_support[])); PTX $(verlist(ptx_support[]))")
+    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDAdrv.version()) and toolkit $(CUDAnative.version()) supports devices $(verlist(__target_support[])); PTX $(verlist(__ptx_support[]))")
 end
+
+
+## getters
+
+macro initialized(ex)
+    quote
+        @assert functional(true) "CUDAnative.jl is not functional"
+        $(esc(ex))
+    end
+end
+
+"""
+    prefix()
+
+Returns the installation prefix directories of the CUDA toolkit in use.
+"""
+prefix() = @initialized(__dirs[])
+
+"""
+    version()
+
+Returns the version of the CUDA toolkit in use.
+"""
+version() = @initialized(__version[])
+
+"""
+    release()
+
+Returns the CUDA release part of the version as returned by [`version`](@ref).
+"""
+release() = @initialized(VersionNumber(__version[].major, __version[].minor))
+
+nvdisasm() = @initialized(__nvdisasm[])
+libcupti() = @initialized(__libcupti[])
+libnvtx() = @initialized(__libnvtx[])
+libdevice() = @initialized(__libdevice[])
+libcudadevrt() = @initialized(__libcudadevrt[])
+
+target_support() = @initialized(__target_support[])
+ptx_support() = @initialized(__ptx_support[])

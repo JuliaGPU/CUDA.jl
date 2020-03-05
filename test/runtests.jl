@@ -8,7 +8,7 @@ include("util.jl")
 
 @testset "CUDAnative" begin
 
-@test CUDAnative.functional()
+@test CUDAnative.functional(true)
 
 CUDAnative.version()
 CUDAnative.release()
@@ -64,7 +64,7 @@ if length(devices()) > 0
                    mem=CuContext(ctx->CUDAdrv.available_memory(), dev))
                   for dev in devices()]
     ## pick a device that is fully supported by our CUDA installation, or tools can fail
-    ## NOTE: we don't reuse target_support[] which is also bounded by LLVM support,
+    ## NOTE: we don't reuse target_support which is also bounded by LLVM support,
     #        and is used to pick a codegen target regardless of the actual device.
     cuda_support = CUDAnative.cuda_compat()
     filter!(x->x.cap in cuda_support.cap, candidates)

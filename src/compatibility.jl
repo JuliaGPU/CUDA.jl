@@ -211,7 +211,7 @@ end
 # select the highest capability that is supported by both the toolchain and device
 function supported_capability(dev::CuDevice)
     dev_cap = capability(dev)
-    compat_caps = filter(cap -> cap <= dev_cap, target_support[])
+    compat_caps = filter(cap -> cap <= dev_cap, target_support())
     isempty(compat_caps) &&
         error("Device capability v$dev_cap not supported by available toolchain")
 
