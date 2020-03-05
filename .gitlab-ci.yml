@@ -5,7 +5,6 @@ image: ubuntu:bionic
 
 variables:
   JULIA_DEBUG: 'CUDAnative'
-  JULIA_CUDA_VERBOSE: 'true'
   NVIDIA_VISIBLE_DEVICES: 'all'
   NVIDIA_DRIVER_CAPABILITIES: 'all'
 
