@@ -439,7 +439,7 @@ when function changes, or when different types or keyword arguments are provided
     new_ci = copy(ci)
     empty!(new_ci.code)
     empty!(new_ci.codelocs)
-    resize!(new_ci.linetable, 1)    # codegen assumes at least one entry
+    empty!(new_ci.linetable)
     empty!(new_ci.ssaflags)
     new_ci.ssavaluetypes = 0
     new_ci.edges = MethodInstance[mi]
