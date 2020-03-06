@@ -93,12 +93,13 @@ cuda:none:
 # hardware platforms
 
 platform:arm64:
-  image: nvcr.io/nvidia/l4t-base:r32.2.1
+  image: nvcr.io/nvidia/l4t-base:r32.3.1
   extends:
     - .julia:1.3
     - .test
   tags:
     - nvidia-arm64
+  allow_failure: true
 
 
 # special tests
