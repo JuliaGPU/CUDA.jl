@@ -1,6 +1,6 @@
 # Events for timing
 
-export CuEvent, record, synchronize, elapsed, @elapsed
+export CuEvent, record, synchronize, elapsed
 
 
 @enum_without_prefix CUevent_flags_enum CU_
