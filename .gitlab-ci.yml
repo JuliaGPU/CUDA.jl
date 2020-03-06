@@ -116,7 +116,7 @@ cuda:none:
 # hardware platforms
 
 platform:arm64:
-  image: nvcr.io/nvidia/l4t-base:r32.2.1
+  image: nvcr.io/nvidia/l4t-base:r32.3.1
   variables:
     JULIA_CUDA_USE_BINARYBUILDER: 'false'
   extends:
