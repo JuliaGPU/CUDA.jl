@@ -6,7 +6,6 @@ using Libdl
 
 ## global state
 
-const __dirs = Ref{Vector{String}}()
 const __version = Ref{VersionNumber}()
 
 # paths
@@ -59,7 +58,6 @@ function use_artifact_cuda()
         @debug "Could not find a compatible artifact."
         return false
     end
-    __dirs[] = [artifact.dir]
 
     # utilities to look up stuff in the artifact (at known locations, so not using CUDAapi)
     get_binary(name) = joinpath(artifact.dir, "bin", Sys.iswindows() ? "$name.exe" : name)
@@ -101,7 +99,6 @@ function use_local_cuda()
     @debug "Trying to use local installation..."
 
     cuda_dirs = find_toolkit()
-    __dirs[] = cuda_dirs
 
     __nvdisasm[] = find_cuda_binary("nvdisasm")
     if __nvdisasm[] === nothing
@@ -211,13 +208,6 @@ macro initialized(ex)
         $(esc(ex))
     end
 end
-
-"""
-    prefix()
-
-Returns the installation prefix directories of the CUDA toolkit in use.
-"""
-prefix() = @initialized(__dirs[])
 
 """
     version()
