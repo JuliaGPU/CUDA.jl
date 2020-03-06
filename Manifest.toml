@@ -28,22 +28,20 @@ version = "0.2.0"
 
 [[CUDAapi]]
 deps = ["Libdl", "Logging"]
-git-tree-sha1 = "d7ceadd8f821177d05b897c0517e94633db535fe"
+git-tree-sha1 = "831b825d10104bd29e28f6da93312a976830717b"
 uuid = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
-version = "3.1.0"
+version = "4.0.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "CUDAapi", "Printf"]
-git-tree-sha1 = "cdf9a88aae8f05df1b78b049ffafbdc6d41a650e"
-repo-rev = "ab4d8e3f449b71104c57f827c67567c34c04a5ff"
-repo-url = "https://github.com/JuliaGPU/CUDAdrv.jl.git"
+git-tree-sha1 = "134b2184bdc780778f2fc9e09e11aca52f84b779"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "6.0.0"
+version = "6.0.1"
 
 [[CUDAnative]]
 deps = ["Adapt", "BinaryProvider", "CEnum", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "MacroTools", "Pkg", "Printf", "TimerOutputs"]
-git-tree-sha1 = "3dd3ef011ea2a8f5b0e915588f3c2a3cfd68aadd"
-repo-rev = "11146e91cb3bd1f86c32b936abc25dea10c7e6cc"
+git-tree-sha1 = "5f4a888cc612d146a9af4f72cb96c182b024d950"
+repo-rev = "f219a2d229ca5dfb08095272ae13762bec087f25"
 repo-url = "https://github.com/JuliaGPU/CUDAnative.jl.git"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
 version = "2.10.2"
@@ -76,9 +74,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "1d08d7e4250f452f6cb20e4574daaebfdbee0ff7"
+git-tree-sha1 = "b6b86801ae2f2682e0a4889315dc76b68db2de71"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "1.3.3"
+version = "1.3.4"
 
 [[LibGit2]]
 deps = ["Printf"]
@@ -106,9 +104,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[NNlib]]
 deps = ["BinaryProvider", "Libdl", "LinearAlgebra", "Requires", "Statistics"]
-git-tree-sha1 = "21a3c22bc197b6ae2f8d4d75631876e2b6506dbe"
+git-tree-sha1 = "d9f196d911f55aeaff11b11f681b135980783824"
 uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
-version = "0.6.5"
+version = "0.6.6"
 
 [[OrderedCollections]]
 deps = ["Random", "Serialization", "Test"]
