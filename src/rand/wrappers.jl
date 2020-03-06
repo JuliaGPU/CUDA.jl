@@ -12,7 +12,8 @@ version() = VersionNumber(curandGetProperty(CUDAapi.MAJOR_VERSION),
 
 macro allocates(ex)
   quote
-    CuArrays.extalloc(check=err->err.code == CURAND_STATUS_ALLOCATION_FAILED) do
+    CuArrays.extalloc(check=err->isa(err, CURANDError) &&
+                                 err.code == CURAND_STATUS_ALLOCATION_FAILED) do
       $(esc(ex))
     end
   end
