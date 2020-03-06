@@ -7,7 +7,7 @@
 
 using Clang
 
-function wrap(name, headers...; library="lib$name", includes=[], defines=[], undefines=[])
+function wrap(name, headers...; library="lib$name()", includes=[], defines=[], undefines=[])
     clang_args = String[]
     append!(clang_args, map(dir->"-I$dir", includes))
     for define in defines
@@ -104,7 +104,7 @@ mutable struct State
 end
 
 # insert `@checked` before each function with a `ccall` returning a checked type`
-const checked_types = [
+checked_types = [
     "CUresult",
 ]
 function insert_check(x, state)
@@ -122,6 +122,47 @@ function insert_check(x, state)
 
         if rv.val in checked_types
             push!(state.edits, Edit(state.offset, "@checked "))
+        end
+    end
+end
+
+# insert `initialize_api()` before each function with a `ccall` calling non-whitelisted fns
+preinit_apicalls = Set{String}([
+    # error handling
+    "cuGetErrorString",
+    "cuGetErrorName",
+    # initialization
+    "cuInit",
+    # version management
+    "cuDriverGetVersion",
+    # device management
+    "cuDeviceGet",
+    "cuDeviceGetAttribute",
+    "cuDeviceGetCount",
+    "cuDeviceGetName",
+    "cuDeviceGetUuid",
+    "cuDeviceTotalMem",
+    "cuDeviceGetProperties",     # deprecated
+    "cuDeviceComputeCapability", # deprecated
+    # context management
+    "cuCtxGetCurrent",
+    # calls that were required before JuliaGPU/CUDAnative.jl#518
+    # TODO: remove on CUDAdrv v6+
+    "cuCtxPushCurrent",
+    "cuDevicePrimaryCtxRetain",
+])
+function insert_init(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+        fun = x.args[3].args[2].args[2].val
+
+        # strip the version tag
+        if occursin(r"_v\d$", fun)
+            fun = fun[1:end-3]
+        end
+
+        # call the API initializer
+        if !in(fun, preinit_apicalls)
+            push!(state.edits, Edit(state.offset, "initialize_api()\n    "))
         end
     end
 end
@@ -249,6 +290,18 @@ function process(name, headers...; kwargs...)
 
         state.offset = 0
         pass(ast, state, insert_check)
+
+        state.offset = 0
+        pass(ast, state, insert_init)
+
+        # apply
+        state.offset = 0
+        sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
+        for i = 1:length(state.edits)
+            text = apply(text, state.edits[i])
+        end
+        ast = CSTParser.parse(text, true)
+        state = State(0, Edit[])
 
         state.offset = 0
         pass(ast, state, rewrite_ccall)

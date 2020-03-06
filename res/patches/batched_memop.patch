@@ -1,24 +1,22 @@
 --- libcuda.jl	2019-10-16 09:15:14.213122392 +0200
 +++ ../src/libcuda.jl	2019-10-16 09:15:29.233281015 +0200
-@@ -937,12 +937,6 @@
-                  stream, addr, value, flags)
+@@ -937,10 +937,3 @@
  end
- 
--function cuStreamBatchMemOp(stream, count, paramArray, flags)
--    @check ccall((:cuStreamBatchMemOp, libcuda), CUresult,
--                 (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32),
--                 stream, count, paramArray, flags)
+
+-@checked function cuStreamBatchMemOp(stream, count, paramArray, flags)
+-    initialize_api()
+-    @runtime_ccall((:cuStreamBatchMemOp, libcuda()), CUresult,
+-                   (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32),
+-                   stream, count, paramArray, flags)
 -end
 -
  function cuFuncGetAttribute(pi, attrib, hfunc)
-     @check ccall((:cuFuncGetAttribute, libcuda), CUresult,
-                  (Ptr{Cint}, CUfunction_attribute, CUfunction),
 --- libcuda_common.jl	2019-10-16 09:15:14.289789877 +0200
 +++ ../src/libcuda_common.jl	2019-10-16 09:16:50.574087901 +0200
 @@ -186,26 +186,6 @@
      CU_STREAM_WRITE_VALUE_NO_MEMORY_BARRIER = 1
  end
- 
+
 -
 -const CUstreamWriteValue_flags = CUstreamWriteValue_flags_enum
 -
