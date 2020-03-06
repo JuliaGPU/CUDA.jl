@@ -4,7 +4,7 @@
 
 # Skipping MacroDefinition: cuStreamBeginCapture __CUDA_API_PTSZ ( cuStreamBeginCapture_v2 )
 
-const CUDA_VERSION = 10010
+const CUDA_VERSION = 10020
 const CU_IPC_HANDLE_SIZE = 64
 
 # Skipping MacroDefinition: CU_STREAM_LEGACY ( ( CUstream ) 0x1 )
@@ -17,6 +17,10 @@ const CU_MEMHOSTREGISTER_PORTABLE = 0x01
 const CU_MEMHOSTREGISTER_DEVICEMAP = 0x02
 const CU_MEMHOSTREGISTER_IOMEMORY = 0x04
 const CUDA_EXTERNAL_MEMORY_DEDICATED = 0x01
+const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_SKIP_NVSCIBUF_MEMSYNC = 0x01
+const CUDA_EXTERNAL_SEMAPHORE_WAIT_SKIP_NVSCIBUF_MEMSYNC = 0x02
+const CUDA_NVSCISYNC_ATTR_SIGNAL = 0x01
+const CUDA_NVSCISYNC_ATTR_WAIT = 0x02
 const CUDA_COOPERATIVE_LAUNCH_MULTI_DEVICE_NO_PRE_LAUNCH_SYNC = 0x01
 const CUDA_COOPERATIVE_LAUNCH_MULTI_DEVICE_NO_POST_LAUNCH_SYNC = 0x02
 const CUDA_ARRAY3D_LAYERED = 0x01
@@ -306,7 +310,11 @@ const CUfilter_mode = CUfilter_mode_enum
     CU_DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED = 99
     CU_DEVICE_ATTRIBUTE_PAGEABLE_MEMORY_ACCESS_USES_HOST_PAGE_TABLES = 100
     CU_DEVICE_ATTRIBUTE_DIRECT_MANAGED_MEM_ACCESS_FROM_HOST = 101
-    CU_DEVICE_ATTRIBUTE_MAX = 102
+    CU_DEVICE_ATTRIBUTE_VIRTUAL_ADDRESS_MANAGEMENT_SUPPORTED = 102
+    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR_SUPPORTED = 103
+    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_HANDLE_SUPPORTED = 104
+    CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_KMT_HANDLE_SUPPORTED = 105
+    CU_DEVICE_ATTRIBUTE_MAX = 106
 end
 
 
@@ -337,6 +345,11 @@ const CUdevprop = CUdevprop_st
     CU_POINTER_ATTRIBUTE_BUFFER_ID = 7
     CU_POINTER_ATTRIBUTE_IS_MANAGED = 8
     CU_POINTER_ATTRIBUTE_DEVICE_ORDINAL = 9
+    CU_POINTER_ATTRIBUTE_IS_LEGACY_CUDA_IPC_CAPABLE = 10
+    CU_POINTER_ATTRIBUTE_RANGE_START_ADDR = 11
+    CU_POINTER_ATTRIBUTE_RANGE_SIZE = 12
+    CU_POINTER_ATTRIBUTE_MAPPED = 13
+    CU_POINTER_ATTRIBUTE_ALLOWED_HANDLE_TYPES = 14
 end
 
 
@@ -701,6 +714,8 @@ const CUstreamCaptureMode = CUstreamCaptureMode_enum
     CUDA_ERROR_STREAM_CAPTURE_IMPLICIT = 906
     CUDA_ERROR_CAPTURED_EVENT = 907
     CUDA_ERROR_STREAM_CAPTURE_WRONG_THREAD = 908
+    CUDA_ERROR_TIMEOUT = 909
+    CUDA_ERROR_GRAPH_EXEC_UPDATE_FAILURE = 910
     CUDA_ERROR_UNKNOWN = 999
 end
 
@@ -935,6 +950,9 @@ const CUDA_LAUNCH_PARAMS = CUDA_LAUNCH_PARAMS_st
     CU_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT = 3
     CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP = 4
     CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE = 5
+    CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE = 6
+    CU_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_RESOURCE_KMT = 7
+    CU_EXTERNAL_MEMORY_HANDLE_TYPE_NVSCIBUF = 8
 end
 
 
@@ -982,6 +1000,10 @@ const CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC = CUDA_EXTERNAL_MEMORY_MIPMAPPED
     CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32 = 2
     CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_WIN32_KMT = 3
     CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D12_FENCE = 4
+    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_FENCE = 5
+    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_NVSCISYNC = 6
+    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_KEYED_MUTEX = 7
+    CU_EXTERNAL_SEMAPHORE_HANDLE_TYPE_D3D11_KEYED_MUTEX_KMT = 8
 end
 
 
@@ -1009,9 +1031,19 @@ struct ANONYMOUS8_fence
     value::Culonglong
 end
 
+struct ANONYMOUS9_nvSciSync
+    fence::Ptr{Cvoid}
+end
+
+struct ANONYMOUS10_keyedMutex
+    key::Culonglong
+end
+
 struct ANONYMOUS7_params
     fence::ANONYMOUS8_fence
-    reserved::NTuple{16, UInt32}
+    nvSciSync::ANONYMOUS9_nvSciSync
+    keyedMutex::ANONYMOUS10_keyedMutex
+    reserved::NTuple{12, UInt32}
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st
@@ -1022,22 +1054,117 @@ end
 
 const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st
 
-struct ANONYMOUS10_fence
+struct ANONYMOUS12_fence
     value::Culonglong
 end
 
-struct ANONYMOUS9_params
-    fence::ANONYMOUS10_fence
-    reserved::NTuple{16, UInt32}
+struct ANONYMOUS13_nvSciSync
+    fence::Ptr{Cvoid}
+end
+
+struct ANONYMOUS14_keyedMutex
+    key::Culonglong
+    timeoutMs::UInt32
+end
+
+struct ANONYMOUS11_params
+    fence::ANONYMOUS12_fence
+    nvSciSync::ANONYMOUS13_nvSciSync
+    keyedMutex::ANONYMOUS14_keyedMutex
+    reserved::NTuple{10, UInt32}
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st
-    params::ANONYMOUS9_params
+    params::ANONYMOUS11_params
     flags::UInt32
     reserved::NTuple{16, UInt32}
 end
 
 const CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS = CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st
+const CUmemGenericAllocationHandle = Culonglong
+
+@cenum CUmemAllocationHandleType_enum::UInt32 begin
+    CU_MEM_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR = 1
+    CU_MEM_HANDLE_TYPE_WIN32 = 2
+    CU_MEM_HANDLE_TYPE_WIN32_KMT = 4
+    CU_MEM_HANDLE_TYPE_MAX = 4294967295
+end
+
+
+const CUmemAllocationHandleType = CUmemAllocationHandleType_enum
+
+@cenum CUmemAccess_flags_enum::UInt32 begin
+    CU_MEM_ACCESS_FLAGS_PROT_NONE = 0
+    CU_MEM_ACCESS_FLAGS_PROT_READ = 1
+    CU_MEM_ACCESS_FLAGS_PROT_READWRITE = 3
+    CU_MEM_ACCESS_FLAGS_PROT_MAX = 4294967295
+end
+
+
+const CUmemAccess_flags = CUmemAccess_flags_enum
+
+@cenum CUmemLocationType_enum::UInt32 begin
+    CU_MEM_LOCATION_TYPE_INVALID = 0
+    CU_MEM_LOCATION_TYPE_DEVICE = 1
+    CU_MEM_LOCATION_TYPE_MAX = 4294967295
+end
+
+
+const CUmemLocationType = CUmemLocationType_enum
+
+@cenum CUmemAllocationType_enum::UInt32 begin
+    CU_MEM_ALLOCATION_TYPE_INVALID = 0
+    CU_MEM_ALLOCATION_TYPE_PINNED = 1
+    CU_MEM_ALLOCATION_TYPE_MAX = 4294967295
+end
+
+
+const CUmemAllocationType = CUmemAllocationType_enum
+
+@cenum CUmemAllocationGranularity_flags_enum::UInt32 begin
+    CU_MEM_ALLOC_GRANULARITY_MINIMUM = 0
+    CU_MEM_ALLOC_GRANULARITY_RECOMMENDED = 1
+end
+
+
+const CUmemAllocationGranularity_flags = CUmemAllocationGranularity_flags_enum
+
+struct CUmemLocation_st
+    type::CUmemLocationType
+    id::Cint
+end
+
+const CUmemLocation = CUmemLocation_st
+
+struct CUmemAllocationProp_st
+    type::CUmemAllocationType
+    requestedHandleTypes::CUmemAllocationHandleType
+    location::CUmemLocation
+    win32HandleMetaData::Ptr{Cvoid}
+    reserved::Culonglong
+end
+
+const CUmemAllocationProp = CUmemAllocationProp_st
+
+struct CUmemAccessDesc_st
+    location::CUmemLocation
+    flags::CUmemAccess_flags
+end
+
+const CUmemAccessDesc = CUmemAccessDesc_st
+
+@cenum CUgraphExecUpdateResult_enum::UInt32 begin
+    CU_GRAPH_EXEC_UPDATE_SUCCESS = 0
+    CU_GRAPH_EXEC_UPDATE_ERROR = 1
+    CU_GRAPH_EXEC_UPDATE_ERROR_TOPOLOGY_CHANGED = 2
+    CU_GRAPH_EXEC_UPDATE_ERROR_NODE_TYPE_CHANGED = 3
+    CU_GRAPH_EXEC_UPDATE_ERROR_FUNCTION_CHANGED = 4
+    CU_GRAPH_EXEC_UPDATE_ERROR_PARAMETERS_CHANGED = 5
+    CU_GRAPH_EXEC_UPDATE_ERROR_NOT_SUPPORTED = 6
+end
+
+
+const CUgraphExecUpdateResult = CUgraphExecUpdateResult_enum
 
 @cenum CUoutput_mode_enum::UInt32 begin
     CU_OUT_KEY_VALUE_PAIR = 0

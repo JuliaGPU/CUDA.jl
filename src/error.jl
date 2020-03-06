@@ -83,33 +83,6 @@ Base.show(io::IO, err::CuError) = print(io, "CuError($(err.code))")
 
 ## API call wrapper
 
-# API calls that should not initialize the API because they are often used before that,
-# e.g., to determine which device to use and initialize for.
-const preinit_apicalls = Set{Symbol}([
-    # error handling
-    :cuGetErrorString,
-    :cuGetErrorName,
-    # initialization
-    :cuInit,
-    # version management
-    :cuDriverGetVersion,
-    # device management
-    :cuDeviceGet,
-    :cuDeviceGetAttribute,
-    :cuDeviceGetCount,
-    :cuDeviceGetName,
-    :cuDeviceGetUuid,
-    :cuDeviceTotalMem,
-    :cuDeviceGetProperties,     # deprecated
-    :cuDeviceComputeCapability, # deprecated
-    # context management
-    :cuCtxGetCurrent,
-    # calls that were required before JuliaGPU/CUDAnative.jl#518
-    # TODO: remove on CUDAdrv v6+
-    :cuCtxPushCurrent,
-    :cuDevicePrimaryCtxRetain,
-])
-
 """
     CUDAdrv.initializer(f::Function)
 
@@ -132,13 +105,7 @@ end
 end
 
 macro check(ex)
-    fun = Symbol(decode_ccall_function(ex))
-    init = if !in(fun, preinit_apicalls)
-        :(initialize_api())
-    end
     quote
-        $init
-
         res = $(esc(ex))
         if res != SUCCESS
             throw_api_error(res)
