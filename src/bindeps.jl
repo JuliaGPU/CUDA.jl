@@ -6,7 +6,6 @@ using Libdl
 
 ## global state
 
-const __dirs = Ref{Vector{String}}()
 const __version = Ref{VersionNumber}()
 
 const __libcublas = Ref{String}()
@@ -70,7 +69,6 @@ function use_artifact_cuda()
         @debug "Could not find a compatible artifact."
         return false
     end
-    __dirs[] = [artifact.dir]
 
     nvdisasm = get_binary(artifact.dir, "nvdisasm")
     @assert isfile(nvdisasm)
@@ -103,7 +101,6 @@ function use_local_cuda()
     @debug "Trying to use local installation..."
 
     cuda_dirs = find_toolkit()
-    __dirs[] = cuda_dirs
 
     tool = find_cuda_binary("nvdisasm")
     tool == nothing && error("Your CUDA installation does not provide the nvdisasm binary")
@@ -269,13 +266,6 @@ macro initialized(ex)
         $(esc(ex))
     end
 end
-
-"""
-    prefix()
-
-Returns the installation prefix directories of the CUDA toolkit in use.
-"""
-prefix() = @initialized(__dirs[])
 
 """
     version()
