@@ -129,7 +129,7 @@ end
 
 """
     device()
-    device(ctx::Cucontext)
+    device(ctx::CuContext)
 
 Returns the device for a context.
 """
