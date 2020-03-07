@@ -59,9 +59,10 @@ if length(devices()) > 0
     end
 
     # pick a suiteable device
-    candidates = [(dev=dev,
-                   cap=capability(dev),
-                   mem=CuContext(ctx->CUDAdrv.available_memory(), dev))
+    candidates = [(device!(dev);
+                   (dev=dev,
+                    cap=capability(dev),
+                    mem=CUDAdrv.available_memory()))
                   for dev in devices()]
     ## pick a device that is fully supported by our CUDA installation, or tools can fail
     ## NOTE: we don't reuse target_support which is also bounded by LLVM support,
