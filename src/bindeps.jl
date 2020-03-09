@@ -8,6 +8,20 @@ using Libdl
 
 const __version = Ref{VersionNumber}()
 
+"""
+    version()
+
+Returns the version of the CUDA toolkit in use.
+"""
+version() = @after_init(__version[])
+
+"""
+    release()
+
+Returns the CUDA release part of the version as returned by [`version`](@ref).
+"""
+release() = @after_init(VersionNumber(__version[].major, __version[].minor))
+
 const __libcublas = Ref{String}()
 const __libcusparse = Ref{String}()
 const __libcusolver = Ref{String}()
@@ -15,6 +29,18 @@ const __libcufft = Ref{String}()
 const __libcurand = Ref{String}()
 const __libcudnn = Ref{Union{Nothing,String}}(nothing)
 const __libcutensor = Ref{Union{Nothing,String}}(nothing)
+
+libcublas() = @after_init(__libcublas[])
+libcusparse() = @after_init(__libcusparse[])
+libcusolver() = @after_init(__libcusolver[])
+libcufft() = @after_init(__libcufft[])
+libcurand() = @after_init(__libcurand[])
+libcudnn() = @after_init(__libcudnn[])
+libcutensor() = @after_init(__libcutensor[])
+
+export has_cudnn, has_cutensor
+has_cudnn() = libcudnn() !== nothing
+has_cutensor() = libcutensor() !== nothing
 
 
 ## discovery
@@ -186,109 +212,20 @@ function use_local_cutensor(cuda_dirs)
     return true
 end
 
-
-## initialization
-
-const __initialized__ = Ref{Union{Nothing,Bool}}(nothing)
-
-"""
-    functional(show_reason=false)
-
-Check if the package has been initialized successfully and is ready to use.
-
-This call is intended for packages that support conditionally using an available GPU. If you
-fail to check whether CUDA is functional, actual use of functionality might warn and error.
-"""
-function functional(show_reason::Bool=false)
-    if __initialized__[] === nothing
-        __runtime_init__(show_reason)
-    end
-    __initialized__[]
-end
-
-function __runtime_init__(show_reason::Bool)
-    __initialized__[] = false
-
-    # if any dependent GPU package failed, expect it to have logged an error and bail out
-    if !CUDAdrv.functional(show_reason) || !CUDAnative.functional(show_reason)
-        show_reason && @warn "CuArrays.jl did not initialize because CUDAdrv.jl or CUDAnative.jl failed to"
-        return
-    end
-
-
-    # CUDA toolkit
+function __configure_dependencies__(show_reason::Bool)
+    found = false
 
     if parse(Bool, get(ENV, "JULIA_CUDA_USE_BINARYBUILDER", "true"))
-        __initialized__[] = use_artifact_cuda()
+        found = use_artifact_cuda()
     end
 
-    if !__initialized__[]
-        __initialized__[] = use_local_cuda()
+    if !found
+        found = use_local_cuda()
     end
 
-    if !__initialized__[]
+    if !found
         show_reason && @error "Could not find a suitable CUDA installation"
-        return
     end
 
-    # library compatibility
-    cuda = version()
-    if has_cutensor()
-        cutensor = CUTENSOR.version()
-        if cutensor < v"1"
-             @warn("CuArrays.jl only supports CUTENSOR 1.0 or higher")
-        end
-
-        cutensor_cuda = CUTENSOR.cuda_version()
-        if cutensor_cuda.major != cuda.major || cutensor_cuda.minor != cuda.minor
-            @warn("You are using CUTENSOR $cutensor for CUDA $cutensor_cuda with CUDA toolkit $cuda; these might be incompatible.")
-        end
-    end
-    if has_cudnn()
-        cudnn = CUDNN.version()
-        if cudnn < v"7.6"
-            @warn("CuArrays.jl only supports CUDNN v7.6 or higher")
-        end
-
-        cudnn_cuda = CUDNN.cuda_version()
-        if cudnn_cuda.major != cuda.major || cudnn_cuda.minor != cuda.minor
-            @warn("You are using CUDNN $cudnn for CUDA $cudnn_cuda with CUDA toolkit $cuda; these might be incompatible.")
-        end
-    end
+    return found
 end
-
-
-## getters
-
-macro initialized(ex)
-    quote
-        @assert functional(true) "CuArrays.jl is not functional"
-        $(esc(ex))
-    end
-end
-
-"""
-    version()
-
-Returns the version of the CUDA toolkit in use.
-"""
-version() = @initialized(__version[])
-
-"""
-    release()
-
-Returns the CUDA release part of the version as returned by [`version`](@ref).
-"""
-release() = @initialized(VersionNumber(__version[].major, __version[].minor))
-
-libcublas() = @initialized(__libcublas[])
-libcusparse() = @initialized(__libcusparse[])
-libcusolver() = @initialized(__libcusolver[])
-libcufft() = @initialized(__libcufft[])
-libcurand() = @initialized(__libcurand[])
-libcudnn() = @initialized(__libcudnn[])
-libcutensor() = @initialized(__libcutensor[])
-
-export has_cudnn, has_cutensor
-has_cudnn() = libcudnn() !== nothing
-has_cutensor() = libcutensor() !== nothing
