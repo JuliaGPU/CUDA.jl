@@ -9,7 +9,7 @@ using Crayons
 
 using Clang
 
-function wrap(name, headers...; wrapped_headers=headers, library="lib$name", defines=[])
+function wrap(name, headers...; library="lib$name()", defines=[])
     include_dirs = map(dir->joinpath(dir, "include"), find_toolkit())
     filter!(isdir, include_dirs)
 
@@ -32,7 +32,7 @@ function wrap(name, headers...; wrapped_headers=headers, library="lib$name", def
                     common_file = common_file,
                     clang_includes = [include_dirs..., CLANG_INCLUDE],
                     clang_args = clang_args,
-                    header_wrapped = (root, current)->any(header->endswith(current, header), wrapped_headers),
+                    header_wrapped = (root, current)->root == current,
                     header_library = x->library,
                     clang_diagnostics = true,
                   )
@@ -105,8 +105,7 @@ mutable struct State
     edits::Vector{Edit}
 end
 
-# insert `@check` before each `ccall` when it returns a checked type,
-# and make it a `@runtime_ccall`
+# insert `@checked` before each function with a `ccall` returning a checked type`
 const checked_types = [
     "cublasStatus_t",
     "cudnnStatus_t",
@@ -116,15 +115,21 @@ const checked_types = [
     "cusparseStatus_t",
     "cutensorStatus_t",
 ]
-function rewrite_ccall(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+function insert_check(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.FunctionDef
+        _, def, body, _ = x.args
+        @assert body isa CSTParser.EXPR && body.typ == CSTParser.Block
+        @assert length(body.args) == 1
+
+        # Clang.jl-generated ccalls should be directly part of a function definition
+        call = body.args[1]
+        @assert call isa CSTParser.EXPR && call.typ == CSTParser.Call && call.args[1].val == "ccall"
+
         # get the ccall return type
-        rv = x.args[5]
+        rv = call.args[5]
 
         if rv.val in checked_types
-            push!(state.edits, Edit(state.offset, "@check @runtime_"))
-        else
-            push!(state.edits, Edit(state.offset, "@runtime_"))
+            push!(state.edits, Edit(state.offset, "@checked "))
         end
     end
 end
@@ -234,6 +239,59 @@ function rewrite_runtime(x, state)
     if x isa CSTParser.EXPR && x.typ == CSTParser.IDENTIFIER && x.val == "cudaStream_t"
         offset = state.offset
         push!(state.edits, Edit(offset+1:offset+x.span, "CUstream"))
+    end
+end
+
+# insert `initialize_api()` before each function with a `ccall` calling non-whitelisted fns
+preinit_apicalls = Set{String}([
+    # CUBLAS
+    "cublasGetVersion",
+    "cublasGetProperty",
+    "cublasGetCudartVersion",
+    # CURAND
+    "curandGetVersion",
+    "curandGetProperty",
+    # CUFFT
+    "cufftGetVersion",
+    "cufftGetProperty",
+    # CUSPARSE
+    "cusparseGetVersion",
+    "cusparseGetProperty",
+    "cusparseGetErrorName",
+    "cusparseGetErrorString",
+    # CUSOLVER
+    "cusolverGetVersion",
+    "cusolverGetProperty",
+    # CUDNN
+    "cudnnGetVersion",
+    "cudnnGetProperty",
+    "cudnnGetCudartVersion",
+    "cudnnGetErrorString",
+    # CUTENSOR
+    "cutensorGetVersion",
+    "cutensorGetCudartVersion",
+    "cutensorGetErrorString",
+])
+function insert_init(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+        fun = x.args[3].args[2].args[2].val
+
+        # strip the version tag
+        if occursin(r"_v\d$", fun)
+            fun = fun[1:end-3]
+        end
+
+        # call the API initializer
+        if !in(fun, preinit_apicalls)
+            push!(state.edits, Edit(state.offset, "initialize_api()\n    "))
+        end
+    end
+end
+
+# rewrite ordinary `ccall`s to `@runtime_ccall`
+function rewrite_ccall(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+        push!(state.edits, Edit(state.offset, "@runtime_"))
     end
 end
 
@@ -352,6 +410,9 @@ function process(name, headers...; kwargs...)
         ast = CSTParser.parse(text, true)
 
         state.offset = 0
+        pass(ast, state, insert_check)
+
+        state.offset = 0
         pass(ast, state, rewrite_ccall)
 
         state.offset = 0
@@ -359,6 +420,9 @@ function process(name, headers...; kwargs...)
 
         state.offset = 0
         pass(ast, state, rewrite_runtime)
+
+        state.offset = 0
+        pass(ast, state, insert_init)
 
         # apply
         state.offset = 0
@@ -439,8 +503,7 @@ function main()
         process(name, headers...; kwargs...)
     end
 
-    process_if_existing("cublas", "cublas_v2.h", "cublasXt.h";
-                        wrapped_headers=["cublas_v2.h", "cublas_api.h", "cublasXt.h"],
+    process_if_existing("cublas", "cublas_v2.h", "cublas_api.h", "cublasXt.h";
                         defines=["CUBLASAPI"=>""])
 
     process_if_existing("cufft", "cufft.h")
@@ -449,13 +512,11 @@ function main()
 
     process_if_existing("cusparse", "cusparse.h")
 
-    process_if_existing("cusolver", "cusolverDn.h", "cusolverSp.h";
-                        wrapped_headers=["cusolver_common.h", "cusolverDn.h", "cusolverSp.h"])
+    process_if_existing("cusolver", "cusolver_common.h", "cusolverDn.h", "cusolverSp.h")
 
     process_if_existing("cudnn", "cudnn.h")
 
-    process_if_existing("cutensor", "cutensor.h";
-                        wrapped_headers=["cutensor.h", "cutensor/types.h"])
+    process_if_existing("cutensor", "cutensor.h", "cutensor/types.h")
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

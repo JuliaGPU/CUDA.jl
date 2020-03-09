@@ -3,7 +3,7 @@
 
 const CUTENSOR_MAJOR = 1
 const CUTENSOR_MINOR = 0
-const CUTENSOR_PATCH = 0
+const CUTENSOR_PATCH = 1
 
 @cenum cutensorAlgo_t::Int32 begin
     CUTENSOR_ALGO_GETT = -4
@@ -80,49 +80,23 @@ end
     CUTENSOR_R_MIN_32I = 512
 end
 
-function cutensorComputeType(T::DataType)
-    if T == Float32
-        return CUTENSOR_R_MIN_32F
-    elseif T == ComplexF32
-        return CUTENSOR_C_MIN_32F
-    elseif T == Float16
-        return CUTENSOR_R_MIN_16F
-    elseif T == ComplexF16
-        return CUTENSOR_C_MIN_16F
-    elseif T == Float64
-        return CUTENSOR_R_MIN_64F
-    elseif T == ComplexF64
-        return CUTENSOR_C_MIN_64F
-    elseif T == Int8
-        return CUTENSOR_R_MIN_8I
-    elseif T == Int32
-        return CUTENSOR_R_MIN_32I
-    elseif T == UInt8
-        return CUTENSOR_R_MIN_8U
-    elseif T == UInt32
-        return CUTENSOR_R_MIN_32U
-    else
-        throw(ArgumentError("cutensorComputeType equivalent for input type $T does not exist!"))
-    end
-end
-
 
 struct cutensorHandle_t
-    fields::NTuple{512, Int64}
+    fields::NTuple{512, Cint}
 end
 
 struct cutensorTensorDescriptor_t
-    fields::NTuple{64, Int64}
+    fields::NTuple{64, Cint}
 end
 
 struct cutensorContractionDescriptor_t
-    fields::NTuple{256, Int64}
+    fields::NTuple{256, Cint}
 end
 
 struct cutensorContractionPlan_t
-    fields::NTuple{640, Int64}
+    fields::NTuple{640, Cint}
 end
 
 struct cutensorContractionFind_t
-    fields::NTuple{64, Int64}
+    fields::NTuple{64, Cint}
 end

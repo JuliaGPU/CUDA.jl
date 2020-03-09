@@ -3,8 +3,8 @@
 
 const CUSPARSE_VER_MAJOR = 10
 const CUSPARSE_VER_MINOR = 3
-const CUSPARSE_VER_PATCH = 0
-const CUSPARSE_VER_BUILD = 243
+const CUSPARSE_VER_PATCH = 1
+const CUSPARSE_VER_BUILD = 89
 const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + CUSPARSE_VER_PATCH
 const cusparseContext = Cvoid
 const cusparseHandle_t = Ptr{cusparseContext}

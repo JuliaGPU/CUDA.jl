@@ -1,0 +1,16 @@
+--- a/libcusolver.jl	2020-03-09 17:11:50.105115910 +0100
++++ b/libcusolver.jl	2020-03-09 17:15:34.154088170 +0100
+@@ -159,13 +159,6 @@
+                    params, infos, niters)
+ end
+
+-@checked function cusolverDnIRSInfosGetNiters(params, infos, niters)
+-    initialize_api()
+-    @runtime_ccall((:cusolverDnIRSInfosGetNiters, libcusolver()), cusolverStatus_t,
+-                   (cusolverDnIRSParams_t, cusolverDnIRSInfos_t, Ptr{cusolver_int_t}),
+-                   params, infos, niters)
+-end
+-
+ @checked function cusolverDnIRSInfosGetOuterNiters(params, infos, outer_niters)
+     initialize_api()
+     @runtime_ccall((:cusolverDnIRSInfosGetOuterNiters, libcusolver()), cusolverStatus_t,

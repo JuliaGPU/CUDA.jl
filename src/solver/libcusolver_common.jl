@@ -2,10 +2,11 @@
 
 
 const CUSOLVER_VER_MAJOR = 10
-const CUSOLVER_VER_MINOR = 2
+const CUSOLVER_VER_MINOR = 3
 const CUSOLVER_VER_PATCH = 0
-const CUSOLVER_VER_BUILD = 243
+const CUSOLVER_VER_BUILD = 89
 const CUSOLVER_VERSION = CUSOLVER_VER_MAJOR * 1000 + CUSOLVER_VER_MINOR * 100 + CUSOLVER_VER_PATCH
+const cusolver_int_t = Cint
 
 @cenum cusolverStatus_t::UInt32 begin
     CUSOLVER_STATUS_SUCCESS = 0
@@ -20,6 +21,13 @@ const CUSOLVER_VERSION = CUSOLVER_VER_MAJOR * 1000 + CUSOLVER_VER_MINOR * 100 + 
     CUSOLVER_STATUS_NOT_SUPPORTED = 9
     CUSOLVER_STATUS_ZERO_PIVOT = 10
     CUSOLVER_STATUS_INVALID_LICENSE = 11
+    CUSOLVER_STATUS_IRS_PARAMS_NOT_INITIALIZED = 12
+    CUSOLVER_STATUS_IRS_PARAMS_INVALID = 13
+    CUSOLVER_STATUS_IRS_INTERNAL_ERROR = 14
+    CUSOLVER_STATUS_IRS_NOT_SUPPORTED = 15
+    CUSOLVER_STATUS_IRS_OUT_OF_RANGE = 16
+    CUSOLVER_STATUS_IRS_NRHS_NOT_SUPPORTED_FOR_REFINE_GMRES = 17
+    CUSOLVER_STATUS_IRS_INFOS_NOT_INITIALIZED = 18
 end
 
 @cenum cusolverEigType_t::UInt32 begin
@@ -39,6 +47,25 @@ end
     CUSOLVER_EIG_RANGE_V = 1003
 end
 
+@cenum cusolverNorm_t::UInt32 begin
+    CUSOLVER_INF_NORM = 104
+    CUSOLVER_MAX_NORM = 105
+    CUSOLVER_ONE_NORM = 106
+    CUSOLVER_FRO_NORM = 107
+end
+
+@cenum cusolverIRSRefinement_t::UInt32 begin
+    CUSOLVER_IRS_REFINE_NOT_SET = 1100
+    CUSOLVER_IRS_REFINE_NONE = 1101
+    CUSOLVER_IRS_REFINE_CLASSICAL = 1102
+    CUSOLVER_IRS_REFINE_CLASSICAL_GMRES = 1103
+    CUSOLVER_IRS_REFINE_GMRES = 1104
+    CUSOLVER_IRS_REFINE_GMRES_GMRES = 1105
+    CUSOLVER_PREC_DD = 1300
+    CUSOLVER_PREC_SS = 1301
+    CUSOLVER_PREC_SHT = 1302
+end
+
 
 const cusolverDnContext = Cvoid
 const cusolverDnHandle_t = Ptr{cusolverDnContext}
@@ -46,6 +73,10 @@ const syevjInfo = Cvoid
 const syevjInfo_t = Ptr{syevjInfo}
 const gesvdjInfo = Cvoid
 const gesvdjInfo_t = Ptr{gesvdjInfo}
+const cusolverDnIRSParams = Cvoid
+const cusolverDnIRSParams_t = Ptr{cusolverDnIRSParams}
+const cusolverDnIRSInfos = Cvoid
+const cusolverDnIRSInfos_t = Ptr{cusolverDnIRSInfos}
 const cusolverSpContext = Cvoid
 const cusolverSpHandle_t = Ptr{cusolverSpContext}
 const csrqrInfo = Cvoid
