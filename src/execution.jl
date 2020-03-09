@@ -374,6 +374,7 @@ end
 
 # cached compilation
 const compilecache = Dict{UInt, HostKernel}()
+const compilelock = ReentrantLock()
 @inline function cufunction_fast(f, tt, spec; name=nothing, kwargs...)
     # generate a key for indexing the compilation cache
     ctx = context()
@@ -387,9 +388,11 @@ const compilecache = Dict{UInt, HostKernel}()
         key = hash(getfield(f, nf), key)
     end
 
-    return get!(compilecache, key) do
-        cufunction_slow(f, tt, spec; name=name, kwargs...)
-    end::HostKernel{f,tt}
+    Base.@lock compilelock begin
+        get!(compilecache, key) do
+            cufunction_slow(f, tt, spec; name=name, kwargs...)
+        end::HostKernel{f,tt}
+    end
 end
 
 specialization_counter = 0

@@ -28,13 +28,28 @@ fail to check whether CUDA is functional, actual use of functionality might warn
 """
 function functional(show_reason::Bool=false)
     if configured[] === nothing
-        configured[] = false
-        if __configure__(show_reason)
-            configured[] = true
-            __runtime_init__()
-        end
+        _functional(show_reason)
     end
     configured[]
+end
+
+const configure_lock = ReentrantLock()
+@noinline function _functional(show_reason::Bool=false)
+    lock(configure_lock) do
+        if configured[] === nothing
+            if __configure__(show_reason)
+                configured[] = true
+                try
+                    __runtime_init__()
+                catch
+                    configured[] = false
+                    rethrow()
+                end
+            else
+                configured[] = false
+            end
+        end
+    end
 end
 
 # macro to guard code that only can run after the package has successfully initialized
