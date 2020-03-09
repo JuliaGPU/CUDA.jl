@@ -16,6 +16,41 @@ using Libdl
 using Requires
 
 
+## deferred initialization
+
+# CUDA packages require complex initialization (discover CUDA, download artifacts, etc)
+# that can't happen at module load time, so defer that to run time upon actual use.
+
+const configured = Ref{Union{Nothing,Bool}}(nothing)
+
+"""
+    functional(show_reason=false)
+
+Check if the package has been configured successfully and is ready to use.
+
+This call is intended for packages that support conditionally using an available GPU. If you
+fail to check whether CUDA is functional, actual use of functionality might warn and error.
+"""
+function functional(show_reason::Bool=false)
+    if configured[] === nothing
+        configured[] = false
+        if __configure__(show_reason)
+            configured[] = true
+            __runtime_init__()
+        end
+    end
+    configured[]
+end
+
+# macro to guard code that only can run after the package has successfully initialized
+macro after_init(ex)
+    quote
+        @assert functional(true) "CuArrays.jl did not successfully initialize, and is not usable."
+        $(esc(ex))
+    end
+end
+
+
 ## source code includes
 
 include("bindeps.jl")
@@ -54,10 +89,46 @@ function __init__()
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 
     __init_memory__()
+end
 
-    # NOTE: we only perform minimal initialization here that does not require CUDA or a GPU.
-    #       most of the actual initialization is deferred to run time:
-    #       see bindeps.jl for initialization of CUDA binary dependencies.
+function __configure__(show_reason::Bool)
+    # if any dependent GPU package failed, expect it to have logged an error and bail out
+    if !CUDAdrv.functional(show_reason) || !CUDAnative.functional(show_reason)
+        show_reason && @warn "CuArrays.jl did not initialize because CUDAdrv.jl or CUDAnative.jl failed to"
+        return
+    end
+
+    return __configure_dependencies__(show_reason)
+end
+
+function __runtime_init__()
+    cuda = version()
+
+    if has_cutensor()
+        cutensor = CUTENSOR.version()
+        if cutensor < v"1"
+             @warn("CuArrays.jl only supports CUTENSOR 1.0 or higher")
+        end
+
+        cutensor_cuda = CUTENSOR.cuda_version()
+        if cutensor_cuda.major != cuda.major || cutensor_cuda.minor != cuda.minor
+            @warn("You are using CUTENSOR $cutensor for CUDA $cutensor_cuda with CUDA toolkit $cuda; these might be incompatible.")
+        end
+    end
+
+    if has_cudnn()
+        cudnn = CUDNN.version()
+        if cudnn < v"7.6"
+            @warn("CuArrays.jl only supports CUDNN v7.6 or higher")
+        end
+
+        cudnn_cuda = CUDNN.cuda_version()
+        if cudnn_cuda.major != cuda.major || cudnn_cuda.minor != cuda.minor
+            @warn("You are using CUDNN $cudnn for CUDA $cudnn_cuda with CUDA toolkit $cuda; these might be incompatible.")
+        end
+    end
+
+    return
 end
 
 end # module
