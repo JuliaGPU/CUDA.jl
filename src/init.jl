@@ -27,23 +27,15 @@ function initialize_context()
     _initialize_context()
 end
 
-const initializing_context = Ref(false)
 @noinline function _initialize_context()
-    if !initializing_context[]
-        initializing_context[] = true
-        try
-            @debug "Initializing CUDA on thread $(Threads.threadid())"
-            ctx = CuCurrentContext()
-            dev = if ctx === nothing
-                CuDevice(0)
-            else
-                device()
-            end
-            device!(dev)
-        finally
-            initializing_context[] = false
-        end
+    @debug "Initializing CUDA on thread $(Threads.threadid())"
+    ctx = CuCurrentContext()
+    dev = if ctx === nothing
+        CuDevice(0)
+    else
+        device()
     end
+    device!(dev)
 end
 
 """
