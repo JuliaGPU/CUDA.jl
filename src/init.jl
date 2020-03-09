@@ -2,35 +2,35 @@
 
 export context, context!, device!, device_reset!
 
-const thread_contexts = Union{Nothing,CuContext}[]
-
 
 ## initialization
+
+const thread_contexts = Union{Nothing,CuContext}[]
 
 # FIXME: support for flags (see `cudaSetDeviceFlags`)
 
 """
-    CUDAnative.maybe_initialize()
+    CUDAnative.initialize_context()
 
 Initialize a GPU device if none is bound to the current thread yet. Call this function
 before any functionality that requires a functioning GPU context.
 
 This is designed to be a very fast call (couple of ns).
 """
-function maybe_initialize()
+function initialize_context()
     tid = Threads.threadid()
     if @inbounds thread_contexts[tid] !== nothing
         check_exceptions() # FIXME: This doesn't really belong here
         return
     end
 
-    initialize()
+    _initialize_context()
 end
 
-const initializing = Ref(false)
-@noinline function initialize()
-    if !initializing[]
-        initializing[] = true
+const initializing_context = Ref(false)
+@noinline function _initialize_context()
+    if !initializing_context[]
+        initializing_context[] = true
         try
             @debug "Initializing CUDA on thread $(Threads.threadid())"
             ctx = CuCurrentContext()
@@ -41,7 +41,7 @@ const initializing = Ref(false)
             end
             device!(dev)
         finally
-            initializing[] = false
+            initializing_context[] = false
         end
     end
 end
@@ -70,7 +70,7 @@ current thread).
 function context()::CuContext
     tid = Threads.threadid()
 
-    maybe_initialize()
+    initialize_context()
     ctx = @inbounds thread_contexts[tid]
     @assert ctx === CuCurrentContext()  # remove once we trust our initialization logic
     ctx

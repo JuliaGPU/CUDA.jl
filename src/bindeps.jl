@@ -1,4 +1,4 @@
-# discovering binary CUDA dependencies
+# CUDA discovery and dependency management
 
 using Pkg, Pkg.Artifacts
 using Libdl
@@ -8,16 +8,31 @@ using Libdl
 
 const __version = Ref{VersionNumber}()
 
-# paths
+"""
+    version()
+
+Returns the version of the CUDA toolkit in use.
+"""
+version() = @after_init(__version[])
+
+"""
+    release()
+
+Returns the CUDA release part of the version as returned by [`version`](@ref).
+"""
+release() = @after_init(VersionNumber(__version[].major, __version[].minor))
+
 const __nvdisasm = Ref{String}()
 const __libcupti = Ref{String}()
 const __libnvtx = Ref{String}()
 const __libdevice = Ref{String}()
 const __libcudadevrt = Ref{String}()
 
-# device compatibility
-const __target_support = Ref{Vector{VersionNumber}}()
-const __ptx_support = Ref{Vector{VersionNumber}}()
+nvdisasm() = @after_init(__nvdisasm[])
+libcupti() = @after_init(__libcupti[])
+libnvtx() = @after_init(__libnvtx[])
+libdevice() = @after_init(__libdevice[])
+libcudadevrt() = @after_init(__libcudadevrt[])
 
 
 ## discovery
@@ -127,107 +142,20 @@ function use_local_cuda()
     return true
 end
 
-
-## initialization
-
-const __initialized__ = Ref{Union{Nothing,Bool}}(nothing)
-
-"""
-    functional(show_reason=false)
-
-Check if the package has been initialized successfully and is ready to use.
-
-This call is intended for packages that support conditionally using an available GPU. If you
-fail to check whether CUDA is functional, actual use of functionality might warn and error.
-"""
-function functional(show_reason::Bool=false)
-    if __initialized__[] === nothing
-        __runtime_init__(show_reason)
-    end
-    __initialized__[]
-end
-
-function __runtime_init__(show_reason::Bool)
-    __initialized__[] = false
-
-    # if any dependent GPU package failed, expect it to have logged an error and bail out
-    if !CUDAdrv.functional(show_reason)
-        show_reason && @warn "CUDAnative.jl did not initialize because CUDAdrv.jl failed to"
-        return
-    end
-
-    if Base.libllvm_version != LLVM.version()
-        show_reason && @error("LLVM $(LLVM.version()) incompatible with Julia's LLVM $(Base.libllvm_version)")
-        return
-    end
-
-
-    # CUDA toolkit
+function __configure_dependencies__(show_reason::Bool)
+    found = false
 
     if parse(Bool, get(ENV, "JULIA_CUDA_USE_BINARYBUILDER", "true"))
-        __initialized__[] = use_artifact_cuda()
+        found = use_artifact_cuda()
     end
 
-    if !__initialized__[]
-        __initialized__[] = use_local_cuda()
+    if !found
+        found = use_local_cuda()
     end
 
-    if !__initialized__[]
+    if !found
         show_reason && @error "Could not find a suitable CUDA installation"
-        return
     end
 
-    if release() < v"9"
-        @warn "CUDAnative.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(release()))"
-    elseif release() > CUDAdrv.release()
-         @warn """You are using CUDA toolkit $(release()) with a driver that only supports up to $(CUDAdrv.release()).
-                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
-    end
-
-
-    # device compatibility
-
-    llvm_support = llvm_compat()
-    cuda_support = cuda_compat()
-
-    __target_support[] = sort(collect(llvm_support.cap ∩ cuda_support.cap))
-    isempty(__target_support[]) && error("Your toolchain does not support any device capability")
-
-    __ptx_support[] = sort(collect(llvm_support.ptx ∩ cuda_support.ptx))
-    isempty(__ptx_support[]) && error("Your toolchain does not support any PTX ISA")
-
-    @debug("Toolchain with LLVM $(LLVM.version()), CUDA driver $(CUDAdrv.version()) and toolkit $(CUDAnative.version()) supports devices $(verlist(__target_support[])); PTX $(verlist(__ptx_support[]))")
+    return found
 end
-
-
-## getters
-
-macro initialized(ex)
-    quote
-        @assert functional(true) "CUDAnative.jl is not functional"
-        $(esc(ex))
-    end
-end
-
-"""
-    version()
-
-Returns the version of the CUDA toolkit in use.
-"""
-version() = @initialized(__version[])
-
-"""
-    release()
-
-Returns the CUDA release part of the version as returned by [`version`](@ref).
-"""
-release() = @initialized(VersionNumber(__version[].major, __version[].minor))
-
-nvdisasm() = @initialized(__nvdisasm[])
-libcupti() = @initialized(__libcupti[])
-libnvtx() = @initialized(__libnvtx[])
-libdevice() = @initialized(__libdevice[])
-libcudadevrt() = @initialized(__libcudadevrt[])
-
-target_support() = @initialized(__target_support[])
-ptx_support() = @initialized(__ptx_support[])
