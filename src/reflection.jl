@@ -1,6 +1,6 @@
 # code reflection entry-points
 
-using InteractiveUtils
+using InteractiveUtils, Cthulhu
 
 using .CUPTI: CUpti_CallbackDomain, CUpti_CallbackId, CUpti_SubscriberHandle,
               CUpti_ResourceData, CUpti_ModuleResourceData
@@ -22,6 +22,29 @@ end
 #
 # code_* replacements
 #
+
+function code_typed(io::IO, @nospecialize(func), @nospecialize(types);
+                    interactive::Bool=false, kwargs...)
+    if interactive
+        descend_code_typed(func, types; kwargs...)
+    else
+        InteractiveUtils.code_typed(func, types; kwargs...)
+    end
+end
+code_typed(@nospecialize(func), @nospecialize(types); kwargs...) =
+    code_typed(stdout, func, types; kwargs...)
+
+function code_warntype(io::IO, @nospecialize(func), @nospecialize(types);
+                    interactive::Bool=false, kwargs...)
+    if interactive
+        @assert io == stdout
+        descend_code_warntype(func, types; kwargs...)
+    else
+        InteractiveUtils.code_warntype(io, func, types; kwargs...)
+    end
+end
+code_warntype(@nospecialize(func), @nospecialize(types); kwargs...) =
+    code_warntype(stdout, func, types; kwargs...)
 
 """
     code_llvm([io], f, types; optimize=true, cap::VersionNumber, kernel=false,
