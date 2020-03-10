@@ -83,7 +83,6 @@ include("broadcast.jl")
 include("mapreduce.jl")
 include("accumulate.jl")
 include("linalg.jl")
-include("nnlib.jl")
 
 # vendor libraries
 include("blas/CUBLAS.jl")
@@ -94,8 +93,10 @@ include("rand/CURAND.jl")
 include("dnn/CUDNN.jl")
 include("tensor/CUTENSOR.jl")
 
-include("deprecated.jl")
+# integrations wich must be loaded afterwards
+include("nnlib.jl")
 
+include("deprecated.jl")
 
 ## initialization
 
