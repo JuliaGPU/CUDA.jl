@@ -35,7 +35,7 @@ function functional(show_reason::Bool=false)
     if configured[] === nothing
         _functional(show_reason)
     end
-    configured[]
+    configured[]::Bool
 end
 
 const configure_lock = ReentrantLock()
