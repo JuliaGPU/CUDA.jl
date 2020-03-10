@@ -39,17 +39,21 @@ include("nnlib.jl")
 
 include("compat.jl")
 
-const created_handles = IdDict{CuContext,cudnnHandle_t}()
+const handles_lock = ReentrantLock()
+const created_handles = Dict{Tuple{UInt,Int},cudnnHandle_t}()
 const active_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 
 function handle()
     tid = Threads.threadid()
     if @inbounds active_handles[tid] === nothing
         ctx = context()
-        active_handles[tid] = get!(created_handles, ctx) do
-            handle = cudnnCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cudnnDestroy(handle))
-            handle
+        key = (objectid(ctx), tid)
+        lock(handles_lock) do
+            active_handles[tid] = get!(created_handles, key) do
+                handle = cudnnCreate()
+                atexit(()->CUDAdrv.isvalid(ctx) && cudnnDestroy(handle))
+                handle
+            end
         end
     end
     @inbounds active_handles[tid]

@@ -25,8 +25,9 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-const created_handles = IdDict{CuContext,cublasHandle_t}()
-const created_xt_handles = IdDict{CuContext,cublasXtHandle_t}()
+const handles_lock = ReentrantLock()
+const created_handles = Dict{Tuple{UInt,Int},cublasHandle_t}()
+const created_xt_handles = Dict{Tuple{UInt,Int},cublasXtHandle_t}()
 const active_handles = Vector{Union{Nothing,cublasHandle_t}}()
 const active_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
 
@@ -34,17 +35,20 @@ function handle()
     tid = Threads.threadid()
     if @inbounds active_handles[tid] === nothing
         ctx = context()
-        active_handles[tid] = get!(created_handles, ctx) do
-            handle = cublasCreate_v2()
-            atexit(()->CUDAdrv.isvalid(ctx) && cublasDestroy_v2(handle))
+        key = (objectid(ctx), tid)
+        lock(handles_lock) do
+            active_handles[tid] = get!(created_handles, key) do
+                handle = cublasCreate_v2()
+                atexit(()->CUDAdrv.isvalid(ctx) && cublasDestroy_v2(handle))
 
-            # enable tensor math mode if our device supports it, and fast math is enabled
-            dev = CUDAdrv.device()
-            if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0" && version() >= v"9"
-                cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH)
+                # enable tensor math mode if our device supports it, and fast math is enabled
+                dev = CUDAdrv.device()
+                if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0" && version() >= v"9"
+                    cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH)
+                end
+
+                handle
             end
-
-            handle
         end
     end
     @inbounds active_handles[tid]
@@ -54,16 +58,19 @@ function xt_handle()
     tid = Threads.threadid()
     if @inbounds active_xt_handles[tid] === nothing
         ctx = context()
-        active_xt_handles[tid] = get!(created_xt_handles, ctx) do
-            handle = cublasXtCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cublasXtDestroy(handle))
+        key = (objectid(ctx), tid)
+        lock(handles_lock) do
+            active_xt_handles[tid] = get!(created_xt_handles, key) do
+                handle = cublasXtCreate()
+                atexit(()->CUDAdrv.isvalid(ctx) && cublasXtDestroy(handle))
 
-            # select the devices
-            # TODO: this is weird, since we typically use a single device per thread/context
-            devs = convert.(Cint, CUDAdrv.devices())
-            cublasXtDeviceSelect(handle, length(devs), devs)
+                # select the devices
+                # TODO: this is weird, since we typically use a single device per thread/context
+                devs = convert.(Cint, CUDAdrv.devices())
+                cublasXtDeviceSelect(handle, length(devs), devs)
 
-            handle
+                handle
+            end
         end
     end
     @inbounds active_xt_handles[tid]
