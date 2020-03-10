@@ -115,11 +115,14 @@ function use_local_cuda()
 
     cuda_dirs = find_toolkit()
 
-    __nvdisasm[] = find_cuda_binary("nvdisasm")
-    if __nvdisasm[] === nothing
-        @debug "Could not find nvdisasm"
-        return false
+    let path = find_cuda_binary("nvdisasm", cuda_dirs)
+        if path === nothing
+            @debug "Could not find nvdisasm"
+            return false
+        end
+        __nvdisasm[] = path
     end
+
     cuda_version = parse_toolkit_version(__nvdisasm[])
     __version[] = cuda_version
 
@@ -127,15 +130,19 @@ function use_local_cuda()
     __libcupti[] = find_cuda_library("cupti", [cuda_dirs; cupti_dirs], [cuda_version])
     __libnvtx[] = find_cuda_library("nvtx", cuda_dirs, [v"1"])
 
-    __libcudadevrt[] = find_libcudadevrt(cuda_dirs)
-    if __libcudadevrt[] === nothing
-        @debug "Could not find libcudadevrt"
-        return false
+    let path = find_libcudadevrt(cuda_dirs)
+        if path === nothing
+            @debug "Could not find libcudadevrt"
+            return false
+        end
+        __libcudadevrt[] = path
     end
-    __libdevice[] = find_libdevice(cuda_dirs)
-    if __libdevice[] === nothing
-        @debug "Could not find libdevice"
-        return false
+    let path = find_libdevice(cuda_dirs)
+        if path === nothing
+            @debug "Could not find libdevice"
+            return false
+        end
+        __libdevice[] = path
     end
 
     @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
