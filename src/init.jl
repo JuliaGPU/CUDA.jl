@@ -12,19 +12,20 @@ const thread_contexts = Union{Nothing,CuContext}[]
 """
     CUDAnative.initialize_context()
 
-Initialize a GPU device if none is bound to the current thread yet. Call this function
-before any functionality that requires a functioning GPU context.
+Initialize a CUDA context for the current thread.
 
-This is designed to be a very fast call (couple of ns).
+This function is designed to be very fast, and should be called befor almost every CUDA
+interaction.
 """
-function initialize_context()
+@inline function initialize_context()
     tid = Threads.threadid()
-    if @inbounds thread_contexts[tid] !== nothing
-        check_exceptions() # FIXME: This doesn't really belong here
-        return
+    if @inbounds thread_contexts[tid] === nothing
+        _initialize_context()
     end
 
-    _initialize_context()
+    check_exceptions() # FIXME: This doesn't really belong here
+
+    return
 end
 
 @noinline function _initialize_context()
@@ -59,12 +60,16 @@ Get or create a CUDA context for the current thread (as opposed to
 `CUDAdrv.CuCurrentContext` which may return `nothing` if there is no context bound to the
 current thread).
 """
-function context()::CuContext
+@inline function context()
     tid = Threads.threadid()
 
     initialize_context()
-    ctx = @inbounds thread_contexts[tid]
-    @assert ctx === CuCurrentContext()  # remove once we trust our initialization logic
+    ctx = @inbounds thread_contexts[tid]::CuContext
+
+    if Base.JLOptions().debug_level >= 2
+        @assert ctx === CuCurrentContext()
+    end
+
     ctx
 end
 
