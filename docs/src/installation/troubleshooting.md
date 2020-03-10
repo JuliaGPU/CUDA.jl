@@ -1,5 +1,6 @@
 # Troubleshooting
 
+
 ## CUDA toolkit does not contain `XXX`
 
 This means that you have an incomplete or missing CUDA toolkit, or that not all required
@@ -7,6 +8,7 @@ parts of the toolkit are discovered. Make sure the missing binary is present on 
 and fix your CUDA toolkit installation if it isn't. Else, if you installed CUDA at a
 nonstandard location, use the `CUDA_HOME` environment variable to direct Julia to that
 location.
+
 
 ## UNKNOWN_ERROR(999)
 
