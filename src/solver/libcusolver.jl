@@ -1,4 +1,4 @@
-# Julia wrapper for header: cusolver_common.h
+# Julia wrapper for header: cusolverDn.h
 # Automatically generated using Clang.jl
 
 
@@ -13,9 +13,6 @@ end
                    (Ptr{Cint},),
                    version)
 end
-# Julia wrapper for header: cusolverDn.h
-# Automatically generated using Clang.jl
-
 
 @checked function cusolverDnCreate(handle)
     initialize_api()

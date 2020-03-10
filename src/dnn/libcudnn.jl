@@ -1183,7 +1183,7 @@ end
                    (cudnnHandle_t, cudnnBatchNormMode_t, Ptr{Cvoid}, Ptr{Cvoid},
                     cudnnTensorDescriptor_t, CuPtr{Cvoid}, cudnnTensorDescriptor_t,
                     CuPtr{Cvoid}, cudnnTensorDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{Cvoid}, Ptr{Cvoid}, Cdouble),
+                    CuPtr{Cvoid}, CuPtr{Cvoid}, Cdouble),
                    handle, mode, alpha, beta, xDesc, x, yDesc, y, bnScaleBiasMeanVarDesc,
                    bnScale, bnBias, estimatedMean, estimatedVariance, epsilon)
 end

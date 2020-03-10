@@ -6,6 +6,16 @@ const CUSOLVER_VER_MINOR = 3
 const CUSOLVER_VER_PATCH = 0
 const CUSOLVER_VER_BUILD = 89
 const CUSOLVER_VERSION = CUSOLVER_VER_MAJOR * 1000 + CUSOLVER_VER_MINOR * 100 + CUSOLVER_VER_PATCH
+const cusolverDnContext = Cvoid
+const cusolverDnHandle_t = Ptr{cusolverDnContext}
+const syevjInfo = Cvoid
+const syevjInfo_t = Ptr{syevjInfo}
+const gesvdjInfo = Cvoid
+const gesvdjInfo_t = Ptr{gesvdjInfo}
+const cusolverDnIRSParams = Cvoid
+const cusolverDnIRSParams_t = Ptr{cusolverDnIRSParams}
+const cusolverDnIRSInfos = Cvoid
+const cusolverDnIRSInfos_t = Ptr{cusolverDnIRSInfos}
 const cusolver_int_t = Cint
 
 @cenum cusolverStatus_t::UInt32 begin
@@ -67,16 +77,6 @@ end
 end
 
 
-const cusolverDnContext = Cvoid
-const cusolverDnHandle_t = Ptr{cusolverDnContext}
-const syevjInfo = Cvoid
-const syevjInfo_t = Ptr{syevjInfo}
-const gesvdjInfo = Cvoid
-const gesvdjInfo_t = Ptr{gesvdjInfo}
-const cusolverDnIRSParams = Cvoid
-const cusolverDnIRSParams_t = Ptr{cusolverDnIRSParams}
-const cusolverDnIRSInfos = Cvoid
-const cusolverDnIRSInfos_t = Ptr{cusolverDnIRSInfos}
 const cusolverSpContext = Cvoid
 const cusolverSpHandle_t = Ptr{cusolverSpContext}
 const csrqrInfo = Cvoid

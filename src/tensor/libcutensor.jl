@@ -165,6 +165,3 @@ end
 function cutensorGetCudartVersion()
     @runtime_ccall((:cutensorGetCudartVersion, libcutensor()), Csize_t, ())
 end
-# Julia wrapper for header: types.h
-# Automatically generated using Clang.jl
-

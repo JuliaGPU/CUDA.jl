@@ -82,21 +82,21 @@ end
 
 
 struct cutensorHandle_t
-    fields::NTuple{512, Cint}
+    fields::NTuple{512, Int64}
 end
 
 struct cutensorTensorDescriptor_t
-    fields::NTuple{64, Cint}
+    fields::NTuple{64, Int64}
 end
 
 struct cutensorContractionDescriptor_t
-    fields::NTuple{256, Cint}
+    fields::NTuple{256, Int64}
 end
 
 struct cutensorContractionPlan_t
-    fields::NTuple{640, Cint}
+    fields::NTuple{640, Int64}
 end
 
 struct cutensorContractionFind_t
-    fields::NTuple{64, Cint}
+    fields::NTuple{64, Int64}
 end

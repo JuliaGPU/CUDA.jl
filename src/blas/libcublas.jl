@@ -1,9 +1,6 @@
 # Julia wrapper for header: cublas_v2.h
 # Automatically generated using Clang.jl
 
-# Julia wrapper for header: cublas_api.h
-# Automatically generated using Clang.jl
-
 
 @checked function cublasCreate_v2(handle)
     initialize_api()
