@@ -1,9 +1,6 @@
 --- a/libcublas_common.jl	2019-09-18 16:22:57.442729370 +0200
 +++ b/libcublas_common.jl	2019-09-18 16:23:08.434866193 +0200
-@@ -1,169 +1,6 @@
- # Automatically generated using Clang.jl
- 
- 
+@@ -1,163 +1,0 @@
 -const cublasCreate = cublasCreate_v2
 -const cublasDestroy = cublasDestroy_v2
 -const cublasGetVersion = cublasGetVersion_v2
@@ -167,6 +164,3 @@
 -const cublasDtrmm = cublasDtrmm_v2
 -const cublasCtrmm = cublasCtrmm_v2
 -const cublasZtrmm = cublasZtrmm_v2
- const CUBLAS_VER_MAJOR = 10
- const CUBLAS_VER_MINOR = 2
- const CUBLAS_VER_PATCH = 1
