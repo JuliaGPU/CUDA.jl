@@ -126,6 +126,13 @@ function insert_check(x, state)
     end
 end
 
+# rewrite ordinary `ccall`s to `@runtime_ccall`
+function rewrite_ccall(x, state)
+    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
+        push!(state.edits, Edit(state.offset, "@runtime_"))
+    end
+end
+
 # insert `initialize_api()` before each function with a `ccall` calling non-whitelisted fns
 preinit_apicalls = Set{String}([
     # error handling
@@ -164,13 +171,6 @@ function insert_init(x, state)
         if !in(fun, preinit_apicalls)
             push!(state.edits, Edit(state.offset, "initialize_api()\n    "))
         end
-    end
-end
-
-# rewrite ordinary `ccall`s to `@runtime_ccall`
-function rewrite_ccall(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
-        push!(state.edits, Edit(state.offset, "@runtime_"))
     end
 end
 
@@ -292,19 +292,10 @@ function process(name, headers...; kwargs...)
         pass(ast, state, insert_check)
 
         state.offset = 0
-        pass(ast, state, insert_init)
-
-        # apply
-        state.offset = 0
-        sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
-        for i = 1:length(state.edits)
-            text = apply(text, state.edits[i])
-        end
-        ast = CSTParser.parse(text, true)
-        state = State(0, Edit[])
-
-        state.offset = 0
         pass(ast, state, rewrite_ccall)
+
+        state.offset = 0
+        pass(ast, state, insert_init)
 
         # apply
         state.offset = 0
