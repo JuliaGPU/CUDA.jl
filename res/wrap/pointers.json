@@ -94,8 +94,8 @@
         "bnScaleBiasMeanVarDesc": null,
         "bnScale": "CuPtr",
         "bnBias": "CuPtr",
-        "estimatedMean": "Ptr",
-        "estimatedVariance": "Ptr",
+        "estimatedMean": "CuPtr",
+        "estimatedVariance": "CuPtr",
         "epsilon": null
     },
     "cudnnCreateTensorTransformDescriptor": {
