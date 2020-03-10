@@ -128,8 +128,12 @@ function use_local_cuda()
 
     cuda_dirs = find_toolkit()
 
-    tool = find_cuda_binary("nvdisasm")
-    tool == nothing && error("Your CUDA installation does not provide the nvdisasm binary")
+    tool = find_cuda_binary("nvdisasm", cuda_dirs)
+    if tool === nothing
+        @debug "Could not find nvdisasm"
+        return false
+    end
+
     cuda_version = parse_toolkit_version(tool)
     __version[] = cuda_version
 
@@ -138,9 +142,11 @@ function use_local_cuda()
         handle = getfield(CuArrays, Symbol("__lib$name"))
 
         path = find_cuda_library(name, cuda_dirs, [cuda_version])
-        if path !== nothing
-            handle[] = path
+        if path === nothing
+            @debug "Could not find $name"
+            return false
         end
+        handle[] = path
     end
 
     @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
