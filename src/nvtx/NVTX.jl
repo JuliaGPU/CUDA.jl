@@ -12,6 +12,7 @@ using ..CUDAnative
 using ..CUDAnative: libnvtx
 
 # core library
+initialize_api() = return
 include("libnvtx_common.jl")
 include("libnvtx.jl")
 

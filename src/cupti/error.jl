@@ -106,25 +106,18 @@ end
 
 ## API call wrapper
 
-# API calls that are allowed without a functional context
-const preinit_apicalls = Set{Symbol}([
-    :cuptiGetVersion,
-    :cuptiGetResultString,
-])
-
 # outlined functionality to avoid GC frame allocation
 @noinline function throw_api_error(res)
     throw(CUPTIError(res))
 end
 
-macro check(ex)
-    fun = Symbol(decode_ccall_function(ex))
-    init = if !in(fun, preinit_apicalls)
-        :(CUDAnative.initialize_context())
-    end
-    quote
-        $init
+function initialize_api()
+    # make sure the calling thread has an active context
+    CUDAnative.initialize_context()
+end
 
+macro check(ex)
+    quote
         res = $(esc(ex))
         if res != CUPTI_SUCCESS
             throw_api_error(res)
