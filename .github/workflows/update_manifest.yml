@@ -45,6 +45,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: |
             Update dependencies.
+
             ${{ steps.pkg_status.outputs.log }}
           title: Update manifest
           reviewers: maleadt
