@@ -402,7 +402,7 @@ end
                 (ComplexF32, ComplexF32, ComplexF32), # works for some
                 # (ComplexF32, ComplexF32, ComplexF64), # does not work
                 (ComplexF64, ComplexF64, ComplexF64) # works for some
-                ) 
+                )
 
     @testset for NoA=1:3, NoB=1:3, Nc=1:3
         @testset for (eltyA, eltyB, eltyC) in eltypes
@@ -440,7 +440,7 @@ end
             mB = reshape(permutedims(B, ipB), (lc, loB))
             C = zeros(eltyC, (dimsC...,))
             dC = CuArray(C)
-            
+
             # simple case
             opA = CUTENSOR.CUTENSOR_OP_IDENTITY
             opB = CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -451,7 +451,7 @@ end
             C = collect(dC)
             mC = reshape(permutedims(C, ipC), (loA, loB))
             @test mC ≈ mA * mB
-            
+
             # simple case with plan storage
             opA = CUTENSOR.CUTENSOR_OP_IDENTITY
             opB = CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -463,7 +463,7 @@ end
             C = collect(dC)
             mC = reshape(permutedims(C, ipC), (loA, loB))
             @test mC ≈ mA * mB
-            
+
             # with non-trivial α
             α = rand(eltyC)
             dC = CUTENSOR.contraction!(α, dA, indsA, opA, dB, indsB, opB,
@@ -484,7 +484,7 @@ end
             mC = reshape(permutedims(C, ipC), (loA, loB))
             mD = reshape(permutedims(D, ipC), (loA, loB))
             @test mD ≈ α * mA * mB + β * mC
-                            
+
             # with CuTensor objects
             ctA = CuTensor(dA, indsA)
             ctB = CuTensor(dB, indsB)
