@@ -126,8 +126,7 @@ end
 
 ## pooling
 
-using Base.Threads: SpinLock
-const pool_lock = SpinLock()   # protect against deletion from freelists
+const pool_lock = ReentrantLock()
 
 const scan_lower_bound = Block(nothing, 0; id=0)
 function scan!(blocks, sz, max_overhead=typemax(Int))
