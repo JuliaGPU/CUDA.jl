@@ -1041,4 +1041,27 @@ end
 
 ############################################################################################
 
+@testset "threading" begin
+    function kernel(a, tid, id)
+        a[1] = tid
+        a[2] = id
+        return
+    end
+
+    tests = []
+    Threads.@threads for id in 1:10
+        da = CuArray{Int}(undef, 2)
+        tid = Threads.threadid()
+        @cuda kernel(da, tid, id)
+        push!(tests, :(@test Array($da) == [$tid, $id]))
+    end
+
+    # @testset is not thread safe
+    for test in tests
+        eval(test)
+    end
+end
+
+############################################################################################
+
 end
