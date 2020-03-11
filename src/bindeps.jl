@@ -35,12 +35,22 @@ libcusparse() = @after_init(__libcusparse[])
 libcusolver() = @after_init(__libcusolver[])
 libcufft() = @after_init(__libcufft[])
 libcurand() = @after_init(__libcurand[])
-libcudnn() = @after_init(__libcudnn[])
-libcutensor() = @after_init(__libcutensor[])
+function libcudnn()
+    @after_init begin
+        @assert has_cudnn() "This functionality is unavailabe as CUDNN is missing."
+        __libcudnn[]
+    end
+end
+function libcutensor()
+    @after_init begin
+        @assert has_cutensor() "This functionality is unavailabe as CUTENSOR is missing."
+        __libcutensor[]
+    end
+end
 
 export has_cudnn, has_cutensor
-has_cudnn() = libcudnn() !== nothing
-has_cutensor() = libcutensor() !== nothing
+has_cudnn() = @after_init(__libcudnn[]) !== nothing
+has_cutensor() = @after_init(__libcutensor[]) !== nothing
 
 
 ## discovery
