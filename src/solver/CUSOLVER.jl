@@ -27,8 +27,9 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-const created_dense_handles = IdDict{CuContext,cusolverDnHandle_t}()
-const created_sparse_handles = IdDict{CuContext,cusolverSpHandle_t}()
+const handles_lock = ReentrantLock()
+const created_dense_handles = Dict{Tuple{UInt,Int},cusolverDnHandle_t}()
+const created_sparse_handles = Dict{Tuple{UInt,Int},cusolverSpHandle_t}()
 const active_dense_handles = Vector{Union{Nothing,cusolverDnHandle_t}}()
 const active_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
 
@@ -36,10 +37,13 @@ function dense_handle()
     tid = Threads.threadid()
     if @inbounds active_dense_handles[tid] === nothing
         ctx = context()
-        active_dense_handles[tid] = get!(created_dense_handles, ctx) do
-            handle = cusolverDnCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cusolverDnDestroy(handle))
-            handle
+        key = (objectid(ctx), tid)
+        lock(handles_lock) do
+            active_dense_handles[tid] = get!(created_dense_handles, key) do
+                handle = cusolverDnCreate()
+                atexit(()->CUDAdrv.isvalid(ctx) && cusolverDnDestroy(handle))
+                handle
+            end
         end
     end
     @inbounds active_dense_handles[tid]
@@ -49,10 +53,13 @@ function sparse_handle()
     tid = Threads.threadid()
     if @inbounds active_sparse_handles[tid] === nothing
         ctx = context()
-        active_sparse_handles[tid] = get!(created_sparse_handles, ctx) do
-            handle = cusolverSpCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cusolverSpDestroy(handle))
-            handle
+        key = (objectid(ctx), tid)
+        lock(handles_lock) do
+            active_sparse_handles[tid] = get!(created_sparse_handles, key) do
+                handle = cusolverSpCreate()
+                atexit(()->CUDAdrv.isvalid(ctx) && cusolverSpDestroy(handle))
+                handle
+            end
         end
     end
     @inbounds active_sparse_handles[tid]

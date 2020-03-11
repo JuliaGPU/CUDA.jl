@@ -27,17 +27,21 @@ include("wrappers.jl")
 # high-level integrations
 include("interfaces.jl")
 
-const created_handles = IdDict{CuContext,cusparseHandle_t}()
+const handles_lock = ReentrantLock()
+const created_handles = Dict{Tuple{UInt,Int},cusparseHandle_t}()
 const active_handles = Vector{Union{Nothing,cusparseHandle_t}}()
 
 function handle()
     tid = Threads.threadid()
     if @inbounds active_handles[tid] === nothing
         ctx = context()
-        active_handles[tid] = get!(created_handles, ctx) do
-            handle = cusparseCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cusparseDestroy(handle))
-            handle
+        key = (objectid(ctx), tid)
+        lock(handles_lock) do
+            active_handles[tid] = get!(created_handles, key) do
+                handle = cusparseCreate()
+                atexit(()->CUDAdrv.isvalid(ctx) && cusparseDestroy(handle))
+                handle
+            end
         end
     end
     @inbounds active_handles[tid]

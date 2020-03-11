@@ -23,17 +23,21 @@ include("wrappers.jl")
 # high-level integrations
 include("random.jl")
 
-const created_generators = IdDict{CuContext,RNG}()
+const handles_lock = ReentrantLock()
+const created_generators = Dict{Tuple{UInt,Int},RNG}()
 const active_generators = Vector{Union{Nothing,RNG}}()
 
 function generator()
     tid = Threads.threadid()
     if @inbounds active_generators[tid] === nothing
         ctx = context()
-        active_generators[tid] = get!(created_generators, ctx) do
-            rng = RNG()
-            Random.seed!(rng)
-            rng
+        key = (objectid(ctx), tid)
+        lock(handles_lock) do
+            active_generators[tid] = get!(created_generators, key) do
+                rng = RNG()
+                Random.seed!(rng)
+                rng
+            end
         end
     end
     @inbounds active_generators[tid]
