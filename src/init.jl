@@ -5,6 +5,10 @@ export context, context!, device!, device_reset!
 
 ## initialization
 
+# the default device new threads will use, set when switching devices.
+# this behavior differs from the CUDA Runtime, where device 0 is always used.
+const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
+
 const thread_contexts = Union{Nothing,CuContext}[]
 
 # FIXME: support for flags (see `cudaSetDeviceFlags`)
@@ -32,7 +36,7 @@ end
     @debug "Initializing CUDA on thread $(Threads.threadid())"
     ctx = CuCurrentContext()
     dev = if ctx === nothing
-        CuDevice(0)
+        something(default_device[], CuDevice(0))
     else
         device()
     end
@@ -125,6 +129,9 @@ function device!(dev::CuDevice)
     if @inbounds thread_contexts[tid] !== nothing && dev == device()
         return
     end
+
+    # have new threads use this device as well
+    default_device[] = dev
 
     # get the primary context
     pctx = CuPrimaryContext(dev)
