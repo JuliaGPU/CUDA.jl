@@ -24,7 +24,8 @@ using ..CuArrays: @pool_timeit
 
 using CUDAdrv
 
-const pool_lock = ReentrantLock()
+# use a macro-version of Base.lock to avoid closures
+using Base: @lock
 
 
 ## tunables
@@ -64,6 +65,8 @@ end
 
 ## infrastructure
 
+const pool_lock = ReentrantLock()
+
 const pools_used = Vector{Set{Block}}()
 const pools_avail = Vector{Vector{Block}}()
 const allocated = Dict{CuPtr{Nothing},Block}()
@@ -79,7 +82,7 @@ function create_pools(idx)
     return
   end
 
-  lock(pool_lock) do
+  @lock pool_lock begin
     while length(pool_usage) < idx
       push!(pool_usage, 1)
       push!(pool_history, initial_usage)
@@ -263,7 +266,7 @@ function init()
     delay = MIN_DELAY
     @async begin
       while true
-        @pool_timeit "background task" lock(pool_lock) do
+        @pool_timeit "background task" @lock pool_lock begin
           if scan()
             delay = MIN_DELAY
           else
@@ -289,7 +292,7 @@ function alloc(bytes)
     @inbounds used = pools_used[pid]
     @inbounds avail = pools_avail[pid]
 
-    lock(pool_lock) do
+    @lock pool_lock begin
       block = pool_alloc(alloc_bytes, pid)
 
       if block !== nothing
@@ -327,7 +330,7 @@ function free(ptr)
     @inbounds used = pools_used[pid]
     @inbounds avail = pools_avail[pid]
 
-    lock(pool_lock) do
+    @lock pool_lock begin
       # mark the buffer as available
       delete!(used, block)
       push!(avail, block)
