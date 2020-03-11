@@ -407,3 +407,23 @@ end
   b .= 3
   @test Array(y) == [2]
 end
+
+@testset "threading" begin
+  CuArrays.disable_timings()  # FIXME
+
+  Threads.@threads for i in 1:Threads.nthreads()*100
+    # uses libraries (rand, gemm) to test library handles
+    # allocates and uses unsafe_free to cover the allocator
+    a = CuArrays.rand(1024, 1024)
+    b = CuArrays.rand(1024, 1024)
+    yield()
+    c = a * b
+    yield()
+    @test Array(c) ≈ Array(a) * Array(b)
+    yield()
+    CuArrays.unsafe_free!(a)
+    CuArrays.unsafe_free!(b)
+  end
+
+  CuArrays.enable_timings() # FIXME
+end

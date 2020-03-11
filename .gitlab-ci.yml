@@ -4,6 +4,7 @@ include:
 image: ubuntu:bionic
 
 variables:
+  JULIA_NUM_THREADS: '4'
   JULIA_DEBUG: 'CuArrays'
   CI_APT_INSTALL: 'libgomp1'
   NVIDIA_VISIBLE_DEVICES: 'all'

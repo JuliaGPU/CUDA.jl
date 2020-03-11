@@ -413,6 +413,7 @@ end
 Enable the recording of debug timings.
 """
 enable_timings() = (TimerOutputs.enable_debug_timings(CuArrays); return)
+disable_timings() = (TimerOutputs.disable_debug_timings(CuArrays); return)
 
 function __init_memory__()
   if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
