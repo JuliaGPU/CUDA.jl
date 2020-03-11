@@ -23,10 +23,6 @@ end
 # code_* replacements
 #
 
-# NOTE: these functions replicate parts of the main compiler driver in order to generate
-#       more compact code (i.e. without the run-time library) and/or to support generating
-#       otherwise invalid code (e.g. with missing symbols).
-
 """
     code_llvm([io], f, types; optimize=true, cap::VersionNumber, kernel=false,
               optimize=true, raw=false, dump_module=false, strict=false)
