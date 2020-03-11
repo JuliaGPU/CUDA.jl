@@ -23,16 +23,30 @@ Returns the CUDA release part of the version as returned by [`version`](@ref).
 release() = @after_init(VersionNumber(__version[].major, __version[].minor))
 
 const __nvdisasm = Ref{String}()
-const __libcupti = Ref{String}()
-const __libnvtx = Ref{String}()
 const __libdevice = Ref{String}()
 const __libcudadevrt = Ref{String}()
+const __libcupti = Ref{Union{Nothing,String}}()
+const __libnvtx = Ref{Union{Nothing,String}}()
 
 nvdisasm() = @after_init(__nvdisasm[])
-libcupti() = @after_init(__libcupti[])
-libnvtx() = @after_init(__libnvtx[])
 libdevice() = @after_init(__libdevice[])
 libcudadevrt() = @after_init(__libcudadevrt[])
+function libcupti()
+    @after_init begin
+        @assert has_cupti() "This functionality is unavailable as CUPTI is missing."
+        __libcupti[]
+    end
+end
+function libnvtx()
+    @after_init begin
+        @assert has_nvtx() "This functionality is unavailable as NVTX is missing."
+        __libnvtx[]
+    end
+end
+
+export has_cupti, has_nvtx
+has_cupti() = @after_init(__libcupti[]) !== nothing
+has_nvtx() = @after_init(__libnvtx[]) !== nothing
 
 
 ## discovery
@@ -98,7 +112,9 @@ function use_artifact_cuda()
     short = artifact.release >= v"10.1" ? string(artifact.release.major) : long
 
     __libcupti[] = get_library(Sys.iswindows() ? "cupti64_$long" : "cupti")
+    @assert isfile(__libcupti[])
     __libnvtx[] = get_library(Sys.iswindows() ? "nvToolsExt64_1" : "nvToolsExt")
+    @assert isfile(__libnvtx[])
 
     __libcudadevrt[] = get_static_library("cudadevrt")
     @assert isfile(__libcudadevrt[])
