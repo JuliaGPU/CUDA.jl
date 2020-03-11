@@ -77,13 +77,6 @@ include("gpuarrays.jl")
 include("subarray.jl")
 include("utils.jl")
 
-# integrations and specialized functionality
-include("indexing.jl")
-include("broadcast.jl")
-include("mapreduce.jl")
-include("accumulate.jl")
-include("linalg.jl")
-
 # vendor libraries
 include("blas/CUBLAS.jl")
 include("sparse/CUSPARSE.jl")
@@ -93,7 +86,12 @@ include("rand/CURAND.jl")
 include("dnn/CUDNN.jl")
 include("tensor/CUTENSOR.jl")
 
-# integrations wich must be loaded afterwards
+# integrations and specialized functionality
+include("indexing.jl")
+include("broadcast.jl")
+include("mapreduce.jl")
+include("accumulate.jl")
+include("linalg.jl")
 include("nnlib.jl")
 
 include("deprecated.jl")

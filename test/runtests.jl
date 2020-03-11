@@ -51,6 +51,7 @@ end
 
 include("base.jl")
 include("memory.jl")
+
 include("blas.jl")
 include("rand.jl")
 include("fft.jl")
@@ -59,6 +60,7 @@ include("solver.jl")
 include("sparse_solver.jl")
 include("dnn.jl")
 include("tensor.jl")
+
 include("forwarddiff.jl")
 include("nnlib.jl")
 
