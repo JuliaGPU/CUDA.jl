@@ -18,6 +18,7 @@ mutable struct AllocStats
   pool_nfree::Int
   ## in bytes
   pool_alloc::Int
+  pool_free::Int
 
   # actual CUDA allocations
   actual_nalloc::Int
@@ -30,7 +31,7 @@ mutable struct AllocStats
   actual_time::Float64
 end
 
-const alloc_stats = AllocStats(0, 0, 0, 0, 0, 0, 0, 0, 0)
+const alloc_stats = AllocStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 Base.copy(alloc_stats::AllocStats) =
   AllocStats((getfield(alloc_stats, field) for field in fieldnames(AllocStats))...)
@@ -74,12 +75,13 @@ function actual_alloc(bytes)
   @assert sizeof(buf) == bytes
   ptr = convert(CuPtr{Nothing}, buf)
 
-  # manage state
+  # manage state and record the buffer
   @lock memory_lock begin
     alloc_stats.actual_time += time
     alloc_stats.actual_nalloc += 1
     alloc_stats.actual_alloc += bytes
     usage[] += bytes
+
     @assert !haskey(allocated, ptr)
     allocated[ptr] = buf
   end
@@ -90,9 +92,10 @@ end
 function actual_free(ptr::CuPtr{Nothing})
   # look up the buffer
   buf = @lock memory_lock begin
-    allocated[ptr]
+    buf = allocated[ptr]
+    delete!(allocated, ptr)
+    buf
   end
-  bytes = sizeof(buf)
 
   # free the memory
   @timeit_debug alloc_to "free" begin
@@ -100,12 +103,12 @@ function actual_free(ptr::CuPtr{Nothing})
   end
 
   # manage state
+  bytes = sizeof(buf)
   @lock memory_lock begin
     alloc_stats.actual_time += time
     alloc_stats.actual_nfree += 1
     alloc_stats.actual_free += bytes
     usage[] -= bytes
-    delete!(allocated, ptr)
   end
 
   return
@@ -180,11 +183,12 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   end
   ptr === nothing && throw(OutOfGPUMemoryError(sz))
 
-  # manage state
+  # manage state and record the allocation
   @lock memory_lock begin
     alloc_stats.pool_time += time
     alloc_stats.pool_nalloc += 1
     alloc_stats.pool_alloc += sz
+
     @assert !haskey(requested, ptr)
     requested[ptr] = sz
   end
@@ -201,6 +205,14 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
+  # record the allocation
+  sz = @lock memory_lock begin
+    @assert haskey(requested, ptr)
+    sz = requested[ptr]
+    delete!(requested, ptr)
+    sz
+  end
+
   time = Base.@elapsed begin
     @pool_timeit "pooled free" pool[].free(ptr)
   end
@@ -209,9 +221,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   @lock memory_lock begin
     alloc_stats.pool_time += time
     alloc_stats.pool_nfree += 1
-    @assert haskey(requested, ptr)
-    sz = requested[ptr]
-    delete!(requested, ptr)
+    alloc_stats.pool_free += sz
   end
 
   return
