@@ -7,6 +7,11 @@ using ..CuArrays: @pool_timeit
 
 using CUDAdrv
 
+# use a macro-version of Base.lock to avoid closures
+using Base: @lock
+
+const pool_lock = ReentrantLock()
+
 
 ## tunables
 
@@ -51,7 +56,7 @@ const available = Set{Block}()
 const allocated = Dict{CuPtr{Nothing},Block}()
 
 function scan(sz)
-    for block in available
+    @lock pool_lock for block in available
         if sz <= sizeof(block) <= max_oversize(sz)
             delete!(available, block)
             return block
@@ -62,7 +67,7 @@ end
 
 function reclaim(sz::Int=typemax(Int))
     freed = 0
-    while freed < sz && !isempty(available)
+    @lock pool_lock while freed < sz && !isempty(available)
         block = pop!(available)
         freed += sizeof(block)
         actual_free(block)
@@ -100,8 +105,10 @@ function pool_alloc(sz)
 end
 
 function pool_free(block)
-    @assert !in(block, available)
-    push!(available, block)
+    @lock pool_lock begin
+        @assert !in(block, available)
+        push!(available, block)
+    end
 end
 
 
@@ -113,7 +120,9 @@ function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
         ptr = pointer(block)
-        allocated[ptr] = block
+        @lock pool_lock begin
+            allocated[ptr] = block
+        end
         return ptr
     else
         return nothing
@@ -121,16 +130,17 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = allocated[ptr]
-    delete!(allocated, block)
+    block = @lock pool_lock begin
+        block = allocated[ptr]
+        delete!(allocated, block)
+        block
+    end
     pool_free(block)
     return
 end
 
-used_memory() = isempty(allocated) ? 0 : sum(sizeof, values(allocated))
+used_memory() = isempty(allocated) ? 0 : @lock pool_lock sum(sizeof, values(allocated))
 
-cached_memory() = isempty(available) ? 0 : sum(sizeof, available)
-
-dump() = return
+cached_memory() = isempty(available) ? 0 : @lock pool_lock sum(sizeof, available)
 
 end

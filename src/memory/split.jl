@@ -260,7 +260,7 @@ const UniqueIncreasingSize = Base.By(unique_sizeof)
 const available_small = SortedSet{Block}(UniqueIncreasingSize)
 const available_large = SortedSet{Block}(UniqueIncreasingSize)
 const available_huge  = SortedSet{Block}(UniqueIncreasingSize)
-const allocated = Dict{CuPtr{Nothing},Block}()
+
 const freed = Vector{Block}()
 
 function size_class(sz)
@@ -321,8 +321,11 @@ function pool_alloc(sz)
 
         if !isempty(freed)
             # `freed` may be modified concurrently, so take a copy
-            blocks = Set(freed)
-            empty!(freed)
+            blocks = @lock pool_lock begin
+                blocks = Set(freed)
+                empty!(freed)
+                blocks
+            end
             @pool_timeit "$phase.1a repopulate" repopulate(blocks)
             @pool_timeit "$phase.1b compact" incremental_compact!(blocks)
         end
@@ -378,11 +381,15 @@ function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (and prevent concurrent access during GC interventions)
     block.state = FREED
-    push!(freed, block)
+    @lock pool_lock begin
+        push!(freed, block)
+    end
 end
 
 
 ## interface
+
+const allocated = Dict{CuPtr{Nothing},Block}()
 
 init() = return
 
@@ -390,9 +397,11 @@ function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
         ptr = pointer(block)
-        @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
+        @lock pool_lock begin
+            @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
+            allocated[ptr] = block
+        end
         block.state = ALLOCATED
-        allocated[ptr] = block
         return ptr
     else
         return nothing
@@ -400,17 +409,23 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = allocated[ptr]
+    block = @lock pool_lock begin
+        block = allocated[ptr]
+        delete!(allocated, ptr)
+        block
+    end
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
-    delete!(allocated, ptr)
     pool_free(block)
     return
 end
 
 function reclaim(sz::Int=typemax(Int))
     if !isempty(freed)
-        blocks = Set(freed)
-        empty!(freed)
+        blocks = @lock pool_lock begin
+            blocks = Set(freed)
+            empty!(freed)
+            blocks
+        end
         repopulate(blocks)
         incremental_compact!(blocks)
     end
@@ -423,26 +438,8 @@ function reclaim(sz::Int=typemax(Int))
     return freed_sz
 end
 
-used_memory() = mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() = mapreduce(sizeof, +, union(available_small, available_large, available_huge); init=0)
-
-function dump()
-    println("Allocated blocks: $((Base.format_bytes(used_memory())))")
-    for block in sort(collect(values(allocated)); by=sizeof)
-        println(" - ", block)
-    end
-
-    println("Available, but fragmented blocks: $((Base.format_bytes(cached_memory())))")
-    for block in available_small
-        println(" - small ", block)
-    end
-    for block in available_large
-        println(" - large ", block)
-    end
-    for block in available_huge
-        println(" - huge ", block)
-    end
-end
+cached_memory() =  @lock pool_lock mapreduce(sizeof, +, union(available_small, available_large, available_huge); init=0)
 
 end

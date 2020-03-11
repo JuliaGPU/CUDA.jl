@@ -53,7 +53,7 @@ const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
 const allocated = Dict{CuPtr{Nothing},Mem.DeviceBuffer}()
 
-function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
+function actual_alloc(bytes)
   # check the memory allocation limit
   if usage_limit[] !== nothing
     if usage[] + bytes > usage_limit[]
@@ -171,12 +171,12 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
 a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline function alloc(sz)::CuPtr{Nothing}
+@inline function alloc(sz)
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)
+    @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)::Union{Nothing,CuPtr{Nothing}}
   end
   ptr === nothing && throw(OutOfGPUMemoryError(sz))
 
