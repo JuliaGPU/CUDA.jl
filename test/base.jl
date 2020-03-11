@@ -47,10 +47,6 @@ end
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
 
-  # Check that allowscalar works
-  @test_throws ErrorException xs[1]
-  @test_throws ErrorException xs[1] = 1
-
   # unsafe_wrap
   @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).pooled == false
   @test Base.unsafe_wrap(CuArray, CU_NULL, 2)                == CuArray{Nothing,1}(CU_NULL, (2,),  false)
