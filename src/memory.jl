@@ -5,8 +5,9 @@ using TimerOutputs
 
 using Base: @lock
 
-const alloc_lock = ReentrantLock()
-# FIXME: simplify pool implementations by locking all operations?
+# global lock for shared resources (alloc stats, usage limits, etc).
+# each allocator needs to lock its own resources separately too.
+const memory_lock = ReentrantLock()
 
 
 ## allocation statistics
@@ -61,42 +62,50 @@ function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
   end
 
   # try the actual allocation
-  try
-    alloc_stats.actual_time += Base.@elapsed begin
+  time, buf = try
+    time = Base.@elapsed begin
       @timeit_debug alloc_to "alloc" buf = Mem.alloc(Mem.Device, bytes)
     end
-    @assert sizeof(buf) == bytes
-    ptr = convert(CuPtr{Nothing}, buf)
-    @lock alloc_lock begin
-      alloc_stats.actual_nalloc += 1
-      alloc_stats.actual_alloc += bytes
-      usage[] += bytes
-      @assert !haskey(allocated, ptr)
-      allocated[ptr] = buf
-    end
-    return ptr
+    time, buf
   catch err
     (isa(err, CuError) && err.code == CUDAdrv.ERROR_OUT_OF_MEMORY) || rethrow()
+    return nothing
+  end
+  @assert sizeof(buf) == bytes
+  ptr = convert(CuPtr{Nothing}, buf)
+
+  # manage state
+  @lock memory_lock begin
+    alloc_stats.actual_time += time
+    alloc_stats.actual_nalloc += 1
+    alloc_stats.actual_alloc += bytes
+    usage[] += bytes
+    @assert !haskey(allocated, ptr)
+    allocated[ptr] = buf
   end
 
-  return nothing
+  return ptr
 end
 
 function actual_free(ptr::CuPtr{Nothing})
-  buf = @lock alloc_lock begin
-    buf = allocated[ptr]
-    delete!(allocated, ptr)
-    bytes = sizeof(buf)
+  # look up the buffer
+  buf = @lock memory_lock begin
+    allocated[ptr]
+  end
+  bytes = sizeof(buf)
 
+  # free the memory
+  @timeit_debug alloc_to "free" begin
+    time = Base.@elapsed Mem.free(buf)
+  end
+
+  # manage state
+  @lock memory_lock begin
+    alloc_stats.actual_time += time
     alloc_stats.actual_nfree += 1
     alloc_stats.actual_free += bytes
     usage[] -= bytes
-
-    buf
-  end
-
-  @timeit_debug alloc_to "free"  begin
-    alloc_stats.actual_time += Base.@elapsed Mem.free(buf)
+    delete!(allocated, ptr)
   end
 
   return
@@ -166,14 +175,14 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
-  alloc_stats.pool_time += Base.@elapsed begin
+  time = Base.@elapsed begin
     @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)
   end
-  if ptr === nothing
-    throw(OutOfGPUMemoryError(sz))
-  end
+  ptr === nothing && throw(OutOfGPUMemoryError(sz))
 
-  @lock alloc_lock begin
+  # manage state
+  @lock memory_lock begin
+    alloc_stats.pool_time += time
     alloc_stats.pool_nalloc += 1
     alloc_stats.pool_alloc += sz
     @assert !haskey(requested, ptr)
@@ -192,15 +201,17 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
-  @lock alloc_lock begin
+  time = Base.@elapsed begin
+    @pool_timeit "pooled free" pool[].free(ptr)
+  end
+
+  # manage state
+  @lock memory_lock begin
+    alloc_stats.pool_time += time
+    alloc_stats.pool_nfree += 1
     @assert haskey(requested, ptr)
     sz = requested[ptr]
     delete!(requested, ptr)
-  end
-
-  alloc_stats.pool_nfree += 1
-  alloc_stats.pool_time += Base.@elapsed begin
-    @pool_timeit "pooled free" pool[].free(ptr)
   end
 
   return
