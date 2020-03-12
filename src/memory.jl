@@ -379,29 +379,29 @@ end
 Report to `io` on the memory status of the current GPU and the active memory pool.
 """
 function memory_status(io::IO=stdout)
+  free_bytes, total_bytes = CUDAdrv.Mem.info()
+  used_bytes = total_bytes - free_bytes
+  used_ratio = used_bytes / total_bytes
+
+  @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
+              100*used_ratio, Base.format_bytes(used_bytes),
+              Base.format_bytes(total_bytes))
+
+  @printf(io, "CuArrays GPU memory usage: %s", Base.format_bytes(usage[]))
+  if usage_limit[] !== nothing
+    @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[]))
+  end
+  println(io)
+
+  alloc_used_bytes = pool[].used_memory()
+  alloc_cached_bytes = pool[].cached_memory()
+  alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
+
+  @printf(io, "%s usage: %s (%s allocated, %s cached)\n", nameof(pool[]),
+              Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
+              Base.format_bytes(alloc_cached_bytes))
+
   @lock memory_lock begin
-    free_bytes, total_bytes = CUDAdrv.Mem.info()
-    used_bytes = total_bytes - free_bytes
-    used_ratio = used_bytes / total_bytes
-
-    @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
-                100*used_ratio, Base.format_bytes(used_bytes),
-                Base.format_bytes(total_bytes))
-
-    @printf(io, "CuArrays GPU memory usage: %s", Base.format_bytes(usage[]))
-    if usage_limit[] !== nothing
-      @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[]))
-    end
-    println(io)
-
-    alloc_used_bytes = pool[].used_memory()
-    alloc_cached_bytes = pool[].cached_memory()
-    alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
-
-    @printf(io, "%s usage: %s (%s allocated, %s cached)\n", nameof(pool[]),
-                Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
-                Base.format_bytes(alloc_cached_bytes))
-
     requested_bytes = mapreduce(first, +, values(requested); init=0)
 
     @printf(io, "%s efficiency: %.2f%% (%s requested, %s allocated)\n", nameof(pool[]),
