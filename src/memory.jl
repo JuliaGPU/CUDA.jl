@@ -151,7 +151,7 @@ const pool = Ref{Module}(BinnedPool)
 
 export OutOfGPUMemoryError
 
-const requested = Dict{CuPtr{Nothing},Int}()
+const requested = Dict{CuPtr{Nothing},Tuple{Int,Vector}}()
 
 """
     OutOfGPUMemoryError()
@@ -189,8 +189,14 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
     alloc_stats.pool_nalloc += 1
     alloc_stats.pool_alloc += sz
 
+    bt = if Base.JLOptions().debug_level >= 2
+      backtrace()
+    else
+      []
+    end
+
     @assert !haskey(requested, ptr)
-    requested[ptr] = sz
+    requested[ptr] = (sz,bt)
   end
 
   return ptr
@@ -206,11 +212,11 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   ptr == CU_NULL && return
 
   # record the allocation
-  sz = @lock memory_lock begin
+  sz, bt = @lock memory_lock begin
     @assert haskey(requested, ptr)
-    sz = requested[ptr]
+    sz, bt = requested[ptr]
     delete!(requested, ptr)
-    sz
+    sz, bt
   end
 
   time = Base.@elapsed begin
@@ -400,7 +406,7 @@ function memory_status(io::IO=stdout)
                 Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
                 Base.format_bytes(alloc_cached_bytes))
 
-    requested_bytes = reduce(+, values(requested); init=0)
+    requested_bytes = mapreduce(first, +, values(requested); init=0)
 
     @printf(io, "%s efficiency: %.2f%% (%s requested, %s allocated)\n", nameof(pool[]),
                 100*requested_bytes/usage[],
@@ -412,6 +418,17 @@ function memory_status(io::IO=stdout)
     discrepancy = abs(usage[] - alloc_total_bytes)
     if discrepancy != 0
       @debug "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator"
+    end
+
+    if Base.JLOptions().debug_level >= 2
+      for (ptr, (sz,bt)) in requested
+        @printf(io, "\nOutstanding memory allocation of %s at %p",
+                Base.format_bytes(sz), Int(ptr))
+        stack = stacktrace(bt, false)
+        StackTraces.remove_frames!(stack, :alloc)
+        Base.show_backtrace(io, stack)
+        println(io)
+      end
     end
   end
 end
