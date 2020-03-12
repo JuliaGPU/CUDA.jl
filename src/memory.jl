@@ -5,7 +5,8 @@ using TimerOutputs
 
 using Base: @lock
 
-# global lock for shared resources (alloc stats, usage limits, etc).
+# global lock for shared object dicts (allocated, requested).
+# stats are not covered by this and cannot be assumed to be exact.
 # each allocator needs to lock its own resources separately too.
 const memory_lock = ReentrantLock()
 
@@ -49,7 +50,7 @@ called.
 """
 alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 
-const usage = Ref(0)
+const usage = Threads.Atomic{Int}(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
 const allocated = Dict{CuPtr{Nothing},Mem.DeviceBuffer}()
@@ -67,6 +68,7 @@ function actual_alloc(bytes)
     time = Base.@elapsed begin
       @timeit_debug alloc_to "alloc" buf = Mem.alloc(Mem.Device, bytes)
     end
+    Threads.atomic_add!(usage, bytes)
     time, buf
   catch err
     (isa(err, CuError) && err.code == CUDAdrv.ERROR_OUT_OF_MEMORY) || rethrow()
@@ -75,16 +77,15 @@ function actual_alloc(bytes)
   @assert sizeof(buf) == bytes
   ptr = convert(CuPtr{Nothing}, buf)
 
-  # manage state and record the buffer
+  # record the buffer
   @lock memory_lock begin
-    alloc_stats.actual_time += time
-    alloc_stats.actual_nalloc += 1
-    alloc_stats.actual_alloc += bytes
-    usage[] += bytes
-
     @assert !haskey(allocated, ptr)
     allocated[ptr] = buf
   end
+
+  alloc_stats.actual_time += time
+  alloc_stats.actual_nalloc += 1
+  alloc_stats.actual_alloc += bytes
 
   return ptr
 end
@@ -101,15 +102,12 @@ function actual_free(ptr::CuPtr{Nothing})
   # free the memory
   @timeit_debug alloc_to "free" begin
     time = Base.@elapsed Mem.free(buf)
+    Threads.atomic_sub!(usage, bytes)
   end
 
-  # manage state
-  @lock memory_lock begin
-    alloc_stats.actual_time += time
-    alloc_stats.actual_nfree += 1
-    alloc_stats.actual_free += bytes
-    usage[] -= bytes
-  end
+  alloc_stats.actual_time += time
+  alloc_stats.actual_nfree += 1
+  alloc_stats.actual_free += bytes
 
   return
 end
@@ -183,21 +181,22 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   end
   ptr === nothing && throw(OutOfGPUMemoryError(sz))
 
-  # manage state and record the allocation
+  # record the backtrace
+  bt = if Base.JLOptions().debug_level >= 2
+    backtrace()
+  else
+    []
+  end
+
+  # record the allocation
   @lock memory_lock begin
-    alloc_stats.pool_time += time
-    alloc_stats.pool_nalloc += 1
-    alloc_stats.pool_alloc += sz
-
-    bt = if Base.JLOptions().debug_level >= 2
-      backtrace()
-    else
-      []
-    end
-
     @assert !haskey(requested, ptr)
     requested[ptr] = (sz,bt)
   end
+
+  alloc_stats.pool_time += time
+  alloc_stats.pool_nalloc += 1
+  alloc_stats.pool_alloc += sz
 
   return ptr
 end
@@ -223,12 +222,9 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     @pool_timeit "pooled free" pool[].free(ptr)
   end
 
-  # manage state
-  @lock memory_lock begin
-    alloc_stats.pool_time += time
-    alloc_stats.pool_nfree += 1
-    alloc_stats.pool_free += sz
-  end
+  alloc_stats.pool_time += time
+  alloc_stats.pool_nfree += 1
+  alloc_stats.pool_free += sz
 
   return
 end
