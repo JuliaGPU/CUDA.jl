@@ -54,6 +54,7 @@ end
 
 const available = Set{Block}()
 const allocated = Dict{CuPtr{Nothing},Block}()
+const freed = Vector{Block}()
 
 function scan(sz)
     @lock pool_lock for block in available
@@ -65,14 +66,33 @@ function scan(sz)
     return
 end
 
-function reclaim(sz::Int=typemax(Int))
-    freed = 0
-    @lock pool_lock while freed < sz && !isempty(available)
-        block = pop!(available)
-        freed += sizeof(block)
-        actual_free(block)
+function repopulate(blocks)
+    @lock pool_lock begin
+        for block in blocks
+            @assert !in(block, available)
+            push!(available, block)
+        end
     end
-    return freed
+end
+
+function reclaim(sz::Int=typemax(Int))
+    @lock pool_lock begin
+        if !isempty(freed)
+            # `freed` may be modified concurrently, so take a copy
+            blocks = copy(freed)
+            empty!(freed)
+
+            repopulate(blocks)
+        end
+
+        freed_bytes = 0
+        while freed_bytes < sz && !isempty(available)
+            block = pop!(available)
+            freed_bytes += sizeof(block)
+            actual_free(block)
+        end
+        return freed_bytes
+    end
 end
 
 function pool_alloc(sz)
@@ -105,9 +125,10 @@ function pool_alloc(sz)
 end
 
 function pool_free(block)
+    # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
+    # and to simplify locking (and prevent concurrent access during GC interventions)
     @lock pool_lock begin
-        @assert !in(block, available)
-        push!(available, block)
+        push!(freed, block)
     end
 end
 
