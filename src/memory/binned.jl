@@ -24,8 +24,8 @@ using ..CuArrays: @pool_timeit
 
 using CUDAdrv
 
-# use a macro-version of Base.lock to avoid closures
 using Base: @lock
+using Base.Threads: SpinLock
 
 
 ## tunables
@@ -100,6 +100,7 @@ const pool_usage = Vector{Float64}()
 const pool_history = Vector{NTuple{USAGE_WINDOW,Float64}}()
 
 const freed = Vector{Block}()
+const freed_lock = SpinLock()
 
 # scan every pool and manage the usage history
 #
@@ -141,16 +142,9 @@ end
 
 # reclaim unused buffers
 function reclaim(target_bytes::Int=typemax(Int); full::Bool=true)
+  repopulate()
+
   @lock pool_lock begin
-    if !isempty(freed)
-      # `freed` may be modified concurrently, so take a copy
-      blocks = copy(freed)
-      empty!(freed)
-      blocks
-
-      repopulate(blocks)
-    end
-
     # find inactive buffers
     @pool_timeit "scan" begin
       pools_inactive = Vector{Int}(undef, length(pools_avail)) # pid => buffers that can be freed
@@ -202,8 +196,15 @@ function reclaim(target_bytes::Int=typemax(Int); full::Bool=true)
   end
 end
 
-# repopulate the "available" pools from a list of freed blocks
-function repopulate(blocks)
+# repopulate the "available" pools from the list of freed blocks
+function repopulate()
+  blocks = @lock freed_lock begin
+    isempty(freed) && return
+    blocks = Set(freed)
+    empty!(freed)
+    blocks
+  end
+
   @lock pool_lock begin
     for block in blocks
       pid = poolidx(sizeof(block))
@@ -220,6 +221,8 @@ function repopulate(blocks)
       pool_usage[pid] = max(pool_usage[pid], current_usage)
     end
   end
+
+  return blocks
 end
 
 function pool_alloc(bytes, pid=-1)
@@ -239,8 +242,12 @@ function pool_alloc(bytes, pid=-1)
   end
 
   if block === nothing
-    @pool_timeit "2. gc (incremental)" begin
+    @pool_timeit "2a. gc (incremental)" begin
       GC.gc(false)
+    end
+
+    @pool_timeit "2b. repopulate" begin
+      repopulate()
     end
 
     @lock pool_lock begin
@@ -264,8 +271,12 @@ function pool_alloc(bytes, pid=-1)
   end
 
   if block === nothing
-    @pool_timeit "5. gc (full)" begin
+    @pool_timeit "5a. gc (full)" begin
       GC.gc(true)
+    end
+
+    @pool_timeit "5b. repopulate" begin
+      repopulate()
     end
 
     @lock pool_lock begin
@@ -311,9 +322,9 @@ function pool_alloc(bytes, pid=-1)
 end
 
 function pool_free(block)
-  # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
-  # and to simplify locking (and prevent concurrent access during GC interventions)
-  @lock pool_lock begin
+    # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
+    # and to simplify locking (preventing concurrent access during GC interventions)
+  @lock freed_lock begin
     push!(freed, block)
   end
 end

@@ -6,7 +6,6 @@ using ..CuArrays: @pool_timeit, actual_alloc, actual_free
 
 using CUDAdrv
 
-# use a macro-version of Base.lock to avoid closures
 using Base: @lock
 
 const pool_lock = ReentrantLock()

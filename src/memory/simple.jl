@@ -7,8 +7,8 @@ using ..CuArrays: @pool_timeit
 
 using CUDAdrv
 
-# use a macro-version of Base.lock to avoid closures
 using Base: @lock
+using Base.Threads: SpinLock
 
 const pool_lock = ReentrantLock()
 
@@ -54,7 +54,9 @@ end
 
 const available = Set{Block}()
 const allocated = Dict{CuPtr{Nothing},Block}()
+
 const freed = Vector{Block}()
+const freed_lock = SpinLock()
 
 function scan(sz)
     @lock pool_lock for block in available
@@ -66,25 +68,28 @@ function scan(sz)
     return
 end
 
-function repopulate(blocks)
+function repopulate()
+    blocks = @lock freed_lock begin
+        isempty(freed) && return
+        blocks = Set(freed)
+        empty!(freed)
+        blocks
+    end
+
     @lock pool_lock begin
         for block in blocks
             @assert !in(block, available)
             push!(available, block)
         end
     end
+
+    return blocks
 end
 
 function reclaim(sz::Int=typemax(Int))
+    repopulate()
+
     @lock pool_lock begin
-        if !isempty(freed)
-            # `freed` may be modified concurrently, so take a copy
-            blocks = copy(freed)
-            empty!(freed)
-
-            repopulate(blocks)
-        end
-
         freed_bytes = 0
         while freed_bytes < sz && !isempty(available)
             block = pop!(available)
@@ -104,17 +109,19 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 scan" begin
+        @pool_timeit "$phase.1 repopulate" repopulate()
+
+        @pool_timeit "$phase.2 scan" begin
             block = scan(sz)
         end
         block === nothing || break
 
-        @pool_timeit "$phase.2 alloc" begin
+        @pool_timeit "$phase.3 alloc" begin
             block = actual_alloc(sz)
         end
         block === nothing || break
 
-        @pool_timeit "$phase.3 reclaim + alloc" begin
+        @pool_timeit "$phase.4 reclaim + alloc" begin
             reclaim(sz)
             block = actual_alloc(sz)
         end
@@ -126,8 +133,8 @@ end
 
 function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
-    # and to simplify locking (and prevent concurrent access during GC interventions)
-    @lock pool_lock begin
+    # and to simplify locking (preventing concurrent access during GC interventions)
+    @lock freed_lock begin
         push!(freed, block)
     end
 end

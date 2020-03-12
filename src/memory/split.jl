@@ -9,8 +9,8 @@ using DataStructures
 
 using CUDAdrv
 
-# use a macro-version of Base.lock to avoid closures
 using Base: @lock
+using Base.Threads: SpinLock
 
 
 ## tunables
@@ -234,8 +234,15 @@ function reclaim!(blocks, sz=typemax(Int))
     return freed
 end
 
-# repopulate the "available" pools from a list of freed blocks
-function repopulate(blocks)
+# repopulate the "available" pools from the list of freed blocks
+function repopulate()
+    blocks = @lock freed_lock begin
+        isempty(freed) && return
+        blocks = Set(freed)
+        empty!(freed)
+        blocks
+    end
+
     @lock pool_lock begin
         for block in blocks
             available = get_available(sizeof(block))
@@ -245,6 +252,8 @@ function repopulate(blocks)
             push!(available, block) # FIXME: allocates
         end
     end
+
+    return blocks
 end
 
 const SMALL = 1
@@ -261,6 +270,7 @@ const available_large = SortedSet{Block}(UniqueIncreasingSize)
 const available_huge  = SortedSet{Block}(UniqueIncreasingSize)
 
 const freed = Vector{Block}()
+const freed_lock = SpinLock()
 
 function size_class(sz)
     if sz <= SMALL_CUTOFF
@@ -318,15 +328,9 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        if !isempty(freed)
-            # `freed` may be modified concurrently, so take a copy
-            blocks = @lock pool_lock begin
-                blocks = Set(freed)
-                empty!(freed)
-                blocks
-            end
-            @pool_timeit "$phase.1a repopulate" repopulate(blocks)
-            @pool_timeit "$phase.1b compact" incremental_compact!(blocks)
+        repopulated = @pool_timeit "$phase.1a repopulate" repopulate()
+        if repopulated !== nothing
+            @pool_timeit "$phase.1b compact" incremental_compact!(repopulated)
         end
 
         @pool_timeit "$phase.2 scan" begin
@@ -378,9 +382,9 @@ end
 
 function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
-    # and to simplify locking (and prevent concurrent access during GC interventions)
+    # and to simplify locking (preventing concurrent access during GC interventions)
     block.state = FREED
-    @lock pool_lock begin
+    @lock freed_lock begin
         push!(freed, block)
     end
 end
@@ -419,14 +423,9 @@ function free(ptr)
 end
 
 function reclaim(sz::Int=typemax(Int))
-    if !isempty(freed)
-        blocks = @lock pool_lock begin
-            blocks = Set(freed)
-            empty!(freed)
-            blocks
-        end
-        repopulate(blocks)
-        incremental_compact!(blocks)
+    repopulated = repopulate()
+    if repopulated !== nothing
+        incremental_compact!(repopulated)
     end
 
     freed_sz = 0
