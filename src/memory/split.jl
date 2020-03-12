@@ -345,8 +345,8 @@ function pool_alloc(sz)
         # we're out of memory, try freeing up some memory. this is a fairly expensive
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
-        for available in (available_huge, available_large, available_small)
-            @pool_timeit "$phase.4a reclaim" reclaim!(available, sz)
+        for pool in (available_huge, available_large, available_small)
+            @pool_timeit "$phase.4a reclaim" reclaim!(pool, sz)
             @pool_timeit "$phase.4b alloc" block = actual_alloc(sz)
             block === nothing || break
         end
@@ -372,7 +372,9 @@ function pool_alloc(sz)
         if szclass != HUGE && remainder > 0 && size_class(remainder) == szclass
             split = split!(block, sz)
             split.state = AVAILABLE
-            push!(available, split)
+            @lock freed_lock begin
+                push!(available, split)
+            end
         end
     end
 
@@ -425,9 +427,9 @@ function reclaim(sz::Int=typemax(Int))
     repopulate()
 
     freed_sz = 0
-    for available in (available_huge, available_large, available_small)
+    for pool in (available_huge, available_large, available_small)
         freed_sz >= sz && break
-        freed_sz += reclaim!(available, sz-freed_sz)
+        freed_sz += reclaim!(pool, sz-freed_sz)
     end
     return freed_sz
 end
