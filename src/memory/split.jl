@@ -439,6 +439,6 @@ end
 
 used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() =  @lock pool_lock mapreduce(sizeof, +, union(available_small, available_large, available_huge); init=0)
+cached_memory() = @lock pool_lock mapreduce(sizeof, +, union(available_small, available_large, available_huge, freed); init=0)
 
 end

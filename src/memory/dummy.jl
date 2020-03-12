@@ -51,7 +51,7 @@ end
 
 reclaim(target_bytes::Int=typemax(Int)) = return 0
 
-used_memory() = isempty(allocated) ? 0 : @lock pool_lock sum(sizeof, values(allocated))
+used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
 
 cached_memory() = 0
 

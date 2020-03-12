@@ -153,15 +153,15 @@ end
 function free(ptr)
     block = @lock pool_lock begin
         block = allocated[ptr]
-        delete!(allocated, block)
+        delete!(allocated, ptr)
         block
     end
     pool_free(block)
     return
 end
 
-used_memory() = isempty(allocated) ? 0 : @lock pool_lock sum(sizeof, values(allocated))
+used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() = isempty(available) ? 0 : @lock pool_lock sum(sizeof, available)
+cached_memory() = @lock pool_lock mapreduce(sizeof, +, union(available, freed); init=0)
 
 end
