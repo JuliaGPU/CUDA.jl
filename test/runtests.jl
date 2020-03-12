@@ -60,6 +60,7 @@ include("solver.jl")
 include("sparse_solver.jl")
 include("dnn.jl")
 include("tensor.jl")
+include("iterator.jl")
 
 include("forwarddiff.jl")
 include("nnlib.jl")
