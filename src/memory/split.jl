@@ -251,9 +251,11 @@ function repopulate()
             block.state = AVAILABLE
             push!(available, block) # FIXME: allocates
         end
+
+        incremental_compact!(blocks)
     end
 
-    return blocks
+    return
 end
 
 const SMALL = 1
@@ -328,10 +330,7 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        repopulated = @pool_timeit "$phase.1a repopulate" repopulate()
-        if repopulated !== nothing
-            @pool_timeit "$phase.1b compact" incremental_compact!(repopulated)
-        end
+        @pool_timeit "$phase.1 repopulate" repopulate()
 
         @pool_timeit "$phase.2 scan" begin
             block = scan!(available, sz, max_overhead)
@@ -423,10 +422,7 @@ function free(ptr)
 end
 
 function reclaim(sz::Int=typemax(Int))
-    repopulated = repopulate()
-    if repopulated !== nothing
-        incremental_compact!(repopulated)
-    end
+    repopulate()
 
     freed_sz = 0
     for available in (available_huge, available_large, available_small)

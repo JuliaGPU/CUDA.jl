@@ -83,7 +83,7 @@ function repopulate()
         end
     end
 
-    return blocks
+    return
 end
 
 function reclaim(sz::Int=typemax(Int))

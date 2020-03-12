@@ -222,7 +222,7 @@ function repopulate()
     end
   end
 
-  return blocks
+  return
 end
 
 function pool_alloc(bytes, pid=-1)
