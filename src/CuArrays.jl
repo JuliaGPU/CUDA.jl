@@ -94,6 +94,7 @@ include("accumulate.jl")
 include("linalg.jl")
 include("nnlib.jl")
 include("iterator.jl")
+include("statistics.jl")
 
 include("deprecated.jl")
 

@@ -64,6 +64,7 @@ include("iterator.jl")
 
 include("forwarddiff.jl")
 include("nnlib.jl")
+include("statistics.jl")
 
 if haskey(ENV, "CI")
   CuArrays.memory_status()
