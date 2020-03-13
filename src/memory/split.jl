@@ -42,7 +42,7 @@ using Printf
     FREED
 end
 
-const block_id = Ref(UInt(0))
+const block_id = Threads.Atomic{UInt}(1)
 
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
@@ -56,8 +56,8 @@ mutable struct Block
 
     id::UInt
 
-    Block(ptr, sz; off=0, state=INVALID,
-          prev=nothing, next=nothing, id=block_id[]+=1) =
+    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing,
+          id=Threads.atomic_add!(block_id, UInt(1))) =
         new(ptr, sz, off, state, prev, next, id)
 end
 
@@ -387,11 +387,11 @@ init() = return
 function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
+        block.state = ALLOCATED
         ptr = pointer(block)
         @lock pool_lock begin
             @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
             allocated[ptr] = block
-            block.state = ALLOCATED
         end
         return ptr
     else
