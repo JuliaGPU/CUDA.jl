@@ -359,7 +359,7 @@ function pool_alloc(sz)
         if szclass != HUGE && remainder > 0 && size_class(remainder) == szclass
             split = split!(block, sz)
             split.state = AVAILABLE
-            @lock freed_lock begin
+            @lock pool_lock begin
                 push!(pool, split)
             end
         end
