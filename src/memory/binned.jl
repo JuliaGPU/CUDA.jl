@@ -337,7 +337,12 @@ const allocated = Dict{CuPtr{Nothing},Block}()
 function init()
   create_pools(30) # up to 512 MiB
 
-  managed = parse(Bool, get(ENV, "CUARRAYS_MANAGED_POOL", "true"))
+  if haskey(ENV, "CUARRAYS_MANAGED_POOL")
+    Base.depwarn("The CUARRAYS_MANAGED_POOL environment flag is deprecated, please use JULIA_CUDA_MEMORY_POOL instead.", :__init_memory__)
+    ENV["JULIA_CUDA_MEMORY_POOL_MANAGED"] = ENV["CUARRAYS_MANAGED_POOL"]
+  end
+
+  managed = parse(Bool, get(ENV, "JULIA_CUDA_MEMORY_POOL_MANAGED", "true"))
   if managed
     delay = MIN_DELAY
     @async begin

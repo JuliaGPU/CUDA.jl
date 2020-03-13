@@ -442,18 +442,28 @@ disable_timings() = (TimerOutputs.disable_debug_timings(CuArrays); return)
 
 function __init_memory__()
   if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
-    usage_limit[] = parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
+    Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_memory__)
+    ENV["JULIA_CUDA_MEMORY_LIMIT"] = ENV["CUARRAYS_MEMORY_LIMIT"]
+  end
+
+  if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
+    usage_limit[] = parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
   end
 
   if haskey(ENV, "CUARRAYS_MEMORY_POOL")
+    Base.depwarn("The CUARRAYS_MEMORY_POOL environment flag is deprecated, please use JULIA_CUDA_MEMORY_POOL instead.", :__init_memory__)
+    ENV["JULIA_CUDA_MEMORY_POOL"] = ENV["CUARRAYS_MEMORY_POOL"]
+  end
+
+  if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
     pool[] =
-      if ENV["CUARRAYS_MEMORY_POOL"] == "binned"
+      if ENV["JULIA_CUDA_MEMORY_POOL"] == "binned"
         BinnedPool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "simple"
+      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "simple"
         SimplePool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "split"
+      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "split"
         SplittingPool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "none"
+      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "none"
         DummyPool
       else
         error("Invalid allocator selected")
@@ -462,7 +472,7 @@ function __init_memory__()
   pool[].init()
 
   # if the user hand-picked an allocator, be a little verbose
-  if haskey(ENV, "CUARRAYS_MEMORY_POOL")
+  if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
     atexit(()->begin
       Core.println("""
         CuArrays.jl $(nameof(pool[])) statistics:
