@@ -19,7 +19,6 @@ mutable struct AllocStats
   pool_nfree::Int
   ## in bytes
   pool_alloc::Int
-  pool_free::Int
 
   # actual CUDA allocations
   actual_nalloc::Int
@@ -32,7 +31,7 @@ mutable struct AllocStats
   actual_time::Float64
 end
 
-const alloc_stats = AllocStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+const alloc_stats = AllocStats(0, 0, 0, 0, 0, 0, 0, 0, 0)
 
 Base.copy(alloc_stats::AllocStats) =
   AllocStats((getfield(alloc_stats, field) for field in fieldnames(AllocStats))...)
@@ -149,7 +148,7 @@ const pool = Ref{Module}(BinnedPool)
 
 export OutOfGPUMemoryError
 
-const requested = Dict{CuPtr{Nothing},Tuple{Int,Vector}}()
+const requested = Dict{CuPtr{Nothing},Vector}()
 
 """
     OutOfGPUMemoryError()
@@ -181,17 +180,12 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   end
   ptr === nothing && throw(OutOfGPUMemoryError(sz))
 
-  # record the backtrace
-  bt = if Base.JLOptions().debug_level >= 2
-    backtrace()
-  else
-    []
-  end
-
   # record the allocation
-  @lock memory_lock begin
-    @assert !haskey(requested, ptr)
-    requested[ptr] = (sz,bt)
+  if Base.JLOptions().debug_level >= 2
+    @lock memory_lock begin
+      @assert !haskey(requested, ptr)
+      requested[ptr] = backtrace()
+    end
   end
 
   alloc_stats.pool_time += time
@@ -211,11 +205,11 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   ptr == CU_NULL && return
 
   # record the allocation
-  sz, bt = @lock memory_lock begin
-    @assert haskey(requested, ptr)
-    sz, bt = requested[ptr]
-    delete!(requested, ptr)
-    sz, bt
+  if Base.JLOptions().debug_level >= 2
+    @lock memory_lock begin
+      @assert haskey(requested, ptr)
+      delete!(requested, ptr)
+    end
   end
 
   time = Base.@elapsed begin
@@ -224,7 +218,6 @@ Releases a buffer pointed to by `ptr` to the memory pool.
 
   alloc_stats.pool_time += time
   alloc_stats.pool_nfree += 1
-  alloc_stats.pool_free += sz
 
   return
 end
@@ -382,12 +375,11 @@ function memory_status(io::IO=stdout)
   free_bytes, total_bytes = CUDAdrv.Mem.info()
   used_bytes = total_bytes - free_bytes
   used_ratio = used_bytes / total_bytes
-
   @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
               100*used_ratio, Base.format_bytes(used_bytes),
               Base.format_bytes(total_bytes))
 
-  @printf(io, "CuArrays GPU memory usage: %s", Base.format_bytes(usage[]))
+  @printf(io, "CuArrays allocator usage: %s", Base.format_bytes(usage[]))
   if usage_limit[] !== nothing
     @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[]))
   end
@@ -396,30 +388,23 @@ function memory_status(io::IO=stdout)
   alloc_used_bytes = pool[].used_memory()
   alloc_cached_bytes = pool[].cached_memory()
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
-
   @printf(io, "%s usage: %s (%s allocated, %s cached)\n", nameof(pool[]),
               Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
               Base.format_bytes(alloc_cached_bytes))
 
-  @lock memory_lock begin
-    requested_bytes = mapreduce(first, +, values(requested); init=0)
+  # check if the memory usage as counted by the CUDA allocator wrapper
+  # matches what is reported by the pool implementation
+  discrepancy = abs(usage[] - alloc_total_bytes)
+  if discrepancy != 0
+    println(io, "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator!")
+  end
 
-    @printf(io, "%s efficiency: %.2f%% (%s requested, %s allocated)\n", nameof(pool[]),
-                100*requested_bytes/usage[],
-                Base.format_bytes(requested_bytes),
-                Base.format_bytes(usage[]))
-
-    # check if the memory usage as counted by the CUDA allocator wrapper
-    # matches what is reported by the pool implementation
-    discrepancy = abs(usage[] - alloc_total_bytes)
-    if discrepancy != 0
-      @debug "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator"
-    end
-
-    if Base.JLOptions().debug_level >= 2
-      for (ptr, (sz,bt)) in requested
+  if Base.JLOptions().debug_level >= 2
+    @lock memory_lock begin
+      for (ptr, bt) in requested
+        buf = allocated[ptr]
         @printf(io, "\nOutstanding memory allocation of %s at %p",
-                Base.format_bytes(sz), Int(ptr))
+                Base.format_bytes(sizeof(buf)), Int(ptr))
         stack = stacktrace(bt, false)
         StackTraces.remove_frames!(stack, :alloc)
         Base.show_backtrace(io, stack)
