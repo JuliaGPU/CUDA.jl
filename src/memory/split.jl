@@ -211,10 +211,10 @@ end
 
 function reclaim!(blocks, sz=typemax(Int))
     freed = 0
-    candidates = Block[]
 
     @lock pool_lock begin
         # mark non-split blocks
+        candidates = Block[]
         for block in blocks
             if iswhole(block)
                 push!(candidates, block)
@@ -403,8 +403,8 @@ function alloc(sz)
         @lock pool_lock begin
             @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
             allocated[ptr] = block
+            block.state = ALLOCATED
         end
-        block.state = ALLOCATED
         return ptr
     else
         return nothing
