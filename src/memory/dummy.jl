@@ -6,9 +6,13 @@ using ..CuArrays: @pool_timeit, actual_alloc, actual_free
 
 using CUDAdrv
 
-init() = return
+using Base: @lock
+
+const pool_lock = ReentrantLock()
 
 const allocated = Dict{CuPtr{Nothing},Int}()
+
+init() = return
 
 function alloc(sz)
     ptr = nothing
@@ -26,7 +30,9 @@ function alloc(sz)
     end
 
     if ptr !== nothing
-        allocated[ptr] = sz
+        @lock pool_lock begin
+            allocated[ptr] = sz
+        end
         return ptr
     else
         return nothing
@@ -34,18 +40,18 @@ function alloc(sz)
 end
 
 function free(ptr)
-    sz = allocated[ptr]
-    delete!(allocated, ptr)
+    @lock pool_lock begin
+        sz = allocated[ptr]
+        delete!(allocated, ptr)
+    end
     actual_free(ptr)
     return
 end
 
 reclaim(target_bytes::Int=typemax(Int)) = return 0
 
-used_memory() = isempty(allocated) ? 0 : sum(sizeof, values(allocated))
+used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
 
 cached_memory() = 0
-
-dump() = return
 
 end

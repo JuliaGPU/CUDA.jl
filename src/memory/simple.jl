@@ -7,6 +7,11 @@ using ..CuArrays: @pool_timeit
 
 using CUDAdrv
 
+using Base: @lock
+using Base.Threads: SpinLock
+
+const pool_lock = ReentrantLock()
+
 
 ## tunables
 
@@ -50,8 +55,11 @@ end
 const available = Set{Block}()
 const allocated = Dict{CuPtr{Nothing},Block}()
 
+const freed = Vector{Block}()
+const freed_lock = SpinLock()
+
 function scan(sz)
-    for block in available
+    @lock pool_lock for block in available
         if sz <= sizeof(block) <= max_oversize(sz)
             delete!(available, block)
             return block
@@ -60,14 +68,36 @@ function scan(sz)
     return
 end
 
-function reclaim(sz::Int=typemax(Int))
-    freed = 0
-    while freed < sz && !isempty(available)
-        block = pop!(available)
-        freed += sizeof(block)
-        actual_free(block)
+function repopulate()
+    blocks = @lock freed_lock begin
+        isempty(freed) && return
+        blocks = Set(freed)
+        empty!(freed)
+        blocks
     end
-    return freed
+
+    @lock pool_lock begin
+        for block in blocks
+            @assert !in(block, available)
+            push!(available, block)
+        end
+    end
+
+    return
+end
+
+function reclaim(sz::Int=typemax(Int))
+    repopulate()
+
+    @lock pool_lock begin
+        freed_bytes = 0
+        while freed_bytes < sz && !isempty(available)
+            block = pop!(available)
+            freed_bytes += sizeof(block)
+            actual_free(block)
+        end
+        return freed_bytes
+    end
 end
 
 function pool_alloc(sz)
@@ -79,17 +109,19 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 scan" begin
+        @pool_timeit "$phase.1 repopulate" repopulate()
+
+        @pool_timeit "$phase.2 scan" begin
             block = scan(sz)
         end
         block === nothing || break
 
-        @pool_timeit "$phase.2 alloc" begin
+        @pool_timeit "$phase.3 alloc" begin
             block = actual_alloc(sz)
         end
         block === nothing || break
 
-        @pool_timeit "$phase.3 reclaim + alloc" begin
+        @pool_timeit "$phase.4 reclaim + alloc" begin
             reclaim(sz)
             block = actual_alloc(sz)
         end
@@ -100,8 +132,11 @@ function pool_alloc(sz)
 end
 
 function pool_free(block)
-    @assert !in(block, available)
-    push!(available, block)
+    # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
+    # and to simplify locking (preventing concurrent access during GC interventions)
+    @lock freed_lock begin
+        push!(freed, block)
+    end
 end
 
 
@@ -113,7 +148,9 @@ function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
         ptr = pointer(block)
-        allocated[ptr] = block
+        @lock pool_lock begin
+            allocated[ptr] = block
+        end
         return ptr
     else
         return nothing
@@ -121,16 +158,17 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = allocated[ptr]
-    delete!(allocated, block)
+    block = @lock pool_lock begin
+        block = allocated[ptr]
+        delete!(allocated, ptr)
+        block
+    end
     pool_free(block)
     return
 end
 
-used_memory() = isempty(allocated) ? 0 : sum(sizeof, values(allocated))
+used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() = isempty(available) ? 0 : sum(sizeof, available)
-
-dump() = return
+cached_memory() = @lock pool_lock mapreduce(sizeof, +, union(available, freed); init=0)
 
 end

@@ -5,7 +5,8 @@ using TimerOutputs
 
 using Base: @lock
 
-# global lock for shared resources (alloc stats, usage limits, etc).
+# global lock for shared object dicts (allocated, requested).
+# stats are not covered by this and cannot be assumed to be exact.
 # each allocator needs to lock its own resources separately too.
 const memory_lock = ReentrantLock()
 
@@ -48,12 +49,12 @@ called.
 """
 alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 
-const usage = Ref(0)
+const usage = Threads.Atomic{Int}(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
 const allocated = Dict{CuPtr{Nothing},Mem.DeviceBuffer}()
 
-function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
+function actual_alloc(bytes)
   # check the memory allocation limit
   if usage_limit[] !== nothing
     if usage[] + bytes > usage_limit[]
@@ -66,6 +67,7 @@ function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
     time = Base.@elapsed begin
       @timeit_debug alloc_to "alloc" buf = Mem.alloc(Mem.Device, bytes)
     end
+    Threads.atomic_add!(usage, bytes)
     time, buf
   catch err
     (isa(err, CuError) && err.code == CUDAdrv.ERROR_OUT_OF_MEMORY) || rethrow()
@@ -74,15 +76,15 @@ function actual_alloc(bytes)::Union{Nothing,CuPtr{Nothing}}
   @assert sizeof(buf) == bytes
   ptr = convert(CuPtr{Nothing}, buf)
 
-  # manage state
+  # record the buffer
   @lock memory_lock begin
-    alloc_stats.actual_time += time
-    alloc_stats.actual_nalloc += 1
-    alloc_stats.actual_alloc += bytes
-    usage[] += bytes
     @assert !haskey(allocated, ptr)
     allocated[ptr] = buf
   end
+
+  alloc_stats.actual_time += time
+  alloc_stats.actual_nalloc += 1
+  alloc_stats.actual_alloc += bytes
 
   return ptr
 end
@@ -90,23 +92,21 @@ end
 function actual_free(ptr::CuPtr{Nothing})
   # look up the buffer
   buf = @lock memory_lock begin
-    allocated[ptr]
+    buf = allocated[ptr]
+    delete!(allocated, ptr)
+    buf
   end
   bytes = sizeof(buf)
 
   # free the memory
   @timeit_debug alloc_to "free" begin
     time = Base.@elapsed Mem.free(buf)
+    Threads.atomic_sub!(usage, bytes)
   end
 
-  # manage state
-  @lock memory_lock begin
-    alloc_stats.actual_time += time
-    alloc_stats.actual_nfree += 1
-    alloc_stats.actual_free += bytes
-    usage[] -= bytes
-    delete!(allocated, ptr)
-  end
+  alloc_stats.actual_time += time
+  alloc_stats.actual_nfree += 1
+  alloc_stats.actual_free += bytes
 
   return
 end
@@ -148,7 +148,7 @@ const pool = Ref{Module}(BinnedPool)
 
 export OutOfGPUMemoryError
 
-const requested = Dict{CuPtr{Nothing},Int}()
+const requested = Dict{CuPtr{Nothing},Vector}()
 
 """
     OutOfGPUMemoryError()
@@ -171,23 +171,26 @@ end
 Allocate a number of bytes `sz` from the memory pool. Returns a `CuPtr{Nothing}`; may throw
 a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 """
-@inline function alloc(sz)::CuPtr{Nothing}
+@inline function alloc(sz)
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)
+    @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)::Union{Nothing,CuPtr{Nothing}}
   end
   ptr === nothing && throw(OutOfGPUMemoryError(sz))
 
-  # manage state
-  @lock memory_lock begin
-    alloc_stats.pool_time += time
-    alloc_stats.pool_nalloc += 1
-    alloc_stats.pool_alloc += sz
-    @assert !haskey(requested, ptr)
-    requested[ptr] = sz
+  # record the allocation
+  if Base.JLOptions().debug_level >= 2
+    @lock memory_lock begin
+      @assert !haskey(requested, ptr)
+      requested[ptr] = backtrace()
+    end
   end
+
+  alloc_stats.pool_time += time
+  alloc_stats.pool_nalloc += 1
+  alloc_stats.pool_alloc += sz
 
   return ptr
 end
@@ -201,18 +204,20 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
+  # record the allocation
+  if Base.JLOptions().debug_level >= 2
+    @lock memory_lock begin
+      @assert haskey(requested, ptr)
+      delete!(requested, ptr)
+    end
+  end
+
   time = Base.@elapsed begin
     @pool_timeit "pooled free" pool[].free(ptr)
   end
 
-  # manage state
-  @lock memory_lock begin
-    alloc_stats.pool_time += time
-    alloc_stats.pool_nfree += 1
-    @assert haskey(requested, ptr)
-    sz = requested[ptr]
-    delete!(requested, ptr)
-  end
+  alloc_stats.pool_time += time
+  alloc_stats.pool_nfree += 1
 
   return
 end
@@ -370,12 +375,11 @@ function memory_status(io::IO=stdout)
   free_bytes, total_bytes = CUDAdrv.Mem.info()
   used_bytes = total_bytes - free_bytes
   used_ratio = used_bytes / total_bytes
-
   @printf(io, "Effective GPU memory usage: %.2f%% (%s/%s)\n",
               100*used_ratio, Base.format_bytes(used_bytes),
               Base.format_bytes(total_bytes))
 
-  @printf(io, "CuArrays GPU memory usage: %s", Base.format_bytes(usage[]))
+  @printf(io, "CuArrays allocator usage: %s", Base.format_bytes(usage[]))
   if usage_limit[] !== nothing
     @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[]))
   end
@@ -384,23 +388,29 @@ function memory_status(io::IO=stdout)
   alloc_used_bytes = pool[].used_memory()
   alloc_cached_bytes = pool[].cached_memory()
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
-
   @printf(io, "%s usage: %s (%s allocated, %s cached)\n", nameof(pool[]),
               Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
               Base.format_bytes(alloc_cached_bytes))
 
-  requested_bytes = reduce(+, values(requested); init=0)
-
-  @printf(io, "%s efficiency: %.2f%% (%s requested, %s allocated)\n", nameof(pool[]),
-              100*requested_bytes/usage[],
-              Base.format_bytes(requested_bytes),
-              Base.format_bytes(usage[]))
-
   # check if the memory usage as counted by the CUDA allocator wrapper
   # matches what is reported by the pool implementation
-  discrepancy = usage[] - alloc_total_bytes
+  discrepancy = abs(usage[] - alloc_total_bytes)
   if discrepancy != 0
-    @debug "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator"
+    println(io, "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator!")
+  end
+
+  if Base.JLOptions().debug_level >= 2
+    @lock memory_lock begin
+      for (ptr, bt) in requested
+        buf = allocated[ptr]
+        @printf(io, "\nOutstanding memory allocation of %s at %p",
+                Base.format_bytes(sizeof(buf)), Int(ptr))
+        stack = stacktrace(bt, false)
+        StackTraces.remove_frames!(stack, :alloc)
+        Base.show_backtrace(io, stack)
+        println(io)
+      end
+    end
   end
 end
 
@@ -413,21 +423,32 @@ end
 Enable the recording of debug timings.
 """
 enable_timings() = (TimerOutputs.enable_debug_timings(CuArrays); return)
+disable_timings() = (TimerOutputs.disable_debug_timings(CuArrays); return)
 
 function __init_memory__()
   if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
-    usage_limit[] = parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
+    Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_memory__)
+    ENV["JULIA_CUDA_MEMORY_LIMIT"] = ENV["CUARRAYS_MEMORY_LIMIT"]
+  end
+
+  if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
+    usage_limit[] = parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
   end
 
   if haskey(ENV, "CUARRAYS_MEMORY_POOL")
+    Base.depwarn("The CUARRAYS_MEMORY_POOL environment flag is deprecated, please use JULIA_CUDA_MEMORY_POOL instead.", :__init_memory__)
+    ENV["JULIA_CUDA_MEMORY_POOL"] = ENV["CUARRAYS_MEMORY_POOL"]
+  end
+
+  if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
     pool[] =
-      if ENV["CUARRAYS_MEMORY_POOL"] == "binned"
+      if ENV["JULIA_CUDA_MEMORY_POOL"] == "binned"
         BinnedPool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "simple"
+      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "simple"
         SimplePool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "split"
+      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "split"
         SplittingPool
-      elseif ENV["CUARRAYS_MEMORY_POOL"] == "none"
+      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "none"
         DummyPool
       else
         error("Invalid allocator selected")
@@ -436,7 +457,7 @@ function __init_memory__()
   pool[].init()
 
   # if the user hand-picked an allocator, be a little verbose
-  if haskey(ENV, "CUARRAYS_MEMORY_POOL")
+  if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
     atexit(()->begin
       Core.println("""
         CuArrays.jl $(nameof(pool[])) statistics:

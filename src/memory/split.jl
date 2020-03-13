@@ -9,8 +9,8 @@ using DataStructures
 
 using CUDAdrv
 
-# use a macro-version of Base.lock to avoid closures
 using Base: @lock
+using Base.Threads: SpinLock
 
 
 ## tunables
@@ -42,7 +42,7 @@ using Printf
     FREED
 end
 
-const block_id = Ref(UInt(0))
+const block_id = Threads.Atomic{UInt}(1)
 
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
@@ -56,8 +56,8 @@ mutable struct Block
 
     id::UInt
 
-    Block(ptr, sz; off=0, state=INVALID,
-          prev=nothing, next=nothing, id=block_id[]+=1) =
+    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing,
+          id=Threads.atomic_add!(block_id, UInt(1))) =
         new(ptr, sz, off, state, prev, next, id)
 end
 
@@ -126,42 +126,23 @@ end
 
 ## pooling
 
-using Base.Threads: SpinLock
-const pool_lock = SpinLock()   # protect against deletion from freelists
+const pool_lock = ReentrantLock()
 
-const scan_lower_bound = Block(nothing, 0; id=0)
-function scan!(blocks, sz, max_overhead=typemax(Int))
+function scan!(pool, sz, max_overhead=typemax(Int))
     max_sz = max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
-        # semantically, the following code iterates and selects a block:
-        #   for block in blocks
-        #   if sz <= sizeof(block) <= max_sz
-        #       delete!(blocks, block)
-        #       return block
-        #   end
-        #   return nothing
-        # but since we know the sorted set is backed by a balanced tree, we can do better
-
-        # get the entry right before first sufficiently large one
-        scan_lower_bound.sz = sz    # prevent allocations
-        i, exact = findkey(blocks.bt, scan_lower_bound)
-        @assert !exact  # block id bits are zero, so this match can't be exact
-
-        if i == DataStructures.endloc(blocks.bt)
-            # last entry, none is following
-            return nothing
-        else
-            # a valid entry, make sure it isn't too large
-            i = DataStructures.nextloc0(blocks.bt, i)
-            block = blocks.bt.data[i].k
-            @assert sz <= sizeof(block)
-            if sz > max_sz
-                return nothing
-            else
-                delete!(blocks.bt, i)   # FIXME: this allocates
+        # get the first entry that is sufficiently large
+        i = searchsortedfirst(pool, Block(nothing, sz; id=0))
+        if i != pastendsemitoken(pool)
+            block = deref((pool,i))
+            @assert sizeof(block) >= sz
+            if sz <= max_sz
+                delete!((pool,i))   # FIXME: this allocates
                 return block
             end
         end
+
+        return nothing
     end
 end
 
@@ -175,21 +156,25 @@ function incremental_compact!(blocks)
         while !isempty(blocks)
             block = pop!(blocks)
             @assert block.state == AVAILABLE
-            available = get_available(sizeof(block))
+            pool = get_pool(sizeof(block))
+            @assert in(block, pool)
 
             # find the head of a sequence
             head = block
             while head.prev !== nothing && head.prev.state == AVAILABLE
                 head = head.prev
+                @assert in(head, pool)
             end
+            szclass = size_class(sizeof(head))
 
             if head.next !== nothing && head.next.state == AVAILABLE
-                delete!(available, head)
+                delete!(pool, head)
 
                 # find the tail (from the head, removing blocks as we go)
                 tail = head.next
                 while true
-                    delete!(available, tail)    # FIXME: allocates
+                    @assert szclass === size_class(sizeof(tail)) "block $tail should not have been split to a different pool than $head"
+                    delete!(pool, tail)    # FIXME: allocates
                     delete!(blocks, tail)
                     tail.state = INVALID
                     compacted += 1
@@ -202,22 +187,23 @@ function incremental_compact!(blocks)
 
                 # compact
                 head = merge!(head, tail)
-                @assert !in(head, available) "$head should not be in the pool"
+                @assert !in(head, pool) "$head should not be in the pool"
                 @assert head.state == AVAILABLE
-                push!(available, head)
+                @assert szclass === size_class(sizeof(head)) "compacted $head should not end up in a different pool"
+                push!(pool, head)
             end
         end
     end
     return compacted
 end
 
-function reclaim!(blocks, sz=typemax(Int))
+function reclaim!(pool, sz=typemax(Int))
     freed = 0
-    candidates = Block[]
 
     @lock pool_lock begin
         # mark non-split blocks
-        for block in blocks
+        candidates = Block[]
+        for block in pool
             if iswhole(block)
                 push!(candidates, block)
             end
@@ -225,7 +211,7 @@ function reclaim!(blocks, sz=typemax(Int))
 
         # free them
         for block in candidates
-            delete!(blocks, block)
+            delete!(pool, block)
             freed += sizeof(block)
             actual_free(block)
             freed >= sz && break
@@ -235,17 +221,28 @@ function reclaim!(blocks, sz=typemax(Int))
     return freed
 end
 
-# repopulate the "available" pools from a list of freed blocks
-function repopulate(blocks)
+# repopulate the pools from the list of freed blocks
+function repopulate()
+    blocks = @lock freed_lock begin
+        isempty(freed) && return
+        blocks = Set(freed)
+        empty!(freed)
+        blocks
+    end
+
     @lock pool_lock begin
         for block in blocks
-            available = get_available(sizeof(block))
-            @assert !in(block, available) "$block should not be in the pool"
+            pool = get_pool(sizeof(block))
+            @assert !in(block, pool) "$block should not be in the pool"
             @assert block.state == FREED "$block should have been marked freed"
             block.state = AVAILABLE
-            push!(available, block) # FIXME: allocates
+            push!(pool, block) # FIXME: allocates
         end
+
+        incremental_compact!(blocks)
     end
+
+    return
 end
 
 const SMALL = 1
@@ -257,11 +254,12 @@ const HUGE  = 3
 unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(block.id)
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
-const available_small = SortedSet{Block}(UniqueIncreasingSize)
-const available_large = SortedSet{Block}(UniqueIncreasingSize)
-const available_huge  = SortedSet{Block}(UniqueIncreasingSize)
-const allocated = Dict{CuPtr{Nothing},Block}()
+const pool_small = SortedSet{Block}(UniqueIncreasingSize)
+const pool_large = SortedSet{Block}(UniqueIncreasingSize)
+const pool_huge  = SortedSet{Block}(UniqueIncreasingSize)
+
 const freed = Vector{Block}()
+const freed_lock = SpinLock()
 
 function size_class(sz)
     if sz <= SMALL_CUTOFF
@@ -273,14 +271,14 @@ function size_class(sz)
     end
 end
 
-@inline function get_available(sz)
+@inline function get_pool(sz)
     szclass = size_class(sz)
     if szclass == SMALL
-        return available_small
+        return pool_small
     elseif szclass == LARGE
-        return available_large
+        return pool_large
     elseif szclass == HUGE
-        return available_huge
+        return pool_huge
     end
 end
 
@@ -300,7 +298,7 @@ function pool_alloc(sz)
     szclass = size_class(sz)
 
     # select a pool
-    available = get_available(sz)
+    pool = get_pool(sz)
 
     # determine the maximum scan overhead
     max_overhead = if szclass == SMALL
@@ -319,16 +317,10 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        if !isempty(freed)
-            # `freed` may be modified concurrently, so take a copy
-            blocks = Set(freed)
-            empty!(freed)
-            @pool_timeit "$phase.1a repopulate" repopulate(blocks)
-            @pool_timeit "$phase.1b compact" incremental_compact!(blocks)
-        end
+        @pool_timeit "$phase.1 repopulate" repopulate()
 
         @pool_timeit "$phase.2 scan" begin
-            block = scan!(available, sz, max_overhead)
+            block = scan!(pool, sz, max_overhead)
         end
         block === nothing || break
 
@@ -340,8 +332,8 @@ function pool_alloc(sz)
         # we're out of memory, try freeing up some memory. this is a fairly expensive
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
-        for available in (available_huge, available_large, available_small)
-            @pool_timeit "$phase.4a reclaim" reclaim!(available, sz)
+        for pool in (pool_huge, pool_large, pool_small)
+            @pool_timeit "$phase.4a reclaim" reclaim!(pool, sz)
             @pool_timeit "$phase.4b alloc" block = actual_alloc(sz)
             block === nothing || break
         end
@@ -349,9 +341,9 @@ function pool_alloc(sz)
 
         # last-ditch effort, reclaim everything
         @pool_timeit "$phase.5a reclaim" begin
-            reclaim!(available_huge)
-            reclaim!(available_large)
-            reclaim!(available_small)
+            reclaim!(pool_huge)
+            reclaim!(pool_large)
+            reclaim!(pool_small)
         end
         @pool_timeit "$phase.5b alloc" block = actual_alloc(sz)
     end
@@ -367,7 +359,9 @@ function pool_alloc(sz)
         if szclass != HUGE && remainder > 0 && size_class(remainder) == szclass
             split = split!(block, sz)
             split.state = AVAILABLE
-            push!(available, split)
+            @lock pool_lock begin
+                push!(pool, split)
+            end
         end
     end
 
@@ -376,23 +370,29 @@ end
 
 function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
-    # and to simplify locking (and prevent concurrent access during GC interventions)
+    # and to simplify locking (preventing concurrent access during GC interventions)
     block.state = FREED
-    push!(freed, block)
+    @lock freed_lock begin
+        push!(freed, block)
+    end
 end
 
 
 ## interface
+
+const allocated = Dict{CuPtr{Nothing},Block}()
 
 init() = return
 
 function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
-        ptr = pointer(block)
-        @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
         block.state = ALLOCATED
-        allocated[ptr] = block
+        ptr = pointer(block)
+        @lock pool_lock begin
+            @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
+            allocated[ptr] = block
+        end
         return ptr
     else
         return nothing
@@ -400,49 +400,29 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = allocated[ptr]
+    block = @lock pool_lock begin
+        block = allocated[ptr]
+        delete!(allocated, ptr)
+        block
+    end
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
-    delete!(allocated, ptr)
     pool_free(block)
     return
 end
 
 function reclaim(sz::Int=typemax(Int))
-    if !isempty(freed)
-        blocks = Set(freed)
-        empty!(freed)
-        repopulate(blocks)
-        incremental_compact!(blocks)
-    end
+    repopulate()
 
     freed_sz = 0
-    for available in (available_huge, available_large, available_small)
+    for pool in (pool_huge, pool_large, pool_small)
         freed_sz >= sz && break
-        freed_sz += reclaim!(available, sz-freed_sz)
+        freed_sz += reclaim!(pool, sz-freed_sz)
     end
     return freed_sz
 end
 
-used_memory() = mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() = mapreduce(sizeof, +, union(available_small, available_large, available_huge); init=0)
-
-function dump()
-    println("Allocated blocks: $((Base.format_bytes(used_memory())))")
-    for block in sort(collect(values(allocated)); by=sizeof)
-        println(" - ", block)
-    end
-
-    println("Available, but fragmented blocks: $((Base.format_bytes(cached_memory())))")
-    for block in available_small
-        println(" - small ", block)
-    end
-    for block in available_large
-        println(" - large ", block)
-    end
-    for block in available_huge
-        println(" - huge ", block)
-    end
-end
+cached_memory() = @lock pool_lock mapreduce(sizeof, +, union(pool_small, pool_large, pool_huge, freed); init=0)
 
 end

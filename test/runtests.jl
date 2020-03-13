@@ -67,6 +67,7 @@ include("nnlib.jl")
 include("statistics.jl")
 
 if haskey(ENV, "CI")
+  GC.gc(true)
   CuArrays.memory_status()
   CuArrays.pool_timings()
   CuArrays.alloc_timings()
