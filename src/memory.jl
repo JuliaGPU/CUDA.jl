@@ -232,48 +232,34 @@ actually reclaimed.
 reclaim(sz::Int=typemax(Int)) = pool[].reclaim(sz)
 
 """
-    extalloc(f::Function; check::Function=isa(OutOfGPUMemoryError), nb::Integer=typemax(Int))
+    @retry_reclaim fail ex
 
-Run a function `f` repeatedly until it successfully allocates the memory it needs. Only
-out-of-memory exceptions that pass `check` are considered for retry; this defaults to
-checking for the CuArrays out-of-memory exception but should be customized as to detect how
-an out-of-memory situation is reported by the function `f`. The argument `nb` indicates how
-many bytes of memory `f` requires, and serves as a hint for how much memory to reclaim
-before trying `f` again.
+Run a block of code `ex` repeatedly until it successfully allocates the memory it needs;
+Failure to do so indicated by returning `fail`. At each try, more and more memory is freed
+from the CuArrays memory pool. When that is not possible anymore, `fail` will be returned.
 
-This function is intended to be used with external functionality that allocates but does not
-use the CuArrays memory pool, thus conflicting with its caching behavior.
+This macro is intended for use with CUDA APIs, which sometimes allocate (outside of the
+CuArrays memory pool) and return a specific error code when failing to.
 """
-function extalloc(f::Function; check::Function=ex->isa(ex,OutOfGPUMemoryError), nb::Integer=typemax(Int))
-  phase = 0
-  while true
-    phase += 1
-    return try
-      f()
-    catch ex
-      check(ex) || rethrow()
+macro retry_reclaim(fail, ex)
+  quote
+    ret = nothing
+    for phase in 1:3
+      ret = $(esc(ex))
+      ret == $(esc(fail)) || break
 
-      # incrementally costly reclaim of more and more memory
+      # incrementally more costly reclaim of cached memory
       if phase == 1
-        reclaim(nb)
+        reclaim()
       elseif phase == 2
         GC.gc(false)
-        reclaim(nb)
+        reclaim()
       elseif phase == 3
         GC.gc(true)
-        reclaim(nb)
-      elseif phase == 4
-        # maybe the user lied, so try reclaiming all memory
-        GC.gc(true)
         reclaim()
-      else
-        # give up
-        rethrow()
       end
-
-      # try again
-      continue
     end
+    ret
   end
 end
 

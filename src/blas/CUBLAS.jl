@@ -8,7 +8,7 @@ using CUDAdrv: CUstream
 using CUDAnative
 
 using ..CuArrays
-using ..CuArrays: libcublas, unsafe_free!
+using ..CuArrays: libcublas, unsafe_free!, @retry_reclaim
 using LinearAlgebra
 
 using CEnum

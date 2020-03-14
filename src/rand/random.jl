@@ -20,7 +20,7 @@ mutable struct RNG <: Random.AbstractRNG
 
     function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
         handle_ref = Ref{curandGenerator_t}()
-        @allocates curandCreateGenerator(handle_ref, typ)
+        curandCreateGenerator(handle_ref, typ)
 
         obj = new(handle_ref[], context(), typ)
         finalizer(unsafe_destroy!, obj)
@@ -42,7 +42,7 @@ Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.handle
 function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)
-    @allocates curandGenerateSeeds(rng)
+    curandGenerateSeeds(rng)
     return
 end
 
@@ -59,11 +59,11 @@ end
 const UniformType = Union{Type{Float32},Type{Float64}}
 const UniformArray = CuArray{<:Union{Float32,Float64}}
 function Random.rand!(rng::RNG, A::CuArray{Float32})
-    @allocates curandGenerateUniform(rng, A, length(A))
+    curandGenerateUniform(rng, A, length(A))
     return A
 end
 function Random.rand!(rng::RNG, A::CuArray{Float64})
-    @allocates curandGenerateUniformDouble(rng, A, length(A))
+    curandGenerateUniformDouble(rng, A, length(A))
     return A
 end
 
@@ -86,11 +86,11 @@ end
 const NormalType = Union{Type{Float32},Type{Float64}}
 const NormalArray = CuArray{<:Union{Float32,Float64}}
 function Random.randn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1)
-    inplace_pow2(A, B->@allocates(curandGenerateNormal(rng, B, length(B), mean, stddev)))
+    inplace_pow2(A, B->curandGenerateNormal(rng, B, length(B), mean, stddev))
     return A
 end
 function Random.randn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1)
-    inplace_pow2(A, B->@allocates(curandGenerateNormalDouble(rng, B, length(B), mean, stddev)))
+    inplace_pow2(A, B->curandGenerateNormalDouble(rng, B, length(B), mean, stddev))
     return A
 end
 
@@ -98,11 +98,11 @@ end
 const LognormalType = Union{Type{Float32},Type{Float64}}
 const LognormalArray = CuArray{<:Union{Float32,Float64}}
 function rand_logn!(rng::RNG, A::CuArray{Float32}; mean=0, stddev=1)
-    inplace_pow2(A, B->@allocates(curandGenerateLogNormal(rng, B, length(B), mean, stddev)))
+    inplace_pow2(A, B->curandGenerateLogNormal(rng, B, length(B), mean, stddev))
     return A
 end
 function rand_logn!(rng::RNG, A::CuArray{Float64}; mean=0, stddev=1)
-    inplace_pow2(A, B->@allocates(curandGenerateLogNormalDouble(rng, B, length(B), mean, stddev)))
+    inplace_pow2(A, B->curandGenerateLogNormalDouble(rng, B, length(B), mean, stddev))
     return A
 end
 
@@ -110,7 +110,7 @@ end
 const PoissonType = Union{Type{Cuint}}
 const PoissonArray = CuArray{Cuint}
 function rand_poisson!(rng::RNG, A::CuArray{Cuint}; lambda=1)
-    @allocates curandGeneratePoisson(rng, A, length(A), lambda)
+    curandGeneratePoisson(rng, A, length(A), lambda)
     return A
 end
 

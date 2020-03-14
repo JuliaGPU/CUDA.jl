@@ -1,7 +1,7 @@
 module CUTENSOR
 
 using ..CuArrays
-using ..CuArrays: libcutensor, @argout, @workspace
+using ..CuArrays: libcutensor, @argout, @workspace, @retry_reclaim
 
 using CUDAapi
 

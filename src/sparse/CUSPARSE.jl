@@ -1,7 +1,7 @@
 module CUSPARSE
 
 using ..CuArrays
-using ..CuArrays: libcusparse, unsafe_free!, @argout, @workspace
+using ..CuArrays: libcusparse, unsafe_free!, @argout, @workspace, @retry_reclaim
 
 using CUDAapi
 

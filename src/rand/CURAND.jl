@@ -1,7 +1,7 @@
 module CURAND
 
 using ..CuArrays
-using ..CuArrays: libcurand
+using ..CuArrays: libcurand, @retry_reclaim
 
 using CUDAapi
 

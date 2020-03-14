@@ -3,7 +3,7 @@ module CUFFT
 using CUDAapi
 
 using ..CuArrays
-import ..CuArrays: libcufft, unsafe_free!
+import ..CuArrays: libcufft, unsafe_free!, @retry_reclaim
 
 using CUDAdrv
 using CUDAdrv: CUstream

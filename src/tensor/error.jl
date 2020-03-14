@@ -62,7 +62,7 @@ end
 
 macro check(ex)
     quote
-        res = $(esc(ex))
+        res = @retry_reclaim CUTENSOR_STATUS_ALLOC_FAILED $(esc(ex))
         if res != CUTENSOR_STATUS_SUCCESS
             throw_api_error(res)
         end
