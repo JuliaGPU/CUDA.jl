@@ -65,6 +65,13 @@ end # level 1 testset
             dA = CuArray(A)
             @test_throws DimensionMismatch mul!(dy, dA, dx)
         end
+        @testset "mul! y = $f(A) * x * a + y * b" for f in (identity, transpose, adjoint)
+            y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
+            dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
+            mul!(dy, f(dA), dx, 1, 2)
+            mul!(y, f(A), x, 1, 2)
+            @test Array(dy) ≈ y
+        end
         @testset "banded methods" begin
             # bands
             ku = 2
@@ -399,6 +406,13 @@ end # level 1 testset
         end
     end
     @testset "Level 3" begin
+        @testset "mul! C = $f(A) *  $g(B) * a + C * b" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint)
+            C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
+            dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
+            mul!(dC, f(dA), g(dB), 1, 2)
+            mul!(C, f(A), g(B), 1, 2)
+            @test Array(dC) ≈ C
+        end
         A = rand(elty,m,k)
         B = rand(elty,k,n)
         Bbad = rand(elty,k+1,n+1)
