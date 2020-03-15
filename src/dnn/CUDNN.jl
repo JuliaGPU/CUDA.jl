@@ -11,7 +11,7 @@ using CUDAnative
 using CEnum
 
 using ..CuArrays
-using ..CuArrays: libcudnn, @argout, @workspace
+using ..CuArrays: libcudnn, @argout, @workspace, @retry_reclaim
 import ..CuArrays.unsafe_free!
 
 import NNlib

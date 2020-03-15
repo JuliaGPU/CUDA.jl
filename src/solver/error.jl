@@ -50,7 +50,7 @@ end
 
 macro check(ex)
     quote
-        res = $(esc(ex))
+        res = @retry_reclaim CUSOLVER_STATUS_ALLOC_FAILED $(esc(ex))
         if res != CUSOLVER_STATUS_SUCCESS
             throw_api_error(res)
         end

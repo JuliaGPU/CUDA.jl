@@ -9,12 +9,3 @@ end
 version() = VersionNumber(curandGetProperty(CUDAapi.MAJOR_VERSION),
                           curandGetProperty(CUDAapi.MINOR_VERSION),
                           curandGetProperty(CUDAapi.PATCH_LEVEL))
-
-macro allocates(ex)
-  quote
-    CuArrays.extalloc(check=err->isa(err, CURANDError) &&
-                                 err.code == CURAND_STATUS_ALLOCATION_FAILED) do
-      $(esc(ex))
-    end
-  end
-end

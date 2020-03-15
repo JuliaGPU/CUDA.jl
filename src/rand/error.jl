@@ -60,7 +60,7 @@ end
 
 macro check(ex)
     quote
-        res = $(esc(ex))
+        res = @retry_reclaim CURAND_STATUS_ALLOCATION_FAILED $(esc(ex))
         if res != CURAND_STATUS_SUCCESS
             throw_api_error(res)
         end

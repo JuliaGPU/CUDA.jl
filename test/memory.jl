@@ -3,9 +3,8 @@
 CuArrays.reclaim(1024)
 CuArrays.reclaim()
 
-CuArrays.extalloc(()->())
-CuArrays.extalloc(()->(); check=ex->true)
-CuArrays.extalloc(()->(); nb=1)
+@test CuArrays.@retry_reclaim(42, return 42) == 42
+@test CuArrays.@retry_reclaim(42, return 41) == 41
 
 @test_throws OutOfGPUMemoryError CuArray{Int}(undef, 10^20)
 @test_throws OutOfGPUMemoryError CuArrays.extalloc() do
