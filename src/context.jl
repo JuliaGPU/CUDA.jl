@@ -18,11 +18,6 @@ the system cleans up the resources allocated to it.
 When you are done using the context, call [`unsafe_destroy!`](@ref) to mark it for deletion,
 or use do-block syntax with this constructor.
 
-!!! warning
-
-    Contexts are unique, and should be compared using `===` and not `isequal` or `==`: With
-    primary device contexts, identical handles might be returned after resetting the context
-    (device) and all associated resources.
 """
 mutable struct CuContext
     handle::CUcontext
@@ -34,6 +29,10 @@ mutable struct CuContext
         end
     end
 end
+
+# NOTE: we don't implement `isequal` or `hash` in order to fall back to `===` and `objectid`
+#       as contexts are unique, and with primary device contexts identical handles might be
+#       returned after resetting the context (device) and all associated resources.
 
 # the `valid` bit serves two purposes: make sure we don't double-free a context (in case we
 # early-freed it ourselves before the GC kicked in), and to make sure we don't free derived
@@ -62,9 +61,6 @@ function unsafe_destroy!(ctx::CuContext)
 end
 
 Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
-
-Base.:(==)(a::CuContext, b::CuContext) = a.handle == b.handle
-Base.hash(ctx::CuContext, h::UInt) = hash(ctx.handle, h)
 
 @enum_without_prefix CUctx_flags CU_
 
