@@ -215,7 +215,7 @@ end
 function axpby!(alpha::Ta,
                 x::CuArray{T},
                 rx::Union{UnitRange{Ti},AbstractRange{Ti}},
-                beta::Tb
+                beta::Tb,
                 y::CuArray{T},
                 ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:CublasFloat,Ta<:Number,Tb<:Number,Ti<:Integer}
     length(rx)==length(ry) || throw(DimensionMismatch(""))
