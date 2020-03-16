@@ -97,7 +97,10 @@ function __configure__(show_reason::Bool)
     end
 
     @debug "Initializing CUDA driver"
-    ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
+    res = ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
+    if res != SUCCESS
+        throw_api_error(res)
+    end
 
     return true
 end
