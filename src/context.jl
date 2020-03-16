@@ -24,7 +24,7 @@ mutable struct CuContext
 
     function CuContext(handle::CUcontext)
         handle == C_NULL && return new(C_NULL)
-        return get!(valid_contexts, handle) do
+        return Base.@lock context_lock get!(valid_contexts, handle) do
             new(handle)
         end
     end
@@ -39,6 +39,7 @@ end
 # resources after the owning context has been destroyed (which can happen due to
 # out-of-order finalizer execution)
 const valid_contexts = Dict{CUcontext,CuContext}()
+const context_lock = ReentrantLock()
 isvalid(ctx::CuContext) = any(x->x===ctx, values(valid_contexts))
 # NOTE: we can't just look up by the handle, because contexts derived from a primary one
 #       have the same handle even though they might have been destroyed in the meantime.
