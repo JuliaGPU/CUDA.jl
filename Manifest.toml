@@ -28,9 +28,9 @@ version = "4.0.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "CUDAapi", "Printf"]
-git-tree-sha1 = "134b2184bdc780778f2fc9e09e11aca52f84b779"
+git-tree-sha1 = "f176b994a6e4c70aafa626cbf825aa9c34adc9e6"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "6.0.1"
+version = "6.1.0"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
