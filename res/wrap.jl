@@ -152,6 +152,7 @@ preinit_apicalls = Set{String}([
     "cuDeviceGetProperties",     # deprecated
     "cuDeviceComputeCapability", # deprecated
     # context management
+    "cuCtxSetCurrent",
     "cuCtxGetCurrent",
     # calls that were required before JuliaGPU/CUDAnative.jl#518
     # TODO: remove on CUDAdrv v6+

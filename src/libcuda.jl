@@ -143,7 +143,6 @@ end
 end
 
 @checked function cuCtxSetCurrent(ctx)
-    initialize_api()
     @runtime_ccall((:cuCtxSetCurrent, libcuda()), CUresult,
                    (CUcontext,),
                    ctx)
