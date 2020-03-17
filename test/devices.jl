@@ -7,4 +7,6 @@ attribute(dev, CUDAdrv.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
 capability(dev)
 @grab_output show(stdout, "text/plain", dev)
 
+@test eval(Meta.parse(repr(dev))) == dev
+
 end
