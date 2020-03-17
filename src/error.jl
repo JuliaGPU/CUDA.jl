@@ -82,7 +82,7 @@ function Base.showerror(io::IO, err::CuError)
     end
 end
 
-Base.show(io::IO, err::CuError) = print(io, "CuError($(err.code))")
+Base.show(io::IO, ::MIME"text/plain", err::CuError) = print(io, "CuError($(err.code))")
 
 @enum_without_prefix cudaError_enum CUDA_
 

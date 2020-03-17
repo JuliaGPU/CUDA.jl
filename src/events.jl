@@ -59,9 +59,9 @@ call to `record(e)` and `true` if all captured work has been completed.
 """
 function query(e::CuEvent)
     res = unsafe_cuEventQuery(e)
-    if res === ERROR_NOT_READY
+    if res == ERROR_NOT_READY
         return false
-    elseif res === SUCCESS
+    elseif res == SUCCESS
         return true
     else
         throw_api_error(res)
