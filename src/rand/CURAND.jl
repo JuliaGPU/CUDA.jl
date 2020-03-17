@@ -23,33 +23,32 @@ include("wrappers.jl")
 # high-level integrations
 include("random.jl")
 
-const handles_lock = ReentrantLock()
-const created_generators = Dict{Tuple{UInt,Int},RNG}()
-const active_generators = Vector{Union{Nothing,RNG}}()
+# thread cache for task-local library handles
+const thread_generators = Vector{Union{Nothing,RNG}}()
 
 function generator()
     tid = Threads.threadid()
-    if @inbounds active_generators[tid] === nothing
+    if @inbounds thread_generators[tid] === nothing
         ctx = context()
-        key = (objectid(ctx), tid)
-        lock(handles_lock) do
-            active_generators[tid] = get!(created_generators, key) do
-                rng = RNG()
-                Random.seed!(rng)
-                rng
-            end
+        thread_generators[tid] = get!(task_local_storage(), (:CURAND, ctx)) do
+            rng = RNG()
+            Random.seed!(rng)
+            rng
         end
     end
-    @inbounds active_generators[tid]
+    @inbounds thread_generators[tid]
 end
 
 function __init__()
-    resize!(active_generators, Threads.nthreads())
-    fill!(active_generators, nothing)
+    resize!(thread_generators, Threads.nthreads())
+    fill!(thread_generators, nothing)
 
     CUDAnative.atcontextswitch() do tid, ctx
-        # we don't eagerly initialize handles, but do so lazily when requested
-        active_generators[tid] = nothing
+        thread_generators[tid] = nothing
+    end
+
+    CUDAnative.attaskswitch() do tid, task
+        thread_generators[tid] = nothing
     end
 end
 

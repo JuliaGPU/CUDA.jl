@@ -27,33 +27,32 @@ include("wrappers.jl")
 # high-level integrations
 include("interfaces.jl")
 
-const handles_lock = ReentrantLock()
-const created_handles = Dict{Tuple{UInt,Int},cusparseHandle_t}()
-const active_handles = Vector{Union{Nothing,cusparseHandle_t}}()
+# thread cache for task-local library handles
+const thread_handles = Vector{Union{Nothing,cusparseHandle_t}}()
 
 function handle()
     tid = Threads.threadid()
-    if @inbounds active_handles[tid] === nothing
+    if @inbounds thread_handles[tid] === nothing
         ctx = context()
-        key = (objectid(ctx), tid)
-        lock(handles_lock) do
-            active_handles[tid] = get!(created_handles, key) do
-                handle = cusparseCreate()
-                atexit(()->CUDAdrv.isvalid(ctx) && cusparseDestroy(handle))
-                handle
-            end
+        thread_handles[tid] = get!(task_local_storage(), (:CUSPARSE, ctx)) do
+            handle = cusparseCreate()
+            atexit(()->CUDAdrv.isvalid(ctx) && cusparseDestroy(handle))
+            handle
         end
     end
-    @inbounds active_handles[tid]
+    @inbounds thread_handles[tid]
 end
 
 function __init__()
-    resize!(active_handles, Threads.nthreads())
-    fill!(active_handles, nothing)
+    resize!(thread_handles, Threads.nthreads())
+    fill!(thread_handles, nothing)
 
     CUDAnative.atcontextswitch() do tid, ctx
-        # we don't eagerly initialize handles, but do so lazily when requested
-        active_handles[tid] = nothing
+        thread_handles[tid] = nothing
+    end
+
+    CUDAnative.attaskswitch() do tid, task
+        thread_handles[tid] = nothing
     end
 end
 
