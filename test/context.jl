@@ -1,7 +1,6 @@
 @testset "context" begin
 
 @test ctx == CuCurrentContext()
-@test ctx === CuCurrentContext()
 
 let ctx2 = CuContext(dev)
     @test ctx2 == CuCurrentContext()    # ctor implicitly pushes

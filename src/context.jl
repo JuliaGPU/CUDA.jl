@@ -40,7 +40,7 @@ end
 # out-of-order finalizer execution)
 const valid_contexts = Dict{CUcontext,CuContext}()
 const context_lock = ReentrantLock()
-isvalid(ctx::CuContext) = any(x->x===ctx, values(valid_contexts))
+isvalid(ctx::CuContext) = any(x->x==ctx, values(valid_contexts))
 # NOTE: we can't just look up by the handle, because contexts derived from a primary one
 #       have the same handle even though they might have been destroyed in the meantime.
 function invalidate!(ctx::CuContext)
