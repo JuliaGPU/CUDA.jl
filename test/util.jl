@@ -76,7 +76,7 @@ end
 
 function julia_script(code, args=``)
     # FIXME: this doesn't work when the compute mode is set to exclusive
-    script = "using CUDAnative; import CUDAdrv; $code"
+    script = "using CUDAnative, CUDAdrv; device!($(device())); $code"
     cmd = ```
         $(Base.julia_cmd())
         --code-coverage=$(("none", "user", "all")[Base.JLOptions().code_coverage + 1])
