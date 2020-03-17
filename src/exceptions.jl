@@ -39,7 +39,7 @@ function check_exceptions()
         if CUDAdrv.isvalid(ctx)
             ptr = convert(Ptr{Int}, buf)
             flag = unsafe_load(ptr)
-            if flag !== 0
+            if flag != 0
                 unsafe_store!(ptr, 0)
                 dev = device(ctx)
                 throw(KernelException(dev))
