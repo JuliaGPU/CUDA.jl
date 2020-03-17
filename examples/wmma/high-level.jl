@@ -10,9 +10,10 @@ if capability(device()) < v"7.0"
 end
 
 ### START
-using CUDAnative
-using CuArrays
 using Test
+
+using CUDAnative
+const CuArray = CUDAnative.CuHostArray  # real applications: use CuArrays.jl
 
 a     = rand(Float16, (16, 16))
 b     = rand(Float16, (16, 16))

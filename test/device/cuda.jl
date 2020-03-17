@@ -667,7 +667,7 @@ if capability(device()) >= v"3.0"
                        Int8, Int16, Int32, Int64, Int128,
                        Float32, Float64, ComplexF32, ComplexF64, Bool]
         a = rand(T, warpsize)
-        d_a = CuArray{T}(a)
+        d_a = CuArray(a)
         @cuda threads=warpsize kernel(d_a)
         @test Array(d_a) == reverse(a)
     end
