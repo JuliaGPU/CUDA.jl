@@ -19,7 +19,14 @@ Base.unsafe_convert(::Type{<:CuPtr}, x::CuHostArray) = pointer(x)
 
 function CuHostArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
     len = prod(dims)
-    buf = Mem.alloc(Mem.Device, len*sizeof(T))
+    sz = len*sizeof(T)
+    buf = try
+        Mem.alloc(Mem.Device, sz)
+    catch err
+        (isa(err, CuError) && err.code == CUDAdrv.ERROR_OUT_OF_MEMORY) || rethrow()
+        GC.gc(true)
+        Mem.alloc(Mem.Device, sz)
+    end
     ptr = convert(CuPtr{T}, buf)
 
     obj = CuHostArray{T,N}(ptr, dims)
