@@ -65,14 +65,13 @@ end
 const thread_tasks = Union{Nothing,WeakRef}[]
 @noinline function switched_tasks(tid::Int, task::Task)
     thread_tasks[tid] = WeakRef(task)
+    _attaskswitch(tid, task)
 
     # switch contexts if task switched to was already bound to one
     ctx = get(task_local_storage(), :CuContext, nothing)
     if ctx !== nothing
         context!(ctx)
     end
-
-    _attaskswitch(tid, task)
 end
 
 """
