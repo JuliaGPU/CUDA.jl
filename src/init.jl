@@ -72,6 +72,8 @@ const thread_tasks = Union{Nothing,WeakRef}[]
     if ctx !== nothing
         context!(ctx)
     end
+    # NOTE: deactivating the context in the case ctx===nothing would be more correct,
+    #       but that confuses CUDA and leads to invalid contexts later on.
 end
 
 """
