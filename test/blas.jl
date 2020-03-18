@@ -931,10 +931,8 @@ end # level 1 testset
             # generate matrices
             syrkx_A = rand(elty, n, k)
             syrkx_B = rand(elty, n, k)
-            h_syrkx_C = CUBLAS.xt_syrkx('U','N',syrkx_A,syrkx_B)
+            h_C = CUBLAS.xt_syrkx('U','N',syrkx_A,syrkx_B)
             final_C = syrkx_A*transpose(syrkx_B)
-            # move to host and compare
-            h_C = Array(d_syrkx_C)
             @test triu(final_C) ≈ triu(h_C)
         end
         @testset "syrk" begin
@@ -997,8 +995,7 @@ end # level 1 testset
                 @test C ≈ h_C
             end
             @testset "xt_herk! cpu" begin
-                d_C = CuArray(dhA)
-                h_C = Array(d_C)
+                h_C = copy(dhA)
                 CUBLAS.xt_herk!('U','N',alpha,Array(d_A),beta,h_C)
                 C = alpha*(A*A') + beta*C
                 C = triu(C)
