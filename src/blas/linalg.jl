@@ -86,8 +86,8 @@ LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuMatrix{T}}, B::CuVector
 LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuMatrix{T}}, B::CuVector{T}, a::Number, b::Number) where T<:CublasComplex = 
     gemv_wrapper!(Y, 'C', A.parent, B, promote_alpha_beta(a, b, T)...)
 
-# Fix Julia 1.3.0 ambiguities... they're fixed in 1.3.1 thanks to https://github.com/JuliaLang/julia/pull/33743
-@static if VERSION === v"1.3.0"
+# Fix Julia <= 1.3.1 ambiguities... they're fixed in 1.4.x thanks to https://github.com/JuliaLang/julia/pull/33743
+@static if v"1.3.0" <= VERSION <= v"1.3.1"
     LinearAlgebra.mul!(Y::CuVector{T}, A::CuMatrix{T}, B::CuVector{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat = 
         gemv_wrapper!(Y, 'N', A, B, promote_alpha_beta(a, b, T)...)
     LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:CuMatrix{T}}, B::CuVector{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat = 
@@ -206,8 +206,8 @@ LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{T, <:CuMatrix{T}}, trB::Transpo
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuMatrix{T}}, trB::Transpose{<:Any, <:CuMatrix{T}}, a::Number, b::Number) where T <: CublasComplex =
     gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), promote_alpha_beta(a, b, T)...)
 
-# Fix Julia 1.3.0 ambiguities... they're fixed in 1.3.1 thanks to https://github.com/JuliaLang/julia/pull/33743
-@static if VERSION === v"1.3.0"
+# Fix Julia <= 1.3.1 ambiguities... they're fixed in 1.4.x thanks to https://github.com/JuliaLang/julia/pull/33743
+@static if v"1.3.0" <= VERSION <= v"1.3.1"
     LinearAlgebra.mul!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat = 
         gemm_wrapper!(C, 'N', 'N', A, B, promote_alpha_beta(a, b, T)...)
     LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuMatrix{T}}, B::CuMatrix{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat =
