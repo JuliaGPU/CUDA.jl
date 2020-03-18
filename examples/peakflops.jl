@@ -1,4 +1,5 @@
-using CUDAdrv, CUDAnative, CuArrays
+using CUDAdrv, CUDAnative
+const CuArray = CUDAnative.CuHostArray  # real applications: use CuArrays.jl
 
 using Test
 

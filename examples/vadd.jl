@@ -1,6 +1,7 @@
 using Test
 
-using CUDAdrv, CUDAnative, CuArrays
+using CUDAdrv, CUDAnative
+const CuArray = CUDAnative.CuHostArray  # real applications: use CuArrays.jl
 
 function vadd(a, b, c)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x

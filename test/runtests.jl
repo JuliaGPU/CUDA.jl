@@ -1,10 +1,13 @@
 using Test, Base.CoreLogging
 import Base.CoreLogging: Info
 
-using CUDAnative, CuArrays, CUDAdrv
+using CUDAnative, CUDAdrv
 import Adapt, LLVM
 
 include("util.jl")
+
+# TODO: also run the tests with CuArrays.jl
+const CuArray = CUDAnative.CuHostArray
 
 @testset "CUDAnative" begin
 
