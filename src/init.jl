@@ -85,7 +85,7 @@ Use this hook to invalidate thread-local state that depends on the current task.
 """
 attaskswitch(f::Function) = (pushfirst!(task_hooks, f); nothing)
 const task_hooks = []
-_attaskswitch(tid, task) = foreach(listener->listener(tid, task), task_hooks)
+_attaskswitch(tid, task) = foreach(f->Base.invokelatest(f, tid, task), task_hooks)
 
 
 ## context-based API
@@ -147,7 +147,7 @@ Use this hook to invalidate thread-local state that depends on the current devic
 """
 atcontextswitch(f::Function) = (pushfirst!(context_hooks, f); nothing)
 const context_hooks = []
-_atcontextswitch(tid, ctx) = foreach(listener->listener(tid, ctx), context_hooks)
+_atcontextswitch(tid, ctx) = foreach(f->Base.invokelatest(f, tid, ctx), context_hooks)
 
 
 ## device-based API
