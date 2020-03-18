@@ -1769,10 +1769,10 @@ for (fname, elty) in
         function xt_gemm!(transA::Char,
                        transB::Char,
                        alpha::($elty),
-                       A::CuVecOrMat{$elty},
-                       B::CuVecOrMat{$elty},
+                       A::Union{CuVecOrMat{$elty}, VecOrMat{$elty}},
+                       B::Union{CuVecOrMat{$elty}, VecOrMat{$elty}},
                        beta::($elty),
-                       C::CuVecOrMat{$elty})
+                       C::Union{CuVecOrMat{$elty}, VecOrMat{$elty}})
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
             n = size(B, transB == 'N' ? 2 : 1)
@@ -1790,16 +1790,16 @@ for (fname, elty) in
         function xt_gemm(transA::Char,
                       transB::Char,
                       alpha::($elty),
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::Union{CuVecOrMat{$elty}, VecOrMat{$elty}},
+                      B::Union{CuVecOrMat{$elty}, VecOrMat{$elty}})
             xt_gemm!(transA, transB, alpha, A, B, zero($elty),
                   similar(B, $elty, (size(A, transA == 'N' ? 1 : 2),
                                      size(B, transB == 'N' ? 2 : 1))))
         end
         function xt_gemm(transA::Char,
                       transB::Char,
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::Union{CuVecOrMat{$elty}, VecOrMat{$elty}},
+                      B::Union{CuVecOrMat{$elty}, VecOrMat{$elty}})
             xt_gemm(transA, transB, one($elty), A, B)
         end
     end
@@ -1819,10 +1819,10 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
        function xt_hemm!(side::Char,
                       uplo::Char,
                       alpha::($elty),
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty},
+                      A::Union{Matrix{$elty}, CuMatrix{$elty}},
+                      B::Union{Matrix{$elty}, CuMatrix{$elty}},
                       beta::($elty),
-                      C::CuMatrix{$elty})
+                      C::Union{Matrix{$elty}, CuMatrix{$elty}})
            cuside = cublasside(side)
            cuuplo = cublasfill(uplo)
            mA, nA = size(A)
@@ -1841,12 +1841,12 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
        function xt_hemm(uplo::Char,
                      trans::Char,
                      alpha::($elty),
-                     A::CuMatrix{$elty},
-                     B::CuMatrix{$elty})
+                     A::Union{Matrix{$elty}, CuMatrix{$elty}},
+                     B::Union{Matrix{$elty}, CuMatrix{$elty}})
            m,n = size(B)
            xt_hemm!( uplo, trans, alpha, A, B, zero($elty), similar(B, $elty, (m,n) ) )
        end
-       xt_hemm( uplo::Char, trans::Char, A::CuMatrix{$elty}, B::CuMatrix{$elty}) = xt_hemm( uplo, trans, one($elty), A, B)
+       xt_hemm( uplo::Char, trans::Char, A::Union{Matrix{$elty}, CuMatrix{$elty}}, B::Union{Matrix{$elty}, CuMatrix{$elty}}) = xt_hemm( uplo, trans, one($elty), A, B)
     end
 end
 
@@ -1865,10 +1865,10 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
         function xt_symm!(side::Char,
                        uplo::Char,
                        alpha::($elty),
-                       A::CuMatrix{$elty},
-                       B::CuMatrix{$elty},
+                       A::Union{Matrix{$elty}, CuMatrix{$elty}},
+                       B::Union{Matrix{$elty}, CuMatrix{$elty}},
                        beta::($elty),
-                       C::CuMatrix{$elty})
+                       C::Union{Matrix{$elty}, CuMatrix{$elty}})
             cuside = cublasside(side)
             cuuplo = cublasfill(uplo)
             k, nA = size(A)
@@ -1888,14 +1888,14 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
         function xt_symm(side::Char,
                       uplo::Char,
                       alpha::($elty),
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::Union{Matrix{$elty}, CuMatrix{$elty}},
+                      B::Union{Matrix{$elty}, CuMatrix{$elty}})
             xt_symm!(side, uplo, alpha, A, B, zero($elty), similar(B))
         end
         function xt_symm(side::Char,
                       uplo::Char,
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::Union{Matrix{$elty}, CuMatrix{$elty}},
+                      B::Union{Matrix{$elty}, CuMatrix{$elty}})
             xt_symm(side, uplo, one($elty), A, B)
         end
     end
@@ -1914,9 +1914,9 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
        function xt_syrk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
-                      A::CuVecOrMat{$elty},
+                      A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
                       beta::($elty),
-                      C::CuMatrix{$elty})
+                      C::Union{Matrix{$elty}, CuMatrix{$elty}})
            cuuplo = cublasfill(uplo)
            cutrans = cublasop(trans)
            mC, n = size(C)
@@ -1934,14 +1934,12 @@ end
 function xt_syrk(uplo::Char,
               trans::Char,
               alpha::Number,
-              A::CuVecOrMat)
+              A::Union{VecOrMat, CuVecOrMat})
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
     xt_syrk!(uplo, trans, convert(T,alpha), A, zero(T), similar(A, T, (n, n)))
 end
-xt_syrk(uplo::Char, trans::Char, A::CuVecOrMat) = xt_syrk(uplo, trans,
-                                                              one(eltype(A)),
-                                                              A)
+xt_syrk(uplo::Char, trans::Char, A::Union{VecOrMat, CuVecOrMat}) = xt_syrk(uplo, trans, one(eltype(A)), A)
 
 for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
                       (:cublasXtSsyrkx,:Float32),
@@ -1956,10 +1954,10 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
        function xt_syrkx!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
-                      A::CuVecOrMat{$elty},
-                      B::CuVecOrMat{$elty},
+                      A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                      B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
                       beta::($elty),
-                      C::CuMatrix{$elty})
+                      C::Union{Matrix{$elty}, CuMatrix{$elty}})
            cuuplo = cublasfill(uplo)
            cutrans = cublasop(trans)
            mC, n = size(C)
@@ -1978,14 +1976,14 @@ end
 function xt_syrkx(uplo::Char,
               trans::Char,
               alpha::Number,
-              A::CuVecOrMat,
-              B::CuVecOrMat,
+              A::Union{VecOrMat, CuVecOrMat},
+              B::Union{VecOrMat, CuVecOrMat},
               beta::Number)
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
     xt_syrkx!(uplo, trans, convert(T,alpha), A, B, convert(T,beta), similar(A, T, (n, n)))
 end
-xt_syrkx(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) = xt_syrkx(uplo, trans,
+xt_syrkx(uplo::Char, trans::Char, A::Union{VecOrMat, CuVecOrMat}, B::Union{VecOrMat, CuVecOrMat}) = xt_syrkx(uplo, trans,
                                                                  one(eltype(A)), A, B,
                                                                  zero(eltype(B)))
 
@@ -2000,9 +1998,9 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
        function xt_herk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
-                      A::CuVecOrMat{$elty},
+                      A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
                       beta::($elty),
-                      C::CuMatrix{$elty})
+                      C::Union{Matrix{$elty}, CuMatrix{$elty}})
            cuuplo = cublasfill(uplo)
            cutrans = cublasop(trans)
            mC, n = size(C)
@@ -2015,11 +2013,11 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
            $fname(xt_handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
            C
        end
-       function xt_herk(uplo::Char, trans::Char, alpha::($elty), A::CuVecOrMat{$elty})
+       function xt_herk(uplo::Char, trans::Char, alpha::($elty), A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
            n = size(A, trans == 'N' ? 1 : 2)
            xt_herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
        end
-       xt_herk(uplo::Char, trans::Char, A::CuVecOrMat{$elty}) = xt_herk(uplo, trans, one($elty), A)
+       xt_herk(uplo::Char, trans::Char, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}}) = xt_herk(uplo, trans, one($elty), A)
    end
 end
 
@@ -2035,10 +2033,10 @@ for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
        function xt_her2k!(uplo::Char,
                        trans::Char,
                        alpha::($elty1),
-                       A::CuVecOrMat{$elty1},
-                       B::CuVecOrMat{$elty1},
+                       A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
+                       B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
                        beta::($elty2),
-                       C::CuMatrix{$elty1})
+                       C::Union{Matrix{$elty1}, CuMatrix{$elty1}})
            # TODO: check size of B in julia (her2k!)
            cuuplo = cublasfill(uplo)
            cutrans = cublasop(trans)
@@ -2061,15 +2059,15 @@ for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
        function xt_her2k(uplo::Char,
                       trans::Char,
                       alpha::($elty1),
-                      A::CuVecOrMat{$elty1},
-                      B::CuVecOrMat{$elty1})
+                      A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
+                      B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}})
            n = size(A, trans == 'N' ? 1 : 2)
            xt_her2k!(uplo, trans, alpha, A, B, zero($elty2), similar(A, $elty1, (n,n)))
        end
        xt_her2k(uplo::Char,
              trans::Char,
-             A::CuVecOrMat{$elty1},
-             B::CuVecOrMat{$elty1}) = xt_her2k(uplo, trans, one($elty1), A, B)
+             A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
+             B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}}) = xt_her2k(uplo, trans, one($elty1), A, B)
    end
 end
 
@@ -2094,9 +2092,9 @@ for (mmname, smname, elty) in
                        transa::Char,
                        diag::Char,
                        alpha::($elty),
-                       A::CuMatrix{$elty},
-                       B::CuMatrix{$elty},
-                       C::CuMatrix{$elty})
+                       A::Union{Matrix{$elty}, CuMatrix{$elty}},
+                       B::Union{Matrix{$elty}, CuMatrix{$elty}},
+                       C::Union{Matrix{$elty}, CuMatrix{$elty}})
             cuside = cublasside(side)
             cuuplo = cublasfill(uplo)
             cutransa = cublasop(transa)
@@ -2119,8 +2117,8 @@ for (mmname, smname, elty) in
                       transa::Char,
                       diag::Char,
                       alpha::($elty),
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::Union{CuMatrix{$elty}, Matrix{$elty}},
+                      B::Union{CuMatrix{$elty}, Matrix{$elty}})
             xt_trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
         end
         # cublasStatus_t cublasDtrsm(cublasHandle_t handle,
@@ -2135,8 +2133,8 @@ for (mmname, smname, elty) in
                        transa::Char,
                        diag::Char,
                        alpha::($elty),
-                       A::CuMatrix{$elty},
-                       B::CuMatrix{$elty})
+                       A::Union{CuMatrix{$elty}, Matrix{$elty}},
+                       B::Union{CuMatrix{$elty}, Matrix{$elty}})
             cuside = cublasside(side)
             cuuplo = cublasfill(uplo)
             cutransa = cublasop(transa)
@@ -2156,8 +2154,8 @@ for (mmname, smname, elty) in
                       transa::Char,
                       diag::Char,
                       alpha::($elty),
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::Union{CuMatrix{$elty}, Matrix{$elty}},
+                      B::Union{CuMatrix{$elty}, Matrix{$elty}})
             xt_trsm!(side, uplo, transa, diag, alpha, A, copy(B))
         end
     end

@@ -4460,9 +4460,9 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null
     },
     "cublasXtDtrsm": {
@@ -4474,9 +4474,9 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null
     },
     "cublasXtCtrsm": {
@@ -4488,9 +4488,9 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null
     },
     "cublasXtZtrsm": {
@@ -4502,9 +4502,9 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null
     },
     "cublasXtStrmm": {
@@ -4516,11 +4516,11 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtDtrmm": {
@@ -4532,11 +4532,11 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCtrmm": {
@@ -4548,11 +4548,11 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZtrmm": {
@@ -4564,11 +4564,11 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtSgemm": {
@@ -4579,12 +4579,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtDgemm": {
@@ -4595,12 +4595,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCgemm": {
@@ -4611,12 +4611,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZgemm": {
@@ -4627,12 +4627,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtSsyrk": {
@@ -4642,10 +4642,10 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtDsyrk": {
@@ -4655,10 +4655,10 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCsyrk": {
@@ -4668,10 +4668,10 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZsyrk": {
@@ -4681,10 +4681,10 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCherk": {
@@ -4694,10 +4694,10 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZherk": {
@@ -4707,10 +4707,10 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtSsyr2k": {
@@ -4720,12 +4720,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtDsyr2k": {
@@ -4735,12 +4735,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCsyr2k": {
@@ -4750,12 +4750,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZsyr2k": {
@@ -4765,12 +4765,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCher2k": {
@@ -4780,12 +4780,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZher2k": {
@@ -4795,12 +4795,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtSsyrkx": {
@@ -4810,12 +4810,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtDsyrkx": {
@@ -4825,12 +4825,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCsyrkx": {
@@ -4840,12 +4840,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZsyrkx": {
@@ -4855,12 +4855,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCherkx": {
@@ -4870,12 +4870,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZherkx": {
@@ -4885,12 +4885,12 @@
         "n": null,
         "k": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtSsymm": {
@@ -4900,12 +4900,12 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtDsymm": {
@@ -4915,12 +4915,12 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtCsymm": {
@@ -4930,12 +4930,12 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZsymm": {
@@ -4945,12 +4945,12 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtChemm": {
@@ -4960,12 +4960,12 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cublasXtZhemm": {
@@ -4975,12 +4975,12 @@
         "m": null,
         "n": null,
         "alpha": "PtrOrCuPtr",
-        "A": "CuPtr",
+        "A": "PtrOrCuPtr",
         "lda": null,
-        "B": "CuPtr",
+        "B": "PtrOrCuPtr",
         "ldb": null,
         "beta": "PtrOrCuPtr",
-        "C": "CuPtr",
+        "C": "PtrOrCuPtr",
         "ldc": null
     },
     "cufftGetProperty": {
