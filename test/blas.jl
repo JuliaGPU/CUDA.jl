@@ -65,13 +65,6 @@ end # level 1 testset
             dA = CuArray(A)
             @test_throws DimensionMismatch mul!(dy, dA, dx)
         end
-        @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint), Ts in (Int, elty)
-            y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
-            dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
-            mul!(dy, f(dA), dx, Ts(1), Ts(1))
-            mul!(y, f(A), x, elty(1), elty(2)) # elty can be replaced with `Ts` on Julia 1.4
-            @test Array(dy) ≈ y
-        end
         @testset "banded methods" begin
             # bands
             ku = 2
@@ -406,13 +399,6 @@ end # level 1 testset
         end
     end
     @testset "Level 3" begin
-        @testset "mul! C = $f(A) *  $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
-            C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
-            dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
-            mul!(dC, f(dA), g(dB), Ts(1), Ts(2))
-            mul!(C, f(A), g(B), elty(1), elty(2)) # elty can be replaced with `Ts` on Julia 1.4
-            @test Array(dC) ≈ C
-        end
         A = rand(elty,m,k)
         B = rand(elty,k,n)
         Bbad = rand(elty,k+1,n+1)
