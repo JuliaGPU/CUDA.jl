@@ -46,7 +46,7 @@ const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
 # CUDA uses thread-bound contexts, but calling CuCurrentContext all the time is expensive,
 # so we maintain our own thread-local state keeping track of the current context.
-const thread_contexts = Union{Nothing,CuContext}[] # TODO: WeakRef
+const thread_contexts = Union{Nothing,CuContext}[]
 @noinline function initialize_thread(tid::Int)
     ctx = CuCurrentContext()
     if ctx === nothing
