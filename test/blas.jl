@@ -986,8 +986,8 @@ end # level 1 testset
             end
             @testset "xt_herk! gpu" begin
                 d_C = CuArray(dhA)
+                C = alpha*(A*A') + beta*Array(d_C)
                 CUBLAS.xt_herk!('U','N',alpha,d_A,beta,d_C)
-                C = alpha*(A*A') + beta*C
                 C = triu(C)
                 # move to host and compare
                 h_C = Array(d_C)
@@ -995,9 +995,9 @@ end # level 1 testset
                 @test C ≈ h_C
             end
             @testset "xt_herk! cpu" begin
-                h_C = copy(dhA)
+                h_C = Array(dhA)
                 CUBLAS.xt_herk!('U','N',alpha,Array(d_A),beta,h_C)
-                C = alpha*(A*A') + beta*C
+                C = alpha*(A*A') + beta*Array(dhA)
                 C = triu(C)
                 # move to host and compare
                 h_C = triu(h_C)
