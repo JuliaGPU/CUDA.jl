@@ -10,11 +10,11 @@ export context, context!, device!, device_reset!
 
 Prepare state for calling CUDA API functions.
 
-Many CUDA APIs, like the CUDA driver API used by CUDAnative, use global thread-local state
+Many CUDA APIs, like the CUDA driver API used by CUDAnative, use implicit thread-local state
 to determine, e.g., which device to use. With Julia however, code is grouped in tasks.
 Execution can switch between them, and tasks can be executing on (and in the future migrate
 between) different threads. To synchronize these two worlds, call this function before any
-CUDA API call to update thread-local state based on the current task.
+CUDA API call to update thread-local state based on the current task and its context.
 
 If you need to maintain your own thread-local state, subscribe to context and task switch
 events using [`CUDAnative.atcontextswitch`](@ref) and [`CUDAnative.attaskswitch`](@ref) for
@@ -39,8 +39,9 @@ proper invalidation.
     return
 end
 
-# the default device new threads will use, set when switching devices.
+# the default device unitialized tasks will use, set when switching devices.
 # this behavior differs from the CUDA Runtime, where device 0 is always used.
+# this setting won't be used when switching tasks on a pre-initialized thread.
 const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
 # CUDA uses thread-bound contexts, but calling CuCurrentContext all the time is expensive,
@@ -65,19 +66,14 @@ const thread_tasks = Union{Nothing,WeakRef}[]
 @noinline function switched_tasks(tid::Int, task::Task)
     thread_tasks[tid] = WeakRef(task)
 
-    # switch contexts
-    if haskey(task_contexts, task)
-        context!(task_contexts[task])
-    else
-        device!(something(default_device[], CuDevice(0)))
+    # switch contexts if task switched to was already bound to one
+    ctx = get(task_local_storage(), :CuContext, nothing)
+    if ctx !== nothing
+        context!(ctx)
     end
 
     _attaskswitch(tid, task)
 end
-
-# for resetting devices, we need to be able to iterate tasks and find their contexts.
-# Julia supports neither iterating tasks nor inspecing other tasks' local storage.
-const task_contexts = WeakKeyDict{Task,CuContext}()
 
 """
     CUDAnative.attaskswitch(f::Function)
@@ -109,7 +105,6 @@ current thread).
 
     if Base.JLOptions().debug_level >= 2
         @assert ctx == CuCurrentContext()
-        @assert ctx == task_contexts[current_task()]
     end
 
     ctx
@@ -134,8 +129,7 @@ function context!(ctx::CuContext)
     end
 
     # update the task-local state
-    task = current_task()
-    task_contexts[task] = ctx
+    task_local_storage(:CuContext, ctx)
 
     return
 end
