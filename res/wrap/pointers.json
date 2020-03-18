@@ -191,8 +191,8 @@
         "currIdx": null,
         "loWinIdx": "Ptr",
         "hiWinIdx": "Ptr",
-        "devSeqLengthsQO": "Ptr",
-        "devSeqLengthsKV": "Ptr",
+        "seqLengthArrayQRO": "Ptr",
+        "seqLengthArrayKV": "Ptr",
         "qDesc": null,
         "queries": "CuPtr",
         "residuals": "CuPtr",
@@ -713,8 +713,8 @@
         "attnDesc": null,
         "loWinIdx": "Ptr",
         "hiWinIdx": "Ptr",
-        "devSeqLengthsDQDO": "Ptr",
-        "devSeqLengthsDKDV": "Ptr",
+        "seqLengthArrayDQDO": "Ptr",
+        "seqLengthArrayDKDV": "Ptr",
         "doDesc": null,
         "dout": "CuPtr",
         "dqDesc": null,
@@ -821,7 +821,7 @@
     },
     "cudnnGetAttnDescriptor": {
         "attnDesc": null,
-        "attnMode": "Ptr",
+        "queryMap": "Ptr",
         "nHeads": "Ptr",
         "smScaler": "Ptr",
         "dataType": "Ptr",
@@ -16775,5 +16775,9 @@
         "n": null,
         "nrhs": null,
         "lwork_bytes": "Ptr"
+    },
+    "cusparseSpMatGetNumBatches": {
+        "spMatDescr": null,
+        "batchCount": "Ptr"
     }
 }
