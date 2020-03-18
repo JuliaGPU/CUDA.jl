@@ -30,28 +30,33 @@ if length(devices()) > 0
     # the API shouldn't have been initialized
     @test CuCurrentContext() == nothing
 
-    callback_data = nothing
-    CUDAnative.atcontextswitch() do task, old, new
-        callback_data = (task=task, old=old, new=new)
+    context_cb = Union{Nothing, CuContext}[nothing for tid in 1:Threads.nthreads()]
+    CUDAnative.atcontextswitch() do tid, ctx
+        context_cb[tid] = ctx
+    end
+
+    task_cb = Union{Nothing, Task}[nothing for tid in 1:Threads.nthreads()]
+    CUDAnative.attaskswitch() do tid, task
+        task_cb[tid] = task
     end
 
     # now cause initialization
     ctx = context()
     @test CuCurrentContext() == ctx
     @test device() == CuDevice(0)
-    @test callback_data.task == current_task()
-    @test callback_data.old === nothing
-    @test callback_data.new == ctx
+    @test context_cb[1] == ctx
+    @test task_cb[1] == current_task()
+
+    fill!(context_cb, nothing)
+    fill!(task_cb, nothing)
 
     # ... on a different task
     task = @async begin
         context()
     end
-    ctx2 = fetch(task)
-    @test ctx == ctx2
-    @test callback_data.task == task
-    @test callback_data.old === nothing
-    @test callback_data.new == ctx
+    @test ctx == fetch(task)
+    @test context_cb[1] == nothing
+    @test task_cb[1] == task
 
     device!(CuDevice(0))
     device!(CuDevice(0)) do
