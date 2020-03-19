@@ -34,9 +34,9 @@ version = "4.0.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "CUDAapi", "Printf"]
-git-tree-sha1 = "f176b994a6e4c70aafa626cbf825aa9c34adc9e6"
+git-tree-sha1 = "9db0ff78ac601ca66c85f3bededdbacc3d1c9bdb"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "6.1.0"
+version = "6.2.0"
 
 [[CUDAnative]]
 deps = ["Adapt", "BinaryProvider", "CEnum", "CUDAapi", "CUDAdrv", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "MacroTools", "Pkg", "Printf", "TimerOutputs"]
@@ -62,9 +62,11 @@ uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "b385075caff384494fdda11300755d667b28b333"
+git-tree-sha1 = "e68ff0162eec49362685a6db1a543547b0eb101f"
+repo-rev = "b1be744d4306dded35fbb055cea20c90291a7d0f"
+repo-url = "https://github.com/JuliaGPU/GPUArrays.jl.git"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "3.0.0"
+version = "3.0.1"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
