@@ -68,7 +68,7 @@ end # level 1 testset
         @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint), Ts in (Int, elty)
             y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
             dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
-            mul!(dy, f(dA), dx, Ts(1), Ts(1))
+            mul!(dy, f(dA), dx, Ts(1), Ts(2))
             mul!(y, f(A), x, elty(1), elty(2)) # elty can be replaced with `Ts` on Julia 1.4
             @test Array(dy) ≈ y
         end
