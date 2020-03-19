@@ -136,6 +136,23 @@ function context!(ctx::CuContext)
 end
 
 """
+    context!(f, ctx)
+
+Sets the active context for the duration of `f`.
+"""
+function context!(f::Function, ctx::CuContext)
+    old_ctx = CuCurrentContext()
+    try
+        context!(ctx)
+        f()
+    finally
+        if old_ctx != nothing
+            context!(old_ctx)
+        end
+    end
+end
+
+"""
     CUDAnative.atcontextswitch(f::Function)
 
 Register a function to be called after switching contexts on a thread. The function is

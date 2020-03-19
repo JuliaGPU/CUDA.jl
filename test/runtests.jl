@@ -63,6 +63,11 @@ if length(devices()) > 0
         nothing
     end
 
+    context!(ctx)
+    context!(ctx) do
+        nothing
+    end
+
     @test_throws AssertionError device!(0, CUDAdrv.CU_CTX_SCHED_YIELD)
 
     device_reset!()
