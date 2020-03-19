@@ -146,18 +146,25 @@ preinit_apicalls = Set{String}([
     "cuDeviceGet",
     "cuDeviceGetAttribute",
     "cuDeviceGetCount",
+    "cuDeviceGetLuid",
     "cuDeviceGetName",
     "cuDeviceGetUuid",
     "cuDeviceTotalMem",
     "cuDeviceGetProperties",     # deprecated
     "cuDeviceComputeCapability", # deprecated
     # context management
+    "cuCtxCreate",
+    "cuCtxDestroy",
     "cuCtxSetCurrent",
     "cuCtxGetCurrent",
-    # calls that were required before JuliaGPU/CUDAnative.jl#518
-    # TODO: remove on CUDAdrv v6+
     "cuCtxPushCurrent",
+    "cuCtxPopCurrent",
+    # primary context management
+    "cuDevicePrimaryCtxGetState",
+    "cuDevicePrimaryCtxRelease",
+    "cuDevicePrimaryCtxReset",
     "cuDevicePrimaryCtxRetain",
+    "cuDevicePrimaryCtxSetFlags",
 ])
 function insert_init(x, state)
     if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"

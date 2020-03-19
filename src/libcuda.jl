@@ -88,42 +88,36 @@ end
 end
 
 @checked function cuDevicePrimaryCtxRelease(dev)
-    initialize_api()
     @runtime_ccall((:cuDevicePrimaryCtxRelease, libcuda()), CUresult,
                    (CUdevice,),
                    dev)
 end
 
 @checked function cuDevicePrimaryCtxSetFlags(dev, flags)
-    initialize_api()
     @runtime_ccall((:cuDevicePrimaryCtxSetFlags, libcuda()), CUresult,
                    (CUdevice, UInt32),
                    dev, flags)
 end
 
 @checked function cuDevicePrimaryCtxGetState(dev, flags, active)
-    initialize_api()
     @runtime_ccall((:cuDevicePrimaryCtxGetState, libcuda()), CUresult,
                    (CUdevice, Ptr{UInt32}, Ptr{Cint}),
                    dev, flags, active)
 end
 
 @checked function cuDevicePrimaryCtxReset(dev)
-    initialize_api()
     @runtime_ccall((:cuDevicePrimaryCtxReset, libcuda()), CUresult,
                    (CUdevice,),
                    dev)
 end
 
 @checked function cuCtxCreate_v2(pctx, flags, dev)
-    initialize_api()
     @runtime_ccall((:cuCtxCreate_v2, libcuda()), CUresult,
                    (Ptr{CUcontext}, UInt32, CUdevice),
                    pctx, flags, dev)
 end
 
 @checked function cuCtxDestroy_v2(ctx)
-    initialize_api()
     @runtime_ccall((:cuCtxDestroy_v2, libcuda()), CUresult,
                    (CUcontext,),
                    ctx)
@@ -136,7 +130,6 @@ end
 end
 
 @checked function cuCtxPopCurrent_v2(pctx)
-    initialize_api()
     @runtime_ccall((:cuCtxPopCurrent_v2, libcuda()), CUresult,
                    (Ptr{CUcontext},),
                    pctx)
