@@ -47,7 +47,11 @@ if length(devices()) > 0
         nothing
     end
 
+    @test_throws AssertionError device!(0, CUDAdrv.CU_CTX_SCHED_YIELD)
+
     device_reset!()
+
+    device!(0, CUDAdrv.CU_CTX_SCHED_YIELD)
 
     # test the device selection functionality
     if length(devices()) > 1

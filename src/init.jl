@@ -11,7 +11,6 @@ const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
 const thread_contexts = Union{Nothing,CuContext}[]
 
-# FIXME: support for flags (see `cudaSetDeviceFlags`)
 
 """
     CUDAnative.initialize_context()
@@ -122,8 +121,15 @@ work with contexts instead and call [`context!`](@ref) directly (5-10ns).
 If your library or code needs to perform an action when the active context changes,
 add a hook using [`CUDAnative.atcontextswitch`](@ref).
 """
-function device!(dev::CuDevice)
+function device!(dev::CuDevice, flags=nothing)
     tid = Threads.threadid()
+
+    # configure the primary context
+    pctx = CuPrimaryContext(dev)
+    if flags !== nothing
+        @assert !isactive(pctx) "Cannot set flags for an active device. Do so before calling any CUDA function, or reset the device first."
+        CUDAdrv.cuDevicePrimaryCtxSetFlags(dev, flags)
+    end
 
     # bail out if switching to the current device
     if @inbounds thread_contexts[tid] !== nothing && dev == device()
@@ -133,13 +139,11 @@ function device!(dev::CuDevice)
     # have new threads use this device as well
     default_device[] = dev
 
-    # get the primary context
-    pctx = CuPrimaryContext(dev)
+    # activate a context
     ctx = CuContext(pctx)
-
     context!(ctx)
 end
-device!(dev::Integer) = device!(CuDevice(dev))
+device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 
 """
     device!(f, dev)
