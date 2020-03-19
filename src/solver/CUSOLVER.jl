@@ -37,7 +37,13 @@ function dense_handle()
         ctx = context()
         thread_dense_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
             handle = cusolverDnCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cusolverDnDestroy(handle))
+            atexit() do
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cusolverDnDestroy(handle)
+                end
+            end
+
             handle
         end
     end
@@ -50,7 +56,13 @@ function sparse_handle()
         ctx = context()
         thread_sparse_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
             handle = cusolverSpCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cusolverSpDestroy(handle))
+            atexit() do
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cusolverSpDestroy(handle)
+                end
+            end
+
             handle
         end
     end

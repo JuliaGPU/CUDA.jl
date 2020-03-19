@@ -48,7 +48,13 @@ function handle()
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUDNN, ctx)) do
             handle = cudnnCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cudnnDestroy(handle))
+            atexit() do
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cudnnDestroy(handle)
+                end
+            end
+
             handle
         end
     end

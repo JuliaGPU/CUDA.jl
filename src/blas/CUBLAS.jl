@@ -35,7 +35,12 @@ function handle()
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
             handle = cublasCreate_v2()
-            atexit(()->CUDAdrv.isvalid(ctx) && cublasDestroy_v2(handle))
+            atexit() do
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cublasDestroy_v2(handle)
+                end
+            end
 
             # enable tensor math mode if our device supports it, and fast math is enabled
             dev = CUDAdrv.device()
@@ -55,7 +60,12 @@ function xt_handle()
         ctx = context()
         thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctx)) do
             handle = cublasXtCreate()
-            atexit(()->CUDAdrv.isvalid(ctx) && cublasXtDestroy(handle))
+            atexit() do
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cublasXtDestroy(handle)
+                end
+            end
 
             # select the devices
             # TODO: this is weird, since we typically use a single device per thread/context

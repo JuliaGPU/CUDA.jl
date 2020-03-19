@@ -29,7 +29,8 @@ mutable struct RNG <: Random.AbstractRNG
 end
 
 function unsafe_destroy!(rng::RNG)
-    if CUDAdrv.isvalid(rng.ctx)
+    CUDAdrv.isvalid(rng.ctx) || return
+    context!(rng.ctx) do
         curandDestroyGenerator(rng)
     end
 end
