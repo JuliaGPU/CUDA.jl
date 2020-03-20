@@ -133,8 +133,7 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, A::AbstractAr
     # be conservative about using shuffle instructions
     shuffle = true
     shuffle &= capability(device()) >= v"3.0"
-    shuffle &= T in (Int32, Int64, Float32, Float64, ComplexF32, ComplexF64)
-    # TODO: add support for Bool (CUDAnative.jl#420)
+    shuffle &= T in (Bool, Int32, Int64, Float32, Float64, ComplexF32, ComplexF64)
 
     # iteration domain, split in two: one part covers the dimensions that should
     # be reduced, and the other covers the rest. combining both covers all values.
