@@ -87,12 +87,12 @@ end
 # entries for the dimensions that should be reduced (and vice versa). The output array
 # is expected to have an additional dimension with as size the number of reduced values
 # for every reduction (i.e. more than one if there's multiple blocks participating).
-function partial_mapreduce_grid(f, op, A, R, neutral, Rreduce, Rother, gridDim_reduce, shuffle)
+function partial_mapreduce_grid(f, op, A, R, neutral, Rreduce, Rother, shuffle)
     # decompose the 1D hardware indices into separate ones for reduction (across threads
     # and possibly blocks if it doesn't fit) and other elements (remaining blocks)
     threadIdx_reduce = threadIdx().x
     blockDim_reduce = blockDim().x
-    blockIdx_other, blockIdx_reduce = fldmod1(blockIdx().x, gridDim_reduce)
+    blockIdx_other = blockIdx().x
 
     # block-based indexing into the values outside of the reduction dimension
     # (that means we can safely synchronize threads within this block)
@@ -101,24 +101,25 @@ function partial_mapreduce_grid(f, op, A, R, neutral, Rreduce, Rother, gridDim_r
         Iother = Rother[iother]
 
         # load the neutral value
-        Iout = CartesianIndex(Tuple(Iother)..., blockIdx_reduce)
+        Iout = CartesianIndex(Tuple(Iother)..., 1)
         neutral = if neutral === nothing
             R[Iout]
         else
             neutral
         end
 
-        # get a value that should be reduced
-        ireduce = threadIdx_reduce + (blockIdx_reduce - 1) * blockDim_reduce
-        val = if ireduce <= length(Rreduce)
+        val = op(neutral, neutral)
+
+        # reduce serially across chunks of input vector that don't fit in a block
+        ireduce = threadIdx_reduce
+        while ireduce <= length(Rreduce)
             Ireduce = Rreduce[ireduce]
             J = max(Iother, Ireduce)
-            f(A[J])
-        else
-            neutral
+            val = op(val, f(A[J]))
+            ireduce += blockDim_reduce
         end
-        val = op(val, neutral)
 
+        # reduce in parallel within the current block
         val = reduce_block(op, val, neutral, shuffle)
 
         # write back to memory
@@ -160,7 +161,7 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, A::AbstractAr
     R′ = reshape(R, (size(R)..., 1))
 
     # determine how many threads we can launch
-    args = (f, op, A, R′, init, Rreduce, Rother, 1, Val(shuffle))
+    args = (f, op, A, R′, init, Rreduce, Rother, Val(shuffle))
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_mapreduce_grid, kernel_tt)
@@ -173,33 +174,13 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, A::AbstractAr
     if reduce_threads > kernel_config.threads
         reduce_threads = shuffle ? prevwarp(dev, kernel_config.threads) : prevpow(2, kernel_config.threads)
     end
-    reduce_blocks = cld(length(Rreduce), reduce_threads)
     other_blocks = length(Rother)
-    threads, blocks = reduce_threads, reduce_blocks*other_blocks
+    threads, blocks = reduce_threads, other_blocks
     shmem = shuffle ? 0 : 2*threads*sizeof(T)
 
     # perform the actual reduction
-    if reduce_blocks == 1
-        # we can cover the dimensions to reduce using a single block
-        @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
-            f, op, A, R′, init, Rreduce, Rother, 1, Val(shuffle))
-    else
-        # we need multiple steps to cover all values to reduce
-        partial = similar(R, (size(R)..., reduce_blocks))
-        if init === nothing
-            # without an explicit initializer we need to copy from the output container
-            sz = prod(size(R))
-            for i in 1:reduce_blocks
-                # TODO: async copies (or async fill!, but then we'd need to load first)
-                #       or maybe just broadcast since that extends singleton dimensions
-                copyto!(partial, (i-1)*sz+1, R, 1, sz)
-            end
-        end
-        @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
-            f, op, A, partial, init, Rreduce, Rother, reduce_blocks, Val(shuffle))
-
-        GPUArrays.mapreducedim!(identity, op, R′, partial, init)
-    end
+    @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
+        f, op, A, R′, init, Rreduce, Rother, Val(shuffle))
 
     return R
 end
