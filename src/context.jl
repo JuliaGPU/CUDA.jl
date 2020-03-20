@@ -8,7 +8,7 @@ export
 ## construction and destruction
 
 """
-    CuContext(dev::CuDevice, flags::CUctx_flags=CTX_SCHED_AUTO)
+    CuContext(dev::CuDevice, flags=CTX_SCHED_AUTO)
     CuContext(f::Function, ...)
 
 Create a CUDA context for device. A context on the GPU is analogous to a process on the CPU,
@@ -65,7 +65,7 @@ Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
 @enum_without_prefix CUctx_flags CU_
 
-function CuContext(dev::CuDevice, flags::CUctx_flags=CTX_SCHED_AUTO)
+function CuContext(dev::CuDevice, flags=0)
     handle_ref = Ref{CUcontext}()
     cuCtxCreate(handle_ref, flags, dev)
     return CuContext(handle_ref[])

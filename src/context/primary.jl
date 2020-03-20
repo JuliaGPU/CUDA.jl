@@ -90,12 +90,11 @@ isactive(pctx::CuPrimaryContext) = state(pctx)[2]
 
 Query the flags of a primary context.
 """
-flags(pctx::CuPrimaryContext) = CUctx_flags(state(pctx)[1])
+flags(pctx::CuPrimaryContext) = state(pctx)[1]
 
 """
     setflags!(pctx::CuPrimaryContext)
 
 Set the flags of a primary context.
 """
-setflags!(pctx::CuPrimaryContext, flags::CUctx_flags) =
-    cuDevicePrimaryCtxSetFlags(pctx.dev, flags)
+setflags!(pctx::CuPrimaryContext, flags) = cuDevicePrimaryCtxSetFlags(pctx.dev, flags)
