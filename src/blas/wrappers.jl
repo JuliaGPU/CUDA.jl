@@ -200,6 +200,33 @@ function axpy!(alpha::Ta,
     y
 end
 
+function axpby!(n::Integer,
+                alpha::T,
+                dx::CuArray{T},
+                incx::Integer,
+                beta::T,
+                dy::CuArray{T},
+                incy::Integer) where T <: CublasFloat
+            scal!(n, beta, dy, incy)
+            axpy!(n, alpha, dx, incx, dy, incy)
+            dy
+end
+
+function axpby!(alpha::Ta,
+                x::CuArray{T},
+                rx::Union{UnitRange{Ti},AbstractRange{Ti}},
+                beta::Tb,
+                y::CuArray{T},
+                ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:CublasFloat,Ta<:Number,Tb<:Number,Ti<:Integer}
+    length(rx)==length(ry) || throw(DimensionMismatch(""))
+    if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
+        throw(BoundsError())
+    end
+    axpby!(length(rx), convert(T, alpha), pointer(x)+(first(rx)-1)*sizeof(T),
+          step(rx), convert(T, beta), pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
+    y
+end
+
 ## iamax
 # TODO: fix iamax in julia base
 for (fname, elty) in ((:cublasIdamax_v2,:Float64),

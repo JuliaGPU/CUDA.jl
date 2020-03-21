@@ -32,6 +32,7 @@ k = 13
     @test testf(norm, rand(T, m))
     @test testf(BLAS.asum, rand(T, m))
     @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
+    @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
     if T <: Complex
         @test testf(BLAS.dotu, rand(T, m), rand(T, m))

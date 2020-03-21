@@ -46,6 +46,10 @@ function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where 
     axpy!(length(x), convert(T,alpha), x, 1, y, 1)
 end
 
+function LinearAlgebra.axpby!(alpha::Number, x::CuArray{T}, beta::Number, y::CuArray{T}) where T<:CublasFloat
+    length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
+    axpby!(length(x), convert(T,alpha), x, 1, convert(T,beta), y, 1)
+end
 
 
 #
