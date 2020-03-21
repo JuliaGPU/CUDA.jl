@@ -10,21 +10,21 @@ version = "0.2.0"
 
 [[CSTParser]]
 deps = ["Tokenize"]
-git-tree-sha1 = "2d85216856653e583207af1662e8b38e628cbec4"
+git-tree-sha1 = "7d10b92c4d9951ccf3009d960d9b66883c174474"
 uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "2.1.0"
+version = "2.2.0"
 
 [[Clang]]
 deps = ["CEnum", "DataStructures", "LLVM_jll", "Libdl"]
-git-tree-sha1 = "444812015d5fe37a40e522eaf52d9a2f030c261b"
+git-tree-sha1 = "98d24455089ea8567eaae53ebd51060aff1dac41"
 uuid = "40e3b903-d033-50b4-a0cc-940c62c95e31"
-version = "0.10.0"
+version = "0.10.1"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "b7720de347734f4716d1815b00ce5664ed6bbfd4"
+git-tree-sha1 = "5a431d46abf2ef2a4d5d00bd0ae61f651cf854c8"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.9"
+version = "0.17.10"
 
 [[Dates]]
 deps = ["Printf"]
