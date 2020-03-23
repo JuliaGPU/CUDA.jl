@@ -35,7 +35,7 @@ function handle()
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
             handle = cublasCreate_v2()
-            atexit() do
+            finalizer(current_task()) do task
                 CUDAdrv.isvalid(ctx) || return
                 context!(ctx) do
                     cublasDestroy_v2(handle)
@@ -60,7 +60,7 @@ function xt_handle()
         ctx = context()
         thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctx)) do
             handle = cublasXtCreate()
-            atexit() do
+            finalizer(current_task()) do task
                 CUDAdrv.isvalid(ctx) || return
                 context!(ctx) do
                     cublasXtDestroy(handle)

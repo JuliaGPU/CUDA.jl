@@ -36,7 +36,7 @@ function handle()
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUSPARSE, ctx)) do
             handle = cusparseCreate()
-            atexit() do
+            finalizer(current_task()) do task
                 CUDAdrv.isvalid(ctx) || return
                 context!(ctx) do
                     cusparseDestroy(handle)
