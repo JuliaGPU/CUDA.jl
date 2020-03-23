@@ -297,7 +297,7 @@ function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::
 end
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
-  unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -306,7 +306,7 @@ function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) w
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
-  unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -315,7 +315,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) w
 end
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
-  unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")

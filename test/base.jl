@@ -391,8 +391,10 @@ end
     @test_throws ErrorException resize!(a, 2)
     @test_throws ErrorException resize!(b, 2)
 
-    c = unsafe_wrap(CuArray{Int}, pointer(b), 2)
-    @test_throws ErrorException resize!(c, 2)
+    GC.@preserve b begin
+      c = unsafe_wrap(CuArray{Int}, pointer(b), 2)
+      @test_throws ErrorException resize!(c, 2)
+    end
 end
 
 @testset "aliasing" begin
