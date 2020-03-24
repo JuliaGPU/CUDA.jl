@@ -2,21 +2,24 @@
 
 *A Julia wrapper for the CUDA driver API.*
 
-| **Documentation**                                                       | **Build Status**                                              |
-|:-----------------------------------------------------------------------:|:-------------------------------------------------------------:|
-| [![][docs-usage-img]][docs-usage-url] [![][docs-api-img]][docs-api-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
-
-[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/pipeline.svg
-[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master
-
-[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/branch/master/graph/badge.svg
-[codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
+| **Documentation**                                                       | **Build Status**                                                     | **Coverage**                    |
+|:-----------------------------------------------------------------------:|:--------------------------------------------------------------------:|:-------------------------------:|
+| [![][docs-usage-img]][docs-usage-url] [![][docs-api-img]][docs-api-url] | [![][gitlab-img]][gitlab-url] [![PkgEval][pkgeval-img]][pkgeval-url] | [![][codecov-img]][codecov-url] |
 
 [docs-usage-img]: https://img.shields.io/badge/docs-usage-blue.svg
 [docs-usage-url]: https://juliagpu.gitlab.io/CUDA.jl/
 
 [docs-api-img]: https://img.shields.io/badge/docs-api-blue.svg
 [docs-api-url]: https://juliagpu.gitlab.io/CUDAdrv.jl/
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAdrv.jl/commits/master
+
+[pkgeval-img]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/C/CUDAdrv.svg
+[pkgeval-url]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/C/CUDAdrv.html
+
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
 
 CUDAdrv.jl proviudes high-level wrappers for the functionality exposed by the CUDA driver
 API, and is meant for users who need high- or low-level access to the CUDA toolkit or the
