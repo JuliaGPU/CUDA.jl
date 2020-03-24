@@ -4,11 +4,12 @@ using Printf
 using TimerOutputs
 
 using Base: @lock
+using Base.Threads: SpinLock
 
 # global lock for shared object dicts (allocated, requested).
 # stats are not covered by this and cannot be assumed to be exact.
 # each allocator needs to lock its own resources separately too.
-const memory_lock = ReentrantLock()
+const memory_lock = SpinLock()
 
 
 ## allocation statistics

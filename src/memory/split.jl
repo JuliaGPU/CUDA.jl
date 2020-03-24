@@ -380,6 +380,7 @@ end
 
 ## interface
 
+const allocated_lock = SpinLock()
 const allocated = Dict{CuPtr{Nothing},Block}()
 
 init() = return
@@ -389,7 +390,7 @@ function alloc(sz)
     if block !== nothing
         block.state = ALLOCATED
         ptr = pointer(block)
-        @lock pool_lock begin
+        @lock allocated_lock begin
             @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
             allocated[ptr] = block
         end
@@ -400,7 +401,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = @lock pool_lock begin
+    block = @lock allocated_lock begin
         block = allocated[ptr]
         delete!(allocated, ptr)
         block
@@ -421,8 +422,8 @@ function reclaim(sz::Int=typemax(Int))
     return freed_sz
 end
 
-used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() = @lock pool_lock mapreduce(sizeof, +, union(pool_small, pool_large, pool_huge, freed); init=0)
+cached_memory() = @lock(pool_lock, @lock(freed_lock, mapreduce(sizeof, +, union(pool_small, pool_large, pool_huge, freed); init=0)))
 
 end

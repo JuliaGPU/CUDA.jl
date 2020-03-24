@@ -66,7 +66,6 @@ end
 ## infrastructure
 
 const pool_lock = ReentrantLock()
-
 const pools_used = Vector{Set{Block}}()
 const pools_avail = Vector{Vector{Block}}()
 
@@ -99,8 +98,8 @@ const initial_usage = Tuple(1 for _ in 1:USAGE_WINDOW)
 const pool_usage = Vector{Float64}()
 const pool_history = Vector{NTuple{USAGE_WINDOW,Float64}}()
 
-const freed = Vector{Block}()
 const freed_lock = SpinLock()
+const freed = Vector{Block}()
 
 # scan every pool and manage the usage history
 #
@@ -332,6 +331,7 @@ end
 
 ## interface
 
+const allocated_lock = SpinLock()
 const allocated = Dict{CuPtr{Nothing},Block}()
 
 function init()
@@ -376,7 +376,7 @@ function alloc(bytes)
 
   if block !== nothing
     ptr = pointer(block)
-    @lock pool_lock begin
+    @lock allocated_lock begin
       allocated[ptr] = block
     end
     return ptr
@@ -386,7 +386,7 @@ function alloc(bytes)
 end
 
 function free(ptr)
-  block = @lock pool_lock begin
+  block = @lock allocated_lock begin
     block = allocated[ptr]
     delete!(allocated, ptr)
     block
@@ -421,6 +421,9 @@ function cached_memory()
   @lock pool_lock for (pid, pl) in enumerate(pools_avail)
     bytes = poolsize(pid)
     sz += bytes * length(pl)
+  end
+  @lock freed_lock for block in freed
+    sz += sizeof(block)
   end
 
   return sz
