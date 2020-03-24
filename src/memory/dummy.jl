@@ -7,9 +7,9 @@ using ..CuArrays: @pool_timeit, actual_alloc, actual_free
 using CUDAdrv
 
 using Base: @lock
+using Base.Threads: SpinLock
 
-const pool_lock = ReentrantLock()
-
+const allocated_lock = SpinLock()
 const allocated = Dict{CuPtr{Nothing},Int}()
 
 init() = return
@@ -30,7 +30,7 @@ function alloc(sz)
     end
 
     if ptr !== nothing
-        @lock pool_lock begin
+        @lock allocated_lock begin
             allocated[ptr] = sz
         end
         return ptr
@@ -40,7 +40,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    @lock pool_lock begin
+    @lock allocated_lock begin
         sz = allocated[ptr]
         delete!(allocated, ptr)
     end
@@ -50,7 +50,7 @@ end
 
 reclaim(target_bytes::Int=typemax(Int)) = return 0
 
-used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
 cached_memory() = 0
 

@@ -195,8 +195,9 @@ function axpy!(alpha::Ta,
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
     end
-    axpy!(length(rx), convert(T, alpha), pointer(x)+(first(rx)-1)*sizeof(T),
-          step(rx), pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
+    GC.@preserve x y axpy!(length(rx), convert(T, alpha),
+                           pointer(x)+(first(rx)-1)*sizeof(T), step(rx),
+                           pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
     y
 end
 
@@ -222,8 +223,9 @@ function axpby!(alpha::Ta,
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
     end
-    axpby!(length(rx), convert(T, alpha), pointer(x)+(first(rx)-1)*sizeof(T),
-          step(rx), convert(T, beta), pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
+    GC.@preserve x y axpby!(length(rx), convert(T, alpha),
+                            pointer(x)+(first(rx)-1)*sizeof(T), step(rx), convert(T, beta),
+                            pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
     y
 end
 

@@ -48,7 +48,7 @@ function _unsafe_free!(xs::CuArray)
     if xs.parent === nothing
       # primary array with all references gone
       if xs.pooled && CUDAdrv.isvalid(xs.ctx)
-        free(convert(CuPtr{Nothing}, xs.ptr))
+        free(convert(CuPtr{Nothing}, pointer(xs)))
       end
     else
       # derived object
@@ -212,7 +212,7 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 function Base._reshape(parent::CuArray, dims::Dims)
   n = length(parent)
   prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(parent.ptr, dims, parent)
+  return CuArray{eltype(parent),length(dims)}(pointer(parent), dims, parent)
 end
 function Base._reshape(parent::CuArray{T,1}, dims::Tuple{Int}) where T
   n = length(parent)
@@ -297,7 +297,7 @@ function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::
 end
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
-  unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -306,7 +306,7 @@ function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) w
 end
 
 function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
-  unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
@@ -315,7 +315,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) w
 end
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
-  unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")

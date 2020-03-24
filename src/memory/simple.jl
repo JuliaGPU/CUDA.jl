@@ -10,8 +10,6 @@ using CUDAdrv
 using Base: @lock
 using Base.Threads: SpinLock
 
-const pool_lock = ReentrantLock()
-
 
 ## tunables
 
@@ -52,16 +50,16 @@ end
 
 ## pooling
 
-const available = Set{Block}()
-const allocated = Dict{CuPtr{Nothing},Block}()
+const pool_lock = ReentrantLock()
+const pool = Set{Block}()
 
 const freed = Vector{Block}()
 const freed_lock = SpinLock()
 
 function scan(sz)
-    @lock pool_lock for block in available
+    @lock pool_lock for block in pool
         if sz <= sizeof(block) <= max_oversize(sz)
-            delete!(available, block)
+            delete!(pool, block)
             return block
         end
     end
@@ -78,8 +76,8 @@ function repopulate()
 
     @lock pool_lock begin
         for block in blocks
-            @assert !in(block, available)
-            push!(available, block)
+            @assert !in(block, pool)
+            push!(pool, block)
         end
     end
 
@@ -91,8 +89,8 @@ function reclaim(sz::Int=typemax(Int))
 
     @lock pool_lock begin
         freed_bytes = 0
-        while freed_bytes < sz && !isempty(available)
-            block = pop!(available)
+        while freed_bytes < sz && !isempty(pool)
+            block = pop!(pool)
             freed_bytes += sizeof(block)
             actual_free(block)
         end
@@ -142,13 +140,16 @@ end
 
 ## interface
 
+const allocated_lock = SpinLock()
+const allocated = Dict{CuPtr{Nothing},Block}()
+
 init() = return
 
 function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
         ptr = pointer(block)
-        @lock pool_lock begin
+        @lock allocated_lock begin
             allocated[ptr] = block
         end
         return ptr
@@ -158,7 +159,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = @lock pool_lock begin
+    block = @lock allocated_lock begin
         block = allocated[ptr]
         delete!(allocated, ptr)
         block
@@ -167,8 +168,8 @@ function free(ptr)
     return
 end
 
-used_memory() = @lock pool_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() = @lock pool_lock mapreduce(sizeof, +, union(available, freed); init=0)
+cached_memory() = @lock(pool_lock, @lock(freed_lock, mapreduce(sizeof, +, union(pool, freed); init=0)))
 
 end
