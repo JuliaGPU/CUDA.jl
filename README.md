@@ -3,13 +3,24 @@ CUDAapi.jl
 
 *Reusable components for CUDA development.*
 
-**Code coverage**: [![][discourse-img]][discourse-url] [![][codecov-img]][codecov-url]
+| **Build Status**                                                                                                                     | **Coverage**                    |
+|:------------------------------------------------------------------------------------------------------------------------------------:|:-------------------------------:|
+| [![][gitlab-img]][gitlab-url] [![][travis-img]][travis-url] [![][appveyor-img]][appveyor-url] [![PkgEval][pkgeval-img]][pkgeval-url] | [![][codecov-img]][codecov-url] |
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CUDAapi.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDAapi.jl/commits/master
+
+[travis-img]: https://api.travis-ci.org/JuliaGPU/CUDAapi.jl.svg?branch=master
+[travis-url]: https://travis-ci.org/JuliaGPU/CUDAapi.jl
+
+[appveyor-img]: https://ci.appveyor.com/api/projects/status/e41yic5p5ru018mf/branch/master?svg=true
+[appveyor-url]: https://ci.appveyor.com/project/maleadt/cudaapi-jl
+
+[pkgeval-img]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/C/CUDAapi.svg
+[pkgeval-url]: https://juliaci.github.io/NanosoldierReports/pkgeval_badges/C/CUDAapi.html
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAapi.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAapi.jl
-
-[discourse-img]: https://img.shields.io/badge/discourse-julia%20%23gpu-red
-[discourse-url]: https://discourse.julialang.org/c/domain/gpu
 
 This package provides some reusable functionality for working with CUDA or
 NVIDIA APIs. It is intended for package developers, and does not provide
