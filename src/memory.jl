@@ -415,38 +415,43 @@ enable_timings() = (TimerOutputs.enable_debug_timings(CuArrays); return)
 disable_timings() = (TimerOutputs.disable_debug_timings(CuArrays); return)
 
 function __init_memory__()
-  if haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
+  # memory limit configuration
+  memory_limit_str = if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
+    ENV["JULIA_CUDA_MEMORY_LIMIT"]
+  elseif haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
     Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_memory__)
-    ENV["JULIA_CUDA_MEMORY_LIMIT"] = ENV["CUARRAYS_MEMORY_LIMIT"]
+    ENV["CUARRAYS_MEMORY_LIMIT"]
+  else
+    nothing
+  end
+  if memory_limit_str !== nothing
+    usage_limit[] = parse(Int, memory_limit_str)
   end
 
-  if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
-    usage_limit[] = parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
-  end
-
-  if haskey(ENV, "CUARRAYS_MEMORY_POOL")
+  # memory pool configuration
+  memory_pool_str = if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
+    ENV["JULIA_CUDA_MEMORY_POOL"]
+  elseif haskey(ENV, "CUARRAYS_MEMORY_POOL")
     Base.depwarn("The CUARRAYS_MEMORY_POOL environment flag is deprecated, please use JULIA_CUDA_MEMORY_POOL instead.", :__init_memory__)
-    ENV["JULIA_CUDA_MEMORY_POOL"] = ENV["CUARRAYS_MEMORY_POOL"]
+    ENV["CUARRAYS_MEMORY_POOL"]
+  else
+    nothing
   end
-
-  if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
+  if memory_pool_str !== nothing
     pool[] =
-      if ENV["JULIA_CUDA_MEMORY_POOL"] == "binned"
+      if memory_pool_str == "binned"
         BinnedPool
-      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "simple"
+      elseif memory_pool_str == "simple"
         SimplePool
-      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "split"
+      elseif memory_pool_str == "split"
         SplittingPool
-      elseif ENV["JULIA_CUDA_MEMORY_POOL"] == "none"
+      elseif memory_pool_str == "none"
         DummyPool
       else
         error("Invalid allocator selected")
       end
-  end
-  pool[].init()
 
-  # if the user hand-picked an allocator, be a little verbose
-  if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
+    # the user hand-picked an allocator, so be a little verbose
     atexit(()->begin
       Core.println("""
         CuArrays.jl $(nameof(pool[])) statistics:
@@ -455,6 +460,8 @@ function __init_memory__()
     end)
   end
 
+  # initialization
+  pool[].init()
   reset_timers!()
 end
 
