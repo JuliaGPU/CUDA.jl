@@ -111,7 +111,7 @@ function __configure__(show_reason::Bool)
     # if any dependent GPU package failed, expect it to have logged an error and bail out
     if !CUDAdrv.functional(show_reason) || !CUDAnative.functional(show_reason)
         show_reason && @warn "CuArrays.jl did not initialize because CUDAdrv.jl or CUDAnative.jl failed to"
-        return
+        return false
     end
 
     return __configure_dependencies__(show_reason)
