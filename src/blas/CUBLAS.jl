@@ -25,68 +25,74 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-const handles_lock = ReentrantLock()
-const created_handles = Dict{Tuple{UInt,Int},cublasHandle_t}()
-const created_xt_handles = Dict{Tuple{UInt,Int},cublasXtHandle_t}()
-const active_handles = Vector{Union{Nothing,cublasHandle_t}}()
-const active_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
+# thread cache for task-local library handles
+const thread_handles = Vector{Union{Nothing,cublasHandle_t}}()
+const thread_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
 
 function handle()
     tid = Threads.threadid()
-    if @inbounds active_handles[tid] === nothing
+    if @inbounds thread_handles[tid] === nothing
         ctx = context()
-        key = (objectid(ctx), tid)
-        lock(handles_lock) do
-            active_handles[tid] = get!(created_handles, key) do
-                handle = cublasCreate_v2()
-                atexit(()->CUDAdrv.isvalid(ctx) && cublasDestroy_v2(handle))
-
-                # enable tensor math mode if our device supports it, and fast math is enabled
-                dev = CUDAdrv.device()
-                if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0" && version() >= v"9"
-                    cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH)
+        thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
+            handle = cublasCreate_v2()
+            finalizer(current_task()) do task
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cublasDestroy_v2(handle)
                 end
-
-                handle
             end
+
+            # enable tensor math mode if our device supports it, and fast math is enabled
+            dev = CUDAdrv.device()
+            if Base.JLOptions().fast_math == 1 && CUDAdrv.capability(dev) >= v"7.0" && version() >= v"9"
+                cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH)
+            end
+
+            handle
         end
     end
-    @inbounds active_handles[tid]
+    @inbounds thread_handles[tid]
 end
 
 function xt_handle()
     tid = Threads.threadid()
-    if @inbounds active_xt_handles[tid] === nothing
+    if @inbounds thread_xt_handles[tid] === nothing
         ctx = context()
-        key = (objectid(ctx), tid)
-        lock(handles_lock) do
-            active_xt_handles[tid] = get!(created_xt_handles, key) do
-                handle = cublasXtCreate()
-                atexit(()->CUDAdrv.isvalid(ctx) && cublasXtDestroy(handle))
-
-                # select the devices
-                # TODO: this is weird, since we typically use a single device per thread/context
-                devs = convert.(Cint, CUDAdrv.devices())
-                cublasXtDeviceSelect(handle, length(devs), devs)
-
-                handle
+        thread_xt_handles[tid] = get!(task_local_storage(), (:CUBLASxt, ctx)) do
+            handle = cublasXtCreate()
+            finalizer(current_task()) do task
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cublasXtDestroy(handle)
+                end
             end
+
+            # select the devices
+            # TODO: this is weird, since we typically use a single device per thread/context
+            devs = convert.(Cint, CUDAdrv.devices())
+            cublasXtDeviceSelect(handle, length(devs), devs)
+
+            handle
         end
     end
-    @inbounds active_xt_handles[tid]
+    @inbounds thread_xt_handles[tid]
 end
 
 function __init__()
-    resize!(active_handles, Threads.nthreads())
-    fill!(active_handles, nothing)
+    resize!(thread_handles, Threads.nthreads())
+    fill!(thread_handles, nothing)
 
-    resize!(active_xt_handles, Threads.nthreads())
-    fill!(active_xt_handles, nothing)
+    resize!(thread_xt_handles, Threads.nthreads())
+    fill!(thread_xt_handles, nothing)
 
     CUDAnative.atcontextswitch() do tid, ctx
-        # we don't eagerly initialize handles, but do so lazily when requested
-        active_handles[tid] = nothing
-        active_xt_handles[tid] = nothing
+        thread_handles[tid] = nothing
+        thread_xt_handles[tid] = nothing
+    end
+
+    CUDAnative.attaskswitch() do tid, task
+        thread_handles[tid] = nothing
+        thread_xt_handles[tid] = nothing
     end
 end
 

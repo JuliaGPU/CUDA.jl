@@ -56,8 +56,7 @@ end
 end
 
 function initialize_api()
-    # make sure the calling thread has an active context
-    CUDAnative.initialize_context()
+    CUDAnative.prepare_cuda_call()
 end
 
 macro check(ex)

@@ -299,7 +299,7 @@ synchronized right before and after executing `ex` to exclude any external effec
 macro time(ex)
     quote
         # @time might surround an application, so be sure to initialize CUDA before that
-        CUDAnative.initialize_context()
+        CUDAnative.prepare_cuda_call()
 
         # coarse synchronization to exclude effects from previously-executed code
         CUDAdrv.synchronize()

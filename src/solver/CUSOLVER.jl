@@ -27,55 +27,63 @@ include("wrappers.jl")
 # high-level integrations
 include("linalg.jl")
 
-const handles_lock = ReentrantLock()
-const created_dense_handles = Dict{Tuple{UInt,Int},cusolverDnHandle_t}()
-const created_sparse_handles = Dict{Tuple{UInt,Int},cusolverSpHandle_t}()
-const active_dense_handles = Vector{Union{Nothing,cusolverDnHandle_t}}()
-const active_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
+# thread cache for task-local library handles
+const thread_dense_handles = Vector{Union{Nothing,cusolverDnHandle_t}}()
+const thread_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
 
 function dense_handle()
     tid = Threads.threadid()
-    if @inbounds active_dense_handles[tid] === nothing
+    if @inbounds thread_dense_handles[tid] === nothing
         ctx = context()
-        key = (objectid(ctx), tid)
-        lock(handles_lock) do
-            active_dense_handles[tid] = get!(created_dense_handles, key) do
-                handle = cusolverDnCreate()
-                atexit(()->CUDAdrv.isvalid(ctx) && cusolverDnDestroy(handle))
-                handle
+        thread_dense_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
+            handle = cusolverDnCreate()
+            finalizer(current_task()) do task
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cusolverDnDestroy(handle)
+                end
             end
+
+            handle
         end
     end
-    @inbounds active_dense_handles[tid]
+    @inbounds thread_dense_handles[tid]
 end
 
 function sparse_handle()
     tid = Threads.threadid()
-    if @inbounds active_sparse_handles[tid] === nothing
+    if @inbounds thread_sparse_handles[tid] === nothing
         ctx = context()
-        key = (objectid(ctx), tid)
-        lock(handles_lock) do
-            active_sparse_handles[tid] = get!(created_sparse_handles, key) do
-                handle = cusolverSpCreate()
-                atexit(()->CUDAdrv.isvalid(ctx) && cusolverSpDestroy(handle))
-                handle
+        thread_sparse_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
+            handle = cusolverSpCreate()
+            finalizer(current_task()) do task
+                CUDAdrv.isvalid(ctx) || return
+                context!(ctx) do
+                    cusolverSpDestroy(handle)
+                end
             end
+
+            handle
         end
     end
-    @inbounds active_sparse_handles[tid]
+    @inbounds thread_sparse_handles[tid]
 end
 
 function __init__()
-    resize!(active_dense_handles, Threads.nthreads())
-    fill!(active_dense_handles, nothing)
+    resize!(thread_dense_handles, Threads.nthreads())
+    fill!(thread_dense_handles, nothing)
 
-    resize!(active_sparse_handles, Threads.nthreads())
-    fill!(active_sparse_handles, nothing)
+    resize!(thread_sparse_handles, Threads.nthreads())
+    fill!(thread_sparse_handles, nothing)
 
     CUDAnative.atcontextswitch() do tid, ctx
-        # we don't eagerly initialize handles, but do so lazily when requested
-        active_dense_handles[tid] = nothing
-        active_sparse_handles[tid] = nothing
+        thread_dense_handles[tid] = nothing
+        thread_sparse_handles[tid] = nothing
+    end
+
+    CUDAnative.attaskswitch() do tid, task
+        thread_dense_handles[tid] = nothing
+        thread_sparse_handles[tid] = nothing
     end
 end
 
