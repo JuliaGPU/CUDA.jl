@@ -183,9 +183,10 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 
   # record the allocation
   if Base.JLOptions().debug_level >= 2
+    bt = backtrace()
     @lock memory_lock begin
       @assert !haskey(requested, ptr)
-      requested[ptr] = backtrace()
+      requested[ptr] = bt
     end
   end
 
@@ -387,16 +388,17 @@ function memory_status(io::IO=stdout)
   end
 
   if Base.JLOptions().debug_level >= 2
-    @lock memory_lock begin
-      for (ptr, bt) in requested
-        buf = allocated[ptr]
-        @printf(io, "\nOutstanding memory allocation of %s at %p",
-                Base.format_bytes(sizeof(buf)), Int(ptr))
-        stack = stacktrace(bt, false)
-        StackTraces.remove_frames!(stack, :alloc)
-        Base.show_backtrace(io, stack)
-        println(io)
-      end
+    requested′, allocated′ = @lock memory_lock begin
+      copy(requested), copy(allocated)
+    end
+    for (ptr, bt) in requested′
+      buf = allocated′[ptr]
+      @printf(io, "\nOutstanding memory allocation of %s at %p",
+              Base.format_bytes(sizeof(buf)), Int(ptr))
+      stack = stacktrace(bt, false)
+      StackTraces.remove_frames!(stack, :alloc)
+      Base.show_backtrace(io, stack)
+      println(io)
     end
   end
 end
