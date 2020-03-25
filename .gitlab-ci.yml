@@ -173,7 +173,7 @@ flux:
                           Pkg.instantiate()'
     - julia --project=$FLUX -e 'using Pkg;
                                 Pkg.instantiate();
-                                Pkg.add(["Documenter"])'
+                                Pkg.add(["Documenter", "IterTools"])'
     - JULIA_LOAD_PATH=".:$FLUX::" julia $FLUX/test/runtests.jl
   allow_failure: true
 
