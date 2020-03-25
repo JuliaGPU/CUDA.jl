@@ -145,6 +145,20 @@ end
     @cuda parent()
 end
 
+
+@testset "varargs" begin
+    function kernel(args...)
+        @cuprint(args[2])
+        return
+    end
+
+    _, out = @grab_output begin
+        @cuda kernel(1, 2, 3)
+        synchronize()
+    end
+    @test out == "2"
+end
+
 end
 
 
