@@ -108,9 +108,9 @@ cuda:none:
                 versioninfo()'
     - julia --project -e 'using Pkg;
                           Pkg.instantiate();
-                          Pkg.build();
-                          Pkg.API.precompile()'
+                          Pkg.build()'
     - julia --project -e 'using CUDAnative;
+                          @assert !CUDAnative.functional(true);
                           CUDAnative.load_runtime(v"7.0")'
 
 
