@@ -96,10 +96,15 @@ function __configure__(show_reason::Bool)
         return false
     end
 
-    @debug "Initializing CUDA driver"
-    res = ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
-    if res != SUCCESS
-        throw_api_error(res)
+    try
+        @debug "Initializing CUDA driver"
+        res = @runtime_ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
+        if res != SUCCESS
+            throw_api_error(res)
+        end
+    catch ex
+        show_reason && @error("Could not initialize CUDA", exception=(ex,catch_backtrace()))
+        return false
     end
 
     return true
