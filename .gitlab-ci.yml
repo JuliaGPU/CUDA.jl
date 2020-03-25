@@ -119,7 +119,7 @@ pool:none:
   tags:
     - nvidia
   variables:
-    CUARRAYS_MEMORY_POOL: 'none'
+    JULIA_CUDA_MEMORY_POOL: 'none'
 
 pool:simple:
   extends:
@@ -128,7 +128,7 @@ pool:simple:
   tags:
     - nvidia
   variables:
-    CUARRAYS_MEMORY_POOL: 'simple'
+    JULIA_CUDA_MEMORY_POOL: 'simple'
 
 pool:split:
   extends:
@@ -137,7 +137,7 @@ pool:split:
   tags:
     - nvidia
   variables:
-    CUARRAYS_MEMORY_POOL: 'split'
+    JULIA_CUDA_MEMORY_POOL: 'split'
   allow_failure: true
 
 debug:
