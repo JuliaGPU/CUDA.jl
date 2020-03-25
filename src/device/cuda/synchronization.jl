@@ -43,7 +43,7 @@ for all threads of the block and returns `true` if and only if `predicate` evalu
 `true` for all of them.
 """
 @inline sync_threads_and(predicate::Int32) = ccall("llvm.nvvm.barrier0.and", llvmcall, Int32, (Int32,), predicate)
-@inline sync_threads_and(predicate::Bool) = ifelse(sync_threads_and(Int32(predicate)) !== Int32(0), true, false)
+@inline sync_threads_and(predicate::Bool) = ifelse(sync_threads_and(Int32(predicate)) != Int32(0), true, false)
 
 """
     sync_threads_or(predicate::Int32)
@@ -59,7 +59,7 @@ for all threads of the block and returns `true` if and only if `predicate` evalu
 `true` for any of them.
 """
 @inline sync_threads_or(predicate::Int32) = ccall("llvm.nvvm.barrier0.or", llvmcall, Int32, (Int32,), predicate)
-@inline sync_threads_or(predicate::Bool) = ifelse(sync_threads_or(Int32(predicate)) !== Int32(0), true, false)
+@inline sync_threads_or(predicate::Bool) = ifelse(sync_threads_or(Int32(predicate)) != Int32(0), true, false)
 
 """
     sync_warp(mask::Integer=0xffffffff)

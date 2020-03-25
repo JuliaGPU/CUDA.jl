@@ -111,7 +111,10 @@ function __init__()
     resize!(thread_contexts, Threads.nthreads())
     fill!(thread_contexts, nothing)
 
-    CUDAdrv.initializer(initialize_context)
+    resize!(thread_tasks, Threads.nthreads())
+    fill!(thread_tasks, nothing)
+
+    CUDAdrv.initializer(prepare_cuda_call)
 end
 
 function __configure__(show_reason::Bool)

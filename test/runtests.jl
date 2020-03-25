@@ -30,20 +30,41 @@ if length(devices()) > 0
     # the API shouldn't have been initialized
     @test CuCurrentContext() == nothing
 
-    callback_data = nothing
+    context_cb = Union{Nothing, CuContext}[nothing for tid in 1:Threads.nthreads()]
     CUDAnative.atcontextswitch() do tid, ctx
-        callback_data = (tid, ctx)
+        context_cb[tid] = ctx
+    end
+
+    task_cb = Union{Nothing, Task}[nothing for tid in 1:Threads.nthreads()]
+    CUDAnative.attaskswitch() do tid, task
+        task_cb[tid] = task
     end
 
     # now cause initialization
     ctx = context()
-    @test CuCurrentContext() === ctx
+    @test CuCurrentContext() == ctx
     @test device() == CuDevice(0)
-    @test callback_data[1] == Threads.threadid()
-    @test callback_data[2] === ctx
+    @test context_cb[1] == ctx
+    @test task_cb[1] == current_task()
+
+    fill!(context_cb, nothing)
+    fill!(task_cb, nothing)
+
+    # ... on a different task
+    task = @async begin
+        context()
+    end
+    @test ctx == fetch(task)
+    @test context_cb[1] == nothing
+    @test task_cb[1] == task
 
     device!(CuDevice(0))
     device!(CuDevice(0)) do
+        nothing
+    end
+
+    context!(ctx)
+    context!(ctx) do
         nothing
     end
 
@@ -63,6 +84,46 @@ if length(devices()) > 0
 
         device!(1)
         @test device() == CuDevice(1)
+    end
+
+    # test that each task can work with devices independently from other tasks
+    if length(devices()) > 1
+        device!(0)
+        @test device() == CuDevice(0)
+
+        task = @async begin
+            device!(1)
+            @test device() == CuDevice(1)
+        end
+        fetch(task)
+
+        @test device() == CuDevice(0)
+
+        # reset on a task
+        task = @async begin
+            device!(1)
+            device_reset!()
+        end
+        fetch(task)
+        @test device() == CuDevice(0)
+
+        # tasks on multiple threads
+        Threads.@threads for d in 0:1
+            for x in 1:100  # give threads a chance to trample over each other
+                device!(d)
+                yield()
+                @test device() == CuDevice(d)
+                yield()
+
+                sleep(rand(0.001:0.001:0.01))
+
+                device!(1-d)
+                yield()
+                @test device() == CuDevice(1-d)
+                yield()
+            end
+        end
+        @test device() == CuDevice(0)
     end
 
     # pick a suiteable device

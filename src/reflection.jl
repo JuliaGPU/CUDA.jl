@@ -171,7 +171,7 @@ function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
     if res === CUPTI.CUPTI_ERROR_INSUFFICIENT_PRIVILEGES
         error("""Insufficient priviliges: You don't have permissions to profile GPU code, which is required for `code_sass`.
                  Get administrative priviles or allow all users to profile: https://developer.nvidia.com/ERR_NVGPUCTRPERM#SolnAdminTag""")
-    elseif res !== CUPTI.CUPTI_SUCCESS
+    elseif res != CUPTI.CUPTI_SUCCESS
         throw(CUPTIError(res))
     end
     subscriber = subscriber_ref[]
