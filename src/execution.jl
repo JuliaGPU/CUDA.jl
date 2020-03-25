@@ -428,7 +428,6 @@ when function changes, or when different types or keyword arguments are provided
     length(mthds) == 1 || return (:(throw(MethodError(f,tt))))
     mtypes, msp, m = mthds[1]
     mi = ccall(:jl_specializations_get_linfo, Ref{MethodInstance}, (Any, Any, Any), m, mtypes, msp)
-    mi.def.isva && return :(error("varargs kernel methods are not supported"))
     ci = retrieve_code_info(mi)
     @assert isa(ci, CodeInfo)
 
