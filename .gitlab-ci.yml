@@ -138,6 +138,7 @@ pool:split:
     - nvidia
   variables:
     CUARRAYS_MEMORY_POOL: 'split'
+  allow_failure: true
 
 debug:
   extends:
