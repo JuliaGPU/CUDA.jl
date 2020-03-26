@@ -9,6 +9,9 @@ if capability(device()) < v"7.0"
     exit()
 end
 
+is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
+is_debug && exit()
+
 ### START
 using Test
 
