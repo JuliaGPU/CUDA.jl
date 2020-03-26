@@ -101,4 +101,3 @@ function julia_script(code, args=``)
     wait(proc)
     proc.exitcode, read(out, String), read(err, String)
 end
-
