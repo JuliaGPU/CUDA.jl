@@ -94,8 +94,9 @@ cuda:none:
   script:
     - julia --project -e 'using Pkg;
                           Pkg.instantiate();
-                          Pkg.build();
-                          Pkg.API.precompile()'
+                          Pkg.build()'
+    - julia --project -e 'using CuArrays;
+                          @assert !CuArrays.functional(true)'
 
 
 # hardware platforms
