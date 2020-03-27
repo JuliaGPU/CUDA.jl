@@ -11,6 +11,8 @@ using Base.Threads: SpinLock
 # each allocator needs to lock its own resources separately too.
 const memory_lock = SpinLock()
 
+const MEMDEBUG = ccall(:jl_is_memdebug, Bool, ())
+
 
 ## allocation statistics
 
@@ -194,6 +196,10 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   alloc_stats.pool_nalloc += 1
   alloc_stats.pool_alloc += sz
 
+  if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
+    error("Allocated a scrubbed pointer")
+  end
+
   return ptr
 end
 
@@ -206,20 +212,32 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
-  # record the allocation
-  if Base.JLOptions().debug_level >= 2
-    @lock memory_lock begin
-      @assert haskey(requested, ptr)
-      delete!(requested, ptr)
+  if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
+    Core.println("Freeing a scrubbed pointer!")
+  end
+
+  # this function is typically called from a finalizer, where we can't switch tasks,
+  # so perform our own error handling.
+  try
+    # record the allocation
+    if Base.JLOptions().debug_level >= 2
+      @lock memory_lock begin
+        @assert haskey(requested, ptr)
+        delete!(requested, ptr)
+      end
     end
-  end
 
-  time = Base.@elapsed begin
-    @pool_timeit "pooled free" pool[].free(ptr)
-  end
+    time = Base.@elapsed begin
+      @pool_timeit "pooled free" pool[].free(ptr)
+    end
 
-  alloc_stats.pool_time += time
-  alloc_stats.pool_nfree += 1
+    alloc_stats.pool_time += time
+    alloc_stats.pool_nfree += 1
+  catch ex
+    Base.showerror_nostdio(ex, "WARNING: Error while freeing $ptr")
+    Base.show_backtrace(Core.stdout, catch_backtrace())
+    Core.println()
+  end
 
   return
 end
