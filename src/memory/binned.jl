@@ -410,15 +410,7 @@ function free(ptr)
   return
 end
 
-function used_memory()
-  sz = 0
-  @lock pool_lock for (pid, pl) in enumerate(pools_used)
-    bytes = poolsize(pid)
-    sz += bytes * length(pl)
-  end
-
-  return sz
-end
+used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
 function cached_memory()
   sz = 0
