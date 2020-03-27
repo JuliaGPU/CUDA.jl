@@ -1,24 +1,5 @@
 # LLVM IR generation
 
-function module_setup(mod::LLVM.Module)
-    triple!(mod, Int === Int64 ? "nvptx64-nvidia-cuda" : "nvptx-nvidia-cuda")
-
-    # add debug info metadata
-    if LLVM.version() >= v"8.0"
-        # Set Dwarf Version to 2, the DI printer will downgrade to v2 automatically,
-        # but this is technically correct and the only version supported by NVPTX
-        LLVM.flags(mod)["Dwarf Version", LLVM.API.LLVMModuleFlagBehaviorWarning] =
-            Metadata(ConstantInt(Int32(2), JuliaContext()))
-        LLVM.flags(mod)["Debug Info Version", LLVM.API.LLVMModuleFlagBehaviorError] =
-            Metadata(ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext()))
-    else
-        push!(metadata(mod), "llvm.module.flags",
-             MDNode([ConstantInt(Int32(1), JuliaContext()),    # llvm::Module::Error
-                     MDString("Debug Info Version"),
-                     ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext())]))
-    end
-end
-
 # generate a pseudo-backtrace from a stack of methods being emitted
 function backtrace(job::CompilerJob, call_stack::Vector{Core.MethodInstance})
     bt = StackTraces.StackFrame[]
@@ -50,8 +31,6 @@ const method_substitution_whitelist = [:hypot]
 if VERSION >= v"1.5.0-DEV.393"
 
 # JuliaLang/julia#25984 significantly restructured the compiler
-
-# TODO: deduplicate some code
 
 function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
     # set-up the compiler interface
@@ -154,51 +133,26 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
     return llvm_specfunc, llvm_mod
 end
 
-function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
-    entry, mod = @timeit_debug to "emission" compile_method_instance(job, method_instance, world)
-
-    # clean up incompatibilities
-    @timeit_debug to "clean-up" for llvmf in functions(mod)
-        # only occurs in debug builds
-        delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
-    end
-
-    # add the global exception indicator flag
-    emit_exception_flag!(mod)
-
-    # rename the entry point
-    if job.name !== nothing
-        llvmfn = safe_name(string("julia_", job.name))
-    else
-        # strip the globalUnique counter
-        llvmfn = LLVM.name(entry)
-    end
-    LLVM.name!(entry, llvmfn)
-
-    # promote entry-points to kernels and mangle its name
-    if job.kernel
-        entry = promote_kernel!(job, mod, entry)
-        LLVM.name!(entry, mangle_call(entry, job.tt))
-    end
-
-    # minimal required optimization
-    @timeit_debug to "rewrite" ModulePassManager() do pm
-        global current_job
-        current_job = job
-
-        linkage!(entry, LLVM.API.LLVMExternalLinkage)
-        internalize!(pm, [LLVM.name(entry)])
-
-        add!(pm, ModulePass("LowerThrow", lower_throw!))
-        add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
-        add!(pm, ModulePass("HideTrap", hide_trap!))
-        run!(pm, mod)
-    end
-
-    return mod, entry
-end
-
 else
+
+function module_setup(mod::LLVM.Module)
+    triple!(mod, Int === Int64 ? "nvptx64-nvidia-cuda" : "nvptx-nvidia-cuda")
+
+    # add debug info metadata
+    if LLVM.version() >= v"8.0"
+        # Set Dwarf Version to 2, the DI printer will downgrade to v2 automatically,
+        # but this is technically correct and the only version supported by NVPTX
+        LLVM.flags(mod)["Dwarf Version", LLVM.API.LLVMModuleFlagBehaviorWarning] =
+            Metadata(ConstantInt(Int32(2), JuliaContext()))
+        LLVM.flags(mod)["Debug Info Version", LLVM.API.LLVMModuleFlagBehaviorError] =
+            Metadata(ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext()))
+    else
+        push!(metadata(mod), "llvm.module.flags",
+             MDNode([ConstantInt(Int32(1), JuliaContext()),    # llvm::Module::Error
+                     MDString("Debug Info Version"),
+                     ConstantInt(DEBUG_METADATA_VERSION(), JuliaContext())]))
+    end
+end
 
 function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
     function postprocess(ir)
@@ -314,14 +268,9 @@ function compile_method_instance(job::CompilerJob, method_instance::Core.MethodI
     ir = LLVM.parent(llvmf)
     postprocess(ir)
 
-    return llvmf, dependencies
-end
-
-function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
-    entry, dependencies = @timeit_debug to "emission" compile_method_instance(job, method_instance, world)
-    mod = LLVM.parent(entry)
-
     # link in dependent modules
+    entry = llvmf
+    mod = LLVM.parent(entry)
     @timeit_debug to "linking" begin
         # we disable Julia's compilation cache not to poison it with GPU-specific code.
         # as a result, we might get multiple modules for a single method instance.
@@ -361,19 +310,28 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
         end
     end
 
+    return entry, mod
+end
+
+end
+
+function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
+    entry, mod = @timeit_debug to "emission" compile_method_instance(job, method_instance, world)
+
     # clean up incompatibilities
     @timeit_debug to "clean-up" for llvmf in functions(mod)
         # only occurs in debug builds
         delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
 
-        # make function names safe for ptxas
-        # (LLVM should to do this, but fails, see eg. D17738 and D19126)
-        llvmfn = LLVM.name(llvmf)
-        if !isdeclaration(llvmf)
-            llvmfn′ = safe_name(llvmfn)
-            if llvmfn != llvmfn′
-                LLVM.name!(llvmf, llvmfn′)
-                llvmfn = llvmfn′
+        if VERSION < v"1.5.0-DEV.393"
+            # make function names safe for ptxas
+            llvmfn = LLVM.name(llvmf)
+            if !isdeclaration(llvmf)
+                llvmfn′ = safe_name(llvmfn)
+                if llvmfn != llvmfn′
+                    LLVM.name!(llvmf, llvmfn′)
+                    llvmfn = llvmfn′
+                end
             end
         end
     end
@@ -411,8 +369,6 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     end
 
     return mod, entry
-end
-
 end
 
 
