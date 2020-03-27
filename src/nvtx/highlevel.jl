@@ -87,5 +87,5 @@ macro range(ex)
             $pop_range()
         end
     end
-    esc(MacroTools.combinedef(def))
+    esc(combinedef(def))
 end
