@@ -424,6 +424,12 @@ end
 
 used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
-cached_memory() = @lock(pool_lock, @lock(freed_lock, mapreduce(sizeof, +, union(pool_small, pool_large, pool_huge, freed); init=0)))
+function cached_memory()
+    sz = @lock freed_lock mapreduce(sizeof, +, freed; init=0)
+    @lock pool_lock for pool in (pool_small, pool_large, pool_huge)
+        sz += mapreduce(sizeof, +, pool; init=0)
+    end
+    return sz
+end
 
 end

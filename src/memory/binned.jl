@@ -413,15 +413,11 @@ end
 used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
 function cached_memory()
-  sz = 0
+  sz = @lock freed_lock mapreduce(sizeof, +, freed; init=0)
   @lock pool_lock for (pid, pl) in enumerate(pools_avail)
     bytes = poolsize(pid)
     sz += bytes * length(pl)
   end
-  @lock freed_lock for block in freed
-    sz += sizeof(block)
-  end
-
   return sz
 end
 
