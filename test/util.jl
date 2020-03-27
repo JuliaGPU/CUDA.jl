@@ -101,3 +101,14 @@ function julia_script(code, args=``)
     wait(proc)
     proc.exitcode, read(out, String), read(err, String)
 end
+
+# tests that are conditionall broken
+macro test_broken_if(cond, ex...)
+    quote
+        if $(esc(cond))
+            @test_broken $(map(esc, ex)...)
+        else
+            @test $(map(esc, ex)...)
+        end
+    end
+end

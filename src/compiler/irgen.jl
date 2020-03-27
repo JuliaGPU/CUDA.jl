@@ -47,6 +47,159 @@ Base.showerror(io::IO, err::MethodSubstitutionWarning) =
     print(io, "You called $(err.original), maybe you intended to call $(err.substitute) instead?")
 const method_substitution_whitelist = [:hypot]
 
+if VERSION >= v"1.5.0-DEV.393"
+
+# JuliaLang/julia#25984 significantly restructured the compiler
+
+# TODO: deduplicate some code
+
+function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
+    # set-up the compiler interface
+    call_stack = [method_instance]
+    function hook_emit_function(method_instance, code)
+        push!(call_stack, method_instance)
+
+        # check for Base functions that exist in CUDAnative too
+        # FIXME: this might be too coarse
+        method = method_instance.def
+        if Base.moduleroot(method.module) == Base &&
+           isdefined(CUDAnative, method_instance.def.name) &&
+           !in(method_instance.def.name, method_substitution_whitelist)
+            substitute_function = getfield(CUDAnative, method.name)
+            tt = Tuple{method_instance.specTypes.parameters[2:end]...}
+            if hasmethod(substitute_function, tt)
+                method′ = which(substitute_function, tt)
+                if Base.moduleroot(method′.module) == CUDAnative
+                    @warn "calls to Base intrinsics might be GPU incompatible" exception=(MethodSubstitutionWarning(method, method′), backtrace(job, call_stack))
+                end
+            end
+        end
+    end
+    function hook_emitted_function(method, code)
+        @compiler_assert last(call_stack) == method job
+        pop!(call_stack)
+    end
+    param_kwargs = [:track_allocations  => false,
+                    :code_coverage      => false,
+                    :static_alloc       => false,
+                    :prefer_specsig     => true,
+                    :emit_function      => hook_emit_function,
+                    :emitted_function   => hook_emitted_function]
+    if LLVM.version() >= v"8.0" && VERSION >= v"1.3.0-DEV.547"
+        push!(param_kwargs, :gnu_pubnames => false)
+
+        debug_info_kind = if Base.JLOptions().debug_level == 0
+            LLVM.API.LLVMDebugEmissionKindNoDebug
+        elseif Base.JLOptions().debug_level == 1
+            LLVM.API.LLVMDebugEmissionKindLineTablesOnly
+        elseif Base.JLOptions().debug_level >= 2
+            LLVM.API.LLVMDebugEmissionKindFullDebug
+        end
+
+        #if CUDAdrv.release() < v"10.2"
+            # FIXME: LLVM's debug info crashes CUDA
+            # FIXME: this ought to be fixed on 10.2?
+            @debug "Incompatibility detected between CUDA and LLVM 8.0+; disabling debug info emission" maxlog=1
+            debug_info_kind = LLVM.API.LLVMDebugEmissionKindNoDebug
+        #end
+
+        push!(param_kwargs, :debug_info_kind => Cint(debug_info_kind))
+    end
+    params = Base.CodegenParams(;param_kwargs...)
+
+    # generate IR
+    native_code = ccall(:jl_create_native, Ptr{Cvoid},
+                        (Vector{Core.MethodInstance}, Base.CodegenParams),
+                        [method_instance], params)
+    @assert native_code != C_NULL
+    llvm_mod_ref = ccall(:jl_get_llvm_module, LLVM.API.LLVMModuleRef,
+                         (Ptr{Cvoid},), native_code)
+    @assert llvm_mod_ref != C_NULL
+    llvm_mod = LLVM.Module(llvm_mod_ref)
+
+    # get the top-level code
+    code = Core.Compiler.inf_for_methodinstance(method_instance, world, world)
+
+    # get the top-level function index
+    llvm_func_idx = Ref{Int32}(-1)
+    llvm_specfunc_idx = Ref{Int32}(-1)
+    ccall(:jl_breakpoint, Nothing, ())
+    ccall(:jl_get_function_id, Nothing,
+          (Ptr{Cvoid}, Any, Ptr{Int32}, Ptr{Int32}),
+          native_code, code, llvm_func_idx, llvm_specfunc_idx)
+    @assert llvm_func_idx[] != -1
+    @assert llvm_specfunc_idx[] != -1
+
+    # get the top-level function)
+    llvm_func_ref = ccall(:jl_get_llvm_function, LLVM.API.LLVMValueRef,
+                     (Ptr{Cvoid}, UInt32), native_code, llvm_func_idx[]-1)
+    @assert llvm_func_ref != C_NULL
+    llvm_func = LLVM.Function(llvm_func_ref)
+    llvm_specfunc_ref = ccall(:jl_get_llvm_function, LLVM.API.LLVMValueRef,
+                         (Ptr{Cvoid}, UInt32), native_code, llvm_specfunc_idx[]-1)
+    @assert llvm_specfunc_ref != C_NULL
+    llvm_specfunc = LLVM.Function(llvm_specfunc_ref)
+
+    # configure the module
+    # NOTE: NVPTX::TargetMachine's data layout doesn't match the NVPTX user guide,
+    #       so we specify it ourselves
+    if Int === Int64
+        triple!(llvm_mod, "nvptx64-nvidia-cuda")
+        datalayout!(llvm_mod, "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
+    else
+        triple!(llvm_mod, "nvptx-nvidia-cuda")
+        datalayout!(llvm_mod, "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v32:32:32-v64:64:64-v128:128:128-n16:32:64")
+    end
+
+    return llvm_specfunc, llvm_mod
+end
+
+function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
+    entry, mod = @timeit_debug to "emission" compile_method_instance(job, method_instance, world)
+
+    # clean up incompatibilities
+    @timeit_debug to "clean-up" for llvmf in functions(mod)
+        # only occurs in debug builds
+        delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
+    end
+
+    # add the global exception indicator flag
+    emit_exception_flag!(mod)
+
+    # rename the entry point
+    if job.name !== nothing
+        llvmfn = safe_name(string("julia_", job.name))
+    else
+        # strip the globalUnique counter
+        llvmfn = LLVM.name(entry)
+    end
+    LLVM.name!(entry, llvmfn)
+
+    # promote entry-points to kernels and mangle its name
+    if job.kernel
+        entry = promote_kernel!(job, mod, entry)
+        LLVM.name!(entry, mangle_call(entry, job.tt))
+    end
+
+    # minimal required optimization
+    @timeit_debug to "rewrite" ModulePassManager() do pm
+        global current_job
+        current_job = job
+
+        linkage!(entry, LLVM.API.LLVMExternalLinkage)
+        internalize!(pm, [LLVM.name(entry)])
+
+        add!(pm, ModulePass("LowerThrow", lower_throw!))
+        add!(pm, FunctionPass("HideUnreachable", hide_unreachable!))
+        add!(pm, ModulePass("HideTrap", hide_trap!))
+        run!(pm, mod)
+    end
+
+    return mod, entry
+end
+
+else
+
 function compile_method_instance(job::CompilerJob, method_instance::Core.MethodInstance, world)
     function postprocess(ir)
         # get rid of jfptr wrappers
@@ -210,33 +363,13 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
 
     # clean up incompatibilities
     @timeit_debug to "clean-up" for llvmf in functions(mod)
-        llvmfn = LLVM.name(llvmf)
-
         # only occurs in debug builds
         delete!(function_attributes(llvmf), EnumAttribute("sspstrong", 0, JuliaContext()))
 
-        # rename functions
+        # make function names safe for ptxas
+        # (LLVM should to do this, but fails, see eg. D17738 and D19126)
+        llvmfn = LLVM.name(llvmf)
         if !isdeclaration(llvmf)
-            # Julia disambiguates local functions by prefixing with `#\d#`.
-            # since we don't use a global function namespace, get rid of those tags.
-            if occursin(r"^julia_#\d+#", llvmfn)
-                llvmfn′ = replace(llvmfn, r"#\d+#"=>"")
-                if !haskey(functions(mod), llvmfn′)
-                    LLVM.name!(llvmf, llvmfn′)
-                    llvmfn = llvmfn′
-                end
-            end
-
-            # anonymous functions are just named `#\d`, make that somewhat more readable
-            m = match(r"_#(\d+)_", llvmfn)
-            if m !== nothing
-                llvmfn′ = replace(llvmfn, m.match=>"_anonymous$(m.captures[1])_")
-                LLVM.name!(llvmf, llvmfn′)
-                llvmfn = llvmfn′
-            end
-
-            # finally, make function names safe for ptxas
-            # (LLVM should to do this, but fails, see eg. D17738 and D19126)
             llvmfn′ = safe_name(llvmfn)
             if llvmfn != llvmfn′
                 LLVM.name!(llvmf, llvmfn′)
@@ -278,6 +411,8 @@ function irgen(job::CompilerJob, method_instance::Core.MethodInstance, world)
     end
 
     return mod, entry
+end
+
 end
 
 

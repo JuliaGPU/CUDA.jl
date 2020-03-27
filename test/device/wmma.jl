@@ -231,18 +231,20 @@ is_debug ? @warn("Skipping WMMA tests due to incompatible Julia") : @testset "WM
                 return
             end
 
-            @cuda threads=32 kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta)
-            d = Array(d_dev)
+            @test_broken_if VERSION >= v"1.5.0-DEV.393" begin
+                @cuda threads=32 kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta)
+                d = Array(d_dev)
 
-            new_a = (a_layout == ColMajor) ? a : transpose(a)
-            new_b = (b_layout == ColMajor) ? b : transpose(b)
-            new_c = (c_layout == ColMajor) ? c : transpose(c)
-            new_d = (d_layout == ColMajor) ? d : transpose(d)
+                new_a = (a_layout == ColMajor) ? a : transpose(a)
+                new_b = (b_layout == ColMajor) ? b : transpose(b)
+                new_c = (c_layout == ColMajor) ? c : transpose(c)
+                new_d = (d_layout == ColMajor) ? d : transpose(d)
 
-            if do_mac
-                @test all(isapprox.(alpha * new_a * new_b + beta * new_c, new_d; rtol=sqrt(eps(Float16))))
-            else
-                @test all(isapprox.(alpha * new_a * new_b, new_d; rtol=sqrt(eps(Float16))))
+                if do_mac
+                    all(isapprox.(alpha * new_a * new_b + beta * new_c, new_d; rtol=sqrt(eps(Float16))))
+                else
+                    all(isapprox.(alpha * new_a * new_b, new_d; rtol=sqrt(eps(Float16))))
+                end
             end
         end
 
@@ -266,8 +268,8 @@ if VERSION >= v"1.5.0-DEV.324"
 
             ptx = sprint(io -> CUDAnative.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDAnative.AS.Global},)))
 
-            @test !occursin("wmma.store.d.sync.aligned.col.m16n16k16.f32", ptx)
-            @test  occursin("wmma.store.d.sync.aligned.col.m16n16k16.global.f32", ptx)
+            @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
+            @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)
         end
 
         @testset "Shared" begin
@@ -283,8 +285,8 @@ if VERSION >= v"1.5.0-DEV.324"
 
             ptx = sprint(io -> CUDAnative.code_ptx(io, kernel, ()))
 
-            @test !occursin("wmma.store.d.sync.aligned.col.m16n16k16.f32", ptx)
-            @test  occursin("wmma.store.d.sync.aligned.col.m16n16k16.shared.f32", ptx)
+            @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
+            @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
         end
     end
 end

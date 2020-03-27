@@ -11,7 +11,7 @@
     ir = sprint(io->CUDAnative.code_llvm(io, valid_kernel, Tuple{}; optimize=false, dump_module=true))
 
     # module should contain our function + a generic call wrapper
-    @test occursin(r"define void @.*julia_valid_kernel.*\(\)", ir)
+    @test occursin(r"define\ .* void\ @.*julia_valid_kernel.*\(\)"x, ir)
     @test !occursin("define %jl_value_t* @jlcall_", ir)
 
     # there should be no debug metadata
@@ -130,21 +130,6 @@ end
     CUDAnative.code_llvm(devnull, D32593, Tuple{CuDeviceVector{D32593_struct,AS.Global}})
 end
 
-@testset "kernel names" begin
-    regular() = return
-    closure = ()->return
-
-    function test_name(f, name; kwargs...)
-        code = sprint(io->CUDAnative.code_llvm(io, f, Tuple{}; kwargs...))
-        @test occursin(name, code)
-    end
-
-    test_name(regular, "julia_regular")
-    test_name(regular, "julia_regular"; kernel=true)
-    test_name(closure, "julia_anonymous")
-    test_name(closure, "julia_anonymous"; kernel=true)
-end
-
 @testset "PTX TBAA" begin
     load(ptr) = unsafe_load(ptr)
     store(ptr) = unsafe_store!(ptr, 0)
@@ -256,7 +241,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, parent, Tuple{Int64}))
-    @test occursin(r"call.uni\s+julia_child_"m, asm)
+    @test occursin(r"call.uni\s+julia_.*child_"m, asm)
 end
 
 @testset "kernel functions" begin
@@ -314,7 +299,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, parent1, Tuple{Int}))
-    @test occursin(r".func julia_child_", asm)
+    @test occursin(r".func julia_.*child_", asm)
 
     function parent2(i)
         child(i+1)
@@ -322,7 +307,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, parent2, Tuple{Int}))
-    @test occursin(r".func julia_child_", asm)
+    @test occursin(r".func julia_.*child_", asm)
 end
 
 @testset "child function reuse bis" begin
@@ -384,21 +369,6 @@ end
         return
     end
     CUDAnative.code_ptx(devnull, kernel, Tuple{Float64})
-end
-
-@testset "kernel names" begin
-    regular() = nothing
-    closure = ()->nothing
-
-    function test_name(f, name; kwargs...)
-        code = sprint(io->CUDAnative.code_ptx(io, f, Tuple{}; kwargs...))
-        @test occursin(name, code)
-    end
-
-    test_name(regular, "julia_regular")
-    test_name(regular, "julia_regular"; kernel=true)
-    test_name(closure, "julia_anonymous")
-    test_name(closure, "julia_anonymous"; kernel=true)
 end
 
 @testset "exception arguments" begin
@@ -477,18 +447,6 @@ end
 @testset "errors" begin
 
 # some validation happens in the emit_function hook, which is called by code_llvm
-
-@testset "recursion" begin
-    @eval recurse_outer(i) = i > 0 ? i : recurse_inner(i)
-    @eval @noinline recurse_inner(i) = i < 0 ? i : recurse_outer(i)
-
-    @test_throws_message(CUDAnative.KernelError, CUDAnative.code_llvm(devnull, recurse_outer, Tuple{Int})) do msg
-        occursin("recursion is currently not supported", msg) &&
-        occursin("[1] recurse_outer", msg) &&
-        occursin("[2] recurse_inner", msg) &&
-        occursin("[3] recurse_outer", msg)
-    end
-end
 
 @testset "base intrinsics" begin
     foobar(i) = sin(i)
