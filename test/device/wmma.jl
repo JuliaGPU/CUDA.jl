@@ -268,8 +268,8 @@ if VERSION >= v"1.5.0-DEV.324"
 
             ptx = sprint(io -> CUDAnative.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDAnative.AS.Global},)))
 
-            @test !occursin("wmma.store.d.sync.aligned.col.m16n16k16.f32", ptx)
-            @test  occursin("wmma.store.d.sync.aligned.col.m16n16k16.global.f32", ptx)
+            @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
+            @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)
         end
 
         @testset "Shared" begin
@@ -285,8 +285,8 @@ if VERSION >= v"1.5.0-DEV.324"
 
             ptx = sprint(io -> CUDAnative.code_ptx(io, kernel, ()))
 
-            @test !occursin("wmma.store.d.sync.aligned.col.m16n16k16.f32", ptx)
-            @test  occursin("wmma.store.d.sync.aligned.col.m16n16k16.shared.f32", ptx)
+            @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
+            @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
         end
     end
 end
