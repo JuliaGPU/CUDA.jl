@@ -68,7 +68,6 @@ they will be collected once they are unreachable, and the memory hold by it will
 repurposed or freed. There is no need for manual memory management, just make sure your
 objects are not reachable (i.e., there are no instances or references).
 
-
 ### Memory pool
 
 Behind the scenes, a memory pool will hold on to your objects and cache the underlying
@@ -116,19 +115,93 @@ BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)
     memory pool and free any cached memory if necessary. It is a bug if that operation
     runs into an out-of-memory situation only if not manually reclaiming memory beforehand.
 
+### Avoiding GC pressure
+
+When your application performs a lot of memory operations, the time spent during GC might
+increase significantly. This happens more often than it does on the CPU because GPUs tend to
+have smaller memories and more frequently run out of it. When that happens, CuArrays invokes
+the Julia garbage collector, which then needs to scan objects to see if they can be freed to
+get back some GPU memory.
+
+To avoid having to depend on the Julia GC to free up memory, you can directly inform
+CuArrays.jl when an allocation can be freed (or reused) by calling the `unsafe_free!`
+method. Once you've done so, you cannot use that array anymore:
+
+```julia-repl
+julia> a = CuArray([1])
+1-element CuArray{Int64,1,Nothing}:
+ 1
+
+julia> CuArrays.unsafe_free!(a)
+
+julia> a
+1-element CuArray{Int64,1,Nothing}:
+Error showing value of type CuArray{Int64,1,Nothing}:
+ERROR: AssertionError: Use of freed memory
+```
+
+### Detecting leaks
+
+If you think you have a memory leak, or you want to know where your GPU's RAM has gone, you
+can ask the memory pool to display all outstanding allocations. Since it is expensive to
+keep track of that, this feature is only available when running Julia on debug level 2 or
+higher (i.e., with the `-g2` argument). When you do so, the `memory_status()` function from
+above will display additional information:
+
+```julia-repl
+julia> CuArray([1])
+1-element CuArray{Int64,1,Nothing}:
+ 1
+
+julia> CuArrays.memory_status()
+Effective GPU memory usage: 8.26% (1.301 GiB/15.744 GiB)
+CuArrays allocator usage: 8 bytes
+BinnedPool usage: 8 bytes (8 bytes allocated, 0 bytes cached)
+
+Outstanding memory allocation of 8 bytes at 0x00007fe104c00000
+Stacktrace:
+ [1] CuArray{Int64,1,P} where P(::UndefInitializer, ::Tuple{Int64}) at CuArrays/src/array.jl:107
+ [2] CuArray at CuArrays/src/array.jl:191 [inlined]
+ [3] CuArray(::Array{Int64,1}) at CuArrays/src/array.jl:202
+ [4] top-level scope at REPL[2]:1
+ [5] eval(::Module, ::Any) at ./boot.jl:331
+ [6] eval_user_input(::Any, ::REPL.REPLBackend) at julia/stdlib/v1.4/REPL/src/REPL.jl:86
+ [7] macro expansion at julia/stdlib/v1.4/REPL/src/REPL.jl:118 [inlined]
+ [8] (::REPL.var"#26#27"{REPL.REPLBackend})() at ./task.jl:358
+```
 
 ### Environment variables
 
 Several environment variables affect the behavior of the memory allocator:
 
-- `CUARRAYS_MEMORY_POOL`: select a different memory pool. Several implementations are
+- `JULIA_CUDA_MEMORY_POOL`: select a different memory pool. Several implementations are
   available:
   - `binned` (the default): cache memory in pow2-sized bins
   - `split`: caching pool that supports splitting allocations, designed to reduce pressure
     on the Julia garbage collector
   - `simple`: very simple caching layer for demonstration purposes
   - `none`: no pool at all, directly deferring to the CUDA allocator
-- `CUARRAYS_MEMORY_LIMIT`: cap the amount of allocated GPU memory, in bytes.
+- `JULIA_CUDA_MEMORY_LIMIT`: cap the amount of allocated GPU memory, in bytes.
 
 These environment variables should be set before importing packages; changing them at run
 time does not have any effect.
+
+
+## Batching iterator
+
+If you are dealing with data sets that are too large to fit on the GPU all at once, you can
+use `CuIterator` to batch operations:
+
+```julia
+julia> batches = [([1], [2]), ([3], [4])]
+
+julia> for (batch, (a,b)) in enumerate(CuIterator(batches))
+         println("Batch $batch: ", a .+ b)
+       end
+Batch 1: [3]
+Batch 2: [7]
+```
+
+For each batch, every argument (assumed to be an array-like) is uploaded to the GPU using
+the `adapt` mechanism from above. Afterwards, the memory is eagerly put back in the CuArrays
+memory pool using `unsafe_free!` to lower GC pressure.
