@@ -10,7 +10,7 @@ if capability(device()) < v"7.0"
 end
 
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-is_debug && exit()
+(is_debug && VERSION < v"1.5.0-DEV.437") && exit()
 
 ### START
 using Test

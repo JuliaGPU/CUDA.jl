@@ -5,7 +5,7 @@ if VERSION >= v"1.4.0-DEV.666" && capability(device()) >= v"7.0"
 using CUDAnative.WMMA
 
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-is_debug ? @warn("Skipping WMMA tests due to incompatible Julia") : @testset "WMMA" begin
+(is_debug && VERSION < v"1.5.0-DEV.437") ? @warn("Skipping WMMA tests due to incompatible Julia") : @testset "WMMA" begin
 
 ################################################################################
 
