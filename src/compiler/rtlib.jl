@@ -171,7 +171,7 @@ function load_runtime(cap)
                 parse(LLVM.Module, read(io), JuliaContext())
             end
         else
-            @info "Building the CUDAnative run-time library for your sm_$(cap.major)$(cap.minor) device, this might take a while..."
+            @debug "Building the CUDAnative run-time library for sm_$(cap.major)$(cap.minor)."
             lib = build_runtime(cap)
             open(path, "w") do io
                 write(io, lib)
