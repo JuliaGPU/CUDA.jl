@@ -57,8 +57,12 @@ end
 ## in-place
 
 # uniform
-const UniformType = Union{Type{Float32},Type{Float64}}
-const UniformArray = CuArray{<:Union{Float32,Float64}}
+const UniformType = Union{Type{Float32},Type{Float64},Type{UInt32}}
+const UniformArray = CuArray{<:Union{Float32,Float64,UInt32}}
+function Random.rand!(rng::RNG, A::CuArray{UInt32})
+    curandGenerate(rng, A, length(A))
+    return A
+end
 function Random.rand!(rng::RNG, A::CuArray{Float32})
     curandGenerateUniform(rng, A, length(A))
     return A
