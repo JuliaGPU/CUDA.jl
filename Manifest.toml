@@ -34,15 +34,15 @@ version = "4.0.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "CUDAapi", "Printf"]
-git-tree-sha1 = "9db0ff78ac601ca66c85f3bededdbacc3d1c9bdb"
+git-tree-sha1 = "e650cbaee92b60433313157926b1e80d0c3a0e2e"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "6.2.0"
+version = "6.2.2"
 
 [[CUDAnative]]
 deps = ["Adapt", "BinaryProvider", "CEnum", "CUDAapi", "CUDAdrv", "Cthulhu", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "MacroTools", "Pkg", "Printf", "TimerOutputs"]
-git-tree-sha1 = "1ee71ece4332185ad49b93f7b6cf9d51017e40ef"
+git-tree-sha1 = "d1fc99635d0002c8a819b78cb1f441eb44310725"
 uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
-version = "3.0.0"
+version = "3.0.2"
 
 [[CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
@@ -97,7 +97,6 @@ uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
 version = "1.3.4"
 
 [[LibGit2]]
-deps = ["Printf"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
 [[Libdl]]
@@ -111,10 +110,10 @@ uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[MacroTools]]
-deps = ["DataStructures", "Markdown", "Random"]
-git-tree-sha1 = "07ee65e03e28ca88bc9a338a3726ae0c3efaa94b"
+deps = ["Markdown", "Random"]
+git-tree-sha1 = "f7d2e3f654af75f01ec49be82c231c382214223a"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.4"
+version = "0.5.5"
 
 [[Markdown]]
 deps = ["Base64"]
@@ -136,7 +135,7 @@ uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.1.0"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Test", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Printf]]
