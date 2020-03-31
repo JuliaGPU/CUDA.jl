@@ -80,10 +80,14 @@ end
     return val
 end
 
+Base.@propagate_inbounds _map_getindex(args::Tuple, I) = ((args[1][I]), _map_getindex(Base.tail(args), I)...)
+Base.@propagate_inbounds _map_getindex(args::Tuple{Any}, I) = ((args[1][I]),)
+Base.@propagate_inbounds _map_getindex(args::Tuple{}, I) = ()
+
 # Reduce an array across the grid. All elements to be processed can be addressed by the
 # product of the two iterators `Rreduce` and `Rother`, where the latter iterator will have
 # singleton entries for the dimensions that should be reduced (and vice versa).
-function mapreduce_grid(f, op, A, R, neutral, Rreduce, Rother, shuffle)
+function mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R, As...)
     # block-based indexing into the values outside of the reduction dimension
     # (that means we can safely synchronize threads within this block)
     iother = blockIdx().x
@@ -105,7 +109,7 @@ function mapreduce_grid(f, op, A, R, neutral, Rreduce, Rother, shuffle)
         while ireduce <= length(Rreduce)
             Ireduce = Rreduce[ireduce]
             J = max(Iother, Ireduce)
-            val = op(val, f(A[J]))
+            val = op(val, f(_map_getindex(As, J)...))
             ireduce += blockDim().x
         end
 
@@ -123,7 +127,11 @@ end
 
 ## COV_EXCL_STOP
 
-NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, A::AbstractArray, init=nothing) where T
+NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractArray...; init=nothing) where T
+    # TODO: Broadcast-semantics after JuliaLang-julia#31020
+    A = first(As)
+    all(B -> size(A) == size(B), As) || throw(DimensionMismatch("dimensions of containers must be identical"))
+
     Base.check_reducedims(R, A)
     isempty(A) && return R
 
@@ -158,7 +166,7 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, A::AbstractAr
         return (threads=threads, blocks=blocks, shmem=shmem)
     end
 
-    @cuda config=configurator mapreduce_grid(f, op, A, R, init, Rreduce, Rother, Val(shuffle))
+    @cuda config=configurator mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), R, As...)
 
     return R
 end
