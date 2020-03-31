@@ -149,6 +149,11 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractA
     shuffle &= capability(device()) >= v"3.0"
     shuffle &= T in (Bool, Int32, Int64, Float32, Float64, ComplexF32, ComplexF64)
 
+    # add singleton dimensions to the output container, if needed
+    if ndims(R) < ndims(A)
+        R = reshape(R, ntuple(i -> ifelse(i <= ndims(R), size(R,i), 1), ndims(A)))
+    end
+
     # iteration domain, split in two: one part covers the dimensions that should
     # be reduced, and the other covers the rest. combining both covers all values.
     Rall = CartesianIndices(A)
