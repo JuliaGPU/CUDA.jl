@@ -163,24 +163,51 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractA
     # but allows us to write a generalized kernel supporting partial reductions.
     R′ = reshape(R, (size(R)..., 1))
 
-    # determine how many threads we can launch
+    # how many threads do we want?
+    #
+    # threads in a block work together to reduce values across the reduction dimensions;
+    # we want as many as possible to improve algorithm efficiency and execution occupancy.
+    dev = device()
+    wanted_threads = shuffle ? nextwarp(dev, length(Rreduce)) : nextpow(2, length(Rreduce))
+    function compute_threads(max_threads)
+        if wanted_threads > max_threads
+            shuffle ? prevwarp(dev, max_threads) : prevpow(2, max_threads)
+        else
+            wanted_threads
+        end
+    end
+
+    # how many threads can we launch?
+    #
+    # we might not be able to launch all those threads to reduce each slice in one go.
+    # that's why each threads also loops across their inputs, processing multiple values
+    # so that we can span the entire reduction dimension using a single thread block.
     args = (f, op, init, Rreduce, Rother, Val(shuffle), R′, As...)
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_mapreduce_grid, kernel_tt)
-    kernel_config =
-        launch_configuration(kernel.fun; shmem = shuffle ? 0 : threads->2*threads*sizeof(T))
+    compute_shmem(threads) = shuffle ? 0 : 2*threads*sizeof(T)
+    kernel_config = launch_configuration(kernel.fun; shmem=compute_shmem∘compute_threads)
+    reduce_threads = compute_threads(kernel_config.threads)
+    reduce_shmem = compute_shmem(reduce_threads)
+
+    # how many blocks should we launch?
+    #
+    # even though we can always reduce each slice in a single thread block, that may not be
+    # optimal as it might not saturate the GPU. we already launch some blocks to process
+    # independent dimensions in parallel; pad that number to ensure full occupancy.
+    other_blocks = length(Rother)
+    reduce_blocks = if other_blocks >= kernel_config.blocks
+        1
+    else
+        min(cld(length(Rreduce), reduce_threads),       # how many we need at most
+            cld(kernel_config.blocks, other_blocks))    # maximize occupancy
+    end
 
     # determine the launch configuration
-    dev = device()
-    reduce_threads = shuffle ? nextwarp(dev, length(Rreduce)) : nextpow(2, length(Rreduce))
-    if reduce_threads > kernel_config.threads
-        reduce_threads = shuffle ? prevwarp(dev, kernel_config.threads) : prevpow(2, kernel_config.threads)
-    end
-    reduce_blocks = min(reduce_threads, cld(length(Rreduce), reduce_threads))
-    other_blocks = length(Rother)
-    threads, blocks = reduce_threads, reduce_blocks*other_blocks
-    shmem = shuffle ? 0 : 2*threads*sizeof(T)
+    threads = reduce_threads
+    shmem = reduce_shmem
+    blocks = reduce_blocks*other_blocks
 
     # perform the actual reduction
     if reduce_blocks == 1
