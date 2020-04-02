@@ -21,7 +21,7 @@
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDAdrv.jl
 
-CUDAdrv.jl proviudes high-level wrappers for the functionality exposed by the CUDA driver
+CUDAdrv.jl provides high-level wrappers for the functionality exposed by the CUDA driver
 API, and is meant for users who need high- or low-level access to the CUDA toolkit or the
 underlying hardware.
 
