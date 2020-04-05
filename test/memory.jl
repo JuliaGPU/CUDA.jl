@@ -60,6 +60,10 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     else
         @test !CUDAdrv.is_managed(typed_pointer(src, T))
     end
+    # Test conversion to Ptr throwing an error 
+    if isa(src, Mem.Device)
+        @test_throws ArgumentError convert(Ptr, src)
+    end
 
     Mem.free(src)
     Mem.free(dst)
