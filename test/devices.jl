@@ -9,4 +9,7 @@ capability(dev)
 
 @test eval(Meta.parse(repr(dev))) == dev
 
+@test eltype(devices()) == CuDevice
+@grab_output show(stdout, "text/plain", CUDAdrv.DEVICE_CPU) 
+@grab_output show(stdout, "text/plain", CUDAdrv.DEVICE_INVALID) 
 end
