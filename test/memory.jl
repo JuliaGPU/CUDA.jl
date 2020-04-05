@@ -151,6 +151,7 @@ end
 let
     src = Mem.alloc(Mem.Unified, nb)
 
+    @test_throws BoundsError Mem.prefetch(src, 2*nb; device=CUDAdrv.DEVICE_CPU) 
     #Mem.prefetch(src, nb; device=CUDAdrv.DEVICE_CPU)
     Mem.advise(src, Mem.ADVISE_SET_READ_MOSTLY)
 
