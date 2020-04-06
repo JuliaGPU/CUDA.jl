@@ -148,7 +148,7 @@ For example:
     cd = Mem.alloc(DeviceBuffer, 10*sizeof(Float32))
 
     cudacall(vadd, (CuPtr{Cfloat},CuPtr{Cfloat},CuPtr{Cfloat}), ad, bd, cd; threads=10)
-    unsafe_copyto!(onvert(Ptr{Cvoid}, c), cd, 10*sizeof(Float32)))
+    unsafe_copyto!(convert(Ptr{Cvoid}, c), cd, 10*sizeof(Float32)))
 
 The `blocks` and `threads` arguments control the launch configuration, and should both
 consist of either an integer, or a tuple of 1 to 3 integers (omitted dimensions default to
