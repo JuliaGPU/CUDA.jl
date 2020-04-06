@@ -1,5 +1,7 @@
 # code reflection entry-points
 
+# TODO: move to GPUCompiler.jl
+
 using InteractiveUtils, Cthulhu
 
 using .CUPTI: CUpti_CallbackDomain, CUpti_CallbackId, CUpti_SubscriberHandle,
@@ -70,14 +72,14 @@ function code_llvm(io::IO, @nospecialize(func), @nospecialize(types);
                    optimize::Bool=true, raw::Bool=false, debuginfo::Symbol=:default,
                    dump_module::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CompilerJob(func, tt, cap, kernel; kwargs...)
+    job = CUDACompilerJob(func, tt, cap, kernel; kwargs...)
     code_llvm(io, job; optimize=optimize, raw=raw, debuginfo=debuginfo,
               dump_module=dump_module, strict=strict)
 end
-function code_llvm(io::IO, job::CompilerJob; optimize::Bool=true, raw::Bool=false,
+function code_llvm(io::IO, job::PTXCompilerJob; optimize::Bool=true, raw::Bool=false,
                    debuginfo::Symbol=:default, dump_module::Bool=false, strict::Bool=false)
     # NOTE: jl_dump_function_ir supports stripping metadata, so don't do it in the driver
-    ir, entry = codegen(:llvm, job; optimize=optimize, strip=false, strict=strict)
+    ir, entry = GPUCompiler.codegen(:llvm, job; optimize=optimize, strip=false, strict=strict)
     str = ccall(:jl_dump_function_ir, Ref{String},
                 (Ptr{Cvoid}, Bool, Bool, Ptr{UInt8}),
                 LLVM.ref(entry), !raw, dump_module, debuginfo)
@@ -105,11 +107,11 @@ function code_ptx(io::IO, @nospecialize(func), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
                   raw::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CompilerJob(func, tt, cap, kernel; kwargs...)
+    job = CUDACompilerJob(func, tt, cap, kernel; kwargs...)
     code_ptx(io, job; raw=raw, strict=strict)
 end
-function code_ptx(io::IO, job::CompilerJob; raw::Bool=false, strict::Bool=false)
-    asm, _ = codegen(:ptx, job; strip=!raw, strict=strict)
+function code_ptx(io::IO, job::PTXCompilerJob; raw::Bool=false, strict::Bool=false)
+    asm, _ = GPUCompiler.codegen(:ptx, job; strip=!raw, strict=strict)
     print(io, asm)
 end
 code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
@@ -151,15 +153,15 @@ function code_sass(io::IO, @nospecialize(func), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=true,
                    verbose::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CompilerJob(func, tt, cap, kernel; kwargs...)
+    job = CUDACompilerJob(func, tt, cap, kernel; kwargs...)
     code_sass(io, job; verbose=verbose)
 end
-function code_sass(io::IO, job::CompilerJob; verbose::Bool=false)
+function code_sass(io::IO, job::PTXCompilerJob; verbose::Bool=false)
     if !job.kernel
         error("Can only generate SASS code for kernel functions")
     end
 
-    ptx, _ = codegen(:ptx, job)
+    ptx, _ = GPUCompiler.codegen(:ptx, job)
 
     cubin = Ref{Any}()
     callback = @cfunction(code_sass_callback, Cvoid,
@@ -263,7 +265,7 @@ See also: InteractiveUtils.@code_lowered
 macro device_code_lowered(ex...)
     quote
         buf = Any[]
-        function hook(job::CompilerJob)
+        function hook(job::PTXCompilerJob)
             append!(buf, code_lowered(job.f, job.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
@@ -281,8 +283,8 @@ See also: InteractiveUtils.@code_typed
 """
 macro device_code_typed(ex...)
     quote
-        output = Dict{CompilerJob,Any}()
-        function hook(job::CompilerJob)
+        output = Dict{PTXCompilerJob,Any}()
+        function hook(job::PTXCompilerJob)
             output[job] = code_typed(job.f, job.tt)
         end
         $(emit_hooked_compilation(:hook, ex...))
@@ -299,7 +301,7 @@ InteractiveUtils.code_warntype to `io` for every compiled CUDA kernel.
 See also: InteractiveUtils.@code_warntype
 """
 macro device_code_warntype(ex...)
-    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+    function hook(job::PTXCompilerJob; io::IO=stdout, kwargs...)
         println(io, "$job")
         println(io)
         code_warntype(io, job.f, job.tt; kwargs...)
@@ -317,7 +319,7 @@ to `io` for every compiled CUDA kernel. For other supported keywords, see
 See also: InteractiveUtils.@code_llvm
 """
 macro device_code_llvm(ex...)
-    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+    function hook(job::PTXCompilerJob; io::IO=stdout, kwargs...)
         println(io, "; $job")
         code_llvm(io, job; kwargs...)
     end
@@ -332,7 +334,7 @@ for every compiled CUDA kernel. For other supported keywords, see
 [`CUDAnative.code_ptx`](@ref).
 """
 macro device_code_ptx(ex...)
-    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+    function hook(job::PTXCompilerJob; io::IO=stdout, kwargs...)
         println(io, "// $job")
         println(io)
         code_ptx(io, job; kwargs...)
@@ -348,7 +350,7 @@ Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(job::CompilerJob; io::IO=stdout, kwargs...)
+    function hook(job::PTXCompilerJob; io::IO=stdout, kwargs...)
         println(io, "// $job")
         println(io)
         code_sass(io, job; kwargs...)
@@ -365,7 +367,7 @@ Evaluates the expression `ex` and dumps all intermediate forms of code to the di
 macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
     localUnique = 1
-    function hook(job::CompilerJob; dir::AbstractString)
+    function hook(job::PTXCompilerJob; dir::AbstractString)
         name = something(job.name, nameof(job.f))
         fn = "$(name)_$(localUnique)"
         mkpath(dir)

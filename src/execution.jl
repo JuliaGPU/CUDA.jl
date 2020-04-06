@@ -323,8 +323,8 @@ function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
     ctx = context()
     dev = device(ctx)
     cap = supported_capability(dev)
-    asm, kernel_fn, undefined_fns =
-        compile(:ptx, cap, f, tt; name=name, strict=true, kwargs...)
+    compiler_job = CUDACompilerJob(f, tt, cap, #=kernel=# true; name=name, kwargs...)
+    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:ptx, compiler_job; strict=true)
 
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
@@ -344,12 +344,10 @@ function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
     intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
                     "__nvvm_reflect" #= TODO: should have been optimized away =#]
     if !isempty(setdiff(undefined_fns, intrinsic_fns))
-        @timeit_debug to "device runtime library" begin
-            linker = CUDAdrv.CuLink(jit_options)
-            CUDAdrv.add_file!(linker, libcudadevrt(), CUDAdrv.JIT_INPUT_LIBRARY)
-            CUDAdrv.add_data!(linker, kernel_fn, asm)
-            image = CUDAdrv.complete(linker)
-        end
+        linker = CUDAdrv.CuLink(jit_options)
+        CUDAdrv.add_file!(linker, libcudadevrt(), CUDAdrv.JIT_INPUT_LIBRARY)
+        CUDAdrv.add_data!(linker, kernel_fn, asm)
+        image = CUDAdrv.complete(linker)
     end
 
     # JIT into an executable kernel object

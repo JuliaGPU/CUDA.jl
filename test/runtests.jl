@@ -21,8 +21,6 @@ if haskey(ENV, "CI") && haskey(ENV, "JULIA_CUDA_VERSION")
   @test CUDAnative.release() == VersionNumber(ENV["JULIA_CUDA_VERSION"])
 end
 
-CUDAnative.enable_timings()
-
 # see if we have a device to run tests on
 # (do this early so that the codegen tests can target the same compute capability)
 @test length(devices()) > 0
@@ -172,7 +170,5 @@ else
         include("examples.jl")
     end
 end
-
-haskey(ENV, "CI") && CUDAnative.timings()
 
 end
