@@ -71,7 +71,7 @@ include("device/llvm.jl")
 using GPUCompiler
 include("device/runtime.jl")
 
-const CUDACompilerTarget = PTXCompilerTarget(CUDAnative)
+const CUDACompilerTarget = PTXCompilerTarget(CUDAnative, link_libdevice!)
 CUDACompilerJob(args...; kwargs...) = PTXCompilerJob(CUDACompilerTarget, args...; kwargs...)
 
 include("init.jl")

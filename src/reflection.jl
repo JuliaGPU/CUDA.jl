@@ -228,14 +228,14 @@ function emit_hooked_compilation(inner_hook, ex...)
             $inner_hook(job; $(map(esc, user_kwargs)...))
         end
 
-        if CUDAnative.compile_hook[] != nothing
+        if GPUCompiler.compile_hook[] != nothing
             error("Chaining multiple @device_code calls is unsupported")
         end
         try
-            CUDAnative.compile_hook[] = outer_hook
+            GPUCompiler.compile_hook[] = outer_hook
             $(esc(user_code))
         finally
-            CUDAnative.compile_hook[] = nothing
+            GPUCompiler.compile_hook[] = nothing
         end
 
         if kernels == 0

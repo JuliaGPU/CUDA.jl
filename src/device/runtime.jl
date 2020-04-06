@@ -1,10 +1,11 @@
-# CUDA-specific interfaces and extensions to the GPU runtime library
+# CUDA-specific runtime libraries
+
+
+## GPU runtime library
 
 # TODO: wipe the cached runtime library during precompilation
 
 # TODO: compile should be per target
-
-## exception handling
 
 function report_exception(ex)
     @cuprintf("""
@@ -44,4 +45,39 @@ function signal_exception()
             """)
     end
     return
+end
+
+
+## CUDA device library
+
+const libcache = Dict{String, LLVM.Module}()
+
+function load_libdevice(cap)
+    path = libdevice()
+
+    get!(libcache, path) do
+        open(path) do io
+            parse(LLVM.Module, read(path), JuliaContext())
+        end
+    end
+end
+
+function link_libdevice!(job::AbstractCompilerJob, mod::LLVM.Module, undefined_fns)
+    # only link if there's undefined __nv_ functions
+    if !any(fn->startswith(fn, "__nv_"), undefined_fns)
+        return
+    end
+    lib::LLVM.Module = load_libdevice(job.cap)
+
+    # override libdevice's triple and datalayout to avoid warnings
+    triple!(lib, triple(mod))
+    datalayout!(lib, datalayout(mod))
+
+    GPUCompiler.link_library!(job, mod, lib)
+
+    ModulePassManager() do pm
+        push!(metadata(mod), "nvvm-reflect-ftz",
+              MDNode([ConstantInt(Int32(1), JuliaContext())]))
+        run!(pm, mod)
+    end
 end

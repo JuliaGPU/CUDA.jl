@@ -2,6 +2,7 @@ using Test, Base.CoreLogging
 import Base.CoreLogging: Info
 
 using CUDAnative, CUDAdrv
+using GPUCompiler
 import Adapt, LLVM
 
 include("util.jl")

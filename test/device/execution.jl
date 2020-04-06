@@ -78,8 +78,8 @@ end
     # make sure invalid kernels can be partially reflected upon
     let
         invalid_kernel() = throw()
-        @test_throws CUDAnative.KernelError @cuda invalid_kernel()
-        @test_throws CUDAnative.KernelError @grab_output @device_code_warntype @cuda invalid_kernel()
+        @test_throws KernelError @cuda invalid_kernel()
+        @test_throws KernelError @grab_output @device_code_warntype @cuda invalid_kernel()
         out, err = @grab_output begin
             try
                 @device_code_warntype @cuda invalid_kernel()
@@ -92,7 +92,7 @@ end
     let
         range_kernel() = (0.0:0.1:100.0; nothing)
 
-        @test_throws CUDAnative.InvalidIRError @cuda range_kernel()
+        @test_throws InvalidIRError @cuda range_kernel()
     end
 
     # set name of kernel
