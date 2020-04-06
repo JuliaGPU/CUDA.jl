@@ -61,7 +61,7 @@ Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     Mem.alloc(DeviceBuffer, bytesize::Integer)
 
 Allocate `bytesize` bytes of memory on the device. This memory is only accessible on the
-GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cudaMemCopy`,
+GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
 for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer)
