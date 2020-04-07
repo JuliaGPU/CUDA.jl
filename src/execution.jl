@@ -522,24 +522,9 @@ a callable kernel object. Device-side equivalent of [`CUDAnative.cufunction`](@r
 
 No keyword arguments are supported.
 """
-@inline dynamic_cufunction(f::Core.Function, tt::Type=Tuple{}) =
-    delayed_cufunction(Val(f), Val(tt))
-
-# marker function that will get picked up during compilation
-@inline cudanativeCompileKernel(id::Int) =
-    ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
-
-const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
-@generated function delayed_cufunction(::Val{f}, ::Val{tt}) where {f,tt}
-    global delayed_cufunctions
-    push!(delayed_cufunctions, (f,tt))
-    id = length(delayed_cufunctions)
-
-    quote
-        # TODO: add an edge to this method instance to support method redefinitions
-        fptr = cudanativeCompileKernel($id)
-        DeviceKernel{f,tt}(fptr)
-    end
+@inline function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+    fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
+    DeviceKernel{f,tt}(fptr)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
