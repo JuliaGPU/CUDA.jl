@@ -321,9 +321,13 @@ k = 1
         @test size(d_F) == size(A)
         @test size(d_F.Q, 1) == size(A, 1)
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
-        @test d_F.Q[1, 1] ≈ qra.Q[1, 1]
+        # @allowscalar didn't work... and scalar indexing needed for sprint
+        CuArrays.allowscalar(true) 
+        qval = d_F.Q[1, 1]
+        @test qval ≈ qra.Q[1, 1]
         qrstr = sprint(show, d_F)
         @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+        CuArrays.allowscalar(false) 
         dQ, dR = d_F
         @test collect(dQ*dR) ≈ A
         A              = rand(elty, n, m)
