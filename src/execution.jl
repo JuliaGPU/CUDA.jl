@@ -331,21 +331,22 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::Core.Function, tt::Type=Tuple{}; kwargs...)
+function cufunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
     ctx = context()
     env = hash(pointer_from_objref(ctx)) # contexts are unique, but handles might alias
     # TODO: implement this as a hash function in CUDAdrv
 
-    GPUCompiler.cached_compilation(cufunction_slow, f, tt, env; kwargs...)::HostKernel{f,tt}
+    spec = FunctionSpec(f, tt, true, name)
+    GPUCompiler.cached_compilation(_cufunction, spec, env; kwargs...)::HostKernel{f,tt}
 end
 
 # actual compilation
-function cufunction_slow(f, tt; name=nothing, kwargs...)
+function _cufunction(spec::FunctionSpec; kwargs...)
     # compile to PTX
     ctx = context()
     dev = device(ctx)
     cap = supported_capability(dev)
-    compiler_job = CUDACompilerJob(cap, FunctionSpec(f, tt, #=kernel=# true, name); kwargs...)
+    compiler_job = CUDACompilerJob(cap, spec; kwargs...)
     asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, compiler_job; strict=true)
 
     # settings to JIT based on Julia's debug setting
@@ -375,7 +376,7 @@ function cufunction_slow(f, tt; name=nothing, kwargs...)
     # JIT into an executable kernel object
     mod = CuModule(image, jit_options)
     fun = CuFunction(mod, kernel_fn)
-    kernel = HostKernel{f,tt}(ctx, mod, fun)
+    kernel = HostKernel{spec.f,spec.tt}(ctx, mod, fun)
 
     create_exceptions!(mod)
 
