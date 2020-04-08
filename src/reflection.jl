@@ -72,7 +72,7 @@ function code_llvm(io::IO, @nospecialize(func), @nospecialize(types);
                    optimize::Bool=true, raw::Bool=false, debuginfo::Symbol=:default,
                    dump_module::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CUDACompilerJob(func, tt, cap, kernel; kwargs...)
+    job = CUDACompilerJob(cap, FunctionSpec(func, tt, kernel); kwargs...)
     code_llvm(io, job; optimize=optimize, raw=raw, debuginfo=debuginfo,
               dump_module=dump_module, strict=strict)
 end
@@ -107,11 +107,11 @@ function code_ptx(io::IO, @nospecialize(func), @nospecialize(types);
                   cap::VersionNumber=current_capability(), kernel::Bool=false,
                   raw::Bool=false, strict::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CUDACompilerJob(func, tt, cap, kernel; kwargs...)
+    job = CUDACompilerJob(cap, FunctionSpec(func, tt, kernel); kwargs...)
     code_ptx(io, job; raw=raw, strict=strict)
 end
 function code_ptx(io::IO, job::PTXCompilerJob; raw::Bool=false, strict::Bool=false)
-    asm, _ = GPUCompiler.codegen(:ptx, job; strip=!raw, strict=strict)
+    asm, _ = GPUCompiler.codegen(:asm, job; strip=!raw, strict=strict)
     print(io, asm)
 end
 code_ptx(@nospecialize(func), @nospecialize(types); kwargs...) =
@@ -153,15 +153,15 @@ function code_sass(io::IO, @nospecialize(func), @nospecialize(types);
                    cap::VersionNumber=current_capability(), kernel::Bool=true,
                    verbose::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    job = CUDACompilerJob(func, tt, cap, kernel; kwargs...)
+    job = CUDACompilerJob(cap, FunctionSpec(func, tt, kernel); kwargs...)
     code_sass(io, job; verbose=verbose)
 end
 function code_sass(io::IO, job::PTXCompilerJob; verbose::Bool=false)
-    if !job.kernel
+    if !job.source.kernel
         error("Can only generate SASS code for kernel functions")
     end
 
-    ptx, _ = GPUCompiler.codegen(:ptx, job)
+    asm, _ = GPUCompiler.codegen(:asm, job)
 
     cubin = Ref{Any}()
     callback = @cfunction(code_sass_callback, Cvoid,
@@ -179,7 +179,7 @@ function code_sass(io::IO, job::PTXCompilerJob; verbose::Bool=false)
     subscriber = subscriber_ref[]
     try
         CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
-        CuModule(ptx)
+        CuModule(asm)
     finally
         CUPTI.cuptiUnsubscribe(subscriber)
     end
@@ -266,7 +266,7 @@ macro device_code_lowered(ex...)
     quote
         buf = Any[]
         function hook(job::PTXCompilerJob)
-            append!(buf, code_lowered(job.f, job.tt))
+            append!(buf, code_lowered(job.source.f, job.source.tt))
         end
         $(emit_hooked_compilation(:hook, ex...))
         buf
@@ -285,7 +285,7 @@ macro device_code_typed(ex...)
     quote
         output = Dict{PTXCompilerJob,Any}()
         function hook(job::PTXCompilerJob)
-            output[job] = code_typed(job.f, job.tt)
+            output[job] = code_typed(job.source.f, job.source.tt)
         end
         $(emit_hooked_compilation(:hook, ex...))
         output
@@ -304,7 +304,7 @@ macro device_code_warntype(ex...)
     function hook(job::PTXCompilerJob; io::IO=stdout, kwargs...)
         println(io, "$job")
         println(io)
-        code_warntype(io, job.f, job.tt; kwargs...)
+        code_warntype(io, job.source.f, job.source.tt; kwargs...)
     end
     emit_hooked_compilation(hook, ex...)
 end
@@ -368,20 +368,20 @@ macro device_code(ex...)
     only(xs) = (@assert length(xs) == 1; first(xs))
     localUnique = 1
     function hook(job::PTXCompilerJob; dir::AbstractString)
-        name = something(job.name, nameof(job.f))
+        name = something(job.source.name, nameof(job.source.f))
         fn = "$(name)_$(localUnique)"
         mkpath(dir)
 
         open(joinpath(dir, "$fn.lowered.jl"), "w") do io
-            code = only(code_lowered(job.f, job.tt))
+            code = only(code_lowered(job.source.f, job.source.tt))
             println(io, code)
         end
 
         open(joinpath(dir, "$fn.typed.jl"), "w") do io
             if VERSION >= v"1.1.0"
-                code = only(code_typed(job.f, job.tt, debuginfo=:source))
+                code = only(code_typed(job.source.f, job.source.tt, debuginfo=:source))
             else
-                code = only(code_typed(job.f, job.tt))
+                code = only(code_typed(job.source.f, job.source.tt))
             end
             println(io, code)
         end

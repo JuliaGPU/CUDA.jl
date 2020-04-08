@@ -7,6 +7,22 @@
 
 # TODO: compile should be per target
 
+@inline exception_flag() = ccall("extern julia_exception_flag", llvmcall, Ptr{Cvoid}, ())
+
+function signal_exception()
+    ptr = exception_flag()
+    if ptr !== C_NULL
+        unsafe_store!(convert(Ptr{Int}, ptr), 1)
+        threadfence_system()
+    else
+        @cuprintf("""
+            WARNING: could not signal exception status to the host, execution will continue.
+                     Please file a bug.
+            """)
+    end
+    return
+end
+
 function report_exception(ex)
     @cuprintf("""
         ERROR: a %s was thrown during kernel execution.
@@ -30,23 +46,6 @@ function report_exception_frame(idx, func, file, line)
     return
 end
 
-@inline exception_flag() =
-    ccall("extern cudanativeExceptionFlag", llvmcall, Ptr{Cvoid}, ())
-
-function signal_exception()
-    ptr = exception_flag()
-    if ptr !== C_NULL
-        unsafe_store!(convert(Ptr{Int}, ptr), 1)
-        threadfence_system()
-    else
-        @cuprintf("""
-            WARNING: could not signal exception status to the host, execution will continue.
-                     Please file a bug.
-            """)
-    end
-    return
-end
-
 
 ## CUDA device library
 
@@ -62,18 +61,18 @@ function load_libdevice(cap)
     end
 end
 
-function link_libdevice!(job::AbstractCompilerJob, mod::LLVM.Module, undefined_fns)
+function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
     # only link if there's undefined __nv_ functions
     if !any(fn->startswith(fn, "__nv_"), undefined_fns)
         return
     end
-    lib::LLVM.Module = load_libdevice(job.cap)
+    lib::LLVM.Module = load_libdevice(cap)
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
     datalayout!(lib, datalayout(mod))
 
-    GPUCompiler.link_library!(job, mod, lib)
+    GPUCompiler.link_library!(mod, lib)
 
     ModulePassManager() do pm
         push!(metadata(mod), "nvvm-reflect-ftz",

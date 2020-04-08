@@ -323,8 +323,8 @@ function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
     ctx = context()
     dev = device(ctx)
     cap = supported_capability(dev)
-    compiler_job = CUDACompilerJob(f, tt, cap, #=kernel=# true; name=name, kwargs...)
-    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:ptx, compiler_job; strict=true)
+    compiler_job = CUDACompilerJob(cap, FunctionSpec(f, tt, #=kernel=# true, name); kwargs...)
+    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, compiler_job; strict=true)
 
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{CUDAdrv.CUjit_option,Any}()
