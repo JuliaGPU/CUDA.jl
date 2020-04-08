@@ -312,13 +312,35 @@ end
 
 ## host-side API
 
-using Core.Compiler: retrieve_code_info, CodeInfo, MethodInstance, SSAValue, SlotNumber
-using Base: _methods_by_ftype
+"""
+    cufunction(f, tt=Tuple{}; kwargs...)
+
+Low-level interface to compile a function invocation for the currently-active GPU, returning
+a callable kernel object. For a higher-level interface, use [`@cuda`](@ref).
+
+The following keyword arguments are supported:
+- `minthreads`: the required number of threads in a thread block
+- `maxthreads`: the maximum number of threads in a thread block
+- `blocks_per_sm`: a minimum number of thread blocks to be scheduled on a single
+  multiprocessor
+- `maxregs`: the maximum number of registers to be allocated to a single thread (only
+  supported on LLVM 4.0+)
+- `name`: override the name that the kernel will have in the generated code
+
+The output of this function is automatically cached, i.e. you can simply call `cufunction`
+in a hot path without degrading performance. New code will be generated automatically, when
+when function changes, or when different types or keyword arguments are provided.
+"""
+function cufunction(f::Core.Function, tt::Type=Tuple{}; kwargs...)
+    ctx = context()
+    env = hash(pointer_from_objref(ctx)) # contexts are unique, but handles might alias
+    # TODO: implement this as a hash function in CUDAdrv
+
+    GPUCompiler.cached_compilation(cufunction_slow, f, tt, env; kwargs...)::HostKernel{f,tt}
+end
 
 # actual compilation
-function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
-    start = time_ns()
-
+function cufunction_slow(f, tt; name=nothing, kwargs...)
     # compile to PTX
     ctx = context()
     dev = device(ctx)
@@ -357,113 +379,7 @@ function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
 
     create_exceptions!(mod)
 
-    stop = time_ns()
-    # @trace begin
-    #     ver = version(kernel)
-    #     mem = memory(kernel)
-    #     reg = registers(kernel)
-    #     fn = something(name, nameof(f))
-    #     """Compiled $fn($(join(tt.parameters, ", "))) to PTX $(ver.ptx) for SM $(ver.binary) in $(round((time_ns() - start) / 1000000; digits=2)) ms.
-    #         Kernel uses $reg registers, and $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, and $(Base.format_bytes(mem.constant)) constant memory."""
-    # end
-
     return kernel
-end
-
-# cached compilation
-const compilecache = Dict{UInt, HostKernel}()
-const compilelock = ReentrantLock()
-@inline function cufunction_fast(f, tt, spec; name=nothing, kwargs...)
-    # generate a key for indexing the compilation cache
-    ctx = context()
-    key = hash(spec)
-    key = hash(pointer_from_objref(ctx), key) # contexts are unique, but handles might alias
-    # TODO: implement this as a hash function in CUDAdrv
-    key = hash(name, key)
-    key = hash(kwargs, key)
-    for nf in 1:nfields(f)
-        # mix in the values of any captured variable
-        key = hash(getfield(f, nf), key)
-    end
-
-    Base.@lock compilelock begin
-        get!(compilecache, key) do
-            cufunction_slow(f, tt, spec; name=name, kwargs...)
-        end::HostKernel{f,tt}
-    end
-end
-
-specialization_counter = 0
-
-"""
-    cufunction(f, tt=Tuple{}; kwargs...)
-
-Low-level interface to compile a function invocation for the currently-active GPU, returning
-a callable kernel object. For a higher-level interface, use [`@cuda`](@ref).
-
-The following keyword arguments are supported:
-- `minthreads`: the required number of threads in a thread block
-- `maxthreads`: the maximum number of threads in a thread block
-- `blocks_per_sm`: a minimum number of thread blocks to be scheduled on a single
-  multiprocessor
-- `maxregs`: the maximum number of registers to be allocated to a single thread (only
-  supported on LLVM 4.0+)
-- `name`: override the name that the kernel will have in the generated code
-
-The output of this function is automatically cached, i.e. you can simply call `cufunction`
-in a hot path without degrading performance. New code will be generated automatically, when
-when function changes, or when different types or keyword arguments are provided.
-"""
-@generated function cufunction(f::Core.Function, tt::Type=Tuple{}; kwargs...)
-    # generated function that crafts a custom code info to call the actual cufunction impl.
-    # this gives us the flexibility to insert manual back edges for automatic recompilation.
-    tt = tt.parameters[1]
-
-    # get a hold of the method and code info of the kernel function
-    sig = Tuple{f, tt.parameters...}
-    mthds = _methods_by_ftype(sig, -1, typemax(UInt))
-    Base.isdispatchtuple(tt) || return(:(error("$tt is not a dispatch tuple")))
-    length(mthds) == 1 || return (:(throw(MethodError(f,tt))))
-    mtypes, msp, m = mthds[1]
-    mi = ccall(:jl_specializations_get_linfo, Ref{MethodInstance}, (Any, Any, Any), m, mtypes, msp)
-    ci = retrieve_code_info(mi)
-    @assert isa(ci, CodeInfo)
-
-    # generate a unique id to represent this specialization
-    global specialization_counter
-    id = (specialization_counter += 1)
-    # TODO: save the mi/ci here (or embed it in the AST to pass to cufunction)
-    #       and use that to drive compilation
-
-    # prepare a new code info
-    new_ci = copy(ci)
-    empty!(new_ci.code)
-    empty!(new_ci.codelocs)
-    empty!(new_ci.linetable)
-    empty!(new_ci.ssaflags)
-    new_ci.ssavaluetypes = 0
-    new_ci.edges = MethodInstance[mi]
-    # XXX: setting this edge does not give us proper method invalidation, see
-    #      JuliaLang/julia#34962 which demonstrates we also need to "call" the kernel.
-    #      invoking `code_llvm` also does the necessary codegen, as does calling the
-    #      underlying C methods -- which CUDAnative does, so everything Just Works.
-
-    # prepare the slots
-    new_ci.slotnames = Symbol[:kwfunc, :kwargs, Symbol("#self#"), :f, :tt]
-    new_ci.slotflags = UInt8[0x00 for i = 1:5]
-    kwargs = SlotNumber(2)
-    f = SlotNumber(4)
-    tt = SlotNumber(5)
-
-    # call the compiler
-    append!(new_ci.code, [Expr(:call, Core.kwfunc, cufunction_fast),
-                          Expr(:call, merge, NamedTuple(), kwargs),
-                          Expr(:call, SSAValue(1), SSAValue(2), cufunction_fast, f, tt, id),
-                          Expr(:return, SSAValue(3))])
-    append!(new_ci.codelocs, [0, 0, 0, 0])
-    new_ci.ssavaluetypes += 4
-
-    return new_ci
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
