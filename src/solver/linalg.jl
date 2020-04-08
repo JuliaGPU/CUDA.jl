@@ -54,10 +54,11 @@ LinearAlgebra.lmul!(trA::Transpose{T,<:CuQRPackedQ{T,S}}, B::CuVecOrMat{T}) wher
     ormqr!('L', 'T', parent(trA).factors, parent(trA).τ, B)
 
 function Base.getindex(A::CuQRPackedQ{T, S}, i::Integer, j::Integer) where {T, S}
+    assertscalar("CuQRPackedQ getindex")
     x = CuArrays.zeros(T, size(A, 2))
     x[j] = 1
     lmul!(A, x)
-    return @allowscalar x[i]
+    return x[i]
 end
 
 function Base.show(io::IO, F::CuQR)
