@@ -3,9 +3,8 @@
 
 ## GPU runtime library
 
-# TODO: wipe the cached runtime library during precompilation
-
-# TODO: compile should be per target
+# reset the runtime cache from global scope, so that any change triggers recompilation
+GPUCompiler.reset_runtime()
 
 @inline exception_flag() = ccall("extern julia_exception_flag", llvmcall, Ptr{Cvoid}, ())
 
