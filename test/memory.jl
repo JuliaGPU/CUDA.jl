@@ -151,8 +151,8 @@ end
 let
     src = Mem.alloc(Mem.Unified, nb)
 
-    @test_throws BoundsError Mem.prefetch(src, 2*nb; device=CUDAdrv.DEVICE_CPU) 
-    Mem.prefetch(src, nb; device=CUDAdrv.DEVICE_CPU)
+    @test_throws BoundsError Mem.prefetch(src, 2*nb; device=device()) 
+    Mem.prefetch(src, nb; device=device())
     Mem.advise(src, Mem.ADVISE_SET_READ_MOSTLY)
 
     # get the CPU address and copy some data
