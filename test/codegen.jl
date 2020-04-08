@@ -31,7 +31,7 @@ end
     ir = sprint(io->CUDAnative.code_llvm(io, foobar, Tuple{}))
 
     # plain exceptions should get lowered to a call to the CUDAnative run-time
-    @test occursin("ptx_report_exception", ir)
+    @test occursin("gpu_report_exception", ir)
     # not a jl_throw referencing a jl_value_t representing the exception
     @test !occursin("jl_throw", ir)
 end
@@ -397,7 +397,7 @@ end
     end
 
     asm = sprint(io->CUDAnative.code_ptx(io, kernel, Tuple{Int}))
-    @test occursin("ptx_gc_pool_alloc", asm)
+    @test occursin("gpu_gc_pool_alloc", asm)
 
     # make sure that we can still ellide allocations
     function ref_kernel(out, i)
@@ -416,9 +416,9 @@ end
 
 
     if VERSION < v"1.2.0-DEV.375"
-        @test_broken !occursin("ptx_gc_pool_alloc", asm)
+        @test_broken !occursin("gpu_gc_pool_alloc", asm)
     else
-        @test !occursin("ptx_gc_pool_alloc", asm)
+        @test !occursin("gpu_gc_pool_alloc", asm)
     end
 end
 
