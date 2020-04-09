@@ -71,12 +71,15 @@ include("device/llvm.jl")
 using GPUCompiler
 include("device/runtime.jl")
 
-CUDACompilerTarget(cap) = PTXCompilerTarget(cap=cap,
-                                            runtime_module=CUDAnative,
-                                            emit_exception_flag=emit_exception_flag!,
-                                            link_libdevice=link_libdevice!)
-CUDACompilerJob(cap, args...; kwargs...) =
-    PTXCompilerJob(CUDACompilerTarget(cap), args...; kwargs...)
+CUDACompilerTarget(args...; kwargs...) = PTXCompilerTarget(args...;
+    runtime_module=CUDAnative,
+    # filter out functions from libdevice and cudadevrt
+    isintrinsic_hook = fn->(fn=="__nvvm_reflect" || startswith(fn, "cuda")),
+    kwargs...)
+CUDACompilerJob(args...; kwargs...) = PTXCompilerJob(args...;
+    rewrite_ir_hook = (job,mod)->emit_exception_flag!(mod),
+    link_library_hook = (job,mod,fns)->link_libdevice!(mod, job.target.cap, fns),
+    kwargs...)
 
 include("init.jl")
 include("compatibility.jl")

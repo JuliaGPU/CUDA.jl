@@ -40,9 +40,9 @@ version = "0.5.8"
 
 [[Cthulhu]]
 deps = ["CodeTracking", "InteractiveUtils", "REPL", "Unicode"]
-git-tree-sha1 = "484790098c85c26f8e59051f8ff1a0745c034a7d"
+git-tree-sha1 = "a4849ec61df9659423cc63b298ed895904ee9743"
 uuid = "f68482b8-f384-11e8-15f7-abe071a5a75f"
-version = "1.0.1"
+version = "1.0.2"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
@@ -65,7 +65,7 @@ version = "0.1.0"
 
 [[GPUCompiler]]
 deps = ["Cthulhu", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs"]
-git-tree-sha1 = "e97d0d66c92dc50209e882d1cf18e1af0657b398"
+git-tree-sha1 = "96e13df51390dd81625fd29857d53331dadbf13e"
 repo-rev = "master"
 repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
