@@ -85,17 +85,6 @@ end
     @test cpu(input) == gpu(input)
 end
 
-@testset "assume" begin
-    foo(i) = cld(42, i)
-    ir = sprint(io->CUDAnative.code_llvm(io, foo, Tuple{Int}))
-    @test occursin("@gpu_report_exception", ir)
-
-
-    bar(i) = (CUDAnative.assume(i > 0); cld(42, i))
-    ir = sprint(io->CUDAnative.code_llvm(io, bar, Tuple{Int}))
-    @test !occursin("gpu_report_exception", ir)
-end
-
 end
 
 ############################################################################################

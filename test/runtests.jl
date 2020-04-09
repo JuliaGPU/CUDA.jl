@@ -149,7 +149,6 @@ if length(devices()) > 0
     device!(pick.dev)
 end
 
-include("base.jl")
 include("pointer.jl")
 include("codegen.jl")
 
