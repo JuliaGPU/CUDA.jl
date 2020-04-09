@@ -97,8 +97,10 @@ end
 
 ## indexing
 
-Base.getindex(A::CuDeviceArray, i1::Int) = arrayref(A, i1)
-Base.setindex!(A::CuDeviceArray{T}, x, i1::Int) where {T} = arrayset(A, convert(T,x)::T, i1)
+Base.@propagate_inbounds Base.getindex(A::CuDeviceArray{T}, i1::Int) where {T} =
+    arrayref(A, i1)
+Base.@propagate_inbounds Base.setindex!(A::CuDeviceArray{T}, x, i1::Int) where {T} =
+    arrayset(A, convert(T,x)::T, i1)
 
 Base.IndexStyle(::Type{<:CuDeviceArray}) = Base.IndexLinear()
 
