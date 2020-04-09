@@ -76,8 +76,6 @@ macro range(msg, ex)
     end
 end
 macro range(ex)
-    Meta.isexpr(ex, :function) ||
-        error("NVTX.@range without a message can only be applied to function definitions")
     def = splitdef(ex)
     def[:body] = quote
         $push_range($(string(def[:name])))
