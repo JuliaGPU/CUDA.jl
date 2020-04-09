@@ -6,6 +6,14 @@
 # reset the runtime cache from global scope, so that any change triggers recompilation
 GPUCompiler.reset_runtime()
 
+# load or build the runtime for the most likely compilation job given a compute capability
+function load_runtime(cap::VersionNumber)
+    target = CUDACompilerTarget(cap)
+    dummy_spec = FunctionSpec(()->return, Tuple{})
+    job = CUDACompilerJob(target, dummy_spec)
+    GPUCompiler.load_runtime(job)
+end
+
 @inline exception_flag() = ccall("extern julia_exception_flag", llvmcall, Ptr{Cvoid}, ())
 
 function signal_exception()
