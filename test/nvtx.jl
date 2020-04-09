@@ -23,5 +23,6 @@ end
 NVTX.@range function Main.test2(::T) where T
 end
 
+NVTX.@range test3() = nothing
 
 end
