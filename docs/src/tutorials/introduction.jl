@@ -338,6 +338,28 @@ end
 # 13.3526s  101.22us           (4096 1 1)       (256 1 1)        32        0B        0B  GeForce GTX TIT         1         7  ptxcall_gpu_add3__1 [34]
 # ```
 
+#In the previous example the number of threads was manually selected, this can be further automized by passing a configuration.
+
+function get_config(kernel,n)
+    fun = kernel.fun
+    config = launch_configuration(fun)
+    blocks = cld(n, config.threads)
+    return (threads=config.threads, blocks=blocks)
+end
+fill!(y_d, 2)
+@cuda  config=kernel->get_config(kernel,length(y_d)) gpu_add3!(y_d, x_d)
+@test all(Array(y_d) .== 3.0f0)
+
+# The benchmark:
+
+function bench_gpu4!(y, x)
+    CuArrays.@sync begin
+        @cuda config=kernel->get_config(kernel,length(y_d)) gpu_add3!(y, x)
+    end
+end
+@btime bench_gpu4!($y_d, $x_d)
+
+# ... ms (... allocations: ... bytes). A comparable performance.
 
 # ### Printing
 
