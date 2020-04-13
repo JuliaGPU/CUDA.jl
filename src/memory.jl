@@ -61,7 +61,8 @@ Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     Mem.alloc(DeviceBuffer, bytesize::Integer)
 
 Allocate `bytesize` bytes of memory on the device. This memory is only accessible on the
-GPU, and requires explicit calls to `upload` and `download` for access on the CPU.
+GPU, and requires explicit calls to `unsafe_copyto!`, which wraps `cuMemcpy`,
+for access on the CPU.
 """
 function alloc(::Type{DeviceBuffer}, bytesize::Integer)
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0, CuContext(C_NULL))
@@ -127,6 +128,12 @@ Allocate `bytesize` bytes of page-locked memory on the host. This memory is acce
 the CPU, and makes it possible to perform faster memory copies to the GPU. Furthermore, if
 `flags` is set to `HOSTALLOC_DEVICEMAP` the memory is also accessible from the GPU.
 These accesses are direct, and go through the PCI bus.
+If `flags` is set to `HOSTALLOC_PORTABLE`, the memory is considered mapped by all CUDA contexts,
+not just the one that created the memory, which is useful if the memory needs to be accessed from
+multiple devices. Multiple `flags` can be set at one time using a bytewise `OR`:
+
+    flags = HOSTALLOC_PORTABLE | HOSTALLOC_DEVICEMAP
+
 """
 function alloc(::Type{HostBuffer}, bytesize::Integer, flags=0)
     bytesize == 0 && return HostBuffer(C_NULL, 0, CuContext(C_NULL), false)
@@ -147,9 +154,10 @@ const HOSTREGISTER_IOMEMORY = CUDAdrv.CU_MEMHOSTREGISTER_IOMEMORY
     Mem.register(HostBuffer, ptr::Ptr, bytesize::Integer, [flags])
 
 Page-lock the host memory pointed to by `ptr`. Subsequent transfers to and from devices will
-be faster, and can be executed asynchronously. If the `MEMHOSTREGISTER_DEVICEMAP` flag is
-specified, the buffer will also be accessible directly from the GPU. These accesses are
-direct, and go through the PCI bus.
+be faster, and can be executed asynchronously. If the `HOSTREGISTER_DEVICEMAP` flag is
+specified, the buffer will also be accessible directly from the GPU.
+These accesses are direct, and go through the PCI bus.
+If the `HOSTREGISTER_PORTABLE` flag is specified, any CUDA context can access the memory.
 """
 function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
     bytesize == 0 && throw(ArgumentError("Cannot register an empty range of memory."))

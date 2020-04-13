@@ -60,6 +60,10 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     else
         @test !CUDAdrv.is_managed(typed_pointer(src, T))
     end
+    # Test conversion to Ptr throwing an error
+    if isa(src, Mem.Device)
+        @test_throws ArgumentError convert(Ptr, src)
+    end
 
     Mem.free(src)
     Mem.free(dst)
@@ -147,7 +151,10 @@ end
 let
     src = Mem.alloc(Mem.Unified, nb)
 
-    #Mem.prefetch(src, nb; device=CUDAdrv.DEVICE_CPU)
+    @test_throws BoundsError Mem.prefetch(src, 2*nb; device=CUDAdrv.DEVICE_CPU)
+    if Sys.ARCH !== :aarch64 # ARM CI doesn't support this
+        Mem.prefetch(src, nb; device=CUDAdrv.DEVICE_CPU)
+    end
     Mem.advise(src, Mem.ADVISE_SET_READ_MOSTLY)
 
     # get the CPU address and copy some data
