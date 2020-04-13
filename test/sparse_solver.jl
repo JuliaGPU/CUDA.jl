@@ -47,9 +47,15 @@ k = 1
         A = sparse(rand(elty,n,n))
         b = rand(elty,m)
         x = zeros(elty,n)
+        d_A   = CuSparseMatrixCSR(A)
+        d_b   = CuArray(b)
+        d_x   = CuArray(x)
         @test_throws DimensionMismatch CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
         b = rand(elty,n)
         x = zeros(elty,m)
+        d_A   = CuSparseMatrixCSR(A)
+        d_b   = CuArray(b)
+        d_x   = CuArray(x)
         @test_throws DimensionMismatch CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
     end
 
