@@ -80,8 +80,11 @@ end
   @test testf(CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
 
   # activations defined in src/nnlib.jl
+  ACTIVATION_FUNCTIONS = [σ, logσ, hardσ, hardtanh, relu, leakyrelu, relu6, rrelu, 
+                          elu, gelu, celu, swish, lisht, selu, trelu, softplus, 
+                          softsign, logcosh, mish, tanhshrink, softshrink];
   for dims in ((5,5), (5,))
-    for f in (σ, logσ, elu, swish, gelu, selu, softplus)
+    for f in filter(x -> x != rrelu, ACTIVATION_FUNCTIONS)
       @test testf(x -> f.(x), rand(Float64, dims))
     end
   end
