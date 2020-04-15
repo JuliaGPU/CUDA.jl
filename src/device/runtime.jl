@@ -1,111 +1,20 @@
-# CUDAnative runtime library
-#
-# This module defines method instances that will be compiled into a device-specific image
-# and will be available to the CUDAnative compiler to call after Julia has generated code.
-#
-# Most functions implement, or are used to support Julia runtime functions that are expected
-# by the Julia compiler to be available at run time, e.g., to dynamically allocate memory,
-# box values, etc.
-
-module Runtime
-
-using ..CUDAnative
-using LLVM
-using LLVM.Interop
+# CUDA-specific runtime libraries
 
 
-## representation of a runtime method instance
+## GPU runtime library
 
-struct RuntimeMethodInstance
-    def::Function
+# reset the runtime cache from global scope, so that any change triggers recompilation
+GPUCompiler.reset_runtime()
 
-    return_type::Type
-    types::Tuple
-    name::Symbol
-
-    # LLVM types cannot be cached, so we can't put them in the runtime method instance.
-    # the actual types are constructed upon accessing them, based on a sentinel value:
-    #  - nothing: construct the LLVM type based on its Julia counterparts
-    #  - function: call this generator to get the type (when more control is needed)
-    llvm_return_type::Union{Nothing, Function}
-    llvm_types::Union{Nothing, Function}
-    llvm_name::String
+# load or build the runtime for the most likely compilation job given a compute capability
+function load_runtime(cap::VersionNumber)
+    target = CUDACompilerTarget(cap)
+    dummy_spec = FunctionSpec(()->return, Tuple{})
+    job = CUDACompilerJob(target, dummy_spec)
+    GPUCompiler.load_runtime(job)
 end
 
-function Base.getproperty(rt::RuntimeMethodInstance, field::Symbol)
-    value = getfield(rt, field)
-    if field == :llvm_types
-        if value == nothing
-            LLVMType[convert.(LLVMType, typ) for typ in rt.types]
-        else
-            value()
-        end
-    elseif field == :llvm_return_type
-        if value == nothing
-            convert.(LLVMType, rt.return_type)
-        else
-            value()
-        end
-    else
-        return value
-    end
-end
-
-const methods = Dict{Symbol,RuntimeMethodInstance}()
-get(name::Symbol) = methods[name]
-
-# Register a Julia function `def` as a runtime library function identified by `name`. The
-# function will be compiled upon first use for argument types `types` and should return
-# `return_type`. Use `Runtime.get(name)` to get a reference to this method instance.
-#
-# The corresponding LLVM types `llvm_types` and `llvm_return_type` will be deduced from
-# their Julia counterparts. To influence that conversion, pass a callable object instead;
-# this object will be evaluated at run-time and the returned value will be used instead.
-#
-# When generating multiple runtime functions from a single definition, make sure to specify
-# different values for `name`. The LLVM function name will be deduced from that name, but
-# you can always specify `llvm_name` to influence that. Never use an LLVM name that starts
-# with `julia_` or the function might clash with other compiled functions.
-function compile(def, return_type, types, llvm_return_type=nothing, llvm_types=nothing;
-                 name=nameof(def), llvm_name="ptx_$name")
-    meth = RuntimeMethodInstance(def,
-                                 return_type, types, name,
-                                 llvm_return_type, llvm_types, llvm_name)
-    if haskey(methods, name)
-        error("Runtime function $name has already been registered!")
-    end
-    methods[name] = meth
-    meth
-end
-
-
-## exception handling
-
-function report_exception(ex)
-    @cuprintf("""
-        ERROR: a %s was thrown during kernel execution.
-               Run Julia on debug level 2 for device stack traces.
-        """, ex)
-    return
-end
-
-compile(report_exception, Nothing, (Ptr{Cchar},))
-
-function report_exception_name(ex)
-    @cuprintf("""
-        ERROR: a %s was thrown during kernel execution.
-        Stacktrace:
-        """, ex)
-    return
-end
-
-function report_exception_frame(idx, func, file, line)
-    @cuprintf(" [%i] %s at %s:%i\n", idx, func, file, line)
-    return
-end
-
-@inline exception_flag() =
-    ccall("extern cudanativeExceptionFlag", llvmcall, Ptr{Cvoid}, ())
+@inline exception_flag() = ccall("extern julia_exception_flag", llvmcall, Ptr{Cvoid}, ())
 
 function signal_exception()
     ptr = exception_flag()
@@ -121,128 +30,60 @@ function signal_exception()
     return
 end
 
-compile(report_exception_frame, Nothing, (Cint, Ptr{Cchar}, Ptr{Cchar}, Cint))
-compile(report_exception_name, Nothing, (Ptr{Cchar},))
-compile(signal_exception, Nothing, ())
-
-# NOTE: no throw functions are provided here, but replaced by an LLVM pass instead
-#       in order to provide some debug information without stack unwinding.
-
-
-## GC
-
-@enum AddressSpace begin
-    Generic         = 1
-    Tracked         = 10
-    Derived         = 11
-    CalleeRooted    = 12
-    Loaded          = 13
+function report_exception(ex)
+    @cuprintf("""
+        ERROR: a %s was thrown during kernel execution.
+               Run Julia on debug level 2 for device stack traces.
+        """, ex)
+    return
 end
 
-# LLVM type of a tracked pointer
-function T_prjlvalue()
-    T_pjlvalue = convert(LLVMType, Any, true)
-    LLVM.PointerType(eltype(T_pjlvalue), Tracked)
+report_oom(sz) = @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+
+function report_exception_name(ex)
+    @cuprintf("""
+        ERROR: a %s was thrown during kernel execution.
+        Stacktrace:
+        """, ex)
+    return
 end
 
-function gc_pool_alloc(sz::Csize_t)
-    ptr = malloc(sz)
-    if ptr == C_NULL
-        @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
-        throw(OutOfMemoryError())
-    end
-    return unsafe_pointer_to_objref(ptr)
+function report_exception_frame(idx, func, file, line)
+    @cuprintf(" [%i] %s at %s:%i\n", idx, func, file, line)
+    return
 end
 
-compile(gc_pool_alloc, Any, (Csize_t,), T_prjlvalue)
 
+## CUDA device library
 
-## boxing and unboxing
+const libcache = Dict{String, LLVM.Module}()
 
-const tag_type = UInt
-const tag_size = sizeof(tag_type)
+function load_libdevice(cap)
+    path = libdevice()
 
-const gc_bits = 0x3 # FIXME
-
-# get the type tag of a type at run-time
-@generated function type_tag(::Val{type_name}) where type_name
-    T_tag = convert(LLVMType, tag_type)
-    T_ptag = LLVM.PointerType(T_tag)
-
-    T_pjlvalue = convert(LLVMType, Any, true)
-
-    # create function
-    llvm_f, _ = create_function(T_tag)
-    mod = LLVM.parent(llvm_f)
-
-    # this isn't really a function, but we abuse it to get the JIT to resolve the address
-    typ = LLVM.Function(mod, "jl_" * String(type_name) * "_type",
-                        LLVM.FunctionType(T_pjlvalue))
-
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
-
-        typ_var = bitcast!(builder, typ, T_ptag)
-
-        tag = load!(builder, typ_var)
-
-        ret!(builder, tag)
-    end
-
-    call_function(llvm_f, tag_type)
-end
-
-# we use `jl_value_ptr`, a Julia pseudo-intrinsic that can be used to box and unbox values
-
-@generated function box(val, ::Val{type_name}) where type_name
-    sz = sizeof(val)
-    allocsz = sz + tag_size
-
-    # type-tags are ephemeral, so look them up at run time
-    #tag = unsafe_load(convert(Ptr{tag_type}, type_name))
-    tag = :( type_tag(Val(type_name)) )
-
-    quote
-        Base.@_inline_meta
-
-        ptr = malloc($(Csize_t(allocsz)))
-
-        # store the type tag
-        ptr = convert(Ptr{tag_type}, ptr)
-        Core.Intrinsics.pointerset(ptr, $tag | $gc_bits, #=index=# 1, #=align=# $tag_size)
-
-        # store the value
-        ptr = convert(Ptr{$val}, ptr+tag_size)
-        Core.Intrinsics.pointerset(ptr, val, #=index=# 1, #=align=# $sz)
-
-        unsafe_pointer_to_objref(ptr)
+    get!(libcache, path) do
+        open(path) do io
+            parse(LLVM.Module, read(path), JuliaContext())
+        end
     end
 end
 
-@inline function unbox(obj, ::Type{T}) where T
-    ptr = ccall(:jl_value_ptr, Ptr{Cvoid}, (Any,), obj)
-
-    # load the value
-    ptr = convert(Ptr{T}, ptr)
-    Core.Intrinsics.pointerref(ptr, #=index=# 1, #=align=# sizeof(T))
-end
-
-# generate functions functions that exist in the Julia runtime (see julia/src/datatype.c)
-for (T, t) in [Int8   => :int8,  Int16  => :int16,  Int32  => :int32,  Int64  => :int64,
-               UInt8  => :uint8, UInt16 => :uint16, UInt32 => :uint32, UInt64 => :uint64,
-               Bool => :bool, Float32 => :float32, Float64 => :float64]
-    box_fn   = Symbol("box_$t")
-    unbox_fn = Symbol("unbox_$t")
-    @eval begin
-        $box_fn(val)   = box($T(val), Val($(QuoteNode(t))))
-        $unbox_fn(obj) = unbox(obj, $T)
-
-        compile($box_fn, Any, ($T,), T_prjlvalue; llvm_name=$"jl_$box_fn")
-        compile($unbox_fn, $T, (Any,); llvm_name=$"jl_$unbox_fn")
+function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
+    # only link if there's undefined __nv_ functions
+    if !any(fn->startswith(fn, "__nv_"), undefined_fns)
+        return
     end
-end
+    lib::LLVM.Module = load_libdevice(cap)
 
+    # override libdevice's triple and datalayout to avoid warnings
+    triple!(lib, triple(mod))
+    datalayout!(lib, datalayout(mod))
 
+    GPUCompiler.link_library!(mod, lib)
+
+    ModulePassManager() do pm
+        push!(metadata(mod), "nvvm-reflect-ftz",
+              MDNode([ConstantInt(Int32(1), JuliaContext())]))
+        run!(pm, mod)
+    end
 end

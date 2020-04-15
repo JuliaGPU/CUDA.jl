@@ -312,91 +312,6 @@ end
 
 ## host-side API
 
-using Core.Compiler: retrieve_code_info, CodeInfo, MethodInstance, SSAValue, SlotNumber
-using Base: _methods_by_ftype
-
-# actual compilation
-function cufunction_slow(f, tt, spec; name=nothing, kwargs...)
-    start = time_ns()
-
-    # compile to PTX
-    ctx = context()
-    dev = device(ctx)
-    cap = supported_capability(dev)
-    asm, kernel_fn, undefined_fns =
-        compile(:ptx, cap, f, tt; name=name, strict=true, kwargs...)
-
-    # settings to JIT based on Julia's debug setting
-    jit_options = Dict{CUDAdrv.CUjit_option,Any}()
-    if Base.JLOptions().debug_level == 1
-        jit_options[CUDAdrv.JIT_GENERATE_LINE_INFO] = true
-    elseif Base.JLOptions().debug_level >= 2
-        jit_options[CUDAdrv.JIT_GENERATE_DEBUG_INFO] = true
-    end
-
-    # link the CUDA device library
-    image = asm
-    # linking the device runtime library requires use of the CUDA linker,
-    # which in turn switches compilation to device relocatable code (-rdc) mode.
-    #
-    # even if not doing any actual calls that need -rdc (i.e., calls to the runtime
-    # library), this significantly hurts performance, so don't do it unconditionally
-    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
-                    "__nvvm_reflect" #= TODO: should have been optimized away =#]
-    if !isempty(setdiff(undefined_fns, intrinsic_fns))
-        @timeit_debug to "device runtime library" begin
-            linker = CUDAdrv.CuLink(jit_options)
-            CUDAdrv.add_file!(linker, libcudadevrt(), CUDAdrv.JIT_INPUT_LIBRARY)
-            CUDAdrv.add_data!(linker, kernel_fn, asm)
-            image = CUDAdrv.complete(linker)
-        end
-    end
-
-    # JIT into an executable kernel object
-    mod = CuModule(image, jit_options)
-    fun = CuFunction(mod, kernel_fn)
-    kernel = HostKernel{f,tt}(ctx, mod, fun)
-
-    create_exceptions!(mod)
-
-    stop = time_ns()
-    # @trace begin
-    #     ver = version(kernel)
-    #     mem = memory(kernel)
-    #     reg = registers(kernel)
-    #     fn = something(name, nameof(f))
-    #     """Compiled $fn($(join(tt.parameters, ", "))) to PTX $(ver.ptx) for SM $(ver.binary) in $(round((time_ns() - start) / 1000000; digits=2)) ms.
-    #         Kernel uses $reg registers, and $(Base.format_bytes(mem.local)) local, $(Base.format_bytes(mem.shared)) shared, and $(Base.format_bytes(mem.constant)) constant memory."""
-    # end
-
-    return kernel
-end
-
-# cached compilation
-const compilecache = Dict{UInt, HostKernel}()
-const compilelock = ReentrantLock()
-@inline function cufunction_fast(f, tt, spec; name=nothing, kwargs...)
-    # generate a key for indexing the compilation cache
-    ctx = context()
-    key = hash(spec)
-    key = hash(pointer_from_objref(ctx), key) # contexts are unique, but handles might alias
-    # TODO: implement this as a hash function in CUDAdrv
-    key = hash(name, key)
-    key = hash(kwargs, key)
-    for nf in 1:nfields(f)
-        # mix in the values of any captured variable
-        key = hash(getfield(f, nf), key)
-    end
-
-    Base.@lock compilelock begin
-        get!(compilecache, key) do
-            cufunction_slow(f, tt, spec; name=name, kwargs...)
-        end::HostKernel{f,tt}
-    end
-end
-
-specialization_counter = 0
-
 """
     cufunction(f, tt=Tuple{}; kwargs...)
 
@@ -416,56 +331,57 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-@generated function cufunction(f::Core.Function, tt::Type=Tuple{}; kwargs...)
-    # generated function that crafts a custom code info to call the actual cufunction impl.
-    # this gives us the flexibility to insert manual back edges for automatic recompilation.
-    tt = tt.parameters[1]
+function cufunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
+    ctx = context()
+    env = hash(pointer_from_objref(ctx)) # contexts are unique, but handles might alias
+    # TODO: implement this as a hash function in CUDAdrv
 
-    # get a hold of the method and code info of the kernel function
-    sig = Tuple{f, tt.parameters...}
-    mthds = _methods_by_ftype(sig, -1, typemax(UInt))
-    Base.isdispatchtuple(tt) || return(:(error("$tt is not a dispatch tuple")))
-    length(mthds) == 1 || return (:(throw(MethodError(f,tt))))
-    mtypes, msp, m = mthds[1]
-    mi = ccall(:jl_specializations_get_linfo, Ref{MethodInstance}, (Any, Any, Any), m, mtypes, msp)
-    ci = retrieve_code_info(mi)
-    @assert isa(ci, CodeInfo)
+    spec = FunctionSpec(f, tt, true, name)
+    GPUCompiler.cached_compilation(_cufunction, spec, env; kwargs...)::HostKernel{f,tt}
+end
 
-    # generate a unique id to represent this specialization
-    global specialization_counter
-    id = (specialization_counter += 1)
-    # TODO: save the mi/ci here (or embed it in the AST to pass to cufunction)
-    #       and use that to drive compilation
+# actual compilation
+function _cufunction(spec::FunctionSpec; kwargs...)
+    # compile to PTX
+    ctx = context()
+    dev = device(ctx)
+    cap = supported_capability(dev)
+    target = CUDACompilerTarget(supported_capability(dev))
+    job = CUDACompilerJob(target, spec; kwargs...)
+    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, job; strict=true)
 
-    # prepare a new code info
-    new_ci = copy(ci)
-    empty!(new_ci.code)
-    empty!(new_ci.codelocs)
-    empty!(new_ci.linetable)
-    empty!(new_ci.ssaflags)
-    new_ci.ssavaluetypes = 0
-    new_ci.edges = MethodInstance[mi]
-    # XXX: setting this edge does not give us proper method invalidation, see
-    #      JuliaLang/julia#34962 which demonstrates we also need to "call" the kernel.
-    #      invoking `code_llvm` also does the necessary codegen, as does calling the
-    #      underlying C methods -- which CUDAnative does, so everything Just Works.
+    # settings to JIT based on Julia's debug setting
+    jit_options = Dict{CUDAdrv.CUjit_option,Any}()
+    if Base.JLOptions().debug_level == 1
+        jit_options[CUDAdrv.JIT_GENERATE_LINE_INFO] = true
+    elseif Base.JLOptions().debug_level >= 2
+        jit_options[CUDAdrv.JIT_GENERATE_DEBUG_INFO] = true
+    end
 
-    # prepare the slots
-    new_ci.slotnames = Symbol[:kwfunc, :kwargs, Symbol("#self#"), :f, :tt]
-    new_ci.slotflags = UInt8[0x00 for i = 1:5]
-    kwargs = SlotNumber(2)
-    f = SlotNumber(4)
-    tt = SlotNumber(5)
+    # link the CUDA device library
+    image = asm
+    # linking the device runtime library requires use of the CUDA linker,
+    # which in turn switches compilation to device relocatable code (-rdc) mode.
+    #
+    # even if not doing any actual calls that need -rdc (i.e., calls to the runtime
+    # library), this significantly hurts performance, so don't do it unconditionally
+    intrinsic_fns = ["vprintf", "malloc", "free", "__assertfail",
+                    "__nvvm_reflect" #= TODO: should have been optimized away =#]
+    if !isempty(setdiff(undefined_fns, intrinsic_fns))
+        linker = CUDAdrv.CuLink(jit_options)
+        CUDAdrv.add_file!(linker, libcudadevrt(), CUDAdrv.JIT_INPUT_LIBRARY)
+        CUDAdrv.add_data!(linker, kernel_fn, asm)
+        image = CUDAdrv.complete(linker)
+    end
 
-    # call the compiler
-    append!(new_ci.code, [Expr(:call, Core.kwfunc, cufunction_fast),
-                          Expr(:call, merge, NamedTuple(), kwargs),
-                          Expr(:call, SSAValue(1), SSAValue(2), cufunction_fast, f, tt, id),
-                          Expr(:return, SSAValue(3))])
-    append!(new_ci.codelocs, [0, 0, 0, 0])
-    new_ci.ssavaluetypes += 4
+    # JIT into an executable kernel object
+    mod = CuModule(image, jit_options)
+    fun = CuFunction(mod, kernel_fn)
+    kernel = HostKernel{spec.f,spec.tt}(ctx, mod, fun)
 
-    return new_ci
+    create_exceptions!(mod)
+
+    return kernel
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
@@ -524,24 +440,9 @@ a callable kernel object. Device-side equivalent of [`CUDAnative.cufunction`](@r
 
 No keyword arguments are supported.
 """
-@inline dynamic_cufunction(f::Core.Function, tt::Type=Tuple{}) =
-    delayed_cufunction(Val(f), Val(tt))
-
-# marker function that will get picked up during compilation
-@inline cudanativeCompileKernel(id::Int) =
-    ccall("extern cudanativeCompileKernel", llvmcall, Ptr{Cvoid}, (Int,), id)
-
-const delayed_cufunctions = Vector{Tuple{Core.Function,Type}}()
-@generated function delayed_cufunction(::Val{f}, ::Val{tt}) where {f,tt}
-    global delayed_cufunctions
-    push!(delayed_cufunctions, (f,tt))
-    id = length(delayed_cufunctions)
-
-    quote
-        # TODO: add an edge to this method instance to support method redefinitions
-        fptr = cudanativeCompileKernel($id)
-        DeviceKernel{f,tt}(fptr)
-    end
+@inline function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+    fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
+    DeviceKernel{f,tt}(fptr)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919

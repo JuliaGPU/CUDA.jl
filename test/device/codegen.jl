@@ -85,17 +85,6 @@ end
     @test cpu(input) == gpu(input)
 end
 
-@testset "assume" begin
-    foo(i) = cld(42, i)
-    ir = sprint(io->CUDAnative.code_llvm(io, foo, Tuple{Int}))
-    @test occursin("@ptx_report_exception", ir)
-
-
-    bar(i) = (CUDAnative.assume(i > 0); cld(42, i))
-    ir = sprint(io->CUDAnative.code_llvm(io, bar, Tuple{Int}))
-    @test !occursin("@ptx_report_exception", ir)
-end
-
 end
 
 ############################################################################################
@@ -107,13 +96,10 @@ end
     invalid_kernel() = 1
 
     @test CUDAnative.code_sass(devnull, valid_kernel, Tuple{}) == nothing
-    @test_throws CUDAnative.KernelError CUDAnative.code_sass(devnull, invalid_kernel, Tuple{})
+    @test_throws KernelError CUDAnative.code_sass(devnull, invalid_kernel, Tuple{})
 end
 
 @testset "function name mangling" begin
-    name = "julia_^"
-    @test CUDAnative.safe_name(name) != name
-
     @eval @noinline $(Symbol("dummy_^"))(x) = x
 
     @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)

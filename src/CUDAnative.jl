@@ -7,8 +7,6 @@ using LLVM
 using LLVM.Interop
 
 using Adapt
-using TimerOutputs
-using DataStructures
 
 
 ## deferred initialization
@@ -69,7 +67,19 @@ include("device/pointer.jl")
 include("device/array.jl")
 include("device/cuda.jl")
 include("device/llvm.jl")
+
+using GPUCompiler
 include("device/runtime.jl")
+
+CUDACompilerTarget(args...; kwargs...) = PTXCompilerTarget(args...;
+    runtime_module=CUDAnative,
+    # filter out functions from libdevice and cudadevrt
+    isintrinsic_hook = fn->(fn=="__nvvm_reflect" || startswith(fn, "cuda")),
+    kwargs...)
+CUDACompilerJob(args...; kwargs...) = PTXCompilerJob(args...;
+    rewrite_ir_hook = (job,mod)->emit_exception_flag!(mod),
+    link_library_hook = (job,mod,fns)->link_libdevice!(mod, job.target.cap, fns),
+    kwargs...)
 
 include("init.jl")
 include("compatibility.jl")
@@ -78,7 +88,6 @@ include("bindeps.jl")
 include("cupti/CUPTI.jl")
 include("nvtx/NVTX.jl")
 
-include("compiler.jl")
 include("execution.jl")
 include("exceptions.jl")
 include("reflection.jl")
@@ -105,8 +114,6 @@ function __init__()
 
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
-
-    TimerOutputs.reset_timer!(to)
 
     resize!(thread_contexts, Threads.nthreads())
     fill!(thread_contexts, nothing)

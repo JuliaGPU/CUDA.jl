@@ -63,6 +63,14 @@ git-tree-sha1 = "08c1f74d9ad03acf0ee84c12c9e665ab1a9a6e33"
 uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
 version = "0.1.0"
 
+[[GPUCompiler]]
+deps = ["Cthulhu", "DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs"]
+git-tree-sha1 = "96e13df51390dd81625fd29857d53331dadbf13e"
+repo-rev = "master"
+repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl"
+uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
+version = "0.1.0"
+
 [[InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -74,6 +82,7 @@ uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
 version = "1.3.4"
 
 [[LibGit2]]
+deps = ["Printf"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
 [[Libdl]]
@@ -97,7 +106,7 @@ uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.1.0"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Test", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Printf]]
