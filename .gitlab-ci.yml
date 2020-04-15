@@ -39,7 +39,7 @@ julia:1.4-debug:
     - sm_75
   variables:
     CI_THOROUGH: 'true'
-    CI_CLONE_ARGS: '-b release-1.4'
+    CI_CLONE_ARGS: '-b v1.4.0'
     CI_BUILD_ARGS: 'BINARYBUILDER_LLVM_ASSERTS=1 debug'
 
 julia:nightly:
