@@ -2006,4 +2006,50 @@ end
     end
 end
 
+@testset "mul!" begin
+    for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,m))
+        x = rand(elty,m)
+        y = rand(elty,m)
+        @testset "csr" begin
+            d_x  = CuArray(x)
+            d_y  = CuArray(y)
+            d_A  = CuSparseMatrixCSR(A)
+            d_Aᵀ = transpose(d_A)
+            d_Aᴴ = adjoint(d_A)
+            CUSPARSE.mul!(d_y, d_A, d_x)
+            h_y = collect(d_y)
+            z = A * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᵀ, d_x)
+            h_y = collect(d_y)
+            z = transpose(A) * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᴴ, d_x)
+            h_y = collect(d_y)
+            z = adjoint(A) * x
+            @test z ≈ h_y
+        end
+        @testset "csc" begin
+            d_x = CuArray(x)
+            d_y = CuArray(y)
+            d_A = CuSparseMatrixCSC(A)
+            d_Aᵀ = transpose(d_A)
+            d_Aᴴ = adjoint(d_A)
+            CUSPARSE.mul!(d_y, d_A, d_x)
+            h_y = collect(d_y)
+            z = A * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᵀ, d_x)
+            h_y = collect(d_y)
+            z = transpose(A) * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᴴ, d_x)
+            h_y = collect(d_y)
+            z = adjoint(A) * x
+            @test z ≈ h_y
+        end
+    end
+end
+
 end
