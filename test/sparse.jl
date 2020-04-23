@@ -2011,7 +2011,7 @@ end
         A = sparse(rand(elty,m,m))
         x = rand(elty,m)
         y = rand(elty,m)
-        @testset "csr" begin
+        @testset "csr -- $elty" begin
             d_x  = CuArray(x)
             d_y  = CuArray(y)
             d_A  = CuSparseMatrixCSR(A)
@@ -2030,7 +2030,7 @@ end
             z = adjoint(A) * x
             @test z ≈ h_y
         end
-        @testset "csc" begin
+        @testset "csc -- $elty" begin
             d_x = CuArray(x)
             d_y = CuArray(y)
             d_A = CuSparseMatrixCSC(A)
