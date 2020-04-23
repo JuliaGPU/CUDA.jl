@@ -41,6 +41,8 @@ end
 
 # Convolution
 
+# Since CUDNN does not support 1D convolution, Conv in Flux will give a CUDNNError if the size is 1-dimensional.
+# We have to reshape the CuArray/PoolDims/DenseConvDims to 4D before feeding to CUDNN.
 fix1d(x) = x
 
 fix1d(x::CuArray{T, 3}) where T = reshape(x, size(x, 1), 1, size(x, 2), size(x, 3))
