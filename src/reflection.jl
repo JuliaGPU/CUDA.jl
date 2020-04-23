@@ -49,8 +49,8 @@ function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bo
     code_sass(io, job; verbose=verbose)
 end
 
-function code_sass(io::IO, job::PTXCompilerJob; verbose::Bool=false)
-    if !job.source.kernel
+function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
+    if !Base.parent(job).source.kernel
         error("Can only generate SASS code for kernel functions")
     end
 
@@ -143,7 +143,7 @@ Evaluates the expression `ex` and prints the result of [`CUDAnative.code_sass`](
 [`CUDAnative.code_sass`](@ref).
 """
 macro device_code_sass(ex...)
-    function hook(job::PTXCompilerJob; io::IO=stdout, kwargs...)
+    function hook(job::CUDACompilerJob; io::IO=stdout, kwargs...)
         println(io, "// $job")
         println(io)
         code_sass(io, job; kwargs...)

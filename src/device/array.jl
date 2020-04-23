@@ -1,7 +1,6 @@
 # Contiguous on-device arrays
 
-export
-    CuDeviceArray, CuDeviceVector, CuDeviceMatrix, CuBoundsError, ldg
+export CuDeviceArray, CuDeviceVector, CuDeviceMatrix, ldg
 
 
 ## construction
