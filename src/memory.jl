@@ -11,6 +11,19 @@ using Base.Threads: SpinLock
 # each allocator needs to lock its own resources separately too.
 const memory_lock = SpinLock()
 
+# the above spinlocks are taken around code that might gc, which might cause a deadlock
+# if we try to acquire from the finalizer too. avoid that by temporarily disabling the GC.
+macro without_gc(ex)
+  quote
+    gc = GC.enable(false)
+    try
+      $(esc(ex))
+    finally
+      GC.enable(gc)
+    end
+  end
+end
+
 const MEMDEBUG = ccall(:jl_is_memdebug, Bool, ())
 
 
@@ -80,7 +93,7 @@ function actual_alloc(bytes)
   ptr = convert(CuPtr{Nothing}, buf)
 
   # record the buffer
-  @lock memory_lock begin
+  @lock memory_lock @without_gc begin
     @assert !haskey(allocated, ptr)
     allocated[ptr] = buf
   end
@@ -94,7 +107,7 @@ end
 
 function actual_free(ptr::CuPtr{Nothing})
   # look up the buffer
-  buf = @lock memory_lock begin
+  buf = @lock memory_lock @without_gc begin
     buf = allocated[ptr]
     delete!(allocated, ptr)
     buf

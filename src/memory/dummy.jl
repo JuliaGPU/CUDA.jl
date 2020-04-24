@@ -2,7 +2,8 @@ module DummyPool
 
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
-using ..CuArrays: @pool_timeit, actual_alloc, actual_free
+using ..CuArrays
+using ..CuArrays: @pool_timeit, @without_gc
 
 using CUDAdrv
 
@@ -24,13 +25,13 @@ function alloc(sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            ptr = actual_alloc(sz)
+            ptr = CuArrays.actual_alloc(sz)
         end
         ptr === nothing || break
     end
 
     if ptr !== nothing
-        @lock allocated_lock begin
+        @lock allocated_lock @without_gc begin
             allocated[ptr] = sz
         end
         return ptr
@@ -40,17 +41,17 @@ function alloc(sz)
 end
 
 function free(ptr)
-    @lock allocated_lock begin
+    @lock allocated_lock @without_gc begin
         sz = allocated[ptr]
         delete!(allocated, ptr)
     end
-    actual_free(ptr)
+    CuArrays.actual_free(ptr)
     return
 end
 
 reclaim(target_bytes::Int=typemax(Int)) = return 0
 
-used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock allocated_lock @without_gc mapreduce(sizeof, +, values(allocated); init=0)
 
 cached_memory() = 0
 

@@ -3,7 +3,7 @@ module SimplePool
 # simple scan into a list of free buffers
 
 using ..CuArrays
-using ..CuArrays: @pool_timeit
+using ..CuArrays: @pool_timeit, @without_gc
 
 using CUDAdrv
 
@@ -132,7 +132,7 @@ end
 function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
-    @lock freed_lock begin
+    @lock freed_lock @without_gc begin
         push!(freed, block)
     end
 end
@@ -149,7 +149,7 @@ function alloc(sz)
     block = pool_alloc(sz)
     if block !== nothing
         ptr = pointer(block)
-        @lock allocated_lock begin
+        @lock allocated_lock @without_gc begin
             allocated[ptr] = block
         end
         return ptr
@@ -159,7 +159,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = @lock allocated_lock begin
+    block = @lock allocated_lock @without_gc begin
         block = allocated[ptr]
         delete!(allocated, ptr)
         block
@@ -168,10 +168,10 @@ function free(ptr)
     return
 end
 
-used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock allocated_lock @without_gc mapreduce(sizeof, +, values(allocated); init=0)
 
 function cached_memory()
-    sz = @lock freed_lock mapreduce(sizeof, +, freed; init=0)
+    sz = @lock freed_lock @without_gc mapreduce(sizeof, +, freed; init=0)
     sz += @lock pool_lock mapreduce(sizeof, +, pool; init=0)
     return sz
 end
