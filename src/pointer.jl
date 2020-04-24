@@ -59,8 +59,8 @@ Base.unsafe_convert(::Type{P}, x::CuPtr) where {P<:CuPtr} = convert(P, x)
 
 ## limited pointer arithmetic & comparison
 
-isequal(x::CuPtr, y::CuPtr) = (x === y)
-isless(x::CuPtr{T}, y::CuPtr{T}) where {T} = x < y
+Base.isequal(x::CuPtr, y::CuPtr) = (x === y)
+Base.isless(x::CuPtr{T}, y::CuPtr{T}) where {T} = x < y
 
 Base.:(==)(x::CuPtr, y::CuPtr) = UInt(x) == UInt(y)
 Base.:(<)(x::CuPtr,  y::CuPtr) = UInt(x) < UInt(y)

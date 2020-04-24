@@ -19,11 +19,13 @@ abstract type Buffer end
 # expected interface:
 # - similar()
 # - ptr, bytesize and ctx fields
-# - convert() to certain pointers
+# - convert() to Ptr and CuPtr
 
-CUDAdrv.device(buf::Buffer) = device(buf.ctx)
+Base.pointer(buf::Buffer) = buf.ptr
 
 Base.sizeof(buf::Buffer) = buf.bytesize
+
+CUDAdrv.device(buf::Buffer) = device(buf.ctx)
 
 # ccall integration
 #
@@ -46,7 +48,7 @@ struct DeviceBuffer <: Buffer
     ctx::CuContext
 end
 
-Base.similar(buf::DeviceBuffer, ptr::CuPtr{Cvoid}=buf.ptr,
+Base.similar(buf::DeviceBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
              bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx) =
     DeviceBuffer(ptr, bytesize, ctx)
 
@@ -54,7 +56,7 @@ Base.convert(::Type{<:Ptr}, buf::DeviceBuffer) =
     throw(ArgumentError("cannot take the CPU address of a GPU buffer"))
 
 Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
-    convert(CuPtr{T}, buf.ptr)
+    convert(CuPtr{T}, pointer(buf))
 
 
 """
@@ -75,7 +77,7 @@ end
 
 
 function free(buf::DeviceBuffer)
-    if buf.ptr != CU_NULL
+    if pointer(buf) != CU_NULL
         CUDAdrv.cuMemFree(buf)
     end
 end
@@ -97,18 +99,18 @@ struct HostBuffer <: Buffer
     mapped::Bool
 end
 
-Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=buf.ptr, bytesize::Int=sizeof(buf),
+Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=pointer(buf), bytesize::Int=sizeof(buf),
              ctx::CuContext=buf.ctx, mapped::Bool=buf.mapped) =
     HostBuffer(ptr, bytesize, ctx, mapped)
 
 Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
-    convert(Ptr{T}, buf.ptr)
+    convert(Ptr{T}, pointer(buf))
 
 function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
     if buf.mapped
-        buf.ptr == C_NULL && return convert(CuPtr{T}, CU_NULL)
+        pointer(buf) == C_NULL && return convert(CuPtr{T}, CU_NULL)
         ptr_ref = Ref{CuPtr{Cvoid}}()
-        CUDAdrv.cuMemHostGetDevicePointer(ptr_ref, buf.ptr, #=flags=# 0)
+        CUDAdrv.cuMemHostGetDevicePointer(ptr_ref, pointer(buf), #=flags=# 0)
         convert(CuPtr{T}, ptr_ref[])
     else
         throw(ArgumentError("cannot take the GPU address of a pinned but not mapped CPU buffer"))
@@ -179,7 +181,7 @@ end
 
 
 function free(buf::HostBuffer)
-    if buf.ptr != CU_NULL
+    if pointer(buf) != CU_NULL
         CUDAdrv.cuMemFreeHost(buf)
     end
 end
@@ -199,15 +201,15 @@ struct UnifiedBuffer <: Buffer
     ctx::CuContext
 end
 
-Base.similar(buf::UnifiedBuffer, ptr::CuPtr{Cvoid}=buf.ptr,
+Base.similar(buf::UnifiedBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
              bytesize::Int=sizeof(buf), ctx::CuContext=buf.ctx) =
     UnifiedBuffer(ptr, bytesize, ctx)
 
 Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
-    convert(Ptr{T}, reinterpret(Ptr{Cvoid}, buf.ptr))
+    convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buf)))
 
 Base.convert(::Type{CuPtr{T}}, buf::UnifiedBuffer) where {T} =
-    convert(CuPtr{T}, buf.ptr)
+    convert(CuPtr{T}, pointer(buf))
 
 @enum_without_prefix CUDAdrv.CUmemAttach_flags CU_MEM_
 
@@ -229,7 +231,7 @@ end
 
 
 function free(buf::UnifiedBuffer)
-    if buf.ptr != CU_NULL
+    if pointer(buf) != CU_NULL
         CUDAdrv.cuMemFree(buf)
     end
 end
