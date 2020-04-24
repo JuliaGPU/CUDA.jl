@@ -23,7 +23,7 @@ else
   @test ∇conv_filter(a, c, cdims) ≈ collect(∇conv_filter(da, dc, cdims))
 
   # Test for agreement between CPU NNlib and CuDNN versions, across a variety of kwargs
-  for num_spatial_dims in (2, 3)
+  for num_spatial_dims in (1, 2, 3)
     # Initialize data we'll run our tests over
     C_in = 3
     C_out = 4
