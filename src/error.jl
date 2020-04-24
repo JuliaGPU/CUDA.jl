@@ -43,13 +43,9 @@ CuError(1, ERROR_INVALID_VALUE)
 ```
 """
 function name(err::CuError)
-    if err.code == -1%UInt32
-        "ERROR_USING_STUBS"
-    else
-        str_ref = Ref{Cstring}()
-        cuGetErrorName(err, str_ref)
-        unsafe_string(str_ref[])[6:end]
-    end
+    str_ref = Ref{Cstring}()
+    cuGetErrorName(err, str_ref)
+    unsafe_string(str_ref[])[6:end]
 end
 
 """
