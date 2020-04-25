@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CuArrays
-using ..CuArrays: @pool_timeit, @without_gc
+using ..CuArrays: @pool_timeit, @without_finalizers
 
 using DataStructures
 
@@ -223,7 +223,7 @@ end
 
 # repopulate the pools from the list of freed blocks
 function repopulate()
-    blocks = @lock freed_lock @without_gc begin
+    blocks = @lock freed_lock @without_finalizers begin
         isempty(freed) && return
         blocks = Set(freed)
         empty!(freed)
@@ -372,7 +372,7 @@ function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state = FREED
-    @lock freed_lock @without_gc begin
+    @lock freed_lock @without_finalizers begin
         push!(freed, block)
     end
 end
@@ -390,7 +390,7 @@ function alloc(sz)
     if block !== nothing
         block.state = ALLOCATED
         ptr = pointer(block)
-        @lock allocated_lock @without_gc begin
+        @lock allocated_lock @without_finalizers begin
             @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
             allocated[ptr] = block
         end
@@ -401,7 +401,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = @lock allocated_lock @without_gc begin
+    block = @lock allocated_lock @without_finalizers begin
         block = allocated[ptr]
         delete!(allocated, ptr)
         block
@@ -422,10 +422,10 @@ function reclaim(sz::Int=typemax(Int))
     return freed_sz
 end
 
-used_memory() = @lock allocated_lock @without_gc mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @lock allocated_lock @without_finalizers mapreduce(sizeof, +, values(allocated); init=0)
 
 function cached_memory()
-    sz = @lock freed_lock @without_gc mapreduce(sizeof, +, freed; init=0)
+    sz = @lock freed_lock @without_finalizers mapreduce(sizeof, +, freed; init=0)
     @lock pool_lock for pool in (pool_small, pool_large, pool_huge)
         sz += mapreduce(sizeof, +, pool; init=0)
     end

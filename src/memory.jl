@@ -12,14 +12,15 @@ using Base.Threads: SpinLock
 const memory_lock = SpinLock()
 
 # the above spinlocks are taken around code that might gc, which might cause a deadlock
-# if we try to acquire from the finalizer too. avoid that by temporarily disabling the GC.
-macro without_gc(ex)
+# if we try to acquire from the finalizer too. avoid that by temporarily disabling finalizers.
+enable_finalizers(on::Bool) = ccall(:jl_gc_enable_finalizers, Cvoid, (Ptr{Cvoid}, Int32,), Core.getptls(), on)
+macro without_finalizers(ex)
   quote
-    gc = GC.enable(false)
+    enable_finalizers(false)
     try
       $(esc(ex))
     finally
-      GC.enable(gc)
+      enable_finalizers(true)
     end
   end
 end
@@ -93,7 +94,7 @@ function actual_alloc(bytes)
   ptr = convert(CuPtr{Nothing}, buf)
 
   # record the buffer
-  @lock memory_lock @without_gc begin
+  @lock memory_lock @without_finalizers begin
     @assert !haskey(allocated, ptr)
     allocated[ptr] = buf
   end
@@ -107,7 +108,7 @@ end
 
 function actual_free(ptr::CuPtr{Nothing})
   # look up the buffer
-  buf = @lock memory_lock @without_gc begin
+  buf = @lock memory_lock @without_finalizers begin
     buf = allocated[ptr]
     delete!(allocated, ptr)
     buf
