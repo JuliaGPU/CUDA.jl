@@ -567,17 +567,21 @@ for (fname,elty) in ((:cusparseScsrmv, :Float32),
                 ctransa = 'T'
             end
             cutransa = cusparseop(ctransa)
-            cuind    = cusparseindex(index)
-            cudesc   = getDescr(A,index)
             n,m      = Mat.dims
             if ctransa == 'N'
-                chkmvdims(X,n,Y,m)
+                chkmvdims(X, n, Y, m)
             end
             if ctransa == 'T' || ctransa == 'C'
-                chkmvdims(X,m,Y,n)
+                chkmvdims(X, m, Y, n)
             end
-            $fname(handle(), cutransa, m, n, Mat.nnz, [alpha], Ref(cudesc),
-                   Mat.nzVal, Mat.colPtr, Mat.rowVal, X, [beta], Y)
+            cudesc = getDescr(A,index)
+            nzVal  = Mat.nzVal
+            if transa == 'C' && $elty <: Complex
+                nzVal = conj(Mat.nzVal)
+            end
+            $fname(handle(),
+                   cutransa, m, n, Mat.nnz, [alpha], Ref(cudesc), nzVal,
+                   Mat.colPtr, Mat.rowVal, X, [beta], Y)
             Y
         end
     end
