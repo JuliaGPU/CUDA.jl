@@ -14,12 +14,15 @@ const memory_lock = SpinLock()
 # the above spinlocks are taken around code that might gc, which might cause a deadlock
 # if we try to acquire from the finalizer too. avoid that by temporarily disabling finalizers.
 enable_finalizers(on::Bool) = ccall(:jl_gc_enable_finalizers, Cvoid, (Ptr{Cvoid}, Int32,), Core.getptls(), on)
-macro without_finalizers(ex)
+macro safe_lock(l, ex)
   quote
+    temp = $(esc(l))
+    lock(temp)
     enable_finalizers(false)
     try
       $(esc(ex))
     finally
+      unlock(temp)
       enable_finalizers(true)
     end
   end
@@ -94,7 +97,7 @@ function actual_alloc(bytes)
   ptr = convert(CuPtr{Nothing}, buf)
 
   # record the buffer
-  @lock memory_lock @without_finalizers begin
+  @safe_lock memory_lock begin
     @assert !haskey(allocated, ptr)
     allocated[ptr] = buf
   end
@@ -108,7 +111,7 @@ end
 
 function actual_free(ptr::CuPtr{Nothing})
   # look up the buffer
-  buf = @lock memory_lock @without_finalizers begin
+  buf = @safe_lock memory_lock begin
     buf = allocated[ptr]
     delete!(allocated, ptr)
     buf

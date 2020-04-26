@@ -20,7 +20,7 @@ module BinnedPool
 # TODO: move the management thread one level up, to be shared by all allocators
 
 using ..CuArrays
-using ..CuArrays: @pool_timeit, @without_finalizers
+using ..CuArrays: @pool_timeit, @safe_lock
 
 using CUDAdrv
 
@@ -197,7 +197,7 @@ end
 
 # repopulate the "available" pools from the list of freed blocks
 function repopulate()
-  blocks = @lock freed_lock @without_finalizers begin
+  blocks = @safe_lock freed_lock begin
     isempty(freed) && return
     blocks = Set(freed)
     empty!(freed)
@@ -323,7 +323,7 @@ end
 function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
-  @lock freed_lock @without_finalizers begin
+  @safe_lock freed_lock begin
     push!(freed, block)
   end
 end
@@ -380,7 +380,7 @@ function alloc(bytes)
 
   if block !== nothing
     ptr = pointer(block)
-    @lock allocated_lock @without_finalizers begin
+    @safe_lock allocated_lock begin
       allocated[ptr] = block
     end
     return ptr
@@ -390,7 +390,7 @@ function alloc(bytes)
 end
 
 function free(ptr)
-  block = @lock allocated_lock @without_finalizers begin
+  block = @safe_lock allocated_lock begin
     block = allocated[ptr]
     delete!(allocated, ptr)
     block
@@ -410,10 +410,10 @@ function free(ptr)
   return
 end
 
-used_memory() = @lock allocated_lock @without_finalizers mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
 function cached_memory()
-  sz = @lock freed_lock @without_finalizers mapreduce(sizeof, +, freed; init=0)
+  sz = @safe_lock freed_lock mapreduce(sizeof, +, freed; init=0)
   @lock pool_lock for (pid, pl) in enumerate(pools_avail)
     bytes = poolsize(pid)
     sz += bytes * length(pl)
