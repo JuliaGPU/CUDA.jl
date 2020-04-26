@@ -12,7 +12,8 @@ using Base.Threads: SpinLock
 const memory_lock = SpinLock()
 
 # the above spinlocks are taken around code that might gc, which might cause a deadlock
-# if we try to acquire from the finalizer too. avoid that by temporarily disabling finalizers.
+# if we try to acquire from the finalizer too. avoid that by temporarily disabling running finalizers,
+# concurrently on this thread.
 enable_finalizers(on::Bool) = ccall(:jl_gc_enable_finalizers, Cvoid, (Ptr{Cvoid}, Int32,), Core.getptls(), on)
 macro safe_lock(l, ex)
   quote
