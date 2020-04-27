@@ -3,65 +3,6 @@
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 
 
-## helper functions
-
-# split keyword arguments to `@cuda` into ones affecting the macro itself, the compiler and
-# the code it generates, or the execution
-function split_kwargs(kwargs)
-    macro_kws    = [:dynamic]
-    compiler_kws = [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name]
-    call_kws     = [:cooperative, :blocks, :threads, :config, :shmem, :stream]
-    macro_kwargs = []
-    compiler_kwargs = []
-    call_kwargs = []
-    for kwarg in kwargs
-        if Meta.isexpr(kwarg, :(=))
-            key,val = kwarg.args
-            if isa(key, Symbol)
-                if key in macro_kws
-                    push!(macro_kwargs, kwarg)
-                elseif key in compiler_kws
-                    push!(compiler_kwargs, kwarg)
-                elseif key in call_kws
-                    push!(call_kwargs, kwarg)
-                else
-                    throw(ArgumentError("unknown keyword argument '$key'"))
-                end
-            else
-                throw(ArgumentError("non-symbolic keyword '$key'"))
-            end
-        else
-            throw(ArgumentError("non-keyword argument like option '$kwarg'"))
-        end
-    end
-
-    return macro_kwargs, compiler_kwargs, call_kwargs
-end
-
-# assign arguments to variables, handle splatting
-function assign_args!(code, args)
-    # handle splatting
-    splats = map(arg -> Meta.isexpr(arg, :(...)), args)
-    args = map(args, splats) do arg, splat
-        splat ? arg.args[1] : arg
-    end
-
-    # assign arguments to variables
-    vars = Tuple(gensym() for arg in args)
-    map(vars, args) do var,arg
-        push!(code.args, :($var = $arg))
-    end
-
-    # convert the arguments, compile the function and call the kernel
-    # while keeping the original arguments alive
-    var_exprs = map(vars, args, splats) do var, arg, splat
-         splat ? Expr(:(...), var) : var
-    end
-
-    return vars, var_exprs
-end
-
-
 ## high-level @cuda interface
 
 """
@@ -112,8 +53,18 @@ macro cuda(ex...)
     args = call.args[2:end]
 
     code = quote end
-    macro_kwargs, compiler_kwargs, call_kwargs = split_kwargs(kwargs)
     vars, var_exprs = assign_args!(code, args)
+
+    # group keyword argument
+    macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
+        split_kwargs(kwargs,
+                     [:dynamic],
+                     [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
+                     [:cooperative, :blocks, :threads, :config, :shmem, :stream])
+    if !isempty(other_kwargs)
+        key,val = first(other_kwargs).args
+        throw(ArgumentError("Unsupported keyword argument '$key'"))
+    end
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
