@@ -146,8 +146,8 @@ end
 # memory from the GPU to the CPU, implicitly synchronize execution.
 
 # For this particular computer and GPU, you can see the GPU computation was significantly
-# faster than the single-threaded CPU computation, and that the use of CPU threads makes
-# the two compete with one another. Depending on your hardware you may get different
+# faster than the single-threaded CPU computation, and that the use of multiple CPU threads makes
+# the CPU implementation competitive. Depending on your hardware you may get different
 # results.
 
 
