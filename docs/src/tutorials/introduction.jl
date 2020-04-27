@@ -140,14 +140,14 @@ end
 # jobs to the GPU and then go do other stuff (such as assigning *more* jobs to the GPU)
 # while the GPU completes its tasks. Wrapping the execution in a `CuArrays.@sync` block
 # will make the CPU block until the queued GPU tasks are done, similar to how `Base.@sync`
-# waits for distributed CPU tasks. Without such a synchronization, you'd be measuring the
+# waits for distributed CPU tasks. Without such synchronization, you'd be measuring the
 # time takes to launch the computation, not the time to perform the computation. But most
 # of the time you don't need to synchronize explicitly: many operations, like copying
 # memory from the GPU to the CPU, implicitly synchronize execution.
 
 # For this particular computer and GPU, you can see the GPU computation was significantly
 # faster than the single-threaded CPU computation, and that the use of CPU threads makes
-# the two competitive with one another. Depending on your hardware you may get different
+# the two compete with one another. Depending on your hardware you may get different
 # results.
 
 
@@ -187,13 +187,13 @@ end
 
 @btime bench_gpu1!($y_d, $x_d)
 
-# That's a *lot* slower than version above based on broadcasting. What happened?
+# That's a *lot* slower than the version above based on broadcasting. What happened?
 
 
 # ### Profiling
 
 # When you don't get the performance you expect, usually your first step should be to
-# profile the code and see where it's spending its time. For that you'll need to be able to
+# profile the code and see where it's spending its time. For that, you'll need to be able to
 # run NVIDIA's [`nvprof`
 # tool](https://devblogs.nvidia.com/cuda-pro-tip-nvprof-your-handy-universal-gpu-profiler/).
 # On Unix systems, launch Julia this way:
@@ -243,7 +243,7 @@ CUDAdrv.@profile bench_gpu1!(y_d, x_d)
 # ```
 
 # The key thing to note here is the `(1 1 1)` in the "Grid Size" and "Block Size" columns.
-# These terms will be explained shortly, but for now suffice it to say that this is an
+# These terms will be explained shortly, but for now, suffice it to say that this is an
 # indication that this computation ran sequentially. Of note, sequential processing with
 # GPUs is much slower than with CPUs; where GPUs shine is with large-scale parallelism.
 
@@ -273,7 +273,7 @@ fill!(y_d, 2)
 @test all(Array(y_d) .== 3.0f0)
 
 # Note the `threads=256` here, which divides the work among 256 threads numbered in a
-# linear pattern. (For a two dimensional array, we might have used `threads=(16, 16)` and
+# linear pattern. (For a two-dimensional array, we might have used `threads=(16, 16)` and
 # then both `x` and `y` would be relevant.)
 
 # Now let's try benchmarking it:
@@ -297,7 +297,7 @@ end
 # ![block grid](intro1.png)
 #
 # This diagram was [borrowed from a description of the C/C++
-# libary](https://devblogs.nvidia.com/even-easier-introduction-cuda/); in Julia, threads
+# library](https://devblogs.nvidia.com/even-easier-introduction-cuda/); in Julia, threads
 # and blocks begin numbering with 1 instead of 0. In this diagram, the 4096 blocks of 256
 # threads (making 1048576 = 2^20 threads) ensures that each thread increments just a single
 # entry; however, to ensure that arrays of arbitrary size can be handled, let's still use a
@@ -397,7 +397,7 @@ synchronize()
 #
 #     On older GPUs (with a compute capability below `sm_70`) these errors are fatal,
 #     and effectively kill the CUDA environment. On such GPUs, it's often a good idea to
-#     perform your "sanity checks" using code that runs on the CPU, and only turn over the
+#     perform your "sanity checks" using code that runs on the CPU and only turn over the
 #     computation to the GPU once you've deemed it to be safe.
 
 
