@@ -279,6 +279,60 @@ k = 1
         @test Eig.values ≈ h_W
     end
 
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "syevjBatched!" begin
+            # Generate a random symmetric/hermitian matrix
+            A = rand(elty, m,m,n)
+            A += permutedims(A, (2,1,3))
+            d_A = CuArray(A)
+
+            # Run the solver
+            local d_W, d_V
+            if( elty <: Complex )
+                d_W, d_V   = CUSOLVER.heevjBatched!('V','U', d_A)
+            else
+                d_W, d_V   = CUSOLVER.syevjBatched!('V','U', d_A)
+            end
+
+            # Pull it back to hardware
+            h_W   = collect(d_W)
+            h_V   = collect(d_V)
+
+            # Use non-GPU blas to estimate the eigenvalues as well
+            for i = 1:n
+                # Get our eigenvalues
+                Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
+
+                # Compare to the actual ones
+                @test Eig.values ≈ h_W[:,i]
+                @test abs.(Eig.vectors'*h_V[:,:,i]) ≈ I
+            end
+
+            # Do it all again, but with the option to not compute eigenvectors
+            d_A = CuArray(A)
+
+            # Run the solver
+            local d_W
+            if( elty <: Complex )
+                d_W   = CUSOLVER.heevjBatched!('N','U', d_A)
+            else
+                d_W   = CUSOLVER.syevjBatched!('N','U', d_A)
+            end
+
+            # Pull it back to hardware
+            h_W   = collect(d_W)
+
+            # Use non-GPU blas to estimate the eigenvalues as well
+            for i = 1:n
+                # Get the reference results
+                Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
+
+                # Compare to the actual ones
+                @test Eig.values ≈ h_W[:,i]
+            end
+        end
+    end
+
     @testset "svd with $method method" for
         method in (CUSOLVER.QRAlgorithm, CUSOLVER.JacobiAlgorithm),
         (_m, _n) in ((m, n), (n, m))
