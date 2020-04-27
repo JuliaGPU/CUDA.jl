@@ -34,9 +34,9 @@ version = "4.0.0"
 
 [[CUDAdrv]]
 deps = ["CEnum", "CUDAapi", "Printf"]
-git-tree-sha1 = "e650cbaee92b60433313157926b1e80d0c3a0e2e"
+git-tree-sha1 = "17248da4169c0cdd1699da542f8e110fe4168af6"
 uuid = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
-version = "6.2.2"
+version = "6.2.3"
 
 [[CUDAnative]]
 deps = ["Adapt", "BinaryProvider", "CEnum", "CUDAapi", "CUDAdrv", "Cthulhu", "DataStructures", "ExprTools", "InteractiveUtils", "LLVM", "Libdl", "Pkg", "Printf", "TimerOutputs"]
@@ -177,9 +177,9 @@ uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[TimerOutputs]]
 deps = ["Printf"]
-git-tree-sha1 = "123b64952b3fb1d42984cde6f1bd425479be6dcb"
+git-tree-sha1 = "0cc8db57cb537191b02948d4fabdc09eb7f31f98"
 uuid = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
-version = "0.5.4"
+version = "0.5.5"
 
 [[UUIDs]]
 deps = ["Random", "SHA"]
