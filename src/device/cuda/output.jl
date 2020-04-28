@@ -211,3 +211,23 @@ macro cuprintln(parts...)
         CUDAnative.@cuprint($(parts...), "\n")
     end)
 end
+
+export @cushow
+
+"""
+    @cushow(ex)
+
+GPU analog of `Base.@show`. It comes with the same type restrictions as [@cuprint](@ref).
+```julia
+@cushow threadIdx().x
+```
+"""
+macro cushow(ex)
+    val = gensym("val")
+    s = string(ex)
+    quote
+        $val = $(esc(ex))
+        CUDAnative.@cuprintln($(Expr(:string, s, " = ", val)))
+        $val
+    end
+end
