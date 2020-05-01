@@ -19,6 +19,8 @@ let
     @test isa(Cuint(2), CUDAdrv.CuDim)
 end
 
+@testset "device" begin
+
 let
     md = CuModuleFile(joinpath(@__DIR__, "ptx/dummy.ptx"))
     dummy = CuFunction(md, "dummy")
@@ -97,6 +99,16 @@ let
         c = Array(c_d)
         @test c ≈ a./b
     end
+end
+
+end
+
+@testset "host" begin
+    c = Condition()
+    CUDAdrv.launch() do
+        notify(c)
+    end
+    wait(c)
 end
 
 @testset "attributes" begin
