@@ -174,4 +174,21 @@ let
     Mem.free(src)
 end
 
+# 3d memcpy
+let
+    # FIXME: simple linear copy; also test complex 3d structure
+
+    data = rand(1024)
+
+    dst = Mem.alloc(Mem.Device, sizeof(data))
+    Mem.copy_3d(pointer(data), Mem.Host, pointer(dst), Mem.Device, sizeof(data))
+
+    check = zeros(1024)
+    Mem.copy_3d(pointer(dst), Mem.Device, pointer(check), Mem.Host, sizeof(data))
+
+    @test data == check
+
+    Mem.free(dst)
+end
+
 end
