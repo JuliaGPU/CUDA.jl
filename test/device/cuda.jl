@@ -393,6 +393,19 @@ end
     @test out == "42$endline"
 end
 
+@testset "@cushow" begin
+    function use_cushow()
+        seven_i32 = Int32(7)
+        three_f64 = Float64(3)
+        @cushow seven_i32
+        @cushow three_f64
+        @cushow 1f0 + 4f0
+        return nothing
+    end
+
+    _, out = @grab_output @on_device use_cushow()
+    @test out == "seven_i32 = 7\nthree_f64 = 3.000000\n1.0f0 + 4.0f0 = 5.000000\n"
+end
 
 
 ############################################################################################
