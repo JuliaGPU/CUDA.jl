@@ -148,3 +148,5 @@ import Base: @deprecate_binding, @deprecate_moved false
 import Base: get
 Base.@deprecate get(var::CuGlobal) getindex(var)
 Base.@deprecate set(var::CuGlobal, val) setindex!(var, val)
+
+@deprecate CuStream(flags::CUstream_flags) CuStream(; flags=flags)
