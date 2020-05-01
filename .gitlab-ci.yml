@@ -21,7 +21,7 @@ julia:1.3:
     - .test
   tags:
     - nvidia
-    - sm_75
+    - sm_70
   variables:
     CI_THOROUGH: 'true'
 
