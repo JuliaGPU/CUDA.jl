@@ -36,7 +36,7 @@ julia:1.4-debug:
     - .test
   tags:
     - nvidia
-    - sm_75
+    - sm_70
   variables:
     CI_THOROUGH: 'true'
     CI_CLONE_ARGS: '-b v1.4.0'
