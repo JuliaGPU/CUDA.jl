@@ -235,6 +235,18 @@ function pool_alloc(bytes, pid=-1)
   end
 
   if block === nothing
+    @pool_timeit "0. repopulate" begin
+      repopulate()
+    end
+
+    @lock pool_lock begin
+      if pid != -1 && !isempty(pools_avail[pid])
+        block = pop!(pools_avail[pid])
+      end
+    end
+  end
+
+  if block === nothing
     @pool_timeit "1. try alloc" begin
       block = actual_alloc(bytes)
     end
@@ -306,15 +318,17 @@ function pool_alloc(bytes, pid=-1)
   end
 
   if block !== nothing && pid != -1
-    @inbounds used = pools_used[pid]
-    @inbounds avail = pools_avail[pid]
+    @lock pool_lock begin
+      @inbounds used = pools_used[pid]
+      @inbounds avail = pools_avail[pid]
 
-    # mark the buffer as used
-    push!(used, block)
+      # mark the buffer as used
+      push!(used, block)
 
-    # update pool usage
-    current_usage = length(used) / (length(avail) + length(used))
-    pool_usage[pid] = max(pool_usage[pid], current_usage)
+      # update pool usage
+      current_usage = length(used) / (length(avail) + length(used))
+      pool_usage[pid] = max(pool_usage[pid], current_usage)
+    end
   end
 
   return block
