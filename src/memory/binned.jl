@@ -235,6 +235,18 @@ function pool_alloc(bytes, pid=-1)
   end
 
   if block === nothing
+    @pool_timeit "0. repopulate" begin
+      repopulate()
+    end
+
+    @lock pool_lock begin
+      if pid != -1 && !isempty(pools_avail[pid])
+        block = pop!(pools_avail[pid])
+      end
+    end
+  end
+
+  if block === nothing
     @pool_timeit "1. try alloc" begin
       block = actual_alloc(bytes)
     end
