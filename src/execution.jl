@@ -35,6 +35,9 @@ const CuDim = Union{Integer,
                     Tuple{Integer, Integer},
                     Tuple{Integer, Integer, Integer}}
 
+
+## device
+
 # pack arguments in a buffer that CUDA expects
 @generated function pack_arguments(f::Function, args...)
     all(isbitstype, args) || throw(ArgumentError("Arguments to kernel should be bitstype."))
@@ -165,6 +168,20 @@ function cudacall(f::CuFunction, types::Type, args...; kwargs...)
     convert_arguments(types, args...) do pointers...
         launch(f, pointers...; kwargs...)
     end
+end
+
+
+## host
+
+async_send(data::Ptr{Cvoid}) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), data)
+
+function launch(f::Base.Callable; stream::CuStream=CuDefaultStream())
+    cond = Base.AsyncCondition() do _
+        f()
+    end
+
+    callback = @cfunction(async_send, Cint, (Ptr{Cvoid},))
+    cuLaunchHostFunc(stream, callback, cond)
 end
 
 
