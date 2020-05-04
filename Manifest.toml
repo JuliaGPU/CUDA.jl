@@ -16,10 +16,10 @@ version = "1.0.1"
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "SHA"]
-git-tree-sha1 = "5b08ed6036d9d3f0ee6369410b830f8873d4024c"
+deps = ["Libdl", "Logging", "SHA"]
+git-tree-sha1 = "428e9106b1ff27593cbd979afac9b45b82372b8c"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.8"
+version = "0.5.9"
 
 [[CEnum]]
 git-tree-sha1 = "62847acab40e6855a9b5905ccb99c2b5cf6b3ebb"
@@ -46,9 +46,9 @@ version = "3.0.4"
 
 [[CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
-git-tree-sha1 = "c8f94de86731698373f3c82a8aa40d8ab765c50c"
+git-tree-sha1 = "cab4da992adc0a64f63fa30d2db2fd8bec40cab4"
 uuid = "da1fd8a2-8d9e-5ec2-8556-3022fb5608a2"
-version = "0.5.9"
+version = "0.5.11"
 
 [[Cthulhu]]
 deps = ["CodeTracking", "InteractiveUtils", "REPL", "Unicode"]
@@ -58,9 +58,9 @@ version = "1.0.2"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "9faa13be79557bf4c5713fb912b0e3c5aa33d046"
+git-tree-sha1 = "6166ecfaf2b8bbf2b68d791bc1d54501f345d314"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.13"
+version = "0.17.15"
 
 [[Dates]]
 deps = ["Printf"]
