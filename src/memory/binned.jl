@@ -318,15 +318,17 @@ function pool_alloc(bytes, pid=-1)
   end
 
   if block !== nothing && pid != -1
-    @inbounds used = pools_used[pid]
-    @inbounds avail = pools_avail[pid]
+    @lock pool_lock begin
+      @inbounds used = pools_used[pid]
+      @inbounds avail = pools_avail[pid]
 
-    # mark the buffer as used
-    push!(used, block)
+      # mark the buffer as used
+      push!(used, block)
 
-    # update pool usage
-    current_usage = length(used) / (length(avail) + length(used))
-    pool_usage[pid] = max(pool_usage[pid], current_usage)
+      # update pool usage
+      current_usage = length(used) / (length(avail) + length(used))
+      pool_usage[pid] = max(pool_usage[pid], current_usage)
+    end
   end
 
   return block
