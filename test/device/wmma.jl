@@ -1,6 +1,5 @@
 # Need https://github.com/JuliaLang/julia/pull/33970
 # and  https://github.com/JuliaLang/julia/pull/34043
-if VERSION >= v"1.4.0-DEV.666" && capability(device()) >= v"7.0"
 
 using CUDAnative.WMMA
 
@@ -293,5 +292,4 @@ end
 
 ################################################################################
 
-end
 end

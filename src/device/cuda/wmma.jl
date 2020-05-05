@@ -7,9 +7,6 @@ using CUDAnative: AS, DevicePtr
 # CONSTANTS
 ################################################################################
 
-# Determines whether or not to Core.AddrSpacePtr is available
-const addrspaceptr_available = (VERSION >= v"1.5.0-DEV.324")
-
 # Maps PTX types to Julia array types
 const map_ptx_to_jl_array = Dict(
                                  "f16" => Float16,
@@ -52,7 +49,6 @@ get_frag_info(matrix, ptx_el_type) = (
 
 get_addrspace_info(addr_space) = convert(Int, map_ptx_as_to_as_ty[addr_space])
 
-if addrspaceptr_available
 @generated function Base.cconvert(::Type{Core.AddrSpacePtr{T, as}}, x::DevicePtr{T, AS}) where {T, as, AS}
     ir = "%ptr = inttoptr i64 %0 to i8 addrspace($as)*
           ret i8 addrspace($as)* %ptr"
@@ -60,7 +56,6 @@ if addrspaceptr_available
     return quote
         return Base.llvmcall($ir, Core.AddrSpacePtr{T, as}, Tuple{Int64}, Base.bitcast(Int64, x))
     end
-end
 end
 
 # Fix for https://github.com/JuliaGPU/CUDAnative.jl/issues/587.
@@ -133,7 +128,7 @@ for mat in ["a", "b", "c"],
 
     ccall_name = "extern $llvm_intr"
 
-    ptr_ty = addrspaceptr_available ? Core.AddrSpacePtr{arr_ty, addr_space_int} : Ref{arr_ty}
+    ptr_ty = Core.AddrSpacePtr{arr_ty, addr_space_int}
     struct_ty = Symbol("LLVMStruct$sz")
 
     @eval $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
@@ -188,7 +183,7 @@ for mat in ["d"],
     frag_types = ntuple(i -> frag_ty, sz)
     frag_vars = ntuple(i -> :(data[$i]), sz)
 
-    ptr_ty = addrspaceptr_available ? Core.AddrSpacePtr{arr_ty, addr_space_int} : Ref{arr_ty}
+    ptr_ty = Core.AddrSpacePtr{arr_ty, addr_space_int}
 
     @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
     @eval export $func_name
