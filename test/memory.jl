@@ -207,5 +207,26 @@ let
 
     Mem.free(dst)
 end
+let
+    # copying an x-z plane of a 3-D array
+
+    T = Int
+    nx, ny, nz = 4, 4, 4
+    data = collect(reshape(1:(ny*nz), ny, nz))
+    dst = Mem.alloc(Mem.Device, nx * sizeof(data))
+
+    # host to device
+    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host, nx, 1, nz;
+                       dstPos=(1,2,1), srcPitch=nx*sizeof(T), srcHeight=1,
+                       dstPitch=nx*sizeof(T), dstHeight=ny)
+
+    # copy back
+    check = zeros(T, nx, ny, nz)
+    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device, length(check))
+
+    @test all(check[:,2,:] .== data)
+
+    @show check
+end
 
 end
