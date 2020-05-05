@@ -18,7 +18,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 [compat]
 Adapt = "0.4, 1.0"
 BinaryProvider = "0.3, 0.4, 0.5"
-CEnum = "0.2"
+CEnum = "0.2, 0.3"
 CUDAapi = "3.1, 4.0"
 CUDAdrv = "6.2.1"
 ExprTools = "0.1"
