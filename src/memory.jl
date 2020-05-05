@@ -330,10 +330,13 @@ end
 function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
                         src::Union{Ptr{T},CuPtr{T}}, srcTyp::Type{<:Buffer},
                         width::Integer, height::Integer=1, depth::Integer=1;
-                        srcPos::CuDim3=CuDim3(0,0,0), dstPos::CuDim3=CuDim3(0,0,0),
+                        srcPos::CuDim=(1,1,1), dstPos::CuDim=(1,1,1),
                         srcPitch::Integer=0, srcHeight::Integer=0,
                         dstPitch::Integer=0, dstHeight::Integer=0,
                         async::Bool=false, stream::Union{Nothing,CuStream}=nothing) where T
+    srcPos = CUDAdrv.CuDim3(srcPos)
+    dstPos = CUDAdrv.CuDim3(dstPos)
+
     srcMemoryType, srcHost, srcDevice = if srcTyp == Host
         CUDAdrv.CU_MEMORYTYPE_HOST,
         src::Ptr,
@@ -366,13 +369,13 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
 
     params_ref = Ref(CUDAdrv.CUDA_MEMCPY3D(
         # source
-        srcPos.x, srcPos.y, srcPos.z,
+        srcPos.x-1, srcPos.y-1, srcPos.z-1,
         0, # LOD
         srcMemoryType, srcHost, srcDevice, srcArray,
         C_NULL, # reserved
         srcPitch, srcHeight,
         # destination
-        dstPos.x, dstPos.y, dstPos.z,
+        dstPos.x-1, dstPos.y-1, dstPos.z-1,
         0, # LOD
         dstMemoryType, dstHost, dstDevice, dstArray,
         C_NULL, # reserved
