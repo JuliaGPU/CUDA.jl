@@ -5,7 +5,7 @@ export Mem, attribute, attribute!, memory_type, is_managed
 module Mem
 
 using ..CUDAdrv
-using ..CUDAdrv: @enum_without_prefix, CUstream, CUdevice
+using ..CUDAdrv: @enum_without_prefix, CUstream, CUdevice, CuDim3
 
 using Base: @deprecate_binding
 
@@ -324,6 +324,84 @@ for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr, Ptr),
             $(getproperty(CUDAdrv, Symbol(f)))(dst, src, N*sizeof(T))
         end
         return dst
+    end
+end
+
+"""
+    unsafe_copy3d!(dst, dstTyp, src, srcTyp, width, height=1, depth=1;
+                   dstPos=(1,1,1), dstPitch=0, dstHeight=0,
+                   srcPos=(1,1,1), srcPitch=0, srcHeight=0,
+                   async=false, stream=nothing)
+
+Perform a 3D memory copy between pointers `src` and `dst`, at respectively position `srcPos`
+and `dstPos` (1-indexed). Both pitch and destination can be specified for both the source
+and destination; consult the CUDA documentation for more details. This call is executed
+asynchronously if `async` is set, in which case `stream` needs to be a valid CuStream.
+"""
+function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
+                        src::Union{Ptr{T},CuPtr{T}}, srcTyp::Type{<:Buffer},
+                        width::Integer, height::Integer=1, depth::Integer=1;
+                        dstPos::CuDim=(1,1,1), srcPos::CuDim=(1,1,1),
+                        dstPitch::Integer=0, dstHeight::Integer=0,
+                        srcPitch::Integer=0, srcHeight::Integer=0,
+                        async::Bool=false, stream::Union{Nothing,CuStream}=nothing) where T
+    srcPos = CUDAdrv.CuDim3(srcPos)
+    dstPos = CUDAdrv.CuDim3(dstPos)
+
+    srcMemoryType, srcHost, srcDevice = if srcTyp == Host
+        CUDAdrv.CU_MEMORYTYPE_HOST,
+        src::Ptr,
+        CU_NULL
+    elseif srcTyp == Mem.Device
+        CUDAdrv.CU_MEMORYTYPE_DEVICE,
+        C_NULL,
+        src::CuPtr
+    elseif srcTyp == Mem.Unified
+        CUDAdrv.CU_MEMORYTYPE_UNIFIED,
+        C_NULL,
+        reinterpret(CuPtr{Cvoid}, src)
+    end
+    srcArray = C_NULL
+
+    dstMemoryType, dstHost, dstDevice = if dstTyp == Host
+        CUDAdrv.CU_MEMORYTYPE_HOST,
+        dst::Ptr,
+        CU_NULL
+    elseif dstTyp == Mem.Device
+        CUDAdrv.CU_MEMORYTYPE_DEVICE,
+        C_NULL,
+        dst::CuPtr
+    elseif dstTyp == Mem.Unified
+        CUDAdrv.CU_MEMORYTYPE_UNIFIED,
+        C_NULL,
+        reinterpret(CuPtr{Cvoid}, dst)
+    end
+    dstArray = C_NULL
+
+    params_ref = Ref(CUDAdrv.CUDA_MEMCPY3D(
+        # source
+        srcPos.x-1, srcPos.y-1, srcPos.z-1,
+        0, # LOD
+        srcMemoryType, srcHost, srcDevice, srcArray,
+        C_NULL, # reserved
+        srcPitch, srcHeight,
+        # destination
+        dstPos.x-1, dstPos.y-1, dstPos.z-1,
+        0, # LOD
+        dstMemoryType, dstHost, dstDevice, dstArray,
+        C_NULL, # reserved
+        dstPitch, dstHeight,
+        # extent
+        width*sizeof(T), height, depth
+    ))
+    if async
+        stream===nothing &&
+            throw(ArgumentError("Asynchronous memory operations require a stream."))
+        CUDAdrv.cuMemcpy3DAsync_v2(params_ref, stream)
+    else
+        stream===nothing ||
+            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
+        CUDAdrv.cuMemcpy3D_v2(params_ref)
     end
 end
 

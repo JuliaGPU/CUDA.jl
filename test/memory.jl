@@ -174,4 +174,59 @@ let
     Mem.free(src)
 end
 
+# 3d memcpy
+let
+    # simple linear copy
+
+    data = collect(reshape(1:9, 3, 3))
+
+    dst = Mem.alloc(Mem.Device, sizeof(data))
+    Mem.unsafe_copy3d!(pointer(data), Mem.Host, typed_pointer(dst, Int), Mem.Device, length(data))
+
+    check = zeros(Int, size(data))
+    Mem.unsafe_copy3d!(typed_pointer(dst, Int), Mem.Device, pointer(check), Mem.Host, length(data))
+
+    @show check
+    @test data == check
+
+    Mem.free(dst)
+end
+let
+    # 3d copy
+    # TODO: use cuMemAllocPitch (and put pitch in buffer?) to actually get benefit from this
+
+    data = collect(reshape(1:27, 3, 3, 3))
+
+    dst = Mem.alloc(Mem.Device, sizeof(data))
+    Mem.unsafe_copy3d!(typed_pointer(dst, Int), Mem.Device, pointer(data), Mem.Host, 3, 3, 3)
+
+    check = zeros(Int, size(data))
+    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, Int), Mem.Device, length(data))
+
+    @test check == data
+
+    Mem.free(dst)
+end
+let
+    # copying an x-z plane of a 3-D array
+
+    T = Int
+    nx, ny, nz = 4, 4, 4
+    data = collect(reshape(1:(ny*nz), ny, nz))
+    dst = Mem.alloc(Mem.Device, nx * sizeof(data))
+
+    # host to device
+    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host, nx, 1, nz;
+                       dstPos=(1,2,1), srcPitch=nx*sizeof(T), srcHeight=1,
+                       dstPitch=nx*sizeof(T), dstHeight=ny)
+
+    # copy back
+    check = zeros(T, nx, ny, nz)
+    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device, length(check))
+
+    @test all(check[:,2,:] .== data)
+
+    @show check
+end
+
 end

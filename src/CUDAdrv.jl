@@ -20,6 +20,7 @@ include("libcuda.jl")
 include("libcuda_aliases.jl")
 
 # high-level wrappers
+include("types.jl")
 include("version.jl")
 include("devices.jl")
 include("context.jl")
