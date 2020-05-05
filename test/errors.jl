@@ -1,7 +1,7 @@
 @testset "errors" begin
 
 let
-    ex = CuError(0)
+    ex = CuError(CUDAdrv.SUCCESS)
     @test CUDAdrv.name(ex) == "SUCCESS"
     @test CUDAdrv.description(ex) == "no error"
     @test eval(Meta.parse(repr(ex))) == ex
@@ -15,7 +15,7 @@ let
 end
 
 let
-    ex = CuError(0, "foobar")
+    ex = CuError(CUDAdrv.SUCCESS, "foobar")
 
     io = IOBuffer()
     showerror(io, ex)

@@ -14,7 +14,7 @@ struct CuError <: Exception
     code::CUresult
     meta::Any
 
-    CuError(code, meta=nothing) = new(CUresult(code), meta)
+    CuError(code, meta=nothing) = new(code, meta)
 end
 
 Base.convert(::Type{CUresult}, err::CuError) = err.code

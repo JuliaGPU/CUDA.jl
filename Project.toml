@@ -8,7 +8,7 @@ CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
 [compat]
-CEnum = "0.2"
+CEnum = "0.2, 0.3"
 CUDAapi = "4.0"
 julia = "1.3"
 
