@@ -1,6 +1,6 @@
 name = "CuArrays"
 uuid = "3a865a2d-5b23-5a0f-bc46-62713ec82fae"
-version = "2.0.1"
+version = "2.1.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -27,12 +27,12 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 [compat]
 AbstractFFTs = "0.4, 0.5"
 Adapt = "1.0"
-CEnum = "0.2"
+CEnum = "0.2, 0.3"
 CUDAapi = "3.0, 4.0"
 CUDAdrv = "6.0.1"
 CUDAnative = "3.0"
 DataStructures = "0.17"
-GPUArrays = "3.1"
+GPUArrays = "3.2"
 MacroTools = "0.5"
 NNlib = "0.6.5"
 Reexport = "0.2"

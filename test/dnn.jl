@@ -23,7 +23,7 @@ else
   @test ∇conv_filter(a, c, cdims) ≈ collect(∇conv_filter(da, dc, cdims))
 
   # Test for agreement between CPU NNlib and CuDNN versions, across a variety of kwargs
-  for num_spatial_dims in (2, 3)
+  for num_spatial_dims in (1, 2, 3)
     # Initialize data we'll run our tests over
     C_in = 3
     C_out = 4
@@ -80,8 +80,11 @@ end
   @test testf(CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
 
   # activations defined in src/nnlib.jl
+  ACTIVATION_FUNCTIONS = [σ, logσ, hardσ, hardtanh, relu, leakyrelu, relu6, rrelu, 
+                          elu, gelu, celu, swish, lisht, selu, trelu, softplus, 
+                          softsign, logcosh, mish, tanhshrink, softshrink];
   for dims in ((5,5), (5,))
-    for f in (σ, logσ, elu, swish, gelu, selu, softplus)
+    for f in filter(x -> x != rrelu, ACTIVATION_FUNCTIONS)
       @test testf(x -> f.(x), rand(Float64, dims))
     end
   end

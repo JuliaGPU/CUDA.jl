@@ -47,7 +47,7 @@ function RNNDesc{T}(mode::cudnnRNNMode_t, input::Int, hidden::Int; layers = 1) w
   inputMode = CUDNN_LINEAR_INPUT
   direction = CUDNN_UNIDIRECTIONAL
   algo = CUDNN_RNN_ALGO_STANDARD
-  cudnnSetRNNDescriptor_v6(handle(),d[],hidden,layers,dropoutDesc,cudnnRNNInputMode_t(inputMode),cudnnDirectionMode_t(direction),mode,cudnnRNNAlgo_t(algo),cudnnDataType(T))
+  cudnnSetRNNDescriptor_v6(handle(),d[],hidden,layers,dropoutDesc,inputMode,direction,mode,algo,cudnnDataType(T))
 
   w =CuArrays.zeros(T, rnnParamSize(T, d[], input))
   # TODO: avoid reserve allocation here

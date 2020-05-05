@@ -18,6 +18,19 @@ blockdim = 5
     @test size(d_x,1) == m
     @test size(d_x,2) == 1
     @test ndims(d_x)  == 1
+    CuArrays.@allowscalar begin
+        @test Array(d_x[:])        == x[:]
+        @test d_x[firstindex(d_x)] == x[firstindex(x)]
+        @test d_x[div(end, 2)]     == x[div(end, 2)]
+        @test d_x[end]             == x[end]
+        @test Array(d_x[firstindex(d_x):end]) == x[firstindex(x):end]
+    end
+    @test_throws BoundsError d_x[firstindex(d_x) - 1]
+    @test_throws BoundsError d_x[end + 1]
+    @test nnz(d_x)    == nnz(x)
+    @test Array(nonzeros(d_x)) == nonzeros(x)
+    @test Array(SparseArrays.nonzeroinds(d_x)) == SparseArrays.nonzeroinds(x)
+    @test nnz(d_x)    == length(nonzeros(d_x))
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
     @test length(d_x) == m*n
@@ -26,6 +39,29 @@ blockdim = 5
     @test size(d_x,2) == n
     @test size(d_x,3) == 1
     @test ndims(d_x)  == 2
+    CuArrays.@allowscalar begin
+        @test Array(d_x[:])        == x[:]
+        @test d_x[firstindex(d_x)] == x[firstindex(x)]
+        @test d_x[div(end, 2)]     == x[div(end, 2)]
+        @test d_x[end]             == x[end]
+        @test d_x[firstindex(d_x), firstindex(d_x)] == x[firstindex(x), firstindex(x)]
+        @test d_x[div(end, 2), div(end, 2)]         == x[div(end, 2), div(end, 2)]
+        @test d_x[end, end]        == x[end, end]
+        @test Array(d_x[firstindex(d_x):end, firstindex(d_x):end]) == x[:, :]
+    end
+    @test_throws BoundsError d_x[firstindex(d_x) - 1]
+    @test_throws BoundsError d_x[end + 1]
+    @test_throws BoundsError d_x[firstindex(d_x) - 1, firstindex(d_x) - 1]
+    @test_throws BoundsError d_x[end + 1, end + 1]
+    @test_throws BoundsError d_x[firstindex(d_x) - 1:end + 1, :]
+    @test_throws BoundsError d_x[firstindex(d_x) - 1, :]
+    @test_throws BoundsError d_x[end + 1, :]
+    @test_throws BoundsError d_x[:, firstindex(d_x) - 1:end + 1]
+    @test_throws BoundsError d_x[:, firstindex(d_x) - 1]
+    @test_throws BoundsError d_x[:, end + 1]
+    @test nnz(d_x)    == nnz(x)
+    @test Array(nonzeros(d_x)) == nonzeros(x)
+    @test nnz(d_x)    == length(nonzeros(d_x))
     @test !issymmetric(d_x)
     @test !ishermitian(d_x)
     @test_throws ArgumentError size(d_x,0)
@@ -1966,6 +2002,52 @@ end
             w[z.nzind] = cos(angle)*y[x.nzind] - sin(angle)*x.nzval
             @test h_z ≈ SparseVector(m,z.nzind, cos(angle)*x.nzval + sin(angle)*y[x.nzind])
             @test h_w ≈ w
+        end
+    end
+end
+
+@testset "mul!" begin
+    for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,m))
+        x = rand(elty,m)
+        y = rand(elty,m)
+        @testset "csr -- $elty" begin
+            d_x  = CuArray(x)
+            d_y  = CuArray(y)
+            d_A  = CuSparseMatrixCSR(A)
+            d_Aᵀ = transpose(d_A)
+            d_Aᴴ = adjoint(d_A)
+            CUSPARSE.mul!(d_y, d_A, d_x)
+            h_y = collect(d_y)
+            z = A * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᵀ, d_x)
+            h_y = collect(d_y)
+            z = transpose(A) * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᴴ, d_x)
+            h_y = collect(d_y)
+            z = adjoint(A) * x
+            @test z ≈ h_y
+        end
+        @testset "csc -- $elty" begin
+            d_x = CuArray(x)
+            d_y = CuArray(y)
+            d_A = CuSparseMatrixCSC(A)
+            d_Aᵀ = transpose(d_A)
+            d_Aᴴ = adjoint(d_A)
+            CUSPARSE.mul!(d_y, d_A, d_x)
+            h_y = collect(d_y)
+            z = A * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᵀ, d_x)
+            h_y = collect(d_y)
+            z = transpose(A) * x
+            @test z ≈ h_y
+            CUSPARSE.mul!(d_y, d_Aᴴ, d_x)
+            h_y = collect(d_y)
+            z = adjoint(A) * x
+            @test z ≈ h_y
         end
     end
 end

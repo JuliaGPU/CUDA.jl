@@ -279,6 +279,60 @@ k = 1
         @test Eig.values ≈ h_W
     end
 
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "syevjBatched!" begin
+            # Generate a random symmetric/hermitian matrix
+            A = rand(elty, m,m,n)
+            A += permutedims(A, (2,1,3))
+            d_A = CuArray(A)
+
+            # Run the solver
+            local d_W, d_V
+            if( elty <: Complex )
+                d_W, d_V   = CUSOLVER.heevjBatched!('V','U', d_A)
+            else
+                d_W, d_V   = CUSOLVER.syevjBatched!('V','U', d_A)
+            end
+
+            # Pull it back to hardware
+            h_W   = collect(d_W)
+            h_V   = collect(d_V)
+
+            # Use non-GPU blas to estimate the eigenvalues as well
+            for i = 1:n
+                # Get our eigenvalues
+                Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
+
+                # Compare to the actual ones
+                @test Eig.values ≈ h_W[:,i]
+                @test abs.(Eig.vectors'*h_V[:,:,i]) ≈ I
+            end
+
+            # Do it all again, but with the option to not compute eigenvectors
+            d_A = CuArray(A)
+
+            # Run the solver
+            local d_W
+            if( elty <: Complex )
+                d_W   = CUSOLVER.heevjBatched!('N','U', d_A)
+            else
+                d_W   = CUSOLVER.syevjBatched!('N','U', d_A)
+            end
+
+            # Pull it back to hardware
+            h_W   = collect(d_W)
+
+            # Use non-GPU blas to estimate the eigenvalues as well
+            for i = 1:n
+                # Get the reference results
+                Eig = eigen(LinearAlgebra.Hermitian(A[:,:,i]))
+
+                # Compare to the actual ones
+                @test Eig.values ≈ h_W[:,i]
+            end
+        end
+    end
+
     @testset "svd with $method method" for
         method in (CUSOLVER.QRAlgorithm, CUSOLVER.JacobiAlgorithm),
         (_m, _n) in ((m, n), (n, m))
@@ -295,7 +349,7 @@ k = 1
             @test abs.(h_U'h_U) ≈ I
             @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
             @test collect(svdvals(d_A, method)) ≈ svdvals(A)
-            @test abs.(h_V'h_V) ≈ I
+            @test abs.(h_V'*h_V) ≈ I
             @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
             @test collect(d_U'*d_A*d_V) ≈ U'*A*V
             @test collect(svd(d_A, method).V') == h_V[:,1:min(_m,_n)]'
@@ -312,6 +366,7 @@ k = 1
         tol = min(m, n)*eps(real(elty))*(1 + (elty <: Complex))
 
         A              = rand(elty, m, n)
+        qra            = qr(A)
         d_A            = CuArray(A)
         d_F            = qr(d_A)
         d_RR           = d_F.Q'*d_A
@@ -320,6 +375,14 @@ k = 1
         @test size(d_F) == size(A)
         @test size(d_F.Q, 1) == size(A, 1)
         @test det(d_F.Q) ≈ det(collect(d_F.Q * CuMatrix{elty}(I, size(d_F.Q)))) atol=tol*norm(A)
+        CuArrays.@allowscalar begin
+            qval = d_F.Q[1, 1]
+            @test qval ≈ qra.Q[1, 1]
+            qrstr = sprint(show, d_F)
+            @test qrstr == "$(typeof(d_F)) with factors Q and R:\n$(sprint(show, d_F.Q))\n$(sprint(show, d_F.R))"
+        end
+        dQ, dR = d_F
+        @test collect(dQ*dR) ≈ A
         A              = rand(elty, n, m)
         d_A            = CuArray(A)
         d_F            = qr(d_A)

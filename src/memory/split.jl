@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CuArrays
-using ..CuArrays: @pool_timeit
+using ..CuArrays: @pool_timeit, @safe_lock
 
 using DataStructures
 
@@ -223,7 +223,7 @@ end
 
 # repopulate the pools from the list of freed blocks
 function repopulate()
-    blocks = @lock freed_lock begin
+    blocks = @safe_lock freed_lock begin
         isempty(freed) && return
         blocks = Set(freed)
         empty!(freed)
@@ -372,7 +372,7 @@ function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state = FREED
-    @lock freed_lock begin
+    @safe_lock freed_lock begin
         push!(freed, block)
     end
 end
@@ -390,7 +390,7 @@ function alloc(sz)
     if block !== nothing
         block.state = ALLOCATED
         ptr = pointer(block)
-        @lock allocated_lock begin
+        @safe_lock allocated_lock begin
             @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
             allocated[ptr] = block
         end
@@ -401,7 +401,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = @lock allocated_lock begin
+    block = @safe_lock allocated_lock begin
         block = allocated[ptr]
         delete!(allocated, ptr)
         block
@@ -422,10 +422,10 @@ function reclaim(sz::Int=typemax(Int))
     return freed_sz
 end
 
-used_memory() = @lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory() = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
 
 function cached_memory()
-    sz = @lock freed_lock mapreduce(sizeof, +, freed; init=0)
+    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed; init=0)
     @lock pool_lock for pool in (pool_small, pool_large, pool_huge)
         sz += mapreduce(sizeof, +, pool; init=0)
     end

@@ -823,3 +823,61 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
         end
     end
 end
+
+for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBatched_bufferSize, :cusolverDnSsyevjBatched, :Float32, :Float32),
+                                           (:syevjBatched!, :cusolverDnDsyevjBatched_bufferSize, :cusolverDnDsyevjBatched, :Float64, :Float64),
+                                           (:heevjBatched!, :cusolverDnCheevjBatched_bufferSize, :cusolverDnCheevjBatched, :ComplexF32, :Float32),
+                                           (:heevjBatched!, :cusolverDnZheevjBatched_bufferSize, :cusolverDnZheevjBatched, :ComplexF64, :Float64)
+                                           )
+    @eval begin
+        function $jname(jobz::Char,
+                        uplo::Char,
+                        A::CuArray{$elty};
+                        tol::$relty=eps($relty),
+                        max_sweeps::Int=100)
+
+            # Set up information for the solver arguments
+            cuuplo  = cublasfill(uplo)
+            cujobz  = cusolverjob(jobz)
+            n       = checksquare(A)
+            lda     = max(1, stride(A, 2))
+            batchSize = size(A,3)
+            W       = CuArray{$relty}(undef, n,batchSize)
+            params  = Ref{syevjInfo_t}(C_NULL)
+            devinfo = CuArray{Cint}(undef, batchSize)
+
+            # Initialize the solver parameters
+            cusolverDnCreateSyevjInfo(params)
+            cusolverDnXsyevjSetTolerance(params[], tol)
+            cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
+
+            # Calculate the workspace size
+            lwork = @argout(CUSOLVER.$bname(dense_handle(), cujobz, cuuplo, n,
+                            A, lda, W, out(Ref{Cint}(0)), params, batchSize))[]
+
+            # Run the solver
+            @workspace eltyp=$elty size=lwork work->begin
+                $fname(dense_handle(), cujobz, cuuplo, n, A, lda, W, work,
+                       lwork, devinfo, params[], batchSize)
+            end
+
+            # Copy the solver info and delete the device memory
+            info = @allowscalar collect(devinfo)
+            unsafe_free!(devinfo)
+
+            # Double check the solver's exit status
+            for i = 1:batchSize
+                if info[i] < 0
+                    throw(ArgumentError("The $(info)th parameter of the $(i)th solver is wrong"))
+                end
+            end
+
+            # Return eigenvalues (in W) and possibly eigenvectors (in A)
+            if jobz == 'N'
+                return W
+            elseif jobz == 'V'
+                return W, A
+            end
+        end
+    end
+end
