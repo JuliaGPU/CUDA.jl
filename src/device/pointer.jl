@@ -118,7 +118,7 @@ Base.:(+)(x::Integer, y::DevicePtr) = y + x
     T_int = convert(LLVMType, Int)
     T_ptr = convert(LLVMType, DevicePtr{T,A})
 
-    T_actual_ptr = LLVM.PointerType(eltyp)
+    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
 
     # create a function
     param_types = [T_ptr, T_int]
@@ -130,10 +130,8 @@ Base.:(+)(x::Integer, y::DevicePtr) = y + x
         position!(builder, entry)
 
         ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
-        ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
-        ld = load!(builder, ptr_with_as)
+        ld = load!(builder, ptr)
 
         if A != AS.Generic
             metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A)
@@ -153,7 +151,7 @@ end
     T_int = convert(LLVMType, Int)
     T_ptr = convert(LLVMType, DevicePtr{T,A})
 
-    T_actual_ptr = LLVM.PointerType(eltyp)
+    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
 
     # create a function
     param_types = [T_ptr, eltyp, T_int]
@@ -165,11 +163,9 @@ end
         position!(builder, entry)
 
         ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-
         ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
-        ptr_with_as = addrspacecast!(builder, ptr, LLVM.PointerType(eltyp, convert(Int, A)))
         val = parameters(llvm_f)[2]
-        st = store!(builder, val, ptr_with_as)
+        st = store!(builder, val, ptr)
 
         if A != AS.Generic
             metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A)
@@ -201,8 +197,7 @@ const LDGTypes = Union{UInt8, UInt16, UInt32, UInt64,
     T_int32 = LLVM.Int32Type(JuliaContext())
     T_ptr = convert(LLVMType, DevicePtr{T,AS.Global})
 
-    T_actual_ptr = LLVM.PointerType(eltyp)
-    T_actual_ptr_as = LLVM.PointerType(eltyp, convert(Int, AS.Global))
+    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, AS.Global))
 
     # create a function
     param_types = [T_ptr, T_int]
@@ -222,7 +217,7 @@ const LDGTypes = Union{UInt8, UInt16, UInt32, UInt64,
         "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
     end
     mod = LLVM.parent(llvm_f)
-    intrinsic_typ = LLVM.FunctionType(eltyp, [T_actual_ptr_as, T_int32])
+    intrinsic_typ = LLVM.FunctionType(eltyp, [T_actual_ptr, T_int32])
     intrinsic = LLVM.Function(mod, intrinsic_name, intrinsic_typ)
 
     # generate IR
@@ -231,11 +226,9 @@ const LDGTypes = Union{UInt8, UInt16, UInt32, UInt64,
         position!(builder, entry)
 
         ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-
         ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
-        ptr_with_as = addrspacecast!(builder, ptr, T_actual_ptr_as)
         ld = call!(builder, intrinsic,
-                   [ptr_with_as, ConstantInt(Int32(align), JuliaContext())])
+                   [ptr, ConstantInt(Int32(align), JuliaContext())])
 
         metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global)
 

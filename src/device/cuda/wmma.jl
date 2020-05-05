@@ -54,19 +54,11 @@ get_addrspace_info(addr_space) = convert(Int, map_ptx_as_to_as_ty[addr_space])
 
 if addrspaceptr_available
 @generated function Base.cconvert(::Type{Core.AddrSpacePtr{T, as}}, x::DevicePtr{T, AS}) where {T, as, AS}
-    # Addrspacecast from i8* to i8* is invalid in LLVM
-    if as == 0
-        return quote
-            return Base.bitcast(Core.AddrSpacePtr{T, as}, x)
-        end
-    else
-        ir = "%p = inttoptr i64 %0 to i8*
-            %ptr = addrspacecast i8* %p to i8 addrspace($as)*
-            ret i8 addrspace($as)* %ptr"
+    ir = "%ptr = inttoptr i64 %0 to i8 addrspace($as)*
+          ret i8 addrspace($as)* %ptr"
 
-        return quote
-            return Base.llvmcall($ir, Core.AddrSpacePtr{T, as}, Tuple{Int64}, Base.bitcast(Int64, x))
-        end
+    return quote
+        return Base.llvmcall($ir, Core.AddrSpacePtr{T, as}, Tuple{Int64}, Base.bitcast(Int64, x))
     end
 end
 end

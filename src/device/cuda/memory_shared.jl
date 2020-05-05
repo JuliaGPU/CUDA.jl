@@ -61,7 +61,6 @@ end
     end
 
     T_ptr = convert(LLVMType, DevicePtr{T,AS.Shared})
-    T_actual_ptr = LLVM.PointerType(eltyp)
 
     # create a function
     llvm_f, _ = create_function(T_ptr)
@@ -92,10 +91,9 @@ end
         entry = BasicBlock(llvm_f, "entry", JuliaContext())
         position!(builder, entry)
 
-        ptr_with_as = gep!(builder, gv, [ConstantInt(0, JuliaContext()),
-                                         ConstantInt(0, JuliaContext())])
+        ptr = gep!(builder, gv, [ConstantInt(0, JuliaContext()),
+                                 ConstantInt(0, JuliaContext())])
 
-        ptr = addrspacecast!(builder, ptr_with_as, T_actual_ptr)
         val = ptrtoint!(builder, ptr, T_ptr)
         ret!(builder, val)
     end
