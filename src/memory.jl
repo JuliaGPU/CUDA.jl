@@ -327,13 +327,13 @@ for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr, Ptr),
     end
 end
 
-function copy_3d(src::Union{Ptr,CuPtr}, srcTyp::Type{<:Buffer},
-                 dst::Union{Ptr,CuPtr}, dstTyp::Type{<:Buffer},
-                 width::Integer, height::Integer=1, depth::Integer=1;
-                 srcPos::CuDim3=CuDim3(0,0,0), dstPos::CuDim3=CuDim3(0,0,0),
-                 srcPitch::Integer=0, srcHeight::Integer=0,
-                 dstPitch::Integer=0, dstHeight::Integer=0,
-                 async::Bool=false, stream::Union{Nothing,CuStream}=nothing)
+function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
+                        src::Union{Ptr{T},CuPtr{T}}, srcTyp::Type{<:Buffer},
+                        width::Integer, height::Integer=1, depth::Integer=1;
+                        srcPos::CuDim3=CuDim3(0,0,0), dstPos::CuDim3=CuDim3(0,0,0),
+                        srcPitch::Integer=0, srcHeight::Integer=0,
+                        dstPitch::Integer=0, dstHeight::Integer=0,
+                        async::Bool=false, stream::Union{Nothing,CuStream}=nothing) where T
     srcMemoryType, srcHost, srcDevice = if srcTyp == Host
         CUDAdrv.CU_MEMORYTYPE_HOST,
         src::Ptr,
@@ -378,7 +378,7 @@ function copy_3d(src::Union{Ptr,CuPtr}, srcTyp::Type{<:Buffer},
         C_NULL, # reserved
         dstPitch, dstHeight,
         # extent
-        width, height, depth
+        width*sizeof(T), height, depth
     ))
     if async
         stream===nothing &&
