@@ -327,12 +327,23 @@ for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr, Ptr),
     end
 end
 
+"""
+    unsafe_copy3d!(dst, dstTyp, src, srcTyp, width, height=1, depth=1;
+                   dstPos=(1,1,1), dstPitch=0, dstHeight=0,
+                   srcPos=(1,1,1), srcPitch=0, srcHeight=0,
+                   async=false, stream=nothing)
+
+Perform a 3D memory copy between pointers `src` and `dst`, at respectively position `srcPos`
+and `dstPos` (1-indexed). Both pitch and destination can be specified for both the source
+and destination; consult the CUDA documentation for more details. This call is executed
+asynchronously if `async` is set, in which case `stream` needs to be a valid CuStream.
+"""
 function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
                         src::Union{Ptr{T},CuPtr{T}}, srcTyp::Type{<:Buffer},
                         width::Integer, height::Integer=1, depth::Integer=1;
-                        srcPos::CuDim=(1,1,1), dstPos::CuDim=(1,1,1),
-                        srcPitch::Integer=0, srcHeight::Integer=0,
+                        dstPos::CuDim=(1,1,1), srcPos::CuDim=(1,1,1),
                         dstPitch::Integer=0, dstHeight::Integer=0,
+                        srcPitch::Integer=0, srcHeight::Integer=0,
                         async::Bool=false, stream::Union{Nothing,CuStream}=nothing) where T
     srcPos = CUDAdrv.CuDim3(srcPos)
     dstPos = CUDAdrv.CuDim3(dstPos)
