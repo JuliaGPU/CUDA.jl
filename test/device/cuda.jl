@@ -1133,6 +1133,17 @@ end
     end
 end
 
+@testset "shared memory" begin
+    function kernel()
+        shared = @cuStaticSharedMem(Float32, 1)
+        @atomic shared[threadIdx().x] += 0f0
+        return
+    end
+
+    @cuda kernel()
+    synchronize()
+end
+
 end
 
 end

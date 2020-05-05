@@ -33,7 +33,9 @@ include("device/execution.jl")
 include("device/pointer.jl")
 include("device/array.jl")
 include("device/cuda.jl")
+if VERSION >= v"1.4.1" && capability(device()) >= v"7.0"
 include("device/wmma.jl")
+end
 
 include("nvtx.jl")
 
