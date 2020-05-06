@@ -301,3 +301,11 @@ LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,<:LowerTriangular{T, <:CuMatr
     CUBLAS.trsm!('R', 'L', 'T', 'N', one(T), parent(parent(B)), A)
 LinearAlgebra.rdiv!(A::CuMatrix{T}, B::Transpose{T,<:UnitLowerTriangular{T, <:CuMatrix{T}}}) where T<:CublasFloat =
     CUBLAS.trsm!('R', 'L', 'T', 'U', one(T), parent(parent(B)), A)
+
+# Direct BLAS calls
+for T in Base.uniontypes(CublasFloat) # needed to avoid ambiguous method error
+    @eval LinearAlgebra.BLAS.trmm!(side::AbstractChar, uplo::AbstractChar, transa::AbstractChar, diag::AbstractChar, alpha::$T, A::CuMatrix{$T}, B::CuMatrix{$T}) =
+        CuArrays.CUBLAS.trmm!(side, uplo, transa, diag, alpha, A, B, B)
+    @eval LinearAlgebra.BLAS.trsm!(side::AbstractChar, uplo::AbstractChar, transa::AbstractChar, diag::AbstractChar, alpha::$T, A::CuMatrix{$T}, B::CuMatrix{$T}) =
+        CuArrays.CUBLAS.trsm!(side, uplo, transa, diag, alpha, A, B)
+end
