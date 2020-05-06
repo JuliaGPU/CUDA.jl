@@ -41,7 +41,6 @@ julia:1.4-debug:
     CI_THOROUGH: 'true'
     CI_CLONE_ARGS: '-b v1.4.0'
     CI_BUILD_ARGS: 'BINARYBUILDER_LLVM_ASSERTS=1 debug'
-  allow_failure: true
 
 julia:nightly:
   extends:
@@ -49,7 +48,6 @@ julia:nightly:
     - .test
   tags:
     - nvidia
-  allow_failure: true
 
 
 # CUDA versions
