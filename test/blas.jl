@@ -787,13 +787,24 @@ end # level 1 testset
             B = copy(B)
             dA = CuArray(A)
             dB = CuArray(B)
-            dC = LinearAlgebra.BLAS.trmm!('L','U','N','N',one(elty),dA,dB)
-            C = LinearAlgebra.BLAS.trmm!('L','U','N','N',one(elty),A,B)
+            dC = LinearAlgebra.BLAS.trmm!('L','U','N','N',alpha,dA,dB)
+            C = LinearAlgebra.BLAS.trmm!('L','U','N','N',alpha,A,B)
             @test A ≈ Array(dA)
             @test B ≈ Array(dB)
             @test C ≈ Array(dC)
         end
 
+        @testset "BLAS.trsm!" begin
+            A = copy(A)
+            B = copy(B)
+            dA = CuArray(A)
+            dB = CuArray(B)
+            dC = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,dA,dB)
+            C = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,A,B)
+            @test A ≈ Array(dA)
+            @test B ≈ Array(dB)
+            @test C ≈ Array(dC)
+        end
         B = rand(elty,m,n)
         C = rand(elty,m,n)
         d_B = CuArray(B)
