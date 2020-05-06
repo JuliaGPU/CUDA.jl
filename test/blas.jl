@@ -781,6 +781,19 @@ end # level 1 testset
                 @test bC ≈ h_C
             end
         end
+
+        @testset "BLAS.trmm!" begin
+            A = copy(A)
+            B = copy(B)
+            dA = CuArray(A)
+            dB = CuArray(B)
+            dC = LinearAlgebra.BLAS.trmm!('L','U','N','N',one(elty),dA,dB)
+            C = LinearAlgebra.BLAS.trmm!('L','U','N','N',one(elty),A,B)
+            @test A ≈ Array(dA)
+            @test B ≈ Array(dB)
+            @test C ≈ Array(dC)
+        end
+
         B = rand(elty,m,n)
         C = rand(elty,m,n)
         d_B = CuArray(B)
