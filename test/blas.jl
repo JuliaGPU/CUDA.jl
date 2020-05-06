@@ -805,6 +805,33 @@ end # level 1 testset
             @test B ≈ Array(dB)
             @test C ≈ Array(dC)
         end
+
+        @testset "mul! trmm!" begin
+            for t in (identity, transpose, adjoint), TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
+                A = copy(sA) |> TR
+                B_L = copy(B)
+                B_R = copy(B')
+                C_L = copy(C)
+                C_R = copy(C')
+                dA = CuArray(parent(A)) |> TR
+                dB_L = CuArray(parent(B_L))
+                dB_R = CuArray(parent(B_R))
+                dC_L = CuArray(C_L)
+                dC_R = CuArray(C_R)
+                
+                D_L = mul!(C_L, t(A), B_L)
+                dD_L = mul!(dC_L, t(dA), dB_L)
+                
+                D_R = mul!(C_R, B_R, t(A))
+                dD_R = mul!(dC_R, dB_R, t(dA))
+                
+                @test C_L ≈ Array(dC_L)
+                @test D_L ≈ Array(dD_L)
+                @test C_R ≈ Array(dC_R)
+                @test D_R ≈ Array(dD_R)
+            end
+        end
+
         B = rand(elty,m,n)
         C = rand(elty,m,n)
         d_B = CuArray(B)
