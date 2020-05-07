@@ -133,13 +133,17 @@ end
 
 ## COV_EXCL_STOP
 
-NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractArray...; init=nothing) where T
-    # TODO: Broadcast-semantics after JuliaLang-julia#31020
-    A = first(As)
-    all(B -> size(A) == size(B), As) || throw(DimensionMismatch("dimensions of containers must be identical"))
+if VERSION < v"1.5.0-DEV.748"
+    Base.axes(bc::Base.Broadcast.Broadcasted{<:CuArrayStyle, <:NTuple{N}},
+              d::Integer) where N =
+        d <= N ? axes(bc)[d] : Base.OneTo(1)
+end
 
+NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T},
+                                             A::Union{AbstractArray,Broadcast.Broadcasted};
+                                             init=nothing) where T
     Base.check_reducedims(R, A)
-    isempty(A) && return R
+    length(A) == 0 && return R # isempty(::Broadcasted) iterates
 
     f = cufunc(f)
     op = cufunc(op)
@@ -156,8 +160,8 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractA
 
     # iteration domain, split in two: one part covers the dimensions that should
     # be reduced, and the other covers the rest. combining both covers all values.
-    Rall = CartesianIndices(A)
-    Rother = CartesianIndices(R)
+    Rall = CartesianIndices(axes(A))
+    Rother = CartesianIndices(axes(R))
     Rreduce = CartesianIndices(ifelse.(axes(A) .== axes(R), Ref(Base.OneTo(1)), axes(A)))
     # NOTE: we hard-code `OneTo` (`first.(axes(A))` would work too) or we get a
     #       CartesianIndices object with UnitRanges that behave badly on the GPU.
@@ -187,7 +191,7 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractA
     # we might not be able to launch all those threads to reduce each slice in one go.
     # that's why each threads also loops across their inputs, processing multiple values
     # so that we can span the entire reduction dimension using a single thread block.
-    args = (f, op, init, Rreduce, Rother, Val(shuffle), R′, As...)
+    args = (f, op, init, Rreduce, Rother, Val(shuffle), R′, A)
     kernel_args = cudaconvert.(args)
     kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
     kernel = cufunction(partial_mapreduce_grid, kernel_tt)
@@ -218,7 +222,7 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractA
     if reduce_blocks == 1
         # we can cover the dimensions to reduce using a single block
         @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
-            f, op, init, Rreduce, Rother, Val(shuffle), R′, As...)
+            f, op, init, Rreduce, Rother, Val(shuffle), R′, A)
     else
         # we need multiple steps to cover all values to reduce
         partial = similar(R, (size(R)..., reduce_blocks))
@@ -232,7 +236,7 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T}, As::AbstractA
             end
         end
         @cuda threads=threads blocks=blocks shmem=shmem partial_mapreduce_grid(
-            f, op, init, Rreduce, Rother, Val(shuffle), partial, As...)
+            f, op, init, Rreduce, Rother, Val(shuffle), partial, A)
 
         GPUArrays.mapreducedim!(identity, op, R′, partial; init=init)
     end
