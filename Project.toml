@@ -22,7 +22,7 @@ CEnum = "0.2, 0.3"
 CUDAapi = "3.1, 4.0"
 CUDAdrv = "6.2.1"
 ExprTools = "0.1"
-GPUCompiler = "0.1"
+GPUCompiler = "0.2"
 LLVM = "1.3.4"
 julia = "1.3"
 
