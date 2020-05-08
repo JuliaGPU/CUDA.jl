@@ -42,6 +42,7 @@ const configure_lock = ReentrantLock()
 @noinline function _functional(show_reason::Bool=false)
     lock(configure_lock) do
         if configured[] === nothing
+            configured[] = false
             if __configure__(show_reason)
                 configured[] = true
                 try
@@ -50,8 +51,6 @@ const configure_lock = ReentrantLock()
                     configured[] = false
                     rethrow()
                 end
-            else
-                configured[] = false
             end
         end
     end
