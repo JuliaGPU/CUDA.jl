@@ -8,9 +8,10 @@ GPUCompiler.reset_runtime()
 
 # load or build the runtime for the most likely compilation job given a compute capability
 function load_runtime(cap::VersionNumber)
-    target = CUDACompilerTarget(cap)
-    dummy_spec = FunctionSpec(()->return, Tuple{})
-    job = CUDACompilerJob(target, dummy_spec)
+    target = PTXCompilerTarget(; cap=cap)
+    dummy_source = FunctionSpec(()->return, Tuple{})
+    params = CUDACompilerParams()
+    job = CompilerJob(target, dummy_source, params)
     GPUCompiler.load_runtime(job)
 end
 

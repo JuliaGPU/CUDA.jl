@@ -292,18 +292,19 @@ function cufunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
     env = hash(pointer_from_objref(ctx)) # contexts are unique, but handles might alias
     # TODO: implement this as a hash function in CUDAdrv
 
-    spec = FunctionSpec(f, tt, true, name)
-    GPUCompiler.cached_compilation(_cufunction, spec, env; kwargs...)::HostKernel{f,tt}
+    source = FunctionSpec(f, tt, true, name)
+    GPUCompiler.cached_compilation(_cufunction, source, env; kwargs...)::HostKernel{f,tt}
 end
 
 # actual compilation
-function _cufunction(spec::FunctionSpec; kwargs...)
+function _cufunction(source::FunctionSpec; kwargs...)
     # compile to PTX
     ctx = context()
     dev = device(ctx)
     cap = supported_capability(dev)
-    target = CUDACompilerTarget(supported_capability(dev))
-    job = CUDACompilerJob(target, spec; kwargs...)
+    target = PTXCompilerTarget(; cap=supported_capability(dev), kwargs...)
+    params = CUDACompilerParams()
+    job = CompilerJob(target, source, params)
     asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, job; strict=true)
 
     # settings to JIT based on Julia's debug setting
@@ -333,7 +334,7 @@ function _cufunction(spec::FunctionSpec; kwargs...)
     # JIT into an executable kernel object
     mod = CuModule(image, jit_options)
     fun = CuFunction(mod, kernel_fn)
-    kernel = HostKernel{spec.f,spec.tt}(ctx, mod, fun)
+    kernel = HostKernel{source.f,source.tt}(ctx, mod, fun)
 
     create_exceptions!(mod)
 
