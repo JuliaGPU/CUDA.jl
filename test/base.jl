@@ -413,18 +413,27 @@ end
 @testset "threading" begin
   CuArrays.disable_timings()  # FIXME
 
+  test_lock = ReentrantLock()
   Threads.@threads for i in 1:Threads.nthreads()*100
     # uses libraries (rand, gemm) to test library handles
     # allocates and uses unsafe_free to cover the allocator
-    a = CuArrays.rand(64, 64)
-    b = CuArrays.rand(64, 64)
+    da = CuArrays.rand(64, 64)
+    db = CuArrays.rand(64, 64)
     yield()
-    c = a * b
+    dc = da * db
     yield()
-    @test Array(c) ≈ Array(a) * Array(b)
+
+    # @testset is not thread safe
+    a = Array(da)
+    b = Array(db)
+    c = Array(dc)
+    lock(test_lock) do
+      @test c ≈ a * b
+    end
+
     yield()
-    CuArrays.unsafe_free!(a)
-    CuArrays.unsafe_free!(b)
+    CuArrays.unsafe_free!(da)
+    CuArrays.unsafe_free!(db)
   end
 
   CuArrays.enable_timings() # FIXME
