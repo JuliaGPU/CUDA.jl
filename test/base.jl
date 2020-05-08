@@ -312,6 +312,9 @@ end
     # 1D
     @test testf(x->findfirst(x), rand(Bool, 100))
     @test testf(x->findfirst(y->y>0.5, x), rand(100))
+    let x = fill(false, 10)
+      @test findfirst(x) == findfirst(CuArray(x))
+    end
 
     # ND
     let x = rand(Bool, 10, 10)

@@ -120,7 +120,7 @@ function Base.findfirst(testf::Function, xs::CuArray)
     @cuda name="findfirst" config=configurator kernel(y, xs)
 
     first_i = @allowscalar y[1]
-    return keys(xs)[first_i]
+    return first_i == typemax(Int) ? nothing : keys(xs)[first_i]
 end
 
 Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
