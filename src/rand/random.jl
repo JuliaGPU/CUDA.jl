@@ -47,6 +47,8 @@ function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
     return
 end
 
+Random.seed!(rng::RNG, ::Nothing) = Random.seed!(rng)
+
 # convenience function that seeds both generators
 function seed!(seed=Base.rand(UInt64))
     Random.seed!(generator(), seed)
