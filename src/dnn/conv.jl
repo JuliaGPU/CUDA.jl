@@ -55,18 +55,6 @@ end
 
 # wrappers
 
-function cudnnConvolutionBiasActivationForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, bias::CuArray{T,N};
-                                               alpha1=1, workspace=CU_NULL, workspace_size=0,
-                                               algo=0, alpha2=0, padding=0, stride=1, dilation=1, mode=0,
-                                               activationMode=CUDNN_ACTIVATION_IDENTITY, activationCoeff=0.0,
-                                               activationReluNanOpt=CUDNN_NOT_PROPAGATE_NAN) where {T,N}
-    cd = ConvDesc(T, N-2, padding, stride, dilation, mode)
-    ad = ActivationDesc(activationMode, T(activationCoeff), activationReluNanOpt)
-    cudnnConvolutionBiasActivationForward(handle(), Ref(T(alpha1)),TensorDesc(x),x,FilterDesc(w),w,cd,cudnnConvolutionFwdAlgo_t(algo),workspace,
-        workspace_size,Ref(T(alpha2)),TensorDesc(bias),bias,ad,TensorDesc(y),y)
-    return y
-end
-
 function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
                                  cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
     @workspace size=@argout(
