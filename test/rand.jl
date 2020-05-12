@@ -4,6 +4,7 @@ using CuArrays.CURAND
 
 rng = CURAND.generator()
 Random.seed!(rng)
+Random.seed!(rng, nothing)
 Random.seed!(rng, 1)
 Random.seed!(rng, 1, 0)
 
