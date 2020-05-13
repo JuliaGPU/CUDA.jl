@@ -77,11 +77,6 @@ Afterwards, the buffer is put back into the memory pool for reuse.
 This helper protects against the rare but real issue of `getWorkspaceSize` returning
 different results based on the GPU device memory pressure, which might change _after_
 initial allocation of the workspace (which can cause a GC collection).
-
-Use of this macro should be as physically close as possible to the function that actually
-uses the workspace, to minimize the risk of GC interventions between the allocation and use
-of the workspace.
-
 """
 macro workspace(ex...)
     code = ex[end]
@@ -128,7 +123,9 @@ macro workspace(ex...)
         end
 
         let $(esc(code_arg)) = workspace
-            $(esc(code))
+            ret = $(esc(code))
+            unsafe_free!(workspace)
+            ret
         end
     end
 end
