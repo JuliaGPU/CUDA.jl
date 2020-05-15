@@ -11,8 +11,8 @@ GPUCompiler.isintrinsic(job::CUDACompilerJob, fn::String) =
            job, fn) ||
     fn == "__nvvm_reflect" || startswith(fn, "cuda")
 
-function GPUCompiler.process_module!(job::CUDACompilerJob, mod::LLVM.Module)
-    invoke(GPUCompiler.process_module!,
+function GPUCompiler.finish_module!(job::CUDACompilerJob, mod::LLVM.Module)
+    invoke(GPUCompiler.finish_module!,
            Tuple{CompilerJob{PTXCompilerTarget}, typeof(mod)},
            job, mod)
     emit_exception_flag!(mod)
