@@ -27,7 +27,7 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 [compat]
 AbstractFFTs = "0.4, 0.5"
 Adapt = "1.0"
-CEnum = "0.2, 0.3"
+CEnum = "0.2, 0.3, 0.4"
 CUDAapi = "3.0, 4.0"
 CUDAdrv = "6.0.1"
 CUDAnative = "3.0"
