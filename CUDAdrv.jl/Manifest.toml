@@ -1,0 +1,25 @@
+# This file is machine-generated - editing it directly is not advised
+
+[[CEnum]]
+git-tree-sha1 = "1b77a77c3b28e0b3f413f7567c9bb8dd9bdccd14"
+uuid = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+version = "0.3.0"
+
+[[CUDAapi]]
+deps = ["Libdl", "Logging"]
+git-tree-sha1 = "831b825d10104bd29e28f6da93312a976830717b"
+uuid = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
+version = "4.0.0"
+
+[[Libdl]]
+uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
+[[Logging]]
+uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
+
+[[Printf]]
+deps = ["Unicode"]
+uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[[Unicode]]
+uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"

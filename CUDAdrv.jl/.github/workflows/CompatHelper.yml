@@ -1,0 +1,27 @@
+name: CompatHelper
+
+on:
+  schedule:
+    - cron: '00 00 * * *'
+
+jobs:
+  CompatHelper:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get Julia compatibility
+        id: julia_compat
+        # NOTE: this requires a julia compat lower-bound with minor version!
+        run : |
+          version=$(grep '^julia = ' Project.toml | grep -o '".*"' | cut -d '"' -f2)
+          echo "::set-output name=version::$version"
+      - uses: julia-actions/setup-julia@latest
+        with:
+          #version: ${{ steps.julia_compat.outputs.version }}
+          # FIXME: CompatHelper doesn't support Julia 1.0
+          version: 1.1
+      - name: Pkg.add("CompatHelper")
+        run: julia -e 'using Pkg; Pkg.add("CompatHelper")'
+      - name: CompatHelper.main()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: julia -e 'using CompatHelper; CompatHelper.main()'

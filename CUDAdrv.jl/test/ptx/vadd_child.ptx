@@ -1,0 +1,22 @@
+
+.version 3.1
+.target sm_20
+.address_size 64
+
+
+.visible .func  (.param .b32 func_retval0) add(
+	.param .b32 add_param_0,
+	.param .b32 add_param_1
+)
+{
+	.reg .f32 	%f<4>;
+
+
+	ld.param.f32 	%f1, [add_param_0];
+	ld.param.f32 	%f2, [add_param_1];
+	add.f32 	%f3, %f1, %f2;
+	st.param.f32	[func_retval0+0], %f3;
+	ret;
+}
+
+

@@ -1,0 +1,140 @@
+include:
+  - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
+
+image: ubuntu:latest
+
+variables:
+  JULIA_DEBUG: 'CUDAdrv'
+  NVIDIA_VISIBLE_DEVICES: 'all'
+  NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
+
+
+# Julia versions
+
+# the "primary" target, where we require a new GPU to make sure all tests are run
+julia:1.3:
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia
+    - sm_70
+  variables:
+    CI_THOROUGH: 'true'
+
+julia:1.4:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia
+
+julia:nightly:
+  extends:
+    - .julia:nightly
+    - .test
+  allow_failure: true
+  tags:
+    - nvidia
+
+
+# hardware platforms
+
+platform:arm64:
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia-arm64
+
+
+# special tests
+
+precompile:
+  extends:
+    - .julia:1.3
+    - .test
+  variables:
+    NVIDIA_VISIBLE_DEVICES: ''
+    NVIDIA_DRIVER_CAPABILITIES: ''
+  script:
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build();
+                          Pkg.API.precompile()'
+    - julia --project -e 'using CUDAdrv'
+
+debug:
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia
+  variables:
+    JULIA_DEBUG: 'CUDAdrv'
+  script:
+    - julia --project -g2 -e 'using Pkg;
+                              Pkg.instantiate();
+                              Pkg.build();
+                              Pkg.test(; coverage=true);'
+
+cuda:none:
+  extends:
+    - .julia:1.3
+    - .test
+  variables:
+    NVIDIA_VISIBLE_DEVICES: ''
+  script:
+    - julia -e 'using InteractiveUtils;
+                versioninfo()'
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build()'
+    - julia --project -e 'using CUDAdrv;
+                          @assert !CUDAdrv.functional(true)'
+
+
+# reverse tests
+
+# NOTE: not using the Manifest (develop instead of instantiate) due to Pkg.jl#1423
+
+cudanative:
+  image: nvidia/cuda:10.1-devel
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia
+  script:
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();'
+    - julia -e 'using Pkg;
+                Pkg.add(PackageSpec(name="CUDAnative", rev="master"));
+                Pkg.test("CUDAnative");'
+  allow_failure: true
+
+
+# other tasks
+
+coverage:
+  extends:
+    - .julia:1.3
+    - .coverage
+
+documentation:
+  extends:
+    - .julia:1.3
+    - .documentation
+  tags:
+    - nvidia
+
+pages:
+  stage: deploy
+  script:
+    - mv docs/build public
+  artifacts:
+    paths:
+    - public
+  only:
+    - master

@@ -1,0 +1,42 @@
+--- libcuda.jl	2019-10-16 09:15:14.213122392 +0200
++++ ../src/libcuda.jl	2019-10-16 09:15:29.233281015 +0200
+@@ -937,10 +937,3 @@
+ end
+
+-@checked function cuStreamBatchMemOp(stream, count, paramArray, flags)
+-    initialize_api()
+-    @runtime_ccall((:cuStreamBatchMemOp, libcuda()), CUresult,
+-                   (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32),
+-                   stream, count, paramArray, flags)
+-end
+-
+ function cuFuncGetAttribute(pi, attrib, hfunc)
+--- libcuda_common.jl	2019-10-16 09:15:14.289789877 +0200
++++ ../src/libcuda_common.jl	2019-10-16 09:16:50.574087901 +0200
+@@ -186,26 +186,6 @@
+     CU_STREAM_WRITE_VALUE_NO_MEMORY_BARRIER = 1
+ end
+
+-
+-const CUstreamWriteValue_flags = CUstreamWriteValue_flags_enum
+-
+-@cenum CUstreamBatchMemOpType_enum::UInt32 begin
+-    CU_STREAM_MEM_OP_WAIT_VALUE_32 = 1
+-    CU_STREAM_MEM_OP_WRITE_VALUE_32 = 2
+-    CU_STREAM_MEM_OP_WAIT_VALUE_64 = 4
+-    CU_STREAM_MEM_OP_WRITE_VALUE_64 = 5
+-    CU_STREAM_MEM_OP_FLUSH_REMOTE_WRITES = 3
+-end
+-
+-
+-const CUstreamBatchMemOpType = CUstreamBatchMemOpType_enum
+-
+-struct CUstreamBatchMemOpParams_union
+-    waitValue::CUstreamMemOpWaitValueParams_st
+-end
+-
+-const CUstreamBatchMemOpParams = CUstreamBatchMemOpParams_union
+-
+ @cenum CUoccupancy_flags_enum::UInt32 begin
+     CU_OCCUPANCY_DEFAULT = 0
+     CU_OCCUPANCY_DISABLE_CACHING_OVERRIDE = 1

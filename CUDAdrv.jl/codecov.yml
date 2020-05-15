@@ -1,0 +1,8 @@
+coverage:
+  ignore:
+    - "src/lib*.jl"
+  status:
+    patch: false
+    project: false
+    changes: false
+comment: false
