@@ -558,16 +558,15 @@ end
 @testset "stack traces at different debug levels" begin
 
 script = """
-    function kernel(ptr, val)
-        unsafe_store!(ptr, Int(val))
+    function kernel(arr, val)
+        arr[1] = val
         return
     end
 
     cpu = zeros(Int)
-    gpu = CUDAdrv.Mem.alloc(CUDAdrv.Mem.Device, sizeof(cpu))
-    gpu_ptr = convert(CUDAdrv.CuPtr{Int}, gpu)
-    @cuda kernel(gpu_ptr, 1.2)
-    unsafe_copyto!(pointer(cpu), gpu_ptr, 1)
+    gpu = CuArray(cpu)
+    @cuda kernel(gpu, 1.2)
+    Array(gpu)
 """
 
 let (code, out, err) = julia_script(script, `-g0`)
@@ -592,7 +591,7 @@ let (code, out, err) = julia_script(script, `-g2`)
     else
         @test occursin("[1] Int64 at float.jl", out)
     end
-    @test occursin("[2] kernel at none:2", out)
+    @test occursin("[4] kernel at none:6", out)
 end
 
 end
@@ -614,8 +613,8 @@ let (code, out, err) = julia_script(script, `-g2`)
     @test code == 1
     @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err)
     @test occursin("ERROR: a exception was thrown during kernel execution", out)
-    @test occursin("foo at none:1", out)
-    @test occursin("bar at none:2", out)
+    @test occursin("foo at none:5", out)
+    @test occursin("bar at none:6", out)
 end
 
 end

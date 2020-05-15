@@ -76,7 +76,11 @@ end
 
 function julia_script(code, args=``)
     # FIXME: this doesn't work when the compute mode is set to exclusive
-    script = "using CUDAnative, CUDAdrv; device!($(device())); $code"
+    script = """using CUDAnative, CUDAdrv
+                const CuArray = CUDAnative.CuHostArray
+                device!($(device()))
+
+                $code"""
     cmd = Base.julia_cmd()
     if Base.JLOptions().project != C_NULL
         cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
