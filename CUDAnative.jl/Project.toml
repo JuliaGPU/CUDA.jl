@@ -1,0 +1,33 @@
+name = "CUDAnative"
+uuid = "be33ccc6-a3ff-5ff2-a52e-74243cff1e17"
+version = "3.1.0"
+
+[deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+BinaryProvider = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
+CEnum = "fa961155-64e5-5f13-b03f-caf6b980ea82"
+CUDAapi = "3895d2a7-ec45-59b8-82bb-cfc6a382f9b3"
+CUDAdrv = "c5f51814-7f29-56b8-a69c-e4d8f6be1fde"
+ExprTools = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
+GPUCompiler = "61eb1bfa-7361-4325-ad38-22787b887f55"
+LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[compat]
+Adapt = "0.4, 1.0"
+BinaryProvider = "0.3, 0.4, 0.5"
+CEnum = "0.2, 0.3, 0.4"
+CUDAapi = "3.1, 4.0"
+CUDAdrv = "6.2.1"
+ExprTools = "0.1"
+GPUCompiler = "0.2"
+LLVM = "1.3.4"
+julia = "1.3"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
