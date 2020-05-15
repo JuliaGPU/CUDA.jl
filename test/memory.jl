@@ -186,7 +186,6 @@ let
     check = zeros(Int, size(data))
     Mem.unsafe_copy3d!(typed_pointer(dst, Int), Mem.Device, pointer(check), Mem.Host, length(data))
 
-    @show check
     @test data == check
 
     Mem.free(dst)
@@ -225,8 +224,6 @@ let
     Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device, length(check))
 
     @test all(check[:,2,:] .== data)
-
-    @show check
 end
 
 end
