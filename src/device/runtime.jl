@@ -39,7 +39,10 @@ function report_exception(ex)
     return
 end
 
-report_oom(sz) = @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+function report_oom(sz)
+    @cuprintf("ERROR: Out of dynamic GPU memory (trying to allocate %i bytes)\n", sz)
+    return
+end
 
 function report_exception_name(ex)
     @cuprintf("""
