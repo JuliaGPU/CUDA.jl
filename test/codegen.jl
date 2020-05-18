@@ -1,0 +1,197 @@
+@testset "code generation" begin
+
+############################################################################################
+
+@testset "LLVM IR" begin
+
+@testset "JuliaLang/julia#21121" begin
+    function foobar()
+        weight_matrix = @cuStaticSharedMem(Float32, (16, 16))
+        sync_threads()
+        weight_matrix[1, 16] *= 2
+        sync_threads()
+    end
+
+    ir = sprint(io->CUDA.code_llvm(io, foobar, Tuple{}))
+    @test !occursin("inttoptr", ir)
+end
+
+@testset "PTX TBAA" begin
+    load(ptr) = unsafe_load(ptr)
+    store(ptr) = unsafe_store!(ptr, 0)
+
+    for f in (load, store)
+        ir = sprint(io->CUDA.code_llvm(io, f,
+                                             Tuple{CUDA.DevicePtr{Float32,AS.Global}};
+                                             dump_module=true, raw=true))
+        @test occursin("gputbaa_global", ir)
+
+        # no TBAA on generic pointers
+        ir = sprint(io->CUDA.code_llvm(io, f,
+                                             Tuple{CUDA.DevicePtr{Float32,AS.Generic}};
+                                             dump_module=true, raw=true))
+        @test !occursin("gputbaa", ir)
+    end
+
+
+    cached_load(ptr) = unsafe_cached_load(ptr)
+
+    ir = sprint(io->CUDA.code_llvm(io, cached_load,
+                                         Tuple{CUDA.DevicePtr{Float32,AS.Global}};
+                                         dump_module=true, raw=true))
+    @test occursin("gputbaa_global", ir)
+end
+
+@testset "ghost values" begin
+    @eval struct Singleton end
+
+    ir = sprint(io->CUDA.code_llvm(io, unsafe_load,
+                                         Tuple{CUDA.DevicePtr{Singleton,AS.Global}}))
+    @test occursin("ret void", ir)
+    @test unsafe_load(reinterpret(CUDA.DevicePtr{Singleton,AS.Global}, C_NULL)) === Singleton()
+
+    ir = sprint(io->CUDA.code_llvm(io, unsafe_store!,
+                                         Tuple{CUDA.DevicePtr{Singleton,AS.Global},
+                                         Singleton}))
+    @test !occursin("\bstore\b", ir)
+end
+
+@testset "CUDA.jl#553" begin
+    function kernel(ptr)
+       unsafe_store!(ptr, CUDA.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
+       return
+    end
+
+    ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{Ptr{Float32}}))
+    @test !occursin("@__nv_fmaf", ir)
+end
+
+@testset "reinterpret(Nothing, nothing)" begin
+    kernel(ptr) = Base.unsafe_load(ptr)
+    CUDA.code_llvm(devnull, kernel, Tuple{CUDA.DevicePtr{Nothing,CUDA.AS.Global}}; strict=true)
+end
+
+@testset "ldg" begin
+    ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{CUDA.DevicePtr{Int,CUDA.AS.Global},Int,Val{1}}))
+    @test occursin("@llvm.nvvm.ldg", ir)
+end
+
+@testset "assume" begin
+    foo(i) = cld(42, i)
+    ir = sprint(io->CUDA.code_llvm(io, foo, Tuple{Int}))
+    @test occursin("@gpu_report_exception", ir)
+
+
+    bar(i) = (CUDA.assume(i > 0); cld(42, i))
+    ir = sprint(io->CUDA.code_llvm(io, bar, Tuple{Int}))
+    @test !occursin("gpu_report_exception", ir)
+end
+
+@testset "stripping invariant.load" begin
+    function kernel(ptr, x)
+        i = CUDA.threadIdx_x()
+        @inbounds unsafe_store!(ptr, x[i], 1)
+        return
+    end
+
+    arr = CuArray(zeros(Float64))
+    ptr = pointer(arr)
+
+    @cuda kernel(ptr, (1., 2., ))
+    @test Array(arr)[] == 1.
+end
+
+@testset "stripping const TBAA" begin
+    # this one is particularly nasty because it occurs in a nested function
+
+    _a = rand(Int, 2, 1)
+    b = ((1,9999),(1,9999))
+
+    out = CuArray(zeros(Int, 2,1))
+    a = Tuple(_a)
+
+    function kernel(out, a, b)
+        i = threadIdx().x
+        blockIdx().x
+        @inbounds out[i,1] = a[i] + b[i][1]
+        return
+    end
+
+    @cuda threads=2 kernel(out, a, b)
+    @test Array(out) == (_a .+ 1)
+end
+
+
+@testset "ptxas-compatible control flow" begin
+    @noinline function throw_some()
+        throw(42)
+        return
+    end
+
+    @inbounds function kernel(input, output, n)
+        i = threadIdx().x
+
+        temp = @cuStaticSharedMem(Int, 1)
+        if i == 1
+            1 <= n || throw_some()
+            temp[1] = input
+        end
+        sync_threads()
+
+        1 <= n || throw_some()
+        unsafe_store!(output, temp[1], i)
+
+        return
+    end
+
+    function gpu(input)
+        output = CuArray(zeros(eltype(input), 2))
+        ptr = pointer(output)
+        ptr = reinterpret(Ptr{eltype(input)}, ptr)
+
+        @cuda threads=2 kernel(input, ptr, 99)
+
+        return Array(output)
+    end
+
+    function cpu(input)
+        output = zeros(eltype(input), 2)
+
+        for j in 1:2
+            @inbounds output[j] = input
+        end
+
+        return output
+    end
+
+    input = rand(1:100)
+    @test cpu(input) == gpu(input)
+end
+
+end
+
+############################################################################################
+
+@testset "SASS" begin
+
+@testset "basic reflection" begin
+    valid_kernel() = return
+    invalid_kernel() = 1
+
+    @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
+    @test_throws KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+end
+
+@testset "function name mangling" begin
+    @eval @noinline $(Symbol("dummy_^"))(x) = x
+
+    @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
+
+    CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+end
+
+end
+
+############################################################################################
+
+end

@@ -1,9 +1,0 @@
---- a/libcusparse_common.jl	2019-09-19 14:17:40.834901970 +0200
-+++ b/libcusparse_common.jl	2019-09-19 15:04:05.039885162 +0200
-@@ -6,6 +6,5 @@
- const CUSPARSE_VER_PATCH = 0
- const CUSPARSE_VER_BUILD = 243
- const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + CUSPARSE_VER_PATCH
--const CUSPARSE_DEPRECATED_HINT = new_func
- const cusparseContext = Cvoid
- const cusparseHandle_t = Ptr{cusparseContext}

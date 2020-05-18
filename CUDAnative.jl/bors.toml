@@ -1,4 +1,0 @@
-status = [
-  "ci/gitlab/%"
-]
-delete_merged_branches = true
