@@ -16,7 +16,7 @@ using Random
 
 ## entry point
 
-function runtests(name, device=nothing)
+function runtests(f, device=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
     try
@@ -26,20 +26,22 @@ function runtests(name, device=nothing)
             if $device !== nothing
                 device!($device)
                 CUDA.@timed @testset $"$name" begin
-                    include($"$(@__DIR__)/$name.jl")
+                    $f()
                 end
             else
                 # take care not to initialize the device
                 res = @timed @testset $"$name" begin
-                    include($"$(@__DIR__)/$name.jl")
+                    $f()
                 end
                 res..., 0, 0, 0
             end
         end
+
+        # process results
         res_and_time_data = Core.eval(Main, ex)
+        #res_and_time_data[1] is the testset
         rss = Sys.maxrss()
         # TODO: GPU RSS using nvmlDeviceGetComputeRunningProcesses
-        #res_and_time_data[1] is the testset
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
             Test.get_test_counts(res_and_time_data[1])
         if res_and_time_data[1].anynonpass == false

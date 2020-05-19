@@ -1,1 +1,0 @@
-TestSuite.test_uniformscaling(CuArray)

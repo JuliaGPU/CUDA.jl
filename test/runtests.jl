@@ -3,34 +3,7 @@ using Dates
 import REPL
 using Printf: @sprintf
 
-# choose tests
-const tests = ["initialization",                    # needs to run first
-               "cutensor", "gpuarrays/mapreduce"]   # prioritize slow tests
-for (rootpath, dirs, files) in walkdir(@__DIR__)
-  # find Julia files
-  filter!(files) do file
-    endswith(file, ".jl") && file !== "setup.jl" && file !== "runtests.jl"
-  end
-  isempty(files) && continue
-
-  # strip extension
-  files = map(files) do file
-    file[1:end-3]
-  end
-
-  # prepend subdir
-  subdir = relpath(rootpath, @__DIR__)
-  if subdir != "."
-    files = map(files) do file
-      joinpath(subdir, file)
-    end
-  end
-
-  append!(tests, files)
-end
-unique!(tests)
-
-# parse command-line arguments
+# parse some command-line arguments
 function extract_flag!(args, flag, default=nothing)
     for f in args
         if startswith(f, flag)
@@ -65,6 +38,47 @@ if do_help
 end
 ## --jobs=N for parallel job execution
 _, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
+
+include("setup.jl")     # make sure everything is precompiled
+
+# choose tests
+const tests = ["initialization",    # needs to run first
+               "cutensor"]          # prioritize slow tests
+const test_runners = Dict()
+## files in the test folder
+for (rootpath, dirs, files) in walkdir(@__DIR__)
+  # find Julia files
+  filter!(files) do file
+    endswith(file, ".jl") && file !== "setup.jl" && file !== "runtests.jl"
+  end
+  isempty(files) && continue
+
+  # strip extension
+  files = map(files) do file
+    file[1:end-3]
+  end
+
+  # prepend subdir
+  subdir = relpath(rootpath, @__DIR__)
+  if subdir != "."
+    files = map(files) do file
+      joinpath(subdir, file)
+    end
+  end
+
+  append!(tests, files)
+  for file in files
+    test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
+  end
+end
+## GPUArrays testsuite
+for (name, fun) in TestSuite.tests
+    push!(tests, "gpuarrays/$name")
+    test_runners["gpuarrays/$name"] = ()->fun(CuArray)
+end
+unique!(tests)
+
+# parse some more command-line arguments
 ## --list to list all available tests
 do_list, _ = extract_flag!(ARGS, "--list")
 if do_list
@@ -80,8 +94,6 @@ if !isempty(ARGS)
     any(arg->startswith(test, arg), ARGS)
   end
 end
-
-include("setup.jl")     # make sure everything is precompiled
 
 # check that CI is using the requested toolkit
 toolkit_release = CUDA.toolkit_release() # ensure artifacts are downloaded
@@ -255,7 +267,7 @@ try
                     wrkr = p
                     dev = test=="initialization" ? nothing : pick.dev
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test, dev)
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], dev)
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]
