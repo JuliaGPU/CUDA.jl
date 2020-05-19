@@ -1,7 +1,3 @@
-@testset "code generation" begin
-
-############################################################################################
-
 @testset "LLVM IR" begin
 
 @testset "JuliaLang/julia#21121" begin
@@ -179,7 +175,7 @@ end
     invalid_kernel() = 1
 
     @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
-    @test_throws KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+    @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
 end
 
 @testset "function name mangling" begin
@@ -189,9 +185,5 @@ end
 
     CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
 end
-
-end
-
-############################################################################################
 
 end

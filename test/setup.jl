@@ -1,3 +1,57 @@
+using Test, CUDA
+
+# GPUArrays has a testsuite that isn't part of the main package.
+# Include it directly.
+import GPUArrays
+gpuarrays = pathof(GPUArrays)
+gpuarrays_root = dirname(dirname(gpuarrays))
+include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
+testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
+
+import LinearAlgebra
+LinearAlgebra.BLAS.set_num_threads(1)
+
+using Random
+
+
+## entry point
+
+function runtests(name, device=nothing)
+    old_print_setting = Test.TESTSET_PRINT_ENABLE[]
+    Test.TESTSET_PRINT_ENABLE[] = false
+    try
+        ex = quote
+            @timed @testset $"$name" begin
+                Random.seed!(1)
+                CUDA.allowscalar(false)
+                if $device !== nothing
+                    device!($device)
+                end
+                include($"$(@__DIR__)/$name.jl")
+            end
+        end
+        res_and_time_data = Core.eval(Main, ex)
+        rss = Sys.maxrss()
+        #res_and_time_data[1] is the testset
+        passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
+            Test.get_test_counts(res_and_time_data[1])
+        if res_and_time_data[1].anynonpass == false
+            res_and_time_data = (
+                                 (passes+c_passes,broken+c_broken),
+                                 res_and_time_data[2],
+                                 res_and_time_data[3],
+                                 res_and_time_data[4],
+                                 res_and_time_data[5])
+        end
+        vcat(collect(res_and_time_data), rss)
+    finally
+        Test.TESTSET_PRINT_ENABLE[] = old_print_setting
+    end
+end
+
+
+## auxiliary stuff
+
 # NOTE: based on test/pkg.jl::capture_stdout, but doesn't discard exceptions
 macro grab_output(ex)
     quote
@@ -31,24 +85,6 @@ macro test_throws_cuerror(code, ex)
         @test_throws CuError $test
     end
 end
-
-mutable struct NoThrowTestSet <: Test.AbstractTestSet
-    results::Vector
-    NoThrowTestSet(desc) = new([])
-end
-Test.record(ts::NoThrowTestSet, t::Test.Result) = (push!(ts.results, t); t)
-Test.finish(ts::NoThrowTestSet) = ts.results
-fails = @testset NoThrowTestSet begin
-    # OK
-    @test_throws_cuerror CUDA.ERROR_UNKNOWN throw(CuError(CUDA.ERROR_UNKNOWN))
-    # Fail, wrong CuError
-    @test_throws_cuerror CUDA.ERROR_UNKNOWN throw(CuError(CUDA.ERROR_INVALID_VALUE))
-    # Fail, wrong Exception
-    @test_throws_cuerror CUDA.ERROR_UNKNOWN error()
-end
-@test isa(fails[1], Test.Pass)
-@test isa(fails[2], Test.Fail)
-@test isa(fails[3], Test.Fail)
 
 # @test_throw, with additional testing for the exception message
 macro test_throws_message(f, typ, ex...)
@@ -162,3 +198,5 @@ end
         end
     end
 end
+
+nothing # File is loaded via a remotecall to "include". Ensure it returns "nothing".

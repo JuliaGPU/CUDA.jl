@@ -1,12 +1,4 @@
-@testset "CUDNN" begin
-
 using CUDA.CUDNN
-
-if !has_cudnn()
-@warn "Not testing CUDNN"
-haskey(ENV, "CI_THOROUGH") && error("All optional libraries should be available on this CI")
-else
-@info "Testing CUDNN $(CUDNN.version())"
 
 @test has_cudnn()
 
@@ -80,8 +72,8 @@ end
   @test testf(CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
 
   # activations defined in src/nnlib.jl
-  ACTIVATION_FUNCTIONS = [σ, logσ, hardσ, hardtanh, relu, leakyrelu, relu6, rrelu, 
-                          elu, gelu, celu, swish, lisht, selu, trelu, softplus, 
+  ACTIVATION_FUNCTIONS = [σ, logσ, hardσ, hardtanh, relu, leakyrelu, relu6, rrelu,
+                          elu, gelu, celu, swish, lisht, selu, trelu, softplus,
                           softsign, logcosh, mish, tanhshrink, softshrink];
   for dims in ((5,5), (5,))
     for f in filter(x -> x != rrelu, ACTIVATION_FUNCTIONS)
@@ -99,8 +91,4 @@ end
   for training in (false, true)
     CUDNN.batchnorm(v, v, m, v, v, 1.0; training=training)
   end
-end
-
-end
-
 end

@@ -1,4 +1,5 @@
 using LinearAlgebra
+import Adapt
 
 @testset "essential utilities" begin
   f() = 1

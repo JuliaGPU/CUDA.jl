@@ -1,5 +1,3 @@
-@testset "CUBLAS" begin
-
 using CUDA.CUBLAS
 using CUDA.CUBLAS: band, bandex
 
@@ -1542,5 +1540,3 @@ end # level 1 testset
         end
     end # extensions
 end # elty
-
-end # cublas testset

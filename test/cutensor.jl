@@ -1,13 +1,6 @@
-@testset "CUTENSOR" begin
-
 using CUDA.CUTENSOR
 
 using LinearAlgebra
-if !has_cutensor() || CUDA.version() < v"10.1" || capability(device()) < v"7.0"
-@warn "Not testing CUTENSOR"
-haskey(ENV, "CI_THOROUGH") && error("All optional libraries should be available on this CI")
-else
-@info "Testing CUTENSOR $(CUTENSOR.version())"
 
 @test has_cutensor()
 
@@ -535,8 +528,4 @@ end
             end
         end
     end
-end
-
-end
-
 end

@@ -1,7 +1,5 @@
 using CUDA.APIUtils
 
-@testset "API utilities" begin
-
 @testset "call" begin
     # ccall throws if the lib doesn't exist, even if not called
     foo(x) = (x && ccall((:whatever, "nonexisting"), Cvoid, ()); 42)
@@ -63,6 +61,4 @@ end
     @test mod.checks[] == 1
     @test mod.unsafe_foo() == getpid()
     @test mod.checks[] == 1
-end
-
 end

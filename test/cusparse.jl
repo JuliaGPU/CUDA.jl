@@ -1,5 +1,3 @@
-@testset "CUSPARSE" begin
-
 using CUDA.CUSPARSE
 
 using LinearAlgebra
@@ -2050,6 +2048,4 @@ end
             @test z ≈ h_y
         end
     end
-end
-
 end

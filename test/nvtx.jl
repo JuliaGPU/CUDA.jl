@@ -1,6 +1,3 @@
-@testset "NVTX" begin
-
-
 # markers
 
 NVTX.mark("test")
@@ -24,5 +21,3 @@ NVTX.@range function Main.test2(::T) where T
 end
 
 NVTX.@range test3() = nothing
-
-end

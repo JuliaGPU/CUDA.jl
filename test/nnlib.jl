@@ -1,7 +1,5 @@
 using NNlib
 
-@testset "NNlib" begin
-
 @testset "batched_mul" begin
     using NNlib: batched_mul, batched_adjoint, batched_transpose
 
@@ -22,6 +20,4 @@ end
   if CUDA.has_cudnn()
     @test testf(x -> logσ.(x), rand(5))
   end
-end
-
 end

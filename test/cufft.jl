@@ -1,5 +1,3 @@
-@testset "CUFFT" begin
-
 using CUDA.CUFFT
 
 using CUDA
@@ -299,7 +297,4 @@ end
     d_X = CuArray(X)
     p = plan_fft(d_X)
     CUFFT.set_stream(p, CUDA.CuDefaultStream())
-end
-
-
 end

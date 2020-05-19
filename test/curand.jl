@@ -1,5 +1,3 @@
-@testset "CURAND" begin
-
 using CUDA.CURAND
 
 rng = CURAND.generator()
@@ -71,5 +69,3 @@ A = CUDA.rand(Int64, 1)
 CURAND.seed!(1)
 B = CUDA.rand(Int64, 1)
 @test all(A .== B)
-
-end

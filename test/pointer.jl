@@ -1,5 +1,3 @@
-@testset "host pointer" begin
-
 # constructors
 voidptr_a = CuPtr{Cvoid}(Int(0xDEADBEEF))
 @test reinterpret(Ptr{Cvoid}, voidptr_a) == Ptr{Cvoid}(Int(0xDEADBEEF))
@@ -36,8 +34,5 @@ b = CuArray{eltype(a), ndims(a)}(ptr, size(a))
 ccall(:clock, Nothing, (CuPtr{Int},), b)
 @test_throws Exception ccall(:clock, Nothing, (Ptr{Int},), b)
 ccall(:clock, Nothing, (CUDA.PtrOrCuPtr{Int},), b)
-
-end
-
 
 end
