@@ -57,6 +57,18 @@ const alloc_stats = AllocStats(0, 0, 0, 0, 0, 0, 0, 0, 0)
 Base.copy(alloc_stats::AllocStats) =
   AllocStats((getfield(alloc_stats, field) for field in fieldnames(AllocStats))...)
 
+AllocStats(b::AllocStats, a::AllocStats) =
+  AllocStats(
+    b.pool_nalloc - a.pool_nalloc,
+    b.pool_nfree - a.pool_nfree,
+    b.pool_alloc - a.pool_alloc,
+    b.actual_nalloc - a.actual_nalloc,
+    b.actual_nfree - a.actual_nfree,
+    b.actual_alloc - a.actual_alloc,
+    b.actual_free - a.actual_free,
+    b.pool_time - a.pool_time,
+    b.actual_time - a.actual_time)
+
 
 ## CUDA allocator
 
@@ -334,32 +346,14 @@ synchronized right before and after executing `ex` to exclude any external effec
 """
 macro time(ex)
     quote
-        # @time might surround an application, so be sure to initialize CUDA before that
-        CUDA.prepare_cuda_call()
+        local val, cpu_time,
+        cpu_alloc_size, cpu_gc_time, cpu_mem_stats,
+        gpu_alloc_size, gpu_gc_time, gpu_mem_stats = @timed $(esc(ex))
 
-        # coarse synchronization to exclude effects from previously-executed code
-        synchronize()
-
-        local gpu_mem_stats0 = copy(alloc_stats)
-        local cpu_mem_stats0 = Base.gc_num()
-        local cpu_time0 = time_ns()
-
-        # fine-grained synchronization of the code under analysis
-        local val = @sync $(esc(ex))
-
-        local cpu_time1 = time_ns()
-        local cpu_mem_stats1 = Base.gc_num()
-        local gpu_mem_stats1 = copy(alloc_stats)
-
-        local cpu_time = (cpu_time1 - cpu_time0) / 1e9
-        local gpu_gc_time = gpu_mem_stats1.pool_time - gpu_mem_stats0.pool_time
-        local gpu_alloc_count = gpu_mem_stats1.pool_nalloc - gpu_mem_stats0.pool_nalloc
-        local gpu_lib_time = gpu_mem_stats1.actual_time - gpu_mem_stats0.actual_time
-        local gpu_alloc_size = gpu_mem_stats1.pool_alloc - gpu_mem_stats0.pool_alloc
-        local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
-        local cpu_gc_time = cpu_mem_stats.total_time / 1e9
         local cpu_alloc_count = Base.gc_alloc_count(cpu_mem_stats)
-        local cpu_alloc_size = cpu_mem_stats.allocd
+        local gpu_alloc_count = gpu_mem_stats.pool_nalloc
+
+        local gpu_lib_time = gpu_mem_stats.actual_time
 
         Printf.@printf("%10.6f seconds", cpu_time)
         for (typ, gctime, libtime, bytes, allocs) in
@@ -387,6 +381,38 @@ macro time(ex)
         println()
 
         val
+    end
+end
+
+macro timed(ex)
+    quote
+        while false; end # compiler heuristic: compile this block (alter this if the heuristic changes)
+
+        # @time(d) might surround an application, so be sure to initialize CUDA before that
+        CUDA.prepare_cuda_call()
+
+        # coarse synchronization to exclude effects from previously-executed code
+        synchronize()
+
+        local gpu_mem_stats0 = copy(alloc_stats)
+        local cpu_mem_stats0 = Base.gc_num()
+        local cpu_time0 = time_ns()
+
+        # fine-grained synchronization of the code under analysis
+        local val = @sync $(esc(ex))
+
+        local cpu_time1 = time_ns()
+        local cpu_mem_stats1 = Base.gc_num()
+        local gpu_mem_stats1 = copy(alloc_stats)
+
+        local cpu_time = (cpu_time1 - cpu_time0) / 1e9
+
+        local cpu_mem_stats = Base.GC_Diff(cpu_mem_stats1, cpu_mem_stats0)
+        local gpu_mem_stats = AllocStats(gpu_mem_stats1, gpu_mem_stats0)
+
+        (value=val, time=cpu_time,
+         cpu_bytes=cpu_mem_stats.allocd, cpu_gctime=cpu_mem_stats.total_time / 1e9, cpu_gcstats=cpu_mem_stats,
+         gpu_bytes=gpu_mem_stats.pool_alloc, gpu_gctime=gpu_mem_stats.pool_time, gpu_gcstate=gpu_mem_stats)
     end
 end
 

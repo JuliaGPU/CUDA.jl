@@ -21,17 +21,24 @@ function runtests(name, device=nothing)
     Test.TESTSET_PRINT_ENABLE[] = false
     try
         ex = quote
-            @timed @testset $"$name" begin
-                Random.seed!(1)
-                CUDA.allowscalar(false)
-                if $device !== nothing
-                    device!($device)
+            Random.seed!(1)
+            CUDA.allowscalar(false)
+            if $device !== nothing
+                device!($device)
+                CUDA.@timed @testset $"$name" begin
+                    include($"$(@__DIR__)/$name.jl")
                 end
-                include($"$(@__DIR__)/$name.jl")
+            else
+                # take care not to initialize the device
+                res = @timed @testset $"$name" begin
+                    include($"$(@__DIR__)/$name.jl")
+                end
+                res..., 0, 0, 0
             end
         end
         res_and_time_data = Core.eval(Main, ex)
         rss = Sys.maxrss()
+        # TODO: GPU RSS using nvmlDeviceGetComputeRunningProcesses
         #res_and_time_data[1] is the testset
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
             Test.get_test_counts(res_and_time_data[1])
@@ -41,7 +48,10 @@ function runtests(name, device=nothing)
                                  res_and_time_data[2],
                                  res_and_time_data[3],
                                  res_and_time_data[4],
-                                 res_and_time_data[5])
+                                 res_and_time_data[5],
+                                 res_and_time_data[6],
+                                 res_and_time_data[7],
+                                 res_and_time_data[8])
         end
         vcat(collect(res_and_time_data), rss)
     finally

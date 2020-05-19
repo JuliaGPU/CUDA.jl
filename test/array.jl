@@ -23,6 +23,8 @@ end
   ret, out = @grab_output CUDA.@time Base.unsafe_wrap(CuArray, CuPtr{Int32}(12345678), (2, 3))
   @test isa(ret, CuArray{Int32})
   @test !occursin("GPU allocation", out)
+
+  # TODO: test CUDA.@timed
 end
 
 @testset "Array" begin
