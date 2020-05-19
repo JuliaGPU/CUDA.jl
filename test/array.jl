@@ -405,8 +405,6 @@ end
 end
 
 @testset "threading" begin
-  CUDA.disable_timings()  # FIXME
-
   test_lock = ReentrantLock()
   Threads.@threads for i in 1:Threads.nthreads()*100
     # uses libraries (rand, gemm) to test library handles
@@ -429,6 +427,4 @@ end
     CUDA.unsafe_free!(da)
     CUDA.unsafe_free!(db)
   end
-
-  CUDA.enable_timings() # FIXME
 end
