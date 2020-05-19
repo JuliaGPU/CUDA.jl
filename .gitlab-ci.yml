@@ -158,31 +158,6 @@ debug:
                               Pkg.test(; coverage=true);'
 
 
-# reverse tests
-
-# NOTE: reverse testing is tricky because of Manifests. we instantiate both, give priority
-#       to this package's Manifest, and manually run tests outside of the test environment.
-#       that means we have to manually install Flux' test dependencies though.
-
-flux:
-  extends:
-    - .julia:1.4
-    - .test
-  tags:
-    - nvidia
-  script:
-    - export FLUX=".julia/dev/Flux"
-    - julia -e 'using Pkg;
-                Pkg.develop("Flux");'
-    - julia --project -e 'using Pkg;
-                          Pkg.instantiate()'
-    - julia --project=$FLUX -e 'using Pkg;
-                                Pkg.instantiate();
-                                Pkg.add(["Documenter", "IterTools"])'
-    - JULIA_LOAD_PATH=".:$FLUX::" julia $FLUX/test/runtests.jl
-  allow_failure: true
-
-
 # other tasks
 
 coverage:
