@@ -176,22 +176,6 @@ end
 
 # 3d memcpy
 let
-    # simple linear copy
-
-    data = collect(reshape(1:9, 3, 3))
-
-    dst = Mem.alloc(Mem.Device, sizeof(data))
-    Mem.unsafe_copy3d!(pointer(data), Mem.Host, typed_pointer(dst, Int), Mem.Device, length(data))
-
-    check = zeros(Int, size(data))
-    Mem.unsafe_copy3d!(typed_pointer(dst, Int), Mem.Device, pointer(check), Mem.Host, length(data))
-
-    @test data == check
-
-    Mem.free(dst)
-end
-let
-    # 3d copy
     # TODO: use cuMemAllocPitch (and put pitch in buffer?) to actually get benefit from this
 
     data = collect(reshape(1:27, 3, 3, 3))
