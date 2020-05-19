@@ -1,8 +1,4 @@
-@testset "profile" begin
-
-CUDA.Profile.start()
+@test_logs (:warn, r"only informs an external profiler to start") CUDA.Profile.start()
 CUDA.Profile.stop()
 
-CUDA.@profile begin end
-
-end
+@test_logs (:warn, r"only informs an external profiler to start") CUDA.@profile begin end
