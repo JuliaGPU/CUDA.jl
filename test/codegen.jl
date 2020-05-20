@@ -168,7 +168,8 @@ end
 
 ############################################################################################
 
-@testset "SASS" begin
+# NOTE: CUPTI, needed for SASS reflection, does not seem to work under cuda-memcheck
+memcheck || @testset "SASS" begin
 
 @testset "basic reflection" begin
     valid_kernel() = return

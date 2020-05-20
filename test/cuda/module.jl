@@ -26,7 +26,7 @@ let
     @test md != md2
 end
 
-@test_throws_cuerror CUDA.ERROR_INVALID_IMAGE CuModule("foobar")
+memcheck || @test_throws_cuerror CUDA.ERROR_INVALID_IMAGE CuModule("foobar")
 
 
 @testset "globals" begin
@@ -58,7 +58,7 @@ end
     # TODO: test with valid object code
     # NOTE: apparently, on Windows cuLinkAddData! _does_ accept object data containing \0
     if !Sys.iswindows()
-        @test_throws_cuerror CUDA.ERROR_UNKNOWN add_data!(link, "vadd_parent", UInt8[0])
+        memcheck || @test_throws_cuerror CUDA.ERROR_UNKNOWN add_data!(link, "vadd_parent", UInt8[0])
     end
 end
 

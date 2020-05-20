@@ -1,6 +1,6 @@
 CUDA.alloc(0)
 
-@test_throws OutOfGPUMemoryError CuArray{Int}(undef, 10^20)
+memcheck ||  @test_throws OutOfGPUMemoryError CuArray{Int}(undef, 10^20)
 
 @testset "@allocated" begin
     @test (CUDA.@allocated CuArray{Int32}(undef,1)) == 4

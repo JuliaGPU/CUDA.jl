@@ -134,6 +134,11 @@ is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if VERSION < v"1.4.1" || pick.cap < v"7.0" || (is_debug && VERSION < v"1.5.0-DEV.437")
     push!(skip_tests, "device/wmma")
 end
+if do_memcheck
+    # CUFFT causes internal failures in cuda-memcheck
+    push!(skip_tests, "cufft")
+    # there's also a bunch of `memcheck || ...` expressions in the tests themselves
+end
 if haskey(ENV, "CI_THOROUGH")
     # we're not allowed to skip tests, so make sure we will mark them as such
     all_tests = copy(tests)

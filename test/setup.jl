@@ -13,6 +13,9 @@ LinearAlgebra.BLAS.set_num_threads(1)
 
 using Random
 
+# detect cuda-memcheck
+const memcheck = haskey(ENV, "CUDA_MEMCHECK")
+
 
 ## entry point
 
