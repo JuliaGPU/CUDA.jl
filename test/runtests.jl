@@ -147,18 +147,18 @@ else
 end
 
 # add workers
-jobs = min(jobs, length(tests))
 const test_exeflags = Base.julia_cmd()
-filter!(test_exeflags.exec) do c
-    return !(startswith(c, "--depwarn") || startswith(c, "--check-bounds"))
+if Base.JLOptions().project != C_NULL
+    push!(test_exeflags.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
 end
-push!(test_exeflags.exec, "--check-bounds=yes")
-push!(test_exeflags.exec, "--startup-file=no")
-push!(test_exeflags.exec, "--depwarn=error")
 const test_exename = popfirst!(test_exeflags.exec)
-addprocs_with_testenv(X; kwargs...) = addprocs(X; exename=test_exename, exeflags=test_exeflags, kwargs...)
-addprocs_with_testenv(jobs)
-@everywhere workers() include("setup.jl")
+function addworker(X; kwargs...)
+    procs = addprocs(X; exename=`$test_exename`, exeflags=test_exeflags,
+                        dir=@__DIR__, kwargs...)
+    @everywhere procs include("setup.jl")
+    procs
+end
+addworker(min(jobs, length(tests)))
 
 # pretty print information about gc and mem usage
 testgroupheader = "Test"
@@ -280,8 +280,7 @@ try
                         # the worker encountered some failure, recycle it
                         # so future tests get a fresh environment
                         rmprocs(wrkr, waitfor=30)
-                        p = addprocs_with_testenv(1)[1]
-                        remotecall_fetch(include, p, "setup.jl")
+                        p = addworker(1)[1]
                     else
                         print_testworker_stats(test, wrkr, resp)
                     end
