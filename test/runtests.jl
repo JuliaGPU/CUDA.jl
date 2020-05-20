@@ -223,6 +223,18 @@ function print_testworker_stats(test, wrkr, resp)
         unlock(print_lock)
     end
 end
+global print_testworker_started = (name, wrkr)->begin
+    if do_memcheck
+        lock(print_lock)
+        try
+            printstyled(name, color=:white)
+            printstyled(lpad("($wrkr)", name_align - textwidth(name) + 1, " "), " |",
+                " "^elapsed_align, "started at $(now())\n", color=:white)
+        finally
+            unlock(print_lock)
+        end
+    end
+end
 function print_testworker_errored(name, wrkr)
     lock(print_lock)
     try

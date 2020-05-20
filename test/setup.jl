@@ -23,6 +23,10 @@ function runtests(f, name, device=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
     try
+        let id = myid()
+            wait(@spawnat 1 print_testworker_started(name, id))
+        end
+
         ex = quote
             Random.seed!(1)
             CUDA.allowscalar(false)
@@ -39,10 +43,10 @@ function runtests(f, name, device=nothing)
                 res..., 0, 0, 0
             end
         end
-
-        # process results
         res_and_time_data = Core.eval(Main, ex)
         #res_and_time_data[1] is the testset
+
+        # process results
         rss = Sys.maxrss()
         # TODO: GPU RSS using nvmlDeviceGetComputeRunningProcesses
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
