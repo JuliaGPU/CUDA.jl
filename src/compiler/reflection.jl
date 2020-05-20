@@ -1,5 +1,6 @@
 # code reflection entry-points
 
+using .CUPTI
 using .CUPTI: CUpti_CallbackDomain, CUpti_CallbackId, CUpti_SubscriberHandle,
               CUpti_ResourceData, CUpti_ModuleResourceData
 
