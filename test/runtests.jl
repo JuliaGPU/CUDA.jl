@@ -72,9 +72,9 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
   end
 end
 ## GPUArrays testsuite
-for (name, fun) in TestSuite.tests
+for name in keys(TestSuite.tests)
     push!(tests, "gpuarrays/$name")
-    test_runners["gpuarrays/$name"] = ()->fun(CuArray)
+    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
 end
 unique!(tests)
 
