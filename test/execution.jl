@@ -171,8 +171,8 @@ len = prod(dims)
     function kernel(input, output)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
 
-        val = unsafe_load(input, i)
-        unsafe_store!(output, val, i)
+        val = input[i]
+        output[i] = val
 
         return
     end
@@ -183,7 +183,7 @@ len = prod(dims)
     input_dev = CuArray(input)
     output_dev = CuArray(output)
 
-    @cuda threads=len kernel(pointer(input_dev), pointer(output_dev))
+    @cuda threads=len kernel(input_dev, output_dev)
     @test input ≈ Array(output_dev)
 end
 
@@ -493,21 +493,19 @@ end
 @testset "argument count" begin
     val = [0]
     val_dev = CuArray(val)
-    cuda_ptr = pointer(val_dev)
-    ptr = CUDA.DevicePtr{Int}(cuda_ptr)
-    for i in (1, 10, 20, 35)
+    for i in (1, 10, 20, 34)
         variables = ('a':'z'..., 'A':'Z'...)
         params = [Symbol(variables[j]) for j in 1:i]
         # generate a kernel
         body = quote
-            function kernel($(params...))
-                unsafe_store!($ptr, $(Expr(:call, :+, params...)))
+            function kernel(arr, $(params...))
+                arr[] = $(Expr(:call, :+, params...))
                 return
             end
         end
         eval(body)
         args = [j for j in 1:i]
-        call = Expr(:call, :kernel, args...)
+        call = Expr(:call, :kernel, val_dev, args...)
         cudacall = :(@cuda $call)
         eval(cudacall)
         @test Array(val_dev)[1] == sum(args)

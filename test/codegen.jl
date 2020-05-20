@@ -86,14 +86,13 @@ end
 @testset "stripping invariant.load" begin
     function kernel(ptr, x)
         i = CUDA.threadIdx_x()
-        @inbounds unsafe_store!(ptr, x[i], 1)
+        @inbounds ptr[] = x[i]
         return
     end
 
     arr = CuArray(zeros(Float64))
-    ptr = pointer(arr)
 
-    @cuda kernel(ptr, (1., 2., ))
+    @cuda kernel(arr, (1., 2., ))
     @test Array(arr)[] == 1.
 end
 
