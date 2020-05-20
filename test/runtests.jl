@@ -24,7 +24,6 @@ function extract_flag!(args, flag, default=nothing)
     end
     return (false, default)
 end
-## --help
 do_help, _ = extract_flag!(ARGS, "--help")
 if do_help
     println("""
@@ -33,11 +32,12 @@ if do_help
                --help           Show this text.
                --list           List all available tests.
                --jobs=N         Launch `N` process to perform tests.
-                                Defaults to `Threads.nthreads()`.""")
+                                Defaults to `Threads.nthreads()`.
+               --memcheck       Run the tests under `cuda-memcheck`.""")
     exit(0)
 end
-## --jobs=N for parallel job execution
 _, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
+do_memcheck, _ = extract_flag!(ARGS, "--memcheck")
 
 include("setup.jl")     # make sure everything is precompiled
 
@@ -153,7 +153,13 @@ if Base.JLOptions().project != C_NULL
 end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
-    procs = addprocs(X; exename=`$test_exename`, exeflags=test_exeflags,
+    exename = if do_memcheck
+        `cuda-memcheck $test_exename`
+    else
+        test_exename
+    end
+
+    procs = addprocs(X; exename=exename, exeflags=test_exeflags,
                         dir=@__DIR__, kwargs...)
     @everywhere procs include("setup.jl")
     procs
