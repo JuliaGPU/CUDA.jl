@@ -273,7 +273,7 @@ try
                     wrkr = p
                     dev = test=="initialization" ? nothing : pick.dev
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], dev)
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, dev)
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]

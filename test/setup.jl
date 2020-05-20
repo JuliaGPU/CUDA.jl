@@ -16,7 +16,7 @@ using Random
 
 ## entry point
 
-function runtests(f, device=nothing)
+function runtests(f, name, device=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
     try
