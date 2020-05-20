@@ -193,8 +193,8 @@ end
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         max = gridDim().x * blockDim().x
         if i == max
-            _val = unsafe_load(a, i)
-            unsafe_store!(x, _val)
+            _val = a[i]
+            x[] = _val
         end
         return
     end
@@ -205,21 +205,21 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda threads=len kernel(pointer(arr_dev), pointer(val_dev))
+    @cuda threads=len kernel(arr_dev, val_dev)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
 
 @testset "scalar through single-value array, using device function" begin
     function child(a, i)
-        return unsafe_load(a, i)
+        return a[i]
     end
     @noinline function parent(a, x)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         max = gridDim().x * blockDim().x
         if i == max
             _val = child(a, i)
-            unsafe_store!(x, _val)
+            x[] = _val
         end
         return
     end
@@ -230,7 +230,7 @@ end
     arr_dev = CuArray(arr)
     val_dev = CuArray(val)
 
-    @cuda threads=len parent(pointer(arr_dev), pointer(val_dev))
+    @cuda threads=len parent(arr_dev, val_dev)
     @test arr[dims...] ≈ Array(val_dev)[1]
 end
 
@@ -240,9 +240,9 @@ end
 
     function kernel(keeps, out)
         if keeps[1]
-            unsafe_store!(out, 1)
+            out[] = 1
         else
-            unsafe_store!(out, 2)
+            out[] = 2
         end
         return
     end
@@ -250,7 +250,7 @@ end
     keeps = (true,)
     d_out = CuArray(zeros(Int))
 
-    @cuda kernel(keeps, pointer(d_out))
+    @cuda kernel(keeps, d_out)
     @test Array(d_out)[] == 1
 end
 
@@ -271,10 +271,10 @@ end
 
     function kernel(ghost, a, b, c)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        unsafe_store!(c, unsafe_load(a,i)+unsafe_load(b,i), i)
+        c[i] = a[i] + b[i]
         return
     end
-    @cuda threads=len kernel(ExecGhost(), pointer(d_a), pointer(d_b), pointer(d_c))
+    @cuda threads=len kernel(ExecGhost(), d_a, d_b, d_c)
     @test a+b == Array(d_c)
 
 
@@ -282,10 +282,10 @@ end
 
     function kernel(ghost, out, aggregate)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-        unsafe_store!(out, aggregate[1], i)
+        out[i] = aggregate[1]
         return
     end
-    @cuda threads=len kernel(ExecGhost(), pointer(d_c), (42,))
+    @cuda threads=len kernel(ExecGhost(), d_c, (42,))
 
     @test all(val->val==42, Array(d_c))
 end
@@ -295,14 +295,14 @@ end
     # issue #15: immutables not passed by pointer
 
     function kernel(ptr, b)
-        unsafe_store!(ptr, imag(b))
+        ptr[] = imag(b)
         return
     end
 
     arr = CuArray(zeros(Float32))
     x = ComplexF32(2,2)
 
-    @cuda kernel(pointer(arr), x)
+    @cuda kernel(arr, x)
     @test Array(arr)[] == imag(x)
 end
 
@@ -311,19 +311,19 @@ end
     arr = CuArray(zeros(Int))
 
     function kernel(ptr)
-        unsafe_store!(ptr, 1)
+        ptr[] = 1
         return
     end
 
-    @cuda kernel(pointer(arr))
+    @cuda kernel(arr)
     @test Array(arr)[] == 1
 
     function kernel(ptr)
-        unsafe_store!(ptr, 2)
+        ptr[] = 2
         return
     end
 
-    @cuda kernel(pointer(arr))
+    @cuda kernel(arr)
     @test Array(arr)[] == 2
 end
 
@@ -331,19 +331,19 @@ end
 @testset "automatic recompilation (bis)" begin
     arr = CuArray(zeros(Int))
 
-    @eval doit(ptr) = unsafe_store!(ptr, 1)
+    @eval doit(ptr) = ptr[] = 1
 
     function kernel(ptr)
         doit(ptr)
         return
     end
 
-    @cuda kernel(pointer(arr))
+    @cuda kernel(arr)
     @test Array(arr)[] == 1
 
-    @eval doit(ptr) = unsafe_store!(ptr, 2)
+    @eval doit(ptr) = ptr[] = 2
 
-    @cuda kernel(pointer(arr))
+    @cuda kernel(arr)
     @test Array(arr)[] == 2
 end
 
@@ -365,23 +365,22 @@ end
 
 @testset "splatting" begin
     function kernel(out, a, b)
-        unsafe_store!(out, a+b)
+        out[] = a+b
         return
     end
 
     out = [0]
     out_dev = CuArray(out)
-    out_ptr = pointer(out_dev)
 
-    @cuda kernel(out_ptr, 1, 2)
+    @cuda kernel(out_dev, 1, 2)
     @test Array(out_dev)[1] == 3
 
-    all_splat = (out_ptr, 3, 4)
+    all_splat = (out_dev, 3, 4)
     @cuda kernel(all_splat...)
     @test Array(out_dev)[1] == 7
 
     partial_splat = (5, 6)
-    @cuda kernel(out_ptr, partial_splat...)
+    @cuda kernel(out_dev, partial_splat...)
     @test Array(out_dev)[1] == 11
 end
 
@@ -393,7 +392,7 @@ end
     end
 
     function (self::KernelObject)(a)
-        unsafe_store!(a, self.val)
+        a[] = self.val
         return
     end
 
@@ -405,7 +404,7 @@ end
     a = [1.]
     a_dev = CuArray(a)
 
-    outer(pointer(a_dev), 2.)
+    outer(a_dev, 2.)
 
     @test Array(a_dev) ≈ [2.]
 end
@@ -414,10 +413,10 @@ end
     function outer(a_dev, val)
        function inner(a)
             # captures `val`
-            unsafe_store!(a, val)
+            a[] = val
             return
        end
-       @cuda inner(pointer(a_dev))
+       @cuda inner(a_dev)
     end
 
     a = [1.]
@@ -444,10 +443,10 @@ end
     let arg = Host()
         @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
-            unsafe_store!(out, convert(Int, arg))
+            out[] = convert(Int, arg)
             return
         end
-        @cuda kernel(arg, pointer(out_dev))
+        @cuda kernel(arg, out_dev)
         @test Array(out_dev) ≈ [2]
     end
 
@@ -456,10 +455,10 @@ end
     let arg = (Host(),)
         @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
-            unsafe_store!(out, convert(Int, arg[1]))
+            out[] = convert(Int, arg[1])
             return
         end
-        @cuda kernel(arg, pointer(out_dev))
+        @cuda kernel(arg, out_dev)
         @test Array(out_dev) ≈ [2]
     end
 
@@ -468,10 +467,10 @@ end
     let arg = (a=Host(),)
         @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
-            unsafe_store!(out, convert(Int, arg.a))
+            out[] = convert(Int, arg.a)
             return
         end
-        @cuda kernel(arg, pointer(out_dev))
+        @cuda kernel(arg, out_dev)
         @test Array(out_dev) ≈ [2]
     end
 
@@ -483,10 +482,10 @@ end
     let arg = Nested(Host())
         @test Array(out_dev) ≈ [0]
         function kernel(arg, out)
-            unsafe_store!(out, convert(Int, arg.a))
+            out[] = convert(Int, arg.a)
             return
         end
-        @cuda kernel(arg, pointer(out_dev))
+        @cuda kernel(arg, out_dev)
         @test Array(out_dev) ≈ [1]
     end
 end
@@ -532,12 +531,12 @@ end
 @testset "captured values" begin
     function f(capture::T) where {T}
         function kernel(ptr)
-            unsafe_store!(ptr, capture)
+            ptr[] = capture
             return
         end
 
         arr = CuArray(zeros(T))
-        @cuda kernel(pointer(arr))
+        @cuda kernel(arr)
 
         return Array(arr)[1]
     end
