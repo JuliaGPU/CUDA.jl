@@ -19,6 +19,18 @@ voidptr_b = CuPtr{Cvoid}(Int(0xCAFEBABE))
 intptr_a = CuPtr{Int}(Int(0xDEADBEEF))
 @test convert(typeof(intptr_a), voidptr_a) == intptr_a
 
+# convert back and forth from UInt 
+intptr_b = CuPtr{Int}(Int(0xDEADBEEF))
+@test convert(UInt, intptr_b) == 0xDEADBEEF
+@test convert(CuPtr{Int}, Int(0xDEADBEEF)) == intptr_b
+@test Int(intptr_b) == Int(0xDEADBEEF)
+
+# pointer arithmetic
+intptr_c = CuPtr{Int}(Int(0xDEADBEEF))
+intptr_d = 2 + intptr_c
+@test isless(intptr_c, intptr_d)
+@test intptr_d - intptr_c == 2
+@test intptr_d - 2 == intptr_c
 end
 
 
