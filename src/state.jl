@@ -109,15 +109,12 @@ const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 const CuCurrentState = NamedTuple{(:ctx, :dev), Tuple{CuContext,CuDevice}}
 const thread_state = Union{Nothing,CuCurrentState}[]
 @noinline function initialize_thread(tid::Int)
-    ctx = CuCurrentContext()
-    if ctx === nothing
-        dev = something(default_device[], CuDevice(0))
-        device!(dev)
-    else
-        # compatibility with externally-initialized contexts
-        dev = CuCurrentDevice()
-        thread_state[tid] = (;ctx=ctx, dev=dev)
-    end
+    dev = something(default_device[], CuDevice(0))
+    device!(dev)
+ 
+    # NOTE: we can't be compatible with externally initialize contexts here (i.e., reuse
+    #       the CuCurrentContext we don't know about) because of how device_reset! works:
+    #       contexts that got reset remain bound, and are not discernible from regular ones.
 end
 
 
