@@ -309,31 +309,3 @@ end
   b .= 3
   @test Array(y) == [2]
 end
-
-# FIXME: this test regularly triggers illegal memory accesses
-#        after having moved to distributed test execution,
-#        regardless of the memory pool or system.
-false && @testset "threading" begin
-  test_lock = ReentrantLock()
-  Threads.@threads for i in 1:Threads.nthreads()*100
-    # uses libraries (rand, gemm) to test library handles
-    # allocates and uses unsafe_free to cover the allocator
-    da = CUDA.rand(64, 64)
-    db = CUDA.rand(64, 64)
-    yield()
-    dc = da * db
-    yield()
-
-    # @testset is not thread safe
-    a = Array(da)
-    b = Array(db)
-    c = Array(dc)
-    lock(test_lock) do
-      @test c ≈ a * b
-    end
-
-    yield()
-    CUDA.unsafe_free!(da)
-    CUDA.unsafe_free!(db)
-  end
-end
