@@ -1,6 +1,7 @@
 # GPU memory management and pooling
 
 using Printf
+using Logging
 using TimerOutputs
 
 using Base: @lock
@@ -515,10 +516,13 @@ function __init_memory__()
 
     # the user hand-picked an allocator, so be a little verbose
     atexit(()->begin
-      Core.println("""
+      old_logger = global_logger()
+      global_logger(Logging.ConsoleLogger(Core.stderr, old_logger.min_level))
+      @debug """
         CUDA.jl $(nameof(pool[])) statistics:
          - $(alloc_stats.pool_nalloc) pool allocations: $(Base.format_bytes(alloc_stats.pool_alloc)) in $(Base.round(alloc_stats.pool_time; digits=2))s
-         - $(alloc_stats.actual_nalloc) CUDA allocations: $(Base.format_bytes(alloc_stats.actual_alloc)) in $(Base.round(alloc_stats.actual_time; digits=2))s""")
+         - $(alloc_stats.actual_nalloc) CUDA allocations: $(Base.format_bytes(alloc_stats.actual_alloc)) in $(Base.round(alloc_stats.actual_time; digits=2))s"""
+      global_logger(old_logger)
     end)
   end
 
