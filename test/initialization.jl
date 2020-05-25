@@ -1,28 +1,23 @@
 @test has_cuda(true)
 @test has_cuda_gpu(true)
 
-# the API shouldn't have been initialized
-@test CuCurrentContext() == nothing
-
 context_cb = Union{Nothing, CuContext}[nothing for tid in 1:Threads.nthreads()]
 CUDA.atcontextswitch() do tid, ctx
     context_cb[tid] = ctx
 end
 
-task_cb = Union{Nothing, Task}[nothing for tid in 1:Threads.nthreads()]
-CUDA.attaskswitch() do tid, task
-    task_cb[tid] = task
-end
-
-# now cause initialization
+# cause initialization
 ctx = context()
 @test CuCurrentContext() == ctx
 @test device() == CuDevice(0)
 @test context_cb[1] == ctx
-@test task_cb[1] == current_task()
 
 fill!(context_cb, nothing)
-fill!(task_cb, nothing)
+
+task_cb = Union{Nothing, Task}[nothing for tid in 1:Threads.nthreads()]
+CUDA.attaskswitch() do tid, task
+    task_cb[tid] = task
+end
 
 # ... on a different task
 task = @async begin
@@ -98,4 +93,6 @@ if length(devices()) > 1
         end
     end
     @test device() == CuDevice(0)
+    device_reset!(CuDevice(1))
 end
+device_reset!(CuDevice(0))

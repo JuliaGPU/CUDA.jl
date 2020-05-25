@@ -246,6 +246,9 @@ function print_testworker_errored(name, wrkr)
     end
 end
 
+# reset CUDA on the root task to conserve memory
+CUDA.device_reset!()
+
 # run tasks
 results = []
 all_tasks = Task[]
@@ -288,7 +291,13 @@ try
                     running_tests[test] = now()
                     local resp
                     wrkr = p
-                    dev = test=="initialization" ? nothing : pick.dev
+                    dev = if test in ["initialization", "exceptions", "examples"]
+                        # these tests do not require a GPU, or should be started without
+                        # initializating one
+                        nothing
+                    else
+                        pick.dev
+                    end
                     try
                         resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, dev)
                     catch e

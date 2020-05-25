@@ -36,7 +36,7 @@ function runtests(f, name, device=nothing)
                     $f()
                 end
             else
-                # take care not to initialize the device
+                CUDA.device_reset!()
                 res = @timed @testset $"$name" begin
                     $f()
                 end
