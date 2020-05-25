@@ -1048,23 +1048,3 @@ end
 end
 
 ############################################################################################
-
-false && @testset "threading" begin
-    function kernel(a, tid, id)
-        a[1] = tid
-        a[2] = id
-        return
-    end
-
-    test_lock = ReentrantLock()
-    Threads.@threads for id in 1:10
-        da = CuArray{Int}(undef, 2)
-        tid = Threads.threadid()
-        @cuda kernel(da, tid, id)
-
-        a = Array(da)
-        lock(test_lock) do
-            @test a == [tid, id]
-        end
-    end
-end

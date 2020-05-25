@@ -3,7 +3,8 @@
 # CUDA packages require complex initialization (discover CUDA, download artifacts, etc)
 # that can't happen at module load time, so defer that to run time upon actual use.
 
-const configured = Ref{Union{Nothing,Bool}}(nothing)
+const configured = Threads.Atomic{Int}(-1)   # -1=unconfigured, -2=configuring,
+                                             # 0=failed, 1=configured
 
 """
     functional(show_reason=false)
@@ -14,26 +15,31 @@ This call is intended for packages that support conditionally using an available
 fail to check whether CUDA is functional, actual use of functionality might warn and error.
 """
 function functional(show_reason::Bool=false)
-    if configured[] === nothing
+    if configured[] < 0
         _functional(show_reason)
     end
-    configured[]::Bool
+    Bool(configured[])
 end
 
 const configure_lock = ReentrantLock()
 @noinline function _functional(show_reason::Bool=false)
     lock(configure_lock) do
-        if configured[] === nothing
-            configured[] = false
+        if configured[] == -1
+            configured[] = -2
             if __configure__(show_reason)
-                configured[] = true
+                configured[] = 1
                 try
                     __runtime_init__()
                 catch
-                    configured[] = false
+                    configured[] = 0
                     rethrow()
                 end
+            else
+                configured[] = 0
             end
+        elseif configured[] == -2
+            @warn "Recursion during initialization of CUDA.jl"
+            configured[] = 0
         end
     end
 end
