@@ -1,4 +1,4 @@
-using Test, CUDA
+using Distributed, Test, CUDA
 
 # GPUArrays has a testsuite that isn't part of the main package.
 # Include it directly.
