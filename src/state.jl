@@ -48,15 +48,12 @@ const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 # so we maintain our own thread-local state keeping track of the current context.
 const thread_contexts = Union{Nothing,CuContext}[]
 @noinline function initialize_thread(tid::Int)
-    ctx = CuCurrentContext()
-    if ctx === nothing
-        dev = something(default_device[], CuDevice(0))
-        device!(dev)
-    else
-        # compatibility with externally-initialized contexts
-        thread_contexts[tid] = ctx
-    end
+    dev = something(default_device[], CuDevice(0))
+    device!(dev)
 
+    # NOTE: we can't be compatible with externally initialize contexts here (i.e., reuse
+    #       the CuCurrentContext we don't know about) because of how device_reset! works:
+    #       contexts that got reset remain bound, and are not discernible from regular ones.
 end
 
 # Julia executes with tasks, so we need to keep track of the active task for each thread
