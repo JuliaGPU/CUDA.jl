@@ -1,5 +1,5 @@
 using Documenter, Literate
-using CUDAapi, CUDAdrv, CUDAnative, CuArrays
+using CUDA
 
 const src = "https://github.com/JuliaGPU/CUDA.jl"
 const dst = "https://juliagpu.gitlab.io/CUDA.jl/"

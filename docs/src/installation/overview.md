@@ -60,44 +60,40 @@ use.
 
 ### Artifacts
 
-Use of artifacts is the default option: Importing the Julia CUDA packages will automatically
-download CUDA upon first use of the API. You can inspect details about the process by
-enabling debug logging:
+Use of artifacts is the default option: Importing CUDA.jl will automatically download CUDA
+upon first use of the API. You can inspect details about the process by enabling debug
+logging:
 
 ```
-$ JULIA_DEBUG=CUDAnative julia
+$ JULIA_DEBUG=CUDA julia
 
-julia> using CUDAnative
+julia> using CUDA
 
-julia> CUDAnative.version()
+julia> CUDA.version()
 ┌ Debug: Trying to use artifacts...
-└ @ CUDAnative CUDAnative/src/bindeps.jl:52
+└ @ CUDA CUDA/src/bindeps.jl:52
 ┌ Debug: Using CUDA 10.2.89 from an artifact at /home/tim/Julia/depot/artifacts/93956fcdec9ac5ea76289d25066f02c2f4ebe56e
-└ @ CUDAnative CUDAnative/src/bindeps.jl:108
+└ @ CUDA CUDA/src/bindeps.jl:108
 v"10.2.89"
 ```
-
-!!! note
-
-    Automatic installation of CUDA using artifacts is only supported by CUDAnative v3+ and CuArrays v2+.
 
 
 ### Local installation
 
 If artifacts are unavailable for your platform, the Julia CUDA packages will look for a
-local CUDA installation using CUDAapi.jl:
+local CUDA installation:
 
 ```
-julia> CUDAnative.version()
+julia> CUDA.version()
 ┌ Debug: Trying to use artifacts...
-└ @ CUDAnative CUDAnative/src/bindeps.jl:52
+└ @ CUDA CUDA/src/bindeps.jl:52
 ┌ Debug: Could not find a compatible artifact.
-└ @ CUDAnative CUDAnative/src/bindeps.jl:73
+└ @ CUDA CUDA/src/bindeps.jl:73
 
 ┌ Debug: Trying to use local installation...
-└ @ CUDAnative CUDAnative/src/bindeps.jl:114
+└ @ CUDA CUDA/src/bindeps.jl:114
 ┌ Debug: Found local CUDA 10.0.326 at /usr/local/cuda-10.0/targets/aarch64-linux, /usr/local/cuda-10.0
-└ @ CUDAnative CUDAnative/src/bindeps.jl:141
+└ @ CUDA CUDA/src/bindeps.jl:141
 v"10.0.326"
 ```
 
@@ -105,7 +101,6 @@ You might want to disallow use of artifacts, e.g., because an optimized CUDA ins
 available for your system. You can do so by setting the environment variable
 `JULIA_CUDA_USE_BINARYBUILDER` to `false`.
 
-To troubleshoot discovery of a local CUDA installation, you can set `JULIA_DEBUG=CUDAapi`
-and see the various paths where CUDAapi.jl looks. By setting any of the `CUDA_HOME`,
-`CUDA_ROOT` or `CUDA_PATH` environment variables, you can guide the package to a specific
-directory.
+To troubleshoot discovery of a local CUDA installation, you can set `JULIA_DEBUG=CCUDA` and
+see the various paths where CUDA.jl looks. By setting any of the `CUDA_HOME`, `CUDA_ROOT` or
+`CUDA_PATH` environment variables, you can guide the package to a specific directory.

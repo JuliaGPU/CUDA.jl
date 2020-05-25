@@ -13,11 +13,10 @@ programming, is to use one GPU per processL
 
 ```julia
 # spawn one worker per device
-using Distributed, CUDAdrv
+using Distributed, CUDA
 addprocs(length(devices()))
 
 # assign devices
-using CUDAnative
 asyncmap((zip(workers(), devices()))) do (p, d)
     remotecall_wait(p) do
         @info "Worker $p uses $d"
@@ -27,7 +26,7 @@ end
 ```
 
 Communication between nodes should happen via the CPU (the CUDA IPC APIs are available as
-`CUDAdrv.cuIpcOpenMemHandle` and friends, but not available through high-level wrappers).
+`CUDA.cuIpcOpenMemHandle` and friends, but not available through high-level wrappers).
 
 Alternatively, one can use [MPI.jl](https://github.com/JuliaParallel/MPI.jl) together with
 an CUDA-aware MPI implementation. In that case, `CuArray` objects can be passed as send and
@@ -37,13 +36,13 @@ receive buffers to point-to-point and collective operations to avoid going throu
 ## Scenario 2: Multiple GPUs per process
 
 In a similar vein to the multi-process solution, one can work with multiple devices from
-within a single process by calling `CUDAnative.device!` to switch to a specific device.
+within a single process by calling `CUDA.device!` to switch to a specific device.
 Allocations are however currently not tied to a device, so one should take care to only
 work with data on the device it was allocated on.
 
 !!! warning
 
-    The CuArrays memory pool is not device-aware yet, effectively breaking
+    The CUDA memory pool is not device-aware yet, effectively breaking
     multi-gpu-single-process concurrency. Don't use this approach for serious work
     unless you can support with cross-device memory operations (e.g. with
     `cuCtxEnablePeerAccess`).
@@ -53,7 +52,7 @@ These APIs are available through high-level wrappers, but not exposed by the `Cu
 constructors yet:
 
 ```julia
-using CuArrays, CUDAnative, CUDAdrv
+using CUDA
 
 gpus = Int(length(devices()))
 
@@ -108,7 +107,3 @@ This approach is not recommended, as multi-threading is a fairly recent addition
 language and many packages, including those for Julia GPU programming, have not been made
 thread-safe yet. For now, the toolchain mimics the behavior of the CUDA runtime library and
 uses a single context across all devices.
-
-!!! note
-
-    This capability is only available with CUDAnative.jl v2.7 or higher.

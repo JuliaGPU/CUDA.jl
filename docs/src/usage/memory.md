@@ -76,35 +76,35 @@ memory while it isn't. When memory pressure is high, the pool will automatically
 objects:
 
 ```julia-repl
-julia> CuArrays.memory_status()         # initial state
+julia> CUDA.memory_status()             # initial state
 Effective GPU memory usage: 10.51% (1.654 GiB/15.744 GiB)
-CuArrays GPU memory usage: 0 bytes
+CUDA GPU memory usage: 0 bytes
 BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)
 
 julia> a = CuArray{Int}(undef, 1024);   # allocate 8KB
 
-julia> CuArrays.memory_status()
+julia> CUDA.memory_status()
 Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CuArrays GPU memory usage: 8.000 KiB
+CUDA GPU memory usage: 8.000 KiB
 BinnedPool usage: 8.000 KiB (8.000 KiB allocated, 0 bytes cached)
 
 julia> a = nothing; GC.gc(true)
 
-julia> CuArrays.memory_status()         # 8KB is now cached
+julia> CUDA.memory_status()             # 8KB is now cached
 Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CuArrays GPU memory usage: 8.000 KiB
+CUDA GPU memory usage: 8.000 KiB
 BinnedPool usage: 8.000 KiB (0 bytes allocated, 8.000 KiB cached)
 ```
 
-If for some reason you need all cached memory to be reclaimed, call `CuArrays.reclaim()`:
+If for some reason you need all cached memory to be reclaimed, call `CUDA.reclaim()`:
 
 ```julia-repl
-julia> CuArrays.reclaim()
+julia> CUDA.reclaim()
 8192
 
-julia> CuArrays.memory_status()
+julia> CUDA.memory_status()
 Effective GPU memory usage: 10.52% (1.656 GiB/15.744 GiB)
-CuArrays GPU memory usage: 0 bytes
+CUDA GPU memory usage: 0 bytes
 BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)
 ```
 
@@ -119,12 +119,12 @@ BinnedPool usage: 0 bytes (0 bytes allocated, 0 bytes cached)
 
 When your application performs a lot of memory operations, the time spent during GC might
 increase significantly. This happens more often than it does on the CPU because GPUs tend to
-have smaller memories and more frequently run out of it. When that happens, CuArrays invokes
+have smaller memories and more frequently run out of it. When that happens, CUDA invokes
 the Julia garbage collector, which then needs to scan objects to see if they can be freed to
 get back some GPU memory.
 
 To avoid having to depend on the Julia GC to free up memory, you can directly inform
-CuArrays.jl when an allocation can be freed (or reused) by calling the `unsafe_free!`
+CUDA.jl when an allocation can be freed (or reused) by calling the `unsafe_free!`
 method. Once you've done so, you cannot use that array anymore:
 
 ```julia-repl
@@ -132,7 +132,7 @@ julia> a = CuArray([1])
 1-element CuArray{Int64,1,Nothing}:
  1
 
-julia> CuArrays.unsafe_free!(a)
+julia> CUDA.unsafe_free!(a)
 
 julia> a
 1-element CuArray{Int64,1,Nothing}:
@@ -153,16 +153,16 @@ julia> CuArray([1])
 1-element CuArray{Int64,1,Nothing}:
  1
 
-julia> CuArrays.memory_status()
+julia> CUDA.memory_status()
 Effective GPU memory usage: 8.26% (1.301 GiB/15.744 GiB)
-CuArrays allocator usage: 8 bytes
+CUDA allocator usage: 8 bytes
 BinnedPool usage: 8 bytes (8 bytes allocated, 0 bytes cached)
 
 Outstanding memory allocation of 8 bytes at 0x00007fe104c00000
 Stacktrace:
- [1] CuArray{Int64,1,P} where P(::UndefInitializer, ::Tuple{Int64}) at CuArrays/src/array.jl:107
- [2] CuArray at CuArrays/src/array.jl:191 [inlined]
- [3] CuArray(::Array{Int64,1}) at CuArrays/src/array.jl:202
+ [1] CuArray{Int64,1,P} where P(::UndefInitializer, ::Tuple{Int64}) at CUDA/src/array.jl:107
+ [2] CuArray at CUDA/src/array.jl:191 [inlined]
+ [3] CuArray(::Array{Int64,1}) at CUDA/src/array.jl:202
  [4] top-level scope at REPL[2]:1
  [5] eval(::Module, ::Any) at ./boot.jl:331
  [6] eval_user_input(::Any, ::REPL.REPLBackend) at julia/stdlib/v1.4/REPL/src/REPL.jl:86
@@ -203,5 +203,5 @@ Batch 2: [7]
 ```
 
 For each batch, every argument (assumed to be an array-like) is uploaded to the GPU using
-the `adapt` mechanism from above. Afterwards, the memory is eagerly put back in the CuArrays
+the `adapt` mechanism from above. Afterwards, the memory is eagerly put back in the CUDA
 memory pool using `unsafe_free!` to lower GC pressure.

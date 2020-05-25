@@ -10,28 +10,28 @@ packages, provide several tools and APIs to remedy this.
 ## Time measurements
 
 To accurately measure execution time in the presence of asynchronously-executing kernels,
-CUDAdrv.jl provides an `@elapsed` macro that, much like `Base.@elapsed`, measures the total
+CUDA.jl provides an `@elapsed` macro that, much like `Base.@elapsed`, measures the total
 execution time of a block of code on the GPU:
 
 ```julia
-julia> a = CuArrays.rand(1024,1024,1024);
+julia> a = CUDA.rand(1024,1024,1024);
 
 julia> Base.@elapsed sin.(a)  # WRONG!
 0.008714211
 
-julia> CUDAdrv.@elapsed sin.(a)
+julia> CUDA.@elapsed sin.(a)
 0.051607586f0
 ```
 
 This macro is a low-level utility, assumes the GPU is synchronized before calling, and is
 useful if you need execution timings in your application. For most purposes, you should use
-`CuArrays.@time` which mimics `Base.@time` by printing execution times as well as memory
+`CUDA.@time` which mimics `Base.@time` by printing execution times as well as memory
 allocation stats:
 
 ```julia
-julia> a = CuArrays.rand(1024,1024,1024);
+julia> a = CUDA.rand(1024,1024,1024);
 
-julia> CuArrays.@time sin.(a);
+julia> CUDA.@time sin.(a);
   0.046063 seconds (96 CPU allocations: 3.750 KiB) (1 GPU allocation: 4.000 GiB, 14.33% gc time of which 99.89% spent allocating)
 ```
 
@@ -43,13 +43,13 @@ For robust measurements however, it is advised to use the
 [BenchmarkTools.jl](https://github.com/JuliaCI/BenchmarkTools.jl) package which goes to
 great lengths to perform accurate measurements. Due to the asynchronous nature of GPUs, you
 need to ensure the GPU is synchronized at the end of every sample, e.g. by calling
-`CUDAdrv.synchronize()`. An easier, and better-performing alternative is to use the `@sync`
-macro from the CuArrays.jl package:
+`synchronize()`. An easier, and better-performing alternative is to use the unexported `@sync`
+macro:
 
 ```julia
-julia> a = CuArrays.rand(1024,1024,1024);
+julia> a = CUDA.rand(1024,1024,1024);
 
-julia> @benchmark CuArrays.@sync sin.($a)
+julia> @benchmark CUDA.@sync sin.($a)
 BenchmarkTools.Trial:
   memory estimate:  3.73 KiB
   allocs estimate:  95
@@ -64,7 +64,7 @@ BenchmarkTools.Trial:
 ```
 
 Note that the allocations as reported by BenchmarkTools are CPU allocations. For the GPU
-allocation behavior you need to consult `CuArrays.@time`.
+allocation behavior you need to consult `CUDA.@time`.
 
 
 ## Application profiling
@@ -76,19 +76,19 @@ find which kernels needs optimization.
 As we cannot use the Julia profiler for this task, we will be using external profiling
 software as part of the CUDA toolkit. To inform those external tools which code needs to be
 profiled (e.g., to exclude warm-up iterations or other noninteresting elements) you can use
-the `CUDAdrv.@profile` macro to surround interesting code with. Again, this macro mimics an
+the `CUDA.@profile` macro to surround interesting code with. Again, this macro mimics an
 equivalent from the standard library, but this time requires external software to actually
 perform the profiling:
 
 ```julia
-julia> a = CuArrays.rand(1024,1024,1024);
+julia> a = CUDA.rand(1024,1024,1024);
 
 julia> sin.(a);  # warmup
 
-julia> CUDAdrv.@profile sin.(a);
-┌ Warning: Calling CUDAdrv.@profile only informs an external profiler to start.
+julia> CUDA.@profile sin.(a);
+┌ Warning: Calling CUDA.@profile only informs an external profiler to start.
 │ The user is responsible for launching Julia under a CUDA profiler like `nvprof`.
-└ @ CUDAdrv.Profile ~/Julia/pkg/CUDAdrv/src/profile.jl:42
+└ @ CUDA.Profile ~/Julia/pkg/CUDA/src/profile.jl:42
 ```
 
 ### `nvprof` and `nvvp`
@@ -99,19 +99,19 @@ julia> CUDAdrv.@profile sin.(a);
     Prefer to use the Nsight tools described below.
 
 For simple profiling, prefix your Julia command-line invocation with the `nvprof` utility.
-For a better timeline, be sure to use `CUDAdrv.@profile` to delimit interesting code and
+For a better timeline, be sure to use `CUDA.@profile` to delimit interesting code and
 start `nvprof` with the option `--profile-from-start off`:
 
 ```
 $ nvprof --profile-from-start off julia
 
-julia> using CuArrays, CUDAdrv
+julia> using CUDA
 
-julia> a = CuArrays.rand(1024,1024,1024);
+julia> a = CUDA.rand(1024,1024,1024);
 
 julia> sin.(a);
 
-julia> CUDAdrv.@profile sin.(a);
+julia> CUDA.@profile sin.(a);
 
 julia> exit()
 ==156406== Profiling application: julia
@@ -149,17 +149,17 @@ $ nsys launch julia
 
 You can then execute whatever code you want in the REPL, including e.g. loading Revise so
 that you can modify your application as you go. When you call into code that is wrapped by
-`CUDAdrv.@profile`, the profiler will become active and generate a profile output file in
+`CUDA.@profile`, the profiler will become active and generate a profile output file in
 the current folder:
 
 ```julia
-julia> using CuArrays, CUDAdrv
+julia> using CUDA
 
-julia> a = CuArrays.rand(1024,1024,1024);
+julia> a = CUDA.rand(1024,1024,1024);
 
 julia> sin.(a);
 
-julia> CUDAdrv.@profile sin.(a);
+julia> CUDA.@profile sin.(a);
 start executed
 Processing events...
 Capturing symbol files...
@@ -175,7 +175,7 @@ stop executed
     Even with a warm-up iteration, the first kernel or API call might seem to take
     significantly longer in the profiler. If you are analyzing short executions, instead
     of whole applications, repeat the operation twice (optionally separated by a call to
-    `CUDAdrv.synchronize()` or wrapping in `CuArrays.@sync`)
+    `CUDA.synchronize()` or wrapping in `CUDA.@sync`)
 
 You can open the resulting `.qdrep` file with `nsight-sys`:
 
@@ -186,7 +186,7 @@ You can open the resulting `.qdrep` file with `nsight-sys`:
 If you want details on the execution properties of a kernel, or inspect API interactions,
 Nsight Compute is the tool for you. It is again possible to use this profiler with an
 interactive session of Julia, and debug or profile only those sections of your application
-that are marked with `CUDAdrv.@profile`.
+that are marked with `CUDA.@profile`.
 
 Start with launching Julia under the Nsight Compute CLI tool:
 
@@ -197,14 +197,14 @@ $ nv-nsight-cu-cli --mode=launch julia
 You will get an interactive REPL, where you can execute whatever code you want:
 
 ```julia
-julia> using CuArrays, CUDAdrv
+julia> using CUDA
 
 # Julia hangs!
 ```
 
-As soon as you import any CUDA package, your Julia process will hang. This is expected, as
-the tool breaks upon the very first call to the CUDA API, at which point you are expected to
-launch the Nsight Compute GUI utility and attach to the running session:
+As soon as you import CUDA.jl, your Julia process will hang. This is expected, as the tool
+breaks upon the very first call to the CUDA API, at which point you are expected to launch
+the Nsight Compute GUI utility and attach to the running session:
 
 !["NVIDIA Nsight Compute - Attaching to a session"](nsight_compute-attach.png)
 
@@ -215,11 +215,11 @@ You will see that the tool has stopped execution on the call to `cuInit`. Now ch
 Now our CLI session comes to life again, and we can enter the rest of our script:
 
 ```julia
-julia> a = CuArrays.rand(1024,1024,1024);
+julia> a = CUDA.rand(1024,1024,1024);
 
 julia> sin.(a);
 
-julia> CUDAdrv.@profile sin.(a);
+julia> CUDA.@profile sin.(a);
 ```
 
 Once that's finished, the Nsight Compute GUI window will have plenty details on our kernel:
@@ -236,10 +236,10 @@ the API calls that have been made:
 
 If you want to put additional information in the profile, e.g. phases of your application,
 or expensive CPU operations, you can use the NVTX library. Wrappers for this library are
-included in recent versions of CUDAnative:
+included in recent versions of CUDA.jl:
 
 ```julia
-using CUDAnative
+using CUDA
 
 NVTX.@range "doing X" begin
     ...
@@ -252,7 +252,7 @@ NVTX.@mark "reached Y"
 ## Compiler options
 
 Some tools, like `nvvp` and NSight Systems Compute, also make it possible to do source-level
-profiling. CUDAnative will by default emit the necessary source line information, which you
+profiling. CUDA.jl will by default emit the necessary source line information, which you
 can disable by launching Julia with `-g0`. Conversely, launching with `-g2` will emit
 additional debug information, which can be useful in combination with tools like `cuda-gdb`,
 but might hurt performance or code size.

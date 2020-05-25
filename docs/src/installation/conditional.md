@@ -12,8 +12,8 @@ stack will be taken into account by the package resolver when installing your pa
 If the packages fail to initialize, a message will be print:
 
 ```julia
-julia> using CuArrays
-[ Info: CuArrays.jl failed to initialize, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)
+julia> using CUDA
+[ Info: CUDA.jl failed to initialize, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)
 ```
 
 To silence this message in your application, set the environment variable
@@ -22,8 +22,8 @@ print more information, and is required information for debugging or for filing 
 
 ```julia
 julia> ENV["JULIA_CUDA_VERBOSE"] = true
-julia> using CuArrays
-┌ Error: CuArrays.jl failed to initialize
+julia> using CUDA
+┌ Error: CUDA.jl failed to initialize
 │   exception =
 │    could not load library "libcuda"
 │    libcuda.so: cannot open shared object file: No such file or directory
@@ -43,8 +43,8 @@ If your application requires a GPU, and its functionality is not designed to wor
 CUDA, you should just import the necessary packages and inspect if they are functional:
 
 ```julia
-using CuArrays
-@assert CuArrays.functional()
+using CUDA
+@assert CUDA.functional()
 ```
 
 If you are developing a package, you should take care only to perform this check at run
@@ -54,9 +54,9 @@ GPU:
 ```julia
 module MyApplication
 
-using CuArrays
+using CUDA
 
-__init__() = @assert CuArrays.functional()
+__init__() = @assert CUDA.functional()
 
 end
 ```
@@ -74,9 +74,9 @@ available:
 ```julia
 module MyApplication
 
-using CuArrays
+using CUDA
 
-if CuArrays.functional()
+if CUDA.functional()
     to_gpu_or_not_to_gpu(x::AbstractArray) = CuArray(x)
 else
     to_gpu_or_not_to_gpu(x::AbstractArray) = x
@@ -90,7 +90,7 @@ without CUDA. One option is to evaluate code at run time:
 
 ```julia
 function __init__()
-    if CuArrays.functional()
+    if CUDA.functional()
         @eval to_gpu_or_not_to_gpu(x::AbstractArray) = CuArray(x)
     else
         @eval to_gpu_or_not_to_gpu(x::AbstractArray) = x
@@ -106,7 +106,7 @@ const use_gpu = Ref(false)
 to_gpu_or_not_to_gpu(x::AbstractArray) = use_gpu[] ? CuArray(x) : x
 
 function __init__()
-    use_gpu[] = CuArrays.functional()
+    use_gpu[] = CUDA.functional()
 end
 ```
 

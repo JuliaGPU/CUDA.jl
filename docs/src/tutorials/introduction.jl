@@ -103,23 +103,23 @@ using BenchmarkTools
 # ```
 
 # If this is your first time, it's not a bad idea to test whether your GPU is working by
-# testing the individual packages that make up the Julia CUDA stack:
+# testing the CUDA.jl package:
 
 # ```julia
-# pkg> add CUDAdrv CUDAnative CuArrays
-# pkg> test CUDAdrv CUDAnative CuArrays
+# pkg> add CUDA
+# pkg> test CUDA
 # ```
 
 
 # ### Parallelization on the GPU
 
-# We'll first demonstrate GPU computations at a high level using the CuArrays.jl package,
+# We'll first demonstrate GPU computations at a high level using the `CuArray` type,
 # without explicitly writing a kernel function:
 
-using CuArrays
+using CUDA
 
-x_d = CuArrays.fill(1.0f0, N)  # a vector stored on the GPU filled with 1.0 (Float32)
-y_d = CuArrays.fill(2.0f0, N)  # a vector stored on the GPU filled with 2.0
+x_d = CUDA.fill(1.0f0, N)  # a vector stored on the GPU filled with 1.0 (Float32)
+y_d = CUDA.fill(2.0f0, N)  # a vector stored on the GPU filled with 2.0
 
 # Here the `d` means "device," in contrast with "host". Now let's do the increment:
 
@@ -130,15 +130,15 @@ y_d .+= x_d
 # want to benchmark this, let's put it in a function:
 
 function add_broadcast!(y, x)
-    CuArrays.@sync y .+= x
+    CUDA.@sync y .+= x
     return
 end
 
 @btime add_broadcast!($y_d, $x_d)
 
-# The most interesting part of this is the call to `CuArrays.@sync`. The CPU can assign
+# The most interesting part of this is the call to `CUDA.@sync`. The CPU can assign
 # jobs to the GPU and then go do other stuff (such as assigning *more* jobs to the GPU)
-# while the GPU completes its tasks. Wrapping the execution in a `CuArrays.@sync` block
+# while the GPU completes its tasks. Wrapping the execution in a `CUDA.@sync` block
 # will make the CPU block until the queued GPU tasks are done, similar to how `Base.@sync`
 # waits for distributed CPU tasks. Without such synchronization, you'd be measuring the
 # time takes to launch the computation, not the time to perform the computation. But most
@@ -155,10 +155,7 @@ end
 
 # Using the high-level GPU array functionality made it easy to perform this computation
 # on the GPU. However, we didn't learn about what's going on under the hood, and that's the
-# main goal of this tutorial. So let's implement the same functionality with a GPU kernel
-# by using the CUDAnative.jl package:
-
-using CUDAnative
+# main goal of this tutorial. So let's implement the same functionality with a GPU kernel:
 
 function gpu_add1!(y, x)
     for i = 1:length(y)
@@ -171,16 +168,16 @@ fill!(y_d, 2)
 @cuda gpu_add1!(y_d, x_d)
 @test all(Array(y_d) .== 3.0f0)
 
-# Aside from using the `CuArray`s `x_d` and `y_d`, the only GPU-specific part of this is
-# the *kernel launch* via `@cuda`, defined in the `CUDAnative` package. The first time you
-# issue this `@cuda` statement, it will compile the kernel (`gpu_add1!`) for execution on
-# the GPU. Once compiled, future invocations are fast. You can see what `@cuda` expands to
-# using `?@cuda` from the Julia prompt.
+# Aside from using the `CuArray`s `x_d` and `y_d`, the only GPU-specific part of this is the
+# *kernel launch* via `@cuda`. The first time you issue this `@cuda` statement, it will
+# compile the kernel (`gpu_add1!`) for execution on the GPU. Once compiled, future
+# invocations are fast. You can see what `@cuda` expands to using `?@cuda` from the Julia
+# prompt.
 
 # Let's benchmark this:
 
 function bench_gpu1!(y, x)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda gpu_add1!(y, x)
     end
 end
@@ -203,13 +200,11 @@ end
 # ```
 #
 # replacing the `/path/to/julia` with the path to your Julia binary. Note that we don't
-# immediately start the profiler, but instead call into the CUDA APIs using CUDAdrv.jl
-# and manually start the profiler with `CUDAdrv.@profile` (thus excluding the time to
-# compile our kernel):
+# immediately start the profiler, but instead call into the CUDA APIs and manually start the
+# profiler with `CUDq.@profile` (thus excluding the time to compile our kernel):
 
-using CUDAdrv
 bench_gpu1!(y_d, x_d)  # run it once to force compilation
-CUDAdrv.@profile bench_gpu1!(y_d, x_d)
+CUDA.@profile bench_gpu1!(y_d, x_d)
 
 # When we quit the Julia REPL, the profiler process will print information about the
 # executed kernels and API calls:
@@ -226,15 +221,14 @@ CUDAdrv.@profile bench_gpu1!(y_d, x_d)
 # ```
 
 # You can see that 100% of the time was spent in `ptxcall_gpu_add1__1`, the name of the
-# kernel that `CUDAnative` assigned when compiling `gpu_add1!` for these inputs. (Had you
-# created arrays of multiple data types, e.g., `xu_d = CuArrays.fill(0x01, N)`, you might
-# have also seen `ptxcall_gpu_add1__2` and so on. Like the rest of Julia, you can define a
-# single method and it will be specialized at compile time for the particular data types
-# you're using.)
+# kernel that CUDA.jl assigned when compiling `gpu_add1!` for these inputs. (Had you created
+# arrays of multiple data types, e.g., `xu_d = CUDA.fill(0x01, N)`, you might have also seen
+# `ptxcall_gpu_add1__2` and so on. Like the rest of Julia, you can define a single method
+# and it will be specialized at compile time for the particular data types you're using.)
 
 # For further insight, run the profiling with the option `--print-gpu-trace`. You can also
 # invoke Julia with as argument the path to a file containing all commands you want to run
-# (including a call to `CUDAdrv.@profile`):
+# (including a call to `CUDA.@profile`):
 #
 # ```sh
 # $ nvprof --profile-from-start off --print-gpu-trace /path/to/julia /path/to/script.jl
@@ -279,7 +273,7 @@ fill!(y_d, 2)
 # Now let's try benchmarking it:
 
 function bench_gpu2!(y, x)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda threads=256 gpu_add2!(y, x)
     end
 end
@@ -322,7 +316,7 @@ fill!(y_d, 2)
 
 function bench_gpu3!(y, x)
     numblocks = ceil(Int, length(y)/256)
-    CuArrays.@sync begin
+    CUDA.@sync begin
         @cuda threads=256 blocks=numblocks gpu_add3!(y, x)
     end
 end
@@ -358,7 +352,7 @@ end
 synchronize()
 
 # Note that the printed output is only generated when synchronizing the entire GPU with
-# `synchronize()`. This is similar to `CuArrays.@sync`, and is the counterpart of
+# `synchronize()`. This is similar to `CUDA.@sync`, and is the counterpart of
 # `cudaDeviceSynchronize` in CUDA C++.
 
 
@@ -389,7 +383,7 @@ synchronize()
 # Stacktrace:
 #  [1] throw_boundserror at abstractarray.jl:484
 #  [2] checkbounds at abstractarray.jl:449
-#  [3] setindex! at /home/tbesard/Julia/CUDAnative/src/device/array.jl:79
+#  [3] setindex! at /home/tbesard/Julia/CUDA/src/device/array.jl:79
 #  [4] some_kernel at /tmp/tmpIMYANH:6
 # ```
 
@@ -404,7 +398,7 @@ synchronize()
 
 # ## Summary
 
-# Keep in mind that the high-level functionality of CuArrays often means that you don't
+# Keep in mind that the high-level functionality of CUDA often means that you don't
 # need to worry about writing kernels at such a low level. However, there are many cases
 # where computations can be optimized using clever low-level manipulations. Hopefully, you
 # now feel comfortable taking the plunge.
