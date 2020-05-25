@@ -1,0 +1,69 @@
+name: ManifestUpdater
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+
+jobs:
+  ManifestUpdater:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get Julia compatibility
+        id: julia_compat
+        # NOTE: this requires a julia compat lower-bound with minor version!
+        run : |
+          version=$(grep '^julia = ' Project.toml | grep -o '".*"' | cut -d '"' -f2)
+          echo "::set-output name=version::$version"
+      - uses: julia-actions/setup-julia@latest
+        with:
+          version: ${{ steps.julia_compat.outputs.version }}
+      - name: Update packages
+        id: pkg_update
+        run: |
+          log=$(julia --project -e 'using Pkg; Pkg.update()')
+          log="${log//'%'/'%25'}"
+          log="${log//$'\n'/'%0A'}"
+          log="${log//$'\r'/'%0D'}"
+          echo "::set-output name=log::$log"
+      - name: Get status
+        id: pkg_status
+        run: |
+          log=$(julia --project -e 'using Pkg; VERSION >= v"1.3" ? Pkg.status(diff=true) : Pkg.status()')
+          log="${log//'%'/'%25'}"
+          log="${log//$'\n'/'%0A'}"
+          log="${log//$'\r'/'%0D'}"
+          echo "::set-output name=log::$log"
+      - name: Get Julia version
+        id: version
+        run: |
+          log=$(julia -e "println(Base.VERSION)")
+          echo "::set-output name=log::$log"
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            Update dependencies.
+
+            ${{ steps.pkg_status.outputs.log }}
+          title: Update manifest
+          reviewers: maleadt
+          body: |
+            This pull request updates the manifest for Julia v${{ steps.version.outputs.log }}:
+
+            ```
+            ${{ steps.pkg_status.outputs.log }}
+            ```
+
+            <details><summary>Click here for the full update log.</summary>
+            <p>
+
+            ```
+            ${{ steps.pkg_update.outputs.log }}
+            ```
+
+            </p>
+            </details>
+          branch: update_manifest
+
