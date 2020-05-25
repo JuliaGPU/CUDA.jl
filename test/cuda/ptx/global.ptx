@@ -1,0 +1,8 @@
+
+.version 3.1
+.target sm_20
+.address_size 64
+
+.global .align 4 .u32 foobar;
+
+

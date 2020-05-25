@@ -1,14 +1,173 @@
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
 
-image: nvidia/cuda:latest
+image: ubuntu:bionic
 
 variables:
-  JULIA_NUM_THREADS: "4"
+  JULIA_NUM_THREADS: '2'
+  CI_APT_INSTALL: 'libgomp1'
+  NVIDIA_VISIBLE_DEVICES: 'all'
+  NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
+
+
+# Julia versions
+
+# the "primary" target, where we require a new GPU to make sure all tests are run
+julia:1.4:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia
+    - sm_70
+  variables:
+    CI_THOROUGH: 'true'
+
+# julia:1.4-debug:
+#   extends:
+#     - .julia:source
+#     - .test
+#   tags:
+#     - nvidia
+#     - sm_70
+#   variables:
+#     CI_THOROUGH: 'true'
+#     CI_CLONE_ARGS: '-b v1.4.0'
+#     CI_BUILD_ARGS: 'BINARYBUILDER_LLVM_ASSERTS=1 debug'
+#   allow_failure: true
+
+# julia:nightly:
+#   extends:
+#     - .julia:nightly
+#     - .test
+#   tags:
+#     - nvidia
+#   allow_failure: true
+
+
+# CUDA versions
+
+# NOTE: we support those CUDA versions for which the latest cuDNN is available
+#       https://developer.nvidia.com/rdp/cudnn-archive
+
+cuda:10.1:
+  extends:
+    - .julia:1.4
+    - .test
+  variables:
+    JULIA_CUDA_VERSION: '10.1'
+  tags:
+    - nvidia
+
+cuda:10.0:
+  extends:
+    - .julia:1.4
+    - .test
+  variables:
+    JULIA_CUDA_VERSION: '10.0'
+  tags:
+    - nvidia
+
+cuda:9.2:
+  extends:
+    - .julia:1.4
+    - .test
+  variables:
+    JULIA_CUDA_VERSION: '9.2'
+  tags:
+    - nvidia
+
+# NOTE: CUDA 9.0 is broken
+
+cuda:local:
+  extends:
+    - .julia:1.4
+    - .test
+  image: nvidia/cuda:10.1-devel-ubuntu18.04
+  variables:
+    JULIA_CUDA_USE_BINARYBUILDER: 'false'
+  tags:
+    - nvidia
+
+cuda:none:
+  extends:
+    - .julia:1.4
+    - .test
+  variables:
+    NVIDIA_VISIBLE_DEVICES: ''
+  script:
+    - julia --project -e 'using Pkg;
+                          Pkg.instantiate();
+                          Pkg.build()'
+    - julia --project -e 'using CUDA;
+                          @assert !CUDA.functional(true)'
+
+
+# hardware platforms
+
+platform:arm64:
+  image: nvcr.io/nvidia/l4t-base:r32.3.1
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia-arm64
+  allow_failure: true
+
+
+# special tests
+
+pool:none:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia
+  variables:
+    JULIA_CUDA_MEMORY_POOL: 'none'
+
+pool:simple:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia
+  variables:
+    JULIA_CUDA_MEMORY_POOL: 'simple'
+
+pool:split:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia
+  variables:
+    JULIA_CUDA_MEMORY_POOL: 'split'
+  allow_failure: true
+
+debug:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia
+  script:
+    - julia --project -g2 -e 'using Pkg;
+                              Pkg.instantiate();
+                              Pkg.build();
+                              Pkg.test(; coverage=true);'
+
+
+# other tasks
+
+coverage:
+  extends:
+    - .julia:1.4
+    - .coverage
 
 documentation:
   extends:
-    - .julia:1.2
+    - .julia:1.4
     - .documentation
   tags:
     - nvidia

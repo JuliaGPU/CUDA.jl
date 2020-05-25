@@ -1,0 +1,17 @@
+
+.version 3.1
+.target sm_20
+.address_size 64
+
+
+.visible .entry dummy(
+
+)
+{
+
+
+
+	ret;
+}
+
+

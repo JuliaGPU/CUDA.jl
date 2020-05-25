@@ -31,6 +31,7 @@ end
 
 # from https://devblogs.nvidia.com/parallelforall/fast-great-circle-distance-calculation-cuda-c/
 function haversine_gpu(lat1::Float32, lon1::Float32, lat2::Float32, lon2::Float32, radius::Float32)
+    # XXX: need to prefix math intrinsics with CUDA
     c1 = CUDA.cospi(lat1 / 180.0f0)
     c2 = CUDA.cospi(lat2 / 180.0f0)
     dlat = lat2 - lat1

@@ -1,61 +1,85 @@
 module CUDA
 
+using GPUCompiler
 
-using Reexport
+using GPUArrays
 
+using LLVM
+using LLVM.Interop
 
-@reexport using CUDAdrv
+using Adapt
 
-@eval $(Symbol("@elapsed")) = $(getfield(CUDAdrv, Symbol("@elapsed")))
-@eval $(Symbol("@profile")) = $(getfield(CUDAdrv, Symbol("@profile")))
+using Requires
 
-
-@reexport using CUDAnative
-
-## math intrinsics
-for intr in [:cos, :cos_fast, :cospi, :sin, :sin_fast, :sinpi, :tan, :tan_fast, :acos,
-             :asin, :atan, :atan2, :angle, :cosh, :sinh, :tanh, :acosh, :asinh, :atanh,
-             :log, :log_fast, :log, :log_fast, :log10, :log10_fast, :log1p, :log2,
-             :log2_fast, :logb, :ilogb, :exp, :exp_fast, :exp2, :exp10, :exp10_fast, :expm1,
-             :ldexp, :exp, :exp_fast, :erf, :erfinv, :erfc, :erfcinv, :erfcx, :brev, :clz,
-             :ffs, :byte_perm, :popc, :isfinite, :isinf, :isnan, :nearbyint, :nextafter,
-             :signbit, :copysign, :abs, :sqrt, :rsqrt, :cbrt, :rcbrt, :pow, :pow_fast, :pow,
-             :abs2, :ceil, :floor, :min, :max, :saturate, :mod, :rem, :div_fast, :lgamma,
-             :tgamma, :j0, :j1, :jn, :y0, :y1, :yn, :normcdf, :normcdfinv, :hypot, :fma,
-             :sad, :dim, :mul24, :mul64hi, :mulhi, :hadd, :rhadd, :scalbn]
-    @eval const $intr = $(getfield(CUDAnative, intr))
-end
-
-## atomics
-const atomic_xchg!  = CUDAnative.atomic_xchg!
-const atomic_add!   = CUDAnative.atomic_add!
-const atomic_and!   = CUDAnative.atomic_and!
-const atomic_or!    = CUDAnative.atomic_or!
-const atomic_xor!   = CUDAnative.atomic_xor!
-const atomic_min!   = CUDAnative.atomic_min!
-const atomic_max!   = CUDAnative.atomic_max!
-const atomic_inc!   = CUDAnative.atomic_inc!
-const atomic_dec!   = CUDAnative.atomic_dec!
+using LinearAlgebra
 
 
-@reexport using CuArrays
+## source code includes
 
-## array constructors
-const zeros = CuArrays.zeros
-const ones  = CuArrays.ones
-const fill  = CuArrays.fill
+const root = dirname(@__DIR__)
 
-## random numbers
-const fill          = CuArrays.fill
-const seed!         = CuArrays.seed!
-const rand          = CuArrays.rand
-const randn         = CuArrays.randn
-const rand_logn     = CuArrays.rand_logn
-const rand_poisson  = CuArrays.rand_poisson
+include("$root/src/pointer.jl")
 
-@eval $(Symbol("@sync"))        = $(getfield(CuArrays, Symbol("@sync")))
-@eval $(Symbol("@time"))        = $(getfield(CuArrays, Symbol("@time")))
-@eval $(Symbol("@allocated"))   = $(getfield(CuArrays, Symbol("@allocated")))
+# core library
+include("$root/lib/utils/APIUtils.jl")
+include("$root/lib/cuda/CUDA.jl")
 
+# essential stuff
+include("$root/src/initialization.jl")
+include("$root/src/state.jl")
+
+# binary dependencies
+include("$root/deps/discovery.jl")
+include("$root/deps/compatibility.jl")
+include("$root/deps/bindeps.jl")
+
+# device functionality (needs to be loaded first, because of generated functions)
+include("$root/src/device/pointer.jl")
+include("$root/src/device/array.jl")
+include("$root/src/device/cuda.jl")
+include("$root/src/device/llvm.jl")
+include("$root/src/device/runtime.jl")
+
+# compiler libraries
+include("$root/lib/cupti/CUPTI.jl")
+include("$root/lib/nvtx/NVTX.jl")
+export CUPTI, NVTX
+
+# compiler implementation
+include("$root/src/compiler/gpucompiler.jl")
+include("$root/src/compiler/execution.jl")
+include("$root/src/compiler/exceptions.jl")
+include("$root/src/compiler/reflection.jl")
+
+# array abstraction
+include("$root/src/memory.jl")
+include("$root/src/array.jl")
+include("$root/src/gpuarrays.jl")
+include("$root/src/subarray.jl")
+include("$root/src/utilities.jl")
+
+# array libraries
+include("$root/lib/complex.jl")
+include("$root/lib/library_types.jl")
+include("$root/lib/cublas/CUBLAS.jl")
+include("$root/lib/cusparse/CUSPARSE.jl")
+include("$root/lib/cusolver/CUSOLVER.jl")
+include("$root/lib/cufft/CUFFT.jl")
+include("$root/lib/curand/CURAND.jl")
+include("$root/lib/cudnn/CUDNN.jl")
+include("$root/lib/cutensor/CUTENSOR.jl")
+export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUDNN, CUTENSOR
+
+# integrations and specialized functionality
+include("$root/src/indexing.jl")
+include("$root/src/broadcast.jl")
+include("$root/src/mapreduce.jl")
+include("$root/src/accumulate.jl")
+include("$root/src/linalg.jl")
+include("$root/src/nnlib.jl")
+include("$root/src/iterator.jl")
+include("$root/src/statistics.jl")
+
+include("$root/src/deprecated.jl")
 
 end

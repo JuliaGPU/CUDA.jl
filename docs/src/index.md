@@ -1,10 +1,8 @@
 # CUDA programming in Julia
 
-Julia has several packages for programming NVIDIA GPUs using CUDA. Some of these packages
-focus on performance and flexibility, while others aim to raise the abstraction level and
-improve performance. This website will introduce the different options, how to use them, and
-what best to choose for your application. For more specific details, such as API references
-or development practices, refer to each package's own documentation.
+The CUDA.jl package is the main entrypoint for for programming NVIDIA GPUs using CUDA. The
+package makes it possible to do so at various abstraction levels, from easy-to-use arrays
+down to hand-written kernels using low-level CUDA APIs.
 
 If you have any questions, please feel free to use the `#gpu` channel on the [Julia
 slack](https://julialang.slack.com/), or the [GPU domain of the Julia
@@ -14,21 +12,21 @@ Discourse](https://discourse.julialang.org/c/domain/gpu).
 ## Quick Start
 
 The Julia CUDA stack requires a functional CUDA-setup, which includes both a driver and
-matching toolkit. Once you've set that up, continue by installing the three core packages:
+matching toolkit. Once you've set that up, continue by installing the CUDA.jl package:
 
 ```julia
 using Pkg
-Pkg.add(["CUDAdrv", "CUDAnative", "CuArrays"])
+Pkg.add("CUDA")
 ```
 
-To make sure everything works as expected, try to load the packages and if you have the time
-execute their test suites:
+To make sure everything works as expected, try to load the package and if you have the time
+execute its test suite:
 
 ```julia
-using CUDAdrv, CUDAnative, CuArrays
+using CUDA
 
 using Pkg
-Pkg.test(["CUDAdrv", "CUDAnative", "CuArrays"])
+Pkg.test("CUDA")
 ```
 
 For more details on the installation process, consult the [Installation](@ref

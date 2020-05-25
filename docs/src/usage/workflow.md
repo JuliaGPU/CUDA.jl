@@ -13,7 +13,7 @@ A typical approach for porting or developing an application for the GPU is as fo
 
 ## Scalar indexing
 
-To facilitate porting code, CuArrays.jl supports executing so-called "scalar code" which
+To facilitate porting code, `CuArray` supports executing so-called "scalar code" which
 processes one element at a time, e.g., in a for loop. Given how a GPU works, this is
 extremely slow and will negate any performance benefit of using a GPU. As such, you will be
 warned when performing this kind of iteration:
@@ -33,7 +33,7 @@ Once you've verified that your application executes correctly on the GPU, you sh
 disallow scalar indexing and use GPU-friendly array operations instead:
 
 ```julia
-julia> CuArrays.allowscalar(false)
+julia> CUDA.allowscalar(false)
 
 julia> a[1] .+ 1
 ERROR: scalar getindex is disallowed
@@ -64,7 +64,6 @@ julia> var(a,dims=1)
 ERROR: scalar getindex is disallowed
 ```
 
-To resolve such issues, CuArrays.jl and GPUArrays.jl redefine many array operations using
-GPU-friendly alternatives. If you run into a case like this, have a look at the CuArrays.jl
-issue tracker and file a bug report if there isn't one yet.
- been implemented themselves usi
+To resolve such issues, many array operations for `CuArray` are replaced with GPU-friendly
+alternatives. If you run into a case like this, have a look at the CUDA.jl issue tracker and
+file a bug report if there isn't one yet.
