@@ -2,26 +2,56 @@
 
 *CUDA programming in Julia*
 
-This repository hosts a Julia package that bundles functionality from several other packages
-for CUDA programming, and provides high-level documentation and tutorials for effectively
-using CUDA GPUs from Julia. The documentation is accessible at
+| **Documentation**                     | **Build Status**                                              |
+|:-------------------------------------:|:-------------------------------------------------------------:|
+| [![][docs-usage-img]][docs-usage-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
+
+[docs-usage-img]: https://img.shields.io/badge/docs-usage-blue.svg
+[docs-usage-url]: https://juliagpu.gitlab.io/CUDA.jl/
+
+[gitlab-img]: https://gitlab.com/JuliaGPU/CUDA.jl/badges/master/pipeline.svg
+[gitlab-url]: https://gitlab.com/JuliaGPU/CUDA.jl/commits/master
+
+[codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/master/graph/badge.svg
+[codecov-url]: https://codecov.io/gh/JuliaGPU/CUDA.jl
+
+The CUDA.jl package is the main programming interface for working with NVIDIA CUDA GPUs
+using Julia. It features a user-friendly array abstraction, a compiler for writing CUDA
+kernels in Julia, and wrappers for various CUDA libraries.
+
+
+## Quick start
+
+The package can be installed with the Julia package manager.
+From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
+
+```
+pkg> add CUDAnative
+```
+
+Or, equivalently, via the `Pkg` API:
+
+```julia
+julia> import Pkg; Pkg.add("CUDAnative")
+```
+
+For usage instructions and other information, please refer to the documentation at
 [juliagpu.gitlab.io](https://juliagpu.gitlab.io/CUDA.jl/).
 
 
-CUDA.jl includes functionality from the following packages:
+## Project Status
 
-- [CUDAdrv.jl](https://github.com/JuliaGPU/CUDAdrv.jl): interface to the CUDA driver
-- [CUDAnative.jl](https://github.com/JuliaGPU/CUDAnative.jl): kernel programming capabilities
-- [CuArrays.jl](https://github.com/JuliaGPU/CuArrays.jl): GPU array abstraction
-
-For details on the APIs that these packages expose, refer to the associated documentation.
+The package is tested against, and being developed for, Julia `1.3` and above. Main
+development and testing happens on Linux, but the package is expected to work on macOS and
+Windows as well.
 
 
-## API stability
+## Questions and Contributions
 
-Versioning of this package follows [SemVer](https://semver.org/) as used by the Julia
-package manager: Depending on a specific major version of CUDA.jl should guarantee that your
-application will not break, as long as it only uses functionality from the package's public
-API. For CUDA.jl, this API includes certain non-exported functions and macros that would
-otherwise clash with implementations in Julia. Refer to [src/CUDA.jl](src/CUDA.jl) for more
-details.
+Usage questions can be posted on the [Julia Discourse
+forum](https://discourse.julialang.org/c/domain/gpu) under the GPU domain and/or in the #gpu
+channel of the [Julia Slack](https://julialang.org/community/).
+
+Contributions are very welcome, as are feature requests and suggestions. Please open an
+[issue](https://github.com/JuliaGPU/CUDAnative.jl/issues) if you encounter any problems.
+
