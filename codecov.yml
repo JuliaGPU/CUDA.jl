@@ -6,4 +6,3 @@ coverage:
     patch: false
     project: false
     changes: false
-comment: false
