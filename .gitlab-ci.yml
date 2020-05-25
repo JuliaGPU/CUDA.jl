@@ -1,27 +1,25 @@
 include:
   - 'https://raw.githubusercontent.com/JuliaGPU/gitlab-ci/master/templates/v6.yml'
 
-image: ubuntu:bionic
-
 variables:
   JULIA_NUM_THREADS: '2'
   CI_APT_INSTALL: 'libgomp1'
   NVIDIA_VISIBLE_DEVICES: 'all'
   NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
+  JULIA_CUDA_USE_BINARYBUILDER: 'false'
+
+# NOTE: we don't use BinaryBuilder by default to reduce the amount of network traffic
+image: nvidia/cuda:10.1-devel-ubuntu18.04
 
 
 # Julia versions
 
-# the "primary" target, where we require a new GPU to make sure all tests are run
 julia:1.4:
   extends:
     - .julia:1.4
     - .test
   tags:
     - nvidia
-    - sm_70
-  variables:
-    CI_THOROUGH: 'true'
 
 # julia:1.4-debug:
 #   extends:
@@ -31,7 +29,6 @@ julia:1.4:
 #     - nvidia
 #     - sm_70
 #   variables:
-#     CI_THOROUGH: 'true'
 #     CI_CLONE_ARGS: '-b v1.4.0'
 #     CI_BUILD_ARGS: 'BINARYBUILDER_LLVM_ASSERTS=1 debug'
 #   allow_failure: true
@@ -50,21 +47,28 @@ julia:1.4:
 # NOTE: we support those CUDA versions for which the latest cuDNN is available
 #       https://developer.nvidia.com/rdp/cudnn-archive
 
+# the "primary" target, where we require a new GPU to make sure all tests are run
 cuda:10.1:
   extends:
     - .julia:1.4
     - .test
+  image: ubuntu:bionic
   variables:
+    CI_THOROUGH: 'true'
     JULIA_CUDA_VERSION: '10.1'
+    JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
     - nvidia
+    - sm_70
 
 cuda:10.0:
   extends:
     - .julia:1.4
     - .test
+  image: ubuntu:bionic
   variables:
     JULIA_CUDA_VERSION: '10.0'
+    JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
     - nvidia
 
@@ -72,22 +76,14 @@ cuda:9.2:
   extends:
     - .julia:1.4
     - .test
+  image: ubuntu:bionic
   variables:
     JULIA_CUDA_VERSION: '9.2'
+    JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
     - nvidia
 
 # NOTE: CUDA 9.0 is broken
-
-cuda:local:
-  extends:
-    - .julia:1.4
-    - .test
-  image: nvidia/cuda:10.1-devel-ubuntu18.04
-  variables:
-    JULIA_CUDA_USE_BINARYBUILDER: 'false'
-  tags:
-    - nvidia
 
 cuda:none:
   extends:
