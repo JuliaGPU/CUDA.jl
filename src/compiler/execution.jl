@@ -153,7 +153,7 @@ abstract type AbstractKernel{F,TT} end
     (::DeviceKernel)(args...; kwargs...)
 
 Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
-For a higher-level interface, use [`CUDA.@cuda`](@ref).
+For a higher-level interface, use [`@cuda`](@ref).
 
 The following keyword arguments are supported:
 - `threads` (defaults to 1)

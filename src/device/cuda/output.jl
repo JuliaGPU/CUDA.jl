@@ -169,8 +169,8 @@ pointers. For more complex output, use `@cuprintf` directly.
 Limited string interpolation is also possible:
 
 ```julia
-    @cuprint("Hello, World ", 42, "\n")
-    @cuprint "Hello, World \$(42)\n"
+    @cuprint("Hello, World ", 42, "\\n")
+    @cuprint "Hello, World \$(42)\\n"
 ```
 """
 macro cuprint(parts...)
@@ -217,7 +217,8 @@ export @cushow
 """
     @cushow(ex)
 
-GPU analog of `Base.@show`. It comes with the same type restrictions as [@cuprint](@ref).
+GPU analog of `Base.@show`. It comes with the same type restrictions as [`@cuprintf`](@ref).
+
 ```julia
 @cushow threadIdx().x
 ```

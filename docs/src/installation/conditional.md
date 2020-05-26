@@ -1,40 +1,31 @@
-# Conditional Dependency
+# Conditional use
 
-The GPU stack and its packages are special in that developers may want to depend on them
-even though users might not have a GPU. In this section, we describe two different usage
-scenarios and how to implement them. Key to remember is that the CUDA packages **will always
-load**, which means you need to manually **check if they are functional**.
+CUDA.jl is special in that developers may want to depend on the GPU toolchain even though
+users might not have a GPU. In this section, we describe two different usage scenarios and
+how to implement them. Key to remember is that CUDA.jl **will always load**, which means you
+need to manually **check if the package is functional**.
 
-Because the packages are always loadable, you should just depend on them like any other
-package (and not use, e.g., Requires.jl). This ensures that breaking changes to the GPU
-stack will be taken into account by the package resolver when installing your package.
+Because CUDA.jl always loads, even if the user doesn't have a GPU or CUDA, you should just
+depend on it like any other package (and not use, e.g., Requires.jl). This ensures that
+breaking changes to the GPU stack will be taken into account by the package resolver when
+installing your package.
 
-If the packages fail to initialize, a message will be print:
+If you unconditionally use the functionality from CUDA.jl, you will get a run-time error
+in the case the package failed to initialize. For example, on a system without CUDA:
 
 ```julia
 julia> using CUDA
-[ Info: CUDA.jl failed to initialize, GPU functionality unavailable (set JULIA_CUDA_SILENT or JULIA_CUDA_VERBOSE to silence or expand this message)
-```
-
-To silence this message in your application, set the environment variable
-`JULIA_CUDA_SILENT` to `true`. Correspondingly, setting `JULIA_CUDA_VERBOSE` to `true` will
-print more information, and is required information for debugging or for filing an issue:
-
-```julia
-julia> ENV["JULIA_CUDA_VERBOSE"] = true
-julia> using CUDA
-┌ Error: CUDA.jl failed to initialize
+julia> CUDA.version()
+ ┌ Error: Could not initialize CUDA
 │   exception =
 │    could not load library "libcuda"
 │    libcuda.so: cannot open shared object file: No such file or directory
-│    Stacktrace:
-│     ...
-└
+└ @ CUDA CUDA.jl/src/initialization.jl:99
 ```
 
-You can query whether the package has successfully initialized and is ready to use by
-calling the `functional()` method. Let's illustrate with two scenario's, one where having a
-GPU is required, and one where it's optional.
+To avoid this, you should call `CUDA.functional()` to inspect whether the package is
+functional and condition your use of GPU functionality on that. Let's illustrate with two
+scenario's, one where having a GPU is required, and one where it's optional.
 
 
 ## Scenario 1: GPU is required
@@ -44,8 +35,10 @@ CUDA, you should just import the necessary packages and inspect if they are func
 
 ```julia
 using CUDA
-@assert CUDA.functional()
+@assert CUDA.functional(true)
 ```
+
+Passing `true` as an argument makes CUDA.jl display why initialization might have failed.
 
 If you are developing a package, you should take care only to perform this check at run
 time. This ensures that your module can always be precompiled, even on a system without a
@@ -56,13 +49,13 @@ module MyApplication
 
 using CUDA
 
-__init__() = @assert CUDA.functional()
+__init__() = @assert CUDA.functional(true)
 
 end
 ```
 
 This of course also implies that you should avoid any calls to the GPU stack from global
-scope, since the packages might not be functional.
+scope, since the package might not be functional.
 
 
 ## Scenario 2: GPU is optional

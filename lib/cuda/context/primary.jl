@@ -23,8 +23,8 @@ end
 Retain the primary context on the GPU, returning a context compatible with the driver API.
 The primary context will be released when the returned driver context is finalized.
 
-As these contexts are refcounted by CUDA, you should not call [`unsafe_destroy!`](@ref) on
-them but use [`unsafe_release!`](@ref) instead (available with do-block syntax as well).
+As these contexts are refcounted by CUDA, you should not call [`CUDA.unsafe_destroy!`](@ref) on
+them but use [`CUDA.unsafe_release!`](@ref) instead (available with do-block syntax as well).
 """
 function CuContext(pctx::CuPrimaryContext)
     handle = Ref{CUcontext}()
@@ -33,7 +33,7 @@ function CuContext(pctx::CuPrimaryContext)
 end
 
 """
-    unsafe_release!(ctx::CuContext)
+    CUDA.unsafe_release!(ctx::CuContext)
 
 Lower the refcount of a context, possibly freeing up all resources associated with it. This
 does not respect any users of the context, and might make other objects unusable.

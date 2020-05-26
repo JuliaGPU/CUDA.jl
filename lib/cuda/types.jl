@@ -1,4 +1,4 @@
-export CuDim
+export CuDim3, CuDim
 
 """
     CuDim3(x)

@@ -128,7 +128,7 @@ end
 
 # TODO: update docstrings
 
-export has_cuda, has_cuda_gpu, usable_cuda_gpus
+export has_cuda, has_cuda_gpu
 
 """
     has_cuda()::Bool

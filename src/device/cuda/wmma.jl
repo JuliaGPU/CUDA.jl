@@ -83,7 +83,7 @@ end
 # -----------
 
 @doc """
-    llvm_wmma_load_{matrix}_{layout}_{shape}_{addr_space}_stride_{elem_type}(src_addr, stride)
+    WMMA.llvm_wmma_load_{matrix}_{layout}_{shape}_{addr_space}_stride_{elem_type}(src_addr, stride)
 
 Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.load.{matrix}.sync.{layout}.{shape}.{addr_space}.stride.{elem_type}`.
 
@@ -141,7 +141,7 @@ end
 # ------------
 
 @doc """
-    llvm_wmma_store_d_{layout}_{shape}_{addr_space}_stride_{elem_type}(dst_addr, data, stride)
+    WMMA.llvm_wmma_store_d_{layout}_{shape}_{addr_space}_stride_{elem_type}(dst_addr, data, stride)
 
 Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.store.d.sync.{layout}.{shape}.{addr_space}.stride.{elem_type}`.
 
@@ -195,7 +195,7 @@ end
 # --------------------------
 
 @doc """
-    llvm_wmma_mma_{a_layout}_{b_layout}_{shape}_{d_elem_type}_{c_elem_type}(a, b, c)
+    WMMA.llvm_wmma_mma_{a_layout}_{b_layout}_{shape}_{d_elem_type}_{c_elem_type}(a, b, c)
 
 Wrapper around the LLVM intrinsic `@llvm.nvvm.wmma.mma.sync.{a_layout}.{b_layout}.{shape}.{d_elem_type}.{c_elem_type}`.
 
@@ -304,30 +304,30 @@ end
 export FragmentLayout, RowMajor, ColMajor, Unspecified
 
 """
-    FragmentLayout
+    WMMA.FragmentLayout
 
 Abstract type that specifies the storage layout of a matrix.
 
-Possible values are [`RowMajor`](@ref), [`ColMajor`](@ref) and [`Unspecified`](@ref).
+Possible values are [`WMMA.RowMajor`](@ref), [`WMMA.ColMajor`](@ref) and [`WMMA.Unspecified`](@ref).
 """
 abstract type FragmentLayout end
 
 """
-    RowMajor
+    WMMA.RowMajor
 
 Type that represents a matrix stored in row major (C style) order.
 """
 struct RowMajor <: FragmentLayout end
 
 """
-    ColMajor
+    WMMA.ColMajor
 
 Type that represents a matrix stored in column major (Julia style) order.
 """
 struct ColMajor <: FragmentLayout end
 
 """
-    Unspecified
+    WMMA.Unspecified
 
 Type that represents a matrix stored in an unspecified order.
 
@@ -349,7 +349,7 @@ struct Accumulator <: FragmentUse end
 export Fragment
 
 """
-    Fragment
+    WMMA.Fragment
 
 Type that represents per-thread intermediate results of WMMA operations.
 
@@ -374,7 +374,7 @@ end
 export Config
 
 """
-    Config{M, N, K, d_type}
+    WMMA.Config{M, N, K, d_type}
 
 Type that contains all information for WMMA operations that cannot be inferred from the argument's types.
 
@@ -483,19 +483,19 @@ end
 export load_a, load_b, load_c
 
 """
-    load_a(addr, stride, layout, config)
-    load_b(addr, stride, layout, config)
-    load_c(addr, stride, layout, config)
+    WMMA.load_a(addr, stride, layout, config)
+    WMMA.load_b(addr, stride, layout, config)
+    WMMA.load_c(addr, stride, layout, config)
 
-Load the matrix `a`, `b` or `c` from the memory location indicated by `addr`, and return the resulting [`Fragment`](@ref).
+Load the matrix `a`, `b` or `c` from the memory location indicated by `addr`, and return the resulting [`WMMA.Fragment`](@ref).
 
 # Arguments
 - `addr`: The address to load the matrix from.
 - `stride`: The leading dimension of the matrix pointed to by `addr`, specified in number of elements.
-- `layout`: The storage layout of the matrix. Possible values are [`RowMajor`](@ref) and [`ColMajor`](@ref).
-- `config`: The WMMA configuration that should be used for loading this matrix. See [`Config`](@ref).
+- `layout`: The storage layout of the matrix. Possible values are [`WMMA.RowMajor`](@ref) and [`WMMA.ColMajor`](@ref).
+- `config`: The WMMA configuration that should be used for loading this matrix. See [`WMMA.Config`](@ref).
 
-See also: [`Fragment`](@ref), [`FragmentLayout`](@ref), [`Config`](@ref)
+See also: [`WMMA.Fragment`](@ref), [`WMMA.FragmentLayout`](@ref), [`WMMA.Config`](@ref)
 
 !!! warning
 
@@ -537,16 +537,16 @@ end
 export mma
 
 """
-    mma(a, b, c, conf)
+    WMMA.mma(a, b, c, conf)
 
 Perform the matrix multiply-accumulate operation ``D = A \\cdot B + C``.
 
 # Arguments
 
-- `a`: The [`Fragment`](@ref) corresponding to the matrix ``A``.
-- `b`: The [`Fragment`](@ref) corresponding to the matrix ``B``.
-- `c`: The [`Fragment`](@ref) corresponding to the matrix ``C``.
-- `conf`: The [`Config`](@ref) that should be used in this WMMA operation.
+- `a`: The [`WMMA.Fragment`](@ref) corresponding to the matrix ``A``.
+- `b`: The [`WMMA.Fragment`](@ref) corresponding to the matrix ``B``.
+- `c`: The [`WMMA.Fragment`](@ref) corresponding to the matrix ``C``.
+- `conf`: The [`WMMA.Config`](@ref) that should be used in this WMMA operation.
 
 !!! warning
 
@@ -590,18 +590,18 @@ end
 export store_d
 
 """
-    store_d(addr, d, stride, layout, config)
+    WMMA.store_d(addr, d, stride, layout, config)
 
 Store the result matrix `d` to the memory location indicated by `addr`.
 
 # Arguments
 - `addr`: The address to store the matrix to.
-- `d`: The [`Fragment`](@ref) corresponding to the `d` matrix.
+- `d`: The [`WMMA.Fragment`](@ref) corresponding to the `d` matrix.
 - `stride`: The leading dimension of the matrix pointed to by `addr`, specified in number of elements.
-- `layout`: The storage layout of the matrix. Possible values are [`RowMajor`](@ref) and [`ColMajor`](@ref).
-- `config`: The WMMA configuration that should be used for storing this matrix. See [`Config`](@ref).
+- `layout`: The storage layout of the matrix. Possible values are [`WMMA.RowMajor`](@ref) and [`WMMA.ColMajor`](@ref).
+- `config`: The WMMA configuration that should be used for storing this matrix. See [`WMMA.Config`](@ref).
 
-See also: [`Fragment`](@ref), [`FragmentLayout`](@ref), [`Config`](@ref)
+See also: [`WMMA.Fragment`](@ref), [`WMMA.FragmentLayout`](@ref), [`WMMA.Config`](@ref)
 
 !!! warning
 
@@ -639,15 +639,15 @@ end
 export fill_c
 
 """
-    fill_c(value, config)
+    WMMA.fill_c(value, config)
 
-Return a [`Fragment`](@ref) filled with the value `value`.
+Return a [`WMMA.Fragment`](@ref) filled with the value `value`.
 
 This operation is useful if you want to implement a matrix multiplication (and thus want to set ``C = O``).
 
 # Arguments
 - `value`: The value used to fill the fragment. Can be a `Float16` or `Float32`.
-- `config`: The WMMA configuration that should be used for this WMMA operation. See [`Config`](@ref).
+- `config`: The WMMA configuration that should be used for this WMMA operation. See [`WMMA.Config`](@ref).
 """
 fill_c
 
