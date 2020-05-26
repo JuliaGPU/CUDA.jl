@@ -149,23 +149,23 @@ end
 
 @testset "Flattening/unflattening" begin
     @testset "Flattening" begin
-        @test CUDA.WMMA.flatten(5)                                                                  == (5,)
-        @test CUDA.WMMA.flatten(5.0)                                                                == (5.0,)
-        @test CUDA.WMMA.flatten(VecElement{Float16}(5))                                             == (Float16(5),)
-        @test CUDA.WMMA.flatten(ntuple(i -> i, 8))                                                  == ntuple(i -> i, 8)
-        @test CUDA.WMMA.flatten(ntuple(i -> VecElement{Float16}(i), 8))                             == ntuple(i -> Float16(i), 8)
-        @test CUDA.WMMA.flatten(ntuple(i -> ntuple(j -> (i-1) * 2 + j, 2), 8))                      == ntuple(i -> i, 2 * 8)
-        @test CUDA.WMMA.flatten(ntuple(i -> ntuple(j -> VecElement{Float16}((i-1) * 2 + j), 2), 8)) == ntuple(i -> Float16(i), 2 * 8)
+        @test WMMA.flatten(5)                                                                  == (5,)
+        @test WMMA.flatten(5.0)                                                                == (5.0,)
+        @test WMMA.flatten(VecElement{Float16}(5))                                             == (Float16(5),)
+        @test WMMA.flatten(ntuple(i -> i, 8))                                                  == ntuple(i -> i, 8)
+        @test WMMA.flatten(ntuple(i -> VecElement{Float16}(i), 8))                             == ntuple(i -> Float16(i), 8)
+        @test WMMA.flatten(ntuple(i -> ntuple(j -> (i-1) * 2 + j, 2), 8))                      == ntuple(i -> i, 2 * 8)
+        @test WMMA.flatten(ntuple(i -> ntuple(j -> VecElement{Float16}((i-1) * 2 + j), 2), 8)) == ntuple(i -> Float16(i), 2 * 8)
     end
 
     @testset "Unflattening" begin
-        @test CUDA.WMMA.unflatten(Int64, (5,))                                                               == 5
-        @test CUDA.WMMA.unflatten(Float64, (5.0,))                                                           == 5.0
-        @test CUDA.WMMA.unflatten(VecElement{Float16}, (Float16(5),))                                        == VecElement{Float16}(5)
-        @test CUDA.WMMA.unflatten(NTuple{8, Int64}, ntuple(i -> i, 8))                                       == ntuple(i -> i, 8)
-        @test CUDA.WMMA.unflatten(NTuple{8, VecElement{Float16}}, ntuple(i -> Float16(i), 8))                == ntuple(i -> VecElement{Float16}(i), 8)
-        @test CUDA.WMMA.unflatten(NTuple{8, NTuple{2, Int64}}, ntuple(i -> i, 2 * 8))                        == ntuple(i -> ntuple(j -> (i-1) * 2 + j, 2), 8)
-        @test CUDA.WMMA.unflatten(NTuple{8, NTuple{2, VecElement{Float16}}}, ntuple(i -> Float16(i), 2 * 8)) == ntuple(i -> ntuple(j -> VecElement{Float16}((i-1) * 2 + j), 2), 8)
+        @test WMMA.unflatten(Int64, (5,))                                                               == 5
+        @test WMMA.unflatten(Float64, (5.0,))                                                           == 5.0
+        @test WMMA.unflatten(VecElement{Float16}, (Float16(5),))                                        == VecElement{Float16}(5)
+        @test WMMA.unflatten(NTuple{8, Int64}, ntuple(i -> i, 8))                                       == ntuple(i -> i, 8)
+        @test WMMA.unflatten(NTuple{8, VecElement{Float16}}, ntuple(i -> Float16(i), 8))                == ntuple(i -> VecElement{Float16}(i), 8)
+        @test WMMA.unflatten(NTuple{8, NTuple{2, Int64}}, ntuple(i -> i, 2 * 8))                        == ntuple(i -> ntuple(j -> (i-1) * 2 + j, 2), 8)
+        @test WMMA.unflatten(NTuple{8, NTuple{2, VecElement{Float16}}}, ntuple(i -> Float16(i), 2 * 8)) == ntuple(i -> ntuple(j -> VecElement{Float16}((i-1) * 2 + j), 2), 8)
     end
 end
 
