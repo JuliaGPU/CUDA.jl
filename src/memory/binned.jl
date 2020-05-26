@@ -379,6 +379,8 @@ function init()
 end
 
 function alloc(bytes)
+  @assert bytes > 0
+
   # only manage small allocations in the pool
   block = if bytes <= MAX_POOL
     pid = poolidx(bytes)
@@ -407,6 +409,7 @@ function free(ptr)
     block
   end
   bytes = sizeof(block)
+  @assert bytes > 0
 
   # was this a pooled buffer?
   if bytes <= MAX_POOL
