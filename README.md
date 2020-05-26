@@ -4,10 +4,10 @@
 
 | **Documentation**                     | **Build Status**                                              |
 |:-------------------------------------:|:-------------------------------------------------------------:|
-| [![][docs-usage-img]][docs-usage-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
+| [![][docs-latest-img]][docs-latest-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
 
-[docs-usage-img]: https://img.shields.io/badge/docs-usage-blue.svg
-[docs-usage-url]: https://juliagpu.gitlab.io/CUDA.jl/
+[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
+[docs-latest-url]: https://juliagpu.gitlab.io/CUDA.jl/
 
 [gitlab-img]: https://gitlab.com/JuliaGPU/CUDA.jl/badges/master/pipeline.svg
 [gitlab-url]: https://gitlab.com/JuliaGPU/CUDA.jl/commits/master
