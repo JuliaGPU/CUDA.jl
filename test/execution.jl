@@ -566,11 +566,9 @@ script = """
 
 let (code, out, err) = julia_script(script, `-g0`)
     @test code == 1
-    @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err)
-    if !isempty(out)
-        @warn "Unexpected output" code out err
-    end
-    @test isempty(out)
+    @test  occursin("ERROR: KernelException: exception thrown during kernel execution on device", err)
+    @test !occursin("ERROR: a exception was thrown during kernel execution", out)
+    # NOTE: stdout sometimes contain a failure to free the CuArray with ILLEGAL_ACCESS
 end
 
 let (code, out, err) = julia_script(script, `-g1`)
