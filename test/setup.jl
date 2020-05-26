@@ -19,9 +19,15 @@ const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 
 ## entry point
 
-function runtests(f, name, device=nothing)
+function runtests(f, name, device=nothing, snoop=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
+
+    if snoop !== nothing
+        io = open(snoop, "w")
+        ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), io.handle)
+    end
+
     try
         let id = myid()
             wait(@spawnat 1 print_testworker_started(name, id))
@@ -30,6 +36,7 @@ function runtests(f, name, device=nothing)
         ex = quote
             Random.seed!(1)
             CUDA.allowscalar(false)
+
             if $device !== nothing
                 device!($device)
                 CUDA.@timed @testset $"$name" begin
@@ -64,6 +71,11 @@ function runtests(f, name, device=nothing)
         end
         vcat(collect(res_and_time_data), rss)
     finally
+        if snoop !== nothing
+            ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
+            close(io)
+        end
+
         Test.TESTSET_PRINT_ENABLE[] = old_print_setting
     end
 end

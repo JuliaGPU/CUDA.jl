@@ -33,11 +33,13 @@ if do_help
                --list           List all available tests.
                --jobs=N         Launch `N` process to perform tests.
                                 Defaults to `Threads.nthreads()`.
-               --memcheck       Run the tests under `cuda-memcheck`.""")
+               --memcheck       Run the tests under `cuda-memcheck`.
+               --snoop=FILE     Snoop on compiled methods and save to `FILE`.""")
     exit(0)
 end
 _, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
 do_memcheck, _ = extract_flag!(ARGS, "--memcheck")
+do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
 
 include("setup.jl")     # make sure everything is precompiled
 
@@ -171,6 +173,12 @@ function addworker(X; kwargs...)
 end
 addworker(min(jobs, length(tests)))
 
+# prepare to snoop on the compiler
+if do_snoop
+    @info "Writing trace of compiled methods to '$snoop_path'"
+    snoop_io = open(snoop_path, "w")
+end
+
 # pretty print information about gc and mem usage
 testgroupheader = "Test"
 workerheader = "(Worker)"
@@ -285,18 +293,23 @@ try
                 push!(all_tasks, current_task())
                 while length(tests) > 0
                     test = popfirst!(tests)
-                    running_tests[test] = now()
                     local resp
                     wrkr = p
                     dev = test=="initialization" ? nothing : pick.dev
+                    snoop = do_snoop ? mktemp() : (nothing, nothing)
+
+                    # run the test
+                    running_tests[test] = now()
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, dev)
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, dev, snoop[1])
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]
                     end
                     delete!(running_tests, test)
                     push!(results, (test, resp))
+
+                    # act on the results
                     if resp[1] isa Exception
                         print_testworker_errored(test, wrkr)
 
@@ -306,6 +319,15 @@ try
                         p = addworker(1)[1]
                     else
                         print_testworker_stats(test, wrkr, resp)
+                    end
+
+                    # aggregate the snooped compiler invocations
+                    if do_snoop
+                        for line in eachline(snoop[2])
+                            println(snoop_io, line)
+                        end
+                        close(snoop[2])
+                        rm(snoop[1])
                     end
                 end
                 if p != 1
