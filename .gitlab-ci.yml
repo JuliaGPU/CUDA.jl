@@ -6,10 +6,7 @@ variables:
   CI_APT_INSTALL: 'libgomp1'
   NVIDIA_VISIBLE_DEVICES: 'all'
   NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
-  JULIA_CUDA_USE_BINARYBUILDER: 'false'
-
-# NOTE: we don't use BinaryBuilder by default to reduce the amount of network traffic
-image: nvidia/cuda:10.1-devel-ubuntu18.04
+  JULIA_CUDA_USE_BINARYBUILDER: 'false' # reduce CI network traffic
 
 
 # Julia versions
@@ -102,7 +99,6 @@ cuda:none:
 # hardware platforms
 
 platform:arm64:
-  image: nvcr.io/nvidia/l4t-base:r32.3.1
   extends:
     - .julia:1.4
     - .test
