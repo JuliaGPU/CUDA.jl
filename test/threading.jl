@@ -2,7 +2,7 @@
 #        after having moved to distributed test execution,
 #        regardless of the memory pool or system.
 
-false && @testset "threaded execution" begin
+@testset "threaded execution" begin
     function kernel(a, tid, id)
         a[1] = tid
         a[2] = id
@@ -22,7 +22,7 @@ false && @testset "threaded execution" begin
     end
 end
 
-false && @testset "threaded arrays" begin
+@testset "threaded arrays" begin
   test_lock = ReentrantLock()
   Threads.@threads for i in 1:Threads.nthreads()*100
     # uses libraries (rand, gemm) to test library handles
