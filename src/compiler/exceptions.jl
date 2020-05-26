@@ -18,12 +18,19 @@ end
 # since we don't actually support globals, access to this variable is done by calling the
 # julia_exception_flag function (lowered here to actual accesses of the variable)
 function emit_exception_flag!(mod::LLVM.Module)
-    # add the global variable
-    T_ptr = convert(LLVMType, Ptr{Cvoid})
-    gv = GlobalVariable(mod, T_ptr, "exception_flag")
-    initializer!(gv, LLVM.ConstantInt(T_ptr, 0))
-    linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
-    extinit!(gv, true)
+    # add the global variable if it doesn't exist yet (might have come from the runtime)
+    # TODO: get!
+    if !haskey(globals(mod), "exception_flag")
+        T_ptr = convert(LLVMType, Ptr{Cvoid})
+        gv = GlobalVariable(mod, T_ptr, "exception_flag")
+        initializer!(gv, LLVM.ConstantInt(T_ptr, 0))
+        linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
+        extinit!(gv, true)
+
+        set_used!(mod, gv)
+    else
+        gv = globals(mod)["exception_flag"]
+    end
 
     # lower uses of the getter
     if haskey(functions(mod), "julia_exception_flag")
@@ -58,15 +65,21 @@ const exception_flags = Dict{CuContext, Mem.HostBuffer}()
 #
 # also see compiler/irgen.jl::emit_exception_flag!
 function create_exceptions!(mod::CuModule)
-    ctx = mod.ctx
-    try
+    if VERSION >= v"1.5" && !(v"1.6-" <= VERSION < v"1.6.0-DEV.90")
         flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, "exception_flag")
-        exception_flag = get!(exception_flags, ctx, Mem.alloc(Mem.Host, sizeof(Int),
-                              Mem.HOSTALLOC_DEVICEMAP))
+        exception_flag = get!(exception_flags, mod.ctx,
+                            Mem.alloc(Mem.Host, sizeof(Int), Mem.HOSTALLOC_DEVICEMAP))
         flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, exception_flag))
-    catch err
-        # modules that do not throw exceptions will not contain the indicator flag
-        (isa(err, CuError) && err.code == ERROR_NOT_FOUND) || rethrow()
+    else
+        ctx = mod.ctx
+        try
+            flag_ptr = CuGlobal{Ptr{Cvoid}}(mod, "exception_flag")
+            exception_flag = get!(exception_flags, ctx, Mem.alloc(Mem.Host, sizeof(Int),
+                                Mem.HOSTALLOC_DEVICEMAP))
+            flag_ptr[] = reinterpret(Ptr{Cvoid}, convert(CuPtr{Cvoid}, exception_flag))
+        catch err
+            (isa(err, CuError) && err.code == ERROR_NOT_FOUND) || rethrow()
+        end
     end
 
     return
