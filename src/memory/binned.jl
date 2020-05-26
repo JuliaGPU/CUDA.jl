@@ -20,10 +20,9 @@ module BinnedPool
 # TODO: move the management thread one level up, to be shared by all allocators
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock
+using ..CUDA: @pool_timeit, @safe_lock, NonReentrantLock
 
 using Base: @lock
-using Base.Threads: SpinLock
 
 
 ## tunables
@@ -96,7 +95,7 @@ const initial_usage = Tuple(1 for _ in 1:USAGE_WINDOW)
 const pool_usage = Vector{Float64}()
 const pool_history = Vector{NTuple{USAGE_WINDOW,Float64}}()
 
-const freed_lock = SpinLock()
+const freed_lock = NonReentrantLock()
 const freed = Vector{Block}()
 
 # scan every pool and manage the usage history
@@ -343,7 +342,7 @@ end
 
 ## interface
 
-const allocated_lock = SpinLock()
+const allocated_lock = NonReentrantLock()
 const allocated = Dict{CuPtr{Nothing},Block}()
 
 function init()
@@ -380,6 +379,8 @@ function init()
 end
 
 function alloc(bytes)
+  @assert bytes > 0
+
   # only manage small allocations in the pool
   block = if bytes <= MAX_POOL
     pid = poolidx(bytes)
@@ -408,6 +409,7 @@ function free(ptr)
     block
   end
   bytes = sizeof(block)
+  @assert bytes > 0
 
   # was this a pooled buffer?
   if bytes <= MAX_POOL

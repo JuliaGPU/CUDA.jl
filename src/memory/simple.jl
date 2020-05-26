@@ -3,10 +3,9 @@ module SimplePool
 # simple scan into a list of free buffers
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock
+using ..CUDA: @pool_timeit, @safe_lock, NonReentrantLock
 
 using Base: @lock
-using Base.Threads: SpinLock
 
 
 ## tunables
@@ -52,7 +51,7 @@ const pool_lock = ReentrantLock()
 const pool = Set{Block}()
 
 const freed = Vector{Block}()
-const freed_lock = SpinLock()
+const freed_lock = NonReentrantLock()
 
 function scan(sz)
     @lock pool_lock for block in pool
@@ -138,7 +137,7 @@ end
 
 ## interface
 
-const allocated_lock = SpinLock()
+const allocated_lock = NonReentrantLock()
 const allocated = Dict{CuPtr{Nothing},Block}()
 
 init() = return

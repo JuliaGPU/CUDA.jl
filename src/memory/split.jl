@@ -3,12 +3,11 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock
+using ..CUDA: @pool_timeit, @safe_lock, NonReentrantLock
 
 using DataStructures
 
 using Base: @lock
-using Base.Threads: SpinLock
 
 
 ## tunables
@@ -257,7 +256,7 @@ const pool_large = SortedSet{Block}(UniqueIncreasingSize)
 const pool_huge  = SortedSet{Block}(UniqueIncreasingSize)
 
 const freed = Vector{Block}()
-const freed_lock = SpinLock()
+const freed_lock = NonReentrantLock()
 
 function size_class(sz)
     if sz <= SMALL_CUTOFF
@@ -378,7 +377,7 @@ end
 
 ## interface
 
-const allocated_lock = SpinLock()
+const allocated_lock = NonReentrantLock()
 const allocated = Dict{CuPtr{Nothing},Block}()
 
 init() = return
