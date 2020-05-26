@@ -43,6 +43,15 @@ function main()
             "Development" => Any[
                 "development/profiling.md",
             ],
+            "API" => Any[
+                "api/essentials.md",
+                "api/compiler.md",
+                "api/kernel.md",
+                "api/array.md",
+            ],
+            "Libraries" => Any[
+                "lib/driver.md",
+            ],
             "FAQ" => "faq.md",
         ]
     )
