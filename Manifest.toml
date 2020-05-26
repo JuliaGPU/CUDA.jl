@@ -43,19 +43,15 @@ version = "0.1.1"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "77773c296939fbad6bae561e22df3e89e469f957"
-repo-rev = "275848d55838e2b5fb0b4a95dfa97fe8e4548684"
-repo-url = "https://github.com/JuliaGPU/GPUArrays.jl.git"
+git-tree-sha1 = "5f90fd4385ae86ab56cdd9bd4717f7bd2ff2acdf"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "3.3.0"
+version = "3.4.0"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "fa8dafad0ce15cfee2fa51e33ad4a743c1abdcca"
-repo-rev = "2bb7f5c"
-repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
+git-tree-sha1 = "7ed10d9c41b7bb392f3e645233e45ecf93217130"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.2.0"
+version = "0.3.0"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -63,11 +59,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "9103cd73cdee311255e7645171e2e86d4d496106"
-repo-rev = "8f50e35"
-repo-url = "https://github.com/maleadt/LLVM.jl.git"
+git-tree-sha1 = "dd3f584c3dbefe39b2a8fbafa1a3b77e31e21255"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "1.4.1"
+version = "1.5.1"
 
 [[LibGit2]]
 deps = ["Printf"]
