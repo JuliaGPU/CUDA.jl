@@ -567,6 +567,9 @@ script = """
 let (code, out, err) = julia_script(script, `-g0`)
     @test code == 1
     @test occursin("ERROR: KernelException: exception thrown during kernel execution on device", err)
+    if !isempty(out)
+        @warn "Unexpected output" code out err
+    end
     @test isempty(out)
 end
 
