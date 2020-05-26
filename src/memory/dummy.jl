@@ -3,12 +3,11 @@ module DummyPool
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock
+using ..CUDA: @pool_timeit, @safe_lock, NonReentrantLock
 
 using Base: @lock
-using Base.Threads: SpinLock
 
-const allocated_lock = SpinLock()
+const allocated_lock = NonReentrantLock()
 const allocated = Dict{CuPtr{Nothing},Int}()
 
 init() = return

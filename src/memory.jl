@@ -5,17 +5,29 @@ using Logging
 using TimerOutputs
 
 using Base: @lock
-using Base.Threads: SpinLock
+
+# a simple non-reentrant lock that errors when trying to reenter on the same task
+struct NonReentrantLock <: Threads.AbstractLock
+  rl::ReentrantLock
+  NonReentrantLock() = new(ReentrantLock())
+end
+
+function Base.lock(nrl::NonReentrantLock)
+  @assert !islocked(nrl.rl) || nrl.rl.locked_by !== current_task()
+  lock(nrl.rl)
+end
+
+Base.unlock(nrl::NonReentrantLock) = unlock(nrl.rl)
 
 # global lock for shared object dicts (allocated, requested).
 # stats are not covered by this and cannot be assumed to be exact.
 # each allocator needs to lock its own resources separately too.
-const memory_lock = SpinLock()
+const memory_lock = NonReentrantLock()
 
-# the above spinlocks are taken around code that might gc, which might cause a deadlock
-# if we try to acquire from the finalizer too. avoid that by temporarily disabling running finalizers,
-# concurrently on this thread.
-enable_finalizers(on::Bool) = ccall(:jl_gc_enable_finalizers, Cvoid, (Ptr{Cvoid}, Int32,), Core.getptls(), on)
+# the above lock is taken around code that might gc, which might reenter through finalizers.
+# avoid that by temporarily disabling finalizers running concurrently on this thread.
+enable_finalizers(on::Bool) = ccall(:jl_gc_enable_finalizers, Cvoid,
+                                    (Ptr{Cvoid}, Int32,), Core.getptls(), on)
 macro safe_lock(l, ex)
   quote
     temp = $(esc(l))
