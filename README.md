@@ -41,7 +41,7 @@ For usage instructions and other information, please refer to the documentation 
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia `1.3` and above. Main
+The package is tested against, and being developed for, Julia `1.4` and above. Main
 development and testing happens on Linux, but the package is expected to work on macOS and
 Windows as well.
 
