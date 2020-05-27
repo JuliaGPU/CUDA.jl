@@ -1729,6 +1729,7 @@ end
         A = sparse(rand(elty,m,k))
         B = rand(elty,k,n)
         C = rand(elty,m,n)
+        Bᵀ = collect(transpose(B))
         alpha = rand(elty)
         beta = rand(elty)
         @testset "csr" begin
@@ -1744,6 +1745,12 @@ end
             h_C = collect(d_C)
             D = A * B
             @test D ≈ h_C
+            d_Bᵀ = CuArray(Bᵀ)
+            d_C = CuArray(C)
+            mul!(d_C, d_A, transpose(d_Bᵀ))
+            h_C = collect(d_C)
+            D = A * transpose(Bᵀ)
+            @test D ≈ h_C
         end
         @testset "csc" begin
             d_B = CuArray(B)
@@ -1758,6 +1765,9 @@ end
             h_C = collect(d_C)
             D = A * B
             @test D ≈ h_C
+            d_Bᵀ = CuArray(Bᵀ)
+            d_C = CuArray(C)
+            @test_throws CUSPARSEError mul!(d_C, d_A, transpose(d_Bᵀ))
         end
     end
 end
