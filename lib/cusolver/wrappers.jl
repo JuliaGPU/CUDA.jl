@@ -325,6 +325,43 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
     end
 end
 
+## potri
+for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :Float32),
+                     (:cusolverDnDpotri_bufferSize, :cusolverDnDpotri, :Float64),
+                     (:cusolverDnCpotri_bufferSize, :cusolverDnCpotri, :ComplexF32),
+                     (:cusolverDnZpotri_bufferSize, :cusolverDnZpotri, :ComplexF64))
+@eval begin
+    function LinearAlgebra.LAPACK.potri!(uplo::Char,
+                    A::CuMatrix{$elty})
+
+           cuuplo  = cublasfill(uplo)
+           n       = checksquare(A)
+           lda     = max(1, stride(A, 2))
+           devinfo = CuArray{Cint}(undef, 1)
+
+           @workspace eltyp=$elty size=@argout(
+                   $bname(dense_handle(), cuuplo, n, A, lda, out(Ref{Cint}(0)))
+               )[] buffer->begin
+                   $fname(dense_handle(), cuuplo, n, A, lda, buffer, length(buffer), devinfo)
+               end
+
+           info = @allowscalar devinfo[1]
+           unsafe_free!(devinfo)
+           chkargsok(BlasInt(info))
+
+           A
+        end
+    end
+end
+"""
+    potri!(uplo::Char, A::CuMatrix)
+
+!!! note
+
+    `potri!` requires CUDA >= 10.1
+"""
+LinearAlgebra.LAPACK.potri!(uplo::Char, A::CuMatrix)
+
 #getrf
 for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :Float32),
                             (:cusolverDnDgetrf_bufferSize, :cusolverDnDgetrf, :Float64),
