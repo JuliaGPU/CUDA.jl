@@ -923,33 +923,37 @@ end
 
 @testset "gemm" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,k))
-        B = sparse(rand(elty,k,n))
-        C = A * B
-        d_A = CuSparseMatrixCSR(A)
-        d_B = CuSparseMatrixCSR(B)
+        # CSR
+        A = sparse(rand(elty,m,k)); d_A = CuSparseMatrixCSR(A)
+        B = sparse(rand(elty,k,n)); d_B = CuSparseMatrixCSR(B)
         d_C = CUSPARSE.gemm('N','N',d_A,d_B,'O','O','O')
-        r_r = collect(d_C.rowPtr)
-        r_c = collect(d_C.colVal)
-        r_v = collect(d_C.nzVal)
-        h_C = collect(d_C)
-        @test C ≈ h_C
+        @test A * B ≈ collect(d_C)
+        #
         @test_throws DimensionMismatch CUSPARSE.gemm('N','T',d_A,d_B,'O','O','O')
         @test_throws DimensionMismatch CUSPARSE.gemm('T','T',d_A,d_B,'O','O','O')
         @test_throws DimensionMismatch CUSPARSE.gemm('T','N',d_A,d_B,'O','O','O')
         @test_throws DimensionMismatch CUSPARSE.gemm('N','N',d_B,d_A,'O','O','O')
-        #=A = sparse(rand(elty,m,k))
-        B = sparse(rand(elty,k,n))
-        d_A = CuSparseMatrixCSC(A)
-        d_B = CuSparseMatrixCSC(B)
-        C = A * B
+        #
+        A = sparse(rand(elty,m,k)); d_A = CuSparseMatrixCSR(A)
+        B = sparse(rand(elty,n,k)); d_B = CuSparseMatrixCSR(B)
+        d_C = CUSPARSE.gemm('N','T',d_A,d_B,'O','O','O')
+        @test A * transpose(B) ≈ collect(d_C)
+
+        # CSC
+        A = sparse(rand(elty,m,k)); d_A = CuSparseMatrixCSC(A)
+        B = sparse(rand(elty,k,n)); d_B = CuSparseMatrixCSC(B)
         d_C = CUSPARSE.gemm('N','N',d_A,d_B,'O','O','O')
-        h_C = collect(d_C)
-        @test_approx_eq(C,h_C)
+        @test A * B ≈ collect(d_C)
+        #
         @test_throws(DimensionMismatch,CUSPARSE.gemm('N','T',d_A,d_B,'O','O','O'))
         @test_throws(DimensionMismatch,CUSPARSE.gemm('T','T',d_A,d_B,'O','O','O'))
         @test_throws(DimensionMismatch,CUSPARSE.gemm('T','N',d_A,d_B,'O','O','O'))
-        @test_throws(DimensionMismatch,CUSPARSE.gemm('N','N',d_B,d_A,'O','O','O'))=#
+        @test_throws(DimensionMismatch,CUSPARSE.gemm('N','N',d_B,d_A,'O','O','O'))
+        #
+        A = sparse(rand(elty,m,k)); d_A = CuSparseMatrixCSC(A)
+        B = sparse(rand(elty,n,k)); d_B = CuSparseMatrixCSC(B)
+        d_C = CUSPARSE.gemm('N','T',d_A,d_B,'O','O','O')
+        @test A * transpose(B) ≈ collect(d_C)
     end
 end
 
