@@ -155,6 +155,12 @@ end
 
 # add workers
 const test_exeflags = Base.julia_cmd()
+filter!(test_exeflags.exec) do c
+    return !(startswith(c, "--depwarn") || startswith(c, "--check-bounds"))
+end
+push!(test_exeflags.exec, "--check-bounds=yes")
+push!(test_exeflags.exec, "--startup-file=no")
+push!(test_exeflags.exec, "--depwarn=error")
 if Base.JLOptions().project != C_NULL
     push!(test_exeflags.exec, "--project=$(unsafe_string(Base.JLOptions().project))")
 end
