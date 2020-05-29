@@ -1,6 +1,6 @@
 name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "0.1.0"
+version = "1.0.0"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
