@@ -1830,6 +1830,7 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
                      (:cusparseCcsrgemm, :ComplexF32),
                      (:cusparseZcsrgemm, :ComplexF64))
     @eval begin
+        # CSR GEMM
         function gemm(transa::SparseChar,
                       transb::SparseChar,
                       A::CuSparseMatrixCSR{$elty},
@@ -1841,7 +1842,7 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
             cutransb = cusparseop(transb)
             cuinda   = cusparseindex(indexA)
             cuindb   = cusparseindex(indexB)
-            cuindc   = cusparseindex(indexB)
+            cuindc   = cusparseindex(indexC)
             cudesca  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             cudescb  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindb)
             cudescc  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
@@ -1865,15 +1866,8 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
                    C.rowPtr, C.colVal)
             C
         end
-    end
-end
 
-#CSC GEMM
-for (fname,elty) in ((:cusparseScsrgemm, :Float32),
-                     (:cusparseDcsrgemm, :Float64),
-                     (:cusparseCcsrgemm, :ComplexF32),
-                     (:cusparseZcsrgemm, :ComplexF64))
-    @eval begin
+        # CSC GEMM, these methods are implemented via the CUSPARSE CSR methods
         function gemm(transa::SparseChar,
                       transb::SparseChar,
                       A::CuSparseMatrixCSC{$elty},
@@ -1881,41 +1875,32 @@ for (fname,elty) in ((:cusparseScsrgemm, :Float32),
                       indexA::SparseChar,
                       indexB::SparseChar,
                       indexC::SparseChar)
-            ctransa = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            cutransa = cusparseop(ctransa)
-            ctransb = 'N'
-            if transb == 'N'
-                ctransb = 'T'
-            end
-            cutransb = cusparseop(ctransb)
+            cutransa = cusparseop(transa == 'N' ? 'T' : 'N')
+            cutransb = cusparseop(transb == 'N' ? 'T' : 'N')
             cuinda   = cusparseindex(indexA)
             cuindb   = cusparseindex(indexB)
-            cuindc   = cusparseindex(indexB)
+            cuindc   = cusparseindex(indexC)
             cudesca  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
             cudescb  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindb)
             cudescc  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
-            m,k  = ctransa != 'N' ? A.dims : (A.dims[2],A.dims[1])
-            kB,n = ctransb != 'N' ? B.dims : (B.dims[2],B.dims[1])
+            m,k  = transa == 'N' ? A.dims : (A.dims[2],A.dims[1])
+            kB,n = transb == 'N' ? B.dims : (B.dims[2],B.dims[1])
             if k != kB
                 throw(DimensionMismatch("Interior dimension of A, $k, and B, $kB, must match"))
             end
             nnzC = Ref{Cint}(1)
-            colPtrC = CUDA.zeros(Cint,n + 1)
-            cusparseXcsrgemmNnz(handle(), cutransa, cutransb,
-                                m, n, k, Ref(cudesca), A.nnz, A.colPtr, A.rowVal,
-                                Ref(cudescb), B.nnz, B.colPtr, B.rowVal, Ref(cudescc),
-                                colPtrC, nnzC)
+            rowPtrC = CUDA.zeros(Cint,m + 1)
+            cusparseXcsrgemmNnz(handle(), cutransa, cutransb, m, n, k,
+                                Ref(cudesca), A.nnz, A.colPtr, A.rowVal,
+                                Ref(cudescb), B.nnz, B.colPtr, B.rowVal,
+                                Ref(cudescc), rowPtrC, nnzC)
             nnz = nnzC[]
-            C = CuSparseMatrixCSC(colPtrC, CUDA.zeros(Cint,nnz), CUDA.zeros($elty,nnz), nnz, (m,n))
-            $fname(handle(), cutransa,
-                   cutransb, m, n, k, Ref(cudesca), A.nnz, A.nzVal,
-                   A.colPtr, A.rowVal, Ref(cudescb), B.nnz, B.nzVal,
-                   B.colPtr, B.rowVal, Ref(cudescc), C.nzVal,
-                   C.colPtr, C.rowVal)
-            C
+            C = CuSparseMatrixCSR(rowPtrC, CUDA.zeros(Cint,nnz), CUDA.zeros($elty,nnz), nnz, (m,n))
+            $fname(handle(), cutransa, cutransb, m, n, k,
+                   Ref(cudesca), A.nnz, A.nzVal, A.colPtr, A.rowVal,
+                   Ref(cudescb), B.nnz, B.nzVal, B.colPtr, B.rowVal,
+                   Ref(cudescc), C.nzVal, C.rowPtr, C.colVal)
+            return C
         end
     end
 end
