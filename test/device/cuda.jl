@@ -404,7 +404,7 @@ end
     end
 
     _, out = @grab_output @on_device use_cushow()
-    @test out == "seven_i32 = 7\nthree_f64 = 3.000000\n1.0f0 + 4.0f0 = 5.000000\n"
+    @test out == "seven_i32 = 7$(endline)three_f64 = 3.000000$(endline)1.0f0 + 4.0f0 = 5.000000$(endline)"
 end
 
 
