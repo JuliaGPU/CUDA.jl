@@ -10,6 +10,7 @@ Random.seed!(rng, 1, 0)
 
 # in-place
 for (f,T) in ((rand!,Float32),
+              (rand!,Cuint),
               (randn!,Float32),
               (rand_logn!,Float32),
               (rand_poisson!,Cuint)),
