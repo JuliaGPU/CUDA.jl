@@ -49,6 +49,13 @@ GPUArrays.blockdim(ctx::CuKernelContext) = CUDA.blockDim().x
 GPUArrays.threadidx(ctx::CuKernelContext) = CUDA.threadIdx().x
 GPUArrays.griddim(ctx::CuKernelContext) = CUDA.gridDim().x
 
+# math
+
+@inline GPUArrays.cos(ctx::CuKernelContext, x) = CUDA.cos(x)
+@inline GPUArrays.sin(ctx::CuKernelContext, x) = CUDA.sin(x)
+@inline GPUArrays.sqrt(ctx::CuKernelContext, x) = CUDA.sqrt(x)
+@inline GPUArrays.log(ctx::CuKernelContext, x) = CUDA.log(x)
+
 # memory
 
 @inline function GPUArrays.LocalMemory(::CuKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}
