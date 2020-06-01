@@ -426,4 +426,34 @@ k = 1
         @test Array(h_r) ≈ Array(r)
     end
 
+    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "potrfBatched!" begin
+            # Test lower
+            A = rand(elty, m, m, n)
+            A .*= permutedims(A, (2, 1, 3))
+            d_A = CuArray(A)
+
+            d_A, info = CUSOLVER.potrfBatched!('L', d_A)
+            h_A = collect(d_A)
+
+            for i = 1:n
+                LinearAlgebra.LAPACK.potrf!('U', A[:,:,i])
+                @test A[:,:,i] ≈ h_A[:,i]
+            end
+
+            # Test upper
+            A = rand(elty, m, m, n)
+            A .*= permutedims(A, (2, 1, 3))
+            d_A = CuArray(A)
+
+            d_A, info = CUSOLVER.potrfBatched!('U', d_A)
+            h_A = collect(d_A)
+
+            for i = 1:n
+                LinearAlgebra.LAPACK.potrf!('U', A[:,:,i])
+                @test A[:,:,i] ≈ h_A[:,i]
+            end
+        end
+    end
+
 end

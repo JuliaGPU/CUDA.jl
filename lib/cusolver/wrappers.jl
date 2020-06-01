@@ -918,3 +918,40 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
         end
     end
 end
+
+for (jname, fname, elty) in ((:potrfBatched!, :cusolverDnSpotrfBatched, :Float32),
+                             (:potrfBatched!, :cusolverDnDpotrfBatched, :Float64),
+                             (:potrfBatched!, :cusolverDnCpotrfBatched, :ComplexF32),
+                             (:potrfBatched!, :cusolverDnZpotrfBatched, :ComplexF64)
+                             )
+    @eval begin
+        function $jname(uplo::Char, A::CuArray{$elty})
+
+            # Set up information for the solver arguments
+            cuuplo  = cublasfill(uplo)
+            n       = checksquare(A)
+            lda     = max(1, stride(A, 2))
+            batchSize = size(A, 3)
+            devinfo = CuArray{Cint}(undef, batchSize)
+
+            # Run the solver
+            $fname(dense_handle(), cuuplo, n, A, lda, devinfo, batchSize)
+
+            # Copy the solver info and delete the device memory
+            info = @allowscalar collect(devinfo)
+            unsafe_free!(devinfo)
+
+            # Double check the solver's exit status
+            for i = 1:batchSize
+                if info[i] < 0
+                    throw(ArgumentError("The $(info)th parameter of the $(i)th solver is wrong"))
+                end
+            end
+
+            # info[i] > 0 means the leading minor of order info[i] is not positive definite
+            # LinearAlgebra.LAPACK does not throw Exception here
+            # to simplify calls to isposdef! and factorize
+            return A, info
+        end
+    end
+end
