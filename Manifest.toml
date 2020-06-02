@@ -8,9 +8,11 @@ version = "0.5.0"
 
 [[Adapt]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "fd04049c7dd78cfef0b06cdc1f0f181467655712"
+git-tree-sha1 = "9e31b9f5d3f9b5ec32c1d01fd8c05270bad10dc0"
+repo-rev = "a62a2568f1199d0e7b154eb6001afa629d31038e"
+repo-url = "https://github.com/JuliaGPU/Adapt.jl.git"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "1.1.0"
+version = "2.0.0"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -43,8 +45,8 @@ version = "0.1.1"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "913e085e50a72b24dff205b8c2f2f4cd1d993cda"
-repo-rev = "0ef389c8ff29b6629d9e5d155a44defd6796c9ef"
+git-tree-sha1 = "239920677937f12e19309a32832db4d702d1279f"
+repo-rev = "7dac60b78f9716112c381e73b8d737d6f7c62f8c"
 repo-url = "https://github.com/JuliaGPU/GPUArrays.jl.git"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 version = "3.4.1"
