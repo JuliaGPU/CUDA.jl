@@ -256,9 +256,9 @@ end
 
 using LinearAlgebra
 using LinearAlgebra: BlasInt, checksquare
-using LinearAlgebra.LAPACK: chkargsok
+using LinearAlgebra.LAPACK: chkargsok, chklapackerror
 
-using ..CUBLAS: cublasfill, cublasop, cublasside
+using ..CUBLAS: cublasfill, cublasop, cublasside, unsafe_batch
 
 function cusolverDnCreate()
   handle = Ref{cusolverDnHandle_t}()
@@ -915,6 +915,62 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             elseif jobz == 'V'
                 return W, A
             end
+        end
+    end
+end
+
+for (jname, fname, elty) in ((:potrsBatched!, :cusolverDnSpotrsBatched, :Float32),
+                             (:potrsBatched!, :cusolverDnDpotrsBatched, :Float64),
+                             (:potrsBatched!, :cusolverDnCpotrsBatched, :ComplexF32),
+                             (:potrsBatched!, :cusolverDnZpotrsBatched, :ComplexF64)
+                             )
+    @eval begin
+        # cusolverStatus_t
+        # cusolverDnSpotrsBatched(
+        #     cusolverDnHandle_t handle,
+        #     cublasFillMode_t uplo,
+        #     int n,
+        #     int nrhs,
+        #     float *Aarray[],
+        #     int lda,
+        #     float *Barray[],
+        #     int ldb,
+        #     int *info,
+        #     int batchSize);
+        function $jname(uplo::Char, A::Vector{<:CuMatrix{$elty}}, B::Vector{<:CuVecOrMat{$elty}})
+            if length(A) != length(B)
+                throw(DimensionMismatch(""))
+            end
+            # Set up information for the solver arguments
+            cuuplo = cublasfill(uplo)
+            n = checksquare(A[1])
+            if size(B[1], 1) != n
+                throw(DimensionMismatch("first dimension of B[i], $(size(B[1],1)), must match second dimension of A, $n"))
+            end
+            nrhs = size(B[1], 2)
+            # cuSOLVER's Remark 1: only nrhs=1 is supported.
+            if nrhs != 1
+                throw(ArgumentError("cuSOLVER only supports vectors for B"))
+            end
+            lda = max(1, stride(A[1], 2))
+            ldb = max(1, stride(B[1], 2))
+            batchSize = length(A)
+            devinfo = CuArray{Cint}(undef, 1)
+
+            Aptrs = unsafe_batch(A)
+            Bptrs = unsafe_batch(B)
+
+            # Run the solver
+            $fname(dense_handle(), cuuplo, n, nrhs, Aptrs, lda, Bptrs, ldb, devinfo, batchSize)
+
+            # Copy the solver info and delete the device memory
+            info = @allowscalar devinfo[1]
+            unsafe_free!(devinfo)
+            if info < 0
+                throw(ArgumentError("The $(info)th parameter is wrong"))
+            end
+
+            return B
         end
     end
 end
