@@ -1707,14 +1707,18 @@ for (fname, elty) in
             if length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
+            m,n = size(A[1])
+            mC,nC = size(C[1])
+            if mC ≠ m
+                throw(DimensionMismatch(""))
+            end
             for (As,Cs) in zip(A,C)
-                m,n = size(As)
-                mC,nC = size(Cs)
-                if n != mC
-                    throw(DimensionMismatch(""))
+                ms,ns = size(As)
+                mCs,nCs = size(Cs)
+                if (ms≠m) || (mCs≠mC) || (ns≠n) || (nCs≠nC)
+                    throw(DimensionMismatch("dimensions of arrays must be the same"))
                 end
             end
-            m,n = size(A[1])
             if m < n
                 throw(ArgumentError("System must be overdetermined"))
             end
