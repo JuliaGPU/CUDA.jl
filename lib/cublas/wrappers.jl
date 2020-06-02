@@ -1709,14 +1709,14 @@ for (fname, elty) in
             end
             m,n = size(A[1])
             mC,nC = size(C[1])
-            if mC ≠ m
-                throw(DimensionMismatch(""))
+            if mC != m
+                throw(DimensionMismatch("Leading dimensions of arrays must match"))
             end
             for (As,Cs) in zip(A,C)
                 ms,ns = size(As)
                 mCs,nCs = size(Cs)
-                if (ms≠m) || (mCs≠mC) || (ns≠n) || (nCs≠nC)
-                    throw(DimensionMismatch("dimensions of arrays must be the same"))
+                if (size(As) != (m, n)) || (size(Cs) != (mC, nC))
+                    throw(DimensionMismatch("Dimensions of batched array entries must be invariant"))
                 end
             end
             if m < n
