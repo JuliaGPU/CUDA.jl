@@ -1743,7 +1743,7 @@ for (fname, elty) in
         function gels_batched(trans::Char,
                              A::Vector{<:CuMatrix{$elty}},
                              C::Vector{<:CuMatrix{$elty}})
-            gels_batched!(trans, copy(A), copy(C))
+            gels_batched!(trans, deepcopy(A), deepcopy(C))
         end
     end
 end
