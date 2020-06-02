@@ -444,7 +444,15 @@ end # level 1 testset
             @test_throws ArgumentError mul!(dhA, dhA, dsA)
             @test_throws DimensionMismatch mul!(d_C1, d_A, dsA)
         end
-
+        if capability(device()) > v"5.0"
+            @testset "gemmEx!" begin
+                CUBLAS.gemmEx!('N','N',alpha,d_A,d_B,beta,d_C1;algo=CUBLAS.CUBLAS_GEMM_DEFAULT_TENSOR_OP)
+                h_C1 = Array(d_C1)
+                C1 = (alpha*A)*B + beta*C1
+                # compare
+                @test C1 ≈ h_C1
+            end
+        end
         @testset "gemm" begin
             d_C = CUBLAS.gemm('N','N',d_A,d_B)
             C = A*B
