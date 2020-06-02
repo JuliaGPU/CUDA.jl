@@ -258,7 +258,7 @@ using LinearAlgebra
 using LinearAlgebra: BlasInt, checksquare
 using LinearAlgebra.LAPACK: chkargsok
 
-using ..CUBLAS: cublasfill, cublasop, cublasside
+using ..CUBLAS: cublasfill, cublasop, cublasside, unsafe_batch
 
 function cusolverDnCreate()
   handle = Ref{cusolverDnHandle_t}()
@@ -925,17 +925,28 @@ for (jname, fname, elty) in ((:potrfBatched!, :cusolverDnSpotrfBatched, :Float32
                              (:potrfBatched!, :cusolverDnZpotrfBatched, :ComplexF64)
                              )
     @eval begin
-        function $jname(uplo::Char, A::CuArray{$elty})
+        # cusolverStatus_t
+        # cusolverDnSpotrfBatched(
+        #     cusolverDnHandle_t handle,
+        #     cublasFillMode_t uplo,
+        #     int n,
+        #     float *Aarray[],
+        #     int lda,
+        #     int *infoArray,
+        #     int batchSize);
+        function $jname(uplo::Char, A::Vector{<:CuMatrix{$elty}})
 
             # Set up information for the solver arguments
-            cuuplo  = cublasfill(uplo)
-            n       = checksquare(A)
-            lda     = max(1, stride(A, 2))
-            batchSize = size(A, 3)
+            cuuplo = cublasfill(uplo)
+            n = checksquare(A[1])
+            lda = max(1, stride(A[1], 2))
+            batchSize = length(A)
             devinfo = CuArray{Cint}(undef, batchSize)
 
+            Aptrs = unsafe_batch(A)
+
             # Run the solver
-            $fname(dense_handle(), cuuplo, n, A, lda, devinfo, batchSize)
+            $fname(dense_handle(), cuuplo, n, Aptrs, lda, devinfo, batchSize)
 
             # Copy the solver info and delete the device memory
             info = @allowscalar collect(devinfo)

@@ -426,32 +426,43 @@ k = 1
         @test Array(h_r) ≈ Array(r)
     end
 
-    @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        @testset "potrfBatched!" begin
+    @testset "potrfBatched!" begin
+        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
             # Test lower
-            A = rand(elty, m, m, n)
-            A .*= permutedims(A, (2, 1, 3))
-            d_A = CuArray(A)
+            bA = [rand(elty, m, m) for i in 1:n]
+            bA = [bA[i]*bA[i]' for i in 1:n]
 
-            d_A, info = CUSOLVER.potrfBatched!('L', d_A)
-            h_A = collect(d_A)
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            for i in 1:length(bA)
+                push!(bd_A, CuArray(bA[i]))
+            end
+
+            bd_A, info = CUSOLVER.potrfBatched!('L', bd_A)
+            bh_A = [collect(bd_A[i]) for i in 1:n]
 
             for i = 1:n
-                LinearAlgebra.LAPACK.potrf!('U', A[:,:,i])
-                @test A[:,:,i] ≈ h_A[:,i]
+                LinearAlgebra.LAPACK.potrf!('L', bA[i])
+                @test bA[i] ≈ bh_A[i]
             end
 
             # Test upper
-            A = rand(elty, m, m, n)
-            A .*= permutedims(A, (2, 1, 3))
-            d_A = CuArray(A)
+            bA = [rand(elty, m, m) for i in 1:n]
+            bA = [bA[i]*bA[i]' for i in 1:n]
 
-            d_A, info = CUSOLVER.potrfBatched!('U', d_A)
-            h_A = collect(d_A)
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            for i in 1:length(bA)
+                push!(bd_A, CuArray(bA[i]))
+            end
+
+            bd_A, info = CUSOLVER.potrfBatched!('U', bd_A)
+            bh_A = [collect(bd_A[i]) for i in 1:n]
 
             for i = 1:n
-                LinearAlgebra.LAPACK.potrf!('U', A[:,:,i])
-                @test A[:,:,i] ≈ h_A[:,i]
+                LinearAlgebra.LAPACK.potrf!('U', bA[i])
+                # cuSOLVER seems to return symmetric/hermitian matrix when using 'U'
+                @test Hermitian(bA[i]) ≈ bh_A[i]
             end
         end
     end
