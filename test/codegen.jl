@@ -62,11 +62,6 @@ end
     @test !occursin("@__nv_fmaf", ir)
 end
 
-@testset "reinterpret(Nothing, nothing)" begin
-    kernel(ptr) = Base.unsafe_load(ptr)
-    CUDA.code_llvm(devnull, kernel, Tuple{CUDA.DevicePtr{Nothing,CUDA.AS.Global}}; strict=true)
-end
-
 @testset "ldg" begin
     ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{CUDA.DevicePtr{Int,CUDA.AS.Global},Int,Val{1}}))
     @test occursin("@llvm.nvvm.ldg", ir)

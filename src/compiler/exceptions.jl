@@ -18,19 +18,15 @@ end
 # since we don't actually support globals, access to this variable is done by calling the
 # julia_exception_flag function (lowered here to actual accesses of the variable)
 function emit_exception_flag!(mod::LLVM.Module)
-    # add the global variable if it doesn't exist yet (might have come from the runtime)
-    # TODO: get!
-    if !haskey(globals(mod), "exception_flag")
-        T_ptr = convert(LLVMType, Ptr{Cvoid})
-        gv = GlobalVariable(mod, T_ptr, "exception_flag")
-        initializer!(gv, LLVM.ConstantInt(T_ptr, 0))
-        linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
-        extinit!(gv, true)
+    @assert !haskey(globals(mod), "exception_flag")
 
-        set_used!(mod, gv)
-    else
-        gv = globals(mod)["exception_flag"]
-    end
+    # add the global variable
+    T_ptr = convert(LLVMType, Ptr{Cvoid})
+    gv = GlobalVariable(mod, T_ptr, "exception_flag")
+    initializer!(gv, LLVM.ConstantInt(T_ptr, 0))
+    linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
+    extinit!(gv, true)
+    set_used!(mod, gv)
 
     # lower uses of the getter
     if haskey(functions(mod), "julia_exception_flag")

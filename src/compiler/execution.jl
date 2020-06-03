@@ -305,7 +305,7 @@ function _cufunction(source::FunctionSpec; kwargs...)
     target = PTXCompilerTarget(; cap=supported_capability(dev), kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
-    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, job; strict=true)
+    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, job)
 
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{CUjit_option,Any}()

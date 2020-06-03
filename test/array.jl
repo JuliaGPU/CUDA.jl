@@ -77,32 +77,11 @@ end
     @test view(x, 1:2:5, 1, 1) isa SubArray
   end
 
-  # non-contiguous copyto!
-  let x = CUDA.rand(4, 4)
-    y = view(x, 2:3, 2:3)
-
-    # to gpu
-    gpu = CuArray{eltype(y)}(undef, size(y))
-    copyto!(gpu, y)
-    @test Array(gpu) == Array(y)
-
-    # to cpu
-    cpu = Array{eltype(y)}(undef, size(y))
-    copyto!(cpu, y)
-    @test cpu == Array(y)
-  end
-
   # bug in parentindices conversion
   let x = CuArray{Int}(undef, 1, 1)
     x[1,:] .= 42
     @test Array(x)[1,1] == 42
   end
-
-  # bug in copyto!
-  ## needless N type parameter
-  @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(2,2))
-  ## inability to copyto! smaller destination
-  @test testf((x,y)->copyto!(y, selectdim(x, 2, 1)), ones(2,2,2), zeros(3,3))
 
   # but in conversion of indices (#506)
   show(devnull, cu(view(ones(1), [1])))
