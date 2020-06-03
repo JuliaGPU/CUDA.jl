@@ -829,6 +829,33 @@ for (fname, elty) in
     end
 end
 
+# GemmEx, with tensor cores
+function gemmEx!(transA::Char,
+                 transB::Char,
+                 alpha::Number,
+               A::CuVecOrMat,
+               B::CuVecOrMat,
+               beta::Number,
+               C::CuVecOrMat; algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
+    m = size(A, transA == 'N' ? 1 : 2)
+    k = size(A, transA == 'N' ? 2 : 1)
+    n = size(B, transB == 'N' ? 2 : 1)
+    if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
+        throw(DimensionMismatch(""))
+    end
+    cutransA = cublasop(transA)
+    cutransB = cublasop(transB)
+    lda = max(1,stride(A,2))
+    ldb = max(1,stride(B,2))
+    ldc = max(1,stride(C,2))
+    computeType = cudaDataType(eltype(C))
+    Atype = cudaDataType(eltype(A))
+    Btype = cudaDataType(eltype(B))
+    Ctype = cudaDataType(eltype(C))
+    cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [convert(eltype(C), alpha)], A, Atype, lda, B, Btype, ldb, [convert(eltype(C), beta)], C, Ctype, ldc, computeType, algo)
+    C
+end
+
 # create a batch of pointers in device memory from a batch of device arrays
 @inline function unsafe_batch(batch::Vector{<:CuArray{T}}) where {T}
     ptrs = pointer.(batch)
