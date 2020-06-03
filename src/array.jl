@@ -245,7 +245,7 @@ Base.unsafe_convert(::Type{CuPtr{S}}, x::CuArray{T}) where {S,T} = convert(CuPtr
 ## interop with device arrays
 
 function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(a.dims, DevicePtr{T,AS.Global}(pointer(a)))
+  CuDeviceArray{T,N,AS.Global}(a.dims, reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
 end
 
 Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =

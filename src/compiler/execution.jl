@@ -120,7 +120,8 @@ end
 struct Adaptor end
 
 # convert CUDA host pointers to device pointers
-Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = DevicePtr{T,AS.Generic}(p)
+# TODO: use ordinary ptr?
+Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}

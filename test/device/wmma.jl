@@ -31,14 +31,14 @@ using CUDA.WMMA
             result     = Array{Bool}(undef, 1)
             result_dev = CuArray(result)
 
-            @eval @inbounds function kernel(input_dev, result_dev)
+            @eval @inbounds function kernel(input_ptr, result_dev)
                 if $do_shared_test
                     input_shared = @cuStaticSharedMem($array_ty, 256)
                     fill!(input_shared, 42)
 
                     data = $func(pointer(input_shared), 16)
                 else
-                    data = $func(pointer(input_dev), 16)
+                    data = $func(input_ptr, 16)
                 end
 
                 result_dev[1] = all(val -> val == $expected, data)
@@ -46,7 +46,17 @@ using CUDA.WMMA
                 return
             end
 
-            @cuda threads=32 kernel(input_dev, result_dev)
+            # FIXME: make the intrinsics dispatch on the address-space
+            #        (but how to test AS.Generic then, since CuArray adapts to a global ptr?)
+            input_ptr = if addr_space == ""
+                reinterpret(Core.LLVMPtr{array_ty,AS.Generic}, pointer(input_dev))
+            elseif addr_space == "_global"
+                reinterpret(Core.LLVMPtr{array_ty,AS.Global}, pointer(input_dev))
+            else
+                nothing
+            end
+
+            @cuda threads=32 kernel(input_ptr, result_dev)
             @test all(Array(result_dev))
         end
     end
@@ -72,7 +82,7 @@ using CUDA.WMMA
             output     = Array{array_ty}(undef, (16, 16))
             output_dev = CuArray(output)
 
-            @eval function kernel(output_dev)
+            @eval function kernel(output_dev, output_ptr)
                 if $do_shared_test
                     shared_mem = @cuStaticSharedMem($array_ty, 256)
                     $func(pointer(shared_mem), $data, 16)
@@ -81,13 +91,23 @@ using CUDA.WMMA
                         @inbounds output_dev[i] = shared_mem[i]
                     end
                 else
-                    $func(pointer(output_dev), $data, 16)
+                    $func(output_ptr, $data, 16)
                 end
 
                 return
             end
 
-            @cuda threads=32 kernel(output_dev)
+            # FIXME: make the intrinsics dispatch on the address-space
+            #        (but how to test AS.Generic then, since CuArray adapts to a global ptr?)
+            output_ptr = if addr_space == ""
+                reinterpret(Core.LLVMPtr{array_ty,AS.Generic}, pointer(output_dev))
+            elseif addr_space == "_global"
+                reinterpret(Core.LLVMPtr{array_ty,AS.Global}, pointer(output_dev))
+            else
+                nothing
+            end
+
+            @cuda threads=32 kernel(output_dev, output_ptr)
             @test all(Array(output_dev) .== 42.0)
         end
     end
@@ -104,11 +124,11 @@ using CUDA.WMMA
             c_ty = c_elem_type == "f16" ? Float16 : Float32
 
             # Get the function names
-            lda_func = getfield(Main, Symbol("llvm_wmma_load_a_$(a_layout)_m16n16k16_stride_f16"))
-            ldb_func = getfield(Main, Symbol("llvm_wmma_load_b_$(b_layout)_m16n16k16_stride_f16"))
-            ldc_func = getfield(Main, Symbol("llvm_wmma_load_c_col_m16n16k16_stride_$(c_elem_type)"))
+            lda_func = getfield(Main, Symbol("llvm_wmma_load_a_$(a_layout)_m16n16k16_global_stride_f16"))
+            ldb_func = getfield(Main, Symbol("llvm_wmma_load_b_$(b_layout)_m16n16k16_global_stride_f16"))
+            ldc_func = getfield(Main, Symbol("llvm_wmma_load_c_col_m16n16k16_global_stride_$(c_elem_type)"))
             mma_func = getfield(Main, Symbol("llvm_wmma_mma_$(a_layout)_$(b_layout)_m16n16k16_$(d_elem_type)_$(c_elem_type)"))
-            std_func = getfield(Main, Symbol("llvm_wmma_store_d_col_m16n16k16_stride_$(d_elem_type)"))
+            std_func = getfield(Main, Symbol("llvm_wmma_store_d_col_m16n16k16_global_stride_$(d_elem_type)"))
 
             # Generate input matrices
             a     = rand(Float16, (16, 16))
