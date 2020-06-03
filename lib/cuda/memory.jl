@@ -380,13 +380,13 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
 
     params_ref = Ref(CUDA.CUDA_MEMCPY3D(
         # source
-        srcPos.x-1, srcPos.y-1, srcPos.z-1,
+        (srcPos.x-1)*sizeof(T), srcPos.y-1, srcPos.z-1,
         0, # LOD
         srcMemoryType, srcHost, srcDevice, srcArray,
         C_NULL, # reserved
         srcPitch, srcHeight,
         # destination
-        dstPos.x-1, dstPos.y-1, dstPos.z-1,
+        (dstPos.x-1)*sizeof(T), dstPos.y-1, dstPos.z-1,
         0, # LOD
         dstMemoryType, dstHost, dstDevice, dstArray,
         C_NULL, # reserved
