@@ -966,9 +966,7 @@ for (jname, fname, elty) in ((:potrsBatched!, :cusolverDnSpotrsBatched, :Float32
             # Copy the solver info and delete the device memory
             info = @allowscalar devinfo[1]
             unsafe_free!(devinfo)
-            if info < 0
-                throw(ArgumentError("The $(info)th parameter is wrong"))
-            end
+            chklapackerror(BlasInt(info))
 
             return B
         end
