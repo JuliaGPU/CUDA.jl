@@ -36,7 +36,6 @@ julia:1.5:
     - .test
   tags:
     - nvidia
-  allow_failure: true
 
 julia:nightly:
   extends:
