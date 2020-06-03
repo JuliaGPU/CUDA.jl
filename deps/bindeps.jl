@@ -291,7 +291,12 @@ end
 function __init_dependencies__()
     found = false
 
-    if parse(Bool, get(ENV, "JULIA_CUDA_USE_BINARYBUILDER", "true"))
+    # CI runs in a well-defined environment, so prefer a local CUDA installation there
+    if parse(Bool, get(ENV, "CI", "false")) && !haskey(ENV, "JULIA_CUDA_USE_BINARYBUILDER")
+        found = use_local_cuda()
+    end
+
+    if !found && parse(Bool, get(ENV, "JULIA_CUDA_USE_BINARYBUILDER", "true"))
         found = use_artifact_cuda()
     end
 
