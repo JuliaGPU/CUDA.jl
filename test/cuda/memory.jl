@@ -181,7 +181,7 @@ let
     data = collect(reshape(1:27, 3, 3, 3))
 
     dst = Mem.alloc(Mem.Device, sizeof(data))
-    Mem.unsafe_copy3d!(typed_pointer(dst, Int), Mem.Device, pointer(data), Mem.Host, 3, 3, 3)
+    Mem.unsafe_copy3d!(typed_pointer(dst, Int), Mem.Device, pointer(data), Mem.Host, length(data))
 
     check = zeros(Int, size(data))
     Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, Int), Mem.Device, length(data))
@@ -195,19 +195,71 @@ let
 
     T = Int
     nx, ny, nz = 4, 4, 4
-    data = collect(reshape(1:(ny*nz), ny, nz))
-    dst = Mem.alloc(Mem.Device, nx * sizeof(data))
+    data = collect(reshape(1:(nx*nz), nx, nz))
+    dst = Mem.alloc(Mem.Device, nx*ny*nz*sizeof(data))
 
     # host to device
-    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host, nx, 1, nz;
-                       dstPos=(1,2,1), srcPitch=nx*sizeof(T), srcHeight=1,
+    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host, 
+                       nx, 1, nz;
+                       dstPos=(1,2,1), 
+                       srcPitch=nx*sizeof(T), srcHeight=1,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
 
     # copy back
-    check = zeros(T, nx, ny, nz)
-    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device, length(check))
+    check = zeros(T, size(data))
+    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device, 
+                       nx, 1, nz;
+                       srcPos=(1,2,1), 
+                       srcPitch=nx*sizeof(T), srcHeight=ny,
+                       dstPitch=nx*sizeof(T), dstHeight=1)
 
-    @test all(check[:,2,:] .== data)
+    @test all(check .== data)
+
+    # copy back into a 3-D array
+    check2 = zeros(T, nx, ny, nz)
+    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device, 
+                       nx, 1, nz;
+                       srcPos=(1,2,1), 
+                       dstPos=(1,2,1),
+                       srcPitch=nx*sizeof(T), srcHeight=ny,
+                       dstPitch=nx*sizeof(T), dstHeight=ny)
+    @test all(check2[:,2,:] .== data)
+end
+
+let
+    # copying an y-z plane of a 3-D array
+
+    T = Int
+    nx, ny, nz = 4, 4, 4
+    data = collect(reshape(1:(ny*nz), ny, nz))
+    dst = Mem.alloc(Mem.Device, nx*ny*nz*sizeof(data))
+
+    # host to device
+    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host,
+                       1, ny, nz;
+                       dstPos=(2,1,1),
+                       srcPitch=1*sizeof(T), srcHeight=ny,
+                       dstPitch=nx*sizeof(T), dstHeight=ny)
+
+    # copy back
+    check = zeros(T, size(data))
+    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device,
+                       1, ny, nz;
+                       srcPos=(2,1,1),
+                       srcPitch=nx*sizeof(T), srcHeight=ny,
+                       dstPitch=1*sizeof(T), dstHeight=ny)
+
+    @test all(check .== data)
+
+    # copy back into a 3-D array
+    check2 = zeros(T, nx, ny, nz)
+    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device,
+                       1, ny, nz;
+                       srcPos=(2,1,1),
+                       dstPos=(2,1,1),
+                       srcPitch=nx*sizeof(T), srcHeight=ny,
+                       dstPitch=nx*sizeof(T), dstHeight=ny)
+    @test all(check2[2,:,:] .== data)
 end
 
 end
