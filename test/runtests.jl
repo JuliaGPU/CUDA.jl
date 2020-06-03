@@ -124,7 +124,7 @@ else
 end
 pick = last(candidates)
 pick.cap >= v"2.0" || error("The CUDA.jl test suite requires a CUDA device with compute capability 2.0 or higher")
-@info("Testing using device $(name(pick.dev)) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem)) available memory) on CUDA driver $(CUDA.version()) and toolkit $(CUDA.version())")
+@info("Testing using device $(name(pick.dev)) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem)) available memory) on CUDA driver $(CUDA.version()) and toolkit $(CUDA.toolkit_version())")
 
 # determine tests to skip
 const skip_tests = []
