@@ -39,6 +39,8 @@ mutable struct CuTensorDescriptor
     end
 end
 
+const scalar_types = Dict((Float16, Float16)=>Float32, (Float32, Float16)=>Float32, (Float32, Float32)=>Float32, (Float64, Float64)=>Float64, (Float64, Float32)=>Float64, (ComplexF32, ComplexF32)=>ComplexF32, (ComplexF64, ComplexF64)=>ComplexF64, (ComplexF64, ComplexF32)=>ComplexF64)
+
 Base.cconvert(::Type{Ptr{cutensorTensorDescriptor_t}}, obj::CuTensorDescriptor) = obj.desc
 
 function elementwiseTrinary!(
@@ -58,7 +60,6 @@ function elementwiseTrinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
-    #typeCompute = cudaDataType(T)
     typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
@@ -217,8 +218,9 @@ function contraction!(
     descB = CuTensorDescriptor(B; op = opB)
     descC = CuTensorDescriptor(C; op = opC)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
-    T = eltype(C)
-    computeType = cutensorComputeType(T) #CUTENSOR_R_MIN_64F #TODO cudaDataType(T)
+    output_type = eltype(C)
+    scalar_type = scalar_types[(output_type, compute_type)]
+    computeType = cutensorComputeType(compute_type)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
@@ -251,8 +253,8 @@ function contraction!(
                 plan_ref = Ref(plan)
             end
             cutensorContraction(handle(), plan_ref,
-                                T[convert(T, alpha)], A, B,
-                                T[convert(T, beta)],  C, C,
+                                scalar_type[convert(scalar_type, alpha)], A, B,
+                                scalar_type[convert(scalar_type, beta)],  C, C,
                                 workspace, sizeof(workspace), stream)
         end
     return C
@@ -274,8 +276,9 @@ function plan_contraction(
     descB = CuTensorDescriptor(B; op = opB)
     descC = CuTensorDescriptor(C; op = opC)
     # for now, D must be identical to C (and thus, descD must be identical to descC)
+    output_type = eltype(C)
+    scalar_type = scalar_types[(output_type, compute_type)]
     computeType = cutensorComputeType(compute_type)
-    T     = sizeof(compute_type) < sizeof(eltype(C)) ? eltype(C) : compute_type
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
