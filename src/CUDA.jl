@@ -39,6 +39,7 @@ include("$root/src/device/array.jl")
 include("$root/src/device/cuda.jl")
 include("$root/src/device/llvm.jl")
 include("$root/src/device/runtime.jl")
+include("$root/src/device/texture.jl")
 
 # compiler libraries
 include("$root/lib/cupti/CUPTI.jl")
@@ -79,6 +80,7 @@ include("$root/src/linalg.jl")
 include("$root/src/nnlib.jl")
 include("$root/src/iterator.jl")
 include("$root/src/statistics.jl")
+include("$root/src/texture.jl")
 
 include("$root/src/deprecated.jl")
 
