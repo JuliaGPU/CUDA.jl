@@ -24,13 +24,9 @@ end
 function fetch_all(texture)
     dims = size(texture)
     d_out = CuArray{eltype(texture)}(undef, dims...)
-    # @device_code_warntype @cuda threads = dims kernel_texture_warp_native(d_out, texture)
-    # @device_code_llvm @cuda threads = dims kernel_texture_warp_native(d_out, texture)
     @cuda threads = dims kernel_texture_warp_native(d_out, texture)
     d_out
 end
-
-
 
 @testset "Using CuTextureArray initialized from device" begin
     testheight, testwidth, testdepth = 16, 16, 4
@@ -66,7 +62,6 @@ end
     @test fetch_all(tex3D_direct) == d_a3D
 end
 
-
 @testset "Using CuTextureArray initialized from host" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
@@ -93,7 +88,6 @@ end
     @test Array(fetch_all(tex3D)) == a3D
 end
 
-
 @testset "Wrapping CuArray" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
@@ -110,9 +104,7 @@ end
     @test fetch_all(texwrap2D) == d_a2D
 end
 
-
 @testset "All CUDA types" begin
-
     for T in (Int32, UInt32, Int16, UInt16, Int8, UInt8, Float32, Float16)
         testheight, testwidth, testdepth = 32, 32, 4
         a2D = rand(T, testheight, testwidth)
@@ -128,9 +120,7 @@ end
         texwrap_2D = CuTexture(d_a2D)
         @test fetch_all(texwrap_2D) == d_a2D
     end
-
 end
-
 
 @testset "Multiple channels" begin
     testheight, testwidth, testdepth = 16, 16, 4
@@ -149,7 +139,6 @@ end
     tex2D = CuTexture(texarr2D)
     @test fetch_all(tex2D) == d_a2D
 end
-
 
 @testset "Custom type" begin
     @testset "Auto cast" begin
