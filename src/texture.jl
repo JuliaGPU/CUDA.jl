@@ -262,22 +262,24 @@ mutable struct CuTexture{T,N,Mem}
 
     ctx::CuContext
 
-    function CuTexture{T,N,Mem}(texmemory::Mem,
-                                address_modes::NTuple{N,AddressMode},
-                                filter_mode::FilterMode) where {T,N,Mem}
+    function CuTexture{T,N,Mem}(texmemory::Mem;
+                                address_mode::Union{AddressMode,NTuple{N,AddressMode}}=ntuple(_->mode_clamp,N),
+                                filter_mode::FilterMode=mode_linear,
+                                normalized_coordinates::Bool=false) where {T,N,Mem}
         Ta = cuda_texture_alias_type(T)
         _assert_alias_size(T, Ta)
         nchan, format, Te = _alias_type_to_nchan_and_format(Ta)
 
         resDesc_ref = CUDA_RESOURCE_DESC(texmemory)
 
-        address_modes = tuple(address_modes..., ntuple(_->mode_clamp, 3 - N)...)
-        filter_mode = filter_mode
-        flags = zero(CU_TRSF_NORMALIZED_COORDINATES)  # use absolute (non-normalized) coordinates
+        flags = normalized_coordinates ? CU_TRSF_NORMALIZED_COORDINATES : zero(CU_TRSF_NORMALIZED_COORDINATES)
         flags = flags | (Te <: Integer ? CU_TRSF_READ_AS_INTEGER : zero(CU_TRSF_READ_AS_INTEGER))
 
+        # we always need 3 address modes
+        address_mode = tuple(address_mode..., ntuple(_->mode_clamp, 3 - N)...)
+
         texDesc_ref = Ref(CUDA_TEXTURE_DESC(
-            address_modes, # addressMode::NTuple{3, CUaddress_mode}
+            address_mode, # addressMode::NTuple{3, CUaddress_mode}
             filter_mode, # filterMode::CUfilter_mode
             flags, # flags::UInt32
             1, # maxAnisotropy::UInt32
@@ -345,14 +347,6 @@ function unsafe_destroy!(t::CuTexture)
 end
 
 Base.convert(::Type{CUtexObject}, t::CuTexture) = t.handle
-
-@inline function CuTexture{T,N,Mem}(texmemory::Mem;
-                            address_mode::AddressMode = mode_clamp,
-                            address_modes::NTuple{N,AddressMode} = ntuple(_->address_mode, N),
-                            filter_mode::FilterMode = mode_linear
-                            ) where {T,N,Mem}
-    CuTexture{T,N,Mem}(texmemory, address_modes, filter_mode)
-end
 
 CuTexture(texarr::CuTextureArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N,CuTextureArray{T,N}}(texarr; kwargs...)
