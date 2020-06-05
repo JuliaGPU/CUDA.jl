@@ -472,4 +472,45 @@ k = 1
         end
     end
 
+    @testset "potrfBatched!" begin
+        @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
+            # Test lower
+            bA = [rand(elty, m, m) for i in 1:n]
+            bA = [bA[i]*bA[i]' for i in 1:n]
+
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            for i in 1:length(bA)
+                push!(bd_A, CuArray(bA[i]))
+            end
+
+            bd_A, info = CUSOLVER.potrfBatched!('L', bd_A)
+            bh_A = [collect(bd_A[i]) for i in 1:n]
+
+            for i = 1:n
+                LinearAlgebra.LAPACK.potrf!('L', bA[i])
+                @test bA[i] ≈ bh_A[i]
+            end
+
+            # Test upper
+            bA = [rand(elty, m, m) for i in 1:n]
+            bA = [bA[i]*bA[i]' for i in 1:n]
+
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            for i in 1:length(bA)
+                push!(bd_A, CuArray(bA[i]))
+            end
+
+            bd_A, info = CUSOLVER.potrfBatched!('U', bd_A)
+            bh_A = [collect(bd_A[i]) for i in 1:n]
+
+            for i = 1:n
+                LinearAlgebra.LAPACK.potrf!('U', bA[i])
+                # cuSOLVER seems to return symmetric/hermitian matrix when using 'U'
+                @test Hermitian(bA[i]) ≈ bh_A[i]
+            end
+        end
+    end
+
 end

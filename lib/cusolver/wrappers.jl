@@ -972,3 +972,51 @@ for (jname, fname, elty) in ((:potrsBatched!, :cusolverDnSpotrsBatched, :Float32
         end
     end
 end
+
+for (jname, fname, elty) in ((:potrfBatched!, :cusolverDnSpotrfBatched, :Float32),
+                             (:potrfBatched!, :cusolverDnDpotrfBatched, :Float64),
+                             (:potrfBatched!, :cusolverDnCpotrfBatched, :ComplexF32),
+                             (:potrfBatched!, :cusolverDnZpotrfBatched, :ComplexF64)
+                             )
+    @eval begin
+        # cusolverStatus_t
+        # cusolverDnSpotrfBatched(
+        #     cusolverDnHandle_t handle,
+        #     cublasFillMode_t uplo,
+        #     int n,
+        #     float *Aarray[],
+        #     int lda,
+        #     int *infoArray,
+        #     int batchSize);
+        function $jname(uplo::Char, A::Vector{<:CuMatrix{$elty}})
+
+            # Set up information for the solver arguments
+            cuuplo = cublasfill(uplo)
+            n = checksquare(A[1])
+            lda = max(1, stride(A[1], 2))
+            batchSize = length(A)
+            devinfo = CuArray{Cint}(undef, batchSize)
+
+            Aptrs = unsafe_batch(A)
+
+            # Run the solver
+            $fname(dense_handle(), cuuplo, n, Aptrs, lda, devinfo, batchSize)
+
+            # Copy the solver info and delete the device memory
+            info = @allowscalar collect(devinfo)
+            unsafe_free!(devinfo)
+
+            # Double check the solver's exit status
+            for i = 1:batchSize
+                if info[i] < 0
+                    throw(ArgumentError("The $(info)th parameter of the $(i)th solver is wrong"))
+                end
+            end
+
+            # info[i] > 0 means the leading minor of order info[i] is not positive definite
+            # LinearAlgebra.LAPACK does not throw Exception here
+            # to simplify calls to isposdef! and factorize
+            return A, info
+        end
+    end
+end
