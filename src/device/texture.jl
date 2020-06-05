@@ -5,9 +5,9 @@ Lightweight type to handle CUDA texture objects inside kernels. Textures are fet
 indexing operations on `CuTexture`/`CuDeviceTexture` objects, e.g., `cutexture2d[0.2f0,
 0.2f0]`.
 """
-struct CuDeviceTexture{T,N}
-    handle::CUtexObject
+struct CuDeviceTexture{T,N,NC}
     dims::Dims{N}
+    handle::CUtexObject
 end
 
 Base.convert(::Type{Int64}, t::CuDeviceTexture) = reinterpret(Int64, t.handle)
@@ -48,12 +48,14 @@ tex3D(texObject::CuDeviceTexture, x::Float32, y::Float32, z::Float32) =
     end
 end
 
-@inline function _getindex(t::CuDeviceTexture{T}, idcs::NTuple{<:Any,Real}) where {T}
-    i32_x4 = texXD(t, idcs...)
+@inline function Base.getindex(t::CuDeviceTexture{T,N,NC}, idx::Vararg{<:Real,N}) where {T,N,NC}
+    i32_x4 = if NC
+        # normalized coordinates range between 0 and 1, and can be used as-is
+        texXD(t, idx...)
+    else
+        # non-normalized coordinates should be adjusted for 1-based indexing
+        texXD(t, ntuple(i->idx[i]-1, N)...)
+    end
     Ta = cuda_texture_alias_type(T)
     cast(T, reconstruct(Ta, i32_x4))
 end
-
-@inline Base.getindex(t::CuDeviceTexture{T,1}, x::R) where {T,R <: Real} = _getindex(t, ((x,)))
-@inline Base.getindex(t::CuDeviceTexture{T,2}, x::R, y::R) where {T,R <: Real} = _getindex(t, ((x, y)))
-@inline Base.getindex(t::CuDeviceTexture{T,3}, x::R, y::R, z::R) where {T,R <: Real} = _getindex(t, ((x, y, z)))

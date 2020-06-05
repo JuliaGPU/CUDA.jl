@@ -1,6 +1,6 @@
 @inline function calcpoint(blockIdx, blockDim, threadIdx, size)
     i = (blockIdx - 1) * blockDim + threadIdx
-    return i, Float32(i)-0.5f0
+    return i, Float32(i)
 end
 function kernel_texture_warp_native(dst::CuDeviceArray{T,1}, texture::CuDeviceTexture{T,1}) where {T}
     i, u = calcpoint(blockIdx().x, blockDim().x, threadIdx().x, size(dst)[1])

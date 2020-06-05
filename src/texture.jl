@@ -242,12 +242,16 @@ const mode_clamp = CU_TR_ADDRESS_MODE_CLAMP
 const mode_mirror = CU_TR_ADDRESS_MODE_MIRROR
 const mode_border = CU_TR_ADDRESS_MODE_BORDER
 
+@enum_without_prefix CUaddress_mode_enum CU_TR_
+
 const FilterMode = CUfilter_mode_enum
 const mode_point = CU_TR_FILTER_MODE_POINT
 const mode_linear = CU_TR_FILTER_MODE_LINEAR
 
+@enum_without_prefix CUfilter_mode_enum CU_TR_
+
 """
-    CuTexture{T,N,Mem}
+    CuTexture{T,N,P}
 
 Type to handle CUDA texture objects. These objects do not hold data by themselves, but
 instead are bound either to `CuTextureArray`s (CUDA arrays) or to `CuArray`s. (Note: For
@@ -256,27 +260,34 @@ correct wrapping `CuArray`s it is necessary the their memory is well aligned and
 do texture fetchts inside kernels. When passed to kernels, `CuTexture` objects are
 transformed into `CuDeviceTexture`s objects.
 """
-mutable struct CuTexture{T,N,Mem}
-    mem::Mem
+mutable struct CuTexture{T,N,P}
+    mem::Union{CuArray{T,N}, CuTextureArray{T,N}}
     handle::CUtexObject
+
+    normalized_coordinates::Bool
 
     ctx::CuContext
 
-    function CuTexture{T,N,Mem}(texmemory::Mem;
-                                address_mode::Union{AddressMode,NTuple{N,AddressMode}}=ntuple(_->mode_clamp,N),
-                                filter_mode::FilterMode=mode_linear,
-                                normalized_coordinates::Bool=false) where {T,N,Mem}
+    function CuTexture{T,N,P}(texmemory::P;
+                                address_mode::Union{AddressMode,NTuple{N,AddressMode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
+                                filter_mode::FilterMode=FILTER_MODE_POINT,
+                                normalized_coordinates::Bool=false) where {T,N,P}
         Ta = cuda_texture_alias_type(T)
         _assert_alias_size(T, Ta)
         nchan, format, Te = _alias_type_to_nchan_and_format(Ta)
 
         resDesc_ref = CUDA_RESOURCE_DESC(texmemory)
 
-        flags = normalized_coordinates ? CU_TRSF_NORMALIZED_COORDINATES : zero(CU_TRSF_NORMALIZED_COORDINATES)
-        flags = flags | (Te <: Integer ? CU_TRSF_READ_AS_INTEGER : zero(CU_TRSF_READ_AS_INTEGER))
+        flags = 0x0
+        if normalized_coordinates
+            flags |= CU_TRSF_NORMALIZED_COORDINATES
+        end
+        if Te <: Integer
+            flags |= CU_TRSF_READ_AS_INTEGER
+        end
 
         # we always need 3 address modes
-        address_mode = tuple(address_mode..., ntuple(_->mode_clamp, 3 - N)...)
+        address_mode = tuple(address_mode..., ntuple(_->ADDRESS_MODE_CLAMP, 3 - N)...)
 
         texDesc_ref = Ref(CUDA_TEXTURE_DESC(
             address_mode, # addressMode::NTuple{3, CUaddress_mode}
@@ -293,7 +304,7 @@ mutable struct CuTexture{T,N,Mem}
         texObject_ref = Ref{CUtexObject}(0)
         cuTexObjectCreate(texObject_ref, resDesc_ref, texDesc_ref, C_NULL)
 
-        t = new{T,N,Mem}(texmemory, texObject_ref[], context())
+        t = new{T,N,P}(texmemory, texObject_ref[], normalized_coordinates, context())
         finalizer(unsafe_destroy!, t)
         return t
     end
@@ -364,4 +375,4 @@ Base.eltype(tm::CuTexture{T,N}) where {T,N} = T
 Base.size(tm::CuTexture) = size(tm.mem)
 
 Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N}) where {T,N} =
-    CuDeviceTexture{T,N}(t.handle, size(t.mem))
+    CuDeviceTexture{T,N,t.normalized_coordinates}(size(t.mem), t.handle)
