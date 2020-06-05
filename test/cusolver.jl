@@ -469,6 +469,48 @@ k = 1
                 LinearAlgebra.LAPACK.potrs!('U', bA[i], bB[i])
                 @test bB[i] ≈ bh_X[i]
             end
+            # error throwing tests
+            bA = [rand(elty, m, m) for i in 1:n]
+            bA = [bA[i]*bA[i]' for i in 1:n]
+            bB = [rand(elty, m) for i in 1:n+1]
+
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            bd_B = CuArray{elty, 1}[]
+            for i in 1:length(bA)
+                push!(bd_A, CuArray(bA[i]))
+                push!(bd_B, CuArray(bB[i]))
+            end
+            push!(bd_B, CuArray(bB[end]))
+
+            @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
+            
+            bA = [rand(elty, m, m) for i in 1:n]
+            bA = [bA[i]*bA[i]' for i in 1:n]
+            bB = [rand(elty, m) for i in 1:n]
+            bB[1] = rand(elty, m+1)
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            bd_B = CuArray{elty, 1}[]
+            for i in 1:length(bA)
+                push!(bd_A, CuArray(bA[i]))
+                push!(bd_B, CuArray(bB[i]))
+            end
+
+            @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
+            
+            bA = [rand(elty, m, m) for i in 1:n]
+            bA = [bA[i]*bA[i]' for i in 1:n]
+            bB = [rand(elty, m, m) for i in 1:n]
+            # move to device
+            bd_A = CuArray{elty, 2}[]
+            bd_B = CuArray{elty, 2}[]
+            for i in 1:length(bA)
+                push!(bd_A, CuArray(bA[i]))
+                push!(bd_B, CuArray(bB[i]))
+            end
+
+            @test_throws ArgumentError CUSOLVER.potrsBatched!('L', bd_A, bd_B)
         end
     end
 
