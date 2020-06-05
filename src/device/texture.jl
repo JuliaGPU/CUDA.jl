@@ -48,18 +48,12 @@ tex3D(texObject::CuDeviceTexture, x::Float32, y::Float32, z::Float32) =
     end
 end
 
-@inline function _fetch(t::CuDeviceTexture{T}, idcs::NTuple{<:Any,Real}) where {T}
+@inline function _getindex(t::CuDeviceTexture{T}, idcs::NTuple{<:Any,Real}) where {T}
     i32_x4 = texXD(t, idcs...)
     Ta = cuda_texture_alias_type(T)
     cast(T, reconstruct(Ta, i32_x4))
 end
 
-@inline _expand(x, n) = x * n
-@inline (t::CuDeviceTexture{T,1})(x::R) where {T,R <: Real} = _fetch(t, _expand.((x,), t.dims))
-@inline (t::CuDeviceTexture{T,2})(x::R, y::R) where {T,R <: Real} = _fetch(t, _expand.((x, y), t.dims))
-@inline (t::CuDeviceTexture{T,3})(x::R, y::R, z::R) where {T,R <: Real} = _fetch(t, _expand.((x, y, z), t.dims))
-
-@inline _offset(x) = x - 0.5f0
-@inline Base.getindex(t::CuDeviceTexture{T,1}, x::R) where {T,R <: Real} = _fetch(t, _offset.((x,)))
-@inline Base.getindex(t::CuDeviceTexture{T,2}, x::R, y::R) where {T,R <: Real} = _fetch(t, _offset.((x, y)))
-@inline Base.getindex(t::CuDeviceTexture{T,3}, x::R, y::R, z::R) where {T,R <: Real} = _fetch(t, _offset.((x, y, z)))
+@inline Base.getindex(t::CuDeviceTexture{T,1}, x::R) where {T,R <: Real} = _getindex(t, ((x,)))
+@inline Base.getindex(t::CuDeviceTexture{T,2}, x::R, y::R) where {T,R <: Real} = _getindex(t, ((x, y)))
+@inline Base.getindex(t::CuDeviceTexture{T,3}, x::R, y::R, z::R) where {T,R <: Real} = _getindex(t, ((x, y, z)))

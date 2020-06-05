@@ -1,6 +1,6 @@
 @inline function calcpoint(blockIdx, blockDim, threadIdx, size)
     i = (blockIdx - 1) * blockDim + threadIdx
-    return i, Float32(i)
+    return i, Float32(i)-0.5f0
 end
 function kernel_texture_warp_native(dst::CuDeviceArray{T,1}, texture::CuDeviceTexture{T,1}) where {T}
     i, u = calcpoint(blockIdx().x, blockDim().x, threadIdx().x, size(dst)[1])
@@ -182,27 +182,4 @@ end
 
         @test fetch_all(tex2D) == d_a2D
     end
-end
-
-
-@testset "Access by normalized coordinates" begin
-    testheight, testwidth, testdepth = 16, 16, 4
-    a2D = convert(Array{Float32}, repeat(1:testheight, 1, testwidth) + repeat(0.01 * (1:testwidth)', testheight, 1))
-    d_a2D = CuArray(a2D)
-
-    tex2D = CuTexture{Float32}(testheight, testwidth)
-    copyto!(tex2D.mem, d_a2D)
-
-    function kernel_texture_warp_native_normalized(dst::CuDeviceArray{T,2}, texture::CuDeviceTexture{T,2}) where {T}
-        i, u = calcpoint(blockIdx().x, blockDim().x, threadIdx().x, size(dst)[1])
-        j, v = calcpoint(blockIdx().y, blockDim().y, threadIdx().y, size(dst)[2])
-        x = (u - 0.5f0) / Float32(size(dst)[1])
-        y = (v - 0.5f0) / Float32(size(dst)[2])
-        @inbounds dst[i,j] = texture(x,y); # Access by normalized coordinates
-        return nothing
-    end
-    d_out = CuArray{eltype(tex2D)}(undef, size(tex2D))
-    @cuda threads = size(d_out) kernel_texture_warp_native_normalized(d_out, tex2D)
-
-    @test d_out == d_a2D
 end
