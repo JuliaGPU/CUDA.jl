@@ -55,6 +55,15 @@ k = 1
         d_b   = CuArray(b)
         d_x   = CuArray(x)
         @test_throws DimensionMismatch CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
+        dA    = diagm(0=>rand(elty, n))
+        dA[1,1] = zero(elty)
+        A     = sparse(dA)
+        d_A   = CuSparseMatrixCSR(A)
+        b     = rand(elty,n)
+        d_b   = CuArray(b)
+        x     = zeros(elty,n)
+        d_x   = CuArray(x)
+        @test_throws SingularException CUSOLVER.csrlsvqr!(d_A,d_b,d_x,tol,one(Cint),'O')
     end
 
     @testset "csrlsvchol!" begin
@@ -80,6 +89,15 @@ k = 1
         A     = sparse(rand(elty,m,n))
         d_A   = CuSparseMatrixCSR(A)
         @test_throws DimensionMismatch CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
+        dA    = diagm(0=>rand(elty, n))
+        dA[1,1] = zero(elty)
+        A     = sparse(dA)
+        d_A   = CuSparseMatrixCSR(A)
+        b     = rand(elty,n)
+        d_b   = CuArray(b)
+        x     = zeros(elty,n)
+        d_x   = CuArray(x)
+        @test_throws SingularException CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,one(Cint),'O')
     end
 
     @testset "csreigvsi" begin
