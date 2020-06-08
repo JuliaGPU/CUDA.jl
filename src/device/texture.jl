@@ -5,56 +5,66 @@ Lightweight type to handle CUDA texture objects inside kernels. Textures are fet
 indexing operations on `CuTexture`/`CuDeviceTexture` objects, e.g., `cutexture2d[0.2f0,
 0.2f0]`.
 """
-struct CuDeviceTexture{T,N,A,NC}
+struct CuDeviceTexture{T,N,C,NC}
     dims::Dims{N}
     handle::CUtexObject
 end
 
-Base.convert(::Type{Int64}, t::CuDeviceTexture) = reinterpret(Int64, t.handle)
+Base.convert(::Type{CUtexObject}, t::CuDeviceTexture) = t.handle
 
-tex1D(texObject::CuDeviceTexture, x::Float32) =
-    ccall("llvm.nvvm.tex.unified.1d.v4s32.f32", llvmcall,
-          NTuple{4,Int32}, (Int64, Float32), texObject, x)
+isnormalized(t::CuDeviceTexture{<:Any,<:Any,<:Any,NC}) where {NC} = NC
 
-tex2D(texObject::CuDeviceTexture, x::Float32, y::Float32) =
-    ccall("llvm.nvvm.tex.unified.2d.v4s32.f32", llvmcall,
-          NTuple{4,Int32}, (Int64, Float32, Float32), texObject, x, y)
 
-tex3D(texObject::CuDeviceTexture, x::Float32, y::Float32, z::Float32) =
-    ccall("llvm.nvvm.tex.unified.3d.v4s32.f32", llvmcall,
-          NTuple{4,Int32}, (Int64, Float32, Float32, Float32), texObject, x, y, z)
+## low-level operations
 
-@inline texXD(t::CuDeviceTexture{<:Any,1}, x::Real) = tex1D(t, x)
-@inline texXD(t::CuDeviceTexture{<:Any,2}, x::Real, y::Real) = tex2D(t, x, y)
-@inline texXD(t::CuDeviceTexture{<:Any,3}, x::Real, y::Real, z::Real) = tex3D(t, x, y, z)
+# Source: NVVM IR specification 1.4
 
-@inline reconstruct(::Type{T}, x::Int32) where {T <: Union{Int32,UInt32,Int16,UInt16,Int8,UInt8}} = unsafe_trunc(T, x)
-@inline reconstruct(::Type{Float32}, x::Int32) = reinterpret(Float32, x)
-@inline reconstruct(::Type{Float16}, x::Int32) = convert(Float16, reinterpret(Float32, x))
+for dims in 1:3,
+    (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
+        ((Signed, NTuple{4,UInt32}, :v4u32),
+         (Unsigned, NTuple{4,Int32}, :v4s32),
+         (AbstractFloat, NTuple{4,Float32},:v4f32))
 
-@inline reconstruct(::Type{T}, i32_x4::NTuple{4,Int32}) where T = reconstruct(T, i32_x4[1])
-@inline reconstruct(::Type{NTuple{2,T}}, i32_x4::NTuple{4,Int32}) where T = (reconstruct(T, i32_x4[1]),
-                                                                             reconstruct(T, i32_x4[2]))
-@inline reconstruct(::Type{NTuple{4,T}}, i32_x4::NTuple{4,Int32}) where T = (reconstruct(T, i32_x4[1]),
-                                                                             reconstruct(T, i32_x4[2]),
-                                                                             reconstruct(T, i32_x4[3]),
-                                                                             reconstruct(T, i32_x4[4]))
+    llvm_dim = "$(dims)d"
+    julia_args = (:x, :y, :z)[1:dims]
+    julia_sig = ntuple(_->Float32, dims)
+    julia_params = ntuple(i->:($(julia_args[i])::AbstractFloat), dims)
 
-@inline function cast(::Type{T}, x) where {T}
-    @assert sizeof(T) == sizeof(x)
-    r = Ref(x)
-    GC.@preserve r begin
-       unsafe_load(convert(Ptr{T}, Base.unsafe_convert(Ptr{Cvoid}, r)))
-    end
+    @eval tex(texObject::CuDeviceTexture{<:$dispatch_rettyp,$dims}, $(julia_params...)) =
+        ccall($"llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32", llvmcall,
+            $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
+
+
+    # integer indices (tex?Dfetch) requires non-normalized coordinates
+
+    julia_sig = ntuple(_->Int32, dims)
+    julia_params = ntuple(i->:($(julia_args[i])::Integer), dims)
+
+    @eval tex(texObject::CuDeviceTexture{<:$dispatch_rettyp,$dims,<:Any,false}, $(julia_params...)) =
+        ccall($"llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.s32", llvmcall,
+            $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
 end
 
-@inline function Base.getindex(t::CuDeviceTexture{T,N,A,NC}, idx::Vararg{<:Real,N}) where {T,N,A,NC}
-    i32_x4 = if NC
+
+## indexing
+
+@inline function Base.getindex(t::CuDeviceTexture{T,N,C}, idx::Vararg{<:Real,N}) where {T,N,C}
+    vals = if isnormalized(t)
         # normalized coordinates range between 0 and 1, and can be used as-is
-        texXD(t, idx...)
+        tex(t, idx...)
     else
         # non-normalized coordinates should be adjusted for 1-based indexing
-        texXD(t, ntuple(i->idx[i]-1, N)...)
+        tex(t, ntuple(i->idx[i]-1, N)...)
     end
-    cast(T, reconstruct(A, i32_x4))
+
+    # unpack the values
+    return unpack(NTuple{C,T}, vals)
 end
+
+# unpack single-channel texture fetches as values, tuples otherwise
+@inline unpack(::Type{NTuple{1,T}}, vals::NTuple) where T = unpack(T, vals[1])
+@inline unpack(::Type{NTuple{C,T}}, vals::NTuple) where {C,T} = ntuple(i->unpack(T, vals[i]), C)
+
+@inline unpack(::Type{T}, val::T) where {T} = val
+@inline unpack(::Type{T}, val::Integer) where {T <: Integer} = unsafe_trunc(T, val)
+@inline unpack(::Type{Float16}, val::Float32) = convert(Float16, val)

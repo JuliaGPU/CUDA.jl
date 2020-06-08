@@ -2,22 +2,22 @@
     i = (blockIdx - 1) * blockDim + threadIdx
     return i, Float32(i)
 end
-function kernel_texture_warp_native(dst::CuDeviceArray{T,1}, texture::CuDeviceTexture{T,1}) where {T}
+function kernel_texture_warp_native(dst::CuDeviceArray{<:Any,1}, texture::CuDeviceTexture{<:Any,1})
     i, u = calcpoint(blockIdx().x, blockDim().x, threadIdx().x, size(dst)[1])
-    @inbounds dst[i] = texture[u];
+    @inbounds dst[i] = texture[u]
     return nothing
 end
-function kernel_texture_warp_native(dst::CuDeviceArray{T,2}, texture::CuDeviceTexture{T,2}) where {T}
+function kernel_texture_warp_native(dst::CuDeviceArray{<:Any,2}, texture::CuDeviceTexture{<:Any,2})
     i, u = calcpoint(blockIdx().x, blockDim().x, threadIdx().x, size(dst)[1])
     j, v = calcpoint(blockIdx().y, blockDim().y, threadIdx().y, size(dst)[2])
-    @inbounds dst[i,j] = texture[u,v];
+    @inbounds dst[i,j] = texture[u,v]
     return nothing
 end
-function kernel_texture_warp_native(dst::CuDeviceArray{T,3}, texture::CuDeviceTexture{T,3}) where {T}
+function kernel_texture_warp_native(dst::CuDeviceArray{<:Any,3}, texture::CuDeviceTexture{<:Any,3})
     i, u = calcpoint(blockIdx().x, blockDim().x, threadIdx().x, size(dst)[1])
     j, v = calcpoint(blockIdx().y, blockDim().y, threadIdx().y, size(dst)[2])
     k, w = calcpoint(blockIdx().z, blockDim().z, threadIdx().z, size(dst)[3])
-    @inbounds dst[i,j,k] = texture[u,v,w];
+    @inbounds dst[i,j,k] = texture[u,v,w]
     return nothing
 end
 
@@ -38,28 +38,17 @@ end
     d_a2D = CuArray(a2D)
     d_a3D = CuArray(a3D)
 
-    texarr1D = CuTextureArray{Float32}(testheight)
-    copyto!(texarr1D, d_a1D)
+    texarr1D = CuTextureArray(d_a1D)
     tex1D = CuTexture(texarr1D)
     @test fetch_all(tex1D) == d_a1D
 
-    texarr2D = CuTextureArray{Float32}(testheight, testwidth)
+    texarr2D = CuTextureArray(d_a2D)
     tex2D = CuTexture(texarr2D)
-    copyto!(texarr2D, d_a2D)
     @test fetch_all(tex2D) == d_a2D
 
-    texarr2D_dir = CuTextureArray(d_a2D)
-    tex2D_dir = CuTexture(texarr2D_dir)
-    @test fetch_all(tex2D_dir) == d_a2D
-
-    texarr3D = CuTextureArray{Float32}(testheight, testwidth, testdepth)
+    texarr3D = CuTextureArray(d_a3D)
     tex3D = CuTexture(texarr3D)
-    copyto!(texarr3D, d_a3D)
     @test fetch_all(tex3D) == d_a3D
-
-    tex3D_direct = CuTexture{Float32}(testheight, testwidth, testdepth)
-    copyto!(tex3D_direct.mem, d_a3D)
-    @test fetch_all(tex3D_direct) == d_a3D
 end
 
 @testset "Using CuTextureArray initialized from host" begin
@@ -69,21 +58,19 @@ end
     a3D = convert(Array{Float32}, repeat(a2D, 1, 1, testdepth))
     for k = 1:testdepth; a3D[:,:,k] .+= 0.0001 * k; end
 
-    texarr1D = CuTextureArray{Float32}(testheight)
+    texarr1D = CuTextureArray(a1D)
     copyto!(texarr1D, a1D)
     tex1D = CuTexture(texarr1D)
     @test Array(fetch_all(tex1D)) == a1D
 
-    texarr2D = CuTextureArray{Float32}(testheight, testwidth)
-    copyto!(texarr2D, a2D)
+    texarr2D = CuTextureArray(a2D)
     tex2D = CuTexture(texarr2D)
     @test Array(fetch_all(tex2D)) == a2D
 
     tex2D_dir = CuTexture(CuTextureArray(a2D))
     @test Array(fetch_all(tex2D_dir)) == a2D
 
-    texarr3D = CuTextureArray{Float32}(testheight, testwidth, testdepth)
-    copyto!(texarr3D, a3D)
+    texarr3D = CuTextureArray(a3D)
     tex3D = CuTexture(texarr3D)
     @test Array(fetch_all(tex3D)) == a3D
 end
@@ -111,8 +98,7 @@ end
         d_a2D = CuArray(a2D)
 
         # Using CuTextureArray
-        tex_2D = CuTexture{T}(testheight, testwidth)
-        copyto!(tex_2D.mem, d_a2D)
+        tex_2D = CuTexture(d_a2D)
         @test fetch_all(tex_2D) == d_a2D
 
         # Wrapping CuArray
@@ -126,60 +112,14 @@ end
     testheight, testwidth, testdepth = 16, 16, 4
     a2D = [(Int32(i), Int32(j)) for i = 1:testheight, j = 1:testwidth]
     d_a2D = CuArray(a2D)
-    texarr2D = CuTextureArray{eltype(d_a2D)}(size(d_a2D)...)
-    copyto!(texarr2D, d_a2D)
+    texarr2D = CuTextureArray(d_a2D)
     tex2D = CuTexture(texarr2D)
     @test fetch_all(tex2D) == d_a2D
 
     testheight, testwidth, testdepth = 16, 16, 4
     a2D = [(Int16(i), Int16(j), Int16(i + j), Int16(i - j)) for i = 1:testheight, j = 1:testwidth]
     d_a2D = CuArray(a2D)
-    texarr2D = CuTextureArray{eltype(d_a2D)}(size(d_a2D)...)
-    copyto!(texarr2D, d_a2D)
+    texarr2D = CuTextureArray(d_a2D)
     tex2D = CuTexture(texarr2D)
     @test fetch_all(tex2D) == d_a2D
-end
-
-@testset "Custom type" begin
-    @testset "Auto cast" begin
-        struct AKindOfRGBA
-            r::UInt8
-            g::UInt8
-            b::UInt8
-            a::UInt8
-        end
-
-        @test alias_type(AKindOfRGBA) == NTuple{4,UInt8}
-
-        testheight, testwidth, testdepth = 16, 16, 4
-        a2D = [AKindOfRGBA(UInt8(i), UInt8(j), UInt8(j + i), UInt8(j > i)) for i = 1:testheight, j = 1:testwidth]
-        d_a2D = CuArray(a2D)
-
-        texarr2D = CuTextureArray{eltype(d_a2D)}(size(d_a2D)...)
-        copyto!(texarr2D, d_a2D)
-        tex2D = CuTexture(texarr2D)
-
-        @test fetch_all(tex2D) == d_a2D
-    end
-
-    @testset "Manual cast" begin
-        primitive type AKindOfFloat32 32 end
-
-        # It is not enough to define `alias_type(::Type{AKindOfFloat32}) = Float32`, one has to define the whole type.
-        #   This is due to `alias_type` being a *`@generated`* function.
-        CUDA.alias_type(::Type{NTuple{2,AKindOfFloat32}}) = NTuple{2,Float32}
-        @test alias_type(NTuple{2,AKindOfFloat32}) == NTuple{2,Float32}
-
-        testheight, testwidth, testdepth = 16, 16, 4
-        a2D = [
-            (reinterpret(AKindOfFloat32, Float32(i)), reinterpret(AKindOfFloat32, Float32(j)))
-            for i = 1:testheight, j = 1:testwidth]
-        d_a2D = CuArray(a2D)
-
-        texarr2D = CuTextureArray{eltype(d_a2D)}(size(d_a2D)...)
-        copyto!(texarr2D, d_a2D)
-        tex2D = CuTexture(texarr2D)
-
-        @test fetch_all(tex2D) == d_a2D
-    end
 end
