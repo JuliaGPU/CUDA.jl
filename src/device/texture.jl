@@ -5,7 +5,7 @@ Lightweight type to handle CUDA texture objects inside kernels. Textures are fet
 indexing operations on `CuTexture`/`CuDeviceTexture` objects, e.g., `cutexture2d[0.2f0,
 0.2f0]`.
 """
-struct CuDeviceTexture{T,N,NC}
+struct CuDeviceTexture{T,N,A,NC}
     dims::Dims{N}
     handle::CUtexObject
 end
@@ -48,7 +48,7 @@ tex3D(texObject::CuDeviceTexture, x::Float32, y::Float32, z::Float32) =
     end
 end
 
-@inline function Base.getindex(t::CuDeviceTexture{T,N,NC}, idx::Vararg{<:Real,N}) where {T,N,NC}
+@inline function Base.getindex(t::CuDeviceTexture{T,N,A,NC}, idx::Vararg{<:Real,N}) where {T,N,A,NC}
     i32_x4 = if NC
         # normalized coordinates range between 0 and 1, and can be used as-is
         texXD(t, idx...)
@@ -56,6 +56,5 @@ end
         # non-normalized coordinates should be adjusted for 1-based indexing
         texXD(t, ntuple(i->idx[i]-1, N)...)
     end
-    Ta = cuda_texture_alias_type(T)
-    cast(T, reconstruct(Ta, i32_x4))
+    cast(T, reconstruct(A, i32_x4))
 end

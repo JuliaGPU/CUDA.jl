@@ -149,7 +149,7 @@ end
             a::UInt8
         end
 
-        @test cuda_texture_alias_type(AKindOfRGBA) == NTuple{4,UInt8}
+        @test alias_type(AKindOfRGBA) == NTuple{4,UInt8}
 
         testheight, testwidth, testdepth = 16, 16, 4
         a2D = [AKindOfRGBA(UInt8(i), UInt8(j), UInt8(j + i), UInt8(j > i)) for i = 1:testheight, j = 1:testwidth]
@@ -165,10 +165,10 @@ end
     @testset "Manual cast" begin
         primitive type AKindOfFloat32 32 end
 
-        # It is not enough to define `cuda_texture_alias_type(::Type{AKindOfFloat32}) = Float32`, one has to define the whole type.
-        #   This is due to `cuda_texture_alias_type` being a *`@generated`* function.
-        CUDA.cuda_texture_alias_type(::Type{NTuple{2,AKindOfFloat32}}) = NTuple{2,Float32}
-        @test cuda_texture_alias_type(NTuple{2,AKindOfFloat32}) == NTuple{2,Float32}
+        # It is not enough to define `alias_type(::Type{AKindOfFloat32}) = Float32`, one has to define the whole type.
+        #   This is due to `alias_type` being a *`@generated`* function.
+        CUDA.alias_type(::Type{NTuple{2,AKindOfFloat32}}) = NTuple{2,Float32}
+        @test alias_type(NTuple{2,AKindOfFloat32}) == NTuple{2,Float32}
 
         testheight, testwidth, testdepth = 16, 16, 4
         a2D = [
