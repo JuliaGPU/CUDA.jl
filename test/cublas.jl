@@ -1474,7 +1474,7 @@ end # level 1 testset
 
         @testset "gels_batched!" begin
             # generate matrices
-            A = [rand(elty,n,n) for i in 1:10]
+            A = [rand(elty,n,k) for i in 1:10]
             C = [rand(elty,n,k) for i in 1:10]
             # move to device
             d_A = CuArray{elty, 2}[]
@@ -1486,13 +1486,15 @@ end # level 1 testset
             d_A, d_C, info = CUBLAS.gels_batched!('N',d_A, d_C)
             for Cs in 1:length(d_C)
                 X = A[Cs]\C[Cs]
-                h_C = Array(d_C[Cs])
+                h_C = Array(d_C[Cs])[1:k,1:k]
                 @test X ≈ h_C rtol=1e-2
             end
-            push!(d_C,CuArray(rand(elty,n,k)))
+            push!(d_C,CuArray(rand(elty,n,k-1)))
             @test_throws DimensionMismatch CUBLAS.gels_batched!('N',d_A, d_C)
-            A = [rand(elty,n-1,n) for i in 1:10]
-            C = [rand(elty,n,k) for i in 1:10]
+            push!(d_A,CuArray(rand(elty,n,k-1)))
+            @test_throws DimensionMismatch CUBLAS.gels_batched!('N',d_A, d_C)
+            A = [rand(elty,k-1,k) for i in 1:10]
+            C = [rand(elty,k-1,k) for i in 1:10]
             # move to device
             d_A = CuArray{elty, 2}[]
             d_C = CuArray{elty, 2}[]
@@ -1506,7 +1508,7 @@ end # level 1 testset
 
         @testset "gels_batched" begin
             # generate matrices
-            A = [rand(elty,n,n) for i in 1:10]
+            A = [rand(elty,n,k) for i in 1:10]
             C = [rand(elty,n,k) for i in 1:10]
             # move to device
             d_A = CuArray{elty, 2}[]
@@ -1518,7 +1520,7 @@ end # level 1 testset
             d_B, d_D, info = CUBLAS.gels_batched('N',d_A, d_C)
             for Ds in 1:length(d_D)
                 X = A[Ds]\C[Ds]
-                h_D = Array(d_D[Ds])
+                h_D = Array(d_D[Ds])[1:k,1:k]
                 @test X ≈ h_D rtol=1e-2
             end
         end

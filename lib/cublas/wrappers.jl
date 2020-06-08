@@ -1734,14 +1734,18 @@ for (fname, elty) in
             if length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
+            m,n = size(A[1])
+            mC,nC = size(C[1])
+            if mC != m
+                throw(DimensionMismatch("Leading dimensions of arrays must match"))
+            end
             for (As,Cs) in zip(A,C)
-                m,n = size(As)
-                mC,nC = size(Cs)
-                if n != mC
-                    throw(DimensionMismatch(""))
+                ms,ns = size(As)
+                mCs,nCs = size(Cs)
+                if (size(As) != (m, n)) || (size(Cs) != (mC, nC))
+                    throw(DimensionMismatch("Dimensions of batched array entries must be invariant"))
                 end
             end
-            m,n = size(A[1])
             if m < n
                 throw(ArgumentError("System must be overdetermined"))
             end
@@ -1766,7 +1770,7 @@ for (fname, elty) in
         function gels_batched(trans::Char,
                              A::Vector{<:CuMatrix{$elty}},
                              C::Vector{<:CuMatrix{$elty}})
-            gels_batched!(trans, copy(A), copy(C))
+            gels_batched!(trans, deepcopy(A), deepcopy(C))
         end
     end
 end
