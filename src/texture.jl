@@ -1,6 +1,6 @@
 ## formats
 
-export cuda_texture_alias_type
+export alias_type
 
 const _type_to_cuarrayformat_dict = Dict{DataType,CUarray_format}(
     UInt8   => CU_AD_FORMAT_UNSIGNED_INT8,
@@ -26,26 +26,25 @@ end
     sizeof(T) == sizeof(Ta) || throw(DimensionMismatch("Julia type `$T` cannot be aliased to the \"CUDA array\" (texture memory) format `$Ta`: sizes in bytes do not match"))
 
 for (T, _) in _type_to_cuarrayformat_dict
-    @eval @inline cuda_texture_alias_type(::Type{$T}) = $T
+    @eval @inline alias_type(::Type{$T}) = $T
     for N in (2, 4)
-        @eval @inline cuda_texture_alias_type(::Type{NT}) where {NT <: NTuple{$N,$T}} = NT
+        @eval @inline alias_type(::Type{NT}) where {NT <: NTuple{$N,$T}} = NT
     end
 end
 
-@generated function cuda_texture_alias_type(t::Type{T}) where T
+function alias_type(T::Type)
     err = "An alias from the type `$T` to a \"CUDA array\" (texture memory) format could not be inferred"
-    isprimitivetype(T) &&
-        return :(@error $("Primitive type `$T` does not have a defined alias to a \"CUDA array\" (texture memory) format."))
-    isbitstype(T) || return :(@error $("$err: Type is not `isbitstype`."))
+    isprimitivetype(T) && error("Primitive type `$T` does not have a defined alias to a \"CUDA array\" (texture memory) format.")
+    isbitstype(T) || error("$err: Type is not `isbitstype`.")
     Te = nothing
     N = 0
     datatypes = DataType[T]
     while !isempty(datatypes)
         for Ti in fieldtypes(pop!(datatypes))
             if isprimitivetype(Ti)
-                Ti = cuda_texture_alias_type(Ti)
+                Ti = alias_type(Ti)
                 typeof(Ti) == DataType ||
-                    return :(@error $("$err: Composed of primitive type with no alias."))
+                    error("$err: Composed of primitive type with no alias.")
                 if !isprimitivetype(Ti)
                     push!(datatypes, Ti)
                     break
@@ -56,7 +55,7 @@ end
                 elseif Te == Ti
                     N += 1
                 else
-                    return :(@error $("$err: Incompatible elements."))
+                    error("$err: Incompatible elements.")
                 end
             else
                 push!(datatypes, Ti)
@@ -65,9 +64,9 @@ end
     end
     Ta = NTuple{N,Te}
     sizeof(T) == sizeof(Ta) ||
-        return :(@error $("$err: Inferred alias type and original type have different byte sizes."))
+        error("$err: Inferred alias type and original type have different byte sizes.")
     in(N, (1, 2, 4)) ||
-        return :(@error $("$err: Incompatible number of elements ($N, but only 1, 2 or 4 supported)."))
+        error("$err: Incompatible number of elements ($N, but only 1, 2 or 4 supported).")
     return Ta
 end
 
@@ -90,7 +89,7 @@ mutable struct CuTextureArray{T,N}
     ctx::CuContext
 
     function CuTextureArray{T,N}(dims::Dims{N}) where {T,N}
-        Ta = cuda_texture_alias_type(T)
+        Ta = alias_type(T)
         _assert_alias_size(T, Ta)
         nchan, format = _alias_type_to_nchan_and_format(Ta)
 
@@ -272,7 +271,7 @@ mutable struct CuTexture{T,N,P}
                                 address_mode::Union{AddressMode,NTuple{N,AddressMode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
                                 filter_mode::FilterMode=FILTER_MODE_POINT,
                                 normalized_coordinates::Bool=false) where {T,N,P}
-        Ta = cuda_texture_alias_type(T)
+        Ta = alias_type(T)
         _assert_alias_size(T, Ta)
         nchan, format, Te = _alias_type_to_nchan_and_format(Ta)
 
@@ -334,7 +333,7 @@ function CUDA_RESOURCE_DESC(arr::CuArray{T,N}) where {T,N}
     # TODO: take care of allowed pitches
     1 <= N <= 2 || throw(ArgumentError("Only 1 or 2D CuArray objects can be wrapped in a texture"))
 
-    Ta = cuda_texture_alias_type(T)
+    Ta = alias_type(T)
     _assert_alias_size(T, Ta)
     nchan, format, Te = _alias_type_to_nchan_and_format(Ta)
 
@@ -375,4 +374,4 @@ Base.eltype(tm::CuTexture{T,N}) where {T,N} = T
 Base.size(tm::CuTexture) = size(tm.mem)
 
 Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N}) where {T,N} =
-    CuDeviceTexture{T,N,t.normalized_coordinates}(size(t.mem), t.handle)
+    CuDeviceTexture{T,N,alias_type(T),t.normalized_coordinates}(size(t.mem), t.handle)
