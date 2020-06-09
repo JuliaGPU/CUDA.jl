@@ -242,7 +242,7 @@ export CuTexture
 themselves, but are bounds to another source of device memory. Texture objects can be passed
 to CUDA kernels, where they will be accessible through the [`CuDeviceTexture`](@ref) type.
 """
-mutable struct CuTexture{T,N,P} <: AbstractGPUArray{T,N}
+mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
     parent::P
     handle::CUtexObject
 
@@ -350,11 +350,20 @@ end
 
 Base.convert(::Type{CUtexObject}, t::CuTexture) = t.handle
 
+Base.parent(tm::CuTexture) = tm.parent
+
 
 ## array interface
 
 Base.size(tm::CuTexture) = size(tm.parent)
 Base.sizeof(tm::CuTexture) = Base.elsize(x) * length(x)
+
+Base.show(io::IO, t::CuTexture{T,1} where {T}) =
+    print(io, "$(length(a))-element $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name)) with eltype $T")
+Base.show(io::IO, t::CuTexture{T}) where {T} =
+    print(io, "$(join(size(t), '×')) $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name)) with eltype $T")
+
+Base.show(io::IO, mime::MIME"text/plain", a::CuTexture) = show(io, a)
 
 
 ## interop with other arrays
