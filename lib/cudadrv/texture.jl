@@ -249,12 +249,12 @@ export CuTexture
     CuTexture{T,N,C,P}
 
 `N`-dimensional texture object with `C` channels of elements of type `C`. These objects do
-not store data themselves, but are bounds to a parent array of type `P`. Texture objects can
-be passed to CUDA kernels, where they will be accessible through the
+not store data themselves, but are bounds to another source of device memory. Texture
+objects can be passed to CUDA kernels, where they will be accessible through the
 [`CuDeviceTexture`](@ref) type.
 """
 mutable struct CuTexture{T,N,C,P}
-    mem::Union{CuArray{T,N}, CuTextureArray{T,N,C}}
+    parent::P
     handle::CUtexObject
 
     normalized_coordinates::Bool
@@ -265,7 +265,7 @@ mutable struct CuTexture{T,N,C,P}
         CuTexture{T,N,C,P}(parent::P; address_mode, filter_mode, normalized_coordinates)
 
     Construct a `N`-dimensional texture object with each `C` channels of elements of type
-    `T` as stored in `parent` (either [`CuArray`](@ref)s or [`CuTextureArray`](@ref)s).
+    `T` as stored in `parent`.
 
     Several keyword arguments alter the behavior of texture objects:
     - `address_mode` (wrap, *clamp*, mirror): how out-of-bounds values are accessed. Can be
@@ -275,13 +275,13 @@ mutable struct CuTexture{T,N,C,P}
     - `normalized_coordinates` (true, *false*): whether indices are expected to fall in the
       normalized `[0:1)` range.
     """
-    function CuTexture{T,N,C,P}(texmemory::P;
+    function CuTexture{T,N,C,P}(parent::P;
                                 address_mode::Union{CUaddress_mode,NTuple{N,CUaddress_mode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
                                 filter_mode::CUfilter_mode=FILTER_MODE_POINT,
                                 normalized_coordinates::Bool=false) where {T,N,C,P}
         format = convert(CUarray_format, T)
 
-        resDesc_ref = CUDA_RESOURCE_DESC(texmemory, C, format)
+        resDesc_ref = CUDA_RESOURCE_DESC(parent, C, format)
 
         flags = 0x0
         if normalized_coordinates
@@ -309,7 +309,7 @@ mutable struct CuTexture{T,N,C,P}
         texObject_ref = Ref{CUtexObject}(0)
         cuTexObjectCreate(texObject_ref, resDesc_ref, texDesc_ref, C_NULL)
 
-        t = new{T,N,C,P}(texmemory, texObject_ref[], normalized_coordinates, context())
+        t = new{T,N,C,P}(parent, texObject_ref[], normalized_coordinates, context())
         finalizer(unsafe_destroy!, t)
         return t
     end
@@ -363,7 +363,7 @@ Base.convert(::Type{CUtexObject}, t::CuTexture) = t.handle
 
 ## array interface
 
-Base.size(tm::CuTexture) = size(tm.mem)
+Base.size(tm::CuTexture) = size(tm.parent)
 
 Base.eltype(tm::CuTexture{T,N,1}) where {T,N} = T
 Base.eltype(tm::CuTexture{T,N,C}) where {T,N,C} = NTuple{C,T}
@@ -399,4 +399,4 @@ CuTexture(x::CuArray{NTuple{C,T},N}; kwargs...) where {T,N,C} =
     CuTexture{T,N,C}(x; kwargs...)
 
 Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N,C}) where {T,N,C} =
-    CuDeviceTexture{T,N,C,t.normalized_coordinates}(size(t.mem), t.handle)
+    CuDeviceTexture{T,N,C,t.normalized_coordinates}(size(t), t.handle)
