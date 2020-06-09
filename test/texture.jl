@@ -28,7 +28,7 @@ function fetch_all(texture)
     d_out
 end
 
-@testset "Using CuTextureArray initialized from device" begin
+@testset "CuTextureBuffer(::CuArray)" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
     a2D = convert(Array{Float32}, repeat(1:testheight, 1, testwidth) + repeat(0.01 * (1:testwidth)', testheight, 1))
@@ -38,44 +38,44 @@ end
     d_a2D = CuArray(a2D)
     d_a3D = CuArray(a3D)
 
-    texarr1D = CuTextureArray(d_a1D)
+    texarr1D = CuTextureBuffer(d_a1D)
     tex1D = CuTexture(texarr1D)
     @test fetch_all(tex1D) == d_a1D
 
-    texarr2D = CuTextureArray(d_a2D)
+    texarr2D = CuTextureBuffer(d_a2D)
     tex2D = CuTexture(texarr2D)
     @test fetch_all(tex2D) == d_a2D
 
-    texarr3D = CuTextureArray(d_a3D)
+    texarr3D = CuTextureBuffer(d_a3D)
     tex3D = CuTexture(texarr3D)
     @test fetch_all(tex3D) == d_a3D
 end
 
-@testset "Using CuTextureArray initialized from host" begin
+@testset "CuTextureBuffer(::Array)" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
     a2D = convert(Array{Float32}, repeat(1:testheight, 1, testwidth) + repeat(0.01 * (1:testwidth)', testheight, 1))
     a3D = convert(Array{Float32}, repeat(a2D, 1, 1, testdepth))
     for k = 1:testdepth; a3D[:,:,k] .+= 0.0001 * k; end
 
-    texarr1D = CuTextureArray(a1D)
+    texarr1D = CuTextureBuffer(a1D)
     copyto!(texarr1D, a1D)
     tex1D = CuTexture(texarr1D)
     @test Array(fetch_all(tex1D)) == a1D
 
-    texarr2D = CuTextureArray(a2D)
+    texarr2D = CuTextureBuffer(a2D)
     tex2D = CuTexture(texarr2D)
     @test Array(fetch_all(tex2D)) == a2D
 
-    tex2D_dir = CuTexture(CuTextureArray(a2D))
+    tex2D_dir = CuTexture(CuTextureBuffer(a2D))
     @test Array(fetch_all(tex2D_dir)) == a2D
 
-    texarr3D = CuTextureArray(a3D)
+    texarr3D = CuTextureBuffer(a3D)
     tex3D = CuTexture(texarr3D)
     @test Array(fetch_all(tex3D)) == a3D
 end
 
-@testset "Wrapping CuArray" begin
+@testset "CuTexture(::CuArray)" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a1D = convert(Array{Float32}, 1:testheight)
     a2D = convert(Array{Float32}, repeat(1:testheight, 1, testwidth) + repeat(0.01 * (1:testwidth)', testheight, 1))
@@ -91,13 +91,13 @@ end
     @test fetch_all(texwrap2D) == d_a2D
 end
 
-@testset "All CUDA types" begin
+@testset "type support" begin
     for T in (Int32, UInt32, Int16, UInt16, Int8, UInt8, Float32, Float16)
         testheight, testwidth, testdepth = 32, 32, 4
         a2D = rand(T, testheight, testwidth)
         d_a2D = CuArray(a2D)
 
-        # Using CuTextureArray
+        # Using CuTextureBuffer
         tex_2D = CuTexture(d_a2D)
         @test fetch_all(tex_2D) == d_a2D
 
@@ -108,18 +108,18 @@ end
     end
 end
 
-@testset "Multiple channels" begin
+@testset "multiple channels" begin
     testheight, testwidth, testdepth = 16, 16, 4
     a2D = [(Int32(i), Int32(j)) for i = 1:testheight, j = 1:testwidth]
     d_a2D = CuArray(a2D)
-    texarr2D = CuTextureArray(d_a2D)
+    texarr2D = CuTextureBuffer(d_a2D)
     tex2D = CuTexture(texarr2D)
     @test fetch_all(tex2D) == d_a2D
 
     testheight, testwidth, testdepth = 16, 16, 4
     a2D = [(Int16(i), Int16(j), Int16(i + j), Int16(i - j)) for i = 1:testheight, j = 1:testwidth]
     d_a2D = CuArray(a2D)
-    texarr2D = CuTextureArray(d_a2D)
+    texarr2D = CuTextureBuffer(d_a2D)
     tex2D = CuTexture(texarr2D)
     @test fetch_all(tex2D) == d_a2D
 end

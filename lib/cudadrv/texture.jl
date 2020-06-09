@@ -27,37 +27,39 @@ function Base.convert(::Type{CUarray_format}, T::Type)
     end
 end
 
+nchans(::Type{<:NTuple{C}}) where {C} = C
+nchans(::Type) = 1
+
 
 
 #
-# Texture array
+# Texture buffer
 #
 
-export CuTextureArray
+export CuTextureBuffer
 
 """
-    CuTextureArray{T,N,C}(undef, dims)
+    CuTextureBuffer{T,N}(undef, dims)
 
-`N`-dimensional dense texture array with `C` channels of elements of type `T`. These arrays
-are optimized for texture fetching, and are only meant to be used as a source for
-[`CuTexture`](@ref) objects.
+`N`-dimensional dense texture array with elements of type `T`. These arrays are optimized
+for texture fetching, and are only meant to be used as a source for [`CuTexture`](@ref)
+objects.
 """
-mutable struct CuTextureArray{T,N,C}
+mutable struct CuTextureBuffer{T,N}
     handle::CUarray
     dims::Dims{N}
 
     ctx::CuContext
 
    @doc """
-        CuTextureArray{T,N,C}(undef, dims)
+        CuTextureBuffer{T,N}(undef, dims)
 
     Construct an uninitialized texture array of `N` dimensions specified in the `dims`
-    tuple, with each `C` channels of elements of type `T`. Use `Base.copyto!` to initialize
-    this texture array, or use constructors that take a non-texture array to do so
-    automatically.
+    tuple, with elements of type `T`. Use `Base.copyto!` to initialize this texture array,
+    or use constructors that take a non-texture array to do so automatically.
     """
-    function CuTextureArray{T,N,C}(::UndefInitializer, dims::Dims{N}) where {T,N,C}
-        format = convert(CUarray_format, T)
+    function CuTextureBuffer{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
+        format = convert(CUarray_format, eltype(T))
 
         if N == 2
             width, height = dims
@@ -88,92 +90,82 @@ mutable struct CuTextureArray{T,N,C}
             height, # Height::Csize_t
             depth, # Depth::Csize_t
             format, # Format::CUarray_format
-            UInt32(C), # NumChannels::UInt32
+            UInt32(nchans(T)), # NumChannels::UInt32
             0))
 
         handle_ref = Ref{CUarray}()
         cuArray3DCreate(handle_ref, allocateArray_ref)
 
-        t = new{T,N,C}(handle_ref[], dims, context())
+        t = new{T,N}(handle_ref[], dims, context())
         finalizer(unsafe_destroy!, t)
         return t
     end
 end
 
-function unsafe_destroy!(t::CuTextureArray)
+function unsafe_destroy!(t::CuTextureBuffer)
     if isvalid(t.ctx)
         cuArrayDestroy(t)
     end
 end
 
-Base.unsafe_convert(::Type{CUarray}, t::CuTextureArray) = t.handle
+Base.unsafe_convert(::Type{CUarray}, t::CuTextureBuffer) = t.handle
 
 
 ## array interface
 
-Base.size(tm::CuTextureArray) = tm.dims
-Base.length(tm::CuTextureArray) = prod(size(tm))
+Base.size(tm::CuTextureBuffer) = tm.dims
+Base.length(tm::CuTextureBuffer) = prod(size(tm))
 
-Base.eltype(tm::CuTextureArray{T,N,1}) where {T,N} = T
-Base.eltype(tm::CuTextureArray{T,N,C}) where {T,N,C} = NTuple{C,T}
+Base.eltype(tm::CuTextureBuffer{T,N}) where {T,N} = T
 
-Base.sizeof(tm::CuTextureArray) = sizeof(eltype(tm)) * length(tm)
+Base.sizeof(tm::CuTextureBuffer) = sizeof(eltype(tm)) * length(tm)
 
 
 ## interop with other arrays
 
-packed_type(T,C) = C==1 ? T : NTuple{C,T}
-
 """
-    CuTextureArray(A::AbstractArray)
+    CuTextureBuffer(A::AbstractArray)
 
-Allocate and initialize a texture array from host memory in `A`.
+Allocate and initialize a texture buffer from host memory in `A`.
 """
-@inline function CuTextureArray{T,N,C}(xs::AbstractArray{<:Any,N}) where {T,N,C}
-  A = CuTextureArray{T,N,C}(undef, size(xs))
-  copyto!(A, convert(Array{packed_type(T,C)}, xs))
+@inline function CuTextureBuffer{T,N}(xs::AbstractArray{<:Any,N}) where {T,N}
+  A = CuTextureBuffer{T,N}(undef, size(xs))
+  copyto!(A, convert(Array{T}, xs))
   return A
 end
 
 """
-    CuTextureArray(A::CuArray)
+    CuTextureBuffer(A::CuArray)
 
-Allocate and initialize a texture array from device memory in `A`.
+Allocate and initialize a texture buffer from device memory in `A`.
 """
-@inline function CuTextureArray{T,N,C}(xs::CuArray{<:Any,N}) where {T,N,C}
-  A = CuTextureArray{T,N,C}(undef, size(xs))
-  copyto!(A, convert(CuArray{packed_type(T,C)}, xs))
+@inline function CuTextureBuffer{T,N}(xs::CuArray{<:Any,N}) where {T,N}
+  A = CuTextureBuffer{T,N}(undef, size(xs))
+  copyto!(A, convert(CuArray{T}, xs))
   return A
 end
 
 # idempotency
-CuTextureArray{T,N,C}(xs::CuTextureArray{T,N,C}) where {T,N,C} = xs
+CuTextureBuffer{T,N}(xs::CuTextureBuffer{T,N}) where {T,N} = xs
 
-CuTextureArray(A::AbstractArray{T,N}) where {T,N} = CuTextureArray{T,N,1}(A)
-CuTextureArray(A::AbstractArray{NTuple{C,T},N}) where {T,N,C} = CuTextureArray{T,N,C}(A)
+CuTextureBuffer(A::AbstractArray{T,N}) where {T,N} = CuTextureBuffer{T,N}(A)
 
 
 ## memory operations
 
-function Base.copyto!(dst::CuTextureArray{T,1,C}, src::Array{<:Any,1}) where {T,C}
-    eltype(src) === packed_type(T,C) ||
-        throw(ArgumentError("Invalid source element type for $C-channel $T: expected $(packed_type(T,C)), got $(eltype(src))"))
+function Base.copyto!(dst::CuTextureBuffer{T,1}, src::Array{T,1}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
     cuMemcpyHtoA(dst, 0, src, sizeof(dst))
     return dst
 end
 
-function Base.copyto!(dst::CuTextureArray{T,1,C}, src::CuArray{<:Any,1}) where {T,C}
-    eltype(src) === packed_type(T,C) ||
-        throw(ArgumentError("Invalid source element type for $C-channel $T: expected $(packed_type(T,C)), got $(eltype(src))"))
+function Base.copyto!(dst::CuTextureBuffer{T,1}, src::CuArray{T,1}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
     cuMemcpyDtoA(dst, 0, src, sizeof(dst))
     return dst
 end
 
-function Base.copyto!(dst::CuTextureArray{T,2,C}, src::Union{Array{<:Any,2}, CuArray{<:Any,2}}) where {T,C}
-    eltype(src) === packed_type(T,C) ||
-        throw(ArgumentError("Invalid source element type for $C-channel $T: expected $(packed_type(T,C)), got $(eltype(src))"))
+function Base.copyto!(dst::CuTextureBuffer{T,2}, src::Union{Array{T,2}, CuArray{T,2}}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
     isdevmem = isa(src, CuArray)
     copy_ref = Ref(CUDA_MEMCPY2D(
@@ -198,9 +190,7 @@ function Base.copyto!(dst::CuTextureArray{T,2,C}, src::Union{Array{<:Any,2}, CuA
     return dst
 end
 
-function Base.copyto!(dst::CuTextureArray{T,3,C}, src::Union{Array{<:Any,3}, CuArray{<:Any,3}}) where {T,C}
-    eltype(src) === packed_type(T,C) ||
-        throw(ArgumentError("Invalid source element type for $C-channel $T: expected $(packed_type(T,C)), got $(eltype(src))"))
+function Base.copyto!(dst::CuTextureBuffer{T,3}, src::Union{Array{T,3}, CuArray{T,3}}) where {T}
     size(dst) == size(src) || throw(DimensionMismatch("source and destination sizes must match"))
     isdevmem = isa(src, CuArray)
     copy_ref = Ref(CUDA_MEMCPY3D(0, # srcXInBytes::Csize_t
@@ -246,14 +236,13 @@ export CuTexture
 @enum_without_prefix CUfilter_mode CU_TR_
 
 """
-    CuTexture{T,N,C,P}
+    CuTexture{T,N,P}
 
-`N`-dimensional texture object with `C` channels of elements of type `C`. These objects do
-not store data themselves, but are bounds to another source of device memory. Texture
-objects can be passed to CUDA kernels, where they will be accessible through the
-[`CuDeviceTexture`](@ref) type.
+`N`-dimensional texture object with elements of type `T`. These objects do not store data
+themselves, but are bounds to another source of device memory. Texture objects can be passed
+to CUDA kernels, where they will be accessible through the [`CuDeviceTexture`](@ref) type.
 """
-mutable struct CuTexture{T,N,C,P}
+mutable struct CuTexture{T,N,P} <: AbstractGPUArray{T,N}
     parent::P
     handle::CUtexObject
 
@@ -262,10 +251,10 @@ mutable struct CuTexture{T,N,C,P}
     ctx::CuContext
 
     @doc """
-        CuTexture{T,N,C,P}(parent::P; address_mode, filter_mode, normalized_coordinates)
+        CuTexture{T,N,P}(parent::P; address_mode, filter_mode, normalized_coordinates)
 
-    Construct a `N`-dimensional texture object with each `C` channels of elements of type
-    `T` as stored in `parent`.
+    Construct a `N`-dimensional texture object with elements of type `T` as stored in
+    `parent`.
 
     Several keyword arguments alter the behavior of texture objects:
     - `address_mode` (wrap, *clamp*, mirror): how out-of-bounds values are accessed. Can be
@@ -275,19 +264,17 @@ mutable struct CuTexture{T,N,C,P}
     - `normalized_coordinates` (true, *false*): whether indices are expected to fall in the
       normalized `[0:1)` range.
     """
-    function CuTexture{T,N,C,P}(parent::P;
-                                address_mode::Union{CUaddress_mode,NTuple{N,CUaddress_mode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
-                                filter_mode::CUfilter_mode=FILTER_MODE_POINT,
-                                normalized_coordinates::Bool=false) where {T,N,C,P}
-        format = convert(CUarray_format, T)
-
-        resDesc_ref = CUDA_RESOURCE_DESC(parent, C, format)
+    function CuTexture{T,N,P}(parent::P;
+                              address_mode::Union{CUaddress_mode,NTuple{N,CUaddress_mode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
+                              filter_mode::CUfilter_mode=FILTER_MODE_POINT,
+                              normalized_coordinates::Bool=false) where {T,N,P}
+        resDesc_ref = CUDA_RESOURCE_DESC(parent)
 
         flags = 0x0
         if normalized_coordinates
             flags |= CU_TRSF_NORMALIZED_COORDINATES
         end
-        if T <: Integer
+        if eltype(T) <: Integer
             flags |= CU_TRSF_READ_AS_INTEGER
         end
 
@@ -303,19 +290,19 @@ mutable struct CuTexture{T,N,C,P}
             0, # mipmapLevelBias::Cfloat
             0, # minMipmapLevelClamp::Cfloat
             0, # maxMipmapLevelClamp::Cfloat
-            ntuple(_->Cfloat(zero(T)), 4), # borderColor::NTuple{4, Cfloat}
+            ntuple(_->Cfloat(zero(eltype(T))), 4), # borderColor::NTuple{4, Cfloat}
             ntuple(_->Cint(0), 12)))
 
         texObject_ref = Ref{CUtexObject}(0)
         cuTexObjectCreate(texObject_ref, resDesc_ref, texDesc_ref, C_NULL)
 
-        t = new{T,N,C,P}(parent, texObject_ref[], normalized_coordinates, context())
+        t = new{T,N,P}(parent, texObject_ref[], normalized_coordinates, context())
         finalizer(unsafe_destroy!, t)
         return t
     end
 end
 
-function CUDA_RESOURCE_DESC(texarr::CuTextureArray{T,N}, channels, format) where {T,N}
+function CUDA_RESOURCE_DESC(texarr::CuTextureBuffer)
     # FIXME: manual construction due to invalid padding (JuliaInterop/Clang.jl#238)
     # res = Ref{ANONYMOUS1_res}()
     # unsafe_store!(Ptr{CUarray}(pointer_from_objref(res)), texarr.handle)
@@ -335,9 +322,12 @@ end
 Base.unsafe_convert(::Type{Ptr{CUDA_RESOURCE_DESC}}, ref::Base.RefValue{T}) where {T} =
     convert(Ptr{CUDA_RESOURCE_DESC}, Base.unsafe_convert(Ptr{T}, ref))
 
-function CUDA_RESOURCE_DESC(arr::CuArray{T,N}, channels, format) where {T,N}
+function CUDA_RESOURCE_DESC(arr::CuArray{T,N}) where {T,N}
     # TODO: take care of allowed pitches
     1 <= N <= 2 || throw(ArgumentError("Only 1 or 2D CuArray objects can be wrapped in a texture"))
+
+    format = convert(CUarray_format, eltype(T))
+    channels = nchans(T)
 
     # FIXME: manual construction due to invalid padding (JuliaInterop/Clang.jl#238)
     resDesc_ref = Ref(((N == 1 ? CU_RESOURCE_TYPE_LINEAR : CU_RESOURCE_TYPE_PITCH2D), # resType::CUresourcetype
@@ -364,39 +354,32 @@ Base.convert(::Type{CUtexObject}, t::CuTexture) = t.handle
 ## array interface
 
 Base.size(tm::CuTexture) = size(tm.parent)
-
-Base.eltype(tm::CuTexture{T,N,1}) where {T,N} = T
-Base.eltype(tm::CuTexture{T,N,C}) where {T,N,C} = NTuple{C,T}
+Base.sizeof(tm::CuTexture) = Base.elsize(x) * length(x)
 
 
 ## interop with other arrays
 
-CuTexture{T,N,C}(x::Union{CuArray{T,N},CuTextureArray{T,N,C}}; kwargs...) where {T,N,C} =
-    CuTexture{T,N,C,typeof(x)}(x; kwargs...)
+CuTexture{T,N}(A::Union{CuTextureBuffer{T,N},CuArray{T,N}}; kwargs...) where {T,N} =
+    CuTexture{T,N,typeof(A)}(A; kwargs...)
 
 """
-    CuTexture(x::CuTextureArray{T,N,C})
+    CuTexture(x::CuTextureBuffer{T,N})
 
-Create a `N`-dimensional texture object with each `C` channels of elements of type `T` that
-will be read from `x`.
+Create a `N`-dimensional texture object withelements of type `T` that will be read from `x`.
 """
-CuTexture(x::CuTextureArray{T,N,C}; kwargs...) where {T,N,C} =
-    CuTexture{T,N,C}(x; kwargs...)
+CuTexture(x::CuTextureBuffer{T,N}; kwargs...) where {T,N} =
+    CuTexture{T,N}(x; kwargs...)
 
 """
     CuTexture(x::CuArray{T,N})
 
-Create a `N`-dimensional texture object that reads from a `CuArray`. If the `T` is an
-`NTuple`, the texture element type and number of channels will be determined from it.
-Otherwise, the array element type is used as-is and the texture object will have one channel.
+Create a `N`-dimensional texture object that reads from a `CuArray`.
 
 Note that it is necessary the their memory is well aligned and strided (good pitch).
 Currently, that is not being enforced.
 """
 CuTexture(x::CuArray{T,N}; kwargs...) where {T,N} =
-    CuTexture{T,N,1}(x; kwargs...)
-CuTexture(x::CuArray{NTuple{C,T},N}; kwargs...) where {T,N,C} =
-    CuTexture{T,N,C}(x; kwargs...)
+    CuTexture{T,N}(x; kwargs...)
 
-Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N,C}) where {T,N,C} =
-    CuDeviceTexture{T,N,C,t.normalized_coordinates}(size(t), t.handle)
+Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N}) where {T,N} =
+    CuDeviceTexture{T,N,t.normalized_coordinates}(size(t), t.handle)
