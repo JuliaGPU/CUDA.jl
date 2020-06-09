@@ -12,6 +12,14 @@ end
 
 Base.convert(::Type{CUtexObject}, t::CuDeviceTexture) = t.handle
 
+
+## array interface
+
+Base.size(tm::CuDeviceTexture) = tm.dims
+
+Base.eltype(tm::CuDeviceTexture{T,N,1}) where {T,N} = T
+Base.eltype(tm::CuDeviceTexture{T,N,C}) where {T,N,C} = NTuple{C,T}
+
 isnormalized(t::CuDeviceTexture{<:Any,<:Any,<:Any,NC}) where {NC} = NC
 
 

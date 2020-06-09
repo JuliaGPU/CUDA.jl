@@ -1,6 +1,9 @@
-## formats
+# texture handling
 
-export alias_type
+
+#
+# Texture format
+#
 
 function Base.convert(::Type{CUarray_format}, T::Type)
     if T === UInt8
@@ -25,7 +28,10 @@ function Base.convert(::Type{CUarray_format}, T::Type)
 end
 
 
-## array
+
+#
+# Texture array
+#
 
 export CuTextureArray
 
@@ -97,12 +103,12 @@ Base.unsafe_convert(::Type{CUarray}, t::CuTextureArray) = t.handle
 
 ## array interface
 
+Base.size(tm::CuTextureArray) = tm.dims
+Base.length(tm::CuTextureArray) = prod(size(tm))
+
 Base.eltype(tm::CuTextureArray{T,N,1}) where {T,N} = T
 Base.eltype(tm::CuTextureArray{T,N,C}) where {T,N,C} = NTuple{C,T}
 
-Base.elsize(tm::CuTextureArray) = sizeof(eltype(tm))
-Base.size(tm::CuTextureArray) = tm.dims
-Base.length(tm::CuTextureArray) = prod(size(tm))
 Base.sizeof(tm::CuTextureArray) = sizeof(eltype(tm)) * length(tm)
 
 
@@ -210,23 +216,18 @@ function Base.copyto!(dst::CuTextureArray{T,3,C}, src::Union{Array{<:Any,3}, CuA
 end
 
 
-## texture
 
-export CuTexture, mode_wrap, mode_clamp, mode_mirror, mode_border, mode_point, mode_linear
+#
+# Texture objects
+#
 
-const AddressMode = CUaddress_mode_enum
-const mode_wrap = CU_TR_ADDRESS_MODE_WRAP
-const mode_clamp = CU_TR_ADDRESS_MODE_CLAMP
-const mode_mirror = CU_TR_ADDRESS_MODE_MIRROR
-const mode_border = CU_TR_ADDRESS_MODE_BORDER
+export CuTexture
 
-@enum_without_prefix CUaddress_mode_enum CU_TR_
+const AddressMode = CUaddress_mode
+@enum_without_prefix CUaddress_mode CU_TR_
 
-const FilterMode = CUfilter_mode_enum
-const mode_point = CU_TR_FILTER_MODE_POINT
-const mode_linear = CU_TR_FILTER_MODE_LINEAR
-
-@enum_without_prefix CUfilter_mode_enum CU_TR_
+const FilterMode = CUfilter_mode
+@enum_without_prefix CUfilter_mode CU_TR_
 
 """
     CuTexture{T,N,C,P}
@@ -334,10 +335,10 @@ Base.convert(::Type{CUtexObject}, t::CuTexture) = t.handle
 
 ## array interface
 
+Base.size(tm::CuTexture) = size(tm.mem)
+
 Base.eltype(tm::CuTexture{T,N,1}) where {T,N} = T
 Base.eltype(tm::CuTexture{T,N,C}) where {T,N,C} = NTuple{C,T}
-
-Base.size(tm::CuTexture) = size(tm.mem)
 
 
 ## interop with other arrays
