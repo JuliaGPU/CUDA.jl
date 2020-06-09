@@ -62,6 +62,7 @@ include("$root/src/utilities.jl")
 # array libraries
 include("$root/lib/complex.jl")
 include("$root/lib/library_types.jl")
+include("$root/lib/cuda/CUDA_late.jl")
 include("$root/lib/cublas/CUBLAS.jl")
 include("$root/lib/cusparse/CUSPARSE.jl")
 include("$root/lib/cusolver/CUSOLVER.jl")
@@ -80,7 +81,6 @@ include("$root/src/linalg.jl")
 include("$root/src/nnlib.jl")
 include("$root/src/iterator.jl")
 include("$root/src/statistics.jl")
-include("$root/src/texture.jl")
 
 # other libraries
 include("$root/lib/nvml/NVML.jl")

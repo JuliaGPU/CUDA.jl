@@ -170,3 +170,20 @@ CUDA.@profile
 CUDA.Profile.start
 CUDA.Profile.stop
 ```
+
+## Texture Memory
+
+Textures are represented by objects of type `CuTexture` which are bound to some underlying
+memory, either `CuArray`s or `CuTextureArray`s:
+
+```@docs
+CUDA.CuTexture
+CUDA.CuTexture(array)
+```
+
+You can create `CuTextureArray` objects from both host and device memory:
+
+```@docs
+CUDA.CuTextureArray
+CUDA.CuTextureArray(array)
+```

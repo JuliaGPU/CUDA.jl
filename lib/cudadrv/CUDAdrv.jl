@@ -24,3 +24,5 @@ include("events.jl")
 include("execution.jl")
 include("profile.jl")
 include("occupancy.jl")
+
+# NOTE: parts of this library are included at a later stage, see CUDA_late.jl
