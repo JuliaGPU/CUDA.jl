@@ -78,15 +78,25 @@ Base.parent(A::CuArray{<:Any,<:Any,Nothing})     = A
 Base.parent(A::CuArray{<:Any,<:Any,P}) where {P} = A.parent
 
 Base.dataids(A::CuArray{<:Any,<:Any,Nothing})     = (UInt(pointer(A)),)
-Base.dataids(A::CuArray{<:Any,<:Any,P}) where {P} = (Base.dataids(A.parent)..., UInt(pointer(A)),)
-
-# TODO: implement array alias detection from https://github.com/JuliaLang/julia/pull/25890
+Base.dataids(A::CuArray{<:Any,<:Any,P}) where {P} = (Base.dataids(parent(A))..., UInt(pointer(A)),)
 
 Base.unaliascopy(A::CuArray{<:Any,<:Any,Nothing}) = copy(A)
 function Base.unaliascopy(A::CuArray{<:Any,<:Any,P}) where {P}
   offset = pointer(A) - pointer(A.parent)
   new_parent = Base.unaliascopy(A.parent)
   typeof(A)(pointer(new_parent) + offset, A.dims, new_parent, A.pooled, A.ctx)
+end
+
+# optimized alias detection for views
+function Base.mightalias(A::CuArray, B::CuArray)
+    if parent(A) !== parent(B)
+        # We cannot do any better than the usual dataids check
+        return invoke(Base.mightalias, Tuple{AbstractArray, AbstractArray}, A, B)
+    end
+
+    rA = pointer(A):pointer(A)+sizeof(A)
+    rB = pointer(B):pointer(B)+sizeof(B)
+    return first(rA) <= first(rB) < last(rA) || first(rB) <= first(rA) < last(rB)
 end
 
 

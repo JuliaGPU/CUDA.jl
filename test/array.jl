@@ -279,12 +279,19 @@ end
 @testset "aliasing" begin
   x = CuArray([1,2])
   y = view(x, 2:2)
+  @test Base.mightalias(x, x)
+  @test Base.mightalias(x, y)
+  z = view(x, 1:1)
+  @test Base.mightalias(x, z)
+  @test !Base.mightalias(y, z)
 
   a = copy(y)::typeof(x)
+  @test !Base.mightalias(x, a)
   a .= 3
   @test Array(y) == [2]
 
   b = Base.unaliascopy(y)::typeof(y)
+  @test !Base.mightalias(x, b)
   b .= 3
   @test Array(y) == [2]
 end
