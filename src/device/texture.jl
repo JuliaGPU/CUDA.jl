@@ -1,9 +1,12 @@
 export CuDeviceTexture
 
 """
-Lightweight type to handle CUDA texture objects inside kernels. Textures are fetched through
-indexing operations on `CuTexture`/`CuDeviceTexture` objects, e.g., `cutexture2d[0.2f0,
-0.2f0]`.
+    CuDeviceTexture{T,N,C,NC}
+
+`N`-dimensional device texture with `C` channels of elements of type `T`. This type is the
+device-side counterpart of [`CuTexture`](@ref), and can be used to access textures using
+regular indexing notation. If `NC` is true, indices used by these accesses should be
+normalized, i.e., fall into the `[0,1)` domain.
 """
 struct CuDeviceTexture{T,N,C,NC}
     dims::Dims{N}

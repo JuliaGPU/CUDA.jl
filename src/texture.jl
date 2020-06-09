@@ -36,11 +36,11 @@ end
 export CuTextureArray
 
 """
-    CuTextureArray{T,N,C}
+    CuTextureArray{T,N,C}(undef, dims)
 
-Type to handle CUDA arrays which are opaque device memory buffers optimized for texture
-fetching. The only way to initialize the content of this objects is by copying from host or
-device arrays using the constructor or `copyto!` calls.
+`N`-dimensional dense texture array with `C` channels of elements of type `T`. These arrays
+are optimized for texture fetching, and are only meant to be used as a source for
+[`CuTexture`](@ref) objects.
 """
 mutable struct CuTextureArray{T,N,C}
     handle::CUarray
@@ -48,6 +48,14 @@ mutable struct CuTextureArray{T,N,C}
 
     ctx::CuContext
 
+   @doc """
+        CuTextureArray{T,N,C}(undef, dims)
+
+    Construct an uninitialized texture array of `N` dimensions specified in the `dims`
+    tuple, with each `C` channels of elements of type `T`. Use `Base.copyto!` to initialize
+    this texture array, or use constructors that take a non-texture array to do so
+    automatically.
+    """
     function CuTextureArray{T,N,C}(::UndefInitializer, dims::Dims{N}) where {T,N,C}
         format = convert(CUarray_format, T)
 
@@ -116,12 +124,22 @@ Base.sizeof(tm::CuTextureArray) = sizeof(eltype(tm)) * length(tm)
 
 packed_type(T,C) = C==1 ? T : NTuple{C,T}
 
+"""
+    CuTextureArray(A::AbstractArray)
+
+Allocate and initialize a texture array from host memory in `A`.
+"""
 @inline function CuTextureArray{T,N,C}(xs::AbstractArray{<:Any,N}) where {T,N,C}
   A = CuTextureArray{T,N,C}(undef, size(xs))
   copyto!(A, convert(Array{packed_type(T,C)}, xs))
   return A
 end
 
+"""
+    CuTextureArray(A::CuArray)
+
+Allocate and initialize a texture array from device memory in `A`.
+"""
 @inline function CuTextureArray{T,N,C}(xs::CuArray{<:Any,N}) where {T,N,C}
   A = CuTextureArray{T,N,C}(undef, size(xs))
   copyto!(A, convert(CuArray{packed_type(T,C)}, xs))
@@ -223,21 +241,17 @@ end
 
 export CuTexture
 
-const AddressMode = CUaddress_mode
 @enum_without_prefix CUaddress_mode CU_TR_
 
-const FilterMode = CUfilter_mode
 @enum_without_prefix CUfilter_mode CU_TR_
 
 """
     CuTexture{T,N,C,P}
 
-Type to handle CUDA texture objects. These objects do not hold data by themselves, but
-instead are bound either to `CuTextureArray`s (CUDA arrays) or to `CuArray`s. (Note: For
-correct wrapping `CuArray`s it is necessary the their memory is well aligned and strided
-(good pitch). Currently, that is not being enforced.) Theses objects are meant to be used to
-do texture fetchts inside kernels. When passed to kernels, `CuTexture` objects are
-transformed into `CuDeviceTexture`s objects.
+`N`-dimensional texture object with `C` channels of elements of type `C`. These objects do
+not store data themselves, but are bounds to a parent array of type `P`. Texture objects can
+be passed to CUDA kernels, where they will be accessible through the
+[`CuDeviceTexture`](@ref) type.
 """
 mutable struct CuTexture{T,N,C,P}
     mem::Union{CuArray{T,N}, CuTextureArray{T,N,C}}
@@ -247,9 +261,23 @@ mutable struct CuTexture{T,N,C,P}
 
     ctx::CuContext
 
+    @doc """
+        CuTexture{T,N,C,P}(parent::P; address_mode, filter_mode, normalized_coordinates)
+
+    Construct a `N`-dimensional texture object with each `C` channels of elements of type
+    `T` as stored in `parent` (either [`CuArray`](@ref)s or [`CuTextureArray`](@ref)s).
+
+    Several keyword arguments alter the behavior of texture objects:
+    - `address_mode` (wrap, *clamp*, mirror): how out-of-bounds values are accessed. Can be
+      specified as a value for all dimensions, or as a tuple of `N` entries.
+    - `filter_mode` (*point*, linear): how non-integral indices are fetched. Point mode
+      fetches a single value, linear results in linear interpolation between values.
+    - `normalized_coordinates` (true, *false*): whether indices are expected to fall in the
+      normalized `[0:1)` range.
+    """
     function CuTexture{T,N,C,P}(texmemory::P;
-                                address_mode::Union{AddressMode,NTuple{N,AddressMode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
-                                filter_mode::FilterMode=FILTER_MODE_POINT,
+                                address_mode::Union{CUaddress_mode,NTuple{N,CUaddress_mode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
+                                filter_mode::CUfilter_mode=FILTER_MODE_POINT,
                                 normalized_coordinates::Bool=false) where {T,N,C,P}
         format = convert(CUarray_format, T)
 
@@ -346,8 +374,25 @@ Base.eltype(tm::CuTexture{T,N,C}) where {T,N,C} = NTuple{C,T}
 CuTexture{T,N,C}(x::Union{CuArray{T,N},CuTextureArray{T,N,C}}; kwargs...) where {T,N,C} =
     CuTexture{T,N,C,typeof(x)}(x; kwargs...)
 
+"""
+    CuTexture(x::CuTextureArray{T,N,C})
+
+Create a `N`-dimensional texture object with each `C` channels of elements of type `T` that
+will be read from `x`.
+"""
 CuTexture(x::CuTextureArray{T,N,C}; kwargs...) where {T,N,C} =
     CuTexture{T,N,C}(x; kwargs...)
+
+"""
+    CuTexture(x::CuArray{T,N})
+
+Create a `N`-dimensional texture object that reads from a `CuArray`. If the `T` is an
+`NTuple`, the texture element type and number of channels will be determined from it.
+Otherwise, the array element type is used as-is and the texture object will have one channel.
+
+Note that it is necessary the their memory is well aligned and strided (good pitch).
+Currently, that is not being enforced.
+"""
 CuTexture(x::CuArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N,1}(x; kwargs...)
 CuTexture(x::CuArray{NTuple{C,T},N}; kwargs...) where {T,N,C} =
