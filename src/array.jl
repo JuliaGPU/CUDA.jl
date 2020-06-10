@@ -145,10 +145,15 @@ for (ctor, tvars) in (:CuArray => (), :(CuArray{T}) => (:T,), :(CuArray{T,N}) =>
   end
 end
 
-
 Base.similar(a::CuArray{T,N}) where {T,N} = CuArray{T,N}(undef, size(a))
 Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
+
+function Base.copy(a::CuArray{T,N}) where {T,N}
+  ptr = convert(CuPtr{T}, alloc(sizeof(a)))
+  unsafe_copyto!(ptr, pointer(a), length(a))
+  CuArray{T,N}(ptr, size(a))
+end
 
 
 """
