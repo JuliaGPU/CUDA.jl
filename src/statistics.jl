@@ -1,4 +1,4 @@
-import Statistics
+using Statistics
 
 Statistics._var(A::CuArray, corrected::Bool, mean, dims) =
     sum((A .- something(mean, Statistics.mean(A, dims=dims))).^2, dims=dims)/(prod(size(A)[[dims...]])-corrected)
