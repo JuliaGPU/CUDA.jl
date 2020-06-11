@@ -49,8 +49,8 @@ version = "0.1.1"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "239920677937f12e19309a32832db4d702d1279f"
-repo-rev = "7dac60b78f9716112c381e73b8d737d6f7c62f8c"
+git-tree-sha1 = "da6db8b5714166336222c3a3e2bbe09878f860b5"
+repo-rev = "9d5c7c41432df78b6fbe8bbf821e31fc296d091d"
 repo-url = "https://github.com/JuliaGPU/GPUArrays.jl.git"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 version = "3.4.1"
@@ -74,6 +74,7 @@ uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
 version = "1.5.1"
 
 [[LibGit2]]
+deps = ["Printf"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
 [[Libdl]]
@@ -108,7 +109,7 @@ uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
 version = "1.2.0"
 
 [[Pkg]]
-deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Test", "UUIDs"]
+deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Printf]]
