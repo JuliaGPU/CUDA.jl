@@ -9,14 +9,14 @@ import Libdl
 const __toolkit_version = Ref{VersionNumber}()
 
 """
-    version()
+    toolkit_version()
 
 Returns the version of the CUDA toolkit in use.
 """
 toolkit_version() = @after_init(__toolkit_version[])
 
 """
-    release()
+    toolkit_release()
 
 Returns the CUDA release part of the version as returned by [`version`](@ref).
 """
