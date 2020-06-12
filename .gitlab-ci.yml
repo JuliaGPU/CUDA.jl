@@ -30,7 +30,6 @@ julia:1.4:
 #     - .test
 #   tags:
 #     - nvidia
-#     - sm_70
 #   variables:
 #     CI_CLONE_ARGS: '-b v1.4.0'
 #     CI_BUILD_ARGS: 'BINARYBUILDER_LLVM_ASSERTS=1 debug'
@@ -69,7 +68,7 @@ cuda:10.1:
     JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
     - nvidia
-    - sm_70
+    - latest
 
 cuda:10.0:
   extends:
