@@ -56,6 +56,11 @@ if get(ENV, "CODESPEED_BRANCH", nothing) == "master"
                 flatten(value, "$prefix$key/")
             else
                 @assert value isa BenchmarkTools.Trial
+
+                # codespeed reports maxima, but those are often very noisy.
+                # get rid of measurements that unnecessarily skew the distribution.
+                rmskew!(value)
+
                 push!(flat_results,
                     Dict(basedata...,
                         "benchmark" => "$prefix$key",
