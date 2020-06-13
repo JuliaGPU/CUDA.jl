@@ -6,6 +6,7 @@ BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
 
 SUITE = BenchmarkGroup()
 
+include("kernel.jl")
 include("array.jl")
 
 @info "Tuning parameters"
