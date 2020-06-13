@@ -2,12 +2,35 @@
 
 using CUDA, BenchmarkTools
 
+BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
+
 SUITE = BenchmarkGroup()
 
 include("array.jl")
 
-warmup(SUITE)
-results = run(SUITE)
+@info "Tuning parameters"
+paramsfile = joinpath(first(DEPOT_PATH), "cache", "CUDA_benchmark_params.json")
+mkpath(dirname(paramsfile))
+if isfile(paramsfile)
+    loadparams!(SUITE, BenchmarkTools.load(paramsfile)[1], :evals, :samples)
+else
+    @warn "No saved parameters found, will re-tune all benchmarks"
+end
+
+# tune benchmarks for which we have evals==0
+selective_tune!(b::BenchmarkGroup) = BenchmarkTools.mapvals!(selective_tune!, b)
+function selective_tune!(b::BenchmarkTools.Benchmark)
+    if params(b).evals == 0
+        tune!(b)
+    end
+end
+selective_tune!(SUITE)
+
+BenchmarkTools.save(paramsfile, params(SUITE))
+
+@info "Running benchmarks"
+results = run(SUITE, verbose=true)
+println(results)
 
 
 ## submission
