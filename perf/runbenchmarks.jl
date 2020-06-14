@@ -9,6 +9,9 @@ SUITE = BenchmarkGroup()
 include("kernel.jl")
 include("array.jl")
 
+@info "Warming up"
+warmup(SUITE; verbose=false)
+
 paramsfile = joinpath(first(DEPOT_PATH), "cache", "CUDA_benchmark_params.json")
 mkpath(dirname(paramsfile))
 if !isfile(paramsfile)
