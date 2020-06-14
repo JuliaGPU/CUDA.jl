@@ -6,6 +6,8 @@ BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
 
 SUITE = BenchmarkGroup()
 
+# NOTE: don't use spaces in benchmark names (tobami/codespeed#256)
+
 include("kernel.jl")
 include("array.jl")
 
