@@ -6,28 +6,43 @@ BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
 
 SUITE = BenchmarkGroup()
 
+# NOTE: don't use spaces in benchmark names (tobami/codespeed#256)
+
 include("kernel.jl")
 include("array.jl")
 
-@info "Tuning parameters"
+@info "Warming up"
+warmup(SUITE; verbose=false)
+
 paramsfile = joinpath(first(DEPOT_PATH), "cache", "CUDA_benchmark_params.json")
 mkpath(dirname(paramsfile))
-if isfile(paramsfile)
-    loadparams!(SUITE, BenchmarkTools.load(paramsfile)[1], :evals, :samples)
-else
+if !isfile(paramsfile)
     @warn "No saved parameters found, will re-tune all benchmarks"
-end
+    tune!(SUITE)
+else
+    loadparams!(SUITE, BenchmarkTools.load(paramsfile)[1], :evals, :samples)
 
-# tune benchmarks for which we have evals==0
-selective_tune!(b::BenchmarkGroup) = BenchmarkTools.mapvals!(selective_tune!, b)
-function selective_tune!(b::BenchmarkTools.Benchmark)
-    if params(b).evals == 0
-        tune!(b)
+    # find untuned benchmarks for which we have the default evals==0
+    function find_untuned(group::BenchmarkGroup, untuned=Dict(), prefix="")
+        for (name, b) in group
+            find_untuned(b, untuned, isempty(prefix) ? name : "$prefix/$name")
+        end
+        return untuned
+    end
+    function find_untuned(b::BenchmarkTools.Benchmark, untuned=Dict(), prefix="")
+        if params(b).evals == 0
+            untuned[prefix] = b
+        end
+        return untuned
+    end
+    untuned = find_untuned(SUITE)
+
+    if !isempty(untuned)
+        @info "Tuning parameters: $(join(keys(untuned), ", "))"
+        foreach(tune!, values(untuned))
+        BenchmarkTools.save(paramsfile, params(SUITE))
     end
 end
-selective_tune!(SUITE)
-
-BenchmarkTools.save(paramsfile, params(SUITE))
 
 @info "Running benchmarks"
 results = run(SUITE, verbose=true)
