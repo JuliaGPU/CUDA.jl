@@ -6,6 +6,7 @@ using Printf
 
 # low-level wrappers
 const CUdeviceptr = CuPtr{Cvoid}
+const CUarray = CuArrayPtr{Cvoid}
 include("libcuda_common.jl")
 include("error.jl")
 include("libcuda.jl")
@@ -24,5 +25,3 @@ include("events.jl")
 include("execution.jl")
 include("profile.jl")
 include("occupancy.jl")
-
-# NOTE: parts of this library are included at a later stage, see CUDA_late.jl

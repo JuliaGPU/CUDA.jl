@@ -5,11 +5,24 @@ export Mem, attribute, attribute!, memory_type, is_managed
 module Mem
 
 using ..CUDA
-using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3
+using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray_format
 
 using Base: @deprecate_binding
 
 using IntervalTrees
+
+
+# TODO: make buffer typed again. for mostly untyped stuff, use T=UInt8.
+# no reinterpret. downstream user can reinterpret the ptr.
+# type matters for texture, cannot reinterpret (bound ctor)
+#
+# alternative: T=Nothing for bytes, but that complicates N*elsize
+
+# TODO: alloc on ctor?
+# TODO: once array has buffers, use free on dtor?
+
+# then have the allocator take buffers, giving us everything to dispatch on
+# (alloc type, size, maybe format, maybe later alignment)
 
 
 #
@@ -33,7 +46,7 @@ CUDA.device(buf::Buffer) = device(buf.ctx)
 #
 # taking the pointer of a buffer means returning the underlying pointer,
 # and not the pointer of the buffer object itself.
-Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr}}, buf::Buffer) = convert(T, buf)
+Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::Buffer) = convert(T, buf)
 
 
 ## device buffer
@@ -265,11 +278,70 @@ function advise(buf::UnifiedBuffer, advice::CUDA.CUmem_advise, bytes::Integer=si
 end
 
 
+## array buffer
+
+mutable struct ArrayBuffer{T,N} <: Buffer
+    ptr::CuArrayPtr{T}
+    dims::Dims{N}
+    ctx::CuContext
+end
+
+Base.convert(::Type{CuArrayPtr{T}}, buf::ArrayBuffer) where {T} =
+    convert(CuArrayPtr{T}, pointer(buf))
+
+function alloc(::Type{<:ArrayBuffer{T}}, dims::Dims{N}) where {T,N}
+    format = convert(CUarray_format, eltype(T))
+
+    if N == 2
+        width, height = dims
+        depth = 0
+        @assert 1 <= width "CUDA 2D array (texture) width must be >= 1"
+        # @assert witdh <= CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH
+        @assert 1 <= height "CUDA 2D array (texture) height must be >= 1"
+        # @assert height <= CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT
+    elseif N == 3
+        width, height, depth = dims
+        @assert 1 <= width "CUDA 3D array (texture) width must be >= 1"
+        # @assert witdh <= CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH
+        @assert 1 <= height "CUDA 3D array (texture) height must be >= 1"
+        # @assert height <= CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT
+        @assert 1 <= depth "CUDA 3D array (texture) depth must be >= 1"
+        # @assert depth <= CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH
+    elseif N == 1
+        width = dims[1]
+        height = depth = 0
+        @assert 1 <= width "CUDA 1D array (texture) width must be >= 1"
+        # @assert witdh <= CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH
+    else
+        "CUDA arrays (texture memory) can only have 1, 2 or 3 dimensions"
+    end
+
+    allocateArray_ref = Ref(CUDA.CUDA_ARRAY3D_DESCRIPTOR(
+        width, # Width::Csize_t
+        height, # Height::Csize_t
+        depth, # Depth::Csize_t
+        format, # Format::CUarray_format
+        UInt32(CUDA.nchans(T)), # NumChannels::UInt32
+        0))
+
+    handle_ref = Ref{CUarray}()
+    CUDA.cuArray3DCreate(handle_ref, allocateArray_ref)
+    ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
+
+    return ArrayBuffer{T,N}(ptr, dims, CuCurrentContext())
+end
+
+function free(buf::ArrayBuffer)
+    CUDA.cuArrayDestroy(buf)
+end
+
+
 ## convenience aliases
 
 const Device  = DeviceBuffer
 const Host    = HostBuffer
 const Unified = UnifiedBuffer
+const Array   = ArrayBuffer
 
 
 
@@ -309,9 +381,13 @@ end
 
 ## copy operations
 
-for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr, Ptr),
-                                ("cuMemcpyHtoD", Ptr,   CuPtr),
-                                ("cuMemcpyDtoD", CuPtr, CuPtr),
+# TODO: have copyto methods take buffers so that we can use the type directly for 2d/3d copies
+# make buffers typed then? Buffer{UInt8} for allocator, etc
+# add a trait to determine which type of pointer the buffer yields
+
+for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr,      Ptr),
+                                ("cuMemcpyHtoD", Ptr,        CuPtr),
+                                ("cuMemcpyDtoD", CuPtr,      CuPtr),
                                )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::Union{Nothing,CuStream}=nothing,
@@ -329,6 +405,124 @@ for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr, Ptr),
     end
 end
 
+function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
+                             stream::Union{Nothing,CuStream}=nothing,
+                             async::Bool=false) where T
+    if async
+        stream===nothing &&
+            throw(ArgumentError("Asynchronous memory operations require a stream."))
+        CUDA.cuMemcpyHtoAAsync(dst, doffs, src, N*sizeof(T), stream)
+    else
+        stream===nothing ||
+            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
+        CUDA.cuMemcpyHtoA(dst, doffs, src, N*sizeof(T))
+    end
+end
+
+function Base.unsafe_copyto!(dst::Ptr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer;
+                             stream::Union{Nothing,CuStream}=nothing,
+                             async::Bool=false) where T
+    if async
+        stream===nothing &&
+            throw(ArgumentError("Asynchronous memory operations require a stream."))
+        CUDA.cuMemcpyAtoHAsync(dst, src, soffs, N*sizeof(T), stream)
+    else
+        stream===nothing ||
+            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
+        CUDA.cuMemcpyAtoH(dst, src, soffs, N*sizeof(T))
+    end
+end
+
+Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::CuPtr{T}, N::Integer) where {T} =
+    CUDA.cuMemcpyDtoA(dst, doffs, src, N*sizeof(T))
+
+Base.unsafe_copyto!(dst::CuPtr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer) where {T} =
+    CUDA.cuMemcpyAtoD(dst, src, soffs, N*sizeof(T))
+
+Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
+    Base.unsafe_copyto!(dst, 0, src, N; kwargs...)
+
+Base.unsafe_copyto!(dst, src::CuArrayPtr, N::Integer; kwargs...) =
+    Base.unsafe_copyto!(dst, src, 0, N; kwargs...)
+
+function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:Buffer},
+                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:Buffer},
+                        width::Integer, height::Integer=1;
+                        dstPos::CuDim=(1,1), srcPos::CuDim=(1,1),
+                        dstPitch::Integer=0, srcPitch::Integer=0,
+                        async::Bool=false, stream::Union{Nothing,CuStream}=nothing) where T
+    srcPos = CUDA.CuDim3(srcPos)
+    @assert srcPos.z == 1
+    dstPos = CUDA.CuDim3(dstPos)
+    @assert dstPos.z == 1
+
+    srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == Host
+        CUDA.CU_MEMORYTYPE_HOST,
+        src::Ptr,
+        0,
+        0
+    elseif srcTyp == Mem.Device
+        CUDA.CU_MEMORYTYPE_DEVICE,
+        0,
+        src::CuPtr,
+        0
+    elseif srcTyp == Mem.Unified
+        CUDA.CU_MEMORYTYPE_UNIFIED,
+        0,
+        reinterpret(CuPtr{Cvoid}, src),
+        0
+    elseif srcTyp == Mem.Array
+        CUDA.CU_MEMORYTYPE_ARRAY,
+        0,
+        0,
+        src::CuArrayPtr
+    end
+
+    dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == Host
+        CUDA.CU_MEMORYTYPE_HOST,
+        dst::Ptr,
+        0,
+        0
+    elseif dstTyp == Mem.Device
+        CUDA.CU_MEMORYTYPE_DEVICE,
+        0,
+        dst::CuPtr,
+        0
+    elseif dstTyp == Mem.Unified
+        CUDA.CU_MEMORYTYPE_UNIFIED,
+        0,
+        reinterpret(CuPtr{Cvoid}, dst),
+        0
+    elseif dstTyp == Mem.Array
+        CUDA.CU_MEMORYTYPE_ARRAY,
+        0,
+        0,
+        dst::CuArrayPtr
+    end
+
+    params_ref = Ref(CUDA.CUDA_MEMCPY2D(
+        # source
+        (srcPos.x-1)*sizeof(T), srcPos.y-1,
+        srcMemoryType, srcHost, srcDevice, srcArray,
+        srcPitch,
+        # destination
+        (dstPos.x-1)*sizeof(T), dstPos.y-1,
+        dstMemoryType, dstHost, dstDevice, dstArray,
+        dstPitch,
+        # extent
+        width*sizeof(T), height
+    ))
+    if async
+        stream===nothing &&
+            throw(ArgumentError("Asynchronous memory operations require a stream."))
+        CUDA.cuMemcpy2DAsync(params_ref, stream)
+    else
+        stream===nothing ||
+            throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
+        CUDA.cuMemcpy2D(params_ref)
+    end
+end
+
 """
     unsafe_copy3d!(dst, dstTyp, src, srcTyp, width, height=1, depth=1;
                    dstPos=(1,1,1), dstPitch=0, dstHeight=0,
@@ -340,8 +534,8 @@ and `dstPos` (1-indexed). Both pitch and destination can be specified for both t
 and destination; consult the CUDA documentation for more details. This call is executed
 asynchronously if `async` is set, in which case `stream` needs to be a valid CuStream.
 """
-function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
-                        src::Union{Ptr{T},CuPtr{T}}, srcTyp::Type{<:Buffer},
+function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:Buffer},
+                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:Buffer},
                         width::Integer, height::Integer=1, depth::Integer=1;
                         dstPos::CuDim=(1,1,1), srcPos::CuDim=(1,1,1),
                         dstPitch::Integer=0, dstHeight::Integer=0,
@@ -350,35 +544,49 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
     srcPos = CUDA.CuDim3(srcPos)
     dstPos = CUDA.CuDim3(dstPos)
 
-    srcMemoryType, srcHost, srcDevice = if srcTyp == Host
+    srcMemoryType, srcHost, srcDevice, srcArray = if srcTyp == Host
         CUDA.CU_MEMORYTYPE_HOST,
         src::Ptr,
-        CU_NULL
+        0,
+        0
     elseif srcTyp == Mem.Device
         CUDA.CU_MEMORYTYPE_DEVICE,
-        C_NULL,
-        src::CuPtr
+        0,
+        src::CuPtr,
+        0
     elseif srcTyp == Mem.Unified
         CUDA.CU_MEMORYTYPE_UNIFIED,
-        C_NULL,
-        reinterpret(CuPtr{Cvoid}, src)
+        0,
+        reinterpret(CuPtr{Cvoid}, src),
+        0
+    elseif srcTyp == Mem.Array
+        CUDA.CU_MEMORYTYPE_ARRAY,
+        0,
+        0,
+        src::CuArrayPtr
     end
-    srcArray = C_NULL
 
-    dstMemoryType, dstHost, dstDevice = if dstTyp == Host
+    dstMemoryType, dstHost, dstDevice, dstArray = if dstTyp == Host
         CUDA.CU_MEMORYTYPE_HOST,
         dst::Ptr,
-        CU_NULL
+        0,
+        0
     elseif dstTyp == Mem.Device
         CUDA.CU_MEMORYTYPE_DEVICE,
-        C_NULL,
-        dst::CuPtr
+        0,
+        dst::CuPtr,
+        0
     elseif dstTyp == Mem.Unified
         CUDA.CU_MEMORYTYPE_UNIFIED,
-        C_NULL,
-        reinterpret(CuPtr{Cvoid}, dst)
+        0,
+        reinterpret(CuPtr{Cvoid}, dst),
+        0
+    elseif dstTyp == Mem.Array
+        CUDA.CU_MEMORYTYPE_ARRAY,
+        0,
+        0,
+        dst::CuArrayPtr
     end
-    dstArray = C_NULL
 
     params_ref = Ref(CUDA.CUDA_MEMCPY3D(
         # source
@@ -399,11 +607,11 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
     if async
         stream===nothing &&
             throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpy3DAsync_v2(params_ref, stream)
+        CUDA.cuMemcpy3DAsync(params_ref, stream)
     else
         stream===nothing ||
             throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpy3D_v2(params_ref)
+        CUDA.cuMemcpy3D(params_ref)
     end
 end
 
@@ -509,3 +717,31 @@ end
 memory_type(x) = CUmemorytype(attribute(Cuint, x, POINTER_ATTRIBUTE_MEMORY_TYPE))
 
 is_managed(x) = convert(Bool, attribute(Cuint, x, POINTER_ATTRIBUTE_IS_MANAGED))
+
+
+## shared texture/array stuff
+
+function Base.convert(::Type{CUarray_format}, T::Type)
+    if T === UInt8
+        return CU_AD_FORMAT_UNSIGNED_INT8
+    elseif T === UInt16
+        return CU_AD_FORMAT_UNSIGNED_INT16
+    elseif T === UInt32
+        return CU_AD_FORMAT_UNSIGNED_INT32
+    elseif T === Int8
+        return CU_AD_FORMAT_SIGNED_INT8
+    elseif T === Int16
+        return CU_AD_FORMAT_SIGNED_INT16
+    elseif T === Int32
+        return CU_AD_FORMAT_SIGNED_INT32
+    elseif T === Float16
+        return CU_AD_FORMAT_HALF
+    elseif T === Float32
+        return CU_AD_FORMAT_FLOAT
+    else
+        throw(ArgumentError("CUDA does not support texture arrays for element type $T."))
+    end
+end
+
+nchans(::Type{<:NTuple{C}}) where {C} = C
+nchans(::Type) = 1

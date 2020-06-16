@@ -58,11 +58,11 @@ include("$root/src/array.jl")
 include("$root/src/gpuarrays.jl")
 include("$root/src/subarray.jl")
 include("$root/src/utilities.jl")
+include("$root/src/texture.jl")
 
 # array libraries
 include("$root/lib/complex.jl")
 include("$root/lib/library_types.jl")
-include("$root/lib/cuda/CUDA_late.jl")
 include("$root/lib/cublas/CUBLAS.jl")
 include("$root/lib/cusparse/CUSPARSE.jl")
 include("$root/lib/cusolver/CUSOLVER.jl")

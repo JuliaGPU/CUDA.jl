@@ -1,11 +1,13 @@
 # CUDA pointer types
 
-export CuPtr, CU_NULL, PtrOrCuPtr
+export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CUA_NULL
 
 
 #
-# CUDA pointer
+# CUDA device pointer
 #
+
+# FIXME: should be called CuDevicePtr...
 
 """
     CuPtr{T}
@@ -73,7 +75,7 @@ Base.:(+)(x::Integer, y::CuPtr) = y + x
 
 
 #
-# GPU or CPU pointer
+# Host or device pointer
 #
 
 """
@@ -122,3 +124,46 @@ function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
     end
     return Base.bitcast(PtrOrCuPtr{T}, ptr)
 end
+
+
+#
+# CUDA array pointer
+#
+
+if sizeof(Ptr{Cvoid}) == 8
+    primitive type CuArrayPtr{T} 64 end
+else
+    primitive type CuArrayPtr{T} 32 end
+end
+
+# constructor
+CuArrayPtr{T}(x::Union{Int,UInt,CuArrayPtr}) where {T} = Base.bitcast(CuArrayPtr{T}, x)
+
+
+## getters
+
+Base.eltype(::Type{<:CuArrayPtr{T}}) where {T} = T
+
+
+## conversions
+
+# to and from integers
+## pointer to integer
+Base.convert(::Type{T}, x::CuArrayPtr) where {T<:Integer} = T(UInt(x))
+## integer to pointer
+Base.convert(::Type{CuArrayPtr{T}}, x::Union{Int,UInt}) where {T} = CuArrayPtr{T}(x)
+Int(x::CuArrayPtr)  = Base.bitcast(Int, x)
+UInt(x::CuArrayPtr) = Base.bitcast(UInt, x)
+
+# between regular and CUDA pointers
+Base.convert(::Type{<:Ptr}, p::CuArrayPtr) =
+    throw(ArgumentError("cannot convert a GPU array pointer to a CPU pointer"))
+
+# between CUDA array pointers
+Base.convert(::Type{CuArrayPtr{T}}, p::CuArrayPtr) where {T} = Base.bitcast(CuArrayPtr{T}, p)
+
+# defer conversions to unsafe_convert
+Base.cconvert(::Type{<:CuArrayPtr}, x) = x
+
+# fallback for unsafe_convert
+Base.unsafe_convert(::Type{P}, x::CuArrayPtr) where {P<:CuArrayPtr} = convert(P, x)
