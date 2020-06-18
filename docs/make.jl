@@ -37,19 +37,20 @@ function main()
             "Usage" => Any[
                 "usage/overview.md",
                 "usage/workflow.md",
+                "usage/array.md",
                 "usage/memory.md",
                 "usage/multigpu.md",
             ],
             "Development" => Any[
                 "development/profiling.md",
             ],
-            "API" => Any[
+            "API reference" => Any[
                 "api/essentials.md",
                 "api/compiler.md",
                 "api/kernel.md",
                 "api/array.md",
             ],
-            "Libraries" => Any[
+            "Library reference" => Any[
                 "lib/driver.md",
             ],
             "FAQ" => "faq.md",

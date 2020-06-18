@@ -11,7 +11,7 @@ A typical approach for porting or developing an application for the GPU is as fo
    or optimize performance
 
 
-## Scalar indexing
+## [Scalar indexing](@id UsageWorkflowScalar)
 
 To facilitate porting code, `CuArray` supports executing so-called "scalar code" which
 processes one element at a time, e.g., in a for loop. Given how a GPU works, this is

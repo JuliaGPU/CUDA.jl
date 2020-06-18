@@ -1,4 +1,4 @@
-# Memory Management
+# Memory management
 
 A crucial aspect of working with a GPU is managing the data on it. The `CuArray` type is the
 primary interface for doing so: Creating a `CuArray` will allocate data on the GPU, copying
