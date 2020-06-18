@@ -23,7 +23,7 @@ function main()
             assets = ["assets/favicon.ico"],
             analytics = "UA-154489943-2",
         ),
-        doctest = false,
+        doctest = true,
         pages = Any[
             "Home" => "index.md",
             "Tutorials" => Any[

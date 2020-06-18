@@ -1,5 +1,16 @@
 # Array programming
 
+```@meta
+DocTestSetup = quote
+    using CUDA
+
+    import Random
+    Random.seed!(0)
+
+    CURAND.seed!(0)
+end
+```
+
 The easiest way to use the GPU's massive parallelism, is by expressing operations in terms
 of arrays: CUDA.jl provides an array type, `CuArray`, and many specialized array operations
 that execute efficiently on the GPU hardware. In this section, we will briefly demonstrate
@@ -23,7 +34,7 @@ The `CuArray` type aims to implement the `AbstractArray` interface, and provide
 implementations of methods that are commonly used when working with arrays. That means you
 can construct `CuArray`s in the same way as regular `Array` objects:
 
-```jldoctest
+```julia
 julia> CuArray{Int}(undef, 2)
 2-element CuArray{Int64,1,Nothing}:
  0
@@ -95,13 +106,13 @@ julia> mapreduce(sin, *, a; dims=2)
  0.59582335
  0.59582335
 
-julia> b = similar(a, 1)
+julia> b = CUDA.zeros(1)
 1-element CuArray{Float32,1,Nothing}:
- 6.0
+ 0.0
 
-julia> Base.mapreducedim!(identity, min, b, a)
+julia> Base.mapreducedim!(identity, +, b, a)
 1×1 CuArray{Float32,2,CuArray{Float32,1,Nothing}}:
- 1.0
+ 6.0
 ```
 
 To retain intermediate values, you can use `accumulate`:
@@ -227,13 +238,13 @@ as well:
 ```jldoctest
 julia> CUDA.rand(2)
 2-element CuArray{Float32,1,Nothing}:
- 0.5278814
- 0.86173964
+ 0.74021935
+ 0.9209938
 
 julia> CUDA.randn(Float64, 2, 1)
 2×1 CuArray{Float64,2,Nothing}:
- -0.7986343050328781
- -0.2333469420701086
+ -0.3893830994647195
+  1.618410515635752
 ```
 
 Behind the scenes, these random numbers come from two different generators: one backed by
@@ -246,13 +257,13 @@ julia> using Random
 
 julia> a = Random.rand(CURAND.generator(), Float32, 1)
 1-element CuArray{Float32,1,Nothing}:
- 0.5068406
+ 0.74021935
 
 julia> using GPUArrays
 
 julia> a = Random.rand!(GPUArrays.global_rng(a), a)
 1-element CuArray{Float32,1,Nothing}:
- 0.58538806
+ 0.13394515
 ```
 
 CURAND also supports generating lognormal and Poisson-distributed numbers:
@@ -260,11 +271,11 @@ CURAND also supports generating lognormal and Poisson-distributed numbers:
 ```jldoctest
 julia> CUDA.rand_logn(Float32, 1, 5; mean=2, stddev=20)
 1×5 CuArray{Float32,2,CuArray{Float32,1,Nothing}}:
- 7.02912f-9  33.3227  0.278724  2.8658f13  4.24994f11
+ 2567.61  4.256f-6  54.5948  0.00283999  9.81175f22
 
 julia> CUDA.rand_poisson(UInt32, 1, 10; lambda=100)
 1×10 CuArray{UInt32,2,Nothing}:
- 0x00000067  0x0000006c  0x0000005d  0x00000065  0x00000065  0x00000063  0x0000005f  0x00000068  0x0000006a  0x0000006e
+ 0x00000058  0x00000066  0x00000061  …  0x0000006b  0x0000005f  0x00000069
 ```
 
 Note that these custom operations are only supported on a subset of types.
@@ -275,7 +286,7 @@ Note that these custom operations are only supported on a subset of types.
 CUDA's linear algebra functionality from the [CUBLAS](https://developer.nvidia.com/cublas)
 library is exposed by implementing methods in the LinearAlgebra standard library:
 
-```jldoctest
+```julia
 julia> # enable logging to demonstrate a CUBLAS kernel is used
        CUBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
 
@@ -289,14 +300,14 @@ I! cuBLAS (v10.2) function cublasStatus_t cublasSgemm_v2(cublasContext*, cublasO
 Certain operations, like the above matrix-matrix multiplication, also have a native fallback
 written in Julia for the purpose of working with types that are not supported by CUBLAS:
 
-```jldoctest
+```julia
 julia> # enable logging to demonstrate no CUBLAS kernel is used
        CUBLAS.cublasLoggerConfigure(1, 0, 1, C_NULL)
 
 julia> CUDA.rand(Int128, 2, 2) * CUDA.rand(Int128, 2, 2)
 2×2 CuArray{Int128,2,Nothing}:
- 151499160030096859457691185134444419729  -97014463222125585750517660033492187340
-  24858862404898964861632634177015389670  121029362105248597343192066347336219384
+ -147256259324085278916026657445395486093  -62954140705285875940311066889684981211
+ -154405209690443624360811355271386638733  -77891631198498491666867579047988353207
 ```
 
 Operations that exist in CUBLAS, but are not (yet) covered by high-level constructs in the
@@ -307,19 +318,21 @@ have more high-level wrappers available as well (e.g. `dot`):
 ```jldoctest
 julia> x = CUDA.rand(2)
 2-element CuArray{Float32,1,Nothing}:
- 0.2977523
- 0.30158097
+ 0.74021935
+ 0.9209938
 
 julia> y = CUDA.rand(2)
 2-element CuArray{Float32,1,Nothing}:
- 0.5144331
- 0.22614105
+ 0.03902049
+ 0.9689629
 
 julia> CUBLAS.dot(2, x, 0, y, 0)
-0.30634725f0
+0.057767443f0
+
+julia> using LinearAlgebra
 
 julia> dot(Array(x), Array(y))
-0.22137347f0
+0.92129254f0
 ```
 
 
@@ -330,22 +343,24 @@ LAPACK-like functionality as found in the
 methods in the LinearAlgebra standard library too:
 
 ```jldoctest
+julia> using LinearAlgebra
+
 julia> a = CUDA.rand(2,2)
 2×2 CuArray{Float32,2,Nothing}:
- 0.283656  0.041456
- 0.660603  0.509684
+ 0.740219  0.0390205
+ 0.920994  0.968963
 
 julia> a = a * a'
 2×2 CuArray{Float32,2,Nothing}:
- 0.0821795  0.208513
- 0.208513   0.696174
+ 0.549447  0.719547
+ 0.719547  1.78712
 
 julia> cholesky(a)
 Cholesky{Float32,CuArray{Float32,2,Nothing}}
 U factor:
 2×2 UpperTriangular{Float32,CuArray{Float32,2,Nothing}}:
- 0.28667  0.727365
-  ⋅       0.408795
+ 0.741247  0.970725
+  ⋅        0.919137
 ```
 
 Other operations are bound to the left-division operator:
@@ -353,23 +368,23 @@ Other operations are bound to the left-division operator:
 ```jldoctest
 julia> a = CUDA.rand(2,2)
 2×2 CuArray{Float32,2,Nothing}:
- 0.531502  0.00622418
- 0.169554  0.223502
+ 0.740219  0.0390205
+ 0.920994  0.968963
 
 julia> b = CUDA.rand(2,2)
 2×2 CuArray{Float32,2,Nothing}:
- 0.883509  0.547314
- 0.756986  0.486571
+ 0.925141  0.667319
+ 0.44635   0.109931
 
 julia> a \ b
 2×2 CuArray{Float32,2,Nothing}:
- 1.63717  1.01326
- 2.14494  1.40835
+  1.29018    0.942772
+ -0.765663  -0.782648
 
 julia> Array(a) \ Array(b)
 2×2 Array{Float32,2}:
- 1.63717  1.01326
- 2.14494  1.40835
+  1.29018    0.942773
+ -0.765663  -0.782648
 ```
 
 
@@ -385,26 +400,26 @@ julia> using SparseArrays
 
 julia> x = sprand(10,0.2)
 10-element SparseVector{Float64,Int64} with 4 stored entries:
-  [1 ]  =  0.823306
-  [2 ]  =  0.402525
-  [6 ]  =  0.352595
-  [10]  =  0.475461
+  [3 ]  =  0.585812
+  [4 ]  =  0.539289
+  [7 ]  =  0.260036
+  [8 ]  =  0.910047
 
 julia> using CUDA.CUSPARSE
 
 julia> d_x = CuSparseVector(x)
 10-element CuSparseVector{Float64} with 4 stored entries:
-  [1 ]  =  0.823306
-  [2 ]  =  0.402525
-  [6 ]  =  0.352595
-  [10]  =  0.475461
+  [3 ]  =  0.585812
+  [4 ]  =  0.539289
+  [7 ]  =  0.260036
+  [8 ]  =  0.910047
 
 julia> nonzeros(d_x)
 4-element CuArray{Float64,1,Nothing}:
- 0.8233063097156732
- 0.4025250793787798
- 0.35259544625232353
- 0.4754608776715703
+ 0.5858115517433242
+ 0.5392892841426182
+ 0.26003585026904785
+ 0.910046541351011
 
 julia> nnz(d_x)
 4
@@ -424,13 +439,13 @@ package. You can use them by importing the FFTW package:
 ```jldoctest
 julia> a = CUDA.rand(2,2)
 2×2 CuArray{Float32,2,Nothing}:
- 0.526821  0.972028
- 0.152439  0.23469
+ 0.740219  0.0390205
+ 0.920994  0.968963
 
 julia> using FFTW
 
 julia> fft(a)
 2×2 CuArray{Complex{Float32},2,Nothing}:
- 1.88598+0.0im  -0.527457+0.0im
- 1.11172+0.0im  -0.362956+0.0im
+   2.6692+0.0im   0.65323+0.0im
+ -1.11072+0.0im  0.749168+0.0im
 ```
