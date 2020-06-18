@@ -125,7 +125,31 @@ end
 
 Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
 
-function Base.findfirst(vals::CuArray, xs::CuArray)
+function Base.findmin(a::CuArray; dims=:)
+    if dims == Colon()
+        m = minimum(a)
+        i = findfirst(x->x==m, a)
+        return m,i
+    else
+        minima = minimum(a; dims=dims)
+        i = findfirstval(minima, a)
+        return minima,i
+    end
+end
+
+function Base.findmax(a::CuArray; dims=:)
+    if dims == Colon()
+        m = maximum(a)
+        i = findfirst(x->x==m, a)
+        return m,i
+    else
+        maxima = maximum(a; dims=dims)
+        i = findfirstval(maxima, a)
+        return maxima,i
+    end
+end
+
+function findfirstval(vals::CuArray, xs::CuArray)
     ## find the first matching element
 
     # NOTE: this kernel performs global atomic operations for the sake of simplicity.
@@ -181,29 +205,5 @@ function Base.findfirst(vals::CuArray, xs::CuArray)
         end
 
         return indices′
-    end
-end
-
-function Base.findmin(a::CuArray; dims=:)
-    if dims == Colon()
-        m = minimum(a)
-        i = findfirst(x->x==m, a)
-        return m,i
-    else
-        minima = minimum(a; dims=dims)
-        i = findfirst(minima, a)
-        return minima,i
-    end
-end
-
-function Base.findmax(a::CuArray; dims=:)
-    if dims == Colon()
-        m = maximum(a)
-        i = findfirst(x->x==m, a)
-        return m,i
-    else
-        maxima = maximum(a; dims=dims)
-        i = findfirst(maxima, a)
-        return maxima,i
     end
 end
