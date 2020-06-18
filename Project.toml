@@ -1,6 +1,6 @@
 name = "CUDA"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
-version = "1.0.0"
+version = "1.0.1"
 
 [deps]
 AbstractFFTs = "621f4979-c628-5d54-868e-fcf4e3e8185c"
@@ -35,7 +35,7 @@ DataStructures = "0.17"
 ExprTools = "0.1"
 GPUArrays = "4.0"
 GPUCompiler = "0.4"
-LLVM = "1.5"
+LLVM = "1.5.2"
 MacroTools = "0.5"
 NNlib = "0.6.5"
 Reexport = "0.2"
