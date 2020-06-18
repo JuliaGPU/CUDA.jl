@@ -141,6 +141,10 @@ if do_memcheck
     push!(skip_tests, "cufft")
     # there's also a bunch of `memcheck || ...` expressions in the tests themselves
 end
+if Sys.ARCH == :aarch64
+    # CUFFT segfaults on ARM
+    push!(skip_tests, "cufft")
+end
 if haskey(ENV, "CI_THOROUGH")
     # we're not allowed to skip tests, so make sure we will mark them as such
     all_tests = copy(tests)

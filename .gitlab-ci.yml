@@ -42,14 +42,6 @@ julia:1.5:
   tags:
     - nvidia
 
-julia:nightly:
-  extends:
-    - .julia:nightly
-    - .test
-  tags:
-    - nvidia
-  allow_failure: true
-
 
 # CUDA versions
 
