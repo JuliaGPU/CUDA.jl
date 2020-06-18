@@ -74,15 +74,27 @@ parallel_add!(y, x)
 
 @assert Threads.nthreads() == 4     #src
 
-using BenchmarkTools
-@btime sequential_add!($y, $x)
+# ```julia
+# using BenchmarkTools
+# @btime sequential_add!($y, $x)
+# ```
+
+# ```
+#   487.303 μs (0 allocations: 0 bytes)
+# ```
 
 # versus
 
-@btime parallel_add!($y, $x)
+# ```julia
+# @btime parallel_add!($y, $x)
+# ```
 
-# You can see there's a performance benefit to parallelization, though not by a full factor
-# of 4 due to the overhead for starting threads. With larger arrays, the overhead would be
+# ```
+#   259.587 μs (13 allocations: 1.48 KiB)
+# ```
+
+# You can see there's a performance benefit to parallelization, though not by a factor of 4
+# due to the overhead for starting threads. With larger arrays, the overhead would be
 # "diluted" by a larger amount of "real work"; these would demonstrate scaling that is
 # closer to linear in the number of cores. Conversely, with small arrays, the parallel
 # version might be slower than the serial version.
@@ -134,7 +146,13 @@ function add_broadcast!(y, x)
     return
 end
 
-@btime add_broadcast!($y_d, $x_d)
+# ```julia
+# @btime add_broadcast!($y_d, $x_d)
+# ```
+
+# ```
+#   67.047 μs (84 allocations: 2.66 KiB)
+# ```
 
 # The most interesting part of this is the call to `CUDA.@sync`. The CPU can assign
 # jobs to the GPU and then go do other stuff (such as assigning *more* jobs to the GPU)
@@ -182,7 +200,13 @@ function bench_gpu1!(y, x)
     end
 end
 
-@btime bench_gpu1!($y_d, $x_d)
+# ```julia
+# @btime bench_gpu1!($y_d, $x_d)
+# ```
+
+# ```
+#   119.783 ms (47 allocations: 1.23 KiB)
+# ```
 
 # That's a *lot* slower than the version above based on broadcasting. What happened?
 
@@ -278,7 +302,13 @@ function bench_gpu2!(y, x)
     end
 end
 
-@btime bench_gpu2!($y_d, $x_d)
+# ```julia
+# @btime bench_gpu2!($y_d, $x_d)
+# ```
+
+# ```
+#   1.873 ms (47 allocations: 1.23 KiB)
+# ```
 
 # Much better!
 
@@ -321,7 +351,13 @@ function bench_gpu3!(y, x)
     end
 end
 
-@btime bench_gpu3!($y_d, $x_d)
+# ```julia
+# @btime bench_gpu3!($y_d, $x_d)
+# ```
+
+# ```
+#   67.268 μs (52 allocations: 1.31 KiB)
+# ```
 
 # Finally, we've achieved the similar performance to what we got with the broadcasted
 # version. Let's run `nvprof` again to confirm this launch configuration:
