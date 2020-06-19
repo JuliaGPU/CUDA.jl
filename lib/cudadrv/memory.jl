@@ -9,6 +9,8 @@ using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3
 
 using Base: @deprecate_binding
 
+using IntervalTrees
+
 
 #
 # untyped buffers
@@ -404,6 +406,47 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T}}, dstTyp::Type{<:Buffer},
         CUDA.cuMemcpy3D_v2(params_ref)
     end
 end
+
+
+
+#
+# auxiliary functionality
+#
+
+## memory pinning
+
+const pinned_memory = IntervalTree{Int, Interval{Int}}()
+
+function pin(ptr::Ptr, bytesize::Integer, flags=0)
+    low = Int(ptr)
+    high = Int(ptr+bytesize)
+
+    # register gaps between already-registered slices
+    intersections = [Interval{Int}(0, low),
+                     intersect(pinned_memory, Interval{Int}(low, high))...,
+                     Interval{Int}(high, 0)]
+    for (lower, upper) in zip(intersections[1:end-1], intersections[2:end])
+        gap = Interval{Int}(last(lower), first(upper))
+        if first(gap) < last(gap)
+            gap_ptr = Ptr{Nothing}(first(gap))
+            gap_bytesize = last(gap) - first(gap)
+            Mem.register(Mem.Host, gap_ptr, gap_bytesize, flags)
+        end
+    end
+
+    # delete actual intersections
+    low = min(low, first(intersections[2]))
+    high = max(high, last(intersections[end-1]))
+    for range in intersections[2:end-1]
+        delete!(pinned_memory, range)
+    end
+
+    push!(pinned_memory, Interval{Int}(low, high))
+    return
+end
+
+pin(a::Union{Array,SubArray{<:Any,<:Any,<:Array},Base.ReshapedArray{<:Any,<:Any,<:Array}}, flags=0) =
+    pin(pointer(a), sizeof(a), flags)
 
 
 ## memory info

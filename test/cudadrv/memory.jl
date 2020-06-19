@@ -262,4 +262,17 @@ let
     @test all(check2[2,:,:] .== data)
 end
 
+@testset "pin" begin
+    buf = Array{UInt8}(undef, 500)
+    Mem.pin(view(buf, 100:200))
+    Mem.pin(view(buf, 50:250))   # should subsume the previous one
+    Mem.pin(view(buf, 225:230))  # shouldn't do anything
+    Mem.pin(view(buf, 250:300))  # should extend
+    Mem.pin(view(buf, 25:50))    # should extend
+    Mem.pin(view(buf, 1:100))    # should partially extend
+    Mem.pin(view(buf, 250:350))  # should partially extend
+    Mem.pin(view(buf, 1:350))    # do nothing
+    Mem.pin(buf)
+end
+
 end
