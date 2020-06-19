@@ -199,17 +199,17 @@ let
     dst = Mem.alloc(Mem.Device, nx*ny*nz*sizeof(data))
 
     # host to device
-    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host, 
+    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host,
                        nx, 1, nz;
-                       dstPos=(1,2,1), 
+                       dstPos=(1,2,1),
                        srcPitch=nx*sizeof(T), srcHeight=1,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
 
     # copy back
     check = zeros(T, size(data))
-    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device, 
+    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device,
                        nx, 1, nz;
-                       srcPos=(1,2,1), 
+                       srcPos=(1,2,1),
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=1)
 
@@ -217,9 +217,9 @@ let
 
     # copy back into a 3-D array
     check2 = zeros(T, nx, ny, nz)
-    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device, 
+    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device,
                        nx, 1, nz;
-                       srcPos=(1,2,1), 
+                       srcPos=(1,2,1),
                        dstPos=(1,2,1),
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
@@ -260,6 +260,19 @@ let
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
     @test all(check2[2,:,:] .== data)
+end
+
+@testset "pin" begin
+    buf = Array{UInt8}(undef, 500)
+    Mem.pin(view(buf, 100:200))
+    Mem.pin(view(buf, 50:250))   # should subsume the previous one
+    Mem.pin(view(buf, 225:230))  # shouldn't do anything
+    Mem.pin(view(buf, 250:300))  # should extend
+    Mem.pin(view(buf, 25:50))    # should extend
+    Mem.pin(view(buf, 1:100))    # should partially extend
+    Mem.pin(view(buf, 250:350))  # should partially extend
+    Mem.pin(view(buf, 1:350))    # do nothing
+    Mem.pin(buf)
 end
 
 end

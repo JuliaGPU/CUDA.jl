@@ -22,7 +22,7 @@ include("$root/src/pointer.jl")
 
 # core library
 include("$root/lib/utils/APIUtils.jl")
-include("$root/lib/cuda/CUDA.jl")
+include("$root/lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
 include("$root/src/initialization.jl")
