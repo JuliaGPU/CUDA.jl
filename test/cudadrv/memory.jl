@@ -199,17 +199,17 @@ let
     dst = Mem.alloc(Mem.Device, nx*ny*nz*sizeof(data))
 
     # host to device
-    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host, 
+    Mem.unsafe_copy3d!(typed_pointer(dst, T), Mem.Device, pointer(data), Mem.Host,
                        nx, 1, nz;
-                       dstPos=(1,2,1), 
+                       dstPos=(1,2,1),
                        srcPitch=nx*sizeof(T), srcHeight=1,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
 
     # copy back
     check = zeros(T, size(data))
-    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device, 
+    Mem.unsafe_copy3d!(pointer(check), Mem.Host, typed_pointer(dst, T), Mem.Device,
                        nx, 1, nz;
-                       srcPos=(1,2,1), 
+                       srcPos=(1,2,1),
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=1)
 
@@ -217,9 +217,9 @@ let
 
     # copy back into a 3-D array
     check2 = zeros(T, nx, ny, nz)
-    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device, 
+    Mem.unsafe_copy3d!(pointer(check2), Mem.Host, typed_pointer(dst, T), Mem.Device,
                        nx, 1, nz;
-                       srcPos=(1,2,1), 
+                       srcPos=(1,2,1),
                        dstPos=(1,2,1),
                        srcPitch=nx*sizeof(T), srcHeight=ny,
                        dstPitch=nx*sizeof(T), dstHeight=ny)
