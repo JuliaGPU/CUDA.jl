@@ -26,8 +26,8 @@ end
     CUDA.reclaim(1024)
     CUDA.reclaim()
 
-    @test CUDA.@retry_reclaim(42, 42) == 42
-    @test CUDA.@retry_reclaim(42, 41) == 41
+    @test CUDA.@retry_reclaim(isequal(42), 42) == 42
+    @test CUDA.@retry_reclaim(isequal(42), 41) == 41
 end
 
 @testset "timings" begin

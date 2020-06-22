@@ -67,7 +67,7 @@ end
 
 macro check(ex)
     quote
-        res = @retry_reclaim CUFFT_ALLOC_FAILED $(esc(ex))
+        res = @retry_reclaim isequal(CUFFT_ALLOC_FAILED) $(esc(ex))
         if res != CUFFT_SUCCESS
             throw_api_error(res)
         end
