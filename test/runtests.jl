@@ -151,6 +151,9 @@ if haskey(ENV, "CI_THOROUGH")
     filter!(!in(skip_tests), tests)
 else
     if !isempty(skip_tests)
+        for (i, test) in enumerate(skip_tests)
+            skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)
+        end
         @info "Skipping the following tests: $(join(skip_tests, ", "))"
         filter!(!in(skip_tests), tests)
     end
