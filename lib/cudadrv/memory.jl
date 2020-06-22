@@ -613,6 +613,19 @@ end
 # auxiliary functionality
 #
 
+## memory pinning
+const __pinned_memory = Dict{Ptr, WeakRef}()
+function pin(a::Base.Array, flags=0)
+    # use pointer instead of objectid?
+    ptr = pointer(a)
+    if haskey(__pinned_memory, ptr) && __pinned_memory[ptr].value !== nothing
+        return nothing
+    end
+    ad = Mem.register(Mem.Host, pointer(a), sizeof(a), flags)
+    finalizer(_ -> Mem.unregister(ad), a)
+    __pinned_memory[ptr] = WeakRef(a)
+    return nothing
+end
 
 ## memory info
 
