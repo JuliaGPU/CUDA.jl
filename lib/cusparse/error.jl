@@ -27,7 +27,7 @@ end
 
 macro check(ex)
     quote
-        res = @retry_reclaim CUSPARSE_STATUS_ALLOC_FAILED $(esc(ex))
+        res = @retry_reclaim isequal(CUSPARSE_STATUS_ALLOC_FAILED) $(esc(ex))
         if res != CUSPARSE_STATUS_SUCCESS
             throw_api_error(res)
         end

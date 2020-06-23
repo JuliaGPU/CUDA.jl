@@ -295,21 +295,22 @@ actually reclaimed.
 reclaim(sz::Int=typemax(Int)) = pool[].reclaim(sz)
 
 """
-    @retry_reclaim fail ex
+    @retry_reclaim isfailed(ret) ex
 
-Run a block of code `ex` repeatedly until it successfully allocates the memory it needs;
-Failure to do so indicated by returning `fail`. At each try, more and more memory is freed
-from the CUDA memory pool. When that is not possible anymore, `fail` will be returned.
+Run a block of code `ex` repeatedly until it successfully allocates the memory it needs.
+Retries are only attempted when calling `isfailed` with the current return value is true.
+At each try, more and more memory is freed from the CUDA memory pool. When that is not
+possible anymore, the latest returned value will be returned.
 
 This macro is intended for use with CUDA APIs, which sometimes allocate (outside of the
 CUDA memory pool) and return a specific error code when failing to.
 """
-macro retry_reclaim(fail, ex)
+macro retry_reclaim(isfailed, ex)
   quote
     ret = nothing
     for phase in 1:3
       ret = $(esc(ex))
-      ret == $(esc(fail)) || break
+      $(esc(isfailed))(ret) || break
 
       # incrementally more costly reclaim of cached memory
       if phase == 1

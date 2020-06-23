@@ -25,7 +25,7 @@ end
 
 macro check(ex)
     quote
-        res = @retry_reclaim CUDNN_STATUS_ALLOC_FAILED $(esc(ex))
+        res = @retry_reclaim isequal(CUDNN_STATUS_ALLOC_FAILED) $(esc(ex))
         if res != CUDNN_STATUS_SUCCESS
             throw_api_error(res)
         end
