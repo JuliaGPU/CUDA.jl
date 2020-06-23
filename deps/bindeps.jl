@@ -6,6 +6,15 @@ import Libdl
 
 ## global state
 
+const __toolkit_origin = Ref{Symbol}()
+
+"""
+    toolkit_origin()
+
+Returns the origin of the CUDA toolkit in use (either :artifact, or :local).
+"""
+toolkit_origin() = @after_init(__toolkit_origin[])
+
 const __toolkit_version = Ref{VersionNumber}()
 
 """
@@ -113,9 +122,11 @@ function use_artifact_cuda()
     # select compatible artifacts
     if haskey(ENV, "JULIA_CUDA_VERSION")
         wanted_version = VersionNumber(ENV["JULIA_CUDA_VERSION"])
+        @debug "Selecting artifacts based on requested version $wanted_version"
         filter!(((version,artifact),) -> version == wanted_version, cuda_artifacts)
     else
         driver_version = release()
+        @debug "Selecting artifacts based on driver version $driver_version"
         filter!(((version,artifact),) -> version <= driver_version, cuda_artifacts)
     end
 
@@ -168,6 +179,7 @@ function use_artifact_cuda()
     end
 
     @debug "Using CUDA $(__toolkit_version[]) from an artifact at $(artifact.dir)"
+    __toolkit_origin[] = :artifact
     use_artifact_cudnn(artifact.release)
     use_artifact_cutensor(artifact.release)
     return true
@@ -220,6 +232,7 @@ function use_local_cuda()
     end
 
     @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
+    __toolkit_origin[] = :local
     use_local_cudnn(cuda_dirs)
     use_local_cutensor(cuda_dirs)
     return true

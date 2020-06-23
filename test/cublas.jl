@@ -3,6 +3,8 @@ using CUDA.CUBLAS: band, bandex
 
 using LinearAlgebra
 
+@test CUBLAS.version() isa VersionNumber
+
 m = 20
 n = 35
 k = 13

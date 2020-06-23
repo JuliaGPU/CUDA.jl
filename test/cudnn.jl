@@ -1,6 +1,7 @@
 using CUDA.CUDNN
 
 @test has_cudnn()
+@test CUDNN.version() isa VersionNumber
 
 @testset "NNlib" begin
   using NNlib

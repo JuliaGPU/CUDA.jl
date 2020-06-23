@@ -4,6 +4,8 @@ using CUDA
 
 import FFTW
 
+@test CUFFT.version() isa VersionNumber
+
 # notes:
 #   plan_bfft does not need separate testing since it is used by plan_ifft
 

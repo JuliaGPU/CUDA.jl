@@ -19,4 +19,6 @@ include("libcupti_common.jl")
 include("error.jl")
 include("libcupti.jl")
 
+include("wrappers.jl")
+
 end
