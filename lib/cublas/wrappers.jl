@@ -27,9 +27,9 @@ function cublasXtGetPinningMemMode(handle)
   mm[]
 end
 
-function cublasGetVersion_v2(handle)
+function cublasGetVersion(handle)
   version = Ref{Cint}()
-  cublasGetVersion_v2(handle, version)
+  cublasGetVersion(handle, version)
   version[]
 end
 
