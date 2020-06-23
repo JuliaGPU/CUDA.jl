@@ -18,7 +18,7 @@
     @test isa(fails[3], Test.Fail)
 end
 
-@testset "@ssync" begin
+@testset "@sync" begin
   t = Base.@elapsed ret = CUDA.@sync begin
     # TODO: do something that takes a while on the GPU
     #       (need to wrap clock64 for that)
@@ -26,4 +26,8 @@ end
   end
   @test t >= 0
   @test ret == 42
+end
+
+@testset "versioninfo" begin
+    CUDA.versioninfo(devnull)
 end
