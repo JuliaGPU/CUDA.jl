@@ -3,6 +3,8 @@ using CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
 
+@test CUSPARSE.version() isa VersionNumber
+
 m = 25
 n = 35
 k = 10

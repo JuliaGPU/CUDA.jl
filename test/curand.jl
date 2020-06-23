@@ -1,5 +1,7 @@
 using CUDA.CURAND
 
+@test CURAND.version() isa VersionNumber
+
 rng = CURAND.generator()
 Random.seed!(rng)
 Random.seed!(rng, nothing)

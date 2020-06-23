@@ -3,6 +3,7 @@ using CUDA.CUTENSOR
 using LinearAlgebra
 
 @test has_cutensor()
+@test CUTENSOR.version() isa VersionNumber
 
 @testset "CuTensor type basics" begin
     N = 2
