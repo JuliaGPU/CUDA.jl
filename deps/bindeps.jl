@@ -122,9 +122,11 @@ function use_artifact_cuda()
     # select compatible artifacts
     if haskey(ENV, "JULIA_CUDA_VERSION")
         wanted_version = VersionNumber(ENV["JULIA_CUDA_VERSION"])
+        @debug "Selecting artifacts based on requested version $wanted_version"
         filter!(((version,artifact),) -> version == wanted_version, cuda_artifacts)
     else
         driver_version = release()
+        @debug "Selecting artifacts based on driver version $driver_version"
         filter!(((version,artifact),) -> version <= driver_version, cuda_artifacts)
     end
 
