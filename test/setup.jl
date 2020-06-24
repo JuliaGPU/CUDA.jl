@@ -51,9 +51,12 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
         res_and_time_data = Core.eval(Main, ex)
         #res_and_time_data[1] is the testset
 
+        cuda_dev = device()
+        nvml_dev = NVML.Device(uuid(cuda_dev))
+
         # process results
         rss = Sys.maxrss()
-        # TODO: GPU RSS using nvmlDeviceGetComputeRunningProcesses
+        gpu_rss = NVML.compute_processes(nvml_dev)[getpid()].used_gpu_memory
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
             Test.get_test_counts(res_and_time_data[1])
         if res_and_time_data[1].anynonpass == false
@@ -67,7 +70,7 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
                                  res_and_time_data[7],
                                  res_and_time_data[8])
         end
-        vcat(collect(res_and_time_data), rss)
+        vcat(collect(res_and_time_data), rss, gpu_rss)
     finally
         if snoop !== nothing
             ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)

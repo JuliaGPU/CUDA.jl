@@ -201,16 +201,15 @@ name_align        = maximum([textwidth(testgroupheader) + textwidth(" ") +
                              textwidth(workerheader); map(x -> textwidth(x) +
                              3 + ndigits(nworkers()), tests)])
 elapsed_align     = textwidth("Time (s)")
-gpu_gc_align      = textwidth("GPU GC (s)")
-gpu_percent_align = textwidth("GPU GC %")
-gpu_alloc_align   = textwidth("GPU Alloc (MB)")
-cpu_gc_align      = textwidth("CPU GC (s)")
-cpu_percent_align = textwidth("CPU GC %")
-cpu_alloc_align   = textwidth("CPU Alloc (MB)")
-rss_align         = textwidth("RSS (MB)")
+gc_align      = textwidth("GC (s)")
+percent_align = textwidth("GC %")
+alloc_align   = textwidth("Alloc (MB)")
+rss_align     = textwidth("RSS (MB)")
+printstyled(" "^(name_align + textwidth(testgroupheader) - 3), " | ")
+printstyled("         | ---------------- GPU ---------------- | ---------------- CPU ----------------\n", color=:white)
 printstyled(testgroupheader, color=:white)
 printstyled(lpad(workerheader, name_align - textwidth(testgroupheader) + 1), " | ", color=:white)
-printstyled("Time (s) | GPU GC (s) | GPU GC % | GPU Alloc (MB) | CPU GC (s) | CPU GC % | CPU Alloc (MB) | RSS (MB)\n", color=:white)
+printstyled("Time (s) | GC (s) | GC % | Alloc (MB) | RSS (MB) | GC (s) | GC % | Alloc (MB) | RSS (MB)\n", color=:white)
 print_lock = stdout isa Base.LibuvStream ? stdout.lock : ReentrantLock()
 if stderr isa Base.LibuvStream
     stderr.lock = print_lock
@@ -225,23 +224,26 @@ function print_testworker_stats(test, wrkr, resp)
         printstyled(lpad(time_str, elapsed_align, " "), " | ", color=:white)
 
         gpu_gc_str = @sprintf("%5.2f", resp[7])
-        printstyled(lpad(gpu_gc_str, gpu_gc_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_gc_str, gc_align, " "), " | ", color=:white)
         # since there may be quite a few digits in the percentage,
         # the left-padding here is less to make sure everything fits
         gpu_percent_str = @sprintf("%4.1f", 100 * resp[7] / resp[2])
-        printstyled(lpad(gpu_percent_str, gpu_percent_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_percent_str, percent_align, " "), " | ", color=:white)
         gpu_alloc_str = @sprintf("%5.2f", resp[6] / 2^20)
-        printstyled(lpad(gpu_alloc_str, gpu_alloc_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_alloc_str, alloc_align, " "), " | ", color=:white)
+
+        gpu_rss_str = @sprintf("%5.2f", resp[10] / 2^20)
+        printstyled(lpad(gpu_rss_str, rss_align, " "), " | ", color=:white)
 
         cpu_gc_str = @sprintf("%5.2f", resp[4])
-        printstyled(lpad(cpu_gc_str, cpu_gc_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_gc_str, gc_align, " "), " | ", color=:white)
         cpu_percent_str = @sprintf("%4.1f", 100 * resp[4] / resp[2])
-        printstyled(lpad(cpu_percent_str, cpu_percent_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_percent_str, percent_align, " "), " | ", color=:white)
         cpu_alloc_str = @sprintf("%5.2f", resp[3] / 2^20)
-        printstyled(lpad(cpu_alloc_str, cpu_alloc_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_alloc_str, alloc_align, " "), " | ", color=:white)
 
-        rss_str = @sprintf("%5.2f", resp[9] / 2^20)
-        printstyled(lpad(rss_str, rss_align, " "), "\n", color=:white)
+        cpu_rss_str = @sprintf("%5.2f", resp[9] / 2^20)
+        printstyled(lpad(cpu_rss_str, rss_align, " "), "\n", color=:white)
     finally
         unlock(print_lock)
     end
@@ -251,8 +253,8 @@ global print_testworker_started = (name, wrkr)->begin
         lock(print_lock)
         try
             printstyled(name, color=:white)
-            printstyled(lpad("($wrkr)", name_align - textwidth(name) + 1, " "), " |",
-                " "^elapsed_align, "started at $(now())\n", color=:white)
+            printstyled(lpad("($wrkr)", _align - textwidth(name) + 1, " "), " |",
+                " "^sed_align, "started at $(now())\n", color=:white)
         finally
             unlock(print_lock)
         end
