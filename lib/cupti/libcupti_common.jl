@@ -5,6 +5,28 @@
 
 # Automatically generated using Clang.jl
 
+const CUPTI_API_VERSION = 12
+
+# Skipping MacroDefinition: CUPTI_EVENT_OVERFLOW ( ( uint64_t ) 0xFFFFFFFFFFFFFFFFULL )
+# Skipping MacroDefinition: CUPTI_EVENT_INVALID ( ( uint64_t ) 0xFFFFFFFFFFFFFFFEULL )
+
+const CUPTILP64 = 1
+const ACTIVITY_RECORD_ALIGNMENT = 8
+
+# Skipping MacroDefinition: PACKED_ALIGNMENT __attribute__ ( ( __packed__ ) ) __attribute__ ( ( aligned ( ACTIVITY_RECORD_ALIGNMENT ) ) )
+# Skipping MacroDefinition: CUPTI_UNIFIED_MEMORY_CPU_DEVICE_ID ( ( uint32_t ) 0xFFFFFFFFU )
+
+const CUPTI_SOURCE_LOCATOR_ID_UNKNOWN = 0
+const CUPTI_FUNCTION_INDEX_ID_INVALID = 0
+const CUPTI_CORRELATION_ID_UNKNOWN = 0
+const CUPTI_GRID_ID_UNKNOWN = Int64(0)
+const CUPTI_TIMESTAMP_UNKNOWN = Int64(0)
+const CUPTI_SYNCHRONIZATION_INVALID_VALUE = -1
+const CUPTI_AUTO_BOOST_INVALID_CLIENT_PID = 0
+const CUPTI_NVLINK_INVALID_PORT = -1
+const CUPTI_MAX_NVLINK_PORTS = 16
+const CUPTI_MAX_GPUS = 32
+
 @cenum CUptiResult::UInt32 begin
     CUPTI_SUCCESS = 0
     CUPTI_ERROR_INVALID_PARAMETER = 1
@@ -49,23 +71,294 @@
     CUPTI_ERROR_FORCE_INT = 2147483647
 end
 
-const CUPTI_API_VERSION = 12
-const CUPTILP64 = 1
-const ACTIVITY_RECORD_ALIGNMENT = 8
+@cenum CUpti_ApiCallbackSite::UInt32 begin
+    CUPTI_API_ENTER = 0
+    CUPTI_API_EXIT = 1
+    CUPTI_API_CBSITE_FORCE_INT = 2147483647
+end
 
-# Skipping MacroDefinition: PACKED_ALIGNMENT __attribute__ ( ( __packed__ ) ) __attribute__ ( ( aligned ( ACTIVITY_RECORD_ALIGNMENT ) ) )
-# Skipping MacroDefinition: CUPTI_UNIFIED_MEMORY_CPU_DEVICE_ID ( ( uint32_t ) 0xFFFFFFFFU )
+@cenum CUpti_CallbackDomain::UInt32 begin
+    CUPTI_CB_DOMAIN_INVALID = 0
+    CUPTI_CB_DOMAIN_DRIVER_API = 1
+    CUPTI_CB_DOMAIN_RUNTIME_API = 2
+    CUPTI_CB_DOMAIN_RESOURCE = 3
+    CUPTI_CB_DOMAIN_SYNCHRONIZE = 4
+    CUPTI_CB_DOMAIN_NVTX = 5
+    CUPTI_CB_DOMAIN_SIZE = 6
+    CUPTI_CB_DOMAIN_FORCE_INT = 2147483647
+end
 
-const CUPTI_SOURCE_LOCATOR_ID_UNKNOWN = 0
-const CUPTI_FUNCTION_INDEX_ID_INVALID = 0
-const CUPTI_CORRELATION_ID_UNKNOWN = 0
-const CUPTI_GRID_ID_UNKNOWN = Int64(0)
-const CUPTI_TIMESTAMP_UNKNOWN = Int64(0)
-const CUPTI_SYNCHRONIZATION_INVALID_VALUE = -1
-const CUPTI_AUTO_BOOST_INVALID_CLIENT_PID = 0
-const CUPTI_NVLINK_INVALID_PORT = -1
-const CUPTI_MAX_NVLINK_PORTS = 16
-const CUPTI_MAX_GPUS = 32
+@cenum CUpti_CallbackIdResource::UInt32 begin
+    CUPTI_CBID_RESOURCE_INVALID = 0
+    CUPTI_CBID_RESOURCE_CONTEXT_CREATED = 1
+    CUPTI_CBID_RESOURCE_CONTEXT_DESTROY_STARTING = 2
+    CUPTI_CBID_RESOURCE_STREAM_CREATED = 3
+    CUPTI_CBID_RESOURCE_STREAM_DESTROY_STARTING = 4
+    CUPTI_CBID_RESOURCE_CU_INIT_FINISHED = 5
+    CUPTI_CBID_RESOURCE_MODULE_LOADED = 6
+    CUPTI_CBID_RESOURCE_MODULE_UNLOAD_STARTING = 7
+    CUPTI_CBID_RESOURCE_MODULE_PROFILED = 8
+    CUPTI_CBID_RESOURCE_GRAPH_CREATED = 9
+    CUPTI_CBID_RESOURCE_GRAPH_DESTROY_STARTING = 10
+    CUPTI_CBID_RESOURCE_GRAPH_CLONED = 11
+    CUPTI_CBID_RESOURCE_GRAPHNODE_CREATE_STARTING = 12
+    CUPTI_CBID_RESOURCE_GRAPHNODE_CREATED = 13
+    CUPTI_CBID_RESOURCE_GRAPHNODE_DESTROY_STARTING = 14
+    CUPTI_CBID_RESOURCE_GRAPHNODE_DEPENDENCY_CREATED = 15
+    CUPTI_CBID_RESOURCE_GRAPHNODE_DEPENDENCY_DESTROY_STARTING = 16
+    CUPTI_CBID_RESOURCE_GRAPHEXEC_CREATE_STARTING = 17
+    CUPTI_CBID_RESOURCE_GRAPHEXEC_CREATED = 18
+    CUPTI_CBID_RESOURCE_GRAPHEXEC_DESTROY_STARTING = 19
+    CUPTI_CBID_RESOURCE_SIZE = 20
+    CUPTI_CBID_RESOURCE_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_CallbackIdSync::UInt32 begin
+    CUPTI_CBID_SYNCHRONIZE_INVALID = 0
+    CUPTI_CBID_SYNCHRONIZE_STREAM_SYNCHRONIZED = 1
+    CUPTI_CBID_SYNCHRONIZE_CONTEXT_SYNCHRONIZED = 2
+    CUPTI_CBID_SYNCHRONIZE_SIZE = 3
+    CUPTI_CBID_SYNCHRONIZE_FORCE_INT = 2147483647
+end
+
+struct CUpti_CallbackData
+    callbackSite::CUpti_ApiCallbackSite
+    functionName::Cstring
+    functionParams::Ptr{Cvoid}
+    functionReturnValue::Ptr{Cvoid}
+    symbolName::Cstring
+    context::CUcontext
+    contextUid::UInt32
+    correlationData::Ptr{UInt64}
+    correlationId::UInt32
+end
+
+struct ANONYMOUS1_resourceHandle
+    stream::CUstream
+end
+
+struct CUpti_ResourceData
+    context::CUcontext
+    resourceHandle::ANONYMOUS1_resourceHandle
+    resourceDescriptor::Ptr{Cvoid}
+end
+
+struct CUpti_ModuleResourceData
+    moduleId::UInt32
+    cubinSize::Csize_t
+    pCubin::Cstring
+end
+
+struct CUpti_GraphData
+    graph::CUgraph
+    originalGraph::CUgraph
+    node::CUgraphNode
+    nodeType::CUgraphNodeType
+    dependency::CUgraphNode
+    graphExec::CUgraphExec
+end
+
+struct CUpti_SynchronizeData
+    context::CUcontext
+    stream::CUstream
+end
+
+struct CUpti_NvtxData
+    functionName::Cstring
+    functionParams::Ptr{Cvoid}
+end
+
+const CUpti_CallbackId = UInt32
+const CUpti_CallbackFunc = Ptr{Cvoid}
+const CUpti_Subscriber_st = Cvoid
+const CUpti_SubscriberHandle = Ptr{CUpti_Subscriber_st}
+const CUpti_DomainTable = Ptr{CUpti_CallbackDomain}
+const CUpti_EventID = UInt32
+const CUpti_EventDomainID = UInt32
+const CUpti_EventGroup = Ptr{Cvoid}
+
+@cenum CUpti_DeviceAttributeDeviceClass::UInt32 begin
+    CUPTI_DEVICE_ATTR_DEVICE_CLASS_TESLA = 0
+    CUPTI_DEVICE_ATTR_DEVICE_CLASS_QUADRO = 1
+    CUPTI_DEVICE_ATTR_DEVICE_CLASS_GEFORCE = 2
+    CUPTI_DEVICE_ATTR_DEVICE_CLASS_TEGRA = 3
+end
+
+@cenum CUpti_DeviceAttribute::UInt32 begin
+    CUPTI_DEVICE_ATTR_MAX_EVENT_ID = 1
+    CUPTI_DEVICE_ATTR_MAX_EVENT_DOMAIN_ID = 2
+    CUPTI_DEVICE_ATTR_GLOBAL_MEMORY_BANDWIDTH = 3
+    CUPTI_DEVICE_ATTR_INSTRUCTION_PER_CYCLE = 4
+    CUPTI_DEVICE_ATTR_INSTRUCTION_THROUGHPUT_SINGLE_PRECISION = 5
+    CUPTI_DEVICE_ATTR_MAX_FRAME_BUFFERS = 6
+    CUPTI_DEVICE_ATTR_PCIE_LINK_RATE = 7
+    CUPTI_DEVICE_ATTR_PCIE_LINK_WIDTH = 8
+    CUPTI_DEVICE_ATTR_PCIE_GEN = 9
+    CUPTI_DEVICE_ATTR_DEVICE_CLASS = 10
+    CUPTI_DEVICE_ATTR_FLOP_SP_PER_CYCLE = 11
+    CUPTI_DEVICE_ATTR_FLOP_DP_PER_CYCLE = 12
+    CUPTI_DEVICE_ATTR_MAX_L2_UNITS = 13
+    CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_SHARED = 14
+    CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_L1 = 15
+    CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_EQUAL = 16
+    CUPTI_DEVICE_ATTR_FLOP_HP_PER_CYCLE = 17
+    CUPTI_DEVICE_ATTR_NVLINK_PRESENT = 18
+    CUPTI_DEVICE_ATTR_GPU_CPU_NVLINK_BW = 19
+    CUPTI_DEVICE_ATTR_NVSWITCH_PRESENT = 20
+    CUPTI_DEVICE_ATTR_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_EventDomainAttribute::UInt32 begin
+    CUPTI_EVENT_DOMAIN_ATTR_NAME = 0
+    CUPTI_EVENT_DOMAIN_ATTR_INSTANCE_COUNT = 1
+    CUPTI_EVENT_DOMAIN_ATTR_TOTAL_INSTANCE_COUNT = 3
+    CUPTI_EVENT_DOMAIN_ATTR_COLLECTION_METHOD = 4
+    CUPTI_EVENT_DOMAIN_ATTR_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_EventCollectionMethod::UInt32 begin
+    CUPTI_EVENT_COLLECTION_METHOD_PM = 0
+    CUPTI_EVENT_COLLECTION_METHOD_SM = 1
+    CUPTI_EVENT_COLLECTION_METHOD_INSTRUMENTED = 2
+    CUPTI_EVENT_COLLECTION_METHOD_NVLINK_TC = 3
+    CUPTI_EVENT_COLLECTION_METHOD_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_EventGroupAttribute::UInt32 begin
+    CUPTI_EVENT_GROUP_ATTR_EVENT_DOMAIN_ID = 0
+    CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES = 1
+    CUPTI_EVENT_GROUP_ATTR_USER_DATA = 2
+    CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS = 3
+    CUPTI_EVENT_GROUP_ATTR_EVENTS = 4
+    CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT = 5
+    CUPTI_EVENT_GROUP_ATTR_PROFILING_SCOPE = 6
+    CUPTI_EVENT_GROUP_ATTR_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_EventProfilingScope::UInt32 begin
+    CUPTI_EVENT_PROFILING_SCOPE_CONTEXT = 0
+    CUPTI_EVENT_PROFILING_SCOPE_DEVICE = 1
+    CUPTI_EVENT_PROFILING_SCOPE_BOTH = 2
+    CUPTI_EVENT_PROFILING_SCOPE_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_EventAttribute::UInt32 begin
+    CUPTI_EVENT_ATTR_NAME = 0
+    CUPTI_EVENT_ATTR_SHORT_DESCRIPTION = 1
+    CUPTI_EVENT_ATTR_LONG_DESCRIPTION = 2
+    CUPTI_EVENT_ATTR_CATEGORY = 3
+    CUPTI_EVENT_ATTR_PROFILING_SCOPE = 5
+    CUPTI_EVENT_ATTR_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_EventCollectionMode::UInt32 begin
+    CUPTI_EVENT_COLLECTION_MODE_CONTINUOUS = 0
+    CUPTI_EVENT_COLLECTION_MODE_KERNEL = 1
+    CUPTI_EVENT_COLLECTION_MODE_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_EventCategory::UInt32 begin
+    CUPTI_EVENT_CATEGORY_INSTRUCTION = 0
+    CUPTI_EVENT_CATEGORY_MEMORY = 1
+    CUPTI_EVENT_CATEGORY_CACHE = 2
+    CUPTI_EVENT_CATEGORY_PROFILE_TRIGGER = 3
+    CUPTI_EVENT_CATEGORY_SYSTEM = 4
+    CUPTI_EVENT_CATEGORY_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_ReadEventFlags::UInt32 begin
+    CUPTI_EVENT_READ_FLAG_NONE = 0
+    CUPTI_EVENT_READ_FLAG_FORCE_INT = 2147483647
+end
+
+struct CUpti_EventGroupSet
+    numEventGroups::UInt32
+    eventGroups::Ptr{CUpti_EventGroup}
+end
+
+struct CUpti_EventGroupSets
+    numSets::UInt32
+    sets::Ptr{CUpti_EventGroupSet}
+end
+
+const CUpti_KernelReplayUpdateFunc = Ptr{Cvoid}
+const CUpti_MetricID = UInt32
+
+@cenum CUpti_MetricCategory::UInt32 begin
+    CUPTI_METRIC_CATEGORY_MEMORY = 0
+    CUPTI_METRIC_CATEGORY_INSTRUCTION = 1
+    CUPTI_METRIC_CATEGORY_MULTIPROCESSOR = 2
+    CUPTI_METRIC_CATEGORY_CACHE = 3
+    CUPTI_METRIC_CATEGORY_TEXTURE = 4
+    CUPTI_METRIC_CATEGORY_NVLINK = 5
+    CUPTI_METRIC_CATEGORY_PCIE = 6
+    CUPTI_METRIC_CATEGORY_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_MetricEvaluationMode::UInt32 begin
+    CUPTI_METRIC_EVALUATION_MODE_PER_INSTANCE = 1
+    CUPTI_METRIC_EVALUATION_MODE_AGGREGATE = 2
+    CUPTI_METRIC_EVALUATION_MODE_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_MetricValueKind::UInt32 begin
+    CUPTI_METRIC_VALUE_KIND_DOUBLE = 0
+    CUPTI_METRIC_VALUE_KIND_UINT64 = 1
+    CUPTI_METRIC_VALUE_KIND_PERCENT = 2
+    CUPTI_METRIC_VALUE_KIND_THROUGHPUT = 3
+    CUPTI_METRIC_VALUE_KIND_INT64 = 4
+    CUPTI_METRIC_VALUE_KIND_UTILIZATION_LEVEL = 5
+    CUPTI_METRIC_VALUE_KIND_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_MetricValueUtilizationLevel::UInt32 begin
+    CUPTI_METRIC_VALUE_UTILIZATION_IDLE = 0
+    CUPTI_METRIC_VALUE_UTILIZATION_LOW = 2
+    CUPTI_METRIC_VALUE_UTILIZATION_MID = 5
+    CUPTI_METRIC_VALUE_UTILIZATION_HIGH = 8
+    CUPTI_METRIC_VALUE_UTILIZATION_MAX = 10
+    CUPTI_METRIC_VALUE_UTILIZATION_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_MetricAttribute::UInt32 begin
+    CUPTI_METRIC_ATTR_NAME = 0
+    CUPTI_METRIC_ATTR_SHORT_DESCRIPTION = 1
+    CUPTI_METRIC_ATTR_LONG_DESCRIPTION = 2
+    CUPTI_METRIC_ATTR_CATEGORY = 3
+    CUPTI_METRIC_ATTR_VALUE_KIND = 4
+    CUPTI_METRIC_ATTR_EVALUATION_MODE = 5
+    CUPTI_METRIC_ATTR_FORCE_INT = 2147483647
+end
+
+struct CUpti_MetricValue
+    metricValueDouble::Cdouble
+end
+
+@cenum CUpti_MetricPropertyDeviceClass::UInt32 begin
+    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_TESLA = 0
+    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_QUADRO = 1
+    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_GEFORCE = 2
+    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_TEGRA = 3
+end
+
+@cenum CUpti_MetricPropertyID::UInt32 begin
+    CUPTI_METRIC_PROPERTY_MULTIPROCESSOR_COUNT = 0
+    CUPTI_METRIC_PROPERTY_WARPS_PER_MULTIPROCESSOR = 1
+    CUPTI_METRIC_PROPERTY_KERNEL_GPU_TIME = 2
+    CUPTI_METRIC_PROPERTY_CLOCK_RATE = 3
+    CUPTI_METRIC_PROPERTY_FRAME_BUFFER_COUNT = 4
+    CUPTI_METRIC_PROPERTY_GLOBAL_MEMORY_BANDWIDTH = 5
+    CUPTI_METRIC_PROPERTY_PCIE_LINK_RATE = 6
+    CUPTI_METRIC_PROPERTY_PCIE_LINK_WIDTH = 7
+    CUPTI_METRIC_PROPERTY_PCIE_GEN = 8
+    CUPTI_METRIC_PROPERTY_DEVICE_CLASS = 9
+    CUPTI_METRIC_PROPERTY_FLOP_SP_PER_CYCLE = 10
+    CUPTI_METRIC_PROPERTY_FLOP_DP_PER_CYCLE = 11
+    CUPTI_METRIC_PROPERTY_L2_UNITS = 12
+    CUPTI_METRIC_PROPERTY_ECC_ENABLED = 13
+    CUPTI_METRIC_PROPERTY_FLOP_HP_PER_CYCLE = 14
+    CUPTI_METRIC_PROPERTY_GPU_CPU_NVLINK_BANDWIDTH = 15
+end
 
 @cenum CUpti_ActivityKind::UInt32 begin
     CUPTI_ACTIVITY_KIND_INVALID = 0
@@ -130,14 +423,14 @@ end
     CUPTI_ACTIVITY_OBJECT_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS1_dcs
+struct ANONYMOUS2_dcs
     deviceId::UInt32
     contextId::UInt32
     streamId::UInt32
 end
 
 struct CUpti_ActivityObjectKindId
-    dcs::ANONYMOUS1_dcs
+    dcs::ANONYMOUS2_dcs
 end
 
 @cenum CUpti_ActivityOverheadKind::UInt32 begin
@@ -495,13 +788,13 @@ struct CUpti_ActivityKernel
     reserved0::Ptr{Cvoid}
 end
 
-struct ANONYMOUS2_cacheConfig
+struct ANONYMOUS3_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityKernel2
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS2_cacheConfig
+    cacheConfig::ANONYMOUS3_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     start::UInt64
@@ -526,13 +819,13 @@ struct CUpti_ActivityKernel2
     reserved0::Ptr{Cvoid}
 end
 
-struct ANONYMOUS3_cacheConfig
+struct ANONYMOUS4_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityKernel3
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS3_cacheConfig
+    cacheConfig::ANONYMOUS4_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     partitionedGlobalCacheRequested::CUpti_ActivityPartitionedGlobalCacheConfig
@@ -565,13 +858,13 @@ end
     CUPTI_ACTIVITY_LAUNCH_TYPE_COOPERATIVE_MULTI_DEVICE = 2
 end
 
-struct ANONYMOUS4_cacheConfig
+struct ANONYMOUS5_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityKernel4
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS4_cacheConfig
+    cacheConfig::ANONYMOUS5_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     partitionedGlobalCacheRequested::CUpti_ActivityPartitionedGlobalCacheConfig
@@ -605,13 +898,13 @@ struct CUpti_ActivityKernel4
     sharedMemoryExecuted::UInt32
 end
 
-struct ANONYMOUS5_cacheConfig
+struct ANONYMOUS6_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityCdpKernel
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS5_cacheConfig
+    cacheConfig::ANONYMOUS6_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     start::UInt64
@@ -653,8 +946,6 @@ struct CUpti_ActivityPreemption
     pad::UInt32
 end
 
-const CUpti_CallbackId = UInt32
-
 struct CUpti_ActivityAPI
     kind::CUpti_ActivityKind
     cbid::CUpti_CallbackId
@@ -665,9 +956,6 @@ struct CUpti_ActivityAPI
     correlationId::UInt32
     returnValue::UInt32
 end
-
-const CUpti_EventID = UInt32
-const CUpti_EventDomainID = UInt32
 
 struct CUpti_ActivityEvent
     kind::CUpti_ActivityKind
@@ -685,12 +973,6 @@ struct CUpti_ActivityEventInstance
     value::UInt64
     correlationId::UInt32
     pad::UInt32
-end
-
-const CUpti_MetricID = UInt32
-
-struct CUpti_MetricValue
-    metricValueDouble::Cdouble
 end
 
 struct CUpti_ActivityMetric
@@ -843,11 +1125,11 @@ struct CUpti_ActivityDevice2
     name::Cstring
 end
 
-struct ANONYMOUS6_attribute
+struct ANONYMOUS7_attribute
     cu::CUdevice_attribute
 end
 
-struct ANONYMOUS7_value
+struct ANONYMOUS8_value
     vDouble::Cdouble
 end
 
@@ -855,8 +1137,8 @@ struct CUpti_ActivityDeviceAttribute
     kind::CUpti_ActivityKind
     flags::CUpti_ActivityFlag
     deviceId::UInt32
-    attribute::ANONYMOUS6_attribute
-    value::ANONYMOUS7_value
+    attribute::ANONYMOUS7_attribute
+    value::ANONYMOUS8_value
 end
 
 struct CUpti_ActivityContext
@@ -898,16 +1180,6 @@ struct CUpti_ActivityMarker2
     domain::Cstring
 end
 
-@cenum CUpti_MetricValueKind::UInt32 begin
-    CUPTI_METRIC_VALUE_KIND_DOUBLE = 0
-    CUPTI_METRIC_VALUE_KIND_UINT64 = 1
-    CUPTI_METRIC_VALUE_KIND_PERCENT = 2
-    CUPTI_METRIC_VALUE_KIND_THROUGHPUT = 3
-    CUPTI_METRIC_VALUE_KIND_INT64 = 4
-    CUPTI_METRIC_VALUE_KIND_UTILIZATION_LEVEL = 5
-    CUPTI_METRIC_VALUE_KIND_FORCE_INT = 2147483647
-end
-
 struct CUpti_ActivityMarkerData
     kind::CUpti_ActivityKind
     flags::CUpti_ActivityFlag
@@ -927,7 +1199,7 @@ struct CUpti_ActivityOverhead
     _end::UInt64
 end
 
-struct ANONYMOUS9_speed
+struct ANONYMOUS10_speed
     smClock::UInt32
     memoryClock::UInt32
     pcieLinkGen::UInt32
@@ -935,8 +1207,8 @@ struct ANONYMOUS9_speed
     clocksThrottleReasons::CUpti_EnvironmentClocksThrottleReason
 end
 
-struct ANONYMOUS8_data
-    speed::ANONYMOUS9_speed
+struct ANONYMOUS9_data
+    speed::ANONYMOUS10_speed
 end
 
 struct CUpti_ActivityEnvironment
@@ -944,7 +1216,7 @@ struct CUpti_ActivityEnvironment
     deviceId::UInt32
     timestamp::UInt64
     environmentKind::CUpti_ActivityEnvironmentKind
-    data::ANONYMOUS8_data
+    data::ANONYMOUS9_data
 end
 
 struct CUpti_ActivityInstructionExecution
@@ -1306,11 +1578,11 @@ end
     CUPTI_DEV_TYPE_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS10_idDev0
+struct ANONYMOUS11_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS11_idDev1
+struct ANONYMOUS12_idDev1
     uuidDev::CUuuid
 end
 
@@ -1319,8 +1591,8 @@ struct CUpti_ActivityNvLink
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS10_idDev0
-    idDev1::ANONYMOUS11_idDev1
+    idDev0::ANONYMOUS11_idDev0
+    idDev1::ANONYMOUS12_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{4, Int8}
@@ -1328,11 +1600,11 @@ struct CUpti_ActivityNvLink
     bandwidth::UInt64
 end
 
-struct ANONYMOUS12_idDev0
+struct ANONYMOUS13_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS13_idDev1
+struct ANONYMOUS14_idDev1
     uuidDev::CUuuid
 end
 
@@ -1341,8 +1613,8 @@ struct CUpti_ActivityNvLink2
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS12_idDev0
-    idDev1::ANONYMOUS13_idDev1
+    idDev0::ANONYMOUS13_idDev0
+    idDev1::ANONYMOUS14_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{16, Int8}
@@ -1350,11 +1622,11 @@ struct CUpti_ActivityNvLink2
     bandwidth::UInt64
 end
 
-struct ANONYMOUS14_idDev0
+struct ANONYMOUS15_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS15_idDev1
+struct ANONYMOUS16_idDev1
     uuidDev::CUuuid
 end
 
@@ -1363,8 +1635,8 @@ struct CUpti_ActivityNvLink3
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS14_idDev0
-    idDev1::ANONYMOUS15_idDev1
+    idDev0::ANONYMOUS15_idDev0
+    idDev1::ANONYMOUS16_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{16, Int8}
@@ -1380,29 +1652,29 @@ end
     CUPTI_PCIE_DEVICE_TYPE_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS16_id
+struct ANONYMOUS17_id
     devId::CUdevice
 end
 
-struct ANONYMOUS18_gpuAttr
+struct ANONYMOUS19_gpuAttr
     uuidDev::CUuuid
     peerDev::NTuple{32, CUdevice}
 end
 
-struct ANONYMOUS17_attr
-    gpuAttr::ANONYMOUS18_gpuAttr
+struct ANONYMOUS18_attr
+    gpuAttr::ANONYMOUS19_gpuAttr
 end
 
 struct CUpti_ActivityPcie
     kind::CUpti_ActivityKind
     type::CUpti_PcieDeviceType
-    id::ANONYMOUS16_id
+    id::ANONYMOUS17_id
     domain::UInt32
     pcieGeneration::UInt16
     linkRate::UInt16
     linkWidth::UInt16
     upstreamBus::UInt16
-    attr::ANONYMOUS17_attr
+    attr::ANONYMOUS18_attr
 end
 
 @cenum CUpti_PcieGen::UInt32 begin
@@ -1476,281 +1748,6 @@ const CUpti_BuffersCallbackCompleteFunc = Ptr{Cvoid}
     CUPTI_DEVICE_VIRTUALIZATION_MODE_PASS_THROUGH = 1
     CUPTI_DEVICE_VIRTUALIZATION_MODE_VIRTUAL_GPU = 2
     CUPTI_DEVICE_VIRTUALIZATION_MODE_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_ApiCallbackSite::UInt32 begin
-    CUPTI_API_ENTER = 0
-    CUPTI_API_EXIT = 1
-    CUPTI_API_CBSITE_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_CallbackDomain::UInt32 begin
-    CUPTI_CB_DOMAIN_INVALID = 0
-    CUPTI_CB_DOMAIN_DRIVER_API = 1
-    CUPTI_CB_DOMAIN_RUNTIME_API = 2
-    CUPTI_CB_DOMAIN_RESOURCE = 3
-    CUPTI_CB_DOMAIN_SYNCHRONIZE = 4
-    CUPTI_CB_DOMAIN_NVTX = 5
-    CUPTI_CB_DOMAIN_SIZE = 6
-    CUPTI_CB_DOMAIN_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_CallbackIdResource::UInt32 begin
-    CUPTI_CBID_RESOURCE_INVALID = 0
-    CUPTI_CBID_RESOURCE_CONTEXT_CREATED = 1
-    CUPTI_CBID_RESOURCE_CONTEXT_DESTROY_STARTING = 2
-    CUPTI_CBID_RESOURCE_STREAM_CREATED = 3
-    CUPTI_CBID_RESOURCE_STREAM_DESTROY_STARTING = 4
-    CUPTI_CBID_RESOURCE_CU_INIT_FINISHED = 5
-    CUPTI_CBID_RESOURCE_MODULE_LOADED = 6
-    CUPTI_CBID_RESOURCE_MODULE_UNLOAD_STARTING = 7
-    CUPTI_CBID_RESOURCE_MODULE_PROFILED = 8
-    CUPTI_CBID_RESOURCE_GRAPH_CREATED = 9
-    CUPTI_CBID_RESOURCE_GRAPH_DESTROY_STARTING = 10
-    CUPTI_CBID_RESOURCE_GRAPH_CLONED = 11
-    CUPTI_CBID_RESOURCE_GRAPHNODE_CREATE_STARTING = 12
-    CUPTI_CBID_RESOURCE_GRAPHNODE_CREATED = 13
-    CUPTI_CBID_RESOURCE_GRAPHNODE_DESTROY_STARTING = 14
-    CUPTI_CBID_RESOURCE_GRAPHNODE_DEPENDENCY_CREATED = 15
-    CUPTI_CBID_RESOURCE_GRAPHNODE_DEPENDENCY_DESTROY_STARTING = 16
-    CUPTI_CBID_RESOURCE_GRAPHEXEC_CREATE_STARTING = 17
-    CUPTI_CBID_RESOURCE_GRAPHEXEC_CREATED = 18
-    CUPTI_CBID_RESOURCE_GRAPHEXEC_DESTROY_STARTING = 19
-    CUPTI_CBID_RESOURCE_SIZE = 20
-    CUPTI_CBID_RESOURCE_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_CallbackIdSync::UInt32 begin
-    CUPTI_CBID_SYNCHRONIZE_INVALID = 0
-    CUPTI_CBID_SYNCHRONIZE_STREAM_SYNCHRONIZED = 1
-    CUPTI_CBID_SYNCHRONIZE_CONTEXT_SYNCHRONIZED = 2
-    CUPTI_CBID_SYNCHRONIZE_SIZE = 3
-    CUPTI_CBID_SYNCHRONIZE_FORCE_INT = 2147483647
-end
-
-struct CUpti_CallbackData
-    callbackSite::CUpti_ApiCallbackSite
-    functionName::Cstring
-    functionParams::Ptr{Cvoid}
-    functionReturnValue::Ptr{Cvoid}
-    symbolName::Cstring
-    context::CUcontext
-    contextUid::UInt32
-    correlationData::Ptr{UInt64}
-    correlationId::UInt32
-end
-
-struct ANONYMOUS19_resourceHandle
-    stream::CUstream
-end
-
-struct CUpti_ResourceData
-    context::CUcontext
-    resourceHandle::ANONYMOUS19_resourceHandle
-    resourceDescriptor::Ptr{Cvoid}
-end
-
-struct CUpti_ModuleResourceData
-    moduleId::UInt32
-    cubinSize::Csize_t
-    pCubin::Cstring
-end
-
-struct CUpti_GraphData
-    graph::CUgraph
-    originalGraph::CUgraph
-    node::CUgraphNode
-    nodeType::CUgraphNodeType
-    dependency::CUgraphNode
-    graphExec::CUgraphExec
-end
-
-struct CUpti_SynchronizeData
-    context::CUcontext
-    stream::CUstream
-end
-
-struct CUpti_NvtxData
-    functionName::Cstring
-    functionParams::Ptr{Cvoid}
-end
-
-const CUpti_CallbackFunc = Ptr{Cvoid}
-const CUpti_Subscriber_st = Cvoid
-const CUpti_SubscriberHandle = Ptr{CUpti_Subscriber_st}
-const CUpti_DomainTable = Ptr{CUpti_CallbackDomain}
-
-# Skipping MacroDefinition: CUPTI_EVENT_OVERFLOW ( ( uint64_t ) 0xFFFFFFFFFFFFFFFFULL )
-# Skipping MacroDefinition: CUPTI_EVENT_INVALID ( ( uint64_t ) 0xFFFFFFFFFFFFFFFEULL )
-
-const CUpti_EventGroup = Ptr{Cvoid}
-
-@cenum CUpti_DeviceAttributeDeviceClass::UInt32 begin
-    CUPTI_DEVICE_ATTR_DEVICE_CLASS_TESLA = 0
-    CUPTI_DEVICE_ATTR_DEVICE_CLASS_QUADRO = 1
-    CUPTI_DEVICE_ATTR_DEVICE_CLASS_GEFORCE = 2
-    CUPTI_DEVICE_ATTR_DEVICE_CLASS_TEGRA = 3
-end
-
-@cenum CUpti_DeviceAttribute::UInt32 begin
-    CUPTI_DEVICE_ATTR_MAX_EVENT_ID = 1
-    CUPTI_DEVICE_ATTR_MAX_EVENT_DOMAIN_ID = 2
-    CUPTI_DEVICE_ATTR_GLOBAL_MEMORY_BANDWIDTH = 3
-    CUPTI_DEVICE_ATTR_INSTRUCTION_PER_CYCLE = 4
-    CUPTI_DEVICE_ATTR_INSTRUCTION_THROUGHPUT_SINGLE_PRECISION = 5
-    CUPTI_DEVICE_ATTR_MAX_FRAME_BUFFERS = 6
-    CUPTI_DEVICE_ATTR_PCIE_LINK_RATE = 7
-    CUPTI_DEVICE_ATTR_PCIE_LINK_WIDTH = 8
-    CUPTI_DEVICE_ATTR_PCIE_GEN = 9
-    CUPTI_DEVICE_ATTR_DEVICE_CLASS = 10
-    CUPTI_DEVICE_ATTR_FLOP_SP_PER_CYCLE = 11
-    CUPTI_DEVICE_ATTR_FLOP_DP_PER_CYCLE = 12
-    CUPTI_DEVICE_ATTR_MAX_L2_UNITS = 13
-    CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_SHARED = 14
-    CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_L1 = 15
-    CUPTI_DEVICE_ATTR_MAX_SHARED_MEMORY_CACHE_CONFIG_PREFER_EQUAL = 16
-    CUPTI_DEVICE_ATTR_FLOP_HP_PER_CYCLE = 17
-    CUPTI_DEVICE_ATTR_NVLINK_PRESENT = 18
-    CUPTI_DEVICE_ATTR_GPU_CPU_NVLINK_BW = 19
-    CUPTI_DEVICE_ATTR_NVSWITCH_PRESENT = 20
-    CUPTI_DEVICE_ATTR_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_EventDomainAttribute::UInt32 begin
-    CUPTI_EVENT_DOMAIN_ATTR_NAME = 0
-    CUPTI_EVENT_DOMAIN_ATTR_INSTANCE_COUNT = 1
-    CUPTI_EVENT_DOMAIN_ATTR_TOTAL_INSTANCE_COUNT = 3
-    CUPTI_EVENT_DOMAIN_ATTR_COLLECTION_METHOD = 4
-    CUPTI_EVENT_DOMAIN_ATTR_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_EventCollectionMethod::UInt32 begin
-    CUPTI_EVENT_COLLECTION_METHOD_PM = 0
-    CUPTI_EVENT_COLLECTION_METHOD_SM = 1
-    CUPTI_EVENT_COLLECTION_METHOD_INSTRUMENTED = 2
-    CUPTI_EVENT_COLLECTION_METHOD_NVLINK_TC = 3
-    CUPTI_EVENT_COLLECTION_METHOD_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_EventGroupAttribute::UInt32 begin
-    CUPTI_EVENT_GROUP_ATTR_EVENT_DOMAIN_ID = 0
-    CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES = 1
-    CUPTI_EVENT_GROUP_ATTR_USER_DATA = 2
-    CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS = 3
-    CUPTI_EVENT_GROUP_ATTR_EVENTS = 4
-    CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT = 5
-    CUPTI_EVENT_GROUP_ATTR_PROFILING_SCOPE = 6
-    CUPTI_EVENT_GROUP_ATTR_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_EventProfilingScope::UInt32 begin
-    CUPTI_EVENT_PROFILING_SCOPE_CONTEXT = 0
-    CUPTI_EVENT_PROFILING_SCOPE_DEVICE = 1
-    CUPTI_EVENT_PROFILING_SCOPE_BOTH = 2
-    CUPTI_EVENT_PROFILING_SCOPE_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_EventAttribute::UInt32 begin
-    CUPTI_EVENT_ATTR_NAME = 0
-    CUPTI_EVENT_ATTR_SHORT_DESCRIPTION = 1
-    CUPTI_EVENT_ATTR_LONG_DESCRIPTION = 2
-    CUPTI_EVENT_ATTR_CATEGORY = 3
-    CUPTI_EVENT_ATTR_PROFILING_SCOPE = 5
-    CUPTI_EVENT_ATTR_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_EventCollectionMode::UInt32 begin
-    CUPTI_EVENT_COLLECTION_MODE_CONTINUOUS = 0
-    CUPTI_EVENT_COLLECTION_MODE_KERNEL = 1
-    CUPTI_EVENT_COLLECTION_MODE_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_EventCategory::UInt32 begin
-    CUPTI_EVENT_CATEGORY_INSTRUCTION = 0
-    CUPTI_EVENT_CATEGORY_MEMORY = 1
-    CUPTI_EVENT_CATEGORY_CACHE = 2
-    CUPTI_EVENT_CATEGORY_PROFILE_TRIGGER = 3
-    CUPTI_EVENT_CATEGORY_SYSTEM = 4
-    CUPTI_EVENT_CATEGORY_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_ReadEventFlags::UInt32 begin
-    CUPTI_EVENT_READ_FLAG_NONE = 0
-    CUPTI_EVENT_READ_FLAG_FORCE_INT = 2147483647
-end
-
-struct CUpti_EventGroupSet
-    numEventGroups::UInt32
-    eventGroups::Ptr{CUpti_EventGroup}
-end
-
-struct CUpti_EventGroupSets
-    numSets::UInt32
-    sets::Ptr{CUpti_EventGroupSet}
-end
-
-const CUpti_KernelReplayUpdateFunc = Ptr{Cvoid}
-
-@cenum CUpti_MetricCategory::UInt32 begin
-    CUPTI_METRIC_CATEGORY_MEMORY = 0
-    CUPTI_METRIC_CATEGORY_INSTRUCTION = 1
-    CUPTI_METRIC_CATEGORY_MULTIPROCESSOR = 2
-    CUPTI_METRIC_CATEGORY_CACHE = 3
-    CUPTI_METRIC_CATEGORY_TEXTURE = 4
-    CUPTI_METRIC_CATEGORY_NVLINK = 5
-    CUPTI_METRIC_CATEGORY_PCIE = 6
-    CUPTI_METRIC_CATEGORY_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_MetricEvaluationMode::UInt32 begin
-    CUPTI_METRIC_EVALUATION_MODE_PER_INSTANCE = 1
-    CUPTI_METRIC_EVALUATION_MODE_AGGREGATE = 2
-    CUPTI_METRIC_EVALUATION_MODE_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_MetricValueUtilizationLevel::UInt32 begin
-    CUPTI_METRIC_VALUE_UTILIZATION_IDLE = 0
-    CUPTI_METRIC_VALUE_UTILIZATION_LOW = 2
-    CUPTI_METRIC_VALUE_UTILIZATION_MID = 5
-    CUPTI_METRIC_VALUE_UTILIZATION_HIGH = 8
-    CUPTI_METRIC_VALUE_UTILIZATION_MAX = 10
-    CUPTI_METRIC_VALUE_UTILIZATION_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_MetricAttribute::UInt32 begin
-    CUPTI_METRIC_ATTR_NAME = 0
-    CUPTI_METRIC_ATTR_SHORT_DESCRIPTION = 1
-    CUPTI_METRIC_ATTR_LONG_DESCRIPTION = 2
-    CUPTI_METRIC_ATTR_CATEGORY = 3
-    CUPTI_METRIC_ATTR_VALUE_KIND = 4
-    CUPTI_METRIC_ATTR_EVALUATION_MODE = 5
-    CUPTI_METRIC_ATTR_FORCE_INT = 2147483647
-end
-
-@cenum CUpti_MetricPropertyDeviceClass::UInt32 begin
-    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_TESLA = 0
-    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_QUADRO = 1
-    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_GEFORCE = 2
-    CUPTI_METRIC_PROPERTY_DEVICE_CLASS_TEGRA = 3
-end
-
-@cenum CUpti_MetricPropertyID::UInt32 begin
-    CUPTI_METRIC_PROPERTY_MULTIPROCESSOR_COUNT = 0
-    CUPTI_METRIC_PROPERTY_WARPS_PER_MULTIPROCESSOR = 1
-    CUPTI_METRIC_PROPERTY_KERNEL_GPU_TIME = 2
-    CUPTI_METRIC_PROPERTY_CLOCK_RATE = 3
-    CUPTI_METRIC_PROPERTY_FRAME_BUFFER_COUNT = 4
-    CUPTI_METRIC_PROPERTY_GLOBAL_MEMORY_BANDWIDTH = 5
-    CUPTI_METRIC_PROPERTY_PCIE_LINK_RATE = 6
-    CUPTI_METRIC_PROPERTY_PCIE_LINK_WIDTH = 7
-    CUPTI_METRIC_PROPERTY_PCIE_GEN = 8
-    CUPTI_METRIC_PROPERTY_DEVICE_CLASS = 9
-    CUPTI_METRIC_PROPERTY_FLOP_SP_PER_CYCLE = 10
-    CUPTI_METRIC_PROPERTY_FLOP_DP_PER_CYCLE = 11
-    CUPTI_METRIC_PROPERTY_L2_UNITS = 12
-    CUPTI_METRIC_PROPERTY_ECC_ENABLED = 13
-    CUPTI_METRIC_PROPERTY_FLOP_HP_PER_CYCLE = 14
-    CUPTI_METRIC_PROPERTY_GPU_CPU_NVLINK_BANDWIDTH = 15
 end
 
 # Skipping MacroDefinition: CUPTI_PROFILER_STRUCT_SIZE ( type_ , lastfield_ ) ( offsetof ( type_ , lastfield_ ) + sizeof ( ( ( type_ * ) 0 ) -> lastfield_ ) )
