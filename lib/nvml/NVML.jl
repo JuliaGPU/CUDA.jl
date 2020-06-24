@@ -18,5 +18,6 @@ include("libnvml.jl")
 
 # wrappers
 include("system.jl")
+include("device.jl")
 
 end
