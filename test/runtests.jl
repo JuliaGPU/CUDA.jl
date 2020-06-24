@@ -104,11 +104,28 @@ if parse(Bool, get(ENV, "CI", "false")) && haskey(ENV, "JULIA_CUDA_VERSION")
 end
 
 # find suitable devices
-candidates = [(dev=dev,
-               uuid=NVML.uuid(dev),
-               cap=NVML.compute_capability(dev),
-               mem=NVML.memory_info(dev))
-              for dev in NVML.devices()]
+candidates, driver_version, cuda_driver_version = if has_nvml()
+    [(uuid=NVML.uuid(dev),
+      name=NVML.name(dev),
+      cap=NVML.compute_capability(dev),
+      mem_available=NVML.memory_info(dev).free,
+      mem_total=NVML.memory_info(dev).total)
+     for dev in NVML.devices()],
+    NVML.driver_version(),
+    NVML.cuda_driver_version()
+else
+    # using CUDA to query this information requires initializing a context,
+    # which might fail if the device is heavily loaded.
+    [(device!(dev);
+     (uuid=uuid(dev),
+      name=CUDA.name(dev),
+      cap=capability(dev),
+      mem_available=CUDA.available_memory(),
+      mem_total=CUDA.total_memory()))
+     for dev in devices()],
+    "(unknown)",
+    CUDA.version()
+end
 ## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
 ## NOTE: we don't reuse target_support which is also bounded by LLVM support,
 #        and is used to pick a codegen target regardless of the actual device.
@@ -121,11 +138,11 @@ if thorough
 end
 isempty(candidates) && error("Could not find any suitable device for this configuration")
 ## order by available memory, but also by capability if testing needs to be thorough
-sort!(candidates, by=x->x.mem.free)
+sort!(candidates, by=x->x.mem_available)
 ## apply
 pick = last(candidates)
 ENV["CUDA_VISIBLE_DEVICES"] = "GPU-$(pick.uuid)"
-@info("Testing using device $(NVML.name(pick.dev)) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem.free)) / $(Base.format_bytes(pick.mem.total)) memory available) with CUDA $(CUDA.toolkit_version()) on driver $(NVML.driver_version()) for CUDA $(NVML.cuda_driver_version())")
+@info("Testing using device $(pick.name) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem_available)) / $(Base.format_bytes(pick.mem_total)) memory available) with CUDA $(CUDA.toolkit_version()) on driver $driver_version for CUDA $(CUDA.version())")
 
 # determine tests to skip
 const skip_tests = []
