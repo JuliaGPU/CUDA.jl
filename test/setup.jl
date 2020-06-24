@@ -56,7 +56,13 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
 
         # process results
         rss = Sys.maxrss()
-        gpu_rss = NVML.compute_processes(nvml_dev)[getpid()].used_gpu_memory
+        gpu_processes = NVML.compute_processes(nvml_dev)
+        gpu_rss = if haskey(gpu_processes, getpid())
+            gpu_processes[getpid()].used_gpu_memory
+        else
+            # FIXME: fails on CI
+            0
+        end
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
             Test.get_test_counts(res_and_time_data[1])
         if res_and_time_data[1].anynonpass == false
