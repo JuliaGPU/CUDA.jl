@@ -117,6 +117,7 @@ checked_types = [
     "CUresult",
     "CUptiResult",
     "NVPA_Status",
+    "nvmlReturn_t",
     "cublasStatus_t",
     "cudnnStatus_t",
     "cufftResult",
@@ -200,6 +201,11 @@ preinit_apicalls = Set{String}([
     # CUPTI
     "cuptiGetVersion",
     "cuptiGetResultString",
+    # NVML
+    "nvmlInit",
+    "nvmlInitWithFlags",
+    "nvmlShutdown",
+    "nvmlErrorString",
     # CUBLAS
     "cublasGetVersion",
     "cublasGetProperty",
@@ -596,6 +602,8 @@ function main()
 
     process("nvtx", "$cuda/nvtx3/nvToolsExt.h", "$cuda/nvtx3/nvToolsExtCuda.h";
             include_dirs=[cuda], rewrite_pointers=false)
+
+    process("nvml", "$cuda/nvml.h"; include_dirs=[cuda], rewrite_pointers=false)
 
     process("cupti", "$cupti/cupti.h", "$cupti/cupti_profiler_target.h";
             include_dirs=[cuda, cupti],

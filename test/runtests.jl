@@ -129,6 +129,7 @@ pick.cap >= v"2.0" || error("The CUDA.jl test suite requires a CUDA device with 
 # determine tests to skip
 const skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
+has_nvml() || push!(skip_tests, "nvml")
 if !has_cutensor() || CUDA.version() < v"10.1" || pick.cap < v"7.0"
     push!(skip_tests, "cutensor")
 end
