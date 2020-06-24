@@ -19,7 +19,7 @@ const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 
 ## entry point
 
-function runtests(f, name, device=nothing, snoop=nothing)
+function runtests(f, name, can_initialize=true, snoop=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
 
@@ -37,13 +37,11 @@ function runtests(f, name, device=nothing, snoop=nothing)
             Random.seed!(1)
             CUDA.allowscalar(false)
 
-            if $device !== nothing
-                device!($device)
+            if $can_initialize
                 CUDA.@timed @testset $"$name" begin
                     $f()
                 end
             else
-                # take care not to initialize the device
                 res = @timed @testset $"$name" begin
                     $f()
                 end
