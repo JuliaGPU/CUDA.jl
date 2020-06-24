@@ -1,5 +1,3 @@
-@testset "devices" begin
-
 dev = device()
 
 @test name(dev) isa String
@@ -15,4 +13,3 @@ capability(dev)
 @test eltype(devices()) == CuDevice
 @grab_output show(stdout, "text/plain", CUDA.DEVICE_CPU)
 @grab_output show(stdout, "text/plain", CUDA.DEVICE_INVALID)
-end

@@ -1,5 +1,3 @@
-@testset "errors" begin
-
 let
     ex = CuError(CUDA.SUCCESS)
     @test CUDA.name(ex) == "SUCCESS"
@@ -22,6 +20,4 @@ let
     str = String(take!(io))
 
     @test occursin("foobar", str)
-end
-
 end

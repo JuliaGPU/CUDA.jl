@@ -1,5 +1,3 @@
-@testset "memory" begin
-
 let
     a,b = Mem.info()
     # NOTE: actually testing this is pretty fragile on CI
@@ -273,6 +271,4 @@ end
     Mem.pin(view(buf, 250:350))  # should partially extend
     Mem.pin(view(buf, 1:350))    # do nothing
     Mem.pin(buf)
-end
-
 end

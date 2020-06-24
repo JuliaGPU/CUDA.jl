@@ -29,9 +29,9 @@ end
 
 end
 
-@testset "primary context" begin
-
 # FIXME: these trample over our globally-managed context
+
+# @testset "primary context" begin
 
 # pctx = CuPrimaryContext(device())
 
@@ -83,7 +83,7 @@ end
 #     unsafe_reset!(pctx)
 # end
 
-end
+# end
 
 
 @testset "cache config" begin

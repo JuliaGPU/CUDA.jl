@@ -1,5 +1,3 @@
-@testset "module" begin
-
 let
     md = CuModuleFile(joinpath(@__DIR__, "ptx/vadd.ptx"))
 
@@ -79,6 +77,4 @@ let
 
     md = CuModule(obj, options)
     vadd = CuFunction(md, "vadd")
-end
-
 end

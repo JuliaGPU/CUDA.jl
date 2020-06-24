@@ -1,5 +1,3 @@
-@testset "device pointer" begin
-
 # inner constructors
 
 voidptr_a = CuPtr{Cvoid}(Int(0xDEADBEEF))
@@ -103,6 +101,4 @@ end
 @testset "reinterpret(Nothing, nothing)" begin
     kernel(ptr) = Base.unsafe_load(ptr)
     @cuda kernel(reinterpret(CUDA.DevicePtr{Nothing,AS.Global}, C_NULL))
-end
-
 end

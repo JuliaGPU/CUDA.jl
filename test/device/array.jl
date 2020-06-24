@@ -1,5 +1,3 @@
-@testset "device arrays" begin
-
 @testset "constructors" begin
     # inner constructors
     let
@@ -156,6 +154,4 @@ end
 
     asm = String(take!(copy(buf)))
     @test occursin("ld.global.nc", asm)
-end
-
 end
