@@ -67,12 +67,14 @@ function versioninfo(io::IO=stdout)
         println()
     end
 
-    devs = devices()
-    println(io, length(devs), " device(s):")
-    for dev in devs
-        cap = capability(dev)
-        device!(dev) do
-            println(io, "- $(name(dev)) ($(Base.format_bytes(available_memory())), sm_$(cap.major)$(cap.minor))")
+    if has_nvml()
+        devs = NVML.devices()
+        println(io, length(devs), " device(s):")
+        for dev in devs
+            cap = NVML.compute_capability(dev)
+            mem = NVML.memory_info(dev)
+            name = NVML.name(dev)
+            println(io, "- $name ($(Base.format_bytes(mem.free)), sm_$(cap.major)$(cap.minor))")
         end
     end
 end
