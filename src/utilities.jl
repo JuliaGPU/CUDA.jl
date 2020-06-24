@@ -28,9 +28,9 @@ function versioninfo(io::IO=stdout)
         mod = getfield(CUDA, lib)
         println(io, "- $lib: ", mod.version())
     end
-    println(io, "- CUTENSOR: ", has_cutensor() ? CUTENSOR.version() : "missing")
-    println(io, "- CUDNN: ", has_cudnn() ? CUDNN.version() : "missing")
     println(io, "- CUPTI: ", has_cupti() ? CUPTI.version() : "missing")
+    println(io, "- CUDNN: ", has_cudnn() ? "$(CUDNN.version()) (for CUDA $(CUDNN.cuda_version()))" : "missing")
+    println(io, "- CUTENSOR: ", has_cutensor() ? "$(CUTENSOR.version()) (for CUDA $(CUTENSOR.cuda_version()))" : "missing")
     println(io)
 
     println(io, "Packages:")
