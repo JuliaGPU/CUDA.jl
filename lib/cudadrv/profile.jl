@@ -40,7 +40,7 @@ function start()
                  The user is responsible for launching Julia under a CUDA profiler like `nvprof`.
 
                  For improved usability, launch Julia under the Nsight Systems profiler:
-                 \$ nsys launch -t cuda,cublas,cudnn,nvtx julia""",
+                 \$ nsys launch julia""",
               maxlog=1)
     end
     CUDA.cuProfilerStart()
@@ -62,16 +62,29 @@ function stop()
 end
 
 if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 1
-    @warn "Precompiling while running under Nsight Systems; make sure you disable OSRT tracing to prevent segmentation faults (exit code 11)"
+    @warn "Precompiling while running under Nsight Systems; if you encounter segmentation faults (exit code 11), try disabling OSRT tracing."
 end
 
 function __init__()
     # find the active Nsight Systems profiler
     if haskey(ENV, "NSYS_PROFILING_SESSION_ID") && ccall(:jl_generating_output, Cint, ()) == 0
-        @info "Running under Nsight Systems, CUDA.@profile will automatically start the profiler"
-
-        nsight[] = ENV["_"]
+        nsight[] = if haskey(ENV, "JULIA_CUDA_NSYS")
+            ENV["JULIA_CUDA_NSYS"]
+        elseif haskey(ENV, "_")
+            ENV["_"]
+        elseif haskey(ENV, "LD_PRELOAD")
+            libraries = split(ENV["LD_PRELOAD"], ':')
+            filter!(isfile, libraries)
+            directories = map(dirname, libraries)
+            candidates = map(dir->joinpath(dir, "nsys"), directories)
+            filter!(isfile, candidates)
+            isempty(candidates) && error("Could not find nsys relative to LD_PRELOAD=$(ENV["LD_PRELOAD"])")
+            first(candidates)
+        else
+            error("Running under Nsight Systems, but could not find the `nsys` binary to start the profiler. Please specify using JULIA_CUDA_NSYS=path/to/nsys, and file an issue with the contents of ENV.")
+        end
         @assert isfile(nsight[])
+        @info "Running under Nsight Systems, CUDA.@profile will automatically start the profiler"
     else
         nsight[] = nothing
     end
