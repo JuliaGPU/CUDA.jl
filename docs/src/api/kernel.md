@@ -7,7 +7,7 @@ appendix from the CUDA C programming guide. For more information about certain i
 refer to the aforementioned NVIDIA documentation.
 
 
-## Indexing and Dimensions
+## Indexing and dimensions
 
 ```@docs
 gridDim
@@ -18,13 +18,31 @@ warpsize
 ```
 
 
-## Memory Types
+## Device arrays
 
-### Shared Memory
+CUDA.jl provides a primitive, lightweight array type to manage GPU data organized in an
+plain, dense fashion. This is the device-counterpart to the `CuArray`, and implements (part
+of) the array interface as well as other functionality for use _on_ the GPU:
+
+```@docs
+CuDeviceArray
+CUDA.Const
+```
+
+
+## Memory types
+
+### Shared memory
 
 ```@docs
 @cuStaticSharedMem
 @cuDynamicSharedMem
+```
+
+### Texture memory
+
+```@docs
+CuDeviceTexture
 ```
 
 
@@ -38,14 +56,18 @@ threadfence
 threadfence_system
 ```
 
-## Clock & Sleep
+
+## Time functions
 
 ```@docs
 clock
 nanosleep
 ```
 
-## Warp Vote
+
+## Warp-level functions
+
+### Voting
 
 The warp vote functions allow the threads of a given warp to perform a
 reduction-and-broadcast operation. These functions take as input a boolean predicate from
@@ -59,8 +81,7 @@ vote_any
 vote_ballot
 ```
 
-
-## Warp Shuffle
+### Shuffle
 
 ```@docs
 shfl_sync
@@ -152,18 +173,6 @@ library with the CUDA module. For example, in kernel code, call `CUDA.sin` inste
 `sin`.
 
 For a list of available functions, look at `src/device/cuda/libdevice.jl`.
-
-
-## Device array
-
-CUDA.jl provides a primitive, lightweight array type to manage GPU data organized in an
-plain, dense fashion. This is the device-counterpart to the `CuArray`, and implements (part
-of) the array interface as well as other functionality for use _on_ the GPU:
-
-```@docs
-CuDeviceArray
-CUDA.Const
-```
 
 
 ## WMMA

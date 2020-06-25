@@ -39,6 +39,7 @@ include("$root/src/device/array.jl")
 include("$root/src/device/cuda.jl")
 include("$root/src/device/llvm.jl")
 include("$root/src/device/runtime.jl")
+include("$root/src/device/texture.jl")
 
 # compiler libraries
 include("$root/lib/cupti/CUPTI.jl")
@@ -57,6 +58,7 @@ include("$root/src/array.jl")
 include("$root/src/gpuarrays.jl")
 include("$root/src/subarray.jl")
 include("$root/src/utilities.jl")
+include("$root/src/texture.jl")
 
 # array libraries
 include("$root/lib/complex.jl")

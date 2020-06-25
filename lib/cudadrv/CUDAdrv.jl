@@ -6,6 +6,7 @@ using Printf
 
 # low-level wrappers
 const CUdeviceptr = CuPtr{Cvoid}
+const CUarray = CuArrayPtr{Cvoid}
 include("libcuda_common.jl")
 include("error.jl")
 include("libcuda.jl")
