@@ -1,5 +1,15 @@
 using CUDA.NVML
 
+macro maybe_unsupported(ex)
+    quote
+        try
+            $(esc(ex))
+        catch err
+            (isa(err, NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
+        end
+    end
+end
+
 @testset "system" begin
     @test NVML.version() isa VersionNumber
     @test NVML.driver_version() isa VersionNumber
@@ -16,14 +26,10 @@ end
     @test NVML.uuid(nvml_dev) == uuid(cuda_dev)
     NVML.brand(nvml_dev)
     @test NVML.name(nvml_dev) == name(cuda_dev)
-    try
-        NVML.serial(nvml_dev)
-    catch err
-        (isa(err, NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
-    end
+    @maybe_unsupported NVML.serial(nvml_dev)
 
     NVML.power_usage(nvml_dev)
-    NVML.energy_consumption(nvml_dev)
+    @maybe_unsupported NVML.energy_consumption(nvml_dev)
 
     NVML.memory_info(nvml_dev)
 
