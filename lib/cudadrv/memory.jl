@@ -12,17 +12,15 @@ using Base: @deprecate_binding
 using IntervalTrees
 
 
-# TODO: make buffer typed again. for mostly untyped stuff, use T=UInt8.
-# no reinterpret. downstream user can reinterpret the ptr.
-# type matters for texture, cannot reinterpret (bound ctor)
+# TODO: needs another redesign
 #
-# alternative: T=Nothing for bytes, but that complicates N*elsize
-
-# TODO: alloc on ctor?
-# TODO: once array has buffers, use free on dtor?
-
-# then have the allocator take buffers, giving us everything to dispatch on
-# (alloc type, size, maybe format, maybe later alignment)
+# - Buffers should be typed, since ArrayBuffers are tied to a format.
+#   untyped buffers can use T=UInt8 or T=Nothing and reinterpret the output pointer
+#   (this is impossible with textures, though)
+# - copyto! methods should take a Buffer so that we can populate the memcpy structs directly
+# - allocate buffers on construction, instead of using an alloc method? free on finalizer?
+# - have CuArray contain a buffer, use that for dispatch.
+# - trait to determine which pointers a buffer can yield?
 
 
 #
@@ -380,10 +378,6 @@ end
 
 
 ## copy operations
-
-# TODO: have copyto methods take buffers so that we can use the type directly for 2d/3d copies
-# make buffers typed then? Buffer{UInt8} for allocator, etc
-# add a trait to determine which type of pointer the buffer yields
 
 for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr,      Ptr),
                                 ("cuMemcpyHtoD", Ptr,        CuPtr),

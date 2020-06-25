@@ -10,6 +10,9 @@ i.e., fall into the `[0,1)` domain.
 
 Device-side texture objects cannot be created directly, but should be created host-side
 using [`CuTexture`](@ref) and passed to the kernal as an argument.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
 """
 struct CuDeviceTexture{T,N,NC} <: AbstractArray{T,N}
     dims::Dims{N}

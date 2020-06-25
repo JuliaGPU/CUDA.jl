@@ -1,10 +1,15 @@
+# texture and surface handling
+
+# NOTE: the API for texture support is not final yet. some thoughts:
+#
+# - instead of CuTextureArray, use CuArray with an ArrayBuffer. This array could then
+#   adapt to a CuTexture, or do the same for CuDeviceArray.
+
 #
 # Texture array
 #
 
 export CuTextureArray
-
-# TODO: CuArray with TextureBuffer? adapt to default CuTexture, unless specialized
 
 """
     CuTextureArray{T,N}(undef, dims)
@@ -12,6 +17,9 @@ export CuTextureArray
 `N`-dimensional dense texture array with elements of type `T`. These arrays are optimized
 for texture fetching, and are only meant to be used as a source for [`CuTexture`](@ref)
 objects.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
 """
 mutable struct CuTextureArray{T,N}
     buf::Mem.ArrayBuffer{T}
@@ -24,6 +32,9 @@ mutable struct CuTextureArray{T,N}
     Construct an uninitialized texture array of `N` dimensions specified in the `dims`
     tuple, with elements of type `T`. Use `Base.copyto!` to initialize this texture array,
     or use constructors that take a non-texture array to do so automatically.
+
+    !!! warning
+        Experimental API. Subject to change without deprecation.
     """
     function CuTextureArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
         buf = Mem.alloc(Mem.Array{T}, dims)
@@ -60,6 +71,9 @@ Base.pointer(t::CuTextureArray) = t.buf.ptr
     CuTextureArray(A::AbstractArray)
 
 Allocate and initialize a texture buffer from host memory in `A`.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
 """
 @inline function CuTextureArray{T,N}(xs::AbstractArray{<:Any,N}) where {T,N}
   A = CuTextureArray{T,N}(undef, size(xs))
@@ -71,6 +85,9 @@ end
     CuTextureArray(A::CuArray)
 
 Allocate and initialize a texture buffer from device memory in `A`.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
 """
 @inline function CuTextureArray{T,N}(xs::CuArray{<:Any,N}) where {T,N}
   A = CuTextureArray{T,N}(undef, size(xs))
@@ -126,6 +143,9 @@ export CuTexture
 `N`-dimensional texture object with elements of type `T`. These objects do not store data
 themselves, but are bounds to another source of device memory. Texture objects can be passed
 to CUDA kernels, where they will be accessible through the [`CuDeviceTexture`](@ref) type.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
 """
 mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
     parent::P
@@ -148,6 +168,9 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
       fetches a single value, linear results in linear interpolation between values.
     - `normalized_coordinates` (true, *false*): whether indices are expected to fall in the
       normalized `[0:1)` range.
+
+    !!! warning
+        Experimental API. Subject to change without deprecation.
     """
     function CuTexture{T,N,P}(parent::P;
                               address_mode::Union{CUaddress_mode,NTuple{N,CUaddress_mode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
@@ -260,6 +283,9 @@ CuTexture{T,N}(A::Union{CuTextureArray{T,N},CuArray{T,N}}; kwargs...) where {T,N
     CuTexture(x::CuTextureArray{T,N})
 
 Create a `N`-dimensional texture object withelements of type `T` that will be read from `x`.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
 """
 CuTexture(x::CuTextureArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N}(x; kwargs...)
@@ -271,6 +297,9 @@ Create a `N`-dimensional texture object that reads from a `CuArray`.
 
 Note that it is necessary the their memory is well aligned and strided (good pitch).
 Currently, that is not being enforced.
+
+!!! warning
+    Experimental API. Subject to change without deprecation.
 """
 CuTexture(x::CuArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N}(x; kwargs...)
