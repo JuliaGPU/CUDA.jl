@@ -223,10 +223,10 @@ percent_align = textwidth("GC %")
 alloc_align   = textwidth("Alloc (MB)")
 rss_align     = textwidth("RSS (MB)")
 printstyled(" "^(name_align + textwidth(testgroupheader) - 3), " | ")
-printstyled("         | ---------------- GPU ---------------- | ---------------- CPU ----------------\n", color=:white)
+printstyled("         | ---------------- GPU ---------------- | ---------------- CPU ---------------- |\n", color=:white)
 printstyled(testgroupheader, color=:white)
 printstyled(lpad(workerheader, name_align - textwidth(testgroupheader) + 1), " | ", color=:white)
-printstyled("Time (s) | GC (s) | GC % | Alloc (MB) | RSS (MB) | GC (s) | GC % | Alloc (MB) | RSS (MB)\n", color=:white)
+printstyled("Time (s) | GC (s) | GC % | Alloc (MB) | RSS (MB) | GC (s) | GC % | Alloc (MB) | RSS (MB) |\n", color=:white)
 print_lock = stdout isa Base.LibuvStream ? stdout.lock : ReentrantLock()
 if stderr isa Base.LibuvStream
     stderr.lock = print_lock
@@ -260,7 +260,7 @@ function print_testworker_stats(test, wrkr, resp)
         printstyled(lpad(cpu_alloc_str, alloc_align, " "), " | ", color=:white)
 
         cpu_rss_str = @sprintf("%5.2f", resp[9] / 2^20)
-        printstyled(lpad(cpu_rss_str, rss_align, " "), "\n", color=:white)
+        printstyled(lpad(cpu_rss_str, rss_align, " "), " |\n", color=:white)
     finally
         unlock(print_lock)
     end
