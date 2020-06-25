@@ -16,7 +16,11 @@ end
     @test NVML.uuid(nvml_dev) == uuid(cuda_dev)
     NVML.brand(nvml_dev)
     @test NVML.name(nvml_dev) == name(cuda_dev)
-    NVML.serial(nvml_dev)
+    try
+        NVML.serial(nvml_dev)
+    catch err
+        (isa(err, NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
+    end
 
     NVML.power_usage(nvml_dev)
     NVML.energy_consumption(nvml_dev)

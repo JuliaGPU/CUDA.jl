@@ -11,6 +11,8 @@ Base.showerror(io::IO, err::NVMLError) =
 
 description(err::NVMLError) = unsafe_string(nvmlErrorString(err))
 
+@enum_without_prefix nvmlReturn_enum NVML_
+
 
 ## API call wrapper
 
