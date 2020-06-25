@@ -56,12 +56,17 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
 
         # process results
         rss = Sys.maxrss()
-        gpu_processes = NVML.compute_processes(nvml_dev)
-        gpu_rss = if haskey(gpu_processes, getpid())
-            gpu_processes[getpid()].used_gpu_memory
+        gpu_rss = if has_nvml()
+            gpu_processes = NVML.compute_processes(nvml_dev)
+            if haskey(gpu_processes, getpid())
+                gpu_processes[getpid()].used_gpu_memory
+            else
+                # happens when we didn't do compute, or when using containers:
+                # https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
+                0
+            end
         else
-            # FIXME: fails on CI
-            0
+            NaN
         end
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
             Test.get_test_counts(res_and_time_data[1])
