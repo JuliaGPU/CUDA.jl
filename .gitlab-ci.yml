@@ -105,13 +105,13 @@ cuda:none:
 
 # hardware platforms
 
-platform:arm64:
-  extends:
-    - .julia:1.4
-    - .test
-  tags:
-    - nvidia-arm64
-  allow_failure: true
+# platform:arm64:
+#   extends:
+#     - .julia:1.4
+#     - .test
+#   tags:
+#     - nvidia-arm64
+#   allow_failure: true
 
 
 # special tests
