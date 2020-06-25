@@ -1,5 +1,3 @@
-@testset "events" begin
-
 let
     start = CuEvent()
     stop = CuEvent()
@@ -37,6 +35,4 @@ end
 @testset "elapsed stream" begin
     stream = CuStream()
     @test (CUDA.@elapsed stream begin end) > 0
-end
-
 end

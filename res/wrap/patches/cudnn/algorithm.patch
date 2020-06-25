@@ -1,0 +1,18 @@
+--- a/libcudnn_common.jl	2019-10-23 17:52:17.651150610 +0200
++++ b/libcudnn_common.jl	2019-10-23 17:53:07.195648729 +0200
+@@ -403,9 +400,12 @@
+ end
+ 
+ 
+-struct cudnnAlgorithm_t
+-    algo::Algorithm
+-end
++# FIXME: can't use such a union as the type in a ccall expression
++#Algorithm = Union{cudnnConvolutionFwdAlgo_t, cudnnConvolutionBwdFilterAlgo_t, cudnnConvolutionBwdDataAlgo_t, cudnnRNNAlgo_t, cudnnCTCLossAlgo_t}
++#struct cudnnAlgorithm_t
++#    algo::Algorithm
++#end
++cudnnAlgorithm_t = Cint
+ 
+ struct cudnnDebug_t
+     cudnn_version::UInt32

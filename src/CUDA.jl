@@ -80,6 +80,11 @@ include("$root/src/nnlib.jl")
 include("$root/src/iterator.jl")
 include("$root/src/statistics.jl")
 
+# other libraries
+include("$root/lib/nvml/NVML.jl")
+const has_nvml = NVML.has_nvml
+export NVML, has_nvml
+
 include("$root/src/deprecated.jl")
 
 end

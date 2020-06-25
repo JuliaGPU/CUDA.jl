@@ -19,7 +19,7 @@ const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 
 ## entry point
 
-function runtests(f, name, device=nothing, snoop=nothing)
+function runtests(f, name, can_initialize=true, snoop=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
 
@@ -37,13 +37,11 @@ function runtests(f, name, device=nothing, snoop=nothing)
             Random.seed!(1)
             CUDA.allowscalar(false)
 
-            if $device !== nothing
-                device!($device)
+            if $can_initialize
                 CUDA.@timed @testset $"$name" begin
                     $f()
                 end
             else
-                # take care not to initialize the device
                 res = @timed @testset $"$name" begin
                     $f()
                 end
@@ -53,9 +51,23 @@ function runtests(f, name, device=nothing, snoop=nothing)
         res_and_time_data = Core.eval(Main, ex)
         #res_and_time_data[1] is the testset
 
+        cuda_dev = device()
+        nvml_dev = NVML.Device(uuid(cuda_dev))
+
         # process results
         rss = Sys.maxrss()
-        # TODO: GPU RSS using nvmlDeviceGetComputeRunningProcesses
+        gpu_rss = if has_nvml()
+            gpu_processes = NVML.compute_processes(nvml_dev)
+            if haskey(gpu_processes, getpid())
+                gpu_processes[getpid()].used_gpu_memory
+            else
+                # happens when we didn't do compute, or when using containers:
+                # https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
+                0
+            end
+        else
+            NaN
+        end
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
             Test.get_test_counts(res_and_time_data[1])
         if res_and_time_data[1].anynonpass == false
@@ -69,7 +81,7 @@ function runtests(f, name, device=nothing, snoop=nothing)
                                  res_and_time_data[7],
                                  res_and_time_data[8])
         end
-        vcat(collect(res_and_time_data), rss)
+        vcat(collect(res_and_time_data), rss, gpu_rss)
     finally
         if snoop !== nothing
             ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)

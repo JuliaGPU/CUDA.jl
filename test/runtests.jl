@@ -103,32 +103,51 @@ if parse(Bool, get(ENV, "CI", "false")) && haskey(ENV, "JULIA_CUDA_VERSION")
   @test toolkit_release == VersionNumber(ENV["JULIA_CUDA_VERSION"])
 end
 
-# pick a suiteable device
-candidates = [(device!(dev);
-               (dev=dev,
-               cap=capability(dev),
-               mem=CUDA.available_memory()))
-               for dev in devices()]
-## pick a device that is fully supported by our CUDA installation, or tools can fail
+# find suitable devices
+candidates, driver_version, cuda_driver_version = if has_nvml()
+    [(uuid=NVML.uuid(dev),
+      name=NVML.name(dev),
+      cap=NVML.compute_capability(dev),
+      mem_available=NVML.memory_info(dev).free,
+      mem_total=NVML.memory_info(dev).total)
+     for dev in NVML.devices()],
+    NVML.driver_version(),
+    NVML.cuda_driver_version()
+else
+    # using CUDA to query this information requires initializing a context,
+    # which might fail if the device is heavily loaded.
+    [(device!(dev);
+     (uuid=uuid(dev),
+      name=CUDA.name(dev),
+      cap=capability(dev),
+      mem_available=CUDA.available_memory(),
+      mem_total=CUDA.total_memory()))
+     for dev in devices()],
+    "(unknown)",
+    CUDA.version()
+end
+## only consider devices that are fully supported by our CUDA toolkit, or tools can fail.
 ## NOTE: we don't reuse target_support which is also bounded by LLVM support,
 #        and is used to pick a codegen target regardless of the actual device.
 cuda_support = CUDA.cuda_compat()
 filter!(x->x.cap in cuda_support.cap, candidates)
-isempty(candidates) && error("Could not find any suitable device for this configuration")
-## order by available memory, but also by capability if testing needs to be thorough
+## only consider recent devices if we want testing to be thorough
 thorough = parse(Bool, get(ENV, "CI_THOROUGH", "false"))
 if thorough
-    sort!(candidates, by=x->(x.cap, x.mem))
-else
-    sort!(candidates, by=x->x.mem)
+    filter!(x->x.cap >= v"7.0", candidates)
 end
+isempty(candidates) && error("Could not find any suitable device for this configuration")
+## order by available memory, but also by capability if testing needs to be thorough
+sort!(candidates, by=x->x.mem_available)
+## apply
 pick = last(candidates)
-pick.cap >= v"2.0" || error("The CUDA.jl test suite requires a CUDA device with compute capability 2.0 or higher")
-@info("Testing using device $(name(pick.dev)) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem)) available memory) on CUDA driver $(CUDA.version()) and toolkit $(CUDA.toolkit_version())")
+ENV["CUDA_VISIBLE_DEVICES"] = "GPU-$(pick.uuid)"
+@info("Testing using device $(pick.name) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem_available)) / $(Base.format_bytes(pick.mem_total)) memory available) with CUDA $(CUDA.toolkit_version()) on driver $driver_version for CUDA $(CUDA.version())")
 
 # determine tests to skip
 const skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
+has_nvml() || push!(skip_tests, "nvml")
 if !has_cutensor() || CUDA.version() < v"10.1" || pick.cap < v"7.0"
     push!(skip_tests, "cutensor")
 end
@@ -199,16 +218,15 @@ name_align        = maximum([textwidth(testgroupheader) + textwidth(" ") +
                              textwidth(workerheader); map(x -> textwidth(x) +
                              3 + ndigits(nworkers()), tests)])
 elapsed_align     = textwidth("Time (s)")
-gpu_gc_align      = textwidth("GPU GC (s)")
-gpu_percent_align = textwidth("GPU GC %")
-gpu_alloc_align   = textwidth("GPU Alloc (MB)")
-cpu_gc_align      = textwidth("CPU GC (s)")
-cpu_percent_align = textwidth("CPU GC %")
-cpu_alloc_align   = textwidth("CPU Alloc (MB)")
-rss_align         = textwidth("RSS (MB)")
+gc_align      = textwidth("GC (s)")
+percent_align = textwidth("GC %")
+alloc_align   = textwidth("Alloc (MB)")
+rss_align     = textwidth("RSS (MB)")
+printstyled(" "^(name_align + textwidth(testgroupheader) - 3), " | ")
+printstyled("         | ---------------- GPU ---------------- | ---------------- CPU ---------------- |\n", color=:white)
 printstyled(testgroupheader, color=:white)
 printstyled(lpad(workerheader, name_align - textwidth(testgroupheader) + 1), " | ", color=:white)
-printstyled("Time (s) | GPU GC (s) | GPU GC % | GPU Alloc (MB) | CPU GC (s) | CPU GC % | CPU Alloc (MB) | RSS (MB)\n", color=:white)
+printstyled("Time (s) | GC (s) | GC % | Alloc (MB) | RSS (MB) | GC (s) | GC % | Alloc (MB) | RSS (MB) |\n", color=:white)
 print_lock = stdout isa Base.LibuvStream ? stdout.lock : ReentrantLock()
 if stderr isa Base.LibuvStream
     stderr.lock = print_lock
@@ -223,23 +241,26 @@ function print_testworker_stats(test, wrkr, resp)
         printstyled(lpad(time_str, elapsed_align, " "), " | ", color=:white)
 
         gpu_gc_str = @sprintf("%5.2f", resp[7])
-        printstyled(lpad(gpu_gc_str, gpu_gc_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_gc_str, gc_align, " "), " | ", color=:white)
         # since there may be quite a few digits in the percentage,
         # the left-padding here is less to make sure everything fits
         gpu_percent_str = @sprintf("%4.1f", 100 * resp[7] / resp[2])
-        printstyled(lpad(gpu_percent_str, gpu_percent_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_percent_str, percent_align, " "), " | ", color=:white)
         gpu_alloc_str = @sprintf("%5.2f", resp[6] / 2^20)
-        printstyled(lpad(gpu_alloc_str, gpu_alloc_align, " "), " | ", color=:white)
+        printstyled(lpad(gpu_alloc_str, alloc_align, " "), " | ", color=:white)
+
+        gpu_rss_str = @sprintf("%5.2f", resp[10] / 2^20)
+        printstyled(lpad(gpu_rss_str, rss_align, " "), " | ", color=:white)
 
         cpu_gc_str = @sprintf("%5.2f", resp[4])
-        printstyled(lpad(cpu_gc_str, cpu_gc_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_gc_str, gc_align, " "), " | ", color=:white)
         cpu_percent_str = @sprintf("%4.1f", 100 * resp[4] / resp[2])
-        printstyled(lpad(cpu_percent_str, cpu_percent_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_percent_str, percent_align, " "), " | ", color=:white)
         cpu_alloc_str = @sprintf("%5.2f", resp[3] / 2^20)
-        printstyled(lpad(cpu_alloc_str, cpu_alloc_align, " "), " | ", color=:white)
+        printstyled(lpad(cpu_alloc_str, alloc_align, " "), " | ", color=:white)
 
-        rss_str = @sprintf("%5.2f", resp[9] / 2^20)
-        printstyled(lpad(rss_str, rss_align, " "), "\n", color=:white)
+        cpu_rss_str = @sprintf("%5.2f", resp[9] / 2^20)
+        printstyled(lpad(cpu_rss_str, rss_align, " "), " |\n", color=:white)
     finally
         unlock(print_lock)
     end
@@ -249,8 +270,8 @@ global print_testworker_started = (name, wrkr)->begin
         lock(print_lock)
         try
             printstyled(name, color=:white)
-            printstyled(lpad("($wrkr)", name_align - textwidth(name) + 1, " "), " |",
-                " "^elapsed_align, "started at $(now())\n", color=:white)
+            printstyled(lpad("($wrkr)", _align - textwidth(name) + 1, " "), " |",
+                " "^sed_align, "started at $(now())\n", color=:white)
         finally
             unlock(print_lock)
         end
@@ -308,13 +329,13 @@ try
                     test = popfirst!(tests)
                     local resp
                     wrkr = p
-                    dev = test=="initialization" ? nothing : pick.dev
+                    can_initialize = test!="initialization"
                     snoop = do_snoop ? mktemp() : (nothing, nothing)
 
                     # run the test
                     running_tests[test] = now()
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, dev, snoop[1])
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, can_initialize, snoop[1])
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]

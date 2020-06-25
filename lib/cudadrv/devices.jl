@@ -1,7 +1,7 @@
 # Device type and auxiliary functions
 
 export
-    CuDevice, name, totalmem, attribute
+    CuDevice, name, uuid, totalmem, attribute
 
 
 """
@@ -53,6 +53,12 @@ function name(dev::CuDevice)
     cuDeviceGetName(pointer(buf), buflen, dev)
     buf[end] = 0
     return unsafe_string(pointer(buf))
+end
+
+function uuid(dev::CuDevice)
+    uuid_ref = Ref{CUuuid}()
+    cuDeviceGetUuid(uuid_ref, dev)
+    Base.UUID(reinterpret(UInt128, reverse([uuid_ref[].bytes...]))[])
 end
 
 """

@@ -1,7 +1,3 @@
-@testset "CUDA functionality" begin
-
-############################################################################################
-
 @testset "indexing" begin
     @on_device threadIdx().x
     @on_device blockDim().x
@@ -1290,9 +1286,5 @@ end
         @atomic a = a + 1
     end
 end
-
-end
-
-############################################################################################
 
 end

@@ -1,5 +1,3 @@
-@testset "execution" begin
-
 let
     # test outer CuDim3 constructors
     @test CUDA.CuDim3((Cuint(4),Cuint(3),Cuint(2))) == CUDA.CuDim3(Cuint(4),Cuint(3),Cuint(2))
@@ -120,8 +118,6 @@ val = attributes(dummy)[CUDA.FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
 
 if CUDA.version() >= v"9.0"
     attributes(dummy)[CUDA.FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES] = val
-end
-
 end
 
 end

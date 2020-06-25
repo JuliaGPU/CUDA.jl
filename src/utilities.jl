@@ -21,6 +21,9 @@ end
 function versioninfo(io::IO=stdout)
     println(io, "CUDA toolkit $(toolkit_version()), $(toolkit_origin()) installation")
     println(io, "CUDA driver $(release())")
+    if has_nvml()
+        println(io, "NVIDIA driver $(NVML.driver_version())")
+    end
     println(io)
 
     println(io, "Libraries: ")
@@ -28,9 +31,10 @@ function versioninfo(io::IO=stdout)
         mod = getfield(CUDA, lib)
         println(io, "- $lib: ", mod.version())
     end
-    println(io, "- CUTENSOR: ", has_cutensor() ? CUTENSOR.version() : "missing")
-    println(io, "- CUDNN: ", has_cudnn() ? CUDNN.version() : "missing")
     println(io, "- CUPTI: ", has_cupti() ? CUPTI.version() : "missing")
+    println(io, "- NVML: ", has_nvml() ? NVML.version() : "missing")
+    println(io, "- CUDNN: ", has_cudnn() ? "$(CUDNN.version()) (for CUDA $(CUDNN.cuda_version()))" : "missing")
+    println(io, "- CUTENSOR: ", has_cutensor() ? "$(CUTENSOR.version()) (for CUDA $(CUTENSOR.cuda_version()))" : "missing")
     println(io)
 
     println(io, "Packages:")
@@ -63,12 +67,23 @@ function versioninfo(io::IO=stdout)
         println()
     end
 
-    devs = devices()
-    println(io, length(devs), " device(s):")
-    for dev in devs
-        cap = capability(dev)
-        device!(dev) do
-            println(io, "- $(name(dev)) ($(Base.format_bytes(available_memory())), sm_$(cap.major)$(cap.minor))")
+    if has_nvml()
+        devs = NVML.devices()
+        println(io, length(devs), " device(s):")
+        for dev in devs
+            cap = NVML.compute_capability(dev)
+            mem = NVML.memory_info(dev)
+            name = NVML.name(dev)
+            println(io, "- $name ($(Base.format_bytes(mem.free)), sm_$(cap.major)$(cap.minor))")
+        end
+    else
+        devs = devices()
+        println(io, length(devs), " device(s):")
+        for dev in devs
+            cap = capability(dev)
+            device!(dev) do
+                println(io, "- $(name(dev)) ($(Base.format_bytes(available_memory())), sm_$(cap.major)$(cap.minor))")
+            end
         end
     end
 end

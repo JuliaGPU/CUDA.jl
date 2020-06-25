@@ -1,11 +1,10 @@
-@testset "devices" begin
-
 dev = device()
 
-name(dev)
+@test name(dev) isa String
+@test uuid(dev) isa Base.UUID
 totalmem(dev)
 attribute(dev, CUDA.DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-@test warpsize(dev) == Int32(32)
+@test warpsize(dev) == 32
 capability(dev)
 @grab_output show(stdout, "text/plain", dev)
 
@@ -14,4 +13,3 @@ capability(dev)
 @test eltype(devices()) == CuDevice
 @grab_output show(stdout, "text/plain", CUDA.DEVICE_CPU)
 @grab_output show(stdout, "text/plain", CUDA.DEVICE_INVALID)
-end
