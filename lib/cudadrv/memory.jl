@@ -647,7 +647,7 @@ function pin(ptr::Ptr, bytesize::Integer, flags=0)
     return
 end
 
-pin(a::Union{Array,SubArray{<:Any,<:Any,<:Array},Base.ReshapedArray{<:Any,<:Any,<:Array}}, flags=0) =
+pin(a::Union{Base.Array,SubArray{<:Any,<:Any,<:Base.Array},Base.ReshapedArray{<:Any,<:Any,<:Base.Array}}, flags=0) =
     pin(pointer(a), sizeof(a), flags)
 
 
