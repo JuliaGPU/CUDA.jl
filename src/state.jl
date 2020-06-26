@@ -172,10 +172,12 @@ Sets the active context for the duration of `f`.
 function context!(f::Function, ctx::CuContext)
     old_ctx = CuCurrentContext()
     try
-        context!(ctx)
+        if ctx !== old_ctx
+            context!(ctx)
+        end
         f()
     finally
-        if old_ctx != nothing
+        if ctx !== old_ctx && old_ctx !== nothing
             context!(old_ctx)
         end
     end
