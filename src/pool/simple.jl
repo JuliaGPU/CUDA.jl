@@ -5,6 +5,8 @@ module SimplePool
 using ..CUDA
 using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
 
+using DataStructures
+
 using Base: @lock
 
 
@@ -34,12 +36,14 @@ end
 Base.pointer(block::Block) = block.ptr
 Base.sizeof(block::Block) = block.sz
 
-@inline function actual_alloc(sz)
+@inline function actual_alloc(ctx, sz)
+    @assert ctx == context()
     ptr = CUDA.actual_alloc(sz)
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
-function actual_free(block::Block)
+function actual_free(ctx, block::Block)
+    @assert ctx == context()
     CUDA.actual_free(pointer(block))
     return
 end
@@ -48,54 +52,54 @@ end
 ## pooling
 
 const pool_lock = ReentrantLock()
-const pool = Set{Block}()
+const pool = DefaultDict{CuContext,Set{Block}}(()->Set{Block}())
 
-const freed = Vector{Block}()
+const freed = DefaultDict{CuContext,Vector{Block}}(()->Vector{Block}())
 const freed_lock = NonReentrantLock()
 
-function scan(sz)
-    @lock pool_lock for block in pool
+function scan(ctx, sz)
+    @lock pool_lock for block in pool[ctx]
         if sz <= sizeof(block) <= max_oversize(sz)
-            delete!(pool, block)
+            delete!(pool[ctx], block)
             return block
         end
     end
     return
 end
 
-function repopulate()
+function repopulate(ctx)
     blocks = @lock freed_lock begin
-        isempty(freed) && return
-        blocks = Set(freed)
-        empty!(freed)
+        isempty(freed[ctx]) && return
+        blocks = Set(freed[ctx])
+        empty!(freed[ctx])
         blocks
     end
 
     @lock pool_lock begin
         for block in blocks
-            @assert !in(block, pool)
-            push!(pool, block)
+            @assert !in(block, pool[ctx])
+            push!(pool[ctx], block)
         end
     end
 
     return
 end
 
-function reclaim(sz::Int=typemax(Int))
-    repopulate()
+function reclaim(sz::Int=typemax(Int), ctx=context())
+    repopulate(ctx)
 
     @lock pool_lock begin
         freed_bytes = 0
-        while freed_bytes < sz && !isempty(pool)
-            block = pop!(pool)
+        while freed_bytes < sz && !isempty(pool[ctx])
+            block = pop!(pool[ctx])
             freed_bytes += sizeof(block)
-            actual_free(block)
+            actual_free(ctx, block)
         end
         return freed_bytes
     end
 end
 
-function pool_alloc(sz)
+function pool_alloc(ctx, sz)
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -104,21 +108,21 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" repopulate()
+        @pool_timeit "$phase.1 repopulate" repopulate(ctx)
 
         @pool_timeit "$phase.2 scan" begin
-            block = scan(sz)
+            block = scan(ctx, sz)
         end
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(sz)
+            block = actual_alloc(ctx, sz)
         end
         block === nothing || break
 
         @pool_timeit "$phase.4 reclaim + alloc" begin
-            reclaim(sz)
-            block = actual_alloc(sz)
+            reclaim(sz, ctx)
+            block = actual_alloc(ctx, sz)
         end
         block === nothing || break
     end
@@ -126,11 +130,11 @@ function pool_alloc(sz)
     return block
 end
 
-function pool_free(block)
+function pool_free(ctx, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     @safe_lock_spin freed_lock begin
-        push!(freed, block)
+        push!(freed[ctx], block)
     end
 end
 
@@ -138,16 +142,16 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtr{Nothing},Block}()
+const allocated = DefaultDict{CuContext,Dict{CuPtr{Nothing},Block}}(()->Dict{CuPtr{Nothing},Block}())
 
 init() = return
 
-function alloc(sz)
-    block = pool_alloc(sz)
+function alloc(sz, ctx=context())
+    block = pool_alloc(ctx, sz)
     if block !== nothing
         ptr = pointer(block)
         @safe_lock allocated_lock begin
-            allocated[ptr] = block
+            allocated[ctx][ptr] = block
         end
         return ptr
     else
@@ -155,21 +159,21 @@ function alloc(sz)
     end
 end
 
-function free(ptr)
+function free(ptr, ctx=context())
     block = @safe_lock_spin allocated_lock begin
-        block = allocated[ptr]
-        delete!(allocated, ptr)
+        block = allocated[ctx][ptr]
+        delete!(allocated[ctx], ptr)
         block
     end
-    pool_free(block)
+    pool_free(ctx, block)
     return
 end
 
-used_memory() = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory(ctx=context()) = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated[ctx]); init=0)
 
-function cached_memory()
-    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed; init=0)
-    sz += @lock pool_lock mapreduce(sizeof, +, pool; init=0)
+function cached_memory(ctx=context())
+    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[ctx]; init=0)
+    sz += @lock pool_lock mapreduce(sizeof, +, pool[ctx]; init=0)
     return sz
 end
 
