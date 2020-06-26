@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid
 
 using DataStructures
 
@@ -105,8 +105,10 @@ function merge!(head, tail)
 end
 
 @inline function actual_alloc(ctx, sz)
-    @assert ctx == context()
-    ptr = CUDA.actual_alloc(sz)
+    @assert isvalid(ctx)
+    ptr = context!(ctx) do
+        CUDA.actual_alloc(sz)
+    end
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
@@ -115,8 +117,10 @@ function actual_free(ctx, block::Block)
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
-        @assert ctx == context()
-        CUDA.actual_free(block.ptr)
+        isvalid(ctx) || return
+        context!(ctx) do
+            CUDA.actual_free(block.ptr)
+        end
         block.state = INVALID
     end
     return
@@ -380,7 +384,7 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = DefaultDict{CuContext,Dict{CuPtr{Nothing},Block}}(()->Dict{CuPtr{Nothing},Block}())
+const allocated = Dict{CuPtr{Nothing},Tuple{CuContext,Block}}()
 
 init() = return
 
@@ -390,8 +394,8 @@ function alloc(sz, ctx=context())
         block.state = ALLOCATED
         ptr = pointer(block)
         @safe_lock allocated_lock begin
-            @assert !haskey(allocated[ctx], ptr) "Newly-allocated[ctx] block $block is already allocated[ctx]"
-            allocated[ctx][ptr] = block
+            @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated[ctx]"
+            allocated[ptr] = (ctx,block)
         end
         return ptr
     else
@@ -399,11 +403,11 @@ function alloc(sz, ctx=context())
     end
 end
 
-function free(ptr, ctx=context())
-    block = @safe_lock_spin allocated_lock begin
-        block = allocated[ctx][ptr]
-        delete!(allocated[ctx], ptr)
-        block
+function free(ptr)
+    ctx, block = @safe_lock_spin allocated_lock begin
+        ctx, block = allocated[ptr]
+        delete!(allocated, ptr)
+        ctx, block
     end
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     pool_free(ctx, block)

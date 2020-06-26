@@ -3,16 +3,16 @@ module DummyPool
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid
 
 using Base: @lock
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtr{Nothing},Int}()
+const allocated = Dict{CuPtr{Nothing},Tuple{CuContext,Int}}()
 
 init() = return
 
-function alloc(sz)
+function alloc(sz, ctx=context())
     ptr = nothing
     for phase in 1:3
         if phase == 2
@@ -22,14 +22,17 @@ function alloc(sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            ptr = CUDA.actual_alloc(sz)
+            @assert isvalid(ctx)
+            ptr = context!(ctx) do
+                CUDA.actual_alloc(sz)
+            end
         end
         ptr === nothing || break
     end
 
     if ptr !== nothing
         @safe_lock allocated_lock begin
-            allocated[ptr] = sz
+            allocated[ptr] = (ctx,sz)
         end
         return ptr
     else
@@ -38,11 +41,16 @@ function alloc(sz)
 end
 
 function free(ptr)
-    @safe_lock_spin allocated_lock begin
-        sz = allocated[ptr]
+    ctx, sz = @safe_lock_spin allocated_lock begin
+        ctx, sz = allocated[ptr]
         delete!(allocated, ptr)
+        ctx, sz
     end
-    CUDA.actual_free(ptr)
+
+    isvalid(ctx) || return
+    context!(ctx) do
+        CUDA.actual_free(ptr)
+    end
     return
 end
 

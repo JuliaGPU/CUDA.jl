@@ -3,7 +3,7 @@ module SimplePool
 # simple scan into a list of free buffers
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid
 
 using DataStructures
 
@@ -37,14 +37,18 @@ Base.pointer(block::Block) = block.ptr
 Base.sizeof(block::Block) = block.sz
 
 @inline function actual_alloc(ctx, sz)
-    @assert ctx == context()
-    ptr = CUDA.actual_alloc(sz)
+    @assert isvalid(ctx)
+    ptr = context!(ctx) do
+        CUDA.actual_alloc(sz)
+    end
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
 function actual_free(ctx, block::Block)
-    @assert ctx == context()
-    CUDA.actual_free(pointer(block))
+    isvalid(ctx) || return
+    context!(ctx) do
+        CUDA.actual_free(pointer(block))
+    end
     return
 end
 
@@ -142,7 +146,7 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = DefaultDict{CuContext,Dict{CuPtr{Nothing},Block}}(()->Dict{CuPtr{Nothing},Block}())
+const allocated = Dict{CuPtr{Nothing},Tuple{CuContext,Block}}()
 
 init() = return
 
@@ -151,7 +155,7 @@ function alloc(sz, ctx=context())
     if block !== nothing
         ptr = pointer(block)
         @safe_lock allocated_lock begin
-            allocated[ctx][ptr] = block
+            allocated[ptr] = (ctx,block)
         end
         return ptr
     else
@@ -159,11 +163,11 @@ function alloc(sz, ctx=context())
     end
 end
 
-function free(ptr, ctx=context())
-    block = @safe_lock_spin allocated_lock begin
-        block = allocated[ctx][ptr]
-        delete!(allocated[ctx], ptr)
-        block
+function free(ptr)
+    ctx, block = @safe_lock_spin allocated_lock begin
+        ctx, block = allocated[ptr]
+        delete!(allocated, ptr)
+        ctx, block
     end
     pool_free(ctx, block)
     return
