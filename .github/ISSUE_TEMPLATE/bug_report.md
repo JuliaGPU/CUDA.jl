@@ -36,6 +36,17 @@ The Minimal Working Example (MWE) for this bug:
 # some code here
 ```
 
+<details><summary>Manifest.toml</summary>
+<p>
+
+```
+Paste your Manifest.toml here, or accurately describe which version of CUDA.jl and its dependencies (GPUArrays.jl, GPUCompiler.jl, LLVM.jl) you are using.
+```
+
+</p>
+</details>
+
+
 **Expected behavior**
 
 A clear and concise description of what you expected to happen.

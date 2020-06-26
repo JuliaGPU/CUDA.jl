@@ -37,20 +37,6 @@ function versioninfo(io::IO=stdout)
     println(io, "- CUTENSOR: ", has_cutensor() ? "$(CUTENSOR.version()) (for CUDA $(CUTENSOR.cuda_version()))" : "missing")
     println(io)
 
-    println(io, "Packages:")
-    for mod in (CUDA, LLVM, GPUCompiler, GPUArrays, Adapt)
-        if VERSION < v"1.4"
-            name = string(mod)
-            version = Pkg.installed()[name]
-            println(io, "- $name.jl: $version")
-        else
-            id = Base.PkgId(mod)
-            info = Pkg.dependencies()[id.uuid]
-            println(io, "- $(info.name).jl: $(info.version)")
-        end
-    end
-    println(io)
-
     println(io, "Toolchain:")
     println(io, "- Julia: $VERSION")
     println(io, "- LLVM: $(LLVM.version())")
