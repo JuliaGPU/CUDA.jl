@@ -226,10 +226,6 @@ function CUDA_RESOURCE_DESC(texarr::CuTextureArray)
     return resDesc_ref
 end
 
-# allow passing mismatching refs where we're expecting a CUDA_RESOURCE_DESC
-Base.unsafe_convert(::Type{Ptr{CUDA_RESOURCE_DESC}}, ref::Base.RefValue{T}) where {T} =
-    convert(Ptr{CUDA_RESOURCE_DESC}, Base.unsafe_convert(Ptr{T}, ref))
-
 function CUDA_RESOURCE_DESC(arr::CuArray{T,N}) where {T,N}
     # TODO: take care of allowed pitches
     1 <= N <= 2 || throw(ArgumentError("Only 1 or 2D CuArray objects can be wrapped in a texture"))
@@ -250,6 +246,10 @@ function CUDA_RESOURCE_DESC(arr::CuArray{T,N}) where {T,N}
     return resDesc_ref
 end
 
+# allow passing mismatching refs where we're expecting a CUDA_RESOURCE_DESC
+Base.unsafe_convert(::Type{Ptr{CUDA_RESOURCE_DESC}}, ref::Base.RefValue{T}) where {T} =
+    convert(Ptr{CUDA_RESOURCE_DESC}, Base.unsafe_convert(Ptr{T}, ref))
+
 function unsafe_destroy!(t::CuTexture)
     if isvalid(t.ctx)
         cuTexObjectDestroy(t)
@@ -266,12 +266,12 @@ Base.parent(tm::CuTexture) = tm.parent
 Base.size(tm::CuTexture) = size(tm.parent)
 Base.sizeof(tm::CuTexture) = Base.elsize(x) * length(x)
 
-Base.show(io::IO, t::CuTexture{T,1} where {T}) =
-    print(io, "$(length(a))-element $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name)) with eltype $T")
+Base.show(io::IO, t::CuTexture{T,1}) where {T} =
+    print(io, "$(length(t))-element $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name)) with eltype $T")
 Base.show(io::IO, t::CuTexture{T}) where {T} =
     print(io, "$(join(size(t), '×')) $(nchans(T))-channel CuTexture(::$(typeof(parent(t)).name)) with eltype $T")
 
-Base.show(io::IO, mime::MIME"text/plain", a::CuTexture) = show(io, a)
+Base.show(io::IO, mime::MIME"text/plain", t::CuTexture) = show(io, t)
 
 
 ## interop with other arrays
