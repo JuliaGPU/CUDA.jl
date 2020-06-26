@@ -50,7 +50,7 @@ function versioninfo(io::IO=stdout)
         for var in env
             println(io, "- $var: $(ENV[var])")
         end
-        println()
+        println(io)
     end
 
     if has_nvml()
