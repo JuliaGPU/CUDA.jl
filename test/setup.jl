@@ -16,7 +16,7 @@ const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 
 ## entry point
 
-function runtests(f, name, can_initialize=true, snoop=nothing)
+function runtests(f, name, time_source=:cuda, snoop=nothing)
     old_print_setting = Test.TESTSET_PRINT_ENABLE[]
     Test.TESTSET_PRINT_ENABLE[] = false
 
@@ -39,15 +39,17 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
             Random.seed!(1)
             CUDA.allowscalar(false)
 
-            if $can_initialize
+            if $(QuoteNode(time_source)) == :cuda
                 CUDA.@timed @testset $"$name" begin
                     $f()
                 end
-            else
+            elseif $(QuoteNode(time_source)) == :julia
                 res = @timed @testset $"$name" begin
                     $f()
                 end
                 res..., 0, 0, 0
+            else
+                error($"Unknown time source: ",$(QuoteNode(time_source)))
             end
         end
         res_and_time_data = Core.eval(mod, ex)
