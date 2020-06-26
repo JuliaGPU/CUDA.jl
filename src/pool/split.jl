@@ -104,16 +104,18 @@ function merge!(head, tail)
     return head
 end
 
-@inline function actual_alloc(sz)
+@inline function actual_alloc(ctx, sz)
+    @assert ctx == context()
     ptr = CUDA.actual_alloc(sz)
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
-function actual_free(block::Block)
+function actual_free(ctx, block::Block)
     @assert iswhole(block) "Cannot free $block: block is not whole"
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
+        @assert ctx == context()
         CUDA.actual_free(block.ptr)
         block.state = INVALID
     end
@@ -125,7 +127,7 @@ end
 
 const pool_lock = ReentrantLock()
 
-function scan!(pool, sz, max_overhead=typemax(Int))
+function scan!(ctx, pool, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
         # get the first entry that is sufficiently large
@@ -147,13 +149,13 @@ end
 # looks up possible sequences based on each block in the input set.
 # destroys the input set.
 # returns the net difference in amount of blocks.
-function incremental_compact!(blocks)
+function incremental_compact!(ctx, blocks)
     compacted = 0
     @lock pool_lock begin
         while !isempty(blocks)
             block = pop!(blocks)
             @assert block.state == AVAILABLE
-            pool = get_pool(sizeof(block))
+            pool = get_pool(ctx, sizeof(block))
             @assert in(block, pool)
 
             # find the head of a sequence
@@ -194,7 +196,7 @@ function incremental_compact!(blocks)
     return compacted
 end
 
-function reclaim!(pool, sz=typemax(Int))
+function reclaim!(ctx, pool, sz=typemax(Int))
     freed = 0
 
     @lock pool_lock begin
@@ -210,7 +212,7 @@ function reclaim!(pool, sz=typemax(Int))
         for block in candidates
             delete!(pool, block)
             freed += sizeof(block)
-            actual_free(block)
+            actual_free(ctx, block)
             freed >= sz && break
         end
     end
@@ -218,25 +220,25 @@ function reclaim!(pool, sz=typemax(Int))
     return freed
 end
 
-# repopulate the pools from the list of freed blocks
-function repopulate()
+# repopulate the pools from the list of freed[ctx] blocks
+function repopulate(ctx)
     blocks = @safe_lock freed_lock begin
-        isempty(freed) && return
-        blocks = Set(freed)
-        empty!(freed)
+        isempty(freed[ctx]) && return
+        blocks = Set(freed[ctx])
+        empty!(freed[ctx])
         blocks
     end
 
     @lock pool_lock begin
         for block in blocks
-            pool = get_pool(sizeof(block))
+            pool = get_pool(ctx, sizeof(block))
             @assert !in(block, pool) "$block should not be in the pool"
-            @assert block.state == FREED "$block should have been marked freed"
+            @assert block.state == FREED "$block should have been marked freed[ctx]"
             block.state = AVAILABLE
             push!(pool, block) # FIXME: allocates
         end
 
-        incremental_compact!(blocks)
+        incremental_compact!(ctx, blocks)
     end
 
     return
@@ -251,11 +253,11 @@ const HUGE  = 3
 unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(block.id)
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
-const pool_small = SortedSet{Block}(UniqueIncreasingSize)
-const pool_large = SortedSet{Block}(UniqueIncreasingSize)
-const pool_huge  = SortedSet{Block}(UniqueIncreasingSize)
+const pool_small =  DefaultDict{CuContext,SortedSet{Block}}(()->SortedSet{Block}(UniqueIncreasingSize))
+const pool_large =  DefaultDict{CuContext,SortedSet{Block}}(()->SortedSet{Block}(UniqueIncreasingSize))
+const pool_huge  =  DefaultDict{CuContext,SortedSet{Block}}(()->SortedSet{Block}(UniqueIncreasingSize))
 
-const freed = Vector{Block}()
+const freed =  DefaultDict{CuContext,Vector{Block}}(()->Vector{Block}())
 const freed_lock = NonReentrantLock()
 
 function size_class(sz)
@@ -268,18 +270,18 @@ function size_class(sz)
     end
 end
 
-@inline function get_pool(sz)
+@inline function get_pool(ctx, sz)
     szclass = size_class(sz)
     if szclass == SMALL
-        return pool_small
+        return pool_small[ctx]
     elseif szclass == LARGE
-        return pool_large
+        return pool_large[ctx]
     elseif szclass == HUGE
-        return pool_huge
+        return pool_huge[ctx]
     end
 end
 
-function pool_alloc(sz)
+function pool_alloc(ctx, sz)
     szclass = size_class(sz)
 
     # round off the block size
@@ -295,7 +297,7 @@ function pool_alloc(sz)
     szclass = size_class(sz)
 
     # select a pool
-    pool = get_pool(sz)
+    pool = get_pool(ctx, sz)
 
     # determine the maximum scan overhead
     max_overhead = if szclass == SMALL
@@ -314,35 +316,35 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" repopulate()
+        @pool_timeit "$phase.1 repopulate" repopulate(ctx)
 
         @pool_timeit "$phase.2 scan" begin
-            block = scan!(pool, sz, max_overhead)
+            block = scan!(ctx, pool, sz, max_overhead)
         end
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(sz)
+            block = actual_alloc(ctx, sz)
         end
         block === nothing || break
 
         # we're out of memory, try freeing up some memory. this is a fairly expensive
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
-        for pool in (pool_huge, pool_large, pool_small)
-            @pool_timeit "$phase.4a reclaim" reclaim!(pool, sz)
-            @pool_timeit "$phase.4b alloc" block = actual_alloc(sz)
+        for pool in (pool_huge[ctx], pool_large[ctx], pool_small[ctx])
+            @pool_timeit "$phase.4a reclaim" reclaim!(ctx, pool, sz)
+            @pool_timeit "$phase.4b alloc" block = actual_alloc(ctx, sz)
             block === nothing || break
         end
         block === nothing || break
 
         # last-ditch effort, reclaim everything
         @pool_timeit "$phase.5a reclaim" begin
-            reclaim!(pool_huge)
-            reclaim!(pool_large)
-            reclaim!(pool_small)
+            reclaim!(ctx, pool_huge[ctx])
+            reclaim!(ctx, pool_large[ctx])
+            reclaim!(ctx, pool_small[ctx])
         end
-        @pool_timeit "$phase.5b alloc" block = actual_alloc(sz)
+        @pool_timeit "$phase.5b alloc" block = actual_alloc(ctx, sz)
     end
 
     if block !== nothing
@@ -365,12 +367,12 @@ function pool_alloc(sz)
     return block
 end
 
-function pool_free(block)
+function pool_free(ctx, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state = FREED
     @safe_lock_spin freed_lock begin
-        push!(freed, block)
+        push!(freed[ctx], block)
     end
 end
 
@@ -378,18 +380,18 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtr{Nothing},Block}()
+const allocated = DefaultDict{CuContext,Dict{CuPtr{Nothing},Block}}(()->Dict{CuPtr{Nothing},Block}())
 
 init() = return
 
-function alloc(sz)
-    block = pool_alloc(sz)
+function alloc(sz, ctx=context())
+    block = pool_alloc(ctx, sz)
     if block !== nothing
         block.state = ALLOCATED
         ptr = pointer(block)
         @safe_lock allocated_lock begin
-            @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
-            allocated[ptr] = block
+            @assert !haskey(allocated[ctx], ptr) "Newly-allocated[ctx] block $block is already allocated[ctx]"
+            allocated[ctx][ptr] = block
         end
         return ptr
     else
@@ -397,33 +399,33 @@ function alloc(sz)
     end
 end
 
-function free(ptr)
+function free(ptr, ctx=context())
     block = @safe_lock_spin allocated_lock begin
-        block = allocated[ptr]
-        delete!(allocated, ptr)
+        block = allocated[ctx][ptr]
+        delete!(allocated[ctx], ptr)
         block
     end
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
-    pool_free(block)
+    pool_free(ctx, block)
     return
 end
 
-function reclaim(sz::Int=typemax(Int))
-    repopulate()
+function reclaim(sz::Int=typemax(Int), ctx=context())
+    repopulate(ctx)
 
     freed_sz = 0
-    for pool in (pool_huge, pool_large, pool_small)
+    for pool in (pool_huge[ctx], pool_large[ctx], pool_small[ctx])
         freed_sz >= sz && break
-        freed_sz += reclaim!(pool, sz-freed_sz)
+        freed_sz += reclaim!(ctx, pool, sz-freed_sz)
     end
     return freed_sz
 end
 
-used_memory() = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory(ctx=context()) = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated[ctx]); init=0)
 
-function cached_memory()
-    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed; init=0)
-    @lock pool_lock for pool in (pool_small, pool_large, pool_huge)
+function cached_memory(ctx=context())
+    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[ctx]; init=0)
+    @lock pool_lock for pool in (pool_small[ctx], pool_large[ctx], pool_huge[ctx])
         sz += mapreduce(sizeof, +, pool; init=0)
     end
     return sz
