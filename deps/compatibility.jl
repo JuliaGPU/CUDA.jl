@@ -177,13 +177,7 @@ function llvm_compat(version=LLVM.version())
         error("LLVM 8.0 requires a newer version of Julia")
     end
 
-    InitializeAllTargets()
-    haskey(targets(), "nvptx") ||
-        error("""
-            Your LLVM does not support the NVPTX back-end.
-
-            This is very strange; both the official binaries
-            and an unmodified build should contain this back-end.""")
+    InitializeNVPTXTarget()
 
     cap_support = sort(collect(llvm_cap_support(version)))
 
