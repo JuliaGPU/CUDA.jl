@@ -141,7 +141,7 @@ Base.show(io::IO, a::CuDeviceArray) =
 Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
 
 @inline function Base.unsafe_view(A::CuDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
-    ptr = pointer(A) + (I[1].start-1)*sizeof(T)
+    ptr = pointer(A, I[1].start)
     len = I[1].stop - I[1].start + 1
     return CuDeviceArray(len, ptr)
 end
