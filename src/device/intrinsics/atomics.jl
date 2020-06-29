@@ -138,10 +138,29 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     for T in (Float32, Float64)
         nb = sizeof(T)*8
 
-        # FIXME: why doesn't Julia/LLVM recognize these as intrinsics?
-        intr = "extern llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))f$nb"
-        @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
-            ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
+        # NOTE: once LLVM has opaque pointers, we can call these intrinsics directly
+        #       (LLVMPtr gets lowered to a i8*, which doesn't match the value)
+
+        import Base.Sys: WORD_SIZE
+        if T == Float32
+            T_val = "float"
+        else
+            T_val = "double"
+        end
+        if A == AS.Generic
+            T_untyped_ptr = "i8*"
+            T_typed_ptr = "$(T_val)*"
+        else
+            T_untyped_ptr = "i8 addrspace($(convert(Int, A)))*"
+            T_typed_ptr = "$(T_val) addrspace($(convert(Int, A)))*"
+        end
+        intr = "llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))f$nb"
+        @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) = Base.llvmcall(
+            $("declare $T_val @$intr($T_typed_ptr, $T_val)",
+               "%ptr = bitcast $T_untyped_ptr %0 to $T_typed_ptr
+                %rv = call $T_val @$intr($T_typed_ptr %ptr, $T_val %1)
+                ret $T_val %rv"), $T,
+            Tuple{LLVMPtr{$T,$A}, $T}, ptr, val)
     end
 
     # declare i32 @llvm.nvvm.atomic.load.inc.32.p0i32(i32* address, i32 val)
@@ -155,10 +174,25 @@ for A in (AS.Generic, AS.Global, AS.Shared)
         nb = sizeof(T)*8
         fn = Symbol("atomic_$(op)!")
 
-        # FIXME: why doesn't Julia/LLVM recognize these as intrinsics?
-        intr = "extern llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
-        @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T) =
-            ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
+        # NOTE: once LLVM has opaque pointers, we can call these intrinsics directly
+        #       (LLVMPtr gets lowered to a i8*, which doesn't match the value)
+
+        import Base.Sys: WORD_SIZE
+        T_val = "i32"
+        if A == AS.Generic
+            T_untyped_ptr = "i8*"
+            T_typed_ptr = "$(T_val)*"
+        else
+            T_untyped_ptr = "i8 addrspace($(convert(Int, A)))*"
+            T_typed_ptr = "$(T_val) addrspace($(convert(Int, A)))*"
+        end
+        intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
+        @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T) = Base.llvmcall(
+            $("declare $T_val @$intr($T_typed_ptr, $T_val)",
+               "%ptr = bitcast $T_untyped_ptr %0 to $T_typed_ptr
+                %rv = call $T_val @$intr($T_typed_ptr %ptr, $T_val %1)
+                ret $T_val %rv"), $T,
+            Tuple{LLVMPtr{$T,$A}, $T}, ptr, val)
     end
 end
 
