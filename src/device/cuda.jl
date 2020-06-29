@@ -11,7 +11,7 @@ include("cuda/assertion.jl")
 include("cuda/memory_dynamic.jl")
 include("cuda/atomics.jl")
 include("cuda/misc.jl")
-if VERSION >= v"1.4.1"
+if VERSION >= v"1.5-"
 include("cuda/wmma.jl")
 end
 

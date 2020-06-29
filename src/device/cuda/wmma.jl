@@ -49,12 +49,12 @@ get_frag_info(matrix, ptx_el_type) = (
 
 get_addrspace_info(addr_space) = convert(Int, map_ptx_as_to_as_ty[addr_space])
 
-@generated function Base.cconvert(::Type{Core.AddrSpacePtr{T, as}}, x::DevicePtr{T, AS}) where {T, as, AS}
+@generated function Base.cconvert(::Type{Core.LLVMPtr{T, as}}, x::DevicePtr{T, AS}) where {T, as, AS}
     ir = "%ptr = inttoptr i64 %0 to i8 addrspace($as)*
           ret i8 addrspace($as)* %ptr"
 
     return quote
-        return Base.llvmcall($ir, Core.AddrSpacePtr{T, as}, Tuple{Int64}, Base.bitcast(Int64, x))
+        return Base.llvmcall($ir, Core.LLVMPtr{T, as}, Tuple{Int64}, Base.bitcast(Int64, x))
     end
 end
 
@@ -128,7 +128,7 @@ for mat in ["a", "b", "c"],
 
     ccall_name = "extern $llvm_intr"
 
-    ptr_ty = Core.AddrSpacePtr{arr_ty, addr_space_int}
+    ptr_ty = Core.LLVMPtr{arr_ty, addr_space_int}
     struct_ty = Symbol("LLVMStruct$sz")
 
     @eval $func_name(src_addr, stride) = convert(NTuple{$sz, $frag_ty}, ccall($ccall_name, llvmcall, $struct_ty{$frag_ty}, ($ptr_ty, Int32), src_addr, stride))
@@ -183,7 +183,7 @@ for mat in ["d"],
     frag_types = ntuple(i -> frag_ty, sz)
     frag_vars = ntuple(i -> :(data[$i]), sz)
 
-    ptr_ty = Core.AddrSpacePtr{arr_ty, addr_space_int}
+    ptr_ty = Core.LLVMPtr{arr_ty, addr_space_int}
 
     @eval $func_name(dst_addr, data, stride) = ccall($ccall_name, llvmcall, Nothing, ($ptr_ty, $(frag_types...), Int32), dst_addr, $(frag_vars...), stride)
     @eval export $func_name
