@@ -716,14 +716,6 @@ end
             h_Y = collect(d_Y)
             Y = A\(alpha * X)
             @test Y ≈ h_Y
-            d_y = CUSPARSE.sv2('N','U',d_A,d_X,'O')
-            h_y= collect(d_y)
-            Y = A\X
-            @test Y ≈ h_Y
-            d_y = CUSPARSE.sv2('N','U',alpha,UpperTriangular(d_A),d_X,'O')
-            h_y= collect(d_y)
-            Y = A\(alpha*X)
-            @test Y ≈ h_Y
             d_y = UpperTriangular(d_A)\d_X
             h_y = collect(d_y)
             y = A\X
@@ -751,19 +743,6 @@ end
             A = sparse(rand(elty,m,n))
             d_A = CuSparseMatrixCSR(A)
             @test_throws DimensionMismatch CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O')
-            A = sparse(rand(elty,m,m))
-            d_A = CuSparseMatrixCSR(A)
-            X = rand(elty,n)
-            d_X = CuArray(X)
-            @test_throws DimensionMismatch CUSPARSE.sv2('N','U',d_A,d_X,'O')
-            A = rand(elty,m,m)
-            A[1, :] .= zero(elty)
-            A[:, 1] .= zero(elty)
-            A = triu(A)
-            X = rand(elty,m)
-            d_X = CuArray(X)
-            d_A = CuSparseMatrixCSR(sparse(A))
-            @test_throws ErrorException CUSPARSE.sv2!('N','U',d_A,d_X,'O')
         end
 
         @testset "cscsv2" begin
@@ -781,14 +760,6 @@ end
             d_Y = CUSPARSE.sv2('T','U',alpha,d_A,d_X,'O')
             h_Y = collect(d_Y)
             Y = transpose(A)\(alpha * X)
-            @test Y ≈ h_Y
-            d_y = CUSPARSE.sv2('N','U',d_A,d_X,'O')
-            h_y= collect(d_y)
-            Y = A\X
-            @test Y ≈ h_Y
-            d_y = CUSPARSE.sv2('N','U',alpha,UpperTriangular(d_A),d_X,'O')
-            h_y= collect(d_y)
-            Y = A\(alpha*X)
             @test Y ≈ h_Y
             d_y = UpperTriangular(d_A)\d_X
             h_y = collect(d_y)
@@ -814,18 +785,6 @@ end
             A = sparse(rand(elty,m,n))
             d_A = CuSparseMatrixCSC(A)
             @test_throws DimensionMismatch CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O')
-            A = sparse(rand(elty,m,m))
-            d_A = CuSparseMatrixCSR(A)
-            X = rand(elty,n)
-            d_X = CuArray(X)
-            @test_throws DimensionMismatch CUSPARSE.sv2('N','U',d_A,d_X,'O')
-            A = rand(elty,m,m)
-            A[1, :] .= zero(elty)
-            A = triu(A)
-            X = rand(elty,m)
-            d_X = CuArray(X)
-            d_A = CuSparseMatrixCSC(sparse(A))
-            @test_throws ErrorException CUSPARSE.sv2!('N','U',d_A,d_X,'O')
         end
     end
 end
