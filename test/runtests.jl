@@ -165,9 +165,12 @@ if Sys.ARCH == :aarch64
     push!(skip_tests, "cufft")
 end
 if haskey(ENV, "CI_THOROUGH")
-    # we're not allowed to skip tests, so make sure we will mark them as such
     all_tests = copy(tests)
-    filter!(!in(skip_tests), tests)
+    # we're not allowed to skip tests, so make sure we will mark them as such
+    if !isempty(skip_tests)
+        filter!(!in(skip_tests), tests)
+        @error "Skipping the following tests: $(join(skip_tests, ", "))"
+    end
 else
     if !isempty(skip_tests)
         for (i, test) in enumerate(skip_tests)
