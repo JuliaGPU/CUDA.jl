@@ -29,6 +29,11 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
     end
 
     try
+        # generate a temporary module to execute the tests in
+        mod_name = Symbol("Test", rand(1:100), "Main_", replace(name, '/' => '_'))
+        mod = @eval(Main, module $mod_name end)
+        @eval(mod, using Test, Random, CUDA)
+
         let id = myid()
             wait(@spawnat 1 print_testworker_started(name, id))
         end
@@ -48,7 +53,7 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
                 res..., 0, 0, 0
             end
         end
-        res_and_time_data = Core.eval(Main, ex)
+        res_and_time_data = Core.eval(mod, ex)
         #res_and_time_data[1] is the testset
 
         cuda_dev = device()
