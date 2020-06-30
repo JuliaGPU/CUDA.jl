@@ -270,8 +270,8 @@ global print_testworker_started = (name, wrkr)->begin
         lock(print_lock)
         try
             printstyled(name, color=:white)
-            printstyled(lpad("($wrkr)", _align - textwidth(name) + 1, " "), " |",
-                " "^sed_align, "started at $(now())\n", color=:white)
+            printstyled(lpad("($wrkr)", name_align - textwidth(name) + 1, " "), " |",
+                " "^elapsed_align, "started at $(now())\n", color=:white)
         finally
             unlock(print_lock)
         end
