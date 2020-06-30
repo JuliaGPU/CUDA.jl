@@ -77,7 +77,7 @@ k = 1
         tol   = 10^2*eps(real(elty))
         d_x   = CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
         h_x   = collect(d_x)
-        @test h_x ≈ Array(A)\b
+        @test h_x ≈ Array(A)\b rtol=1e-3
         b     = rand(elty,m)
         d_b   = CuArray(b)
         @test_throws DimensionMismatch CUSOLVER.csrlsvchol!(d_A,d_b,d_x,tol,zero(Cint),'O')
