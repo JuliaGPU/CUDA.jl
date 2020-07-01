@@ -1,6 +1,6 @@
 # Need https://github.com/JuliaLang/julia/pull/33970
 # and  https://github.com/JuliaLang/julia/pull/34043
-if VERSION < v"1.5"
+if VERSION < v"1.5-"
     exit()
 end
 
@@ -8,9 +8,6 @@ using CUDA
 if capability(device()) < v"7.0"
     exit()
 end
-
-is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-(is_debug && VERSION < v"1.5.0-DEV.437") && exit()
 
 ### START
 using Test

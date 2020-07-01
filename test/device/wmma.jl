@@ -3,7 +3,6 @@ using CUDA.WMMA
 ################################################################################
 
 @testset "LLVM intrinsics" begin
-
     @testset "llvm_wmma_load" begin
         @testset "$(mat)_$(layout)_$(shape)_$(addr_space)_$(elem_type)" for mat in ["a", "b", "c"],
             layout in ["row", "col"],
@@ -180,7 +179,6 @@ end
 ################################################################################
 
 @testset "CUDA C-style API" begin
-
     @testset "$(do_mac ? "MAC" : "MUL"): A: $a_layout, B: $b_layout, C: $c_layout, D: $d_layout, C type: $c_type, D type: $d_type" for a_layout in [ColMajor, RowMajor],
         b_layout in [ColMajor, RowMajor],
         c_layout in [ColMajor, RowMajor],
@@ -224,20 +222,18 @@ end
             return
         end
 
-        @test_broken_if v"1.5.0-DEV.393" <= VERSION < v"1.5.0-DEV.851" begin
-            @cuda threads=32 kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta)
-            d = Array(d_dev)
+        @cuda threads=32 kernel(a_dev, b_dev, c_dev, d_dev, alpha, beta)
+        d = Array(d_dev)
 
-            new_a = (a_layout == ColMajor) ? a : transpose(a)
-            new_b = (b_layout == ColMajor) ? b : transpose(b)
-            new_c = (c_layout == ColMajor) ? c : transpose(c)
-            new_d = (d_layout == ColMajor) ? d : transpose(d)
+        new_a = (a_layout == ColMajor) ? a : transpose(a)
+        new_b = (b_layout == ColMajor) ? b : transpose(b)
+        new_c = (c_layout == ColMajor) ? c : transpose(c)
+        new_d = (d_layout == ColMajor) ? d : transpose(d)
 
-            if do_mac
-                all(isapprox.(alpha * new_a * new_b + beta * new_c, new_d; rtol=sqrt(eps(Float16))))
-            else
-                all(isapprox.(alpha * new_a * new_b, new_d; rtol=sqrt(eps(Float16))))
-            end
+        if do_mac
+            @test all(isapprox.(alpha * new_a * new_b + beta * new_c, new_d; rtol=sqrt(eps(Float16))))
+        else
+            @test all(isapprox.(alpha * new_a * new_b, new_d; rtol=sqrt(eps(Float16))))
         end
     end
 
@@ -245,41 +241,37 @@ end
 
 ################################################################################
 
-# Need https://github.com/JuliaLang/julia/pull/34760
-# See https://github.com/JuliaGPU/CUDA.jl/issues/548
-if VERSION >= v"1.5.0-DEV.324"
-    @testset "Codegen addressing" begin
-        @testset "Global" begin
-            function kernel(d)
-                conf = WMMA.Config{16, 16, 16, Float32}
+@testset "Codegen addressing" begin
+    @testset "Global" begin
+        function kernel(d)
+            conf = WMMA.Config{16, 16, 16, Float32}
 
-                d_frag = WMMA.fill_c(Float32(0), conf)
-                WMMA.store_d(pointer(d), d_frag, 16, WMMA.ColMajor, conf)
+            d_frag = WMMA.fill_c(Float32(0), conf)
+            WMMA.store_d(pointer(d), d_frag, 16, WMMA.ColMajor, conf)
 
-                return
-            end
-
-            ptx = sprint(io -> CUDA.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDA.AS.Global},)))
-
-            @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
-            @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)
+            return
         end
 
-        @testset "Shared" begin
-            function kernel()
-                shmem = @cuStaticSharedMem(Float32, (16, 16))
-                conf = WMMA.Config{16, 16, 16, Float32}
+        ptx = sprint(io -> CUDA.code_ptx(io, kernel, (CuDeviceArray{Float32,1,CUDA.AS.Global},)))
 
-                d_frag = WMMA.fill_c(Float32(0), conf)
-                WMMA.store_d(pointer(shmem), d_frag, 16, WMMA.ColMajor, conf)
+        @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
+        @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.global.f32", ptx)
+    end
 
-                return
-            end
+    @testset "Shared" begin
+        function kernel()
+            shmem = @cuStaticSharedMem(Float32, (16, 16))
+            conf = WMMA.Config{16, 16, 16, Float32}
 
-            ptx = sprint(io -> CUDA.code_ptx(io, kernel, ()))
+            d_frag = WMMA.fill_c(Float32(0), conf)
+            WMMA.store_d(pointer(shmem), d_frag, 16, WMMA.ColMajor, conf)
 
-            @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
-            @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
+            return
         end
+
+        ptx = sprint(io -> CUDA.code_ptx(io, kernel, ()))
+
+        @test !occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.f32", ptx)
+        @test  occursin(r"wmma.store.d.sync(.aligned)?.col.m16n16k16.shared.f32", ptx)
     end
 end

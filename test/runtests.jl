@@ -152,7 +152,7 @@ if !has_cutensor() || CUDA.version() < v"10.1" || pick.cap < v"7.0"
     push!(skip_tests, "cutensor")
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-if VERSION < v"1.5" || pick.cap < v"7.0"
+if VERSION < v"1.5-" || pick.cap < v"7.0"
     push!(skip_tests, "device/wmma")
 end
 if do_memcheck
