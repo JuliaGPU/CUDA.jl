@@ -191,7 +191,7 @@ const LDGTypes = Union{UInt8, UInt16, UInt32, UInt64,
     sizeof(T) == 0 && return T.instance
     eltyp = convert(LLVMType, T)
 
-    # TODO: ccall the intrinsic directly with AddrSpacePtr
+    # TODO: ccall the intrinsic directly with LLVMPtr
 
     T_int = convert(LLVMType, Int)
     T_int32 = LLVM.Int32Type(JuliaContext())

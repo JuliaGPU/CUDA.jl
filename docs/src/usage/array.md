@@ -434,7 +434,7 @@ Non-integrated functionality can be access directly in the CUSPARSE submodule ag
 
 Functionality from [CUFFT](https://docs.nvidia.com/cuda/cufft/index.html) is integrated with
 the interfaces from the [AbstractFFTs.jl](https://github.com/JuliaMath/AbstractFFTs.jl)
-package. You can use them by importing the FFTW package:
+package:
 
 ```jldoctest
 julia> a = CUDA.rand(2,2)
@@ -442,7 +442,7 @@ julia> a = CUDA.rand(2,2)
  0.740219  0.0390205
  0.920994  0.968963
 
-julia> using FFTW
+julia> using CUDA.CUFFT
 
 julia> fft(a)
 2×2 CuArray{Complex{Float32},2,Nothing}:

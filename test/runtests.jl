@@ -152,7 +152,7 @@ if !has_cutensor() || CUDA.version() < v"10.1" || pick.cap < v"7.0"
     push!(skip_tests, "cutensor")
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-if VERSION < v"1.4.1" || pick.cap < v"7.0" || (is_debug && VERSION < v"1.5.0-DEV.437")
+if VERSION < v"1.5-" || pick.cap < v"7.0"
     push!(skip_tests, "device/wmma")
 end
 if do_memcheck
@@ -165,9 +165,12 @@ if Sys.ARCH == :aarch64
     push!(skip_tests, "cufft")
 end
 if haskey(ENV, "CI_THOROUGH")
-    # we're not allowed to skip tests, so make sure we will mark them as such
     all_tests = copy(tests)
-    filter!(!in(skip_tests), tests)
+    # we're not allowed to skip tests, so make sure we will mark them as such
+    if !isempty(skip_tests)
+        filter!(!in(skip_tests), tests)
+        @error "Skipping the following tests: $(join(skip_tests, ", "))"
+    end
 else
     if !isempty(skip_tests)
         for (i, test) in enumerate(skip_tests)
