@@ -34,7 +34,11 @@ if do_help
                --jobs=N         Launch `N` process to perform tests.
                                 Defaults to `Threads.nthreads()`.
                --memcheck       Run the tests under `cuda-memcheck`.
-               --snoop=FILE     Snoop on compiled methods and save to `FILE`.""")
+               --snoop=FILE     Snoop on compiled methods and save to `FILE`.
+
+               Remaining arguments filter the tests that will be executed.
+               This can also be done using the JULIA_CUDA_RUNTESTS env var,
+               with comma-separated entries.""")
     exit(0)
 end
 _, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
@@ -94,6 +98,13 @@ end
 if !isempty(ARGS)
   filter!(tests) do test
     any(arg->startswith(test, arg), ARGS)
+  end
+end
+## same for an environment-variable
+if haskey(ENV, "JULIA_CUDA_RUNTESTS")
+  args = split(ENV["JULIA_CUDA_RUNTESTS"], ",")
+  filter!(tests) do test
+    any(arg->startswith(test, arg), args)
   end
 end
 
