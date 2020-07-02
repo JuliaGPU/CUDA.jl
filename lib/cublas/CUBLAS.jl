@@ -31,7 +31,7 @@ function handle()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
-            handle = cublasCreate_v2()
+            handle = cublasCreate()
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do
