@@ -17,6 +17,11 @@ function Base.lock(nrl::NonReentrantLock)
   lock(nrl.rl)
 end
 
+function Base.trylock(nrl::NonReentrantLock)
+  @assert !islocked(nrl.rl) || nrl.rl.locked_by !== current_task()
+  trylock(nrl.rl)
+end
+
 Base.unlock(nrl::NonReentrantLock) = unlock(nrl.rl)
 
 # global lock for shared object dicts (allocated, requested).
@@ -33,6 +38,25 @@ macro safe_lock(l, ex)
     temp = $(esc(l))
     lock(temp)
     enable_finalizers(false)
+    try
+      $(esc(ex))
+    finally
+      unlock(temp)
+      enable_finalizers(true)
+    end
+  end
+end
+
+# if we actually want to acquire these locks from a finalizer, we can't just wait on them
+# (which might cause a task switch). as the lock can only be taken by another thread that
+# should be running, and not a concurrent task we'd need to switch to, we can safely spin.
+macro safe_lock_spin(l, ex)
+  quote
+    temp = $(esc(l))
+    while !trylock(temp)
+      # we can't yield here
+    end
+    enable_finalizers(false) # retains compatibility with non-finalizer callers
     try
       $(esc(ex))
     finally
@@ -137,7 +161,9 @@ end
 
 function actual_free(ptr::CuPtr{Nothing})
   # look up the buffer
-  buf = @safe_lock memory_lock begin
+  # NOTE: we can't regularly take this lock from here (which could cause a task switch),
+  #       but we know it can only be taken by another thread (since )
+  buf = @safe_lock_spin memory_lock begin
     buf = allocated[ptr]
     delete!(allocated, ptr)
     buf

@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, NonReentrantLock
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
 
 using DataStructures
 
@@ -369,7 +369,7 @@ function pool_free(block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state = FREED
-    @safe_lock freed_lock begin
+    @safe_lock_spin freed_lock begin
         push!(freed, block)
     end
 end
@@ -398,7 +398,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    block = @safe_lock allocated_lock begin
+    block = @safe_lock_spin allocated_lock begin
         block = allocated[ptr]
         delete!(allocated, ptr)
         block
