@@ -60,7 +60,7 @@ function versioninfo(io::IO=stdout)
             cap = NVML.compute_capability(dev)
             mem = NVML.memory_info(dev)
             name = NVML.name(dev)
-            println(io, "- $name ($(Base.format_bytes(mem.free)), sm_$(cap.major)$(cap.minor))")
+            println(io, "- $name (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
         end
     else
         devs = devices()
@@ -68,7 +68,7 @@ function versioninfo(io::IO=stdout)
         for dev in devs
             cap = capability(dev)
             device!(dev) do
-                println(io, "- $(name(dev)) ($(Base.format_bytes(available_memory())), sm_$(cap.major)$(cap.minor))")
+                println(io, "- $(name(dev)) (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(available_memory())) / $(Base.format_bytes(total_memory())) available)")
             end
         end
     end
