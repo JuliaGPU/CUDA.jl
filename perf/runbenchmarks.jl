@@ -1,7 +1,9 @@
 # benchmark suite execution and codespeed submission
 
-using CUDA, BenchmarkTools
+using CUDA
+CUDA.allowscalar(false)
 
+using BenchmarkTools
 BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
 
 SUITE = BenchmarkGroup()
