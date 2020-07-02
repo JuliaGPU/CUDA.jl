@@ -122,9 +122,11 @@ alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 const usage = Threads.Atomic{Int}(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
-const allocated = Dict{CuPtr{Nothing},Mem.DeviceBuffer}()
+const allocated = Dict{Tuple{CuContext,CuPtr{Nothing}},Mem.DeviceBuffer}()
 
-function actual_alloc(bytes)
+function actual_alloc(ctx::CuContext, bytes::Integer)
+  @assert isvalid(ctx) "Cannot allocate on invalid context $ctx (CuCurrentContext()=$(CuCurrentContext()), context()=$(context())"
+
   # check the memory allocation limit
   if usage_limit[] !== nothing
     if usage[] + bytes > usage_limit[]
@@ -135,7 +137,9 @@ function actual_alloc(bytes)
   # try the actual allocation
   time, buf = try
     time = Base.@elapsed begin
-      @timeit_debug alloc_to "alloc" buf = Mem.alloc(Mem.Device, bytes)
+      @timeit_debug alloc_to "alloc" context!(ctx) do
+        buf = Mem.alloc(Mem.Device, bytes)
+      end
     end
     Threads.atomic_add!(usage, bytes)
     time, buf
@@ -148,8 +152,8 @@ function actual_alloc(bytes)
 
   # record the buffer
   @safe_lock memory_lock begin
-    @assert !haskey(allocated, ptr)
-    allocated[ptr] = buf
+    @assert !haskey(allocated, (ctx,ptr))
+    allocated[(ctx,ptr)] = buf
   end
 
   alloc_stats.actual_time += time
@@ -159,21 +163,25 @@ function actual_alloc(bytes)
   return ptr
 end
 
-function actual_free(ptr::CuPtr{Nothing})
+function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
   # look up the buffer
   # NOTE: we can't regularly take this lock from here (which could cause a task switch),
   #       but we know it can only be taken by another thread (since )
   buf = @safe_lock_spin memory_lock begin
-    buf = allocated[ptr]
-    delete!(allocated, ptr)
+    buf = allocated[(ctx,ptr)]
+    delete!(allocated, (ctx,ptr))
     buf
   end
   bytes = sizeof(buf)
 
-  # free the memory
-  @timeit_debug alloc_to "free" begin
-    time = Base.@elapsed Mem.free(buf)
-    Threads.atomic_sub!(usage, bytes)
+  if isvalid(ctx)
+    # free the memory
+    @timeit_debug alloc_to "free" begin
+      time = Base.@elapsed context!(ctx) do
+        Mem.free(buf)
+      end
+      Threads.atomic_sub!(usage, bytes)
+    end
   end
 
   alloc_stats.actual_time += time

@@ -22,10 +22,7 @@ function alloc(sz, ctx=context())
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            @assert isvalid(ctx)
-            ptr = context!(ctx) do
-                CUDA.actual_alloc(sz)
-            end
+            ptr = CUDA.actual_alloc(ctx, sz)
         end
         ptr === nothing || break
     end
@@ -47,10 +44,7 @@ function free(ptr)
         ctx, sz
     end
 
-    isvalid(ctx) || return
-    context!(ctx) do
-        CUDA.actual_free(ptr)
-    end
+    CUDA.actual_free(ctx, ptr)
     return
 end
 

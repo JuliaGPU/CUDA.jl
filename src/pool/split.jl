@@ -105,10 +105,7 @@ function merge!(head, tail)
 end
 
 @inline function actual_alloc(ctx, sz)
-    @assert isvalid(ctx)
-    ptr = context!(ctx) do
-        CUDA.actual_alloc(sz)
-    end
+    ptr = CUDA.actual_alloc(ctx, sz)
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
@@ -117,10 +114,7 @@ function actual_free(ctx, block::Block)
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
-        isvalid(ctx) || return
-        context!(ctx) do
-            CUDA.actual_free(block.ptr)
-        end
+        CUDA.actual_free(ctx, block.ptr)
         block.state = INVALID
     end
     return

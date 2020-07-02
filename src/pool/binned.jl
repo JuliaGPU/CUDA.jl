@@ -52,18 +52,12 @@ Base.pointer(block::Block) = block.ptr
 Base.sizeof(block::Block) = block.sz
 
 @inline function actual_alloc(ctx, sz)
-    @assert isvalid(ctx)
-    ptr = context!(ctx) do
-        CUDA.actual_alloc(sz)
-    end
+    ptr = CUDA.actual_alloc(ctx, sz)
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
 function actual_free(ctx, block::Block)
-    isvalid(ctx) || return
-    context!(ctx) do
-        CUDA.actual_free(pointer(block))
-    end
+    CUDA.actual_free(ctx, pointer(block))
     return
 end
 
