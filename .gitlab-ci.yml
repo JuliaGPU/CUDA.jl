@@ -200,6 +200,7 @@ pages:
   stage: post
   extends:
     - .julia:1.5
+  interruptible: true
   tags:
     - nvidia-benchmark
   variables:
