@@ -60,6 +60,11 @@ include("$root/src/subarray.jl")
 include("$root/src/utilities.jl")
 include("$root/src/texture.jl")
 
+# kernel abstractions
+include("$root/src/kernelabstractions.jl")
+import .CUDAKA: CUDADevice
+export CUDADevice
+
 # array libraries
 include("$root/lib/complex.jl")
 include("$root/lib/library_types.jl")
