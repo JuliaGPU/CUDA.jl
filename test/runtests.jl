@@ -115,25 +115,26 @@ if parse(Bool, get(ENV, "CI", "false")) && haskey(ENV, "JULIA_CUDA_VERSION")
 end
 
 # find suitable devices
+@info "System information:\n" * sprint(io->CUDA.versioninfo(io))
 candidates, driver_version, cuda_driver_version = if has_nvml()
-    [(uuid=NVML.uuid(dev),
+    [(index=i,
+      uuid=NVML.uuid(dev),
       name=NVML.name(dev),
       cap=NVML.compute_capability(dev),
-      mem_available=NVML.memory_info(dev).free,
-      mem_total=NVML.memory_info(dev).total)
-     for dev in NVML.devices()],
+      mem=NVML.memory_info(dev).free)
+     for (i,dev) in enumerate(NVML.devices())],
     NVML.driver_version(),
     NVML.cuda_driver_version()
 else
     # using CUDA to query this information requires initializing a context,
     # which might fail if the device is heavily loaded.
     [(device!(dev);
-     (uuid=uuid(dev),
+     (index=i,
+      uuid=uuid(dev),
       name=CUDA.name(dev),
       cap=capability(dev),
-      mem_available=CUDA.available_memory(),
-      mem_total=CUDA.total_memory()))
-     for dev in devices()],
+      mem=CUDA.available_memory()))
+     for (i,dev) in enumerate(devices())],
     "(unknown)",
     CUDA.version()
 end
@@ -149,11 +150,11 @@ if thorough
 end
 isempty(candidates) && error("Could not find any suitable device for this configuration")
 ## order by available memory, but also by capability if testing needs to be thorough
-sort!(candidates, by=x->x.mem_available)
+sort!(candidates, by=x->x.mem)
 ## apply
 pick = last(candidates)
 ENV["CUDA_VISIBLE_DEVICES"] = "GPU-$(pick.uuid)"
-@info("Testing using device $(pick.name) (compute capability $(pick.cap), $(Base.format_bytes(pick.mem_available)) / $(Base.format_bytes(pick.mem_total)) memory available) with CUDA $(CUDA.toolkit_version()) on driver $driver_version for CUDA $(CUDA.version())")
+@info "Testing using device $(pick.index) ($(pick.name), UUID $(pick.uuid))"
 
 # determine tests to skip
 const skip_tests = []
