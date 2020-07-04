@@ -1,13 +1,14 @@
 function cudnnCreate()
-    handle = Ref{cudnnHandle_t}()
-    res = @retry_reclaim err->isequal(err, CUDNN_STATUS_INTERNAL_ERROR) ||
-                              isequal(err, CUDNN_STATUS_NOT_INITIALIZED) begin
-        unsafe_cudnnCreate(handle)
+    handle_ref = Ref{cudnnHandle_t}()
+    res = @retry_reclaim err->isequal(err, CUDNN_STATUS_ALLOC_FAILED) ||
+                              isequal(err, CUDNN_STATUS_NOT_INITIALIZED) ||
+                              isequal(err, CUDNN_STATUS_INTERNAL_ERROR) begin
+        unsafe_cudnnCreate(handle_ref)
     end
     if res != CUDNN_STATUS_SUCCESS
          throw_api_error(res)
     end
-    return handle[]
+    return handle_ref[]
 end
 
 function cudnnGetProperty(property::CUDA.libraryPropertyType)

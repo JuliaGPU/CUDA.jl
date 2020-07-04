@@ -3,16 +3,28 @@
 # modeled from julia/src/base/linalg/blas.jl
 # originally authored by Nick Henderson <nwh@stanford.edu> (2014-08-26, MIT licensed)
 
-function cublasCreate_v2()
-  handle = Ref{cublasHandle_t}()
-  cublasCreate_v2(handle)
-  handle[]
+function cublasCreate()
+  handle_ref = Ref{cublasHandle_t}()
+  res = @retry_reclaim err->isequal(err, CUBLAS_STATUS_ALLOC_FAILED) ||
+                            isequal(err, CUBLAS_STATUS_NOT_INITIALIZED) begin
+    unsafe_cublasCreate_v2(handle_ref)
+  end
+  if res != CUBLAS_STATUS_SUCCESS
+    throw_api_error(res)
+  end
+  handle_ref[]
 end
 
 function cublasXtCreate()
-  handle = Ref{cublasXtHandle_t}()
-  cublasXtCreate(handle)
-  handle[]
+  handle_ref = Ref{cublasXtHandle_t}()
+  res = @retry_reclaim err->isequal(err, CUBLAS_STATUS_ALLOC_FAILED) ||
+                            isequal(err, CUBLAS_STATUS_NOT_INITIALIZED) begin
+    unsafe_cublasXtCreate(handle_ref)
+  end
+  if res != CUBLAS_STATUS_SUCCESS
+    throw_api_error(res)
+  end
+  handle_ref[]
 end
 
 function cublasXtGetBlockDim(handle)

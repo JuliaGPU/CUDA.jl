@@ -23,9 +23,15 @@ using ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, cusparseindex,
                   CUSPARSE_DIAG_TYPE_UNIT, cusparseMatDescr
 
 function cusolverSpCreate()
-  handle = Ref{cusolverSpHandle_t}()
-  cusolverSpCreate(handle)
-  return handle[]
+  handle_ref = Ref{cusolverSpHandle_t}()
+  res = @retry_reclaim err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
+                            isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED) begin
+    unsafe_cusolverSpCreate(handle_ref)
+  end
+  if res != CUSOLVER_STATUS_SUCCESS
+    throw_api_error(res)
+  end
+  return handle_ref[]
 end
 
 #csrlsvlu
@@ -261,9 +267,15 @@ using LinearAlgebra.LAPACK: chkargsok, chklapackerror
 using ..CUBLAS: cublasfill, cublasop, cublasside, unsafe_batch
 
 function cusolverDnCreate()
-  handle = Ref{cusolverDnHandle_t}()
-  cusolverDnCreate(handle)
-  return handle[]
+  handle_ref = Ref{cusolverDnHandle_t}()
+  res = @retry_reclaim err->isequal(err, CUSOLVER_STATUS_ALLOC_FAILED) ||
+                            isequal(err, CUSOLVER_STATUS_NOT_INITIALIZED) begin
+    unsafe_cusolverDnCreate(handle_ref)
+  end
+  if res != CUSOLVER_STATUS_SUCCESS
+    throw_api_error(res)
+  end
+  return handle_ref[]
 end
 
 # po

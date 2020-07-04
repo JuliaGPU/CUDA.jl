@@ -19,10 +19,8 @@ mutable struct RNG <: Random.AbstractRNG
     typ::Int
 
     function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
-        handle_ref = Ref{curandGenerator_t}()
-        curandCreateGenerator(handle_ref, typ)
-
-        obj = new(handle_ref[], context(), typ)
+        handle = curandCreateGenerator(typ)
+        obj = new(handle, context(), typ)
         finalizer(unsafe_destroy!, obj)
         return obj
     end
