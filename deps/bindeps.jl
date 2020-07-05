@@ -241,11 +241,11 @@ end
 # CUDNN
 
 const cudnn_artifacts = Dict(
-    v"10.2" => ()->artifact"CUDNN+CUDA10.2",
-    v"10.1" => ()->artifact"CUDNN+CUDA10.1",
-    v"10.0" => ()->artifact"CUDNN+CUDA10.0",
-    v"9.2"  => ()->artifact"CUDNN+CUDA9.2",
-    v"9.0"  => ()->artifact"CUDNN+CUDA9.0",
+    v"10.2" => ()->artifact"CUDNN_CUDA102",
+    v"10.1" => ()->artifact"CUDNN_CUDA101",
+    v"10.0" => ()->artifact"CUDNN_CUDA100",
+    v"9.2"  => ()->artifact"CUDNN_CUDA92",
+    v"9.0"  => ()->artifact"CUDNN_CUDA90",
 )
 
 function use_artifact_cudnn(release)
@@ -274,8 +274,8 @@ end
 # CUTENSOR
 
 const cutensor_artifacts = Dict(
-    v"10.2" => ()->artifact"CUTENSOR+CUDA10.2",
-    v"10.1" => ()->artifact"CUTENSOR+CUDA10.1",
+    v"10.2" => ()->artifact"CUTENSOR_CUDA102",
+    v"10.1" => ()->artifact"CUTENSOR_CUDA101",
 )
 
 function use_artifact_cutensor(release)
