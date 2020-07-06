@@ -140,7 +140,7 @@ end
 
 ## CUDA-specific discovery routines
 
-const cuda_versions = [v"1.0", v"1.1",
+const cuda_releases = [v"1.0", v"1.1",
                        v"2.0", v"2.1", v"2.2",
                        v"3.0", v"3.1", v"3.2",
                        v"4.0", v"4.1", v"4.2",
@@ -251,9 +251,8 @@ function find_toolkit()
         return dirs
     end
 
-
     # look for the compiler binary (in the case PATH points to the installation)
-    ptxas_path = find_cuda_binary("ptxas")
+    ptxas_path = find_binary(["ptxas"])
     if ptxas_path !== nothing
         ptxas_dir = dirname(ptxas_path)
         if occursin(r"^bin(32|64)?$", basename(ptxas_dir))
@@ -265,7 +264,7 @@ function find_toolkit()
     end
 
     # look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
-    libcudart_path = find_cuda_library("cudart", String[], cuda_versions)
+    libcudart_path = find_library(["cudart"]; versions=cuda_releases)
     if libcudart_path !== nothing
         libcudart_dir = dirname(libcudart_path)
         if occursin(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
@@ -289,7 +288,7 @@ function find_toolkit()
     else
         # CUDA versions are installed in unversioned dirs, or suffixed with the version
         basedirs = ["/usr/local/cuda", "/opt/cuda"]
-        for ver in cuda_versions, dir in basedirs
+        for ver in cuda_releases, dir in basedirs
             push!(default_dirs, "$dir-$(ver.major).$(ver.minor)")
         end
         append!(default_dirs, basedirs)
