@@ -47,7 +47,9 @@ julia:1.5:
 # NOTE: we support those CUDA versions for which the latest cuDNN is available
 #       https://developer.nvidia.com/rdp/cudnn-archive
 
-# the "primary" target, where we require a new GPU to make sure all tests are run
+# NOTE: we make sure to run all tests on all CUDA versions by setting the
+#       CI_THOROUGH environment variable, and using a recent GPU.
+
 cuda:10.2:
   extends:
     - .julia:1.5
@@ -68,6 +70,7 @@ cuda:10.1:
     - .test
   image: ubuntu:bionic
   variables:
+    CI_THOROUGH: 'true'
     JULIA_CUDA_VERSION: '10.1'
     JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
@@ -85,6 +88,7 @@ cuda:10.0:
     JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
     - nvidia
+    - latest
     - cuda_10.0
 
 cuda:9.2:
@@ -97,6 +101,7 @@ cuda:9.2:
     JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
     - nvidia
+    - latest
     - cuda_9.2
 
 # NOTE: CUDA 9.0 is broken
