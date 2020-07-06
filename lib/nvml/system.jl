@@ -18,6 +18,7 @@ end
 function cuda_driver_version()
     ref = Ref{Cint}()
     nvmlSystemGetCudaDriverVersion_v2(ref)
-    major, minor = divrem(ref[], 1000)
-    return VersionNumber(major, minor)
+    major, ver = divrem(ref[], 1000)
+    minor, patch = divrem(ver, 10)
+    return VersionNumber(major, minor, patch)
 end
