@@ -142,12 +142,6 @@ end
 
 ## CUDA-specific discovery routines
 
-const cuda_names = Dict(
-    "cuda"      => Sys.iswindows() ? ["nvcuda"] : ["cuda"],
-    "nvml"      => Sys.iswindows() ? ["nvml"]   : ["nvidia-ml"],
-    "nvtx"      => ["nvToolsExt"]
-)
-
 const cuda_versions = [v"1.0", v"1.1",
                        v"2.0", v"2.1", v"2.2",
                        v"3.0", v"3.1", v"3.2",
@@ -157,23 +151,49 @@ const cuda_versions = [v"1.0", v"1.1",
                        v"7.0", v"7.5",
                        v"8.0",
                        v"9.0", v"9.1", v"9.2",
-                       v"10.0", v"10.1", v"10.2"]
+                       v"10.0", v"10.1", v"10.2",
+                       v"11.0"]
+
+# starting with CUDA 11, libraries are versioned independently
+const library_versions = Dict(
+    v"11.0" => Dict(
+        "cudart"    => v"11.0.171",
+        "cupti"     => v"11.0.167",
+        "nvrtc"     => v"11.0.167",
+        "nvtx"      => v"11.0.167",
+        "nvvp"      => v"11.0.167",
+        "cublas"    => v"11.0.0", #.191
+        "cufft"     => v"10.1.3", #.191
+        "curand"    => v"10.2.0", #.191
+        "cusolver"  => v"10.4.0", #.191
+        "cusparse"  => v"11.0.0", #.191
+        "npp"       => v"11.0.0", #.191
+        "nvjpeg"    => v"11.0.0", #.191
+    )
+)
+
+const library_names = Dict(
+    "cuda"      => Sys.iswindows() ? "nvcuda" : "cuda",
+    "nvml"      => Sys.iswindows() ? "nvml"   : "nvidia-ml",
+    "nvtx"      => "nvToolsExt"
+)
 
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-function find_cuda_library(name::String, toolkit_dirs::Vector{String}=String[],
-                           versions::Vector{VersionNumber}=VersionNumber[]; kwargs...)
-    locations = toolkit_dirs
+function find_cuda_library(name::String, toolkit_dirs::Vector{String},
+                           toolkit_version::VersionNumber; kwargs...)
+    toolkit_release = VersionNumber(toolkit_version.major, toolkit_version.minor)
 
-    # CUPTI is in the "extras" directory of the toolkit
+    # figure out the location
+    locations = toolkit_dirs
+    ## CUPTI is in the "extras" directory of the toolkit
     if name == "cupti"
         toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
         cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
         append!(locations, cupti_dirs)
     end
-
-    # NVTX is located in an entirely different location on Windows
+    ## NVTX is located in an entirely different location on Windows
     if name == "nvtx" && Sys.iswindows()
         if haskey(ENV, "NVTOOLSEXT_PATH")
             dir = ENV["NVTOOLSEXT_PATH"]
@@ -186,11 +206,24 @@ function find_cuda_library(name::String, toolkit_dirs::Vector{String}=String[],
         isdir(dir) && push!(locations, dir)
     end
 
-    names = get(cuda_names, name, [name])
-    find_library(names; versions=versions, locations=locations, kwargs...)
+    # figure out the version number
+    version = toolkit_version
+    if name == "nvtx"
+        version = v"1"
+    elseif haskey(library_versions, toolkit_release) &&
+           haskey(library_versions[toolkit_release], name)
+        version = library_versions[toolkit_release][name]
+    end
+
+    # figure out the name
+    if haskey(library_names, name)
+        name = library_names[name]
+    end
+
+    find_library([name]; versions=[version], locations=locations, kwargs...)
 end
 find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]; kwargs...) =
-    find_binary(get(cuda_names, name, [name]);
+    find_binary([name];
                 locations=toolkit_dirs,
                 kwargs...)
 

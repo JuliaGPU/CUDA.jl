@@ -201,9 +201,8 @@ function use_local_cuda()
     cuda_version = parse_toolkit_version(__nvdisasm[])
     __toolkit_version[] = cuda_version
 
-    cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), cuda_dirs) |> x->filter(isdir,x)
-    __libcupti[] = find_cuda_library("cupti", [cuda_dirs; cupti_dirs], [cuda_version])
-    __libnvtx[] = find_cuda_library("nvtx", cuda_dirs, [v"1"])
+    __libcupti[] = find_cuda_library("cupti", cuda_dirs, cuda_version)
+    __libnvtx[] = find_cuda_library("nvtx", cuda_dirs, cuda_version)
 
     let path = find_libcudadevrt(cuda_dirs)
         if path === nothing
@@ -223,7 +222,7 @@ function use_local_cuda()
     for name in  ("cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CUDA, Symbol("__lib$name"))
 
-        path = find_cuda_library(name, cuda_dirs, [cuda_version])
+        path = find_cuda_library(name, cuda_dirs, cuda_version)
         if path === nothing
             @debug "Could not find $name"
             return false
@@ -263,7 +262,7 @@ function use_artifact_cudnn(release)
 end
 
 function use_local_cudnn(cuda_dirs)
-    path = find_cuda_library("cudnn", cuda_dirs, [v"7"])
+    path = find_library(["cudnn"]; locations=cuda_dirs, versions=[v"7"])
     path === nothing && return false
 
     __libcudnn[] = path
@@ -293,7 +292,7 @@ function use_artifact_cutensor(release)
 end
 
 function use_local_cutensor(cuda_dirs)
-    path = find_cuda_library("cutensor", cuda_dirs, [v"1"])
+    path = find_library(["cutensor"]; locations=cuda_dirs, versions=[v"1"])
     path === nothing && return false
 
     __libcutensor[] = path
