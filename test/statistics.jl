@@ -20,3 +20,8 @@ end
     @test testf(x->mean(sin, x), rand(2,2))
     @test testf(x->mean(sin, x; dims=2), rand(2,2))
 end
+
+@testset "median" begin
+    @test testf(median, rand(2,2))
+    @test testf(median, rand(2,2)m dims=2)
+end

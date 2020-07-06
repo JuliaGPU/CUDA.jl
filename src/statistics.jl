@@ -17,3 +17,5 @@ Statistics._mean(A::CuArray, ::Colon)    = sum(A) / length(A)
 Statistics._mean(f, A::CuArray, ::Colon) = sum(f, A) / length(A)
 Statistics._mean(A::CuArray, dims)    = mean!(Base.reducedim_init(t -> t/2, +, A, dims), A)
 Statistics._mean(f, A::CuArray, dims) = sum(f, A, dims=dims) / mapreduce(i -> size(A, i), *, unique(dims); init=1)
+
+Statistics.median(A::CuArray, dims) = CuArray([median(row) for row in eachrow(reshape(A, dims, :))])
