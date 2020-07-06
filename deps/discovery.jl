@@ -37,22 +37,20 @@ function find_library(names::Vector{String};
     if Sys.iswindows()
         # priority goes to the `names` argument, as per `Libdl.find_library`
         for name in names
-            # first look for unversioned libraries, for upgrade resilience
-            append!(all_names, ["$(name)$(word_size)", name])
             for version in versions
-                append!(all_names, ["$(name)$(word_size)_$(version.major)",
-                                    "$(name)$(word_size)_$(version.major)$(version.minor)"])
+                append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
+                                    "$(name)$(word_size)_$(version.major)"])
             end
+            append!(all_names, ["$(name)$(word_size)", name])
         end
     elseif Sys.isunix()
         # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
         for name in names
-            # first look for unversioned libraries, for upgrade resilience
-            push!(all_names, "lib$(name).$(Libdl.dlext)")
             for version in versions
-                append!(all_names, ["lib$(name).$(Libdl.dlext).$(version.major)",
-                                    "lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)"])
+                append!(all_names, ["lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)",
+                                    "lib$(name).$(Libdl.dlext).$(version.major)"])
             end
+            push!(all_names, "lib$(name).$(Libdl.dlext)")
         end
     else
         # let Libdl do all the work
