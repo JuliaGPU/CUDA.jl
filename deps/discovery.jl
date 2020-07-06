@@ -1,7 +1,3 @@
-export find_cuda_library, find_cuda_binary,
-       find_toolkit, parse_toolkit_version,
-       find_libdevice, find_libcudadevrt
-
 function resolve(path)
     if islink(path)
         dir = dirname(path)
