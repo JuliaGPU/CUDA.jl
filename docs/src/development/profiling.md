@@ -66,6 +66,37 @@ BenchmarkTools.Trial:
 Note that the allocations as reported by BenchmarkTools are CPU allocations. For the GPU
 allocation behavior you need to consult `CUDA.@time`.
 
+If you are timing very short operations, it might be beneficial to use the non-blocking
+version of `CUDA.@sync`. The operation will then spin, resulting in a lower overhead:
+
+```julia
+julia> @benchmark CUDA.@sync begin end
+BenchmarkTools.Trial:
+  memory estimate:  80 bytes
+  allocs estimate:  4
+  --------------
+  minimum time:     6.874 μs (0.00% GC)
+  median time:      8.328 μs (0.00% GC)
+  mean time:        14.004 μs (0.00% GC)
+  maximum time:     358.932 μs (0.00% GC)
+  --------------
+  samples:          10000
+  evals/sample:     4
+
+julia> @benchmark CUDA.@sync blocking=false begin end
+BenchmarkTools.Trial:
+  memory estimate:  80 bytes
+  allocs estimate:  4
+  --------------
+  minimum time:     679.136 ns (0.00% GC)
+  median time:      724.792 ns (0.00% GC)
+  mean time:        915.382 ns (3.77% GC)
+  maximum time:     783.136 μs (18.57% GC)
+  --------------
+  samples:          10000
+  evals/sample:     154
+```
+
 
 ## Application profiling
 
