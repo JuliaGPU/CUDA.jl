@@ -26,6 +26,8 @@ end
   end
   @test t >= 0
   @test ret == 42
+
+  CUDA.@sync blocking=false begin end
 end
 
 @testset "versioninfo" begin

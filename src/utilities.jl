@@ -1,17 +1,38 @@
 """
-    @sync ex
+    @sync [blocking=true] ex
 
-Run expression `ex` and synchronize the GPU afterwards. This is a CPU-friendly
-synchronization, i.e. it performs a blocking synchronization without increasing CPU load. As
-such, this operation is preferred over implicit synchronization (e.g. when performing a
+Run expression `ex` and synchronize the GPU afterwards. By default, this is a CPU-friendly
+synchronization, i.e. it performs a blocking synchronization without increasing CPU load
+As such, this operation is preferred over implicit synchronization (e.g. when performing a
 memory copy) for high-performance applications.
 
 It is also useful for timing code that executes asynchronously.
 """
-macro sync(ex)
+macro sync(ex...)
+    # destructure the `@sync` expression
+    code = ex[end]
+    kwargs = ex[1:end-1]
+
+    # decode keyword arguments
+    blocking = true
+    for kwarg in kwargs
+        Meta.isexpr(kwarg, :(=)) || error("Invalid keyword argument $kwarg")
+        key, val = kwarg.args
+        if key == :blocking
+            blocking = val
+        else
+            error("Unknown keyword argument $kwarg")
+        end
+    end
+
+    flags = EVENT_DISABLE_TIMING
+    if blocking
+        flags |= EVENT_BLOCKING_SYNC
+    end
+
     quote
-        local e = CuEvent(EVENT_BLOCKING_SYNC | EVENT_DISABLE_TIMING)
-        local ret = $(esc(ex))
+        local e = CuEvent($flags)
+        local ret = $(esc(code))
         record(e)
         synchronize(e)
         ret
