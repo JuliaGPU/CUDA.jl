@@ -1420,7 +1420,7 @@ end # level 1 testset
                 h_C = Array(d_C[Cs])
                 @test C ≈ h_C
             end
-            push!(d_A, CuArray(rand(elty, m, m+1)))
+            push!(d_A, CUDA.rand(elty, m, m+1))
             @test_throws DimensionMismatch CUBLAS.matinv_batched(d_A)
         end
 
@@ -1491,9 +1491,9 @@ end # level 1 testset
                 h_C = Array(d_C[Cs])[1:k,1:k]
                 @test X ≈ h_C rtol=1e-2
             end
-            push!(d_C,CuArray(rand(elty,n,k-1)))
+            push!(d_C,CUDA.rand(elty,n,k-1))
             @test_throws DimensionMismatch CUBLAS.gels_batched!('N',d_A, d_C)
-            push!(d_A,CuArray(rand(elty,n,k-1)))
+            push!(d_A,CUDA.rand(elty,n,k-1))
             @test_throws DimensionMismatch CUBLAS.gels_batched!('N',d_A, d_C)
             A = [rand(elty,k-1,k) for i in 1:10]
             C = [rand(elty,k-1,k) for i in 1:10]

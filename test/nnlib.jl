@@ -7,13 +7,13 @@ using NNlib
     B = randn(Float32, 3,3,2);
 
     C = batched_mul(A, B)
-    @test cu(C) ≈ batched_mul(cu(A), cu(B))
+    @test CuArray(C) ≈ batched_mul(CuArray(A), CuArray(B))
 
     Ct = batched_mul(batched_transpose(A), B)
-    @test cu(Ct) ≈ batched_mul(batched_transpose(cu(A)), cu(B))
+    @test CuArray(Ct) ≈ batched_mul(batched_transpose(CuArray(A)), CuArray(B))
 
     Ca = batched_mul(A, batched_adjoint(B))
-    @test cu(Ca) ≈ batched_mul(cu(A), batched_adjoint(cu(B)))
+    @test CuArray(Ca) ≈ batched_mul(CuArray(A), batched_adjoint(CuArray(B)))
 end
 
 @testset "Broadcast Fix" begin

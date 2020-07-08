@@ -58,7 +58,7 @@ end
 
   @test testf(x->view(x, :, 1:4, 3), rand(Float32, 5, 4, 3))
 
-  let x = cu(rand(Float32, 5, 4, 3))
+  let x = CUDA.rand(Float32, 5, 4, 3)
     @test_throws BoundsError view(x, :, :, 1:10)
 
     # Contiguous views should return new CuArray

@@ -35,10 +35,11 @@ using CUDA.CUDNN
       @test testf((x, w) -> NNlib.conv(x, w, cdims), x, w)
       @test testf((y, w) -> ∇conv_data(y, w, cdims), y, w)
       @test testf((x, y) -> ∇conv_filter(x, y, cdims), x, y)
+
       # Test that we can use an alternative algorithm without dying
-      @test_nowarn NNlib.conv!(cu(y), cu(x), cu(w), cdims; algo=algo)
-      @test_nowarn NNlib.∇conv_data!(cu(x), cu(y), cu(w), cdims; algo=algo)
-      @test_nowarn NNlib.∇conv_filter!(cu(w), cu(x), cu(y), cdims; algo=algo)
+      @test_nowarn NNlib.conv!(CuArray{Float32}(y), CuArray{Float32}(x), CuArray{Float32}(w), cdims; algo=algo)
+      @test_nowarn NNlib.∇conv_data!(CuArray{Float32}(x), CuArray{Float32}(y), CuArray{Float32}(w), cdims; algo=algo)
+      @test_nowarn NNlib.∇conv_filter!(CuArray{Float32}(w), CuArray{Float32}(x), CuArray{Float32}(y), cdims; algo=algo)
     end
 
     # Test that pooling is equivalent across GPU/CPU
@@ -68,9 +69,9 @@ using CUDA.CUDNN
 end
 
 @testset "Activations and Other Ops" begin
-  @test testf(CUDNN.cudnnAddTensor, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
-  @test testf(CUDNN.cudnnActivationForward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
-  @test testf(CUDNN.cudnnActivationBackward, cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)), cu(rand(Float64, 10, 10, 3, 1)))
+  @test testf(CUDNN.cudnnAddTensor, CUDA.rand(Float32, 10, 10, 3, 1), CUDA.rand(Float32, 10, 10, 3, 1))
+  @test testf(CUDNN.cudnnActivationForward, CUDA.rand(Float32, 10, 10, 3, 1), CUDA.rand(Float32, 10, 10, 3, 1))
+  @test testf(CUDNN.cudnnActivationBackward, CUDA.rand(Float32, 10, 10, 3, 1), CUDA.rand(Float32, 10, 10, 3, 1), CUDA.rand(Float32, 10, 10, 3, 1), CUDA.rand(Float32, 10, 10, 3, 1))
 
   # activations defined in src/nnlib.jl
   ACTIVATION_FUNCTIONS = [σ, logσ, hardσ, hardtanh, relu, leakyrelu, relu6, rrelu,
@@ -82,13 +83,13 @@ end
     end
   end
   # softplus does not give `Inf` for large arguments
-  x = cu([1000.])
+  x = CuArray([1000.])
   @test all(softplus.(x) .== x)
 end
 
 @testset "Batchnorm" begin
-  v = rand(2) |> cu
-  m = rand(2, 5) |> cu
+  v = CUDA.rand(Float32, 2)
+  m = CUDA.rand(Float32, 2, 5)
   for training in (false, true)
     CUDNN.batchnorm(v, v, m, v, v, 1.0; training=training)
   end
