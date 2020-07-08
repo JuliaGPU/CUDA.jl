@@ -263,10 +263,6 @@ Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
 Adapt.adapt_storage(::Type{CuArray}, xs::AbstractArray) =
   isbits(xs) ? xs : convert(CuArray, xs)
 
-# aggressively convert arrays of floats to float32
-Adapt.adapt_storage(::Type{CuArray}, xs::AbstractArray{<:AbstractFloat}) =
-  isbits(xs) ? xs : convert(CuArray{Float32}, xs)
-
 # if an element type is specified, convert to it
 Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray) where {T} =
   isbits(xs) ? xs : convert(CuArray{T}, xs)
@@ -341,10 +337,21 @@ function Base.deepcopy_internal(x::CuArray, dict::IdDict)
 end
 
 
-## utilities
+## Float32-preferring conversion
 
-cu(xs) = adapt(CuArray, xs)
+struct Float32Adaptor end
+
+Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray) =
+  isbits(xs) ? xs : convert(CuArray, xs)
+
+Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
+  isbits(xs) ? xs : convert(CuArray{Float32}, xs)
+
+cu(xs) = adapt(Float32Adaptor(), xs)
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
+
+
+## utilities
 
 zeros(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 0)
 ones(T::Type, dims...) = fill!(CuArray{T}(undef, dims...), 1)

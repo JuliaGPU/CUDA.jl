@@ -11,9 +11,11 @@ import Adapt
   @test Base.elsize(xs) == sizeof(Int)
   @test CuArray{Int, 2}(xs) === xs
 
-  # test aggressive conversion to Float32, but only for floats
+  # test aggressive conversion to Float32, but only for floats, and only with `cu`
   @test cu([1]) isa AbstractArray{Int}
   @test cu(Float64[1]) isa AbstractArray{Float32}
+  @test Adapt.adapt(CuArray, Float64[1]) isa AbstractArray{Float64}
+  @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa AbstractArray{Float16}
 
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
@@ -56,7 +58,7 @@ end
 
   @test testf(x->view(x, :, 1:4, 3), rand(Float32, 5, 4, 3))
 
-  let x = cu(rand(Float32, 5, 4, 3))
+  let x = CUDA.rand(Float32, 5, 4, 3)
     @test_throws BoundsError view(x, :, :, 1:10)
 
     # Contiguous views should return new CuArray
