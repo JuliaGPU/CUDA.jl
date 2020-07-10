@@ -33,7 +33,7 @@ mutable struct CuLink
         end
         optionKeys, optionVals = encode(options)
 
-        cuLinkCreate(length(optionKeys), optionKeys, optionVals, handle_ref)
+        cuLinkCreate_v2(length(optionKeys), optionKeys, optionVals, handle_ref)
 
         ctx = CuCurrentContext()
         obj = new(handle_ref[], ctx, options, optionKeys, optionVals)
@@ -64,7 +64,7 @@ function add_data!(link::CuLink, name::String, code::String)
     # there shouldn't be any embedded NULLs
     checked_data = Base.unsafe_convert(Cstring, data)
 
-    cuLinkAddData(link, JIT_INPUT_PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
+    cuLinkAddData_v2(link, JIT_INPUT_PTX, pointer(checked_data), length(data), name, 0, C_NULL, C_NULL)
 end
 
 """
@@ -73,7 +73,7 @@ end
 Add object code to a pending link operation.
 """
 function add_data!(link::CuLink, name::String, data::Vector{UInt8})
-    cuLinkAddData(link, JIT_INPUT_OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
+    cuLinkAddData_v2(link, JIT_INPUT_OBJECT, pointer(data), length(data), name, 0, C_NULL, C_NULL)
 
     return nothing
 end
@@ -85,7 +85,7 @@ Add data from a file to a link operation. The argument `typ` indicates the type 
 contained data.
 """
 function add_file!(link::CuLink, path::String, typ::CUjitInputType)
-    cuLinkAddFile(link, typ, path, 0, C_NULL, C_NULL)
+    cuLinkAddFile_v2(link, typ, path, 0, C_NULL, C_NULL)
 
     return nothing
 end

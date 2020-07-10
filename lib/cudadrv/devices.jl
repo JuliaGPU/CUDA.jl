@@ -68,7 +68,7 @@ Returns the total amount of memory (in bytes) on the device.
 """
 function totalmem(dev::CuDevice)
     mem_ref = Ref{Csize_t}()
-    cuDeviceTotalMem(mem_ref, dev)
+    cuDeviceTotalMem_v2(mem_ref, dev)
     return mem_ref[]
 end
 

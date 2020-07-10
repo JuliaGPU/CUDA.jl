@@ -27,7 +27,7 @@ end
 
 function unsafe_destroy!(e::CuEvent)
     if isvalid(e.ctx)
-        cuEventDestroy(e)
+        cuEventDestroy_v2(e)
     end
 end
 

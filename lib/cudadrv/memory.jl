@@ -81,7 +81,7 @@ function alloc(::Type{DeviceBuffer}, bytesize::Integer)
     bytesize == 0 && return DeviceBuffer(CU_NULL, 0, CuContext(C_NULL))
 
     ptr_ref = Ref{CUDA.CUdeviceptr}()
-    CUDA.cuMemAlloc(ptr_ref, bytesize)
+    CUDA.cuMemAlloc_v2(ptr_ref, bytesize)
 
     return DeviceBuffer(reinterpret(CuPtr{Cvoid}, ptr_ref[]), bytesize, CuCurrentContext())
 end
@@ -89,7 +89,7 @@ end
 
 function free(buf::DeviceBuffer)
     if pointer(buf) != CU_NULL
-        CUDA.cuMemFree(buf)
+        CUDA.cuMemFree_v2(buf)
     end
 end
 
@@ -121,7 +121,7 @@ function Base.convert(::Type{CuPtr{T}}, buf::HostBuffer) where {T}
     if buf.mapped
         pointer(buf) == C_NULL && return convert(CuPtr{T}, CU_NULL)
         ptr_ref = Ref{CuPtr{Cvoid}}()
-        CUDA.cuMemHostGetDevicePointer(ptr_ref, pointer(buf), #=flags=# 0)
+        CUDA.cuMemHostGetDevicePointer_v2(ptr_ref, pointer(buf), #=flags=# 0)
         convert(CuPtr{T}, ptr_ref[])
     else
         throw(ArgumentError("cannot take the GPU address of a pinned but not mapped CPU buffer"))
@@ -175,7 +175,7 @@ If the `HOSTREGISTER_PORTABLE` flag is specified, any CUDA context can access th
 function register(::Type{HostBuffer}, ptr::Ptr, bytesize::Integer, flags=0)
     bytesize == 0 && throw(ArgumentError("Cannot register an empty range of memory."))
 
-    CUDA.cuMemHostRegister(ptr, bytesize, flags)
+    CUDA.cuMemHostRegister_v2(ptr, bytesize, flags)
 
     mapped = (flags & HOSTREGISTER_DEVICEMAP) != 0
     return HostBuffer(ptr, bytesize, CuCurrentContext(), mapped)
@@ -243,7 +243,7 @@ end
 
 function free(buf::UnifiedBuffer)
     if pointer(buf) != CU_NULL
-        CUDA.cuMemFree(buf)
+        CUDA.cuMemFree_v2(buf)
     end
 end
 
@@ -321,7 +321,7 @@ function alloc(::Type{<:ArrayBuffer{T}}, dims::Dims{N}) where {T,N}
         0))
 
     handle_ref = Ref{CUarray}()
-    CUDA.cuArray3DCreate(handle_ref, allocateArray_ref)
+    CUDA.cuArray3DCreate_v2(handle_ref, allocateArray_ref)
     ptr = reinterpret(CuArrayPtr{T}, handle_ref[])
 
     return ArrayBuffer{T,N}(ptr, dims, CuCurrentContext())
@@ -358,7 +358,7 @@ set!
 
 for T in [UInt8, UInt16, UInt32]
     bits = 8*sizeof(T)
-    fn_sync = Symbol("cuMemsetD$(bits)")
+    fn_sync = Symbol("cuMemsetD$(bits)_v2")
     fn_async = Symbol("cuMemsetD$(bits)Async")
     @eval function set!(ptr::CuPtr{$T}, value::$T, len::Integer;
                         async::Bool=false, stream::Union{Nothing,CuStream}=nothing)
@@ -377,17 +377,17 @@ end
 
 ## copy operations
 
-for (f, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH", CuPtr,      Ptr),
-                                ("cuMemcpyHtoD", Ptr,        CuPtr),
-                                ("cuMemcpyDtoD", CuPtr,      CuPtr),
-                               )
+for (f, fa, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH_v2", "cuMemcpyDtoHAsync_v2", CuPtr,      Ptr),
+                                    ("cuMemcpyHtoD_v2", "cuMemcpyHtoDAsync_v2", Ptr,        CuPtr),
+                                    ("cuMemcpyDtoD_v2", "cuMemcpyDtoDAsync_v2", CuPtr,      CuPtr),
+                                   )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::Union{Nothing,CuStream}=nothing,
                                        async::Bool=false) where T
         if async
             stream===nothing &&
                 throw(ArgumentError("Asynchronous memory operations require a stream."))
-            $(getproperty(CUDA, Symbol(f * "Async")))(dst, src, N*sizeof(T), stream)
+            $(getproperty(CUDA, Symbol(fa)))(dst, src, N*sizeof(T), stream)
         else
             stream===nothing ||
                 throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
@@ -403,11 +403,11 @@ function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N:
     if async
         stream===nothing &&
             throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpyHtoAAsync(dst, doffs, src, N*sizeof(T), stream)
+        CUDA.cuMemcpyHtoAAsync_v2(dst, doffs, src, N*sizeof(T), stream)
     else
         stream===nothing ||
             throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpyHtoA(dst, doffs, src, N*sizeof(T))
+        CUDA.cuMemcpyHtoA_v2(dst, doffs, src, N*sizeof(T))
     end
 end
 
@@ -417,19 +417,19 @@ function Base.unsafe_copyto!(dst::Ptr{T}, src::CuArrayPtr{T}, soffs::Integer, N:
     if async
         stream===nothing &&
             throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpyAtoHAsync(dst, src, soffs, N*sizeof(T), stream)
+        CUDA.cuMemcpyAtoHAsync_v2(dst, src, soffs, N*sizeof(T), stream)
     else
         stream===nothing ||
             throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpyAtoH(dst, src, soffs, N*sizeof(T))
+        CUDA.cuMemcpyAtoH_v2(dst, src, soffs, N*sizeof(T))
     end
 end
 
 Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::CuPtr{T}, N::Integer) where {T} =
-    CUDA.cuMemcpyDtoA(dst, doffs, src, N*sizeof(T))
+    CUDA.cuMemcpyDtoA_v2(dst, doffs, src, N*sizeof(T))
 
 Base.unsafe_copyto!(dst::CuPtr{T}, src::CuArrayPtr{T}, soffs::Integer, N::Integer) where {T} =
-    CUDA.cuMemcpyAtoD(dst, src, soffs, N*sizeof(T))
+    CUDA.cuMemcpyAtoD_v2(dst, src, soffs, N*sizeof(T))
 
 Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
     Base.unsafe_copyto!(dst, 0, src, N; kwargs...)
@@ -507,11 +507,11 @@ function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
     if async
         stream===nothing &&
             throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpy2DAsync(params_ref, stream)
+        CUDA.cuMemcpy2DAsync_v2(params_ref, stream)
     else
         stream===nothing ||
             throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpy2D(params_ref)
+        CUDA.cuMemcpy2D_v2(params_ref)
     end
 end
 
@@ -599,11 +599,11 @@ function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{
     if async
         stream===nothing &&
             throw(ArgumentError("Asynchronous memory operations require a stream."))
-        CUDA.cuMemcpy3DAsync(params_ref, stream)
+        CUDA.cuMemcpy3DAsync_v2(params_ref, stream)
     else
         stream===nothing ||
             throw(ArgumentError("Synchronous memory operations cannot be issued on a stream."))
-        CUDA.cuMemcpy3D(params_ref)
+        CUDA.cuMemcpy3D_v2(params_ref)
     end
 end
 
@@ -619,7 +619,7 @@ end
 function info()
     free_ref = Ref{Csize_t}()
     total_ref = Ref{Csize_t}()
-    CUDA.cuMemGetInfo(free_ref, total_ref)
+    CUDA.cuMemGetInfo_v2(free_ref, total_ref)
     return convert(Int, free_ref[]), convert(Int, total_ref[])
 end
 
