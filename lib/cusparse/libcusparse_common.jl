@@ -5,15 +5,18 @@
 
 # Automatically generated using Clang.jl
 
-const CUSPARSE_VER_MAJOR = 10
-const CUSPARSE_VER_MINOR = 3
-const CUSPARSE_VER_PATCH = 1
-const CUSPARSE_VER_BUILD = 89
+const CUSPARSE_VER_MAJOR = 11
+const CUSPARSE_VER_MINOR = 1
+const CUSPARSE_VER_PATCH = 0
+const CUSPARSE_VER_BUILD = 218
 const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + CUSPARSE_VER_PATCH
+const CUSPARSE_CPP_VERSION = __cplusplus
+
+# Skipping MacroDefinition: CUSPARSE_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
+# Skipping MacroDefinition: CUSPARSE_DEPRECATED_ENUM ( new_enum ) __attribute__ ( ( deprecated ( "please use " # new_enum " instead" ) ) )
+
 const cusparseContext = Cvoid
 const cusparseHandle_t = Ptr{cusparseContext}
-const cusparseSolveAnalysisInfo = Cvoid
-const cusparseSolveAnalysisInfo_t = Ptr{cusparseSolveAnalysisInfo}
 const csrsv2Info = Cvoid
 const csrsv2Info_t = Ptr{csrsv2Info}
 const csrsm2Info = Cvoid
@@ -30,8 +33,6 @@ const csrilu02Info = Cvoid
 const csrilu02Info_t = Ptr{csrilu02Info}
 const bsrilu02Info = Cvoid
 const bsrilu02Info_t = Ptr{bsrilu02Info}
-const cusparseHybMat = Cvoid
-const cusparseHybMat_t = Ptr{cusparseHybMat}
 const csrgemm2Info = Cvoid
 const csrgemm2Info_t = Ptr{csrgemm2Info}
 const csru2csrInfo = Cvoid
@@ -40,6 +41,27 @@ const cusparseColorInfo = Cvoid
 const cusparseColorInfo_t = Ptr{cusparseColorInfo}
 const pruneInfo = Cvoid
 const pruneInfo_t = Ptr{pruneInfo}
+
+"""
+Describes shape and properties of a CUSPARSE matrix. A convenience wrapper.
+
+Contains:
+* `MatrixType` - a [`cusparseMatrixType_t`](@ref)
+* `FillMode` - a [`cusparseFillMode_t`](@ref)
+* `DiagType` - a [`cusparseDiagType_t`](@ref)
+* `IndexBase` - a [`cusparseIndexBase_t`](@ref)
+"""
+struct cusparseMatDescr
+    MatrixType::cusparseMatrixType_t
+    FillMode::cusparseFillMode_t
+    DiagType::cusparseDiagType_t
+    IndexBase::cusparseIndexBase_t
+    function cusparseMatDescr(MatrixType,FillMode,DiagType,IndexBase)
+        new(MatrixType,FillMode,DiagType,IndexBase)
+    end
+end
+
+const cusparseMatDescr_t = Ptr{cusparseMatDescr}
 
 @cenum cusparseStatus_t::UInt32 begin
     CUSPARSE_STATUS_SUCCESS = 0
@@ -53,6 +75,7 @@ const pruneInfo_t = Ptr{pruneInfo}
     CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED = 8
     CUSPARSE_STATUS_ZERO_PIVOT = 9
     CUSPARSE_STATUS_NOT_SUPPORTED = 10
+    CUSPARSE_STATUS_INSUFFICIENT_RESOURCES = 11
 end
 
 @cenum cusparsePointerMode_t::UInt32 begin
@@ -98,12 +121,6 @@ end
     CUSPARSE_DIRECTION_COLUMN = 1
 end
 
-@cenum cusparseHybPartition_t::UInt32 begin
-    CUSPARSE_HYB_PARTITION_AUTO = 0
-    CUSPARSE_HYB_PARTITION_USER = 1
-    CUSPARSE_HYB_PARTITION_MAX = 2
-end
-
 @cenum cusparseSolvePolicy_t::UInt32 begin
     CUSPARSE_SOLVE_POLICY_NO_LEVEL = 0
     CUSPARSE_SOLVE_POLICY_USE_LEVEL = 1
@@ -120,10 +137,7 @@ end
 end
 
 @cenum cusparseAlgMode_t::UInt32 begin
-    CUSPARSE_ALG0 = 0
-    CUSPARSE_ALG1 = 1
-    CUSPARSE_ALG_NAIVE = 0
-    CUSPARSE_ALG_MERGE_PATH = 1
+    CUSPARSE_ALG_MERGE_PATH = 0
 end
 
 @cenum cusparseCsr2CscAlg_t::UInt32 begin
@@ -143,21 +157,6 @@ end
     CUSPARSE_ORDER_ROW = 2
 end
 
-@cenum cusparseSpMVAlg_t::UInt32 begin
-    CUSPARSE_MV_ALG_DEFAULT = 0
-    CUSPARSE_COOMV_ALG = 1
-    CUSPARSE_CSRMV_ALG1 = 2
-    CUSPARSE_CSRMV_ALG2 = 3
-end
-
-@cenum cusparseSpMMAlg_t::UInt32 begin
-    CUSPARSE_MM_ALG_DEFAULT = 0
-    CUSPARSE_COOMM_ALG1 = 1
-    CUSPARSE_COOMM_ALG2 = 2
-    CUSPARSE_COOMM_ALG3 = 3
-    CUSPARSE_CSRMM_ALG1 = 4
-end
-
 @cenum cusparseIndexType_t::UInt32 begin
     CUSPARSE_INDEX_16U = 1
     CUSPARSE_INDEX_32I = 2
@@ -173,24 +172,31 @@ const cusparseDnVecDescr_t = Ptr{cusparseDnVecDescr}
 const cusparseSpMatDescr_t = Ptr{cusparseSpMatDescr}
 const cusparseDnMatDescr_t = Ptr{cusparseDnMatDescr}
 
-
-"""
-Describes shape and properties of a CUSPARSE matrix. A convenience wrapper.
-
-Contains:
-* `MatrixType` - a [`cusparseMatrixType_t`](@ref)
-* `FillMode` - a [`cusparseFillMode_t`](@ref)
-* `DiagType` - a [`cusparseDiagType_t`](@ref)
-* `IndexBase` - a [`cusparseIndexBase_t`](@ref)
-"""
-struct cusparseMatDescr
-    MatrixType::cusparseMatrixType_t
-    FillMode::cusparseFillMode_t
-    DiagType::cusparseDiagType_t
-    IndexBase::cusparseIndexBase_t
-    function cusparseMatDescr(MatrixType,FillMode,DiagType,IndexBase)
-        new(MatrixType,FillMode,DiagType,IndexBase)
-    end
+@cenum cusparseSpMVAlg_t::UInt32 begin
+    CUSPARSE_MV_ALG_DEFAULT = 0
+    CUSPARSE_COOMV_ALG = 1
+    CUSPARSE_CSRMV_ALG1 = 2
+    CUSPARSE_CSRMV_ALG2 = 3
 end
 
-const cusparseMatDescr_t = Ptr{cusparseMatDescr}
+@cenum cusparseSpMMAlg_t::UInt32 begin
+    CUSPARSE_MM_ALG_DEFAULT = 0
+    CUSPARSE_COOMM_ALG1 = 1
+    CUSPARSE_COOMM_ALG2 = 2
+    CUSPARSE_COOMM_ALG3 = 3
+    CUSPARSE_CSRMM_ALG1 = 4
+    CUSPARSE_SPMM_ALG_DEFAULT = 0
+    CUSPARSE_SPMM_COO_ALG1 = 1
+    CUSPARSE_SPMM_COO_ALG2 = 2
+    CUSPARSE_SPMM_COO_ALG3 = 3
+    CUSPARSE_SPMM_COO_ALG4 = 5
+    CUSPARSE_SPMM_CSR_ALG1 = 4
+    CUSPARSE_SPMM_CSR_ALG2 = 6
+end
+
+@cenum cusparseSpGEMMAlg_t::UInt32 begin
+    CUSPARSE_SPGEMM_DEFAULT = 0
+end
+
+const cusparseSpGEMMDescr = Cvoid
+const cusparseSpGEMMDescr_t = Ptr{cusparseSpGEMMDescr}

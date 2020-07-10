@@ -5,8 +5,8 @@
 
 # Automatically generated using Clang.jl
 
-const NVML_API_VERSION = 10
-const NVML_API_VERSION_STR = "10"
+const NVML_API_VERSION = 11
+const NVML_API_VERSION_STR = "11"
 
 const NVML_VALUE_NOT_AVAILABLE = -1
 const NVML_DEVICE_PCI_BUS_ID_BUFFER_SIZE = 32
@@ -16,7 +16,7 @@ const NVML_DEVICE_PCI_BUS_ID_FMT = "%08X:%02X:%02X.0"
 
 # Skipping MacroDefinition: NVML_DEVICE_PCI_BUS_ID_FMT_ARGS ( pciInfo ) ( pciInfo ) -> domain , ( pciInfo ) -> bus , ( pciInfo ) -> device
 
-const NVML_NVLINK_MAX_LINKS = 6
+const NVML_NVLINK_MAX_LINKS = 12
 
 @cenum nvmlGpuLevel_enum::UInt32 begin
     NVML_TOPOLOGY_INTERNAL = 0
@@ -55,6 +55,13 @@ const NVML_VGPU_VIRTUALIZATION_CAP_MIGRATION_YES = 0x01
 
 const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_NO = 0x00
 const NVML_VGPU_PGPU_VIRTUALIZATION_CAP_MIGRATION_YES = 0x01
+const NVML_DEVICE_ARCH_KEPLER = 2
+const NVML_DEVICE_ARCH_MAXWELL = 3
+const NVML_DEVICE_ARCH_PASCAL = 4
+const NVML_DEVICE_ARCH_VOLTA = 5
+const NVML_DEVICE_ARCH_TURING = 6
+const NVML_DEVICE_ARCH_AMPERE = 7
+const NVML_DEVICE_ARCH_UNKNOWN = Float32(0x0fffffff)
 const NVML_FI_DEV_ECC_CURRENT = 1
 const NVML_FI_DEV_ECC_PENDING = 2
 const NVML_FI_DEV_ECC_SBE_VOL_TOTAL = 3
@@ -150,14 +157,66 @@ const NVML_FI_DEV_RETIRED_PENDING_SBE = 92
 const NVML_FI_DEV_RETIRED_PENDING_DBE = 93
 const NVML_FI_DEV_PCIE_REPLAY_COUNTER = 94
 const NVML_FI_DEV_PCIE_REPLAY_ROLLOVER_COUNTER = 95
-const NVML_FI_MAX = 96
+const NVML_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_L6 = 96
+const NVML_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_L7 = 97
+const NVML_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_L8 = 98
+const NVML_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_L9 = 99
+const NVML_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_L10 = 100
+const NVML_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_L11 = 101
+const NVML_FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_L6 = 102
+const NVML_FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_L7 = 103
+const NVML_FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_L8 = 104
+const NVML_FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_L9 = 105
+const NVML_FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_L10 = 106
+const NVML_FI_DEV_NVLINK_CRC_DATA_ERROR_COUNT_L11 = 107
+const NVML_FI_DEV_NVLINK_REPLAY_ERROR_COUNT_L6 = 108
+const NVML_FI_DEV_NVLINK_REPLAY_ERROR_COUNT_L7 = 109
+const NVML_FI_DEV_NVLINK_REPLAY_ERROR_COUNT_L8 = 110
+const NVML_FI_DEV_NVLINK_REPLAY_ERROR_COUNT_L9 = 111
+const NVML_FI_DEV_NVLINK_REPLAY_ERROR_COUNT_L10 = 112
+const NVML_FI_DEV_NVLINK_REPLAY_ERROR_COUNT_L11 = 113
+const NVML_FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_L6 = 114
+const NVML_FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_L7 = 115
+const NVML_FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_L8 = 116
+const NVML_FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_L9 = 117
+const NVML_FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_L10 = 118
+const NVML_FI_DEV_NVLINK_RECOVERY_ERROR_COUNT_L11 = 119
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C0_L6 = 120
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C0_L7 = 121
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C0_L8 = 122
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C0_L9 = 123
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C0_L10 = 124
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C0_L11 = 125
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C1_L6 = 126
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C1_L7 = 127
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C1_L8 = 128
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C1_L9 = 129
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C1_L10 = 130
+const NVML_FI_DEV_NVLINK_BANDWIDTH_C1_L11 = 131
+const NVML_FI_DEV_NVLINK_SPEED_MBPS_L6 = 132
+const NVML_FI_DEV_NVLINK_SPEED_MBPS_L7 = 133
+const NVML_FI_DEV_NVLINK_SPEED_MBPS_L8 = 134
+const NVML_FI_DEV_NVLINK_SPEED_MBPS_L9 = 135
+const NVML_FI_DEV_NVLINK_SPEED_MBPS_L10 = 136
+const NVML_FI_DEV_NVLINK_SPEED_MBPS_L11 = 137
+const NVML_FI_DEV_NVLINK_THROUGHPUT_DATA_TX = 138
+const NVML_FI_DEV_NVLINK_THROUGHPUT_DATA_RX = 139
+const NVML_FI_DEV_NVLINK_THROUGHPUT_RAW_TX = 140
+const NVML_FI_DEV_NVLINK_THROUGHPUT_RAW_RX = 141
+const NVML_FI_DEV_REMAPPED_COR = 142
+const NVML_FI_DEV_REMAPPED_UNC = 143
+const NVML_FI_DEV_REMAPPED_PENDING = 144
+const NVML_FI_DEV_REMAPPED_FAILURE = 145
+const NVML_FI_MAX = 146
 const nvmlEventTypeSingleBitEccError = Int64(0x0000000000000001)
 const nvmlEventTypeDoubleBitEccError = Int64(0x0000000000000002)
 const nvmlEventTypePState = Int64(0x0000000000000004)
 const nvmlEventTypeXidCriticalError = Int64(0x0000000000000008)
 const nvmlEventTypeClock = Int64(0x0000000000000010)
+const nvmlEventTypePowerSourceChange = Int64(0x0000000000000080)
+const nvmlEventMigConfigChange = Int64(0x0000000000000100)
 const nvmlEventTypeNone = Int64(0x0000000000000000)
-const nvmlEventTypeAll = ((((nvmlEventTypeNone | nvmlEventTypeSingleBitEccError) | nvmlEventTypeDoubleBitEccError) | nvmlEventTypePState) | nvmlEventTypeClock) | nvmlEventTypeXidCriticalError
+const nvmlEventTypeAll = ((((((nvmlEventTypeNone | nvmlEventTypeSingleBitEccError) | nvmlEventTypeDoubleBitEccError) | nvmlEventTypePState) | nvmlEventTypeClock) | nvmlEventTypeXidCriticalError) | nvmlEventTypePowerSourceChange) | nvmlEventMigConfigChange
 const nvmlClocksThrottleReasonGpuIdle = Int64(0x0000000000000001)
 const nvmlClocksThrottleReasonApplicationsClocksSetting = Int64(0x0000000000000002)
 const nvmlClocksThrottleReasonUserDefinedClocks = nvmlClocksThrottleReasonApplicationsClocksSetting
@@ -182,6 +241,7 @@ const NVML_INIT_FLAG_NO_GPUS = 1
 const NVML_INIT_FLAG_NO_ATTACH = 2
 const NVML_DEVICE_INFOROM_VERSION_BUFFER_SIZE = 16
 const NVML_DEVICE_UUID_BUFFER_SIZE = 80
+const NVML_DEVICE_UUID_V2_BUFFER_SIZE = 96
 const NVML_DEVICE_PART_NUMBER_BUFFER_SIZE = 80
 const NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE = 80
 const NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE = 80
@@ -192,6 +252,24 @@ const NVML_DEVICE_VBIOS_VERSION_BUFFER_SIZE = 32
 # Skipping MacroDefinition: NVML_CUDA_DRIVER_VERSION_MAJOR ( v ) ( ( v ) / 1000 )
 # Skipping MacroDefinition: NVML_CUDA_DRIVER_VERSION_MINOR ( v ) ( ( ( v ) % 1000 ) / 10 )
 
+const NVML_AFFINITY_SCOPE_NODE = 0
+const NVML_AFFINITY_SCOPE_SOCKET = 1
+const NVML_DEVICE_MIG_DISABLE = 0x00
+const NVML_DEVICE_MIG_ENABLE = 0x01
+const NVML_GPU_INSTANCE_PROFILE_1_SLICE = 0x00
+const NVML_GPU_INSTANCE_PROFILE_2_SLICE = 0x01
+const NVML_GPU_INSTANCE_PROFILE_3_SLICE = 0x02
+const NVML_GPU_INSTANCE_PROFILE_4_SLICE = 0x03
+const NVML_GPU_INSTANCE_PROFILE_7_SLICE = 0x04
+const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x05
+const NVML_COMPUTE_INSTANCE_PROFILE_1_SLICE = 0x00
+const NVML_COMPUTE_INSTANCE_PROFILE_2_SLICE = 0x01
+const NVML_COMPUTE_INSTANCE_PROFILE_3_SLICE = 0x02
+const NVML_COMPUTE_INSTANCE_PROFILE_4_SLICE = 0x03
+const NVML_COMPUTE_INSTANCE_PROFILE_7_SLICE = 0x04
+const NVML_COMPUTE_INSTANCE_PROFILE_COUNT = 0x05
+const NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_SHARED = 0x00
+const NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_COUNT = 0x01
 const nvmlDevice_st = Cvoid
 const nvmlDevice_t = Ptr{nvmlDevice_st}
 
@@ -245,6 +323,17 @@ struct nvmlProcessInfo_st
 end
 
 const nvmlProcessInfo_t = nvmlProcessInfo_st
+
+struct nvmlDeviceAttributes_st
+    multiprocessorCount::UInt32
+    sharedCopyEngineCount::UInt32
+    sharedDecoderCount::UInt32
+    sharedEncoderCount::UInt32
+    sharedJpegCount::UInt32
+    sharedOfaCount::UInt32
+end
+
+const nvmlDeviceAttributes_t = nvmlDeviceAttributes_st
 
 @cenum nvmlBridgeChipType_enum::UInt32 begin
     NVML_BRIDGE_CHIP_PLX = 0
@@ -555,6 +644,7 @@ const nvmlInforomObject_t = nvmlInforomObject_enum
     NVML_ERROR_MEMORY = 20
     NVML_ERROR_NO_DATA = 21
     NVML_ERROR_VGPU_ECC_NOT_SUPPORTED = 22
+    NVML_ERROR_INSUFFICIENT_RESOURCES = 23
     NVML_ERROR_UNKNOWN = 999
 end
 
@@ -682,10 +772,11 @@ struct nvmlGridLicensableFeatures_st
 end
 
 const nvmlGridLicensableFeatures_t = nvmlGridLicensableFeatures_st
+const nvmlDeviceArchitecture_t = UInt32
 
 struct nvmlFieldValue_st
     fieldId::UInt32
-    unused::UInt32
+    scopeId::UInt32
     timestamp::Clonglong
     latencyUsec::Clonglong
     valueType::nvmlValueType_t
@@ -763,6 +854,8 @@ struct nvmlEventData_st
     device::nvmlDevice_t
     eventType::Culonglong
     eventData::Culonglong
+    gpuInstanceId::UInt32
+    computeInstanceId::UInt32
 end
 
 const nvmlEventData_t = nvmlEventData_st
@@ -847,6 +940,15 @@ const nvmlDetachGpuState_t = nvmlDetachGpuState_enum
 end
 
 const nvmlPcieLinkState_t = nvmlPcieLinkState_enum
+const nvmlAffinityScope_t = UInt32
+
+@cenum nvmlClockLimitId_enum::UInt32 begin
+    NVML_CLOCK_LIMIT_ID_RANGE_START = 4294967040
+    NVML_CLOCK_LIMIT_ID_TDP = 4294967041
+    NVML_CLOCK_LIMIT_ID_UNLIMITED = 4294967042
+end
+
+const nvmlClockLimitId_t = nvmlClockLimitId_enum
 
 struct nvmlVgpuVersion_st
     minVersion::UInt32
@@ -916,3 +1018,62 @@ struct nvmlBlacklistDeviceInfo_st
 end
 
 const nvmlBlacklistDeviceInfo_t = nvmlBlacklistDeviceInfo_st
+
+struct nvmlGpuInstancePlacement_st
+    start::UInt32
+    size::UInt32
+end
+
+const nvmlGpuInstancePlacement_t = nvmlGpuInstancePlacement_st
+
+struct nvmlGpuInstanceProfileInfo_st
+    id::UInt32
+    isP2pSupported::UInt32
+    sliceCount::UInt32
+    instanceCount::UInt32
+    multiprocessorCount::UInt32
+    copyEngineCount::UInt32
+    decoderCount::UInt32
+    encoderCount::UInt32
+    jpegCount::UInt32
+    ofaCount::UInt32
+    memorySizeMB::Culonglong
+end
+
+const nvmlGpuInstanceProfileInfo_t = nvmlGpuInstanceProfileInfo_st
+
+struct nvmlGpuInstanceInfo_st
+    device::nvmlDevice_t
+    id::UInt32
+    profileId::UInt32
+    placement::nvmlGpuInstancePlacement_t
+end
+
+const nvmlGpuInstanceInfo_t = nvmlGpuInstanceInfo_st
+const nvmlGpuInstance_st = Cvoid
+const nvmlGpuInstance_t = Ptr{nvmlGpuInstance_st}
+
+struct nvmlComputeInstanceProfileInfo_st
+    id::UInt32
+    sliceCount::UInt32
+    instanceCount::UInt32
+    multiprocessorCount::UInt32
+    sharedCopyEngineCount::UInt32
+    sharedDecoderCount::UInt32
+    sharedEncoderCount::UInt32
+    sharedJpegCount::UInt32
+    sharedOfaCount::UInt32
+end
+
+const nvmlComputeInstanceProfileInfo_t = nvmlComputeInstanceProfileInfo_st
+
+struct nvmlComputeInstanceInfo_st
+    device::nvmlDevice_t
+    gpuInstance::nvmlGpuInstance_t
+    id::UInt32
+    profileId::UInt32
+end
+
+const nvmlComputeInstanceInfo_t = nvmlComputeInstanceInfo_st
+const nvmlComputeInstance_st = Cvoid
+const nvmlComputeInstance_t = Ptr{nvmlComputeInstance_st}

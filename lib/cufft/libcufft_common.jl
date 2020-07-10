@@ -8,10 +8,10 @@
 # Skipping MacroDefinition: CUFFTAPI __attribute__ ( ( visibility ( "default" ) ) )
 
 const CUFFT_VER_MAJOR = 10
-const CUFFT_VER_MINOR = 1
-const CUFFT_VER_PATCH = 2
-const CUFFT_VER_BUILD = 89
-const CUFFT_VERSION = CUFFT_VER_MAJOR * 1000 + CUFFT_VER_MINOR * 100 + CUFFT_VER_PATCH
+const CUFFT_VER_MINOR = 2
+const CUFFT_VER_PATCH = 0
+const CUFFT_VER_BUILD = 218
+const CUFFT_VERSION = 10200
 const MAX_CUFFT_ERROR = 0x11
 const CUFFT_FORWARD = -1
 const CUFFT_INVERSE = 1

@@ -456,6 +456,13 @@ end
                    context, deviceId)
 end
 
+@checked function cuptiGetGraphNodeId(node, nodeId)
+    initialize_api()
+    @runtime_ccall((:cuptiGetGraphNodeId, libcupti()), CUptiResult,
+                   (CUgraphNode, Ptr{UInt64}),
+                   node, nodeId)
+end
+
 @checked function cuptiActivityEnable(kind)
     initialize_api()
     @runtime_ccall((:cuptiActivityEnable, libcupti()), CUptiResult,
@@ -746,5 +753,12 @@ end
     initialize_api()
     @runtime_ccall((:cuptiProfilerPopRange, libcupti()), CUptiResult,
                    (Ptr{CUpti_Profiler_PopRange_Params},),
+                   pParams)
+end
+
+@checked function cuptiProfilerGetCounterAvailability(pParams)
+    initialize_api()
+    @runtime_ccall((:cuptiProfilerGetCounterAvailability, libcupti()), CUptiResult,
+                   (Ptr{CUpti_Profiler_GetCounterAvailability_Params},),
                    pParams)
 end

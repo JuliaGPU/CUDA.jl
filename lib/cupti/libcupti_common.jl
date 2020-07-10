@@ -5,7 +5,7 @@
 
 # Automatically generated using Clang.jl
 
-const CUPTI_API_VERSION = 12
+const CUPTI_API_VERSION = 13
 
 # Skipping MacroDefinition: CUPTI_EVENT_OVERFLOW ( ( uint64_t ) 0xFFFFFFFFFFFFFFFFULL )
 # Skipping MacroDefinition: CUPTI_EVENT_INVALID ( ( uint64_t ) 0xFFFFFFFFFFFFFFFEULL )
@@ -15,6 +15,7 @@ const ACTIVITY_RECORD_ALIGNMENT = 8
 
 # Skipping MacroDefinition: PACKED_ALIGNMENT __attribute__ ( ( __packed__ ) ) __attribute__ ( ( aligned ( ACTIVITY_RECORD_ALIGNMENT ) ) )
 # Skipping MacroDefinition: CUPTI_UNIFIED_MEMORY_CPU_DEVICE_ID ( ( uint32_t ) 0xFFFFFFFFU )
+# Skipping MacroDefinition: CUPTI_INVALID_CONTEXT_ID ( ( uint32_t ) 0xFFFFFFFFU )
 
 const CUPTI_SOURCE_LOCATOR_ID_UNKNOWN = 0
 const CUPTI_FUNCTION_INDEX_ID_INVALID = 0
@@ -67,6 +68,7 @@ const CUPTI_MAX_GPUS = 32
     CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED = 36
     CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE = 37
     CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED = 38
+    CUPTI_ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED = 39
     CUPTI_ERROR_UNKNOWN = 999
     CUPTI_ERROR_FORCE_INT = 2147483647
 end
@@ -109,7 +111,8 @@ end
     CUPTI_CBID_RESOURCE_GRAPHEXEC_CREATE_STARTING = 17
     CUPTI_CBID_RESOURCE_GRAPHEXEC_CREATED = 18
     CUPTI_CBID_RESOURCE_GRAPHEXEC_DESTROY_STARTING = 19
-    CUPTI_CBID_RESOURCE_SIZE = 20
+    CUPTI_CBID_RESOURCE_GRAPHNODE_CLONED = 20
+    CUPTI_CBID_RESOURCE_SIZE = 21
     CUPTI_CBID_RESOURCE_FORCE_INT = 2147483647
 end
 
@@ -153,6 +156,7 @@ struct CUpti_GraphData
     graph::CUgraph
     originalGraph::CUgraph
     node::CUgraphNode
+    originalNode::CUgraphNode
     nodeType::CUgraphNodeType
     dependency::CUgraphNode
     graphExec::CUgraphExec
@@ -409,7 +413,8 @@ end
     CUPTI_ACTIVITY_KIND_MEMORY = 45
     CUPTI_ACTIVITY_KIND_PCIE = 46
     CUPTI_ACTIVITY_KIND_OPENMP = 47
-    CUPTI_ACTIVITY_KIND_COUNT = 48
+    CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API = 48
+    CUPTI_ACTIVITY_KIND_COUNT = 49
     CUPTI_ACTIVITY_KIND_FORCE_INT = 2147483647
 end
 
@@ -709,7 +714,26 @@ struct CUpti_ActivityMemcpy
     reserved0::Ptr{Cvoid}
 end
 
-struct CUpti_ActivityMemcpy2
+struct CUpti_ActivityMemcpy3
+    kind::CUpti_ActivityKind
+    copyKind::UInt8
+    srcKind::UInt8
+    dstKind::UInt8
+    flags::UInt8
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    correlationId::UInt32
+    runtimeCorrelationId::UInt32
+    pad::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+end
+
+struct CUpti_ActivityMemcpyPtoP
     kind::CUpti_ActivityKind
     copyKind::UInt8
     srcKind::UInt8
@@ -729,6 +753,29 @@ struct CUpti_ActivityMemcpy2
     reserved0::Ptr{Cvoid}
 end
 
+const CUpti_ActivityMemcpy2 = CUpti_ActivityMemcpyPtoP
+
+struct CUpti_ActivityMemcpyPtoP2
+    kind::CUpti_ActivityKind
+    copyKind::UInt8
+    srcKind::UInt8
+    dstKind::UInt8
+    flags::UInt8
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    srcDeviceId::UInt32
+    srcContextId::UInt32
+    dstDeviceId::UInt32
+    dstContextId::UInt32
+    correlationId::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+end
+
 struct CUpti_ActivityMemset
     kind::CUpti_ActivityKind
     value::UInt32
@@ -743,6 +790,23 @@ struct CUpti_ActivityMemset
     memoryKind::UInt16
     pad::UInt32
     reserved0::Ptr{Cvoid}
+end
+
+struct CUpti_ActivityMemset2
+    kind::CUpti_ActivityKind
+    value::UInt32
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    correlationId::UInt32
+    flags::UInt16
+    memoryKind::UInt16
+    pad::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
 end
 
 struct CUpti_ActivityMemory
@@ -898,13 +962,62 @@ struct CUpti_ActivityKernel4
     sharedMemoryExecuted::UInt32
 end
 
+@cenum CUpti_FuncShmemLimitConfig::UInt32 begin
+    CUPTI_FUNC_SHMEM_LIMIT_DEFAULT = 0
+    CUPTI_FUNC_SHMEM_LIMIT_OPTIN = 1
+    CUPTI_FUNC_SHMEM_LIMIT_FORCE_INT = 2147483647
+end
+
 struct ANONYMOUS6_cacheConfig
+    both::UInt8
+end
+
+struct CUpti_ActivityKernel5
+    kind::CUpti_ActivityKind
+    cacheConfig::ANONYMOUS6_cacheConfig
+    sharedMemoryConfig::UInt8
+    registersPerThread::UInt16
+    partitionedGlobalCacheRequested::CUpti_ActivityPartitionedGlobalCacheConfig
+    partitionedGlobalCacheExecuted::CUpti_ActivityPartitionedGlobalCacheConfig
+    start::UInt64
+    _end::UInt64
+    completed::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    gridX::Int32
+    gridY::Int32
+    gridZ::Int32
+    blockX::Int32
+    blockY::Int32
+    blockZ::Int32
+    staticSharedMemory::Int32
+    dynamicSharedMemory::Int32
+    localMemoryPerThread::UInt32
+    localMemoryTotal::UInt32
+    correlationId::UInt32
+    gridId::Int64
+    name::Cstring
+    reserved0::Ptr{Cvoid}
+    queued::UInt64
+    submitted::UInt64
+    launchType::UInt8
+    isSharedMemoryCarveoutRequested::UInt8
+    sharedMemoryCarveoutRequested::UInt8
+    padding::UInt8
+    sharedMemoryExecuted::UInt32
+    graphNodeId::UInt64
+    shmemLimitConfig::CUpti_FuncShmemLimitConfig
+    padding2::UInt32
+end
+
+struct ANONYMOUS7_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityCdpKernel
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS6_cacheConfig
+    cacheConfig::ANONYMOUS7_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     start::UInt64
@@ -1125,11 +1238,11 @@ struct CUpti_ActivityDevice2
     name::Cstring
 end
 
-struct ANONYMOUS7_attribute
+struct ANONYMOUS8_attribute
     cu::CUdevice_attribute
 end
 
-struct ANONYMOUS8_value
+struct ANONYMOUS9_value
     vDouble::Cdouble
 end
 
@@ -1137,8 +1250,8 @@ struct CUpti_ActivityDeviceAttribute
     kind::CUpti_ActivityKind
     flags::CUpti_ActivityFlag
     deviceId::UInt32
-    attribute::ANONYMOUS7_attribute
-    value::ANONYMOUS8_value
+    attribute::ANONYMOUS8_attribute
+    value::ANONYMOUS9_value
 end
 
 struct CUpti_ActivityContext
@@ -1199,7 +1312,7 @@ struct CUpti_ActivityOverhead
     _end::UInt64
 end
 
-struct ANONYMOUS10_speed
+struct ANONYMOUS11_speed
     smClock::UInt32
     memoryClock::UInt32
     pcieLinkGen::UInt32
@@ -1207,8 +1320,8 @@ struct ANONYMOUS10_speed
     clocksThrottleReasons::CUpti_EnvironmentClocksThrottleReason
 end
 
-struct ANONYMOUS9_data
-    speed::ANONYMOUS10_speed
+struct ANONYMOUS10_data
+    speed::ANONYMOUS11_speed
 end
 
 struct CUpti_ActivityEnvironment
@@ -1216,7 +1329,7 @@ struct CUpti_ActivityEnvironment
     deviceId::UInt32
     timestamp::UInt64
     environmentKind::CUpti_ActivityEnvironmentKind
-    data::ANONYMOUS9_data
+    data::ANONYMOUS10_data
 end
 
 struct CUpti_ActivityInstructionExecution
@@ -1578,11 +1691,11 @@ end
     CUPTI_DEV_TYPE_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS11_idDev0
+struct ANONYMOUS12_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS12_idDev1
+struct ANONYMOUS13_idDev1
     uuidDev::CUuuid
 end
 
@@ -1591,8 +1704,8 @@ struct CUpti_ActivityNvLink
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS11_idDev0
-    idDev1::ANONYMOUS12_idDev1
+    idDev0::ANONYMOUS12_idDev0
+    idDev1::ANONYMOUS13_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{4, Int8}
@@ -1600,11 +1713,11 @@ struct CUpti_ActivityNvLink
     bandwidth::UInt64
 end
 
-struct ANONYMOUS13_idDev0
+struct ANONYMOUS14_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS14_idDev1
+struct ANONYMOUS15_idDev1
     uuidDev::CUuuid
 end
 
@@ -1613,8 +1726,8 @@ struct CUpti_ActivityNvLink2
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS13_idDev0
-    idDev1::ANONYMOUS14_idDev1
+    idDev0::ANONYMOUS14_idDev0
+    idDev1::ANONYMOUS15_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{16, Int8}
@@ -1622,11 +1735,11 @@ struct CUpti_ActivityNvLink2
     bandwidth::UInt64
 end
 
-struct ANONYMOUS15_idDev0
+struct ANONYMOUS16_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS16_idDev1
+struct ANONYMOUS17_idDev1
     uuidDev::CUuuid
 end
 
@@ -1635,8 +1748,8 @@ struct CUpti_ActivityNvLink3
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS15_idDev0
-    idDev1::ANONYMOUS16_idDev1
+    idDev0::ANONYMOUS16_idDev0
+    idDev1::ANONYMOUS17_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{16, Int8}
@@ -1652,29 +1765,29 @@ end
     CUPTI_PCIE_DEVICE_TYPE_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS17_id
+struct ANONYMOUS18_id
     devId::CUdevice
 end
 
-struct ANONYMOUS19_gpuAttr
+struct ANONYMOUS20_gpuAttr
     uuidDev::CUuuid
     peerDev::NTuple{32, CUdevice}
 end
 
-struct ANONYMOUS18_attr
-    gpuAttr::ANONYMOUS19_gpuAttr
+struct ANONYMOUS19_attr
+    gpuAttr::ANONYMOUS20_gpuAttr
 end
 
 struct CUpti_ActivityPcie
     kind::CUpti_ActivityKind
     type::CUpti_PcieDeviceType
-    id::ANONYMOUS17_id
+    id::ANONYMOUS18_id
     domain::UInt32
     pcieGeneration::UInt16
     linkRate::UInt16
     linkWidth::UInt16
     upstreamBus::UInt16
-    attr::ANONYMOUS18_attr
+    attr::ANONYMOUS19_attr
 end
 
 @cenum CUpti_PcieGen::UInt32 begin
@@ -1731,6 +1844,7 @@ end
     CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_POOL_LIMIT = 2
     CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_POOL_SIZE = 3
     CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_POOL_LIMIT = 4
+    CUPTI_ACTIVITY_ATTR_ZEROED_OUT_ACTIVITY_BUFFER = 5
     CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_FORCE_INT = 2147483647
 end
 
@@ -1760,16 +1874,17 @@ end
 # Skipping MacroDefinition: CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params , pCounterDataScratchBuffer )
 # Skipping MacroDefinition: CUpti_Profiler_BeginSession_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_BeginSession_Params , maxLaunchesPerPass )
 # Skipping MacroDefinition: CUpti_Profiler_EndSession_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_EndSession_Params , ctx )
-# Skipping MacroDefinition: CUpti_Profiler_SetConfig_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_SetConfig_Params , passIndex )
+# Skipping MacroDefinition: CUpti_Profiler_SetConfig_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_SetConfig_Params , targetNestingLevel )
 # Skipping MacroDefinition: CUpti_Profiler_UnsetConfig_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_UnsetConfig_Params , ctx )
 # Skipping MacroDefinition: CUpti_Profiler_BeginPass_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_BeginPass_Params , ctx )
-# Skipping MacroDefinition: CUpti_Profiler_EndPass_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_EndPass_Params , ctx )
+# Skipping MacroDefinition: CUpti_Profiler_EndPass_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_EndPass_Params , allPassesSubmitted )
 # Skipping MacroDefinition: CUpti_Profiler_EnableProfiling_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_EnableProfiling_Params , ctx )
 # Skipping MacroDefinition: CUpti_Profiler_DisableProfiling_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_DisableProfiling_Params , ctx )
-# Skipping MacroDefinition: CUpti_Profiler_IsPassCollected_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_IsPassCollected_Params , ctx )
-# Skipping MacroDefinition: CUpti_Profiler_FlushCounterData_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_FlushCounterData_Params , ctx )
+# Skipping MacroDefinition: CUpti_Profiler_IsPassCollected_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_IsPassCollected_Params , allPassesCollected )
+# Skipping MacroDefinition: CUpti_Profiler_FlushCounterData_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_FlushCounterData_Params , numTraceBytesDropped )
 # Skipping MacroDefinition: CUpti_Profiler_PushRange_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_PushRange_Params , rangeNameLength )
 # Skipping MacroDefinition: CUpti_Profiler_PopRange_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_PopRange_Params , ctx )
+# Skipping MacroDefinition: CUpti_Profiler_GetCounterAvailability_Params_STRUCT_SIZE CUPTI_PROFILER_STRUCT_SIZE ( CUpti_Profiler_GetCounterAvailability_Params , pCounterAvailabilityImage )
 
 @cenum CUpti_ProfilerRange::UInt32 begin
     CUPTI_Range_INVALID = 0
@@ -1937,4 +2052,12 @@ struct CUpti_Profiler_PopRange_Params
     structSize::Csize_t
     pPriv::Ptr{Cvoid}
     ctx::CUcontext
+end
+
+struct CUpti_Profiler_GetCounterAvailability_Params
+    structSize::Csize_t
+    pPriv::Ptr{Cvoid}
+    ctx::CUcontext
+    counterAvailabilityImageSize::Csize_t
+    pCounterAvailabilityImage::Ptr{UInt8}
 end
