@@ -42,7 +42,11 @@ function unsafe_release!(ctx::CuContext)
     if isvalid(ctx)
         dev = device(ctx)
         pctx = CuPrimaryContext(dev)
-        cuDevicePrimaryCtxRelease(dev)
+        if version() >= v"11"
+            cuDevicePrimaryCtxRelease_v2(dev)
+        else
+            cuDevicePrimaryCtxRelease(dev)
+        end
         isactive(pctx) || invalidate!(ctx)
     end
     return
@@ -67,7 +71,11 @@ primary context, and as a result outstanding resources might become invalid.
 function unsafe_reset!(pctx::CuPrimaryContext)
     ctx = CuContext(pctx)
     invalidate!(ctx)
-    cuDevicePrimaryCtxReset(pctx.dev)
+    if VERSION >= v"11"
+        cuDevicePrimaryCtxReset_v2(pctx.dev)
+    else
+        cuDevicePrimaryCtxReset(pctx.dev)
+    end
     return
 end
 
@@ -97,4 +105,10 @@ flags(pctx::CuPrimaryContext) = state(pctx)[1]
 
 Set the flags of a primary context.
 """
-setflags!(pctx::CuPrimaryContext, flags) = cuDevicePrimaryCtxSetFlags(pctx.dev, flags)
+function setflags!(pctx::CuPrimaryContext, flags)
+    if VERSION >= v"11"
+        cuDevicePrimaryCtxSetFlags_v2(pctx.dev, flags)
+    else
+        cuDevicePrimaryCtxSetFlags(pctx.dev, flags)
+    end
+end

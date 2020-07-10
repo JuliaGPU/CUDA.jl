@@ -10,6 +10,7 @@ const CUarray = CuArrayPtr{Cvoid}
 include("libcuda_common.jl")
 include("error.jl")
 include("libcuda.jl")
+include("libcuda_old.jl")
 
 # high-level wrappers
 include("types.jl")
