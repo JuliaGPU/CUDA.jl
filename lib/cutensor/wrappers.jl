@@ -202,9 +202,9 @@ function permutation!(alpha::Number, A::Array, Ainds::ModeType,
 end
 
 function contraction!(
-    alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-                   B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
-    beta::Number,  C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
+    alpha::Number, A::Union{Array, CuArray}, Ainds::ModeType, opA::cutensorOperator_t,
+                   B::Union{Array, CuArray}, Binds::ModeType, opB::cutensorOperator_t,
+    beta::Number,  C::Union{Array, CuArray}, Cinds::ModeType, opC::cutensorOperator_t,
                                                 opOut::cutensorOperator_t;
     pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
     algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuDefaultStream(),
@@ -241,7 +241,6 @@ function contraction!(
                    computeType)
     find = Ref(cutensorContractionFind_t(ntuple(i->0, Val(64))))
     cutensorInitContractionFind(handle(), find, algo)
-
     @workspace fallback=1<<27 size=@argout(
             cutensorContractionGetWorkspace(handle(), desc, find, pref,
                                             out(Ref{UInt64}(C_NULL)))
@@ -261,9 +260,9 @@ function contraction!(
 end
 
 function plan_contraction(
-    A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-    B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
-    C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
+    A::Union{CuArray, Array}, Ainds::ModeType, opA::cutensorOperator_t,
+    B::Union{CuArray, Array}, Binds::ModeType, opB::cutensorOperator_t,
+    C::Union{CuArray, Array}, Cinds::ModeType, opC::cutensorOperator_t,
                                                 opOut::cutensorOperator_t;
     pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
     algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
@@ -308,8 +307,8 @@ function plan_contraction(
 end
 
 function reduction!(
-    alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-    beta::Number,  C::CuArray, Cinds::ModeType, opC::cutensorOperator_t,
+    alpha::Number, A::Union{Array, CuArray}, Ainds::ModeType, opA::cutensorOperator_t,
+    beta::Number,  C::Union{Array, CuArray}, Cinds::ModeType, opC::cutensorOperator_t,
     opReduce::cutensorOperator_t; stream::CuStream=CuDefaultStream())
 
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))

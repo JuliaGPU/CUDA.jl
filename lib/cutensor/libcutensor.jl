@@ -27,10 +27,10 @@ end
                                              descD, modeD, opAB, opABC, typeScalar, stream)
     initialize_api()
     @runtime_ccall((:cutensorElementwiseTrinary, libcutensor()), cutensorStatus_t,
-                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, CuPtr{Cvoid},
+                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, cutensorOperator_t,
                     cutensorOperator_t, cudaDataType_t, CUstream),
                    handle, alpha, A, descA, modeA, beta, B, descB, modeB, gamma, C, descC,
@@ -42,9 +42,9 @@ end
                                             typeScalar, stream)
     initialize_api()
     @runtime_ccall((:cutensorElementwiseBinary, libcutensor()), cutensorStatus_t,
-                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, CuPtr{Cvoid},
+                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, cutensorOperator_t,
                     cudaDataType_t, CUstream),
                    handle, alpha, A, descA, modeA, gamma, C, descC, modeC, D, descD, modeD,
@@ -55,8 +55,8 @@ end
                                       typeScalar, stream)
     initialize_api()
     @runtime_ccall((:cutensorPermutation, libcutensor()), cutensorStatus_t,
-                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, CuPtr{Cvoid},
+                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, cudaDataType_t, CUstream),
                    handle, alpha, A, descA, modeA, B, descB, modeB, typeScalar, stream)
 end
@@ -109,8 +109,8 @@ end
     initialize_api()
     @runtime_ccall((:cutensorContraction, libcutensor()), cutensorStatus_t,
                    (Ptr{cutensorHandle_t}, Ptr{cutensorContractionPlan_t}, Ptr{Cvoid},
-                    CuPtr{Cvoid}, CuPtr{Cvoid}, Ptr{Cvoid}, CuPtr{Cvoid}, CuPtr{Cvoid},
-                    CuPtr{Cvoid}, UInt64, CUstream),
+                    PtrOrCuPtr{Cvoid}, PtrOrCuPtr{Cvoid}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, UInt64, CUstream),
                    handle, plan, alpha, A, B, beta, C, D, workspace, workspaceSize, stream)
 end
 
@@ -126,11 +126,11 @@ end
                                     workspaceSize, stream)
     initialize_api()
     @runtime_ccall((:cutensorReduction, libcutensor()), cutensorStatus_t,
-                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, CuPtr{Cvoid},
-                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, CuPtr{Cvoid},
+                   (Ptr{cutensorHandle_t}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, Ptr{Cvoid}, PtrOrCuPtr{Cvoid},
+                    Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, PtrOrCuPtr{Cvoid},
                     Ptr{cutensorTensorDescriptor_t}, Ptr{Int32}, cutensorOperator_t,
-                    cutensorComputeType_t, CuPtr{Cvoid}, UInt64, CUstream),
+                    cutensorComputeType_t, PtrOrCuPtr{Cvoid}, UInt64, CUstream),
                    handle, alpha, A, descA, modeA, beta, C, descC, modeC, D, descD, modeD,
                    opReduce, minTypeCompute, workspace, workspaceSize, stream)
 end
@@ -140,9 +140,9 @@ end
                                                 workspaceSize)
     initialize_api()
     @runtime_ccall((:cutensorReductionGetWorkspace, libcutensor()), cutensorStatus_t,
-                   (Ptr{cutensorHandle_t}, CuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t},
-                    Ptr{Int32}, CuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
-                    CuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
+                   (Ptr{cutensorHandle_t}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t},
+                    Ptr{Int32}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
+                    PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t}, Ptr{Int32},
                     cutensorOperator_t, cutensorComputeType_t, Ptr{UInt64}),
                    handle, A, descA_, modeA, C, descC_, modeC, D, descD_, modeD, opReduce,
                    typeCompute, workspaceSize)
@@ -151,7 +151,7 @@ end
 @checked function cutensorGetAlignmentRequirement(handle, ptr, desc, alignmentRequirement)
     initialize_api()
     @runtime_ccall((:cutensorGetAlignmentRequirement, libcutensor()), cutensorStatus_t,
-                   (Ptr{cutensorHandle_t}, CuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t},
+                   (Ptr{cutensorHandle_t}, PtrOrCuPtr{Cvoid}, Ptr{cutensorTensorDescriptor_t},
                     Ptr{UInt32}),
                    handle, ptr, desc, alignmentRequirement)
 end
