@@ -15,6 +15,7 @@ programming, is to use one GPU per processL
 # spawn one worker per device
 using Distributed, CUDA
 addprocs(length(devices()))
+@everywhere using CUDA
 
 # assign devices
 asyncmap((zip(workers(), devices()))) do (p, d)
