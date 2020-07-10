@@ -47,9 +47,24 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, csr.nnz)
             nzVal = CUDA.zeros($elty, csr.nnz)
-            $fname(handle(), m, n, csr.nnz, csr.nzVal,
-                   csr.rowPtr, csr.colVal, nzVal, rowVal,
-                   colPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            if version() >= v"10.2"
+                # TODO: algorithm configuratibility?
+                @workspace size=@argout(
+                        cusparseCsr2cscEx2_bufferSize(handle(), m, n, csr.nnz, csr.nzVal,
+                            csr.rowPtr, csr.colVal, nzVal, rowVal, colPtr,
+                            cudaDataType(elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
+                    )[] buffer->begin
+                        cusparseCsr2cscEx2(handle(), m, n, csr.nnz, csr.nzVal,
+                            csr.rowPtr, csr.colVal, nzVal, rowVal, colPtr,
+                            cudaDataType(elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, buffer)
+                    end
+            else
+                $fname(handle(), m, n, csr.nnz, csr.nzVal,
+                    csr.rowPtr, csr.colVal, nzVal, rowVal,
+                    colPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            end
             csc = CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.nnz,csr.dims)
             csc
         end
@@ -59,9 +74,24 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,csc.nnz)
             nzVal = CUDA.zeros($elty,csc.nnz)
-            $fname(handle(), n, m, csc.nnz, csc.nzVal,
-                   csc.colPtr, csc.rowVal, nzVal, colVal,
-                   rowPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            if version() >= v"10.2"
+                # TODO: algorithm configuratibility?
+                @workspace size=@argout(
+                        cusparseCsr2cscEx2_bufferSize(handle(), n, m, csc.nnz, csc.nzVal,
+                            csc.colPtr, csc.rowVal, nzVal, colVal, rowPtr,
+                            cudaDataType(elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
+                    )[] buffer->begin
+                        cusparseCsr2cscEx2(hhandle(), n, m, csc.nnz, csc.nzVal,
+                            csc.colPtr, csc.rowVal, nzVal, colVal, rowPtr,
+                            cudaDataType(elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, buffer)
+                    end
+            else
+                $fname(handle(), n, m, csc.nnz, csc.nzVal,
+                    csc.colPtr, csc.rowVal, nzVal, colVal,
+                    rowPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            end
             csr = CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.nnz,csc.dims)
             csr
         end
