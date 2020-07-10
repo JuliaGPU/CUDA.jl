@@ -16,6 +16,8 @@ const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + 
 
 const cusparseContext = Cvoid
 const cusparseHandle_t = Ptr{cusparseContext}
+const cusparseMatDescr = Cvoid
+const cusparseMatDescr_t = Ptr{cusparseMatDescr}
 const csrsv2Info = Cvoid
 const csrsv2Info_t = Ptr{csrsv2Info}
 const csrsm2Info = Cvoid
@@ -40,27 +42,6 @@ const cusparseColorInfo = Cvoid
 const cusparseColorInfo_t = Ptr{cusparseColorInfo}
 const pruneInfo = Cvoid
 const pruneInfo_t = Ptr{pruneInfo}
-
-"""
-Describes shape and properties of a CUSPARSE matrix. A convenience wrapper.
-
-Contains:
-* `MatrixType` - a [`cusparseMatrixType_t`](@ref)
-* `FillMode` - a [`cusparseFillMode_t`](@ref)
-* `DiagType` - a [`cusparseDiagType_t`](@ref)
-* `IndexBase` - a [`cusparseIndexBase_t`](@ref)
-"""
-struct cusparseMatDescr
-    MatrixType::cusparseMatrixType_t
-    FillMode::cusparseFillMode_t
-    DiagType::cusparseDiagType_t
-    IndexBase::cusparseIndexBase_t
-    function cusparseMatDescr(MatrixType,FillMode,DiagType,IndexBase)
-        new(MatrixType,FillMode,DiagType,IndexBase)
-    end
-end
-
-const cusparseMatDescr_t = Ptr{cusparseMatDescr}
 
 @cenum cusparseStatus_t::UInt32 begin
     CUSPARSE_STATUS_SUCCESS = 0
