@@ -16,10 +16,9 @@ version = "2.4.0"
 
 [[CUDA_full_jll]]
 deps = ["Libdl", "Pkg"]
-git-tree-sha1 = "47bf23c842f83e599cc94f708e13b4cca655fa3f"
-pinned = true
+git-tree-sha1 = "e8f3e40eeb7c9f17cb39257b048a3a36cc2d377e"
 uuid = "4f82f1eb-248c-5f56-a42e-99106d144614"
-version = "10.2.89+2"
+version = "11.0.2+0"
 
 [[CUDA_jll]]
 deps = ["Libdl", "Pkg"]
@@ -35,9 +34,9 @@ version = "7.6.5+0"
 
 [[CUTENSOR_CUDA102_jll]]
 deps = ["CUDA_jll", "Libdl", "Pkg"]
-git-tree-sha1 = "a9961efdc632d84aed564521c600c7e345db82cd"
+git-tree-sha1 = "78ae0518b8e6da32862537dcc84b7a36a42ca2a7"
 uuid = "3383e110-d2c8-5588-847f-51a846eee08b"
-version = "1.0.1+0"
+version = "1.1.0+0"
 
 [[Clang]]
 deps = ["CEnum", "DataStructures", "LLVM_jll", "Libdl"]
@@ -46,15 +45,15 @@ uuid = "40e3b903-d033-50b4-a0cc-940c62c95e31"
 version = "0.11.1"
 
 [[Crayons]]
-git-tree-sha1 = "9f3adcb26c79d6270eb678f3c61bf44cc6b7077e"
+git-tree-sha1 = "c437a9c2114c7ba19322712e58942b383ffbd6c0"
 uuid = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
-version = "4.0.2"
+version = "4.0.3"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "be680f1ad03c0a03796aa3fda5a2180df7f83b46"
+git-tree-sha1 = "edad9434967fdc0a2631a65d902228400642120c"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.18"
+version = "0.17.19"
 
 [[Dates]]
 deps = ["Printf"]
@@ -98,15 +97,15 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[OrderedCollections]]
-git-tree-sha1 = "12ce190210d278e12644bcadf5b21cbdcf225cd3"
+git-tree-sha1 = "293b70ac1780f9584c89268a6e2a560d938a7065"
 uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.2.0"
+version = "1.3.0"
 
 [[Parsers]]
 deps = ["Dates", "Test"]
-git-tree-sha1 = "eb3e09940c0d7ae01b01d9291ebad7b081c844d3"
+git-tree-sha1 = "10134f2ee0b1978ae7752c41306e131a684e1f06"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "1.0.5"
+version = "1.0.7"
 
 [[Pkg]]
 deps = ["Dates", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
