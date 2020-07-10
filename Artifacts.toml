@@ -319,3 +319,14 @@ os = "linux"
     [[CUTENSOR_CUDA102.download]]
     sha256 = "ee3fa5d015ff1605b6d9997ae84d41182cd35beae4a0e738f74a34a3778aeeff"
     url = "https://github.com/JuliaBinaryWrappers/CUTENSOR_CUDA102_jll.jl/releases/download/CUTENSOR_CUDA102-v1.1.0+0/CUTENSOR_CUDA102.v1.1.0.x86_64-linux-gnu.tar.gz"
+
+[[CUTENSOR_CUDA110]]
+arch = "x86_64"
+git-tree-sha1 = "5676355e1994b73b2f11b154e4b00780ac4c21d7"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUTENSOR_CUDA110.download]]
+    sha256 = "1402d11ee5f1c51ad270b4ac0001c4ef4e36e456b6d6078d90d52e1292f40685"
+    url = "https://github.com/JuliaBinaryWrappers/CUTENSOR_CUDA110_jll.jl/releases/download/CUTENSOR_CUDA110-v1.1.0+0/CUTENSOR_CUDA110.v1.1.0.x86_64-linux-gnu.tar.gz"

@@ -274,6 +274,7 @@ end
 # CUTENSOR
 
 const cutensor_artifacts = Dict(
+    v"11.0" => ()->artifact"CUTENSOR_CUDA110",
     v"10.2" => ()->artifact"CUTENSOR_CUDA102",
     v"10.1" => ()->artifact"CUTENSOR_CUDA101",
 )
