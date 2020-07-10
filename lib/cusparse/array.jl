@@ -1,8 +1,7 @@
 # custom extension of CuArray in CUDArt for sparse vectors/matrices
 # using CSC format for interop with Julia's native sparse functionality
 
-export CuSparseMatrixCSC, CuSparseMatrixCSR,
-       CuSparseMatrixHYB, CuSparseMatrixBSR,
+export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR,
        CuSparseMatrix, AbstractCuSparseMatrix,
        CuSparseVector
 
@@ -110,21 +109,6 @@ function CuSparseMatrixBSR!(xs::CuSparseVector)
 end
 
 """
-Container to hold sparse matrices in NVIDIA's hybrid (HYB) format on the GPU.
-HYB format is an opaque struct, which can be converted to/from using
-CUSPARSE routines.
-"""
-mutable struct CuSparseMatrixHYB{Tv} <: AbstractCuSparseMatrix{Tv}
-    Mat::cusparseHybMat_t
-    dims::NTuple{2,Int}
-    nnz::Cint
-
-    function CuSparseMatrixHYB{Tv}(Mat::cusparseHybMat_t, dims::NTuple{2,Int}, nnz::Cint) where Tv
-        new(Mat,dims,nnz)
-    end
-end
-
-"""
 Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
 and `Hermitian` and `Symmetric` versions of these two containers. A function accepting
 this type can make use of performance improvements by only indexing one triangle of the
@@ -133,10 +117,10 @@ matrix if it is guaranteed to be hermitian/symmetric.
 const CompressedSparse{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},HermOrSym{T,CuSparseMatrixCSC{T}},HermOrSym{T,CuSparseMatrixCSR{T}}}
 
 """
-Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref),
-[`CuSparseMatrixBSR`](@ref), and [`CuSparseMatrixHYB`](@ref).
+Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref), and
+[`CuSparseMatrixBSR`](@ref).
 """
-const CuSparseMatrix{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T}, CuSparseMatrixBSR{T}, CuSparseMatrixHYB{T}}
+const CuSparseMatrix{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T}, CuSparseMatrixBSR{T}}
 
 Hermitian{T}(Mat::CuSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
 
@@ -331,15 +315,6 @@ function copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     copyto!(dst.colVal, src.colVal)
     copyto!(dst.nzVal, src.nzVal)
     dst.dir = src.dir
-    dst.nnz = src.nnz
-    dst
-end
-
-function copyto!(dst::CuSparseMatrixHYB, src::CuSparseMatrixHYB)
-    if dst.dims != src.dims
-        throw(ArgumentError("Inconsistent Sparse Matrix size"))
-    end
-    dst.Mat = src.Mat
     dst.nnz = src.nnz
     dst
 end
