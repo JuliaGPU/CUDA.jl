@@ -1,19 +1,18 @@
---- a/libcusparse_common.jl	2019-09-19 14:17:40.834901970 +0200
-+++ b/libcusparse_common.jl	2019-09-19 15:04:05.039885162 +0200
-@@ -6,7 +6,5 @@
+--- a/libcusparse_common.jl	2020-07-10 12:50:18.559823472 +0200
++++ b/libcusparse_common.jl	2020-07-10 12:53:29.607845901 +0200
+@@ -17,8 +17,6 @@
+
  const cusparseContext = Cvoid
  const cusparseHandle_t = Ptr{cusparseContext}
 -const cusparseMatDescr = Cvoid
 -const cusparseMatDescr_t = Ptr{cusparseMatDescr}
- const cusparseSolveAnalysisInfo = Cvoid
- const cusparseSolveAnalysisInfo_t = Ptr{cusparseSolveAnalysisInfo}
  const csrsv2Info = Cvoid
-@@ -172,3 +169,25 @@
- const cusparseDnVecDescr_t = Ptr{cusparseDnVecDescr}
- const cusparseSpMatDescr_t = Ptr{cusparseSpMatDescr}
- const cusparseDnMatDescr_t = Ptr{cusparseDnMatDescr}
-+
-+
+ const csrsv2Info_t = Ptr{csrsv2Info}
+ const csrsm2Info = Cvoid
+@@ -44,6 +42,27 @@
+ const pruneInfo = Cvoid
+ const pruneInfo_t = Ptr{pruneInfo}
+
 +"""
 +Describes shape and properties of a CUSPARSE matrix. A convenience wrapper.
 +
@@ -34,3 +33,7 @@
 +end
 +
 +const cusparseMatDescr_t = Ptr{cusparseMatDescr}
++
+ @cenum cusparseStatus_t::UInt32 begin
+     CUSPARSE_STATUS_SUCCESS = 0
+     CUSPARSE_STATUS_NOT_INITIALIZED = 1
