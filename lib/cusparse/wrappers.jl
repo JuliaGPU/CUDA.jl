@@ -82,12 +82,12 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                 @workspace size=@argout(
                         cusparseCsr2cscEx2_bufferSize(handle(), m, n, csr.nnz, csr.nzVal,
                             csr.rowPtr, csr.colVal, nzVal, rowVal, colPtr,
-                            cudaDataType(elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            cudaDataType($elty), CUSPARSE_ACTION_NUMERIC, cuind,
                             CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
                     )[] buffer->begin
                         cusparseCsr2cscEx2(handle(), m, n, csr.nnz, csr.nzVal,
                             csr.rowPtr, csr.colVal, nzVal, rowVal, colPtr,
-                            cudaDataType(elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            cudaDataType($elty), CUSPARSE_ACTION_NUMERIC, cuind,
                             CUSPARSE_CSR2CSC_ALG1, buffer)
                     end
             else
