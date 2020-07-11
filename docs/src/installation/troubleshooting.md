@@ -20,3 +20,9 @@ If you encounter this error, there are several known issues that may be causing 
 Generally though, it's impossible to say what's the reason for the error, but Julia is
 likely not to blame. Make sure your set-up works (e.g., try executing `nvidia-smi`, a CUDA C
 binary, etc), and if everything looks good file an issue.
+
+## NVML library not found (on Windows)
+
+Check and make sure the `NVSMI` folder is in your `PATH`. By default it may not be. Look in
+`C:\Program Files\NVIDIA Corporation` for the `NVSMI` folder - you should see `nvml.dll`
+within it. You can add this folder to your `PATH` and check that `nvidia-smi` runs properly.
