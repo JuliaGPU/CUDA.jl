@@ -72,8 +72,8 @@ blockdim = 5
     d_y = CUSPARSE.switch2csr(d_y)
     d_x = CUSPARSE.switch2csr(d_x)
     @test_throws ArgumentError copyto!(d_y,d_x)
-    #d_y = CUSPARSE.switch2bsr(d_y,convert(Cint,blockdim))
-    #d_x = CUSPARSE.switch2bsr(d_x,convert(Cint,blockdim))
+    d_y = CUSPARSE.switch2bsr(d_y,convert(Cint,blockdim))
+    d_x = CUSPARSE.switch2bsr(d_x,convert(Cint,blockdim))
     @test_throws ArgumentError copyto!(d_y,d_x)
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
@@ -144,7 +144,7 @@ end
             @test h_x.nzval ≈ x.nzval
         end
 
-        #=@testset "convert_r2b" begin
+        @testset "convert_r2b" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CUSPARSE.switch2bsr(d_x,convert(Cint,blockdim))
@@ -169,7 +169,7 @@ end
             d_y = Array(d_x)
             h_x = collect(d_y)
             @test h_x ≈ x
-        end=#
+        end
 
         @testset "convert_c2r" begin
             x = sprand(elty,m,n, 0.2)
@@ -214,7 +214,7 @@ end
     end
 end
 
-#=@testset "bsric02" begin
+@testset "bsric02" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         A = rand(elty, m, m)
         A += adjoint(A)
@@ -383,7 +383,7 @@ end
         end
     end
 end
-=#
+
 @testset "csrsm2" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         @testset "csrsm2!" begin
@@ -655,76 +655,8 @@ end
         end
     end
 end
-# apparently this doesn't exist anymore?
-#=@testset "mm2" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,k))
-        B = rand(elty,k,n)
-        C = rand(elty,m,n)
-        alpha = rand(elty)
-        beta = rand(elty)
-        @testset "csr" begin
-            d_B = CuArray(B)
-            d_C = CuArray(C)
-            d_A = CuSparseMatrixCSR(A)
-            @test_throws DimensionMismatch CUSPARSE.mm2!('N','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('T','N',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('T','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_B,'O')
-            d_D = CUSPARSE.mm2('N','N',alpha,d_A,d_B,beta,d_C,'O')
-            h_D = collect(d_D)
-            D = alpha * A * B + beta * C
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',d_A,d_B,beta,d_C,'O')
-            h_D = collect(d_D)
-            D = A * B + beta * C
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',d_A,d_B,d_C,'O')
-            h_D = collect(d_D)
-            D = A * B + C
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',alpha,d_A,d_B,'O')
-            h_D = collect(d_D)
-            D = alpha * A * B
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',d_A,d_B,'O')
-            h_D = collect(d_D)
-            D = A * B
-            @test D ≈ h_D
-        end
-        @testset "csc" begin
-            d_B = CuArray(B)
-            d_C = CuArray(C)
-            d_A = CuSparseMatrixCSC(A)
-            @test_throws DimensionMismatch CUSPARSE.mm2!('N','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('T','N',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('T','T',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_B,'O')
-            d_D = CUSPARSE.mm2('N','N',alpha,d_A,d_B,beta,d_C,'O')
-            h_D = collect(d_D)
-            D = alpha * A * B + beta * C
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',d_A,d_B,beta,d_C,'O')
-            h_D = collect(d_D)
-            D = A * B + beta * C
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',d_A,d_B,d_C,'O')
-            h_D = collect(d_D)
-            D = A * B + C
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',alpha,d_A,d_B,'O')
-            h_D = collect(d_D)
-            D = alpha * A * B
-            @test D ≈ h_D
-            d_D = CUSPARSE.mm2('N','N',d_A,d_B,'O')
-            h_D = collect(d_D)
-            D = A * B
-            @test D ≈ h_D
-        end
-    end
-end
-=#
-#=@testset "bsrmm2" begin
+
+@testset "bsrmm2" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         A = sparse(rand(elty,m,k))
         B = rand(elty,k,n)
@@ -761,55 +693,6 @@ end
         @test D ≈ h_D
     end
 end
-@testset "mm2!" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,k))
-        B = rand(elty,k,n)
-        C = rand(elty,m,n)
-        Bᵀ = collect(transpose(B))
-        alpha = rand(elty)
-        beta = rand(elty)
-        @testset "csr" begin
-            d_B = CuArray(B)
-            d_C = CuArray(C)
-            d_A = CuSparseMatrixCSR(A)
-            CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_C,'O')
-            h_D = collect(d_C)
-            D = alpha * A * B + beta * C
-            @test D ≈ h_D
-            d_C = CuArray(C)
-            mul!(d_C, d_A, d_B)
-            h_C = collect(d_C)
-            D = A * B
-            @test D ≈ h_C
-            d_Bᵀ = CuArray(Bᵀ)
-            d_C = CuArray(C)
-            mul!(d_C, d_A, transpose(d_Bᵀ))
-            h_C = collect(d_C)
-            D = A * transpose(Bᵀ)
-            @test D ≈ h_C
-        end
-        @testset "csc" begin
-            d_B = CuArray(B)
-            d_C = CuArray(C)
-            d_A = CuSparseMatrixCSC(A)
-            CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_C,'O')
-            h_D = collect(d_C)
-            D = alpha * A * B + beta * C
-            @test D ≈ h_D
-            d_C = CuArray(C)
-            mul!(d_C, d_A, d_B)
-            h_C = collect(d_C)
-            D = A * B
-            @test D ≈ h_C
-            d_Bᵀ = CuArray(Bᵀ)
-            d_C = CuArray(C)
-            @test_throws CUSPARSEError mul!(d_C, d_A, transpose(d_Bᵀ))
-        end
-    end
-end
-=#
-#=
 @testset "bsrmm2!" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         A = sparse(rand(elty,m,k))
@@ -836,7 +719,6 @@ end
         @test D ≈ h_C
     end
 end
-=#
 @testset "mv!" begin
     for elty in [Float32,Float64,ComplexF32,ComplexF64]
         A = sparse(rand(elty,m,m))
@@ -850,7 +732,7 @@ end
         alpha = rand(elty)
         beta = rand(elty)
         @testset "mv!" begin
-            #=@testset "bsr" begin
+            @testset "bsr" begin
                 d_x = CuArray(x)
                 d_y = CuArray(y)
                 d_A = CuSparseMatrixCSR(A)
@@ -865,7 +747,7 @@ end
                 h_y = collect(d_y)
                 z = A * x
                 @test z ≈ h_y
-            end=#
+            end
         end
     end
 end
@@ -929,48 +811,3 @@ end
     end
 end
 
-@testset "mul!" begin
-    for elty in [Float32,Float64]#,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,m))
-        x = rand(elty,m)
-        y = rand(elty,m)
-        @testset "csr -- $elty" begin
-            d_x  = CuArray(x)
-            d_y  = CuArray(y)
-            d_A  = CuSparseMatrixCSR(A)
-            d_Aᵀ = transpose(d_A)
-            d_Aᴴ = adjoint(d_A)
-            #CUSPARSE.mul!(d_y, d_A, d_x)
-            #h_y = collect(d_y)
-            #z = A * x
-            #@test z ≈ h_y
-            #CUSPARSE.mul!(d_y, d_Aᵀ, d_x)
-            #h_y = collect(d_y)
-            #z = transpose(A) * x
-            #@test z ≈ h_y
-            #CUSPARSE.mul!(d_y, d_Aᴴ, d_x)
-            #h_y = collect(d_y)
-            #z = adjoint(A) * x
-            #@test z ≈ h_y
-        end
-        @testset "csc -- $elty" begin
-            #d_x = CuArray(x)
-            #d_y = CuArray(y)
-            #d_A = CuSparseMatrixCSC(A)
-            #d_Aᵀ = transpose(d_A)
-            #d_Aᴴ = adjoint(d_A)
-            #CUSPARSE.mul!(d_y, d_A, d_x)
-            #h_y = collect(d_y)
-            #z = A * x
-            #@test z ≈ h_y
-            #CUSPARSE.mul!(d_y, d_Aᵀ, d_x)
-            #h_y = collect(d_y)
-            #z = transpose(A) * x
-            #@test z ≈ h_y
-            #CUSPARSE.mul!(d_y, d_Aᴴ, d_x)
-            #h_y = collect(d_y)
-            #z = adjoint(A) * x
-            #@test z ≈ h_y
-        end
-    end
-end
