@@ -2,63 +2,65 @@
 
 ## COV_EXCL_START
 
-# partial scan of individual thread blocks within a grid
+# Prefix scan using warp intrinsics
+# https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
 # 
 #
-# performance TODOs:
-
+# TODOs:
+# - multiple elements per thread (performance)
+# - custom launch config (performance)
 
 # Scan entire warp using shfl intrinsics, unrolled for warpsize() = 32
-@inline function scan_warp(op, val, lane_id)
+@inline function scan_warp(op, val, lane)
     mask = typemax(UInt32)
 
     left = shfl_up_sync(mask, val, 1)
-    lane_id > 1 && (val = op(left, val))
+    lane > 1 && (val = op(left, val))
 
     left = shfl_up_sync(mask, val, 2)
-    lane_id > 2 && (val = op(left, val))
+    lane > 2 && (val = op(left, val))
 
     left = shfl_up_sync(mask, val, 4)
-    lane_id > 4 && (val = op(left, val))
+    lane > 4 && (val = op(left, val))
 
     left = shfl_up_sync(mask, val, 8)
-    lane_id > 8 && (val = op(left, val))
+    lane > 8 && (val = op(left, val))
 
     left = shfl_up_sync(mask, val, 16)
-    lane_id > 16 && (val = op(left, val))
+    lane > 16 && (val = op(left, val))
     return val
 end
 
 # Scan warp without shfl intrinsics for complicated datatypes
 
-@inline function scan_warp(op, val, lane_id, thread, cache)
+@inline function scan_warp(op, val, lane, thread, cache)
     @inbounds begin
-    if lane_id > 1 
+    sync_warp()
+    if lane > 1 
         val = op(cache[thread - 1], val)
         cache[thread] = val
     end
-
-    # add sync warp ?
-
-    if lane_id > 2 
+    sync_warp()
+    if lane > 2 
         val = op(cache[thread - 2], val)
         cache[thread] = val
     end
-
-    if lane_id > 4 
+    sync_warp()
+    if lane > 4 
         val = op(cache[thread - 4], val)
         cache[thread] = val
     end
-
-    if lane_id > 8 
+    sync_warp()
+    if lane > 8 
         val = op(cache[thread - 8], val)
         cache[thread] = val
     end
-
-    if lane_id > 16 
+    sync_warp()
+    if lane > 16 
         val = op(cache[thread - 16], val)
         cache[thread] = val
     end
+    sync_warp()
     return val
 end
 end
@@ -71,11 +73,10 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
-    warps = cld(threads, warpsize())
-    warp_id = cld(thread, warpsize())
-    lane_id = mod1(thread, warpsize()) 
+    wid, lane = fldmod1(thread, warpsize())
 
-    partial_sums = @cuDynamicSharedMem(T, warps)
+    # cache: storage for non shuffle kernels
+    partial_sums = @cuDynamicSharedMem(T, 32)
     cache = @cuDynamicSharedMem(T, threads*!shuffle)
 
     # iterate the main dimension using threads and the first block dimension
@@ -102,30 +103,33 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
     init !== nothing && i == 1 && (value = op(init, value))
 
     if shuffle
-        value = scan_warp(op, value, lane_id)
+        value = scan_warp(op, value, lane)
     else
-        value = scan_warp(op, value, lane_id, thread, cache)
+        cache[thread] = value
+        value = scan_warp(op, value, lane, thread, cache)
+        sync_threads()
     end
 
-    lane_id == warpsize() && (partial_sums[warp_id] = value)
+    lane == warpsize() && (partial_sums[wid] = value)
 
     sync_threads()
 
     # 1st warp computes sum
-    # works because 32*32 = 1024 currently max threads in a block, 
-    if warp_id == 1 && shuffle
-        p_sum = partial_sums[lane_id]
-        p_sum = scan_warp(op, p_sum, lane_id)
-        partial_sums[lane_id] = p_sum
-    elseif warp_id == 1 
-        p_sum = partial_sums[lane_id]
-        p_sum = scan_warp(op, p_sum, lane_id, thread, partial_sums)
-        partial_sums[lane_id] = p_sum
+    # works because 32*32 = 1024 = max threads in a block, 
+    if wid == 1 && shuffle
+        p_sum = partial_sums[lane]
+        p_sum = scan_warp(op, p_sum, lane)
+        partial_sums[lane] = p_sum
+    elseif wid == 1 
+        p_sum = partial_sums[lane]
+        p_sum = scan_warp(op, p_sum, lane, thread, partial_sums)
+        partial_sums[lane] = p_sum
     end
 
     sync_threads()
 
-    warp_id > 1 && (value = op(partial_sums[warp_id - 1], value))
+    wid > 1 && (value = op(partial_sums[wid - 1], value))
+    
     # write results to device memory
     @inbounds if i <= length(Rdim)
         output[Ipre, i, Ipost] = value
@@ -190,7 +194,7 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray{T2};
     # determine how many threads we can launch for the scan kernel
     args = (f, output, input, output, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true), Val(shuffle))
     kernel = @cuda(launch=false, partial_scan!(args...))
-    shmem_calc = (threads)->((32 + threads*shuffle)*sizeof(T))
+    shmem_calc = (threads)->((32 + threads*!shuffle)*sizeof(T))
     kernel_config = launch_configuration(kernel.fun; shmem=shmem_calc)
 
     # determine the grid layout to cover the other dimensions
@@ -203,7 +207,7 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray{T2};
         blocks_other = (1, 1)
     end
 
-    threads = Base.min(kernel_config.threads, length(Rdim))
+    threads = nextwarp(device(), Base.min(kernel_config.threads, length(Rdim)))
     blocks = (cld(length(Rdim), threads), blocks_other...)
     aggregates = if length(Rdim) > threads
         similar(output, blocks)
@@ -216,7 +220,7 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray{T2};
     @cuda(threads=threads, blocks=blocks, shmem=shmem, partial_scan!(args...))
 
     if length(Rdim) > threads
-        scan!(+, aggregates, aggregates, dims=dims)
+        scan!(f, aggregates, aggregates, dims=dims)
         args = (f, output, aggregates, Rdim, Rpre, Rpost, Rother)
         @cuda(threads=threads, blocks=blocks, shmem=shmem, aggregate_partial_scan!(args...))
     end
