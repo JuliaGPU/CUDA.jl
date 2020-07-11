@@ -55,6 +55,18 @@ version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
                           cublasGetProperty(CUDA.MINOR_VERSION),
                           cublasGetProperty(CUDA.PATCH_LEVEL))
 
+const cublas_compute_types = Dict(
+                                  (Float16, Float16, Float16)=>CUBLAS_COMPUTE_16F,
+                                  (Int8, Int8, Float32)      =>CUBLAS_COMPUTE_32F,
+                                  (Complex{Int8}, Complex{Int8}, ComplexF32)      =>CUBLAS_COMPUTE_32F,
+                                  (Float16, Float16, Float32)=>CUBLAS_COMPUTE_32F,
+                                  (Float32, Float32, Float32)=>CUBLAS_COMPUTE_32F,
+                                  (ComplexF32, ComplexF32, ComplexF32)=>CUBLAS_COMPUTE_32F,
+                                  (ComplexF16, ComplexF16, ComplexF16)=>CUBLAS_COMPUTE_32F,
+                                  (Float64, Float64, Float64)=>CUBLAS_COMPUTE_64F,
+                                  (ComplexF64, ComplexF64, ComplexF64)=>CUBLAS_COMPUTE_64F,
+                                  (Int8, Int8, Int32)        =>CUBLAS_COMPUTE_32I)
+cublasComputeType(TA, TB, TC) = cublas_compute_types[(TA, TB, TC)]
 # Level 1
 ## copy
 for (fname, elty) in ((:cublasDcopy_v2,:Float64),
@@ -845,10 +857,10 @@ end
 function gemmEx!(transA::Char,
                  transB::Char,
                  alpha::Number,
-               A::CuVecOrMat,
-               B::CuVecOrMat,
-               beta::Number,
-               C::CuVecOrMat; algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
+                 A::CuVecOrMat,
+                 B::CuVecOrMat,
+                 beta::Number,
+                 C::CuVecOrMat; algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
     m = size(A, transA == 'N' ? 1 : 2)
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
@@ -860,11 +872,11 @@ function gemmEx!(transA::Char,
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
     ldc = max(1,stride(C,2))
-    computeType = cudaDataType(eltype(C))
+    computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
     Atype = cudaDataType(eltype(A))
     Btype = cudaDataType(eltype(B))
     Ctype = cudaDataType(eltype(C))
-    cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [convert(eltype(C), alpha)], A, Atype, lda, B, Btype, ldb, [convert(eltype(C), beta)], C, Ctype, ldc, computeType, algo)
+    cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [alpha], A, Atype, lda, B, Btype, ldb, [beta], C, Ctype, ldc, computeType, algo)
     C
 end
 
