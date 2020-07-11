@@ -238,7 +238,7 @@ end
 function collect(Mat::CuSparseMatrixCSR)
     rowPtr = collect(Mat.rowPtr)
     colVal = collect(Mat.colVal)
-    nzVal = collect(Mat.nzVal)
+    nzVal  = collect(Mat.nzVal)
     #construct Is
     I = similar(colVal)
     counter = 1
@@ -246,6 +246,9 @@ function collect(Mat::CuSparseMatrixCSR)
         I[counter] = row
         counter += 1
     end
+    #@show rowPtr
+    #@show I, colVal, nzVal
+    #@show size(Mat)
     return sparse(I,colVal,nzVal,Mat.dims[1],Mat.dims[2])
 end
 
