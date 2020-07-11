@@ -246,9 +246,6 @@ function collect(Mat::CuSparseMatrixCSR)
         I[counter] = row
         counter += 1
     end
-    #@show rowPtr
-    #@show I, colVal, nzVal
-    #@show size(Mat)
     return sparse(I,colVal,nzVal,Mat.dims[1],Mat.dims[2])
 end
 
