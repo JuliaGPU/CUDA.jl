@@ -1414,7 +1414,7 @@ end
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
                     Cint, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType, Cint,
                     CuPtr{Cvoid}, cudaDataType, Cint, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid},
-                    cudaDataType, Cint, cublasComputeType_t, cublasGemmAlgo_t),
+                    cudaDataType, Cint, UInt32, cublasGemmAlgo_t),
                    handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                    beta, C, Ctype, ldc, computeType, algo)
 end

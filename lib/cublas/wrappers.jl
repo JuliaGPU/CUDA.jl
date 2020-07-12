@@ -875,7 +875,7 @@ function gemmEx!(transA::Char,
     Atype = cudaDataType(eltype(A))
     Btype = cudaDataType(eltype(B))
     Ctype = cudaDataType(eltype(C))
-    if version() > v"10.2"
+    if version() >= v"11.0"
         computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
         cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [alpha], A, Atype, lda, B, Btype, ldb, [beta], C, Ctype, ldc, computeType, algo)
     else
