@@ -26,3 +26,14 @@ binary, etc), and if everything looks good file an issue.
 Check and make sure the `NVSMI` folder is in your `PATH`. By default it may not be. Look in
 `C:\Program Files\NVIDIA Corporation` for the `NVSMI` folder - you should see `nvml.dll`
 within it. You can add this folder to your `PATH` and check that `nvidia-smi` runs properly.
+
+## LLVM error: Cannot cast between two non-generic address spaces
+
+You are using an unpatched copy of LLVM, likely caused by using Julia as packaged by your
+Linux distribution. These often decide to use a global copy of LLVM instead of using the one
+built and patched by Julia during the compilation process. This is not supported: LLVM cannot
+easily be used like a regular shared library, as Julia (and other users of LLVM alike) has an
+extensive list of patches to be applied to the specific versions of LLVM that are supported.
+
+It is thus recommended to use the official binaries, or use a version of Julia built without
+setting `USE_SYSTEM_LLVM=1` (which you can suggest to maintainers of your Linux distribution).
