@@ -17,7 +17,6 @@ k = 13
 # FIXME: XT host tests don't pass cuda-memcheck, because they use raw CPU pointers.
 #        https://stackoverflow.com/questions/50116861/why-is-cudapointergetattributes-returning-invalid-argument-for-host-pointer
 
-
 #################
 # level 1 tests #
 #################
@@ -448,9 +447,11 @@ end # level 1 testset
         end
         if capability(device()) > v"5.0"
             @testset "gemmEx!" begin
-                CUBLAS.gemmEx!('N','N',alpha,d_A,d_B,beta,d_C1;algo=CUBLAS.CUBLAS_GEMM_DEFAULT_TENSOR_OP)
+                α = rand(elty)
+                β = rand(elty)
+                CUBLAS.gemmEx!('N','N',α,d_A,d_B,β,d_C1)
                 h_C1 = Array(d_C1)
-                C1 = (alpha*A)*B + beta*C1
+                C1 = (α*A)*B + β*C1
                 # compare
                 @test C1 ≈ h_C1
             end

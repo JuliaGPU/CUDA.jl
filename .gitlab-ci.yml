@@ -40,8 +40,20 @@ julia:1.5:
 # NOTE: we support those CUDA versions for which the latest cuDNN is available
 #       https://developer.nvidia.com/rdp/cudnn-archive
 
-# NOTE: we make sure to run all tests on all CUDA versions by setting the
-#       CI_THOROUGH environment variable, and using a recent GPU.
+# NOTE: we make sure to run all tests on CUDA versions that have CUDNN & CUTENSOR
+#       by setting the CI_THOROUGH environment variable, and using a recent GPU.
+
+cuda:11.0:
+  extends:
+    - .julia:1.5
+    - .test
+  image: ubuntu:bionic
+  variables:
+    JULIA_CUDA_VERSION: '11.0'
+    JULIA_CUDA_USE_BINARYBUILDER: 'true'
+  tags:
+    - nvidia
+    - cuda_11.0
 
 cuda:10.2:
   extends:

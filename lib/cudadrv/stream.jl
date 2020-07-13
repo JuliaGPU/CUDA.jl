@@ -39,7 +39,7 @@ end
 
 function unsafe_destroy!(s::CuStream)
     if isvalid(s.ctx)
-        cuStreamDestroy(s)
+        cuStreamDestroy_v2(s)
     end
 end
 

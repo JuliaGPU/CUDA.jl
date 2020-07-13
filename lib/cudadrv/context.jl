@@ -56,7 +56,7 @@ respect any users of the context, and might make other objects unusable.
 """
 function unsafe_destroy!(ctx::CuContext)
     if isvalid(ctx)
-        cuCtxDestroy(ctx)
+        cuCtxDestroy_v2(ctx)
         invalidate!(ctx)
     end
 end
@@ -67,7 +67,7 @@ Base.unsafe_convert(::Type{CUcontext}, ctx::CuContext) = ctx.handle
 
 function CuContext(dev::CuDevice, flags=0)
     handle_ref = Ref{CUcontext}()
-    cuCtxCreate(handle_ref, flags, dev)
+    cuCtxCreate_v2(handle_ref, flags, dev)
     return CuContext(handle_ref[])
 end
 
@@ -91,7 +91,7 @@ end
 
 Pushes a context on the current CPU thread.
 """
-Base.push!(::Type{CuContext}, ctx::CuContext) = cuCtxPushCurrent(ctx)
+Base.push!(::Type{CuContext}, ctx::CuContext) = cuCtxPushCurrent_v2(ctx)
 
 """
     pop!(CuContext)
@@ -100,7 +100,7 @@ Pops the current CUDA context from the current CPU thread, and returns that cont
 """
 function Base.pop!(::Type{CuContext})
     handle_ref = Ref{CUcontext}()
-    cuCtxPopCurrent(handle_ref)
+    cuCtxPopCurrent_v2(handle_ref)
     CuContext(handle_ref[])
 end
 

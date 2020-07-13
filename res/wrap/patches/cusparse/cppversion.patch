@@ -1,0 +1,10 @@
+--- a/libcusparse_common.jl
++++ b/libcusparse_common.jl
+@@ -10,7 +10,6 @@ const CUSPARSE_VER_MINOR = 1
+ const CUSPARSE_VER_PATCH = 0
+ const CUSPARSE_VER_BUILD = 218
+ const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + CUSPARSE_VER_PATCH
+-const CUSPARSE_CPP_VERSION = __cplusplus
+
+ # Skipping MacroDefinition: CUSPARSE_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
+ # Skipping MacroDefinition: CUSPARSE_DEPRECATED_ENUM ( new_enum ) __attribute__ ( ( deprecated ( "please use " # new_enum " instead" ) ) )

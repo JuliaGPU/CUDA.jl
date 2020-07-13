@@ -1414,7 +1414,7 @@ end
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
                     Cint, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType, Cint,
                     CuPtr{Cvoid}, cudaDataType, Cint, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid},
-                    cudaDataType, Cint, cudaDataType, cublasGemmAlgo_t),
+                    cudaDataType, Cint, UInt32, cublasGemmAlgo_t),
                    handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                    beta, C, Ctype, ldc, computeType, algo)
 end
@@ -1870,7 +1870,7 @@ end
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
                     Cint, PtrOrCuPtr{Cvoid}, CuPtr{Ptr{Cvoid}}, cudaDataType, Cint,
                     CuPtr{Ptr{Cvoid}}, cudaDataType, Cint, PtrOrCuPtr{Cvoid},
-                    CuPtr{Ptr{Cvoid}}, cudaDataType, Cint, Cint, cudaDataType,
+                    CuPtr{Ptr{Cvoid}}, cudaDataType, Cint, Cint, cublasComputeType_t,
                     cublasGemmAlgo_t),
                    handle, transa, transb, m, n, k, alpha, Aarray, Atype, lda, Barray,
                    Btype, ldb, beta, Carray, Ctype, ldc, batchCount, computeType, algo)
@@ -1885,7 +1885,7 @@ end
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
                     Cint, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType, Cint, Clonglong,
                     CuPtr{Cvoid}, cudaDataType, Cint, Clonglong, PtrOrCuPtr{Cvoid},
-                    CuPtr{Cvoid}, cudaDataType, Cint, Clonglong, Cint, cudaDataType,
+                    CuPtr{Cvoid}, cudaDataType, Cint, Clonglong, Cint, cublasComputeType_t,
                     cublasGemmAlgo_t),
                    handle, transa, transb, m, n, k, alpha, A, Atype, lda, strideA, B,
                    Btype, ldb, strideB, beta, C, Ctype, ldc, strideC, batchCount,

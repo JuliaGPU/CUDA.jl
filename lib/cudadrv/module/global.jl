@@ -19,7 +19,7 @@ struct CuGlobal{T}
     function CuGlobal{T}(mod::CuModule, name::String) where T
         ptr_ref = Ref{CuPtr{Cvoid}}()
         nbytes_ref = Ref{Csize_t}()
-        cuModuleGetGlobal(ptr_ref, nbytes_ref, mod, name)
+        cuModuleGetGlobal_v2(ptr_ref, nbytes_ref, mod, name)
         if nbytes_ref[] != sizeof(T)
             throw(ArgumentError("size of global '$name' does not match type parameter type $T"))
         end
@@ -48,7 +48,7 @@ Return the current value of a global variable.
 """
 function Base.getindex(var::CuGlobal{T}) where T
     val_ref = Ref{T}()
-    cuMemcpyDtoH(val_ref, var, var.buf.bytesize)
+    cuMemcpyDtoH_v2(val_ref, var, var.buf.bytesize)
     return val_ref[]
 end
 # TODO: import Base: get?
@@ -60,5 +60,5 @@ Set the value of a global variable to `val`
 """
 function Base.setindex!(var::CuGlobal{T}, val::T) where T
     val_ref = Ref{T}(val)
-    cuMemcpyHtoD(var, val_ref, var.buf.bytesize)
+    cuMemcpyHtoD_v2(var, val_ref, var.buf.bytesize)
 end

@@ -91,14 +91,14 @@ end
                    pctx, dev)
 end
 
-@checked function cuDevicePrimaryCtxRelease(dev)
-    @runtime_ccall((:cuDevicePrimaryCtxRelease, libcuda()), CUresult,
+@checked function cuDevicePrimaryCtxRelease_v2(dev)
+    @runtime_ccall((:cuDevicePrimaryCtxRelease_v2, libcuda()), CUresult,
                    (CUdevice,),
                    dev)
 end
 
-@checked function cuDevicePrimaryCtxSetFlags(dev, flags)
-    @runtime_ccall((:cuDevicePrimaryCtxSetFlags, libcuda()), CUresult,
+@checked function cuDevicePrimaryCtxSetFlags_v2(dev, flags)
+    @runtime_ccall((:cuDevicePrimaryCtxSetFlags_v2, libcuda()), CUresult,
                    (CUdevice, UInt32),
                    dev, flags)
 end
@@ -109,8 +109,8 @@ end
                    dev, flags, active)
 end
 
-@checked function cuDevicePrimaryCtxReset(dev)
-    @runtime_ccall((:cuDevicePrimaryCtxReset, libcuda()), CUresult,
+@checked function cuDevicePrimaryCtxReset_v2(dev)
+    @runtime_ccall((:cuDevicePrimaryCtxReset_v2, libcuda()), CUresult,
                    (CUdevice,),
                    dev)
 end
@@ -224,6 +224,11 @@ end
     @runtime_ccall((:cuCtxGetStreamPriorityRange, libcuda()), CUresult,
                    (Ptr{Cint}, Ptr{Cint}),
                    leastPriority, greatestPriority)
+end
+
+@checked function cuCtxResetPersistingL2Cache()
+    initialize_api()
+    @runtime_ccall((:cuCtxResetPersistingL2Cache, libcuda()), CUresult, ())
 end
 
 @checked function cuCtxAttach(pctx, flags)
@@ -879,6 +884,13 @@ end
                    prop, handle)
 end
 
+@checked function cuMemRetainAllocationHandle(handle, addr)
+    initialize_api()
+    @runtime_ccall((:cuMemRetainAllocationHandle, libcuda()), CUresult,
+                   (Ptr{CUmemGenericAllocationHandle}, Ptr{Cvoid}),
+                   handle, addr)
+end
+
 @checked function cuPointerGetAttribute(data, attribute, ptr)
     initialize_api()
     @runtime_ccall((:cuPointerGetAttribute, libcuda()), CUresult,
@@ -1040,6 +1052,27 @@ end
     @runtime_ccall((:cuStreamDestroy_v2, libcuda()), CUresult,
                    (CUstream,),
                    hStream)
+end
+
+@checked function cuStreamCopyAttributes(dst, src)
+    initialize_api()
+    @runtime_ccall((:cuStreamCopyAttributes, libcuda()), CUresult,
+                   (CUstream, CUstream),
+                   dst, src)
+end
+
+@checked function cuStreamGetAttribute(hStream, attr, value_out)
+    initialize_api()
+    @runtime_ccall((:cuStreamGetAttribute, libcuda()), CUresult,
+                   (CUstream, CUstreamAttrID, Ptr{CUstreamAttrValue}),
+                   hStream, attr, value_out)
+end
+
+@checked function cuStreamSetAttribute(hStream, attr, value)
+    initialize_api()
+    @runtime_ccall((:cuStreamSetAttribute, libcuda()), CUresult,
+                   (CUstream, CUstreamAttrID, Ptr{CUstreamAttrValue}),
+                   hStream, attr, value)
 end
 
 @checked function cuEventCreate(phEvent, Flags)
@@ -1504,9 +1537,10 @@ end
                    hNode)
 end
 
-@checked function cuGraphInstantiate(phGraphExec, hGraph, phErrorNode, logBuffer, bufferSize)
+@checked function cuGraphInstantiate_v2(phGraphExec, hGraph, phErrorNode, logBuffer,
+                                        bufferSize)
     initialize_api()
-    @runtime_ccall((:cuGraphInstantiate, libcuda()), CUresult,
+    @runtime_ccall((:cuGraphInstantiate_v2, libcuda()), CUresult,
                    (Ptr{CUgraphExec}, CUgraph, Ptr{CUgraphNode}, Cstring, Csize_t),
                    phGraphExec, hGraph, phErrorNode, logBuffer, bufferSize)
 end
@@ -1567,6 +1601,27 @@ end
                    hGraphExec, hGraph, hErrorNode_out, updateResult_out)
 end
 
+@checked function cuGraphKernelNodeCopyAttributes(dst, src)
+    initialize_api()
+    @runtime_ccall((:cuGraphKernelNodeCopyAttributes, libcuda()), CUresult,
+                   (CUgraphNode, CUgraphNode),
+                   dst, src)
+end
+
+@checked function cuGraphKernelNodeGetAttribute(hNode, attr, value_out)
+    initialize_api()
+    @runtime_ccall((:cuGraphKernelNodeGetAttribute, libcuda()), CUresult,
+                   (CUgraphNode, CUkernelNodeAttrID, Ptr{CUkernelNodeAttrValue}),
+                   hNode, attr, value_out)
+end
+
+@checked function cuGraphKernelNodeSetAttribute(hNode, attr, value)
+    initialize_api()
+    @runtime_ccall((:cuGraphKernelNodeSetAttribute, libcuda()), CUresult,
+                   (CUgraphNode, CUkernelNodeAttrID, Ptr{CUkernelNodeAttrValue}),
+                   hNode, attr, value)
+end
+
 @checked function cuOccupancyMaxActiveBlocksPerMultiprocessor(numBlocks, func, blockSize,
                                                               dynamicSMemSize)
     initialize_api()
@@ -1605,6 +1660,14 @@ end
                     UInt32),
                    minGridSize, blockSize, func, blockSizeToDynamicSMemSize,
                    dynamicSMemSize, blockSizeLimit, flags)
+end
+
+@checked function cuOccupancyAvailableDynamicSMemPerBlock(dynamicSmemSize, func, numBlocks,
+                                                          blockSize)
+    initialize_api()
+    @runtime_ccall((:cuOccupancyAvailableDynamicSMemPerBlock, libcuda()), CUresult,
+                   (Ptr{Csize_t}, CUfunction, Cint, Cint),
+                   dynamicSmemSize, func, numBlocks, blockSize)
 end
 
 @checked function cuTexRefSetArray(hTexRef, hArray, Flags)
@@ -1951,6 +2014,13 @@ end
     @runtime_ccall((:cuGetExportTable, libcuda()), CUresult,
                    (Ptr{Ptr{Cvoid}}, Ptr{CUuuid}),
                    ppExportTable, pExportTableId)
+end
+
+@checked function cuFuncGetModule(hmod, hfunc)
+    initialize_api()
+    @runtime_ccall((:cuFuncGetModule, libcuda()), CUresult,
+                   (Ptr{CUmodule}, CUfunction),
+                   hmod, hfunc)
 end
 # Julia wrapper for header: cudaProfiler.h
 # Automatically generated using Clang.jl

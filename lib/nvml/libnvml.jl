@@ -131,6 +131,13 @@ end
                    deviceCount)
 end
 
+@checked function nvmlDeviceGetAttributes(device, attributes)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetAttributes, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{nvmlDeviceAttributes_t}),
+                   device, attributes)
+end
+
 @checked function nvmlDeviceGetHandleByIndex_v2(index, device)
     initialize_api()
     @runtime_ccall((:nvmlDeviceGetHandleByIndex_v2, libnvml()), nvmlReturn_t,
@@ -185,6 +192,20 @@ end
     @runtime_ccall((:nvmlDeviceGetSerial, libnvml()), nvmlReturn_t,
                    (nvmlDevice_t, Cstring, UInt32),
                    device, serial, length)
+end
+
+@checked function nvmlDeviceGetMemoryAffinity(device, nodeSetSize, nodeSet, scope)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetMemoryAffinity, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{Culong}, nvmlAffinityScope_t),
+                   device, nodeSetSize, nodeSet, scope)
+end
+
+@checked function nvmlDeviceGetCpuAffinityWithinScope(device, cpuSetSize, cpuSet, scope)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetCpuAffinityWithinScope, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{Culong}, nvmlAffinityScope_t),
+                   device, cpuSetSize, cpuSet, scope)
 end
 
 @checked function nvmlDeviceGetCpuAffinity(device, cpuSetSize, cpuSet)
@@ -242,6 +263,13 @@ end
     @runtime_ccall((:nvmlDeviceGetUUID, libnvml()), nvmlReturn_t,
                    (nvmlDevice_t, Cstring, UInt32),
                    device, uuid, length)
+end
+
+@checked function nvmlVgpuInstanceGetMdevUUID(vgpuInstance, mdevUuid, size)
+    initialize_api()
+    @runtime_ccall((:nvmlVgpuInstanceGetMdevUUID, libnvml()), nvmlReturn_t,
+                   (nvmlVgpuInstance_t, Cstring, UInt32),
+                   vgpuInstance, mdevUuid, size)
 end
 
 @checked function nvmlDeviceGetMinorNumber(device, minorNumber)
@@ -800,6 +828,21 @@ end
                    device, isPending)
 end
 
+@checked function nvmlDeviceGetRemappedRows(device, corrRows, uncRows, isPending,
+                                            failureOccurred)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetRemappedRows, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{UInt32}, Ptr{UInt32}, Ptr{UInt32}, Ptr{UInt32}),
+                   device, corrRows, uncRows, isPending, failureOccurred)
+end
+
+@checked function nvmlDeviceGetArchitecture(device, arch)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetArchitecture, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{nvmlDeviceArchitecture_t}),
+                   device, arch)
+end
+
 @checked function nvmlUnitSetLedState(unit, color)
     initialize_api()
     @runtime_ccall((:nvmlUnitSetLedState, libnvml()), nvmlReturn_t,
@@ -999,9 +1042,9 @@ end
                    device, eventTypes)
 end
 
-@checked function nvmlEventSetWait(set, data, timeoutms)
+@checked function nvmlEventSetWait_v2(set, data, timeoutms)
     initialize_api()
-    @runtime_ccall((:nvmlEventSetWait, libnvml()), nvmlReturn_t,
+    @runtime_ccall((:nvmlEventSetWait_v2, libnvml()), nvmlReturn_t,
                    (nvmlEventSet_t, Ptr{nvmlEventData_t}, UInt32),
                    set, data, timeoutms)
 end
@@ -1359,6 +1402,13 @@ end
                    vgpuInstance, pid, stats)
 end
 
+@checked function nvmlVgpuInstanceClearAccountingPids(vgpuInstance)
+    initialize_api()
+    @runtime_ccall((:nvmlVgpuInstanceClearAccountingPids, libnvml()), nvmlReturn_t,
+                   (nvmlVgpuInstance_t,),
+                   vgpuInstance)
+end
+
 @checked function nvmlGetBlacklistDeviceCount(deviceCount)
     initialize_api()
     @runtime_ccall((:nvmlGetBlacklistDeviceCount, libnvml()), nvmlReturn_t,
@@ -1371,4 +1421,171 @@ end
     @runtime_ccall((:nvmlGetBlacklistDeviceInfoByIndex, libnvml()), nvmlReturn_t,
                    (UInt32, Ptr{nvmlBlacklistDeviceInfo_t}),
                    index, info)
+end
+
+@checked function nvmlDeviceSetMigMode(device, mode, activationStatus)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceSetMigMode, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{nvmlReturn_t}),
+                   device, mode, activationStatus)
+end
+
+@checked function nvmlDeviceGetMigMode(device, currentMode, pendingMode)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetMigMode, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{UInt32}, Ptr{UInt32}),
+                   device, currentMode, pendingMode)
+end
+
+@checked function nvmlDeviceGetGpuInstanceProfileInfo(device, profile, info)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetGpuInstanceProfileInfo, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstanceProfileInfo_t}),
+                   device, profile, info)
+end
+
+@checked function nvmlDeviceGetGpuInstancePossiblePlacements(device, profileId, placements,
+                                                             count)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetGpuInstancePossiblePlacements, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstancePlacement_t}, Ptr{UInt32}),
+                   device, profileId, placements, count)
+end
+
+@checked function nvmlDeviceGetGpuInstanceRemainingCapacity(device, profileId, count)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetGpuInstanceRemainingCapacity, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{UInt32}),
+                   device, profileId, count)
+end
+
+@checked function nvmlDeviceCreateGpuInstance(device, profileId, gpuInstance)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceCreateGpuInstance, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstance_t}),
+                   device, profileId, gpuInstance)
+end
+
+@checked function nvmlGpuInstanceDestroy(gpuInstance)
+    initialize_api()
+    @runtime_ccall((:nvmlGpuInstanceDestroy, libnvml()), nvmlReturn_t,
+                   (nvmlGpuInstance_t,),
+                   gpuInstance)
+end
+
+@checked function nvmlDeviceGetGpuInstances(device, profileId, gpuInstances, count)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetGpuInstances, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstance_t}, Ptr{UInt32}),
+                   device, profileId, gpuInstances, count)
+end
+
+@checked function nvmlDeviceGetGpuInstanceById(device, id, gpuInstance)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetGpuInstanceById, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{nvmlGpuInstance_t}),
+                   device, id, gpuInstance)
+end
+
+@checked function nvmlGpuInstanceGetInfo(gpuInstance, info)
+    initialize_api()
+    @runtime_ccall((:nvmlGpuInstanceGetInfo, libnvml()), nvmlReturn_t,
+                   (nvmlGpuInstance_t, Ptr{nvmlGpuInstanceInfo_t}),
+                   gpuInstance, info)
+end
+
+@checked function nvmlGpuInstanceGetComputeInstanceProfileInfo(gpuInstance, profile,
+                                                               engProfile, info)
+    initialize_api()
+    @runtime_ccall((:nvmlGpuInstanceGetComputeInstanceProfileInfo, libnvml()), nvmlReturn_t,
+                   (nvmlGpuInstance_t, UInt32, UInt32,
+                    Ptr{nvmlComputeInstanceProfileInfo_t}),
+                   gpuInstance, profile, engProfile, info)
+end
+
+@checked function nvmlGpuInstanceGetComputeInstanceRemainingCapacity(gpuInstance,
+                                                                     profileId, count)
+    initialize_api()
+    @runtime_ccall((:nvmlGpuInstanceGetComputeInstanceRemainingCapacity, libnvml()), nvmlReturn_t,
+                   (nvmlGpuInstance_t, UInt32, Ptr{UInt32}),
+                   gpuInstance, profileId, count)
+end
+
+@checked function nvmlGpuInstanceCreateComputeInstance(gpuInstance, profileId,
+                                                       computeInstance)
+    initialize_api()
+    @runtime_ccall((:nvmlGpuInstanceCreateComputeInstance, libnvml()), nvmlReturn_t,
+                   (nvmlGpuInstance_t, UInt32, Ptr{nvmlComputeInstance_t}),
+                   gpuInstance, profileId, computeInstance)
+end
+
+@checked function nvmlComputeInstanceDestroy(computeInstance)
+    initialize_api()
+    @runtime_ccall((:nvmlComputeInstanceDestroy, libnvml()), nvmlReturn_t,
+                   (nvmlComputeInstance_t,),
+                   computeInstance)
+end
+
+@checked function nvmlGpuInstanceGetComputeInstances(gpuInstance, profileId,
+                                                     computeInstances, count)
+    initialize_api()
+    @runtime_ccall((:nvmlGpuInstanceGetComputeInstances, libnvml()), nvmlReturn_t,
+                   (nvmlGpuInstance_t, UInt32, Ptr{nvmlComputeInstance_t}, Ptr{UInt32}),
+                   gpuInstance, profileId, computeInstances, count)
+end
+
+@checked function nvmlGpuInstanceGetComputeInstanceById(gpuInstance, id, computeInstance)
+    initialize_api()
+    @runtime_ccall((:nvmlGpuInstanceGetComputeInstanceById, libnvml()), nvmlReturn_t,
+                   (nvmlGpuInstance_t, UInt32, Ptr{nvmlComputeInstance_t}),
+                   gpuInstance, id, computeInstance)
+end
+
+@checked function nvmlComputeInstanceGetInfo(computeInstance, info)
+    initialize_api()
+    @runtime_ccall((:nvmlComputeInstanceGetInfo, libnvml()), nvmlReturn_t,
+                   (nvmlComputeInstance_t, Ptr{nvmlComputeInstanceInfo_t}),
+                   computeInstance, info)
+end
+
+@checked function nvmlDeviceIsMigDeviceHandle(device, isMigDevice)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceIsMigDeviceHandle, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{UInt32}),
+                   device, isMigDevice)
+end
+
+@checked function nvmlDeviceGetGpuInstanceId(device, id)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetGpuInstanceId, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{UInt32}),
+                   device, id)
+end
+
+@checked function nvmlDeviceGetComputeInstanceId(device, id)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetComputeInstanceId, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{UInt32}),
+                   device, id)
+end
+
+@checked function nvmlDeviceGetMaxMigDeviceCount(device, count)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetMaxMigDeviceCount, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{UInt32}),
+                   device, count)
+end
+
+@checked function nvmlDeviceGetMigDeviceHandleByIndex(device, index, migDevice)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetMigDeviceHandleByIndex, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, UInt32, Ptr{nvmlDevice_t}),
+                   device, index, migDevice)
+end
+
+@checked function nvmlDeviceGetDeviceHandleFromMigDeviceHandle(migDevice, device)
+    initialize_api()
+    @runtime_ccall((:nvmlDeviceGetDeviceHandleFromMigDeviceHandle, libnvml()), nvmlReturn_t,
+                   (nvmlDevice_t, Ptr{nvmlDevice_t}),
+                   migDevice, device)
 end

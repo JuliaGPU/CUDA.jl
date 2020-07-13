@@ -32,7 +32,7 @@
 
 # Skipping MacroDefinition: cuStreamBeginCapture __CUDA_API_PTSZ ( cuStreamBeginCapture_v2 )
 
-const CUDA_VERSION = 10020
+const CUDA_VERSION = 11000
 const CU_IPC_HANDLE_SIZE = 64
 
 # Skipping MacroDefinition: CU_STREAM_LEGACY ( ( CUstream ) 0x1 )
@@ -62,6 +62,7 @@ const CU_TRSA_OVERRIDE_FORMAT = 0x01
 const CU_TRSF_READ_AS_INTEGER = 0x01
 const CU_TRSF_NORMALIZED_COORDINATES = 0x02
 const CU_TRSF_SRGB = 0x10
+const CU_TRSF_DISABLE_TRILINEAR_OPTIMIZATION = 0x20
 
 # Skipping MacroDefinition: CU_LAUNCH_PARAM_END ( ( void * ) 0x00 )
 # Skipping MacroDefinition: CU_LAUNCH_PARAM_BUFFER_POINTER ( ( void * ) 0x01 )
@@ -329,7 +330,13 @@ const CUfilter_mode = CUfilter_mode_enum
     CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_POSIX_FILE_DESCRIPTOR_SUPPORTED = 103
     CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_HANDLE_SUPPORTED = 104
     CU_DEVICE_ATTRIBUTE_HANDLE_TYPE_WIN32_KMT_HANDLE_SUPPORTED = 105
-    CU_DEVICE_ATTRIBUTE_MAX = 106
+    CU_DEVICE_ATTRIBUTE_MAX_BLOCKS_PER_MULTIPROCESSOR = 106
+    CU_DEVICE_ATTRIBUTE_GENERIC_COMPRESSION_SUPPORTED = 107
+    CU_DEVICE_ATTRIBUTE_MAX_PERSISTING_L2_CACHE_SIZE = 108
+    CU_DEVICE_ATTRIBUTE_MAX_ACCESS_POLICY_WINDOW_SIZE = 109
+    CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED = 110
+    CU_DEVICE_ATTRIBUTE_RESERVED_SHARED_MEMORY_PER_BLOCK = 111
+    CU_DEVICE_ATTRIBUTE_MAX = 112
 end
 
 const CUdevice_attribute = CUdevice_attribute_enum
@@ -364,6 +371,7 @@ const CUdevprop = CUdevprop_st
     CU_POINTER_ATTRIBUTE_RANGE_SIZE = 12
     CU_POINTER_ATTRIBUTE_MAPPED = 13
     CU_POINTER_ATTRIBUTE_ALLOWED_HANDLE_TYPES = 14
+    CU_POINTER_ATTRIBUTE_IS_GPU_DIRECT_RDMA_CAPABLE = 15
 end
 
 const CUpointer_attribute = CUpointer_attribute_enum
@@ -488,6 +496,7 @@ const CUjit_option = CUjit_option_enum
     CU_TARGET_COMPUTE_70 = 70
     CU_TARGET_COMPUTE_72 = 72
     CU_TARGET_COMPUTE_75 = 75
+    CU_TARGET_COMPUTE_80 = 80
 end
 
 const CUjit_target = CUjit_target_enum
@@ -556,7 +565,8 @@ const CUarray_cubemap_face = CUarray_cubemap_face_enum
     CU_LIMIT_DEV_RUNTIME_SYNC_DEPTH = 3
     CU_LIMIT_DEV_RUNTIME_PENDING_LAUNCH_COUNT = 4
     CU_LIMIT_MAX_L2_FETCH_GRANULARITY = 5
-    CU_LIMIT_MAX = 6
+    CU_LIMIT_PERSISTING_L2_CACHE_SIZE = 6
+    CU_LIMIT_MAX = 7
 end
 
 const CUlimit = CUlimit_enum
@@ -570,6 +580,24 @@ end
 
 const CUresourcetype = CUresourcetype_enum
 const CUhostFn = Ptr{Cvoid}
+
+@cenum CUaccessProperty_enum::UInt32 begin
+    CU_ACCESS_PROPERTY_NORMAL = 0
+    CU_ACCESS_PROPERTY_STREAMING = 1
+    CU_ACCESS_PROPERTY_PERSISTING = 2
+end
+
+const CUaccessProperty = CUaccessProperty_enum
+
+struct CUaccessPolicyWindow_st
+    base_ptr::Ptr{Cvoid}
+    num_bytes::Csize_t
+    hitRatio::Cfloat
+    hitProp::CUaccessProperty
+    missProp::CUaccessProperty
+end
+
+const CUaccessPolicyWindow = CUaccessPolicyWindow_st
 
 struct CUDA_KERNEL_NODE_PARAMS_st
     func::CUfunction
@@ -611,10 +639,31 @@ const CUDA_HOST_NODE_PARAMS = CUDA_HOST_NODE_PARAMS_st
     CU_GRAPH_NODE_TYPE_HOST = 3
     CU_GRAPH_NODE_TYPE_GRAPH = 4
     CU_GRAPH_NODE_TYPE_EMPTY = 5
-    CU_GRAPH_NODE_TYPE_COUNT = 6
 end
 
 const CUgraphNodeType = CUgraphNodeType_enum
+
+@cenum CUsynchronizationPolicy_enum::UInt32 begin
+    CU_SYNC_POLICY_AUTO = 1
+    CU_SYNC_POLICY_SPIN = 2
+    CU_SYNC_POLICY_YIELD = 3
+    CU_SYNC_POLICY_BLOCKING_SYNC = 4
+end
+
+const CUsynchronizationPolicy = CUsynchronizationPolicy_enum
+
+@cenum CUkernelNodeAttrID_enum::UInt32 begin
+    CU_KERNEL_NODE_ATTRIBUTE_ACCESS_POLICY_WINDOW = 1
+    CU_KERNEL_NODE_ATTRIBUTE_COOPERATIVE = 2
+end
+
+const CUkernelNodeAttrID = CUkernelNodeAttrID_enum
+
+struct CUkernelNodeAttrValue_union
+    accessPolicyWindow::CUaccessPolicyWindow
+end
+
+const CUkernelNodeAttrValue = CUkernelNodeAttrValue_union
 
 @cenum CUstreamCaptureStatus_enum::UInt32 begin
     CU_STREAM_CAPTURE_STATUS_NONE = 0
@@ -631,6 +680,19 @@ const CUstreamCaptureStatus = CUstreamCaptureStatus_enum
 end
 
 const CUstreamCaptureMode = CUstreamCaptureMode_enum
+
+@cenum CUstreamAttrID_enum::UInt32 begin
+    CU_STREAM_ATTRIBUTE_ACCESS_POLICY_WINDOW = 1
+    CU_STREAM_ATTRIBUTE_SYNCHRONIZATION_POLICY = 3
+end
+
+const CUstreamAttrID = CUstreamAttrID_enum
+
+struct CUstreamAttrValue_union
+    accessPolicyWindow::CUaccessPolicyWindow
+end
+
+const CUstreamAttrValue = CUstreamAttrValue_union
 
 @cenum cudaError_enum::UInt32 begin
     CUDA_SUCCESS = 0
@@ -1118,12 +1180,25 @@ end
 
 const CUmemLocation = CUmemLocation_st
 
+@cenum CUmemAllocationCompType_enum::UInt32 begin
+    CU_MEM_ALLOCATION_COMP_NONE = 0
+    CU_MEM_ALLOCATION_COMP_GENERIC = 1
+end
+
+const CUmemAllocationCompType = CUmemAllocationCompType_enum
+
+struct ANONYMOUS15_allocFlags
+    compressionType::Cuchar
+    gpuDirectRDMACapable::Cuchar
+    reserved::NTuple{6, Cuchar}
+end
+
 struct CUmemAllocationProp_st
     type::CUmemAllocationType
     requestedHandleTypes::CUmemAllocationHandleType
     location::CUmemLocation
     win32HandleMetaData::Ptr{Cvoid}
-    reserved::Culonglong
+    allocFlags::ANONYMOUS15_allocFlags
 end
 
 const CUmemAllocationProp = CUmemAllocationProp_st

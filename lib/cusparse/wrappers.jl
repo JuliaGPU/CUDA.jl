@@ -2,14 +2,11 @@
 
 import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \, mul!
 
-export switch2csr, switch2csc, switch2bsr, switch2hyb
+export switch2csr, switch2csc, switch2bsr
 export axpyi!, axpyi, sctr!, sctr, gthr!, gthr, gthrz!, grthrz, roti!, roti
-export doti!, doti, dotci!, dotci
-export mv!, mv, sv2!, sv2, sv_analysis, sv_solve!, sv
-export mm2!, mm2, mm!, mm, sm_analysis, sm_solve, sm
-export geam, gemm
-export ic0!, ic0, ic02!, ic02, ilu0!, ilu0, ilu02!, ilu02
-export gtsv!, gtsv, gtsv_nopivot!, gtsv_nopivot, gtsvStridedBatch!, gtsvStridedBatch
+export sv2!, sv2, sv_solve!, sv
+export mm2!, mm2
+export ic02!, ic02, ilu02!, ilu02
 
 
 # essentials
@@ -37,6 +34,36 @@ version() = VersionNumber(cusparseGetProperty(CUDA.MAJOR_VERSION),
                           cusparseGetProperty(CUDA.PATCH_LEVEL))
 
 
+# sparse matrix descriptor
+
+mutable struct CuSparseMatrixDescriptor
+    handle::cusparseMatDescr_t
+
+    function CuSparseMatrixDescriptor()
+        descr_ref = Ref{cusparseMatDescr_t}()
+        cusparseCreateMatDescr(descr_ref)
+        obj = new(descr_ref[])
+        finalizer(cusparseDestroyMatDescr, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusparseMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
+
+function CuSparseMatrixDescriptor(MatrixType, FillMode, DiagType, IndexBase)
+    desc = CuSparseMatrixDescriptor()
+    if MatrixType != CUSPARSE_MATRIX_TYPE_GENERAL
+        cusparseSetMatType(desc, MatrixType)
+    end
+    cusparseSetMatFillMode(desc, FillMode)
+    cusparseSetMatDiagType(desc, DiagType)
+    if IndexBase != CUSPARSE_INDEX_BASE_ZERO
+        cusparseSetMatIndexBase(desc, IndexBase)
+    end
+    return desc
+end
+
+
 # Type conversion
 
 for (fname,elty) in ((:cusparseScsr2csc, :Float32),
@@ -50,21 +77,51 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, csr.nnz)
             nzVal = CUDA.zeros($elty, csr.nnz)
-            $fname(handle(), m, n, csr.nnz, csr.nzVal,
-                   csr.rowPtr, csr.colVal, nzVal, rowVal,
-                   colPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            if version() >= v"10.2"
+                # TODO: algorithm configuratibility?
+                @workspace size=@argout(
+                        cusparseCsr2cscEx2_bufferSize(handle(), m, n, csr.nnz, csr.nzVal,
+                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
+                            cudaDataType($elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
+                    )[] buffer->begin
+                        cusparseCsr2cscEx2(handle(), m, n, csr.nnz, csr.nzVal,
+                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal, 
+                            cudaDataType($elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, buffer)
+                    end
+            else
+                $fname(handle(), m, n, csr.nnz, csr.nzVal,
+                    csr.rowPtr, csr.colVal, nzVal, rowVal,
+                    colPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            end
             csc = CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.nnz,csr.dims)
             csc
         end
         function switch2csr(csc::CuSparseMatrixCSC{$elty},inda::SparseChar='O')
-            cuind = cusparseindex(inda)
-            m,n = csc.dims
+            cuind  = cusparseindex(inda)
+            m,n    = csc.dims
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,csc.nnz)
-            nzVal = CUDA.zeros($elty,csc.nnz)
-            $fname(handle(), n, m, csc.nnz, csc.nzVal,
-                   csc.colPtr, csc.rowVal, nzVal, colVal,
-                   rowPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            nzVal  = CUDA.zeros($elty,csc.nnz)
+            if version() >= v"10.2"
+                # TODO: algorithm configuratibility?
+                @workspace size=@argout(
+                        cusparseCsr2cscEx2_bufferSize(handle(), n, m, csc.nnz, csc.nzVal,
+                            csc.colPtr, csc.rowVal, nzVal, rowPtr, colVal,
+                            cudaDataType($elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
+                    )[] buffer->begin
+                        cusparseCsr2cscEx2(handle(), n, m, csc.nnz, csc.nzVal,
+                            csc.colPtr, csc.rowVal, nzVal, rowPtr, colVal,
+                            cudaDataType($elty), CUSPARSE_ACTION_NUMERIC, cuind,
+                            CUSPARSE_CSR2CSC_ALG1, buffer)
+                    end
+            else
+                $fname(handle(), n, m, csc.nnz, csc.nzVal,
+                    csc.colPtr, csc.rowVal, nzVal, colVal,
+                    rowPtr, CUSPARSE_ACTION_NUMERIC, cuind)
+            end
             csr = CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.nnz,csc.dims)
             csr
         end
@@ -89,15 +146,15 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
             mb = div((m + blockDim - 1),blockDim)
             nb = div((n + blockDim - 1),blockDim)
             bsrRowPtr = CUDA.zeros(Cint,mb + 1)
-            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            cudescc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
-            cusparseXcsr2bsrNnz(handle(), cudir, m, n, Ref(cudesca), csr.rowPtr,
-                                csr.colVal, blockDim, Ref(cudescc), bsrRowPtr, nnz)
+            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            cudescc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
+            cusparseXcsr2bsrNnz(handle(), cudir, m, n, cudesca, csr.rowPtr,
+                                csr.colVal, blockDim, cudescc, bsrRowPtr, nnz)
             bsrNzVal = CUDA.zeros($elty, nnz[] * blockDim * blockDim )
             bsrColInd = CUDA.zeros(Cint, nnz[])
             $fname(handle(), cudir, m, n,
-                   Ref(cudesca), csr.nzVal, csr.rowPtr, csr.colVal,
-                   blockDim, Ref(cudescc), bsrNzVal, bsrRowPtr,
+                   cudesca, csr.nzVal, csr.rowPtr, csr.colVal,
+                   blockDim, cudescc, bsrNzVal, bsrRowPtr,
                    bsrColInd)
             CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, csr.dims, blockDim, dir, nnz[])
         end
@@ -126,14 +183,14 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
             mb = div(m,bsr.blockDim)
             nb = div(n,bsr.blockDim)
             nnz = bsr.nnz * bsr.blockDim * bsr.blockDim
-            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            cudescc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
+            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            cudescc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
             csrRowPtr = CUDA.zeros(Cint, m + 1)
             csrColInd = CUDA.zeros(Cint, nnz)
             csrNzVal  = CUDA.zeros($elty, nnz)
             $fname(handle(), cudir, mb, nb,
-                   Ref(cudesca), bsr.nzVal, bsr.rowPtr, bsr.colVal,
-                   bsr.blockDim, Ref(cudescc), csrNzVal, csrRowPtr,
+                   cudesca, bsr.nzVal, bsr.rowPtr, bsr.colVal,
+                   bsr.blockDim, cudescc, csrNzVal, csrRowPtr,
                    csrColInd)
             CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, convert(Cint,nnz), bsr.dims)
         end
@@ -155,8 +212,8 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            $rname(handle(), m, n, Ref(cudesc), csr.nzVal,
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            $rname(handle(), m, n, cudesc, csr.nzVal,
                    csr.rowPtr, csr.colVal, denseA, lda)
             denseA
         end
@@ -165,13 +222,10 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            $cname(handle(), m, n, Ref(cudesc), csc.nzVal,
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            $cname(handle(), m, n, cudesc, csc.nzVal,
                    csc.rowVal, csc.colPtr, denseA, lda)
             denseA
-        end
-        function Base.Array(hyb::CuSparseMatrixHYB{$elty},ind::SparseChar='O')
-            Array(switch2csr(hyb,ind))
         end
         function Base.Array(bsr::CuSparseMatrixBSR{$elty},ind::SparseChar='O')
             Array(switch2csr(bsr,ind))
@@ -179,10 +233,10 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
     end
 end
 
-for (nname,cname,rname,hname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseSdense2csr, :cusparseSdense2hyb, :Float32),
-                                       (:cusparseDnnz, :cusparseDdense2csc, :cusparseDdense2csr, :cusparseDdense2hyb, :Float64),
-                                       (:cusparseCnnz, :cusparseCdense2csc, :cusparseCdense2csr, :cusparseCdense2hyb, :ComplexF32),
-                                       (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :cusparseZdense2hyb, :ComplexF64))
+for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseSdense2csr, :Float32),
+                                 (:cusparseDnnz, :cusparseDdense2csc, :cusparseDdense2csr, :Float64),
+                                 (:cusparseCnnz, :cusparseCdense2csc, :cusparseCdense2csr, :ComplexF32),
+                                 (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :ComplexF64))
     @eval begin
         function sparse(A::CuMatrix{$elty},fmt::SparseChar='R',ind::SparseChar='O')
             cuind = cusparseindex(ind)
@@ -192,98 +246,30 @@ for (nname,cname,rname,hname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cus
             end
             m,n = size(A)
             lda = max(1,stride(A,2))
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             nnzRowCol = CUDA.zeros(Cint, fmt == 'R' ? m : n)
             nnzTotal = Ref{Cint}(1)
             $nname(handle(),
-                   cudir, m, n, Ref(cudesc), A, lda, nnzRowCol,
+                   cudir, m, n, cudesc, A, lda, nnzRowCol,
                    nnzTotal)
             nzVal = CUDA.zeros($elty,nnzTotal[])
             if(fmt == 'R')
                 rowPtr = CUDA.zeros(Cint,m+1)
                 colInd = CUDA.zeros(Cint,nnzTotal[])
-                $rname(handle(), m, n, Ref(cudesc), A,
+                $rname(handle(), m, n, cudesc, A,
                        lda, nnzRowCol, nzVal, rowPtr, colInd)
                 return CuSparseMatrixCSR(rowPtr,colInd,nzVal,nnzTotal[],size(A))
             end
             if(fmt == 'C')
                 colPtr = CUDA.zeros(Cint,n+1)
                 rowInd = CUDA.zeros(Cint,nnzTotal[])
-                $cname(handle(), m, n, Ref(cudesc), A,
+                $cname(handle(), m, n, cudesc, A,
                        lda, nnzRowCol, nzVal, rowInd, colPtr)
                 return CuSparseMatrixCSC(colPtr,rowInd,nzVal,nnzTotal[],size(A))
             end
             if(fmt == 'B')
                 return switch2bsr(sparse(A,'R',ind),convert(Cint,gcd(m,n)))
             end
-            if(fmt == 'H')
-                hyb = cusparseHybMat_t[0]
-                cusparseCreateHybMat(hyb)
-                $hname(handle(), m, n, Ref(cudesc), A, lda, nnzRowCol,
-                       hyb[1], 0, CUSPARSE_HYB_PARTITION_AUTO)
-                return CuSparseMatrixHYB{$elty}(hyb[1],size(A),nnzTotal[])
-            end
-        end
-    end
-end
-
-"""
-    switch2hyb(csr::CuSparseMatrixCSR, inda::SparseChar='O')
-
-Convert a `CuSparseMatrixCSR` to the hybrid CUDA storage format.
-"""
-switch2hyb(csr::CuSparseMatrixCSR, inda::SparseChar='O')
-
-"""
-    switch2hyb(csc::CuSparseMatrixCSC, inda::SparseChar='O')
-
-Convert a `CuSparseMatrixCSC` to the hybrid CUDA storage format.
-"""
-switch2hyb(csc::CuSparseMatrixCSC, inda::SparseChar='O')
-
-for (rname,cname,elty) in ((:cusparseScsr2hyb, :cusparseScsc2hyb, :Float32),
-                           (:cusparseDcsr2hyb, :cusparseDcsc2hyb, :Float64),
-                           (:cusparseCcsr2hyb, :cusparseCcsc2hyb, :ComplexF32),
-                           (:cusparseZcsr2hyb, :cusparseZcsc2hyb, :ComplexF64))
-    @eval begin
-        function switch2hyb(csr::CuSparseMatrixCSR{$elty},
-                            inda::SparseChar='O')
-            cuinda = cusparseindex(inda)
-            m,n = csr.dims
-            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            hyb = cusparseHybMat_t[0]
-            cusparseCreateHybMat(hyb)
-            $rname(handle(),
-                   m, n, Ref(cudesca), csr.nzVal, csr.rowPtr, csr.colVal,
-                   hyb[1], 0, CUSPARSE_HYB_PARTITION_AUTO)
-            CuSparseMatrixHYB{$elty}(hyb[1], csr.dims, csr.nnz)
-        end
-        function switch2hyb(csc::CuSparseMatrixCSC{$elty},
-                            inda::SparseChar='O')
-            switch2hyb(switch2csr(csc,inda),inda)
-        end
-    end
-end
-
-for (rname,cname,elty) in ((:cusparseShyb2csr, :cusparseShyb2csc, :Float32),
-                           (:cusparseDhyb2csr, :cusparseDhyb2csc, :Float64),
-                           (:cusparseChyb2csr, :cusparseChyb2csc, :ComplexF32),
-                           (:cusparseZhyb2csr, :cusparseZhyb2csc, :ComplexF64))
-    @eval begin
-        function switch2csr(hyb::CuSparseMatrixHYB{$elty},
-                            inda::SparseChar='O')
-            cuinda = cusparseindex(inda)
-            m,n = hyb.dims
-            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            csrRowPtr = CUDA.zeros(Cint, m + 1)
-            csrColInd = CUDA.zeros(Cint, hyb.nnz)
-            csrNzVal = CUDA.zeros($elty, hyb.nnz)
-            $rname(handle(), Ref(cudesca), hyb.Mat, csrNzVal, csrRowPtr, csrColInd)
-            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, hyb.nnz, hyb.dims)
-        end
-        function switch2csc(hyb::CuSparseMatrixHYB{$elty},
-                            inda::SparseChar='O')
-            switch2csc(switch2csr(hyb,inda),inda)
         end
     end
 end
@@ -343,37 +329,6 @@ for (fname,elty) in ((:cusparseSaxpyi, :Float32),
                        Y::CuVector{$elty},
                        index::SparseChar)
             axpyi!(one($elty),X,copy(Y),index)
-        end
-    end
-end
-
-"""
-    doti!(X::CuSparseVector, Y::CuVector, index::SparseChar)
-
-Computes `dot(X,Y)` for sparse `X` and dense `Y`, without conjugation.
-"""
-function doti!(X::CuSparseVector, Y::CuVector, index::SparseChar) end
-
-"""
-    dotci!(X::CuSparseVector, Y::CuVector, index::SparseChar)
-
-Computes `dot(X,conj(Y))` for sparse `X` and dense `Y`.
-"""
-function dotci!(X::CuSparseVector, Y::CuVector, index::SparseChar) end
-for (jname,fname,elty) in ((:doti, :cusparseSdoti, :Float32),
-                           (:doti, :cusparseDdoti, :Float64),
-                           (:doti, :cusparseCdoti, :ComplexF32),
-                           (:doti, :cusparseZdoti, :ComplexF64),
-                           (:dotci, :cusparseCdotci, :ComplexF32),
-                           (:dotci, :cusparseZdotci, :ComplexF64))
-    @eval begin
-        function $jname(X::CuSparseVector{$elty},
-                        Y::CuVector{$elty},
-                        index::SparseChar)
-            dot = Ref{$elty}(1)
-            cuind = cusparseindex(index)
-            $fname(handle(), X.nnz, X.nzVal, X.iPtr, Y, dot, cuind)
-            return dot[]
         end
     end
 end
@@ -509,7 +464,7 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
             cudir = cusparsedir(A.dir)
             cutransa = cusparseop(transa)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             mb = div(m,A.blockDim)
             nb = div(n,A.blockDim)
@@ -520,74 +475,8 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                 chkmvdims(X,m,Y,n)
             end
             $fname(handle(), cudir, cutransa, mb, nb,
-                   A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
+                   A.nnz, [alpha], cudesc, A.nzVal, A.rowPtr,
                    A.colVal, A.blockDim, X, [beta], Y)
-            Y
-        end
-    end
-end
-
-for (fname,elty) in ((:cusparseScsrmv, :Float32),
-                     (:cusparseDcsrmv, :Float64),
-                     (:cusparseCcsrmv, :ComplexF32),
-                     (:cusparseZcsrmv, :ComplexF64))
-    @eval begin
-        function mv!(transa::SparseChar,
-                     alpha::$elty,
-                     A::Union{CuSparseMatrixCSR{$elty},HermOrSym{$elty,CuSparseMatrixCSR{$elty}}},
-                     X::CuVector{$elty},
-                     beta::$elty,
-                     Y::CuVector{$elty},
-                     index::SparseChar)
-            Mat     = A
-            if typeof(A) <: HermOrSym
-                 Mat = A.data
-            end
-            cutransa = cusparseop(transa)
-            m,n = Mat.dims
-            if transa == 'N'
-                chkmvdims(X, n, Y, m)
-            end
-            if transa == 'T' || transa == 'C'
-                chkmvdims(X, m, Y, n)
-            end
-            cudesc = getDescr(A,index)
-            $fname(handle(),
-                   cutransa, m, n, Mat.nnz, [alpha], Ref(cudesc), Mat.nzVal,
-                   Mat.rowPtr, Mat.colVal, X, [beta], Y)
-            Y
-        end
-        function mv!(transa::SparseChar,
-                     alpha::$elty,
-                     A::Union{CuSparseMatrixCSC{$elty},HermOrSym{$elty,CuSparseMatrixCSC{$elty}}},
-                     X::CuVector{$elty},
-                     beta::$elty,
-                     Y::CuVector{$elty},
-                     index::SparseChar)
-            Mat     = A
-            if typeof(A) <: HermOrSym
-                 Mat = A.data
-            end
-            ctransa  = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            cutransa = cusparseop(ctransa)
-            n,m      = Mat.dims
-            if ctransa == 'N'
-                chkmvdims(X, n, Y, m)
-            end
-            if ctransa == 'T' || ctransa == 'C'
-                chkmvdims(X, m, Y, n)
-            end
-            cudesc = getDescr(A,index)
-            nzVal  = Mat.nzVal
-            if transa == 'C' && $elty <: Complex
-                nzVal = conj(Mat.nzVal)
-            end
-            $fname(handle(),
-                   cutransa, m, n, Mat.nnz, [alpha], Ref(cudesc), nzVal,
-                   Mat.colPtr, Mat.rowVal, X, [beta], Y)
             Y
         end
     end
@@ -617,7 +506,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             cudir    = cusparsedir(A.dir)
             cuind    = cusparseindex(index)
             cuplo    = cusparsefill(uplo)
-            cudesc   = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, cuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc   = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, cuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n      = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -631,11 +520,11 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             cusparseCreateBsrsv2Info(info)
             @workspace size=@argout(
                     $bname(handle(), cudir, cutransa, mb, A.nnz,
-                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                           cudesc, A.nzVal, A.rowPtr, A.colVal, A.blockDim,
                            info[1], out(Ref{Cint}(1)))
                 )[] buffer->begin
                     $aname(handle(), cudir, cutransa, mb, A.nnz,
-                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                           cudesc, A.nzVal, A.rowPtr, A.colVal, A.blockDim,
                            info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXbsrsv2_zeroPivot(handle(), info[1], posit)
@@ -643,7 +532,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), cudir, cutransa, mb, A.nnz,
-                           [alpha], Ref(cudesc), A.nzVal, A.rowPtr, A.colVal,
+                           [alpha], cudesc, A.nzVal, A.rowPtr, A.colVal,
                            A.blockDim, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -694,156 +583,6 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     end
 end
 
-"""
-    sv_analysis(transa::SparseChar, typea::SparseChar, uplo::SparseChar, A::CuSparseMatrixCSR, index::SparseChar)
-
-Perform preliminary analysis of sparse matrix `A` before doing a solve of the form `Y = op(A) \\ X`. `transa = N` for no
-op, `transa = T` for transpose, and `transa = C` for conjugate transpose. `uplo` tells CUSPARSE which triangle of `A` to
-reference, and `typea` whether `A` is a general matrix (`G`), symmetric (`S`), Hermitian (`H`), or triangular (`T`).
-"""
-function sv_analysis(transa::SparseChar, typea::SparseChar, uplo::SparseChar, A::CuSparseMatrixCSR, index::SparseChar) end
-
-for (fname,elty) in ((:cusparseScsrsv_analysis, :Float32),
-                     (:cusparseDcsrsv_analysis, :Float64),
-                     (:cusparseCcsrsv_analysis, :ComplexF32),
-                     (:cusparseZcsrsv_analysis, :ComplexF64))
-    @eval begin
-        function sv_analysis(transa::SparseChar,
-                             typea::SparseChar,
-                             uplo::SparseChar,
-                             A::CuSparseMatrixCSR{$elty},
-                             index::SparseChar)
-            cutransa = cusparseop(transa)
-            cuind    = cusparseindex(index)
-            cutype   = cusparsetype(typea)
-            cuuplo   = cusparsefill(uplo)
-            cudesc   = cusparseMatDescr(cutype, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,n = A.dims
-            if m != n
-                throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
-            end
-            info = cusparseSolveAnalysisInfo_t[0]
-            cusparseCreateSolveAnalysisInfo(info)
-            $fname(handle(),
-                   cutransa, m, A.nnz, Ref(cudesc), A.nzVal,
-                   A.rowPtr, A.colVal, info[1])
-            info[1]
-        end
-    end
-end
-
-for (fname,elty) in ((:cusparseScsrsv_analysis, :Float32),
-                     (:cusparseDcsrsv_analysis, :Float64),
-                     (:cusparseCcsrsv_analysis, :ComplexF32),
-                     (:cusparseZcsrsv_analysis, :ComplexF64))
-    @eval begin
-        function sv_analysis(transa::SparseChar,
-                             typea::SparseChar,
-                             uplo::SparseChar,
-                             A::CuSparseMatrixCSC{$elty},
-                             index::SparseChar)
-            ctransa = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            cuplo = 'U'
-            if uplo == 'U'
-                cuplo = 'L'
-            end
-            cutransa = cusparseop(ctransa)
-            cuind    = cusparseindex(index)
-            cutype   = cusparsetype(typea)
-            cuuplo   = cusparsefill(cuplo)
-            cudesc   = cusparseMatDescr(cutype, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            n,m      = A.dims
-            if m != n
-                throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
-            end
-            info = cusparseSolveAnalysisInfo_t[0]
-            cusparseCreateSolveAnalysisInfo(info)
-            $fname(handle(),
-                   cutransa, m, A.nnz, Ref(cudesc), A.nzVal,
-                   A.colPtr, A.rowVal, info[1])
-            info[1]
-        end
-    end
-end
-
-"""
-    sv_solve!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixCSR, X::CuVector, Y::CuVector, info::cusparseSolveAnalysisInfo_t, index::SparseChar)
-
-Solve the problem `Y = op(A)\\ alpha*X`. The operation is determined by `transa`. `info` is
-the output of [`sv_analysis`](@ref). The arguments `transa`, `uplo`, and `index` must be the same
-between the `analysis` and `solve` steps.
-"""
-function sv_solve!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixCSR, X::CuVector, Y::CuVector, info::cusparseSolveAnalysisInfo_t, index::SparseChar) end
-for (fname,elty) in ((:cusparseScsrsv_solve, :Float32),
-                     (:cusparseDcsrsv_solve, :Float64),
-                     (:cusparseCcsrsv_solve, :ComplexF32),
-                     (:cusparseZcsrsv_solve, :ComplexF64))
-    @eval begin
-        function sv_solve!(transa::SparseChar,
-                           uplo::SparseChar,
-                           alpha::$elty,
-                           A::CuSparseMatrixCSR{$elty},
-                           X::CuVector{$elty},
-                           Y::CuVector{$elty},
-                           info::cusparseSolveAnalysisInfo_t,
-                           index::SparseChar)
-            cutransa = cusparseop(transa)
-            cuind = cusparseindex(index)
-            cuuplo = cusparsefill(uplo)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,n = A.dims
-            if size(X)[1] != m
-                throw(DimensionMismatch("First dimension of A, $m, and of X, $(size(X)[1]) must match"))
-            end
-            $fname(handle(),
-                   cutransa, m, [alpha], Ref(cudesc), A.nzVal,
-                   A.rowPtr, A.colVal, info, X, Y)
-            Y
-        end
-    end
-end
-
-for (fname,elty) in ((:cusparseScsrsv_solve, :Float32),
-                     (:cusparseDcsrsv_solve, :Float64),
-                     (:cusparseCcsrsv_solve, :ComplexF32),
-                     (:cusparseZcsrsv_solve, :ComplexF64))
-
-    @eval begin
-        function sv_solve!(transa::SparseChar,
-                           uplo::SparseChar,
-                           alpha::$elty,
-                           A::CuSparseMatrixCSC{$elty},
-                           X::CuVector{$elty},
-                           Y::CuVector{$elty},
-                           info::cusparseSolveAnalysisInfo_t,
-                           index::SparseChar)
-            ctransa = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            cuplo = 'U'
-            if uplo == 'U'
-                cuplo = 'L'
-            end
-            cutransa = cusparseop(ctransa)
-            cuind    = cusparseindex(index)
-            cuuplo   = cusparsefill(cuplo)
-            cudesc   = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            n,m      = A.dims
-            if size(X)[1] != m
-                throw(DimensionMismatch("First dimension of A, $m, and of X, $(size(X)[1]) must match"))
-            end
-            $fname(handle(),
-                   cutransa, m, [alpha], Ref(cudesc), A.nzVal,
-                   A.colPtr, A.rowVal, info, X, Y)
-            Y
-        end
-    end
-end
-
 # csrsv2
 for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_analysis, :cusparseScsrsv2_solve, :Float32),
                                  (:cusparseDcsrsv2_bufferSize, :cusparseDcsrsv2_analysis, :cusparseDcsrsv2_solve, :Float64),
@@ -859,7 +598,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             cutransa  = cusparseop(transa)
             cuind     = cusparseindex(index)
             cuuplo    = cusparsefill(uplo)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -872,11 +611,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
                     $bname(handle(), cutransa, m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           cudesc, A.nzVal, A.rowPtr, A.colVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
                     $aname(handle(), cutransa, m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           cudesc, A.nzVal, A.rowPtr, A.colVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
@@ -884,7 +623,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), cutransa, m,
-                           A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
+                           A.nnz, [alpha], cudesc, A.nzVal, A.rowPtr,
                            A.colVal, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -917,7 +656,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             cutransa = cusparseop(ctransa)
             cuind    = cusparseindex(index)
             cuuplo   = cusparsefill(cuplo)
-            cudesc   = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc   = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             n,m      = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -930,11 +669,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
                     $bname(handle(), cutransa, m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           cudesc, A.nzVal, A.colPtr, A.rowVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
                     $aname(handle(), cutransa, m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           cudesc, A.nzVal, A.colPtr, A.rowVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
@@ -942,7 +681,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), cutransa, m,
-                           A.nnz, [alpha], Ref(cudesc), A.nzVal, A.colPtr,
+                           A.nnz, [alpha], cudesc, A.nzVal, A.colPtr,
                            A.rowVal, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -952,198 +691,6 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
     end
 end
 
-for (fname,elty) in ((:cusparseShybmv, :Float32),
-                     (:cusparseDhybmv, :Float64),
-                     (:cusparseChybmv, :ComplexF32),
-                     (:cusparseZhybmv, :ComplexF64))
-    @eval begin
-        function mv!(transa::SparseChar,
-                     alpha::$elty,
-                     A::CuSparseMatrixHYB{$elty},
-                     X::CuVector{$elty},
-                     beta::$elty,
-                     Y::CuVector{$elty},
-                     index::SparseChar)
-            cutransa = cusparseop(transa)
-            cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,n = A.dims
-            if transa == 'N'
-                chkmvdims(X,n,Y,m)
-            end
-            if transa == 'T' || transa == 'C'
-                chkmvdims(X,m,Y,n)
-            end
-            $fname(handle(),
-                   cutransa, [alpha], Ref(cudesc), A.Mat, X, [beta], Y)
-            Y
-        end
-    end
-end
-
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
-    @eval begin
-        function mv(transa::SparseChar,
-                    alpha::$elty,
-                    A::Union{CuSparseMatrix{$elty},CompressedSparse{$elty}},
-                    X::CuVector{$elty},
-                    beta::$elty,
-                    Y::CuVector{$elty},
-                    index::SparseChar)
-            mv!(transa,alpha,A,X,beta,copy(Y),index)
-        end
-        function mv(transa::SparseChar,
-                    alpha::$elty,
-                    A::Union{CuSparseMatrix{$elty},CompressedSparse{$elty}},
-                    X::CuVector{$elty},
-                    Y::CuVector{$elty},
-                    index::SparseChar)
-            mv(transa,alpha,A,X,one($elty),Y,index)
-        end
-        function mv(transa::SparseChar,
-                    A::Union{CuSparseMatrix{$elty},CompressedSparse{$elty}},
-                    X::CuVector{$elty},
-                    beta::$elty,
-                    Y::CuVector{$elty},
-                    index::SparseChar)
-            mv(transa,one($elty),A,X,beta,Y,index)
-        end
-        function mv(transa::SparseChar,
-                    A::Union{CuSparseMatrix{$elty},CompressedSparse{$elty}},
-                    X::CuVector{$elty},
-                    Y::CuVector{$elty},
-                    index::SparseChar)
-            mv(transa,one($elty),A,X,one($elty),Y,index)
-        end
-        function mv(transa::SparseChar,
-                    alpha::$elty,
-                    A::Union{CuSparseMatrix{$elty},CompressedSparse{$elty}},
-                    X::CuVector{$elty},
-                    index::SparseChar)
-            mv(transa,alpha,A,X,zero($elty),CUDA.zeros($elty,size(A)[1]),index)
-        end
-        function mv(transa::SparseChar,
-                    A::Union{CuSparseMatrix{$elty},CompressedSparse{$elty}},
-                    X::CuVector{$elty},
-                    index::SparseChar)
-            mv(transa,one($elty),A,X,zero($elty),CUDA.zeros($elty,size(A)[1]),index)
-        end
-    end
-end
-
-for (fname,elty) in ((:cusparseShybsv_analysis, :Float32),
-                     (:cusparseDhybsv_analysis, :Float64),
-                     (:cusparseChybsv_analysis, :ComplexF32),
-                     (:cusparseZhybsv_analysis, :ComplexF64))
-    @eval begin
-        function sv_analysis(transa::SparseChar,
-                             typea::SparseChar,
-                             uplo::SparseChar,
-                             A::CuSparseMatrixHYB{$elty},
-                             index::SparseChar)
-            cutransa = cusparseop(transa)
-            cuind = cusparseindex(index)
-            cuuplo = cusparsefill(uplo)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,n = A.dims
-            if m != n
-                throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
-            end
-            info = cusparseSolveAnalysisInfo_t[0]
-            cusparseCreateSolveAnalysisInfo(info)
-            $fname(handle(), cutransa, Ref(cudesc), A.Mat,
-                   info[1])
-            info[1]
-        end
-    end
-end
-
-for (fname,elty) in ((:cusparseShybsv_solve, :Float32),
-                     (:cusparseDhybsv_solve, :Float64),
-                     (:cusparseChybsv_solve, :ComplexF32),
-                     (:cusparseZhybsv_solve, :ComplexF64))
-    @eval begin
-        function sv_solve!(transa::SparseChar,
-                           uplo::SparseChar,
-                           alpha::$elty,
-                           A::CuSparseMatrixHYB{$elty},
-                           X::CuVector{$elty},
-                           Y::CuVector{$elty},
-                           info::cusparseSolveAnalysisInfo_t,
-                           index::SparseChar)
-            cutransa = cusparseop(transa)
-            cuind = cusparseindex(index)
-            cuuplo = cusparsefill(uplo)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,n = A.dims
-            if size(X)[1] != m
-                throw(DimensionMismatch("First dimension of A, $m, and of X, $(size(X)[1]) must match"))
-            end
-            $fname(handle(),
-                   cutransa, [alpha], Ref(cudesc), A.Mat, info, X, Y)
-            Y
-        end
-    end
-end
-
-"""
-    sv(transa::SparseChar, typea::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar)
-
-Solve the problem `op(A)\\ alpha*X`.
-"""
-function sv(transa::SparseChar, typea::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar) end
-
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
-    @eval begin
-        function sv_solve(transa::SparseChar,
-                          uplo::SparseChar,
-                          alpha::$elty,
-                          A::CuSparseMatrix{$elty},
-                          X::CuVector{$elty},
-                          info::cusparseSolveAnalysisInfo_t,
-                          index::SparseChar)
-            Y = similar(X)
-            sv_solve!(transa, uplo, alpha, A, X, Y, info, index)
-        end
-        function sv(transa::SparseChar,
-                    typea::SparseChar,
-                    uplo::SparseChar,
-                    alpha::$elty,
-                    A::CuSparseMatrix{$elty},
-                    X::CuVector{$elty},
-                    index::SparseChar)
-            info = sv_analysis(transa,typea,uplo,A,index)
-            sv_solve(transa,uplo,alpha,A,X,info,index)
-        end
-        function sv(transa::SparseChar,
-                    typea::SparseChar,
-                    uplo::SparseChar,
-                    A::CuSparseMatrix{$elty},
-                    X::CuVector{$elty},
-                    index::SparseChar)
-            info = sv_analysis(transa,typea,uplo,A,index)
-            sv_solve(transa,uplo,one($elty),A,X,info,index)
-        end
-        function sv(transa::SparseChar,
-                    A::AbstractTriangular,
-                    X::CuVector{$elty},
-                    index::SparseChar)
-            uplo = 'U'
-            if istril(A)
-                uplo = 'L'
-            end
-            info = sv_analysis(transa,'T',uplo,A.data,index)
-            sv_solve(transa,uplo,one($elty),A.data,X,info,index)
-        end
-        function sv_analysis(transa::SparseChar,
-                             typea::SparseChar,
-                             uplo::SparseChar,
-                             A::HermOrSym{$elty},
-                             index::SparseChar)
-            sv_analysis(transa,typea,uplo,A.data,index)
-        end
-    end
-end
 
 ## level 3 functions
 
@@ -1173,7 +720,7 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
             cutransb = cusparseop(transb)
             cudir = cusparsedir(A.dir)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,k = A.dims
             mb = div(m,A.blockDim)
             kb = div(k,A.blockDim)
@@ -1191,136 +738,9 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
             ldc = max(1,stride(C,2))
             $fname(handle(), cudir,
                    cutransa, cutransb, mb, n, kb, A.nnz,
-                   [alpha], Ref(cudesc), A.nzVal,A.rowPtr, A.colVal,
+                   [alpha], cudesc, A.nzVal,A.rowPtr, A.colVal,
                    A.blockDim, B, ldb, [beta], C, ldc)
             C
-        end
-    end
-end
-
-"""
-    mm!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
-
-Multiply the sparse matrix `A` by the dense matrix `B`, filling in dense matrix `C`.
-`C = alpha*op(A)*B + beta*C`. `op(A)` can be nothing (`transa = N`), transpose
-(`transa = T`), or conjugate transpose (`transa = C`).
-"""
-function mm!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar) end
-for (fname,elty) in ((:cusparseScsrmm, :Float32),
-                     (:cusparseDcsrmm, :Float64),
-                     (:cusparseCcsrmm, :ComplexF32),
-                     (:cusparseZcsrmm, :ComplexF64))
-    @eval begin
-        function mm!(transa::SparseChar,
-                     alpha::$elty,
-                     A::Union{HermOrSym{$elty,CuSparseMatrixCSR{$elty}},CuSparseMatrixCSR{$elty}},
-                     B::CuMatrix{$elty},
-                     beta::$elty,
-                     C::CuMatrix{$elty},
-                     index::SparseChar)
-            Mat     = A
-            if typeof(A) <: HermOrSym
-                 Mat = A.data
-            end
-            cutransa = cusparseop(transa)
-            cuind    = cusparseindex(index)
-            cudesc   = getDescr(A,index)
-            m,k      = Mat.dims
-            n        = size(C)[2]
-            if transa == 'N'
-                chkmmdims(B,C,k,n,m,n)
-            else
-                chkmmdims(B,C,m,n,k,n)
-            end
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            $fname(handle(), cutransa, m, n, k, Mat.nnz,
-                   [alpha], Ref(cudesc), Mat.nzVal, Mat.rowPtr,
-                   Mat.colVal, B, ldb, [beta], C, ldc)
-            C
-        end
-        function mm!(transa::SparseChar,
-                     alpha::$elty,
-                     A::Union{HermOrSym{$elty,CuSparseMatrixCSC{$elty}},CuSparseMatrixCSC{$elty}},
-                     B::CuMatrix{$elty},
-                     beta::$elty,
-                     C::CuMatrix{$elty},
-                     index::SparseChar)
-            Mat     = A
-            if typeof(A) <: HermOrSym
-                Mat = A.data
-            end
-            ctransa = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            cutransa = cusparseop(ctransa)
-            cuind    = cusparseindex(index)
-            cudesc   = getDescr(A,index)
-            k,m      = Mat.dims
-            n        = size(C)[2]
-            if ctransa == 'N'
-                chkmmdims(B,C,k,n,m,n)
-            else
-                chkmmdims(B,C,m,n,k,n)
-            end
-            ldb = max(1,stride(B,2))
-            ldc = max(1,stride(C,2))
-            $fname( handle(), cutransa, m, n, k, Mat.nnz,
-                    [alpha], Ref(cudesc), Mat.nzVal, Mat.colPtr,
-                    Mat.rowVal, B, ldb, [beta], C, ldc)
-            C
-        end
-    end
-end
-
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
-    @eval begin
-        function mm(transa::SparseChar,
-                    alpha::$elty,
-                    A::CuSparseMatrix{$elty},
-                    B::CuMatrix{$elty},
-                    beta::$elty,
-                    C::CuMatrix{$elty},
-                    index::SparseChar)
-            mm!(transa,alpha,A,B,beta,copy(C),index)
-        end
-        function mm(transa::SparseChar,
-                    A::CuSparseMatrix{$elty},
-                    B::CuMatrix{$elty},
-                    beta::$elty,
-                    C::CuMatrix{$elty},
-                    index::SparseChar)
-            mm(transa,one($elty),A,B,beta,C,index)
-        end
-        function mm(transa::SparseChar,
-                    A::CuSparseMatrix{$elty},
-                    B::CuMatrix{$elty},
-                    C::CuMatrix{$elty},
-                    index::SparseChar)
-            mm(transa,one($elty),A,B,one($elty),C,index)
-        end
-        function mm(transa::SparseChar,
-                    alpha::$elty,
-                    A::CuSparseMatrix{$elty},
-                    B::CuMatrix{$elty},
-                    index::SparseChar)
-            m = transa == 'N' ? size(A)[1] : size(A)[2]
-            mm!(transa,alpha,A,B,zero($elty),CUDA.zeros($elty,(m,size(B)[2])),index)
-        end
-        function mm(transa::SparseChar,
-                    A::CuSparseMatrix{$elty},
-                    B::CuMatrix{$elty},
-                    index::SparseChar)
-            m = transa == 'N' ? size(A)[1] : size(A)[2]
-            mm!(transa,one($elty),A,B,zero($elty),CUDA.zeros($elty,(m,size(B)[2])),index)
-        end
-        function mm(transa::SparseChar,
-                    A::HermOrSym,
-                    B::CuMatrix{$elty},
-                    index::SparseChar)
-            m = transa == 'N' ? size(A)[1] : size(A)[2]
-            mm!(transa,one($elty),A.data,B,zero($elty),CUDA.zeros($elty,(m,size(B)[2])),index)
         end
     end
 end
@@ -1341,7 +761,7 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             cutransa = cusparseop(transa)
             cutransb = cusparseop(transb)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,k = A.dims
             n = size(C)[2]
             if transa == 'N' && transb == 'N'
@@ -1356,7 +776,7 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             $fname(handle(),
-                   cutransa, cutransb, m, n, k, A.nnz, [alpha], Ref(cudesc),
+                   cutransa, cutransb, m, n, k, A.nnz, [alpha], cudesc,
                    A.nzVal, A.rowPtr, A.colVal, B, ldb, [beta], C, ldc)
             C
         end
@@ -1375,7 +795,7 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             cutransa = cusparseop(ctransa)
             cutransb = cusparseop(transb)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             k,m = A.dims
             n = size(C)[2]
             if ctransa == 'N' && transb == 'N'
@@ -1390,7 +810,7 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             $fname(handle(),
-                   cutransa, cutransb, m, n, k, A.nnz, [alpha], Ref(cudesc),
+                   cutransa, cutransb, m, n, k, A.nnz, [alpha], cudesc,
                    A.nzVal, A.colPtr, A.rowVal, B, ldb, [beta], C, ldc)
             C
         end
@@ -1448,195 +868,6 @@ for elty in (:Float32,:Float64,:ComplexF32,:ComplexF64)
     end
 end
 
-"""
-    sm_analysis(transa::SparseChar, uplo::SparseChar, A::CuSparseMatrix, index::SparseChar)
-
-Performs initial analysis step on sparse matrix `A` that will be used
-in the solution of `Y = op(A)\\X`. `op(A)` is set by `transa` and can be one of
-nothing (`transa = N`), transpose (`transa = T`), or conjugate transpose (`transa = C`).
-"""
-function sm_analysis(transa::SparseChar, uplo::SparseChar, A::CuSparseMatrix, index::SparseChar) end
-
-for (fname,elty) in ((:cusparseScsrsm_analysis, :Float32),
-                     (:cusparseDcsrsm_analysis, :Float64),
-                     (:cusparseCcsrsm_analysis, :ComplexF32),
-                     (:cusparseZcsrsm_analysis, :ComplexF64))
-    @eval begin
-        function sm_analysis(transa::SparseChar,
-                             uplo::SparseChar,
-                             A::CuSparseMatrixCSR{$elty},
-                             index::SparseChar)
-            cutransa = cusparseop(transa)
-            cuind = cusparseindex(index)
-            cuuplo = cusparsefill(uplo)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,n = A.dims
-            if n != m
-                throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
-            end
-            info = cusparseSolveAnalysisInfo_t[0]
-            cusparseCreateSolveAnalysisInfo(info)
-            $fname(handle(), cutransa, m, A.nnz, Ref(cudesc),
-                   A.nzVal, A.rowPtr, A.colVal, info[1])
-            info[1]
-        end
-        function sm_analysis(transa::SparseChar,
-                             uplo::SparseChar,
-                             A::CuSparseMatrixCSC{$elty},
-                             index::SparseChar)
-            ctransa = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            cuplo = 'U'
-            if uplo == 'U'
-                cuplo = 'L'
-            end
-            cutransa = cusparseop(ctransa)
-            cuind    = cusparseindex(index)
-            cuuplo   = cusparsefill(cuplo)
-            cudesc   = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            n,m      = A.dims
-            if n != m
-                throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
-            end
-            info = cusparseSolveAnalysisInfo_t[0]
-            cusparseCreateSolveAnalysisInfo(info)
-            $fname(handle(), cutransa, m, A.nnz, Ref(cudesc),
-                   A.nzVal, A.colPtr, A.rowVal, info[1])
-            info[1]
-        end
-    end
-end
-
-"""
-    sm_solve(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuMatrix, info::cusparseSolveAnalysisInfo_t, index::SparseChar)
-
-Solves `Y = op(A)\\alpha*X`.  `op(A)` is set by `transa` and can be one of
-nothing (`transa = N`), transpose (`transa = T`), or conjugate transpose (`transa = C`).
-`info` is the result of calling [`sm_analysis`](@ref) on `A`. `transa`, `uplo`, and `index` must
-be the same as they were in [`sm_analysis`](@ref).
-"""
-function sm_solve(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuMatrix, info::cusparseSolveAnalysisInfo_t, index::SparseChar) end
-
-for (fname,elty) in ((:cusparseScsrsm_solve, :Float32),
-                     (:cusparseDcsrsm_solve, :Float64),
-                     (:cusparseCcsrsm_solve, :ComplexF32),
-                     (:cusparseZcsrsm_solve, :ComplexF64))
-    @eval begin
-        function sm_solve(transa::SparseChar,
-                          uplo::SparseChar,
-                          alpha::$elty,
-                          A::CuSparseMatrixCSR{$elty},
-                          X::CuMatrix{$elty},
-                          info::cusparseSolveAnalysisInfo_t,
-                          index::SparseChar)
-            cutransa = cusparseop(transa)
-            cuind = cusparseindex(index)
-            cuuplo = cusparsefill(uplo)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,nA = A.dims
-            mX,n = X.dims
-            if mX != m
-                throw(DimensionMismatch("First dimension of A, $m, and X, $mX must match"))
-            end
-            Y = similar(X)
-            ldx = max(1,stride(X,2))
-            ldy = max(1,stride(Y,2))
-            $fname(handle(), cutransa, m, n, [alpha],
-                   Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info, X, ldx,
-                   Y, ldy)
-            Y
-        end
-        function sm_solve(transa::SparseChar,
-                          uplo::SparseChar,
-                          alpha::$elty,
-                          A::CuSparseMatrixCSC{$elty},
-                          X::CuMatrix{$elty},
-                          info::cusparseSolveAnalysisInfo_t,
-                          index::SparseChar)
-            ctransa = 'N'
-            if transa == 'N'
-                ctransa = 'T'
-            end
-            cuplo = 'U'
-            if uplo == 'U'
-                cuplo = 'L'
-            end
-            cutransa = cusparseop(ctransa)
-            cuind    = cusparseindex(index)
-            cuuplo   = cusparsefill(cuplo)
-            cudesc   = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_TRIANGULAR, cuuplo, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-            m,nA     = A.dims
-            mX,n     = X.dims
-            if mX != m
-                throw(DimensionMismatch("First dimension of A, $m, and X, $mX must match"))
-            end
-            Y = similar(X)
-            ldx = max(1,stride(X,2))
-            ldy = max(1,stride(Y,2))
-            $fname(handle(), cutransa, m, n, [alpha],
-                   Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info, X, ldx,
-                   Y, ldy)
-            Y
-        end
-    end
-end
-
-"""
-    sm(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, index::SparseChar)
-
-Solve `C = op(A)\\alpha*B` where `A` is a sparse matrix and `B` is a dense matrix. `op(A)`
-is set by `transa` and can be one of nothing (`transa = N`), transpose (`transa = T`),
-or conjugate transpose (`transa = C`). `uplo` sets which triangle of `A` to reference.
-"""
-function sm(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, index::SparseChar) end
-
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
-    @eval begin
-        function sm(transa::SparseChar,
-                    uplo::SparseChar,
-                    alpha::$elty,
-                    A::CuSparseMatrix{$elty},
-                    B::CuMatrix{$elty},
-                    index::SparseChar)
-            info = sm_analysis(transa,uplo,A,index)
-            sm_solve(transa,uplo,alpha,A,B,info,index)
-        end
-        function sm(transa::SparseChar,
-                    uplo::SparseChar,
-                    A::CuSparseMatrix{$elty},
-                    B::CuMatrix{$elty},
-                    index::SparseChar)
-            info = sm_analysis(transa,uplo,A,index)
-            sm_solve(transa,uplo,one($elty),A,B,info,index)
-        end
-        function sm(transa::SparseChar,
-                    alpha::$elty,
-                    A::AbstractTriangular,
-                    B::CuMatrix{$elty},
-                    index::SparseChar)
-            uplo = 'U'
-            if istril(A)
-                uplo = 'L'
-            end
-            info = sm_analysis(transa,uplo,A.data,index)
-            sm_solve(transa,uplo,alpha,A.data,B,info,index)
-        end
-        function sm(transa::SparseChar,
-                    A::AbstractTriangular,
-                    B::CuMatrix{$elty},
-                    index::SparseChar)
-            uplo = 'U'
-            if istril(A)
-                uplo = 'L'
-            end
-            info = sm_analysis(transa,uplo,A.data,index)
-            sm_solve(transa,uplo,one($elty),A.data,B,info,index)
-        end
-    end
-end
-
 # bsrsm2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_analysis, :cusparseSbsrsm2_solve, :Float32),
                                  (:cusparseDbsrsm2_bufferSize, :cusparseDbsrsm2_analysis, :cusparseDbsrsm2_solve, :Float64),
@@ -1653,7 +884,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             cutransxy = cusparseop(transxy)
             cudir = cusparsedir(A.dir)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square!"))
@@ -1671,22 +902,22 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             cusparseCreateBsrsm2Info(info)
             @workspace size=@argout(
                     $bname(handle(), cudir, cutransa, cutransxy,
-                           mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
-                           A.colVal, A.blockDim, info[1],
+                           mb, nX, A.nnz, cudesc, A.nzVal, A.rowPtr,
+                           A.colVal, A.blockDim, info[],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
                     $aname(handle(), cudir, cutransa, cutransxy,
-                           mb, nX, A.nnz, Ref(cudesc), A.nzVal, A.rowPtr,
-                           A.colVal, A.blockDim, info[1],
+                           mb, nX, A.nnz, cudesc, A.nzVal, A.rowPtr,
+                           A.colVal, A.blockDim, info[],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
-                    cusparseXbsrsm2_zeroPivot(handle(), info[1], posit)
+                    cusparseXbsrsm2_zeroPivot(handle(), info[], posit)
                     if posit[] >= 0
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), cudir, cutransa, cutransxy, mb,
-                           nX, A.nnz, [alpha], Ref(cudesc), A.nzVal, A.rowPtr,
-                           A.colVal, A.blockDim, info[1], X, ldx, X, ldx,
+                           nX, A.nnz, [alpha], cudesc, A.nzVal, A.rowPtr,
+                           A.colVal, A.blockDim, info[], X, ldx, X, ldx,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
             cusparseDestroyBsrsm2Info(info[1])
@@ -1703,270 +934,75 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
     end
 end
 
-# extensions
-
-"""
-    geam(alpha::BlasFloat, A::CuSparseMatrix, beta::BlasFloat, B::CuSparseMatrix, indexA::SparseChar, indexB::SparseChar, indexC::SparseChar)
-
-Solves `C = alpha * A + beta * B`. `A`, `B`, and `C` are all sparse.
-"""
-function geam(alpha::BlasFloat, A::CuSparseMatrix, beta::BlasFloat, B::CuSparseMatrix, indexA::SparseChar, indexB::SparseChar, indexC::SparseChar) end
-
-for (fname,elty) in ((:cusparseScsrgeam, :Float32),
-                     (:cusparseDcsrgeam, :Float64),
-                     (:cusparseCcsrgeam, :ComplexF32),
-                     (:cusparseZcsrgeam, :ComplexF64))
+# csrsm2
+for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrsm2_analysis, :cusparseScsrsm2_solve, :Float32),
+                                 (:cusparseDcsrsm2_bufferSizeExt, :cusparseDcsrsm2_analysis, :cusparseDcsrsm2_solve, :Float64),
+                                 (:cusparseCcsrsm2_bufferSizeExt, :cusparseCcsrsm2_analysis, :cusparseCcsrsm2_solve, :ComplexF32),
+                                 (:cusparseZcsrsm2_bufferSizeExt, :cusparseZcsrsm2_analysis, :cusparseZcsrsm2_solve, :ComplexF64))
     @eval begin
-        function geam(alpha::$elty,
-                      A::CuSparseMatrixCSR{$elty},
-                      beta::$elty,
-                      B::CuSparseMatrixCSR{$elty},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            cuinda = cusparseindex(indexA)
-            cuindb = cusparseindex(indexB)
-            cuindc = cusparseindex(indexB)
-            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            cudescb = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindb)
-            cudescc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
-            mA,nA = A.dims
-            mB,nB = B.dims
-            if (mA != mB) || (nA != nB)
+        function csrsm2!(transa::SparseChar,
+                         transxy::SparseChar,
+                         alpha::$elty,
+                         A::CuSparseMatrixCSR{$elty},
+                         X::CuMatrix{$elty},
+                         index::SparseChar)
+            cutransa  = cusparseop(transa)
+            cutransxy = cusparseop(transxy)
+            cuind = cusparseindex(index)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            m,n = A.dims
+            if m != n
+                throw(DimensionMismatch("A must be square!"))
+            end
+            mX,nX = size(X)
+            if transxy == 'N' && (mX != m)
                 throw(DimensionMismatch(""))
             end
-            nnzC = Ref{Cint}(1)
-            rowPtrC = CUDA.zeros(Cint,mA+1)
-            cusparseXcsrgeamNnz(handle(), mA, nA, Ref(cudesca),
-                                A.nnz, A.rowPtr, A.colVal, Ref(cudescb), B.nnz,
-                                B.rowPtr, B.colVal, Ref(cudescc), rowPtrC, nnzC)
-            nnz = nnzC[]
-            C = CuSparseMatrixCSR(rowPtrC, CUDA.zeros(Cint,nnz), CUDA.zeros($elty,nnz), nnz, A.dims)
-            $fname(handle(), mA, nA, [alpha], Ref(cudesca),
-                   A.nnz, A.nzVal, A.rowPtr, A.colVal, [beta],
-                   Ref(cudescb), B.nnz, B.nzVal, B.rowPtr, B.colVal,
-                   Ref(cudescc), C.nzVal, C.rowPtr, C.colVal)
-            C
-        end
-        function geam(alpha::$elty,
-                      A::CuSparseMatrixCSC{$elty},
-                      beta::$elty,
-                      B::CuSparseMatrixCSC{$elty},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            cuinda = cusparseindex(indexA)
-            cuindb = cusparseindex(indexB)
-            cuindc = cusparseindex(indexB)
-            cudesca = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            cudescb = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindb)
-            cudescc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
-            mA,nA = A.dims
-            mB,nB = B.dims
-            if (mA != mB) || (nA != nB)
-                throw(DimensionMismatch("A and B must have same dimensions!"))
+            if transxy != 'N' && (nX != m)
+                throw(DimensionMismatch(""))
             end
-            nnzC = Ref{Cint}(1)
-            rowPtrC = CUDA.zeros(Cint, mA+1)
-            cusparseXcsrgeamNnz(handle(), mA, nA, Ref(cudesca),
-                                A.nnz, A.colPtr, A.rowVal, Ref(cudescb), B.nnz,
-                                B.colPtr, B.rowVal, Ref(cudescc), rowPtrC, nnzC)
-            nnz = nnzC[]
-            C = CuSparseMatrixCSC(rowPtrC, CUDA.zeros(Cint, nnz), CUDA.zeros($elty, nnz), nnz, A.dims)
-            $fname(handle(), mA, nA, [alpha], Ref(cudesca),
-                   A.nnz, A.nzVal, A.colPtr, A.rowVal, [beta],
-                   Ref(cudescb), B.nnz, B.nzVal, B.colPtr, B.rowVal,
-                   Ref(cudescc), C.nzVal, C.colPtr, C.rowVal)
-            C
+            ldx = max(1,stride(X,2))
+            info = csrsm2Info_t[0]
+            cusparseCreateCsrsm2Info(info)
+            # use non block algo (0) for now...
+            @workspace size=@argout(
+                    $bname(handle(), 0, cutransa, cutransxy,
+                           m, nX, A.nnz, [alpha], cudesc, A.nzVal, A.rowPtr,
+                           A.colVal, X, ldx, info[], CUSPARSE_SOLVE_POLICY_USE_LEVEL,
+                           out(Ref{UInt64}(1)))
+                )[] buffer->begin
+                    $aname(handle(), 0, cutransa, cutransxy,
+                           m, nX, A.nnz, [alpha], cudesc, A.nzVal, A.rowPtr,
+                           A.colVal, X, ldx, info[],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsrsm2_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                    end
+                    $sname(handle(), 0, cutransa, cutransxy, m,
+                           nX, A.nnz, [alpha], cudesc, A.nzVal, A.rowPtr,
+                           A.colVal, X, ldx, info[],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                end
+            cusparseDestroyCsrsm2Info(info[])
+            X
         end
-        function geam(alpha::$elty,
-                      A::CuSparseMatrixCSR{$elty},
-                      beta::$elty,
-                      B::CuSparseMatrixCSC{$elty},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            geam(alpha,A,beta,switch2csr(B),indexA,indexB,indexC)
-        end
-        function geam(alpha::$elty,
-                      A::CuSparseMatrixCSC{$elty},
-                      beta::$elty,
-                      B::CuSparseMatrixCSR{$elty},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            geam(alpha,switch2csr(A),beta,B,indexA,indexB,indexC)
-        end
-        function geam(alpha::$elty,
-                      A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}},
-                      B::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            geam(alpha,A,one($elty),B,indexA,indexB,indexC)
-        end
-        function geam(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}},
-                      beta::$elty,
-                      B::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            geam(one($elty),A,beta,B,indexA,indexB,indexC)
-        end
-        function geam(A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}},
-                      B::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty}},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            geam(one($elty),A,one($elty),B,indexA,indexB,indexC)
+        function csrsm2(transa::SparseChar,
+                        transxy::SparseChar,
+                        alpha::$elty,
+                        A::CuSparseMatrixCSR{$elty},
+                        X::CuMatrix{$elty},
+                        index::SparseChar)
+            csrsm2!(transa,transxy,alpha,A,copy(X),index)
         end
     end
 end
 
-"""
-    gemm(transa::SparseChar, transb::SparseChar, A::CuSparseMatrix, B::CuSparseMatrix, indexA::SparseChar, indexB::SparseChar, indexC::SparseChar)
 
-Solves `C = op(A)*op(B)`. `op(A)` can be nothing (`transa = N`), transpose
-(`transa = T`), or conjugate transpose (`transa = C`), and similarly for `op(B)` and
-`transb`. All of `A`, `B`, and `C` are sparse.
-"""
-function gemm(transa::SparseChar, transb::SparseChar, A::CuSparseMatrix, B::CuSparseMatrix, indexA::SparseChar, indexB::SparseChar, indexC::SparseChar) end
-for (fname,elty) in ((:cusparseScsrgemm, :Float32),
-                     (:cusparseDcsrgemm, :Float64),
-                     (:cusparseCcsrgemm, :ComplexF32),
-                     (:cusparseZcsrgemm, :ComplexF64))
-    @eval begin
-        # CSR GEMM
-        function gemm(transa::SparseChar,
-                      transb::SparseChar,
-                      A::CuSparseMatrixCSR{$elty},
-                      B::CuSparseMatrixCSR{$elty},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            cutransa = cusparseop(transa)
-            cutransb = cusparseop(transb)
-            cuinda   = cusparseindex(indexA)
-            cuindb   = cusparseindex(indexB)
-            cuindc   = cusparseindex(indexC)
-            cudesca  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            cudescb  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindb)
-            cudescc  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
-            m,k  = transa == 'N' ? A.dims : (A.dims[2],A.dims[1])
-            kB,n = transb == 'N' ? B.dims : (B.dims[2],B.dims[1])
-            if k != kB
-                throw(DimensionMismatch("Interior dimension of A, $k, and B, $kB, must match"))
-            end
-            nnzC = Ref{Cint}(1)
-            rowPtrC = CUDA.zeros(Cint,m + 1)
-            cusparseXcsrgemmNnz(handle(), cutransa, cutransb,
-                                m, n, k, Ref(cudesca), A.nnz, A.rowPtr, A.colVal,
-                                Ref(cudescb), B.nnz, B.rowPtr, B.colVal, Ref(cudescc),
-                                rowPtrC, nnzC)
-            nnz = nnzC[]
-            C = CuSparseMatrixCSR(rowPtrC, CUDA.zeros(Cint,nnz), CUDA.zeros($elty,nnz), nnz, (m,n))
-            $fname(handle(), cutransa,
-                   cutransb, m, n, k, Ref(cudesca), A.nnz, A.nzVal,
-                   A.rowPtr, A.colVal, Ref(cudescb), B.nnz, B.nzVal,
-                   B.rowPtr, B.colVal, Ref(cudescc), C.nzVal,
-                   C.rowPtr, C.colVal)
-            C
-        end
 
-        # CSC GEMM, these methods are implemented via the CUSPARSE CSR methods
-        function gemm(transa::SparseChar,
-                      transb::SparseChar,
-                      A::CuSparseMatrixCSC{$elty},
-                      B::CuSparseMatrixCSC{$elty},
-                      indexA::SparseChar,
-                      indexB::SparseChar,
-                      indexC::SparseChar)
-            cutransa = cusparseop(transa == 'N' ? 'T' : 'N')
-            cutransb = cusparseop(transb == 'N' ? 'T' : 'N')
-            cuinda   = cusparseindex(indexA)
-            cuindb   = cusparseindex(indexB)
-            cuindc   = cusparseindex(indexC)
-            cudesca  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
-            cudescb  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindb)
-            cudescc  = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuindc)
-            m,k  = transa == 'N' ? A.dims : (A.dims[2],A.dims[1])
-            kB,n = transb == 'N' ? B.dims : (B.dims[2],B.dims[1])
-            if k != kB
-                throw(DimensionMismatch("Interior dimension of A, $k, and B, $kB, must match"))
-            end
-            nnzC = Ref{Cint}(1)
-            rowPtrC = CUDA.zeros(Cint,m + 1)
-            cusparseXcsrgemmNnz(handle(), cutransa, cutransb, m, n, k,
-                                Ref(cudesca), A.nnz, A.colPtr, A.rowVal,
-                                Ref(cudescb), B.nnz, B.colPtr, B.rowVal,
-                                Ref(cudescc), rowPtrC, nnzC)
-            nnz = nnzC[]
-            C = CuSparseMatrixCSR(rowPtrC, CUDA.zeros(Cint,nnz), CUDA.zeros($elty,nnz), nnz, (m,n))
-            $fname(handle(), cutransa, cutransb, m, n, k,
-                   Ref(cudesca), A.nnz, A.nzVal, A.colPtr, A.rowVal,
-                   Ref(cudescb), B.nnz, B.nzVal, B.colPtr, B.rowVal,
-                   Ref(cudescc), C.nzVal, C.rowPtr, C.colVal)
-            return C
-        end
-    end
-end
 
 ## preconditioners
-
-"""
-    ic0!(transa::SparseChar, typea::SparseChar, A::CompressedSparse, info::cusparseSolveAnalysisInfo_t, index::SparseChar)
-
-Incomplete Cholesky factorization with no pivoting.
-Preserves the sparse layout of matrix `A`. Must call
-[`sv_analysis`](@ref) first, since this provides the `info` argument.
-"""
-function ic0!(transa::SparseChar, typea::SparseChar, A::CompressedSparse, info::cusparseSolveAnalysisInfo_t, index::SparseChar) end
-
-for (fname,elty) in ((:cusparseScsric0, :Float32),
-                     (:cusparseDcsric0, :Float64),
-                     (:cusparseCcsric0, :ComplexF32),
-                     (:cusparseZcsric0, :ComplexF64))
-    @eval begin
-        function ic0!(transa::SparseChar,
-                      typea::SparseChar,
-                      A::CompressedSparse{$elty},
-                      info::cusparseSolveAnalysisInfo_t,
-                      index::SparseChar)
-            Mat     = A
-            if typeof(A) <: HermOrSym
-                Mat = A.data
-            end
-            cutransa = cusparseop(transa)
-            cutype   = cusparsetype(typea)
-            if typeof(A) <: Symmetric
-                cutype = cusparsetype('S')
-            elseif typeof(A) <: Hermitian
-                cutype = cusparsetype('H')
-            end
-
-            if transa == 'N' && typeof(Mat) == CuSparseMatrixCSC{$elty}
-                cutransa = cusparseop('T')
-            elseif transa == 'T' && typeof(Mat) == CuSparseMatrixCSC{$elty}
-                cutransa = cusparseop('N')
-            end
-            cuind    = cusparseindex(index)
-            cudesc   = getDescr(A, index)
-            m,n      = Mat.dims
-            indPtr   = typeof(Mat) == CuSparseMatrixCSC{$elty} ? Mat.colPtr : Mat.rowPtr
-            valPtr   = typeof(Mat) == CuSparseMatrixCSC{$elty} ? Mat.rowVal : Mat.colVal
-            $fname(handle(), cutransa, m, Ref(cudesc), Mat.nzVal,
-                   indPtr, valPtr, info)
-            Mat
-        end
-        function ic0(transa::SparseChar,
-                     typea::SparseChar,
-                     A::CompressedSparse{$elty},
-                     info::cusparseSolveAnalysisInfo_t,
-                     index::SparseChar)
-            ic0!(transa,typea,copy(A),info,index)
-        end
-    end
-end
 
 """
     ic02!(A::CuSparseMatrix, index::SparseChar)
@@ -1983,7 +1019,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
         function ic02!(A::CuSparseMatrixCSR{$elty},
                        index::SparseChar)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -1991,11 +1027,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             info = csric02Info_t[0]
             cusparseCreateCsric02Info(info)
             @workspace size=@argout(
-                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                    $bname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                    $aname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -2004,7 +1040,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           cudesc, A.nzVal, A.rowPtr, A.colVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
             cusparseDestroyCsric02Info(info[1])
@@ -2022,7 +1058,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
         function ic02!(A::CuSparseMatrixCSC{$elty},
                        index::SparseChar)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -2030,11 +1066,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
             info = csric02Info_t[0]
             cusparseCreateCsric02Info(info)
             @workspace size=@argout(
-                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                    $bname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.colPtr, A.rowVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                    $aname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.colPtr, A.rowVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -2043,56 +1079,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           cudesc, A.nzVal, A.colPtr, A.rowVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
             cusparseDestroyCsric02Info(info[1])
             A
-        end
-    end
-end
-
-"""
-    ilu0!(transa::SparseChar, A::CuSparseMatrix, info::cusparseSolveAnalysisInfo_t, index::SparseChar)
-
-Incomplete LU factorization with no pivoting.
-Preserves the sparse layout of matrix `A`. Must call
-[`sv_analysis`](@ref) first, since this provides the `info` argument.
-"""
-function ilu0!(transa::SparseChar, A::CuSparseMatrix, info::cusparseSolveAnalysisInfo_t, index::SparseChar) end
-for (fname,elty) in ((:cusparseScsrilu0, :Float32),
-                     (:cusparseDcsrilu0, :Float64),
-                     (:cusparseCcsrilu0, :ComplexF32),
-                     (:cusparseZcsrilu0, :ComplexF64))
-    @eval begin
-        function ilu0!(transa::SparseChar,
-                       A::CompressedSparse{$elty},
-                       info::cusparseSolveAnalysisInfo_t,
-                       index::SparseChar)
-            Mat = A
-            if typeof(A) <: HermOrSym
-                Mat = A.data
-            end
-            cutransa = cusparseop(transa)
-            if transa == 'N' && typeof(Mat) == CuSparseMatrixCSC{$elty}
-                cutransa = cusparseop('T')
-            elseif transa == 'T' && typeof(Mat) == CuSparseMatrixCSC{$elty}
-                cutransa = cusparseop('N')
-            end
-            cuind    = cusparseindex(index)
-            cudesc   = getDescr(A, index)
-            m,n      = Mat.dims
-            indPtr   = typeof(Mat) == CuSparseMatrixCSC{$elty} ? Mat.colPtr : Mat.rowPtr
-            valPtr   = typeof(Mat) == CuSparseMatrixCSC{$elty} ? Mat.rowVal : Mat.colVal
-            $fname(handle(), cutransa, m, Ref(cudesc), Mat.nzVal,
-                   indPtr, valPtr, info)
-            Mat
-        end
-        function ilu0(transa::SparseChar,
-                      A::CompressedSparse{$elty},
-                      info::cusparseSolveAnalysisInfo_t,
-                      index::SparseChar)
-            ilu0!(transa,copy(A),info,index)
         end
     end
 end
@@ -2112,7 +1103,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
         function ilu02!(A::CuSparseMatrixCSR{$elty},
                         index::SparseChar)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -2120,11 +1111,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             info = csrilu02Info_t[0]
             cusparseCreateCsrilu02Info(info)
             @workspace size=@argout(
-                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                    $bname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                    $aname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -2133,7 +1124,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                         throw(string("Structural zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.rowPtr, A.colVal, info[1],
+                           cudesc, A.nzVal, A.rowPtr, A.colVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
             cusparseDestroyCsrilu02Info(info[1])
@@ -2151,7 +1142,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
         function ilu02!(A::CuSparseMatrixCSC{$elty},
                         index::SparseChar)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -2159,11 +1150,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
             info = csrilu02Info_t[0]
             cusparseCreateCsrilu02Info(info)
             @workspace size=@argout(
-                    $bname(handle(), m, A.nnz, Ref(cudesc),
+                    $bname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.colPtr, A.rowVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), m, A.nnz, Ref(cudesc),
+                    $aname(handle(), m, A.nnz, cudesc,
                            A.nzVal, A.colPtr, A.rowVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -2172,7 +1163,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                         throw(string("Structural zero in A at (",posit[],posit[],")"))
                     end
                     $sname(handle(), m, A.nnz,
-                           Ref(cudesc), A.nzVal, A.colPtr, A.rowVal, info[1],
+                           cudesc, A.nzVal, A.colPtr, A.rowVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
             cusparseDestroyCsrilu02Info(info[1])
@@ -2191,7 +1182,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                        index::SparseChar)
             cudir = cusparsedir(A.dir)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -2200,11 +1191,11 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
             info = bsric02Info_t[0]
             cusparseCreateBsric02Info(info)
             @workspace size=@argout(
-                    $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                    $bname(handle(), cudir, mb, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                    $aname(handle(), cudir, mb, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -2212,7 +1203,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                     if posit[] >= 0
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
-                    $sname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                    $sname(handle(), cudir, mb, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -2232,7 +1223,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                         index::SparseChar)
             cudir = cusparsedir(A.dir)
             cuind = cusparseindex(index)
-            cudesc = cusparseMatDescr(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
+            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -2241,11 +1232,11 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
             info = bsrilu02Info_t[0]
             cusparseCreateBsrilu02Info(info)
             @workspace size=@argout(
-                    $bname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                    $bname(handle(), cudir, mb, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                    $aname(handle(), cudir, mb, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -2253,7 +1244,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                     if posit[] >= 0
                         throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
                     end
-                    $sname(handle(), cudir, mb, A.nnz, Ref(cudesc),
+                    $sname(handle(), cudir, mb, A.nnz, cudesc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -2280,103 +1271,6 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         function ic02(A::HermOrSym{$elty,CuSparseMatrix{$elty}},
                       index::SparseChar)
             ic02!(copy(A.data),index)
-        end
-    end
-end
-
-"""
-    gtsv!(dl::CuVector, d::CuVector, du::CuVector, B::CuMatrix)
-
-Performs the solution of `A \\ B` where `A` is a tridiagonal matrix, with
-lower diagonal `dl`, main diagonal `d`, and upper diagonal `du`.
-"""
-function gtsv!(dl::CuVector, d::CuVector, du::CuVector, B::CuMatrix) end
-
-for (fname,elty) in ((:cusparseSgtsv, :Float32),
-                     (:cusparseDgtsv, :Float64),
-                     (:cusparseCgtsv, :ComplexF32),
-                     (:cusparseZgtsv, :ComplexF64))
-    @eval begin
-        function gtsv!(dl::CuVector{$elty},
-                       d::CuVector{$elty},
-                       du::CuVector{$elty},
-                       B::CuMatrix{$elty})
-            m,n = B.dims
-            ldb = max(1,stride(B,2))
-            $fname(handle(), m, n, dl, d, du, B, ldb)
-            B
-        end
-        function gtsv(dl::CuVector{$elty},
-                      d::CuVector{$elty},
-                      du::CuVector{$elty},
-                      B::CuMatrix{$elty})
-            gtsv!(dl,d,du,copy(B))
-        end
-    end
-end
-
-"""
-    gtsv_nopivot!(dl::CuVector, d::CuVector, du::CuVector, B::CuMatrix)
-
-Performs the solution of `A \\ B` where `A` is a tridiagonal matrix, with
-lower diagonal `dl`, main diagonal `d`, and upper diagonal `du`. No pivoting is used.
-"""
-function gtsv_nopivot!(dl::CuVector, d::CuVector, du::CuVector, B::CuMatrix) end
-for (fname,elty) in ((:cusparseSgtsv_nopivot, :Float32),
-                     (:cusparseDgtsv_nopivot, :Float64),
-                     (:cusparseCgtsv_nopivot, :ComplexF32),
-                     (:cusparseZgtsv_nopivot, :ComplexF64))
-    @eval begin
-        function gtsv_nopivot!(dl::CuVector{$elty},
-                               d::CuVector{$elty},
-                               du::CuVector{$elty},
-                               B::CuMatrix{$elty})
-            m,n = B.dims
-            ldb = max(1,stride(B,2))
-            $fname(handle(), m, n, dl, d, du, B, ldb)
-            B
-        end
-        function gtsv_nopivot(dl::CuVector{$elty},
-                              d::CuVector{$elty},
-                              du::CuVector{$elty},
-                              B::CuMatrix{$elty})
-            gtsv_nopivot!(dl,d,du,copy(B))
-        end
-    end
-end
-
-"""
-    gtsvStridedBatch!(dl::CuVector, d::CuVector, du::CuVector, X::CuVector, batchCount::Integer, batchStride::Integer)
-
-Performs the batched solution of `A[i] \\ B[i]` where `A[i]` is a tridiagonal matrix, with
-lower diagonal `dl`, main diagonal `d`, and upper diagonal `du`. `batchCount` determines
-how many elements there are in the batch in total (how many `A`s?), and `batchStride` sets
-the separation of each item in the batch (it must be at least `m`, the matrix dimension).
-"""
-function gtsvStridedBatch!(dl::CuVector, d::CuVector, du::CuVector, X::CuVector, batchCount::Integer, batchStride::Integer) end
-for (fname,elty) in ((:cusparseSgtsvStridedBatch, :Float32),
-                     (:cusparseDgtsvStridedBatch, :Float64),
-                     (:cusparseCgtsvStridedBatch, :ComplexF32),
-                     (:cusparseZgtsvStridedBatch, :ComplexF64))
-    @eval begin
-        function gtsvStridedBatch!(dl::CuVector{$elty},
-                                   d::CuVector{$elty},
-                                   du::CuVector{$elty},
-                                   X::CuVector{$elty},
-                                   batchCount::Integer,
-                                   batchStride::Integer)
-            m = div(length(X),batchCount)
-            $fname(handle(), m, dl, d, du, X,
-                   batchCount, batchStride)
-            X
-        end
-        function gtsvStridedBatch(dl::CuVector{$elty},
-                                  d::CuVector{$elty},
-                                  du::CuVector{$elty},
-                                  X::CuVector{$elty},
-                                  batchCount::Integer,
-                                  batchStride::Integer)
-            gtsvStridedBatch!(dl,d,du,copy(X),batchCount,batchStride)
         end
     end
 end

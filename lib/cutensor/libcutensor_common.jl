@@ -6,8 +6,8 @@
 # Automatically generated using Clang.jl
 
 const CUTENSOR_MAJOR = 1
-const CUTENSOR_MINOR = 0
-const CUTENSOR_PATCH = 1
+const CUTENSOR_MINOR = 1
+const CUTENSOR_PATCH = 0
 
 @cenum cutensorAlgo_t::Int32 begin
     CUTENSOR_ALGO_GETT = -4
@@ -82,6 +82,9 @@ end
     CUTENSOR_R_MIN_32U = 128
     CUTENSOR_R_MIN_8I = 256
     CUTENSOR_R_MIN_32I = 512
+    CUTENSOR_R_MIN_16BF = 1024
+    CUTENSOR_R_MIN_TF32 = 2048
+    CUTENSOR_C_MIN_TF32 = 4096
 end
 
 struct cutensorHandle_t
