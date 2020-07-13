@@ -238,7 +238,7 @@ end
 function collect(Mat::CuSparseMatrixCSR)
     rowPtr = collect(Mat.rowPtr)
     colVal = collect(Mat.colVal)
-    nzVal = collect(Mat.nzVal)
+    nzVal  = collect(Mat.nzVal)
     #construct Is
     I = similar(colVal)
     counter = 1
