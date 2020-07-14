@@ -99,7 +99,7 @@ v"10.0.326"
 
 You might want to disallow use of artifacts, e.g., because an optimized CUDA installation is
 available for your system. You can do so by setting the environment variable
-`JULIA_CUDA_USE_BINARYBUILDER` to `false`.
+`JULIA_CUDA_USE_BINARYBUILDER` to `false` when importing CUDA.jl.
 
 To troubleshoot discovery of a local CUDA installation, you can set `JULIA_DEBUG=CUDA` and
 see the various paths where CUDA.jl looks. By setting any of the `CUDA_HOME`, `CUDA_ROOT` or
