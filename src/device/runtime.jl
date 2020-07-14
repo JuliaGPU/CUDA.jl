@@ -66,9 +66,7 @@ function load_libdevice(cap)
     path = libdevice()
 
     get!(libcache, path) do
-        open(path) do io
-            parse(LLVM.Module, read(path), JuliaContext())
-        end
+        parse(LLVM.Module, read(path), JuliaContext())
     end
 end
 
