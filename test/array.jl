@@ -207,22 +207,33 @@ end
 end
 
 @testset "accumulate" begin
-  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
+  # small, large, odd & even, pow2 and not
+  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) 
     @test testf(x->accumulate(+, x), rand(n))
   end
 
+  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) # small, large, odd & even, pow2 and not
+    @test testf(x->accumulate(+, x; init = 1), rand(n))
+  end
   # multidimensional
   for (sizes, dims) in ((2,) => 2,
                         (3,4,5) => 2,
-                        (1, 70, 50, 20) => 3)
+                        (1, 70, 50, 20) => 3,
+                        (2, 3, 5000, 5, 6) => 3)
     @test testf(x->accumulate(+, x; dims=dims), rand(Int, sizes))
   end
 
   # using initializer
   for (sizes, dims) in ((2,) => 2,
                         (3,4,5) => 2,
-                        (1, 70, 50, 20) => 3)
+                        (1, 70, 50, 20) => 3,
+                        (2, 3, 5000, 5, 6) => 3)
     @test testf(x->accumulate(+, x; dims=dims, init=100.), rand(Int, sizes))
+  end
+
+  # test for non-pritive types
+  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) 
+    @test testf(x->accumulate(+, x), rand(Int128, n))
   end
 
   # in place

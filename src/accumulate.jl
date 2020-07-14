@@ -210,9 +210,11 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray{T2};
     threads = nextwarp(device(), Base.min(kernel_config.threads, length(Rdim)))
     blocks = (cld(length(Rdim), threads), blocks_other...)
     aggregates = if length(Rdim) > threads
-        similar(output, blocks)
-    else
-        nothing
+            aggregate_dims = [size(output)...]
+            aggregate_dims[dims] = blocks[1]
+            similar(output, Tuple(aggregate_dims))
+        else
+            nothing
     end
     shmem = shmem_calc(threads)
 
