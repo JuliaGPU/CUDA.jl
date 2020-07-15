@@ -1,11 +1,11 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 
-mutable struct CuArray{T,N,P} <: AbstractGPUArray{T,N}
+mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
 
-  parent::P       # parent array (for, e.g., contiguous views keeping their parent alive)
-  pooled::Bool    # is this memory backed by the memory pool?
+  parent::Union{Nothing, CuArray} # parent array, for memory ownership tracking
+  pooled::Bool                    # is this memory backed by the memory pool?
 
   # for early freeing outside of the GC
   refcount::Int
@@ -13,27 +13,23 @@ mutable struct CuArray{T,N,P} <: AbstractGPUArray{T,N}
 
   ctx::CuContext
 
-  # constrain P
-  CuArray{T,N,P}(ptr, dims, parent::Union{Nothing,CuArray}, pooled, ctx) where {T,N,P} =
-    new(ptr, dims, parent, pooled, 0, false, ctx)
-end
+  # primary array
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, pooled::Bool=true;
+                        ctx=context()) where {T,N}
+    self = new(ptr, dims, nothing, pooled, 0, false, ctx)
+    retain(self)
+    finalizer(unsafe_free!, self)
+    return self
+  end
 
-# primary array
-function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, pooled::Bool=true;
-                      ctx=context()) where {T,N}
-  self = CuArray{T,N,Nothing}(ptr, dims, nothing, pooled, ctx)
-  retain(self)
-  finalizer(unsafe_free!, self)
-  return self
-end
-
-# derived array (e.g. view, reinterpret, ...)
-function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::P) where {T,N,P<:CuArray}
-  self = CuArray{T,N,P}(ptr, dims, parent, parent.pooled, parent.ctx)
-  retain(self)
-  retain(parent)
-  finalizer(unsafe_free!, self)
-  return self
+  # derived array (e.g. view, reinterpret, ...)
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::CuArray) where {T,N}
+    self = new(ptr, dims, parent, parent.pooled, 0, false, parent.ctx)
+    retain(self)
+    retain(parent)
+    finalizer(unsafe_free!, self)
+    return self
+  end
 end
 
 function unsafe_free!(xs::CuArray)
@@ -74,17 +70,24 @@ end
   return a.refcount == 0
 end
 
-Base.parent(A::CuArray{<:Any,<:Any,Nothing})     = A
-Base.parent(A::CuArray{<:Any,<:Any,P}) where {P} = A.parent
+Base.parent(A::CuArray) where {P} = something(A.parent, A)
 
-Base.dataids(A::CuArray{<:Any,<:Any,Nothing})     = (UInt(pointer(A)),)
-Base.dataids(A::CuArray{<:Any,<:Any,P}) where {P} = (Base.dataids(parent(A))..., UInt(pointer(A)),)
+function Base.dataids(A::CuArray)
+  if A.parent === nothing
+    (UInt(pointer(A)),)
+  else
+    (Base.dataids(parent(A))..., UInt(pointer(A)),)
+  end
+end
 
-Base.unaliascopy(A::CuArray{<:Any,<:Any,Nothing}) = copy(A)
-function Base.unaliascopy(A::CuArray{<:Any,<:Any,P}) where {P}
-  offset = pointer(A) - pointer(A.parent)
-  new_parent = Base.unaliascopy(A.parent)
-  typeof(A)(pointer(new_parent) + offset, A.dims, new_parent, A.pooled, A.ctx)
+function Base.unaliascopy(A::CuArray) where {P}
+  if A.parent === nothing
+    copy(A)
+  else
+    offset = pointer(A) - pointer(A.parent)
+    new_parent = Base.unaliascopy(A.parent)
+    typeof(A)(pointer(new_parent) + offset, A.dims, new_parent)
+  end
 end
 
 # optimized alias detection for views
@@ -101,12 +104,6 @@ end
 
 
 ## convenience constructors
-
-# discard the P typevar
-#
-# P is just used to specialize the parent field, and does not actually affect the object,
-# so we can safely discard this information when creating similar objects (`typeof(A)(...)`)
-CuArray{T,N,P}(args...) where {T,N,P} = CuArray{T,N}(args...)
 
 CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
