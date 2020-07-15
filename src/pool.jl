@@ -182,10 +182,10 @@ pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 # - used_memory()
 # - cached_memory()
 
-include("memory/binned.jl")
-include("memory/simple.jl")
-include("memory/split.jl")
-include("memory/dummy.jl")
+include("pool/binned.jl")
+include("pool/simple.jl")
+include("pool/split.jl")
+include("pool/dummy.jl")
 
 const pool = Ref{Module}(BinnedPool)
 
