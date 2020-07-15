@@ -212,6 +212,9 @@ pages:
   interruptible: true
   tags:
     - nvidia-benchmark
+  only:
+    refs:
+      - master
   variables:
     JULIA_LOAD_PATH: "$CI_PROJECT_DIR:$CI_PROJECT_DIR/perf::"
     CODESPEED_ENVIRONMENT: "$CI_RUNNER_DESCRIPTION"
