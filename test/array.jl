@@ -39,8 +39,9 @@ end
 @testset "adapt" begin
   A = rand(Float32, 3, 3)
   dA = CuArray(A)
-  @test Adapt.adapt(Array, dA) ≈ A
-  @test Adapt.adapt(CuArray, A) ≈ dA
+  @test Adapt.adapt(Array, dA) == A
+  @test Adapt.adapt(CuArray, A) isa CuArray
+  @test Array(Adapt.adapt(CuArray, A)) == A
 end
 
 @testset "view" begin
