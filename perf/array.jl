@@ -11,13 +11,13 @@ gpu_vec_bools = reshape(gpu_mat_bools, length(gpu_mat_bools))
 
 group["construct"] = @benchmarkable CuArray{Int}(undef, 1)
 
-group["copy"] = @benchmarkable CUDA.@sync copy($gpu_mat)
+group["copy"] = @async_benchmarkable copy($gpu_mat)
 
 let group = addgroup!(group, "copyto!")
     gpu_mat2 = copy(gpu_mat)
-    group["cpu_to_gpu"] = @benchmarkable CUDA.@sync copyto!($gpu_mat, $cpu_mat)
-    group["gpu_to_cpu"] = @benchmarkable CUDA.@sync copyto!($cpu_mat, $gpu_mat)
-    group["gpu_to_gpu"] = @benchmarkable CUDA.@sync copyto!($gpu_mat2, $gpu_mat)
+    group["cpu_to_gpu"] = @async_benchmarkable copyto!($gpu_mat, $cpu_mat)
+    group["gpu_to_cpu"] = @async_benchmarkable copyto!($cpu_mat, $gpu_mat)
+    group["gpu_to_gpu"] = @async_benchmarkable copyto!($gpu_mat2, $gpu_mat)
 end
 
 let group = addgroup!(group, "iteration")
@@ -32,35 +32,35 @@ let group = addgroup!(group, "iteration")
     group["findfirst"] = @benchmarkable findfirst(isodd, $gpu_vec_ints)
 
     let group = addgroup!(group, "findmin") # findmax
-        group["1d"] = @benchmarkable CUDA.@sync findmin($gpu_vec)
-        group["2d"] = @benchmarkable CUDA.@sync findmin($gpu_mat; dims=1)
+        group["1d"] = @async_benchmarkable findmin($gpu_vec)
+        group["2d"] = @async_benchmarkable findmin($gpu_mat; dims=1)
     end
 end
 
 let group = addgroup!(group, "reverse")
-    group["1d"] = @benchmarkable CUDA.@sync reverse($gpu_vec)
-    group["2d"] = @benchmarkable CUDA.@sync reverse($gpu_mat; dims=1)
-    group["1d_inplace"] = @benchmarkable CUDA.@sync reverse!($gpu_vec)
-    group["2d_inplace"] = @benchmarkable CUDA.@sync reverse!($gpu_mat; dims=1)
+    group["1d"] = @async_benchmarkable reverse($gpu_vec)
+    group["2d"] = @async_benchmarkable reverse($gpu_mat; dims=1)
+    group["1d_inplace"] = @async_benchmarkable reverse!($gpu_vec)
+    group["2d_inplace"] = @async_benchmarkable reverse!($gpu_mat; dims=1)
 end
 
-group["broadcast"] = @benchmarkable CUDA.@sync $gpu_mat .= 0f0
+group["broadcast"] = @async_benchmarkable $gpu_mat .= 0f0
 
 # no need to test inplace version, which performs the same operation (but with an alloc)
 let group = addgroup!(group, "accumulate")
-    group["1d"] = @benchmarkable CUDA.@sync accumulate(+, $gpu_vec)
-    group["2d"] = @benchmarkable CUDA.@sync accumulate(+, $gpu_mat; dims=1)
+    group["1d"] = @async_benchmarkable accumulate(+, $gpu_vec)
+    group["2d"] = @async_benchmarkable accumulate(+, $gpu_mat; dims=1)
 end
 
 let group = addgroup!(group, "reductions")
     let group = addgroup!(group, "reduce")
-        group["1d"] = @benchmarkable CUDA.@sync reduce(+, $gpu_vec)
-        group["2d"] = @benchmarkable CUDA.@sync reduce(+, $gpu_mat; dims=1)
+        group["1d"] = @async_benchmarkable reduce(+, $gpu_vec)
+        group["2d"] = @async_benchmarkable reduce(+, $gpu_mat; dims=1)
     end
 
     let group = addgroup!(group, "mapreduce")
-        group["1d"] = @benchmarkable CUDA.@sync mapreduce(x->x+1, +, $gpu_vec)
-        group["2d"] = @benchmarkable CUDA.@sync mapreduce(x->x+1, +, $gpu_mat; dims=1)
+        group["1d"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_vec)
+        group["2d"] = @async_benchmarkable mapreduce(x->x+1, +, $gpu_mat; dims=1)
     end
 
     # used by sum, prod, minimum, maximum, all, any, count

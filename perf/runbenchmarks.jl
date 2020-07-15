@@ -6,6 +6,14 @@ CUDA.allowscalar(false)
 using BenchmarkTools
 BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
 
+# convenience macro to create a benchmark that requires synchronizing the GPU
+macro async_benchmarkable(ex...)
+    quote
+        # use non-blocking sync to reduce overhead
+        @benchmarkable CUDA.@sync blocking=false $(ex...)
+    end
+end
+
 SUITE = BenchmarkGroup()
 
 # NOTE: don't use spaces in benchmark names (tobami/codespeed#256)

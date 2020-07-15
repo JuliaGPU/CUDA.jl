@@ -21,11 +21,11 @@ function indexing_kernel(dest, src)
     @inbounds dest[i] = src[i]
     return
 end
-group["indexing"] = @benchmarkable CUDA.@sync @cuda threads=size(src,1) blocks=size(src,2) $indexing_kernel($dest, $src)
+group["indexing"] = @async_benchmarkable @cuda threads=size(src,1) blocks=size(src,2) $indexing_kernel($dest, $src)
 
 function checked_indexing_kernel(dest, src)
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
     dest[i] = src[i]
     return
 end
-group["indexing_checked"] = @benchmarkable CUDA.@sync @cuda threads=size(src,1) blocks=size(src,2) $checked_indexing_kernel($dest, $src)
+group["indexing_checked"] = @async_benchmarkable @cuda threads=size(src,1) blocks=size(src,2) $checked_indexing_kernel($dest, $src)
