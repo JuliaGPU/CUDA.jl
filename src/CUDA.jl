@@ -16,77 +16,75 @@ using LinearAlgebra
 
 ## source code includes
 
-const root = dirname(@__DIR__)
-
-include("$root/src/pointer.jl")
+include("pointer.jl")
 
 # core library
-include("$root/lib/utils/APIUtils.jl")
-include("$root/lib/cudadrv/CUDAdrv.jl")
+include("../lib/utils/APIUtils.jl")
+include("../lib/cudadrv/CUDAdrv.jl")
 
 # essential stuff
-include("$root/src/initialization.jl")
-include("$root/src/state.jl")
+include("initialization.jl")
+include("state.jl")
 
 # binary dependencies
-include("$root/deps/discovery.jl")
-include("$root/deps/compatibility.jl")
-include("$root/deps/bindeps.jl")
+include("../deps/discovery.jl")
+include("../deps/compatibility.jl")
+include("../deps/bindeps.jl")
 
 # device functionality (needs to be loaded first, because of generated functions)
-include("$root/src/device/pointer.jl")
-include("$root/src/device/array.jl")
-include("$root/src/device/intrinsics.jl")
-include("$root/src/device/llvm.jl")
-include("$root/src/device/runtime.jl")
-include("$root/src/device/texture.jl")
+include("device/pointer.jl")
+include("device/array.jl")
+include("device/intrinsics.jl")
+include("device/llvm.jl")
+include("device/runtime.jl")
+include("device/texture.jl")
 
 # compiler libraries
-include("$root/lib/cupti/CUPTI.jl")
-include("$root/lib/nvtx/NVTX.jl")
+include("../lib/cupti/CUPTI.jl")
+include("../lib/nvtx/NVTX.jl")
 export CUPTI, NVTX
 
 # compiler implementation
-include("$root/src/compiler/gpucompiler.jl")
-include("$root/src/compiler/execution.jl")
-include("$root/src/compiler/exceptions.jl")
-include("$root/src/compiler/reflection.jl")
+include("compiler/gpucompiler.jl")
+include("compiler/execution.jl")
+include("compiler/exceptions.jl")
+include("compiler/reflection.jl")
 
 # array abstraction
-include("$root/src/pool.jl")
-include("$root/src/array.jl")
-include("$root/src/gpuarrays.jl")
-include("$root/src/subarray.jl")
-include("$root/src/utilities.jl")
-include("$root/src/texture.jl")
+include("pool.jl")
+include("array.jl")
+include("gpuarrays.jl")
+include("subarray.jl")
+include("utilities.jl")
+include("texture.jl")
 
 # array libraries
-include("$root/lib/complex.jl")
-include("$root/lib/library_types.jl")
-include("$root/lib/cublas/CUBLAS.jl")
-include("$root/lib/cusparse/CUSPARSE.jl")
-include("$root/lib/cusolver/CUSOLVER.jl")
-include("$root/lib/cufft/CUFFT.jl")
-include("$root/lib/curand/CURAND.jl")
-include("$root/lib/cudnn/CUDNN.jl")
-include("$root/lib/cutensor/CUTENSOR.jl")
+include("../lib/complex.jl")
+include("../lib/library_types.jl")
+include("../lib/cublas/CUBLAS.jl")
+include("../lib/cusparse/CUSPARSE.jl")
+include("../lib/cusolver/CUSOLVER.jl")
+include("../lib/cufft/CUFFT.jl")
+include("../lib/curand/CURAND.jl")
+include("../lib/cudnn/CUDNN.jl")
+include("../lib/cutensor/CUTENSOR.jl")
 export CUBLAS, CUSPARSE, CUSOLVER, CUFFT, CURAND, CUDNN, CUTENSOR
 
 # integrations and specialized functionality
-include("$root/src/indexing.jl")
-include("$root/src/broadcast.jl")
-include("$root/src/mapreduce.jl")
-include("$root/src/accumulate.jl")
-include("$root/src/linalg.jl")
-include("$root/src/nnlib.jl")
-include("$root/src/iterator.jl")
-include("$root/src/statistics.jl")
+include("indexing.jl")
+include("broadcast.jl")
+include("mapreduce.jl")
+include("accumulate.jl")
+include("linalg.jl")
+include("nnlib.jl")
+include("iterator.jl")
+include("statistics.jl")
 
 # other libraries
-include("$root/lib/nvml/NVML.jl")
+include("../lib/nvml/NVML.jl")
 const has_nvml = NVML.has_nvml
 export NVML, has_nvml
 
-include("$root/src/deprecated.jl")
+include("deprecated.jl")
 
 end
