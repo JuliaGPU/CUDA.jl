@@ -1,18 +1,18 @@
 # wrappers for functionality provided by the CUDA toolkit
 
 # extensions to the C language
-include("cuda/memory_shared.jl")
-include("cuda/indexing.jl")
-include("cuda/synchronization.jl")
-include("cuda/warp_vote.jl")
-include("cuda/warp_shuffle.jl")
-include("cuda/output.jl")
-include("cuda/assertion.jl")
-include("cuda/memory_dynamic.jl")
-include("cuda/atomics.jl")
-include("cuda/misc.jl")
+include("intrinsics/memory_shared.jl")
+include("intrinsics/indexing.jl")
+include("intrinsics/synchronization.jl")
+include("intrinsics/warp_vote.jl")
+include("intrinsics/warp_shuffle.jl")
+include("intrinsics/output.jl")
+include("intrinsics/assertion.jl")
+include("intrinsics/memory_dynamic.jl")
+include("intrinsics/atomics.jl")
+include("intrinsics/misc.jl")
 if VERSION >= v"1.5-"
-include("cuda/wmma.jl")
+include("intrinsics/wmma.jl")
 end
 
 # functionality from libdevice
@@ -21,7 +21,7 @@ end
 # > functions for NVIDIA GPU devices, including math primitives and bit-manipulation
 # > functions. These functions are optimized for particular GPU architectures, and are
 # > intended to be linked with an NVVM IR module during compilation to PTX.
-include("cuda/math.jl")
+include("intrinsics/math.jl")
 # TODO: native mathematical functions, CUDA C programming guide" > "C language extensions"
 #       https://docs.nvidia.com/cuda/cuda-math-api/group__CUDA__MATH__INTRINSIC__DOUBLE.html
 #       see /path/to/cuda/include/sm_20_intrinsics.h
@@ -32,7 +32,7 @@ include("cuda/math.jl")
 # the CUDA API for execution on the device, such as device synchronization primitives,
 # dynamic kernel APIs, etc.
 using CEnum
-include("cuda/libcudadevrt_common.jl")
-include("cuda/libcudadevrt.jl")
-include("cuda/cooperative_groups.jl")
-include("cuda/dynamic_parallelism.jl")
+include("intrinsics/libcudadevrt_common.jl")
+include("intrinsics/libcudadevrt.jl")
+include("intrinsics/cooperative_groups.jl")
+include("intrinsics/dynamic_parallelism.jl")
