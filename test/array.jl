@@ -236,6 +236,10 @@ end
     @test testf(x->accumulate(+, x), rand(Int128, n))
   end
 
+  for n in (0, 1, 2, 3, 10, 10_000, 16384, 16384+1) 
+    @test testf(x->accumulate(xor, x), rand(Int128, n))
+  end
+
   # in place
   @test testf(x->(accumulate!(+, x, copy(x)); x), rand(2))
 
