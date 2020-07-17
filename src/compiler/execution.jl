@@ -91,9 +91,10 @@ macro cuda(ex...)
         push!(code.args,
             quote
                 # we're in kernel land already, so no need to cudaconvert arguments
-                local $kernel_tt = Tuple{$((:(Core.Typeof($var)) for var in var_exprs)...)}
+                local $kernel_args = ($(var_exprs...),)
+                local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                 local $kernel = $dynamic_cufunction($f, $kernel_tt)
-                $kernel($(var_exprs...); $(call_kwargs...))
+                $kernel($kernel_args...; $(call_kwargs...))
              end)
     else
         # regular, host-side kernel launch
@@ -104,7 +105,7 @@ macro cuda(ex...)
             quote
                 GC.@preserve $(vars...) begin
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
-                    local $kernel_tt = Tuple{Core.Typeof.($kernel_args)...}
+                    local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $cufunction($f, $kernel_tt; $(compiler_kwargs...))
                     $kernel($kernel_args...; $(call_kwargs...))
                 end
@@ -287,7 +288,8 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::Core.Function, tt::Type=Tuple{}; name=nothing, kwargs...)
+function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
+                   {F<:Core.Function, TT<:Type}
     ctx = context()
     env = hash(pointer_from_objref(ctx)) # contexts are unique, but handles might alias
     # TODO: implement this as a hash function in for CuContext
