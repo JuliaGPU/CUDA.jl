@@ -52,21 +52,23 @@ This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 function launch(f::CuFunction, args...; blocks::CuDim=1, threads::CuDim=1,
                 cooperative::Bool=false, shmem::Integer=0,
                 stream::CuStream=CuDefaultStream())
-    blocks = CuDim3(blocks)
-    threads = CuDim3(threads)
-    (blocks.x>0 && blocks.y>0 && blocks.z>0)    || throw(ArgumentError("Grid dimensions should be non-null"))
-    (threads.x>0 && threads.y>0 && threads.z>0) || throw(ArgumentError("Block dimensions should be non-null"))
+    blockdim = CuDim3(blocks)
+    threaddim = CuDim3(threads)
+    (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
+        throw(ArgumentError("Grid dimensions should be non-null"))
+    (threaddim.x>0 && threaddim.y>0 && threaddim.z>0) ||
+        throw(ArgumentError("Block dimensions should be non-null"))
 
     pack_arguments(args...) do kernelParams
         if cooperative
             cuLaunchCooperativeKernel(f,
-                                      blocks.x, blocks.y, blocks.z,
-                                      threads.x, threads.y, threads.z,
+                                      blockdim.x, blockdim.y, blockdim.z,
+                                      threaddim.x, threaddim.y, threaddim.z,
                                       shmem, stream, kernelParams)
         else
             cuLaunchKernel(f,
-                           blocks.x, blocks.y, blocks.z,
-                           threads.x, threads.y, threads.z,
+                           blockdim.x, blockdim.y, blockdim.z,
+                           threaddim.x, threaddim.y, threaddim.z,
                            shmem, stream, kernelParams, C_NULL)
         end
     end

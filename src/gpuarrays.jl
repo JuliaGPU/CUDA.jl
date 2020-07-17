@@ -17,27 +17,24 @@ struct CuArrayBackend <: AbstractGPUBackend end
 
 struct CuKernelContext <: AbstractKernelContext end
 
-# use the CUDA occupancy API to determine a launch configuration
-function GPUArrays.gpu_call(::CuArrayBackend, f, args, total_threads::Int;
-                            name::Union{String,Nothing})
-    function configurator(kernel)
-        config = launch_configuration(kernel.fun)
-
-        threads = Base.min(total_threads, config.threads)
-        blocks = cld(total_threads, threads)
-
-        return (threads=threads, blocks=blocks)
+function GPUArrays.launch_heuristic(::CuArrayBackend, f, args...; maximize_blocksize=false)
+    kernel_args = map(cudaconvert, args)
+    kernel_tt = Tuple{CuKernelContext, map(Core.Typeof, kernel_args)...}
+    kernel = cufunction(f, kernel_tt)
+    if maximize_blocksize
+        # some kernels benefit (algorithmically) from a large block size
+        launch_configuration(kernel.fun)
+    else
+        # otherwise, using huge blocks often hurts performance: even though it maximizes
+        # occupancy, we'd rather have a couple of blocks to switch between.
+        launch_configuration(kernel.fun; max_threads=256)
     end
-
-    @cuda config=configurator name=name f(CuKernelContext(), args...)
 end
 
 function GPUArrays.gpu_call(::CuArrayBackend, f, args, threads::Int, blocks::Int;
                             name::Union{String,Nothing})
     @cuda threads=threads blocks=blocks name=name f(CuKernelContext(), args...)
 end
-
-GPUArrays.synchronize(A::CuArray) = synchronize()
 
 
 ## on-device
