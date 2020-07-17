@@ -36,8 +36,6 @@ function GPUArrays.gpu_call(::CuArrayBackend, f, args, threads::Int, blocks::Int
     @cuda threads=threads blocks=blocks name=name f(CuKernelContext(), args...)
 end
 
-GPUArrays.synchronize(A::CuArray) = synchronize()
-
 
 ## on-device
 
