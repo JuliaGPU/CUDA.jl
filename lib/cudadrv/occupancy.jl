@@ -67,5 +67,5 @@ function launch_configuration(fun::CuFunction; shmem::Union{Integer,Base.Callabl
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
         _shmem_cb = nothing
     end
-    return (blocks=blocks_ref[], threads=threads_ref[])
+    return (blocks=Int(blocks_ref[]), threads=Int(threads_ref[]))
 end
