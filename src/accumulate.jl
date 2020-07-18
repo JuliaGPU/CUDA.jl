@@ -73,6 +73,8 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
+
+    # wid: warp index in block, lane: lane index in warp 
     wid, lane = fldmod1(thread, warpsize())
     exclusive = !inclusive
 
@@ -135,6 +137,7 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
 
         sync_threads()
 
+        # for all warps add the cumulative prefix sum of preceding warps
         wid > 1 && (value = op(partial_sums[wid - 1], value))
         
         # write results to device memory
