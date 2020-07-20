@@ -67,9 +67,9 @@ version = "4.0.1"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "374baab8247bf5b3301eb23c5996b33af2b07289"
+git-tree-sha1 = "6f46f295e8e504fce363caf2a28a2a56270681c0"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.5.1"
+version = "0.5.3"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -97,9 +97,9 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[LoopVectorization]]
 deps = ["DocStringExtensions", "LinearAlgebra", "OffsetArrays", "SIMDPirates", "SLEEFPirates", "UnPack", "VectorizationBase"]
-git-tree-sha1 = "b595e15d20e45d2eb36c6b4462d2a34143872a45"
+git-tree-sha1 = "c130c0ec960fa489dc87041d60834c459b307d0c"
 uuid = "bdcacae8-1622-11e9-2a5c-532679323890"
-version = "0.8.15"
+version = "0.8.18"
 
 [[MacroTools]]
 deps = ["Markdown", "Random"]
@@ -166,9 +166,9 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [[SIMDPirates]]
 deps = ["VectorizationBase"]
-git-tree-sha1 = "dae629e96c1819d77882256e6cb29736f493bc30"
+git-tree-sha1 = "cbe8797ac354d0b1dfe75d983429938db834b706"
 uuid = "21efa798-c60a-11e8-04d3-e1a92915a26a"
-version = "0.8.13"
+version = "0.8.16"
 
 [[SLEEFPirates]]
 deps = ["Libdl", "SIMDPirates", "VectorizationBase"]
@@ -213,7 +213,7 @@ version = "1.0.1"
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[VectorizationBase]]
-deps = ["CpuId", "LLVM", "Libdl", "LinearAlgebra"]
-git-tree-sha1 = "bb72c58beab6c9e544851f5373fcd72f8f1f157a"
+deps = ["CpuId", "Libdl", "LinearAlgebra"]
+git-tree-sha1 = "95c0c737c307dfd4f65ad50a79856b343fdb7959"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
-version = "0.12.21"
+version = "0.12.24"
