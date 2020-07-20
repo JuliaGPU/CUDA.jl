@@ -420,14 +420,15 @@ function main()
             wrapped_headers=["cublas_v2.h", "cublas_api.h", "cublasXt.h"],
             include_dirs=[cuda])
 
+
     process("cufft", "$cuda/cufft.h"; include_dirs=[cuda])
 
     process("curand", "$cuda/curand.h"; include_dirs=[cuda])
 
     process("cusparse", "$cuda/cusparse.h"; include_dirs=[cuda])
 
-    process("cusolver", "$cuda/cusolverDn.h", "$cuda/cusolverSp.h";
-            wrapped_headers=["cusolver_common.h", "cusolverDn.h", "cusolverSp.h"],
+    process("cusolver", "$cuda/cusolverDn.h", "$cuda/cusolverSp.h", "$cuda/cusolverMg.h";
+            wrapped_headers=["cusolver_common.h", "cusolverDn.h", "cusolverSp.h", "cusolverMg.h"],
             include_dirs=[cuda])
 
     process("cudnn", "$cudnn/cudnn_version.h", "$cudnn/cudnn_ops_infer.h",

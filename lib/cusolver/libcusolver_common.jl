@@ -127,3 +127,13 @@ const cusolverSpContext = Cvoid
 const cusolverSpHandle_t = Ptr{cusolverSpContext}
 const csrqrInfo = Cvoid
 const csrqrInfo_t = Ptr{csrqrInfo}
+const cusolverMgContext = Cvoid
+const cusolverMgHandle_t = Ptr{cusolverMgContext}
+
+@cenum cusolverMgGridMapping_t::UInt32 begin
+    CUDALIBMG_GRID_MAPPING_ROW_MAJOR = 1
+    CUDALIBMG_GRID_MAPPING_COL_MAJOR = 0
+end
+
+const cudaLibMgGrid_t = Ptr{Cvoid}
+const cudaLibMgMatrixDesc_t = Ptr{Cvoid}
