@@ -78,9 +78,9 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
         test_runners[file] = ()->include("$(@__DIR__)/$file.jl")
     else
         str = "$(@__DIR__)/$file.jl"
-        p, cmd = `$(Base.julia_cmd()) $str`
-        test_runners[file] = run(pipeline(cmd, stdout = stdout, stderr = stderr), wait = false)
+        test_runners[file] = run(pipeline(`$(Base.julia_cmd()) --project $str`; stdout = stdout, stderr = stderr), wait = false)
     end
+  end
 end
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)

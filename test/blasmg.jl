@@ -1,16 +1,15 @@
 using LinearAlgebra, Test
+using CUDA
+using CUDA.CUBLASMG
 
 @testset "CUBLASMG" begin
 
-using CuArrays.CUBLASMG
-using CUDAdrv
-
-voltas    = filter(dev->occursin("V100", name(dev)), collect(CUDAdrv.devices()))
-pascals    = filter(dev->occursin("P100", name(dev)), collect(CUDAdrv.devices()))
+voltas    = filter(dev->occursin("V100", name(dev)), collect(devices()))
+pascals   = filter(dev->occursin("P100", name(dev)), collect(devices()))
 m = 8192
 n = div(8192, 2)
 k = 8192*2
-devs = voltas[1:4]
+devs = voltas[1:end]
 CUBLASMG.cublasMgDeviceSelect(CUBLASMG.mg_handle(), length(devs), devs)
 @testset "element type $elty" for elty in [Float32, Float64]
     @testset "mg_gemm!" begin

@@ -1,14 +1,7 @@
 module CUDALIBMG
 
-using CUDAapi
-
-using CUDAdrv
-using CUDAdrv: CUstream
-
-using CUDAnative
-
-using ..CuArrays
-using ..CuArrays: libcudalibmg, unsafe_free!, @retry_reclaim
+using ..CUDA
+using ..CUDA: libcudalibmg, unsafe_free!, @retry_reclaim, @runtime_ccall, @checked, cudaDataType
 using LinearAlgebra
 
 using CEnum

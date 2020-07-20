@@ -43,6 +43,8 @@ const __libcufft = Ref{String}()
 const __libcurand = Ref{String}()
 const __libcudnn = Ref{Union{Nothing,String}}(nothing)
 const __libcutensor = Ref{Union{Nothing,String}}(nothing)
+const __libcublasmg = Ref{Union{Nothing,String}}(nothing)
+const __libcudalibmg = Ref{Union{Nothing,String}}(nothing)
 
 nvdisasm() = @after_init(__nvdisasm[])
 libdevice() = @after_init(__libdevice[])
@@ -81,10 +83,24 @@ function libcutensor()
         __libcutensor[]
     end
 end
+function libcublasmg()
+    @after_init begin
+        @assert has_cublasmg() "This functionality is unavailabe as CUBLASMG is missing."
+        __libcublasmg[]
+    end
+end
+function libcudalibmg()
+    @after_init begin
+        @assert has_cudalibmg() "This functionality is unavailabe as CUDALIBMG is missing."
+        __libcudalibmg[]
+    end
+end
 
-export has_cudnn, has_cutensor
+export has_cudnn, has_cutensor, has_cublasmg, has_cudalibmg
 has_cudnn() = @after_init(__libcudnn[]) !== nothing
 has_cutensor() = @after_init(__libcutensor[]) !== nothing
+has_cublasmg() = @after_init(__libcublasmg[]) !== nothing
+has_cudalibmg() = @after_init(__libcudalibmg[]) !== nothing
 
 
 ## discovery
@@ -220,7 +236,7 @@ function use_local_cuda()
         __libdevice[] = path
     end
 
-    for name in  ("cublas", "cusparse", "cusolver", "cufft", "curand")
+    for name in  ("cublas", "cusparse", "cusolver", "cufft", "curand", "cublasmg", "cudalibmg")
         handle = getfield(CUDA, Symbol("__lib$name"))
 
         path = find_cuda_library(name, cuda_dirs, cuda_version)

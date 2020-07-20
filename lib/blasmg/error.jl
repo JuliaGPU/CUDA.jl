@@ -6,7 +6,7 @@
 end
 
 function initialize_api()
-    CUDAnative.prepare_cuda_call()
+    CUDA.prepare_cuda_call()
 end
 
 macro check(ex)
