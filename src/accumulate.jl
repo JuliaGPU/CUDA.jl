@@ -40,30 +40,40 @@ end
         val = op(cache[thread - 1], val)
         sync_warp(mask >> 1)
         cache[thread] = val
+    else
+        sync_warp(~(mask >> 1))
     end
     sync_warp(mask)
     if lane > 2 
         val = op(cache[thread - 2], val)
         sync_warp(mask >> 2)
         cache[thread] = val
+    else
+        sync_warp(~(mask >> 2))
     end
     sync_warp(mask)
     if lane > 4 
         val = op(cache[thread - 4], val)
         sync_warp(mask >> 4)
         cache[thread] = val
+    else
+        sync_warp(~(mask >> 4))
     end
     sync_warp(mask)
     if lane > 8 
         val = op(cache[thread - 8], val)
         sync_warp(mask >> 8)
         cache[thread] = val
+    else
+        sync_warp(~(mask >> 8))
     end
     sync_warp(mask)
     if lane > 16 
         val = op(cache[thread - 16], val)
         sync_warp(mask >> 16)
         cache[thread] = val
+    else
+        sync_warp(~(mask >> 16))
     end
     sync_warp(mask)
     return val
