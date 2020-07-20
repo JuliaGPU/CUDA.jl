@@ -620,6 +620,14 @@ function main()
             wrapped_headers=["cublas_v2.h", "cublas_api.h", "cublasXt.h"],
             defines=["CUBLASAPI"=>""],
             include_dirs=[cuda])
+    
+    process_if_existing("cudalibmg", "cudalibmg.h";
+                        wrapped_headers=["cudalibmg.h", "cudalibmg/types.h"])
+    
+    incs = [get(ENV, "CUDALIBMG_INCLUDE", cuda_include)]
+    process_if_existing("cublasmg", "cublasMg.h";
+                        wrapped_headers=["cublasMg.h", "cublasmg/types.h"], includes = incs)
+
 
     process("cufft", "$cuda/cufft.h"; include_dirs=[cuda])
 

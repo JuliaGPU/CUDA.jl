@@ -163,7 +163,7 @@ function use_artifact_cuda()
     __libdevice[] = get_file(artifact.dir, joinpath("share", "libdevice", "libdevice.10.bc"))
     @assert isfile(__libdevice[])
 
-    for name in  ("cublas", "cusparse", "cusolver", "cufft", "curand")
+    for name in  ("cublas", "cusparse", "cusolver", "cufft", "curand", "cudart")
         handle = getfield(CUDA, Symbol("__lib$name"))
 
         # on Windows, the library name is version dependent

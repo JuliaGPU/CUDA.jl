@@ -1695,6 +1695,87 @@
         "convDesc": null,
         "groupCount": "Ptr"
     },
+    "cudaLibMgGetLocalMatrixDimensions": {  
+        "desc": null,
+        "numRows": "Ptr",
+        "numCols": "Ptr"
+    },
+    "cudaLibMgCreateDeviceGrid": {  
+        "grid": "Ptr",
+        "numRowDevices": null,
+        "numColDevices": null,
+        "deviceIds": "Ptr",
+        "mapping": "Ptr" 
+    },
+    "cudaLibMgDestroyDeviceGrid": {  
+        "grid": "enum" 
+    },
+    "cudaLibMgCreateMatrixDesc": {  
+        "desc": "Ptr",
+        "numRows": null,
+        "numCols": null,
+        "rowBlockSize": null,
+        "colBlockSize": null,
+        "dataType": null,
+        "grid": null
+    },
+    "cublasMgCreate": {
+        "handle": "Ptr"
+    },
+    "cublasMgGemmWorkspace": {
+        "handle": "Ptr",
+        "transA": null,
+        "transB": null,
+        "alpha": "Ptr",
+        "descA": "Ptr",
+        "A": "Ptr",
+        "llda": null,
+        "descB": "Ptr",
+        "B": "Ptr",
+        "lldb": null,
+        "beta": "Ptr",
+        "descC": "Ptr",
+        "C": "Ptr",
+        "lldc": null,
+        "descD": "Ptr",
+        "D": "Ptr",
+        "lldd": null,
+        "computeType": null,
+        "workspace": "Ptr",
+        "lwork": null,
+        "streams": "Ptr"
+    },
+    "cublasMgGemmWorkspace": {
+        "handle": "Ptr",
+        "transA": null,
+        "transB": null,
+        "alpha": "Ptr",
+        "descA": "Ptr",
+        "A": "Ptr",
+        "llda": null,
+        "descB": "Ptr",
+        "B": "Ptr",
+        "lldb": null,
+        "beta": "Ptr",
+        "descC": "Ptr",
+        "C": "Ptr",
+        "lldc": null,
+        "descD": "Ptr",
+        "D": "Ptr",
+        "lldd": null,
+        "computeType": null,
+        "workspace": "Ptr",
+        "lwork": "Ptr"
+    },
+    "cublasMgDeviceSelect": {
+        "handle": null,
+        "nbDevices": null,
+        "deviceIds": "Ptr"
+    },
+    "cublasMgDeviceCount": {
+        "handle": null,
+        "nbDevices": "Ptr"
+    },
     "cublasCreate_v2": {
         "handle": "Ptr"
     },
