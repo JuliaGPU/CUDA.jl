@@ -161,14 +161,6 @@ function mg_gemm_gpu!(transA::Char,
     return C
 end
 
-#=function register(A)
-    buf = CUDA.Mem.register(CUDA.Mem.HostBuffer, pointer(A), sizeof(A), CUDA.Mem.HOSTREGISTER_DEVICEMAP | CUDA.Mem.HOSTREGISTER_PORTABLE)
-    inalizer(A) do buf
-        CUDA.Mem.unregister(buf)
-    end
-    return A, buf
-end=#
-
 function mg_gemm!(transA::Char,
                   transB::Char,
                   alpha::Number,
@@ -232,9 +224,6 @@ function mg_gemm!(transA::Char,
             CUDA.Mem.free(workspace[di])
         end
         device!(devs[1])
-        #CUDA.Mem.unregister(Abuf)
-        #CUDA.Mem.unregister(Bbuf)
-        #CUDA.Mem.unregister(Cbuf)
     #end
     return C
 end
