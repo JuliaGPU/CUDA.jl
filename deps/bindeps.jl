@@ -41,6 +41,7 @@ const __libcusparse = Ref{String}()
 const __libcusolver = Ref{String}()
 const __libcufft = Ref{String}()
 const __libcurand = Ref{String}()
+const __libcudart = Ref{String}()
 const __libcudnn = Ref{Union{Nothing,String}}(nothing)
 const __libcutensor = Ref{Union{Nothing,String}}(nothing)
 const __libcublasmg = Ref{Union{Nothing,String}}(nothing)
@@ -66,6 +67,7 @@ export has_cupti, has_nvtx
 has_cupti() = @after_init(__libcupti[]) !== nothing
 has_nvtx() = @after_init(__libnvtx[]) !== nothing
 
+libcudart() = @after_init(__libcudart[])
 libcublas() = @after_init(__libcublas[])
 libcusparse() = @after_init(__libcusparse[])
 libcusolver() = @after_init(__libcusolver[])
@@ -206,7 +208,6 @@ function use_local_cuda()
     @debug "Trying to use local installation..."
 
     cuda_dirs = find_toolkit()
-
     let path = find_cuda_binary("nvdisasm", cuda_dirs)
         if path === nothing
             @debug "Could not find nvdisasm"
@@ -236,7 +237,7 @@ function use_local_cuda()
         __libdevice[] = path
     end
 
-    for name in  ("cublas", "cusparse", "cusolver", "cufft", "curand", "cublasmg", "cudalibmg")
+    for name in  ("cudart", "cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CUDA, Symbol("__lib$name"))
 
         path = find_cuda_library(name, cuda_dirs, cuda_version)
@@ -246,11 +247,12 @@ function use_local_cuda()
         end
         handle[] = path
     end
-
     @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
     __toolkit_origin[] = :local
     use_local_cudnn(cuda_dirs)
     use_local_cutensor(cuda_dirs)
+    use_local_cudalibmg(cuda_dirs)
+    use_local_cublasmg(cuda_dirs)
     return true
 end
 
@@ -315,6 +317,37 @@ function use_local_cutensor(cuda_dirs)
 
     __libcutensor[] = path
     @debug "Using local CUTENSOR at $(path)"
+    return true
+end
+
+# CUBLASMG
+function use_local_cublasmg(cuda_dirs)
+    cdirs = copy(cuda_dirs)
+    let ldpath = ENV["LD_LIBRARY_PATH"]
+        dirs = split(ldpath, Sys.iswindows() ? ';' : ':')
+        filter!(ldpath->!isempty(ldpath), dirs)
+        append!(cdirs, dirs)
+    end
+    path = find_library(["cublasMg"]; locations=cdirs)
+    path === nothing && return false
+
+    __libcublasmg[] = path
+    @debug "Using local CUBLASMG at $(path)"
+    return true
+end
+
+function use_local_cudalibmg(cuda_dirs)
+    cdirs = copy(cuda_dirs)
+    let ldpath = ENV["LD_LIBRARY_PATH"]
+        dirs = split(ldpath, Sys.iswindows() ? ';' : ':')
+        filter!(ldpath->!isempty(ldpath), dirs)
+        append!(cdirs, dirs)
+    end
+    path = find_library(["cudalibmg"]; locations=cdirs)
+    path === nothing && return false
+
+    __libcudalibmg[] = path
+    @debug "Using local CUDALIBMG at $(path)"
     return true
 end
 

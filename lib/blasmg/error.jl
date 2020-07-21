@@ -11,7 +11,7 @@ end
 
 macro check(ex)
     quote
-        res = @retry_reclaim CUBLAS_STATUS_ALLOC_FAILED $(esc(ex))
+        res = @retry_reclaim isequal(CUBLAS_STATUS_ALLOC_FAILED) $(esc(ex))
         if res != CUBLAS_STATUS_SUCCESS
             throw_api_error(res)
         end

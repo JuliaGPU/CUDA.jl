@@ -59,7 +59,7 @@ end
 
 macro check(ex)
     quote
-        res = @retry_reclaim CUDALIBMG_STATUS_ALLOC_FAILED $(esc(ex))
+        res = @retry_reclaim isequal(CUDALIBMG_STATUS_ALLOC_FAILED) $(esc(ex))
         if res != CUDALIBMG_STATUS_SUCCESS
             throw_api_error(res)
         end

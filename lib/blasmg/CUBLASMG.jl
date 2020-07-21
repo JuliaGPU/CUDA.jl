@@ -1,6 +1,7 @@
 module CUBLASMG
 
 using ..CUDA
+using ..CUDA.CUDALIBMG
 using ..CUDA: CUstream
 
 using ..CUDA: libcublasmg, libcudalibmg, unsafe_free!, @retry_reclaim, @runtime_ccall, @checked, cudaDataType

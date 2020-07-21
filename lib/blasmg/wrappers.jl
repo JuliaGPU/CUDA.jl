@@ -134,7 +134,7 @@ function mg_gemm_gpu!(transA::Char,
     dA, dB, dC = bufs
     ldas, ldbs, ldcs = lds
     lwork     = fill(Csize_t(0x0000000100000000), ndevs)#Vector{Csize_t}(undef, ndevs)
-    workspace = Vector{CUDAdrv.Mem.DeviceBuffer}(undef, ndevs)
+    workspace = Vector{CUDA.Mem.DeviceBuffer}(undef, ndevs)
     workspace_ref = Vector{CuPtr{Cvoid}}(undef, ndevs)
     device!(devs[1])
     alpha_arr = [alpha]
@@ -143,7 +143,7 @@ function mg_gemm_gpu!(transA::Char,
     # set up workspaces and streams
     for (di, dev) in enumerate(devs)
         device!(dev)
-        workspace[di] = CUDAdrv.Mem.alloc(CUDAdrv.Mem.DeviceBuffer, lwork[di]) 
+        workspace[di] = CUDA.Mem.alloc(CUDA.Mem.DeviceBuffer, lwork[di]) 
         workspace_ref[di] = workspace[di].ptr
         synchronize()
     end
@@ -153,7 +153,7 @@ function mg_gemm_gpu!(transA::Char,
         device!(dev)
         synchronize(streams[di])
         synchronize()
-        CUDAdrv.Mem.free(workspace[di])
+        CUDA.Mem.free(workspace[di])
         synchronize()
     end
     C = returnBuffers(grid, dev_rows, dev_cols, ndevs, devs, streams, div(size(C, 1), dev_rows), div(size(C, 2), dev_cols), descC, dC, C)
@@ -162,9 +162,9 @@ function mg_gemm_gpu!(transA::Char,
 end
 
 #=function register(A)
-    buf = CUDAdrv.Mem.register(CUDAdrv.Mem.HostBuffer, pointer(A), sizeof(A), CUDAdrv.Mem.HOSTREGISTER_DEVICEMAP | CUDAdrv.Mem.HOSTREGISTER_PORTABLE)
+    buf = CUDA.Mem.register(CUDA.Mem.HostBuffer, pointer(A), sizeof(A), CUDA.Mem.HOSTREGISTER_DEVICEMAP | CUDA.Mem.HOSTREGISTER_PORTABLE)
     inalizer(A) do buf
-        CUDAdrv.Mem.unregister(buf)
+        CUDA.Mem.unregister(buf)
     end
     return A, buf
 end=#
@@ -197,12 +197,12 @@ function mg_gemm!(transA::Char,
     B_ref_arr = Vector{Ptr{Cvoid}}(undef, ndevs)
     A_ref_arr = Vector{Ptr{Cvoid}}(undef, ndevs)
     lwork     = Vector{Csize_t}(undef, ndevs)
-    workspace = Vector{CUDAdrv.Mem.DeviceBuffer}(undef, ndevs)
-    workspace_ref = Vector{CUDAdrv.CuPtr{Cvoid}}(undef, ndevs)
+    workspace = Vector{CUDA.Mem.DeviceBuffer}(undef, ndevs)
+    workspace_ref = Vector{CUDA.CuPtr{Cvoid}}(undef, ndevs)
     streams       = Vector{CuStream}(undef, ndevs)
-    CUDAdrv.Mem.pin(A)
-    CUDAdrv.Mem.pin(B)
-    CUDAdrv.Mem.pin(C)
+    CUDA.Mem.pin(A)
+    CUDA.Mem.pin(B)
+    CUDA.Mem.pin(C)
     #GC.@preserve descA descB descC Abuf Bbuf Cbuf A_ref_arr B_ref_arr C_ref_arr Areg Breg Creg workspace_ref lwork A B C streams begin
         for (di, dev) in enumerate(devs)
             A_ref_arr[di] = Base.unsafe_convert(Ptr{Cvoid}, pointer(A))
@@ -217,7 +217,7 @@ function mg_gemm!(transA::Char,
         # set up workspaces and streams
         for (di, dev) in enumerate(devs)
             device!(dev)
-            workspace[di] = CUDAdrv.Mem.alloc(CUDAdrv.Mem.DeviceBuffer, lwork[di])
+            workspace[di] = CUDA.Mem.alloc(CUDA.Mem.DeviceBuffer, lwork[di])
             workspace_ref[di] = workspace[di].ptr 
             streams[di]   = CuDefaultStream()
             synchronize(streams[di])
@@ -229,12 +229,12 @@ function mg_gemm!(transA::Char,
             device!(dev)
             synchronize(streams[di])
             synchronize()
-            CUDAdrv.Mem.free(workspace[di])
+            CUDA.Mem.free(workspace[di])
         end
         device!(devs[1])
-        #CUDAdrv.Mem.unregister(Abuf)
-        #CUDAdrv.Mem.unregister(Bbuf)
-        #CUDAdrv.Mem.unregister(Cbuf)
+        #CUDA.Mem.unregister(Abuf)
+        #CUDA.Mem.unregister(Bbuf)
+        #CUDA.Mem.unregister(Cbuf)
     #end
     return C
 end

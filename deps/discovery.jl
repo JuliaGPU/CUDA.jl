@@ -57,7 +57,6 @@ function find_library(names::Vector{String};
         all_names = ["lib$name" for name in names]
     end
     unique!(all_names)
-
     # figure out locations
     all_locations = String[]
     for location in locations
