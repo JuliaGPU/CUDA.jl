@@ -95,7 +95,7 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
 
     # cache: storage for non shuffle kernels
     partial_sums = @cuDynamicSharedMem(T, 32)
-    cache = @cuDynamicSharedMem(T, threads*!shuffle)
+    cache = @cuDynamicSharedMem(T, threads*!shuffle, offset=sizeof(T)*32)
 
     # iterate the main dimension using threads and the first block dimension
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
