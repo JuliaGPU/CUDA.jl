@@ -3,7 +3,7 @@ module DummyPool
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, NonReentrantLock
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
 
 using Base: @lock
 
@@ -38,7 +38,7 @@ function alloc(sz)
 end
 
 function free(ptr)
-    @safe_lock allocated_lock begin
+    @safe_lock_spin allocated_lock begin
         sz = allocated[ptr]
         delete!(allocated, ptr)
     end
