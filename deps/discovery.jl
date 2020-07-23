@@ -16,8 +16,34 @@ end
 
 ## generic discovery routines
 
+function library_versioned_names(name::String, version::Union{Nothing,VersionNumber,String}=nothing)
+    names = String[]
+    if Sys.iswindows()
+        # Windows encodes the version in the filename
+        if version isa VersionNumber
+            append!(names, ["$(name)$(Sys.WORD_SIZE)_$(version.major)$(version.minor).$(Libdl.dlext)",
+                            "$(name)$(Sys.WORD_SIZE)_$(version.major).$(Libdl.dlext)"])
+        elseif version isa String
+            push!(names, "$(name)$(Sys.WORD_SIZE)_$(version).$(Libdl.dlext)")
+        end
+        push!(names, "$(name)$(Sys.WORD_SIZE).$(Libdl.dlext)")
+    elseif Sys.isunix()
+        # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
+        if version isa VersionNumber
+            append!(names, ["lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)",
+                            "lib$(name).$(Libdl.dlext).$(version.major)"])
+        elseif version isa String
+            push!(names, "lib$(name).$(Libdl.dlext).$(version)")
+        end
+        push!(names, "lib$(name).$(Libdl.dlext)")
+    else
+        push!(names, "lib$name.$(Libdl.dlext)")
+    end
+    return names
+end
+
 """
-    find_library(names; locations=String[], versions=VersionNumber[], word_size=Sys.WORD_SIZE)
+    find_library(name, version; locations=String[])
 
 Wrapper for Libdl.find_library, performing a more exhaustive search:
 
@@ -26,44 +52,19 @@ Wrapper for Libdl.find_library, performing a more exhaustive search:
 
 Returns the full path to the library.
 """
-function find_library(names::Vector{String};
-                      locations::Vector{String}=String[],
-                      versions::Vector{VersionNumber}=VersionNumber[],
-                      word_size::Integer=Sys.WORD_SIZE)
-    @debug "Request to look for library $(join(names, ", "))" locations
+function find_library(name::String, version::Union{Nothing,VersionNumber,String}=nothing;
+                      locations::Vector{String}=String[])
+    @debug "Request to look for library $name $version" locations
 
     # figure out names
-    all_names = String[]
-    if Sys.iswindows()
-        # priority goes to the `names` argument, as per `Libdl.find_library`
-        for name in names
-            for version in versions
-                append!(all_names, ["$(name)$(word_size)_$(version.major)$(version.minor)",
-                                    "$(name)$(word_size)_$(version.major)"])
-            end
-            append!(all_names, ["$(name)$(word_size)", name])
-        end
-    elseif Sys.isunix()
-        # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
-        for name in names
-            for version in versions
-                append!(all_names, ["lib$(name).$(Libdl.dlext).$(version.major).$(version.minor)",
-                                    "lib$(name).$(Libdl.dlext).$(version.major)"])
-            end
-            push!(all_names, "lib$(name).$(Libdl.dlext)")
-        end
-    else
-        # let Libdl do all the work
-        all_names = ["lib$name" for name in names]
-    end
-    unique!(all_names)
+    all_names = library_versioned_names(name, version)
 
     # figure out locations
     all_locations = String[]
     for location in locations
         push!(all_locations, location)
         push!(all_locations, joinpath(location, "lib"))
-        if word_size == 64
+        if Sys.WORD_SIZE == 64
             push!(all_locations, joinpath(location, "lib64"))
             push!(all_locations, joinpath(location, "libx64"))
         end
@@ -86,21 +87,20 @@ function find_library(names::Vector{String};
 end
 
 """
-    find_binary(names; locations=String[])
+    find_binary(name; locations=String[])
 
 Similar to `find_library`, performs an exhaustive search for a binary in various
 subdirectories of `locations`, and finally PATH.
 """
-function find_binary(names::Vector{String};
-                     locations::Vector{String}=String[])
+function find_binary(name::String; locations::Vector{String}=String[])
     @debug "Request to look for binary $(join(names, ", "))" locations
 
     # figure out names
     all_names = String[]
     if Sys.iswindows()
-        all_names = ["$name.exe" for name in names]
+        all_names = ["$name.exe" ]
     else
-        all_names = names
+        all_names = [name]
     end
 
     # figure out locations
@@ -152,11 +152,10 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"10.0", v"10.1", v"10.2",
                        v"11.0"]
 
-# starting with CUDA 11, libraries are versioned independently
-const library_versions = Dict(
+const cuda_library_versions = Dict(
     v"11.0" => Dict(
         "cudart"    => v"11.0.171",
-        "cupti"     => v"11.0.167",
+        "cupti"     => "2020.1.0", # wtf
         "nvrtc"     => v"11.0.167",
         "nvtx"      => v"11.0.167",
         "nvvp"      => v"11.0.167",
@@ -170,7 +169,21 @@ const library_versions = Dict(
     )
 )
 
-const library_names = Dict(
+function cuda_library_version(library, toolkit_release)
+    if library == "nvtx"
+        v"1"
+    elseif toolkit_release >= v"11"
+        # starting with CUDA 11, libraries are versioned independently
+        if !haskey(cuda_library_versions, toolkit_release)
+            error("CUDA.jl does not support yet CUDA $toolkit_release on Windows; please file an issue.")
+        end
+        cuda_library_versions[toolkit_release][library]
+    else
+        toolkit_release
+    end
+end
+
+const cuda_library_names = Dict(
     "cuda"      => Sys.iswindows() ? "nvcuda" : "cuda",
     "nvml"      => Sys.iswindows() ? "nvml"   : "nvidia-ml",
     "nvtx"      => "nvToolsExt"
@@ -179,20 +192,20 @@ const library_names = Dict(
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
-function find_cuda_library(name::String, toolkit_dirs::Vector{String},
-                           toolkit_version::VersionNumber; kwargs...)
+function find_cuda_library(library::String, toolkit_dirs::Vector{String},
+                           toolkit_version::VersionNumber)
     toolkit_release = VersionNumber(toolkit_version.major, toolkit_version.minor)
 
     # figure out the location
     locations = toolkit_dirs
     ## CUPTI is in the "extras" directory of the toolkit
-    if name == "cupti"
+    if library == "cupti"
         toolkit_extras_dirs = filter(dir->isdir(joinpath(dir, "extras")), toolkit_dirs)
         cupti_dirs = map(dir->joinpath(dir, "extras", "CUPTI"), toolkit_extras_dirs)
         append!(locations, cupti_dirs)
     end
     ## NVTX is located in an entirely different location on Windows
-    if name == "nvtx" && Sys.iswindows()
+    if library == "nvtx" && Sys.iswindows()
         if haskey(ENV, "NVTOOLSEXT_PATH")
             dir = ENV["NVTOOLSEXT_PATH"]
             @debug "Looking for NVTX library via environment variable" dir
@@ -204,26 +217,12 @@ function find_cuda_library(name::String, toolkit_dirs::Vector{String},
         isdir(dir) && push!(locations, dir)
     end
 
-    # figure out the version number
-    version = toolkit_version
-    if name == "nvtx"
-        version = v"1"
-    elseif haskey(library_versions, toolkit_release) &&
-           haskey(library_versions[toolkit_release], name)
-        version = library_versions[toolkit_release][name]
-    end
-
-    # figure out the name
-    if haskey(library_names, name)
-        name = library_names[name]
-    end
-
-    find_library([name]; versions=[version], locations=locations, kwargs...)
+    version = cuda_library_version(library, toolkit_release)
+    name = get(cuda_library_names, library, library)
+    find_library(name, version; locations=locations)
 end
-find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]; kwargs...) =
-    find_binary([name];
-                locations=toolkit_dirs,
-                kwargs...)
+find_cuda_binary(name::String, toolkit_dirs::Vector{String}=String[]) =
+    find_binary(name; locations=toolkit_dirs)
 
 """
     find_toolkit()::Vector{String}
@@ -252,7 +251,7 @@ function find_toolkit()
     end
 
     # look for the compiler binary (in the case PATH points to the installation)
-    ptxas_path = find_binary(["ptxas"])
+    ptxas_path = find_binary("ptxas")
     if ptxas_path !== nothing
         ptxas_dir = dirname(ptxas_path)
         if occursin(r"^bin(32|64)?$", basename(ptxas_dir))
@@ -264,7 +263,7 @@ function find_toolkit()
     end
 
     # look for the runtime library (in the case LD_LIBRARY_PATH points to the installation)
-    libcudart_path = find_library(["cudart"]; versions=cuda_releases)
+    libcudart_path = find_library("cudart")
     if libcudart_path !== nothing
         libcudart_dir = dirname(libcudart_path)
         if occursin(r"^(lib|bin)(32|64)?$", basename(libcudart_dir))
