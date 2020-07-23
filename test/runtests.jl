@@ -4,6 +4,7 @@ import REPL
 using Printf: @sprintf
 
 # parse some command-line arguments
+const cli_args = vcat(ARGS, split(get(ENV, "JULIA_CUDA_TEST_ARGS", "")))
 function extract_flag!(args, flag, default=nothing)
     for f in args
         if startswith(f, flag)
@@ -24,7 +25,7 @@ function extract_flag!(args, flag, default=nothing)
     end
     return (false, default)
 end
-do_help, _ = extract_flag!(ARGS, "--help")
+do_help, _ = extract_flag!(cli_args, "--help")
 if do_help
     println("""
         Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
@@ -37,13 +38,13 @@ if do_help
                --snoop=FILE     Snoop on compiled methods and save to `FILE`.
 
                Remaining arguments filter the tests that will be executed.
-               This can also be done using the JULIA_CUDA_RUNTESTS env var,
-               with comma-separated entries.""")
+               This list of tests, and all other options, can also be specified using the
+               JULIA_CUDA_TEST_ARGS environment variable (e.g., for use with Pkg.test).""")
     exit(0)
 end
-_, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
-do_memcheck, _ = extract_flag!(ARGS, "--memcheck")
-do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
+_, jobs = extract_flag!(cli_args, "--jobs", Threads.nthreads())
+do_memcheck, _ = extract_flag!(cli_args, "--memcheck")
+do_snoop, snoop_path = extract_flag!(cli_args, "--snoop")
 
 include("setup.jl")     # make sure everything is precompiled
 
@@ -86,7 +87,7 @@ unique!(tests)
 
 # parse some more command-line arguments
 ## --list to list all available tests
-do_list, _ = extract_flag!(ARGS, "--list")
+do_list, _ = extract_flag!(cli_args, "--list")
 if do_list
     println("Available tests:")
     for test in sort(tests)
@@ -95,9 +96,9 @@ if do_list
     exit(0)
 end
 ## the remaining args filter tests
-if !isempty(ARGS)
+if !isempty(cli_args)
   filter!(tests) do test
-    any(arg->startswith(test, arg), ARGS)
+    any(arg->startswith(test, arg), cli_args)
   end
 end
 ## same for an environment-variable
