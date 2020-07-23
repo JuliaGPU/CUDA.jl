@@ -32,8 +32,8 @@ if do_help
 
                --help           Show this text.
                --list           List all available tests.
-               --jobs=N         Launch `N` process to perform tests.
-                                Defaults to `Threads.nthreads()`.
+               --jobs=N         Launch `N` processes to perform tests (default: Threads.nthreads()).
+               --gpus=N         Expose `N` GPUs to test processes (default: 1).
                --memcheck       Run the tests under `cuda-memcheck`.
                --snoop=FILE     Snoop on compiled methods and save to `FILE`.
 
@@ -43,6 +43,7 @@ if do_help
     exit(0)
 end
 _, jobs = extract_flag!(cli_args, "--jobs", Threads.nthreads())
+_, gpus = extract_flag!(cli_args, "--gpus", 1)
 do_memcheck, _ = extract_flag!(cli_args, "--memcheck")
 do_snoop, snoop_path = extract_flag!(cli_args, "--snoop")
 
@@ -153,19 +154,19 @@ isempty(candidates) && error("Could not find any suitable device for this config
 ## order by available memory, but also by capability if testing needs to be thorough
 sort!(candidates, by=x->x.mem)
 ## apply
-pick = last(candidates)
-ENV["CUDA_VISIBLE_DEVICES"] = "GPU-$(pick.uuid)"
-@info "Testing using device $(pick.index) ($(pick.name), UUID $(pick.uuid))"
+picks = reverse(candidates[end-gpus+1:end])   # best GPU first
+ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"GPU-$(pick.uuid)", picks), ",")
+@info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.index). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
 
 # determine tests to skip
 const skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
 has_nvml() || push!(skip_tests, "nvml")
-if !has_cutensor() || CUDA.version() < v"10.1" || pick.cap < v"7.0"
+if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0"
     push!(skip_tests, "cutensor")
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-if VERSION < v"1.5-" || pick.cap < v"7.0"
+if VERSION < v"1.5-" || first(picks).cap < v"7.0"
     push!(skip_tests, "device/wmma")
 end
 if do_memcheck
