@@ -56,12 +56,11 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
         res_and_time_data = Core.eval(mod, ex)
         #res_and_time_data[1] is the testset
 
-        cuda_dev = device()
-        nvml_dev = NVML.Device(uuid(cuda_dev))
-
         # process results
         rss = Sys.maxrss()
         gpu_rss = if has_nvml()
+            cuda_dev = device()
+            nvml_dev = NVML.Device(uuid(cuda_dev))
             gpu_processes = NVML.compute_processes(nvml_dev)
             if haskey(gpu_processes, getpid())
                 gpu_processes[getpid()].used_gpu_memory
