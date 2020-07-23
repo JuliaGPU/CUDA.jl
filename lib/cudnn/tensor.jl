@@ -1,3 +1,5 @@
+# TensorDesc
+
 # descriptor
 
 mutable struct TensorDesc
@@ -11,23 +13,120 @@ Base.unsafe_convert(::Type{cudnnTensorDescriptor_t}, td::TensorDesc) = td.ptr
 function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer} = tuple_strides(size)) where N
     sz = Cint.(size) |> reverse |> collect
     st = Cint.(strides) |> reverse |> collect
-    d = Ref{cudnnTensorDescriptor_t}()
-    cudnnCreateTensorDescriptor(d)
-    cudnnSetTensorNdDescriptor(d[], cudnnDataType(T), length(sz), sz, st)
-    this = TensorDesc(d[])
+    td = Ref{cudnnTensorDescriptor_t}()
+    cudnnCreateTensorDescriptor(td)
+    cudnnSetTensorNdDescriptor(td[], cudnnDataType(T), length(sz), sz, st)
+    this = TensorDesc(td[])
     finalizer(unsafe_free!, this)
     return this
 end
 
 TensorDesc(a::CuArray) = TensorDesc(eltype(a), size(a), strides(a))
 
+# wrappers
+
+function cudnnAddTensor(C::CuArray{T,N}, A::CuArray{T,N};
+                        alpha=1, beta=1) where {T,N}
+    cudnnAddTensor(handle(),
+                   Ref(T(alpha)), TensorDesc(A), A,
+                   Ref(T(beta )), TensorDesc(C), C)
+    return C
+end
+
+
+# OpTensorDesc
+
+# descriptor
+
+mutable struct OpTensorDesc
+    ptr::cudnnOpTensorDescriptor_t
+end
+
+unsafe_free!(otd::OpTensorDesc) = cudnnDestroyOpTensorDescriptor(otd.ptr)
+
+Base.unsafe_convert(::Type{cudnnOpTensorDescriptor_t}, otd::OpTensorDesc) = otd.ptr
+
+function OpTensorDesc(op::cudnnOpTensorOp_t, T::Type;
+                      opTensorNanOpt=CUDNN_NOT_PROPAGATE_NAN)
+    otd = Ref{cudnnOpTensorDescriptor_t}()
+    cudnnCreateOpTensorDescriptor(otd)
+    cudnnSetOpTensorDescriptor(otd[], op, cudnnDataType(T), opTensorNanOpt)
+    this = OpTensorDesc(otd[])
+    finalizer(unsafe_free!, this)
+    return this
+end
+
+OpTensorDesc(op::cudnnOpTensorOp_t, a::CuArray) = OpTensorDesc(op, eltype(a))
 
 # wrappers
 
-function cudnnAddTensor(A::CuArray{T,N}, C::CuArray{T,N}; alpha=1,
-                        beta=1) where {T,N}
-    aDesc = TensorDesc(A)
-    cDesc = TensorDesc(C)
-    cudnnAddTensor(handle(), Ref{T}(alpha), aDesc, A, Ref{T}(beta), cDesc, C)
+function cudnnOpTensor(op::cudnnOpTensorOp_t,
+                       A::CuArray{T,N}, B::CuArray{T,N}, C::CuArray{T,N};
+                       alpha1=1, alpha2=1, beta=0) where {T,N}
+    cudnnOpTensor(handle(), OpTensorDesc(op, T),
+                  Ref(T(alpha1)), TensorDesc(A), A,
+                  Ref(T(alpha2)), TensorDesc(B), B,
+                  Ref(T(beta  )), TensorDesc(C), C)
+    return C
+end
+
+
+# ReduceTensorDesc
+
+# descriptor
+
+mutable struct ReduceTensorDesc
+    ptr::cudnnReduceTensorDescriptor_t
+end
+
+unsafe_free!(rtd::ReduceTensorDesc) = cudnnDestroyReduceTensorDescriptor(rtd.ptr)
+
+Base.unsafe_convert(::Type{cudnnReduceTensorDescriptor_t}, rtd::ReduceTensorDesc) = rtd.ptr
+
+function ReduceTensorDesc(op::cudnnReduceTensorOp_t, T::Type;
+                          reduceTensorNanOpt=CUDNN_NOT_PROPAGATE_NAN,
+                          reduceTensorIndices=CUDNN_REDUCE_TENSOR_NO_INDICES,
+                          reduceTensorIndicesType=CUDNN_32BIT_INDICES)
+    rtd = Ref{cudnnReduceTensorDescriptor_t}()
+    cudnnCreateReduceTensorDescriptor(rtd)
+    cudnnSetReduceTensorDescriptor(rtd[], op, cudnnDataType(T), reduceTensorNanOpt,
+                                   reduceTensorIndices, reduceTensorIndicesType)
+    this = ReduceTensorDesc(rtd[])
+    finalizer(unsafe_free!, this)
+    return this
+end
+
+ReduceTensorDesc(op::cudnnReduceTensorOp_t, a::CuArray) = ReduceTensorDesc(op, eltype(a))
+
+# wrappers
+
+function cudnnGetReductionIndicesSize(op::cudnnReduceTensorOp_t,
+                                      A::CuArray{T,N}, C::CuArray{T,N}) where {T,N}
+    size=@argout(
+        cudnnGetReductionIndicesSize(
+            handle(), ReduceTensorDesc(op, A),
+            TensorDesc(A), TensorDesc(C),
+            out(Ref{Csize_t}()))
+        )[]
+    return size
+end
+
+function cudnnReduceTensor(op::cudnnReduceTensorOp_t,
+                           A::CuArray{T,N}, C::CuArray{T,N};
+                           alpha=1, beta=0) where {T,N}
+    # indices = Array{UInt64, 1}(undef, N)
+    indicesSizeInBytes = cudnnGetReductionIndicesSize(op, A, C)
+    @workspace size=@argout(
+        cudnnGetReductionWorkspaceSize(
+            handle(), ReduceTensorDesc(op, A),
+            TensorDesc(A), TensorDesc(C),
+            out(Ref{Csize_t}()))
+        )[] workspace->begin
+            cudnnReduceTensor(handle(), ReduceTensorDesc(op, A),
+                              C_NULL, indicesSizeInBytes,
+                              workspace, sizeof(workspace),
+                              Ref(T(alpha)), TensorDesc(A), A,
+                              Ref(T(beta )), TensorDesc(C), C)
+        end
     return C
 end

@@ -22,10 +22,8 @@ function batchnorm(g::CuArray{T}, b::CuArray{T}, x::Union{CuArray{T, 4},CuArray{
                    running_mean::CuArray{T}, running_var::CuArray{T}, momentum;
                    cache = nothing, alpha = T(1), beta = T(0),
                    eps = T(1e-5), training = true) where T<:Union{Float32, Float64}
-  y = similar(x)
-  cudnnBNForward!(y, g, b, x, running_mean, running_var, momentum, cache = cache,
+  cudnnBNForward!(similar(x), g, b, x, running_mean, running_var, momentum, cache = cache,
       alpha = alpha, beta = beta, eps = eps, training = training)
-  y
 end
 
 function cudnnBNForward!(y::CuArray{T}, g::CuArray{T}, b::CuArray{T}, x::CuArray{T},
@@ -61,6 +59,7 @@ function cudnnBNForward!(y::CuArray{T}, g::CuArray{T}, b::CuArray{T}, x::CuArray
   else
     cudnnBatchNormalizationForwardInference(handle(), CUDNN_BATCHNORM_SPATIAL, Ref{T}(alpha), Ref{T}(beta), xd, x, yd, y, gd, g, b, running_mean, running_var, eps)
   end
+  return y
 end
 
 function ∇batchnorm(g::CuArray{T}, b::CuArray{T}, x::CuArray{T, 2}, dy::CuArray{T, 2},
