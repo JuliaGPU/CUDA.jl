@@ -21,7 +21,7 @@ macro cuStaticSharedMem(T, dims)
 
     quote
         len = prod($(esc(dims)))
-        ptr = _shmem(Val($(QuoteNode(id))), $(esc(T)), Val(len))
+        ptr = emit_shmem(Val($(QuoteNode(id))), $(esc(T)), Val(len))
         CuDeviceArray($(esc(dims)), ptr)
     end
 end
@@ -46,20 +46,14 @@ macro cuDynamicSharedMem(T, dims, offset=0)
 
     quote
         len = prod($(esc(dims)))
-        ptr = _shmem(Val($(QuoteNode(id))), $(esc(T))) + $(esc(offset))
+        ptr = emit_shmem(Val($(QuoteNode(id))), $(esc(T))) + $(esc(offset))
         CuDeviceArray($(esc(dims)), ptr)
     end
 end
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
-@generated function _shmem(::Val{id}, ::Type{T}, ::Val{len}=Val(0)) where {id,T,len}
+@generated function emit_shmem(::Val{id}, ::Type{T}, ::Val{len}=Val(0)) where {id,T,len}
     eltyp = convert(LLVMType, T)
-
-    # old versions of GPUArrays invoke _shmem with an integer id; make sure those are unique
-    if !isa(id, String) || !isa(id, Symbol)
-        id = "shmem$id"
-    end
-
     T_ptr = convert(LLVMType, DevicePtr{T,AS.Shared})
 
     # create a function

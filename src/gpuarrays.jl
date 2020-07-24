@@ -42,29 +42,29 @@ end
 
 # indexing
 
-GPUArrays.blockidx(ctx::CuKernelContext) = CUDA.blockIdx().x
-GPUArrays.blockdim(ctx::CuKernelContext) = CUDA.blockDim().x
-GPUArrays.threadidx(ctx::CuKernelContext) = CUDA.threadIdx().x
-GPUArrays.griddim(ctx::CuKernelContext) = CUDA.gridDim().x
+GPUArrays.blockidx(ctx::CuKernelContext) = blockIdx().x
+GPUArrays.blockdim(ctx::CuKernelContext) = blockDim().x
+GPUArrays.threadidx(ctx::CuKernelContext) = threadIdx().x
+GPUArrays.griddim(ctx::CuKernelContext) = gridDim().x
 
 # math
 
-@inline GPUArrays.cos(ctx::CuKernelContext, x) = CUDA.cos(x)
-@inline GPUArrays.sin(ctx::CuKernelContext, x) = CUDA.sin(x)
-@inline GPUArrays.sqrt(ctx::CuKernelContext, x) = CUDA.sqrt(x)
-@inline GPUArrays.log(ctx::CuKernelContext, x) = CUDA.log(x)
+@inline GPUArrays.cos(ctx::CuKernelContext, x) = cos(x)
+@inline GPUArrays.sin(ctx::CuKernelContext, x) = sin(x)
+@inline GPUArrays.sqrt(ctx::CuKernelContext, x) = sqrt(x)
+@inline GPUArrays.log(ctx::CuKernelContext, x) = log(x)
 
 # memory
 
 @inline function GPUArrays.LocalMemory(::CuKernelContext, ::Type{T}, ::Val{dims}, ::Val{id}
                                       ) where {T, dims, id}
-    ptr = CUDA._shmem(Val(id), T, Val(prod(dims)))
-    CuDeviceArray(dims, DevicePtr{T, CUDA.AS.Shared}(ptr))
+    ptr = emit_shmem(Val(id), T, Val(prod(dims)))
+    CuDeviceArray(dims, DevicePtr{T, AS.Shared}(ptr))
 end
 
 # synchronization
 
-@inline GPUArrays.synchronize_threads(::CuKernelContext) = CUDA.sync_threads()
+@inline GPUArrays.synchronize_threads(::CuKernelContext) = sync_threads()
 
 
 
