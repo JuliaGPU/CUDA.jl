@@ -93,7 +93,7 @@ Similar to `find_library`, performs an exhaustive search for a binary in various
 subdirectories of `locations`, and finally PATH.
 """
 function find_binary(name::String; locations::Vector{String}=String[])
-    @debug "Request to look for binary $(join(names, ", "))" locations
+    @debug "Request to look for binary $name" locations
 
     # figure out names
     all_names = String[]
