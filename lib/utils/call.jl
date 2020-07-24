@@ -22,7 +22,7 @@ macro runtime_ccall(target, args...)
     @eval __module__ begin
         # uses atomics (release store, acquire load) for thread safety.
         # see https://github.com/JuliaGPU/CUDAapi.jl/issues/106 for details
-        const $fptr_cache = Threads.Atomic{Int}(0)
+        const $fptr_cache = Threads.Atomic{UInt}(0)
     end
 
     return quote
