@@ -139,9 +139,9 @@ if VERSION < v"1.5.0-DEV.748"
         d <= N ? axes(bc)[d] : Base.OneTo(1)
 end
 
-NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T},
-                                             A::Union{AbstractArray,Broadcast.Broadcasted};
-                                             init=nothing) where T
+function GPUArrays.mapreducedim!(f::F, op::OP, R::CuArray{T},
+                                 A::Union{AbstractArray,Broadcast.Broadcasted};
+                                 init=nothing) where {F, OP, T}
     Base.check_reducedims(R, A)
     length(A) == 0 && return R # isempty(::Broadcasted) iterates
 
@@ -149,13 +149,12 @@ NVTX.@range function GPUArrays.mapreducedim!(f, op, R::CuArray{T},
     op = cufunc(op)
 
     # be conservative about using shuffle instructions
-    shuffle = true
-    shuffle &= capability(device()) >= v"3.0"
-    shuffle &= T in (Bool, Int32, Int64, Float32, Float64, ComplexF32, ComplexF64)
+    shuffle = T <: Union{Bool, Int32, Int64, Float32, Float64, ComplexF32, ComplexF64}
 
     # add singleton dimensions to the output container, if needed
     if ndims(R) < ndims(A)
-        R = reshape(R, ntuple(i -> ifelse(i <= ndims(R), size(R,i), 1), ndims(A)))
+        dims = Base.fill_to_length(size(R), 1, Val(ndims(A)))
+        R = reshape(R, dims)
     end
 
     # iteration domain, split in two: one part covers the dimensions that should
