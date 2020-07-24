@@ -17,8 +17,8 @@ struct CuArrayBackend <: AbstractGPUBackend end
 
 struct CuKernelContext <: AbstractKernelContext end
 
-function GPUArrays.launch_heuristic(::CuArrayBackend, f::F, args::Vararg{Any,N};
-                                    maximize_blocksize=false) where {F,N}
+@inline function GPUArrays.launch_heuristic(::CuArrayBackend, f::F, args::Vararg{Any,N};
+                                            maximize_blocksize=false) where {F,N}
     kernel_args = map(cudaconvert, args)
     kernel_tt = Tuple{CuKernelContext, map(Core.Typeof, kernel_args)...}
     kernel = cufunction(f, kernel_tt)
@@ -32,8 +32,8 @@ function GPUArrays.launch_heuristic(::CuArrayBackend, f::F, args::Vararg{Any,N};
     end
 end
 
-function GPUArrays.gpu_call(::CuArrayBackend, f, args, threads::Int, blocks::Int;
-                            name::Union{String,Nothing})
+@inline function GPUArrays.gpu_call(::CuArrayBackend, f::F, args::TT, threads::Int,
+                                    blocks::Int; name::Union{String,Nothing}) where {F,TT}
     @cuda threads=threads blocks=blocks name=name f(CuKernelContext(), args...)
 end
 
