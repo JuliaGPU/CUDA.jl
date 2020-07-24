@@ -49,9 +49,9 @@ internal kernel parameter buffer, or a pointer to device memory.
 
 This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
-function launch(f::CuFunction, args...; blocks::CuDim=1, threads::CuDim=1,
+function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
                 cooperative::Bool=false, shmem::Integer=0,
-                stream::CuStream=CuDefaultStream())
+                stream::CuStream=CuDefaultStream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
