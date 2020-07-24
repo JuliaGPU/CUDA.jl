@@ -120,6 +120,15 @@ function compute_processes(dev::Device)
     infos = Vector{nvmlProcessInfo_t}(undef, count_ref[])
     nvmlDeviceGetComputeRunningProcesses(dev, count_ref, infos)
 
-    return Dict(Int(info.pid) => (used_gpu_memory=Int(info.usedGpuMemory),)
-                for info in infos)
+    return Dict(map(infos) do info
+            pid = Int(info.pid)
+            used_gpu_memory = if info.usedGpuMemory == (NVML.NVML_VALUE_NOT_AVAILABLE %
+                                                        typeof(info.usedGpuMemory))
+                missing
+            else
+                Int(info.usedGpuMemory)
+            end
+            pid => (used_gpu_memory=used_gpu_memory,)
+        end
+    )
 end

@@ -264,7 +264,7 @@ function print_testworker_stats(test, wrkr, resp)
         gpu_alloc_str = @sprintf("%5.2f", resp[6] / 2^20)
         printstyled(lpad(gpu_alloc_str, alloc_align, " "), " | ", color=:white)
 
-        gpu_rss_str = @sprintf("%5.2f", resp[10] / 2^20)
+        gpu_rss_str = ismissing(resp[10]) ? "N/A" : @sprintf("%5.2f", resp[10] / 2^20)
         printstyled(lpad(gpu_rss_str, rss_align, " "), " | ", color=:white)
 
         cpu_gc_str = @sprintf("%5.2f", resp[4])

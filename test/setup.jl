@@ -70,7 +70,7 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
                 0
             end
         else
-            NaN
+            missing
         end
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
             Test.get_test_counts(res_and_time_data[1])
