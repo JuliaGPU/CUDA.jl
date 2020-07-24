@@ -4,6 +4,7 @@ import REPL
 using Printf: @sprintf
 
 # parse some command-line arguments
+const cli_args = vcat(ARGS, split(get(ENV, "JULIA_CUDA_TEST_ARGS", "")))
 function extract_flag!(args, flag, default=nothing)
     for f in args
         if startswith(f, flag)
@@ -24,26 +25,27 @@ function extract_flag!(args, flag, default=nothing)
     end
     return (false, default)
 end
-do_help, _ = extract_flag!(ARGS, "--help")
+do_help, _ = extract_flag!(cli_args, "--help")
 if do_help
     println("""
         Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
 
                --help           Show this text.
                --list           List all available tests.
-               --jobs=N         Launch `N` process to perform tests.
-                                Defaults to `Threads.nthreads()`.
+               --jobs=N         Launch `N` processes to perform tests (default: Threads.nthreads()).
+               --gpus=N         Expose `N` GPUs to test processes (default: 1).
                --memcheck       Run the tests under `cuda-memcheck`.
                --snoop=FILE     Snoop on compiled methods and save to `FILE`.
 
                Remaining arguments filter the tests that will be executed.
-               This can also be done using the JULIA_CUDA_RUNTESTS env var,
-               with comma-separated entries.""")
+               This list of tests, and all other options, can also be specified using the
+               JULIA_CUDA_TEST_ARGS environment variable (e.g., for use with Pkg.test).""")
     exit(0)
 end
-_, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
-do_memcheck, _ = extract_flag!(ARGS, "--memcheck")
-do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
+_, jobs = extract_flag!(cli_args, "--jobs", Threads.nthreads())
+_, gpus = extract_flag!(cli_args, "--gpus", 1)
+do_memcheck, _ = extract_flag!(cli_args, "--memcheck")
+do_snoop, snoop_path = extract_flag!(cli_args, "--snoop")
 
 include("setup.jl")     # make sure everything is precompiled
 
@@ -86,7 +88,7 @@ unique!(tests)
 
 # parse some more command-line arguments
 ## --list to list all available tests
-do_list, _ = extract_flag!(ARGS, "--list")
+do_list, _ = extract_flag!(cli_args, "--list")
 if do_list
     println("Available tests:")
     for test in sort(tests)
@@ -95,9 +97,9 @@ if do_list
     exit(0)
 end
 ## the remaining args filter tests
-if !isempty(ARGS)
+if !isempty(cli_args)
   filter!(tests) do test
-    any(arg->startswith(test, arg), ARGS)
+    any(arg->startswith(test, arg), cli_args)
   end
 end
 ## same for an environment-variable
@@ -152,19 +154,19 @@ isempty(candidates) && error("Could not find any suitable device for this config
 ## order by available memory, but also by capability if testing needs to be thorough
 sort!(candidates, by=x->x.mem)
 ## apply
-pick = last(candidates)
-ENV["CUDA_VISIBLE_DEVICES"] = "GPU-$(pick.uuid)"
-@info "Testing using device $(pick.index) ($(pick.name), UUID $(pick.uuid))"
+picks = reverse(candidates[end-gpus+1:end])   # best GPU first
+ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"GPU-$(pick.uuid)", picks), ",")
+@info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.index). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
 
 # determine tests to skip
 const skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
 has_nvml() || push!(skip_tests, "nvml")
-if !has_cutensor() || CUDA.version() < v"10.1" || pick.cap < v"7.0"
+if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0"
     push!(skip_tests, "cutensor")
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
-if VERSION < v"1.5-" || pick.cap < v"7.0"
+if VERSION < v"1.5-" || first(picks).cap < v"7.0"
     push!(skip_tests, "device/wmma")
 end
 if do_memcheck
