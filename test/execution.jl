@@ -562,6 +562,14 @@ script = """
     gpu = CuArray(cpu)
     @cuda kernel(gpu, 1.2)
     Array(gpu)
+
+    # FIXME: on some platforms (Windows...), for some users, the exception flag change
+    # doesn't immediately propagate to the host, and gets caught during finalization.
+    # this looks like a driver bug, since we threadfence_system() after setting the flag.
+    # https://stackoverflow.com/questions/16417346/cuda-pinned-memory-flushing-from-the-device
+    sleep(1)
+    synchronize()
+    Array(gpu)
 """
 
 let (code, out, err) = julia_script(script, `-g0`)
