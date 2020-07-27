@@ -49,10 +49,12 @@ cuda:11.0:
     - .test
   image: ubuntu:bionic
   variables:
+    CI_THOROUGH: 'true'
     JULIA_CUDA_VERSION: '11.0'
     JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
     - nvidia
+    - latest
     - cuda_11.0
 
 cuda:10.2:
