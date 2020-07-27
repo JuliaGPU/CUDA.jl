@@ -127,8 +127,8 @@ function __runtime_init__()
 
     if has_cutensor()
         cutensor_release = VersionNumber(CUTENSOR.version().major, CUTENSOR.version().minor)
-        if !(v"1.0" <= cutensor_release <= v"1.1")
-            @warn "CUDA.jl only supports CUTENSOR 1.0 to 1.1"
+        if !(v"1.0" <= cutensor_release <= v"1.2")
+            @warn "CUDA.jl only supports CUTENSOR 1.0 to 1.2"
         end
     end
 

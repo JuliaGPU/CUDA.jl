@@ -27,6 +27,15 @@ function library_versioned_names(name::String, version::Union{Nothing,VersionNum
             push!(names, "$(name)$(Sys.WORD_SIZE)_$(version).$(Libdl.dlext)")
         end
         push!(names, "$(name)$(Sys.WORD_SIZE).$(Libdl.dlext)")
+
+        # some libraries (e.g. CUTENSOR) are shipped without the word size-prefix
+        if version isa VersionNumber
+            append!(names, ["$(name)_$(version.major)$(version.minor).$(Libdl.dlext)",
+                            "$(name)_$(version.major).$(Libdl.dlext)"])
+        elseif version isa String
+            push!(names, "$(name)_$(version).$(Libdl.dlext)")
+        end
+        push!(names, "$(name).$(Libdl.dlext)")
     elseif Sys.isunix()
         # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
         if version isa VersionNumber
