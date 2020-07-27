@@ -35,7 +35,7 @@ end
 
 @inline function scan_warp(op, val, lane, thread, cache)
     mask = typemax(UInt32)
-    sync_warp()
+    @inbounds begin
     if lane > 1 
         val = op(cache[thread - 1], val)
         sync_warp(mask >> 1)
@@ -65,7 +65,7 @@ end
         sync_warp(mask >> 16)
         cache[thread] = val
     end
-    sync_warp()
+end
     return val
 end
 
