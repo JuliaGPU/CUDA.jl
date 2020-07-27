@@ -120,8 +120,8 @@ function __runtime_init__()
 
     if has_cudnn()
         cudnn_release = VersionNumber(CUDNN.version().major, CUDNN.version().minor)
-        if cudnn_release != v"7.6"
-            @warn "CUDA.jl only supports CUDNN 7.6"
+        if !(v"7.6" <= cudnn_release <= v"8.0")
+            @warn "CUDA.jl only supports CUDNN 7.6 to 8.0"
         end
     end
 

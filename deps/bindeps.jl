@@ -236,6 +236,7 @@ end
 # CUDNN
 
 const cudnn_artifacts = Dict(
+    v"11.0" => ()->artifact"CUDNN_CUDA110",
     v"10.2" => ()->artifact"CUDNN_CUDA102",
     v"10.1" => ()->artifact"CUDNN_CUDA101",
     v"10.0" => ()->artifact"CUDNN_CUDA100",
