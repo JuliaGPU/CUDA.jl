@@ -36,36 +36,34 @@ end
 @inline function scan_warp(op, val, lane, thread, cache)
     mask = typemax(UInt32)
     @inbounds begin
-    if lane > 1 
-        val = op(cache[thread - 1], val)
-        sync_warp(mask >> 1)
-        cache[thread] = val
+        if lane > 1 
+            val = op(cache[thread - 1], val)
+            sync_warp(mask >> 1)
+            cache[thread] = val
+            sync_warp(mask >> 1)
+        end
+        if lane > 2 
+            val = op(cache[thread - 2], val)
+            sync_warp(mask >> 2)
+            cache[thread] = val
+            sync_warp(mask >> 2)
+        end
+        if lane > 4 
+            val = op(cache[thread - 4], val)
+            sync_warp(mask >> 4)
+            cache[thread] = val
+            sync_warp(mask >> 4)
+        end
+        if lane > 8 
+            val = op(cache[thread - 8], val)
+            sync_warp(mask >> 8)
+            cache[thread] = val
+            sync_warp(mask >> 8)
+        end
+        if lane > 16 
+            val = op(cache[thread - 16], val)
+        end
     end
-    sync_warp()
-    if lane > 2 
-        val = op(cache[thread - 2], val)
-        sync_warp(mask >> 2)
-        cache[thread] = val
-    end
-    sync_warp()
-    if lane > 4 
-        val = op(cache[thread - 4], val)
-        sync_warp(mask >> 4)
-        cache[thread] = val
-    end
-    sync_warp()
-    if lane > 8 
-        val = op(cache[thread - 8], val)
-        sync_warp(mask >> 8)
-        cache[thread] = val
-    end
-    sync_warp()
-    if lane > 16 
-        val = op(cache[thread - 16], val)
-        sync_warp(mask >> 16)
-        cache[thread] = val
-    end
-end
     return val
 end
 
@@ -126,7 +124,7 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
 
         sync_threads()
 
-        # 1st warp computes sum
+        # 1st warp computes sum for entire block
         # works because 32*32 = 1024 = max threads in a block, 
         if wid == 1 && shuffle
             p_sum = partial_sums[lane]
