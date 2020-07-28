@@ -167,7 +167,7 @@ coverage:
 
 documentation:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .documentation
   tags:
     - nvidia
