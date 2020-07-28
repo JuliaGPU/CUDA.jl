@@ -19,7 +19,7 @@ Julia interfaces on the `CuArray` type, you should refer to the [upstream Julia
 documentation](https://docs.julialang.org) for more information on these operations.
 
 If you encounter missing functionality, or are running into operations that trigger
-so-called ["scalar iteration"](@UsageWorkflowScalar), have a look at the [issue
+so-called ["scalar iteration"](@ref UsageWorkflowScalar), have a look at the [issue
 tracker](https://github.com/JuliaGPU/CUDA.jl/issues) and file a new issue if there's none.
 Do note that you can always access the underlying CUDA APIs by calling into the relevant
 submodule. For example, if parts of the Random interface isn't properly implemented by

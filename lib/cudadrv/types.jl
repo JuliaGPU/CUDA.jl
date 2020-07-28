@@ -11,8 +11,8 @@ A type used to specify dimensions, consisting of 3 integers for respectively the
 and `z` dimension. Unspecified dimensions default to `1`.
 
 Often accepted as argument through the `CuDim` type alias, eg. in the case of
-[`cudacall`](@ref) or [`launch`](@ref), allowing to pass dimensions as a plain integer or a
-tuple without having to construct an explicit `CuDim3` object.
+[`cudacall`](@ref) or [`CUDA.launch`](@ref), allowing to pass dimensions as a plain integer
+or a tuple without having to construct an explicit `CuDim3` object.
 """
 struct CuDim3
     x::Cuint
