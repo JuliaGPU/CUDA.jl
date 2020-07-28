@@ -215,10 +215,12 @@ function addworker(X; kwargs...)
         test_exename
     end
 
-    procs = addprocs(X; exename=exename, exeflags=test_exeflags,
-                        dir=@__DIR__, kwargs...)
-    @everywhere procs include("setup.jl")
-    procs
+    withenv("JULIA_NUM_THREADS" => 1, "OPENBLAS_NUM_THREADS" => 1) do
+        procs = addprocs(X; exename=exename, exeflags=test_exeflags,
+                            dir=@__DIR__, kwargs...)
+        @everywhere procs include("setup.jl")
+        procs
+    end
 end
 addworker(min(jobs, length(tests)))
 
