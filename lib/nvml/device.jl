@@ -95,6 +95,13 @@ function memory_info(dev::Device)
     return (total=Int(ref[].total), free=Int(ref[].free), used=Int(ref[].used))
 end
 
+# percent
+function utilization_rates(dev::Device)
+    ref = Ref{nvmlUtilization_t}()
+    nvmlDeviceGetUtilizationRates(dev, ref)
+    return (compute=Int(ref[].gpu)/100, memory=Int(ref[].memory)/100)
+end
+
 function compute_mode(dev::Device)
     ref = Ref{nvmlComputeMode_t}()
     nvmlDeviceGetComputeMode(dev, ref)
