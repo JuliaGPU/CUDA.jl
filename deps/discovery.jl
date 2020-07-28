@@ -193,8 +193,6 @@ function cuda_library_version(library, toolkit_release)
 end
 
 const cuda_library_names = Dict(
-    "cuda"      => Sys.iswindows() ? "nvcuda" : "cuda",
-    "nvml"      => Sys.iswindows() ? "nvml"   : "nvidia-ml",
     "nvtx"      => "nvToolsExt"
 )
 
