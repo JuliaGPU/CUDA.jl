@@ -332,6 +332,14 @@ for (fname,elty) in ((:cusolverDnSpotrs, :Float32),
 end
 
 ## potri
+"""
+    potri!(uplo::Char, A::CuMatrix)
+
+!!! note
+
+    `potri!` requires CUDA >= 10.1
+"""
+LinearAlgebra.LAPACK.potri!(uplo::Char, A::CuMatrix)
 for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :Float32),
                      (:cusolverDnDpotri_bufferSize, :cusolverDnDpotri, :Float64),
                      (:cusolverDnCpotri_bufferSize, :cusolverDnCpotri, :ComplexF32),
@@ -359,14 +367,6 @@ for (bname, fname,elty) in ((:cusolverDnSpotri_bufferSize, :cusolverDnSpotri, :F
         end
     end
 end
-"""
-    potri!(uplo::Char, A::CuMatrix)
-
-!!! note
-
-    `potri!` requires CUDA >= 10.1
-"""
-LinearAlgebra.LAPACK.potri!(uplo::Char, A::CuMatrix)
 
 #getrf
 for (bname, fname,elty) in ((:cusolverDnSgetrf_bufferSize, :cusolverDnSgetrf, :Float32),
