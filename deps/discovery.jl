@@ -99,18 +99,10 @@ end
     find_binary(name; locations=String[])
 
 Similar to `find_library`, performs an exhaustive search for a binary in various
-subdirectories of `locations`, and finally PATH.
+subdirectories of `locations`, and finally PATH by using `Sys.which`.
 """
 function find_binary(name::String; locations::Vector{String}=String[])
     @debug "Request to look for binary $name" locations
-
-    # figure out names
-    all_names = String[]
-    if Sys.iswindows()
-        all_names = ["$name.exe" ]
-    else
-        all_names = [name]
-    end
 
     # figure out locations
     all_locations = String[]
@@ -118,32 +110,23 @@ function find_binary(name::String; locations::Vector{String}=String[])
         push!(all_locations, location)
         push!(all_locations, joinpath(location, "bin"))
     end
-    let path = ENV["PATH"]
-        dirs = split(path, Sys.iswindows() ? ';' : ':')
-        filter!(path->!isempty(path), dirs)
-        append!(all_locations, dirs)
-    end
+    # we look in PATH too by using `Sys.which` with unadorned names
 
-    @debug "Looking for binary $(join(all_names, ", "))" locations=all_locations
-    all_paths = [joinpath(location, name) for name in all_names, location in all_locations]
-    paths = String[]
+    @debug "Looking for binary $name" locations=all_locations
+    all_paths = [name; [joinpath(location, name) for location in all_locations]]
     for path in all_paths
         try
-            if ispath(path)
-                push!(paths, path)
+            program_path = Sys.which(path)
+            if program_path !== nothing
+                @debug "Found binary $path at $program_path"
+                return program_path
             end
         catch
             # some system disallow `stat` on certain paths
         end
     end
 
-    if isempty(paths)
-        return nothing
-    else
-        path = first(paths)
-        @debug "Found binary $(basename(path)) at $(dirname(path))"
-        return path
-    end
+    return nothing
 end
 
 
