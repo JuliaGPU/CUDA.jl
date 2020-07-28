@@ -24,6 +24,7 @@ function main()
             analytics = "UA-154489943-2",
         ),
         doctest = true,
+        strict = true,
         pages = Any[
             "Home" => "index.md",
             "Tutorials" => Any[
