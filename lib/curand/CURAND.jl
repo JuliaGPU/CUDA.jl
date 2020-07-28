@@ -3,7 +3,7 @@ module CURAND
 using ..APIUtils
 
 using ..CUDA
-using ..CUDA: CUstream, libraryPropertyType
+using ..CUDA: CUstream, libraryPropertyType, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK
 using ..CUDA: libcurand, @retry_reclaim
 
 using CEnum
@@ -20,38 +20,57 @@ include("wrappers.jl")
 include("random.jl")
 
 # thread cache for task-local library handles
-const thread_generators = Vector{Union{Nothing,RNG}}()
+const CURAND_THREAD_RNGs = Vector{Union{Nothing,RNG}}()
+const GPUARRAY_THREAD_RNGs = Vector{Union{Nothing,GPUArrays.RNG}}()
 
-function generator()
+function default_rng()
     tid = Threads.threadid()
-    if @inbounds thread_generators[tid] === nothing
+    if @inbounds CURAND_THREAD_RNGs[tid] === nothing
         ctx = context()
-        thread_generators[tid] = get!(task_local_storage(), (:CURAND, ctx)) do
+        CURAND_THREAD_RNGs[tid] = get!(task_local_storage(), (:CURAND, ctx)) do
             rng = RNG()
             Random.seed!(rng)
             rng
         end
     end
-    @inbounds thread_generators[tid]
+    @inbounds CURAND_THREAD_RNGs[tid]
+end
+
+function GPUArrays.default_rng(::Type{<:CuArray})
+    tid = Threads.threadid()
+    if @inbounds GPUARRAY_THREAD_RNGs[tid] === nothing
+        ctx = context()
+        GPUARRAY_THREAD_RNGs[tid] = get!(task_local_storage(), (:GPUArraysRNG, ctx)) do
+            dev = device()
+            N = attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
+            state = CuArray{NTuple{4, UInt32}}(undef, N)
+            rng = GPUArrays.RNG(state)
+            Random.seed!(rng)
+            rng
+        end
+    end
+    @inbounds GPUARRAY_THREAD_RNGs[tid]
 end
 
 function __init__()
-    resize!(thread_generators, Threads.nthreads())
-    fill!(thread_generators, nothing)
+    resize!(CURAND_THREAD_RNGs, Threads.nthreads())
+    fill!(CURAND_THREAD_RNGs, nothing)
+
+    resize!(GPUARRAY_THREAD_RNGs, Threads.nthreads())
+    fill!(GPUARRAY_THREAD_RNGs, nothing)
 
     CUDA.atcontextswitch() do tid, ctx
-        thread_generators[tid] = nothing
+        CURAND_THREAD_RNGs[tid] = nothing
+        GPUARRAY_THREAD_RNGs[tid] = nothing
     end
 
     CUDA.attaskswitch() do tid, task
-        thread_generators[tid] = nothing
+        CURAND_THREAD_RNGs[tid] = nothing
+        GPUARRAY_THREAD_RNGs[tid] = nothing
     end
 end
 
-end
+@deprecate seed!() CUDA.seed!()
+@deprecate seed!(seed) CUDA.seed!(seed)
 
-const seed! = CURAND.seed!
-const rand = CURAND.rand
-const randn = CURAND.randn
-const rand_logn = CURAND.rand_logn
-const rand_poisson = CURAND.rand_poisson
+end

@@ -79,6 +79,7 @@ include("linalg.jl")
 include("nnlib.jl")
 include("iterator.jl")
 include("statistics.jl")
+include("random.jl")
 
 # other libraries
 include("../lib/nvml/NVML.jl")

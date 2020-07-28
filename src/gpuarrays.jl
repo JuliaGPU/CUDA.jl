@@ -5,11 +5,6 @@
 # Device functionality
 #
 
-## device properties
-
-GPUArrays.threads(dev::CuDevice) =
-    attribute(dev, DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK)
-
 
 ## execution
 
