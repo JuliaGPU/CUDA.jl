@@ -9,7 +9,7 @@ export mm2!, mm2
 export ic02!, ic02, ilu02!, ilu02
 
 
-# essentials
+## essentials
 
 function cusparseCreate()
     handle = Ref{cusparseHandle_t}()
@@ -34,7 +34,7 @@ version() = VersionNumber(cusparseGetProperty(CUDA.MAJOR_VERSION),
                           cusparseGetProperty(CUDA.PATCH_LEVEL))
 
 
-# sparse matrix descriptor
+## sparse matrix descriptor
 
 mutable struct CuSparseMatrixDescriptor
     handle::cusparseMatDescr_t
@@ -64,7 +64,7 @@ function CuSparseMatrixDescriptor(MatrixType, FillMode, DiagType, IndexBase)
 end
 
 
-# Type conversion
+## type conversions
 
 for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                      (:cusparseDcsr2csc, :Float64),
@@ -86,7 +86,7 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                             CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
                     )[] buffer->begin
                         cusparseCsr2cscEx2(handle(), m, n, csr.nnz, csr.nzVal,
-                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal, 
+                            csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
                             cudaDataType($elty), CUSPARSE_ACTION_NUMERIC, cuind,
                             CUSPARSE_CSR2CSC_ALG1, buffer)
                     end
@@ -279,25 +279,24 @@ end
 
 Convert a `CuSparseMatrixCSR` to the compressed sparse column format.
 """
-function switch2csc(csr::CuSparseMatrixCSR, inda::SparseChar='O') end
+switch2csc(csr::CuSparseMatrixCSR, inda::SparseChar='O')
 
 """
     switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O')
 
 Convert a `CuSparseMatrixCSC` to the compressed sparse row format.
 """
-function switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O') end
+switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O')
 
 """
     switch2bsr(csr::CuSparseMatrixCSR, blockDim::Cint, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
 
 Convert a `CuSparseMatrixCSR` to the compressed block sparse row format. `blockDim` sets the block dimension of the compressed sparse blocks and `indc` determines whether the new matrix will be one- or zero-indexed.
 """
-function switch2bsr(csr::CuSparseMatrixCSR, blockDim::Cint, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O') end
+switch2bsr(csr::CuSparseMatrixCSR, blockDim::Cint, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
 
 
-
-# Level 1 CUSPARSE functions
+## level 1 functions
 
 """
     axpyi!(alpha::BlasFloat, X::CuSparseVector, Y::CuVector, index::SparseChar)
@@ -338,7 +337,7 @@ end
 
 Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices.
 """
-function gthr!(X::CuSparseVector, Y::CuVector, index::SparseChar) end
+gthr!(X::CuSparseVector, Y::CuVector, index::SparseChar)
 for (fname,elty) in ((:cusparseSgthr, :Float32),
                      (:cusparseDgthr, :Float64),
                      (:cusparseCgthr, :ComplexF32),
@@ -364,7 +363,7 @@ end
 
 Sets the nonzero elements of `X` equal to the nonzero elements of `Y` at the same indices, and zeros out those elements of `Y`.
 """
-function gthrz!(X::CuSparseVector, Y::CuVector, index::SparseChar) end
+gthrz!(X::CuSparseVector, Y::CuVector, index::SparseChar)
 for (fname,elty) in ((:cusparseSgthrz, :Float32),
                      (:cusparseDgthrz, :Float64),
                      (:cusparseCgthrz, :ComplexF32),
@@ -390,7 +389,7 @@ end
 
 Performs the Givens rotation specified by `c` and `s` to sparse `X` and dense `Y`.
 """
-function roti!(X::CuSparseVector, Y::CuVector, c::BlasFloat, s::BlasFloat, index::SparseChar) end
+roti!(X::CuSparseVector, Y::CuVector, c::BlasFloat, s::BlasFloat, index::SparseChar)
 for (fname,elty) in ((:cusparseSroti, :Float32),
                      (:cusparseDroti, :Float64))
     @eval begin
@@ -418,8 +417,7 @@ end
 
 Set `Y[:] = X[:]` for dense `Y` and sparse `X`.
 """
-function sctr!(X::CuSparseVector, Y::CuVector, index::SparseChar) end
-
+sctr!(X::CuSparseVector, Y::CuVector, index::SparseChar)
 for (fname,elty) in ((:cusparseSsctr, :Float32),
                      (:cusparseDsctr, :Float64),
                      (:cusparseCsctr, :ComplexF32),
@@ -439,6 +437,7 @@ for (fname,elty) in ((:cusparseSsctr, :Float32),
     end
 end
 
+
 ## level 2 functions
 
 """
@@ -447,8 +446,7 @@ end
 Performs `Y = alpha * op(A) *X + beta * Y`, where `op` can be nothing (`transa = N`), tranpose (`transa = T`)
 or conjugate transpose (`transa = C`). `X` is a sparse vector, and `Y` is dense.
 """
-function mv!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector,
-             beta::BlasFloat, Y::CuVector, index::SparseChar) end
+mv!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, beta::BlasFloat, Y::CuVector, index::SparseChar)
 for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseDbsrmv, :Float64),
                      (:cusparseCbsrmv, :ComplexF32),
@@ -489,7 +487,7 @@ Performs `X = alpha * op(A) \\ X `, where `op` can be nothing (`transa = N`), tr
 or conjugate transpose (`transa = C`). `X` is a dense vector, and `uplo` tells `sv2!` which triangle
 of the block sparse matrix `A` to reference.
 """
-function sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar) end
+sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar)
 # bsrsv2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_analysis, :cusparseSbsrsv2_solve, :Float32),
                                  (:cusparseDbsrsv2_bufferSize, :cusparseDbsrsv2_analysis, :cusparseDbsrsv2_solve, :Float64),
@@ -702,7 +700,7 @@ Multiply the sparse matrix `A` by the dense matrix `B`, filling in dense matrix 
 (`transa = T`), or conjugate transpose (`transa = C`), and similarly for `op(B)` and
 `transb`.
 """
-function mm2!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar) end
+mm2!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
 for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      (:cusparseDbsrmm, :Float64),
                      (:cusparseCbsrmm, :ComplexF32),
@@ -1010,7 +1008,7 @@ end
 Incomplete Cholesky factorization with no pivoting.
 Preserves the sparse layout of matrix `A`.
 """
-function ic02!(A::CuSparseMatrix, index::SparseChar) end
+ic02!(A::CuSparseMatrix, index::SparseChar)
 for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric02_analysis, :cusparseScsric02, :Float32),
                                  (:cusparseDcsric02_bufferSize, :cusparseDcsric02_analysis, :cusparseDcsric02, :Float64),
                                  (:cusparseCcsric02_bufferSize, :cusparseCcsric02_analysis, :cusparseCcsric02, :ComplexF32),
@@ -1094,7 +1092,7 @@ end
 Incomplete LU factorization with no pivoting.
 Preserves the sparse layout of matrix `A`.
 """
-function ilu02!(A::CuSparseMatrix, index::SparseChar) end
+ilu02!(A::CuSparseMatrix, index::SparseChar)
 for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsrilu02_analysis, :cusparseScsrilu02, :Float32),
                                  (:cusparseDcsrilu02_bufferSize, :cusparseDcsrilu02_analysis, :cusparseDcsrilu02, :Float64),
                                  (:cusparseCcsrilu02_bufferSize, :cusparseCcsrilu02_analysis, :cusparseCcsrilu02, :ComplexF32),
