@@ -8,9 +8,6 @@ gpuarrays_root = dirname(dirname(gpuarrays))
 include(joinpath(gpuarrays_root, "test", "testsuite.jl"))
 testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
-import LinearAlgebra
-LinearAlgebra.BLAS.set_num_threads(1)
-
 using Random
 
 # detect cuda-memcheck
