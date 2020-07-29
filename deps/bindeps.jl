@@ -94,16 +94,13 @@ artifact_binary(artifact_dir, name) = joinpath(artifact_dir, "bin", Sys.iswindow
 artifact_static_library(artifact_dir, name) = joinpath(artifact_dir, "lib", Sys.iswindows() ? "$name.lib" : "lib$name.a")
 artifact_file(artifact_dir, path) = joinpath(artifact_dir, path)
 function artifact_library(artifact, name, version)
-    # figure out names
+    dir = joinpath(artifact, Sys.iswindows() ? "bin" : "lib")
     all_names = library_versioned_names(name, version)
-
-    # just return the first that exists
     for name in all_names
-        path = joinpath(artifact, Sys.iswindows() ? "bin" : "lib", name)
+        path = joinpath(dir, name)
         ispath(path) && return path
     end
-
-    error("Could not find $name")
+    error("Could not find $name ($(join(all_names, ", ", " or "))) in $dir")
 end
 
 function artifact_cuda_library(artifact, library, toolkit_release)
