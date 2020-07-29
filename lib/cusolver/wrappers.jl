@@ -17,7 +17,7 @@ version() = VersionNumber(cusolverGetProperty(CUDA.MAJOR_VERSION),
 
 using SparseArrays
 
-using ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC, cusparseindex,
+using ..CUSPARSE: CuSparseMatrixCSR, CuSparseMatrixCSC,
                   CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER,
                   CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT,
                   CUSPARSE_DIAG_TYPE_UNIT, CuSparseMatrixDescriptor
@@ -46,7 +46,6 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),
                            tol::$relty,
                            reorder::Cint,
                            inda::Char)
-            cuinda = cusparseindex(inda)
             n = size(A,1)
             if size(A,2) != n
                 throw(DimensionMismatch("LU factorization is only possible for square matrices!"))
@@ -60,9 +59,9 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),
 
             Mat     = similar(A)
             transpose!(Mat, A)
-            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            desca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             singularity = Ref{Cint}(1)
-            $fname(sparse_handle(), n, length(A.nzval), cudesca, Mat.nzval,
+            $fname(sparse_handle(), n, length(A.nzval), desca, Mat.nzval,
                    convert(Vector{Cint},Mat.colptr), convert(Vector{Cint},Mat.rowval), b,
                    tol, reorder, x, singularity)
 
@@ -87,7 +86,6 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                            tol::$relty,
                            reorder::Cint,
                            inda::Char)
-            cuinda = cusparseindex(inda)
             n = size(A,1)
             if size(A,2) != n
                 throw(DimensionMismatch("QR factorization is only possible for square matrices!"))
@@ -99,9 +97,9 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
 
-            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            desca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             singularity = Ref{Cint}(1)
-            $fname(sparse_handle(), n, A.nnz, cudesca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
             if singularity[] != -1
                 throw(SingularException(singularity[]))
@@ -124,7 +122,6 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                              tol::$relty,
                              reorder::Cint,
                              inda::Char)
-            cuinda = cusparseindex(inda)
             n      = size(A,1)
             if size(A,2) != n
                 throw(DimensionMismatch("Cholesky factorization is only possible for square matrices!"))
@@ -136,9 +133,9 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
 
-            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            desca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             singularity = zeros(Cint,1)
-            $fname(sparse_handle(), n, A.nnz, cudesca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
+            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal, b, tol, reorder, x, singularity)
 
             if singularity[1] != -1
                 throw(SingularException(singularity[1]))
@@ -160,7 +157,6 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsqvqrHost, :Float32, :Float32),
                             x::Vector{$elty},
                             tol::$relty,
                             inda::Char)
-            cuinda = cusparseindex(inda)
             m,n    = size(A)
             if m < n
                 throw(DimensionMismatch("csrlsqvqr only works when the first dimension of A, $m, is greater than or equal to the second dimension of A, $n"))
@@ -172,13 +168,13 @@ for (fname, elty, relty) in ((:cusolverSpScsrlsqvqrHost, :Float32, :Float32),
                 throw(DimensionMismatch("length of x, $(length(x)), must match the length of b, $(length(b))"))
             end
 
-            cudesca  = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            desca  = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             p        = zeros(Cint,n)
             min_norm = zeros($relty,1)
             rankA    = zeros(Cint,1)
             Mat      = similar(A)
             transpose!(Mat, A)
-            $fname(sparse_handle(), m, n, length(A.nzval), cudesca, Mat.nzval,
+            $fname(sparse_handle(), m, n, length(A.nzval), desca, Mat.nzval,
                    convert(Vector{Cint},Mat.colptr), convert(Vector{Cint},Mat.rowval),
                    b, tol, rankA, x, p, min_norm)
 
@@ -199,7 +195,6 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                            tol::$relty,
                            maxite::Cint,
                            inda::Char)
-            cuinda = cusparseindex(inda)
             m,n    = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square!"))
@@ -208,10 +203,10 @@ for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                 throw(DimensionMismatch("second dimension of A, $(size(A,2)), must match the length of x_0, $(length(x_0))"))
             end
 
-            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            desca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             x       = copy(x_0)
             μ       = CUDA.zeros($elty,1)
-            $fname(sparse_handle(), n, A.nnz, cudesca, A.nzVal, A.rowPtr, A.colVal,
+            $fname(sparse_handle(), n, A.nnz, desca, A.nzVal, A.rowPtr, A.colVal,
                    μ_0, x_0, maxite, tol, μ, x)
 
             collect(μ)[1], x
@@ -229,17 +224,16 @@ for (fname, elty, relty) in ((:cusolverSpScsreigsHost, :ComplexF32, :Float32),
                          lbc::$elty,
                          ruc::$elty,
                          inda::Char)
-            cuinda = cusparseindex(inda)
             m,n    = size(A)
             if m != n
                 throw(DimensionMismatch("A must be square!"))
             end
 
-            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, cuinda)
+            desca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             numeigs = Ref{Cint}(0)
             Mat     = similar(A)
             transpose!(Mat, A)
-            $fname(sparse_handle(), n, length(A.nzval), cudesca, Mat.nzval,
+            $fname(sparse_handle(), n, length(A.nzval), desca, Mat.nzval,
                    convert(Vector{Cint},Mat.colptr), convert(Vector{Cint},Mat.rowval),
                    lbc, ruc, numeigs)
 

@@ -872,15 +872,11 @@ function gemmEx!(transA::Char,
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
     ldc = max(1,stride(C,2))
-    Atype = cudaDataType(eltype(A))
-    Btype = cudaDataType(eltype(B))
-    Ctype = cudaDataType(eltype(C))
     if version() >= v"11.0"
         computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
-        cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [alpha], A, Atype, lda, B, Btype, ldb, [beta], C, Ctype, ldc, computeType, algo)
+        cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [alpha], A, eltype(A), lda, B, eltype(B), ldb, [beta], C, eltype(C), ldc, computeType, algo)
     else
-        computeType = cudaDataType(eltype(C))
-        cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [convert(eltype(C), alpha)], A, Atype, lda, B, Btype, ldb, [convert(eltype(C), beta)], C, Ctype, ldc, computeType, algo)
+        cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [convert(eltype(C), alpha)], A, eltype(A), lda, B, eltype(B), ldb, [convert(eltype(C), beta)], C, eltype(C), ldc, eltype(C), algo)
     end
     C
 end

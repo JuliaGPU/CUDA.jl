@@ -10,7 +10,7 @@ n = 35
 k = 10
 blockdim = 5
 
-@testset "util" begin
+@testset "array" begin
     x = sprand(m,0.2)
     d_x = CuSparseVector(x)
     @test length(d_x) == m
@@ -96,25 +96,6 @@ blockdim = 5
     d_x = LowerTriangular(CuSparseMatrixCSC(x))
     @test !istriu(d_x)
     @test istril(d_x)
-end
-
-@testset "char" begin
-    @test_throws ArgumentError CUSPARSE.cusparseop('Z')
-    @test_throws ArgumentError CUSPARSE.cusparsetype('Z')
-    @test_throws ArgumentError CUSPARSE.cusparsefill('Z')
-    @test_throws ArgumentError CUSPARSE.cusparsediag('Z')
-    @test_throws ArgumentError CUSPARSE.cusparsedir('Z')
-    @test_throws ArgumentError CUSPARSE.cusparseindex('A')
-
-    @test CUSPARSE.cusparseop('N') == CUSPARSE.CUSPARSE_OPERATION_NON_TRANSPOSE
-    @test CUSPARSE.cusparseop('C') == CUSPARSE.CUSPARSE_OPERATION_CONJUGATE_TRANSPOSE
-    @test CUSPARSE.cusparseop('T') == CUSPARSE.CUSPARSE_OPERATION_TRANSPOSE
-    @test CUSPARSE.cusparsefill('U') == CUSPARSE.CUSPARSE_FILL_MODE_UPPER
-    @test CUSPARSE.cusparsefill('L') == CUSPARSE.CUSPARSE_FILL_MODE_LOWER
-    @test CUSPARSE.cusparsediag('U') == CUSPARSE.CUSPARSE_DIAG_TYPE_UNIT
-    @test CUSPARSE.cusparsediag('N') == CUSPARSE.CUSPARSE_DIAG_TYPE_NON_UNIT
-    @test CUSPARSE.cusparseindex('Z') == CUSPARSE.CUSPARSE_INDEX_BASE_ZERO
-    @test CUSPARSE.cusparseindex('O') == CUSPARSE.CUSPARSE_INDEX_BASE_ONE
 end
 
 @testset "conversion" begin
