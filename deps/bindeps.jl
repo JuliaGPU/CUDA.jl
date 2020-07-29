@@ -232,31 +232,36 @@ end
 
 # CUDNN
 
+# NOTE: we currently support both CUDNN v8 and v7
+
 const cudnn_artifacts = Dict(
-    v"11.0" => ()->artifact"CUDNN_CUDA110",
-    v"10.2" => ()->artifact"CUDNN_CUDA102",
-    v"10.1" => ()->artifact"CUDNN_CUDA101",
-    v"10.0" => ()->artifact"CUDNN_CUDA100",
-    v"9.2"  => ()->artifact"CUDNN_CUDA92",
-    v"9.0"  => ()->artifact"CUDNN_CUDA90",
+    v"11.0" => ()->(artifact"CUDNN_CUDA110", v"8"),
+    v"10.2" => ()->(artifact"CUDNN_CUDA102", v"8"),
+    v"10.1" => ()->(artifact"CUDNN_CUDA101", v"7"),
+    v"10.0" => ()->(artifact"CUDNN_CUDA100", v"7"),
+    v"9.2"  => ()->(artifact"CUDNN_CUDA92",  v"7"),
+    v"9.0"  => ()->(artifact"CUDNN_CUDA90",  v"7"),
 )
 
 function use_artifact_cudnn(release)
-    artifact_dir = try
+    artifact_dir, version = try
         cudnn_artifacts[release]()
     catch ex
         @debug "Could not use CUDNN from artifacts" exception=(ex, catch_backtrace())
         return false
     end
 
-    __libcudnn[] = artifact_library(artifact_dir, "cudnn", v"7")
+    __libcudnn[] = artifact_library(artifact_dir, "cudnn", version)
     Libdl.dlopen(__libcudnn[])
     @debug "Using CUDNN from an artifact at $(artifact_dir)"
     return true
 end
 
 function use_local_cudnn(cuda_dirs)
-    path = find_library("cudnn", v"7"; locations=cuda_dirs)
+    path = find_library("cudnn", v"8"; locations=cuda_dirs)
+    if path === nothing
+        path = find_library("cudnn", v"7"; locations=cuda_dirs)
+    end
     path === nothing && return false
 
     __libcudnn[] = path
