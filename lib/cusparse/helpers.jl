@@ -30,6 +30,8 @@ end
 
 ## type conversions
 
+export switch2csr, switch2csc, switch2bsr
+
 for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                      (:cusparseDcsr2csc, :Float64),
                      (:cusparseCcsr2csc, :ComplexF32),

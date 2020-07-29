@@ -2,12 +2,6 @@
 
 import LinearAlgebra: SingularException, HermOrSym, AbstractTriangular, *, +, -, \, mul!
 
-export switch2csr, switch2csc, switch2bsr
-export axpyi!, axpyi, sctr!, sctr, gthr!, gthr, gthrz!, grthrz, roti!, roti
-export sv2!, sv2, sv_solve!, sv
-export mm2!, mm2
-export ic02!, ic02, ilu02!, ilu02
-
 
 ## essentials
 
@@ -35,6 +29,8 @@ version() = VersionNumber(cusparseGetProperty(CUDA.MAJOR_VERSION),
 
 
 ## level 1 functions
+
+export axpyi!, axpyi, sctr!, sctr, gthr!, gthr, gthrz!, roti!, roti
 
 """
     axpyi!(alpha::BlasFloat, X::CuSparseVector, Y::CuVector, index::SparseChar)
@@ -172,6 +168,8 @@ end
 
 
 ## level 2 functions
+
+export sv2!, sv2, sv
 
 """
     mv!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, beta::BlasFloat, Y::CuVector, index::SparseChar)
@@ -411,6 +409,8 @@ end
 
 
 ## level 3 functions
+
+export mm2!, mm2
 
 """
     mm2!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
@@ -701,9 +701,9 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
 end
 
 
-
-
 ## preconditioners
+
+export ic02!, ic02, ilu02!, ilu02
 
 """
     ic02!(A::CuSparseMatrix, index::SparseChar)
