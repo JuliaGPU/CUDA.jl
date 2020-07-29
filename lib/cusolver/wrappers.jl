@@ -913,18 +913,6 @@ for (jname, fname, elty) in ((:potrsBatched!, :cusolverDnSpotrsBatched, :Float32
                              (:potrsBatched!, :cusolverDnZpotrsBatched, :ComplexF64)
                              )
     @eval begin
-        # cusolverStatus_t
-        # cusolverDnSpotrsBatched(
-        #     cusolverDnHandle_t handle,
-        #     cublasFillMode_t uplo,
-        #     int n,
-        #     int nrhs,
-        #     float *Aarray[],
-        #     int lda,
-        #     float *Barray[],
-        #     int ldb,
-        #     int *info,
-        #     int batchSize);
         function $jname(uplo::Char, A::Vector{<:CuMatrix{$elty}}, B::Vector{<:CuVecOrMat{$elty}})
             if length(A) != length(B)
                 throw(DimensionMismatch(""))
@@ -966,15 +954,6 @@ for (jname, fname, elty) in ((:potrfBatched!, :cusolverDnSpotrfBatched, :Float32
                              (:potrfBatched!, :cusolverDnZpotrfBatched, :ComplexF64)
                              )
     @eval begin
-        # cusolverStatus_t
-        # cusolverDnSpotrfBatched(
-        #     cusolverDnHandle_t handle,
-        #     cublasFillMode_t uplo,
-        #     int n,
-        #     float *Aarray[],
-        #     int lda,
-        #     int *infoArray,
-        #     int batchSize);
         function $jname(uplo::Char, A::Vector{<:CuMatrix{$elty}})
 
             # Set up information for the solver arguments

@@ -74,7 +74,6 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
                       (:cublasZcopy_v2,:ComplexF64),
                       (:cublasCcopy_v2,:ComplexF32))
     @eval begin
-        # SUBROUTINE DCOPY(N,DX,INCX,DY,INCY)
         function blascopy!(n::Integer,
                            DX::CuArray{$elty},
                            incx::Integer,
@@ -92,7 +91,6 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
                       (:cublasZscal_v2,:ComplexF64),
                       (:cublasCscal_v2,:ComplexF32))
     @eval begin
-        # SUBROUTINE DSCAL(N,DA,DX,INCX)
         function scal!(n::Integer,
                        DA::$elty,
                        DX::CuArray{$elty},
@@ -106,13 +104,12 @@ end
 for (fname, elty, celty) in ((:cublasSscal_v2, :Float32, :ComplexF32),
                              (:cublasDscal_v2, :Float64, :ComplexF64))
     @eval begin
-        # SUBROUTINE DSCAL(N,DA,DX,INCX)
         function scal!(n::Integer,
                        DA::$elty,
                        DX::CuArray{$celty},
                        incx::Integer)
             #DY = reinterpret($elty,DX,(2*n,))
-            #$(cublascall(fname))(handle(),2*n,[DA],DY,incx)
+            #$fname(handle(), 2*n, [DA], DY, incx)
             $fname(handle(), 2*n, Ref(DA), DX, incx)
             DX
         end
@@ -120,12 +117,6 @@ for (fname, elty, celty) in ((:cublasSscal_v2, :Float32, :ComplexF32),
 end
 
 ## dot, dotc, dotu
-# cublasStatus_t cublasDdot_v2
-#   (cublasHandle_t handle,
-#    int n,
-#    const double *x, int incx,
-#    const double *y, int incy,
-#    double *result);
 for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
                              (:dot,:cublasSdot_v2,:Float32),
                              (:dotc,:cublasZdotc_v2,:ComplexF64),
@@ -151,7 +142,6 @@ for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
                                 (:cublasDznrm2_v2,:ComplexF64,:Float64),
                                 (:cublasScnrm2_v2,:ComplexF32,:Float32))
     @eval begin
-        # SUBROUTINE DNRM2(N,X,INCX)
         function nrm2(n::Integer,
                       X::CuArray{$elty},
                       incx::Integer)
@@ -171,7 +161,6 @@ for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
                                 (:cublasDzasum_v2,:ComplexF64,:Float64),
                                 (:cublasScasum_v2,:ComplexF32,:Float32))
     @eval begin
-        # SUBROUTINE ASUM(N, X, INCX)
         function asum(n::Integer,
                       X::CuArray{$elty},
                       incx::Integer)
@@ -188,16 +177,6 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
                       (:cublasZaxpy_v2,:ComplexF64),
                       (:cublasCaxpy_v2,:ComplexF32))
     @eval begin
-        # SUBROUTINE DAXPY(N,DA,DX,INCX,DY,INCY)
-        # DY <- DA*DX + DY
-        # cublasStatus_t cublasSaxpy_v2(
-        #   cublasHandle_t handle,
-        #   int n,
-        #   const float *alpha, /* host or device pointer */
-        #   const float *x,
-        #   int incx,
-        #   float *y,
-        #   int incy);
         function axpy!(n::Integer,
                        alpha::($elty),
                        dx::CuArray{$elty},
@@ -297,14 +276,6 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
                       (:cublasZgemv_v2,:ComplexF64),
                       (:cublasCgemv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgemv(
-        #   cublasHandle_t handle, cublasOperation_t trans,
-        #   int m, int n,
-        #   const double *alpha,
-        #   const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta,
-        #   double *y, int incy)
         function gemv!(trans::Char,
                        alpha::($elty),
                        A::CuMatrix{$elty},
@@ -337,12 +308,6 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
                       (:cublasZgbmv_v2,:ComplexF64),
                       (:cublasCgbmv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgbmv(
-        #   cublasHandle_t handle, cublasOperation_t trans,
-        #   int m, int n, int kl, int ku,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta, double *y, int incy)
         function gbmv!(trans::Char,
                        m::Integer,
                        kl::Integer,
@@ -392,11 +357,6 @@ for (fname, elty) in ((:cublasDsymv_v2,:Float64),
                       (:cublasCsymv_v2,:ComplexF32))
     # Note that the complex symv are not BLAS but auiliary functions in LAPACK
     @eval begin
-        # cublasStatus_t cublasDsymv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   int n, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta, double *y, int incy)
         function symv!(uplo::Char,
                        alpha::($elty),
                        A::CuMatrix{$elty},
@@ -426,11 +386,6 @@ end
 for (fname, elty) in ((:cublasZhemv_v2,:ComplexF64),
                       (:cublasChemv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasChemv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   int n, const cuComplex *alpha, const cuComplex *A, int lda,
-        #   const cuComplex *x, int incx,
-        #   const cuComplex *beta, cuComplex *y, int incy)
         function hemv!(uplo::Char,
                        alpha::$elty,
                        A::CuMatrix{$elty},
@@ -464,11 +419,6 @@ end
 for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
                       (:cublasSsbmv_v2,:Float32))
     @eval begin
-        # cublasStatus_t cublasDsbmv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   int n, int k, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx,
-        #   const double *beta, double *y, int incy)
         function sbmv!(uplo::Char,
                        k::Integer,
                        alpha::($elty),
@@ -503,11 +453,6 @@ end
 for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
                       (:cublasChbmv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasChbmv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   int n, int k, const cuComplex *alpha, const cuComplex *A, int lda,
-        #   const cuComplex *x, int incx,
-        #   const cuComplex *beta, cuComplex *y, int incy)
         function hbmv!(uplo::Char,
                        k::Integer,
                        alpha::($elty),
@@ -543,11 +488,6 @@ for (fname, elty) in ((:cublasStbmv_v2,:Float32),
                       (:cublasZtbmv_v2,:ComplexF64),
                       (:cublasCtbmv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDtbmv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int n, int k, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx)
         function tbmv!(uplo::Char,
                        trans::Char,
                        diag::Char,
@@ -580,11 +520,6 @@ for (fname, elty) in ((:cublasStbsv_v2,:Float32),
                       (:cublasZtbsv_v2,:ComplexF64),
                       (:cublasCtbsv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDtbsv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int n, int k, const double *alpha, const double *A, int lda,
-        #   const double *x, int incx)
         function tbsv!(uplo::Char,
                        trans::Char,
                        diag::Char,
@@ -617,11 +552,6 @@ for (fname, elty) in ((:cublasDtrmv_v2,:Float64),
                       (:cublasZtrmv_v2,:ComplexF64),
                       (:cublasCtrmv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDtrmv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int n, const double *A, int lda,
-        #   double *x, int incx)
         function trmv!(uplo::Char,
                        trans::Char,
                        diag::Char,
@@ -653,11 +583,6 @@ for (fname, elty) in ((:cublasDtrsv_v2,:Float64),
                       (:cublasZtrsv_v2,:ComplexF64),
                       (:cublasCtrsv_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDtrsv(
-        #   cublasHandle_t handle, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int n, const double *A, int lda,
-        #   double *x, int incx)
         function trsv!(uplo::Char,
                        trans::Char,
                        diag::Char,
@@ -689,11 +614,6 @@ for (fname, elty) in ((:cublasDger_v2,:Float64),
                       (:cublasZgerc_v2,:ComplexF64),
                       (:cublasCgerc_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDger(
-        #   cublasHandle_t handle, int m, int n, const double *alpha,
-        #   const double *x, int incx,
-        #   const double *y, int incy,
-        #   double *A, int lda)
         function ger!(alpha::$elty,
                       x::CuVector{$elty},
                       y::CuVector{$elty},
@@ -717,10 +637,6 @@ for (fname, elty) in ((:cublasDsyr_v2,:Float64),
                       (:cublasZsyr_v2,:ComplexF64),
                       (:cublasCsyr_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDsyr(
-        #   cublasHandle_t handle, cublasFillMode_t uplo, int n,
-        #   const double *alpha, const double *x, int incx,
-        #   double *A, int lda)
         function syr!(uplo::Char,
                       alpha::$elty,
                       x::CuVector{$elty},
@@ -786,12 +702,6 @@ for (fname, elty) in
          (:cublasZgemm_v2,:ComplexF64),
          (:cublasCgemm_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgemm(
-        #   cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-        #   int m, int n, int k,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb, const double *beta,
-        #   double *C, int ldc)
         function gemm!(transA::Char,
                        transB::Char,
                        alpha::($elty),
@@ -876,12 +786,6 @@ for (fname, elty) in
          (:cublasZgemmBatched,:ComplexF64),
          (:cublasCgemmBatched,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgemmBatched(
-        #   cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-        #   int m, int n, int k,
-        #   const double *alpha, const double **A, int lda,
-        #   const double **B, int ldb, const double *beta,
-        #   double **C, int ldc, int batchCount)
         function gemm_batched!(transA::Char,
                                transB::Char,
                                alpha::($elty),
@@ -943,21 +847,6 @@ for (fname, elty) in
          (:cublasZgemmStridedBatched,:ComplexF64),
          (:cublasCgemmStridedBatched,:ComplexF32))
     @eval begin
-
-        # cublasStatus_t cublasDgemmStridedBatched(cublasHandle_t handle,
-        #                                   cublasOperation_t transa,
-        #                                   cublasOperation_t transb,
-        #                                   int m, int n, int k,
-        #                                   const double          *alpha,
-        #                                   const double          *A, int lda,
-        #                                   long long int          strideA,
-        #                                   const double          *B, int ldb,
-        #                                   long long int          strideB,
-        #                                   const double          *beta,
-        #                                   double                *C, int ldc,
-        #                                   long long int          strideC,
-        #                                   int batchCount)
-
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
                                alpha::($elty),
@@ -1010,12 +899,6 @@ for (fname, elty) in ((:cublasDsymm_v2,:Float64),
                       (:cublasCsymm_v2,:ComplexF32))
     # TODO: fix julia dimension checks in symm!
     @eval begin
-        # cublasStatus_t cublasDsymm(
-        #   cublasHandle_t handle, cublasSideMode_t side,
-        #   cublasFillMode_t uplo, int m, int n,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb,
-        #   const double *beta, double *C, int ldc)
         function symm!(side::Char,
                        uplo::Char,
                        alpha::($elty),
@@ -1059,11 +942,6 @@ for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
                       (:cublasZsyrk_v2,:ComplexF64),
                       (:cublasCsyrk_v2,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasDsyrk(
-       #   cublasHandle_t handle, cublasFillMode_t uplo,
-       #   cublasOperation_t trans, int n, int k,
-       #   const double *alpha, const double *A, int lda,
-       #   const double *beta, double *C, int ldc)
        function syrk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -1099,11 +977,6 @@ for (fname, elty) in ((:cublasDsyrkx,:Float64),
                       (:cublasZsyrkx,:ComplexF64),
                       (:cublasCsyrkx,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasDsyrk(
-       #   cublasHandle_t handle, cublasFillMode_t uplo,
-       #   cublasOperation_t trans, int n, int k,
-       #   const double *alpha, const double *A, int lda,
-       #   const double *beta, double *C, int ldc)
        function syrkx!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -1142,14 +1015,6 @@ syrkx(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) = syrkx(uplo, trans
 for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
                       (:cublasChemm_v2,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasChemm(
-       #   cublasHandle_t handle, cublasSideMode_t side, cublasFillMode_t uplo,
-       #   int m, int n,
-       #   const cuComplex *alpha,
-       #   const cuComplex *A, int lda,
-       #   const cuComplex *B, int ldb,
-       #   const cuComplex *beta,
-       #   cuComplex *C, int ldc)
        function hemm!(side::Char,
                       uplo::Char,
                       alpha::($elty),
@@ -1186,11 +1051,6 @@ end
 for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
                       (:cublasCherk_v2,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasCherk(
-       #   cublasHandle_t handle, cublasFillMode_t uplo, cublasOperation_t trans,
-       #   int n, int k,
-       #   const float *alpha, const cuComplex *A, int lda,
-       #   const float *beta, cuComplex *C, int ldc)
        function herk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -1221,15 +1081,6 @@ for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
                       (:cublasZsyr2k_v2,:ComplexF64),
                       (:cublasCsyr2k_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDsyr2k(
-        #   cublasHandle_t handle,
-        #   cublasFillMode_t uplo, cublasOperation_t trans,
-        #   int n, int k,
-        #   const double *alpha,
-        #   const double *A, int lda,
-        #   const double *B, int ldb,
-        #   const double *beta,
-        #   double *C, int ldc)
         function syr2k!(uplo::Char,
                         trans::Char,
                         alpha::($elty),
@@ -1270,12 +1121,6 @@ syr2k(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) = syr2k(uplo, trans
 for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
                               (:cublasCher2k_v2,:ComplexF32,:Float32))
    @eval begin
-       # cublasStatus_t cublasZher2k(
-       #   cublasHandle_t handle, cublasFillMode_t uplo, cublasOperation_t trans,
-       #   int n, int k,
-       #   const cuDoubleComplex *alpha, const cuDoubleComplex *A, int lda,
-       #   const cuDoubleComplex *B, int ldb,
-       #   const double *beta, cuDoubleComplex *C, int ldc)
        function her2k!(uplo::Char,
                        trans::Char,
                        alpha::($elty1),
@@ -1322,13 +1167,6 @@ for (mmname, smname, elty) in
          (:cublasZtrmm_v2,:cublasZtrsm_v2,:ComplexF64),
          (:cublasCtrmm_v2,:cublasCtrsm_v2,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDtrmm(cublasHandle_t handle,
-        #   cublasSideMode_t side, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int m, int n,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb,
-        #   double *C, int ldc)
         # Note: CUBLAS differs from BLAS API for trmm
         #   BLAS: inplace modification of B
         #   CUBLAS: store result in C
@@ -1362,13 +1200,6 @@ for (mmname, smname, elty) in
                       B::CuMatrix{$elty})
             trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
         end
-        # cublasStatus_t cublasDtrsm(cublasHandle_t handle,
-        #   cublasSideMode_t side, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int m, int n,
-        #   const double *alpha,
-        #   const double *A, int lda,
-        #   double *B, int ldb)
         function trsm!(side::Char,
                        uplo::Char,
                        transa::Char,
@@ -1405,14 +1236,6 @@ for (fname, elty) in
          (:cublasZtrsmBatched,:ComplexF64),
          (:cublasCtrsmBatched,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDtrsmBatched(cublasHandle_t handle,
-        #   cublasSideMode_t side, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int m, int n,
-        #   const double *alpha,
-        #   const double **A, int lda,
-        #   double **B, int ldb,
-        #   int batchCount)
         function trsm_batched!(side::Char,
                                uplo::Char,
                                transa::Char,
@@ -1463,14 +1286,6 @@ for (fname, elty) in ((:cublasDgeam,:Float64),
                       (:cublasZgeam,:ComplexF64),
                       (:cublasCgeam,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasCgeam(
-       #   cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-       #   int m, int n,
-       #   const cuComplex *alpha,
-       #   const cuComplex *A, int lda,
-       #   const cuComplex *B, int ldb,
-       #   const cuComplex *beta,
-       #   cuComplex *C, int ldc)
        function geam!(transa::Char,
                       transb::Char,
                       alpha::($elty),
@@ -1517,10 +1332,6 @@ for (fname, elty) in
          (:cublasZgetrfBatched,:ComplexF64),
          (:cublasCgetrfBatched,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgetrfBatched(
-        #   cublasHandle_t handle, int n, double **A,
-        #   int lda, int *PivotArray, int *infoArray,
-        #   int batchSize)
         function getrf_batched!(n, ptrs::CuVector{CuPtr{$elty}}, lda, pivot::Bool)
             batchSize = length(ptrs)
             info = CuArray{Cint}(undef, batchSize)
@@ -1575,10 +1386,6 @@ for (fname, elty) in
          (:cublasZgetriBatched,:ComplexF64),
          (:cublasCgetriBatched,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgetriBatched(
-        #   cublasHandle_t handle, int n, double **A,
-        #   int lda, int *PivotArray, double **C,
-        #   int ldc, int *info, int batchSize)
         function getri_batched(A::Vector{<:CuMatrix{$elty}},
                               pivotArray::CuMatrix{Cint})
             for As in A
@@ -1612,10 +1419,6 @@ for (fname, elty) in
          (:cublasZmatinvBatched,:ComplexF64),
          (:cublasCmatinvBatched,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDmatinvBatched(
-        #   cublasHandle_t handle, int n, double **A,
-        #   int lda, double **C, int ldc,
-        #   int *info, int batchSize)
         function matinv_batched(A::Vector{<:CuMatrix{$elty}})
             for As in A
                 m,n = size(As)
@@ -1651,10 +1454,6 @@ for (fname, elty) in
          (:cublasZgeqrfBatched,:ComplexF64),
          (:cublasCgeqrfBatched,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgeqrfBatched(
-        #   cublasHandle_t handle, int n, int m,
-        #   double **A, int lda, double **TauArray,
-        #   int *infoArray, int batchSize)
         function geqrf_batched!(A::Vector{<:CuMatrix{$elty}})
             m,n = size(A[1])
             lda = max(1,stride(A[1],2))
@@ -1689,11 +1488,6 @@ for (fname, elty) in
          (:cublasZgelsBatched,:ComplexF64),
          (:cublasCgelsBatched,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDgelsBatched(
-        #   cublasHandle_t handle, int m, int n,
-        #   int nrhs, double **A, int lda,
-        #   double **C, int ldc, int *infoArray,
-        #   int *devInfoArray, int batchSize)
         function gels_batched!(trans::Char,
                               A::Vector{<:CuMatrix{$elty}},
                               C::Vector{<:CuMatrix{$elty}})
@@ -1747,12 +1541,6 @@ for (fname, elty) in ((:cublasDdgmm,:Float64),
                       (:cublasZdgmm,:ComplexF64),
                       (:cublasCdgmm,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasCdgmm(
-       #   cublasHandle_t handle, cublasSideMode_t mode,
-       #   int m, int n,
-       #   const cuComplex *A, int lda,
-       #   const cuComplex *X, int incx,
-       #   cuComplex *C, int ldc)
        function dgmm!(mode::Char,
                       A::CuMatrix{$elty},
                       X::CuVector{$elty},
@@ -1785,12 +1573,6 @@ for (fname, elty) in
          (:cublasXtCgemm,:ComplexF32),
          (:cublasXtZgemm,:ComplexF64))
     @eval begin
-        # cublasStatus_t cublasDgemm(
-        #   cublasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb,
-        #   int m, int n, int k,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb, const double *beta,
-        #   double *C, int ldc)
         function xt_gemm!(transA::Char,
                        transB::Char,
                        alpha::($elty),
@@ -1831,14 +1613,6 @@ end
 for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
                       (:cublasXtChemm,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasChemm(
-       #   cublasHandle_t handle, cublasSideMode_t side, cublasFillMode_t uplo,
-       #   int m, int n,
-       #   const cuComplex *alpha,
-       #   const cuComplex *A, int lda,
-       #   const cuComplex *B, int ldb,
-       #   const cuComplex *beta,
-       #   cuComplex *C, int ldc)
        function xt_hemm!(side::Char,
                       uplo::Char,
                       alpha::($elty),
@@ -1877,12 +1651,6 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
                       (:cublasXtCsymm,:ComplexF32))
     # TODO: fix julia dimension checks in symm!
     @eval begin
-        # cublasStatus_t cublasDsymm(
-        #   cublasHandle_t handle, cublasSideMode_t side,
-        #   cublasFillMode_t uplo, int m, int n,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb,
-        #   const double *beta, double *C, int ldc)
         function xt_symm!(side::Char,
                        uplo::Char,
                        alpha::($elty),
@@ -1925,11 +1693,6 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
                       (:cublasXtZsyrk,:ComplexF64),
                       (:cublasXtCsyrk,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasDsyrk(
-       #   cublasHandle_t handle, cublasFillMode_t uplo,
-       #   cublasOperation_t trans, int n, int k,
-       #   const double *alpha, const double *A, int lda,
-       #   const double *beta, double *C, int ldc)
        function xt_syrk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -1963,11 +1726,6 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
                       (:cublasXtZsyrkx,:ComplexF64),
                       (:cublasXtCsyrkx,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasDsyrk(
-       #   cublasHandle_t handle, cublasFillMode_t uplo,
-       #   cublasOperation_t trans, int n, int k,
-       #   const double *alpha, const double *A, int lda,
-       #   const double *beta, double *C, int ldc)
        function xt_syrkx!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -2005,11 +1763,6 @@ xt_syrkx(uplo::Char, trans::Char, A::Union{VecOrMat, CuVecOrMat}, B::Union{VecOr
 for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
                       (:cublasXtCherk,:ComplexF32))
    @eval begin
-       # cublasStatus_t cublasCherk(
-       #   cublasHandle_t handle, cublasFillMode_t uplo, cublasOperation_t trans,
-       #   int n, int k,
-       #   const float *alpha, const cuComplex *A, int lda,
-       #   const float *beta, cuComplex *C, int ldc)
        function xt_herk!(uplo::Char,
                       trans::Char,
                       alpha::($elty),
@@ -2037,12 +1790,6 @@ end
 for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
                               (:cublasXtCher2k,:ComplexF32,:Float32))
    @eval begin
-       # cublasStatus_t cublasZher2k(
-       #   cublasHandle_t handle, cublasFillMode_t uplo, cublasOperation_t trans,
-       #   int n, int k,
-       #   const cuDoubleComplex *alpha, const cuDoubleComplex *A, int lda,
-       #   const cuDoubleComplex *B, int ldb,
-       #   const double *beta, cuDoubleComplex *C, int ldc)
        function xt_her2k!(uplo::Char,
                        trans::Char,
                        alpha::($elty1),
@@ -2088,13 +1835,6 @@ for (mmname, smname, elty) in
          (:cublasXtZtrmm,:cublasXtZtrsm,:ComplexF64),
          (:cublasXtCtrmm,:cublasXtCtrsm,:ComplexF32))
     @eval begin
-        # cublasStatus_t cublasDtrmm(cublasHandle_t handle,
-        #   cublasSideMode_t side, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int m, int n,
-        #   const double *alpha, const double *A, int lda,
-        #   const double *B, int ldb,
-        #   double *C, int ldc)
         # Note: CUBLAS differs from BLAS API for trmm
         #   BLAS: inplace modification of B
         #   CUBLAS: store result in C
@@ -2128,13 +1868,6 @@ for (mmname, smname, elty) in
                       B::Union{CuMatrix{$elty}, Matrix{$elty}})
             xt_trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
         end
-        # cublasStatus_t cublasDtrsm(cublasHandle_t handle,
-        #   cublasSideMode_t side, cublasFillMode_t uplo,
-        #   cublasOperation_t trans, cublasDiagType_t diag,
-        #   int m, int n,
-        #   const double *alpha,
-        #   const double *A, int lda,
-        #   double *B, int ldb)
         function xt_trsm!(side::Char,
                        uplo::Char,
                        transa::Char,
