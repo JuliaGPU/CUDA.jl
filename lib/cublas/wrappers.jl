@@ -760,7 +760,10 @@ function gemmEx!(transA::Char,
         computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
         cublasGemmEx(handle(), transA, transB, m, n, k, [alpha], A, eltype(A), lda, B, eltype(B), ldb, [beta], C, eltype(C), ldc, computeType, algo)
     else
-        cublasGemmEx(handle(), transA, transB, m, n, k, [convert(eltype(C), alpha)], A, eltype(A), lda, B, eltype(B), ldb, [convert(eltype(C), beta)], C, eltype(C), ldc, eltype(C), algo)
+        # FIXME: we patch the cublasGemmEx ccall to computeType::UInt32 for compatibility
+        #        across CUDA versions
+        computeType = convert(cudaDataType, eltype(C))
+        cublasGemmEx(handle(), transA, transB, m, n, k, [convert(eltype(C), alpha)], A, eltype(A), lda, B, eltype(B), ldb, [convert(eltype(C), beta)], C, eltype(C), ldc, computeType, algo)
     end
     C
 end
