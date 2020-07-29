@@ -253,7 +253,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                     posit = Ref{Cint}(1)
                     cusparseXbsrsv2_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), A.dir, transa, mb, A.nnz,
                            [alpha], desc, A.nzVal, A.rowPtr, A.colVal,
@@ -341,7 +341,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), transa, m,
                            A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
@@ -396,7 +396,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), ctransa, m,
                            A.nnz, [alpha], desc, A.nzVal, A.colPtr,
@@ -617,7 +617,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                     posit = Ref{Cint}(1)
                     cusparseXbsrsm2_zeroPivot(handle(), info[], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), A.dir, transa, transxy, mb,
                            nX, A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
@@ -679,7 +679,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                     posit = Ref{Cint}(1)
                     cusparseXcsrsm2_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), 0, transa, transxy, m,
                            nX, A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
@@ -737,7 +737,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                     posit = Ref{Cint}(1)
                     cusparseXcsric02_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), m, A.nnz,
                            desc, A.nzVal, A.rowPtr, A.colVal, info[1],
@@ -775,7 +775,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsric02_bufferSize, :cusparseScsric0
                     posit = Ref{Cint}(1)
                     cusparseXcsric02_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), m, A.nnz,
                            desc, A.nzVal, A.colPtr, A.rowVal, info[1],
@@ -819,7 +819,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                     posit = Ref{Cint}(1)
                     cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural zero in A at (",posit[],posit[],")"))
+                        error("Structural zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), m, A.nnz,
                            desc, A.nzVal, A.rowPtr, A.colVal, info[1],
@@ -857,7 +857,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrilu02_bufferSize, :cusparseScsril
                     posit = Ref{Cint}(1)
                     cusparseXcsrilu02_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural zero in A at (",posit[],posit[],")"))
+                        error("Structural zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), m, A.nnz,
                            desc, A.nzVal, A.colPtr, A.rowVal, info[1],
@@ -896,7 +896,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsric02_bufferSize, :cusparseSbsric0
                     posit = Ref{Cint}(1)
                     cusparseXbsric02_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), A.dir, mb, A.nnz, desc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
@@ -935,7 +935,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrilu02_bufferSize, :cusparseSbsril
                     posit = Ref{Cint}(1)
                     cusparseXbsrilu02_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
-                        throw(string("Structural/numerical zero in A at (",posit[],posit[],")"))
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), A.dir, mb, A.nnz, desc,
                            A.nzVal, A.rowPtr, A.colVal, A.blockDim, info[1],
