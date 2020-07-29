@@ -21,7 +21,7 @@ end
     C_32U      # `CUDA_C_32U`, complex as a pair of unsigned int numbers
 end
 
-function cudaDataType(T::DataType)
+function Base.convert(::Type{cudaDataType}, T::DataType)
     if T == Float32
         return R_32F
     elseif T == ComplexF32
@@ -52,5 +52,39 @@ function cudaDataType(T::DataType)
         return C_32U
     else
         throw(ArgumentError("cudaDataType equivalent for input type $T does not exist!"))
+    end
+end
+
+function Base.convert(::Type{Type}, T::cudaDataType)
+    if T == R_32F
+        return Float32
+    elseif T == C_32F
+        return ComplexF32
+    elseif T == R_16F
+        return Float16
+    elseif T == C_16F
+        return ComplexF16
+    elseif T == R_64F
+        return Float64
+    elseif T == C_64F
+        return ComplexF64
+    elseif T == R_8I
+        return Int8
+    elseif T == C_8I
+        return Complex{Int8}
+    elseif T == R_32I
+        return Int32
+    elseif T == C_32I
+        return Complex{Int32}
+    elseif T == R_8U
+        return UInt8
+    elseif T == C_8U
+        return Complex{UInt8}
+    elseif T == R_32U
+        return UInt32
+    elseif T == C_32U
+        return Complex{UInt32}
+    else
+        throw(ArgumentError("Julia type equivalent for input type $T does not exist!"))
     end
 end

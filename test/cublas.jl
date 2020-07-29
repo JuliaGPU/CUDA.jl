@@ -9,11 +9,6 @@ m = 20
 n = 35
 k = 13
 
-@test_throws ArgumentError CUBLAS.cublasop('V')
-@test_throws ArgumentError CUBLAS.cublasfill('V')
-@test_throws ArgumentError CUBLAS.cublasdiag('V')
-@test_throws ArgumentError CUBLAS.cublasside('V')
-
 # FIXME: XT host tests don't pass cuda-memcheck, because they use raw CPU pointers.
 #        https://stackoverflow.com/questions/50116861/why-is-cudapointergetattributes-returning-invalid-argument-for-host-pointer
 

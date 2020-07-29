@@ -33,7 +33,7 @@ mutable struct CuTensorDescriptor
         st = collect(Int64, strides)
         desc = Ref{cutensorTensorDescriptor_t}()
         cutensorInitTensorDescriptor(handle(), desc, length(sz), sz, st,
-                                     cudaDataType(eltype), op)
+                                     eltype, op)
         obj = new(desc)
         return obj
     end
@@ -60,7 +60,6 @@ function elementwiseTrinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
-    typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
@@ -70,7 +69,7 @@ function elementwiseTrinary!(
                                 T[beta],  B, descB, modeB,
                                 T[gamma], C, descC, modeC,
                                           D, descD, modeD,
-                                opAB, opABC, typeCompute, stream)
+                                opAB, opABC, T, stream)
     return D
 end
 
@@ -91,7 +90,6 @@ function elementwiseTrinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
-    typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
@@ -101,7 +99,7 @@ function elementwiseTrinary!(
                                T[beta],  B, descB, modeB,
                                T[gamma], C, descC, modeC,
                                          D, descD, modeD,
-                               opAB, opABC, typeCompute, stream)
+                               opAB, opABC, T, stream)
     return D
 end
 
@@ -118,7 +116,6 @@ function elementwiseBinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
-    typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
@@ -126,7 +123,7 @@ function elementwiseBinary!(
                               T[alpha], A, descA, modeA,
                               T[gamma], C, descC, modeC,
                                         D, descD, modeD,
-                              opAC, typeCompute, stream)
+                              opAC, T, stream)
     return D
 end
 
@@ -143,7 +140,6 @@ function elementwiseBinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
-    typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
@@ -151,7 +147,7 @@ function elementwiseBinary!(
                               T[alpha], A, descA, modeA,
                               T[gamma], C, descC, modeC,
                                         D, descD, modeD,
-                              opAC, typeCompute, stream)
+                              opAC, T, stream)
     return D
 end
 
@@ -165,12 +161,11 @@ function elementwiseBinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
-    typeCompute = cudaDataType(T)
     cutensorElementwiseBinary(handle(),
                               T[alpha], A.data, descA, A.inds,
                               T[gamma], C.data, descC, C.inds,
                                         D.data, descD, C.inds,
-                              opAC, typeCompute, stream)
+                              opAC, T, stream)
     return D
 end
 
@@ -180,10 +175,9 @@ function permutation!(alpha::Number, A::CuArray, Ainds::ModeType,
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
     T = eltype(B)
-    typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
-    cutensorPermutation(handle(), T[alpha], A, descA, modeA, B, descB, modeB, typeCompute,
+    cutensorPermutation(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T,
                         stream)
     return B
 end
@@ -193,10 +187,9 @@ function permutation!(alpha::Number, A::Array, Ainds::ModeType,
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
     T = eltype(B)
-    typeCompute = cudaDataType(T)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
-    cutensorPermutation(handle(), T[alpha], A, descA, modeA, B, descB, modeB, typeCompute,
+    cutensorPermutation(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T,
                         stream)
     return B
 end
