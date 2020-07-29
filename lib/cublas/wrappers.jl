@@ -312,7 +312,6 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
                        beta::($elty),
                        Y::CuVector{$elty})
             # handle trans
-            cutrans = cublasop(trans)
             m,n = size(A)
             # check dimensions
             length(X) == (trans == 'N' ? n : m) && length(Y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
@@ -320,7 +319,7 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(X,1)
             incy = stride(Y,1)
-            $fname(handle(), cutrans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy)
+            $fname(handle(), trans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy)
             Y
         end
         function gemv(trans::Char, alpha::($elty), A::CuMatrix{$elty}, X::CuVector{$elty})
@@ -353,8 +352,6 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
                        x::CuVector{$elty},
                        beta::($elty),
                        y::CuVector{$elty})
-            # handle trans
-            cutrans = cublasop(trans)
             n = size(A,2)
             # check dimensions
             length(x) == (trans == 'N' ? n : m) && length(y) == (trans == 'N' ? m : n) || throw(DimensionMismatch(""))
@@ -362,7 +359,7 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), cutrans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), trans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function gbmv(trans::Char,
@@ -406,14 +403,13 @@ for (fname, elty) in ((:cublasDsymv_v2,:Float64),
                        x::CuVector{$elty},
                        beta::($elty),
                        y::CuVector{$elty})
-            cuuplo = cublasfill(uplo)
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), cuuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function symv(uplo::Char, alpha::($elty), A::CuMatrix{$elty}, x::CuVector{$elty})
@@ -442,14 +438,13 @@ for (fname, elty) in ((:cublasZhemv_v2,:ComplexF64),
                        beta::$elty,
                        y::CuVector{$elty})
             # TODO: fix dimension check bug in julia
-            cuuplo = cublasfill(uplo)
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if m != length(x) || m != length(y) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), cuuplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function hemv(uplo::Char, alpha::($elty), A::CuMatrix{$elty},
@@ -481,7 +476,6 @@ for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
                        x::CuVector{$elty},
                        beta::($elty),
                        y::CuVector{$elty})
-            cuuplo = cublasfill(uplo)
             m, n = size(A)
             #if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
@@ -490,7 +484,7 @@ for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), cuuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function sbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -521,7 +515,6 @@ for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
                        x::CuVector{$elty},
                        beta::($elty),
                        y::CuVector{$elty})
-            cuuplo = cublasfill(uplo)
             m, n = size(A)
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
@@ -529,7 +522,7 @@ for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), cuuplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
             y
         end
         function hbmv(uplo::Char, k::Integer, alpha::($elty),
@@ -561,16 +554,13 @@ for (fname, elty) in ((:cublasStbmv_v2,:Float32),
                        k::Integer,
                        A::CuMatrix{$elty},
                        x::CuVector{$elty})
-            cuuplo  = cublasfill(uplo)
-            cutrans = cublasop(trans)
-            cudiag  = cublasdiag(diag)
             m, n = size(A)
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), cuuplo, cutrans, cudiag, n, k, A, lda, x, incx)
+            $fname(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
             x
         end
         function tbmv(uplo::Char,
@@ -601,16 +591,13 @@ for (fname, elty) in ((:cublasStbsv_v2,:Float32),
                        k::Integer,
                        A::CuMatrix{$elty},
                        x::CuVector{$elty})
-            cuuplo  = cublasfill(uplo)
-            cutrans = cublasop(trans)
-            cudiag  = cublasdiag(diag)
             m, n = size(A)
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
             if m < 1+k throw(DimensionMismatch("Array A has fewer than 1+k rows")) end
             if n != length(x) throw(DimensionMismatch("")) end
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), cuuplo, cutrans, cudiag, n, k, A, lda, x, incx)
+            $fname(handle(), uplo, trans, diag, n, k, A, lda, x, incx)
             x
         end
         function tbsv(uplo::Char,
@@ -645,12 +632,9 @@ for (fname, elty) in ((:cublasDtrmv_v2,:Float64),
             if n != length(x)
                 throw(DimensionMismatch("length(x)=$(length(x)) does not match size(A)=$(size(A))"))
             end
-            cuuplo = cublasfill(uplo)
-            cutrans = cublasop(trans)
-            cudiag = cublasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), cuuplo, cutrans, cudiag, n, A, lda, x, incx)
+            $fname(handle(), uplo, trans, diag, n, A, lda, x, incx)
             x
         end
         function trmv(uplo::Char,
@@ -684,12 +668,9 @@ for (fname, elty) in ((:cublasDtrsv_v2,:Float64),
             if n != length(x)
                 throw(DimensionMismatch("length(x)=$(length(x)) does not match size(A)=$(size(A))"))
             end
-            cuuplo = cublasfill(uplo)
-            cutrans = cublasop(trans)
-            cudiag = cublasdiag(diag)
             lda = max(1,stride(A,2))
             incx = stride(x,1)
-            $fname(handle(), cuuplo, cutrans, cudiag, n, A, lda, x, incx)
+            $fname(handle(), uplo, trans, diag, n, A, lda, x, incx)
             x
         end
         function trsv(uplo::Char,
@@ -744,13 +725,12 @@ for (fname, elty) in ((:cublasDsyr_v2,:Float64),
                       alpha::$elty,
                       x::CuVector{$elty},
                       A::CuMatrix{$elty})
-            cuuplo = cublasfill(uplo)
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), cuuplo, n, [alpha], x, incx, A, lda)
+            $fname(handle(), uplo, n, [alpha], x, incx, A, lda)
             A
         end
     end
@@ -764,13 +744,12 @@ for (fname, elty) in ((:cublasZher_v2,:ComplexF64),
                       alpha::$elty,
                       x::CuVector{$elty},
                       A::CuMatrix{$elty})
-            cuuplo = cublasfill(uplo)
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), cuuplo, n, [alpha], x, incx, A, lda)
+            $fname(handle(), uplo, n, [alpha], x, incx, A, lda)
             A
         end
     end
@@ -785,7 +764,6 @@ for (fname, elty) in ((:cublasZher2_v2,:ComplexF64),
                       x::CuVector{$elty},
                       y::CuVector{$elty},
                       A::CuMatrix{$elty})
-            cuuplo = cublasfill(uplo)
             m, n = size(A)
             m == n || throw(DimensionMismatch("Matrix A is $m by $n but must be square"))
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
@@ -793,7 +771,7 @@ for (fname, elty) in ((:cublasZher2_v2,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), cuuplo, n, [alpha], x, incx, y, incy, A, lda)
+            $fname(handle(), uplo, n, [alpha], x, incx, y, incy, A, lda)
             A
         end
     end
@@ -827,12 +805,10 @@ for (fname, elty) in
             if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            cutransA = cublasop(transA)
-            cutransB = cublasop(transB)
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), cutransA,cutransB, m, n, k, [alpha], A, lda, B, ldb, [beta],C, ldc)
+            $fname(handle(), transA, transB, m, n, k, [alpha], A, lda, B, ldb, [beta],C, ldc)
             C
         end
         function gemm(transA::Char,
@@ -867,16 +843,14 @@ function gemmEx!(transA::Char,
     if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
         throw(DimensionMismatch(""))
     end
-    cutransA = cublasop(transA)
-    cutransB = cublasop(transB)
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
     ldc = max(1,stride(C,2))
     if version() >= v"11.0"
         computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
-        cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [alpha], A, eltype(A), lda, B, eltype(B), ldb, [beta], C, eltype(C), ldc, computeType, algo)
+        cublasGemmEx(handle(), transA, transB, m, n, k, [alpha], A, eltype(A), lda, B, eltype(B), ldb, [beta], C, eltype(C), ldc, computeType, algo)
     else
-        cublasGemmEx(handle(), cutransA,cutransB, m, n, k, [convert(eltype(C), alpha)], A, eltype(A), lda, B, eltype(B), ldb, [convert(eltype(C), beta)], C, eltype(C), ldc, eltype(C), algo)
+        cublasGemmEx(handle(), transA, transB, m, n, k, [convert(eltype(C), alpha)], A, eltype(A), lda, B, eltype(B), ldb, [convert(eltype(C), beta)], C, eltype(C), ldc, eltype(C), algo)
     end
     C
 end
@@ -930,15 +904,13 @@ for (fname, elty) in
             m = size(A[1], transA == 'N' ? 1 : 2)
             k = size(A[1], transA == 'N' ? 2 : 1)
             n = size(B[1], transB == 'N' ? 2 : 1)
-            cutransA = cublasop(transA)
-            cutransB = cublasop(transB)
             lda = max(1,stride(A[1],2))
             ldb = max(1,stride(B[1],2))
             ldc = max(1,stride(C[1],2))
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
             Cptrs = unsafe_batch(C)
-            $fname(handle(), cutransA,cutransB, m, n, k, [alpha], Aptrs, lda, Bptrs,
+            $fname(handle(), transA, transB, m, n, k, [alpha], Aptrs, lda, Bptrs,
                    ldb, [beta], Cptrs, ldc, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Bptrs)
@@ -1002,8 +974,6 @@ for (fname, elty) in
            if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
                throw(DimensionMismatch(""))
            end
-           cutransA = cublasop(transA)
-           cutransB = cublasop(transB)
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
@@ -1012,7 +982,7 @@ for (fname, elty) in
            strideB = stride(B, 3)
            strideC = stride(C, 3)
            batchCount = size(A, 3)
-           $fname(handle(), cutransA,cutransB, m, n, k, [alpha], A, lda, strideA, B,
+           $fname(handle(), transA, transB, m, n, k, [alpha], A, lda, strideA, B,
                   ldb, strideB, [beta], C, ldc, strideC, batchCount)
            C
         end
@@ -1053,8 +1023,6 @@ for (fname, elty) in ((:cublasDsymm_v2,:Float64),
                        B::CuMatrix{$elty},
                        beta::($elty),
                        C::CuMatrix{$elty})
-            cuside = cublasside(side)
-            cuuplo = cublasfill(uplo)
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
             m = side == 'L' ? k : size(B,1)
@@ -1065,7 +1033,7 @@ for (fname, elty) in ((:cublasDsymm_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), cuside, cuuplo, m, n, [alpha], A, lda, B, ldb,
+            $fname(handle(), side, uplo, m, n, [alpha], A, lda, B, ldb,
                    [beta], C, ldc)
             C
         end
@@ -1102,8 +1070,6 @@ for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
                       A::CuVecOrMat{$elty},
                       beta::($elty),
                       C::CuMatrix{$elty})
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
@@ -1111,7 +1077,7 @@ for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
+           $fname(handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
             C
         end
     end
@@ -1145,8 +1111,6 @@ for (fname, elty) in ((:cublasDsyrkx,:Float64),
                       B::CuVecOrMat{$elty},
                       beta::($elty),
                       C::CuMatrix{$elty})
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
@@ -1155,7 +1119,7 @@ for (fname, elty) in ((:cublasDsyrkx,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
         end
     end
@@ -1193,8 +1157,6 @@ for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
                       B::CuMatrix{$elty},
                       beta::($elty),
                       C::CuMatrix{$elty})
-           cuside = cublasside(side)
-           cuuplo = cublasfill(uplo)
            mA, nA = size(A)
            m, n = size(B)
            mC, nC = size(C)
@@ -1205,7 +1167,7 @@ for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(handle(), cuside, cuuplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(handle(), side, uplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
        end
        function hemm(uplo::Char,
@@ -1235,8 +1197,6 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
                       A::CuVecOrMat{$elty},
                       beta::($elty),
                       C::CuMatrix{$elty})
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
@@ -1244,7 +1204,7 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
+           $fname(handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
            C
        end
        function herk(uplo::Char, trans::Char, alpha::($elty), A::CuVecOrMat{$elty})
@@ -1278,8 +1238,6 @@ for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
                         beta::($elty),
                         C::CuMatrix{$elty})
             # TODO: check size of B in julia (syr2k!)
-            cuuplo = cublasfill(uplo)
-            cutrans = cublasop(trans)
             m, n = size(C)
             if m != n throw(DimensionMismatch("C must be square")) end
             nA = size(A, trans == 'N' ? 1 : 2)
@@ -1292,7 +1250,7 @@ for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
             C
         end
     end
@@ -1326,8 +1284,6 @@ for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
                        beta::($elty2),
                        C::CuMatrix{$elty1})
            # TODO: check size of B in julia (her2k!)
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            m, n = size(C)
            if m != n throw(DimensionMismatch("C must be square")) end
            nA = size(A, trans == 'N' ? 1 : 2)
@@ -1341,7 +1297,7 @@ for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
        end
        function her2k(uplo::Char,
@@ -1384,10 +1340,6 @@ for (mmname, smname, elty) in
                        A::CuMatrix{$elty},
                        B::CuMatrix{$elty},
                        C::CuMatrix{$elty})
-            cuside = cublasside(side)
-            cuuplo = cublasfill(uplo)
-            cutransa = cublasop(transa)
-            cudiag = cublasdiag(diag)
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
@@ -1398,7 +1350,7 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $mmname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], A, lda, B, ldb, C, ldc)
+            $mmname(handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb, C, ldc)
             C
         end
         function trmm(side::Char,
@@ -1424,10 +1376,6 @@ for (mmname, smname, elty) in
                        alpha::($elty),
                        A::CuMatrix{$elty},
                        B::CuMatrix{$elty})
-            cuside = cublasside(side)
-            cuuplo = cublasfill(uplo)
-            cutransa = cublasop(transa)
-            cudiag = cublasdiag(diag)
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
@@ -1435,7 +1383,7 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            $smname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], A, lda, B, ldb)
+            $smname(handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb)
             B
         end
         function trsm(side::Char,
@@ -1472,10 +1420,6 @@ for (fname, elty) in
                                alpha::($elty),
                                A::Vector{<:CuMatrix{$elty}},
                                B::Vector{<:CuMatrix{$elty}})
-            cuside = cublasside(side)
-            cuuplo = cublasfill(uplo)
-            cutransa = cublasop(transa)
-            cudiag = cublasdiag(diag)
             if length(A) != length(B)
                 throw(DimensionMismatch(""))
             end
@@ -1491,7 +1435,7 @@ for (fname, elty) in
             ldb = max(1,stride(B[1],2))
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
-            $fname(handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], Aptrs, lda, Bptrs, ldb, length(A))
+            $fname(handle(), side, uplo, transa, diag, m, n, [alpha], Aptrs, lda, Bptrs, ldb, length(A))
             unsafe_free!(Bptrs)
             unsafe_free!(Aptrs)
 
@@ -1534,8 +1478,6 @@ for (fname, elty) in ((:cublasDgeam,:Float64),
                       beta::($elty),
                       B::CuMatrix{$elty},
                       C::CuMatrix{$elty})
-           cutransa = cublasop(transa)
-           cutransb = cublasop(transb)
            mA, nA = size(A)
            mB, nB = size(B)
            m, n = size(C)
@@ -1546,7 +1488,7 @@ for (fname, elty) in ((:cublasDgeam,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(handle(), cutransa, cutransb, m, n, [alpha], A, lda, [beta], B, ldb, C, ldc)
+           $fname(handle(), transa, transb, m, n, [alpha], A, lda, [beta], B, ldb, C, ldc)
            C
        end
        function geam(transa::Char,
@@ -1755,7 +1697,6 @@ for (fname, elty) in
         function gels_batched!(trans::Char,
                               A::Vector{<:CuMatrix{$elty}},
                               C::Vector{<:CuMatrix{$elty}})
-            cutrans = cublasop(trans)
             if length(A) != length(C)
                 throw(DimensionMismatch(""))
             end
@@ -1782,7 +1723,7 @@ for (fname, elty) in
             Cptrs = unsafe_batch(C)
             info  = zero(Cint)
             infoarray = CUDA.zeros(Cint, length(A))
-            $fname(handle(), cutrans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, [info], infoarray, length(A))
+            $fname(handle(), trans, m, n, nrhs, Aptrs, lda, Cptrs, ldc, [info], infoarray, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Aptrs)
 
@@ -1816,7 +1757,6 @@ for (fname, elty) in ((:cublasDdgmm,:Float64),
                       A::CuMatrix{$elty},
                       X::CuVector{$elty},
                       C::CuMatrix{$elty})
-           cuside = cublasside(mode)
            m, n = size(C)
            mA, nA = size(A)
            lx = length(X)
@@ -1826,7 +1766,7 @@ for (fname, elty) in ((:cublasDdgmm,:Float64),
            lda = max(1,stride(A,2))
            incx = stride(X,1)
            ldc = max(1,stride(C,2))
-           $fname(handle(), cuside, m, n, A, lda, X, incx, C, ldc)
+           $fname(handle(), mode, m, n, A, lda, X, incx, C, ldc)
            C
        end
        function dgmm(mode::Char,
@@ -1864,12 +1804,10 @@ for (fname, elty) in
             if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
                 throw(DimensionMismatch(""))
             end
-            cutransA = cublasop(transA)
-            cutransB = cublasop(transB)
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), cutransA,cutransB, m, n, k, [alpha], A, lda, B, ldb, [beta],C, ldc)
+            $fname(xt_handle(), transA, transB, m, n, k, [alpha], A, lda, B, ldb, [beta],C, ldc)
             C
         end
         function xt_gemm(transA::Char,
@@ -1908,8 +1846,6 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
                       B::Union{Matrix{$elty}, CuMatrix{$elty}},
                       beta::($elty),
                       C::Union{Matrix{$elty}, CuMatrix{$elty}})
-           cuside = cublasside(side)
-           cuuplo = cublasfill(uplo)
            mA, nA = size(A)
            m, n = size(B)
            mC, nC = size(C)
@@ -1920,7 +1856,7 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(xt_handle(), cuside, cuuplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(xt_handle(), side, uplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
        end
        function xt_hemm(uplo::Char,
@@ -1954,8 +1890,6 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
                        B::Union{Matrix{$elty}, CuMatrix{$elty}},
                        beta::($elty),
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
-            cuside = cublasside(side)
-            cuuplo = cublasfill(uplo)
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
             m = side == 'L' ? k : size(B,1)
@@ -1966,7 +1900,7 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), cuside, cuuplo, m, n, [alpha], A, lda, B, ldb,
+            $fname(xt_handle(), side, uplo, m, n, [alpha], A, lda, B, ldb,
                    [beta], C, ldc)
             C
         end
@@ -2002,8 +1936,6 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
                       A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
                       beta::($elty),
                       C::Union{Matrix{$elty}, CuMatrix{$elty}})
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
@@ -2011,7 +1943,7 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           $fname(xt_handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
+           $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
            C
         end
     end
@@ -2043,8 +1975,6 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
                       B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
                       beta::($elty),
                       C::Union{Matrix{$elty}, CuMatrix{$elty}})
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
@@ -2053,7 +1983,7 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(xt_handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
         end
     end
@@ -2086,8 +2016,6 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
                       A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
                       beta::($elty),
                       C::Union{Matrix{$elty}, CuMatrix{$elty}})
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            mC, n = size(C)
            if mC != n throw(DimensionMismatch("C must be square")) end
            nn = size(A, trans == 'N' ? 1 : 2)
@@ -2095,7 +2023,7 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
            k  = size(A, trans == 'N' ? 2 : 1)
            lda = max(1,stride(A,2))
            ldc = max(1,stride(C,2))
-           $fname(xt_handle(), cuuplo, cutrans, n, k, [alpha], A, lda, [beta], C, ldc)
+           $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
            C
        end
        function xt_herk(uplo::Char, trans::Char, alpha::($elty), A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
@@ -2123,8 +2051,6 @@ for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
                        beta::($elty2),
                        C::Union{Matrix{$elty1}, CuMatrix{$elty1}})
            # TODO: check size of B in julia (her2k!)
-           cuuplo = cublasfill(uplo)
-           cutrans = cublasop(trans)
            m, n = size(C)
            if m != n throw(DimensionMismatch("C must be square")) end
            nA = size(A, trans == 'N' ? 1 : 2)
@@ -2138,7 +2064,7 @@ for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
            lda = max(1,stride(A,2))
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
-           $fname(xt_handle(), cuuplo, cutrans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+           $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
            C
        end
        function xt_her2k(uplo::Char,
@@ -2180,10 +2106,6 @@ for (mmname, smname, elty) in
                        A::Union{Matrix{$elty}, CuMatrix{$elty}},
                        B::Union{Matrix{$elty}, CuMatrix{$elty}},
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
-            cuside = cublasside(side)
-            cuuplo = cublasfill(uplo)
-            cutransa = cublasop(transa)
-            cudiag = cublasdiag(diag)
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
@@ -2194,7 +2116,7 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $mmname(xt_handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], A, lda, B, ldb, C, ldc)
+            $mmname(xt_handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb, C, ldc)
             C
         end
         function xt_trmm(side::Char,
@@ -2220,10 +2142,6 @@ for (mmname, smname, elty) in
                        alpha::($elty),
                        A::Union{CuMatrix{$elty}, Matrix{$elty}},
                        B::Union{CuMatrix{$elty}, Matrix{$elty}})
-            cuside = cublasside(side)
-            cuuplo = cublasfill(uplo)
-            cutransa = cublasop(transa)
-            cudiag = cublasdiag(diag)
             m, n = size(B)
             mA, nA = size(A)
             # TODO: clean up error messages
@@ -2231,7 +2149,7 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            $smname(xt_handle(), cuside, cuuplo, cutransa, cudiag, m, n, [alpha], A, lda, B, ldb)
+            $smname(xt_handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb)
             B
         end
         function xt_trsm(side::Char,
