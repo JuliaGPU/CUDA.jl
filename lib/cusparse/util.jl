@@ -108,34 +108,3 @@ function chkmmdims( B, C, k, l, m, n )
         throw(DimensionMismatch("C has dimensions $(size(C)) but needs ($m,$n)"))
     end
 end
-
-"""
-form a `cusparseMatDescr` from a `CuSparseMatrix`
-"""
-function getDescr( A::CuSparseMatrix, index::SparseChar )
-    cuind = cusparseindex(index)
-    typ   = CUSPARSE_MATRIX_TYPE_GENERAL
-    fill  = CUSPARSE_FILL_MODE_LOWER
-    if ishermitian(A)
-        typ  = CUSPARSE_MATRIX_TYPE_HERMITIAN
-        fill = cusparsefill(A.uplo)
-    elseif issymmetric(A)
-        typ  = CUSPARSE_MATRIX_TYPE_SYMMETRIC
-        fill = cusparsefill(A.uplo)
-    end
-    cudesc = cusparseMatDescr(typ, fill,CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-end
-
-function getDescr( A::Symmetric, index::SparseChar )
-    cuind = cusparseindex(index)
-    typ  = CUSPARSE_MATRIX_TYPE_SYMMETRIC
-    fill = cusparsefill(A.uplo)
-    cudesc = cusparseMatDescr(typ, fill,CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-end
-
-function getDescr( A::Hermitian, index::SparseChar )
-    cuind = cusparseindex(index)
-    typ  = CUSPARSE_MATRIX_TYPE_HERMITIAN
-    fill = cusparsefill(A.uplo)
-    cudesc = cusparseMatDescr(typ, fill,CUSPARSE_DIAG_TYPE_NON_UNIT, cuind)
-end
