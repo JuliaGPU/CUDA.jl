@@ -664,7 +664,6 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
                          A::CuMatrix{$elty};
                          tol::$relty=eps($relty),
                          max_sweeps::Int=100)
-            cujobz  = cusolverjob(jobz)
             m,n     = size(A)
             lda     = max(1, stride(A, 2))
 
@@ -693,10 +692,10 @@ for (bname, fname, elty, relty) in ((:cusolverDnSgesvdj_bufferSize, :cusolverDnS
 
             devinfo = CuArray{Cint}(undef, 1)
             @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), cujobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                    $bname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
                         out(Ref{Cint}(0)), params[])
                 )[] work->begin
-                    $fname(dense_handle(), cujobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
+                    $fname(dense_handle(), jobz, econ, m, n, A, lda, S, U, ldu, V, ldv,
                         work, sizeof(work), devinfo, params[])
                 end
 
@@ -721,17 +720,16 @@ for (jname, bname, fname, elty, relty) in ((:syevd!, :cusolverDnSsyevd_bufferSiz
         function $jname(jobz::Char,
                         uplo::Char,
                         A::CuMatrix{$elty})
-            cujobz  = cusolverjob(jobz)
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             W       = CuArray{$relty}(undef, n)
 
             devinfo = CuArray{Cint}(undef, 1)
             @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), cujobz, uplo, n, A, lda, W,
+                    $bname(dense_handle(), jobz, uplo, n, A, lda, W,
                         out(Ref{Cint}(0)))
                 )[] buffer->begin
-                    $fname(dense_handle(), cujobz, uplo, n, A, lda, W,
+                    $fname(dense_handle(), jobz, uplo, n, A, lda, W,
                         buffer, length(buffer), devinfo)
                 end
 
@@ -760,7 +758,6 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
                         uplo::Char,
                         A::CuMatrix{$elty},
                         B::CuMatrix{$elty})
-            cujobz  = cusolverjob(jobz)
             nA, nB  = checksquare(A, B)
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
@@ -770,14 +767,12 @@ for (jname, bname, fname, elty, relty) in ((:sygvd!, :cusolverDnSsygvd_bufferSiz
             ldb     = max(1, stride(B, 2))
             W       = CuArray{$relty}(undef, n)
 
-            cuitype = cusolverEigType_t(itype)
-
             devinfo = CuArray{Cint}(undef, 1)
             @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), cuitype, cujobz, uplo, n, A, lda, B, ldb, W,
+                    $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
                         out(Ref{Cint}(0)))
                 )[] buffer->begin
-                    $fname(dense_handle(), cuitype, cujobz, uplo, n, A, lda, B, ldb, W,
+                    $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
                         buffer, length(buffer), devinfo)
                 end
 
@@ -808,7 +803,6 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
                         B::CuMatrix{$elty};
                         tol::$relty=eps($relty),
                         max_sweeps::Int=100)
-            cujobz  = cusolverjob(jobz)
             nA, nB  = checksquare(A, B)
             if nB != nA
                 throw(DimensionMismatch("Dimensions of A ($nA, $nA) and B ($nB, $nB) must match!"))
@@ -822,14 +816,12 @@ for (jname, bname, fname, elty, relty) in ((:sygvj!, :cusolverDnSsygvj_bufferSiz
             cusolverDnXsyevjSetTolerance(params[], tol)
             cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
 
-            cuitype = cusolverEigType_t(itype)
-
             devinfo = CuArray{Cint}(undef, 1)
             @workspace eltyp=$elty size=@argout(
-                    $bname(dense_handle(), cuitype, cujobz, uplo, n, A, lda, B, ldb, W,
+                    $bname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
                         out(Ref{Cint}(0)), params[])
                 )[] buffer->begin
-                    $fname(dense_handle(), cuitype, cujobz, uplo, n, A, lda, B, ldb, W,
+                    $fname(dense_handle(), itype, jobz, uplo, n, A, lda, B, ldb, W,
                         buffer, length(buffer), devinfo, params[])
                 end
 
@@ -863,7 +855,6 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
                         max_sweeps::Int=100)
 
             # Set up information for the solver arguments
-            cujobz  = cusolverjob(jobz)
             n       = checksquare(A)
             lda     = max(1, stride(A, 2))
             batchSize = size(A,3)
@@ -877,12 +868,12 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
             cusolverDnXsyevjSetMaxSweeps(params[], max_sweeps)
 
             # Calculate the workspace size
-            lwork = @argout(CUSOLVER.$bname(dense_handle(), cujobz, uplo, n,
+            lwork = @argout(CUSOLVER.$bname(dense_handle(), jobz, uplo, n,
                             A, lda, W, out(Ref{Cint}(0)), params, batchSize))[]
 
             # Run the solver
             @workspace eltyp=$elty size=lwork work->begin
-                $fname(dense_handle(), cujobz, uplo, n, A, lda, W, work,
+                $fname(dense_handle(), jobz, uplo, n, A, lda, W, work,
                        lwork, devinfo, params[], batchSize)
             end
 

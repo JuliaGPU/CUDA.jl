@@ -8,8 +8,6 @@ n = 10
 l = 13
 k = 1
 
-@test_throws ArgumentError CUSOLVER.cusolverjob('M')
-
 @testset "elty = $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
     @testset "Cholesky (po)" begin
         A    = rand(elty,n,n)
@@ -484,7 +482,7 @@ k = 1
             push!(bd_B, CuArray(bB[end]))
 
             @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
-            
+
             bA = [rand(elty, m, m) for i in 1:n]
             bA = [bA[i]*bA[i]' for i in 1:n]
             bB = [rand(elty, m) for i in 1:n]
@@ -498,7 +496,7 @@ k = 1
             end
 
             @test_throws DimensionMismatch CUSOLVER.potrsBatched!('L', bd_A, bd_B)
-            
+
             bA = [rand(elty, m, m) for i in 1:n]
             bA = [bA[i]*bA[i]' for i in 1:n]
             bB = [rand(elty, m, m) for i in 1:n]
