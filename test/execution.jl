@@ -1027,6 +1027,30 @@ end
     @test out == "Hello, World!"
 end
 
+@testset "parameter alignment" begin
+    # foo is unused, but determines placement of bar
+    function child(x, foo, bar)
+        x[] = sum(bar)
+        return
+    end
+    function parent(x, foo, bar)
+        @cuda dynamic=true child(x, foo, bar)
+        return
+    end
+
+    for (Foo, Bar) in [(Tuple{},NTuple{8,Int}), # JuliaGPU/CUDA.jl#263
+                        (Tuple{Int32},Tuple{Int16}),
+                        (Tuple{Int16},Tuple{Int32,Int8,Int16,Int64,Int16,Int16})]
+        foo = (Any[T(i) for (i,T) in enumerate(Foo.parameters)]...,)
+        bar = (Any[T(i) for (i,T) in enumerate(Bar.parameters)]...,)
+
+        x, y = CUDA.zeros(Int, 1), CUDA.zeros(Int, 1)
+        @cuda child(x, foo, bar)
+        @cuda parent(y, foo, bar)
+        @test sum(bar) == Array(x)[] == Array(y)[]
+    end
+end
+
 end
 
 ############################################################################################

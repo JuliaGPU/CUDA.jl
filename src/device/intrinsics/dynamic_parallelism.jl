@@ -27,10 +27,10 @@ end
 
 # device-side counterpart of launch
 @inline function device_launch(f, blocks, threads, shmem, stream, args...)
-    blocks = CuDim3(blocks)
-    threads = CuDim3(threads)
+    blockdim = CuDim3(blocks)
+    threaddim = CuDim3(threads)
 
-    buf = parameter_buffer(f, blocks, threads, shmem, args...)
+    buf = parameter_buffer(f, blockdim, threaddim, shmem, args...)
     cudaLaunchDeviceV2(buf, stream)
 
     return
@@ -41,25 +41,28 @@ end
     ex = quote
         Base.@_inline_meta
         buf = cudaGetParameterBufferV2(f, blocks, threads, shmem)
+        ptr = Base.unsafe_convert(Ptr{UInt32}, buf)
     end
 
     # store the parameters
     #
+    # D.3.2.2. Parameter Buffer Layout
     # > Each individual parameter placed in the parameter buffer is required to be aligned.
     # > That is, each parameter must be placed at the n-th byte in the parameter buffer,
     # > where n is the smallest multiple of the parameter size that is greater than the
     # > offset of the last byte taken by the preceding parameter. The maximum size of the
     # > parameter buffer is 4KB.
-    offset = 0
+    #
+    # NOTE: the above seems wrong, and we should use the parameter alignment, not its size.
+    last_offset = 0
     for i in 1:length(args)
         T = args[i]
-        align = sizeof(T)
-        buf_index = Base.ceil(Int, offset / align) + 1
-        offset = buf_index * align
-        ptr = :(Base.unsafe_convert(Ptr{$T}, buf))
+        align = Base.datatype_alignment(T)
+        offset = Base.cld(last_offset, align) * align
         push!(ex.args, :(
-            Base.pointerset($ptr, args[$i], $buf_index, $align)
+            Base.pointerset(convert(Ptr{$T}, ptr+$offset), args[$i], 1, $align)
         ))
+        last_offset = offset + sizeof(T)
     end
 
     push!(ex.args, :(return buf))
