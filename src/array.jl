@@ -358,12 +358,14 @@ fill(v, dims...) = fill!(CuArray{typeof(v)}(undef, dims...), v)
 fill(v, dims::Dims) = fill!(CuArray{typeof(v)}(undef, dims...), v)
 
 # optimized implementation of `fill!` for types that are directly supported by memset
-const MemsetTypes = Dict(1=>UInt8, 2=>UInt16, 4=>UInt32)
+memsettype(T::Type) = T
+memsettype(T::Type{<:Signed}) = unsigned(T)
+memsettype(T::Type{<:AbstractFloat}) = Base.uinttype(T)
 const MemsetCompatTypes = Union{UInt8, Int8,
                                 UInt16, Int16, Float16,
                                 UInt32, Int32, Float32}
 function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
-  U = MemsetTypes[sizeof(T)]
+  U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
   A
