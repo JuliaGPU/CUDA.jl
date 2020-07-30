@@ -25,8 +25,9 @@ function library_versioned_names(name::String, version::Union{Nothing,VersionNum
                             "$(name)$(Sys.WORD_SIZE)_$(version.major).$(Libdl.dlext)"])
         elseif version isa String
             push!(names, "$(name)$(Sys.WORD_SIZE)_$(version).$(Libdl.dlext)")
+        elseif version === nothing
+            push!(names, "$(name)$(Sys.WORD_SIZE).$(Libdl.dlext)")
         end
-        push!(names, "$(name)$(Sys.WORD_SIZE).$(Libdl.dlext)")
 
         # some libraries (e.g. CUTENSOR) are shipped without the word size-prefix
         if version isa VersionNumber
@@ -34,8 +35,9 @@ function library_versioned_names(name::String, version::Union{Nothing,VersionNum
                             "$(name)_$(version.major).$(Libdl.dlext)"])
         elseif version isa String
             push!(names, "$(name)_$(version).$(Libdl.dlext)")
+        elseif version === nothing
+            push!(names, "$(name).$(Libdl.dlext)")
         end
-        push!(names, "$(name).$(Libdl.dlext)")
     elseif Sys.isunix()
         # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
         if version isa VersionNumber
@@ -43,9 +45,10 @@ function library_versioned_names(name::String, version::Union{Nothing,VersionNum
                             "lib$(name).$(Libdl.dlext).$(version.major)"])
         elseif version isa String
             push!(names, "lib$(name).$(Libdl.dlext).$(version)")
+        elseif version === nothing
+            push!(names, "lib$(name).$(Libdl.dlext)")
         end
-        push!(names, "lib$(name).$(Libdl.dlext)")
-    else
+    elseif version === nothing
         push!(names, "lib$name.$(Libdl.dlext)")
     end
     return names

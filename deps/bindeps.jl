@@ -274,12 +274,15 @@ function use_local_cudnn(cuda_dirs)
                            "cnn_infer", "cnn_train",
                            "adv_infer", "adv_train")
             sublibrary_path = find_library("cudnn_$(sublibrary)", v"8"; locations=cuda_dirs)
-            @assert sublibrary_path !== nothing "Could not find CUDNN sublibrary $sublibrary at $sublibrary_path"
+            @assert sublibrary_path !== nothing "Could not find CUDNN sublibrary $sublibrary"
             Libdl.dlopen(sublibrary_path)
         end
     end
     if path === nothing
         path = find_library("cudnn", v"7"; locations=cuda_dirs)
+    end
+    if path === nothing
+        path = find_library("cudnn"; locations=cuda_dirs)
     end
     path === nothing && return false
 
@@ -305,7 +308,10 @@ function use_artifact_cutensor(release)
         return false
     end
 
-    __libcutensor[] = artifact_library(artifact_dir, "cutensor", v"1")
+    # cutensor.dll is unversioned on Windows
+    version = Sys.iswindows() ? nothing : v"1"
+
+    __libcutensor[] = artifact_library(artifact_dir, "cutensor", version)
     Libdl.dlopen(__libcutensor[])
     @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
     return true
@@ -313,6 +319,9 @@ end
 
 function use_local_cutensor(cuda_dirs)
     path = find_library("cutensor", v"1"; locations=cuda_dirs)
+    if path === nothing
+        path = find_library("cutensor"; locations=cuda_dirs)
+    end
     path === nothing && return false
 
     Libdl.dlopen(path)
