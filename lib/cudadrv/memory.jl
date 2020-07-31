@@ -612,17 +612,20 @@ end
 #
 
 ## memory pinning
-const __pinned_memory = Dict{Ptr, WeakRef}()
+const __pinned_memory = Dict{Tuple{CuContext,Ptr{Cvoid}}, WeakRef}()
 function pin(a::Base.Array, flags=0)
-    # use pointer instead of objectid?
-    ptr = pointer(a)
-    if haskey(__pinned_memory, ptr) && __pinned_memory[ptr].value !== nothing
-        return nothing
+    ctx = context()
+    ptr = convert(Ptr{Cvoid}, pointer(a))
+    if haskey(__pinned_memory, (ctx,ptr)) && __pinned_memory[(ctx,ptr)].value !== nothing
+        return
     end
-    ad = Mem.register(Mem.Host, pointer(a), sizeof(a), flags)
-    finalizer(_ -> Mem.unregister(ad), a)
-    __pinned_memory[ptr] = WeakRef(a)
-    return nothing
+
+    buf = Mem.register(Mem.Host, pointer(a), sizeof(a), flags)
+    finalizer(a) do _
+        CUDA.isvalid(ctx) && Mem.unregister(buf)
+    end
+    __pinned_memory[(ctx,ptr)] = WeakRef(a)
+    return
 end
 
 ## memory info
