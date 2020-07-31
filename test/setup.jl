@@ -52,11 +52,11 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
                 error($"Unknown time source: ",$(QuoteNode(time_source)))
             end
         end
-        res_and_time_data = Core.eval(mod, ex)
-        #res_and_time_data[1] is the testset
+        data = Core.eval(mod, ex)
+        #data[1] is the testset
 
         # process results
-        rss = Sys.maxrss()
+        cpu_rss = Sys.maxrss()
         gpu_rss = if has_nvml()
             cuda_dev = device()
             nvml_dev = NVML.Device(uuid(cuda_dev))
@@ -77,19 +77,21 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
             missing
         end
         passes,fails,error,broken,c_passes,c_fails,c_errors,c_broken =
-            Test.get_test_counts(res_and_time_data[1])
-        if res_and_time_data[1].anynonpass == false
-            res_and_time_data = (
-                                 (passes+c_passes,broken+c_broken),
-                                 res_and_time_data[2],
-                                 res_and_time_data[3],
-                                 res_and_time_data[4],
-                                 res_and_time_data[5],
-                                 res_and_time_data[6],
-                                 res_and_time_data[7],
-                                 res_and_time_data[8])
+            Test.get_test_counts(data[1])
+        if data[1].anynonpass == false
+            data = ((passes+c_passes,broken+c_broken),
+                    data[2],
+                    data[3],
+                    data[4],
+                    data[5],
+                    data[6],
+                    data[7],
+                    data[8])
         end
-        vcat(collect(res_and_time_data), rss, gpu_rss)
+        res = vcat(collect(data), cpu_rss, gpu_rss)
+
+        device_reset!()
+        res
     finally
         if snoop !== nothing
             ccall(:jl_dump_compiles, Nothing, (Ptr{Nothing},), C_NULL)
