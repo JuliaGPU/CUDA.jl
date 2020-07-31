@@ -6,9 +6,10 @@
 # reset the runtime cache from global scope, so that any change triggers recompilation
 GPUCompiler.reset_runtime()
 
-# load or build the runtime for the most likely compilation job given a compute capability
-function load_runtime(cap::VersionNumber)
-    target = PTXCompilerTarget(; cap=cap)
+# load or build the runtime for the most likely compilation job
+# given a compute capability and CUDA version
+function load_runtime(cap::VersionNumber, cuda::VersionNumber)
+    target = PTXCompilerTarget(; cap=cap, cuda=cuda)
     dummy_source = FunctionSpec(()->return, Tuple{})
     params = CUDACompilerParams()
     job = CompilerJob(target, dummy_source, params)

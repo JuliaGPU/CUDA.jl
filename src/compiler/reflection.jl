@@ -36,19 +36,25 @@ signature to `io` which defaults to `stdout`.
 
 The following keyword arguments are supported:
 
-- `cap` which device to generate code for
+- `cap`: which device to generate code for
+- `cuda`: which CUDA version to generate code for
 - `kernel`: treat the function as an entry-point kernel
 - `verbose`: enable verbose mode, which displays code generation statistics
 
 See also: [`@device_code_sass`](@ref)
 """
-function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bool=true;
-                   verbose::Bool=false, kwargs...)
-    tt = Base.to_tuple_type(types)
-    target = PTXCompilerTarget(; cap=supported_capability(device()), kwargs...)
+function code_sass(io::IO, @nospecialize(func), @nospecialize(types);
+                   cap::VersionNumber=supported_capability(device()),
+                   cuda::VersionNumber=release(),
+                   kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
+                   blocks_per_sm=nothing, maxregs=nothing, kwargs...)
+    source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
+    target = PTXCompilerTarget(; cap=cap, cuda=cuda,
+                                minthreads=minthreads, maxthreads=maxthreads,
+                                blocks_per_sm=blocks_per_sm, maxregs=maxregs)
     params = CUDACompilerParams()
-    job = CompilerJob(target, FunctionSpec(func, tt, kernel), params)
-    code_sass(io, job; verbose=verbose)
+    job = CompilerJob(target, source, params)
+    code_sass(io, job; kwargs...)
 end
 
 function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
@@ -111,10 +117,12 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
 
     @eval begin
         function $method(io::IO, @nospecialize(func), @nospecialize(types);
+                         cap::VersionNumber=supported_capability(device()),
+                         cuda::VersionNumber=release(),
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
                          blocks_per_sm=nothing, maxregs=nothing, kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            target = PTXCompilerTarget(; cap=supported_capability(device()),
+            target = PTXCompilerTarget(; cap=cap, cuda=cuda,
                                        minthreads=minthreads, maxthreads=maxthreads,
                                        blocks_per_sm=blocks_per_sm, maxregs=maxregs)
             params = CUDACompilerParams()
