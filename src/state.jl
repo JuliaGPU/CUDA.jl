@@ -92,11 +92,15 @@ const thread_tasks = Union{Nothing,WeakRef}[]
 
     # switch contexts if task switched to was already bound to one
     ctx = get(task_local_storage(), :CuContext, nothing)
-    if ctx !== nothing
+    if ctx !== nothing && isvalid(ctx)
+        # NOTE: the context may be invalid if another task reset it (which we detect here
+        #       since we can't touch other tasks' local state from `device_reset!`)
         context!(ctx)
+    else
+        thread_state[tid] = nothing  # trigger `initialize_thread` down the line
+        # NOTE: actually deactivating the CUDA context would be more correct,
+        #       but that confuses CUDA and leads to invalid contexts later on.
     end
-    # NOTE: deactivating the context in the case ctx===nothing would be more correct,
-    #       but that confuses CUDA and leads to invalid contexts later on.
 end
 
 # the default device unitialized tasks will use, set when switching devices.
@@ -111,7 +115,7 @@ const thread_state = Union{Nothing,CuCurrentState}[]
 @noinline function initialize_thread(tid::Int)
     dev = something(default_device[], CuDevice(0))
     device!(dev)
- 
+
     # NOTE: we can't be compatible with externally initialize contexts here (i.e., reuse
     #       the CuCurrentContext we don't know about) because of how device_reset! works:
     #       contexts that got reset remain bound, and are not discernible from regular ones.
@@ -170,6 +174,7 @@ end
 Sets the active context for the duration of `f`.
 """
 function context!(f::Function, ctx::CuContext)
+    @assert isvalid(ctx)
     old_ctx = CuCurrentContext()
     try
         if ctx !== old_ctx

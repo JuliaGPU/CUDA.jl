@@ -77,6 +77,17 @@ device!(0, CUDA.CU_CTX_SCHED_YIELD)
 @test task_cb[1] == nothing
 @test device_switch_cb[1].dev == CuDevice(0)
 
+# reset on a different task
+let ctx = context()
+    @test CUDA.isvalid(ctx)
+    @test ctx == fetch(@async context())
+
+    @sync @async device_reset!()
+
+    @test CUDA.isvalid(context())
+    @test ctx != context()
+end
+
 # test the device selection functionality
 if length(devices()) > 1
     device!(0)
