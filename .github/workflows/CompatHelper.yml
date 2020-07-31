@@ -8,6 +8,7 @@ jobs:
   CompatHelper:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - name: Get Julia compatibility
         id: julia_compat
         # NOTE: this requires a julia compat lower-bound with minor version!
