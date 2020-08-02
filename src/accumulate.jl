@@ -7,8 +7,9 @@
 # 
 #
 # TODOs:
-# - multiple elements per thread (performance)
-# - custom launch config (performance)
+# - move to GPUArrays once syncwarp is available
+# - group all allocations and deallocations in recursive
+#   case
 
 # Scan entire warp using shfl intrinsics, unrolled for warpsize() = 32
 @inline function scan_warp(op, val, lane)
@@ -167,7 +168,7 @@ function aggregate_partial_scan!(op::Function, output, aggregates,
     j = (blockIdx().z-1) * gridDim().y + blockIdx().y
 
 
-    if j <= length(Rother) && i <= length(Rdim)
+    @inbounds if j <= length(Rother) && i <= length(Rdim)
         I = Rother[j]
         Ipre = Rpre[I[1]]
         Ipost = Rpost[I[2]]
