@@ -140,7 +140,7 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtr{Nothing},Tuple{CuContext,Block}}()
+const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Block}()
 
 init() = return
 
@@ -149,7 +149,7 @@ function alloc(sz, ctx=context())
     if block !== nothing
         ptr = pointer(block)
         @safe_lock allocated_lock begin
-            allocated[ptr] = (ctx,block)
+            allocated[(;ptr,ctx)] = block
         end
         return ptr
     else
@@ -157,17 +157,19 @@ function alloc(sz, ctx=context())
     end
 end
 
-function free(ptr)
-    ctx, block = @safe_lock_spin allocated_lock begin
-        ctx, block = allocated[ptr]
-        delete!(allocated, ptr)
-        ctx, block
+function free(ptr, ctx=context())
+    block = @safe_lock_spin allocated_lock begin
+        block = allocated[(;ptr,ctx)]
+        delete!(allocated, (;ptr,ctx))
+        block
     end
     pool_free(ctx, block)
     return
 end
 
-used_memory(ctx=context()) = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated[ctx]); init=0)
+used_memory(ctx=context()) = @safe_lock allocated_lock begin
+  mapreduce(sizeof, +, values(filter(x->first(x).ctx == ctx, allocated)); init=0)
+end
 
 function cached_memory(ctx=context())
     sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[ctx]; init=0)

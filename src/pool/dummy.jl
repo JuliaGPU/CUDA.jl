@@ -8,7 +8,7 @@ using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isval
 using Base: @lock
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtr{Nothing},Tuple{CuContext,Int}}()
+const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Int}()
 
 init() = return
 
@@ -29,7 +29,7 @@ function alloc(sz, ctx=context())
 
     if ptr !== nothing
         @safe_lock allocated_lock begin
-            allocated[ptr] = (ctx,sz)
+            allocated[(;ptr,ctx)] = sz
         end
         return ptr
     else
@@ -37,11 +37,11 @@ function alloc(sz, ctx=context())
     end
 end
 
-function free(ptr)
-    ctx, sz = @safe_lock_spin allocated_lock begin
-        ctx, sz = allocated[ptr]
-        delete!(allocated, ptr)
-        ctx, sz
+function free(ptr, ctx=context())
+    sz = @safe_lock_spin allocated_lock begin
+        sz = allocated[(;ptr,ctx)]
+        delete!(allocated, (;ptr,ctx))
+        sz
     end
 
     CUDA.actual_free(ctx, ptr)
@@ -50,7 +50,9 @@ end
 
 reclaim(target_bytes::Int=typemax(Int)) = return 0
 
-used_memory() = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory(ctx=context()) = @safe_lock allocated_lock begin
+    mapreduce(sizeof, +, values(filter(x->first(x).ctx == ctx, allocated)); init=0)
+end
 
 cached_memory() = 0
 

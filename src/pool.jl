@@ -122,7 +122,7 @@ alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 const usage = Threads.Atomic{Int}(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
-const allocated = Dict{Tuple{CuContext,CuPtr{Nothing}},Mem.DeviceBuffer}()
+const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Mem.DeviceBuffer}()
 
 function actual_alloc(ctx::CuContext, bytes::Integer)
   @assert isvalid(ctx) "Cannot allocate on invalid context $ctx (CuCurrentContext()=$(CuCurrentContext()), context()=$(context())"
@@ -152,8 +152,8 @@ function actual_alloc(ctx::CuContext, bytes::Integer)
 
   # record the buffer
   @safe_lock memory_lock begin
-    @assert !haskey(allocated, (ctx,ptr))
-    allocated[(ctx,ptr)] = buf
+    @assert !haskey(allocated, (;ptr,ctx))
+    allocated[(;ptr,ctx)] = buf
   end
 
   alloc_stats.actual_time += time
@@ -168,8 +168,8 @@ function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
   # NOTE: we can't regularly take this lock from here (which could cause a task switch),
   #       but we know it can only be taken by another thread (since )
   buf = @safe_lock_spin memory_lock begin
-    buf = allocated[(ctx,ptr)]
-    delete!(allocated, (ctx,ptr))
+    buf = allocated[(;ptr,ctx)]
+    delete!(allocated, (;ptr,ctx))
     buf
   end
   bytes = sizeof(buf)
@@ -228,7 +228,7 @@ const pool = Ref{Module}(BinnedPool)
 
 export OutOfGPUMemoryError
 
-const requested = Dict{CuPtr{Nothing},Vector}()
+const requested = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Vector}()
 
 """
     OutOfGPUMemoryError()
@@ -262,10 +262,11 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 
   # record the allocation
   if Base.JLOptions().debug_level >= 2
+    ctx = context()
     bt = backtrace()
     @lock memory_lock begin
-      @assert !haskey(requested, ptr)
-      requested[ptr] = bt
+      @assert !haskey(requested, (;ptr,ctx))
+      requested[(;ptr,ctx)] = bt
     end
   end
 
@@ -299,8 +300,9 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     # record the allocation
     if Base.JLOptions().debug_level >= 2
       @lock memory_lock begin
-        @assert haskey(requested, ptr)
-        delete!(requested, ptr)
+        ctx = context()
+        @assert haskey(requested, (;ptr,ctx))
+        delete!(requested, (;ptr,ctx))
       end
     end
 
@@ -498,13 +500,15 @@ function memory_status(io::IO=stdout)
   end
 
   if Base.JLOptions().debug_level >= 2
+    ctx = context()
     requested′, allocated′ = @lock memory_lock begin
       copy(requested), copy(allocated)
     end
-    for (ptr, bt) in requested′
-      buf = allocated′[ptr]
+    for (entry, bt) in requested′
+      entry.ctx == ctx || continue
+      buf = allocated′[entry]
       @printf(io, "\nOutstanding memory allocation of %s at %p",
-              Base.format_bytes(sizeof(buf)), Int(ptr))
+              Base.format_bytes(sizeof(buf)), Int(entry.ptr))
       stack = stacktrace(bt, false)
       StackTraces.remove_frames!(stack, :alloc)
       Base.show_backtrace(io, stack)
