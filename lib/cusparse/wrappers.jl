@@ -967,3 +967,31 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
         end
     end
 end
+
+
+# SpMV
+
+function mv!(
+    transa::SparseChar, 
+    alpha::T, 
+    A::CuSparseMatrixCSR{T}, 
+    X::CuVector{T}, 
+    beta::T, 
+    Y::CuVector{T}, 
+    index::SparseChar
+) where {T}
+
+    cusparseSpMV(
+        handle(),
+        transa,
+        [one(T)],
+        CuSparseMatrixDescriptor(A),
+        CuDenseVectorDescriptor(X),
+        [zero(T)],
+        CuDenseVectorDescriptor(Y),
+        T,
+        CUSPARSE_MV_ALG_DEFAULT,
+        CU_NULL
+    )
+
+end

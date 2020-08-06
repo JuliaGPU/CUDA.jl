@@ -1,3 +1,20 @@
+## dense vector descriptor
+
+mutable struct CuDenseVectorDescriptor
+    handle::cusparseDnVecDescr_t
+
+    function CuDenseVectorDescriptor(v::CuVector{T}) where {T}
+        vec_ref = Ref{cusparseDnVecDescr_t}()
+        cusparseCreateDnVec(vec_ref, length(v), v, T)
+        obj = new(vec_ref[])
+        finalizer(cusparseDestroyDnVec, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, v::CuDenseVectorDescriptor) = v.handle
+
+
 ## sparse matrix descriptor
 
 mutable struct CuSparseMatrixDescriptor
@@ -24,6 +41,17 @@ function CuSparseMatrixDescriptor(MatrixType, FillMode, DiagType, IndexBase)
     if IndexBase != CUSPARSE_INDEX_BASE_ZERO
         cusparseSetMatIndexBase(desc, IndexBase)
     end
+    return desc
+end
+
+function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR{T}) where {T}
+    desc = CuSparseMatrixDescriptor()
+    cusparseCreateCsr(
+        desc.handle,
+        A.dims..., length(A.nzVal),
+        A.rowPtr, A.colVal, A.nzVal,
+        eltype(A.rowPtr), eltype(A.colVal), 1, eltype(A.nzVal)
+    )
     return desc
 end
 

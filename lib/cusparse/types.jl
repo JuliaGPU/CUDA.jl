@@ -1,5 +1,20 @@
 # type conversions
 
+Base.convert(::Type{cusparseIndexType_t}, ::Type{UInt16}) = CUSPARSE_INDEX_16U
+Base.convert(::Type{cusparseIndexType_t}, ::Type{Int32})  = CUSPARSE_INDEX_32I
+Base.convert(::Type{cusparseIndexType_t}, ::Type{Int64})  = CUSPARSE_INDEX_64I
+
+function Base.convert(::Type{cusparseIndexBase_t}, base::Int)
+    if base==0 
+        CUSPARSE_INDEX_BASE_ZERO
+    elseif base==1
+        CUSPARSE_INDEX_BASE_ONE
+    else
+        throw(ArgumentError("Unsupported cusparseIndexBase: $base."))
+    end
+end
+
+
 
 ## SparseChar conversions
 
