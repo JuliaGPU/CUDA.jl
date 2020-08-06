@@ -122,7 +122,8 @@ alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 const usage = Threads.Atomic{Int}(0)
 const usage_limit = Ref{Union{Nothing,Int}}(nothing)
 
-const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Mem.DeviceBuffer}()
+CuPtrInContext{T} = NamedTuple{(:ptr, :ctx),Tuple{CuPtr{T},CuContext}}
+const allocated = Dict{CuPtrInContext,Mem.DeviceBuffer}()
 
 function actual_alloc(ctx::CuContext, bytes::Integer)
   @assert isvalid(ctx) "Cannot allocate on invalid context $ctx (CuCurrentContext()=$(CuCurrentContext()), context()=$(context())"
@@ -152,8 +153,8 @@ function actual_alloc(ctx::CuContext, bytes::Integer)
 
   # record the buffer
   @safe_lock memory_lock begin
-    @assert !haskey(allocated, (;ptr,ctx))
-    allocated[(;ptr,ctx)] = buf
+    @assert !haskey(allocated, (; ptr=ptr, ctx=ctx))
+    allocated[(; ptr=ptr, ctx=ctx)] = buf
   end
 
   alloc_stats.actual_time += time
@@ -168,8 +169,8 @@ function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
   # NOTE: we can't regularly take this lock from here (which could cause a task switch),
   #       but we know it can only be taken by another thread (since )
   buf = @safe_lock_spin memory_lock begin
-    buf = allocated[(;ptr,ctx)]
-    delete!(allocated, (;ptr,ctx))
+    buf = allocated[(; ptr=ptr, ctx=ctx)]
+    delete!(allocated, (; ptr=ptr, ctx=ctx))
     buf
   end
   bytes = sizeof(buf)
@@ -228,7 +229,7 @@ const pool = Ref{Module}(BinnedPool)
 
 export OutOfGPUMemoryError
 
-const requested = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Vector}()
+const requested = Dict{CuPtrInContext{Nothing},Vector}()
 
 """
     OutOfGPUMemoryError()
@@ -265,8 +266,8 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
     ctx = context()
     bt = backtrace()
     @lock memory_lock begin
-      @assert !haskey(requested, (;ptr,ctx))
-      requested[(;ptr,ctx)] = bt
+      @assert !haskey(requested, (; ptr=ptr, ctx=ctx))
+      requested[(; ptr=ptr, ctx=ctx)] = bt
     end
   end
 
@@ -301,8 +302,8 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     if Base.JLOptions().debug_level >= 2
       @lock memory_lock begin
         ctx = context()
-        @assert haskey(requested, (;ptr,ctx))
-        delete!(requested, (;ptr,ctx))
+        @assert haskey(requested, (; ptr=ptr, ctx=ctx))
+        delete!(requested, (; ptr=ptr, ctx=ctx))
       end
     end
 

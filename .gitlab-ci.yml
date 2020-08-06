@@ -9,6 +9,13 @@ variables:
 
 # Julia versions
 
+julia:1.4:
+  extends:
+    - .julia:1.4
+    - .test
+  tags:
+    - nvidia
+
 julia:1.5:
   extends:
     - .julia:1.5
@@ -202,8 +209,6 @@ pages:
 
 .benchmark:
   stage: post
-  extends:
-    - .julia:1.5
   interruptible: true
   tags:
     - nvidia-benchmark
@@ -222,6 +227,16 @@ pages:
     - julia --project=perf/ --color=yes -e 'using Pkg;
                                             Pkg.instantiate()'
     - julia --project=perf/ --color=yes perf/runbenchmarks.jl
+
+benchmark:1.4:
+  extends:
+    - .julia:1.4
+    - .benchmark
+  tags:
+    - nvidia-benchmark
+  variables:
+    CODESPEED_EXECUTABLE: "Julia 1.4"
+  allow_failure: true
 
 benchmark:1.5:
   extends:

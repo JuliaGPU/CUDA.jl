@@ -3,7 +3,7 @@ module SimplePool
 # simple scan into a list of free buffers
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid, CuPtrInContext
 
 using DataStructures
 
@@ -140,7 +140,7 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Block}()
+const allocated = Dict{CuPtrInContext,Block}()
 
 init() = return
 
@@ -149,7 +149,7 @@ function alloc(sz, ctx=context())
     if block !== nothing
         ptr = pointer(block)
         @safe_lock allocated_lock begin
-            allocated[(;ptr,ctx)] = block
+            allocated[(; ptr=ptr, ctx=ctx)] = block
         end
         return ptr
     else
@@ -159,8 +159,8 @@ end
 
 function free(ptr, ctx=context())
     block = @safe_lock_spin allocated_lock begin
-        block = allocated[(;ptr,ctx)]
-        delete!(allocated, (;ptr,ctx))
+        block = allocated[(; ptr=ptr, ctx=ctx)]
+        delete!(allocated, (; ptr=ptr, ctx=ctx))
         block
     end
     pool_free(ctx, block)

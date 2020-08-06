@@ -3,12 +3,12 @@ module DummyPool
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid, CuPtrInContext
 
 using Base: @lock
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Int}()
+const allocated = Dict{CuPtrInContext,Int}()
 
 init() = return
 
@@ -29,7 +29,7 @@ function alloc(sz, ctx=context())
 
     if ptr !== nothing
         @safe_lock allocated_lock begin
-            allocated[(;ptr,ctx)] = sz
+            allocated[(; ptr=ptr, ctx=ctx)] = sz
         end
         return ptr
     else
@@ -39,8 +39,8 @@ end
 
 function free(ptr, ctx=context())
     sz = @safe_lock_spin allocated_lock begin
-        sz = allocated[(;ptr,ctx)]
-        delete!(allocated, (;ptr,ctx))
+        sz = allocated[(; ptr=ptr, ctx=ctx)]
+        delete!(allocated, (; ptr=ptr, ctx=ctx))
         sz
     end
 

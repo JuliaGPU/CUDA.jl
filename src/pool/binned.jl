@@ -20,7 +20,7 @@ module BinnedPool
 # TODO: move the management thread one level up, to be shared by all allocators
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid, CuPtrInContext
 
 using DataStructures
 
@@ -345,7 +345,7 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Block}()
+const allocated = Dict{CuPtrInContext,Block}()
 
 function init()
   managed_str = if haskey(ENV, "JULIA_CUDA_MEMORY_POOL_MANAGED")
@@ -401,7 +401,7 @@ function alloc(bytes, ctx=context())
   if block !== nothing
     ptr = pointer(block)
     @safe_lock allocated_lock begin
-      allocated[(;ptr,ctx)] = block
+      allocated[(; ptr=ptr, ctx=ctx)] = block
     end
     return ptr
   else
@@ -411,8 +411,8 @@ end
 
 function free(ptr, ctx=context())
   block = @safe_lock_spin allocated_lock begin
-    block = allocated[(;ptr,ctx)]
-    delete!(allocated, (;ptr,ctx))
+    block = allocated[(; ptr=ptr, ctx=ctx)]
+    delete!(allocated, (; ptr=ptr, ctx=ctx))
     block
   end
   bytes = sizeof(block)

@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid, CuPtrInContext
 
 using DataStructures
 
@@ -378,7 +378,7 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{@NamedTuple{ptr::CuPtr{Nothing},ctx::CuContext},Block}()
+const allocated = Dict{CuPtrInContext,Block}()
 
 init() = return
 
@@ -389,7 +389,7 @@ function alloc(sz, ctx=context())
         ptr = pointer(block)
         @safe_lock allocated_lock begin
             @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
-            allocated[(;ptr,ctx)] = block
+            allocated[(; ptr=ptr, ctx=ctx)] = block
         end
         return ptr
     else
@@ -399,8 +399,8 @@ end
 
 function free(ptr, ctx=context())
     block = @safe_lock_spin allocated_lock begin
-        block = allocated[(;ptr,ctx)]
-        delete!(allocated, (;ptr,ctx))
+        block = allocated[(; ptr=ptr, ctx=ctx)]
+        delete!(allocated, (; ptr=ptr, ctx=ctx))
         block
     end
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
