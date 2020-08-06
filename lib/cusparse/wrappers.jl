@@ -981,6 +981,15 @@ function mv!(
     index::SparseChar
 ) where {T}
 
+    n,m = size(A)
+    
+    if transa == 'N'
+        chkmvdims(X,n,Y,m)
+    end
+    if transa == 'T' || transa == 'C'
+        chkmvdims(X,m,Y,n)
+    end
+
     cusparseSpMV(
         handle(),
         transa,
