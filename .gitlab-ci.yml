@@ -9,30 +9,23 @@ variables:
 
 # Julia versions
 
-julia:1.4:
-  extends:
-    - .julia:1.4
-    - .test
-  tags:
-    - nvidia
-
-# julia:1.4-debug:
-#   extends:
-#     - .julia:source
-#     - .test
-#   tags:
-#     - nvidia
-#   variables:
-#     CI_CLONE_ARGS: '-b v1.4.0'
-#     CI_BUILD_ARGS: 'BINARYBUILDER_LLVM_ASSERTS=1 debug'
-#   allow_failure: true
-
 julia:1.5:
   extends:
     - .julia:1.5
     - .test
   tags:
     - nvidia
+
+# julia:1.5-debug:
+#   extends:
+#     - .julia:source
+#     - .test
+#   tags:
+#     - nvidia
+#   variables:
+#     CI_CLONE_ARGS: '-b v1.5.0'
+#     CI_BUILD_ARGS: 'BINARYBUILDER_LLVM_ASSERTS=1 debug'
+#   allow_failure: true
 
 
 # CUDA versions
@@ -131,7 +124,7 @@ cuda:none:
 
 # platform:arm64:
 #   extends:
-#     - .julia:1.4
+#     - .julia:1.5
 #     - .test
 #   tags:
 #     - nvidia-arm64
@@ -142,7 +135,7 @@ cuda:none:
 
 pool:none:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .test
   tags:
     - nvidia
@@ -151,7 +144,7 @@ pool:none:
 
 pool:simple:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .test
   tags:
     - nvidia
@@ -160,7 +153,7 @@ pool:simple:
 
 pool:split:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .test
   tags:
     - nvidia
@@ -170,7 +163,7 @@ pool:split:
 
 debug:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .test
   tags:
     - nvidia
@@ -189,7 +182,7 @@ coverage:
 
 documentation:
   extends:
-    - .julia:1.4
+    - .julia:1.5
     - .documentation
   tags:
     - nvidia
@@ -229,16 +222,6 @@ pages:
     - julia --project=perf/ --color=yes -e 'using Pkg;
                                             Pkg.instantiate()'
     - julia --project=perf/ --color=yes perf/runbenchmarks.jl
-
-benchmark:1.4:
-  extends:
-    - .julia:1.4
-    - .benchmark
-  tags:
-    - nvidia-benchmark
-  variables:
-    CODESPEED_EXECUTABLE: "Julia 1.4"
-  allow_failure: true
 
 benchmark:1.5:
   extends:
