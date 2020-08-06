@@ -244,102 +244,104 @@ os = "macos"
     sha256 = "ed51e5b7948c584e8278c6fe34fabfc53daae04bbe562b9cf9d0ef9a6287f75c"
     url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA100_jll.jl/releases/download/CUDNN_CUDA100-v7.6.5+0/CUDNN_CUDA100.v7.6.5.x86_64-apple-darwin14.tar.gz"
 
-[[CUDNN_CUDA101]]
-arch = "x86_64"
-git-tree-sha1 = "2074cce5cf5eb739f3fe896c596695519393dd08"
-lazy = true
-libc = "glibc"
-os = "linux"
-
-    [[CUDNN_CUDA101.download]]
-    sha256 = "9038c4a247346e20b67fa04ad39fecbd8f22089156cd87666598f34019926865"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA101_jll.jl/releases/download/CUDNN_CUDA101-v7.6.5+0/CUDNN_CUDA101.v7.6.5.x86_64-linux-gnu.tar.gz"
-
-[[CUDNN_CUDA101]]
-arch = "x86_64"
-git-tree-sha1 = "d47fa8132350cf987b6ba3776fe67b400a935067"
-lazy = true
-os = "windows"
-
-    [[CUDNN_CUDA101.download]]
-    sha256 = "6c84fcbde1223bce0ea7fad00576524d29485837a342b39a6b8211e0e71a927c"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA101_jll.jl/releases/download/CUDNN_CUDA101-v7.6.5+0/CUDNN_CUDA101.v7.6.5.x86_64-w64-mingw32.tar.gz"
-
-[[CUDNN_CUDA101]]
-arch = "x86_64"
-git-tree-sha1 = "8d6ff27c3a145eada3cb58b02a7051688e6a2d08"
-lazy = true
-os = "macos"
-
-    [[CUDNN_CUDA101.download]]
-    sha256 = "b07de2ba0a454196d4f3706e85c66f9c5a0f5b0060574de0082229192581ab45"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA101_jll.jl/releases/download/CUDNN_CUDA101-v7.6.5+0/CUDNN_CUDA101.v7.6.5.x86_64-apple-darwin14.tar.gz"
-
 ## v8
 
+[[CUDNN_CUDA101]]
+arch = "x86_64"
+git-tree-sha1 = "65e3425ecb85689a1b04750fb6484cecfafab25b"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDNN_CUDA101.download]]
+    sha256 = "340271e2131bafb23ddbf04c26414d8cc7a0ec69731088c69e345c71dc77557a"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA101_jll.jl/releases/download/CUDNN_CUDA101-v8.0.2+0/CUDNN_CUDA101.v8.0.2.x86_64-linux-gnu.tar.gz"
+
+[[CUDNN_CUDA101]]
+arch = "powerpc64le"
+git-tree-sha1 = "baaf4a1efdeade6368c51aff26b394eec48cfab8"
+lazy = true
+libc = "glibc"
+os = "linux"
+
+    [[CUDNN_CUDA101.download]]
+    sha256 = "758c6837fe61c50ff23cf19b6ea6852c45fb398d7c327e3df08442879be79d46"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA101_jll.jl/releases/download/CUDNN_CUDA101-v8.0.2+0/CUDNN_CUDA101.v8.0.2.powerpc64le-linux-gnu.tar.gz"
+
+[[CUDNN_CUDA101]]
+arch = "x86_64"
+git-tree-sha1 = "f52953d0bfb0d4a6d04643cdb71566850adaf167"
+lazy = true
+os = "windows"
+
+    [[CUDNN_CUDA101.download]]
+    sha256 = "30c2a1eafef25fac6188891d23c8ead760d73c8029c1f830ae0b6b5ef4341013"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA101_jll.jl/releases/download/CUDNN_CUDA101-v8.0.2+0/CUDNN_CUDA101.v8.0.2.x86_64-w64-mingw32.tar.gz"
+
 [[CUDNN_CUDA102]]
 arch = "x86_64"
-git-tree-sha1 = "efde3d4177a633e8ad32d1c4b7e984b9c03ccad2"
+git-tree-sha1 = "b2cd5f61ce1f9cf00cb94000f20d99b125140255"
 lazy = true
 libc = "glibc"
 os = "linux"
 
     [[CUDNN_CUDA102.download]]
-    sha256 = "0739fa1e3df612e0b937226d00479ba8d9a4243ec6898e86c6d5f90d3e0705e9"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA102_jll.jl/releases/download/CUDNN_CUDA102-v8.0.1+0/CUDNN_CUDA102.v8.0.1.x86_64-linux-gnu.tar.gz"
+    sha256 = "93c0af9091b17666056bdf333ea12025827944b678b5db95a2473d5a6f909269"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA102_jll.jl/releases/download/CUDNN_CUDA102-v8.0.2+0/CUDNN_CUDA102.v8.0.2.x86_64-linux-gnu.tar.gz"
 
 [[CUDNN_CUDA102]]
 arch = "powerpc64le"
-git-tree-sha1 = "aa64967c29dc7a8bb58725a214c95bfa041ecbef"
+git-tree-sha1 = "6e3021ae675e6d016e203be01d25fad9809d00e4"
 lazy = true
 libc = "glibc"
 os = "linux"
 
     [[CUDNN_CUDA102.download]]
-    sha256 = "f4b41f4d2f716977b70b6d95c29e77c2f51e1a2bdd4238f961c7a94ba589eec0"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA102_jll.jl/releases/download/CUDNN_CUDA102-v8.0.1+0/CUDNN_CUDA102.v8.0.1.powerpc64le-linux-gnu.tar.gz"
+    sha256 = "2defb113c23828317295bea84f63434d7bf7836105bf6dfe0b039d54bed851c9"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA102_jll.jl/releases/download/CUDNN_CUDA102-v8.0.2+0/CUDNN_CUDA102.v8.0.2.powerpc64le-linux-gnu.tar.gz"
 
 [[CUDNN_CUDA102]]
 arch = "x86_64"
-git-tree-sha1 = "3869b0f2b71d915a971390b2ea465e1b5122b764"
+git-tree-sha1 = "4d76a9ff68e83dbac1a519fa9ce631e9ec8b291e"
 lazy = true
 os = "windows"
 
     [[CUDNN_CUDA102.download]]
-    sha256 = "e78b7ba4293d7d021121373a81cd8731dbef059ef2b32527b6d04b1ac0dd196e"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA102_jll.jl/releases/download/CUDNN_CUDA102-v8.0.1+0/CUDNN_CUDA102.v8.0.1.x86_64-w64-mingw32.tar.gz"
+    sha256 = "5958fb195fc272e6c31535a627639e41d6a5c0b3046f39947436001509361aa5"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA102_jll.jl/releases/download/CUDNN_CUDA102-v8.0.2+0/CUDNN_CUDA102.v8.0.2.x86_64-w64-mingw32.tar.gz"
 
 [[CUDNN_CUDA110]]
 arch = "x86_64"
-git-tree-sha1 = "f4c5832285bd1c9e172b0a31347418b8650f851c"
+git-tree-sha1 = "88dc9adaa9ab5841c6d61f4cb3105ebacd95b95d"
 lazy = true
 libc = "glibc"
 os = "linux"
 
     [[CUDNN_CUDA110.download]]
-    sha256 = "9a040740a3ccf1f8dcfac75ba38ca6ccefa2762b641c9274f03b9747f86b2512"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA110_jll.jl/releases/download/CUDNN_CUDA110-v8.0.1+0/CUDNN_CUDA110.v8.0.1.x86_64-linux-gnu.tar.gz"
+    sha256 = "6d89beb510c01a176d467fb2e3ac431341b7930ae1091f6a0d42556b39eaa8c8"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA110_jll.jl/releases/download/CUDNN_CUDA110-v8.0.2+0/CUDNN_CUDA110.v8.0.2.x86_64-linux-gnu.tar.gz"
 
 [[CUDNN_CUDA110]]
 arch = "powerpc64le"
-git-tree-sha1 = "2c2fac843d001124c78122baaa6b12ade35a14ca"
+git-tree-sha1 = "e8b397697524c60694e48c80749bf6b54f237e64"
 lazy = true
 libc = "glibc"
 os = "linux"
 
     [[CUDNN_CUDA110.download]]
-    sha256 = "57593880ca0ba0433baa88112838900d0431e619ea9b8a0ae4a9f40274c3081a"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA110_jll.jl/releases/download/CUDNN_CUDA110-v8.0.1+0/CUDNN_CUDA110.v8.0.1.powerpc64le-linux-gnu.tar.gz"
+    sha256 = "dc96d3e988e12562cef500f67cca0bd0fcc48684b4da6bfd1460ae0c81edf46d"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA110_jll.jl/releases/download/CUDNN_CUDA110-v8.0.2+0/CUDNN_CUDA110.v8.0.2.powerpc64le-linux-gnu.tar.gz"
 
 [[CUDNN_CUDA110]]
 arch = "x86_64"
-git-tree-sha1 = "430f2638c1882d64e7673183c57b1564edaba69f"
+git-tree-sha1 = "c68026379752255051652cc354aab4c74bd21dec"
 lazy = true
 os = "windows"
 
     [[CUDNN_CUDA110.download]]
-    sha256 = "594fd7c6730a76581dafd6db6e205c1bc83a7a0be52fc128d167129b94f59454"
-    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA110_jll.jl/releases/download/CUDNN_CUDA110-v8.0.1+0/CUDNN_CUDA110.v8.0.1.x86_64-w64-mingw32.tar.gz"
+    sha256 = "41eeb517b0addb41cf204a4c0f7082a9af031fe734b5067675bde6b40733b2d1"
+    url = "https://github.com/JuliaBinaryWrappers/CUDNN_CUDA110_jll.jl/releases/download/CUDNN_CUDA110-v8.0.2+0/CUDNN_CUDA110.v8.0.2.x86_64-w64-mingw32.tar.gz"
+
 
 # CUTENSOR
 
