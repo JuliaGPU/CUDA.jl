@@ -58,13 +58,18 @@ function runtests(f, name, can_initialize=true, snoop=nothing)
         gpu_rss = if has_nvml()
             cuda_dev = device()
             nvml_dev = NVML.Device(uuid(cuda_dev))
-            gpu_processes = NVML.compute_processes(nvml_dev)
-            if haskey(gpu_processes, getpid())
-                gpu_processes[getpid()].used_gpu_memory
-            else
-                # happens when we didn't do compute, or when using containers:
-                # https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
-                0
+            try
+                gpu_processes = NVML.compute_processes(nvml_dev)
+                if haskey(gpu_processes, getpid())
+                    gpu_processes[getpid()].used_gpu_memory
+                else
+                    # happens when we didn't do compute, or when using containers:
+                    # https://github.com/NVIDIA/gpu-monitoring-tools/issues/63
+                    missing
+                end
+            catch err
+                (isa(err, NVML.NVMLError) && err.code == NVML.ERROR_NOT_SUPPORTED) || rethrow()
+                missing
             end
         else
             missing
