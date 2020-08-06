@@ -12,15 +12,15 @@ mutable struct CuDenseVectorDescriptor
     end
 end
 
-Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, v::CuDenseVectorDescriptor) = v.handle
+Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, desc::CuDenseVectorDescriptor) = desc.handle
 
 
-## sparse matrix descriptor
+## matrix descriptor
 
-mutable struct CuSparseMatrixDescriptor
+mutable struct CuMatrixDescriptor
     handle::cusparseMatDescr_t
 
-    function CuSparseMatrixDescriptor()
+    function CuMatrixDescriptor()
         descr_ref = Ref{cusparseMatDescr_t}()
         cusparseCreateMatDescr(descr_ref)
         obj = new(descr_ref[])
@@ -29,10 +29,10 @@ mutable struct CuSparseMatrixDescriptor
     end
 end
 
-Base.unsafe_convert(::Type{cusparseMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
+Base.unsafe_convert(::Type{cusparseMatDescr_t}, desc::CuMatrixDescriptor) = desc.handle
 
-function CuSparseMatrixDescriptor(MatrixType, FillMode, DiagType, IndexBase)
-    desc = CuSparseMatrixDescriptor()
+function CuMatrixDescriptor(MatrixType, FillMode, DiagType, IndexBase)
+    desc = CuMatrixDescriptor()
     if MatrixType != CUSPARSE_MATRIX_TYPE_GENERAL
         cusparseSetMatType(desc, MatrixType)
     end
@@ -44,16 +44,27 @@ function CuSparseMatrixDescriptor(MatrixType, FillMode, DiagType, IndexBase)
     return desc
 end
 
+## sparse matrix descriptor
+
+mutable struct CuSparseMatrixDescriptor
+    handle::cusparseSpMatDescr_t
+end
+
 function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR{T}) where {T}
-    desc = CuSparseMatrixDescriptor()
+    desc_ref = Ref{cusparseSpMatDescr_t}()
     cusparseCreateCsr(
-        desc.handle,
+        desc_ref,
         A.dims..., length(A.nzVal),
         A.rowPtr, A.colVal, A.nzVal,
-        eltype(A.rowPtr), eltype(A.colVal), 1, eltype(A.nzVal)
+        eltype(A.rowPtr), eltype(A.colVal), 'O', eltype(A.nzVal)
     )
-    return desc
+    obj = CuSparseMatrixDescriptor(desc_ref[])
+    finalizer(cusparseDestroySpMat, obj)
+    return obj
 end
+
+Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
+
 
 
 ## type conversions
@@ -135,8 +146,8 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
             mb = div((m + blockDim - 1),blockDim)
             nb = div((n + blockDim - 1),blockDim)
             bsrRowPtr = CUDA.zeros(Cint,mb + 1)
-            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
-            cudescc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, indc)
+            cudesca = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
+            cudescc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, indc)
             cusparseXcsr2bsrNnz(handle(), dir, m, n, cudesca, csr.rowPtr,
                                 csr.colVal, blockDim, cudescc, bsrRowPtr, nnz)
             bsrNzVal = CUDA.zeros($elty, nnz[] * blockDim * blockDim )
@@ -169,8 +180,8 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
             mb = div(m,bsr.blockDim)
             nb = div(n,bsr.blockDim)
             nnz = bsr.nnz * bsr.blockDim * bsr.blockDim
-            cudesca = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
-            cudescc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, indc)
+            cudesca = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
+            cudescc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, indc)
             csrRowPtr = CUDA.zeros(Cint, m + 1)
             csrColInd = CUDA.zeros(Cint, nnz)
             csrNzVal  = CUDA.zeros($elty, nnz)
@@ -197,7 +208,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
-            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
+            cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
             $rname(handle(), m, n, cudesc, csr.nzVal,
                    csr.rowPtr, csr.colVal, denseA, lda)
             denseA
@@ -206,7 +217,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
-            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
+            cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
             $cname(handle(), m, n, cudesc, csc.nzVal,
                    csc.rowVal, csc.colPtr, denseA, lda)
             denseA
@@ -229,7 +240,7 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
             end
             m,n = size(A)
             lda = max(1,stride(A,2))
-            cudesc = CuSparseMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
+            cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
             nnzRowCol = CUDA.zeros(Cint, fmt == 'R' ? m : n)
             nnzTotal = Ref{Cint}(1)
             $nname(handle(),
