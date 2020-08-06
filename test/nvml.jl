@@ -28,7 +28,7 @@ end
     @test NVML.name(nvml_dev) == name(cuda_dev)
     @maybe_unsupported NVML.serial(nvml_dev)
 
-    NVML.power_usage(nvml_dev)
+    @maybe_unsupported NVML.power_usage(nvml_dev)
     @maybe_unsupported NVML.energy_consumption(nvml_dev)
 
     NVML.memory_info(nvml_dev)
