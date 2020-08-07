@@ -89,7 +89,7 @@ end
 
 ## device iteration
 
-export devices
+export devices, ndevices
 
 struct DeviceSet end
 
@@ -113,6 +113,8 @@ function Base.length(::DeviceSet)
 end
 
 Base.IteratorSize(::DeviceSet) = Base.HasLength()
+
+ndevices() = length(devices())
 
 
 ## convenience attribute getters

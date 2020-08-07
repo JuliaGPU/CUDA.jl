@@ -1,6 +1,6 @@
 # global state management
 
-export context, context!, device, device!, device_reset!
+export context, context!, device, device!, device_reset!, deviceid
 
 
 ## initialization
@@ -249,7 +249,6 @@ function device!(f::Function, dev::CuDevice)
         end
     end
 end
-device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
 """
     device_reset!(dev::CuDevice=device())
@@ -275,3 +274,10 @@ function device_reset!(dev::CuDevice=device())
 
     return
 end
+
+
+## integer device-based API
+
+deviceid() = Int(convert(CUdevice, device()))
+
+device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))

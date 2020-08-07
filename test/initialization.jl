@@ -110,3 +110,5 @@ if length(devices()) > 1
     end
     @test device() == CuDevice(0)
 end
+
+@test deviceid() >= 0
