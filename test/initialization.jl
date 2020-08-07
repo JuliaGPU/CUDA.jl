@@ -43,7 +43,8 @@ task = @async begin
 end
 @test ctx == fetch(task)
 @test task_cb[1] == task
-@test device_switch_cb[1] == nothing
+@test device_switch_cb[1].ctx == ctx
+@test device_switch_cb[1].dev == dev
 
 reset_cb()
 
