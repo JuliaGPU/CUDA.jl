@@ -54,9 +54,11 @@ Execution can switch between them, and tasks can be executing on (and in the fut
 between) different threads. To synchronize these two worlds, call this function before any
 CUDA API call to update thread-local state based on the current task and its context.
 
-If you need to maintain your own thread-local state, subscribe to context and task switch
+If you need to maintain your own task-local state, subscribe to device and task switch
 events using [`CUDA.atdeviceswitch`](@ref) and [`CUDA.attaskswitch`](@ref) for
-proper invalidation.
+proper invalidation. If your state is device-specific, but global (i.e. not task-bound), it
+suffices to index your state with the current [`deviceid()`](@ref) and invalidate that state
+when the device is reset by subscribing to [`CUDA.atdevicereset()`](@ref).
 """
 @inline function prepare_cuda_call()
     tid = Threads.threadid()
@@ -80,27 +82,6 @@ proper invalidation.
     return
 end
 
-# the default device unitialized tasks will use, set when switching devices.
-# this behavior differs from the CUDA Runtime, where device 0 is always used.
-# this setting won't be used when switching tasks on a pre-initialized thread.
-const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
-
-# CUDA uses thread-bound state, but calling CuCurrent* all the time is expensive,
-# so we maintain our own thread-local copy keeping track of the current CUDA state.
-CuCurrentState = NamedTuple{(:ctx, :dev), Tuple{CuContext,CuDevice}}
-const thread_state = Union{Nothing,CuCurrentState}[]
-@noinline function initialize_thread(tid::Int)
-    ctx = CuCurrentContext()
-    if ctx === nothing
-        dev = something(default_device[], CuDevice(0))
-        device!(dev)
-    else
-        # compatibility with externally-initialized contexts
-        dev = CuCurrentDevice()
-        thread_state[tid] = (;ctx=ctx, dev=dev)
-    end
-end
-
 # Julia executes with tasks, so we need to keep track of the active task for each thread
 # in order to detect task switches and update the thread-local state accordingly.
 # doing so using task_local_storage is too expensive.
@@ -116,6 +97,27 @@ const thread_tasks = Union{Nothing,WeakRef}[]
     end
     # NOTE: deactivating the context in the case ctx===nothing would be more correct,
     #       but that confuses CUDA and leads to invalid contexts later on.
+end
+
+# the default device unitialized tasks will use, set when switching devices.
+# this behavior differs from the CUDA Runtime, where device 0 is always used.
+# this setting won't be used when switching tasks on a pre-initialized thread.
+const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
+
+# CUDA uses thread-bound state, but calling CuCurrent* all the time is expensive,
+# so we maintain our own thread-local copy keeping track of the current CUDA state.
+const CuCurrentState = NamedTuple{(:ctx, :dev), Tuple{CuContext,CuDevice}}
+const thread_state = Union{Nothing,CuCurrentState}[]
+@noinline function initialize_thread(tid::Int)
+    ctx = CuCurrentContext()
+    if ctx === nothing
+        dev = something(default_device[], CuDevice(0))
+        device!(dev)
+    else
+        # compatibility with externally-initialized contexts
+        dev = CuCurrentDevice()
+        thread_state[tid] = (;ctx=ctx, dev=dev)
+    end
 end
 
 
@@ -248,13 +250,13 @@ device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 Sets the active device for the duration of `f`.
 """
 function device!(f::Function, dev::CuDevice)
-    old_ctx = CuCurrentContext()
+    ctx = CuCurrentContext()
     try
         device!(dev)
         f()
     finally
-        if old_ctx != nothing
-            context!(old_ctx)
+        if ctx != nothing
+            context!(ctx)
         end
     end
 end
