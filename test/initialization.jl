@@ -129,4 +129,4 @@ if length(devices()) > 1
     @test device() == CuDevice(0)
 end
 
-@test deviceid() >= 0
+@test deviceid() >= 1

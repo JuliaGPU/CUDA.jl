@@ -292,6 +292,14 @@ end
 
 ## integer device-based API
 
-deviceid() = Int(convert(CUdevice, device()))
+"""
+    deviceid(dev::CuDevice=device())::Int
+    deviceid()::Int
+
+Get the ID number of the current device of execution. This is a 1-indexed number, and can
+be used to index, e.g., thread-local state. It should not be used to acquire a `CuDevice`;
+use [`device()`](@ref) for that.
+"""
+deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev)) + 1
 
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
