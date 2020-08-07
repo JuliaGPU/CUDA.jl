@@ -97,7 +97,7 @@ const thread_state = Union{Nothing,CuCurrentState}[]
     else
         # compatibility with externally-initialized contexts
         dev = CuCurrentDevice()
-        thread_state[tid] = (;ctx,dev)
+        thread_state[tid] = (;ctx=ctx, dev=dev)
     end
 end
 
@@ -155,7 +155,7 @@ function context!(ctx::CuContext)
     if state === nothing || state.ctx != ctx
         activate(ctx)
         dev = CuCurrentDevice()
-        thread_state[tid] = (;ctx, dev)
+        thread_state[tid] = (;ctx=ctx, dev=dev)
         _atdeviceswitch()
     end
 
