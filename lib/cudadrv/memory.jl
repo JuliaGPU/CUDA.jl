@@ -36,8 +36,6 @@ Base.pointer(buf::Buffer) = buf.ptr
 
 Base.sizeof(buf::Buffer) = buf.bytesize
 
-CUDA.device(buf::Buffer) = device(buf.ctx)
-
 # ccall integration
 #
 # taking the pointer of a buffer means returning the underlying pointer,
@@ -254,7 +252,7 @@ end
 Prefetches memory to the specified destination device.
 """
 function prefetch(buf::UnifiedBuffer, bytes::Integer=sizeof(buf);
-                  device::CuDevice=device(buf), stream::CuStream=CuDefaultStream())
+                  device::CuDevice=CuCurrentDevice(), stream::CuStream=CuDefaultStream())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     CUDA.cuMemPrefetchAsync(buf, bytes, device, stream)
 end
@@ -268,7 +266,7 @@ end
 Advise about the usage of a given memory range.
 """
 function advise(buf::UnifiedBuffer, advice::CUDA.CUmem_advise, bytes::Integer=sizeof(buf);
-                device::CuDevice=device(buf))
+                device::CuDevice=CuCurrentDevice())
     bytes > sizeof(buf) && throw(BoundsError(buf, bytes))
     CUDA.cuMemAdvise(buf, bytes, advice, device)
 end
