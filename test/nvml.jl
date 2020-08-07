@@ -33,7 +33,7 @@ end
 
     NVML.memory_info(nvml_dev)
 
-    NVML.utilization_rates(nvml_dev)
+    @maybe_unsupported NVML.utilization_rates(nvml_dev)
 
     NVML.compute_mode(nvml_dev)
     @test NVML.compute_capability(nvml_dev) == capability(cuda_dev)
