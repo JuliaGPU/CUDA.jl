@@ -25,7 +25,7 @@ proper invalidation.
     task = current_task()
 
     # detect when a different task is now executing on a thread
-    if @inbounds thread_tasks[tid] != task
+    if @inbounds thread_tasks[tid].value::Task !== task
         switched_tasks(tid, task)
     end
 
@@ -34,6 +34,8 @@ proper invalidation.
         initialize_thread(tid)
     end
 
+    # FIXME: this is expensive. Maybe kernels should return a `wait`able object, a la KA.jl,
+    #        which then performs the necessary checks. Or only check when launching kernels.
     check_exceptions()
 
     return
@@ -56,7 +58,6 @@ const thread_contexts = Union{Nothing,CuContext}[]
         # compatibility with externally-initialized contexts
         thread_contexts[tid] = ctx
     end
-
 end
 
 # Julia executes with tasks, so we need to keep track of the active task for each thread

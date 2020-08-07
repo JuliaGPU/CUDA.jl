@@ -82,8 +82,6 @@ function create_exceptions!(mod::CuModule)
 end
 
 # check the exception flags on every API call, similarly to how CUDA handles errors
-# FIXME: this is expensive. Maybe kernels should return a `wait`able object, a la KA.jl,
-#        which then performs the necessary checks.
 function check_exceptions()
     for (ctx,buf) in exception_flags
         if isvalid(ctx)
