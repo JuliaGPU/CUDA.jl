@@ -167,7 +167,8 @@ end
 function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
   # look up the buffer
   # NOTE: we can't regularly take this lock from here (which could cause a task switch),
-  #       but we know it can only be taken by another thread (since )
+  #       but we know it can only be taken by another thread (as only finalizers can run
+  #       concurrently on this thread, and we disable those in safe_lock)
   buf = @safe_lock_spin memory_lock begin
     buf = allocated[(; ptr=ptr, ctx=ctx)]
     delete!(allocated, (; ptr=ptr, ctx=ctx))
