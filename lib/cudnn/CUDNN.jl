@@ -59,11 +59,13 @@ function __init__()
     resize!(thread_handles, Threads.nthreads())
     fill!(thread_handles, nothing)
 
-    CUDA.atcontextswitch() do tid, ctx
+    CUDA.atdeviceswitch() do
+        tid = Threads.threadid()
         thread_handles[tid] = nothing
     end
 
-    CUDA.attaskswitch() do tid, task
+    CUDA.attaskswitch() do
+        tid = Threads.threadid()
         thread_handles[tid] = nothing
     end
 end

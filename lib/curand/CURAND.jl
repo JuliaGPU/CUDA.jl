@@ -59,12 +59,14 @@ function __init__()
     resize!(GPUARRAY_THREAD_RNGs, Threads.nthreads())
     fill!(GPUARRAY_THREAD_RNGs, nothing)
 
-    CUDA.atcontextswitch() do tid, ctx
+    CUDA.atdeviceswitch() do
+        tid = Threads.threadid()
         CURAND_THREAD_RNGs[tid] = nothing
         GPUARRAY_THREAD_RNGs[tid] = nothing
     end
 
-    CUDA.attaskswitch() do tid, task
+    CUDA.attaskswitch() do
+        tid = Threads.threadid()
         CURAND_THREAD_RNGs[tid] = nothing
         GPUARRAY_THREAD_RNGs[tid] = nothing
     end
