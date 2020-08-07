@@ -17,8 +17,9 @@ end
 
 # now cause initialization
 ctx = context()
+dev = device()
 @test CuCurrentContext() == ctx
-@test CuCurrentDevice() == CuDevice(0)
+@test CuCurrentDevice() == dev
 @test context_cb[1] == ctx
 @test task_cb[1] == current_task()
 
@@ -32,6 +33,15 @@ end
 @test ctx == fetch(task)
 @test context_cb[1] == nothing
 @test task_cb[1] == task
+
+fill!(context_cb, nothing)
+fill!(task_cb, nothing)
+
+# ... back to the main task
+ctx = context()
+dev = device()
+@test context_cb[1] == nothing
+@test task_cb[1] == current_task()
 
 device!(CuDevice(0))
 device!(CuDevice(0)) do

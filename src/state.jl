@@ -1,6 +1,6 @@
 # global state management
 
-export context, context!, device!, device_reset!
+export context, context!, device, device!, device_reset!
 
 
 ## initialization
@@ -22,15 +22,16 @@ proper invalidation.
 """
 @inline function prepare_cuda_call()
     tid = Threads.threadid()
-    task = current_task()
 
     # detect when a different task is now executing on a thread
-    if @inbounds thread_tasks[tid].value::Task !== task
-        switched_tasks(tid, task)
+    task = @inbounds thread_tasks[tid]
+    if task === nothing || task.value === nothing || task.value::Task !== current_task()
+        switched_tasks(tid, current_task())
     end
 
-    # initialize a CUDA context when first executing on a thread
-    if @inbounds thread_contexts[tid] === nothing
+    # initialize CUDA state when first executing on a thread
+    state = @inbounds thread_state[tid]
+    if state === nothing
         initialize_thread(tid)
     end
 
@@ -46,9 +47,10 @@ end
 # this setting won't be used when switching tasks on a pre-initialized thread.
 const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
-# CUDA uses thread-bound contexts, but calling CuCurrentContext all the time is expensive,
-# so we maintain our own thread-local state keeping track of the current context.
-const thread_contexts = Union{Nothing,CuContext}[]
+# CUDA uses thread-bound state, but calling CuCurrent* all the time is expensive,
+# so we maintain our own thread-local copy keeping track of the current CUDA state.
+CuCurrentState = NamedTuple{(:ctx, :dev), Tuple{CuContext,CuDevice}}
+const thread_state = Union{Nothing,CuCurrentState}[]
 @noinline function initialize_thread(tid::Int)
     ctx = CuCurrentContext()
     if ctx === nothing
@@ -56,7 +58,8 @@ const thread_contexts = Union{Nothing,CuContext}[]
         device!(dev)
     else
         # compatibility with externally-initialized contexts
-        thread_contexts[tid] = ctx
+        dev = CuCurrentDevice()
+        thread_state[tid] = (;ctx,dev)
     end
 end
 
@@ -103,13 +106,12 @@ current thread).
     tid = Threads.threadid()
 
     prepare_cuda_call()
-    ctx = @inbounds thread_contexts[tid]::CuContext
+    state = @inbounds thread_state[tid]::CuCurrentState
 
     if Base.JLOptions().debug_level >= 2
-        @assert ctx == CuCurrentContext()
+        @assert state.ctx == CuCurrentContext()
     end
-
-    ctx
+    state.ctx
 end
 
 """
@@ -123,10 +125,11 @@ Note that the contexts used with this call should be previously acquired by call
 function context!(ctx::CuContext)
     # update the thread-local state
     tid = Threads.threadid()
-    thread_ctx = @inbounds thread_contexts[tid]
-    if thread_ctx != ctx
-        thread_contexts[tid] = ctx
+    state = @inbounds thread_state[tid]
+    if state === nothing || state.ctx != ctx
         activate(ctx)
+        dev = CuCurrentDevice()
+        thread_state[tid] = (;ctx, dev)
         _atcontextswitch(tid, ctx)
     end
 
@@ -168,8 +171,28 @@ atcontextswitch(f::Function) = (pushfirst!(context_hooks, f); nothing)
 const context_hooks = []
 _atcontextswitch(tid, ctx) = foreach(f->Base.invokelatest(f, tid, ctx), context_hooks)
 
+# TODO: atdeviceswitch && atdevicereset make more sense
+
 
 ## device-based API
+
+"""
+    device()::CuDevice
+
+Get the CUDA device for the current thread, similar to how [`context()`](@ref) works
+compared to [`CuCurrentContext()`](@ref).
+"""
+@inline function device()
+    tid = Threads.threadid()
+
+    prepare_cuda_call()
+    state = @inbounds thread_state[tid]::CuCurrentState
+
+    if Base.JLOptions().debug_level >= 2
+        @assert state.dev == CuCurrentDevice()
+    end
+    state.dev
+end
 
 """
     device!(dev::Integer)
@@ -196,7 +219,8 @@ function device!(dev::CuDevice, flags=nothing)
     end
 
     # bail out if switching to the current device
-    if @inbounds thread_contexts[tid] !== nothing && dev == device()
+    state = @inbounds thread_state[tid]
+    if state !== nothing && state.dev == dev
         return
     end
 
@@ -242,9 +266,9 @@ function device_reset!(dev::CuDevice=device())
     unsafe_reset!(pctx)
 
     # wipe the context handles for all threads using this device
-    for (tid, thread_ctx) in enumerate(thread_contexts)
-        if thread_ctx == ctx
-            thread_contexts[tid] = nothing
+    for (tid, state) in enumerate(thread_state)
+        if state !== nothing && state.ctx == ctx
+            thread_state[tid] = nothing
             _atcontextswitch(tid, nothing)
         end
     end

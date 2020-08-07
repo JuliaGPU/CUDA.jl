@@ -153,7 +153,7 @@ function scan!(f::Function, output::CuArray{T}, input::CuArray;
 
     # determine the grid layout to cover the other dimensions
     if length(Rother) > 1
-        dev = CuDevice(kernel.fun.mod.ctx)
+        dev = device()
         max_other_blocks = attribute(dev, DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y)
         blocks_other = (Base.min(length(Rother), max_other_blocks),
                         cld(length(Rother), max_other_blocks))

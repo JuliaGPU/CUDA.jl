@@ -67,8 +67,8 @@ function __init__()
     # enable generation of FMA instructions to mimic behavior of nvcc
     LLVM.clopts("-nvptx-fma-level=1")
 
-    resize!(thread_contexts, Threads.nthreads())
-    fill!(thread_contexts, nothing)
+    resize!(thread_state, Threads.nthreads())
+    fill!(thread_state, nothing)
 
     resize!(thread_tasks, Threads.nthreads())
     fill!(thread_tasks, nothing)
