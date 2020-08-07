@@ -3,6 +3,7 @@
 
 # the API shouldn't have been initialized
 @test CuCurrentContext() == nothing
+@test CuCurrentDevice() == nothing
 
 context_cb = Union{Nothing, CuContext}[nothing for tid in 1:Threads.nthreads()]
 CUDA.atcontextswitch() do tid, ctx
@@ -17,7 +18,7 @@ end
 # now cause initialization
 ctx = context()
 @test CuCurrentContext() == ctx
-@test device() == CuDevice(0)
+@test CuCurrentDevice() == CuDevice(0)
 @test context_cb[1] == ctx
 @test task_cb[1] == current_task()
 

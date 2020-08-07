@@ -1,14 +1,14 @@
 @testset "context" begin
 
 ctx = CuCurrentContext()
-dev = device()
+dev = CuCurrentDevice()
 
 let ctx2 = CuContext(dev)
     @test ctx2 == CuCurrentContext()    # ctor implicitly pushes
     activate(ctx)
     @test ctx == CuCurrentContext()
 
-    @test device(ctx2) == dev
+    @test CuDevice(ctx2) == dev
 
     CUDA.unsafe_destroy!(ctx2)
 end
@@ -22,8 +22,8 @@ let global_ctx2 = nothing
     @test !CUDA.isvalid(global_ctx2)
     @test ctx == CuCurrentContext()
 
-    @test device(ctx) == dev
-    @test device() == dev
+    @test CuDevice(ctx) == dev
+    @test CuCurrentDevice() == dev
     synchronize()
 end
 

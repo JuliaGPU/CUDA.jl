@@ -89,7 +89,7 @@ function check_exceptions()
             flag = unsafe_load(ptr)
             if flag != 0
                 unsafe_store!(ptr, 0)
-                dev = device(ctx)
+                dev = CuDevice(ctx)
                 throw(KernelException(dev))
             end
         end

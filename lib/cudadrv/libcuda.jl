@@ -152,7 +152,6 @@ end
 end
 
 @checked function cuCtxGetDevice(device)
-    initialize_api()
     @runtime_ccall((:cuCtxGetDevice, libcuda()), CUresult,
                    (Ptr{CUdevice},),
                    device)
