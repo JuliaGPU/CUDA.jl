@@ -13,3 +13,5 @@ capability(dev)
 @test eltype(devices()) == CuDevice
 @grab_output show(stdout, "text/plain", CUDA.DEVICE_CPU)
 @grab_output show(stdout, "text/plain", CUDA.DEVICE_INVALID)
+
+@test length(devices()) == ndevices()

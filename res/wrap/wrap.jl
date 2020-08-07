@@ -192,6 +192,7 @@ preinit_apicalls = Set{String}([
     "cuCtxGetCurrent",
     "cuCtxPushCurrent",
     "cuCtxPopCurrent",
+    "cuCtxGetDevice", # this actually does require a context, but we use it unsafely
     ## primary context management
     "cuDevicePrimaryCtxGetState",
     "cuDevicePrimaryCtxRelease",

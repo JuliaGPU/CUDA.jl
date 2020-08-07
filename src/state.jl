@@ -1,6 +1,44 @@
 # global state management
 
-export context, context!, device!, device_reset!
+export context, context!, device, device!, device_reset!, deviceid
+
+
+## hooks
+
+"""
+    CUDA.attaskswitch(f::Function)
+
+Register a function to be called after switching to or initializing a task on a thread.
+
+Use this hook to invalidate thread-local state that depends on the current task.
+"""
+attaskswitch(f::Function) = (pushfirst!(task_hooks, f); nothing)
+const task_hooks = []
+_attaskswitch() = foreach(f->Base.invokelatest(f), task_hooks)
+
+"""
+    CUDA.atdeviceswitch(f::Function)
+
+Register a function to be called after switching to or initializing a device on a thread.
+
+Use this hook to invalidate thread-local state that depends on the current device. If that
+state is also context dependent, be sure to query the context in your callback.
+"""
+atdeviceswitch(f::Function) = (pushfirst!(device_switch_hooks, f); nothing)
+const device_switch_hooks = []
+_atdeviceswitch() = foreach(f->Base.invokelatest(f), device_switch_hooks)
+
+"""
+    CUDA.atdevicereset(f::Function)
+
+Register a function to be called after resetting devices. The function is passed one
+argument: the device which has been reset.
+
+Use this hook to invalidate global state that depends on the current device.
+"""
+atdevicereset(f::Function) = (pushfirst!(device_reset_hooks, f); nothing)
+const device_reset_hooks = []
+_atdevicereset(dev) = foreach(f->Base.invokelatest(f, dev), device_reset_hooks)
 
 
 ## initialization
@@ -16,47 +54,32 @@ Execution can switch between them, and tasks can be executing on (and in the fut
 between) different threads. To synchronize these two worlds, call this function before any
 CUDA API call to update thread-local state based on the current task and its context.
 
-If you need to maintain your own thread-local state, subscribe to context and task switch
-events using [`CUDA.atcontextswitch`](@ref) and [`CUDA.attaskswitch`](@ref) for
-proper invalidation.
+If you need to maintain your own task-local state, subscribe to device and task switch
+events using [`CUDA.atdeviceswitch`](@ref) and [`CUDA.attaskswitch`](@ref) for
+proper invalidation. If your state is device-specific, but global (i.e. not task-bound), it
+suffices to index your state with the current [`deviceid()`](@ref) and invalidate that state
+when the device is reset by subscribing to [`CUDA.atdevicereset()`](@ref).
 """
 @inline function prepare_cuda_call()
     tid = Threads.threadid()
-    task = current_task()
 
     # detect when a different task is now executing on a thread
-    if @inbounds thread_tasks[tid] != task
-        switched_tasks(tid, task)
+    task = @inbounds thread_tasks[tid]
+    if task === nothing || task.value === nothing || task.value::Task !== current_task()
+        switched_tasks(tid, current_task())
     end
 
-    # initialize a CUDA context when first executing on a thread
-    if @inbounds thread_contexts[tid] === nothing
+    # initialize CUDA state when first executing on a thread
+    state = @inbounds thread_state[tid]
+    if state === nothing
         initialize_thread(tid)
     end
 
+    # FIXME: this is expensive. Maybe kernels should return a `wait`able object, a la KA.jl,
+    #        which then performs the necessary checks. Or only check when launching kernels.
     check_exceptions()
 
     return
-end
-
-# the default device unitialized tasks will use, set when switching devices.
-# this behavior differs from the CUDA Runtime, where device 0 is always used.
-# this setting won't be used when switching tasks on a pre-initialized thread.
-const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
-
-# CUDA uses thread-bound contexts, but calling CuCurrentContext all the time is expensive,
-# so we maintain our own thread-local state keeping track of the current context.
-const thread_contexts = Union{Nothing,CuContext}[]
-@noinline function initialize_thread(tid::Int)
-    ctx = CuCurrentContext()
-    if ctx === nothing
-        dev = something(default_device[], CuDevice(0))
-        device!(dev)
-    else
-        # compatibility with externally-initialized contexts
-        thread_contexts[tid] = ctx
-    end
-
 end
 
 # Julia executes with tasks, so we need to keep track of the active task for each thread
@@ -65,7 +88,7 @@ end
 const thread_tasks = Union{Nothing,WeakRef}[]
 @noinline function switched_tasks(tid::Int, task::Task)
     thread_tasks[tid] = WeakRef(task)
-    _attaskswitch(tid, task)
+    _attaskswitch()
 
     # switch contexts if task switched to was already bound to one
     ctx = get(task_local_storage(), :CuContext, nothing)
@@ -76,17 +99,26 @@ const thread_tasks = Union{Nothing,WeakRef}[]
     #       but that confuses CUDA and leads to invalid contexts later on.
 end
 
-"""
-    CUDA.attaskswitch(f::Function)
+# the default device unitialized tasks will use, set when switching devices.
+# this behavior differs from the CUDA Runtime, where device 0 is always used.
+# this setting won't be used when switching tasks on a pre-initialized thread.
+const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 
-Register a function to be called after switching tasks on a thread. The function is passed
-two arguments: the thread ID, and the task switched to.
-
-Use this hook to invalidate thread-local state that depends on the current task.
-"""
-attaskswitch(f::Function) = (pushfirst!(task_hooks, f); nothing)
-const task_hooks = []
-_attaskswitch(tid, task) = foreach(f->Base.invokelatest(f, tid, task), task_hooks)
+# CUDA uses thread-bound state, but calling CuCurrent* all the time is expensive,
+# so we maintain our own thread-local copy keeping track of the current CUDA state.
+const CuCurrentState = NamedTuple{(:ctx, :dev), Tuple{CuContext,CuDevice}}
+const thread_state = Union{Nothing,CuCurrentState}[]
+@noinline function initialize_thread(tid::Int)
+    ctx = CuCurrentContext()
+    if ctx === nothing
+        dev = something(default_device[], CuDevice(0))
+        device!(dev)
+    else
+        # compatibility with externally-initialized contexts
+        dev = CuCurrentDevice()
+        thread_state[tid] = (;ctx=ctx, dev=dev)
+    end
+end
 
 
 ## context-based API
@@ -102,13 +134,12 @@ current thread).
     tid = Threads.threadid()
 
     prepare_cuda_call()
-    ctx = @inbounds thread_contexts[tid]::CuContext
+    state = @inbounds thread_state[tid]::CuCurrentState
 
     if Base.JLOptions().debug_level >= 2
-        @assert ctx == CuCurrentContext()
+        @assert state.ctx == CuCurrentContext()
     end
-
-    ctx
+    state.ctx
 end
 
 """
@@ -117,16 +148,17 @@ end
 Bind the current host thread to the context `ctx`.
 
 Note that the contexts used with this call should be previously acquired by calling
-[`context`](@ref), and not arbirary contexts created by calling the `CuContext` constructor.
+[`context`](@ref), and not arbitrary contexts created by calling the `CuContext` constructor.
 """
 function context!(ctx::CuContext)
     # update the thread-local state
     tid = Threads.threadid()
-    thread_ctx = @inbounds thread_contexts[tid]
-    if thread_ctx != ctx
-        thread_contexts[tid] = ctx
+    state = @inbounds thread_state[tid]
+    if state === nothing || state.ctx != ctx
         activate(ctx)
-        _atcontextswitch(tid, ctx)
+        dev = CuCurrentDevice()
+        thread_state[tid] = (;ctx=ctx, dev=dev)
+        _atdeviceswitch()
     end
 
     # update the task-local state
@@ -152,23 +184,26 @@ function context!(f::Function, ctx::CuContext)
     end
 end
 
-"""
-    CUDA.atcontextswitch(f::Function)
-
-Register a function to be called after switching contexts on a thread. The function is
-passed two arguments: the thread ID, and the context switched to.
-
-If the new context is `nothing`, this indicates that the context is being unbound from this
-thread (typically during device reset).
-
-Use this hook to invalidate thread-local state that depends on the current device or context.
-"""
-atcontextswitch(f::Function) = (pushfirst!(context_hooks, f); nothing)
-const context_hooks = []
-_atcontextswitch(tid, ctx) = foreach(f->Base.invokelatest(f, tid, ctx), context_hooks)
-
 
 ## device-based API
+
+"""
+    device()::CuDevice
+
+Get the CUDA device for the current thread, similar to how [`context()`](@ref) works
+compared to [`CuCurrentContext()`](@ref).
+"""
+@inline function device()
+    tid = Threads.threadid()
+
+    prepare_cuda_call()
+    state = @inbounds thread_state[tid]::CuCurrentState
+
+    if Base.JLOptions().debug_level >= 2
+        @assert state.dev == CuCurrentDevice()
+    end
+    state.dev
+end
 
 """
     device!(dev::Integer)
@@ -182,7 +217,7 @@ for initial set-up of the environment. If you need to switch devices on a regula
 work with contexts instead and call [`context!`](@ref) directly (5-10ns).
 
 If your library or code needs to perform an action when the active context changes,
-add a hook using [`CUDA.atcontextswitch`](@ref).
+add a hook using [`CUDA.atdeviceswitch`](@ref).
 """
 function device!(dev::CuDevice, flags=nothing)
     tid = Threads.threadid()
@@ -195,7 +230,8 @@ function device!(dev::CuDevice, flags=nothing)
     end
 
     # bail out if switching to the current device
-    if @inbounds thread_contexts[tid] !== nothing && dev == device()
+    state = @inbounds thread_state[tid]
+    if state !== nothing && state.dev == dev
         return
     end
 
@@ -214,39 +250,56 @@ device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 Sets the active device for the duration of `f`.
 """
 function device!(f::Function, dev::CuDevice)
-    old_ctx = CuCurrentContext()
+    ctx = CuCurrentContext()
     try
         device!(dev)
         f()
     finally
-        if old_ctx != nothing
-            context!(old_ctx)
+        if ctx != nothing
+            context!(ctx)
         end
     end
 end
-device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
 """
     device_reset!(dev::CuDevice=device())
 
 Reset the CUDA state associated with a device. This call with release the underlying
 context, at which point any objects allocated in that context will be invalidated.
+
+If your library or code needs to perform an action when the active context changes,
+add a hook using [`CUDA.atdevicereset`](@ref). Resetting the device will also cause
+subsequent API calls to fire the [`CUDA.atdeviceswitch`](@ref) hook.
 """
 function device_reset!(dev::CuDevice=device())
-    pctx = CuPrimaryContext(dev)
-    ctx = CuContext(pctx)
-
     # unconditionally reset the primary context (don't just release it),
     # as there might be users outside of CUDA.jl
+    pctx = CuPrimaryContext(dev)
     unsafe_reset!(pctx)
 
-    # wipe the context handles for all threads using this device
-    for (tid, thread_ctx) in enumerate(thread_contexts)
-        if thread_ctx == ctx
-            thread_contexts[tid] = nothing
-            _atcontextswitch(tid, nothing)
+    # wipe the thread-local state for all threads using this device
+    for (tid, state) in enumerate(thread_state)
+        if state !== nothing && state.dev == dev
+            thread_state[tid] = nothing
         end
     end
 
+    _atdevicereset(dev)
+
     return
 end
+
+
+## integer device-based API
+
+"""
+    deviceid(dev::CuDevice=device())::Int
+    deviceid()::Int
+
+Get the ID number of the current device of execution. This is a 1-indexed number, and can
+be used to index, e.g., thread-local state. It should not be used to acquire a `CuDevice`;
+use [`device()`](@ref) for that.
+"""
+deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev)) + 1
+
+device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))

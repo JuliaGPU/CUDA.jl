@@ -302,7 +302,7 @@ end
 function _cufunction(source::FunctionSpec; kwargs...)
     # compile to PTX
     ctx = context()
-    dev = device(ctx)
+    dev = device()
     cap = supported_capability(dev)
     target = PTXCompilerTarget(; cap=supported_capability(dev), kwargs...)
     params = CUDACompilerParams()

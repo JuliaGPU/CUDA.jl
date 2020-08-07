@@ -26,5 +26,6 @@ react to context or task switches:
 
 ```@docs
 CUDA.attaskswitch
-CUDA.atcontextswitch
+CUDA.atdeviceswitch
+CUDA.atdevicereset
 ```

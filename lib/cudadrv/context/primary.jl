@@ -40,7 +40,7 @@ does not respect any users of the context, and might make other objects unusable
 """
 function unsafe_release!(ctx::CuContext)
     if isvalid(ctx)
-        dev = device(ctx)
+        dev = CuDevice(ctx)
         pctx = CuPrimaryContext(dev)
         if version() >= v"11"
             cuDevicePrimaryCtxRelease_v2(dev)
