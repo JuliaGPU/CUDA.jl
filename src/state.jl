@@ -176,14 +176,33 @@ Sets the active context for the duration of `f`.
 function context!(f::Function, ctx::CuContext)
     @assert isvalid(ctx)
     old_ctx = CuCurrentContext()
+    if ctx != old_ctx
+        context!(ctx)
+    end
     try
-        if ctx !== old_ctx
-            context!(ctx)
-        end
         f()
     finally
         if ctx !== old_ctx && old_ctx !== nothing
             context!(old_ctx)
+        end
+    end
+end
+
+# macro version for maximal performance (avoiding closures)
+macro context!(ctx_expr, expr)
+    quote
+        ctx = $(esc(ctx_expr))
+        @assert isvalid(ctx)
+        old_ctx = CuCurrentContext()
+        if ctx != old_ctx
+            context!(temp)
+        end
+        try
+            $(esc(expr))
+        finally
+            if ctx !== old_ctx && old_ctx !== nothing
+                context!(old_ctx)
+            end
         end
     end
 end
@@ -246,7 +265,6 @@ function device!(dev::CuDevice, flags=nothing)
     ctx = CuContext(pctx)
     context!(ctx)
 end
-device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 
 """
     device!(f, dev)
@@ -254,13 +272,13 @@ device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 Sets the active device for the duration of `f`.
 """
 function device!(f::Function, dev::CuDevice)
-    ctx = CuCurrentContext()
+    old_ctx = CuCurrentContext()
+    device!(dev)
     try
-        device!(dev)
         f()
     finally
-        if ctx != nothing
-            context!(ctx)
+        if old_ctx != nothing
+            context!(old_ctx)
         end
     end
 end
@@ -296,14 +314,15 @@ end
 
 ## integer device-based API
 
+device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
+device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
+
 """
     deviceid(dev::CuDevice=device())::Int
     deviceid()::Int
 
-Get the ID number of the current device of execution. This is a 1-indexed number, and can
-be used to index, e.g., thread-local state. It should not be used to acquire a `CuDevice`;
-use [`device()`](@ref) for that.
+Get the ID number of the current device of execution. This is a 1-indexed number, and can be
+used to index, e.g., thread-local state. It should not be used to acquire a `CuDevice`, or
+to pass to [`device!`](@ref); use [`device()`](@ref) for that.
 """
 deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev)) + 1
-
-device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))

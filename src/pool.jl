@@ -126,44 +126,40 @@ CuPtrInContext{T} = NamedTuple{(:ptr, :ctx),Tuple{CuPtr{T},CuContext}}
 const allocated = Dict{CuPtrInContext,Mem.DeviceBuffer}()
 
 function actual_alloc(ctx::CuContext, bytes::Integer)
-  @assert isvalid(ctx) "Cannot allocate on invalid context $ctx (CuCurrentContext()=$(CuCurrentContext()), context()=$(context())"
-  time, buf = context!(ctx) do
+  buf = @context! ctx begin
     devid = deviceid()
 
     # check the memory allocation limit
     if usage[devid][] + bytes > usage_limit[devid]
-      return 0, nothing
+      return nothing
     end
 
     # try the actual allocation
-    time, buf = try
+    try
       time = Base.@elapsed begin
         @timeit_debug alloc_to "alloc" begin
           buf = Mem.alloc(Mem.Device, bytes)
         end
       end
+
       Threads.atomic_add!(usage[devid], bytes)
-      time, buf
+      alloc_stats.actual_time += time
+      alloc_stats.actual_nalloc += 1
+      alloc_stats.actual_alloc += bytes
+
+      buf
     catch err
       (isa(err, CuError) && err.code == ERROR_OUT_OF_MEMORY) || rethrow()
-      0, nothing
+      return nothing
     end
-
-    time, buf
   end
-  buf === nothing && return
-  @assert sizeof(buf) == bytes
-  ptr = convert(CuPtr{Nothing}, buf)
 
-  # record the buffer
+  # convert to a pointer and record the buffer
+  ptr = convert(CuPtr{Nothing}, buf)
   @safe_lock memory_lock begin
     @assert !haskey(allocated, (; ptr=ptr, ctx=ctx))
     allocated[(; ptr=ptr, ctx=ctx)] = buf
   end
-
-  alloc_stats.actual_time += time
-  alloc_stats.actual_nalloc += 1
-  alloc_stats.actual_alloc += bytes
 
   return ptr
 end
@@ -180,7 +176,7 @@ function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
   bytes = sizeof(buf)
 
   if isvalid(ctx)
-    time = context!(ctx) do
+    @context! ctx begin
       devid = deviceid()
 
       # free the memory
@@ -188,15 +184,13 @@ function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
         time = Base.@elapsed begin
           Mem.free(buf)
         end
+
         Threads.atomic_sub!(usage[devid], bytes)
+        alloc_stats.actual_time += time
+        alloc_stats.actual_nfree += 1
+        alloc_stats.actual_free += bytes
       end
-
-      time
     end
-
-    alloc_stats.actual_time += time
-    alloc_stats.actual_nfree += 1
-    alloc_stats.actual_free += bytes
   end
 
   return
