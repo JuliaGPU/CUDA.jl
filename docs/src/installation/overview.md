@@ -104,3 +104,60 @@ available for your system. You can do so by setting the environment variable
 To troubleshoot discovery of a local CUDA installation, you can set `JULIA_DEBUG=CUDA` and
 see the various paths where CUDA.jl looks. By setting any of the `CUDA_HOME`, `CUDA_ROOT` or
 `CUDA_PATH` environment variables, you can guide the package to a specific directory.
+
+
+
+## Containers
+
+CUDA.jl is container friendly: You can install, precompile, and even import the package on a
+system without a GPU, as is often the case when building an image:
+
+```
+$ docker run --rm -it julia
+
+(@v1.5) pkg> add CUDA
+
+(@v1.5) pkg> precompile
+Precompiling project...
+[ Info: Precompiling CUDA [052768ef-5323-5732-b1bb-66c8b64840ba]
+
+(@v1.5) pkg>
+```
+
+At run time you obviously do need a CUDA-compatible GPU as well as the CUDA driver library
+to interface with it. Typically, that library is imported from the host system, e.g., by
+launching `docker` using the `--gpus=all` flag. Because of how the NVIDIA container runtime
+works, you also need to define the `NVIDIA_VISIBLE_DEVICES` and `NVIDIA_DRIVER_CAPABILITIES`
+environment variables to configure which parts of the host driver are made available:
+
+```
+$ docker run --rm -it --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=compute,utility julia
+
+julia> using CUDA
+
+julia> CUDA.version()
+Downloading artifact: CUDA110
+v"11.0.0"
+```
+
+Note that your image needs to provide `libgomp`, e.g. by executing `apt install libgomp1`.
+
+If you want to use an image that already provide the CUDA toolkit, you can set the
+`JULIA_CUDA_USE_BINARYBUILDER` environment variable to `false` as documented above. For
+example, you could use NVIDIA's [official CUDA
+images](https://hub.docker.com/r/nvidia/cuda/) (which also do not require you to define the
+`NVIDIA_VISIBLE_DEVICES` or `NVIDIA_DRIVER_CAPABILITIES`). Of course, these images do not
+come with Julia pre-installed.
+
+Combining both, the [Julia NGC images](https://ngc.nvidia.com/catalog/containers/hpc:julia)
+come with both Julia and the CUDA toolkit pre-installed, together with the CUDA.jl package
+for maximum ease-of-use:
+
+```
+$ docker run --rm -it --gpus=all nvcr.io/hpc/julia:v1.2.0
+
+julia> using CuArrays
+```
+
+Note that the current version of this image is woefully outdated, but you can find the
+updated source [on GitHub](https://github.com/maleadt/julia-ngc).
