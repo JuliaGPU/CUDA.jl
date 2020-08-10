@@ -455,7 +455,7 @@ macro timed(ex)
         local cpu_time0 = time_ns()
 
         # fine-grained synchronization of the code under analysis
-        local val = @sync $(esc(ex))
+        local val = @sync blocking=false $(esc(ex))
 
         local cpu_time1 = time_ns()
         local cpu_mem_stats1 = Base.gc_num()

@@ -132,6 +132,9 @@ function __runtime_init__()
         end
     end
 
+    resize!(device_contexts, ndevices())
+    fill!(device_contexts, nothing)
+
     __init_compatibility__()
 
     return

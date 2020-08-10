@@ -233,6 +233,24 @@ compared to [`CuCurrentContext()`](@ref).
     state.dev
 end
 
+const device_contexts = Union{Nothing,CuContext}[]
+function context(dev::CuDevice)
+    tid = Threads.threadid()
+    devidx = deviceid(dev)+1
+
+    # querying the primary context for a device is expensive, so cache it
+    ctx = @inbounds device_contexts[devidx]
+    if ctx !== nothing
+        return ctx
+    end
+
+    # configure the primary context
+    pctx = CuPrimaryContext(dev)
+    ctx = CuContext(pctx)
+    @inbounds device_contexts[devidx] = ctx
+    return ctx
+end
+
 """
     device!(dev::Integer)
     device!(dev::CuDevice)
@@ -240,22 +258,23 @@ end
 Sets `dev` as the current active device for the calling host thread. Devices can be
 specified by integer id, or as a `CuDevice` (slightly faster).
 
-Although this call is fairly cheap (50-100ns), it is only intended for interactive use, or
-for initial set-up of the environment. If you need to switch devices on a regular basis,
-work with contexts instead and call [`context!`](@ref) directly (5-10ns).
-
-If your library or code needs to perform an action when the active context changes,
+If your library or code needs to perform an action when the active device changes,
 add a hook using [`CUDA.atdeviceswitch`](@ref).
 """
 function device!(dev::CuDevice, flags=nothing)
     tid = Threads.threadid()
+    devidx = deviceid(dev)+1
 
-    # configure the primary context
-    pctx = CuPrimaryContext(dev)
+    # configure the primary context flags
     if flags !== nothing
-        @assert !isactive(pctx) "Cannot set flags for an active device. Do so before calling any CUDA function, or reset the device first."
+        if @inbounds device_contexts[devidx] !== nothing
+            error("Cannot set flags for an active device. Do so before calling any CUDA function, or reset the device first.")
+        end
         cuDevicePrimaryCtxSetFlags(dev, flags)
     end
+
+    # make this device the new default
+    default_device[] = dev
 
     # bail out if switching to the current device
     state = @inbounds thread_state[tid]
@@ -263,11 +282,8 @@ function device!(dev::CuDevice, flags=nothing)
         return
     end
 
-    # have new threads use this device as well
-    default_device[] = dev
-
-    # activate a context
-    ctx = CuContext(pctx)
+    # actually switch contexts
+    ctx = context(dev)
     context!(ctx)
 end
 
@@ -310,6 +326,10 @@ function device_reset!(dev::CuDevice=device())
             thread_state[tid] = nothing
         end
     end
+
+    # wipe the device-specific state
+    devidx = deviceid(dev)+1
+    device_contexts[devidx] = nothing
 
     _atdevicereset(dev)
 

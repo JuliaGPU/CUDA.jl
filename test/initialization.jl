@@ -64,7 +64,7 @@ context!(ctx) do
     nothing
 end
 
-@test_throws AssertionError device!(0, CUDA.CU_CTX_SCHED_YIELD)
+@test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
 reset_cb()
 
