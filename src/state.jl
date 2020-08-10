@@ -1,4 +1,9 @@
 # global state management
+#
+# The functionality in this file serves to create a coherent environment to perform
+# computations in, with support for Julia constructs like tasks (and executing those on
+# multiple threads), using a GPU of your choice (with the ability to reset that device, or
+# use different devices on different threads).
 
 export context, context!, device, device!, device_reset!, deviceid
 
