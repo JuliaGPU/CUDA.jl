@@ -141,4 +141,8 @@ if length(devices()) > 1
     @test device() == CuDevice(0)
 end
 
-@test deviceid() >= 1
+@test deviceid() >= 0
+@test deviceid(CuDevice(0)) == 0
+if length(devices()) > 1
+    @test deviceid(CuDevice(1)) == 1
+end

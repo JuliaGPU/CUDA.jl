@@ -323,11 +323,10 @@ device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
 
 """
-    deviceid(dev::CuDevice=device())::Int
     deviceid()::Int
+    deviceid(dev::CuDevice)::Int
 
-Get the ID number of the current device of execution. This is a 1-indexed number, and can be
-used to index, e.g., thread-local state. It should not be used to acquire a `CuDevice`, or
-to pass to [`device!`](@ref); use [`device()`](@ref) for that.
+Get the ID number of the current device of execution. This is a 0-indexed number,
+corresponding to the device ID as known to CUDA.
 """
-deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev)) + 1
+deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))

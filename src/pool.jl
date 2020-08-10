@@ -127,10 +127,10 @@ const allocated = Dict{CuPtrInContext,Mem.DeviceBuffer}()
 
 function actual_alloc(ctx::CuContext, bytes::Integer)
   buf = @context! ctx begin
-    devid = deviceid()
+    devidx = deviceid() + 1
 
     # check the memory allocation limit
-    if usage[devid][] + bytes > usage_limit[devid]
+    if usage[devidx][] + bytes > usage_limit[devidx]
       return nothing
     end
 
@@ -142,7 +142,7 @@ function actual_alloc(ctx::CuContext, bytes::Integer)
         end
       end
 
-      Threads.atomic_add!(usage[devid], bytes)
+      Threads.atomic_add!(usage[devidx], bytes)
       alloc_stats.actual_time += time
       alloc_stats.actual_nalloc += 1
       alloc_stats.actual_alloc += bytes
@@ -178,7 +178,7 @@ function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
 
   if isvalid(ctx)
     @context! ctx begin
-      devid = deviceid()
+      devidx = deviceid() + 1
 
       # free the memory
       @timeit_debug alloc_to "free" begin
@@ -186,7 +186,7 @@ function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
           Mem.free(buf)
         end
 
-        Threads.atomic_sub!(usage[devid], bytes)
+        Threads.atomic_sub!(usage[devidx], bytes)
         alloc_stats.actual_time += time
         alloc_stats.actual_nfree += 1
         alloc_stats.actual_free += bytes
@@ -478,7 +478,7 @@ end
 Report to `io` on the memory status of the current GPU and the active memory pool.
 """
 function memory_status(io::IO=stdout)
-  devid = deviceid()
+  devidx = deviceid() + 1
 
   free_bytes, total_bytes = Mem.info()
   used_bytes = total_bytes - free_bytes
@@ -487,9 +487,9 @@ function memory_status(io::IO=stdout)
               100*used_ratio, Base.format_bytes(used_bytes),
               Base.format_bytes(total_bytes))
 
-  @printf(io, "CUDA allocator usage: %s", Base.format_bytes(usage[devid][]))
-  if usage_limit[devid] !== typemax(Int)
-    @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[devid]))
+  @printf(io, "CUDA allocator usage: %s", Base.format_bytes(usage[devidx][]))
+  if usage_limit[devidx] !== typemax(Int)
+    @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[devidx]))
   end
   println(io)
 
@@ -502,7 +502,7 @@ function memory_status(io::IO=stdout)
 
   # check if the memory usage as counted by the CUDA allocator wrapper
   # matches what is reported by the pool implementation
-  discrepancy = Base.abs(usage[devid][] - alloc_total_bytes)
+  discrepancy = Base.abs(usage[devidx][] - alloc_total_bytes)
   if discrepancy != 0
     println(io, "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator!")
   end
@@ -541,9 +541,9 @@ function __init_memory__()
   resize!(usage_limit, ndevices())
   usage_limit .= nothing
   atdeviceswitch() do
-    devid = deviceid()
-    if usage_limit[devid] == nothing
-      usage_limit[devid] = if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
+    devidx = deviceid() + 1
+    if usage_limit[devidx] == nothing
+      usage_limit[devidx] = if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
         parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
       elseif haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
         Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_memory__)
@@ -558,8 +558,8 @@ function __init_memory__()
   resize!(usage, ndevices())
   usage .= ntuple(_->Threads.Atomic{Int}(0), ndevices())
   atdevicereset() do dev
-    devid = deviceid(dev)
-    usage[devid][] = 0
+    devidx = deviceid(dev) + 1
+    usage[devidx][] = 0
   end
 
   # memory pool configuration
