@@ -200,7 +200,7 @@ macro context!(ctx_expr, expr)
         @assert isvalid(ctx)
         old_ctx = CuCurrentContext()
         if ctx != old_ctx
-            context!(temp)
+            context!(ctx)
         end
         try
             $(esc(expr))
@@ -291,36 +291,20 @@ end
     device!(f, dev)
 
 Sets the active device for the duration of `f`.
+
+Note that this call is intended for temporarily switching devices, and does not change the
+default device used to initialize new threads or tasks.
 """
 function device!(f::Function, dev::CuDevice)
-    old_ctx = CuCurrentContext()
-    device!(dev)
-    try
-        f()
-    finally
-        if old_ctx != nothing
-            context!(old_ctx)
-        end
-    end
+    ctx = context(dev)
+    context!(f, ctx)
 end
 
-# macro version for maximal performance (avoiding closures)
-# NOTE: doesn't set flags, or alter the default device
 macro device!(dev_expr, expr)
     quote
         dev = $(esc(dev_expr))
         ctx = context(dev)
-        old_ctx = CuCurrentContext()
-        if ctx != old_ctx
-            context!(temp)
-        end
-        try
-            $(esc(expr))
-        finally
-            if ctx !== old_ctx && old_ctx !== nothing
-                context!(old_ctx)
-            end
-        end
+        @context! ctx $(esc(expr))
     end
 end
 
