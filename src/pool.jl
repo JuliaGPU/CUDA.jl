@@ -222,12 +222,11 @@ pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 # - used_memory()
 # - cached_memory()
 
-include("pool/binned.jl")
-include("pool/simple.jl")
-include("pool/split.jl")
-include("pool/dummy.jl")
-
-const pool = Ref{Module}(BinnedPool)
+const pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
+const pool = let pool_path = joinpath(@__DIR__, "pool", "$(pool_name).jl")
+  isfile(pool_path) || error("Unknown memory pool $pool_name")
+  include(pool_path)
+end
 
 
 ## interface
@@ -262,7 +261,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   sz == 0 && return CU_NULL
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" ptr = pool[].alloc(sz)::Union{Nothing,CuPtr{Nothing}}
+    @pool_timeit "pooled alloc" ptr = pool.alloc(sz)::Union{Nothing,CuPtr{Nothing}}
   end
   ptr === nothing && throw(OutOfGPUMemoryError(sz))
 
@@ -313,7 +312,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" pool[].free(ptr)
+      @pool_timeit "pooled free" pool.free(ptr)
     end
 
     alloc_stats.pool_time += time
@@ -334,7 +333,7 @@ Reclaims `sz` bytes of cached memory. Use this to free GPU memory before calling
 functionality that does not use the CUDA memory pool. Returns the number of bytes
 actually reclaimed.
 """
-reclaim(sz::Int=typemax(Int)) = pool[].reclaim(sz)
+reclaim(sz::Int=typemax(Int)) = pool.reclaim(sz)
 
 """
     @retry_reclaim isfailed(ret) ex
@@ -493,10 +492,10 @@ function memory_status(io::IO=stdout)
   end
   println(io)
 
-  alloc_used_bytes = pool[].used_memory()
-  alloc_cached_bytes = pool[].cached_memory()
+  alloc_used_bytes = pool.used_memory()
+  alloc_cached_bytes = pool.cached_memory()
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
-  @printf(io, "%s usage: %s (%s allocated, %s cached)\n", nameof(pool[]),
+  @printf(io, "%s usage: %s (%s allocated, %s cached)\n", pool_name,
               Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
               Base.format_bytes(alloc_cached_bytes))
 
@@ -563,42 +562,12 @@ function __init_memory__()
   end
 
   # memory pool configuration
-  memory_pool_str = if haskey(ENV, "JULIA_CUDA_MEMORY_POOL")
-    ENV["JULIA_CUDA_MEMORY_POOL"]
-  elseif haskey(ENV, "CUARRAYS_MEMORY_POOL")
-    Base.depwarn("The CUARRAYS_MEMORY_POOL environment flag is deprecated, please use JULIA_CUDA_MEMORY_POOL instead.", :__init_memory__)
-    ENV["CUARRAYS_MEMORY_POOL"]
-  else
-    nothing
+  runtime_pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
+  if runtime_pool_name != pool_name
+      error("Cannot use memory pool '$runtime_pool_name' when CUDA.jl was precompiled for memory pool '$pool_name'.")
   end
-  if memory_pool_str !== nothing
-    pool[] =
-      if memory_pool_str == "binned"
-        BinnedPool
-      elseif memory_pool_str == "simple"
-        SimplePool
-      elseif memory_pool_str == "split"
-        SplittingPool
-      elseif memory_pool_str == "none"
-        DummyPool
-      else
-        error("Invalid allocator selected")
-      end
+  pool.init()
 
-    # the user hand-picked an allocator, so be a little verbose
-    atexit(()->begin
-      old_logger = global_logger()
-      global_logger(Logging.ConsoleLogger(Core.stderr, old_logger.min_level))
-      @debug """
-        CUDA.jl $(nameof(pool[])) statistics:
-         - $(alloc_stats.pool_nalloc) pool allocations: $(Base.format_bytes(alloc_stats.pool_alloc)) in $(Base.round(alloc_stats.pool_time; digits=2))s
-         - $(alloc_stats.actual_nalloc) CUDA allocations: $(Base.format_bytes(alloc_stats.actual_alloc)) in $(Base.round(alloc_stats.actual_time; digits=2))s"""
-      global_logger(old_logger)
-    end)
-  end
-
-  # initialization
-  pool[].init()
   reset_timers!()
 end
 
