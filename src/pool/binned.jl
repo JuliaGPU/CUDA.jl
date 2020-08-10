@@ -20,7 +20,7 @@ module BinnedPool
 # TODO: move the management thread one level up, to be shared by all allocators
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid, CuPtrInContext
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
 
 using DataStructures
 
@@ -51,13 +51,13 @@ end
 Base.pointer(block::Block) = block.ptr
 Base.sizeof(block::Block) = block.sz
 
-@inline function actual_alloc(ctx, sz)
-    ptr = CUDA.actual_alloc(ctx, sz)
+@inline function actual_alloc(dev, sz)
+    ptr = CUDA.actual_alloc(dev, sz)
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
-function actual_free(ctx, block::Block)
-    CUDA.actual_free(ctx, pointer(block))
+function actual_free(dev, block::Block)
+    CUDA.actual_free(dev, pointer(block))
     return
 end
 
@@ -65,26 +65,26 @@ end
 ## infrastructure
 
 const pool_lock = ReentrantLock()
-const pools_used = DefaultDict{CuContext,Vector{Set{Block}}}(()->Vector{Set{Block}}())
-const pools_avail = DefaultDict{CuContext,Vector{Vector{Block}}}(()->Vector{Vector{Block}}())
+const pools_used = PerDevice{Vector{Set{Block}}}((dev)->Vector{Set{Block}}())
+const pools_avail = PerDevice{Vector{Vector{Block}}}((dev)->Vector{Vector{Block}}())
 
 poolidx(n) = Base.ceil(Int, Base.log2(n))+1
 poolsize(idx) = 2^(idx-1)
 
 @assert poolsize(poolidx(MAX_POOL)) <= MAX_POOL "MAX_POOL cutoff should close a pool"
 
-function create_pools(ctx, idx)
-  if length(pool_usage[ctx]) >= idx
+function create_pools(dev, idx)
+  if length(pool_usage[dev]) >= idx
     # fast-path without taking a lock
     return
   end
 
   @lock pool_lock begin
-    while length(pool_usage[ctx]) < idx
-      push!(pool_usage[ctx], 1)
-      push!(pool_history[ctx], initial_usage)
-      push!(pools_used[ctx], Set{Block}())
-      push!(pools_avail[ctx], Vector{Block}())
+    while length(pool_usage[dev]) < idx
+      push!(pool_usage[dev], 1)
+      push!(pool_history[dev], initial_usage)
+      push!(pools_used[dev], Set{Block}())
+      push!(pools_avail[dev], Vector{Block}())
     end
   end
 end
@@ -94,43 +94,43 @@ end
 
 const initial_usage = Tuple(1 for _ in 1:USAGE_WINDOW)
 
-const pool_usage = DefaultDict{CuContext,Vector{Float64}}(()->Vector{Float64}())
-const pool_history = DefaultDict{CuContext,Vector{NTuple{USAGE_WINDOW,Float64}}}(()->Vector{NTuple{USAGE_WINDOW,Float64}}())
+const pool_usage = PerDevice{Vector{Float64}}((dev)->Vector{Float64}())
+const pool_history = PerDevice{Vector{NTuple{USAGE_WINDOW,Float64}}}((dev)->Vector{NTuple{USAGE_WINDOW,Float64}}())
 
 const freed_lock = NonReentrantLock()
-const freed = DefaultDict{CuContext,Vector{Block}}(()->Vector{Block}())
+const freed = PerDevice{Vector{Block}}((dev)->Vector{Block}())
 
 # scan every pool and manage the usage history
 #
 # returns a boolean indicating whether any pool is active (this can be a false negative)
-function scan(ctx)
+function scan(dev)
   GC.gc(false) # quick, incremental collection
 
   active = false
 
   @lock pool_lock begin
-    @inbounds for pid in 1:length(pool_history[ctx])
-      nused = length(pools_used[ctx][pid])
-      navail = length(pools_avail[ctx][pid])
-      history = pool_history[ctx][pid]
+    @inbounds for pid in 1:length(pool_history[dev])
+      nused = length(pools_used[dev][pid])
+      navail = length(pools_avail[dev][pid])
+      history = pool_history[dev][pid]
 
       if nused+navail > 0
-        usage = pool_usage[ctx][pid]
+        usage = pool_usage[dev][pid]
         current_usage = nused / (nused + navail)
 
         # shift the history window with the recorded usage
-        history = pool_history[ctx][pid]
-        pool_history[ctx][pid] = (Base.tail(pool_history[ctx][pid])..., usage)
+        history = pool_history[dev][pid]
+        pool_history[dev][pid] = (Base.tail(pool_history[dev][pid])..., usage)
 
         # reset the usage with the current one
-        pool_usage[ctx][pid] = current_usage
+        pool_usage[dev][pid] = current_usage
 
         if usage != current_usage
           active = true
         end
       else
-        pool_usage[ctx][pid] = 1
-        pool_history[ctx][pid] = initial_usage
+        pool_usage[dev][pid] = 1
+        pool_history[dev][pid] = initial_usage
       end
     end
   end
@@ -139,24 +139,24 @@ function scan(ctx)
 end
 
 # reclaim unused buffers
-function reclaim(target_bytes::Int=typemax(Int), ctx=context(); full::Bool=true)
-  repopulate(ctx)
+function reclaim(target_bytes::Int=typemax(Int), dev=device(); full::Bool=true)
+  repopulate(dev)
 
   @lock pool_lock begin
     # find inactive buffers
     @pool_timeit "scan" begin
-      pools_inactive = Vector{Int}(undef, length(pools_avail[ctx])) # pid => buffers that can be freed
+      pools_inactive = Vector{Int}(undef, length(pools_avail[dev])) # pid => buffers that can be freed
       if full
         # consider all currently unused buffers
-        for (pid, avail) in enumerate(pools_avail[ctx])
+        for (pid, avail) in enumerate(pools_avail[dev])
           pools_inactive[pid] = length(avail)
         end
       else
         # only consider inactive buffers
-        @inbounds for pid in 1:length(pool_usage[ctx])
-          nused = length(pools_used[ctx][pid])
-          navail = length(pools_avail[ctx][pid])
-          recent_usage = (pool_history[ctx][pid]..., pool_usage[ctx][pid])
+        @inbounds for pid in 1:length(pool_usage[dev])
+          nused = length(pools_used[dev][pid])
+          navail = length(pools_avail[dev][pid])
+          recent_usage = (pool_history[dev][pid]..., pool_usage[dev][pid])
 
           if navail > 0
             # reclaim as much as the usage allows
@@ -174,14 +174,14 @@ function reclaim(target_bytes::Int=typemax(Int), ctx=context(); full::Bool=true)
       freed_bytes = 0
       for pid in reverse(eachindex(pools_inactive))
         bytes = poolsize(pid)
-        avail = pools_avail[ctx][pid]
+        avail = pools_avail[dev][pid]
 
         bufcount = pools_inactive[pid]
         @assert bufcount <= length(avail)
         for i in 1:bufcount
           block = pop!(avail)
 
-          actual_free(ctx, block)
+          actual_free(dev, block)
 
           freed_bytes += bytes
           if freed_bytes >= target_bytes
@@ -195,11 +195,11 @@ function reclaim(target_bytes::Int=typemax(Int), ctx=context(); full::Bool=true)
 end
 
 # repopulate the "available" pools from the list of freed blocks
-function repopulate(ctx)
+function repopulate(dev)
   blocks = @safe_lock freed_lock begin
-    isempty(freed[ctx]) && return
-    blocks = Set(freed[ctx])
-    empty!(freed[ctx])
+    isempty(freed[dev]) && return
+    blocks = Set(freed[dev])
+    empty!(freed[dev])
     blocks
   end
 
@@ -207,8 +207,8 @@ function repopulate(ctx)
     for block in blocks
       pid = poolidx(sizeof(block))
 
-      @inbounds used = pools_used[ctx][pid]
-      @inbounds avail = pools_avail[ctx][pid]
+      @inbounds used = pools_used[dev][pid]
+      @inbounds avail = pools_avail[dev][pid]
 
       # mark the buffer as available
       delete!(used, block)
@@ -216,38 +216,38 @@ function repopulate(ctx)
 
       # update pool usage
       current_usage = length(used) / (length(used) + length(avail))
-      pool_usage[ctx][pid] = Base.max(pool_usage[ctx][pid], current_usage)
+      pool_usage[dev][pid] = Base.max(pool_usage[dev][pid], current_usage)
     end
   end
 
   return
 end
 
-function pool_alloc(ctx, bytes, pid=-1)
+function pool_alloc(dev, bytes, pid=-1)
   block = nothing
 
   # NOTE: checking the pool is really fast, and not included in the timings
   @lock pool_lock begin
-    if pid != -1 && !isempty(pools_avail[ctx][pid])
-      block = pop!(pools_avail[ctx][pid])
+    if pid != -1 && !isempty(pools_avail[dev][pid])
+      block = pop!(pools_avail[dev][pid])
     end
   end
 
   if block === nothing
     @pool_timeit "0. repopulate" begin
-      repopulate(ctx)
+      repopulate(dev)
     end
 
     @lock pool_lock begin
-      if pid != -1 && !isempty(pools_avail[ctx][pid])
-        block = pop!(pools_avail[ctx][pid])
+      if pid != -1 && !isempty(pools_avail[dev][pid])
+        block = pop!(pools_avail[dev][pid])
       end
     end
   end
 
   if block === nothing
     @pool_timeit "1. try alloc" begin
-      block = actual_alloc(ctx, bytes)
+      block = actual_alloc(dev, bytes)
     end
   end
 
@@ -257,12 +257,12 @@ function pool_alloc(ctx, bytes, pid=-1)
     end
 
     @pool_timeit "2b. repopulate" begin
-      repopulate(ctx)
+      repopulate(dev)
     end
 
     @lock pool_lock begin
-      if pid != -1 && !isempty(pools_avail[ctx][pid])
-        block = pop!(pools_avail[ctx][pid])
+      if pid != -1 && !isempty(pools_avail[dev][pid])
+        block = pop!(pools_avail[dev][pid])
       end
     end
   end
@@ -272,11 +272,11 @@ function pool_alloc(ctx, bytes, pid=-1)
 
   if block === nothing
     @pool_timeit "3. reclaim unused" begin
-      reclaim(bytes, ctx)
+      reclaim(bytes, dev)
     end
 
     @pool_timeit "4. try alloc" begin
-      block = actual_alloc(ctx, bytes)
+      block = actual_alloc(dev, bytes)
     end
   end
 
@@ -286,58 +286,58 @@ function pool_alloc(ctx, bytes, pid=-1)
     end
 
     @pool_timeit "5b. repopulate" begin
-      repopulate(ctx)
+      repopulate(dev)
     end
 
     @lock pool_lock begin
-      if pid != -1 && !isempty(pools_avail[ctx][pid])
-        block = pop!(pools_avail[ctx][pid])
+      if pid != -1 && !isempty(pools_avail[dev][pid])
+        block = pop!(pools_avail[dev][pid])
       end
     end
   end
 
   if block === nothing
     @pool_timeit "6. reclaim unused" begin
-      reclaim(bytes, ctx)
+      reclaim(bytes, dev)
     end
 
     @pool_timeit "7. try alloc" begin
-      block = actual_alloc(ctx, bytes)
+      block = actual_alloc(dev, bytes)
     end
   end
 
   if block === nothing
     @pool_timeit "8. reclaim everything" begin
-      reclaim(typemax(Int), ctx)
+      reclaim(typemax(Int), dev)
     end
 
     @pool_timeit "9. try alloc" begin
-      block = actual_alloc(ctx, bytes)
+      block = actual_alloc(dev, bytes)
     end
   end
 
   if block !== nothing && pid != -1
     @lock pool_lock begin
-      @inbounds used = pools_used[ctx][pid]
-      @inbounds avail = pools_avail[ctx][pid]
+      @inbounds used = pools_used[dev][pid]
+      @inbounds avail = pools_avail[dev][pid]
 
       # mark the buffer as used
       push!(used, block)
 
       # update pool usage
       current_usage = length(used) / (length(avail) + length(used))
-      pool_usage[ctx][pid] = Base.max(pool_usage[ctx][pid], current_usage)
+      pool_usage[dev][pid] = Base.max(pool_usage[dev][pid], current_usage)
     end
   end
 
   return block
 end
 
-function pool_free(ctx, block)
+function pool_free(dev, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
   @safe_lock_spin freed_lock begin
-    push!(freed[ctx], block)
+    push!(freed[dev], block)
   end
 end
 
@@ -345,9 +345,20 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtrInContext,Block}()
+const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
+  Dict{CuPtr,Block}()
+end
 
 function init()
+  initialize!(allocated, ndevices())
+  initialize!(freed, ndevices())
+
+  initialize!(pool_usage, ndevices())
+  initialize!(pool_history, ndevices())
+
+  initialize!(pools_used, ndevices())
+  initialize!(pools_avail, ndevices())
+
   managed_str = if haskey(ENV, "JULIA_CUDA_MEMORY_POOL_MANAGED")
     ENV["JULIA_CUDA_MEMORY_POOL_MANAGED"]
   elseif haskey(ENV, "CUARRAYS_MANAGED_POOL")
@@ -366,10 +377,10 @@ function init()
       sleep(60)
 
       while true
-        ctx = CuCurrentContext()
-        if ctx !== nothing
+        dev = CuCurrentdevice()
+        if dev !== nothing
           @pool_timeit "background task" begin
-            if scan(ctx)
+            if scan(dev)
               delay = MIN_DELAY
             else
               delay = Base.min(delay*2, MAX_DELAY)
@@ -385,23 +396,23 @@ function init()
   end
 end
 
-function alloc(bytes, ctx=context())
+function alloc(bytes, dev=device())
   @assert bytes > 0
 
   # only manage small allocations in the pool
   block = if bytes <= MAX_POOL
     pid = poolidx(bytes)
-    create_pools(ctx, pid)
+    create_pools(dev, pid)
     alloc_bytes = poolsize(pid)
-    pool_alloc(ctx, alloc_bytes, pid)
+    pool_alloc(dev, alloc_bytes, pid)
   else
-    pool_alloc(ctx, bytes)
+    pool_alloc(dev, bytes)
   end
 
   if block !== nothing
     ptr = pointer(block)
     @safe_lock allocated_lock begin
-      allocated[(; ptr=ptr, ctx=ctx)] = block
+      allocated[dev][ptr] = block
     end
     return ptr
   else
@@ -409,10 +420,11 @@ function alloc(bytes, ctx=context())
   end
 end
 
-function free(ptr, ctx=context())
+function free(ptr, dev=device())
   block = @safe_lock_spin allocated_lock begin
-    block = allocated[(; ptr=ptr, ctx=ctx)]
-    delete!(allocated, (; ptr=ptr, ctx=ctx))
+    haskey(allocated[dev], ptr) || return
+    block = allocated[dev][ptr]
+    delete!(allocated[dev], ptr)
     block
   end
   bytes = sizeof(block)
@@ -421,23 +433,23 @@ function free(ptr, ctx=context())
   # was this a pooled buffer?
   if bytes <= MAX_POOL
     pid = poolidx(bytes)
-    @assert pid <= length(pools_used[ctx])
+    @assert pid <= length(pools_used[dev])
     @assert pid == poolidx(sizeof(block))
-    pool_free(ctx, block)
+    pool_free(dev, block)
   else
-    actual_free(ctx, block)
+    actual_free(dev, block)
   end
 
   return
 end
 
-used_memory(ctx=context()) = @safe_lock allocated_lock begin
-  mapreduce(sizeof, +, values(filter(x->first(x).ctx == ctx, allocated)); init=0)
+used_memory(dev=device()) = @safe_lock allocated_lock begin
+  mapreduce(sizeof, +, values(allocated[dev]); init=0)
 end
 
-function cached_memory(ctx=context())
-  sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[ctx]; init=0)
-  @lock pool_lock for (pid, pl) in enumerate(pools_avail[ctx])
+function cached_memory(dev=device())
+  sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
+  @lock pool_lock for (pid, pl) in enumerate(pools_avail[dev])
     bytes = poolsize(pid)
     sz += bytes * length(pl)
   end

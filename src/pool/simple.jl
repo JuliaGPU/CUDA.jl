@@ -3,9 +3,7 @@ module SimplePool
 # simple scan into a list of free buffers
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, isvalid, CuPtrInContext
-
-using DataStructures
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
 
 using Base: @lock
 
@@ -36,13 +34,13 @@ end
 Base.pointer(block::Block) = block.ptr
 Base.sizeof(block::Block) = block.sz
 
-@inline function actual_alloc(ctx, sz)
-    ptr = CUDA.actual_alloc(ctx, sz)
+@inline function actual_alloc(dev, sz)
+    ptr = CUDA.actual_alloc(dev, sz)
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
-function actual_free(ctx, block::Block)
-    CUDA.actual_free(ctx, pointer(block))
+function actual_free(dev, block::Block)
+    CUDA.actual_free(dev, pointer(block))
     return
 end
 
@@ -50,54 +48,58 @@ end
 ## pooling
 
 const pool_lock = ReentrantLock()
-const pool = DefaultDict{CuContext,Set{Block}}(()->Set{Block}())
+const pool = PerDevice{Set{Block}}() do dev
+    Set{Block}()
+end
 
-const freed = DefaultDict{CuContext,Vector{Block}}(()->Vector{Block}())
 const freed_lock = NonReentrantLock()
+const freed = PerDevice{Vector{Block}}() do dev
+    Vector{Block}()
+end
 
-function scan(ctx, sz)
-    @lock pool_lock for block in pool[ctx]
+function scan(dev, sz)
+    @lock pool_lock for block in pool[dev]
         if sz <= sizeof(block) <= max_oversize(sz)
-            delete!(pool[ctx], block)
+            delete!(pool[dev], block)
             return block
         end
     end
     return
 end
 
-function repopulate(ctx)
+function repopulate(dev)
     blocks = @lock freed_lock begin
-        isempty(freed[ctx]) && return
-        blocks = Set(freed[ctx])
-        empty!(freed[ctx])
+        isempty(freed[dev]) && return
+        blocks = Set(freed[dev])
+        empty!(freed[dev])
         blocks
     end
 
     @lock pool_lock begin
         for block in blocks
-            @assert !in(block, pool[ctx])
-            push!(pool[ctx], block)
+            @assert !in(block, pool[dev])
+            push!(pool[dev], block)
         end
     end
 
     return
 end
 
-function reclaim(sz::Int=typemax(Int), ctx=context())
-    repopulate(ctx)
+function reclaim(sz::Int=typemax(Int), dev=device())
+    repopulate(dev)
 
     @lock pool_lock begin
         freed_bytes = 0
-        while freed_bytes < sz && !isempty(pool[ctx])
-            block = pop!(pool[ctx])
+        while freed_bytes < sz && !isempty(pool[dev])
+            block = pop!(pool[dev])
             freed_bytes += sizeof(block)
-            actual_free(ctx, block)
+            actual_free(dev, block)
         end
         return freed_bytes
     end
 end
 
-function pool_alloc(ctx, sz)
+function pool_alloc(dev, sz)
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -106,21 +108,21 @@ function pool_alloc(ctx, sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" repopulate(ctx)
+        @pool_timeit "$phase.1 repopulate" repopulate(dev)
 
         @pool_timeit "$phase.2 scan" begin
-            block = scan(ctx, sz)
+            block = scan(dev, sz)
         end
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(ctx, sz)
+            block = actual_alloc(dev, sz)
         end
         block === nothing || break
 
         @pool_timeit "$phase.4 reclaim + alloc" begin
-            reclaim(sz, ctx)
-            block = actual_alloc(ctx, sz)
+            reclaim(sz, dev)
+            block = actual_alloc(dev, sz)
         end
         block === nothing || break
     end
@@ -128,28 +130,34 @@ function pool_alloc(ctx, sz)
     return block
 end
 
-function pool_free(ctx, block)
+function pool_free(dev, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     @safe_lock_spin freed_lock begin
-        push!(freed[ctx], block)
+        push!(freed[dev], block)
     end
 end
 
 
 ## interface
 
-const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtrInContext,Block}()
+const pool_allocated_lock = NonReentrantLock()
+const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
+    Dict{CuPtr,Block}()
+end
 
-init() = return
+function init()
+    initialize!(pool, ndevices())
+    initialize!(freed, ndevices())
+    initialize!(allocated, ndevices())
+end
 
-function alloc(sz, ctx=context())
-    block = pool_alloc(ctx, sz)
+function alloc(sz, dev=device())
+    block = pool_alloc(dev, sz)
     if block !== nothing
         ptr = pointer(block)
-        @safe_lock allocated_lock begin
-            allocated[(; ptr=ptr, ctx=ctx)] = block
+        @safe_lock pool_allocated_lock begin
+            allocated[dev][ptr] = block
         end
         return ptr
     else
@@ -157,23 +165,26 @@ function alloc(sz, ctx=context())
     end
 end
 
-function free(ptr, ctx=context())
-    block = @safe_lock_spin allocated_lock begin
-        block = allocated[(; ptr=ptr, ctx=ctx)]
-        delete!(allocated, (; ptr=ptr, ctx=ctx))
+function free(ptr, dev=device())
+    block = @safe_lock_spin pool_allocated_lock begin
+        haskey(allocated[dev], ptr) || return
+        block = allocated[dev][ptr]
+        delete!(allocated[dev], ptr)
         block
     end
-    pool_free(ctx, block)
+    pool_free(dev, block)
     return
 end
 
-used_memory(ctx=context()) = @safe_lock allocated_lock begin
-  mapreduce(sizeof, +, values(filter(x->first(x).ctx == ctx, allocated)); init=0)
+function used_memory(dev=device())
+    @safe_lock pool_allocated_lock begin
+        mapreduce(sizeof, +, values(allocated[dev]); init=0)
+    end
 end
 
-function cached_memory(ctx=context())
-    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[ctx]; init=0)
-    sz += @lock pool_lock mapreduce(sizeof, +, pool[ctx]; init=0)
+function cached_memory(dev=device())
+    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
+    sz += @lock pool_lock mapreduce(sizeof, +, pool[dev]; init=0)
     return sz
 end
 

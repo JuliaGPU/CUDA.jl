@@ -304,6 +304,26 @@ function device!(f::Function, dev::CuDevice)
     end
 end
 
+# macro version for maximal performance (avoiding closures)
+# NOTE: doesn't set flags, or alter the default device
+macro device!(dev_expr, expr)
+    quote
+        dev = $(esc(dev_expr))
+        ctx = context(dev)
+        old_ctx = CuCurrentContext()
+        if ctx != old_ctx
+            context!(temp)
+        end
+        try
+            $(esc(expr))
+        finally
+            if ctx !== old_ctx && old_ctx !== nothing
+                context!(old_ctx)
+            end
+        end
+    end
+end
+
 """
     device_reset!(dev::CuDevice=device())
 
@@ -350,3 +370,49 @@ Get the ID number of the current device of execution. This is a 0-indexed number
 corresponding to the device ID as known to CUDA.
 """
 deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
+
+
+## helpers
+
+# helper struct to maintain state per device
+# - make it possible to index directly with CuDevice (without converting to integer index)
+# - initialize function to fill state based on a constructor function
+# - automatically wiping state on device reset
+struct PerDevice{T,F} <: AbstractVector{T}
+    inner::Vector{T}
+    ctor::F
+
+    PerDevice{T,F}(ctor::F) where {T,F<:Function} = new(Vector{T}(), ctor)
+end
+
+PerDevice{T}(ctor::F) where {T,F} = PerDevice{T,F}(ctor)
+
+function initialize!(x::PerDevice, n::Integer)
+    @assert isempty(x.inner)
+
+    resize!(x.inner, n)
+    for i in 0:n-1
+        x[i] = x.ctor(CuDevice(i))
+    end
+
+    atdevicereset() do dev
+        x[dev] = x.ctor(dev)
+    end
+
+    return
+end
+
+# 0-based indexing for using CUDA device identifiers
+Base.getindex(x::PerDevice, devidx::Integer) = x.inner[devidx+1]
+Base.setindex!(x::PerDevice, val, devidx::Integer) = (x.inner[devidx+1] = val; )
+
+# indexing using CuDevice objecs
+Base.getindex(x::PerDevice, dev::CuDevice) = x[deviceid(dev)]
+Base.setindex!(x::PerDevice, val, dev::CuDevice) = (x[deviceid(dev)] = val; )
+
+Base.length(x::PerDevice) = length(x.inner)
+Base.size(x::PerDevice) = size(x.inner)
+
+function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
+    print(io, "PerDevice{$T} with $(length(x)) entries")
+end

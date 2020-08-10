@@ -119,18 +119,28 @@ called.
 """
 alloc_timings() = (show(alloc_to; allocations=false, sortby=:name); println())
 
-const usage = Threads.Atomic{Int}[]
-const usage_limit = Union{Nothing,Int}[]
+const usage = PerDevice{Threads.Atomic{Int}}() do dev
+  Threads.Atomic{Int}(0)
+end
+const usage_limit = PerDevice{Int}() do dev
+  if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
+    parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
+  elseif haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
+    Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_memory__)
+    parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
+  else
+    typemax(Int)
+  end
+end
 
-CuPtrInContext{T} = NamedTuple{(:ptr, :ctx),Tuple{CuPtr{T},CuContext}}
-const allocated = Dict{CuPtrInContext,Mem.DeviceBuffer}()
+const allocated = PerDevice{Dict{CuPtr,Mem.DeviceBuffer}}() do dev
+  Dict{CuPtr,Mem.DeviceBuffer}()
+end
 
-function actual_alloc(ctx::CuContext, bytes::Integer)
-  buf = @context! ctx begin
-    devidx = deviceid() + 1
-
+function actual_alloc(dev::CuDevice, bytes::Integer)
+  buf = @device! dev begin
     # check the memory allocation limit
-    if usage[devidx][] + bytes > usage_limit[devidx]
+    if usage[dev][] + bytes > usage_limit[dev]
       return nothing
     end
 
@@ -142,7 +152,7 @@ function actual_alloc(ctx::CuContext, bytes::Integer)
         end
       end
 
-      Threads.atomic_add!(usage[devidx], bytes)
+      Threads.atomic_add!(usage[dev], bytes)
       alloc_stats.actual_time += time
       alloc_stats.actual_nalloc += 1
       alloc_stats.actual_alloc += bytes
@@ -157,40 +167,36 @@ function actual_alloc(ctx::CuContext, bytes::Integer)
   # convert to a pointer and record the buffer
   ptr = convert(CuPtr{Nothing}, buf)
   @safe_lock memory_lock begin
-    @assert !haskey(allocated, (; ptr=ptr, ctx=ctx))
-    allocated[(; ptr=ptr, ctx=ctx)] = buf
+    @assert !haskey(allocated[dev], ptr)
+    allocated[dev][ptr] = buf
   end
 
   return ptr
 end
 
-function actual_free(ctx::CuContext, ptr::CuPtr{Nothing})
+function actual_free(dev::CuDevice, ptr::CuPtr{Nothing})
   # look up the buffer
   # NOTE: we can't regularly take this lock from here (which could cause a task switch),
   #       but we know it can only be taken by another thread (as only finalizers can run
   #       concurrently on this thread, and we disable those in safe_lock)
   buf = @safe_lock_spin memory_lock begin
-    buf = allocated[(; ptr=ptr, ctx=ctx)]
-    delete!(allocated, (; ptr=ptr, ctx=ctx))
+    buf = allocated[dev][ptr]
+    delete!(allocated[dev], ptr)
     buf
   end
   bytes = sizeof(buf)
 
-  if isvalid(ctx)
-    @context! ctx begin
-      devidx = deviceid() + 1
-
-      # free the memory
-      @timeit_debug alloc_to "free" begin
-        time = Base.@elapsed begin
-          Mem.free(buf)
-        end
-
-        Threads.atomic_sub!(usage[devidx], bytes)
-        alloc_stats.actual_time += time
-        alloc_stats.actual_nfree += 1
-        alloc_stats.actual_free += bytes
+  @device! dev begin
+    # free the memory
+    @timeit_debug alloc_to "free" begin
+      time = Base.@elapsed begin
+        Mem.free(buf)
       end
+
+      Threads.atomic_sub!(usage[dev], bytes)
+      alloc_stats.actual_time += time
+      alloc_stats.actual_nfree += 1
+      alloc_stats.actual_free += bytes
     end
   end
 
@@ -233,7 +239,9 @@ end
 
 export OutOfGPUMemoryError
 
-const requested = Dict{CuPtrInContext{Nothing},Vector}()
+const requested = PerDevice{Dict{CuPtr{Nothing},Vector}}() do dev
+  Dict{CuPtr{Nothing},Vector}()
+end
 
 """
     OutOfGPUMemoryError()
@@ -267,11 +275,11 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 
   # record the allocation
   if Base.JLOptions().debug_level >= 2
-    ctx = context()
+    dev = device()
     bt = backtrace()
     @lock memory_lock begin
-      @assert !haskey(requested, (; ptr=ptr, ctx=ctx))
-      requested[(; ptr=ptr, ctx=ctx)] = bt
+      @assert !haskey(requested[dev], ptr)
+      requested[dev][ptr] = bt
     end
   end
 
@@ -305,9 +313,9 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     # record the allocation
     if Base.JLOptions().debug_level >= 2
       @lock memory_lock begin
-        ctx = context()
-        @assert haskey(requested, (; ptr=ptr, ctx=ctx))
-        delete!(requested, (; ptr=ptr, ctx=ctx))
+        dev = device()
+        @assert haskey(requested[dev], ptr)
+        delete!(requested[dev], ptr)
       end
     end
 
@@ -477,7 +485,7 @@ end
 Report to `io` on the memory status of the current GPU and the active memory pool.
 """
 function memory_status(io::IO=stdout)
-  devidx = deviceid() + 1
+  dev = device()
 
   free_bytes, total_bytes = Mem.info()
   used_bytes = total_bytes - free_bytes
@@ -486,9 +494,9 @@ function memory_status(io::IO=stdout)
               100*used_ratio, Base.format_bytes(used_bytes),
               Base.format_bytes(total_bytes))
 
-  @printf(io, "CUDA allocator usage: %s", Base.format_bytes(usage[devidx][]))
-  if usage_limit[devidx] !== typemax(Int)
-    @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[devidx]))
+  @printf(io, "CUDA allocator usage: %s", Base.format_bytes(usage[dev][]))
+  if usage_limit[dev] !== typemax(Int)
+    @printf(io, " (capped at %s)", Base.format_bytes(usage_limit[dev]))
   end
   println(io)
 
@@ -501,7 +509,7 @@ function memory_status(io::IO=stdout)
 
   # check if the memory usage as counted by the CUDA allocator wrapper
   # matches what is reported by the pool implementation
-  discrepancy = Base.abs(usage[devidx][] - alloc_total_bytes)
+  discrepancy = Base.abs(usage[dev][] - alloc_total_bytes)
   if discrepancy != 0
     println(io, "Discrepancy of $(Base.format_bytes(discrepancy)) between memory pool and allocator!")
   end
@@ -509,13 +517,12 @@ function memory_status(io::IO=stdout)
   if Base.JLOptions().debug_level >= 2
     ctx = context()
     requested′, allocated′ = @lock memory_lock begin
-      copy(requested), copy(allocated)
+      copy(requested[dev]), copy(allocated[dev])
     end
-    for (entry, bt) in requested′
-      entry.ctx == ctx || continue
-      buf = allocated′[entry]
+    for (ptr, bt) in requested′
+      buf = allocated′[ptr]
       @printf(io, "\nOutstanding memory allocation of %s at %p",
-              Base.format_bytes(sizeof(buf)), Int(entry.ptr))
+              Base.format_bytes(sizeof(buf)), Int(ptr))
       stack = stacktrace(bt, false)
       StackTraces.remove_frames!(stack, :alloc)
       Base.show_backtrace(io, stack)
@@ -537,29 +544,12 @@ disable_timings() = (TimerOutputs.disable_debug_timings(CUDA); return)
 
 function __init_memory__()
   # usage
-  resize!(usage_limit, ndevices())
-  usage_limit .= nothing
-  atdeviceswitch() do
-    devidx = deviceid() + 1
-    if usage_limit[devidx] == nothing
-      usage_limit[devidx] = if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
-        parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
-      elseif haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
-        Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_memory__)
-        parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
-      else
-        typemax(Int)
-      end
-    end
-  end
+  initialize!(usage_limit, ndevices())
+  initialize!(usage, ndevices())
 
-  # usage counting
-  resize!(usage, ndevices())
-  usage .= ntuple(_->Threads.Atomic{Int}(0), ndevices())
-  atdevicereset() do dev
-    devidx = deviceid(dev) + 1
-    usage[devidx][] = 0
-  end
+  # ptr to buffer translation
+  initialize!(allocated, ndevices())
+  initialize!(requested, ndevices())
 
   # memory pool configuration
   runtime_pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
