@@ -49,7 +49,7 @@ function free(ptr, dev=device())
         sz
     end
 
-    CUDA.actual_free(dev, ptr)
+    CUDA.actual_free(dev, ptr, sz)
     return
 end
 

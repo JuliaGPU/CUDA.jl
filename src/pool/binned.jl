@@ -57,7 +57,7 @@ Base.sizeof(block::Block) = block.sz
 end
 
 function actual_free(dev, block::Block)
-    CUDA.actual_free(dev, pointer(block))
+    CUDA.actual_free(dev, pointer(block), sizeof(block))
     return
 end
 

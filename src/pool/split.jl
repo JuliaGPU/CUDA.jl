@@ -114,7 +114,8 @@ function actual_free(dev, block::Block)
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
-        CUDA.actual_free(dev, block.ptr)
+        @assert block.off == 0
+        CUDA.actual_free(dev, pointer(block), sizeof(block))
         block.state = INVALID
     end
     return

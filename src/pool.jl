@@ -24,7 +24,7 @@ end
 
 Base.unlock(nrl::NonReentrantLock) = unlock(nrl.rl)
 
-# global lock for shared object dicts (allocated, requested).
+# global lock for shared object dicts.
 # stats are not covered by this and cannot be assumed to be exact.
 # each allocator needs to lock its own resources separately too.
 const memory_lock = NonReentrantLock()
@@ -133,10 +133,6 @@ const usage_limit = PerDevice{Int}() do dev
   end
 end
 
-const allocated = PerDevice{Dict{CuPtr,Mem.DeviceBuffer}}() do dev
-  Dict{CuPtr,Mem.DeviceBuffer}()
-end
-
 function actual_alloc(dev::CuDevice, bytes::Integer)
   buf = @device! dev begin
     # check the memory allocation limit
@@ -164,27 +160,12 @@ function actual_alloc(dev::CuDevice, bytes::Integer)
     end
   end
 
-  # convert to a pointer and record the buffer
-  ptr = convert(CuPtr{Nothing}, buf)
-  @safe_lock memory_lock begin
-    @assert !haskey(allocated[dev], ptr)
-    allocated[dev][ptr] = buf
-  end
-
-  return ptr
+  # convert to a pointer
+  return convert(CuPtr{Nothing}, buf)
 end
 
-function actual_free(dev::CuDevice, ptr::CuPtr{Nothing})
-  # look up the buffer
-  # NOTE: we can't regularly take this lock from here (which could cause a task switch),
-  #       but we know it can only be taken by another thread (as only finalizers can run
-  #       concurrently on this thread, and we disable those in safe_lock)
-  buf = @safe_lock_spin memory_lock begin
-    buf = allocated[dev][ptr]
-    delete!(allocated[dev], ptr)
-    buf
-  end
-  bytes = sizeof(buf)
+function actual_free(dev::CuDevice, ptr::CuPtr{Nothing}, bytes::Int)
+  buf = Mem.DeviceBuffer(ptr, bytes)
 
   @device! dev begin
     # free the memory
@@ -239,8 +220,8 @@ end
 
 export OutOfGPUMemoryError
 
-const requested = PerDevice{Dict{CuPtr{Nothing},Vector}}() do dev
-  Dict{CuPtr{Nothing},Vector}()
+const requested = PerDevice{Dict{CuPtr{Nothing},Any}}() do dev
+  Dict{CuPtr{Nothing},Any}()
 end
 
 """
@@ -279,7 +260,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
     bt = backtrace()
     @lock memory_lock begin
       @assert !haskey(requested[dev], ptr)
-      requested[dev][ptr] = bt
+      requested[dev][ptr] = (bt,sz)
     end
   end
 
@@ -516,13 +497,10 @@ function memory_status(io::IO=stdout)
 
   if Base.JLOptions().debug_level >= 2
     ctx = context()
-    requested′, allocated′ = @lock memory_lock begin
-      copy(requested[dev]), copy(allocated[dev])
-    end
-    for (ptr, bt) in requested′
-      buf = allocated′[ptr]
+    requested′ = @lock memory_lock copy(requested[dev])
+    for (ptr, (bt,sz)) in requested′
       @printf(io, "\nOutstanding memory allocation of %s at %p",
-              Base.format_bytes(sizeof(buf)), Int(ptr))
+              Base.format_bytes(sz), Int(ptr))
       stack = stacktrace(bt, false)
       StackTraces.remove_frames!(stack, :alloc)
       Base.show_backtrace(io, stack)
@@ -547,8 +525,7 @@ function __init_memory__()
   initialize!(usage_limit, ndevices())
   initialize!(usage, ndevices())
 
-  # ptr to buffer translation
-  initialize!(allocated, ndevices())
+  # debug
   initialize!(requested, ndevices())
 
   # memory pool configuration
