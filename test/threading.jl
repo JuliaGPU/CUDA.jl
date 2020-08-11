@@ -46,3 +46,28 @@ end
     CUDA.unsafe_free!(db)
   end
 end
+
+@testset "threaded device usage" begin
+  test_lock = ReentrantLock()
+  Threads.@threads for i in 1:Threads.nthreads()*100
+    dev = rand(1:length(devices()))
+    device!(dev-1) do
+      da = CUDA.rand(64, 64)
+      db = CUDA.rand(64, 64)
+      yield()
+      dc = da * (db .* 2)
+      yield()
+
+      a = Array(da)
+      b = Array(db)
+      c = Array(dc)
+      lock(test_lock) do
+        @test c ≈ a * (b .* 2)
+      end
+
+      yield()
+      CUDA.unsafe_free!(da)
+      CUDA.unsafe_free!(db)
+    end
+  end
+end

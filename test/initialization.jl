@@ -43,7 +43,8 @@ task = @async begin
 end
 @test ctx == fetch(task)
 @test task_cb[1] == task
-@test device_switch_cb[1] == nothing
+@test device_switch_cb[1].ctx == ctx
+@test device_switch_cb[1].dev == dev
 
 reset_cb()
 
@@ -63,7 +64,7 @@ context!(ctx) do
     nothing
 end
 
-@test_throws AssertionError device!(0, CUDA.CU_CTX_SCHED_YIELD)
+@test_throws ErrorException device!(0, CUDA.CU_CTX_SCHED_YIELD)
 
 reset_cb()
 
@@ -76,6 +77,17 @@ reset_cb()
 device!(0, CUDA.CU_CTX_SCHED_YIELD)
 @test task_cb[1] == nothing
 @test device_switch_cb[1].dev == CuDevice(0)
+
+# reset on a different task
+let ctx = context()
+    @test CUDA.isvalid(ctx)
+    @test ctx == fetch(@async context())
+
+    @sync @async device_reset!()
+
+    @test CUDA.isvalid(context())
+    @test ctx != context()
+end
 
 # test the device selection functionality
 if length(devices()) > 1
@@ -129,4 +141,8 @@ if length(devices()) > 1
     @test device() == CuDevice(0)
 end
 
-@test deviceid() >= 1
+@test deviceid() >= 0
+@test deviceid(CuDevice(0)) == 0
+if length(devices()) > 1
+    @test deviceid(CuDevice(1)) == 1
+end

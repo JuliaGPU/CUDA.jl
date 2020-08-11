@@ -75,8 +75,6 @@ function __init__()
 
     initializer(prepare_cuda_call)
 
-    __init_memory__()
-
     @require ForwardDiff="f6369f11-7733-5829-9624-2563aa707210" include("forwarddiff.jl")
 end
 
@@ -132,7 +130,12 @@ function __runtime_init__()
         end
     end
 
+    resize!(device_contexts, ndevices())
+    fill!(device_contexts, nothing)
+
     __init_compatibility__()
+
+    __init_memory__()
 
     return
 end

@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
 
 using DataStructures
 
@@ -104,17 +104,17 @@ function merge!(head, tail)
     return head
 end
 
-@inline function actual_alloc(sz)
-    ptr = CUDA.actual_alloc(sz)
+@inline function actual_alloc(dev, sz)
+    ptr = CUDA.actual_alloc(dev, sz)
     block = ptr === nothing ? nothing : Block(ptr, sz)
 end
 
-function actual_free(block::Block)
+function actual_free(dev, block::Block)
     @assert iswhole(block) "Cannot free $block: block is not whole"
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
-        CUDA.actual_free(block.ptr)
+        CUDA.actual_free(dev, block.ptr)
         block.state = INVALID
     end
     return
@@ -125,7 +125,7 @@ end
 
 const pool_lock = ReentrantLock()
 
-function scan!(pool, sz, max_overhead=typemax(Int))
+function scan!(dev, pool, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
         # get the first entry that is sufficiently large
@@ -147,13 +147,13 @@ end
 # looks up possible sequences based on each block in the input set.
 # destroys the input set.
 # returns the net difference in amount of blocks.
-function incremental_compact!(blocks)
+function incremental_compact!(dev, blocks)
     compacted = 0
     @lock pool_lock begin
         while !isempty(blocks)
             block = pop!(blocks)
             @assert block.state == AVAILABLE
-            pool = get_pool(sizeof(block))
+            pool = get_pool(dev, sizeof(block))
             @assert in(block, pool)
 
             # find the head of a sequence
@@ -194,7 +194,7 @@ function incremental_compact!(blocks)
     return compacted
 end
 
-function reclaim!(pool, sz=typemax(Int))
+function reclaim!(dev, pool, sz=typemax(Int))
     freed = 0
 
     @lock pool_lock begin
@@ -210,7 +210,7 @@ function reclaim!(pool, sz=typemax(Int))
         for block in candidates
             delete!(pool, block)
             freed += sizeof(block)
-            actual_free(block)
+            actual_free(dev, block)
             freed >= sz && break
         end
     end
@@ -218,25 +218,25 @@ function reclaim!(pool, sz=typemax(Int))
     return freed
 end
 
-# repopulate the pools from the list of freed blocks
-function repopulate()
+# repopulate the pools from the list of freed[dev] blocks
+function repopulate(dev)
     blocks = @safe_lock freed_lock begin
-        isempty(freed) && return
-        blocks = Set(freed)
-        empty!(freed)
+        isempty(freed[dev]) && return
+        blocks = Set(freed[dev])
+        empty!(freed[dev])
         blocks
     end
 
     @lock pool_lock begin
         for block in blocks
-            pool = get_pool(sizeof(block))
+            pool = get_pool(dev, sizeof(block))
             @assert !in(block, pool) "$block should not be in the pool"
-            @assert block.state == FREED "$block should have been marked freed"
+            @assert block.state == FREED "$block should have been marked freed[dev]"
             block.state = AVAILABLE
             push!(pool, block) # FIXME: allocates
         end
 
-        incremental_compact!(blocks)
+        incremental_compact!(dev, blocks)
     end
 
     return
@@ -251,11 +251,11 @@ const HUGE  = 3
 unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(block.id)
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
-const pool_small = SortedSet{Block}(UniqueIncreasingSize)
-const pool_large = SortedSet{Block}(UniqueIncreasingSize)
-const pool_huge  = SortedSet{Block}(UniqueIncreasingSize)
+const pool_small = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
+const pool_large = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
+const pool_huge  = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
 
-const freed = Vector{Block}()
+const freed = PerDevice{Vector{Block}}((dev)->Vector{Block}())
 const freed_lock = NonReentrantLock()
 
 function size_class(sz)
@@ -268,18 +268,18 @@ function size_class(sz)
     end
 end
 
-@inline function get_pool(sz)
+@inline function get_pool(dev, sz)
     szclass = size_class(sz)
     if szclass == SMALL
-        return pool_small
+        return pool_small[dev]
     elseif szclass == LARGE
-        return pool_large
+        return pool_large[dev]
     elseif szclass == HUGE
-        return pool_huge
+        return pool_huge[dev]
     end
 end
 
-function pool_alloc(sz)
+function pool_alloc(dev, sz)
     szclass = size_class(sz)
 
     # round off the block size
@@ -295,7 +295,7 @@ function pool_alloc(sz)
     szclass = size_class(sz)
 
     # select a pool
-    pool = get_pool(sz)
+    pool = get_pool(dev, sz)
 
     # determine the maximum scan overhead
     max_overhead = if szclass == SMALL
@@ -314,35 +314,35 @@ function pool_alloc(sz)
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" repopulate()
+        @pool_timeit "$phase.1 repopulate" repopulate(dev)
 
         @pool_timeit "$phase.2 scan" begin
-            block = scan!(pool, sz, max_overhead)
+            block = scan!(dev, pool, sz, max_overhead)
         end
         block === nothing || break
 
         @pool_timeit "$phase.3 alloc" begin
-            block = actual_alloc(sz)
+            block = actual_alloc(dev, sz)
         end
         block === nothing || break
 
         # we're out of memory, try freeing up some memory. this is a fairly expensive
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
-        for pool in (pool_huge, pool_large, pool_small)
-            @pool_timeit "$phase.4a reclaim" reclaim!(pool, sz)
-            @pool_timeit "$phase.4b alloc" block = actual_alloc(sz)
+        for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
+            @pool_timeit "$phase.4a reclaim" reclaim!(dev, pool, sz)
+            @pool_timeit "$phase.4b alloc" block = actual_alloc(dev, sz)
             block === nothing || break
         end
         block === nothing || break
 
         # last-ditch effort, reclaim everything
         @pool_timeit "$phase.5a reclaim" begin
-            reclaim!(pool_huge)
-            reclaim!(pool_large)
-            reclaim!(pool_small)
+            reclaim!(dev, pool_huge[dev])
+            reclaim!(dev, pool_large[dev])
+            reclaim!(dev, pool_small[dev])
         end
-        @pool_timeit "$phase.5b alloc" block = actual_alloc(sz)
+        @pool_timeit "$phase.5b alloc" block = actual_alloc(dev, sz)
     end
 
     if block !== nothing
@@ -365,12 +365,12 @@ function pool_alloc(sz)
     return block
 end
 
-function pool_free(block)
+function pool_free(dev, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state = FREED
     @safe_lock_spin freed_lock begin
-        push!(freed, block)
+        push!(freed[dev], block)
     end
 end
 
@@ -378,18 +378,27 @@ end
 ## interface
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtr{Nothing},Block}()
+const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
+    Dict{CuPtr,Block}()
+end
 
-init() = return
+function init()
+    initialize!(allocated, ndevices())
+    initialize!(freed, ndevices())
 
-function alloc(sz)
-    block = pool_alloc(sz)
+    initialize!(pool_small, ndevices())
+    initialize!(pool_large, ndevices())
+    initialize!(pool_huge, ndevices())
+end
+
+function alloc(sz, dev=device())
+    block = pool_alloc(dev, sz)
     if block !== nothing
         block.state = ALLOCATED
         ptr = pointer(block)
         @safe_lock allocated_lock begin
-            @assert !haskey(allocated, ptr) "Newly-allocated block $block is already allocated"
-            allocated[ptr] = block
+            @assert !haskey(allocated[dev], ptr) "Newly-allocated block $block is already allocated"
+            allocated[dev][ptr] = block
         end
         return ptr
     else
@@ -397,33 +406,36 @@ function alloc(sz)
     end
 end
 
-function free(ptr)
+function free(ptr, dev=device())
     block = @safe_lock_spin allocated_lock begin
-        block = allocated[ptr]
-        delete!(allocated, ptr)
+        haskey(allocated[dev], ptr) || return
+        block = allocated[dev][ptr]
+        delete!(allocated[dev], ptr)
         block
     end
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
-    pool_free(block)
+    pool_free(dev, block)
     return
 end
 
-function reclaim(sz::Int=typemax(Int))
-    repopulate()
+function reclaim(sz::Int=typemax(Int), dev=device())
+    repopulate(dev)
 
     freed_sz = 0
-    for pool in (pool_huge, pool_large, pool_small)
+    for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
         freed_sz >= sz && break
-        freed_sz += reclaim!(pool, sz-freed_sz)
+        freed_sz += reclaim!(dev, pool, sz-freed_sz)
     end
     return freed_sz
 end
 
-used_memory() = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory(dev=device()) = @safe_lock allocated_lock begin
+  mapreduce(sizeof, +, values(allocated[dev]); init=0)
+end
 
-function cached_memory()
-    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed; init=0)
-    @lock pool_lock for pool in (pool_small, pool_large, pool_huge)
+function cached_memory(dev=device())
+    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
+    @lock pool_lock for pool in (pool_small[dev], pool_large[dev], pool_huge[dev])
         sz += mapreduce(sizeof, +, pool; init=0)
     end
     return sz

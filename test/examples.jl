@@ -1,3 +1,6 @@
+# these tests spawn subprocesses, so reset the current context to conserve memory
+CUDA.device_reset!()
+
 function find_sources(path::String, sources=String[])
     if isdir(path)
         for entry in readdir(path)

@@ -3,16 +3,20 @@ module DummyPool
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
 
 using Base: @lock
 
 const allocated_lock = NonReentrantLock()
-const allocated = Dict{CuPtr{Nothing},Int}()
+const allocated = PerDevice{Dict{CuPtr,Int}}() do dev
+    Dict{CuPtr,Int}()
+end
 
-init() = return
+function init()
+    initialize!(allocated, ndevices())
+end
 
-function alloc(sz)
+function alloc(sz, dev=device())
     ptr = nothing
     for phase in 1:3
         if phase == 2
@@ -22,14 +26,14 @@ function alloc(sz)
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            ptr = CUDA.actual_alloc(sz)
+            ptr = CUDA.actual_alloc(dev, sz)
         end
         ptr === nothing || break
     end
 
     if ptr !== nothing
         @safe_lock allocated_lock begin
-            allocated[ptr] = sz
+            allocated[dev][ptr] = sz
         end
         return ptr
     else
@@ -37,18 +41,23 @@ function alloc(sz)
     end
 end
 
-function free(ptr)
-    @safe_lock_spin allocated_lock begin
-        sz = allocated[ptr]
-        delete!(allocated, ptr)
+function free(ptr, dev=device())
+    sz = @safe_lock_spin allocated_lock begin
+        haskey(allocated[dev], ptr) || return
+        sz = allocated[dev][ptr]
+        delete!(allocated[dev], ptr)
+        sz
     end
-    CUDA.actual_free(ptr)
+
+    CUDA.actual_free(dev, ptr)
     return
 end
 
 reclaim(target_bytes::Int=typemax(Int)) = return 0
 
-used_memory() = @safe_lock allocated_lock mapreduce(sizeof, +, values(allocated); init=0)
+used_memory(dev=device()) = @safe_lock allocated_lock begin
+    mapreduce(sizeof, +, values(allocated[dev]); init=0)
+end
 
 cached_memory() = 0
 

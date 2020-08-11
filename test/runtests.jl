@@ -348,13 +348,16 @@ try
                     test = popfirst!(tests)
                     local resp
                     wrkr = p
-                    can_initialize = test!="initialization"
                     snoop = do_snoop ? mktemp() : (nothing, nothing)
+
+                    # tests that muck with the context should not be timed with CUDA events,
+                    # since they won't be valid at the end of the test anymore.
+                    time_source = in(test, ["initialization", "examples", "exceptions"]) ? :julia : :cuda
 
                     # run the test
                     running_tests[test] = now()
                     try
-                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, can_initialize, snoop[1])
+                        resp = remotecall_fetch(runtests, wrkr, test_runners[test], test, time_source, snoop[1])
                     catch e
                         isa(e, InterruptException) && return
                         resp = Any[e]

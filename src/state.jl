@@ -1,4 +1,9 @@
 # global state management
+#
+# The functionality in this file serves to create a coherent environment to perform
+# computations in, with support for Julia constructs like tasks (and executing those on
+# multiple threads), using a GPU of your choice (with the ability to reset that device, or
+# use different devices on different threads).
 
 export context, context!, device, device!, device_reset!, deviceid
 
@@ -92,11 +97,15 @@ const thread_tasks = Union{Nothing,WeakRef}[]
 
     # switch contexts if task switched to was already bound to one
     ctx = get(task_local_storage(), :CuContext, nothing)
-    if ctx !== nothing
+    if ctx !== nothing && isvalid(ctx)
+        # NOTE: the context may be invalid if another task reset it (which we detect here
+        #       since we can't touch other tasks' local state from `device_reset!`)
         context!(ctx)
+    else
+        thread_state[tid] = nothing  # trigger `initialize_thread` down the line
+        # NOTE: actually deactivating the CUDA context would be more correct,
+        #       but that confuses CUDA and leads to invalid contexts later on.
     end
-    # NOTE: deactivating the context in the case ctx===nothing would be more correct,
-    #       but that confuses CUDA and leads to invalid contexts later on.
 end
 
 # the default device unitialized tasks will use, set when switching devices.
@@ -109,15 +118,12 @@ const default_device = Ref{Union{Nothing,CuDevice}}(nothing)
 const CuCurrentState = NamedTuple{(:ctx, :dev), Tuple{CuContext,CuDevice}}
 const thread_state = Union{Nothing,CuCurrentState}[]
 @noinline function initialize_thread(tid::Int)
-    ctx = CuCurrentContext()
-    if ctx === nothing
-        dev = something(default_device[], CuDevice(0))
-        device!(dev)
-    else
-        # compatibility with externally-initialized contexts
-        dev = CuCurrentDevice()
-        thread_state[tid] = (;ctx=ctx, dev=dev)
-    end
+    dev = something(default_device[], CuDevice(0))
+    device!(dev)
+
+    # NOTE: we can't be compatible with externally initialize contexts here (i.e., reuse
+    #       the CuCurrentContext we don't know about) because of how device_reset! works:
+    #       contexts that got reset remain bound, and are not discernible from regular ones.
 end
 
 
@@ -173,13 +179,35 @@ end
 Sets the active context for the duration of `f`.
 """
 function context!(f::Function, ctx::CuContext)
+    @assert isvalid(ctx)
     old_ctx = CuCurrentContext()
-    try
+    if ctx != old_ctx
         context!(ctx)
+    end
+    try
         f()
     finally
-        if old_ctx != nothing
+        if ctx !== old_ctx && old_ctx !== nothing
             context!(old_ctx)
+        end
+    end
+end
+
+# macro version for maximal performance (avoiding closures)
+macro context!(ctx_expr, expr)
+    quote
+        ctx = $(esc(ctx_expr))
+        @assert isvalid(ctx)
+        old_ctx = CuCurrentContext()
+        if ctx != old_ctx
+            context!(ctx)
+        end
+        try
+            $(esc(expr))
+        finally
+            if ctx !== old_ctx && old_ctx !== nothing
+                context!(old_ctx)
+            end
         end
     end
 end
@@ -205,6 +233,24 @@ compared to [`CuCurrentContext()`](@ref).
     state.dev
 end
 
+const device_contexts = Union{Nothing,CuContext}[]
+function context(dev::CuDevice)
+    tid = Threads.threadid()
+    devidx = deviceid(dev)+1
+
+    # querying the primary context for a device is expensive, so cache it
+    ctx = @inbounds device_contexts[devidx]
+    if ctx !== nothing
+        return ctx
+    end
+
+    # configure the primary context
+    pctx = CuPrimaryContext(dev)
+    ctx = CuContext(pctx)
+    @inbounds device_contexts[devidx] = ctx
+    return ctx
+end
+
 """
     device!(dev::Integer)
     device!(dev::CuDevice)
@@ -212,22 +258,23 @@ end
 Sets `dev` as the current active device for the calling host thread. Devices can be
 specified by integer id, or as a `CuDevice` (slightly faster).
 
-Although this call is fairly cheap (50-100ns), it is only intended for interactive use, or
-for initial set-up of the environment. If you need to switch devices on a regular basis,
-work with contexts instead and call [`context!`](@ref) directly (5-10ns).
-
-If your library or code needs to perform an action when the active context changes,
+If your library or code needs to perform an action when the active device changes,
 add a hook using [`CUDA.atdeviceswitch`](@ref).
 """
 function device!(dev::CuDevice, flags=nothing)
     tid = Threads.threadid()
+    devidx = deviceid(dev)+1
 
-    # configure the primary context
-    pctx = CuPrimaryContext(dev)
+    # configure the primary context flags
     if flags !== nothing
-        @assert !isactive(pctx) "Cannot set flags for an active device. Do so before calling any CUDA function, or reset the device first."
+        if @inbounds device_contexts[devidx] !== nothing
+            error("Cannot set flags for an active device. Do so before calling any CUDA function, or reset the device first.")
+        end
         cuDevicePrimaryCtxSetFlags(dev, flags)
     end
+
+    # make this device the new default
+    default_device[] = dev
 
     # bail out if switching to the current device
     state = @inbounds thread_state[tid]
@@ -235,29 +282,29 @@ function device!(dev::CuDevice, flags=nothing)
         return
     end
 
-    # have new threads use this device as well
-    default_device[] = dev
-
-    # activate a context
-    ctx = CuContext(pctx)
+    # actually switch contexts
+    ctx = context(dev)
     context!(ctx)
 end
-device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 
 """
     device!(f, dev)
 
 Sets the active device for the duration of `f`.
+
+Note that this call is intended for temporarily switching devices, and does not change the
+default device used to initialize new threads or tasks.
 """
 function device!(f::Function, dev::CuDevice)
-    ctx = CuCurrentContext()
-    try
-        device!(dev)
-        f()
-    finally
-        if ctx != nothing
-            context!(ctx)
-        end
+    ctx = context(dev)
+    context!(f, ctx)
+end
+
+macro device!(dev_expr, expr)
+    quote
+        dev = $(esc(dev_expr))
+        ctx = context(dev)
+        @context! ctx $(esc(expr))
     end
 end
 
@@ -284,6 +331,10 @@ function device_reset!(dev::CuDevice=device())
         end
     end
 
+    # wipe the device-specific state
+    devidx = deviceid(dev)+1
+    device_contexts[devidx] = nothing
+
     _atdevicereset(dev)
 
     return
@@ -292,14 +343,60 @@ end
 
 ## integer device-based API
 
-"""
-    deviceid(dev::CuDevice=device())::Int
-    deviceid()::Int
-
-Get the ID number of the current device of execution. This is a 1-indexed number, and can
-be used to index, e.g., thread-local state. It should not be used to acquire a `CuDevice`;
-use [`device()`](@ref) for that.
-"""
-deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev)) + 1
-
+device!(dev::Integer, flags=nothing) = device!(CuDevice(dev), flags)
 device!(f::Function, dev::Integer) = device!(f, CuDevice(dev))
+
+"""
+    deviceid()::Int
+    deviceid(dev::CuDevice)::Int
+
+Get the ID number of the current device of execution. This is a 0-indexed number,
+corresponding to the device ID as known to CUDA.
+"""
+deviceid(dev::CuDevice=device()) = Int(convert(CUdevice, dev))
+
+
+## helpers
+
+# helper struct to maintain state per device
+# - make it possible to index directly with CuDevice (without converting to integer index)
+# - initialize function to fill state based on a constructor function
+# - automatically wiping state on device reset
+struct PerDevice{T,F} <: AbstractVector{T}
+    inner::Vector{T}
+    ctor::F
+
+    PerDevice{T,F}(ctor::F) where {T,F<:Function} = new(Vector{T}(), ctor)
+end
+
+PerDevice{T}(ctor::F) where {T,F} = PerDevice{T,F}(ctor)
+
+function initialize!(x::PerDevice, n::Integer)
+    @assert isempty(x.inner)
+
+    resize!(x.inner, n)
+    for i in 0:n-1
+        x[i] = x.ctor(CuDevice(i))
+    end
+
+    atdevicereset() do dev
+        x[dev] = x.ctor(dev)
+    end
+
+    return
+end
+
+# 0-based indexing for using CUDA device identifiers
+Base.getindex(x::PerDevice, devidx::Integer) = x.inner[devidx+1]
+Base.setindex!(x::PerDevice, val, devidx::Integer) = (x.inner[devidx+1] = val; )
+
+# indexing using CuDevice objecs
+Base.getindex(x::PerDevice, dev::CuDevice) = x[deviceid(dev)]
+Base.setindex!(x::PerDevice, val, dev::CuDevice) = (x[deviceid(dev)] = val; )
+
+Base.length(x::PerDevice) = length(x.inner)
+Base.size(x::PerDevice) = size(x.inner)
+
+function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
+    print(io, "PerDevice{$T} with $(length(x)) entries")
+end
