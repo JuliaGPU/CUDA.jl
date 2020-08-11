@@ -67,11 +67,10 @@ iswhole(block::Block) = block.prev === nothing && block.next === nothing
 ## block utilities
 
 function Base.show(io::IO, block::Block)
-    fields = [@sprintf("#%d", block.id)]
-    push!(fields, @sprintf("%s at %p", Base.format_bytes(sizeof(block)), pointer(block)))
+    fields = [@sprintf("%s at %p", Base.format_bytes(sizeof(block)), Int(pointer(block)))]
     push!(fields, "$(block.state)")
-    block.prev !== nothing && push!(fields, @sprintf("prev=Block(#%d)", block.prev.id))
-    block.next !== nothing && push!(fields, @sprintf("next=Block(#%d)", block.next.id))
+    block.prev !== nothing && push!(fields, @sprintf("prev=Block(%p)", Int(pointer(block.prev))))
+    block.next !== nothing && push!(fields, @sprintf("next=Block(%p)", Int(pointer(block.next))))
 
     print(io, "Block(", join(fields, ", "), ")")
 end
