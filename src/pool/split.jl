@@ -218,7 +218,7 @@ function reclaim!(dev, pool, sz=typemax(Int))
     return freed
 end
 
-# repopulate the pools from the list of freed[dev] blocks
+# repopulate the pools from the list of freed blocks
 function repopulate(dev)
     blocks = @safe_lock freed_lock begin
         isempty(freed[dev]) && return
@@ -231,7 +231,7 @@ function repopulate(dev)
         for block in blocks
             pool = get_pool(dev, sizeof(block))
             @assert !in(block, pool) "$block should not be in the pool"
-            @assert block.state == FREED "$block should have been marked freed[dev]"
+            @assert block.state == FREED "$block should have been marked freed"
             block.state = AVAILABLE
             push!(pool, block) # FIXME: allocates
         end
