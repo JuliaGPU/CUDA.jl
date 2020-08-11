@@ -422,7 +422,6 @@ end
 
 function free(ptr, dev=device())
   block = @safe_lock_spin allocated_lock begin
-    haskey(allocated[dev], ptr) || return
     block = allocated[dev][ptr]
     delete!(allocated[dev], ptr)
     block
