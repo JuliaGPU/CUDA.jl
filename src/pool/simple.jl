@@ -40,7 +40,7 @@ Base.sizeof(block::Block) = block.sz
 end
 
 function actual_free(dev, block::Block)
-    CUDA.actual_free(dev, pointer(block))
+    CUDA.actual_free(dev, pointer(block), sizeof(block))
     return
 end
 
@@ -167,7 +167,6 @@ end
 
 function free(ptr, dev=device())
     block = @safe_lock_spin pool_allocated_lock begin
-        haskey(allocated[dev], ptr) || return
         block = allocated[dev][ptr]
         delete!(allocated[dev], ptr)
         block

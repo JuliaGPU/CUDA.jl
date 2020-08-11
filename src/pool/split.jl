@@ -39,23 +39,18 @@ using Printf
     FREED
 end
 
-const block_id = Threads.Atomic{UInt}(1)
-
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
-    ptr::Union{Nothing,CuPtr{Nothing}}  # base allocation
-    sz::Int                             # size into it
-    off::Int                            # offset into it
+    ptr::CuPtr  # base allocation
+    sz::Int     # size into it
+    off::Int    # offset into it
 
     state::BlockState
     prev::Union{Nothing,Block}
     next::Union{Nothing,Block}
 
-    id::UInt
-
-    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing,
-          id=Threads.atomic_add!(block_id, UInt(1))) =
-        new(ptr, sz, off, state, prev, next, id)
+    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing) =
+        new(ptr, sz, off, state, prev, next)
 end
 
 Base.sizeof(block::Block) = block.sz
@@ -67,11 +62,10 @@ iswhole(block::Block) = block.prev === nothing && block.next === nothing
 ## block utilities
 
 function Base.show(io::IO, block::Block)
-    fields = [@sprintf("#%d", block.id)]
-    push!(fields, @sprintf("%s at %p", Base.format_bytes(sizeof(block)), pointer(block)))
+    fields = [@sprintf("%s at %p", Base.format_bytes(sizeof(block)), Int(pointer(block)))]
     push!(fields, "$(block.state)")
-    block.prev !== nothing && push!(fields, @sprintf("prev=Block(#%d)", block.prev.id))
-    block.next !== nothing && push!(fields, @sprintf("next=Block(#%d)", block.next.id))
+    block.prev !== nothing && push!(fields, @sprintf("prev=Block(%p)", Int(pointer(block.prev))))
+    block.next !== nothing && push!(fields, @sprintf("next=Block(%p)", Int(pointer(block.next))))
 
     print(io, "Block(", join(fields, ", "), ")")
 end
@@ -114,7 +108,8 @@ function actual_free(dev, block::Block)
     if block.state != AVAILABLE
         error("Cannot free $block: block is not available")
     else
-        CUDA.actual_free(dev, block.ptr)
+        @assert block.off == 0
+        CUDA.actual_free(dev, pointer(block), sizeof(block))
         block.state = INVALID
     end
     return
@@ -129,7 +124,7 @@ function scan!(dev, pool, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
         # get the first entry that is sufficiently large
-        i = searchsortedfirst(pool, Block(nothing, sz; id=0))
+        i = searchsortedfirst(pool, Block(CU_NULL, sz))
         if i != pastendsemitoken(pool)
             block = deref((pool,i))
             @assert sizeof(block) >= sz
@@ -218,7 +213,7 @@ function reclaim!(dev, pool, sz=typemax(Int))
     return freed
 end
 
-# repopulate the pools from the list of freed[dev] blocks
+# repopulate the pools from the list of freed blocks
 function repopulate(dev)
     blocks = @safe_lock freed_lock begin
         isempty(freed[dev]) && return
@@ -231,7 +226,7 @@ function repopulate(dev)
         for block in blocks
             pool = get_pool(dev, sizeof(block))
             @assert !in(block, pool) "$block should not be in the pool"
-            @assert block.state == FREED "$block should have been marked freed[dev]"
+            @assert block.state == FREED "$block should have been marked freed"
             block.state = AVAILABLE
             push!(pool, block) # FIXME: allocates
         end
@@ -248,7 +243,7 @@ const HUGE  = 3
 
 # sorted containers need unique keys, which the size of a block isn't.
 # mix in the block address to keep the key sortable, but unique.
-unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(block.id)
+unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(pointer(block))
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
 const pool_small = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
@@ -408,7 +403,6 @@ end
 
 function free(ptr, dev=device())
     block = @safe_lock_spin allocated_lock begin
-        haskey(allocated[dev], ptr) || return
         block = allocated[dev][ptr]
         delete!(allocated[dev], ptr)
         block

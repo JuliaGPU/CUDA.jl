@@ -168,7 +168,7 @@ function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,
   xs = CuArray{T, length(dims)}(p, dims, false; ctx=ctx)
   if own
     base = convert(CuPtr{Cvoid}, p)
-    buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T), ctx)
+    buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T))
     finalizer(xs) do obj
       if isvalid(obj.ctx)
         Mem.free(buf)

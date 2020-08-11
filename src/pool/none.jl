@@ -43,13 +43,12 @@ end
 
 function free(ptr, dev=device())
     sz = @safe_lock_spin allocated_lock begin
-        haskey(allocated[dev], ptr) || return
         sz = allocated[dev][ptr]
         delete!(allocated[dev], ptr)
         sz
     end
 
-    CUDA.actual_free(dev, ptr)
+    CUDA.actual_free(dev, ptr, sz)
     return
 end
 
