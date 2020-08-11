@@ -184,12 +184,12 @@ debug:
 
 coverage:
   extends:
-    - .julia:1.5
+    - .julia:1.4
     - .coverage
 
 documentation:
   extends:
-    - .julia:1.5
+    - .julia:1.4
     - .documentation
   tags:
     - nvidia
