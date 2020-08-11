@@ -24,11 +24,6 @@ end
 
 Base.unlock(nrl::NonReentrantLock) = unlock(nrl.rl)
 
-# global lock for shared object dicts.
-# stats are not covered by this and cannot be assumed to be exact.
-# each allocator needs to lock its own resources separately too.
-const memory_lock = NonReentrantLock()
-
 # the above lock is taken around code that might gc, which might reenter through finalizers.
 # avoid that by temporarily disabling finalizers running concurrently on this thread.
 enable_finalizers(on::Bool) = ccall(:jl_gc_enable_finalizers, Cvoid,
@@ -220,6 +215,7 @@ end
 
 export OutOfGPUMemoryError
 
+const requested_lock = NonReentrantLock()
 const requested = PerDevice{Dict{CuPtr{Nothing},Any}}() do dev
   Dict{CuPtr{Nothing},Any}()
 end
@@ -258,7 +254,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   if Base.JLOptions().debug_level >= 2
     dev = device()
     bt = backtrace()
-    @lock memory_lock begin
+    @lock requested_lock begin
       @assert !haskey(requested[dev], ptr)
       requested[dev][ptr] = (bt,sz)
     end
@@ -293,7 +289,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   try
     # record the allocation
     if Base.JLOptions().debug_level >= 2
-      @lock memory_lock begin
+      @lock requested_lock begin
         dev = device()
         @assert haskey(requested[dev], ptr)
         delete!(requested[dev], ptr)
@@ -496,8 +492,7 @@ function memory_status(io::IO=stdout)
   end
 
   if Base.JLOptions().debug_level >= 2
-    ctx = context()
-    requested′ = @lock memory_lock copy(requested[dev])
+    requested′ = @lock requested_lock copy(requested[dev])
     for (ptr, (bt,sz)) in requested′
       @printf(io, "\nOutstanding memory allocation of %s at %p",
               Base.format_bytes(sz), Int(ptr))
