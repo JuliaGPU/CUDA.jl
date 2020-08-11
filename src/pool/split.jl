@@ -39,8 +39,6 @@ using Printf
     FREED
 end
 
-const block_id = Threads.Atomic{UInt}(1)
-
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
     ptr::CuPtr  # base allocation
@@ -51,11 +49,8 @@ mutable struct Block
     prev::Union{Nothing,Block}
     next::Union{Nothing,Block}
 
-    id::UInt
-
-    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing,
-          id=Threads.atomic_add!(block_id, UInt(1))) =
-        new(ptr, sz, off, state, prev, next, id)
+    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing) =
+        new(ptr, sz, off, state, prev, next)
 end
 
 Base.sizeof(block::Block) = block.sz
@@ -129,7 +124,7 @@ function scan!(dev, pool, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
         # get the first entry that is sufficiently large
-        i = searchsortedfirst(pool, Block(CU_NULL, sz; id=0))
+        i = searchsortedfirst(pool, Block(CU_NULL, sz))
         if i != pastendsemitoken(pool)
             block = deref((pool,i))
             @assert sizeof(block) >= sz
@@ -248,7 +243,7 @@ const HUGE  = 3
 
 # sorted containers need unique keys, which the size of a block isn't.
 # mix in the block address to keep the key sortable, but unique.
-unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(block.id)
+unique_sizeof(block::Block) = (UInt128(sizeof(block))<<64) | UInt64(pointer(block))
 const UniqueIncreasingSize = Base.By(unique_sizeof)
 
 const pool_small = PerDevice{SortedSet{Block}}((dev)->SortedSet{Block}(UniqueIncreasingSize))
