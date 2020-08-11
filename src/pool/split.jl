@@ -43,9 +43,9 @@ const block_id = Threads.Atomic{UInt}(1)
 
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
-    ptr::Union{Nothing,CuPtr{Nothing}}  # base allocation
-    sz::Int                             # size into it
-    off::Int                            # offset into it
+    ptr::CuPtr  # base allocation
+    sz::Int     # size into it
+    off::Int    # offset into it
 
     state::BlockState
     prev::Union{Nothing,Block}
@@ -130,7 +130,7 @@ function scan!(dev, pool, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
         # get the first entry that is sufficiently large
-        i = searchsortedfirst(pool, Block(nothing, sz; id=0))
+        i = searchsortedfirst(pool, Block(CU_NULL, sz; id=0))
         if i != pastendsemitoken(pool)
             block = deref((pool,i))
             @assert sizeof(block) >= sz
