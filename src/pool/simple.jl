@@ -27,12 +27,11 @@ end
 ## block of memory
 
 @inline function actual_alloc(dev, sz)
-    ptr = CUDA.actual_alloc(dev, sz)
-    block = ptr === nothing ? nothing : Block(ptr, sz)
+    return CUDA.actual_alloc(dev, sz)
 end
 
 function actual_free(dev, block::Block)
-    CUDA.actual_free(dev, pointer(block), sizeof(block))
+    CUDA.actual_free(dev, block)
     return
 end
 

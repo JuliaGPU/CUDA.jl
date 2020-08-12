@@ -196,11 +196,12 @@ function actual_alloc(dev::CuDevice, bytes::Integer)
   end
 
   # convert to a pointer
-  return convert(CuPtr{Nothing}, buf)
+  ptr = convert(CuPtr{Nothing}, buf)
+  return Block(ptr, bytes)
 end
 
-function actual_free(dev::CuDevice, ptr::CuPtr{Nothing}, bytes::Int)
-  buf = Mem.DeviceBuffer(ptr, bytes)
+function actual_free(dev::CuDevice, block::Block)
+  buf = Mem.DeviceBuffer(pointer(block), sizeof(block))
 
   @device! dev begin
     # free the memory

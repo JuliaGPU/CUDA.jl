@@ -8,8 +8,8 @@ using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDe
 using Base: @lock
 
 const allocated_lock = NonReentrantLock()
-const allocated = PerDevice{Dict{CuPtr,Int}}() do dev
-    Dict{CuPtr,Int}()
+const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
+    Dict{CuPtr,Block}()
 end
 
 function init()
@@ -17,7 +17,7 @@ function init()
 end
 
 function alloc(sz, dev=device())
-    ptr = nothing
+    block = nothing
     for phase in 1:3
         if phase == 2
             @pool_timeit "$phase.0 gc (incremental)" GC.gc(false)
@@ -26,29 +26,29 @@ function alloc(sz, dev=device())
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            ptr = CUDA.actual_alloc(dev, sz)
+            block = CUDA.actual_alloc(dev, sz)
         end
-        ptr === nothing || break
+        block === nothing || break
     end
 
-    if ptr !== nothing
+    if block !== nothing
         @safe_lock allocated_lock begin
-            allocated[dev][ptr] = sz
+            allocated[dev][ptr] = block
         end
-        return ptr
+        return pointer(block)
     else
         return nothing
     end
 end
 
 function free(ptr, dev=device())
-    sz = @safe_lock_spin allocated_lock begin
-        sz = allocated[dev][ptr]
+    block = @safe_lock_spin allocated_lock begin
+        block = allocated[dev][ptr]
         delete!(allocated[dev], ptr)
-        sz
+        block
     end
 
-    CUDA.actual_free(dev, ptr, sz)
+    CUDA.actual_free(dev, block)
     return
 end
 
