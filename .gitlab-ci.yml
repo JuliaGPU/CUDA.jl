@@ -166,7 +166,6 @@ pool:split:
     - nvidia
   variables:
     JULIA_CUDA_MEMORY_POOL: 'split'
-  allow_failure: true
 
 debug:
   extends:

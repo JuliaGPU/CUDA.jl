@@ -135,7 +135,7 @@ function __runtime_init__()
 
     __init_compatibility__()
 
-    __init_memory__()
+    __init_pool__()
 
     return
 end

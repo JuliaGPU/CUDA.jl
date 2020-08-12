@@ -1,11 +1,4 @@
-module SimplePool
-
 # simple scan into a list of free buffers
-
-using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
-
-using Base: @lock
 
 
 ## tunables
@@ -21,27 +14,6 @@ function max_oversize(sz)
     else
         return 2^22
     end
-end
-
-
-## block of memory
-
-struct Block
-    ptr::CuPtr{Nothing}
-    sz::Int
-end
-
-Base.pointer(block::Block) = block.ptr
-Base.sizeof(block::Block) = block.sz
-
-@inline function actual_alloc(dev, sz)
-    ptr = CUDA.actual_alloc(dev, sz)
-    block = ptr === nothing ? nothing : Block(ptr, sz)
-end
-
-function actual_free(dev, block::Block)
-    CUDA.actual_free(dev, pointer(block), sizeof(block))
-    return
 end
 
 
@@ -85,7 +57,7 @@ function repopulate(dev)
     return
 end
 
-function reclaim(sz::Int=typemax(Int), dev=device())
+function pool_reclaim(dev, sz::Int=typemax(Int))
     repopulate(dev)
 
     @lock pool_lock begin
@@ -121,7 +93,7 @@ function pool_alloc(dev, sz)
         block === nothing || break
 
         @pool_timeit "$phase.4 reclaim + alloc" begin
-            reclaim(sz, dev)
+            pool_reclaim(dev, sz)
             block = actual_alloc(dev, sz)
         end
         block === nothing || break
@@ -138,53 +110,13 @@ function pool_free(dev, block)
     end
 end
 
-
-## interface
-
-const pool_allocated_lock = NonReentrantLock()
-const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
-    Dict{CuPtr,Block}()
-end
-
-function init()
+function pool_init()
     initialize!(pool, ndevices())
     initialize!(freed, ndevices())
-    initialize!(allocated, ndevices())
-end
-
-function alloc(sz, dev=device())
-    block = pool_alloc(dev, sz)
-    if block !== nothing
-        ptr = pointer(block)
-        @safe_lock pool_allocated_lock begin
-            allocated[dev][ptr] = block
-        end
-        return ptr
-    else
-        return nothing
-    end
-end
-
-function free(ptr, dev=device())
-    block = @safe_lock_spin pool_allocated_lock begin
-        block = allocated[dev][ptr]
-        delete!(allocated[dev], ptr)
-        block
-    end
-    pool_free(dev, block)
-    return
-end
-
-function used_memory(dev=device())
-    @safe_lock pool_allocated_lock begin
-        mapreduce(sizeof, +, values(allocated[dev]); init=0)
-    end
 end
 
 function cached_memory(dev=device())
     sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
     sz += @lock pool_lock mapreduce(sizeof, +, pool[dev]; init=0)
     return sz
-end
-
 end

@@ -87,5 +87,6 @@ const has_nvml = NVML.has_nvml
 export NVML, has_nvml
 
 include("deprecated.jl")
+include("debug.jl")
 
 end
