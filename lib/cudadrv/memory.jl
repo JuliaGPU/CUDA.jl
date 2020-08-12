@@ -9,6 +9,8 @@ using ..CUDA: @enum_without_prefix, CUstream, CUdevice, CuDim3, CUarray, CUarray
 
 using Base: @deprecate_binding
 
+using Printf
+
 
 # TODO: needs another redesign
 #
@@ -41,6 +43,13 @@ Base.sizeof(buf::Buffer) = buf.bytesize
 # taking the pointer of a buffer means returning the underlying pointer,
 # and not the pointer of the buffer object itself.
 Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::Buffer) = convert(T, buf)
+
+function Base.show(io::IO, buf::Buffer)
+    @printf(io, "%s(%s at %p)",
+            nameof(typeof(buf)),
+            Base.format_bytes(sizeof(buf)),
+            Int(pointer(buf)))
+end
 
 
 ## device buffer

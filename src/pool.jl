@@ -115,28 +115,28 @@ end
 
 # TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
-    ptr::CuPtr  # base allocation
-    sz::Int     # size into it
-    off::Int    # offset into it
+    buf::Mem.DeviceBuffer # base allocation
+    sz::Int               # size into it
+    off::Int              # offset into it
 
     state::BlockState
     prev::Union{Nothing,Block}
     next::Union{Nothing,Block}
 
-    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing) =
-        new(ptr, sz, off, state, prev, next)
+    Block(buf, sz; off=0, state=INVALID, prev=nothing, next=nothing) =
+        new(buf, sz, off, state, prev, next)
 end
 
 Base.sizeof(block::Block) = block.sz
-Base.pointer(block::Block) = block.ptr + block.off
+Base.pointer(block::Block) = pointer(block.buf) + block.off
 
 iswhole(block::Block) = block.prev === nothing && block.next === nothing
 
 function Base.show(io::IO, block::Block)
-    fields = [@sprintf("%s at %p", Base.format_bytes(sizeof(block)), Int(pointer(block)))]
+    fields = [string(block.buf)]
     push!(fields, "$(block.state)")
-    block.prev !== nothing && push!(fields, @sprintf("prev=Block(%p)", Int(pointer(block.prev))))
-    block.next !== nothing && push!(fields, @sprintf("next=Block(%p)", Int(pointer(block.next))))
+    block.prev !== nothing && push!(fields, @sprintf("prev=Block(%s)", string(block.prev.buf)))
+    block.next !== nothing && push!(fields, @sprintf("next=Block(%s)", string(block.next.buf)))
 
     print(io, "Block(", join(fields, ", "), ")")
 end
@@ -195,29 +195,26 @@ function actual_alloc(dev::CuDevice, bytes::Integer)
     end
   end
 
-  # convert to a pointer
-  ptr = convert(CuPtr{Nothing}, buf)
-  return Block(ptr, bytes; state=AVAILABLE)
+  return Block(buf, bytes; state=AVAILABLE)
 end
 
 function actual_free(dev::CuDevice, block::Block)
   @assert iswhole(block) "Cannot free $block: block is not whole"
   @assert block.off == 0
   @assert block.state == AVAILABLE "Cannot free $block: block is not available"
-  buf = Mem.DeviceBuffer(pointer(block), sizeof(block))
 
   @device! dev begin
     # free the memory
     @timeit_debug alloc_to "free" begin
       time = Base.@elapsed begin
-        Mem.free(buf)
+        Mem.free(block.buf)
       end
       block.state = INVALID
 
-      Threads.atomic_sub!(usage[dev], sizeof(block))
+      Threads.atomic_sub!(usage[dev], sizeof(block.buf))
       alloc_stats.actual_time += time
       alloc_stats.actual_nfree += 1
-      alloc_stats.actual_free += sizeof(block)
+      alloc_stats.actual_free += sizeof(block.buf)
     end
   end
 

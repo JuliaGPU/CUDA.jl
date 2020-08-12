@@ -33,7 +33,7 @@ const HUGE_OVERHEAD  = 0
 # split a block at size `sz`, returning the newly created block
 function split!(block, sz)
     @assert sz < block.sz "Cannot split a $block at too-large offset $sz"
-    split = Block(block.ptr, sizeof(block) - sz; off = block.off + sz)
+    split = Block(block.buf, sizeof(block) - sz; off = block.off + sz)
     block.sz = sz
 
     # update links
@@ -67,7 +67,7 @@ function scan!(dev, pool, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
         # get the first entry that is sufficiently large
-        i = searchsortedfirst(pool, Block(CU_NULL, sz))
+        i = searchsortedfirst(pool, Block(Mem.DeviceBuffer(CU_NULL, 0), sz))
         if i != pastendsemitoken(pool)
             block = deref((pool,i))
             @assert sizeof(block) >= sz
