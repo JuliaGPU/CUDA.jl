@@ -1,15 +1,8 @@
-module DummyPool
-
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
-using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, actual_alloc, actual_free
+pool_init() = return
 
-using Base: @lock
-
-init() = return
-
-function alloc(sz, dev=device())
+function pool_alloc(sz, dev=device())
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -27,12 +20,11 @@ function alloc(sz, dev=device())
     return block
 end
 
-function free(block, dev=device())
+function pool_free(block, dev=device())
     actual_free(dev, block)
     return
 end
 
-reclaim(target_bytes::Int=typemax(Int)) = return 0
-cached_memory() = 0
+pool_reclaim(target_bytes::Int=typemax(Int)) = return 0
 
-end
+cached_memory() = 0

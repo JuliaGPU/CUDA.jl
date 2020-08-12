@@ -1,13 +1,6 @@
-module SplittingPool
-
 # scan into a sorted list of free buffers, splitting buffers along the way
 
-using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, iswhole, INVALID, AVAILABLE, ALLOCATED, FREED, actual_alloc, actual_free
-
 using DataStructures
-
-using Base: @lock
 
 
 ## tunables
@@ -63,7 +56,7 @@ end
 
 const pool_lock = ReentrantLock()
 
-function scan!(dev, pool, sz, max_overhead=typemax(Int))
+function pool_scan(dev, pool, sz, max_overhead=typemax(Int))
     max_sz = Base.max(sz + max_overhead, max_overhead)   # protect against overflow
     @lock pool_lock begin
         # get the first entry that is sufficiently large
@@ -85,7 +78,7 @@ end
 # looks up possible sequences based on each block in the input set.
 # destroys the input set.
 # returns the net difference in amount of blocks.
-function incremental_compact!(dev, blocks)
+function pool_compact(dev, blocks)
     compacted = 0
     @lock pool_lock begin
         while !isempty(blocks)
@@ -132,7 +125,7 @@ function incremental_compact!(dev, blocks)
     return compacted
 end
 
-function reclaim!(dev, pool, sz=typemax(Int))
+function pool_reclaim(dev, pool, sz=typemax(Int))
     freed = 0
 
     @lock pool_lock begin
@@ -157,7 +150,7 @@ function reclaim!(dev, pool, sz=typemax(Int))
 end
 
 # repopulate the pools from the list of freed blocks
-function repopulate(dev)
+function pool_repopulate(dev)
     blocks = @safe_lock freed_lock begin
         isempty(freed[dev]) && return
         blocks = Set(freed[dev])
@@ -174,7 +167,7 @@ function repopulate(dev)
             push!(pool, block) # FIXME: allocates
         end
 
-        incremental_compact!(dev, blocks)
+        pool_compact(dev, blocks)
     end
 
     return
@@ -217,7 +210,7 @@ end
     end
 end
 
-function alloc(sz, dev=device())
+function pool_alloc(sz, dev=device())
     szclass = size_class(sz)
 
     # round off the block size
@@ -252,10 +245,10 @@ function alloc(sz, dev=device())
             @pool_timeit "$phase.0 gc (full)" GC.gc(true)
         end
 
-        @pool_timeit "$phase.1 repopulate" repopulate(dev)
+        @pool_timeit "$phase.1 repopulate" pool_repopulate(dev)
 
         @pool_timeit "$phase.2 scan" begin
-            block = scan!(dev, pool, sz, max_overhead)
+            block = pool_scan(dev, pool, sz, max_overhead)
         end
         block === nothing || break
 
@@ -268,7 +261,7 @@ function alloc(sz, dev=device())
         # operation, so start with the largest pool that is likely to free up much memory
         # without requiring many calls to free.
         for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
-            @pool_timeit "$phase.4a reclaim" reclaim!(dev, pool, sz)
+            @pool_timeit "$phase.4a reclaim" pool_reclaim(dev, pool, sz)
             @pool_timeit "$phase.4b alloc" block = actual_alloc(dev, sz)
             block === nothing || break
         end
@@ -276,9 +269,9 @@ function alloc(sz, dev=device())
 
         # last-ditch effort, reclaim everything
         @pool_timeit "$phase.5a reclaim" begin
-            reclaim!(dev, pool_huge[dev])
-            reclaim!(dev, pool_large[dev])
-            reclaim!(dev, pool_small[dev])
+            pool_reclaim(dev, pool_huge[dev])
+            pool_reclaim(dev, pool_large[dev])
+            pool_reclaim(dev, pool_small[dev])
         end
         @pool_timeit "$phase.5b alloc" block = actual_alloc(dev, sz)
     end
@@ -306,7 +299,7 @@ function alloc(sz, dev=device())
     return block
 end
 
-function free(block, dev=device())
+function pool_free(block, dev=device())
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
@@ -316,10 +309,7 @@ function free(block, dev=device())
     end
 end
 
-
-## interface
-
-function init()
+function pool_init()
     initialize!(freed, ndevices())
 
     initialize!(pool_small, ndevices())
@@ -327,13 +317,13 @@ function init()
     initialize!(pool_huge, ndevices())
 end
 
-function reclaim(sz::Int=typemax(Int), dev=device())
-    repopulate(dev)
+function pool_reclaim(sz::Int=typemax(Int), dev=device())
+    pool_repopulate(dev)
 
     freed_sz = 0
     for pool in (pool_huge[dev], pool_large[dev], pool_small[dev])
         freed_sz >= sz && break
-        freed_sz += reclaim!(dev, pool, sz-freed_sz)
+        freed_sz += pool_reclaim(dev, pool, sz-freed_sz)
     end
     return freed_sz
 end
@@ -344,6 +334,4 @@ function cached_memory(dev=device())
         sz += mapreduce(sizeof, +, pool; init=0)
     end
     return sz
-end
-
 end

@@ -1,5 +1,3 @@
-module BinnedPool
-
 # binned memory pool allocator
 #
 # the core design is a pretty simple:
@@ -18,13 +16,6 @@ module BinnedPool
 # - per-device pools
 
 # TODO: move the management thread one level up, to be shared by all allocators
-
-using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, actual_alloc, actual_free
-
-using DataStructures
-
-using Base: @lock
 
 
 ## tunables
@@ -82,7 +73,7 @@ const freed = PerDevice{Vector{Block}}((dev)->Vector{Block}())
 # scan every pool and manage the usage history
 #
 # returns a boolean indicating whether any pool is active (this can be a false negative)
-function scan(dev)
+function pool_scan(dev)
   GC.gc(false) # quick, incremental collection
 
   active = false
@@ -118,8 +109,8 @@ function scan(dev)
 end
 
 # reclaim unused buffers
-function reclaim(target_bytes::Int=typemax(Int), dev=device(); full::Bool=true)
-  repopulate(dev)
+function pool_reclaim(target_bytes::Int=typemax(Int), dev=device(); full::Bool=true)
+  pool_repopulate(dev)
 
   @lock pool_lock begin
     # find inactive buffers
@@ -174,7 +165,7 @@ function reclaim(target_bytes::Int=typemax(Int), dev=device(); full::Bool=true)
 end
 
 # repopulate the "available" pools from the list of freed blocks
-function repopulate(dev)
+function pool_repopulate(dev)
   blocks = @safe_lock freed_lock begin
     isempty(freed[dev]) && return
     blocks = Set(freed[dev])
@@ -202,7 +193,7 @@ function repopulate(dev)
   return
 end
 
-function alloc(bytes, dev=device())
+function pool_alloc(bytes, dev=device())
   if bytes <= MAX_POOL
     pid = poolidx(bytes)
     create_pools(dev, pid)
@@ -222,7 +213,7 @@ function alloc(bytes, dev=device())
 
   if block === nothing
     @pool_timeit "0. repopulate" begin
-      repopulate(dev)
+      pool_repopulate(dev)
     end
 
     @lock pool_lock begin
@@ -244,7 +235,7 @@ function alloc(bytes, dev=device())
     end
 
     @pool_timeit "2b. repopulate" begin
-      repopulate(dev)
+      pool_repopulate(dev)
     end
 
     @lock pool_lock begin
@@ -259,7 +250,7 @@ function alloc(bytes, dev=device())
 
   if block === nothing
     @pool_timeit "3. reclaim unused" begin
-      reclaim(bytes, dev)
+      pool_reclaim(bytes, dev)
     end
 
     @pool_timeit "4. try alloc" begin
@@ -273,7 +264,7 @@ function alloc(bytes, dev=device())
     end
 
     @pool_timeit "5b. repopulate" begin
-      repopulate(dev)
+      pool_repopulate(dev)
     end
 
     @lock pool_lock begin
@@ -285,7 +276,7 @@ function alloc(bytes, dev=device())
 
   if block === nothing
     @pool_timeit "6. reclaim unused" begin
-      reclaim(bytes, dev)
+      pool_reclaim(bytes, dev)
     end
 
     @pool_timeit "7. try alloc" begin
@@ -295,7 +286,7 @@ function alloc(bytes, dev=device())
 
   if block === nothing
     @pool_timeit "8. reclaim everything" begin
-      reclaim(typemax(Int), dev)
+      pool_reclaim(typemax(Int), dev)
     end
 
     @pool_timeit "9. try alloc" begin
@@ -320,7 +311,7 @@ function alloc(bytes, dev=device())
   return block
 end
 
-function free(block, dev=device())
+function pool_free(block, dev=device())
   # was this a pooled buffer?
   bytes = sizeof(block)
   if bytes > MAX_POOL
@@ -335,10 +326,7 @@ function free(block, dev=device())
   end
 end
 
-
-## interface
-
-function init()
+function pool_init()
   initialize!(freed, ndevices())
 
   initialize!(pool_usage, ndevices())
@@ -368,7 +356,7 @@ function init()
         dev = CuCurrentdevice()
         if dev !== nothing
           @pool_timeit "background task" begin
-            if scan(dev)
+            if pool_scan(dev)
               delay = MIN_DELAY
             else
               delay = Base.min(delay*2, MAX_DELAY)
@@ -391,8 +379,4 @@ function cached_memory(dev=device())
     sz += bytes * length(pl)
   end
   return sz
-end
-
-dump() = return
-
 end

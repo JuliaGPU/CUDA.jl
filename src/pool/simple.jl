@@ -1,11 +1,4 @@
-module SimplePool
-
 # simple scan into a list of free buffers
-
-using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, actual_alloc, actual_free
-
-using Base: @lock
 
 
 ## tunables
@@ -64,7 +57,7 @@ function repopulate(dev)
     return
 end
 
-function reclaim(sz::Int=typemax(Int), dev=device())
+function pool_reclaim(sz::Int=typemax(Int), dev=device())
     repopulate(dev)
 
     @lock pool_lock begin
@@ -78,7 +71,7 @@ function reclaim(sz::Int=typemax(Int), dev=device())
     end
 end
 
-function alloc(sz, dev=device())
+function pool_alloc(sz, dev=device())
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -100,7 +93,7 @@ function alloc(sz, dev=device())
         block === nothing || break
 
         @pool_timeit "$phase.4 reclaim + alloc" begin
-            reclaim(sz, dev)
+            pool_reclaim(sz, dev)
             block = actual_alloc(dev, sz)
         end
         block === nothing || break
@@ -109,7 +102,7 @@ function alloc(sz, dev=device())
     return block
 end
 
-function free(block, dev=device())
+function pool_free(block, dev=device())
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     @safe_lock_spin freed_lock begin
@@ -117,10 +110,7 @@ function free(block, dev=device())
     end
 end
 
-
-## interface
-
-function init()
+function pool_init()
     initialize!(pool, ndevices())
     initialize!(freed, ndevices())
 end
@@ -129,6 +119,4 @@ function cached_memory(dev=device())
     sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
     sz += @lock pool_lock mapreduce(sizeof, +, pool[dev]; init=0)
     return sz
-end
-
 end

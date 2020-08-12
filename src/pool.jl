@@ -239,14 +239,14 @@ Show the timings of the currently active memory pool. Assumes
 pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 
 # pool API:
-# - init()
-# - alloc(sz)::Block
-# - free(::Block)
-# - reclaim(nb::Int=typemax(Int))::Int
+# - pool_init()
+# - pool_alloc(sz)::Block
+# - pool_free(::Block)
+# - pool_reclaim(nb::Int=typemax(Int))::Int
 # - cached_memory()
 
 const pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
-const pool = let pool_path = joinpath(@__DIR__, "pool", "$(pool_name).jl")
+let pool_path = joinpath(@__DIR__, "pool", "$(pool_name).jl")
   isfile(pool_path) || error("Unknown memory pool $pool_name")
   include(pool_path)
 end
@@ -294,7 +294,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   dev = device()
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" block = pool.alloc(sz)::Union{Nothing,Block}
+    @pool_timeit "pooled alloc" block = pool_alloc(sz)::Union{Nothing,Block}
   end
   block === nothing && throw(OutOfGPUMemoryError(sz))
 
@@ -359,7 +359,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" pool.free(block)
+      @pool_timeit "pooled free" pool_free(block)
     end
 
     alloc_stats.pool_time += time
@@ -380,7 +380,7 @@ Reclaims `sz` bytes of cached memory. Use this to free GPU memory before calling
 functionality that does not use the CUDA memory pool. Returns the number of bytes
 actually reclaimed.
 """
-reclaim(sz::Int=typemax(Int)) = pool.reclaim(sz)
+reclaim(sz::Int=typemax(Int)) = pool_reclaim(sz)
 
 """
     @retry_reclaim isfailed(ret) ex
@@ -545,7 +545,7 @@ function memory_status(io::IO=stdout)
   println(io)
 
   alloc_used_bytes = used_memory()
-  alloc_cached_bytes = pool.cached_memory()
+  alloc_cached_bytes = cached_memory()
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
   @printf(io, "%s usage: %s (%s allocated, %s cached)\n", pool_name,
               Base.format_bytes(alloc_total_bytes), Base.format_bytes(alloc_used_bytes),
@@ -596,7 +596,7 @@ function __init_memory__()
   if runtime_pool_name != pool_name
       error("Cannot use memory pool '$runtime_pool_name' when CUDA.jl was precompiled for memory pool '$pool_name'.")
   end
-  pool.init()
+  pool_init()
 
   reset_timers!()
 end
