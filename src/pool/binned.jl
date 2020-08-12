@@ -20,7 +20,7 @@ module BinnedPool
 # TODO: move the management thread one level up, to be shared by all allocators
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block
 
 using DataStructures
 
@@ -42,14 +42,6 @@ const MAX_DELAY = 5.0
 
 
 ## block of memory
-
-struct Block
-    ptr::CuPtr{Nothing}
-    sz::Int
-end
-
-Base.pointer(block::Block) = block.ptr
-Base.sizeof(block::Block) = block.sz
 
 @inline function actual_alloc(dev, sz)
     ptr = CUDA.actual_alloc(dev, sz)

@@ -3,7 +3,7 @@ module SimplePool
 # simple scan into a list of free buffers
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block
 
 using Base: @lock
 
@@ -25,14 +25,6 @@ end
 
 
 ## block of memory
-
-struct Block
-    ptr::CuPtr{Nothing}
-    sz::Int
-end
-
-Base.pointer(block::Block) = block.ptr
-Base.sizeof(block::Block) = block.sz
 
 @inline function actual_alloc(dev, sz)
     ptr = CUDA.actual_alloc(dev, sz)

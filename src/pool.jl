@@ -102,6 +102,46 @@ AllocStats(b::AllocStats, a::AllocStats) =
     b.actual_time - a.actual_time)
 
 
+## block of memory
+
+using Printf
+
+@enum BlockState begin
+    INVALID
+    AVAILABLE
+    ALLOCATED
+    FREED
+end
+
+# TODO: it would be nice if this could be immutable, since that's what SortedSet requires
+mutable struct Block
+    ptr::CuPtr  # base allocation
+    sz::Int     # size into it
+    off::Int    # offset into it
+
+    state::BlockState
+    prev::Union{Nothing,Block}
+    next::Union{Nothing,Block}
+
+    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing) =
+        new(ptr, sz, off, state, prev, next)
+end
+
+Base.sizeof(block::Block) = block.sz
+Base.pointer(block::Block) = block.ptr + block.off
+
+iswhole(block::Block) = block.prev === nothing && block.next === nothing
+
+function Base.show(io::IO, block::Block)
+    fields = [@sprintf("%s at %p", Base.format_bytes(sizeof(block)), Int(pointer(block)))]
+    push!(fields, "$(block.state)")
+    block.prev !== nothing && push!(fields, @sprintf("prev=Block(%p)", Int(pointer(block.prev))))
+    block.next !== nothing && push!(fields, @sprintf("next=Block(%p)", Int(pointer(block.next))))
+
+    print(io, "Block(", join(fields, ", "), ")")
+end
+
+
 ## CUDA allocator
 
 const alloc_to = TimerOutput()

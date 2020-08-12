@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, iswhole, INVALID, AVAILABLE, ALLOCATED, FREED
 
 using DataStructures
 
@@ -28,47 +28,7 @@ const LARGE_OVERHEAD = typemax(Int)
 const HUGE_OVERHEAD  = 0
 
 
-## block of memory
-
-using Printf
-
-@enum BlockState begin
-    INVALID
-    AVAILABLE
-    ALLOCATED
-    FREED
-end
-
-# TODO: it would be nice if this could be immutable, since that's what SortedSet requires
-mutable struct Block
-    ptr::CuPtr  # base allocation
-    sz::Int     # size into it
-    off::Int    # offset into it
-
-    state::BlockState
-    prev::Union{Nothing,Block}
-    next::Union{Nothing,Block}
-
-    Block(ptr, sz; off=0, state=INVALID, prev=nothing, next=nothing) =
-        new(ptr, sz, off, state, prev, next)
-end
-
-Base.sizeof(block::Block) = block.sz
-Base.pointer(block::Block) = block.ptr + block.off
-
-iswhole(block::Block) = block.prev === nothing && block.next === nothing
-
-
 ## block utilities
-
-function Base.show(io::IO, block::Block)
-    fields = [@sprintf("%s at %p", Base.format_bytes(sizeof(block)), Int(pointer(block)))]
-    push!(fields, "$(block.state)")
-    block.prev !== nothing && push!(fields, @sprintf("prev=Block(%p)", Int(pointer(block.prev))))
-    block.next !== nothing && push!(fields, @sprintf("next=Block(%p)", Int(pointer(block.next))))
-
-    print(io, "Block(", join(fields, ", "), ")")
-end
 
 # split a block at size `sz`, returning the newly created block
 function split!(block, sz)
