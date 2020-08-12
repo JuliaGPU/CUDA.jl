@@ -15,6 +15,7 @@ using Printf
 # TODO: needs another redesign
 #
 # - Buffers should be typed, since ArrayBuffers are tied to a format.
+#   or maybe only ArrayBuffer{T}, others unparameterized?
 #   untyped buffers can use T=UInt8 or T=Nothing and reinterpret the output pointer
 #   (this is impossible with textures, though)
 # - copyto! methods should take a Buffer so that we can populate the memcpy structs directly
@@ -27,7 +28,7 @@ using Printf
 # untyped buffers
 #
 
-abstract type Buffer end
+abstract type Buffer end    # TODO; AbstractBuffer
 
 # expected interface:
 # - similar()
@@ -36,6 +37,7 @@ abstract type Buffer end
 
 Base.pointer(buf::Buffer) = buf.ptr
 
+# FIXME: not available for ArrayBuffer
 Base.sizeof(buf::Buffer) = buf.bytesize
 
 # ccall integration
@@ -45,9 +47,8 @@ Base.sizeof(buf::Buffer) = buf.bytesize
 Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::Buffer) = convert(T, buf)
 
 function Base.show(io::IO, buf::Buffer)
-    @printf(io, "%s(%s at %p)",
+    @printf(io, "%s(%p)",
             nameof(typeof(buf)),
-            Base.format_bytes(sizeof(buf)),
             Int(pointer(buf)))
 end
 

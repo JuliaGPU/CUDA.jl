@@ -130,10 +130,12 @@ Base.pointer(block::Block) = pointer(block.buf) + block.off
 iswhole(block::Block) = block.prev === nothing && block.next === nothing
 
 function Base.show(io::IO, block::Block)
-    fields = [string(block.buf)]
+    fields = [@sprintf("%p", Int(pointer(block)))]
+    push!(fields, Base.format_bytes(sizeof(block)))
     push!(fields, "$(block.state)")
-    block.prev !== nothing && push!(fields, @sprintf("prev=Block(%s)", string(block.prev.buf)))
-    block.next !== nothing && push!(fields, @sprintf("next=Block(%s)", string(block.next.buf)))
+    block.off != 0 && push!(fields, "offset=$(block.off)")
+    block.prev !== nothing && push!(fields, "prev=Block(offset=$(block.prev.off))")
+    block.next !== nothing && push!(fields, "next=Block(offset=$(block.next.off))")
 
     print(io, "Block(", join(fields, ", "), ")")
 end
