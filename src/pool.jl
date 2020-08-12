@@ -240,9 +240,9 @@ pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 
 # pool API:
 # - pool_init()
-# - pool_alloc(sz)::Block
-# - pool_free(::Block)
-# - pool_reclaim(nb::Int=typemax(Int))::Int
+# - pool_alloc(::CuDevice, sz)::Block
+# - pool_free(::CuDevice, ::Block)
+# - pool_reclaim(::CuDevice, nb::Int=typemax(Int))::Int
 # - cached_memory()
 
 const pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
@@ -294,7 +294,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   dev = device()
 
   time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" block = pool_alloc(sz)::Union{Nothing,Block}
+    @pool_timeit "pooled alloc" block = pool_alloc(dev, sz)::Union{Nothing,Block}
   end
   block === nothing && throw(OutOfGPUMemoryError(sz))
 
@@ -359,7 +359,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" pool_free(block)
+      @pool_timeit "pooled free" pool_free(dev, block)
     end
 
     alloc_stats.pool_time += time
@@ -380,7 +380,10 @@ Reclaims `sz` bytes of cached memory. Use this to free GPU memory before calling
 functionality that does not use the CUDA memory pool. Returns the number of bytes
 actually reclaimed.
 """
-reclaim(sz::Int=typemax(Int)) = pool_reclaim(sz)
+function reclaim(sz::Int=typemax(Int))
+  dev = device()
+  pool_reclaim(dev, sz)
+end
 
 """
     @retry_reclaim isfailed(ret) ex

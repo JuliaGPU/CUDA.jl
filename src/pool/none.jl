@@ -2,7 +2,7 @@
 
 pool_init() = return
 
-function pool_alloc(sz, dev=device())
+function pool_alloc(dev, sz)
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -20,11 +20,11 @@ function pool_alloc(sz, dev=device())
     return block
 end
 
-function pool_free(block, dev=device())
+function pool_free(dev, block)
     actual_free(dev, block)
     return
 end
 
-pool_reclaim(target_bytes::Int=typemax(Int)) = return 0
+pool_reclaim(dev, target_bytes::Int=typemax(Int)) = return 0
 
-cached_memory() = 0
+cached_memory(dev=device()) = 0

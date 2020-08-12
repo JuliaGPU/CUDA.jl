@@ -109,7 +109,7 @@ function pool_scan(dev)
 end
 
 # reclaim unused buffers
-function pool_reclaim(target_bytes::Int=typemax(Int), dev=device(); full::Bool=true)
+function pool_reclaim(dev, target_bytes::Int=typemax(Int); full::Bool=true)
   pool_repopulate(dev)
 
   @lock pool_lock begin
@@ -193,7 +193,7 @@ function pool_repopulate(dev)
   return
 end
 
-function pool_alloc(bytes, dev=device())
+function pool_alloc(dev, bytes)
   if bytes <= MAX_POOL
     pid = poolidx(bytes)
     create_pools(dev, pid)
@@ -250,7 +250,7 @@ function pool_alloc(bytes, dev=device())
 
   if block === nothing
     @pool_timeit "3. reclaim unused" begin
-      pool_reclaim(bytes, dev)
+      pool_reclaim(dev, bytes)
     end
 
     @pool_timeit "4. try alloc" begin
@@ -276,7 +276,7 @@ function pool_alloc(bytes, dev=device())
 
   if block === nothing
     @pool_timeit "6. reclaim unused" begin
-      pool_reclaim(bytes, dev)
+      pool_reclaim(dev, bytes)
     end
 
     @pool_timeit "7. try alloc" begin
@@ -286,7 +286,7 @@ function pool_alloc(bytes, dev=device())
 
   if block === nothing
     @pool_timeit "8. reclaim everything" begin
-      pool_reclaim(typemax(Int), dev)
+      pool_reclaim(dev, typemax(Int))
     end
 
     @pool_timeit "9. try alloc" begin
@@ -311,7 +311,7 @@ function pool_alloc(bytes, dev=device())
   return block
 end
 
-function pool_free(block, dev=device())
+function pool_free(dev, block)
   # was this a pooled buffer?
   bytes = sizeof(block)
   if bytes > MAX_POOL

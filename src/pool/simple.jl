@@ -57,7 +57,7 @@ function repopulate(dev)
     return
 end
 
-function pool_reclaim(sz::Int=typemax(Int), dev=device())
+function pool_reclaim(dev, sz::Int=typemax(Int))
     repopulate(dev)
 
     @lock pool_lock begin
@@ -71,7 +71,7 @@ function pool_reclaim(sz::Int=typemax(Int), dev=device())
     end
 end
 
-function pool_alloc(sz, dev=device())
+function pool_alloc(dev, sz)
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -93,7 +93,7 @@ function pool_alloc(sz, dev=device())
         block === nothing || break
 
         @pool_timeit "$phase.4 reclaim + alloc" begin
-            pool_reclaim(sz, dev)
+            pool_reclaim(dev, sz)
             block = actual_alloc(dev, sz)
         end
         block === nothing || break
@@ -102,7 +102,7 @@ function pool_alloc(sz, dev=device())
     return block
 end
 
-function pool_free(block, dev=device())
+function pool_free(dev, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     @safe_lock_spin freed_lock begin
