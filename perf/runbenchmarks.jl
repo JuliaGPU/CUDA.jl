@@ -27,7 +27,7 @@ warmup(SUITE; verbose=false)
 paramsfile = joinpath(first(DEPOT_PATH), "cache", "CUDA_benchmark_params.json")
 mkpath(dirname(paramsfile))
 if !isfile(paramsfile)
-    @warn "No saved parameters found, will re-tune all benchmarks"
+    @warn "No saved parameters found, tuning all benchmarks"
     tune!(SUITE)
 else
     loadparams!(SUITE, BenchmarkTools.load(paramsfile)[1], :evals, :samples)
@@ -48,11 +48,11 @@ else
     untuned = find_untuned(SUITE)
 
     if !isempty(untuned)
-        @info "Tuning parameters: $(join(keys(untuned), ", "))"
+        @info "Re-tuning the following benchmarks: $(join(keys(untuned), ", "))"
         foreach(tune!, values(untuned))
-        BenchmarkTools.save(paramsfile, params(SUITE))
     end
 end
+BenchmarkTools.save(paramsfile, params(SUITE))
 
 @info "Running benchmarks"
 results = run(SUITE, verbose=true)
