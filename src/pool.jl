@@ -214,10 +214,10 @@ function actual_free(dev::CuDevice, block::Block)
       end
       block.state = INVALID
 
-      Threads.atomic_sub!(usage[dev], bytes)
+      Threads.atomic_sub!(usage[dev], sizeof(block))
       alloc_stats.actual_time += time
       alloc_stats.actual_nfree += 1
-      alloc_stats.actual_free += bytes
+      alloc_stats.actual_free += sizeof(block)
     end
   end
 
@@ -243,10 +243,9 @@ pool_timings() = (show(pool_to; allocations=false, sortby=:name); println())
 
 # pool API:
 # - init()
-# - alloc(sz)::CuPtr{Nothing}
-# - free(::CuPtr{Nothing})
+# - alloc(sz)::Block
+# - free(::Block)
 # - reclaim(nb::Int=typemax(Int))::Int
-# - used_memory()
 # - cached_memory()
 
 const pool_name = get(ENV, "JULIA_CUDA_MEMORY_POOL", "binned")
@@ -259,6 +258,11 @@ end
 ## interface
 
 export OutOfGPUMemoryError
+
+const allocated_lock = NonReentrantLock()
+const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
+    Dict{CuPtr,Block}()
+end
 
 const requested_lock = NonReentrantLock()
 const requested = PerDevice{Dict{CuPtr{Nothing},Any}}() do dev
@@ -290,14 +294,22 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   # 0-byte allocations shouldn't hit the pool
   sz == 0 && return CU_NULL
 
-  time = Base.@elapsed begin
-    @pool_timeit "pooled alloc" ptr = pool.alloc(sz)::Union{Nothing,CuPtr{Nothing}}
-  end
-  ptr === nothing && throw(OutOfGPUMemoryError(sz))
+  dev = device()
 
-  # record the allocation
+  time = Base.@elapsed begin
+    @pool_timeit "pooled alloc" block = pool.alloc(sz)::Union{Nothing,Block}
+  end
+  block === nothing && throw(OutOfGPUMemoryError(sz))
+
+  # record the memory block
+  ptr = pointer(block)
+  @safe_lock allocated_lock begin
+      @assert !haskey(allocated[dev], ptr)
+      allocated[dev][ptr] = block
+  end
+
+  # record the allocation site
   if Base.JLOptions().debug_level >= 2
-    dev = device()
     bt = backtrace()
     @lock requested_lock begin
       @assert !haskey(requested[dev], ptr)
@@ -325,6 +337,8 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # 0-byte allocations shouldn't hit the pool
   ptr == CU_NULL && return
 
+  dev = device()
+
   if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
     Core.println("Freeing a scrubbed pointer!")
   end
@@ -332,17 +346,23 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-    # record the allocation
+    # look up the memory block
+    block = @safe_lock_spin allocated_lock begin
+        block = allocated[dev][ptr]
+        delete!(allocated[dev], ptr)
+        block
+    end
+
+    # look up the allocation site
     if Base.JLOptions().debug_level >= 2
       @lock requested_lock begin
-        dev = device()
         @assert haskey(requested[dev], ptr)
         delete!(requested[dev], ptr)
       end
     end
 
     time = Base.@elapsed begin
-      @pool_timeit "pooled free" pool.free(ptr)
+      @pool_timeit "pooled free" pool.free(block)
     end
 
     alloc_stats.pool_time += time
@@ -400,6 +420,11 @@ end
 
 
 ## utilities
+
+used_memory(dev=device()) = @safe_lock allocated_lock begin
+    mapreduce(sizeof, +, values(allocated[dev]); init=0)
+end
+
 
 """
     @allocated
@@ -522,7 +547,7 @@ function memory_status(io::IO=stdout)
   end
   println(io)
 
-  alloc_used_bytes = pool.used_memory()
+  alloc_used_bytes = used_memory()
   alloc_cached_bytes = pool.cached_memory()
   alloc_total_bytes = alloc_used_bytes + alloc_cached_bytes
   @printf(io, "%s usage: %s (%s allocated, %s cached)\n", pool_name,
@@ -565,7 +590,8 @@ function __init_memory__()
   initialize!(usage_limit, ndevices())
   initialize!(usage, ndevices())
 
-  # debug
+  # allocation tracking
+  initialize!(allocated, ndevices())
   initialize!(requested, ndevices())
 
   # memory pool configuration

@@ -315,13 +315,7 @@ end
 
 ## interface
 
-const allocated_lock = NonReentrantLock()
-const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
-    Dict{CuPtr,Block}()
-end
-
 function init()
-    initialize!(allocated, ndevices())
     initialize!(freed, ndevices())
 
     initialize!(pool_small, ndevices())
@@ -333,23 +327,13 @@ function alloc(sz, dev=device())
     block = pool_alloc(dev, sz)
     if block !== nothing
         block.state = ALLOCATED
-        ptr = pointer(block)
-        @safe_lock allocated_lock begin
-            @assert !haskey(allocated[dev], ptr) "Newly-allocated block $block is already allocated"
-            allocated[dev][ptr] = block
-        end
-        return ptr
+        return block
     else
         return nothing
     end
 end
 
-function free(ptr, dev=device())
-    block = @safe_lock_spin allocated_lock begin
-        block = allocated[dev][ptr]
-        delete!(allocated[dev], ptr)
-        block
-    end
+function free(block, dev=device())
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     pool_free(dev, block)
     return
@@ -364,10 +348,6 @@ function reclaim(sz::Int=typemax(Int), dev=device())
         freed_sz += reclaim!(dev, pool, sz-freed_sz)
     end
     return freed_sz
-end
-
-used_memory(dev=device()) = @safe_lock allocated_lock begin
-  mapreduce(sizeof, +, values(allocated[dev]); init=0)
 end
 
 function cached_memory(dev=device())

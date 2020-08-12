@@ -323,13 +323,7 @@ end
 
 ## interface
 
-const allocated_lock = NonReentrantLock()
-const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
-  Dict{CuPtr,Block}()
-end
-
 function init()
-  initialize!(allocated, ndevices())
   initialize!(freed, ndevices())
 
   initialize!(pool_usage, ndevices())
@@ -388,23 +382,10 @@ function alloc(bytes, dev=device())
     pool_alloc(dev, bytes)
   end
 
-  if block !== nothing
-    ptr = pointer(block)
-    @safe_lock allocated_lock begin
-      allocated[dev][ptr] = block
-    end
-    return ptr
-  else
-    return nothing
-  end
+  return block
 end
 
-function free(ptr, dev=device())
-  block = @safe_lock_spin allocated_lock begin
-    block = allocated[dev][ptr]
-    delete!(allocated[dev], ptr)
-    block
-  end
+function free(block, dev=device())
   bytes = sizeof(block)
   @assert bytes > 0
 
@@ -419,10 +400,6 @@ function free(ptr, dev=device())
   end
 
   return
-end
-
-used_memory(dev=device()) = @safe_lock allocated_lock begin
-  mapreduce(sizeof, +, values(allocated[dev]); init=0)
 end
 
 function cached_memory(dev=device())

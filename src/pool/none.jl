@@ -7,14 +7,7 @@ using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDe
 
 using Base: @lock
 
-const allocated_lock = NonReentrantLock()
-const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
-    Dict{CuPtr,Block}()
-end
-
-function init()
-    initialize!(allocated, ndevices())
-end
+init() = return
 
 function alloc(sz, dev=device())
     block = nothing
@@ -31,33 +24,15 @@ function alloc(sz, dev=device())
         block === nothing || break
     end
 
-    if block !== nothing
-        @safe_lock allocated_lock begin
-            allocated[dev][ptr] = block
-        end
-        return pointer(block)
-    else
-        return nothing
-    end
+    return block
 end
 
-function free(ptr, dev=device())
-    block = @safe_lock_spin allocated_lock begin
-        block = allocated[dev][ptr]
-        delete!(allocated[dev], ptr)
-        block
-    end
-
+function free(block, dev=device())
     actual_free(dev, block)
     return
 end
 
 reclaim(target_bytes::Int=typemax(Int)) = return 0
-
-used_memory(dev=device()) = @safe_lock allocated_lock begin
-    mapreduce(sizeof, +, values(allocated[dev]); init=0)
-end
-
 cached_memory() = 0
 
 end
