@@ -202,7 +202,15 @@ function repopulate(dev)
   return
 end
 
-function pool_alloc(dev, bytes, pid=-1)
+function alloc(bytes, dev=device())
+  if bytes <= MAX_POOL
+    pid = poolidx(bytes)
+    create_pools(dev, pid)
+    bytes = poolsize(pid)
+  else
+    pid = -1
+  end
+
   block = nothing
 
   # NOTE: checking the pool is really fast, and not included in the timings
@@ -312,9 +320,16 @@ function pool_alloc(dev, bytes, pid=-1)
   return block
 end
 
-function pool_free(dev, block)
-    # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
-    # and to simplify locking (preventing concurrent access during GC interventions)
+function free(block, dev=device())
+  # was this a pooled buffer?
+  bytes = sizeof(block)
+  if bytes > MAX_POOL
+    actual_free(dev, block)
+    return
+  end
+
+  # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
+  # and to simplify locking (preventing concurrent access during GC interventions)
   @safe_lock_spin freed_lock begin
     push!(freed[dev], block)
   end
@@ -367,39 +382,6 @@ function init()
       end
     end
   end
-end
-
-function alloc(bytes, dev=device())
-  @assert bytes > 0
-
-  # only manage small allocations in the pool
-  block = if bytes <= MAX_POOL
-    pid = poolidx(bytes)
-    create_pools(dev, pid)
-    alloc_bytes = poolsize(pid)
-    pool_alloc(dev, alloc_bytes, pid)
-  else
-    pool_alloc(dev, bytes)
-  end
-
-  return block
-end
-
-function free(block, dev=device())
-  bytes = sizeof(block)
-  @assert bytes > 0
-
-  # was this a pooled buffer?
-  if bytes <= MAX_POOL
-    pid = poolidx(bytes)
-    @assert pid <= length(pools_used[dev])
-    @assert pid == poolidx(sizeof(block))
-    pool_free(dev, block)
-  else
-    actual_free(dev, block)
-  end
-
-  return
 end
 
 function cached_memory(dev=device())

@@ -78,7 +78,7 @@ function reclaim(sz::Int=typemax(Int), dev=device())
     end
 end
 
-function pool_alloc(dev, sz)
+function alloc(sz, dev=device())
     block = nothing
     for phase in 1:3
         if phase == 2
@@ -109,7 +109,7 @@ function pool_alloc(dev, sz)
     return block
 end
 
-function pool_free(dev, block)
+function free(block, dev=device())
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
     @safe_lock_spin freed_lock begin
@@ -123,15 +123,6 @@ end
 function init()
     initialize!(pool, ndevices())
     initialize!(freed, ndevices())
-end
-
-function alloc(sz, dev=device())
-    return pool_alloc(dev, sz)
-end
-
-function free(block, dev=device())
-    pool_free(dev, block)
-    return
 end
 
 function cached_memory(dev=device())

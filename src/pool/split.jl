@@ -217,7 +217,7 @@ end
     end
 end
 
-function pool_alloc(dev, sz)
+function alloc(sz, dev=device())
     szclass = size_class(sz)
 
     # round off the block size
@@ -300,12 +300,16 @@ function pool_alloc(dev, sz)
         end
     end
 
+    if block !== nothing
+        block.state = ALLOCATED
+    end
     return block
 end
 
-function pool_free(dev, block)
+function free(block, dev=device())
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
+    block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     block.state = FREED
     @safe_lock_spin freed_lock begin
         push!(freed[dev], block)
@@ -321,22 +325,6 @@ function init()
     initialize!(pool_small, ndevices())
     initialize!(pool_large, ndevices())
     initialize!(pool_huge, ndevices())
-end
-
-function alloc(sz, dev=device())
-    block = pool_alloc(dev, sz)
-    if block !== nothing
-        block.state = ALLOCATED
-        return block
-    else
-        return nothing
-    end
-end
-
-function free(block, dev=device())
-    block.state == ALLOCATED || error("Cannot free a $(block.state) block")
-    pool_free(dev, block)
-    return
 end
 
 function reclaim(sz::Int=typemax(Int), dev=device())
