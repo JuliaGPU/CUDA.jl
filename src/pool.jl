@@ -197,10 +197,13 @@ function actual_alloc(dev::CuDevice, bytes::Integer)
 
   # convert to a pointer
   ptr = convert(CuPtr{Nothing}, buf)
-  return Block(ptr, bytes)
+  return Block(ptr, bytes; state=AVAILABLE)
 end
 
 function actual_free(dev::CuDevice, block::Block)
+  @assert iswhole(block) "Cannot free $block: block is not whole"
+  @assert block.off == 0
+  @assert block.state == AVAILABLE "Cannot free $block: block is not available"
   buf = Mem.DeviceBuffer(pointer(block), sizeof(block))
 
   @device! dev begin
@@ -209,6 +212,7 @@ function actual_free(dev::CuDevice, block::Block)
       time = Base.@elapsed begin
         Mem.free(buf)
       end
+      block.state = INVALID
 
       Threads.atomic_sub!(usage[dev], bytes)
       alloc_stats.actual_time += time

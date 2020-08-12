@@ -3,7 +3,7 @@ module DummyPool
 # dummy allocator that passes through any requests, calling into the GC if that fails.
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, actual_alloc, actual_free
 
 using Base: @lock
 
@@ -26,7 +26,7 @@ function alloc(sz, dev=device())
         end
 
         @pool_timeit "$phase.1 alloc" begin
-            block = CUDA.actual_alloc(dev, sz)
+            block = actual_alloc(dev, sz)
         end
         block === nothing || break
     end
@@ -48,7 +48,7 @@ function free(ptr, dev=device())
         block
     end
 
-    CUDA.actual_free(dev, block)
+    actual_free(dev, block)
     return
 end
 

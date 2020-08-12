@@ -20,7 +20,7 @@ module BinnedPool
 # TODO: move the management thread one level up, to be shared by all allocators
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, actual_alloc, actual_free
 
 using DataStructures
 
@@ -39,17 +39,6 @@ const USAGE_WINDOW = 5
 # together with USAGE_WINDOW, this determines how long it takes for objects to get reclaimed
 const MIN_DELAY = 1.0
 const MAX_DELAY = 5.0
-
-
-## block of memory
-
-@inline function actual_alloc(dev, sz)
-    return CUDA.actual_alloc(dev, sz)
-end
-
-function actual_free(dev, block::Block)
-    CUDA.actual_free(dev, block)
-end
 
 
 ## infrastructure

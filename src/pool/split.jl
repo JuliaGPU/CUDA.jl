@@ -3,7 +3,7 @@ module SplittingPool
 # scan into a sorted list of free buffers, splitting buffers along the way
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, iswhole, INVALID, AVAILABLE, ALLOCATED, FREED
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, iswhole, INVALID, AVAILABLE, ALLOCATED, FREED, actual_alloc, actual_free
 
 using DataStructures
 
@@ -56,22 +56,6 @@ function merge!(head, tail)
     head.sz = tail.sz + (tail.off - head.off)
 
     return head
-end
-
-@inline function actual_alloc(dev, sz)
-    return CUDA.actual_alloc(dev, sz)
-end
-
-function actual_free(dev, block::Block)
-    @assert iswhole(block) "Cannot free $block: block is not whole"
-    if block.state != AVAILABLE
-        error("Cannot free $block: block is not available")
-    else
-        @assert block.off == 0
-        CUDA.actual_free(dev, block)
-        block.state = INVALID
-    end
-    return
 end
 
 

@@ -3,7 +3,7 @@ module SimplePool
 # simple scan into a list of free buffers
 
 using ..CUDA
-using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block
+using ..CUDA: @pool_timeit, @safe_lock, @safe_lock_spin, NonReentrantLock, PerDevice, initialize!, Block, actual_alloc, actual_free
 
 using Base: @lock
 
@@ -21,18 +21,6 @@ function max_oversize(sz)
     else
         return 2^22
     end
-end
-
-
-## block of memory
-
-@inline function actual_alloc(dev, sz)
-    return CUDA.actual_alloc(dev, sz)
-end
-
-function actual_free(dev, block::Block)
-    CUDA.actual_free(dev, block)
-    return
 end
 
 
