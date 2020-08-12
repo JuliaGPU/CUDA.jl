@@ -332,6 +332,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   ptr == CU_NULL && return
 
   dev = device()
+  last_use[dev] = time()
 
   if MEMDEBUG && ptr == CuPtr{Cvoid}(0xbbbbbbbbbbbbbbbb)
     Core.println("Freeing a scrubbed pointer!")
@@ -412,6 +413,31 @@ macro retry_reclaim(isfailed, ex)
       end
     end
     ret
+  end
+end
+
+
+## management
+
+const last_use = PerDevice{Union{Nothing,Float64}}() do dev
+  nothing
+end
+
+# reclaim unused pool memory after a certain time
+function pool_cleanup()
+  while true
+    t1 = time()
+    @pool_timeit "cleanup" for dev in devices()
+      t0 = last_use[dev]
+      t0 === nothing && continue
+
+      if t1-t0 > 300
+        # the pool hasn't been used for a while, so reclaim unused buffers
+        pool_reclaim(dev)
+      end
+    end
+
+    sleep(60)
   end
 end
 
@@ -579,8 +605,9 @@ end
 
 function __init_pool__()
   # usage
-  initialize!(usage_limit, ndevices())
   initialize!(usage, ndevices())
+  initialize!(last_use, ndevices())
+  initialize!(usage_limit, ndevices())
 
   # allocation tracking
   initialize!(allocated, ndevices())
@@ -595,4 +622,8 @@ function __init_pool__()
 
   TimerOutputs.reset_timer!(alloc_to)
   TimerOutputs.reset_timer!(pool_to)
+
+  if isinteractive()
+    @async pool_cleanup()
+  end
 end
