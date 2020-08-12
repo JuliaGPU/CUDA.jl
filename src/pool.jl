@@ -104,8 +104,6 @@ AllocStats(b::AllocStats, a::AllocStats) =
 
 ## block of memory
 
-using Printf
-
 @enum BlockState begin
     INVALID
     AVAILABLE
@@ -113,7 +111,6 @@ using Printf
     FREED
 end
 
-# TODO: it would be nice if this could be immutable, since that's what SortedSet requires
 mutable struct Block
     buf::Mem.DeviceBuffer # base allocation
     sz::Int               # size into it
@@ -161,7 +158,7 @@ const usage_limit = PerDevice{Int}() do dev
   if haskey(ENV, "JULIA_CUDA_MEMORY_LIMIT")
     parse(Int, ENV["JULIA_CUDA_MEMORY_LIMIT"])
   elseif haskey(ENV, "CUARRAYS_MEMORY_LIMIT")
-    Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_memory__)
+    Base.depwarn("The CUARRAYS_MEMORY_LIMIT environment flag is deprecated, please use JULIA_CUDA_MEMORY_LIMIT instead.", :__init_pool__)
     parse(Int, ENV["CUARRAYS_MEMORY_LIMIT"])
   else
     typemax(Int)
@@ -262,8 +259,8 @@ const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
 end
 
 const requested_lock = NonReentrantLock()
-const requested = PerDevice{Dict{CuPtr{Nothing},Any}}() do dev
-  Dict{CuPtr{Nothing},Any}()
+const requested = PerDevice{Dict{CuPtr{Nothing},Vector}}() do dev
+  Dict{CuPtr{Nothing},Vector}()
 end
 
 """
@@ -310,7 +307,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
     bt = backtrace()
     @lock requested_lock begin
       @assert !haskey(requested[dev], ptr)
-      requested[dev][ptr] = (bt,sz)
+      requested[dev][ptr] = bt
     end
   end
 
@@ -562,10 +559,13 @@ function memory_status(io::IO=stdout)
   end
 
   if Base.JLOptions().debug_level >= 2
-    requested′ = @lock requested_lock copy(requested[dev])
-    for (ptr, (bt,sz)) in requested′
+    requested′, allocated′ = @lock requested_lock begin
+      copy(requested[dev]), copy(allocated[dev])
+    end
+    for (ptr, bt) in requested′
+      block = allocated′[ptr]
       @printf(io, "\nOutstanding memory allocation of %s at %p",
-              Base.format_bytes(sz), Int(ptr))
+              Base.format_bytes(sizeof(block)), Int(ptr))
       stack = stacktrace(bt, false)
       StackTraces.remove_frames!(stack, :alloc)
       Base.show_backtrace(io, stack)
@@ -577,15 +577,7 @@ end
 
 ## init
 
-"""
-    enable_timings()
-
-Enable the recording of debug timings.
-"""
-enable_timings() = (TimerOutputs.enable_debug_timings(CUDA); return)
-disable_timings() = (TimerOutputs.disable_debug_timings(CUDA); return)
-
-function __init_memory__()
+function __init_pool__()
   # usage
   initialize!(usage_limit, ndevices())
   initialize!(usage, ndevices())
@@ -601,15 +593,6 @@ function __init_memory__()
   end
   pool_init()
 
-  reset_timers!()
-end
-
-"""
-    reset_timers!()
-
-Reset all debug timers. This is automatically called at initialization time,
-"""
-function reset_timers!()
   TimerOutputs.reset_timer!(alloc_to)
   TimerOutputs.reset_timer!(pool_to)
 end

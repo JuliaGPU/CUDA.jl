@@ -338,7 +338,7 @@ function pool_init()
   managed_str = if haskey(ENV, "JULIA_CUDA_MEMORY_POOL_MANAGED")
     ENV["JULIA_CUDA_MEMORY_POOL_MANAGED"]
   elseif haskey(ENV, "CUARRAYS_MANAGED_POOL")
-    Base.depwarn("The CUARRAYS_MANAGED_POOL environment flag is deprecated, please use JULIA_CUDA_MEMORY_POOL_MANAGED instead.", :__init_memory__)
+    Base.depwarn("The CUARRAYS_MANAGED_POOL environment flag is deprecated, please use JULIA_CUDA_MEMORY_POOL_MANAGED instead.", :__init_pool__)
     ENV["CUARRAYS_MANAGED_POOL"]
   else
     nothing
