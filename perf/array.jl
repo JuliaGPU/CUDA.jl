@@ -1,12 +1,15 @@
 group = addgroup!(SUITE, "array")
 
+const m = 512
+const n = 1000
+
 # generate some arrays
-cpu_mat = rand(Float32, 512, 1000)
+cpu_mat = rand(rng, Float32, m, n)
 gpu_mat = CuArray{Float32}(undef, size(cpu_mat))
 gpu_vec = reshape(gpu_mat, length(gpu_mat))
-gpu_mat_ints = CuArray(rand(Int, 512, 1000))
+gpu_mat_ints = CuArray(rand(rng, Int, m, n))
 gpu_vec_ints = reshape(gpu_mat_ints, length(gpu_mat_ints))
-gpu_mat_bools = CuArray(rand(Bool, 512, 1000))
+gpu_mat_bools = CuArray(rand(rng, Bool, m, n))
 gpu_vec_bools = reshape(gpu_mat_bools, length(gpu_mat_bools))
 
 group["construct"] = @benchmarkable CuArray{Int}(undef, 1)

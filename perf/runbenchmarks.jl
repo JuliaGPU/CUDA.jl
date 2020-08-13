@@ -6,6 +6,9 @@ CUDA.allowscalar(false)
 using BenchmarkTools
 BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
 
+using StableRNGs
+rng = StableRNG(123)
+
 # convenience macro to create a benchmark that requires synchronizing the GPU
 macro async_benchmarkable(ex...)
     quote
