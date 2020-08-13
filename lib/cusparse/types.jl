@@ -1,8 +1,53 @@
 # type conversions
 
-Base.convert(::Type{cusparseIndexType_t}, ::Type{UInt16}) = CUSPARSE_INDEX_16U
-Base.convert(::Type{cusparseIndexType_t}, ::Type{Int32})  = CUSPARSE_INDEX_32I
-Base.convert(::Type{cusparseIndexType_t}, ::Type{Int64})  = CUSPARSE_INDEX_64I
+## index type
+
+function Base.convert(::Type{cusparseIndexType_t}, T::DataType)
+    if T == Int16
+        return CUSPARSE_INDEX_16U
+    elseif T == Int32
+        return CUSPARSE_INDEX_32I
+    elseif T == Int64
+        return CUSPARSE_INDEX_64I
+    else
+        throw(ArgumentError("CUSPARSE type equivalent for index type $T does not exist!"))
+    end
+end
+
+function Base.convert(::Type{Type}, T::cusparseIndexType_t)
+    if T == CUSPARSE_INDEX_16U
+        return Int16
+    elseif T == CUSPARSE_INDEX_32I
+        return Int32
+    elseif T == CUSPARSE_INDEX_64I
+        return Int64
+    else
+        throw(ArgumentError("Julia type equivalent for index type $T does not exist!"))
+    end
+end
+
+
+## index base
+
+function Base.convert(::Type{cusparseIndexBase_t}, base::Integer)
+    if base == 0
+        return CUSPARSE_INDEX_BASE_ZERO
+    elseif base == 1
+        return CUSPARSE_INDEX_BASE_ONE
+    else
+        throw(ArgumentError("CUSPARSE does not support index base $base!"))
+    end
+end
+
+function Base.convert(T::Type{<:Integer}, base::cusparseIndexBase_t)
+    if base == CUSPARSE_INDEX_BASE_ZERO
+        return T(0)
+    elseif base == CUSPARSE_INDEX_BASE_ONE
+        return T(1)
+    else
+        throw(ArgumentError("Unknown index base $base!"))
+    end
+end
 
 
 ## SparseChar conversions
