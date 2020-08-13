@@ -98,21 +98,15 @@ let
     # create a pinned and mapped buffer
     src = Mem.alloc(Mem.Host, nb, Mem.HOSTALLOC_DEVICEMAP)
 
-    # get the CPU address and copy some data
+    # get the CPU address and copy some data to the buffer
     cpu_ptr = convert(Ptr{T}, src)
     @test CUDA.memory_type(cpu_ptr) == CUDA.MEMORYTYPE_HOST
     unsafe_copyto!(cpu_ptr, pointer(data), N)
 
-    # get the GPU address and construct a fake device buffer
-    gpu_ptr = convert(CuPtr{Cvoid}, src)
-    @test CUDA.memory_type(gpu_ptr) == CUDA.MEMORYTYPE_HOST
-    gpu_obj = Mem.alloc(Mem.Device, nb)
-    dst = similar(gpu_obj, gpu_ptr)
-    Mem.free(gpu_obj)
-
-    # copy data back from the GPU and compare
+    # get the GPU address and copy back the data
+    gpu_ptr = convert(CuPtr{T}, src)
     ref = Array{T}(undef, N)
-    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
+    unsafe_copyto!(pointer(ref), gpu_ptr, N)
     @test ref == data
 
     Mem.free(src)
@@ -130,19 +124,13 @@ if attribute(device(), CUDA.DEVICE_ATTRIBUTE_HOST_REGISTER_SUPPORTED) != 0
     # register a pinned and mapped buffer
     src = Mem.register(Mem.Host, pointer(data), nb, Mem.HOSTREGISTER_DEVICEMAP)
 
-    # get the GPU address and construct a fake device buffer
-    gpu_ptr = convert(CuPtr{Cvoid}, src)
-    gpu_obj = Mem.alloc(Mem.Device, nb)
-    dst = similar(gpu_obj, gpu_ptr)
-    Mem.free(gpu_obj)
-
-    # copy data back from the GPU and compare
+    # get the GPU address and copy back the data
+    gpu_ptr = convert(CuPtr{T}, src)
     ref = Array{T}(undef, N)
-    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
+    unsafe_copyto!(pointer(ref), gpu_ptr, N)
     @test ref == data
 
     Mem.unregister(src)
-    # NOTE: don't unregister dst, it's just a mapped pointer
 end
 
 # unified memory
@@ -158,15 +146,10 @@ let
     cpu_ptr = convert(Ptr{T}, src)
     unsafe_copyto!(cpu_ptr, pointer(data), N)
 
-    # get the GPU address and construct a fake device buffer
-    gpu_ptr = convert(CuPtr{Cvoid}, src)
-    gpu_obj = Mem.alloc(Mem.Device, nb)
-    dst = similar(gpu_obj, gpu_ptr)
-    Mem.free(gpu_obj)
-
-    # copy data back from the GPU and compare
+    # get the GPU address and copy back data
+    gpu_ptr = convert(CuPtr{T}, src)
     ref = Array{T}(undef, N)
-    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
+    unsafe_copyto!(pointer(ref), gpu_ptr, N)
     @test ref == data
 
     Mem.free(src)
