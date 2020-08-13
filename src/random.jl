@@ -43,7 +43,7 @@ rand_poisson(T::CURAND.PoissonType, dim1::Integer, dims::Integer...; kwargs...) 
 # GPUArrays in-place
 Random.rand!(A::CuArray) = Random.rand!(gpuarrays_rng(), A)
 Random.randn!(A::CuArray; kwargs...) =
-    error("CUDA.jl does not support generating normally-distrubyted random numbers of type $(eltype(A))")
+    error("CUDA.jl does not support generating normally-distributed random numbers of type $(eltype(A))")
 # FIXME: GPUArrays.jl has a randn! nowadays, but it doesn't work with e.g. Cuint
 rand_logn!(A::CuArray; kwargs...) =
     error("CUDA.jl does not support generating lognormally-distributed random numbers of type $(eltype(A))")

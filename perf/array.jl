@@ -68,3 +68,25 @@ let group = addgroup!(group, "reductions")
 
     # used by sum, prod, minimum, maximum, all, any, count
 end
+
+let group = addgroup!(group, "random")
+    let group = addgroup!(group, "rand")
+        group["Float32"] = @async_benchmarkable CUDA.rand(Float32, m*n)
+        group["Int64"] = @async_benchmarkable CUDA.rand(Int64, m*n)
+    end
+
+    let group = addgroup!(group, "rand!")
+        group["Float32"] = @async_benchmarkable CUDA.rand!($gpu_vec)
+        group["Int64"] = @async_benchmarkable CUDA.rand!($gpu_vec_ints)
+    end
+
+    let group = addgroup!(group, "randn")
+        group["Float32"] = @async_benchmarkable CUDA.randn(Float32, m*n)
+        #group["Int64"] = @async_benchmarkable CUDA.randn(Int64, m*n)
+    end
+
+    let group = addgroup!(group, "randn!")
+        group["Float32"] = @async_benchmarkable CUDA.randn!($gpu_vec)
+        #group["Int64"] = @async_benchmarkable CUDA.randn!($gpu_vec_ints)
+    end
+end
