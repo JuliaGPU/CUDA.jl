@@ -12,45 +12,24 @@ using Base: @deprecate_binding
 using Printf
 
 
-# TODO: needs another redesign
 #
-# - Buffers should be typed, since ArrayBuffers are tied to a format.
-#   or maybe only ArrayBuffer{T}, others unparameterized?
-#   untyped buffers can use T=UInt8 or T=Nothing and reinterpret the output pointer
-#   (this is impossible with textures, though)
-# - copyto! methods should take a Buffer so that we can populate the memcpy structs directly
-# - allocate buffers on construction, instead of using an alloc method? free on finalizer?
-# - have CuArray contain a buffer, use that for dispatch.
-# - trait to determine which pointers a buffer can yield?
-
-
-#
-# untyped buffers
+# buffers
 #
 
-abstract type Buffer end    # TODO; AbstractBuffer
+# a chunk of memory allocated using the CUDA APIs. this memory can reside on the host, on
+# the gpu, or can represent specially-formatted memory (like texture arrays). depending on
+# all that, the buffer may be `convert`ed to a Ptr, CuPtr, or CuArrayPtr.
 
-# expected interface:
-# - similar()
-# - ptr and bytesize fields
-# - convert() to Ptr and CuPtr
+abstract type AbstractBuffer end
 
-Base.pointer(buf::Buffer) = buf.ptr
-
-# FIXME: not available for ArrayBuffer
-Base.sizeof(buf::Buffer) = buf.bytesize
+Base.convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::AbstractBuffer) =
+    throw(ArgumentError("Illegal conversion of a $(typeof(buf)) to a $T"))
 
 # ccall integration
 #
 # taking the pointer of a buffer means returning the underlying pointer,
 # and not the pointer of the buffer object itself.
-Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::Buffer) = convert(T, buf)
-
-function Base.show(io::IO, buf::Buffer)
-    @printf(io, "%s(%p)",
-            nameof(typeof(buf)),
-            Int(pointer(buf)))
-end
+Base.unsafe_convert(T::Type{<:Union{Ptr,CuPtr,CuArrayPtr}}, buf::AbstractBuffer) = convert(T, buf)
 
 
 ## device buffer
@@ -61,17 +40,16 @@ end
 
 A buffer of device memory residing on the GPU.
 """
-struct DeviceBuffer <: Buffer
+struct DeviceBuffer <: AbstractBuffer
     ptr::CuPtr{Cvoid}
     bytesize::Int
 end
 
-Base.similar(buf::DeviceBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
-             bytesize::Int=sizeof(buf)) =
-    DeviceBuffer(ptr, bytesize)
+Base.pointer(buf::DeviceBuffer) = buf.ptr
+Base.sizeof(buf::DeviceBuffer) = buf.bytesize
 
-Base.convert(::Type{<:Ptr}, buf::DeviceBuffer) =
-    throw(ArgumentError("cannot take the CPU address of a GPU buffer"))
+Base.show(io::IO, buf::DeviceBuffer) =
+    @printf(io, "DeviceBuffer(%s at %p)", Base.format_bytes(sizeof(buf)), Int(pointer(buf)))
 
 Base.convert(::Type{CuPtr{T}}, buf::DeviceBuffer) where {T} =
     convert(CuPtr{T}, pointer(buf))
@@ -107,18 +85,20 @@ end
     Mem.HostBuffer
     Mem.Host
 
-A buffer of pinned memory on the CPU, possible accessible on the GPU.
+A buffer of pinned memory on the CPU, possibly accessible on the GPU.
 """
-struct HostBuffer <: Buffer
+struct HostBuffer <: AbstractBuffer
     ptr::Ptr{Cvoid}
     bytesize::Int
 
     mapped::Bool
 end
 
-Base.similar(buf::HostBuffer, ptr::Ptr{Cvoid}=pointer(buf), bytesize::Int=sizeof(buf),
-             mapped::Bool=buf.mapped) =
-    HostBuffer(ptr, bytesize, mapped)
+Base.pointer(buf::HostBuffer) = buf.ptr
+Base.sizeof(buf::HostBuffer) = buf.bytesize
+
+Base.show(io::IO, buf::HostBuffer) =
+    @printf(io, "HostBuffer(%s at %p)", Base.format_bytes(sizeof(buf)), Int(pointer(buf)))
 
 Base.convert(::Type{Ptr{T}}, buf::HostBuffer) where {T} =
     convert(Ptr{T}, pointer(buf))
@@ -212,14 +192,16 @@ end
 
 A managed buffer that is accessible on both the CPU and GPU.
 """
-struct UnifiedBuffer <: Buffer
+struct UnifiedBuffer <: AbstractBuffer
     ptr::CuPtr{Cvoid}
     bytesize::Int
 end
 
-Base.similar(buf::UnifiedBuffer, ptr::CuPtr{Cvoid}=pointer(buf),
-             bytesize::Int=sizeof(buf)) =
-    UnifiedBuffer(ptr, bytesize)
+Base.pointer(buf::UnifiedBuffer) = buf.ptr
+Base.sizeof(buf::UnifiedBuffer) = buf.bytesize
+
+Base.show(io::IO, buf::UnifiedBuffer) =
+    @printf(io, "UnifiedBuffer(%s at %p)", Base.format_bytes(sizeof(buf)), Int(pointer(buf)))
 
 Base.convert(::Type{Ptr{T}}, buf::UnifiedBuffer) where {T} =
     convert(Ptr{T}, reinterpret(Ptr{Cvoid}, pointer(buf)))
@@ -281,13 +263,28 @@ end
 
 ## array buffer
 
-mutable struct ArrayBuffer{T,N} <: Buffer
+mutable struct ArrayBuffer{T,N} <: AbstractBuffer
     ptr::CuArrayPtr{T}
     dims::Dims{N}
 end
 
-Base.convert(::Type{CuArrayPtr{T}}, buf::ArrayBuffer) where {T} =
+Base.pointer(buf::ArrayBuffer) = buf.ptr
+Base.sizeof(buf::ArrayBuffer) = error("Opaque array buffers do not have a definite size")
+Base.size(buf::ArrayBuffer) = buf.dims
+Base.length(buf::ArrayBuffer) = prod(buf.dims)
+Base.ndims(buf::ArrayBuffer{<:Any,N}) where {N} = N
+
+Base.show(io::IO, buf::ArrayBuffer{T,1}) where {T} =
+    @printf(io, "%g-element ArrayBuffer{%s,%g}(%p)", length(buf), string(T), 1, Int(pointer(buf)))
+Base.show(io::IO, buf::ArrayBuffer{T}) where {T} =
+    @printf(io, "%s ArrayBuffer{%s,%g}(%p)", Base.inds2string(size(buf)), string(T), ndims(buf), Int(pointer(buf)))
+
+# array buffers are typed, so refuse arbitrary conversions
+Base.convert(::Type{CuArrayPtr{T}}, buf::ArrayBuffer{T}) where {T} =
     convert(CuArrayPtr{T}, pointer(buf))
+# ... except for CuArrayPtr{Nothing}, which is used to call untyped API functions
+Base.convert(::Type{CuArrayPtr{Nothing}}, buf::ArrayBuffer)  =
+    convert(CuArrayPtr{Nothing}, pointer(buf))
 
 function alloc(::Type{<:ArrayBuffer{T}}, dims::Dims{N}) where {T,N}
     format = convert(CUarray_format, eltype(T))
@@ -346,7 +343,7 @@ const Array   = ArrayBuffer
 
 
 #
-# typed pointers
+# pointers
 #
 
 ## initialization
@@ -381,9 +378,9 @@ end
 
 ## copy operations
 
-for (f, fa, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH_v2", "cuMemcpyDtoHAsync_v2", CuPtr,      Ptr),
-                                    ("cuMemcpyHtoD_v2", "cuMemcpyHtoDAsync_v2", Ptr,        CuPtr),
-                                    ("cuMemcpyDtoD_v2", "cuMemcpyDtoDAsync_v2", CuPtr,      CuPtr),
+for (f, fa, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoH_v2", "cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
+                                    ("cuMemcpyHtoD_v2", "cuMemcpyHtoDAsync_v2", Ptr,   CuPtr),
+                                    ("cuMemcpyDtoD_v2", "cuMemcpyDtoDAsync_v2", CuPtr, CuPtr),
                                    )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::Union{Nothing,CuStream}=nothing,
@@ -441,8 +438,8 @@ Base.unsafe_copyto!(dst::CuArrayPtr, src, N::Integer; kwargs...) =
 Base.unsafe_copyto!(dst, src::CuArrayPtr, N::Integer; kwargs...) =
     Base.unsafe_copyto!(dst, src, 0, N; kwargs...)
 
-function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:Buffer},
-                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:Buffer},
+function unsafe_copy2d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractBuffer},
+                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractBuffer},
                         width::Integer, height::Integer=1;
                         dstPos::CuDim=(1,1), srcPos::CuDim=(1,1),
                         dstPitch::Integer=0, srcPitch::Integer=0,
@@ -530,8 +527,8 @@ and `dstPos` (1-indexed). Both pitch and destination can be specified for both t
 and destination; consult the CUDA documentation for more details. This call is executed
 asynchronously if `async` is set, in which case `stream` needs to be a valid CuStream.
 """
-function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:Buffer},
-                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:Buffer},
+function unsafe_copy3d!(dst::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, dstTyp::Type{<:AbstractBuffer},
+                        src::Union{Ptr{T},CuPtr{T},CuArrayPtr{T}}, srcTyp::Type{<:AbstractBuffer},
                         width::Integer, height::Integer=1, depth::Integer=1;
                         dstPos::CuDim=(1,1,1), srcPos::CuDim=(1,1,1),
                         dstPitch::Integer=0, dstHeight::Integer=0,
