@@ -4,14 +4,13 @@
 
 # Prefix scan using warp intrinsics
 # https://developer.nvidia.com/gpugems/gpugems3/part-vi-gpu-computing/chapter-39-parallel-prefix-sum-scan-cuda
-# 
 #
 # TODOs:
 # - move to GPUArrays once syncwarp is available
 # - group all allocations and deallocations in recursive
 #   case
 
-# Scan entire warp using shfl intrinsics, unrolled for warpsize() = 32
+# Scan a warp using shfl intrinsics, unrolled for warpsize() = 32
 @inline function scan_warp(op, val, lane)
     mask = typemax(UInt32)
 
@@ -29,61 +28,60 @@
 
     left = shfl_up_sync(mask, val, 16)
     lane > 16 && (val = op(left, val))
+
     return val
 end
 
-# Scan warp without shfl intrinsics for non primitive datatypes
-
+# Scan a warp without shfl intrinsics for non primitive datatypes
 @inline function scan_warp(op, val, lane, thread, cache)
     mask = typemax(UInt32)
     @inbounds begin
-        if lane > 1 
+        if lane > 1
             val = op(cache[thread - 1], val)
             sync_warp(mask >> 1)
             cache[thread] = val
             sync_warp(mask >> 1)
         end
-        if lane > 2 
+        if lane > 2
             val = op(cache[thread - 2], val)
             sync_warp(mask >> 2)
             cache[thread] = val
             sync_warp(mask >> 2)
         end
-        if lane > 4 
+        if lane > 4
             val = op(cache[thread - 4], val)
             sync_warp(mask >> 4)
             cache[thread] = val
             sync_warp(mask >> 4)
         end
-        if lane > 8 
+        if lane > 8
             val = op(cache[thread - 8], val)
             sync_warp(mask >> 8)
             cache[thread] = val
             sync_warp(mask >> 8)
         end
-        if lane > 16 
+        if lane > 16
             val = op(cache[thread - 16], val)
         end
     end
     return val
 end
 
-
 function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractArray,
-                      aggregates::Union{Nothing, AbstractArray{T}}, Rdim, Rpre, 
-                      Rpost, Rother, init, ::Val{inclusive}=Val(true), 
+                      aggregates::Union{Nothing, AbstractArray{T}}, Rdim, Rpre,
+                      Rpost, Rother, init, ::Val{inclusive}=Val(true),
                       ::Val{shuffle}=Val(true)) where {T, inclusive, shuffle}
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
 
-    # wid: warp index in block, lane: lane index in warp 
+    # wid: warp index in block, lane: lane index in warp
     wid, lane = fldmod1(thread, warpsize())
     exclusive = !inclusive
 
     # cache: storage for non shuffle kernels
-    partial_sums = @cuDynamicSharedMem(T, 32)
-    cache = @cuDynamicSharedMem(T, threads*!shuffle, offset=sizeof(T)*32)
+    partials = @cuDynamicSharedMem(T, 32)
+    cache = @cuDynamicSharedMem(T, shuffle ? 0 : threads, offset=sizeof(partials))
 
     # iterate the main dimension using threads and the first block dimension
     i = (blockIdx().x-1) * blockDim().x + threadIdx().x
@@ -99,49 +97,51 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
 
         # convert input val to correct type
         # take element from previous index in exclusive scan
-        exclusive && (i = i - 1) 
+        exclusive && (i = i - 1)
         value = if i <= length(Rdim) && i != 0
             convert(T, input[Ipre, i, Ipost])
         else
             convert(T, input[Ipre, 1, Ipost])
         end
-        exclusive && (i = i + 1) 
+        exclusive && (i = i + 1)
 
-        # Apply init to the first element
-        if inclusive
-            i == 1 && init !== nothing && (value = op(init, value))
-        else
-            i == 1 && (value = init)
+        # apply init to the first element
+        if i == 1 && init !== nothing
+            value = inclusive ? op(init, value) : init
         end
 
-        if shuffle
-            value = scan_warp(op, value, lane)
+        value = if shuffle
+            scan_warp(op, value, lane)
         else
             cache[thread] = value
-            value = scan_warp(op, value, lane, thread, cache)
+            scan_warp(op, value, lane, thread, cache)
         end
 
-        lane == warpsize() && (partial_sums[wid] = value)
+        if lane == warpsize()
+            partials[wid] = value
+        end
 
         sync_threads()
 
-        # 1st warp computes sum for entire block
-        # works because 32*32 = 1024 = max threads in a block, 
-        if wid == 1 && shuffle
-            p_sum = partial_sums[lane]
-            p_sum = scan_warp(op, p_sum, lane)
-            partial_sums[lane] = p_sum
-        elseif wid == 1 
-            p_sum = partial_sums[lane]
-            p_sum = scan_warp(op, p_sum, lane, thread, partial_sums)
-            partial_sums[lane] = p_sum
+        # the first warp scans the entire block
+        # (this works because 32*32 = 1024 = max threads in a block)
+        if wid == 1
+            temp = partials[lane]
+            temp = if shuffle
+                scan_warp(op, temp, lane)
+            else
+                scan_warp(op, temp, lane, thread, partials)
+            end
+            partials[lane] = temp
         end
 
         sync_threads()
 
         # for all warps add the cumulative prefix sum of preceding warps
-        wid > 1 && (value = op(partial_sums[wid - 1], value))
-        
+        if wid > 1
+            value = op(partials[wid - 1], value)
+        end
+
         # write results to device memory
         if i <= length(Rdim)
             output[Ipre, i, Ipost] = value
@@ -151,13 +151,11 @@ function partial_scan!(op::Function, output::AbstractArray{T}, input::AbstractAr
             aggregates[Ipre, blockIdx().x ,Ipost] = value
         end
     end
-    return 
+    return
 end
 
 # aggregate the result of a partial scan by applying preceding block aggregates
-function aggregate_partial_scan!(op::Function, output, aggregates, 
-                                Rdim, Rpre, Rpost, Rother)
-   
+function aggregate_partial_scan!(op::Function, output, aggregates, Rdim, Rpre, Rpost, Rother)
     threads = blockDim().x
     thread = threadIdx().x
     block = blockIdx().x
@@ -167,16 +165,15 @@ function aggregate_partial_scan!(op::Function, output, aggregates,
     # iterate the other dimensions using the remaining block dimensions
     j = (blockIdx().z-1) * gridDim().y + blockIdx().y
 
-
     @inbounds if j <= length(Rother) && i <= length(Rdim)
         I = Rother[j]
         Ipre = Rpre[I[1]]
         Ipost = Rpost[I[2]]
 
-        if block > 1
-            val = op(aggregates[Ipre, block-1, Ipost], output[Ipre, i, Ipost])
+        val = if block > 1
+            op(aggregates[Ipre, block-1, Ipost], output[Ipre, i, Ipost])
         else
-            val =  output[Ipre, i, Ipost]
+            output[Ipre, i, Ipost]
         end
 
         output[Ipre, i, Ipost] = val
@@ -187,8 +184,8 @@ end
 
 ## COV_EXCL_STOP
 
-function scan!(f::Function, output::CuArray{T}, input::CuArray; dims::Integer = 1, 
-                init=nothing, inclusive::Bool=true) where T
+function scan!(f::Function, output::CuArray{T}, input::CuArray; dims::Integer=1,
+               init=nothing, inclusive::Bool=true) where T
     dims > 0 || throw(ArgumentError("dims must be a positive integer"))
     inds_t = axes(input)
     axes(output) == inds_t || throw(DimensionMismatch("shape of B must match A"))
@@ -214,7 +211,7 @@ function scan!(f::Function, output::CuArray{T}, input::CuArray; dims::Integer = 
     # determine how many threads we can launch for the scan kernel
     args = (f, output, input, output, Rdim, Rpre, Rpost, Rother, init, Val(inclusive), Val(shuffle))
     kernel = @cuda(launch=false, partial_scan!(args...))
-    shmem_calc = (threads)->((32 + threads*!shuffle)*sizeof(T))
+    shmem_calc = (threads)->((32 + (shuffle ? 0 : threads))*sizeof(T))
     kernel_config = launch_configuration(kernel.fun; shmem=shmem_calc)
 
     # determine the grid layout to cover the other dimensions
@@ -230,24 +227,24 @@ function scan!(f::Function, output::CuArray{T}, input::CuArray; dims::Integer = 
     threads = nextwarp(device(), Base.min(kernel_config.threads, length(Rdim)))
     blocks = (cld(length(Rdim), threads), blocks_other...)
     aggregates = if length(Rdim) > threads
-            aggregate_dims = [size(output)...]
-            aggregate_dims[dims] = blocks[1]
-            similar(output, Tuple(aggregate_dims))
-        else
-            nothing
+        aggregate_dims = [size(output)...]
+        aggregate_dims[dims] = blocks[1]
+        similar(output, Tuple(aggregate_dims))
+    else
+        nothing
     end
     shmem = shmem_calc(threads)
 
     args = (f, output, input, aggregates, Rdim, Rpre, Rpost, Rother, init, Val(inclusive), Val(shuffle))
-    @cuda(threads=threads, blocks=blocks, shmem=shmem, partial_scan!(args...))
+    @cuda threads=threads blocks=blocks shmem=shmem partial_scan!(args...)
 
     if length(Rdim) > threads
         length(Rdim) > threads && scan!(f, aggregates, aggregates, dims=dims)
         args = (f, output, aggregates, Rdim, Rpre, Rpost, Rother)
-        @cuda(threads=threads, blocks=blocks, shmem=shmem, aggregate_partial_scan!(args...))
+        @cuda threads=threads blocks=blocks shmem=shmem aggregate_partial_scan!(args...)
+        unsafe_free!(aggregates)
     end
 
-    aggregates !== nothing && unsafe_free!(aggregates)
     return output
 end
 
