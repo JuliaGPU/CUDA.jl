@@ -13,7 +13,8 @@ rng = StableRNG(123)
 macro async_benchmarkable(ex...)
     quote
         # use non-blocking sync to reduce overhead
-        @benchmarkable CUDA.@sync blocking=false $(ex...)
+        # reclaim all memory to reduce memory-related noise
+        @benchmarkable CUDA.@sync(blocking=false, $(ex...)) setup=(CUDA.reclaim())
     end
 end
 
