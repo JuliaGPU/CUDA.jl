@@ -230,10 +230,12 @@ You will get an interactive REPL, where you can execute whatever code you want:
 ```julia
 julia> using CUDA
 
+julia> CUDA.version()
+
 # Julia hangs!
 ```
 
-As soon as you import CUDA.jl, your Julia process will hang. This is expected, as the tool
+As soon as you use CUDA.jl, your Julia process will hang. This is expected, as the tool
 breaks upon the very first call to the CUDA API, at which point you are expected to launch
 the Nsight Compute GUI utility and attach to the running session:
 
