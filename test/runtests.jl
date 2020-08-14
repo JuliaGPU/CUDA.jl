@@ -11,7 +11,7 @@ function extract_flag!(args, flag, default=nothing)
             # Check if it's just `--flag` or if it's `--flag=foo`
             if f != flag
                 val = split(f, '=')[2]
-                if default !== nothing
+                if default !== nothing && !(typeof(default) <: AbstractString)
                   val = parse(typeof(default), val)
                 end
             else
@@ -30,12 +30,12 @@ if do_help
     println("""
         Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
 
-               --help           Show this text.
-               --list           List all available tests.
-               --jobs=N         Launch `N` processes to perform tests (default: Threads.nthreads()).
-               --gpus=N         Expose `N` GPUs to test processes (default: 1).
-               --memcheck       Run the tests under `cuda-memcheck`.
-               --snoop=FILE     Snoop on compiled methods and save to `FILE`.
+               --help             Show this text.
+               --list             List all available tests.
+               --jobs=N           Launch `N` processes to perform tests (default: Threads.nthreads()).
+               --gpus=N           Expose `N` GPUs to test processes (default: 1).
+               --memcheck[=tool]  Run the tests under `cuda-memcheck`.
+               --snoop=FILE       Snoop on compiled methods and save to `FILE`.
 
                Remaining arguments filter the tests that will be executed.
                This list of tests, and all other options, can also be specified using the
@@ -44,7 +44,7 @@ if do_help
 end
 _, jobs = extract_flag!(cli_args, "--jobs", Threads.nthreads())
 _, gpus = extract_flag!(cli_args, "--gpus", 1)
-do_memcheck, _ = extract_flag!(cli_args, "--memcheck")
+do_memcheck, memcheck_tool = extract_flag!(cli_args, "--memcheck", "memcheck")
 do_snoop, snoop_path = extract_flag!(cli_args, "--snoop")
 
 include("setup.jl")     # make sure everything is precompiled
@@ -210,7 +210,7 @@ end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_memcheck
-        `cuda-memcheck $test_exename`
+        `cuda-memcheck --tool $memcheck_tool $test_exename`
     else
         test_exename
     end
