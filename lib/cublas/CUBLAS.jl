@@ -4,7 +4,7 @@ using ..APIUtils
 
 using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
-using ..CUDA: libcublas, unsafe_free!, @retry_reclaim
+using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug
 
 using LinearAlgebra
 
@@ -92,6 +92,22 @@ function __init__()
         tid = Threads.threadid()
         thread_handles[tid] = nothing
         thread_xt_handles[tid] = nothing
+    end
+end
+
+function log_message(cstr)
+    str = unsafe_string(cstr)
+    print(str)
+    # NOTE: we can't `@debug` these messages, because the logging function is called for
+    #       every line... also not sure what the i!/I! prefixes mean (info?)
+    return
+end
+
+function __runtime_init__()
+    # enable library logging when launched with JULIA_DEBUG=CUBLAS
+    if isdebug(:init, CUBLAS)
+        callback = @cfunction(log_message, Nothing, (Cstring,))
+        cublasSetLoggerCallback(callback)
     end
 end
 

@@ -137,6 +137,9 @@ function __runtime_init__()
 
     __init_pool__()
 
+    CUBLAS.__runtime_init__()
+    has_cudnn() && CUDNN.__runtime_init__()
+
     return
 end
 
