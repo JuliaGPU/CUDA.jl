@@ -1,4 +1,4 @@
-# type conversions
+# cuSPARSE types
 
 ## index type
 
