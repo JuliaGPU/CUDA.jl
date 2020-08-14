@@ -981,7 +981,7 @@ function mv!(
     index::SparseChar
 ) where {T}
 
-    n,m = size(A)
+    m,n = size(A)
     
     if transa == 'N'
         chkmvdims(X,n,Y,m)
@@ -993,10 +993,10 @@ function mv!(
     cusparseSpMV(
         handle(),
         transa,
-        [one(T)],
+        [alpha],
         CuSparseMatrixDescriptor(A),
         CuDenseVectorDescriptor(X),
-        [zero(T)],
+        [beta],
         CuDenseVectorDescriptor(Y),
         T,
         CUSPARSE_MV_ALG_DEFAULT,

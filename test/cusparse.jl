@@ -702,11 +702,6 @@ end
 end
 @testset "mv!" begin
     for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,m))
-        x = rand(elty,m)
-        y = rand(elty,m)
-        alpha = rand(elty)
-        beta = rand(elty)
         A = sparse(rand(elty,m,n))
         x = rand(elty,n)
         y = rand(elty,m)
