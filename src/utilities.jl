@@ -74,23 +74,29 @@ function versioninfo(io::IO=stdout)
         println(io)
     end
 
-    if has_nvml()
-        devs = NVML.devices()
-        println(io, length(devs), " device(s):")
-        for dev in devs
-            cap = NVML.compute_capability(dev)
-            mem = NVML.memory_info(dev)
-            name = NVML.name(dev)
-            println(io, "- $name (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
-        end
+    devs = devices()
+    if isempty(devs)
+        println(io, "No CUDA-capable devices.")
+    elseif length(devs) == 1
+        println(io, "1 device:")
     else
-        devs = devices()
-        println(io, length(devs), " device(s):")
-        for dev in devs
+        println(io, length(devs), " devices:")
+    end
+    for (i, dev) in enumerate(devs)
+        if has_nvml()
+            dev′ = NVML.Device(uuid(dev))
+
+            name = NVML.name(dev′)
+            cap = NVML.compute_capability(dev′)
+            mem = NVML.memory_info(dev′)
+        else
+            name = name(dev)
             cap = capability(dev)
-            device!(dev) do
-                println(io, "- $(name(dev)) (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(available_memory())) / $(Base.format_bytes(total_memory())) available)")
+            mem = device!(dev) do
+                # this requires a device context, so we prefer NVML
+                (free=available_memory(), total=total_memory())
             end
         end
+        println(io, "  $(i-1): $name (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
     end
 end
