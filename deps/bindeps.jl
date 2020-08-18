@@ -126,22 +126,22 @@ function use_artifact_cuda()
     @debug "Trying to use artifacts..."
 
     # select compatible artifacts
-    if haskey(ENV, "JULIA_CUDA_VERSION")
+    candidate_artifacts = if haskey(ENV, "JULIA_CUDA_VERSION")
         wanted_release = VersionNumber(ENV["JULIA_CUDA_VERSION"])
         @debug "Selecting artifacts based on requested $wanted_release"
-        filter!(((cuda,artifact),) -> cuda.release == wanted_release, cuda_artifacts)
+        filter(((cuda,artifact),) -> cuda.release == wanted_release, cuda_artifacts)
     else
         driver_release = release()
         @debug "Selecting artifacts based on driver compatibility $driver_release"
-        filter!(((cuda,artifact),) -> cuda.release <= driver_release, cuda_artifacts)
+        filter(((cuda,artifact),) -> cuda.release <= driver_release, cuda_artifacts)
     end
 
     # download and install
     artifact = nothing
-    for cuda in sort(collect(keys(cuda_artifacts)); rev=true)
+    for cuda in sort(collect(keys(candidate_artifacts)); rev=true)
         try
             artifact = (version=cuda.version, release=cuda.release,
-                        dir=cuda_artifacts[cuda]())
+                        dir=candidate_artifacts[cuda]())
             break
         catch
         end
