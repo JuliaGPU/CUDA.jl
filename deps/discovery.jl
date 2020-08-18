@@ -161,6 +161,20 @@ const cuda_library_versions = Dict(
         "cusparse"  => v"11.0.0", #.191
         "npp"       => v"11.0.0", #.191
         "nvjpeg"    => v"11.0.0", #.191
+    ),
+    v"11.0.3" => Dict(
+        "cudart"    => v"11.0.221",
+        "cupti"     => "2020.1.1", # docs mention 11.0.221
+        "nvrtc"     => v"11.0.221",
+        "nvtx"      => v"11.0.167",
+        "nvvp"      => v"11.0.221",
+        "cublas"    => v"11.2.0", #.252
+        "cufft"     => v"10.2.1", #.245
+        "curand"    => v"10.2.1", #.245
+        "cusolver"  => v"10.6.0", #.245
+        "cusparse"  => v"11.1.1", #.245
+        "npp"       => v"11.1.0", #.245
+        "nvjpeg"    => v"11.1.1", #.245
     )
 )
 
