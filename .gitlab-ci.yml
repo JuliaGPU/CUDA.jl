@@ -9,6 +9,13 @@ variables:
 
 # Julia versions
 
+julia:1.3:
+  extends:
+    - .julia:1.3
+    - .test
+  tags:
+    - nvidia
+
 julia:1.4:
   extends:
     - .julia:1.4
