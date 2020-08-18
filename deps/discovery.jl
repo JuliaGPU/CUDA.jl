@@ -182,6 +182,16 @@ const cuda_library_names = Dict(
     "nvtx"      => "nvToolsExt"
 )
 
+# only for nvdisasm, to discover the CUDA toolkit version
+const cuda_binary_versions = Dict(
+    v"11.0.2" => Dict(
+        "nvdisasm"  => v"11.0.194"
+    ),
+    v"11.0.3" => Dict(
+        "nvdisasm"  => v"11.0.221"
+    )
+)
+
 # simplified find_library/find_binary entry-points,
 # looking up name aliases and known version numbers
 # and passing the (optional) toolkit dirs as locations.
@@ -301,7 +311,7 @@ function find_toolkit()
 end
 
 # figure out the CUDA toolkit version (by looking at the output of a tool like `nvdisasm`)
-function parse_toolkit_version(tool_path::String)
+function parse_toolkit_version(tool, tool_path::String)
     # parse the version string
     verstr = withenv("LANG"=>"C") do
         read(`$tool_path --version`, String)
@@ -312,8 +322,20 @@ function parse_toolkit_version(tool_path::String)
     version = VersionNumber(parse(Int, m[:major]),
                             parse(Int, m[:minor]),
                             parse(Int, m[:patch]))
-    @debug "CUDA toolkit identified as $version"
-    return version
+
+    if version >= v"11"
+        # starting with CUDA 11, binaries are versioned independently
+        for toolkit_version in keys(cuda_binary_versions)
+            if cuda_binary_versions[toolkit_version][tool] == version
+                @debug "CUDA toolkit identified as $toolkit_version (providing $tool $version)"
+                return toolkit_version
+            end
+        end
+        error("CUDA.jl does not yet support CUDA with $tool $version; please file an issue.")
+    else
+        @debug "CUDA toolkit identified as $version"
+        return version
+    end
 end
 
 """

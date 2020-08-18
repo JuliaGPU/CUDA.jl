@@ -152,7 +152,7 @@ function use_artifact_cuda()
 
     __nvdisasm[] = artifact_binary(artifact.dir, "nvdisasm")
     @assert isfile(__nvdisasm[])
-    __toolkit_version[] = parse_toolkit_version(__nvdisasm[])
+    __toolkit_version[] = parse_toolkit_version("nvdisasm", __nvdisasm[])
 
     __libcupti[] = artifact_cuda_library(artifact.dir, "cupti",  artifact.release)
     @assert isfile(__libcupti[])
@@ -191,7 +191,7 @@ function use_local_cuda()
         __nvdisasm[] = path
     end
 
-    cuda_version = parse_toolkit_version(__nvdisasm[])
+    cuda_version = parse_toolkit_version("nvdisasm", __nvdisasm[])
     __toolkit_version[] = cuda_version
 
     __libcupti[] = find_cuda_library("cupti", cuda_dirs, cuda_version)
