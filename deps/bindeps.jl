@@ -313,8 +313,14 @@ function use_artifact_cutensor(release)
     # cutensor.dll is unversioned on Windows
     version = Sys.iswindows() ? nothing : v"1"
 
-    __libcutensor[] = artifact_library(artifact_dir, "cutensor", version)
-    Libdl.dlopen(__libcutensor[])
+    path = artifact_library(artifact_dir, "cutensor", version)
+    try
+        Libdl.dlopen(path)
+    catch ex
+        @error "Could not load CUTENSOR; please file an issue (if on Windows, be sure to install the VS C++ redistributable first)" exception=(ex,catch_backtrace())
+        return false
+    end
+    __libcutensor[] = path
     @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
     return true
 end
@@ -326,7 +332,12 @@ function use_local_cutensor(cuda_dirs)
     end
     path === nothing && return false
 
-    Libdl.dlopen(path)
+    try
+        Libdl.dlopen(path)
+    catch ex
+        @error "Could not load CUTENSOR; please file an issue (if on Windows, be sure to install the VS C++ redistributable first)" exception=(ex,catch_backtrace())
+        return false
+    end
     __libcutensor[] = path
     @debug "Using local CUTENSOR at $(path)"
     return true
