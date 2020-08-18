@@ -143,7 +143,8 @@ function use_artifact_cuda()
             artifact = (version=cuda.version, release=cuda.release,
                         dir=candidate_artifacts[cuda]())
             break
-        catch
+        catch ex
+            @debug "Could not load the CUDA $(cuda.release) artifact" exception=(ex,catch_backtrace())
         end
     end
     if artifact == nothing
