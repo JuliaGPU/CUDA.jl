@@ -103,8 +103,8 @@ function artifact_library(artifact, name, version)
     error("Could not find $name ($(join(all_names, ", ", " or "))) in $dir")
 end
 
-function artifact_cuda_library(artifact, library, toolkit_release)
-    version = cuda_library_version(library, toolkit_release)
+function artifact_cuda_library(artifact, library, toolkit_version)
+    version = cuda_library_version(library, toolkit_version)
     name = get(cuda_library_names, library, library)
     artifact_library(artifact, name, version)
 end
@@ -155,9 +155,9 @@ function use_artifact_cuda()
     @assert isfile(__nvdisasm[])
     __toolkit_version[] = parse_toolkit_version("nvdisasm", __nvdisasm[])
 
-    __libcupti[] = artifact_cuda_library(artifact.dir, "cupti",  artifact.release)
+    __libcupti[] = artifact_cuda_library(artifact.dir, "cupti", artifact.version)
     @assert isfile(__libcupti[])
-    __libnvtx[] = artifact_cuda_library(artifact.dir, "nvtx", artifact.release)
+    __libnvtx[] = artifact_cuda_library(artifact.dir, "nvtx", artifact.version)
     @assert isfile(__libnvtx[])
 
     __libcudadevrt[] = artifact_static_library(artifact.dir, "cudadevrt")
@@ -168,7 +168,7 @@ function use_artifact_cuda()
     for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
         handle = getfield(CUDA, Symbol("__lib$library"))
 
-        handle[] = artifact_cuda_library(artifact.dir, library, artifact.release)
+        handle[] = artifact_cuda_library(artifact.dir, library, artifact.version)
         Libdl.dlopen(handle[])
     end
 

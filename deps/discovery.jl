@@ -148,7 +148,7 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"11.0"]
 
 const cuda_library_versions = Dict(
-    v"11.0" => Dict(
+    v"11.0.2" => Dict(
         "cudart"    => v"11.0.171",
         "cupti"     => "2020.1.0", # wtf
         "nvrtc"     => v"11.0.167",
@@ -164,17 +164,17 @@ const cuda_library_versions = Dict(
     )
 )
 
-function cuda_library_version(library, toolkit_release)
+function cuda_library_version(library, toolkit_version)
     if library == "nvtx"
         v"1"
-    elseif toolkit_release >= v"11"
+    elseif toolkit_version >= v"11"
         # starting with CUDA 11, libraries are versioned independently
-        if !haskey(cuda_library_versions, toolkit_release)
-            error("CUDA.jl does not support yet CUDA $toolkit_release on Windows; please file an issue.")
+        if !haskey(cuda_library_versions, toolkit_version)
+            error("CUDA.jl does not yet support CUDA $toolkit_version; please file an issue.")
         end
-        cuda_library_versions[toolkit_release][library]
+        cuda_library_versions[toolkit_version][library]
     else
-        toolkit_release
+        toolkit_version
     end
 end
 
@@ -220,7 +220,7 @@ function find_cuda_library(library::String, toolkit_dirs::Vector{String},
         isdir(dir) && push!(locations, dir)
     end
 
-    version = cuda_library_version(library, toolkit_release)
+    version = cuda_library_version(library, toolkit_version)
     name = get(cuda_library_names, library, library)
     find_library(name, version; locations=locations)
 end
