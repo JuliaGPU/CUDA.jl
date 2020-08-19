@@ -22,6 +22,10 @@ kernels in Julia, and wrappers for various CUDA libraries.
 
 ## Quick start
 
+The current version of CUDA.jl requires **Julia 1.3** or higher, a CUDA-capable GPU with
+**compute capability 3.0** or higher, and an accompanying NVIDIA driver with support for
+**CUDA 10.1** or newer.
+
 The package can be installed with the Julia package manager.
 From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 
@@ -41,7 +45,7 @@ For usage instructions and other information, please refer to the documentation 
 
 ## Project Status
 
-The package is tested against, and being developed for, Julia `1.4` and above. Main
+The package is tested against, and being developed for, Julia 1.3 and above. Main
 development and testing happens on Linux, but the package is expected to work on macOS and
 Windows as well.
 

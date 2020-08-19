@@ -702,22 +702,18 @@ end
 end
 @testset "mv!" begin
     for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,m))
-        x = rand(elty,m)
-        y = rand(elty,m)
-        alpha = rand(elty)
-        beta = rand(elty)
         A = sparse(rand(elty,m,n))
         x = rand(elty,n)
         y = rand(elty,m)
         alpha = rand(elty)
         beta = rand(elty)
         @testset "mv!" begin
-            @testset "bsr" begin
+            @testset "$mattype" for (mattype, d_A) in [
+                ("csr", CuSparseMatrixCSR(A)),
+                ("bsr", CUSPARSE.switch2bsr(CuSparseMatrixCSR(A),convert(Cint,blockdim)))
+            ]
                 d_x = CuArray(x)
                 d_y = CuArray(y)
-                d_A = CuSparseMatrixCSR(A)
-                d_A = CUSPARSE.switch2bsr(d_A,convert(Cint,blockdim))
                 @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
                 @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
                 CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
@@ -728,6 +724,9 @@ end
                 h_y = collect(d_y)
                 z = A * x
                 @test z ≈ h_y
+                if mattype=="csr"
+                    @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
+                end
             end
         end
     end

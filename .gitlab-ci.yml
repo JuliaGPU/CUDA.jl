@@ -92,34 +92,6 @@ cuda:10.1:
     - latest
     - cuda_10.1
 
-cuda:10.0:
-  extends:
-    - .julia:1.5
-    - .test
-  image: ubuntu:bionic
-  variables:
-    JULIA_CUDA_VERSION: '10.0'
-    JULIA_CUDA_USE_BINARYBUILDER: 'true'
-  tags:
-    - nvidia
-    - latest
-    - cuda_10.0
-
-cuda:9.2:
-  extends:
-    - .julia:1.5
-    - .test
-  image: ubuntu:bionic
-  variables:
-    JULIA_CUDA_VERSION: '9.2'
-    JULIA_CUDA_USE_BINARYBUILDER: 'true'
-  tags:
-    - nvidia
-    - latest
-    - cuda_9.2
-
-# NOTE: CUDA 9.0 is broken
-
 cuda:none:
   extends:
     - .julia:1.5

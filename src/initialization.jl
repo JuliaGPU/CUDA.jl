@@ -103,14 +103,14 @@ end
 
 # run-time initialization: we have a driver, so try and discover CUDA
 function __runtime_init__()
-    if version() < v"9"
-        @warn "CUDA.jl only supports NVIDIA drivers for CUDA 9.0 or higher (yours is for CUDA $(version()))"
+    if version() < v"10.1"
+        @warn "This version of CUDA.jl only supports NVIDIA drivers for CUDA 10.1 or higher (yours is for CUDA $(version()))"
     end
 
     __init_dependencies__() || error("Could not find a suitable CUDA installation")
 
-    if toolkit_release() < v"9"
-        @warn "CUDA.jl only supports CUDA 9.0 or higher (your toolkit provides CUDA $(toolkit_release()))"
+    if toolkit_release() < v"10.1"
+        @warn "This version of CUDA.jl only supports CUDA 10.1 or higher (your toolkit provides CUDA $(toolkit_release()))"
     elseif toolkit_release() > release()
         @warn """You are using CUDA toolkit $(toolkit_release()) with a driver that only supports up to $(release()).
                  It is recommended to upgrade your driver, or switch to automatic installation of CUDA."""
@@ -118,15 +118,15 @@ function __runtime_init__()
 
     if has_cudnn()
         cudnn_release = VersionNumber(CUDNN.version().major, CUDNN.version().minor)
-        if !(v"7.6" <= cudnn_release <= v"8.0")
-            @warn "CUDA.jl only supports CUDNN 7.6 to 8.0"
+        if cudnn_release < v"8.0"
+            @warn "This version of CUDA.jl only supports CUDNN 8.0 or higher"
         end
     end
 
     if has_cutensor()
         cutensor_release = VersionNumber(CUTENSOR.version().major, CUTENSOR.version().minor)
         if !(v"1.0" <= cutensor_release <= v"1.2")
-            @warn "CUDA.jl only supports CUTENSOR 1.0 to 1.2"
+            @warn "This version of CUDA.jl only supports CUTENSOR 1.0 to 1.2"
         end
     end
 
