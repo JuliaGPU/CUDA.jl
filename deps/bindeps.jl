@@ -117,9 +117,6 @@ const cuda_artifacts = Dict(
     (release=v"11.0", version=v"11.0.3")   => ()->artifact"CUDA110",
     (release=v"10.2", version=v"10.2.89")  => ()->artifact"CUDA102",
     (release=v"10.1", version=v"10.1.243") => ()->artifact"CUDA101",
-    (release=v"10.0", version=v"10.0.130") => ()->artifact"CUDA100",
-    (release=v"9.2",  version=v"9.2.148")  => ()->artifact"CUDA92",
-    (release=v"9.0",  version=v"9.0.176")  => ()->artifact"CUDA90",
 )
 
 function use_artifact_cuda()
@@ -234,15 +231,10 @@ end
 
 # CUDNN
 
-# NOTE: we currently support both CUDNN v8 and v7
-
 const cudnn_artifacts = Dict(
     v"11.0" => ()->(artifact"CUDNN_CUDA110", v"8"),
     v"10.2" => ()->(artifact"CUDNN_CUDA102", v"8"),
     v"10.1" => ()->(artifact"CUDNN_CUDA101", v"8"),
-    v"10.0" => ()->(artifact"CUDNN_CUDA100", v"7"),
-    v"9.2"  => ()->(artifact"CUDNN_CUDA92",  v"7"),
-    v"9.0"  => ()->(artifact"CUDNN_CUDA90",  v"7"),
 )
 
 function use_artifact_cudnn(release)
@@ -252,43 +244,36 @@ function use_artifact_cudnn(release)
         @debug "Could not use CUDNN from artifacts" exception=(ex, catch_backtrace())
         return false
     end
+    path = artifact_library(artifact_dir, "cudnn", version)
 
-    __libcudnn[] = artifact_library(artifact_dir, "cudnn", version)
-    if version >= v"8"
-        # HACK: eagerly open CUDNN v8 sublibraries to avoid dlopen discoverability issues
-        for sublibrary in ("ops_infer", "ops_train",
-                           "cnn_infer", "cnn_train",
-                           "adv_infer", "adv_train")
-            sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", version)
-            Libdl.dlopen(sublibrary_path)
-        end
+    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
+    for sublibrary in ("ops_infer", "ops_train",
+                        "cnn_infer", "cnn_train",
+                        "adv_infer", "adv_train")
+        sublibrary_path = artifact_library(artifact_dir, "cudnn_$(sublibrary)", version)
+        Libdl.dlopen(sublibrary_path)
     end
-    Libdl.dlopen(__libcudnn[])
+    Libdl.dlopen(path)
+
+    __libcudnn[] = path
     @debug "Using CUDNN from an artifact at $(artifact_dir)"
     return true
 end
 
 function use_local_cudnn(cuda_dirs)
     path = find_library("cudnn", v"8"; locations=cuda_dirs)
-    if path !== nothing
-        # HACK: eagerly open CUDNN v8 sublibraries to avoid dlopen discoverability issues
-        for sublibrary in ("ops_infer", "ops_train",
-                           "cnn_infer", "cnn_train",
-                           "adv_infer", "adv_train")
-            sublibrary_path = find_library("cudnn_$(sublibrary)", v"8"; locations=cuda_dirs)
-            @assert sublibrary_path !== nothing "Could not find CUDNN sublibrary $sublibrary"
-            Libdl.dlopen(sublibrary_path)
-        end
-    end
-    if path === nothing
-        path = find_library("cudnn", v"7"; locations=cuda_dirs)
-    end
-    if path === nothing
-        path = find_library("cudnn"; locations=cuda_dirs)
-    end
     path === nothing && return false
 
+    # HACK: eagerly open CUDNN sublibraries to avoid dlopen discoverability issues
+    for sublibrary in ("ops_infer", "ops_train",
+                        "cnn_infer", "cnn_train",
+                        "adv_infer", "adv_train")
+        sublibrary_path = find_library("cudnn_$(sublibrary)", v"8"; locations=cuda_dirs)
+        @assert sublibrary_path !== nothing "Could not find CUDNN sublibrary $sublibrary"
+        Libdl.dlopen(sublibrary_path)
+    end
     Libdl.dlopen(path)
+
     __libcudnn[] = path
     @debug "Using local CUDNN at $(path)"
     return true
@@ -309,10 +294,7 @@ function use_artifact_cutensor(release)
         @debug "Could not use CUTENSOR from artifacts" exception=(ex, catch_backtrace())
         return false
     end
-
-    # cutensor.dll is unversioned on Windows
-    version = Sys.iswindows() ? nothing : v"1"
-
+    version = Sys.iswindows() ? nothing : v"1"  # cutensor.dll is unversioned on Windows
     path = artifact_library(artifact_dir, "cutensor", version)
     try
         Libdl.dlopen(path)
@@ -320,6 +302,7 @@ function use_artifact_cutensor(release)
         @error "Could not load CUTENSOR; please file an issue (if on Windows, be sure to install the VS C++ redistributable first)" exception=(ex,catch_backtrace())
         return false
     end
+
     __libcutensor[] = path
     @debug "Using CUTENSOR from an artifact at $(artifact_dir)"
     return true
@@ -338,6 +321,7 @@ function use_local_cutensor(cuda_dirs)
         @error "Could not load CUTENSOR; please file an issue (if on Windows, be sure to install the VS C++ redistributable first)" exception=(ex,catch_backtrace())
         return false
     end
+
     __libcutensor[] = path
     @debug "Using local CUTENSOR at $(path)"
     return true
