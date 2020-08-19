@@ -50,7 +50,6 @@ CUDA.unsafe_destroy!(::CuContext)
 CuCurrentContext
 activate(::CuContext)
 synchronize()
-device(::CuContext)
 ```
 
 ### Primary Context Management
