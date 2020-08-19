@@ -4,12 +4,12 @@ export CuDeviceTexture
     CuDeviceTexture{T,N,NC}
 
 `N`-dimensional device texture with elements of type `T`. This type is the device-side
-counterpart of [`CUDA.CuTexture`](@ref), and can be used to access textures using regular
+counterpart of [`CuTexture{T,N,P}`](@ref), and can be used to access textures using regular
 indexing notation. If `NC` is true, indices used by these accesses should be normalized,
 i.e., fall into the `[0,1)` domain.
 
 Device-side texture objects cannot be created directly, but should be created host-side
-using [`CUDA.CuTexture`](@ref) and passed to the kernal as an argument.
+using [`CuTexture{T,N,P}`](@ref) and passed to the kernal as an argument.
 
 !!! warning
     Experimental API. Subject to change without deprecation.
