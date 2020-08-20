@@ -86,17 +86,17 @@ function versioninfo(io::IO=stdout)
         if has_nvml()
             dev′ = NVML.Device(uuid(dev))
 
-            name = NVML.name(dev′)
+            str = NVML.name(dev′)
             cap = NVML.compute_capability(dev′)
             mem = NVML.memory_info(dev′)
         else
-            name = name(dev)
+            str = name(dev)
             cap = capability(dev)
             mem = device!(dev) do
                 # this requires a device context, so we prefer NVML
                 (free=available_memory(), total=total_memory())
             end
         end
-        println(io, "  $(i-1): $name (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
+        println(io, "  $(i-1): $str (sm_$(cap.major)$(cap.minor), $(Base.format_bytes(mem.free)) / $(Base.format_bytes(mem.total)) available)")
     end
 end
