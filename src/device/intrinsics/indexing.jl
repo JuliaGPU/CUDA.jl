@@ -5,32 +5,34 @@ export
     warpsize
 
 @generated function _index(::Val{name}, ::Val{range}) where {name, range}
-    T_int32 = LLVM.Int32Type(JuliaContext())
+    JuliaContext() do ctx
+        T_int32 = LLVM.Int32Type(ctx)
 
-    # create function
-    llvm_f, _ = create_function(T_int32)
-    mod = LLVM.parent(llvm_f)
+        # create function
+        llvm_f, _ = create_function(T_int32)
+        mod = LLVM.parent(llvm_f)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        # call the indexing intrinsic
-        intr_typ = LLVM.FunctionType(T_int32)
-        intr = LLVM.Function(mod, "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
-        idx = call!(builder, intr)
+            # call the indexing intrinsic
+            intr_typ = LLVM.FunctionType(T_int32)
+            intr = LLVM.Function(mod, "llvm.nvvm.read.ptx.sreg.$name", intr_typ)
+            idx = call!(builder, intr)
 
-        # attach range metadata
-        range_metadata = MDNode([ConstantInt(Int32(range.start), JuliaContext()),
-                                 ConstantInt(Int32(range.stop), JuliaContext())],
-                                JuliaContext())
-        metadata(idx)[LLVM.MD_range] = range_metadata
+            # attach range metadata
+            range_metadata = MDNode([ConstantInt(Int32(range.start), ctx),
+                                    ConstantInt(Int32(range.stop), ctx)],
+                                    ctx)
+            metadata(idx)[LLVM.MD_range] = range_metadata
 
-        ret!(builder, idx)
+            ret!(builder, idx)
+        end
+
+        call_function(llvm_f, UInt32)
     end
-
-    call_function(llvm_f, UInt32)
 end
 
 # TODO: look these up for the current device (using contextual dispatch).
@@ -84,7 +86,7 @@ Returns the dimensions of the block.
 """
     threadIdx()::CuDim3
 
-Returns the thread index within the block. 
+Returns the thread index within the block.
 """
 @inline threadIdx() = (x=threadIdx_x(), y=threadIdx_y(), z=threadIdx_z())
 

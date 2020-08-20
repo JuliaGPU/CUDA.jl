@@ -62,20 +62,22 @@ end
 
 const libcache = Dict{String, LLVM.Module}()
 
-function load_libdevice(cap)
+function load_libdevice(cap, ctx)
     path = libdevice()
 
     get!(libcache, path) do
-        parse(LLVM.Module, read(path), JuliaContext())
+        parse(LLVM.Module, read(path), ctx)
     end
 end
 
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
+    ctx = LLVM.context(mod)
+
     # only link if there's undefined __nv_ functions
     if !any(fn->startswith(fn, "__nv_"), undefined_fns)
         return
     end
-    lib::LLVM.Module = load_libdevice(cap)
+    lib::LLVM.Module = load_libdevice(cap, ctx)
 
     # override libdevice's triple and datalayout to avoid warnings
     triple!(lib, triple(mod))
@@ -85,7 +87,7 @@ function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)
 
     ModulePassManager() do pm
         push!(metadata(mod), "nvvm-reflect-ftz",
-              MDNode([ConstantInt(Int32(1), JuliaContext())]))
+              MDNode([ConstantInt(Int32(1), ctx)]))
         run!(pm, mod)
     end
 end

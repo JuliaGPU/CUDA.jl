@@ -20,13 +20,13 @@ end
         ir = sprint(io->CUDA.code_llvm(io, f,
                                              Tuple{CUDA.DevicePtr{Float32,AS.Global}};
                                              dump_module=true, raw=true))
-        @test occursin("gputbaa_global", ir)
+        @test occursin("custom_tbaa_addrspace(CUDA.AS.Global)", ir)
 
         # no TBAA on generic pointers
         ir = sprint(io->CUDA.code_llvm(io, f,
                                              Tuple{CUDA.DevicePtr{Float32,AS.Generic}};
                                              dump_module=true, raw=true))
-        @test !occursin("gputbaa", ir)
+        @test !occursin("custom_tbaa", ir)
     end
 
 
@@ -35,7 +35,7 @@ end
     ir = sprint(io->CUDA.code_llvm(io, cached_load,
                                          Tuple{CUDA.DevicePtr{Float32,AS.Global}};
                                          dump_module=true, raw=true))
-    @test occursin("gputbaa_global", ir)
+    @test occursin("custom_tbaa_addrspace(CUDA.AS.Global)", ir)
 end
 
 @testset "ghost values" begin

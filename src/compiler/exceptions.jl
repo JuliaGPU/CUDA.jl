@@ -19,6 +19,7 @@ end
 # julia_exception_flag function (lowered here to actual accesses of the variable)
 function emit_exception_flag!(mod::LLVM.Module)
     @assert !haskey(globals(mod), "exception_flag")
+    ctx = LLVM.context(mod)
 
     # add the global variable
     T_ptr = convert(LLVMType, Ptr{Cvoid})
@@ -42,7 +43,7 @@ function emit_exception_flag!(mod::LLVM.Module)
 
         # replace uses by a load from the global variable
         for call in worklist
-            Builder(JuliaContext()) do builder
+            Builder(ctx) do builder
                 position!(builder, call)
                 ptr = load!(builder, gv)
                 replace_uses!(call, ptr)

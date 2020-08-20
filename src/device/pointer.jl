@@ -26,8 +26,6 @@ Base.convert(::Type{Int}, ::Type{AS.Shared})   = 3
 Base.convert(::Type{Int}, ::Type{AS.Constant}) = 4
 Base.convert(::Type{Int}, ::Type{AS.Local})    = 5
 
-tbaa_addrspace(as::Type{<:AddressSpace}) = tbaa_make_child(lowercase(String(as.name.name)))
-
 
 #
 # Device pointer
@@ -113,70 +111,74 @@ Base.:(+)(x::Integer, y::DevicePtr) = y + x
 
 @generated function pointerref(p::DevicePtr{T,A}, i::Int, ::Val{align}) where {T,A,align}
     sizeof(T) == 0 && return T.instance
-    eltyp = convert(LLVMType, T)
+    JuliaContext() do ctx
+        eltyp = convert(LLVMType, T, ctx)
 
-    T_int = convert(LLVMType, Int)
-    T_ptr = convert(LLVMType, DevicePtr{T,A})
+        T_int = convert(LLVMType, Int, ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,A}, ctx)
 
-    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
+        T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
 
-    # create a function
-    param_types = [T_ptr, T_int]
-    llvm_f, _ = create_function(eltyp, param_types)
+        # create a function
+        param_types = [T_ptr, T_int]
+        llvm_f, _ = create_function(eltyp, param_types)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
-        ld = load!(builder, ptr)
+            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+            ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
+            ld = load!(builder, ptr)
 
-        if A != AS.Generic
-            metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+            if A != AS.Generic
+                metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(A, ctx)
+            end
+            alignment!(ld, align)
+
+            ret!(builder, ld)
         end
-        alignment!(ld, align)
 
-        ret!(builder, ld)
+        call_function(llvm_f, T, Tuple{DevicePtr{T,A}, Int}, :((p, Int(i-one(i)))))
     end
-
-    call_function(llvm_f, T, Tuple{DevicePtr{T,A}, Int}, :((p, Int(i-one(i)))))
 end
 
 @generated function pointerset(p::DevicePtr{T,A}, x::T, i::Int, ::Val{align}) where {T,A,align}
     sizeof(T) == 0 && return
-    eltyp = convert(LLVMType, T)
+    JuliaContext() do ctx
+        eltyp = convert(LLVMType, T, ctx)
 
-    T_int = convert(LLVMType, Int)
-    T_ptr = convert(LLVMType, DevicePtr{T,A})
+        T_int = convert(LLVMType, Int, ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,A}, ctx)
 
-    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
+        T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, A))
 
-    # create a function
-    param_types = [T_ptr, eltyp, T_int]
-    llvm_f, _ = create_function(LLVM.VoidType(JuliaContext()), param_types)
+        # create a function
+        param_types = [T_ptr, eltyp, T_int]
+        llvm_f, _ = create_function(LLVM.VoidType(ctx), param_types)
 
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
-        val = parameters(llvm_f)[2]
-        st = store!(builder, val, ptr)
+            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+            ptr = gep!(builder, ptr, [parameters(llvm_f)[3]])
+            val = parameters(llvm_f)[2]
+            st = store!(builder, val, ptr)
 
-        if A != AS.Generic
-            metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A)
+            if A != AS.Generic
+                metadata(st)[LLVM.MD_tbaa] = tbaa_addrspace(A, ctx)
+            end
+            alignment!(st, align)
+
+            ret!(builder)
         end
-        alignment!(st, align)
 
-        ret!(builder)
+        call_function(llvm_f, Cvoid, Tuple{DevicePtr{T,A}, T, Int},
+                      :((p, convert(T,x), Int(i-one(i)))))
     end
-
-    call_function(llvm_f, Cvoid, Tuple{DevicePtr{T,A}, T, Int},
-                  :((p, convert(T,x), Int(i-one(i)))))
 end
 
 # operand types supported by llvm.nvvm.ldg.global
@@ -189,53 +191,55 @@ const LDGTypes = Union{UInt8, UInt16, UInt32, UInt64,
 @generated function pointerref_ldg(p::DevicePtr{T,AS.Global}, i::Int,
                                    ::Val{align}) where {T<:LDGTypes,align}
     sizeof(T) == 0 && return T.instance
-    eltyp = convert(LLVMType, T)
+    JuliaContext() do ctx
+        eltyp = convert(LLVMType, T, ctx)
 
-    # TODO: ccall the intrinsic directly with LLVMPtr
+        # TODO: ccall the intrinsic directly with LLVMPtr
 
-    T_int = convert(LLVMType, Int)
-    T_int32 = LLVM.Int32Type(JuliaContext())
-    T_ptr = convert(LLVMType, DevicePtr{T,AS.Global})
+        T_int = convert(LLVMType, Int, ctx)
+        T_int32 = LLVM.Int32Type(ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,AS.Global}, ctx)
 
-    T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, AS.Global))
+        T_actual_ptr = LLVM.PointerType(eltyp, convert(Int, AS.Global))
 
-    # create a function
-    param_types = [T_ptr, T_int]
-    llvm_f, _ = create_function(eltyp, param_types)
+        # create a function
+        param_types = [T_ptr, T_int]
+        llvm_f, _ = create_function(eltyp, param_types)
 
-    # create the intrinsic
-    intrinsic_name = let
-        class = if isa(eltyp, LLVM.IntegerType)
-            :i
-        elseif isa(eltyp, LLVM.FloatingPointType)
-            :f
-        else
-            error("Cannot handle $eltyp argument to unsafe_cached_load")
+        # create the intrinsic
+        intrinsic_name = let
+            class = if isa(eltyp, LLVM.IntegerType)
+                :i
+            elseif isa(eltyp, LLVM.FloatingPointType)
+                :f
+            else
+                error("Cannot handle $eltyp argument to unsafe_cached_load")
+            end
+            width = sizeof(T)*8
+            typ = Symbol(class, width)
+            "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
         end
-        width = sizeof(T)*8
-        typ = Symbol(class, width)
-        "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
+        mod = LLVM.parent(llvm_f)
+        intrinsic_typ = LLVM.FunctionType(eltyp, [T_actual_ptr, T_int32])
+        intrinsic = LLVM.Function(mod, intrinsic_name, intrinsic_typ)
+
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
+
+            ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+            ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
+            ld = call!(builder, intrinsic,
+                    [ptr, ConstantInt(Int32(align), ctx)])
+
+            metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global, ctx)
+
+            ret!(builder, ld)
+        end
+
+        call_function(llvm_f, T, Tuple{DevicePtr{T,AS.Global}, Int}, :((p, Int(i-one(i)))))
     end
-    mod = LLVM.parent(llvm_f)
-    intrinsic_typ = LLVM.FunctionType(eltyp, [T_actual_ptr, T_int32])
-    intrinsic = LLVM.Function(mod, intrinsic_name, intrinsic_typ)
-
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
-
-        ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
-        ptr = gep!(builder, ptr, [parameters(llvm_f)[2]])
-        ld = call!(builder, intrinsic,
-                   [ptr, ConstantInt(Int32(align), JuliaContext())])
-
-        metadata(ld)[LLVM.MD_tbaa] = tbaa_addrspace(AS.Global)
-
-        ret!(builder, ld)
-    end
-
-    call_function(llvm_f, T, Tuple{DevicePtr{T,AS.Global}, Int}, :((p, Int(i-one(i)))))
 end
 
 # interface
