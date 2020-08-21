@@ -21,26 +21,28 @@
 # >   that points to either the global address space or the shared address space.
 
 @generated function llvm_atomic_op(::Val{binop}, ptr::DevicePtr{T,A}, val::T) where {binop, T, A}
-    T_val = convert(LLVMType, T)
-    T_ptr = convert(LLVMType, DevicePtr{T,A})
-    T_actual_ptr = LLVM.PointerType(T_val)
+    JuliaContext() do ctx
+        T_val = convert(LLVMType, T, ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,A}, ctx)
+        T_actual_ptr = LLVM.PointerType(T_val)
 
-    llvm_f, _ = create_function(T_val, [T_ptr, T_val])
+        llvm_f, _ = create_function(T_val, [T_ptr, T_val])
 
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+            actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
-        rv = atomic_rmw!(builder, binop,
-                         actual_ptr, parameters(llvm_f)[2],
-                         atomic_acquire_release, #=single_threaded=# false)
+            rv = atomic_rmw!(builder, binop,
+                            actual_ptr, parameters(llvm_f)[2],
+                            atomic_acquire_release, #=single_threaded=# false)
 
-        ret!(builder, rv)
+            ret!(builder, rv)
+        end
+
+        call_function(llvm_f, T, Tuple{DevicePtr{T,A}, T}, :((ptr,val)))
     end
-
-    call_function(llvm_f, T, Tuple{DevicePtr{T,A}, T}, :((ptr,val)))
 end
 
 const binops = Dict(
@@ -82,28 +84,30 @@ for T in (Int32, Int64, UInt32, UInt64)
 end
 
 @generated function llvm_atomic_cas(ptr::DevicePtr{T,A}, cmp::T, val::T) where {T, A}
-    T_val = convert(LLVMType, T)
-    T_ptr = convert(LLVMType, DevicePtr{T,A})
-    T_actual_ptr = LLVM.PointerType(T_val)
+    JuliaContext() do ctx
+        T_val = convert(LLVMType, T, ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,A}, ctx)
+        T_actual_ptr = LLVM.PointerType(T_val)
 
-    llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
+        llvm_f, _ = create_function(T_val, [T_ptr, T_val, T_val])
 
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
 
-        actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
+            actual_ptr = inttoptr!(builder, parameters(llvm_f)[1], T_actual_ptr)
 
-        res = atomic_cmpxchg!(builder, actual_ptr, parameters(llvm_f)[2],
-                              parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
-                              #=single threaded=# false)
+            res = atomic_cmpxchg!(builder, actual_ptr, parameters(llvm_f)[2],
+                                parameters(llvm_f)[3], atomic_acquire_release, atomic_acquire,
+                                #=single threaded=# false)
 
-        rv = extract_value!(builder, res, 0)
+            rv = extract_value!(builder, res, 0)
 
-        ret!(builder, rv)
+            ret!(builder, rv)
+        end
+
+        call_function(llvm_f, T, Tuple{DevicePtr{T,A}, T, T}, :((ptr,cmp,val)))
     end
-
-    call_function(llvm_f, T, Tuple{DevicePtr{T,A}, T, T}, :((ptr,cmp,val)))
 end
 
 for T in (Int32, Int64, UInt32, UInt64)

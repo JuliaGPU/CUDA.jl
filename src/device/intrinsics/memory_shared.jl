@@ -53,44 +53,45 @@ end
 
 # get a pointer to shared memory, with known (static) or zero length (dynamic shared memory)
 @generated function emit_shmem(::Val{id}, ::Type{T}, ::Val{len}=Val(0)) where {id,T,len}
-    eltyp = convert(LLVMType, T)
-    T_ptr = convert(LLVMType, DevicePtr{T,AS.Shared})
+    JuliaContext() do ctx
+        eltyp = convert(LLVMType, T, ctx)
+        T_ptr = convert(LLVMType, DevicePtr{T,AS.Shared}, ctx)
 
-    # create a function
-    llvm_f, _ = create_function(T_ptr)
+        # create a function
+        llvm_f, _ = create_function(T_ptr)
 
-    # create the global variable
-    mod = LLVM.parent(llvm_f)
-    gv_typ = LLVM.ArrayType(eltyp, len)
-    gv = GlobalVariable(mod, gv_typ, GPUCompiler.safe_name(string(id)), #=addrspace=# 3)
-    if len > 0
-        # static shared memory should be demoted to local variables, whenever possible.
-        # this is done by the NVPTX ASM printer:
-        # > Find out if a global variable can be demoted to local scope.
-        # > Currently, this is valid for CUDA shared variables, which have local
-        # > scope and global lifetime. So the conditions to check are :
-        # > 1. Is the global variable in shared address space?
-        # > 2. Does it have internal linkage?
-        # > 3. Is the global variable referenced only in one function?
-        linkage!(gv, LLVM.API.LLVMInternalLinkage)
-        initializer!(gv, null(gv_typ))
+        # create the global variable
+        mod = LLVM.parent(llvm_f)
+        gv_typ = LLVM.ArrayType(eltyp, len)
+        gv = GlobalVariable(mod, gv_typ, GPUCompiler.safe_name(string(id)), #=addrspace=# 3)
+        if len > 0
+            # static shared memory should be demoted to local variables, whenever possible.
+            # this is done by the NVPTX ASM printer:
+            # > Find out if a global variable can be demoted to local scope.
+            # > Currently, this is valid for CUDA shared variables, which have local
+            # > scope and global lifetime. So the conditions to check are :
+            # > 1. Is the global variable in shared address space?
+            # > 2. Does it have internal linkage?
+            # > 3. Is the global variable referenced only in one function?
+            linkage!(gv, LLVM.API.LLVMInternalLinkage)
+            initializer!(gv, null(gv_typ))
+        end
+        # by requesting a larger-than-datatype alignment, we might be able to vectorize.
+        # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
+        # TODO: Make the alignment configurable
+        alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
+
+        # generate IR
+        Builder(ctx) do builder
+            entry = BasicBlock(llvm_f, "entry", ctx)
+            position!(builder, entry)
+
+            ptr = gep!(builder, gv, [ConstantInt(0, ctx), ConstantInt(0, ctx)])
+
+            val = ptrtoint!(builder, ptr, T_ptr)
+            ret!(builder, val)
+        end
+
+        call_function(llvm_f, DevicePtr{T,AS.Shared})
     end
-    # by requesting a larger-than-datatype alignment, we might be able to vectorize.
-    # we pick 32 bytes here, since WMMA instructions require 32-byte alignment.
-    # TODO: Make the alignment configurable
-    alignment!(gv, Base.max(32, Base.datatype_alignment(T)))
-
-    # generate IR
-    Builder(JuliaContext()) do builder
-        entry = BasicBlock(llvm_f, "entry", JuliaContext())
-        position!(builder, entry)
-
-        ptr = gep!(builder, gv, [ConstantInt(0, JuliaContext()),
-                                 ConstantInt(0, JuliaContext())])
-
-        val = ptrtoint!(builder, ptr, T_ptr)
-        ret!(builder, val)
-    end
-
-    call_function(llvm_f, DevicePtr{T,AS.Shared})
 end
