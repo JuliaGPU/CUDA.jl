@@ -94,9 +94,10 @@ shfl_xor_sync
 ## Formatted Output
 
 ```@docs
-@cuprint
-@cuprintf
 @cushow
+@cuprint
+@cuprintln
+@cuprintf
 ```
 
 

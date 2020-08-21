@@ -16,6 +16,7 @@ has_cuda_gpu
 context
 context!(::CuContext)
 context!(::Function, ::CuContext)
+device
 device!(::CuDevice)
 device!(::Function, ::CuDevice)
 device_reset!
