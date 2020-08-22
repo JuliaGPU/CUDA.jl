@@ -178,19 +178,20 @@ if Sys.ARCH == :aarch64
     # CUFFT segfaults on ARM
     push!(skip_tests, "cufft")
 end
+for (i, test) in enumerate(skip_tests)
+    # we find tests by scanning the file system, so make sure the path separator matches
+    skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)
+end
 filter!(in(tests), skip_tests) # only skip tests that we were going to run
 if haskey(ENV, "CI_THOROUGH")
-    all_tests = copy(tests)
     # we're not allowed to skip tests, so make sure we will mark them as such
+    all_tests = copy(tests)
     if !isempty(skip_tests)
-        filter!(!in(skip_tests), tests)
         @error "Skipping the following tests: $(join(skip_tests, ", "))"
+        filter!(!in(skip_tests), tests)
     end
 else
     if !isempty(skip_tests)
-        for (i, test) in enumerate(skip_tests)
-            skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)
-        end
         @info "Skipping the following tests: $(join(skip_tests, ", "))"
         filter!(!in(skip_tests), tests)
     end
