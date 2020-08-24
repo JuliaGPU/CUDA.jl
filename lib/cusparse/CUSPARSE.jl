@@ -16,19 +16,12 @@ include("error.jl")
 include("libcusparse.jl")
 include("libcusparse_old.jl")
 
+# low-level wrappers
 include("array.jl")
 include("util.jl")
 include("types.jl")
-
-# low-level wrappers
 include("helpers.jl")
-include("management.jl")
-include("level1.jl")
-include("level2.jl")
-include("level3.jl")
-include("preconditioners.jl")
-include("conversions.jl")
-include("generic.jl")
+include("wrappers.jl")
 
 # high-level integrations
 include("interfaces.jl")
