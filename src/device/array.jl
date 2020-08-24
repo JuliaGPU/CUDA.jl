@@ -8,8 +8,8 @@ export CuDeviceArray, CuDeviceVector, CuDeviceMatrix, ldg
 """
     CuDeviceArray(dims, ptr)
     CuDeviceArray{T}(dims, ptr)
-    CuDeviceArray{T,A}(dims, ptr)
-    CuDeviceArray{T,A,N}(dims, ptr)
+    CuDeviceArray{T,N}(dims, ptr)
+    CuDeviceArray{T,N,A}(dims, ptr)
 
 Construct an `N`-dimensional dense CUDA device array with element type `T` wrapping a
 pointer, where `N` is determined from the length of `dims` and `T` is determined from the
@@ -25,28 +25,28 @@ CuDeviceArray
 
 struct CuDeviceArray{T,N,A} <: AbstractArray{T,N}
     shape::Dims{N}
-    ptr::DevicePtr{T,A}
+    ptr::LLVMPtr{T,A}
 
     # inner constructors, fully parameterized, exact types (ie. Int not <:Integer)
-    CuDeviceArray{T,N,A}(shape::Dims{N}, ptr::DevicePtr{T,A}) where {T,A,N} = new(shape,ptr)
+    CuDeviceArray{T,N,A}(shape::Dims{N}, ptr::LLVMPtr{T,A}) where {T,A,N} = new(shape,ptr)
 end
 
 const CuDeviceVector = CuDeviceArray{T,1,A} where {T,A}
 const CuDeviceMatrix = CuDeviceArray{T,2,A} where {T,A}
 
 # outer constructors, non-parameterized
-CuDeviceArray(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A})                where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-CuDeviceArray(len::Integer,              p::DevicePtr{T,A})                where {T,A}   = CuDeviceVector{T,A}((len,), p)
+CuDeviceArray(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A})                where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
+CuDeviceArray(len::Integer,              p::LLVMPtr{T,A})                where {T,A}   = CuDeviceVector{T,A}((len,), p)
 
 # outer constructors, partially parameterized
-CuDeviceArray{T}(dims::NTuple{N,<:Integer},   p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-CuDeviceArray{T}(len::Integer,                p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
-CuDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
-CuDeviceVector{T}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
+CuDeviceArray{T}(dims::NTuple{N,<:Integer},   p::LLVMPtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
+CuDeviceArray{T}(len::Integer,                p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
+CuDeviceArray{T,N}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(dims, p)
+CuDeviceVector{T}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((len,), p)
 
 # outer constructors, fully parameterized
-CuDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::DevicePtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(Int.(dims), p)
-CuDeviceVector{T,A}(len::Integer,               p::DevicePtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((Int(len),), p)
+CuDeviceArray{T,N,A}(dims::NTuple{N,<:Integer}, p::LLVMPtr{T,A}) where {T,A,N} = CuDeviceArray{T,N,A}(Int.(dims), p)
+CuDeviceVector{T,A}(len::Integer,               p::LLVMPtr{T,A}) where {T,A}   = CuDeviceVector{T,A}((Int(len),), p)
 
 
 ## getters
@@ -62,7 +62,7 @@ Base.length(g::CuDeviceArray) = prod(g.shape)
 
 ## conversions
 
-Base.unsafe_convert(::Type{DevicePtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
+Base.unsafe_convert(::Type{LLVMPtr{T,A}}, a::CuDeviceArray{T,N,A}) where {T,A,N} = pointer(a)
 
 
 ## indexing intrinsics
@@ -141,7 +141,7 @@ Base.show(io::IO, a::CuDeviceArray) =
 Base.show(io::IO, mime::MIME"text/plain", a::CuDeviceArray) = show(io, a)
 
 @inline function Base.unsafe_view(A::CuDeviceVector{T}, I::Vararg{Base.ViewIndex,1}) where {T}
-    ptr = pointer(A) + (I[1].start-1)*sizeof(T)
+    ptr = pointer(A, I[1].start)
     len = I[1].stop - I[1].start + 1
     return CuDeviceArray(len, ptr)
 end

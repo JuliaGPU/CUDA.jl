@@ -11,9 +11,7 @@ include("intrinsics/assertion.jl")
 include("intrinsics/memory_dynamic.jl")
 include("intrinsics/atomics.jl")
 include("intrinsics/misc.jl")
-if VERSION >= v"1.5-"
 include("intrinsics/wmma.jl")
-end
 
 # functionality from libdevice
 #

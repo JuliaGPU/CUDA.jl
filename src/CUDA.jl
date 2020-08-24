@@ -6,6 +6,7 @@ using GPUArrays
 
 using LLVM
 using LLVM.Interop
+using Core: LLVMPtr
 
 using Adapt
 

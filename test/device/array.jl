@@ -1,7 +1,7 @@
 @testset "constructors" begin
     # inner constructors
     let
-        dp = CUDA.DevicePtr{Int,AS.Generic}(0)
+        dp = reinterpret(Core.LLVMPtr{Int,AS.Generic}, C_NULL)
         CuDeviceArray{Int,1,AS.Generic}((1,), dp)
     end
 
@@ -10,7 +10,7 @@
         a = I(1)
         b = I(2)
 
-        dp = CUDA.DevicePtr{I,AS.Generic}(0)
+        dp = reinterpret(CUDA.LLVMPtr{I,AS.Generic}, C_NULL)
 
         # not parameterized
         CuDeviceArray(b, dp)
@@ -134,24 +134,7 @@ end
 
     a = [1]
     p = pointer(a)
-    dp = Base.bitcast(CUDA.DevicePtr{eltype(p), AS.Generic}, p)
+    dp = reinterpret(Core.LLVMPtr{eltype(p), AS.Generic}, p)
     da = CUDA.CuDeviceArray(1, dp)
     load_index(da)
-end
-
-@testset "Const" begin
-    function kernel(a, b, i)
-        b[i] = Base.Experimental.Const(a)[i]
-        return
-    end
-
-    buf = IOBuffer()
-
-    a = CuArray([0])
-    b = CuArray([0])
-    @device_code_ptx io=buf @cuda kernel(a, b, 1)
-    @test Array(a) == Array(b)
-
-    asm = String(take!(copy(buf)))
-    @test occursin("ld.global.nc", asm)
 end

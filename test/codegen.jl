@@ -12,46 +12,6 @@
     @test !occursin("inttoptr", ir)
 end
 
-@testset "PTX TBAA" begin
-    load(ptr) = unsafe_load(ptr)
-    store(ptr) = unsafe_store!(ptr, 0)
-
-    for f in (load, store)
-        ir = sprint(io->CUDA.code_llvm(io, f,
-                                             Tuple{CUDA.DevicePtr{Float32,AS.Global}};
-                                             dump_module=true, raw=true))
-        @test occursin("custom_tbaa_addrspace(CUDA.AS.Global)", ir)
-
-        # no TBAA on generic pointers
-        ir = sprint(io->CUDA.code_llvm(io, f,
-                                             Tuple{CUDA.DevicePtr{Float32,AS.Generic}};
-                                             dump_module=true, raw=true))
-        @test !occursin("custom_tbaa", ir)
-    end
-
-
-    cached_load(ptr) = unsafe_cached_load(ptr)
-
-    ir = sprint(io->CUDA.code_llvm(io, cached_load,
-                                         Tuple{CUDA.DevicePtr{Float32,AS.Global}};
-                                         dump_module=true, raw=true))
-    @test occursin("custom_tbaa_addrspace(CUDA.AS.Global)", ir)
-end
-
-@testset "ghost values" begin
-    @eval struct Singleton end
-
-    ir = sprint(io->CUDA.code_llvm(io, unsafe_load,
-                                         Tuple{CUDA.DevicePtr{Singleton,AS.Global}}))
-    @test occursin("ret void", ir)
-    @test unsafe_load(reinterpret(CUDA.DevicePtr{Singleton,AS.Global}, C_NULL)) === Singleton()
-
-    ir = sprint(io->CUDA.code_llvm(io, unsafe_store!,
-                                         Tuple{CUDA.DevicePtr{Singleton,AS.Global},
-                                         Singleton}))
-    @test !occursin("\bstore\b", ir)
-end
-
 @testset "CUDA.jl#553" begin
     function kernel(ptr)
        unsafe_store!(ptr, CUDA.fma(unsafe_load(ptr), unsafe_load(ptr,2), unsafe_load(ptr,3)))
@@ -60,11 +20,6 @@ end
 
     ir = sprint(io->CUDA.code_llvm(io, kernel, Tuple{Ptr{Float32}}))
     @test !occursin("@__nv_fmaf", ir)
-end
-
-@testset "ldg" begin
-    ir = sprint(io->CUDA.code_llvm(io, CUDA.pointerref_ldg, Tuple{CUDA.DevicePtr{Int,CUDA.AS.Global},Int,Val{1}}))
-    @test occursin("@llvm.nvvm.ldg", ir)
 end
 
 @testset "assume" begin

@@ -555,7 +555,7 @@ end
         ccall("llvm.trap", llvmcall, Cvoid, ())
     end
 
-    function kernel(input::Int32, output::CUDA.DevicePtr{Int32}, yes::Bool=true)
+    function kernel(input::Int32, output::Core.LLVMPtr{Int32}, yes::Bool=true)
         i = threadIdx().x
 
         temp = @cuStaticSharedMem(Cint, 1)
@@ -595,7 +595,7 @@ end
         Base.llvmcall("unreachable", Cvoid, Tuple{})
     end
 
-    function kernel(input::Int32, output::CUDA.DevicePtr{Int32}, yes::Bool=true)
+    function kernel(input::Int32, output::Core.LLVMPtr{Int32}, yes::Bool=true)
         i = threadIdx().x
 
         temp = @cuStaticSharedMem(Cint, 1)
