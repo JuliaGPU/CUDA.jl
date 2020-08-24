@@ -86,8 +86,16 @@ end
     @test Array(x)[1,1] == 42
   end
 
-  # but in conversion of indices (#506)
+  # bug in conversion of indices (#506)
   show(devnull, cu(view(ones(1), [1])))
+
+  # performance loss due to Array indices
+  let x = CuArray{Int}(undef, 1)
+    i = [1]
+    y = view(x, i)
+    @test parent(y) isa CuArray
+    @test parentindices(y) isa Tuple{CuArray}
+  end
 end
 
 @testset "reshape" begin
