@@ -1287,4 +1287,30 @@ end
     end
 end
 
+@testset "shared memory" begin
+    # test that atomic operations on shared memory work
+    # https://github.com/JuliaGPU/CUDA.jl/issues/311
+
+    function kernel(a)
+        b = CUDA.@cuStaticSharedMem(Int, 1)
+
+        if threadIdx().x == 1
+            b[] = a[]
+        end
+        sync_threads()
+
+        CUDA.atomic_add!(pointer(b), 1)
+        sync_threads()
+
+        if threadIdx().x == 1
+            a[] = b[]
+        end
+        return
+    end
+
+    a = CuArray([0])
+    @cuda threads=16 kernel(a)
+    @test Array(a) == [16]
+end
+
 end
