@@ -126,8 +126,6 @@ end
 
 # floating-point operations using NVVM intrinsics
 
-# TODO: Base.Ref{T,AS} would make these operations possible with plain `ccall`
-
 for A in (AS.Generic, AS.Global, AS.Shared)
     # declare float @llvm.nvvm.atomic.load.add.f32.p0f32(float* address, float val)
     # declare float @llvm.nvvm.atomic.load.add.f32.p1f32(float addrspace(1)* address, float val)
