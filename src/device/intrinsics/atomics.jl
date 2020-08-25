@@ -56,7 +56,9 @@ const binops = Dict(
     :max   => LLVM.API.LLVMAtomicRMWBinOpMax,
     :min   => LLVM.API.LLVMAtomicRMWBinOpMin,
     :umax  => LLVM.API.LLVMAtomicRMWBinOpUMax,
-    :umin  => LLVM.API.LLVMAtomicRMWBinOpUMin
+    :umin  => LLVM.API.LLVMAtomicRMWBinOpUMin,
+    #:fadd  => LLVM.API.LLVMAtomicRMWBinOpFAdd,
+    #:fsub  => LLVM.API.LLVMAtomicRMWBinOpFSub,
 )
 
 # all atomic operations have acquire and/or release semantics,
@@ -124,8 +126,6 @@ end
 
 # floating-point operations using NVVM intrinsics
 
-# TODO: Base.Ref{T,AS} would make these operations possible with plain `ccall`
-
 for A in (AS.Generic, AS.Global, AS.Shared)
     # declare float @llvm.nvvm.atomic.load.add.f32.p0f32(float* address, float val)
     # declare float @llvm.nvvm.atomic.load.add.f32.p1f32(float addrspace(1)* address, float val)
@@ -137,9 +137,13 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     # declare double @llvm.nvvm.atomic.load.add.f64.p3f64(double addrspace(3)* address, double val)
     for T in (Float32, Float64)
         nb = sizeof(T)*8
-
-        # NOTE: once LLVM has opaque pointers, we can call these intrinsics directly
-        #       (LLVMPtr gets lowered to a i8*, which doesn't match the value)
+        intr = "llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))f$nb"
+        #@eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) =
+        #    @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
+        # NOTE: this is implemented as `atomicrmw fadd` on LLVM 9+, but the C headers
+        #       lack an export: https://github.com/llvm/llvm-project/commit/f57e968dd036b2230c59c00e1ed10fecf1668828
+        #       by using IR, we trigger the AutoUpgrader which fixes this.
+        # TODO: implement as atomicrmw when using LLVM 10 (Julia 1.6)
 
         import Base.Sys: WORD_SIZE
         if T == Float32
@@ -154,7 +158,6 @@ for A in (AS.Generic, AS.Global, AS.Shared)
             T_untyped_ptr = "i8 addrspace($(convert(Int, A)))*"
             T_typed_ptr = "$(T_val) addrspace($(convert(Int, A)))*"
         end
-        intr = "llvm.nvvm.atomic.load.add.f$nb.p$(convert(Int, A))f$nb"
         @eval @inline atomic_add!(ptr::LLVMPtr{$T,$A}, val::$T) = Base.llvmcall(
             $("declare $T_val @$intr($T_typed_ptr, $T_val)",
                "%ptr = bitcast $T_untyped_ptr %0 to $T_typed_ptr
@@ -173,26 +176,9 @@ for A in (AS.Generic, AS.Global, AS.Shared)
     for T in (Int32,), op in (:inc, :dec)
         nb = sizeof(T)*8
         fn = Symbol("atomic_$(op)!")
-
-        # NOTE: once LLVM has opaque pointers, we can call these intrinsics directly
-        #       (LLVMPtr gets lowered to a i8*, which doesn't match the value)
-
-        import Base.Sys: WORD_SIZE
-        T_val = "i32"
-        if A == AS.Generic
-            T_untyped_ptr = "i8*"
-            T_typed_ptr = "$(T_val)*"
-        else
-            T_untyped_ptr = "i8 addrspace($(convert(Int, A)))*"
-            T_typed_ptr = "$(T_val) addrspace($(convert(Int, A)))*"
-        end
         intr = "llvm.nvvm.atomic.load.$op.$nb.p$(convert(Int, A))i$nb"
-        @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T) = Base.llvmcall(
-            $("declare $T_val @$intr($T_typed_ptr, $T_val)",
-               "%ptr = bitcast $T_untyped_ptr %0 to $T_typed_ptr
-                %rv = call $T_val @$intr($T_typed_ptr %ptr, $T_val %1)
-                ret $T_val %rv"), $T,
-            Tuple{LLVMPtr{$T,$A}, $T}, ptr, val)
+        @eval @inline $fn(ptr::LLVMPtr{$T,$A}, val::$T) =
+            @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,$A}, $T), ptr, val)
     end
 end
 
