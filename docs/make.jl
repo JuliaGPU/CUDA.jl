@@ -12,6 +12,7 @@ function main()
     end
 
     @info "Generating Documenter.jl site"
+    DocMeta.setdocmeta!(CUDA, :DocTestSetup, :(using CUDA); recursive=true)
     makedocs(
         sitename = "CUDA.jl",
         authors = "Tim Besard",
