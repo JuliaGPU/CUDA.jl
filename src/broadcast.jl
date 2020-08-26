@@ -11,8 +11,8 @@ BroadcastStyle(::Type{<:CuArray{T,N}}) where {T,N} = CuArrayStyle{N}()
 Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}) where {N,T} =
     similar(CuArray{T}, axes(bc))
 
-Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}, dims...) where {N,T} =
-    CuArray{T}(undef, dims...)
+Base.similar(bc::Broadcasted{CuArrayStyle{N}}, ::Type{T}, dims) where {N,T} =
+    CuArray{T}(undef, dims)
 
 
 ## replace base functions with libdevice alternatives
