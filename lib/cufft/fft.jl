@@ -93,8 +93,6 @@ function Base.show(io::IO, p::CuFFTPlan{T,K,inplace}) where {T,K,inplace}
     showfftdims(io, p.sz, T)
 end
 
-set_stream(plan::CuFFTPlan, stream::CuStream) = cufftSetStream(plan, stream)
-
 Base.size(p::CuFFTPlan) = p.sz
 
 
@@ -112,6 +110,7 @@ function create_plan(xtype, xdims, region)
     handle_ref = Ref{cufftHandle}()
     cufftCreate(handle_ref)
     handle = handle_ref[]
+    cufftSetStream(handle, CuStreamPerThread())
     cufftSetAutoAllocation(handle, 0)
 
     # make the plan

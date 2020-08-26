@@ -42,6 +42,7 @@ function handle()
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUSPARSE, ctx)) do
             handle = cusparseCreate()
+            cusparseSetStream(handle, CuStreamPerThread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do
