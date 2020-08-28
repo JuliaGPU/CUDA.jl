@@ -3,7 +3,7 @@
 @@ -937,7 +937,0 @@
 -@checked function cuStreamBatchMemOp(stream, count, paramArray, flags)
 -    initialize_api()
--    @runtime_ccall((:cuStreamBatchMemOp, libcuda()), CUresult,
+-    @runtime_ccall((:cuStreamBatchMemOp_ptsz, libcuda()), CUresult,
 -                   (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32),
 -                   stream, count, paramArray, flags)
 -end

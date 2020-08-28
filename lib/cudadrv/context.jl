@@ -49,12 +49,16 @@ function invalidate!(ctx::CuContext)
 end
 
 function Base.show(io::IO, ctx::CuContext)
-    fields = [@sprintf("%p", ctx.handle), @sprintf("instance %x", objectid(ctx))]
-    if !isvalid(ctx)
-        push!(fields, "invalidated")
-    end
+    if ctx.handle != C_NULL
+        fields = [@sprintf("%p", ctx.handle), @sprintf("instance %x", objectid(ctx))]
+        if !isvalid(ctx)
+            push!(fields, "invalidated")
+        end
 
-    print(io, "CuContext(", join(fields, ", "), ")")
+        print(io, "CuContext(", join(fields, ", "), ")")
+    else
+        print(io, "CuContext(NULL)")
+    end
 end
 
 """

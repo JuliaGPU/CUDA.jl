@@ -32,6 +32,7 @@ function handle()
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
             handle = cublasCreate()
+            cublasSetStream_v2(handle, CuStreamPerThread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do

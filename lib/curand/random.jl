@@ -12,6 +12,7 @@ mutable struct RNG <: Random.AbstractRNG
 
     function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
         handle = curandCreateGenerator(typ)
+        curandSetStream(handle, CuStreamPerThread())
         obj = new(handle, context(), typ)
         finalizer(unsafe_destroy!, obj)
         return obj

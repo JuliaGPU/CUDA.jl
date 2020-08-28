@@ -5283,7 +5283,7 @@
         "modeD": "Ptr",
         "opReduce": null,
         "minTypeCompute": null,
-        "workspace": "CuPtr",
+        "workspace": "PtrOrCuPtr",
         "workspaceSize": null,
         "stream": null
     },
@@ -16088,7 +16088,7 @@
     },
     "cutensorGetAlignmentRequirement": {
         "handle": "Ptr",
-        "ptr": "CuPtr",
+        "ptr": "PtrOrCuPtr",
         "desc": "Ptr",
         "alignmentRequirement": "Ptr"
     },

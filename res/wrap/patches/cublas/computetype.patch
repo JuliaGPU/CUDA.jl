@@ -1,5 +1,5 @@
---- a/lib/cublas/libcublas.jl
-+++ b/lib/cublas/libcublas.jl
+--- a/libcublas.jl
++++ b/libcublas.jl
 @@ -1414,7 +1414,7 @@ end
                     (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
                      Cint, PtrOrCuPtr{Cvoid}, CuPtr{Cvoid}, cudaDataType, Cint,

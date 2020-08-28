@@ -1,7 +1,8 @@
 # Stream management
 
 export
-    CuStream, CuDefaultStream, priority, priority_range, synchronize
+    CuStream, CuDefaultStream, CuStreamLegacy, CuStreamPerThread,
+    priority, priority_range, synchronize
 
 
 mutable struct CuStream
@@ -49,6 +50,20 @@ end
 Return the default stream.
 """
 @inline CuDefaultStream() = CuStream(convert(CUstream, C_NULL), CuContext(C_NULL))
+
+"""
+    CuStreamLegacy()
+
+Return a special object to use use an implicit stream with legacy synchronization behavior.
+"""
+@inline CuStreamLegacy() = CuStream(convert(CUstream, 1), CuContext(C_NULL))
+
+"""
+    CuStreamPerThread()
+
+Return a special object to use an implicit stream with per-thread synchronization behavior.
+"""
+@inline CuStreamPerThread() = CuStream(convert(CUstream, 2), CuContext(C_NULL))
 
 """
     synchronize(s::CuStream)

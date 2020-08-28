@@ -33,6 +33,7 @@ function dense_handle()
         ctx = context()
         thread_dense_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
             handle = cusolverDnCreate()
+            cusolverDnSetStream(handle, CuStreamPerThread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do
@@ -52,6 +53,7 @@ function sparse_handle()
         ctx = context()
         thread_sparse_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
             handle = cusolverSpCreate()
+            cusolverSpSetStream(handle, CuStreamPerThread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do
