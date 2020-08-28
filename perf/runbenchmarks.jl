@@ -57,6 +57,10 @@ else
 end
 BenchmarkTools.save(paramsfile, params(SUITE))
 
+# latency benchmarks spawn external processes and take very long,
+# so don't benefit from warm-up or tuning.
+include("latency.jl")
+
 @info "Running benchmarks"
 results = run(SUITE, verbose=true)
 println(results)
