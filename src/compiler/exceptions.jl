@@ -22,7 +22,7 @@ function emit_exception_flag!(mod::LLVM.Module)
     ctx = LLVM.context(mod)
 
     # add the global variable
-    T_ptr = convert(LLVMType, Ptr{Cvoid})
+    T_ptr = convert(LLVMType, Ptr{Cvoid}, ctx)
     gv = GlobalVariable(mod, T_ptr, "exception_flag")
     initializer!(gv, LLVM.ConstantInt(T_ptr, 0))
     linkage!(gv, LLVM.API.LLVMWeakAnyLinkage)
