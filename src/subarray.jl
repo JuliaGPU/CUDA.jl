@@ -24,25 +24,30 @@ cuviewlength() = ()
 
 ## construction
 
-@inline view(A::CuArray, I::Vararg{Any,N}) where {N} = _view(A, I, CuIndexStyle(I...))
+@inline function view(A::CuArray, I::Vararg{Any,N}) where {N}
+    J = to_indices(A, I)
+    @boundscheck begin
+        # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
+        # this is expensive, but it's a bounds check after all.
+        J_cpu = map(j->adapt(Array, j), J)
+        checkbounds(A, J_cpu...)
+    end
+    J_gpu = map(j->adapt(CuArray, j), J)
+    unsafe_view(A, J_gpu, CuIndexStyle(I...))
+end
 
 # for contiguous views just return a new CuArray
-@inline function _view(A, I, ::Contiguous)
-    J = to_indices(A, I)
-    @boundscheck checkbounds(A, J...)
-    contiguous_view(_maybe_reshape_parent(A, index_ndims(J...)), J, cuviewlength(J...))
+@inline function unsafe_view(A, I, ::Contiguous)
+    unsafe_contiguous_view(_maybe_reshape_parent(A, index_ndims(I...)), I, cuviewlength(I...))
 end
-@inline function contiguous_view(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
+@inline function unsafe_contiguous_view(A::CuArray{T}, I::NTuple{N,ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = compute_offset1(A, 1, I) * sizeof(T)
     CuArray{T,M}(pointer(A) + offset, dims, A)
 end
 
 # fallback to SubArray when the view is not contiguous
-@inline function _view(A, I, ::NonContiguous)
-    J = to_indices(A, I)
-    @boundscheck checkbounds(A, J...)
-    J = map(j->adapt(CuArray, j), J)    # be sure the indices reside on the GPU too
-    Base.unsafe_view(_maybe_reshape_parent(A, index_ndims(J...)), J...)
+@inline function unsafe_view(A, I, ::NonContiguous)
+    Base.unsafe_view(_maybe_reshape_parent(A, index_ndims(I...)), I...)
 end
 
 
