@@ -96,6 +96,20 @@ end
     @test parent(y) isa CuArray
     @test parentindices(y) isa Tuple{CuArray}
   end
+
+  @testset "GPU array source" begin
+      a = rand(3)
+      i = rand(1:3, 2)
+      @test testf(view, a, i)
+      @test testf(view, a, view(i, 2:2))
+  end
+
+  @testset "CPU array source" begin
+      a = rand(3)
+      i = rand(1:3, 2)
+      @test testf(view, a, i)
+      @test testf(view, a, view(i, 2:2))
+  end
 end
 
 @testset "reshape" begin
