@@ -105,7 +105,7 @@ _cufunc(mod,ex) = begin
     if ~isdefined(mod,f)                # definition check
         Core.eval(mod,ex)
     elseif ~@eval $mod.$f isa Function  # name check
-        error("$f already has a value, can't define cu$f")
+        error("$f already has a value, can't define cufunc_$f")
     end
     def[:name] = Symbol(:cufunc_, f)    # As the definition not in CUDA, a longer prefix to prevent something like msum(x) = ....
     def[:body] = replace_device(def[:body])
