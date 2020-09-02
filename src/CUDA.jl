@@ -88,6 +88,7 @@ include("../lib/nvml/NVML.jl")
 const has_nvml = NVML.has_nvml
 export NVML, has_nvml
 
+
 include("deprecated.jl")
 
 include("precompile.jl")
