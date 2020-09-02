@@ -98,15 +98,23 @@ function replace_device(ex)
   end
 end
 
-macro cufunc(ex)
-  global _cufuncs
-  def = MacroTools.splitdef(ex)
-  f = def[:name]
-  def[:name] = Symbol(:cu, f)
-  def[:body] = replace_device(def[:body])
-  push!(_cufuncs, f)
-  quote
-    $(esc(MacroTools.combinedef(def)))
-    CUDA.cufunc(::typeof($(esc(f)))) = $(esc(def[:name]))
-  end
+_cufunc(mod,ex) = begin
+    global _cufuncs
+    def = MacroTools.splitdef(ex)
+    f = def[:name]
+    if ~isdefined(mod,f)                # definition check
+        Core.eval(mod,ex)
+    elseif ~@eval $mod.$f isa Function  # name check
+        error("$f already has a value, can't define cu$f")
+    end
+    def[:name] = Symbol(:cufunc_, f)    # As the definition not in CUDA, a longer prefix to prevent something like msum(x) = ....
+    def[:body] = replace_device(def[:body])
+    push!(_cufuncs, f)
+    Core.eval(mod,MacroTools.combinedef(def)) # define the `cuxxx` in the module called this macro, I'm not sure about it, should it be in CUDA?
+    @eval CUDA.cufunc(::typeof($mod.$f)) = $mod.$(def[:name])
 end
+
+macro cufunc(ex)
+  return :(_cufunc($__module__,$(QuoteNode(ex))))
+end
+
