@@ -264,11 +264,17 @@ CuSparseMatrixCSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, nnz, dims
 
 CuSparseMatrixBSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, blockDim, dir, nnz, dims::NTuple{2,Int}) where T = CuSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 
-CuSparseVector(Vec::SparseVector)    = CuSparseVector(Vec.nzind, Vec.nzval, size(Vec)[1])
+# cpu to gpu
+CuSparseVector(Vec::SparseVector)    = CuSparseVector(Vec.nzind, Vec.nzval, length(Vec))
 CuSparseMatrixCSC(Vec::SparseVector)    = CuSparseMatrixCSC([1], Vec.nzind, Vec.nzval, size(Vec))
 CuSparseVector(Mat::SparseMatrixCSC) = size(Mat,2) == 1 ? CuSparseVector(Mat.rowval, Mat.nzval, size(Mat)[1]) : throw(ArgumentError("The input argument must have a single column"))
 CuSparseMatrixCSC(Mat::SparseMatrixCSC) = CuSparseMatrixCSC(Mat.colptr, Mat.rowval, Mat.nzval, size(Mat))
 CuSparseMatrixCSR(Mat::SparseMatrixCSC) = switch2csr(CuSparseMatrixCSC(Mat))
+CuSparseMatrixBSR(Mat::SparseMatrixCSC; blockdim) = switch2bsr(CuSparseMatrixCSC(Mat), convert(Cint, blockdim))
+
+# gpu to cpu
+SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(x.iPtr), Array(x.nzVal))
+SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(x.rowVal), Array(x.nzVal))
 
 similar(Vec::CuSparseVector) = CuSparseVector(copy(Vec.iPtr), similar(Vec.nzVal), Vec.dims[1])
 similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(Mat.rowVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
@@ -323,3 +329,25 @@ copy(Vec::CuSparseVector) = copyto!(similar(Vec),Vec)
 copy(Mat::CuSparseMatrixCSC) = copyto!(similar(Mat),Mat)
 copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat),Mat)
 copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat),Mat)
+
+
+# input/output
+
+Base.show(io::IOContext, x::CuSparseVector) =
+    show(io, SparseVector(x))
+
+Base.show(io::IOContext, x::CuSparseMatrixCSC) =
+    show(io, SparseMatrixCSC(x))
+
+# TODO: remove once CuSparseMatrixCSC <: AbstractSparseMatrixCSC
+Base.show(io::IO, S::CuSparseMatrixCSC) = Base.show(convert(IOContext, io), S)
+function Base.show(io::IO, ::MIME"text/plain", S::CuSparseMatrixCSC)
+    xnnz = nnz(S)
+    m, n = size(S)
+    print(io, m, "×", n, " ", typeof(S), " with ", xnnz, " stored ",
+              xnnz == 1 ? "entry" : "entries")
+    if !(m == 0 || n == 0)
+        print(io, ":")
+        show(IOContext(io, :typeinfo => eltype(S)), S)
+    end
+end
