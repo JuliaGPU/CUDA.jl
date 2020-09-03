@@ -1352,8 +1352,8 @@ end
 @checked function cudnnGetDropoutDescriptor(dropoutDesc, handle, dropout, states, seed)
     initialize_api()
     @runtime_ccall((:cudnnGetDropoutDescriptor, libcudnn()), cudnnStatus_t,
-                   (cudnnDropoutDescriptor_t, cudnnHandle_t, CuPtr{Cfloat},
-                    Ptr{Ptr{Cvoid}}, Ptr{Culonglong}),
+                   (cudnnDropoutDescriptor_t, cudnnHandle_t, Ptr{Cfloat},
+                    Ptr{CuPtr{Cvoid}}, Ptr{Culonglong}),
                    dropoutDesc, handle, dropout, states, seed)
 end
 
@@ -1988,7 +1988,7 @@ end
     initialize_api()
     @runtime_ccall((:cudnnMultiHeadAttnForward, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnAttnDescriptor_t, Cint, Ptr{Cint}, Ptr{Cint},
-                    Ptr{Cint}, Ptr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
+                    CuPtr{Cint}, CuPtr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
                     CuPtr{Cvoid}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, cudnnSeqDataDescriptor_t,
                     CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t, CuPtr{Cvoid}, Csize_t,
@@ -2008,8 +2008,8 @@ end
                                                  reserveSpaceSizeInBytes, reserveSpace)
     initialize_api()
     @runtime_ccall((:cudnnMultiHeadAttnBackwardData, libcudnn()), cudnnStatus_t,
-                   (cudnnHandle_t, cudnnAttnDescriptor_t, Ptr{Cint}, Ptr{Cint}, Ptr{Cint},
-                    Ptr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
+                   (cudnnHandle_t, cudnnAttnDescriptor_t, Ptr{Cint}, Ptr{Cint}, CuPtr{Cint},
+                    CuPtr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t,
