@@ -972,6 +972,32 @@ end
     end
 end
 
+@testset "many arguments" begin
+    # JuliaGPU/CUDA.jl#401
+    function dp_5arg_kernel(v1, v2, v3, v4, v5)
+        return nothing
+    end
+
+    function dp_6arg_kernel(v1, v2, v3, v4, v5, v6)
+        return nothing
+    end
+
+    function main_5arg_kernel()
+        @cuda threads=1 dynamic=true dp_5arg_kernel(1, 1, 1, 1, 1)
+        return nothing
+    end
+
+    function main_6arg_kernel()
+        @cuda threads=1 dynamic=true dp_6arg_kernel(1, 1, 1, 1, 1, 1)
+        return nothing
+    end
+
+    @cuda threads=1 dp_5arg_kernel(1, 1, 1, 1, 1)
+    @cuda threads=1 dp_6arg_kernel(1, 1, 1, 1, 1, 1)
+    @cuda threads=1 main_5arg_kernel()
+    @cuda threads=1 main_6arg_kernel()
+end
+
 end
 
 ############################################################################################
