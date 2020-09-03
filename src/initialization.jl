@@ -23,7 +23,7 @@ end
 
 const configure_lock = ReentrantLock()
 @noinline function _functional(show_reason::Bool=false)
-    lock(configure_lock) do
+    Base.@lock configure_lock begin
         if configured[] == -1
             configured[] = -2
             if __configure__(show_reason)
