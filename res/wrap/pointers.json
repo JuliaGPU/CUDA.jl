@@ -191,8 +191,8 @@
         "currIdx": null,
         "loWinIdx": "Ptr",
         "hiWinIdx": "Ptr",
-        "devSeqLengthsQO": "Ptr",
-        "devSeqLengthsKV": "Ptr",
+        "devSeqLengthsQO": "CuPtr",
+        "devSeqLengthsKV": "CuPtr",
         "qDesc": null,
         "queries": "CuPtr",
         "residuals": "CuPtr",
@@ -713,8 +713,8 @@
         "attnDesc": null,
         "loWinIdx": "Ptr",
         "hiWinIdx": "Ptr",
-        "devSeqLengthsDQDO": "Ptr",
-        "devSeqLengthsDKDV": "Ptr",
+        "devSeqLengthsDQDO": "CuPtr",
+        "devSeqLengthsDKDV": "CuPtr",
         "doDesc": null,
         "dout": "CuPtr",
         "dqDesc": null,
@@ -1368,8 +1368,8 @@
     "cudnnGetDropoutDescriptor": {
         "dropoutDesc": null,
         "handle": null,
-        "dropout": "CuPtr",
-        "states": "Ptr",
+        "dropout": "Ptr",
+        "states": "Ptr{CuPtr{Cvoid}}",
         "seed": "Ptr"
     },
     "cudnnSetDropoutDescriptor": {
