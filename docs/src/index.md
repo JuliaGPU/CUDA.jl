@@ -55,8 +55,8 @@ contributions have been made by the following individuals:
 ## Supporting and Citing
 
 Much of the software in this ecosystem was developed as part of academic research. If you
-would like to help support it, please star the relevant repository as such metrics may help
-us secure funding in the future. If you use our software as part of your research, teaching,
-or other activities, we would be grateful if you could cite our work. The
-[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/master/CITATION.bib) at the top of
-this repository lists the relevant papers.
+would like to help support it, please star the repository as such metrics may help us secure
+funding in the future. If you use our software as part of your research, teaching, or other
+activities, we would be grateful if you could cite our work. The
+[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/master/CITATION.bib) file in the
+root of this repository lists the relevant papers.

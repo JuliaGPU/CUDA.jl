@@ -43,6 +43,16 @@ For usage instructions and other information, please refer to the documentation 
 [juliagpu.gitlab.io](https://juliagpu.gitlab.io/CUDA.jl/).
 
 
+## Supporting and Citing
+
+Much of the software in this ecosystem was developed as part of academic research. If you
+would like to help support it, please star the repository as such metrics may help us secure
+funding in the future. If you use our software as part of your research, teaching, or other
+activities, we would be grateful if you could cite our work. The
+[CITATION.bib](https://github.com/JuliaGPU/CUDA.jl/blob/master/CITATION.bib) file in the
+root of this repository lists the relevant papers.
+
+
 ## Project Status
 
 The package is tested against, and being developed for, Julia 1.3 and above. Main
