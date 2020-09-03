@@ -360,9 +360,9 @@ end
     dynamic_cudacall(kernel.fun, tt, args...; kwargs...)
 
 # FIXME: duplication with cudacall
-@generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type, args...;
+@generated function dynamic_cudacall(f::Ptr{Cvoid}, tt::Type{T}, args::Vararg{Any,N};
                                      blocks=UInt32(1), threads=UInt32(1), shmem=UInt32(0),
-                                     stream=CuDefaultStream())
+                                     stream=CuDefaultStream()) where {T,N}
     types = tt.parameters[1].parameters     # the type of `tt` is Type{Tuple{<:DataType...}}
 
     ex = quote
