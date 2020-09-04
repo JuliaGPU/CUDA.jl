@@ -367,8 +367,14 @@ Base.show(io::IOContext, x::CuSparseVector) =
 Base.show(io::IOContext, x::CuSparseMatrixCSC) =
     show(io, SparseMatrixCSC(x))
 
-Base.show(io::IO, S::CuSparseMatrixCSC) = Base.show(convert(IOContext, io), S)
-function Base.show(io::IO, ::MIME"text/plain", S::CuSparseMatrixCSC)
+Base.show(io::IOContext, x::CuSparseMatrixCSR) =
+    show(io, SparseMatrixCSC(x))
+
+Base.show(io::IOContext, x::CuSparseMatrixBSR) =
+    show(io, CuSparseMatrixCSR(x))
+
+Base.show(io::IO, S::AbstractCuSparseMatrix) = Base.show(convert(IOContext, io), S)
+function Base.show(io::IO, ::MIME"text/plain", S::AbstractCuSparseMatrix)
     xnnz = nnz(S)
     m, n = size(S)
     print(io, m, "×", n, " ", typeof(S), " with ", xnnz, " stored ",
