@@ -43,9 +43,9 @@ mutable struct CuSparseMatrixDescriptor
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsr(
             desc_ref,
-            A.dims..., length(A.nzVal),
-            A.rowPtr, A.colVal, A.nzVal,
-            eltype(A.rowPtr), eltype(A.colVal), 'O', eltype(A.nzVal)
+            A.dims..., length(nonzeros(A)),
+            A.rowPtr, A.colVal, nonzeros(A),
+            eltype(A.rowPtr), eltype(A.colVal), 'O', eltype(nonzeros(A))
         )
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)
@@ -56,9 +56,9 @@ mutable struct CuSparseMatrixDescriptor
         desc_ref = Ref{cusparseSpMatDescr_t}()
         cusparseCreateCsr(
             desc_ref,
-            reverse(A.dims)..., length(A.nzVal),
-            A.colPtr, A.rowVal, A.nzVal,
-            eltype(A.colPtr), eltype(A.rowVal), 'O', eltype(A.nzVal)
+            reverse(A.dims)..., length(nonzeros(A)),
+            A.colPtr, rowvals(A), nonzeros(A),
+            eltype(A.colPtr), eltype(rowvals(A)), 'O', eltype(nonzeros(A))
         )
         obj = new(desc_ref[])
         finalizer(cusparseDestroySpMat, obj)

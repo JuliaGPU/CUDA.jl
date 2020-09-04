@@ -6,6 +6,7 @@ export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR,
        CuSparseVector
 
 using LinearAlgebra: BlasFloat
+using SparseArrays: nonzeroinds
 
 abstract type AbstractCuSparseArray{Tv, N} <: AbstractSparseArray{Tv, Cint, N} end
 const AbstractCuSparseVector{Tv} = AbstractCuSparseArray{Tv,1}
@@ -24,8 +25,8 @@ mutable struct CuSparseVector{Tv} <: AbstractCuSparseVector{Tv}
 end
 
 function CUDA.unsafe_free!(xs::CuSparseVector)
-    unsafe_free!(xs.iPtr)
-    unsafe_free!(xs.nzVal)
+    unsafe_free!(nonzeroinds(xs))
+    unsafe_free!(nonzeros(xs))
     return
 end
 
@@ -44,8 +45,8 @@ end
 
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSC)
     unsafe_free!(xs.colPtr)
-    unsafe_free!(xs.rowVal)
-    unsafe_free!(xs.nzVal)
+    unsafe_free!(rowvals(xs))
+    unsafe_free!(nonzeros(xs))
     return
 end
 
@@ -72,7 +73,7 @@ end
 function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
-    unsafe_free!(xs.nzVal)
+    unsafe_free!(nonzeros(xs))
     return
 end
 
@@ -100,7 +101,7 @@ end
 function CUDA.unsafe_free!(xs::CuSparseMatrixBSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
-    unsafe_free!(xs.nzVal)
+    unsafe_free!(nonzeros(xs))
     return
 end
 
@@ -127,10 +128,10 @@ CuSparseMatrixBSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, blockDim,
                   dims::NTuple{2,Int}) where T =
     CuSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 
-Base.similar(Vec::CuSparseVector) = CuSparseVector(copy(Vec.iPtr), similar(Vec.nzVal), Vec.dims[1])
-Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(Mat.rowVal), similar(Mat.nzVal), Mat.dims)
-Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.dims)
-Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.blockDim, Mat.dir, Mat.nnz, Mat.dims)
+Base.similar(Vec::CuSparseVector) = CuSparseVector(copy(nonzeroinds(Vec)), similar(nonzeros(Vec)), Vec.dims[1])
+Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(rowvals(Mat)), similar(nonzeros(Mat)), Mat.dims)
+Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.dims)
+Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(nonzeros(Mat)), Mat.blockDim, Mat.dir, nnz(Mat), Mat.dims)
 
 
 ## array interface
@@ -173,6 +174,8 @@ SparseArrays.nonzeros(g::AbstractCuSparseArray) = g.nzVal
 
 SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
 
+SparseArrays.rowvals(g::CuSparseMatrixCSC) = g.rowVal
+
 LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
 LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
 LinearAlgebra.issymmetric(M::Symmetric{CuSparseMatrixCSC}) = true
@@ -200,14 +203,14 @@ function Base.getindex(x::CuSparseMatrixCSC, ::Colon, j::Integer)
     checkbounds(x, :, j)
     r1 = convert(Int, x.colPtr[j])
     r2 = convert(Int, x.colPtr[j+1]) - 1
-    CuSparseVector(x.rowVal[r1:r2], x.nzVal[r1:r2], size(x, 1))
+    CuSparseVector(rowvals(x)[r1:r2], nonzeros(x)[r1:r2], size(x, 1))
 end
 
 function Base.getindex(x::CuSparseMatrixCSR, i::Integer, ::Colon)
     checkbounds(x, :, i)
     c1 = convert(Int, x.rowPtr[i])
     c2 = convert(Int, x.rowPtr[i+1]) - 1
-    CuSparseVector(x.colVal[c1:c2], x.nzVal[c1:c2], size(x, 2))
+    CuSparseVector(x.colVal[c1:c2], nonzeros(x)[c1:c2], size(x, 2))
 end
 
 # row slices
@@ -222,8 +225,8 @@ function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where 
     r1 = Int(A.colPtr[i1])
     r2 = Int(A.colPtr[i1+1]-1)
     (r1 > r2) && return zero(T)
-    r1 = searchsortedfirst(A.rowVal, i0, r1, r2, Base.Order.Forward)
-    ((r1 > r2) || (A.rowVal[r1] != i0)) ? zero(T) : A.nzVal[r1]
+    r1 = searchsortedfirst(rowvals(A), i0, r1, r2, Base.Order.Forward)
+    ((r1 > r2) || (rowvals(A)[r1] != i0)) ? zero(T) : nonzeros(A)[r1]
 end
 
 function Base.getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where T
@@ -235,7 +238,7 @@ function Base.getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where 
     c2 = Int(A.rowPtr[i0+1]-1)
     (c1 > c2) && return zero(T)
     c1 = searchsortedfirst(A.colVal, i1, c1, c2, Base.Order.Forward)
-    ((c1 > c2) || (A.colVal[c1] != i1)) ? zero(T) : A.nzVal[c1]
+    ((c1 > c2) || (A.colVal[c1] != i1)) ? zero(T) : nonzeros(A)[c1]
 end
 
 function SparseArrays._spgetindex(m::Integer, nzind::CuVector{Ti}, nzval::CuVector{Tv},
@@ -271,12 +274,12 @@ CuSparseMatrixCSR(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSR{T}(x)
 CuSparseMatrixBSR(x::AbstractSparseArray{T}, blockdim) where {T} = CuSparseMatrixBSR{T}(x, blockdim)
 
 # gpu to cpu
-SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(x.iPtr), Array(x.nzVal))
-SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(x.rowVal), Array(x.nzVal))
+SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
+SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
 function SparseMatrixCSC(Mat::CuSparseMatrixCSR)
     rowPtr = Array(Mat.rowPtr)
     colVal = Array(Mat.colVal)
-    nzVal  = Array(Mat.nzVal)
+    nzVal  = Array(nonzeros(Mat))
     #construct Is
     I = similar(colVal)
     counter = 1
@@ -310,9 +313,9 @@ function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Vector size"))
     end
-    copyto!(dst.iPtr, src.iPtr)
-    copyto!(dst.nzVal, src.nzVal)
-    dst.nnz = src.nnz
+    copyto!(nonzeroinds(dst), nonzeroinds(src))
+    copyto!(nonzeros(dst), nonzeros(src))
+    nnz(dst) = nnz(src)
     dst
 end
 
@@ -321,9 +324,9 @@ function Base.copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
     copyto!(dst.colPtr, src.colPtr)
-    copyto!(dst.rowVal, src.rowVal)
-    copyto!(dst.nzVal, src.nzVal)
-    dst.nnz = src.nnz
+    copyto!(rowvals(dst), rowvals(src))
+    copyto!(nonzeros(dst), nonzeros(src))
+    nnz(dst) = nnz(src)
     dst
 end
 
@@ -333,8 +336,8 @@ function Base.copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     end
     copyto!(dst.rowPtr, src.rowPtr)
     copyto!(dst.colVal, src.colVal)
-    copyto!(dst.nzVal, src.nzVal)
-    dst.nnz = src.nnz
+    copyto!(nonzeros(dst), nonzeros(src))
+    nnz(dst) = nnz(src)
     dst
 end
 
@@ -344,9 +347,9 @@ function Base.copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     end
     copyto!(dst.rowPtr, src.rowPtr)
     copyto!(dst.colVal, src.colVal)
-    copyto!(dst.nzVal, src.nzVal)
+    copyto!(nonzeros(dst), nonzeros(src))
     dst.dir = src.dir
-    dst.nnz = src.nnz
+    nnz(dst) = nnz(src)
     dst
 end
 

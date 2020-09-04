@@ -8,23 +8,23 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
         function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
             m,n = csr.dims
             colPtr = CUDA.zeros(Cint, n+1)
-            rowVal = CUDA.zeros(Cint, csr.nnz)
-            nzVal = CUDA.zeros($elty, csr.nnz)
+            rowVal = CUDA.zeros(Cint, nnz(csr))
+            nzVal = CUDA.zeros($elty, nnz(csr))
             if version() >= v"10.2"
                 # TODO: algorithm configuratibility?
                 @workspace size=@argout(
-                        cusparseCsr2cscEx2_bufferSize(handle(), m, n, csr.nnz, csr.nzVal,
+                        cusparseCsr2cscEx2_bufferSize(handle(), m, n, nnz(csr), nonzeros(csr),
                             csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
                             $elty, CUSPARSE_ACTION_NUMERIC, inda,
                             CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
                     )[] buffer->begin
-                        cusparseCsr2cscEx2(handle(), m, n, csr.nnz, csr.nzVal,
+                        cusparseCsr2cscEx2(handle(), m, n, nnz(csr), nonzeros(csr),
                             csr.rowPtr, csr.colVal, nzVal, colPtr, rowVal,
                             $elty, CUSPARSE_ACTION_NUMERIC, inda,
                             CUSPARSE_CSR2CSC_ALG1, buffer)
                     end
             else
-                $fname(handle(), m, n, csr.nnz, csr.nzVal,
+                $fname(handle(), m, n, nnz(csr), nonzeros(csr),
                     csr.rowPtr, csr.colVal, nzVal, rowVal,
                     colPtr, CUSPARSE_ACTION_NUMERIC, inda)
             end
@@ -33,24 +33,24 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
         function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
             m,n    = csc.dims
             rowPtr = CUDA.zeros(Cint,m+1)
-            colVal = CUDA.zeros(Cint,csc.nnz)
-            nzVal  = CUDA.zeros($elty,csc.nnz)
+            colVal = CUDA.zeros(Cint,nnz(csc))
+            nzVal  = CUDA.zeros($elty,nnz(csc))
             if version() >= v"10.2"
                 # TODO: algorithm configuratibility?
                 @workspace size=@argout(
-                        cusparseCsr2cscEx2_bufferSize(handle(), n, m, csc.nnz, csc.nzVal,
-                            csc.colPtr, csc.rowVal, nzVal, rowPtr, colVal,
+                        cusparseCsr2cscEx2_bufferSize(handle(), n, m, nnz(csc), nonzeros(csc),
+                            csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
                             $elty, CUSPARSE_ACTION_NUMERIC, inda,
                             CUSPARSE_CSR2CSC_ALG1, out(Ref{Csize_t}(1)))
                     )[] buffer->begin
-                        cusparseCsr2cscEx2(handle(), n, m, csc.nnz, csc.nzVal,
-                            csc.colPtr, csc.rowVal, nzVal, rowPtr, colVal,
+                        cusparseCsr2cscEx2(handle(), n, m, nnz(csc), nonzeros(csc),
+                            csc.colPtr, rowvals(csc), nzVal, rowPtr, colVal,
                             $elty, CUSPARSE_ACTION_NUMERIC, inda,
                             CUSPARSE_CSR2CSC_ALG1, buffer)
                     end
             else
-                $fname(handle(), n, m, csc.nnz, csc.nzVal,
-                    csc.colPtr, csc.rowVal, nzVal, colVal,
+                $fname(handle(), n, m, nnz(csc), nonzeros(csc),
+                    csc.colPtr, rowvals(csc), nzVal, colVal,
                     rowPtr, CUSPARSE_ACTION_NUMERIC, inda)
             end
             CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.dims)
@@ -67,21 +67,21 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                                           dir::SparseChar='R', inda::SparseChar='O',
                                           indc::SparseChar='O')
             m,n = csr.dims
-            nnz = Ref{Cint}(1)
+            nnz_ref = Ref{Cint}(1)
             mb = div((m + blockDim - 1),blockDim)
             nb = div((n + blockDim - 1),blockDim)
             bsrRowPtr = CUDA.zeros(Cint,mb + 1)
             cudesca = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             cudescc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, indc)
             cusparseXcsr2bsrNnz(handle(), dir, m, n, cudesca, csr.rowPtr,
-                                csr.colVal, blockDim, cudescc, bsrRowPtr, nnz)
-            bsrNzVal = CUDA.zeros($elty, nnz[] * blockDim * blockDim )
-            bsrColInd = CUDA.zeros(Cint, nnz[])
+                                csr.colVal, blockDim, cudescc, bsrRowPtr, nnz_ref)
+            bsrNzVal = CUDA.zeros($elty, nnz_ref[] * blockDim * blockDim )
+            bsrColInd = CUDA.zeros(Cint, nnz_ref[])
             $fname(handle(), dir, m, n,
-                   cudesca, csr.nzVal, csr.rowPtr, csr.colVal,
+                   cudesca, nonzeros(csr), csr.rowPtr, csr.colVal,
                    blockDim, cudescc, bsrNzVal, bsrRowPtr,
                    bsrColInd)
-            CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, csr.dims, blockDim, dir, nnz[])
+            CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, csr.dims, blockDim, dir, nnz_ref[])
         end
     end
 end
@@ -96,14 +96,14 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
             m,n = bsr.dims
             mb = div(m,bsr.blockDim)
             nb = div(n,bsr.blockDim)
-            nnz = bsr.nnz * bsr.blockDim * bsr.blockDim
+            nnzVal = nnz(bsr) * bsr.blockDim * bsr.blockDim
             cudesca = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, inda)
             cudescc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, indc)
             csrRowPtr = CUDA.zeros(Cint, m + 1)
-            csrColInd = CUDA.zeros(Cint, nnz)
-            csrNzVal  = CUDA.zeros($elty, nnz)
+            csrColInd = CUDA.zeros(Cint, nnzVal)
+            csrNzVal  = CUDA.zeros($elty, nnzVal)
             $fname(handle(), bsr.dir, mb, nb,
-                   cudesca, bsr.nzVal, bsr.rowPtr, bsr.colVal,
+                   cudesca, nonzeros(bsr), bsr.rowPtr, bsr.colVal,
                    bsr.blockDim, cudescc, csrNzVal, csrRowPtr,
                    csrColInd)
             CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, bsr.dims)
@@ -121,7 +121,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
             cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
-            $rname(handle(), m, n, cudesc, csr.nzVal,
+            $rname(handle(), m, n, cudesc, nonzeros(csr),
                    csr.rowPtr, csr.colVal, denseA, lda)
             denseA
         end
@@ -130,8 +130,8 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
             cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
-            $cname(handle(), m, n, cudesc, csc.nzVal,
-                   csc.rowVal, csc.colPtr, denseA, lda)
+            $cname(handle(), m, n, cudesc, nonzeros(csc),
+                   rowvals(csc), csc.colPtr, denseA, lda)
             denseA
         end
     end

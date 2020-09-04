@@ -36,7 +36,7 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                 chkmvdims(X,m,Y,n)
             end
             $fname(handle(), A.dir, transa, mb, nb,
-                   A.nnz, $elty[alpha], desc, A.nzVal, A.rowPtr,
+                   nnz(A), $elty[alpha], desc, nonzeros(A), A.rowPtr,
                    A.colVal, A.blockDim, X, $elty[beta], Y)
             Y
         end
@@ -76,20 +76,20 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             info = bsrsv2Info_t[0]
             cusparseCreateBsrsv2Info(info)
             @workspace size=@argout(
-                    $bname(handle(), A.dir, transa, mb, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                    $bname(handle(), A.dir, transa, mb, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                            info[1], out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), A.dir, transa, mb, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                    $aname(handle(), A.dir, transa, mb, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                            info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXbsrsv2_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
-                    $sname(handle(), A.dir, transa, mb, A.nnz,
-                           [alpha], desc, A.nzVal, A.rowPtr, A.colVal,
+                    $sname(handle(), A.dir, transa, mb, nnz(A),
+                           [alpha], desc, nonzeros(A), A.rowPtr, A.colVal,
                            A.blockDim, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -164,12 +164,12 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
-                    $bname(handle(), transa, m, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, info[1],
+                    $bname(handle(), transa, m, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), transa, m, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, info[1],
+                    $aname(handle(), transa, m, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
@@ -177,7 +177,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), transa, m,
-                           A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
+                           nnz(A), [alpha], desc, nonzeros(A), A.rowPtr,
                            A.colVal, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -219,12 +219,12 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
-                    $bname(handle(), ctransa, m, A.nnz,
-                           desc, A.nzVal, A.colPtr, A.rowVal, info[1],
+                    $bname(handle(), ctransa, m, nnz(A),
+                           desc, nonzeros(A), A.colPtr, rowvals(A), info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), ctransa, m, A.nnz,
-                           desc, A.nzVal, A.colPtr, A.rowVal, info[1],
+                    $aname(handle(), ctransa, m, nnz(A),
+                           desc, nonzeros(A), A.colPtr, rowvals(A), info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
@@ -232,8 +232,8 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), ctransa, m,
-                           A.nnz, [alpha], desc, A.nzVal, A.colPtr,
-                           A.rowVal, info[1], X, X,
+                           nnz(A), [alpha], desc, nonzeros(A), A.colPtr,
+                           rowvals(A), info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
             cusparseDestroyCsrsv2Info(info[1])

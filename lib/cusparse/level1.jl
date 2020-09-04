@@ -18,7 +18,7 @@ for (fname,elty) in ((:cusparseSaxpyi, :Float32),
                         X::CuSparseVector{$elty},
                         Y::CuVector{$elty},
                         index::SparseChar)
-            $fname(handle(), X.nnz, [alpha], X.nzVal, X.iPtr, Y, index)
+            $fname(handle(), nnz(X), [alpha], nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
         function axpyi(alpha::$elty,
@@ -49,7 +49,7 @@ for (fname,elty) in ((:cusparseSgthr, :Float32),
         function gthr!(X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
                        index::SparseChar)
-            $fname(handle(), X.nnz, Y, X.nzVal, X.iPtr, index)
+            $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X
         end
         function gthr(X::CuSparseVector{$elty},
@@ -74,7 +74,7 @@ for (fname,elty) in ((:cusparseSgthrz, :Float32),
         function gthrz!(X::CuSparseVector{$elty},
                         Y::CuVector{$elty},
                         index::SparseChar)
-            $fname(handle(), X.nnz, Y, X.nzVal, X.iPtr, index)
+            $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X,Y
         end
         function gthrz(X::CuSparseVector{$elty},
@@ -99,7 +99,7 @@ for (fname,elty) in ((:cusparseSroti, :Float32),
                        c::$elty,
                        s::$elty,
                        index::SparseChar)
-            $fname(handle(), X.nnz, X.nzVal, X.iPtr, Y, [c], [s], index)
+            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, [c], [s], index)
             X,Y
         end
         function roti(X::CuSparseVector{$elty},
@@ -126,7 +126,7 @@ for (fname,elty) in ((:cusparseSsctr, :Float32),
         function sctr!(X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
                        index::SparseChar)
-            $fname(handle(), X.nnz, X.nzVal, X.iPtr, Y, index)
+            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
         function sctr(X::CuSparseVector{$elty},
