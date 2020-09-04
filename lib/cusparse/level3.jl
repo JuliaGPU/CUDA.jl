@@ -1,30 +1,20 @@
 # sparse linear algebra functions that perform operations between sparse and (usually tall)
 # dense matrices
 
-export mm2!, mm2
-
-"""
-    mm2!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
-
-Multiply the sparse matrix `A` by the dense matrix `B`, filling in dense matrix `C`.
-`C = alpha*op(A)*op(B) + beta*C`. `op(A)` can be nothing (`transa = N`), transpose
-(`transa = T`), or conjugate transpose (`transa = C`), and similarly for `op(B)` and
-`transb`.
-"""
-mm2!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+# bsrmm
 for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      (:cusparseDbsrmm, :Float64),
                      (:cusparseCbsrmm, :ComplexF32),
                      (:cusparseZbsrmm, :ComplexF64))
     @eval begin
-        function mm2!(transa::SparseChar,
-                      transb::SparseChar,
-                      alpha::$elty,
-                      A::CuSparseMatrixBSR{$elty},
-                      B::CuMatrix{$elty},
-                      beta::$elty,
-                      C::CuMatrix{$elty},
-                      index::SparseChar)
+        function mm!(transa::SparseChar,
+                     transb::SparseChar,
+                     alpha::Number,
+                     A::CuSparseMatrixBSR{$elty},
+                     B::CuMatrix{$elty},
+                     beta::Number,
+                     C::CuMatrix{$elty},
+                     index::SparseChar)
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
             m,k = A.dims
             mb = div(m,A.blockDim)
@@ -42,9 +32,9 @@ for (fname,elty) in ((:cusparseSbsrmm, :Float32),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             $fname(handle(), A.dir,
-                   transa, transb, mb, n, kb, A.nnz,
-                   [alpha], desc, A.nzVal,A.rowPtr, A.colVal,
-                   A.blockDim, B, ldb, [beta], C, ldc)
+                   transa, transb, mb, n, kb, nnz(A),
+                   Ref{$elty}(alpha), desc, nonzeros(A),A.rowPtr, A.colVal,
+                   A.blockDim, B, ldb, Ref{$elty}(beta), C, ldc)
             C
         end
     end
@@ -57,10 +47,10 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
     @eval begin
         function mm2!(transa::SparseChar,
                       transb::SparseChar,
-                      alpha::$elty,
+                      alpha::Number,
                       A::CuSparseMatrixCSR{$elty},
                       B::CuMatrix{$elty},
-                      beta::$elty,
+                      beta::Number,
                       C::CuMatrix{$elty},
                       index::SparseChar)
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
@@ -78,16 +68,16 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             $fname(handle(),
-                   transa, transb, m, n, k, A.nnz, [alpha], desc,
-                   A.nzVal, A.rowPtr, A.colVal, B, ldb, [beta], C, ldc)
+                   transa, transb, m, n, k, nnz(A), Ref{$elty}(alpha), desc,
+                   nonzeros(A), A.rowPtr, A.colVal, B, ldb, Ref{$elty}(beta), C, ldc)
             C
         end
         function mm2!(transa::SparseChar,
                       transb::SparseChar,
-                      alpha::$elty,
+                      alpha::Number,
                       A::CuSparseMatrixCSC{$elty},
                       B::CuMatrix{$elty},
-                      beta::$elty,
+                      beta::Number,
                       C::CuMatrix{$elty},
                       index::SparseChar)
             ctransa = 'N'
@@ -109,60 +99,9 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
             $fname(handle(),
-                   ctransa, transb, m, n, k, A.nnz, [alpha], desc,
-                   A.nzVal, A.colPtr, A.rowVal, B, ldb, [beta], C, ldc)
+                   ctransa, transb, m, n, k, nnz(A), Ref{$elty}(alpha), desc,
+                   nonzeros(A), A.colPtr, rowvals(A), B, ldb, Ref{$elty}(beta), C, ldc)
             C
-        end
-    end
-end
-
-for elty in (:Float32,:Float64,:ComplexF32,:ComplexF64)
-    @eval begin
-        function mm2(transa::SparseChar,
-                     transb::SparseChar,
-                     alpha::$elty,
-                     A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty},CuSparseMatrixBSR{$elty}},
-                     B::CuMatrix{$elty},
-                     beta::$elty,
-                     C::CuMatrix{$elty},
-                     index::SparseChar)
-            mm2!(transa,transb,alpha,A,B,beta,copy(C),index)
-        end
-        function mm2(transa::SparseChar,
-                     transb::SparseChar,
-                     A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty},CuSparseMatrixBSR{$elty}},
-                     B::CuMatrix{$elty},
-                     beta::$elty,
-                     C::CuMatrix{$elty},
-                     index::SparseChar)
-            mm2(transa,transb,one($elty),A,B,beta,C,index)
-        end
-        function mm2(transa::SparseChar,
-                     transb::SparseChar,
-                     A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty},CuSparseMatrixBSR{$elty}},
-                     B::CuMatrix{$elty},
-                     C::CuMatrix{$elty},
-                     index::SparseChar)
-            mm2(transa,transb,one($elty),A,B,one($elty),C,index)
-        end
-        function mm2(transa::SparseChar,
-                     transb::SparseChar,
-                     alpha::$elty,
-                     A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty},CuSparseMatrixBSR{$elty}},
-                     B::CuMatrix{$elty},
-                     index::SparseChar)
-            m = transa == 'N' ? size(A)[1] : size(A)[2]
-            n = transb == 'N' ? size(B)[2] : size(B)[1]
-            mm2(transa,transb,alpha,A,B,zero($elty),CUDA.zeros($elty,(m,n)),index)
-        end
-        function mm2(transa::SparseChar,
-                     transb::SparseChar,
-                     A::Union{CuSparseMatrixCSR{$elty},CuSparseMatrixCSC{$elty},CuSparseMatrixBSR{$elty}},
-                     B::CuMatrix{$elty},
-                     index::SparseChar)
-            m = transa == 'N' ? size(A)[1] : size(A)[2]
-            n = transb == 'N' ? size(B)[2] : size(B)[1]
-            mm2(transa,transb,one($elty),A,B,zero($elty),CUDA.zeros($elty,(m,n)),index)
         end
     end
 end
@@ -175,7 +114,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
     @eval begin
         function bsrsm2!(transa::SparseChar,
                          transxy::SparseChar,
-                         alpha::$elty,
+                         alpha::Number,
                          A::CuSparseMatrixBSR{$elty},
                          X::CuMatrix{$elty},
                          index::SparseChar)
@@ -197,12 +136,12 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             cusparseCreateBsrsm2Info(info)
             @workspace size=@argout(
                     $bname(handle(), A.dir, transa, transxy,
-                           mb, nX, A.nnz, desc, A.nzVal, A.rowPtr,
+                           mb, nX, nnz(A), desc, nonzeros(A), A.rowPtr,
                            A.colVal, A.blockDim, info[],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
                     $aname(handle(), A.dir, transa, transxy,
-                           mb, nX, A.nnz, desc, A.nzVal, A.rowPtr,
+                           mb, nX, nnz(A), desc, nonzeros(A), A.rowPtr,
                            A.colVal, A.blockDim, info[],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -211,7 +150,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), A.dir, transa, transxy, mb,
-                           nX, A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
+                           nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                            A.colVal, A.blockDim, info[], X, ldx, X, ldx,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -220,7 +159,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
         end
         function bsrsm2(transa::SparseChar,
                         transxy::SparseChar,
-                        alpha::$elty,
+                        alpha::Number,
                         A::CuSparseMatrixBSR{$elty},
                         X::CuMatrix{$elty},
                         index::SparseChar)
@@ -237,7 +176,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
     @eval begin
         function csrsm2!(transa::SparseChar,
                          transxy::SparseChar,
-                         alpha::$elty,
+                         alpha::Number,
                          A::CuSparseMatrixCSR{$elty},
                          X::CuMatrix{$elty},
                          index::SparseChar)
@@ -259,12 +198,12 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
             # use non block algo (0) for now...
             @workspace size=@argout(
                     $bname(handle(), 0, transa, transxy,
-                           m, nX, A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
+                           m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                            A.colVal, X, ldx, info[], CUSPARSE_SOLVE_POLICY_USE_LEVEL,
                            out(Ref{UInt64}(1)))
                 )[] buffer->begin
                     $aname(handle(), 0, transa, transxy,
-                           m, nX, A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
+                           m, nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                            A.colVal, X, ldx, info[],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
@@ -273,7 +212,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), 0, transa, transxy, m,
-                           nX, A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
+                           nX, nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                            A.colVal, X, ldx, info[],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -282,7 +221,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
         end
         function csrsm2(transa::SparseChar,
                         transxy::SparseChar,
-                        alpha::$elty,
+                        alpha::Number,
                         A::CuSparseMatrixCSR{$elty},
                         X::CuMatrix{$elty},
                         index::SparseChar)

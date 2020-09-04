@@ -14,14 +14,14 @@ for (fname,elty) in ((:cusparseSaxpyi, :Float32),
                      (:cusparseCaxpyi, :ComplexF32),
                      (:cusparseZaxpyi, :ComplexF64))
     @eval begin
-        function axpyi!(alpha::$elty,
+        function axpyi!(alpha::Number,
                         X::CuSparseVector{$elty},
                         Y::CuVector{$elty},
                         index::SparseChar)
-            $fname(handle(), X.nnz, [alpha], X.nzVal, X.iPtr, Y, index)
+            $fname(handle(), nnz(X), Ref{$elty}(alpha), nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
-        function axpyi(alpha::$elty,
+        function axpyi(alpha::Number,
                        X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
                        index::SparseChar)
@@ -49,7 +49,7 @@ for (fname,elty) in ((:cusparseSgthr, :Float32),
         function gthr!(X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
                        index::SparseChar)
-            $fname(handle(), X.nnz, Y, X.nzVal, X.iPtr, index)
+            $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X
         end
         function gthr(X::CuSparseVector{$elty},
@@ -74,7 +74,7 @@ for (fname,elty) in ((:cusparseSgthrz, :Float32),
         function gthrz!(X::CuSparseVector{$elty},
                         Y::CuVector{$elty},
                         index::SparseChar)
-            $fname(handle(), X.nnz, Y, X.nzVal, X.iPtr, index)
+            $fname(handle(), nnz(X), Y, nonzeros(X), nonzeroinds(X), index)
             X,Y
         end
         function gthrz(X::CuSparseVector{$elty},
@@ -96,16 +96,16 @@ for (fname,elty) in ((:cusparseSroti, :Float32),
     @eval begin
         function roti!(X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
-                       c::$elty,
-                       s::$elty,
+                       c::Number,
+                       s::Number,
                        index::SparseChar)
-            $fname(handle(), X.nnz, X.nzVal, X.iPtr, Y, [c], [s], index)
+            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, Ref{$elty}(c), Ref{$elty}(s), index)
             X,Y
         end
         function roti(X::CuSparseVector{$elty},
                       Y::CuVector{$elty},
-                      c::$elty,
-                      s::$elty,
+                      c::Number,
+                      s::Number,
                       index::SparseChar)
             roti!(copy(X),copy(Y),c,s,index)
         end
@@ -126,7 +126,7 @@ for (fname,elty) in ((:cusparseSsctr, :Float32),
         function sctr!(X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
                        index::SparseChar)
-            $fname(handle(), X.nnz, X.nzVal, X.iPtr, Y, index)
+            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
         function sctr(X::CuSparseVector{$elty},

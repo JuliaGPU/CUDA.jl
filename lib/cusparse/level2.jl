@@ -19,10 +19,10 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseZbsrmv, :ComplexF64))
     @eval begin
         function mv!(transa::SparseChar,
-                     alpha::$elty,
+                     alpha::Number,
                      A::CuSparseMatrixBSR{$elty},
                      X::CuVector{$elty},
-                     beta::$elty,
+                     beta::Number,
                      Y::CuVector{$elty},
                      index::SparseChar)
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
@@ -36,8 +36,8 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                 chkmvdims(X,m,Y,n)
             end
             $fname(handle(), A.dir, transa, mb, nb,
-                   A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
-                   A.colVal, A.blockDim, X, [beta], Y)
+                   nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                   A.colVal, A.blockDim, X, Ref{$elty}(beta), Y)
             Y
         end
     end
@@ -59,7 +59,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
     @eval begin
         function sv2!(transa::SparseChar,
                       uplo::SparseChar,
-                      alpha::$elty,
+                      alpha::Number,
                       A::CuSparseMatrixBSR{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
@@ -76,20 +76,20 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
             info = bsrsv2Info_t[0]
             cusparseCreateBsrsv2Info(info)
             @workspace size=@argout(
-                    $bname(handle(), A.dir, transa, mb, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                    $bname(handle(), A.dir, transa, mb, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                            info[1], out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), A.dir, transa, mb, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, A.blockDim,
+                    $aname(handle(), A.dir, transa, mb, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, A.blockDim,
                            info[1], CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXbsrsv2_zeroPivot(handle(), info[1], posit)
                     if posit[] >= 0
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
-                    $sname(handle(), A.dir, transa, mb, A.nnz,
-                           [alpha], desc, A.nzVal, A.rowPtr, A.colVal,
+                    $sname(handle(), A.dir, transa, mb, nnz(A),
+                           Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr, A.colVal,
                            A.blockDim, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -103,7 +103,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         function sv2(transa::SparseChar,
                      uplo::SparseChar,
-                     alpha::$elty,
+                     alpha::Number,
                      A::CuSparseMatrix{$elty},
                      X::CuVector{$elty},
                      index::SparseChar)
@@ -117,7 +117,7 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
             sv2!(transa,uplo,one($elty),A,copy(X),index)
         end
         function sv2(transa::SparseChar,
-                     alpha::$elty,
+                     alpha::Number,
                      A::AbstractTriangular,
                      X::CuVector{$elty},
                      index::SparseChar)
@@ -148,7 +148,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
     @eval begin
         function sv2!(transa::SparseChar,
                       uplo::SparseChar,
-                      alpha::$elty,
+                      alpha::Number,
                       A::CuSparseMatrixCSR{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
@@ -164,12 +164,12 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
-                    $bname(handle(), transa, m, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, info[1],
+                    $bname(handle(), transa, m, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), transa, m, A.nnz,
-                           desc, A.nzVal, A.rowPtr, A.colVal, info[1],
+                    $aname(handle(), transa, m, nnz(A),
+                           desc, nonzeros(A), A.rowPtr, A.colVal, info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
@@ -177,7 +177,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), transa, m,
-                           A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
+                           nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
                            A.colVal, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -195,7 +195,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
     @eval begin
         function sv2!(transa::SparseChar,
                       uplo::SparseChar,
-                      alpha::$elty,
+                      alpha::Number,
                       A::CuSparseMatrixCSC{$elty},
                       X::CuVector{$elty},
                       index::SparseChar)
@@ -219,12 +219,12 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             info = csrsv2Info_t[0]
             cusparseCreateCsrsv2Info(info)
             @workspace size=@argout(
-                    $bname(handle(), ctransa, m, A.nnz,
-                           desc, A.nzVal, A.colPtr, A.rowVal, info[1],
+                    $bname(handle(), ctransa, m, nnz(A),
+                           desc, nonzeros(A), A.colPtr, rowvals(A), info[1],
                            out(Ref{Cint}(1)))
                 )[] buffer->begin
-                    $aname(handle(), ctransa, m, A.nnz,
-                           desc, A.nzVal, A.colPtr, A.rowVal, info[1],
+                    $aname(handle(), ctransa, m, nnz(A),
+                           desc, nonzeros(A), A.colPtr, rowvals(A), info[1],
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                     posit = Ref{Cint}(1)
                     cusparseXcsrsv2_zeroPivot(handle(), info[1], posit)
@@ -232,8 +232,8 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), ctransa, m,
-                           A.nnz, [alpha], desc, A.nzVal, A.colPtr,
-                           A.rowVal, info[1], X, X,
+                           nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
+                           rowvals(A), info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
             cusparseDestroyCsrsv2Info(info[1])
