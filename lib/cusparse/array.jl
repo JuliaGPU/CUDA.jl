@@ -276,19 +276,7 @@ CuSparseMatrixBSR(x::AbstractSparseArray{T}, blockdim) where {T} = CuSparseMatri
 # gpu to cpu
 SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
 SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
-function SparseMatrixCSC(Mat::CuSparseMatrixCSR)
-    rowPtr = Array(Mat.rowPtr)
-    colVal = Array(Mat.colVal)
-    nzVal  = Array(nonzeros(Mat))
-    #construct Is
-    I = similar(colVal)
-    counter = 1
-    for row = 1 : size(Mat)[1], k = rowPtr[row] : (rowPtr[row+1]-1)
-        I[counter] = row
-        counter += 1
-    end
-    return sparse(I,colVal,nzVal,Mat.dims[1],Mat.dims[2])
-end
+SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion
 
 # collect to Array
 Base.collect(x::CuSparseVector) = collect(SparseVector(x))
@@ -310,9 +298,7 @@ Adapt.adapt_storage(::Type{Array}, xs::CuSparseVector) = SparseVector(xs)
 Adapt.adapt_storage(::Type{Array}, xs::CuSparseMatrixCSC) = SparseMatrixCSC(xs)
 
 
-## interop between sparse GPU arrays
-
-CuSparseMatrixCSR{T}(Mat::CuSparseMatrixBSR) where {T} = CuSparseMatrixCSR(Mat, 'O')
+## copying between sparse GPU arrays
 
 function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
     if dst.dims != src.dims
