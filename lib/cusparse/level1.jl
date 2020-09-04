@@ -14,14 +14,14 @@ for (fname,elty) in ((:cusparseSaxpyi, :Float32),
                      (:cusparseCaxpyi, :ComplexF32),
                      (:cusparseZaxpyi, :ComplexF64))
     @eval begin
-        function axpyi!(alpha::$elty,
+        function axpyi!(alpha::Number,
                         X::CuSparseVector{$elty},
                         Y::CuVector{$elty},
                         index::SparseChar)
-            $fname(handle(), nnz(X), [alpha], nonzeros(X), nonzeroinds(X), Y, index)
+            $fname(handle(), nnz(X), Ref{$elty}(alpha), nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
-        function axpyi(alpha::$elty,
+        function axpyi(alpha::Number,
                        X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
                        index::SparseChar)
@@ -96,16 +96,16 @@ for (fname,elty) in ((:cusparseSroti, :Float32),
     @eval begin
         function roti!(X::CuSparseVector{$elty},
                        Y::CuVector{$elty},
-                       c::$elty,
-                       s::$elty,
+                       c::Number,
+                       s::Number,
                        index::SparseChar)
-            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, [c], [s], index)
+            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, Ref{$elty}(c), Ref{$elty}(s), index)
             X,Y
         end
         function roti(X::CuSparseVector{$elty},
                       Y::CuVector{$elty},
-                      c::$elty,
-                      s::$elty,
+                      c::Number,
+                      s::Number,
                       index::SparseChar)
             roti!(copy(X),copy(Y),c,s,index)
         end
