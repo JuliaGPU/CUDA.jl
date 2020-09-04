@@ -83,10 +83,6 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                    bsrColInd)
             CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, csr.dims, blockDim, dir, nnz[])
         end
-
-        # XXX: do we want this constructor? It's expensive...
-        CuSparseMatrixBSR{$elty}(csc::CuSparseMatrixCSC{$elty}, blockDim; kwargs...) =
-            CuSparseMatrixBSR{$elty}(CuSparseMatrixCSR{$elty}(csc), blockDim; kwargs...)
     end
 end
 

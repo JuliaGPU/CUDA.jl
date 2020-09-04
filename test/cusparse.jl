@@ -99,62 +99,59 @@ blockdim = 5
     @test istril(d_x)
 end
 
-@testset "conversion" begin
+@testset "construction" begin
     @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
-        @testset "make_csc" begin
+        @testset "CSC" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "make_csr" begin
+        @testset "CSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixCSR(x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "make_bsr" begin
+        @testset "BSR" begin
             x = sprand(elty,m,n, 0.2)
             d_x  = CuSparseMatrixBSR(x, blockdim)
             @test collect(d_x) == collect(x)
         end
+    end
+end
 
-        @testset "convert_r2c" begin
+@testset "conversion" begin
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        @testset "CSC(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CuSparseMatrixCSC(d_x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "convert_r2b" begin
+        @testset "BSR(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CuSparseMatrixBSR(d_x, blockdim)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "convert_c2b" begin
-            x = sprand(elty,m,n, 0.2)
-            d_x = CuSparseMatrixCSC(x)
-            d_x = CuSparseMatrixBSR(d_x, blockdim)
-            @test collect(d_x) == collect(x)
-        end
-
-        @testset "convert_d2b" begin
+        @testset "BSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
             d_x = CUSPARSE.sparse(d_x,'B')
             @test collect(d_x) ≈ x
         end
 
-        @testset "convert_c2r" begin
+        @testset "CSR(CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             d_x = CuSparseMatrixCSR(d_x)
             @test collect(d_x) == collect(x)
         end
 
-        @testset "convert_r2d" begin
+        @testset "Dense(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = Array(d_x)
@@ -162,7 +159,7 @@ end
             @test h_x ≈ Array(x)
         end
 
-        @testset "convert_c2d" begin
+        @testset "Dense(CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             d_x = Array(d_x)
@@ -170,7 +167,7 @@ end
             @test h_x ≈ Array(x)
         end
 
-        @testset "convert_d2c" begin
+        @testset "CSC(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
             d_x = CUSPARSE.sparse(d_x,'C')
@@ -178,7 +175,7 @@ end
             @test h_x ≈ sparse(x)
         end
 
-        @testset "convert_d2r" begin
+        @testset "CSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
             d_x = CUSPARSE.sparse(d_x)
