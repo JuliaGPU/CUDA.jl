@@ -8,6 +8,10 @@ using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim
 
 using CEnum
 
+using LinearAlgebra
+
+using SparseArrays
+
 const SparseChar = Char
 
 # core library

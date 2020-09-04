@@ -5,16 +5,7 @@ export CuSparseMatrixCSC, CuSparseMatrixCSR, CuSparseMatrixBSR,
        CuSparseMatrix, AbstractCuSparseMatrix,
        CuSparseVector
 
-import Base: length, size, ndims, eltype, similar, pointer, stride,
-    copy, convert, reinterpret, show, summary, copyto!, getindex, get!, fill!, collect
-
-using LinearAlgebra
-import LinearAlgebra: BlasFloat, Hermitian, HermOrSym, issymmetric, Transpose, Adjoint,
-    ishermitian, istriu, istril, Symmetric, UpperTriangular, LowerTriangular
-
-using SparseArrays
-import SparseArrays: sparse, SparseMatrixCSC, nnz, nonzeros, nonzeroinds,
-    _spgetindex
+using LinearAlgebra: HermOrSym, BlasFloat
 
 abstract type AbstractCuSparseArray{Tv, N} <: AbstractSparseArray{Tv, Cint, N} end
 const AbstractCuSparseVector{Tv} = AbstractCuSparseArray{Tv,1}
@@ -114,7 +105,9 @@ and `Hermitian` and `Symmetric` versions of these two containers. A function acc
 this type can make use of performance improvements by only indexing one triangle of the
 matrix if it is guaranteed to be hermitian/symmetric.
 """
-const CompressedSparse{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},HermOrSym{T,CuSparseMatrixCSC{T}},HermOrSym{T,CuSparseMatrixCSR{T}}}
+const CompressedSparse{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T},
+                                  HermOrSym{T,CuSparseMatrixCSC{T}},
+                                  HermOrSym{T,CuSparseMatrixCSR{T}}}
 
 """
 Utility union type of [`CuSparseMatrixCSC`](@ref), [`CuSparseMatrixCSR`](@ref), and
@@ -124,14 +117,15 @@ const CuSparseMatrix{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T}, CuSpa
 
 Hermitian{T}(Mat::CuSparseMatrix{T}) where T = Hermitian{T,typeof(Mat)}(Mat,'U')
 
-length(g::CuSparseVector) = prod(g.dims)
-size(g::CuSparseVector) = g.dims
-ndims(g::CuSparseVector) = 1
-length(g::CuSparseMatrix) = prod(g.dims)
-size(g::CuSparseMatrix) = g.dims
-ndims(g::CuSparseMatrix) = 2
+Base.length(g::CuSparseVector) = prod(g.dims)
+Base.size(g::CuSparseVector) = g.dims
+Base.ndims(g::CuSparseVector) = 1
 
-function size(g::CuSparseVector, d::Integer)
+Base.length(g::CuSparseMatrix) = prod(g.dims)
+Base.size(g::CuSparseMatrix) = g.dims
+Base.ndims(g::CuSparseMatrix) = 2
+
+function Base.size(g::CuSparseVector, d::Integer)
     if d == 1
         return g.dims[d]
     elseif d > 1
@@ -141,7 +135,7 @@ function size(g::CuSparseVector, d::Integer)
     end
 end
 
-function size(g::CuSparseMatrix, d::Integer)
+function Base.size(g::CuSparseMatrix, d::Integer)
     if d in [1, 2]
         return g.dims[d]
     elseif d > 1
@@ -151,40 +145,40 @@ function size(g::CuSparseMatrix, d::Integer)
     end
 end
 
-nnz(g::AbstractCuSparseArray) = g.nnz
-nonzeros(g::AbstractCuSparseArray) = g.nzVal
+SparseArrays.nnz(g::AbstractCuSparseArray) = g.nnz
+SparseArrays.nonzeros(g::AbstractCuSparseArray) = g.nzVal
 
-nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
+SparseArrays.nonzeroinds(g::AbstractCuSparseVector) = g.iPtr
 
-issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
-ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
-issymmetric(M::Symmetric{CuSparseMatrixCSC}) = true
-ishermitian(M::Hermitian{CuSparseMatrixCSC}) = true
+LinearAlgebra.issymmetric(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
+LinearAlgebra.ishermitian(M::Union{CuSparseMatrixCSC,CuSparseMatrixCSR}) = false
+LinearAlgebra.issymmetric(M::Symmetric{CuSparseMatrixCSC}) = true
+LinearAlgebra.ishermitian(M::Hermitian{CuSparseMatrixCSC}) = true
 
-istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = true
-istril(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = false
-istriu(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = false
-istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = true
-eltype(g::CuSparseMatrix{T}) where T = T
+LinearAlgebra.istriu(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = true
+LinearAlgebra.istril(M::UpperTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = false
+LinearAlgebra.istriu(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = false
+LinearAlgebra.istril(M::LowerTriangular{T,S}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix} = true
+Base.eltype(g::CuSparseMatrix{T}) where T = T
 
 # getindex (mostly adapted from stdlib/SparseArrays)
 
 # Translations
-getindex(A::AbstractCuSparseVector, ::Colon)          = copy(A)
-getindex(A::AbstractCuSparseMatrix, ::Colon, ::Colon) = copy(A)
-getindex(A::AbstractCuSparseMatrix, i, ::Colon)       = getindex(A, i, 1:size(A, 2))
-getindex(A::AbstractCuSparseMatrix, ::Colon, i)       = getindex(A, 1:size(A, 1), i)
-getindex(A::AbstractCuSparseMatrix, I::Tuple{Integer,Integer}) = getindex(A, I[1], I[2])
+Base.getindex(A::AbstractCuSparseVector, ::Colon)          = copy(A)
+Base.getindex(A::AbstractCuSparseMatrix, ::Colon, ::Colon) = copy(A)
+Base.getindex(A::AbstractCuSparseMatrix, i, ::Colon)       = getindex(A, i, 1:size(A, 2))
+Base.getindex(A::AbstractCuSparseMatrix, ::Colon, i)       = getindex(A, 1:size(A, 1), i)
+Base.getindex(A::AbstractCuSparseMatrix, I::Tuple{Integer,Integer}) = getindex(A, I[1], I[2])
 
 # Column slices
-function getindex(x::CuSparseMatrixCSC, ::Colon, j::Integer)
+function Base.getindex(x::CuSparseMatrixCSC, ::Colon, j::Integer)
     checkbounds(x, :, j)
     r1 = convert(Int, x.colPtr[j])
     r2 = convert(Int, x.colPtr[j+1]) - 1
     CuSparseVector(x.rowVal[r1:r2], x.nzVal[r1:r2], size(x, 1))
 end
 
-function getindex(x::CuSparseMatrixCSR, i::Integer, ::Colon)
+function Base.getindex(x::CuSparseMatrixCSR, i::Integer, ::Colon)
     checkbounds(x, :, i)
     c1 = convert(Int, x.rowPtr[i])
     c2 = convert(Int, x.rowPtr[i+1]) - 1
@@ -193,11 +187,11 @@ end
 
 # Row slices
 # TODO optimize
-getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(sparse(A[i, 1:end]))
+Base.getindex(A::CuSparseMatrixCSC, i::Integer, ::Colon) = CuSparseVector(sparse(A[i, 1:end]))
 # TODO optimize
-getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse(A[1:end, j]))
+Base.getindex(A::CuSparseMatrixCSR, ::Colon, j::Integer) = CuSparseVector(sparse(A[1:end, j]))
 
-function getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
+function Base.getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
     m, n = size(A)
     if !(1 <= i0 <= m && 1 <= i1 <= n)
         throw(BoundsError())
@@ -209,7 +203,7 @@ function getindex(A::CuSparseMatrixCSC{T}, i0::Integer, i1::Integer) where T
     ((r1 > r2) || (A.rowVal[r1] != i0)) ? zero(T) : A.nzVal[r1]
 end
 
-function getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where T
+function Base.getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where T
     m, n = size(A)
     if !(1 <= i0 <= m && 1 <= i1 <= n)
         throw(BoundsError())
@@ -222,20 +216,20 @@ function getindex(A::CuSparseMatrixCSR{T}, i0::Integer, i1::Integer) where T
 end
 
 # Called for indexing into `CuSparseVector`s
-function _spgetindex(m::Integer, nzind::CuVector{Ti}, nzval::CuVector{Tv},
-                     i::Integer) where {Tv,Ti}
+function SparseArrays._spgetindex(m::Integer, nzind::CuVector{Ti}, nzval::CuVector{Tv},
+                                  i::Integer) where {Tv,Ti}
     ii = searchsortedfirst(nzind, convert(Ti, i))
     (ii <= m && nzind[ii] == i) ? nzval[ii] : zero(Tv)
 end
 
-function collect(Vec::CuSparseVector)
+function Base.collect(Vec::CuSparseVector)
     SparseVector(Vec.dims[1], collect(Vec.iPtr), collect(Vec.nzVal))
 end
 
-function collect(Mat::CuSparseMatrixCSC)
+function Base.collect(Mat::CuSparseMatrixCSC)
     SparseMatrixCSC(Mat.dims[1], Mat.dims[2], collect(Mat.colPtr), collect(Mat.rowVal), collect(Mat.nzVal))
 end
-function collect(Mat::CuSparseMatrixCSR)
+function Base.collect(Mat::CuSparseMatrixCSR)
     rowPtr = collect(Mat.rowPtr)
     colVal = collect(Mat.colVal)
     nzVal  = collect(Mat.nzVal)
@@ -249,8 +243,8 @@ function collect(Mat::CuSparseMatrixCSR)
     return sparse(I,colVal,nzVal,Mat.dims[1],Mat.dims[2])
 end
 
-summary(g::CuSparseMatrix) = string(g)
-summary(g::CuSparseVector) = string(g)
+Base.summary(g::CuSparseMatrix) = string(g)
+Base.summary(g::CuSparseVector) = string(g)
 
 CuSparseVector(iPtr::Vector{Ti}, nzVal::Vector{T}, dims::Int) where {T<:BlasFloat, Ti<:Integer} = CuSparseVector{T}(CuArray(convert(Vector{Cint},iPtr)), CuArray(nzVal), dims, convert(Cint,length(nzVal)))
 CuSparseVector(iPtr::CuArray{Ti}, nzVal::CuArray{T}, dims::Int) where {T<:BlasFloat, Ti<:Integer} = CuSparseVector{T}(iPtr, nzVal, dims, convert(Cint,length(nzVal)))
@@ -276,12 +270,12 @@ CuSparseMatrixBSR(Mat::SparseMatrixCSC; blockdim) = switch2bsr(CuSparseMatrixCSC
 SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(x.iPtr), Array(x.nzVal))
 SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(x.rowVal), Array(x.nzVal))
 
-similar(Vec::CuSparseVector) = CuSparseVector(copy(Vec.iPtr), similar(Vec.nzVal), Vec.dims[1])
-similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(Mat.rowVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
-similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
-similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.blockDim, Mat.dir, Mat.nnz, Mat.dims)
+Base.similar(Vec::CuSparseVector) = CuSparseVector(copy(Vec.iPtr), similar(Vec.nzVal), Vec.dims[1])
+Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(Mat.rowVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
+Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
+Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.blockDim, Mat.dir, Mat.nnz, Mat.dims)
 
-function copyto!(dst::CuSparseVector, src::CuSparseVector)
+function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Vector size"))
     end
@@ -291,7 +285,7 @@ function copyto!(dst::CuSparseVector, src::CuSparseVector)
     dst
 end
 
-function copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
+function Base.copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
@@ -302,7 +296,7 @@ function copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
     dst
 end
 
-function copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
+function Base.copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
@@ -313,7 +307,7 @@ function copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     dst
 end
 
-function copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
+function Base.copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     if dst.dims != src.dims
         throw(ArgumentError("Inconsistent Sparse Matrix size"))
     end
@@ -325,10 +319,10 @@ function copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     dst
 end
 
-copy(Vec::CuSparseVector) = copyto!(similar(Vec),Vec)
-copy(Mat::CuSparseMatrixCSC) = copyto!(similar(Mat),Mat)
-copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat),Mat)
-copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat),Mat)
+Base.copy(Vec::CuSparseVector) = copyto!(similar(Vec),Vec)
+Base.copy(Mat::CuSparseMatrixCSC) = copyto!(similar(Mat),Mat)
+Base.copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat),Mat)
+Base.copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat),Mat)
 
 
 # input/output

@@ -164,7 +164,7 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
                                  (:cusparseCnnz, :cusparseCdense2csc, :cusparseCdense2csr, :ComplexF32),
                                  (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :ComplexF64))
     @eval begin
-        function sparse(A::CuMatrix{$elty},fmt::SparseChar='R',ind::SparseChar='O')
+        function SparseArrays.sparse(A::CuMatrix{$elty},fmt::SparseChar='R',ind::SparseChar='O')
             dir = 'R'
             if fmt == 'C'
                 dir = fmt
