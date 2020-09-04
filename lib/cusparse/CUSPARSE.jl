@@ -11,6 +11,8 @@ using CEnum
 using LinearAlgebra
 using LinearAlgebra: HermOrSym
 
+using Adapt
+
 using SparseArrays
 
 const SparseChar = Char

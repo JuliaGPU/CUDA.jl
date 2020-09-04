@@ -17,8 +17,9 @@ mutable struct CuSparseVector{Tv} <: AbstractCuSparseVector{Tv}
     dims::NTuple{2,Int}
     nnz::Cint
 
-    function CuSparseVector{Tv}(iPtr::CuVector{Cint}, nzVal::CuVector{Tv}, dims::Int, nnz::Cint) where Tv
-        new(iPtr,nzVal,(dims,1),nnz)
+    function CuSparseVector{Tv}(iPtr::CuVector{<:Integer}, nzVal::CuVector,
+                                dims::Integer) where Tv
+        new(iPtr, nzVal, (dims,1), length(nzVal))
     end
 end
 
@@ -35,12 +36,13 @@ mutable struct CuSparseMatrixCSC{Tv} <: AbstractCuSparseMatrix{Tv}
     dims::NTuple{2,Int}
     nnz::Cint
 
-    function CuSparseMatrixCSC{Tv}(colPtr::CuVector{Cint}, rowVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int}, nnz::Cint) where Tv
-        new(colPtr,rowVal,nzVal,dims,nnz)
+    function CuSparseMatrixCSC{Tv}(colPtr::CuVector{<:Integer}, rowVal::CuVector{<:Integer},
+                                   nzVal::CuVector, dims::NTuple{2,<:Integer}) where Tv
+        new(colPtr, rowVal, nzVal, dims, length(nzVal))
     end
 end
 
-function CuSparseMatrixCSC!(xs::CuSparseVector)
+function CUDA.unsafe_free!(xs::CuSparseMatrixCSC)
     unsafe_free!(xs.colPtr)
     unsafe_free!(xs.rowVal)
     unsafe_free!(xs.nzVal)
@@ -61,12 +63,13 @@ mutable struct CuSparseMatrixCSR{Tv} <: AbstractCuSparseMatrix{Tv}
     dims::NTuple{2,Int}
     nnz::Cint
 
-    function CuSparseMatrixCSR{Tv}(rowPtr::CuVector{Cint}, colVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int}, nnz::Cint) where Tv
-        new(rowPtr,colVal,nzVal,dims,nnz)
+    function CuSparseMatrixCSR{Tv}(rowPtr::CuVector{<:Integer}, colVal::CuVector{<:Integer},
+                                   nzVal::CuVector, dims::NTuple{2,<:Integer}) where Tv
+        new(rowPtr, colVal, nzVal, dims, length(nzVal))
     end
 end
 
-function CuSparseMatrixCSR!(xs::CuSparseVector)
+function CUDA.unsafe_free!(xs::CuSparseMatrixCSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(xs.nzVal)
@@ -87,12 +90,14 @@ mutable struct CuSparseMatrixBSR{Tv} <: AbstractCuSparseMatrix{Tv}
     dir::SparseChar
     nnz::Cint
 
-    function CuSparseMatrixBSR{Tv}(rowPtr::CuVector{Cint}, colVal::CuVector{Cint}, nzVal::CuVector{Tv}, dims::NTuple{2,Int},blockDim::Cint, dir::SparseChar, nnz::Cint) where Tv
-        new(rowPtr,colVal,nzVal,dims,blockDim,dir,nnz)
+    function CuSparseMatrixBSR{Tv}(rowPtr::CuVector{<:Integer}, colVal::CuVector{<:Integer},
+                                   nzVal::CuVector, dims::NTuple{2,<:Integer},
+                                   blockDim::Integer, dir::SparseChar, nnz::Integer) where Tv
+        new(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
     end
 end
 
-function CuSparseMatrixBSR!(xs::CuSparseVector)
+function CUDA.unsafe_free!(xs::CuSparseMatrixBSR)
     unsafe_free!(xs.rowPtr)
     unsafe_free!(xs.colVal)
     unsafe_free!(xs.nzVal)
@@ -108,29 +113,23 @@ const CuSparseMatrix{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T}, CuSpa
 
 ## convenience constructors
 
-CuSparseVector(iPtr::Vector{Ti}, nzVal::Vector{T}, dims::Int) where {T<:BlasFloat, Ti<:Integer} =
-    CuSparseVector{T}(CuArray(convert(Vector{Cint},iPtr)), CuArray(nzVal), dims, convert(Cint,length(nzVal)))
-CuSparseVector(iPtr::CuArray{Ti}, nzVal::CuArray{T}, dims::Int) where {T<:BlasFloat, Ti<:Integer} =
-    CuSparseVector{T}(iPtr, nzVal, dims, convert(Cint,length(nzVal)))
+CuSparseVector(iPtr::CuArray{<:Integer}, nzVal::CuArray{T}, dims::Int) where {T} =
+    CuSparseVector{T}(iPtr, nzVal, dims)
 
-CuSparseMatrixCSC(colPtr::Vector{Ti}, rowVal::Vector{Ti}, nzVal::Vector{T}, dims::NTuple{2,Int}) where {T<:BlasFloat,Ti<:Integer} =
-    CuSparseMatrixCSC{T}(CuArray(convert(Vector{Cint},colPtr)), CuArray(convert(Vector{Cint},rowVal)), CuArray(nzVal), dims, convert(Cint,length(nzVal)))
-CuSparseMatrixCSC(colPtr::CuArray{Ti}, rowVal::CuArray{Ti}, nzVal::CuArray{T}, dims::NTuple{2,Int}) where {T<:BlasFloat,Ti<:Integer} =
-    CuSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims, convert(Cint,length(nzVal)))
-CuSparseMatrixCSC(colPtr::CuArray{Ti}, rowVal::CuArray{Ti}, nzVal::CuArray{T}, nnz, dims::NTuple{2,Int}) where {T<:BlasFloat,Ti<:Integer} =
-    CuSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims, nnz)
+CuSparseMatrixCSC(colPtr::CuArray{<:Integer}, rowVal::CuArray{<:Integer},
+                  nzVal::CuArray{T}, dims::NTuple{2,Int}) where {T} =
+    CuSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims)
 
 CuSparseMatrixCSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, dims::NTuple{2,Int}) where T =
-    CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims, convert(Cint,length(nzVal)))
-CuSparseMatrixCSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, nnz, dims::NTuple{2,Int}) where T =
-    CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims, nnz)
+    CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims)
 
-CuSparseMatrixBSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, blockDim, dir, nnz, dims::NTuple{2,Int}) where T =
+CuSparseMatrixBSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, blockDim, dir, nnz,
+                  dims::NTuple{2,Int}) where T =
     CuSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 
 Base.similar(Vec::CuSparseVector) = CuSparseVector(copy(Vec.iPtr), similar(Vec.nzVal), Vec.dims[1])
-Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(Mat.rowVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
-Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.nnz, Mat.dims)
+Base.similar(Mat::CuSparseMatrixCSC) = CuSparseMatrixCSC(copy(Mat.colPtr), copy(Mat.rowVal), similar(Mat.nzVal), Mat.dims)
+Base.similar(Mat::CuSparseMatrixCSR) = CuSparseMatrixCSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.dims)
 Base.similar(Mat::CuSparseMatrixBSR) = CuSparseMatrixBSR(copy(Mat.rowPtr), copy(Mat.colVal), similar(Mat.nzVal), Mat.blockDim, Mat.dir, Mat.nnz, Mat.dims)
 
 
@@ -249,12 +248,27 @@ end
 ## interop with sparse CPU arrays
 
 # cpu to gpu
-CuSparseVector(Vec::SparseVector) = CuSparseVector(Vec.nzind, Vec.nzval, length(Vec))
-CuSparseVector(Mat::SparseMatrixCSC) = size(Mat,2) == 1 ? CuSparseVector(Mat.rowval, Mat.nzval, size(Mat)[1]) : throw(ArgumentError("The input argument must have a single column"))
-CuSparseMatrixCSC(Vec::SparseVector) = CuSparseMatrixCSC([1], Vec.nzind, Vec.nzval, size(Vec))
-CuSparseMatrixCSC(Mat::SparseMatrixCSC) = CuSparseMatrixCSC(Mat.colptr, Mat.rowval, Mat.nzval, size(Mat))
-CuSparseMatrixCSR(Mat::SparseMatrixCSC) = switch2csr(CuSparseMatrixCSC(Mat))
-CuSparseMatrixBSR(Mat::SparseMatrixCSC; blockdim) = switch2bsr(CuSparseMatrixCSC(Mat), convert(Cint, blockdim))
+# NOTE: we eagerly convert the indices to Cint here to avoid additional conversion later on
+CuSparseVector{T}(Vec::SparseVector) where {T} =
+    CuSparseVector(CuVector{Cint}(Vec.nzind), CuVector{T}(Vec.nzval), length(Vec))
+CuSparseVector{T}(Mat::SparseMatrixCSC) where {T} =
+    size(Mat,2) == 1 ?
+        CuSparseVector(CuVector{Cint}(Mat.rowval), CuVector{T}(Mat.nzval), size(Mat)[1]) :
+        throw(ArgumentError("The input argument must have a single column"))
+CuSparseMatrixCSC{T}(Vec::SparseVector) where {T} =
+    CuSparseMatrixCSC{T}(CuVector{Cint}([1]), CuVector{Cint}(Vec.nzind),
+                         CuVector{T}(Vec.nzval), size(Vec))
+CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =
+    CuSparseMatrixCSC{T}(CuVector{Cint}(Mat.colptr), CuVector{Cint}(Mat.rowval),
+                         CuVector{T}(Mat.nzval), size(Mat))
+CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = switch2csr(CuSparseMatrixCSC{T}(Mat))
+CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC; blockdim) where {T} = switch2bsr(CuSparseMatrixCSC{T}(Mat), blockdim)
+
+# untyped variants
+CuSparseVector(x::AbstractSparseArray{T}) where {T} = CuSparseVector{T}(x)
+CuSparseMatrixCSC(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSC{T}(x)
+CuSparseMatrixCSR(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSR{T}(x)
+CuSparseMatrixBSR(x::AbstractSparseArray{T}; blockdim) where {T} = CuSparseMatrixBSR{T}(x; blockdim)
 
 # gpu to cpu
 SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(x.iPtr), Array(x.nzVal))
@@ -273,12 +287,24 @@ function SparseMatrixCSC(Mat::CuSparseMatrixCSR)
     return sparse(I,colVal,nzVal,Mat.dims[1],Mat.dims[2])
 end
 
-Base.collect(x::CuSparseVector) = SparseVector(x)
-Base.collect(x::CuSparseMatrixCSC) = SparseMatrixCSC(x)
-Base.collect(x::CuSparseMatrixCSR) = SparseMatrixCSC(x)
+# collect to Array
+Base.collect(x::CuSparseVector) = collect(SparseVector(x))
+Base.collect(x::CuSparseMatrixCSC) = collect(SparseMatrixCSC(x))
+Base.collect(x::CuSparseMatrixCSR) = collect(SparseMatrixCSC(x))
+Base.collect(x::CuSparseMatrixBSR) = collect(CuSparseMatrixCSR(x))  # no direct conversion
+
+Adapt.adapt_storage(::Type{CuArray}, xs::SparseVector) = CuSparseVector(xs)
+Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs)
+Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
+Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
+
+Adapt.adapt_storage(::Type{Array}, xs::CuSparseVector) = SparseVector(xs)
+Adapt.adapt_storage(::Type{Array}, xs::CuSparseMatrixCSC) = SparseMatrixCSC(xs)
 
 
 ## interop between sparse GPU arrays
+
+CuSparseMatrixCSR{T}(Mat::CuSparseMatrixBSR) where {T} = switch2csr(Mat, 'O')
 
 function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
     if dst.dims != src.dims

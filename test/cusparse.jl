@@ -2,6 +2,7 @@ using CUDA.CUSPARSE
 
 using LinearAlgebra
 using SparseArrays
+using SparseArrays: nonzeroinds
 
 @test CUSPARSE.version() isa VersionNumber
 
@@ -29,7 +30,7 @@ blockdim = 5
     @test_throws BoundsError d_x[end + 1]
     @test nnz(d_x)    == nnz(x)
     @test Array(nonzeros(d_x)) == nonzeros(x)
-    @test Array(SparseArrays.nonzeroinds(d_x)) == SparseArrays.nonzeroinds(x)
+    @test Array(nonzeroinds(d_x)) == nonzeroinds(x)
     @test nnz(d_x)    == length(nonzeros(d_x))
     x = sprand(m,n,0.2)
     d_x = CuSparseMatrixCSC(x)
@@ -103,62 +104,54 @@ end
         @testset "make_csc" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
-            h_x = collect(d_x)
-            @test h_x == x
-            @test eltype(d_x) == elty
+            @test collect(d_x) == collect(x)
         end
 
         @testset "make_csr" begin
             x = sprand(elty,m,n, 0.2)
-            d_xc = CuSparseMatrixCSC(x)
             d_x  = CuSparseMatrixCSR(x)
-            h_x = collect(d_x)
-            @test h_x == x
+            @test collect(d_x) == collect(x)
+        end
+
+        @testset "make_bsr" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x  = CuSparseMatrixBSR(x; blockdim=blockdim)
+            @test collect(d_x) == collect(x)
         end
 
         @testset "convert_r2c" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CUSPARSE.switch2csc(d_x)
-            h_x = collect(d_x)
-            @test h_x.rowval == x.rowval
-            @test h_x.nzval ≈ x.nzval
+            @test collect(d_x) == collect(x)
         end
 
         @testset "convert_r2b" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CUSPARSE.switch2bsr(d_x,convert(Cint,blockdim))
-            d_x = CUSPARSE.switch2csr(d_x)
-            h_x = collect(d_x)
-            @test h_x ≈ x
+            @test collect(d_x) == collect(x)
         end
 
         @testset "convert_c2b" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             d_x = CUSPARSE.switch2bsr(d_x,convert(Cint,blockdim))
-            d_x = CUSPARSE.switch2csc(d_x)
-            h_x = collect(d_x)
-            @test h_x ≈ x
+            @test collect(d_x) == collect(x)
         end
 
         @testset "convert_d2b" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
             d_x = CUSPARSE.sparse(d_x,'B')
-            d_y = Array(d_x)
-            h_x = collect(d_y)
-            @test h_x ≈ x
+            @test collect(d_x) ≈ x
         end
 
         @testset "convert_c2r" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             d_x = CUSPARSE.switch2csr(d_x)
-            h_x = collect(d_x)
-            @test h_x.rowval == x.rowval
-            @test h_x.nzval ≈ x.nzval
+            @test collect(d_x) == collect(x)
         end
 
         @testset "convert_r2d" begin
@@ -205,11 +198,11 @@ end
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             d_A = CUSPARSE.switch2bsr(d_A, convert(Cint,5))
             d_A = CUSPARSE.ic02!(d_A,'O')
-            h_A = collect(CUSPARSE.switch2csr(d_A))
+            h_A = SparseMatrixCSC(CUSPARSE.switch2csr(d_A))
             Ac = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
             d_A = CuSparseMatrixCSR(sparse(tril(rand(elty,m,n))))
             d_A = CUSPARSE.switch2bsr(d_A, convert(Cint,5))
             @test_throws DimensionMismatch CUSPARSE.ic02!(d_A,'O')
@@ -219,11 +212,11 @@ end
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             d_A = CUSPARSE.switch2bsr(d_A, convert(Cint,5))
             d_B = CUSPARSE.ic02(d_A,'O')
-            h_A = collect(CUSPARSE.switch2csr(d_B))
+            h_A = SparseMatrixCSC(CUSPARSE.switch2csr(d_B))
             Ac = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
         end
     end
 end
@@ -237,12 +230,12 @@ end
             d_A = CuSparseMatrixCSR(sparse(A))
             d_A = CUSPARSE.switch2bsr(d_A, convert(Cint,5))
             d_A = CUSPARSE.ilu02!(d_A,'O')
-            h_A = collect(CUSPARSE.switch2csr(d_A))
+            h_A = SparseMatrixCSC(CUSPARSE.switch2csr(d_A))
             Alu = lu(Array(A), Val(false))
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
             d_A = CuSparseMatrixCSR(sparse(rand(elty,m,n)))
             d_A = CUSPARSE.switch2bsr(d_A, convert(Cint,5))
             @test_throws DimensionMismatch CUSPARSE.ilu02!(d_A,'O')
@@ -252,12 +245,12 @@ end
             d_A = CuSparseMatrixCSR(sparse(A))
             d_A = CUSPARSE.switch2bsr(d_A, convert(Cint,5))
             d_B = CUSPARSE.ilu02(d_A,'O')
-            h_A = collect(CUSPARSE.switch2csr(d_B))
+            h_A = SparseMatrixCSC(CUSPARSE.switch2csr(d_B))
             Alu = lu(Array(A),Val(false))
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
         end
     end
 end
@@ -411,12 +404,12 @@ end
             A += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSR(sparse(A))
             d_B = CUSPARSE.ilu02(d_A,'O')
-            h_A = collect(d_B)
+            h_A = SparseMatrixCSC(d_B)
             Alu = lu(Array(A),Val(false))
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
         end
         @testset "csc" begin
             A = rand(elty,m,m)
@@ -424,12 +417,12 @@ end
             A += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSC(sparse(A))
             d_B = CUSPARSE.ilu02(d_A,'O')
-            h_A = collect(d_B)
+            h_A = SparseMatrixCSC(d_B)
             Alu = lu(Array(A),Val(false))
             Ac = sparse(Alu.L*Alu.U)
             h_A = adjoint(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
         end
     end
 end
@@ -442,11 +435,11 @@ end
             A  += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             d_B = CUSPARSE.ic02(d_A, 'O')
-            h_A = collect(d_B)
+            h_A = SparseMatrixCSC(d_B)
             Ac  = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
             A   = rand(elty,m,n)
             d_A = CuSparseMatrixCSR(sparse(tril(A)))
             @test_throws DimensionMismatch CUSPARSE.ic02(d_A, 'O')
@@ -457,11 +450,11 @@ end
             A  += m * Diagonal{elty}(I, m)
             d_A = CuSparseMatrixCSC(sparse(tril(A)))
             d_B = CUSPARSE.ic02(d_A, 'O')
-            h_A = collect(d_B)
+            h_A = SparseMatrixCSC(d_B)
             Ac  = sparse(Array(cholesky(Hermitian(A))))
             h_A = transpose(h_A) * h_A
-            @test h_A.rowval ≈ Ac.rowval
-            @test reduce(&, isfinite.(h_A.nzval))
+            @test rowvals(h_A) ≈ rowvals(Ac)
+            @test reduce(&, isfinite.(nonzeros(h_A)))
             A   = rand(elty,m,n)
             d_A = CuSparseMatrixCSC(sparse(tril(A)))
             @test_throws DimensionMismatch CUSPARSE.ic02(d_A, 'O')
@@ -567,7 +560,7 @@ end
             d_y = CUSPARSE.axpyi!(alpha,d_x,d_y,'O')
             #compare
             h_y = collect(d_y)
-            y[x.nzind] += alpha * x.nzval
+            y[nonzeroinds(x)] += alpha * nonzeros(x)
             @test h_y ≈ y
         end
 
@@ -581,13 +574,13 @@ end
             #compare
             h_z = collect(d_z)
             z = copy(y)
-            z[x.nzind] += alpha * x.nzval
+            z[nonzeroinds(x)] += alpha * nonzeros(x)
             @test h_z ≈ z
             d_z = CUSPARSE.axpyi(d_x,d_y,'O')
             #compare
             h_z = collect(d_z)
             z = copy(y)
-            z[x.nzind] += x.nzval
+            z[nonzeroinds(x)] += nonzeros(x)
             @test h_z ≈ z
         end
     end
@@ -602,7 +595,7 @@ end
             d_y = CuArray(y)
             d_y = CUSPARSE.gthr!(d_x,d_y,'O')
             h_x = collect(d_x)
-            @test h_x ≈ SparseVector(m,x.nzind,y[x.nzind])
+            @test h_x ≈ SparseVector(m,nonzeroinds(x),y[nonzeroinds(x)])
         end
 
         @testset "gthr" begin
@@ -610,7 +603,7 @@ end
             d_y = CuArray(y)
             d_z = CUSPARSE.gthr(d_x,d_y,'O')
             h_z = collect(d_z)
-            @test h_z ≈ SparseVector(m,x.nzind,y[x.nzind])
+            @test h_z ≈ SparseVector(m,nonzeroinds(x),y[nonzeroinds(x)])
         end
 
         @testset "gthrz!" begin
@@ -619,8 +612,8 @@ end
             d_x,d_y = CUSPARSE.gthrz!(d_x,d_y,'O')
             h_x = collect(d_x)
             h_y = collect(d_y)
-            @test h_x ≈ SparseVector(m,x.nzind,y[x.nzind])
-            #y[x.nzind] = zero(elty)
+            @test h_x ≈ SparseVector(m,nonzeroinds(x),y[nonzeroinds(x)])
+            #y[nonzeroinds(x)] = zero(elty)
             #@test h_y ≈ y
         end
 
@@ -630,8 +623,8 @@ end
             d_z,d_w = CUSPARSE.gthrz(d_x,d_y,'O')
             h_w = collect(d_w)
             h_z = collect(d_z)
-            @test h_z ≈ SparseVector(m,x.nzind,y[x.nzind])
-            #y[x.nzind] = zero(elty)
+            @test h_z ≈ SparseVector(m,nonzeroinds(x),y[nonzeroinds(x)])
+            #y[nonzeroinds(x)] = zero(elty)
             #@test h_w ≈ y
         end
     end
@@ -709,7 +702,7 @@ end
             d_y = CuArray(y)
             d_y = CUSPARSE.sctr!(d_x,d_y,'O')
             h_y = collect(d_y)
-            y[x.nzind]  += x.nzval
+            y[nonzeroinds(x)]  += nonzeros(x)
             @test h_y ≈ y
         end
         y = zeros(elty,m)
@@ -719,7 +712,7 @@ end
             d_y = CUSPARSE.sctr(d_x,'O')
             h_y = collect(d_y)
             y = zeros(elty,m)
-            y[x.nzind]  += x.nzval
+            y[nonzeroinds(x)]  += nonzeros(x)
             @test h_y ≈ y
         end
     end
@@ -738,8 +731,8 @@ end
             h_y = collect(d_y)
             z = copy(x)
             w = copy(y)
-            y[x.nzind] = cos(angle)*w[z.nzind] - sin(angle)*z.nzval
-            @test h_x ≈ SparseVector(m,x.nzind,cos(angle)*z.nzval + sin(angle)*w[z.nzind])
+            y[nonzeroinds(x)] = cos(angle)*w[nonzeroinds(z)] - sin(angle)*nonzeros(z)
+            @test h_x ≈ SparseVector(m,nonzeroinds(x),cos(angle)*nonzeros(z) + sin(angle)*w[nonzeroinds(z)])
             @test h_y ≈ y
         end
 
@@ -752,8 +745,8 @@ end
             h_z = collect(d_z)
             z = copy(x)
             w = copy(y)
-            w[z.nzind] = cos(angle)*y[x.nzind] - sin(angle)*x.nzval
-            @test h_z ≈ SparseVector(m,z.nzind, cos(angle)*x.nzval + sin(angle)*y[x.nzind])
+            w[nonzeroinds(z)] = cos(angle)*y[nonzeroinds(x)] - sin(angle)*nonzeros(x)
+            @test h_z ≈ SparseVector(m,nonzeroinds(z), cos(angle)*nonzeros(x) + sin(angle)*y[nonzeroinds(x)])
             @test h_w ≈ w
         end
     end

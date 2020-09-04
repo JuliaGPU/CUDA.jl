@@ -30,7 +30,7 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                     csr.rowPtr, csr.colVal, nzVal, rowVal,
                     colPtr, CUSPARSE_ACTION_NUMERIC, inda)
             end
-            csc = CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.nnz,csr.dims)
+            csc = CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.dims)
             csc
         end
         function switch2csr(csc::CuSparseMatrixCSC{$elty},inda::SparseChar='O')
@@ -56,7 +56,7 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                     csc.colPtr, csc.rowVal, nzVal, colVal,
                     rowPtr, CUSPARSE_ACTION_NUMERIC, inda)
             end
-            csr = CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.nnz,csc.dims)
+            csr = CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.dims)
             csr
         end
     end
@@ -68,7 +68,7 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                      (:cusparseZcsr2bsr, :ComplexF64))
     @eval begin
         function switch2bsr(csr::CuSparseMatrixCSR{$elty},
-                            blockDim::Cint,
+                            blockDim::Integer,
                             dir::SparseChar='R',
                             inda::SparseChar='O',
                             indc::SparseChar='O')
@@ -90,7 +90,7 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
             CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, csr.dims, blockDim, dir, nnz[])
         end
         function switch2bsr(csc::CuSparseMatrixCSC{$elty},
-                            blockDim::Cint,
+                            blockDim::Integer,
                             dir::SparseChar='R',
                             inda::SparseChar='O',
                             indc::SparseChar='O')
@@ -120,7 +120,7 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                    cudesca, bsr.nzVal, bsr.rowPtr, bsr.colVal,
                    bsr.blockDim, cudescc, csrNzVal, csrRowPtr,
                    csrColInd)
-            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, convert(Cint,nnz), bsr.dims)
+            CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, bsr.dims)
         end
         function switch2csc(bsr::CuSparseMatrixBSR{$elty},
                             inda::SparseChar='O',
@@ -135,7 +135,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                            (:cusparseCcsc2dense, :cusparseCcsr2dense, :ComplexF32),
                            (:cusparseZcsc2dense, :cusparseZcsr2dense, :ComplexF64))
     @eval begin
-        function Base.Array(csr::CuSparseMatrixCSR{$elty},ind::SparseChar='O')
+        function CUDA.CuArray(csr::CuSparseMatrixCSR{$elty},ind::SparseChar='O')
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
@@ -144,7 +144,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                    csr.rowPtr, csr.colVal, denseA, lda)
             denseA
         end
-        function Base.Array(csc::CuSparseMatrixCSC{$elty},ind::SparseChar='O')
+        function CUDA.CuArray(csc::CuSparseMatrixCSC{$elty},ind::SparseChar='O')
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
@@ -152,9 +152,6 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
             $cname(handle(), m, n, cudesc, csc.nzVal,
                    csc.rowVal, csc.colPtr, denseA, lda)
             denseA
-        end
-        function Base.Array(bsr::CuSparseMatrixBSR{$elty},ind::SparseChar='O')
-            Array(switch2csr(bsr,ind))
         end
     end
 end
@@ -164,7 +161,7 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
                                  (:cusparseCnnz, :cusparseCdense2csc, :cusparseCdense2csr, :ComplexF32),
                                  (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :ComplexF64))
     @eval begin
-        function SparseArrays.sparse(A::CuMatrix{$elty},fmt::SparseChar='R',ind::SparseChar='O')
+        function SparseArrays.sparse(A::CuMatrix{$elty}, fmt::SparseChar='R', ind::SparseChar='O')
             dir = 'R'
             if fmt == 'C'
                 dir = fmt
@@ -183,14 +180,14 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
                 colInd = CUDA.zeros(Cint,nnzTotal[])
                 $rname(handle(), m, n, cudesc, A,
                        lda, nnzRowCol, nzVal, rowPtr, colInd)
-                return CuSparseMatrixCSR(rowPtr,colInd,nzVal,nnzTotal[],size(A))
+                return CuSparseMatrixCSR(rowPtr,colInd,nzVal,size(A))
             end
             if(fmt == 'C')
                 colPtr = CUDA.zeros(Cint,n+1)
                 rowInd = CUDA.zeros(Cint,nnzTotal[])
                 $cname(handle(), m, n, cudesc, A,
                        lda, nnzRowCol, nzVal, rowInd, colPtr)
-                return CuSparseMatrixCSC(colPtr,rowInd,nzVal,nnzTotal[],size(A))
+                return CuSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
             end
             if(fmt == 'B')
                 return switch2bsr(sparse(A,'R',ind),convert(Cint,gcd(m,n)))
@@ -214,10 +211,10 @@ Convert a `CuSparseMatrixCSC` to the compressed sparse row format.
 switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O')
 
 """
-    switch2bsr(csr::CuSparseMatrixCSR, blockDim::Cint, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
+    switch2bsr(csr::CuSparseMatrixCSR, blockDim::Integer, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
 
 Convert a `CuSparseMatrixCSR` to the compressed block sparse row format. `blockDim` sets the
 block dimension of the compressed sparse blocks and `indc` determines whether the new matrix
 will be one- or zero-indexed.
 """
-switch2bsr(csr::CuSparseMatrixCSR, blockDim::Cint, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
+switch2bsr(csr::CuSparseMatrixCSR, blockDim::Integer, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
