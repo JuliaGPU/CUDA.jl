@@ -140,7 +140,7 @@ end
         @testset "BSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
-            d_x = CUSPARSE.sparse(d_x,'B')
+            d_x = CuSparseMatrixBSR(d_x)
             @test collect(d_x) ≈ x
         end
 
@@ -168,7 +168,7 @@ end
         @testset "CSC(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
-            d_x = CUSPARSE.sparse(d_x,'C')
+            d_x = CuSparseMatrixCSC(d_x)
             h_x = collect(d_x)
             @test h_x ≈ sparse(x)
         end
@@ -176,7 +176,7 @@ end
         @testset "CSR(::Dense)" begin
             x = rand(elty,m,n)
             d_x = CuArray(x)
-            d_x = CUSPARSE.sparse(d_x)
+            d_x = CuSparseMatrixCSR(d_x)
             h_x = collect(d_x)
             @test h_x ≈ sparse(x)
         end

@@ -1,5 +1,12 @@
 # conversion routines between different sparse and dense storage formats
 
+SparseArrays.sparse(::CuArray, args...) = error("CUSPARSE supports multiple sparse formats, use specific constructors instead (e.g. CuSparseMatrixCSC)")
+
+
+## CSR to CSC
+
+# by flipping rows and columns, we can use that to get CSC to CSR too
+
 for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                      (:cusparseDcsr2csc, :Float64),
                      (:cusparseCcsr2csc, :ComplexF32),
@@ -30,6 +37,7 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
             end
             CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.dims)
         end
+
         function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
             m,n    = csc.dims
             rowPtr = CUDA.zeros(Cint,m+1)
@@ -57,6 +65,9 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
         end
     end
 end
+
+
+## CSR to BSR and vice-versa
 
 for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                      (:cusparseDcsr2bsr, :Float64),
@@ -111,12 +122,15 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
     end
 end
 
+
+## sparse to dense, and vice-versa
+
 for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                            (:cusparseDcsc2dense, :cusparseDcsr2dense, :Float64),
                            (:cusparseCcsc2dense, :cusparseCcsr2dense, :ComplexF32),
                            (:cusparseZcsc2dense, :cusparseZcsr2dense, :ComplexF64))
     @eval begin
-        function CUDA.CuArray(csr::CuSparseMatrixCSR{$elty},ind::SparseChar='O')
+        function CUDA.CuMatrix{$elty}(csr::CuSparseMatrixCSR{$elty}; ind::SparseChar='O')
             m,n = csr.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
@@ -125,7 +139,7 @@ for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                    csr.rowPtr, csr.colVal, denseA, lda)
             denseA
         end
-        function CUDA.CuArray(csc::CuSparseMatrixCSC{$elty},ind::SparseChar='O')
+        function CUDA.CuMatrix{$elty}(csc::CuSparseMatrixCSC{$elty}; ind::SparseChar='O')
             m,n = csc.dims
             denseA = CUDA.zeros($elty,m,n)
             lda = max(1,stride(denseA,2))
@@ -142,37 +156,54 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
                                  (:cusparseCnnz, :cusparseCdense2csc, :cusparseCdense2csr, :ComplexF32),
                                  (:cusparseZnnz, :cusparseZdense2csc, :cusparseZdense2csr, :ComplexF64))
     @eval begin
-        function SparseArrays.sparse(A::CuMatrix{$elty}, fmt::SparseChar='R', ind::SparseChar='O')
-            dir = 'R'
-            if fmt == 'C'
-                dir = fmt
-            end
+        function CuSparseMatrixCSR(A::CuMatrix{$elty}; ind::SparseChar='O')
             m,n = size(A)
-            lda = max(1,stride(A,2))
-            cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
-            nnzRowCol = CUDA.zeros(Cint, fmt == 'R' ? m : n)
+            lda = max(1, stride(A,2))
+            cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL,
+                                        CUSPARSE_FILL_MODE_LOWER,
+                                        CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
+            nnzRowCol = CUDA.zeros(Cint, m)
             nnzTotal = Ref{Cint}(1)
             $nname(handle(),
-                   dir, m, n, cudesc, A, lda, nnzRowCol,
+                   'R', m, n, cudesc, A, lda, nnzRowCol,
                    nnzTotal)
             nzVal = CUDA.zeros($elty,nnzTotal[])
-            if(fmt == 'R')
-                rowPtr = CUDA.zeros(Cint,m+1)
-                colInd = CUDA.zeros(Cint,nnzTotal[])
-                $rname(handle(), m, n, cudesc, A,
-                       lda, nnzRowCol, nzVal, rowPtr, colInd)
-                return CuSparseMatrixCSR(rowPtr,colInd,nzVal,size(A))
-            end
-            if(fmt == 'C')
-                colPtr = CUDA.zeros(Cint,n+1)
-                rowInd = CUDA.zeros(Cint,nnzTotal[])
-                $cname(handle(), m, n, cudesc, A,
-                       lda, nnzRowCol, nzVal, rowInd, colPtr)
-                return CuSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
-            end
-            if(fmt == 'B')
-                return CuSparseMatrixBSR(sparse(A,'R',ind),convert(Cint,gcd(m,n)))
-            end
+
+            rowPtr = CUDA.zeros(Cint,m+1)
+            colInd = CUDA.zeros(Cint,nnzTotal[])
+            $rname(handle(), m, n, cudesc, A,
+                    lda, nnzRowCol, nzVal, rowPtr, colInd)
+            return CuSparseMatrixCSR(rowPtr,colInd,nzVal,size(A))
+        end
+
+        function CuSparseMatrixCSC(A::CuMatrix{$elty}; ind::SparseChar='O')
+            m,n = size(A)
+            lda = max(1, stride(A,2))
+            cudesc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL,
+                                        CUSPARSE_FILL_MODE_LOWER,
+                                        CUSPARSE_DIAG_TYPE_NON_UNIT, ind)
+            nnzRowCol = CUDA.zeros(Cint, n)
+            nnzTotal = Ref{Cint}(1)
+            $nname(handle(),
+                   'C', m, n, cudesc, A, lda, nnzRowCol,
+                   nnzTotal)
+            nzVal = CUDA.zeros($elty,nnzTotal[])
+
+            colPtr = CUDA.zeros(Cint,n+1)
+            rowInd = CUDA.zeros(Cint,nnzTotal[])
+            $cname(handle(), m, n, cudesc, A,
+                    lda, nnzRowCol, nzVal, rowInd, colPtr)
+            return CuSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
         end
     end
+end
+
+function CUDA.CuMatrix{T}(bsr::CuSparseMatrixBSR{T}; inda::SparseChar='O',
+                          indc::SparseChar='O') where {T}
+    CuMatrix{T}(CuSparseMatrixCSR{T}(bsr; inda, indc))
+end
+
+function CuSparseMatrixBSR(A::CuMatrix; ind::SparseChar='O')
+    m,n = size(A)   # TODO: always let the user choose, or provide defaults for other methods too
+    CuSparseMatrixBSR(CuSparseMatrixCSR(A; ind), gcd(m,n))
 end
