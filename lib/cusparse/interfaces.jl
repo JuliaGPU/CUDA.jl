@@ -3,28 +3,42 @@
 using LinearAlgebra
 using LinearAlgebra: BlasFloat
 
-Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}}       = sm('N',A,B,'O')
+function mv_wrapper(transa::SparseChar, alpha::Number, A::CuSparseMatrix{T}, X::CuVector{T},
+                    beta::Number, Y::CuVector{T}) where {T}
+    mv!(transa, alpha, A, X, beta, Y, 'O')
+end
+
+LinearAlgebra.mul!(C::CuVector{T},A::CuSparseMatrix,B::CuVector,alpha::Number,beta::Number) where {T} = mv_wrapper('N',alpha,A,B,beta,C)
+LinearAlgebra.mul!(C::CuVector{T},transA::Transpose{<:Any,<:CuSparseMatrix},B::CuVector,alpha::Number,beta::Number) where {T} = mv_wrapper('T',alpha,parent(transA),B,beta,C)
+LinearAlgebra.mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector,alpha::Number,beta::Number) where {T} = mv_wrapper('C',alpha,parent(adjA),B,beta,C)
+LinearAlgebra.mul!(C::CuVector{T},A::HermOrSym{T,<:CuSparseMatrix{T}},B::CuVector{T},alpha::Number,beta::Number) where T = mv_wrapper('N',alpha,A,B,beta,C)
+LinearAlgebra.mul!(C::CuVector{T},transA::Transpose{<:Any, <:HermOrSym{T,<:CuSparseMatrix{T}}},B::CuVector{T},alpha::Number,beta::Number) where {T} = mv_wrapper('T',alpha,parent(transA),B,beta,C)
+LinearAlgebra.mul!(C::CuVector{T},adjA::Adjoint{<:Any, <:HermOrSym{T,<:CuSparseMatrix{T}}},B::CuVector{T},alpha::Number,beta::Number) where {T} = mv_wrapper('C',alpha,parent(adjA),B,beta,C)
+
+function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
+                    A::CuSparseMatrix{T}, B::CuMatrix{T}, beta::Number, C::CuMatrix{T}) where {T}
+    if version() < v"10.3.1" && A isa CuSparseMatrixCSR
+        # generic mm! doesn't work on CUDA 10.1 with CSC matrices
+        return mm2!(transa, transb, alpha, A, B, beta, C, 'O')
+    end
+    mm!(transa, transb, alpha, A, B, beta, C, 'O')
+end
+
+LinearAlgebra.mul!(C::CuMatrix{T},A::CuSparseMatrix{T},B::CuMatrix{T},alpha::Number,beta::Number) where {T} = mm_wrapper('N','N',alpha,A,B,beta,C)
+LinearAlgebra.mul!(C::CuMatrix{T},A::CuSparseMatrix{T},transB::Transpose{<:Any, <:CuMatrix{T}},alpha::Number,beta::Number)  where {T} = mm_wrapper('N','T',alpha,A,parent(transB),beta,C)
+LinearAlgebra.mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:CuSparseMatrix{T}},B::CuMatrix{T},alpha::Number,beta::Number)  where {T} = mm_wrapper('T','N',alpha,parent(transA),B,beta,C)
+LinearAlgebra.mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:CuSparseMatrix{T}},transB::Transpose{<:Any, <:CuMatrix{T}},alpha::Number,beta::Number) where {T} = mm_wrapper('T','T',alpha,parent(transA),parent(transB),beta,C)
+LinearAlgebra.mul!(C::CuMatrix{T},adjA::Adjoint{<:Any, <:CuSparseMatrix{T}},B::CuMatrix{T},alpha::Number,beta::Number)  where {T} = mm_wrapper('C','N',alpha,parent(adjA),B,beta,C)
+
+LinearAlgebra.mul!(C::CuMatrix{T},A::HermOrSym{<:Number, <:CuSparseMatrix},B::CuMatrix,alpha::Number,beta::Number) where {T} = mm_wrapper('N',alpha,A,B,beta,C)
+LinearAlgebra.mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix,alpha::Number,beta::Number) where {T} = mm_wrapper('T',alpha,parent(transA),B,beta,C)
+LinearAlgebra.mul!(C::CuMatrix{T},adjA::Adjoint{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix,alpha::Number,beta::Number) where {T} = mm_wrapper('C',alpha,parent(adjA),B,beta,C)
+
+Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('N',A,B,'O')
 Base.:(\)(transA::Transpose{T, UpperTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('T',parent(transA),B,'O')
 Base.:(\)(transA::Transpose{T, LowerTriangular{T, S}}, B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('T',parent(transA),B,'O')
 Base.:(\)(adjA::Adjoint{T, UpperTriangular{T, S}},B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('C',parent(adjA),B,'O')
 Base.:(\)(adjA::Adjoint{T, LowerTriangular{T, S}},B::CuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('C',parent(adjA),B,'O')
-
-LinearAlgebra.mul!(C::CuVector{T},A::CuSparseMatrix,B::CuVector) where {T} = mv!('N',one(T),A,B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuVector{T},transA::Transpose{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('T',one(T),parent(transA),B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuVector{T},adjA::Adjoint{<:Any,<:CuSparseMatrix},B::CuVector) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuVector{T},A::HermOrSym{T,<:CuSparseMatrix{T}},B::CuVector{T}) where T = mv!('N',one(T),A,B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuVector{T},transA::Transpose{<:Any, <:HermOrSym{T,<:CuSparseMatrix{T}}},B::CuVector{T}) where {T} = mv!('T',one(T),parent(transA),B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuVector{T},adjA::Adjoint{<:Any, <:HermOrSym{T,<:CuSparseMatrix{T}}},B::CuVector{T}) where {T} = mv!('C',one(T),parent(adjA),B,zero(T),C,'O')
-
-LinearAlgebra.mul!(C::CuMatrix{T},A::CuSparseMatrix{T},B::CuMatrix{T}) where {T} = mm2!('N','N',one(T),A,B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuMatrix{T},A::CuSparseMatrix{T},transB::Transpose{<:Any, <:CuMatrix{T}})  where {T} = mm2!('N','T',one(T),A,parent(transB),zero(T),C,'O')
-LinearAlgebra.mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:CuSparseMatrix{T}},B::CuMatrix{T})  where {T} = mm2!('T','N',one(T),parent(transA),B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:CuSparseMatrix{T}},transB::Transpose{<:Any, <:CuMatrix{T}}) where {T} = mm2!('T','T',one(T),parent(transA),parent(transB),zero(T),C,'O')
-LinearAlgebra.mul!(C::CuMatrix{T},adjA::Adjoint{<:Any, <:CuSparseMatrix{T}},B::CuMatrix{T})  where {T} = mm2!('C','N',one(T),parent(adjA),B,zero(T),C,'O')
-
-LinearAlgebra.mul!(C::CuMatrix{T},A::HermOrSym{<:Number, <:CuSparseMatrix},B::CuMatrix) where {T} = mm!('N',one(T),A,B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) where {T} = mm!('T',one(T),parent(transA),B,zero(T),C,'O')
-LinearAlgebra.mul!(C::CuMatrix{T},adjA::Adjoint{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::CuMatrix) where {T} = mm!('C',one(T),parent(adjA),B,zero(T),C,'O')
 
 Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::CuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}}       = sv2('N',A,B,'O')
 Base.:(\)(transA::Transpose{T, UpperTriangular{T, S}},B::CuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sv2('T',parent(transA),B,'O')

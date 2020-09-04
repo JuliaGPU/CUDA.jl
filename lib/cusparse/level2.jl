@@ -19,10 +19,10 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseZbsrmv, :ComplexF64))
     @eval begin
         function mv!(transa::SparseChar,
-                     alpha::$elty,
+                     alpha::Number,
                      A::CuSparseMatrixBSR{$elty},
                      X::CuVector{$elty},
-                     beta::$elty,
+                     beta::Number,
                      Y::CuVector{$elty},
                      index::SparseChar)
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
@@ -36,8 +36,8 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                 chkmvdims(X,m,Y,n)
             end
             $fname(handle(), A.dir, transa, mb, nb,
-                   A.nnz, [alpha], desc, A.nzVal, A.rowPtr,
-                   A.colVal, A.blockDim, X, [beta], Y)
+                   A.nnz, $elty[alpha], desc, A.nzVal, A.rowPtr,
+                   A.colVal, A.blockDim, X, $elty[beta], Y)
             Y
         end
     end

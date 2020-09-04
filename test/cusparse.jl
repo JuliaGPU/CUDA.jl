@@ -637,97 +637,65 @@ end
     end
 end
 
-@testset "bsrmm2" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,k))
-        B = rand(elty,k,n)
-        C = rand(elty,m,n)
-        alpha = rand(elty)
-        beta = rand(elty)
-        d_B = CuArray(B)
-        d_C = CuArray(C)
-        d_A = CuSparseMatrixCSR(A)
-        d_A = CUSPARSE.switch2bsr(d_A,convert(Cint,blockdim))
-        @test_throws DimensionMismatch CUSPARSE.mm2('N','T',alpha,d_A,d_B,beta,d_C,'O')
-        @test_throws DimensionMismatch CUSPARSE.mm2('T','N',alpha,d_A,d_B,beta,d_C,'O')
-        @test_throws DimensionMismatch CUSPARSE.mm2('T','T',alpha,d_A,d_B,beta,d_C,'O')
-        @test_throws DimensionMismatch CUSPARSE.mm2('N','N',alpha,d_A,d_B,beta,d_B,'O')
-        d_D = CUSPARSE.mm2('N','N',alpha,d_A,d_B,beta,d_C,'O')
-        h_D = collect(d_D)
-        D = alpha * A * B + beta * C
-        @test D ≈ h_D
-        d_D = CUSPARSE.mm2('N','N',d_A,d_B,beta,d_C,'O')
-        h_D = collect(d_D)
-        D = A * B + beta * C
-        @test D ≈ h_D
-        d_D = CUSPARSE.mm2('N','N',d_A,d_B,d_C,'O')
-        h_D = collect(d_D)
-        D = A * B + C
-        @test D ≈ h_D
-        d_D = CUSPARSE.mm2('N','N',alpha,d_A,d_B,'O')
-        h_D = collect(d_D)
-        D = alpha * A * B
-        @test D ≈ h_D
-        d_D = CUSPARSE.mm2('N','N',d_A,d_B,'O')
-        h_D = collect(d_D)
-        D = A * B
-        @test D ≈ h_D
-    end
-end
-@testset "bsrmm2!" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        A = sparse(rand(elty,m,k))
-        B = rand(elty,k,n)
-        C = rand(elty,m,n)
-        alpha = rand(elty)
-        beta = rand(elty)
-        d_B = CuArray(B)
-        d_C = CuArray(C)
-        d_A = CuSparseMatrixCSR(A)
-        d_A = CUSPARSE.switch2bsr(d_A,convert(Cint,blockdim))
-        @test_throws DimensionMismatch CUSPARSE.mm2!('N','T',alpha,d_A,d_B,beta,d_C,'O')
-        @test_throws DimensionMismatch CUSPARSE.mm2!('T','N',alpha,d_A,d_B,beta,d_C,'O')
-        @test_throws DimensionMismatch CUSPARSE.mm2!('T','T',alpha,d_A,d_B,beta,d_C,'O')
-        @test_throws DimensionMismatch CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_B,'O')
-        CUSPARSE.mm2!('N','N',alpha,d_A,d_B,beta,d_C,'O')
-        h_D = collect(d_C)
-        D = alpha * A * B + beta * C
-        @test D ≈ h_D
-        d_C = CuArray(C)
-        mul!(d_C, d_A, d_B)
-        h_C = collect(d_C)
-        D = A * B
-        @test D ≈ h_C
-    end
-end
 @testset "mv!" begin
-    for elty in [Float32,Float64,ComplexF32,ComplexF64]
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         A = sparse(rand(elty,m,n))
         x = rand(elty,n)
         y = rand(elty,m)
         alpha = rand(elty)
         beta = rand(elty)
-        @testset "mv!" begin
-            @testset "$mattype" for (mattype, d_A) in [
-                ("csr", CuSparseMatrixCSR(A)),
-                ("bsr", CUSPARSE.switch2bsr(CuSparseMatrixCSR(A),convert(Cint,blockdim)))
-            ]
-                d_x = CuArray(x)
-                d_y = CuArray(y)
-                @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
-                @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
-                CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
-                h_z = collect(d_y)
-                z = alpha * A * x + beta * y
-                @test z ≈ h_z
-                mul!(d_y, d_A, d_x)
-                h_y = collect(d_y)
-                z = A * x
-                @test z ≈ h_y
-                if mattype=="csr"
-                    @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
-                end
+        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
+                                              CuSparseMatrixCSC(A),
+                                              CuSparseMatrixBSR(A; blockdim=blockdim)]
+            d_x = CuArray(x)
+            d_y = CuArray(y)
+            @test_throws DimensionMismatch CUSPARSE.mv!('T',alpha,d_A,d_x,beta,d_y,'O')
+            @test_throws DimensionMismatch CUSPARSE.mv!('N',alpha,d_A,d_y,beta,d_x,'O')
+            CUSPARSE.mv!('N',alpha,d_A,d_x,beta,d_y,'O')
+            h_z = collect(d_y)
+            z = alpha * A * x + beta * y
+            @test z ≈ h_z
+            mul!(d_y, d_A, d_x)
+            h_y = collect(d_y)
+            z = A * x
+            @test z ≈ h_y
+            if d_A isa CuSparseMatrixCSR
+                @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
             end
+        end
+    end
+end
+
+@testset "mm!" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,k))
+        B = rand(elty,k,n)
+        C = rand(elty,m,n)
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "$(typeof(d_A))" for d_A in [CuSparseMatrixCSR(A),
+                                              CuSparseMatrixCSC(A),
+                                              CuSparseMatrixBSR(A; blockdim=blockdim)]
+            d_B = CuArray(B)
+            d_C = CuArray(C)
+            mm! = if CUSPARSE.version() < v"10.3.1" && d_A isa CuSparseMatrixCSR
+                CUSPARSE.mm2!
+            else
+                CUSPARSE.mm!
+            end
+            @test_throws DimensionMismatch mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
+            @test_throws DimensionMismatch mm!('T','N',alpha,d_A,d_B,beta,d_C,'O')
+            @test_throws DimensionMismatch mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+            @test_throws DimensionMismatch mm!('N','N',alpha,d_A,d_B,beta,d_B,'O')
+            mm!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+            h_D = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_D
+            d_C = CuArray(C)
+            mul!(d_C, d_A, d_B)
+            h_C = collect(d_C)
+            D = A * B
+            @test D ≈ h_C
         end
     end
 end

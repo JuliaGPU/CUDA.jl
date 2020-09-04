@@ -69,39 +69,94 @@ end
 Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
 
 
-## SpMV
+## API functions
 
-function mv!(
-    transa::SparseChar,
-    alpha::T,
-    A::CuSparseMatrixCSR{T},
-    X::CuVector{T},
-    beta::T,
-    Y::CuVector{T},
-    index::SparseChar
-) where {T}
-
+function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}}, X::CuVector{T},
+             beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
     m,n = size(A)
 
     if transa == 'N'
         chkmvdims(X,n,Y,m)
-    end
-    if transa == 'T' || transa == 'C'
+    elseif transa == 'T' || transa == 'C'
         chkmvdims(X,m,Y,n)
     end
 
-    cusparseSpMV(
-        handle(),
-        transa,
-        [alpha],
-        CuSparseMatrixDescriptor(A),
-        CuDenseVectorDescriptor(X),
-        [beta],
-        CuDenseVectorDescriptor(Y),
-        T,
-        CUSPARSE_MV_ALG_DEFAULT,
-        CU_NULL
-    )
+    cusparseSpMV(handle(), transa, T[alpha], CuSparseMatrixDescriptor(A),
+                 CuDenseVectorDescriptor(X), T[beta], CuDenseVectorDescriptor(Y), T,
+                 CUSPARSE_MV_ALG_DEFAULT, CU_NULL)
 
     Y
+end
+
+function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::CuVector{T},
+             beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
+    ctransa = 'N'
+    if transa == 'N'
+        ctransa = 'T'
+    end
+    # TODO: conjugate transpose?
+
+    n,m = size(A)
+
+    if ctransa == 'N'
+        chkmvdims(X,n,Y,m)
+    elseif ctransa == 'T' || ctransa == 'C'
+        chkmvdims(X,m,Y,n)
+    end
+
+    cusparseSpMV(handle(), ctransa, T[alpha], CuSparseMatrixDescriptor(A),
+                 CuDenseVectorDescriptor(X), T[beta], CuDenseVectorDescriptor(Y), T,
+                 CUSPARSE_MV_ALG_DEFAULT, CU_NULL)
+
+    Y
+end
+
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
+             B::CuMatrix{T}, beta::Number, C::CuMatrix{T}, index::SparseChar) where {T}
+    m,k = size(A)
+    n = size(C)[2]
+
+    if transa == 'N' && transb == 'N'
+        chkmmdims(B,C,k,n,m,n)
+    elseif transa == 'N' && transb != 'N'
+        chkmmdims(B,C,n,k,m,n)
+    elseif transa != 'N' && transb == 'N'
+        chkmmdims(B,C,m,n,k,n)
+    elseif transa != 'N' && transb != 'N'
+        chkmmdims(B,C,n,m,k,n)
+    end
+
+    cusparseSpMM(handle(), transa, transb, T[alpha], CuSparseMatrixDescriptor(A),
+                 CuDenseMatrixDescriptor(B), T[beta], CuDenseMatrixDescriptor(C), T,
+                 CUSPARSE_MM_ALG_DEFAULT, CU_NULL)
+
+    C
+end
+
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
+             B::CuMatrix{T}, beta::Number, C::CuMatrix{T}, index::SparseChar) where {T}
+    ctransa = 'N'
+    if transa == 'N'
+        ctransa = 'T'
+    end
+    # TODO: conjugate transpose?
+
+    k,m = size(A)
+    n = size(C)[2]
+
+    if ctransa == 'N' && transb == 'N'
+        chkmmdims(B,C,k,n,m,n)
+    elseif ctransa == 'N' && transb != 'N'
+        chkmmdims(B,C,n,k,m,n)
+    elseif ctransa != 'N' && transb == 'N'
+        chkmmdims(B,C,m,n,k,n)
+    elseif ctransa != 'N' && transb != 'N'
+        chkmmdims(B,C,n,m,k,n)
+    end
+
+    cusparseSpMM(handle(), ctransa, transb, T[alpha], CuSparseMatrixDescriptor(A),
+                 CuDenseMatrixDescriptor(B), T[beta], CuDenseMatrixDescriptor(C), T,
+                 CUSPARSE_MM_ALG_DEFAULT, CU_NULL)
+
+    C
 end
