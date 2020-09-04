@@ -301,6 +301,11 @@ Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs
 Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseVector) where {T} = CuSparseVector{T}(xs)
 Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseMatrixCSC) where {T} = CuSparseMatrixCSC{T}(xs)
 
+Adapt.adapt_storage(::CUDA.Float32Adaptor, xs::AbstractSparseArray) =
+  adapt(CuArray, xs)
+Adapt.adapt_storage(::CUDA.Float32Adaptor, xs::AbstractSparseArray{<:AbstractFloat}) =
+  adapt(CuArray{Float32}, xs)
+
 Adapt.adapt_storage(::Type{Array}, xs::CuSparseVector) = SparseVector(xs)
 Adapt.adapt_storage(::Type{Array}, xs::CuSparseMatrixCSC) = SparseMatrixCSC(xs)
 
