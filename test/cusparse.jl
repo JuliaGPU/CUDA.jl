@@ -154,7 +154,6 @@ end
         @testset "Dense(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
-            d_x = Array(d_x)
             h_x = collect(d_x)
             @test h_x ≈ Array(x)
         end
@@ -162,7 +161,6 @@ end
         @testset "Dense(CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
-            d_x = Array(d_x)
             h_x = collect(d_x)
             @test h_x ≈ Array(x)
         end
