@@ -261,14 +261,14 @@ CuSparseMatrixCSC{T}(Vec::SparseVector) where {T} =
 CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =
     CuSparseMatrixCSC{T}(CuVector{Cint}(Mat.colptr), CuVector{Cint}(Mat.rowval),
                          CuVector{T}(Mat.nzval), size(Mat))
-CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = switch2csr(CuSparseMatrixCSC{T}(Mat))
-CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC; blockdim) where {T} = switch2bsr(CuSparseMatrixCSC{T}(Mat), blockdim)
+CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCSR(CuSparseMatrixCSC{T}(Mat))
+CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = CuSparseMatrixBSR(CuSparseMatrixCSR{T}(Mat), blockdim)
 
 # untyped variants
 CuSparseVector(x::AbstractSparseArray{T}) where {T} = CuSparseVector{T}(x)
 CuSparseMatrixCSC(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSC{T}(x)
 CuSparseMatrixCSR(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSR{T}(x)
-CuSparseMatrixBSR(x::AbstractSparseArray{T}; blockdim) where {T} = CuSparseMatrixBSR{T}(x; blockdim)
+CuSparseMatrixBSR(x::AbstractSparseArray{T}, blockdim) where {T} = CuSparseMatrixBSR{T}(x, blockdim)
 
 # gpu to cpu
 SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(x.iPtr), Array(x.nzVal))
@@ -304,7 +304,7 @@ Adapt.adapt_storage(::Type{Array}, xs::CuSparseMatrixCSC) = SparseMatrixCSC(xs)
 
 ## interop between sparse GPU arrays
 
-CuSparseMatrixCSR{T}(Mat::CuSparseMatrixBSR) where {T} = switch2csr(Mat, 'O')
+CuSparseMatrixCSR{T}(Mat::CuSparseMatrixBSR) where {T} = CuSparseMatrixCSR(Mat, 'O')
 
 function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
     if dst.dims != src.dims

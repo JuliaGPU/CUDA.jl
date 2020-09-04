@@ -1,13 +1,11 @@
 # conversion routines between different sparse and dense storage formats
 
-export switch2csr, switch2csc, switch2bsr
-
 for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                      (:cusparseDcsr2csc, :Float64),
                      (:cusparseCcsr2csc, :ComplexF32),
                      (:cusparseZcsr2csc, :ComplexF64))
     @eval begin
-        function switch2csc(csr::CuSparseMatrixCSR{$elty},inda::SparseChar='O')
+        function CuSparseMatrixCSC{$elty}(csr::CuSparseMatrixCSR{$elty}; inda::SparseChar='O')
             m,n = csr.dims
             colPtr = CUDA.zeros(Cint, n+1)
             rowVal = CUDA.zeros(Cint, csr.nnz)
@@ -30,10 +28,9 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                     csr.rowPtr, csr.colVal, nzVal, rowVal,
                     colPtr, CUSPARSE_ACTION_NUMERIC, inda)
             end
-            csc = CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.dims)
-            csc
+            CuSparseMatrixCSC(colPtr,rowVal,nzVal,csr.dims)
         end
-        function switch2csr(csc::CuSparseMatrixCSC{$elty},inda::SparseChar='O')
+        function CuSparseMatrixCSR{$elty}(csc::CuSparseMatrixCSC{$elty}; inda::SparseChar='O')
             m,n    = csc.dims
             rowPtr = CUDA.zeros(Cint,m+1)
             colVal = CUDA.zeros(Cint,csc.nnz)
@@ -56,8 +53,7 @@ for (fname,elty) in ((:cusparseScsr2csc, :Float32),
                     csc.colPtr, csc.rowVal, nzVal, colVal,
                     rowPtr, CUSPARSE_ACTION_NUMERIC, inda)
             end
-            csr = CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.dims)
-            csr
+            CuSparseMatrixCSR(rowPtr,colVal,nzVal,csc.dims)
         end
     end
 end
@@ -67,11 +63,9 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                      (:cusparseCcsr2bsr, :ComplexF32),
                      (:cusparseZcsr2bsr, :ComplexF64))
     @eval begin
-        function switch2bsr(csr::CuSparseMatrixCSR{$elty},
-                            blockDim::Integer,
-                            dir::SparseChar='R',
-                            inda::SparseChar='O',
-                            indc::SparseChar='O')
+        function CuSparseMatrixBSR{$elty}(csr::CuSparseMatrixCSR{$elty}, blockDim::Integer;
+                                          dir::SparseChar='R', inda::SparseChar='O',
+                                          indc::SparseChar='O')
             m,n = csr.dims
             nnz = Ref{Cint}(1)
             mb = div((m + blockDim - 1),blockDim)
@@ -89,13 +83,10 @@ for (fname,elty) in ((:cusparseScsr2bsr, :Float32),
                    bsrColInd)
             CuSparseMatrixBSR{$elty}(bsrRowPtr, bsrColInd, bsrNzVal, csr.dims, blockDim, dir, nnz[])
         end
-        function switch2bsr(csc::CuSparseMatrixCSC{$elty},
-                            blockDim::Integer,
-                            dir::SparseChar='R',
-                            inda::SparseChar='O',
-                            indc::SparseChar='O')
-                switch2bsr(switch2csr(csc),blockDim,dir,inda,indc)
-        end
+
+        # XXX: do we want this constructor? It's expensive...
+        CuSparseMatrixBSR{$elty}(csc::CuSparseMatrixCSC{$elty}, blockDim; kwargs...) =
+            CuSparseMatrixBSR{$elty}(CuSparseMatrixCSR{$elty}(csc), blockDim; kwargs...)
     end
 end
 
@@ -104,9 +95,8 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                      (:cusparseCbsr2csr, :ComplexF32),
                      (:cusparseZbsr2csr, :ComplexF64))
     @eval begin
-        function switch2csr(bsr::CuSparseMatrixBSR{$elty},
-                            inda::SparseChar='O',
-                            indc::SparseChar='O')
+        function CuSparseMatrixCSR{$elty}(bsr::CuSparseMatrixBSR{$elty};
+                                          inda::SparseChar='O', indc::SparseChar='O')
             m,n = bsr.dims
             mb = div(m,bsr.blockDim)
             nb = div(n,bsr.blockDim)
@@ -121,11 +111,6 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
                    bsr.blockDim, cudescc, csrNzVal, csrRowPtr,
                    csrColInd)
             CuSparseMatrixCSR(csrRowPtr, csrColInd, csrNzVal, bsr.dims)
-        end
-        function switch2csc(bsr::CuSparseMatrixBSR{$elty},
-                            inda::SparseChar='O',
-                            indc::SparseChar='O')
-            switch2csc(switch2csr(bsr,inda,indc))
         end
     end
 end
@@ -190,31 +175,8 @@ for (nname,cname,rname,elty) in ((:cusparseSnnz, :cusparseSdense2csc, :cusparseS
                 return CuSparseMatrixCSC(colPtr,rowInd,nzVal,size(A))
             end
             if(fmt == 'B')
-                return switch2bsr(sparse(A,'R',ind),convert(Cint,gcd(m,n)))
+                return CuSparseMatrixBSR(sparse(A,'R',ind),convert(Cint,gcd(m,n)))
             end
         end
     end
 end
-
-"""
-    switch2csr(csr::CuSparseMatrixCSR, inda::SparseChar='O')
-
-Convert a `CuSparseMatrixCSR` to the compressed sparse column format.
-"""
-switch2csc(csr::CuSparseMatrixCSR, inda::SparseChar='O')
-
-"""
-    switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O')
-
-Convert a `CuSparseMatrixCSC` to the compressed sparse row format.
-"""
-switch2csr(csc::CuSparseMatrixCSC, inda::SparseChar='O')
-
-"""
-    switch2bsr(csr::CuSparseMatrixCSR, blockDim::Integer, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
-
-Convert a `CuSparseMatrixCSR` to the compressed block sparse row format. `blockDim` sets the
-block dimension of the compressed sparse blocks and `indc` determines whether the new matrix
-will be one- or zero-indexed.
-"""
-switch2bsr(csr::CuSparseMatrixCSR, blockDim::Integer, dir::SparseChar='R', inda::SparseChar='O', indc::SparseChar='O')
