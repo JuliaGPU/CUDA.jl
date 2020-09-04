@@ -5,10 +5,10 @@
 mutable struct CuDenseVectorDescriptor
     handle::cusparseDnVecDescr_t
 
-    function CuDenseVectorDescriptor(v::CuVector{T}) where {T}
-        vec_ref = Ref{cusparseDnVecDescr_t}()
-        cusparseCreateDnVec(vec_ref, length(v), v, T)
-        obj = new(vec_ref[])
+    function CuDenseVectorDescriptor(x::CuVector)
+        desc_ref = Ref{cusparseDnVecDescr_t}()
+        cusparseCreateDnVec(desc_ref, length(x), x, eltype(x))
+        obj = new(desc_ref[])
         finalizer(cusparseDestroyDnVec, obj)
         obj
     end
@@ -17,23 +17,53 @@ end
 Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, desc::CuDenseVectorDescriptor) = desc.handle
 
 
+## dense matrix descriptor
+
+mutable struct CuDenseMatrixDescriptor
+    handle::cusparseDnMatDescr_t
+
+    function CuDenseMatrixDescriptor(x::CuMatrix)
+        desc_ref = Ref{cusparseDnMatDescr_t}()
+        cusparseCreateDnMat(desc_ref, size(x)..., stride(x,2), x, eltype(x), CUSPARSE_ORDER_COL)
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroyDnMat, obj)
+        obj
+    end
+end
+
+Base.unsafe_convert(::Type{cusparseDnMatDescr_t}, desc::CuDenseMatrixDescriptor) = desc.handle
+
+
 ## sparse matrix descriptor
 
 mutable struct CuSparseMatrixDescriptor
     handle::cusparseSpMatDescr_t
-end
 
-function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR{T}) where {T}
-    desc_ref = Ref{cusparseSpMatDescr_t}()
-    cusparseCreateCsr(
-        desc_ref,
-        A.dims..., length(A.nzVal),
-        A.rowPtr, A.colVal, A.nzVal,
-        eltype(A.rowPtr), eltype(A.colVal), 'O', eltype(A.nzVal)
-    )
-    obj = CuSparseMatrixDescriptor(desc_ref[])
-    finalizer(cusparseDestroySpMat, obj)
-    return obj
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSR)
+        desc_ref = Ref{cusparseSpMatDescr_t}()
+        cusparseCreateCsr(
+            desc_ref,
+            A.dims..., length(A.nzVal),
+            A.rowPtr, A.colVal, A.nzVal,
+            eltype(A.rowPtr), eltype(A.colVal), 'O', eltype(A.nzVal)
+        )
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroySpMat, obj)
+        return obj
+    end
+
+    function CuSparseMatrixDescriptor(A::CuSparseMatrixCSC)
+        desc_ref = Ref{cusparseSpMatDescr_t}()
+        cusparseCreateCsr(
+            desc_ref,
+            reverse(A.dims)..., length(A.nzVal),
+            A.colPtr, A.rowVal, A.nzVal,
+            eltype(A.colPtr), eltype(A.rowVal), 'O', eltype(A.nzVal)
+        )
+        obj = new(desc_ref[])
+        finalizer(cusparseDestroySpMat, obj)
+        return obj
+    end
 end
 
 Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor) = desc.handle
