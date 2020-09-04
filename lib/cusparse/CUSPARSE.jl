@@ -9,6 +9,7 @@ using ..CUDA: libcusparse, unsafe_free!, @retry_reclaim
 using CEnum
 
 using LinearAlgebra
+using LinearAlgebra: HermOrSym
 
 using SparseArrays
 
