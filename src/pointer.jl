@@ -220,18 +220,30 @@ Base.cconvert(::Type{CuRef{P}}, a::Array{<:CuPtr}) where {P<:CuPtr} = a
 
 ## RefOrCuRef
 
-const RefOrCuRef{T} = Union{Ref{T}, CuRef{T}}
-Base.convert(::Type{RefOrCuRef{T}}, x::Union{RefOrCuRef{T}}) where {T} = x
+# NOTE: Ref in ccall signatures is special-cased by codegen (see jl_is_abstract_ref_type),
+#       emitting a pointer instead of a jl_value_t*. We can't mimick that from user code, so
+#       use a single-element struct that will result in the same generated code.
+struct RefOrCuRef{T} <: Ref{T}
+    ptr::Ptr{T}
+    RefOrCuRef{T}(ptr::Ptr{T}) where {T} = new(ptr)
+    RefOrCuRef{T}(ptr::CuPtr{T}) where {T} = new(reinterpret(Ptr{T}, ptr))
+end
+
+Base.convert(::Type{RefOrCuRef{T}}, x::Union{Ref{T}, CuRef{T}}) where {T} = x
 
 # prefer conversion to CPU ref: this is generally cheaper
-Base.convert(::Type{RefOrCuRef{T}}, x) where {T} = Ref(x)
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::Ref{T}) where {T} = Base.unsafe_convert(Ptr{T}, x)
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x) where {T} = Base.unsafe_convert(Ptr{T}, x)
+Base.convert(::Type{RefOrCuRef{T}}, x) where {T} = Ref{T}(x)
+Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::Ref{T}) where {T} =
+    RefOrCuRef{T}(Base.unsafe_convert(Ptr{T}, x))
+Base.unsafe_convert(::Type{RefOrCuRef{T}}, x) where {T} =
+    RefOrCuRef{T}(Base.unsafe_convert(Ptr{T}, x))
 
 # support conversion from GPU ref
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRef{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
+Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRef{T}) where {T} =
+    RefOrCuRef{T}(Base.unsafe_convert(CuPtr{T}, x))
 
 # support conversion from arrays
 Base.convert(::Type{RefOrCuRef{T}}, x::Array{T}) where {T} = convert(Ref{T}, x)
 Base.convert(::Type{RefOrCuRef{T}}, x::AbstractGPUArray{T}) where {T} = convert(CuRef{T}, x)
-Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CUDA.CuRefArray{T}) where T = Base.unsafe_convert(CuRef{T}, b)
+Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CUDA.CuRefArray{T}) where T =
+    RefOrCuRef{T}(Base.unsafe_convert(CuRef{T}, b))
