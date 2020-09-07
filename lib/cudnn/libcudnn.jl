@@ -2008,8 +2008,8 @@ end
                                                  reserveSpaceSizeInBytes, reserveSpace)
     initialize_api()
     @runtime_ccall((:cudnnMultiHeadAttnBackwardData, libcudnn()), cudnnStatus_t,
-                   (cudnnHandle_t, cudnnAttnDescriptor_t, Ptr{Cint}, Ptr{Cint}, CuPtr{Cint},
-                    CuPtr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
+                   (cudnnHandle_t, cudnnAttnDescriptor_t, Ptr{Cint}, Ptr{Cint},
+                    CuPtr{Cint}, CuPtr{Cint}, cudnnSeqDataDescriptor_t, CuPtr{Cvoid},
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid},
                     cudnnSeqDataDescriptor_t, CuPtr{Cvoid}, CuPtr{Cvoid}, Csize_t,
