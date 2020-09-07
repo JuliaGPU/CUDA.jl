@@ -36,8 +36,8 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                 chkmvdims(X,m,Y,n)
             end
             $fname(handle(), A.dir, transa, mb, nb,
-                   nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
-                   A.colVal, A.blockDim, X, Ref{$elty}(beta), Y)
+                   nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
+                   A.colVal, A.blockDim, X, beta, Y)
             Y
         end
     end
@@ -89,7 +89,7 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), A.dir, transa, mb, nnz(A),
-                           Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr, A.colVal,
+                           alpha, desc, nonzeros(A), A.rowPtr, A.colVal,
                            A.blockDim, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -177,7 +177,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), transa, m,
-                           nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.rowPtr,
+                           nnz(A), alpha, desc, nonzeros(A), A.rowPtr,
                            A.colVal, info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
@@ -232,7 +232,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                         error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
                     end
                     $sname(handle(), ctransa, m,
-                           nnz(A), Ref{$elty}(alpha), desc, nonzeros(A), A.colPtr,
+                           nnz(A), alpha, desc, nonzeros(A), A.colPtr,
                            rowvals(A), info[1], X, X,
                            CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
                 end
