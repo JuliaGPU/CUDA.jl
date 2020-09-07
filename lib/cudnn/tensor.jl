@@ -28,6 +28,6 @@ function cudnnAddTensor(A::CuArray{T,N}, C::CuArray{T,N}; alpha=1,
                         beta=1) where {T,N}
     aDesc = TensorDesc(A)
     cDesc = TensorDesc(C)
-    cudnnAddTensor(handle(), Ref(T(alpha)), aDesc, A, Ref(T(beta)), cDesc, C)
+    cudnnAddTensor(handle(), Ref{T}(alpha), aDesc, A, Ref{T}(beta), cDesc, C)
     return C
 end
