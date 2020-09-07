@@ -10,7 +10,7 @@ CublasArray{T<:CublasFloat} = CuArray{T}
 #
 
 LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Number) =
-  scal!(length(x), convert(eltype(x), k), x, 1)
+  scal!(length(x), k, x, 1)
 
 # Work around ambiguity with GPUArrays wrapper
 LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Real) =
@@ -43,12 +43,12 @@ LinearAlgebra.BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
 
 function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where T<:CublasFloat
     length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
-    axpy!(length(x), convert(T,alpha), x, 1, y, 1)
+    axpy!(length(x), alpha, x, 1, y, 1)
 end
 
 function LinearAlgebra.axpby!(alpha::Number, x::CuArray{T}, beta::Number, y::CuArray{T}) where T<:CublasFloat
     length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
-    axpby!(length(x), convert(T,alpha), x, 1, convert(T,beta), y, 1)
+    axpby!(length(x), alpha, x, 1, beta, y, 1)
 end
 
 
