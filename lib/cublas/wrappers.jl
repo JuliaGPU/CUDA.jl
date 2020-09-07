@@ -1057,9 +1057,9 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
     @eval begin
         function herk!(uplo::Char,
                        trans::Char,
-                       alpha::Number,
+                       alpha::Real,
                        A::CuVecOrMat{$elty},
-                       beta::Number,
+                       beta::Real,
                        C::CuMatrix{$elty})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -1071,11 +1071,12 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
             $fname(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
-        function herk(uplo::Char, trans::Char, alpha::Number, A::CuVecOrMat{$elty})
+        function herk(uplo::Char, trans::Char, alpha::Real, A::CuVecOrMat{$elty})
             n = size(A, trans == 'N' ? 1 : 2)
-            herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
+            herk!(uplo, trans, alpha, A, zero(real($elty)), similar(A, $elty, (n,n)))
         end
-        herk(uplo::Char, trans::Char, A::CuVecOrMat{$elty}) = herk(uplo, trans, one($elty), A)
+        herk(uplo::Char, trans::Char, A::CuVecOrMat{$elty}) =
+            herk(uplo, trans, one(real($elty)), A)
    end
 end
 
@@ -1123,16 +1124,16 @@ syr2k(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) =
     syr2k(uplo, trans, one(eltype(A)), A, B)
 
 ## her2k
-for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
-                              (:cublasCher2k_v2,:ComplexF32,:Float32))
+for (fname, elty) in ((:cublasZher2k_v2,:ComplexF64),
+                       (:cublasCher2k_v2,:ComplexF32))
     @eval begin
         function her2k!(uplo::Char,
                         trans::Char,
                         alpha::Number,
-                        A::CuVecOrMat{$elty1},
-                        B::CuVecOrMat{$elty1},
-                        beta::Number,
-                        C::CuMatrix{$elty1})
+                        A::CuVecOrMat{$elty},
+                        B::CuVecOrMat{$elty},
+                        beta::Real,
+                        C::CuMatrix{$elty})
             # TODO: check size of B in julia (her2k!)
             m, n = size(C)
             if m != n throw(DimensionMismatch("C must be square")) end
@@ -1153,15 +1154,15 @@ for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
         function her2k(uplo::Char,
                        trans::Char,
                        alpha::Number,
-                       A::CuVecOrMat{$elty1},
-                       B::CuVecOrMat{$elty1})
+                       A::CuVecOrMat{$elty},
+                       B::CuVecOrMat{$elty})
             n = size(A, trans == 'N' ? 1 : 2)
-            her2k!(uplo, trans, alpha, A, B, zero($elty2), similar(A, $elty1, (n,n)))
+            her2k!(uplo, trans, alpha, A, B, zero(real($elty)), similar(A, $elty, (n,n)))
         end
         her2k(uplo::Char,
               trans::Char,
-              A::CuVecOrMat{$elty1},
-              B::CuVecOrMat{$elty1}) = her2k(uplo, trans, one($elty1), A, B)
+              A::CuVecOrMat{$elty},
+              B::CuVecOrMat{$elty}) = her2k(uplo, trans, one($elty), A, B)
    end
 end
 
@@ -1771,9 +1772,9 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
     @eval begin
         function xt_herk!(uplo::Char,
                        trans::Char,
-                       alpha::Number,
+                       alpha::Real,
                        A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
-                       beta::Number,
+                       beta::Real,
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -1785,25 +1786,25 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
             $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
-        function xt_herk(uplo::Char, trans::Char, alpha::Number, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
+        function xt_herk(uplo::Char, trans::Char, alpha::Real, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
             n = size(A, trans == 'N' ? 1 : 2)
-            xt_herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
+            xt_herk!(uplo, trans, alpha, A, real(zero($elty)), similar(A, $elty, (n,n)))
         end
         xt_herk(uplo::Char, trans::Char, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}}) =
-            xt_herk(uplo, trans, one($elty), A)
+            xt_herk(uplo, trans, real(one($elty)), A)
    end
 end
 
-for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
-                              (:cublasXtCher2k,:ComplexF32,:Float32))
+for (fname, elty) in ((:cublasXtZher2k,:ComplexF64),
+                      (:cublasXtCher2k,:ComplexF32))
     @eval begin
         function xt_her2k!(uplo::Char,
                         trans::Char,
                         alpha::Number,
-                        A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                        B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                        beta::Number,
-                        C::Union{Matrix{$elty1}, CuMatrix{$elty1}})
+                        A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                        B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                        beta::Real,
+                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             # TODO: check size of B in julia (her2k!)
             m, n = size(C)
             if m != n throw(DimensionMismatch("C must be square")) end
@@ -1824,14 +1825,14 @@ for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
         function xt_her2k(uplo::Char,
                        trans::Char,
                        alpha::Number,
-                       A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                       B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}})
+                       A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                       B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
             n = size(A, trans == 'N' ? 1 : 2)
-            xt_her2k!(uplo, trans, alpha, A, B, zero($elty2), similar(A, $elty1, (n,n)))
+            xt_her2k!(uplo, trans, alpha, A, B, zero(real($elty)), similar(A, $elty, (n,n)))
         end
-        xt_her2k(uplo::Char, trans::Char, A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                 B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}}) =
-            xt_her2k(uplo, trans, one($elty1), A, B)
+        xt_her2k(uplo::Char, trans::Char, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                 B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}}) =
+            xt_her2k(uplo, trans, one($elty), A, B)
     end
 end
 
