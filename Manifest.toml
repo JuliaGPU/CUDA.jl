@@ -34,9 +34,9 @@ version = "3.15.0"
 
 [[DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "88a93640bb3345436284ff089b383c34427f4117"
+git-tree-sha1 = "6189e66c78a2d840db5ee530ac2326505b3cc7ae"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.2"
+version = "0.18.4"
 
 [[Dates]]
 deps = ["Printf"]
