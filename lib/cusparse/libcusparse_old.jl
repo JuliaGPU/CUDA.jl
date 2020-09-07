@@ -56,8 +56,8 @@ end
     initialize_api()
     @runtime_ccall((:cusparseScsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
-                    Cint, Cint, Cint, Ptr{Cfloat}, cusparseMatDescr_t, CuPtr{Cfloat},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cfloat}, Cint, Ptr{Cfloat},
+                    Cint, Cint, Cint, Ref{Cfloat}, cusparseMatDescr_t, CuPtr{Cfloat},
+                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cfloat}, Cint, Ref{Cfloat},
                     CuPtr{Cfloat}, Cint),
                    handle, transA, transB, m, n, k, nnz, alpha, descrA, csrSortedValA,
                    csrSortedRowPtrA, csrSortedColIndA, B, ldb, beta, C, ldc)
@@ -69,8 +69,8 @@ end
     initialize_api()
     @runtime_ccall((:cusparseDcsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
-                    Cint, Cint, Cint, Ptr{Cdouble}, cusparseMatDescr_t, CuPtr{Cdouble},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, Ptr{Cdouble},
+                    Cint, Cint, Cint, Ref{Cdouble}, cusparseMatDescr_t, CuPtr{Cdouble},
+                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, Ref{Cdouble},
                     CuPtr{Cdouble}, Cint),
                    handle, transA, transB, m, n, k, nnz, alpha, descrA, csrSortedValA,
                    csrSortedRowPtrA, csrSortedColIndA, B, ldb, beta, C, ldc)
@@ -82,8 +82,8 @@ end
     initialize_api()
     @runtime_ccall((:cusparseCcsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
-                    Cint, Cint, Cint, Ptr{cuComplex}, cusparseMatDescr_t, CuPtr{cuComplex},
-                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{cuComplex}, Cint, Ptr{cuComplex},
+                    Cint, Cint, Cint, Ref{cuComplex}, cusparseMatDescr_t, CuPtr{cuComplex},
+                    CuPtr{Cint}, CuPtr{Cint}, CuPtr{cuComplex}, Cint, Ref{cuComplex},
                     CuPtr{cuComplex}, Cint),
                    handle, transA, transB, m, n, k, nnz, alpha, descrA, csrSortedValA,
                    csrSortedRowPtrA, csrSortedColIndA, B, ldb, beta, C, ldc)
@@ -95,9 +95,9 @@ end
     initialize_api()
     @runtime_ccall((:cusparseZcsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
-                    Cint, Cint, Cint, Ptr{cuDoubleComplex}, cusparseMatDescr_t,
+                    Cint, Cint, Cint, Ref{cuDoubleComplex}, cusparseMatDescr_t,
                     CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint},
-                    CuPtr{cuDoubleComplex}, Cint, Ptr{cuDoubleComplex},
+                    CuPtr{cuDoubleComplex}, Cint, Ref{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, transA, transB, m, n, k, nnz, alpha, descrA, csrSortedValA,
                    csrSortedRowPtrA, csrSortedColIndA, B, ldb, beta, C, ldc)
