@@ -665,7 +665,7 @@ for (fname, elty) in ((:cublasZher_v2,:ComplexF64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), uplo, n, [alpha], x, incx, A, lda)
+            $fname(handle(), uplo, n, real($elty)[alpha], x, incx, A, lda)
             A
         end
     end
@@ -1068,7 +1068,7 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
+            $fname(handle(), uplo, trans, n, k, real($elty)[alpha], A, lda, real($elty)[beta], C, ldc)
             C
         end
         function herk(uplo::Char, trans::Char, alpha::($elty), A::CuVecOrMat{$elty})
@@ -1782,7 +1782,7 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
+            $fname(xt_handle(), uplo, trans, n, k, real($elty)[alpha], A, lda, real($elty)[beta], C, ldc)
             C
         end
         function xt_herk(uplo::Char, trans::Char, alpha::($elty), A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})

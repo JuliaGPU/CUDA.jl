@@ -187,21 +187,21 @@ end
 @checked function cublasSnrm2_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasSnrm2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat}),
+                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasDnrm2_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasDnrm2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble}),
+                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasScnrm2_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasScnrm2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{Cfloat}),
+                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cfloat}),
                    handle, n, x, incx, result)
 end
 
@@ -209,7 +209,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDznrm2_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    PtrOrCuPtr{Cdouble}),
+                    RefOrCuRef{Cdouble}),
                    handle, n, x, incx, result)
 end
 
@@ -237,7 +237,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasSdot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    PtrOrCuPtr{Cfloat}),
+                    RefOrCuRef{Cfloat}),
                    handle, n, x, incx, y, incy, result)
 end
 
@@ -245,7 +245,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDdot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    PtrOrCuPtr{Cdouble}),
+                    RefOrCuRef{Cdouble}),
                    handle, n, x, incx, y, incy, result)
 end
 
@@ -253,7 +253,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCdotu_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{cuComplex}),
+                    RefOrCuRef{cuComplex}),
                    handle, n, x, incx, y, incy, result)
 end
 
@@ -261,7 +261,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCdotc_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{cuComplex}),
+                    RefOrCuRef{cuComplex}),
                    handle, n, x, incx, y, incy, result)
 end
 
@@ -269,7 +269,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasZdotu_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex}),
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex}),
                    handle, n, x, incx, y, incy, result)
 end
 
@@ -277,7 +277,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasZdotc_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex}),
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex}),
                    handle, n, x, incx, y, incy, result)
 end
 
@@ -292,35 +292,35 @@ end
 @checked function cublasSscal_v2(handle, n, alpha, x, incx)
     initialize_api()
     @runtime_ccall((:cublasSscal_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint),
+                   (cublasHandle_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint),
                    handle, n, alpha, x, incx)
 end
 
 @checked function cublasDscal_v2(handle, n, alpha, x, incx)
     initialize_api()
     @runtime_ccall((:cublasDscal_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint),
+                   (cublasHandle_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint),
                    handle, n, alpha, x, incx)
 end
 
 @checked function cublasCscal_v2(handle, n, alpha, x, incx)
     initialize_api()
     @runtime_ccall((:cublasCscal_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                   (cublasHandle_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, n, alpha, x, incx)
 end
 
 @checked function cublasCsscal_v2(handle, n, alpha, x, incx)
     initialize_api()
     @runtime_ccall((:cublasCsscal_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{Cfloat}, CuPtr{cuComplex}, Cint),
+                   (cublasHandle_t, Cint, RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint),
                    handle, n, alpha, x, incx)
 end
 
 @checked function cublasZscal_v2(handle, n, alpha, x, incx)
     initialize_api()
     @runtime_ccall((:cublasZscal_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, n, alpha, x, incx)
 end
@@ -328,7 +328,7 @@ end
 @checked function cublasZdscal_v2(handle, n, alpha, x, incx)
     initialize_api()
     @runtime_ccall((:cublasZdscal_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{Cdouble}, CuPtr{cuDoubleComplex},
+                   (cublasHandle_t, Cint, RefOrCuRef{Cdouble}, CuPtr{cuDoubleComplex},
                     Cint),
                    handle, n, alpha, x, incx)
 end
@@ -346,7 +346,7 @@ end
 @checked function cublasSaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_api()
     @runtime_ccall((:cublasSaxpy_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
+                   (cublasHandle_t, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
                     CuPtr{Cfloat}, Cint),
                    handle, n, alpha, x, incx, y, incy)
 end
@@ -354,7 +354,7 @@ end
 @checked function cublasDaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_api()
     @runtime_ccall((:cublasDaxpy_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
+                   (cublasHandle_t, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint,
                     CuPtr{Cdouble}, Cint),
                    handle, n, alpha, x, incx, y, incy)
 end
@@ -362,7 +362,7 @@ end
 @checked function cublasCaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_api()
     @runtime_ccall((:cublasCaxpy_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint,
+                   (cublasHandle_t, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint,
                     CuPtr{cuComplex}, Cint),
                    handle, n, alpha, x, incx, y, incy)
 end
@@ -370,7 +370,7 @@ end
 @checked function cublasZaxpy_v2(handle, n, alpha, x, incx, y, incy)
     initialize_api()
     @runtime_ccall((:cublasZaxpy_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint),
                    handle, n, alpha, x, incx, y, incy)
 end
@@ -452,28 +452,28 @@ end
 @checked function cublasIsamax_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIsamax_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasIdamax_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIdamax_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasIcamax_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIcamax_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasIzamax_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIzamax_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
@@ -481,35 +481,35 @@ end
     initialize_api()
     @runtime_ccall((:cublasIamaxEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint,
-                    PtrOrCuPtr{Cint}),
+                    RefOrCuRef{Cint}),
                    handle, n, x, xType, incx, result)
 end
 
 @checked function cublasIsamin_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIsamin_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasIdamin_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIdamin_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasIcamin_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIcamin_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasIzamin_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasIzamin_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{Cint}),
+                   (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cint}),
                    handle, n, x, incx, result)
 end
 
@@ -517,7 +517,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasIaminEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{Cvoid}, cudaDataType, Cint,
-                    PtrOrCuPtr{Cint}),
+                    RefOrCuRef{Cint}),
                    handle, n, x, xType, incx, result)
 end
 
@@ -532,21 +532,21 @@ end
 @checked function cublasSasum_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasSasum_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat}),
+                   (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasDasum_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasDasum_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble}),
+                   (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble}),
                    handle, n, x, incx, result)
 end
 
 @checked function cublasScasum_v2(handle, n, x, incx, result)
     initialize_api()
     @runtime_ccall((:cublasScasum_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{Cfloat}),
+                   (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{Cfloat}),
                    handle, n, x, incx, result)
 end
 
@@ -554,7 +554,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDzasum_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    PtrOrCuPtr{Cdouble}),
+                    RefOrCuRef{Cdouble}),
                    handle, n, x, incx, result)
 end
 
@@ -562,7 +562,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasSrot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}),
+                    RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}),
                    handle, n, x, incx, y, incy, c, s)
 end
 
@@ -570,7 +570,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDrot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}),
+                    RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble}),
                    handle, n, x, incx, y, incy, c, s)
 end
 
@@ -578,7 +578,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCrot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{cuComplex}),
+                    RefOrCuRef{Cfloat}, RefOrCuRef{cuComplex}),
                    handle, n, x, incx, y, incy, c, s)
 end
 
@@ -586,7 +586,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCsrot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}),
+                    RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}),
                    handle, n, x, incx, y, incy, c, s)
 end
 
@@ -594,8 +594,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZrot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{Cdouble},
-                    PtrOrCuPtr{cuDoubleComplex}),
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble},
+                    RefOrCuRef{cuDoubleComplex}),
                    handle, n, x, incx, y, incy, c, s)
 end
 
@@ -603,7 +603,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasZdrot_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}),
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble}),
                    handle, n, x, incx, y, incy, c, s)
 end
 
@@ -620,15 +620,15 @@ end
 @checked function cublasSrotg_v2(handle, a, b, c, s)
     initialize_api()
     @runtime_ccall((:cublasSrotg_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat},
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}),
+                   (cublasHandle_t, RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat},
+                    RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}),
                    handle, a, b, c, s)
 end
 
 @checked function cublasDrotg_v2(handle, a, b, c, s)
     initialize_api()
     @runtime_ccall((:cublasDrotg_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble},
                     PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}),
                    handle, a, b, c, s)
 end
@@ -636,24 +636,24 @@ end
 @checked function cublasCrotg_v2(handle, a, b, c, s)
     initialize_api()
     @runtime_ccall((:cublasCrotg_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex},
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{cuComplex}),
+                   (cublasHandle_t, RefOrCuRef{cuComplex}, RefOrCuRef{cuComplex},
+                    RefOrCuRef{Cfloat}, RefOrCuRef{cuComplex}),
                    handle, a, b, c, s)
 end
 
 @checked function cublasZrotg_v2(handle, a, b, c, s)
     initialize_api()
     @runtime_ccall((:cublasZrotg_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, PtrOrCuPtr{cuDoubleComplex},
-                    PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{Cdouble},
-                    PtrOrCuPtr{cuDoubleComplex}),
+                   (cublasHandle_t, RefOrCuRef{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, RefOrCuRef{Cdouble},
+                    RefOrCuRef{cuDoubleComplex}),
                    handle, a, b, c, s)
 end
 
 @checked function cublasRotgEx(handle, a, b, abType, c, s, csType, executiontype)
     initialize_api()
     @runtime_ccall((:cublasRotgEx, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, PtrOrCuPtr{Cvoid}, PtrOrCuPtr{Cvoid}, cudaDataType,
+                   (cublasHandle_t, Ptr{Cvoid}, Ptr{Cvoid}, cudaDataType,
                     PtrOrCuPtr{Cvoid}, PtrOrCuPtr{Cvoid}, cudaDataType, cudaDataType),
                    handle, a, b, abType, c, s, csType, executiontype)
 end
@@ -687,16 +687,16 @@ end
 @checked function cublasSrotmg_v2(handle, d1, d2, x1, y1, param)
     initialize_api()
     @runtime_ccall((:cublasSrotmg_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat},
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}),
+                   (cublasHandle_t, RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat},
+                    RefOrCuRef{Cfloat}, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}),
                    handle, d1, d2, x1, y1, param)
 end
 
 @checked function cublasDrotmg_v2(handle, d1, d2, x1, y1, param)
     initialize_api()
     @runtime_ccall((:cublasDrotmg_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble},
-                    PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}),
+                   (cublasHandle_t, RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble},
+                    RefOrCuRef{Cdouble}, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}),
                    handle, d1, d2, x1, y1, param)
 end
 
@@ -714,8 +714,8 @@ end
 @checked function cublasSgemv_v2(handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasSgemv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasOperation_t, Cint, Cint, PtrOrCuPtr{Cfloat},
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasOperation_t, Cint, Cint, RefOrCuRef{Cfloat},
+                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint),
                    handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -723,8 +723,8 @@ end
 @checked function cublasDgemv_v2(handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasDgemv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasOperation_t, Cint, Cint, PtrOrCuPtr{Cdouble},
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasOperation_t, Cint, Cint, RefOrCuRef{Cdouble},
+                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint),
                    handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -732,8 +732,8 @@ end
 @checked function cublasCgemv_v2(handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasCgemv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasOperation_t, Cint, Cint, PtrOrCuPtr{cuComplex},
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasOperation_t, Cint, Cint, RefOrCuRef{cuComplex},
+                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint),
                    handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -742,8 +742,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZgemv_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, trans, m, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -753,8 +753,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSgbmv_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint),
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint),
                    handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
 end
 
@@ -763,8 +763,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasDgbmv_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint),
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint),
                    handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
 end
 
@@ -773,8 +773,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgbmv_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
 end
 
@@ -783,8 +783,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZgbmv_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, Cint, Cint, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -984,8 +984,8 @@ end
 @checked function cublasSsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasSsymv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
+                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint),
                    handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -993,8 +993,8 @@ end
 @checked function cublasDsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasDsymv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
+                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint),
                    handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -1002,8 +1002,8 @@ end
 @checked function cublasCsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasCsymv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuComplex},
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex},
+                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint),
                    handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -1011,17 +1011,17 @@ end
 @checked function cublasZsymv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasZsymv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
 end
 
 @checked function cublasChemv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasChemv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuComplex},
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex},
+                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint),
                    handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -1029,17 +1029,17 @@ end
 @checked function cublasZhemv_v2(handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasZhemv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, alpha, A, lda, x, incx, beta, y, incy)
 end
 
 @checked function cublasSsbmv_v2(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasSsbmv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, Cint, PtrOrCuPtr{Cfloat},
-                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, Cint, RefOrCuRef{Cfloat},
+                    CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint),
                    handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -1047,8 +1047,8 @@ end
 @checked function cublasDsbmv_v2(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasDsbmv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, Cint, PtrOrCuPtr{Cdouble},
-                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, Cint, RefOrCuRef{Cdouble},
+                    CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint),
                    handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -1056,8 +1056,8 @@ end
 @checked function cublasChbmv_v2(handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasChbmv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, Cint, PtrOrCuPtr{cuComplex},
-                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, Cint, RefOrCuRef{cuComplex},
+                    CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint),
                    handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -1066,8 +1066,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZhbmv_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
 end
@@ -1075,8 +1075,8 @@ end
 @checked function cublasSspmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasSspmv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
-                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
+                    CuPtr{Cfloat}, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat},
                     Cint),
                    handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
 end
@@ -1084,8 +1084,8 @@ end
 @checked function cublasDspmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasDspmv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
-                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
+                    CuPtr{Cdouble}, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint),
                    handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
 end
@@ -1093,8 +1093,8 @@ end
 @checked function cublasChpmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasChpmv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuComplex},
-                    CuPtr{cuComplex}, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex},
+                    CuPtr{cuComplex}, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint),
                    handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
 end
@@ -1102,16 +1102,16 @@ end
 @checked function cublasZhpmv_v2(handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
     initialize_api()
     @runtime_ccall((:cublasZhpmv_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, alpha, AP, x, incx, beta, y, incy)
 end
 
 @checked function cublasSger_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasSger_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
+                   (cublasHandle_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
                     CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint),
                    handle, m, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1119,7 +1119,7 @@ end
 @checked function cublasDger_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasDger_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint,
+                   (cublasHandle_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint,
                     CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint),
                    handle, m, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1127,7 +1127,7 @@ end
 @checked function cublasCgeru_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasCgeru_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex},
+                   (cublasHandle_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
                     Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, m, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1135,7 +1135,7 @@ end
 @checked function cublasCgerc_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasCgerc_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex},
+                   (cublasHandle_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
                     Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, m, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1143,7 +1143,7 @@ end
 @checked function cublasZgeru_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasZgeru_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, m, n, alpha, x, incx, y, incy, A, lda)
@@ -1152,7 +1152,7 @@ end
 @checked function cublasZgerc_v2(handle, m, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasZgerc_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Cint, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, m, n, alpha, x, incx, y, incy, A, lda)
@@ -1161,7 +1161,7 @@ end
 @checked function cublasSsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_api()
     @runtime_ccall((:cublasSsyr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint),
                    handle, uplo, n, alpha, x, incx, A, lda)
 end
@@ -1169,7 +1169,7 @@ end
 @checked function cublasDsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_api()
     @runtime_ccall((:cublasDsyr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint),
                    handle, uplo, n, alpha, x, incx, A, lda)
 end
@@ -1177,7 +1177,7 @@ end
 @checked function cublasCsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_api()
     @runtime_ccall((:cublasCsyr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, A, lda)
 end
@@ -1185,7 +1185,7 @@ end
 @checked function cublasZsyr_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_api()
     @runtime_ccall((:cublasZsyr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, A, lda)
 end
@@ -1193,7 +1193,7 @@ end
 @checked function cublasCher_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_api()
     @runtime_ccall((:cublasCher_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
                     CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, A, lda)
 end
@@ -1201,7 +1201,7 @@ end
 @checked function cublasZher_v2(handle, uplo, n, alpha, x, incx, A, lda)
     initialize_api()
     @runtime_ccall((:cublasZher_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, A, lda)
 end
@@ -1209,7 +1209,7 @@ end
 @checked function cublasSspr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_api()
     @runtime_ccall((:cublasSspr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint, CuPtr{Cfloat}),
                    handle, uplo, n, alpha, x, incx, AP)
 end
@@ -1217,7 +1217,7 @@ end
 @checked function cublasDspr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_api()
     @runtime_ccall((:cublasDspr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint, CuPtr{Cdouble}),
                    handle, uplo, n, alpha, x, incx, AP)
 end
@@ -1225,7 +1225,7 @@ end
 @checked function cublasChpr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_api()
     @runtime_ccall((:cublasChpr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
                     CuPtr{cuComplex}, Cint, CuPtr{cuComplex}),
                    handle, uplo, n, alpha, x, incx, AP)
 end
@@ -1233,7 +1233,7 @@ end
 @checked function cublasZhpr_v2(handle, uplo, n, alpha, x, incx, AP)
     initialize_api()
     @runtime_ccall((:cublasZhpr_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}),
                    handle, uplo, n, alpha, x, incx, AP)
 end
@@ -1241,7 +1241,7 @@ end
 @checked function cublasSsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasSsyr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint),
                    handle, uplo, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1249,7 +1249,7 @@ end
 @checked function cublasDsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasDsyr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint),
                    handle, uplo, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1257,7 +1257,7 @@ end
 @checked function cublasCsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasCsyr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1265,7 +1265,7 @@ end
 @checked function cublasZsyr2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasZsyr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, y, incy, A, lda)
@@ -1274,7 +1274,7 @@ end
 @checked function cublasCher2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasCher2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, y, incy, A, lda)
 end
@@ -1282,7 +1282,7 @@ end
 @checked function cublasZher2_v2(handle, uplo, n, alpha, x, incx, y, incy, A, lda)
     initialize_api()
     @runtime_ccall((:cublasZher2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, n, alpha, x, incx, y, incy, A, lda)
@@ -1291,7 +1291,7 @@ end
 @checked function cublasSspr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_api()
     @runtime_ccall((:cublasSspr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cfloat},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}),
                    handle, uplo, n, alpha, x, incx, y, incy, AP)
 end
@@ -1299,7 +1299,7 @@ end
 @checked function cublasDspr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_api()
     @runtime_ccall((:cublasDspr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{Cdouble},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}),
                    handle, uplo, n, alpha, x, incx, y, incy, AP)
 end
@@ -1307,7 +1307,7 @@ end
 @checked function cublasChpr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_api()
     @runtime_ccall((:cublasChpr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}),
                    handle, uplo, n, alpha, x, incx, y, incy, AP)
 end
@@ -1315,7 +1315,7 @@ end
 @checked function cublasZhpr2_v2(handle, uplo, n, alpha, x, incx, y, incy, AP)
     initialize_api()
     @runtime_ccall((:cublasZhpr2_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasFillMode_t, Cint, PtrOrCuPtr{cuDoubleComplex},
+                   (cublasHandle_t, cublasFillMode_t, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
                     CuPtr{cuDoubleComplex}),
                    handle, uplo, n, alpha, x, incx, y, incy, AP)
@@ -1326,8 +1326,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSgemm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint),
+                    Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1336,8 +1336,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasDgemm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint),
+                    Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1346,8 +1346,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex},
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1356,8 +1356,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemm3m, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex},
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1366,8 +1366,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemm3mEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
-                    CuPtr{Cvoid}, cudaDataType, Cint, PtrOrCuPtr{cuComplex}, CuPtr{Cvoid},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
+                    CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{cuComplex}, CuPtr{Cvoid},
                     cudaDataType, Cint),
                    handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                    beta, C, Ctype, ldc)
@@ -1378,8 +1378,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZgemm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1389,8 +1389,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZgemm3m, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1400,8 +1400,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSgemmEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint,
-                    CuPtr{Cvoid}, cudaDataType, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cvoid},
+                    Cint, RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint,
+                    CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{Cfloat}, CuPtr{Cvoid},
                     cudaDataType, Cint),
                    handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                    beta, C, Ctype, ldc)
@@ -1424,8 +1424,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemmEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
-                    CuPtr{Cvoid}, cudaDataType, Cint, PtrOrCuPtr{cuComplex}, CuPtr{Cvoid},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
+                    CuPtr{Cvoid}, cudaDataType, Cint, RefOrCuRef{cuComplex}, CuPtr{Cvoid},
                     cudaDataType, Cint),
                    handle, transa, transb, m, n, k, alpha, A, Atype, lda, B, Btype, ldb,
                    beta, C, Ctype, ldc)
@@ -1446,7 +1446,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasSsyrk_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat},
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
@@ -1455,7 +1455,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDsyrk_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble},
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
@@ -1464,7 +1464,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCsyrk_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
@@ -1473,8 +1473,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZsyrk_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
 
@@ -1483,8 +1483,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCsyrkEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
+                    RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint),
                    handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
 end
 
@@ -1493,8 +1493,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCsyrk3mEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint,
+                    RefOrCuRef{cuComplex}, CuPtr{Cvoid}, cudaDataType, Cint),
                    handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
 end
 
@@ -1502,7 +1502,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCherk_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{cuComplex}, Cint, PtrOrCuPtr{Cfloat},
+                    RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint, RefOrCuRef{Cfloat},
                     CuPtr{cuComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
@@ -1511,7 +1511,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasZherk_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{Cdouble},
+                    RefOrCuRef{Cdouble}, CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
@@ -1521,8 +1521,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCherkEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint),
+                    RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint),
                    handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
 end
 
@@ -1531,8 +1531,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCherk3mEx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint),
+                    RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{Cvoid}, cudaDataType, Cint),
                    handle, uplo, trans, n, k, alpha, A, Atype, lda, beta, C, Ctype, ldc)
 end
 
@@ -1541,8 +1541,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSsyr2k_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint),
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1551,8 +1551,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasDsyr2k_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint),
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1561,8 +1561,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCsyr2k_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1571,8 +1571,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZsyr2k_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1582,8 +1582,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCher2k_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{cuComplex}, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1592,8 +1592,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZher2k_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{Cdouble},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1603,8 +1603,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSsyrkx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint),
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1613,8 +1613,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasDsyrkx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint),
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1623,8 +1623,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCsyrkx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1633,8 +1633,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZsyrkx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1644,8 +1644,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCherkx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{cuComplex}, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{cuComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1654,8 +1654,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZherkx, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasFillMode_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{Cdouble},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1665,8 +1665,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSsymm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint),
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint,
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1675,8 +1675,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasDsymm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint),
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint,
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1685,8 +1685,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCsymm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1695,8 +1695,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZsymm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1706,8 +1706,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasChemm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint),
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint,
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -1716,8 +1716,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZhemm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    CuPtr{cuDoubleComplex}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    CuPtr{cuDoubleComplex}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -1727,7 +1727,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasStrsm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
                     CuPtr{Cfloat}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -1737,7 +1737,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDtrsm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
                     Cint, CuPtr{Cdouble}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -1747,7 +1747,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCtrsm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
                     Cint, CuPtr{cuComplex}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -1757,7 +1757,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasZtrsm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -1767,7 +1767,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasStrmm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint,
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint,
                     CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
@@ -1777,7 +1777,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDtrmm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
                     Cint, CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
@@ -1787,7 +1787,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCtrmm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex},
                     Cint, CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
@@ -1797,7 +1797,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasZtrmm_v2, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{cuDoubleComplex}, Cint, CuPtr{cuDoubleComplex}, Cint,
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
@@ -1808,8 +1808,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSgemmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{Cfloat}, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Ptr{Cfloat}},
-                    Cint, PtrOrCuPtr{Cfloat}, CuPtr{Ptr{Cfloat}}, Cint, Cint),
+                    Cint, RefOrCuRef{Cfloat}, CuPtr{Ptr{Cfloat}}, Cint, CuPtr{Ptr{Cfloat}},
+                    Cint, RefOrCuRef{Cfloat}, CuPtr{Ptr{Cfloat}}, Cint, Cint),
                    handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
                    Carray, ldc, batchCount)
 end
@@ -1819,8 +1819,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasDgemmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{Cdouble}, CuPtr{Ptr{Cdouble}}, Cint,
-                    CuPtr{Ptr{Cdouble}}, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Ptr{Cdouble}},
+                    Cint, RefOrCuRef{Cdouble}, CuPtr{Ptr{Cdouble}}, Cint,
+                    CuPtr{Ptr{Cdouble}}, Cint, RefOrCuRef{Cdouble}, CuPtr{Ptr{Cdouble}},
                     Cint, Cint),
                    handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
                    Carray, ldc, batchCount)
@@ -1831,8 +1831,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint,
-                    CuPtr{Ptr{cuComplex}}, Cint, PtrOrCuPtr{cuComplex},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint,
+                    CuPtr{Ptr{cuComplex}}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{Ptr{cuComplex}}, Cint, Cint),
                    handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
                    Carray, ldc, batchCount)
@@ -1843,8 +1843,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemm3mBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint,
-                    CuPtr{Ptr{cuComplex}}, Cint, PtrOrCuPtr{cuComplex},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{Ptr{cuComplex}}, Cint,
+                    CuPtr{Ptr{cuComplex}}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{Ptr{cuComplex}}, Cint, Cint),
                    handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
                    Carray, ldc, batchCount)
@@ -1855,8 +1855,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZgemmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuDoubleComplex}, CuPtr{Ptr{cuDoubleComplex}}, Cint,
-                    CuPtr{Ptr{cuDoubleComplex}}, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{Ptr{cuDoubleComplex}}, Cint,
+                    CuPtr{Ptr{cuDoubleComplex}}, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{Ptr{cuDoubleComplex}}, Cint, Cint),
                    handle, transa, transb, m, n, k, alpha, Aarray, lda, Barray, ldb, beta,
                    Carray, ldc, batchCount)
@@ -1898,8 +1898,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasSgemmStridedBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, Clonglong,
-                    CuPtr{Cfloat}, Cint, Clonglong, PtrOrCuPtr{Cfloat}, CuPtr{Cfloat},
+                    Cint, RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, Clonglong,
+                    CuPtr{Cfloat}, Cint, Clonglong, RefOrCuRef{Cfloat}, CuPtr{Cfloat},
                     Cint, Clonglong, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
                    strideB, beta, C, ldc, strideC, batchCount)
@@ -1911,8 +1911,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasDgemmStridedBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, Clonglong,
-                    CuPtr{Cdouble}, Cint, Clonglong, PtrOrCuPtr{Cdouble}, CuPtr{Cdouble},
+                    Cint, RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, Clonglong,
+                    CuPtr{Cdouble}, Cint, Clonglong, RefOrCuRef{Cdouble}, CuPtr{Cdouble},
                     Cint, Clonglong, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
                    strideB, beta, C, ldc, strideC, batchCount)
@@ -1924,8 +1924,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemmStridedBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong,
-                    CuPtr{cuComplex}, Cint, Clonglong, PtrOrCuPtr{cuComplex},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong,
+                    CuPtr{cuComplex}, Cint, Clonglong, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint, Clonglong, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
                    strideB, beta, C, ldc, strideC, batchCount)
@@ -1937,8 +1937,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgemm3mStridedBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong,
-                    CuPtr{cuComplex}, Cint, Clonglong, PtrOrCuPtr{cuComplex},
+                    Cint, RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, Clonglong,
+                    CuPtr{cuComplex}, Cint, Clonglong, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint, Clonglong, Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
                    strideB, beta, C, ldc, strideC, batchCount)
@@ -1950,9 +1950,9 @@ end
     initialize_api()
     @runtime_ccall((:cublasZgemmStridedBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    Cint, PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    Cint, RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
                     Clonglong, CuPtr{cuDoubleComplex}, Cint, Clonglong,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, Clonglong,
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint, Clonglong,
                     Cint),
                    handle, transa, transb, m, n, k, alpha, A, lda, strideA, B, ldb,
                    strideB, beta, C, ldc, strideC, batchCount)
@@ -1963,7 +1963,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasSgeam, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cfloat}, CuPtr{Cfloat}, Cint, PtrOrCuPtr{Cfloat},
+                    RefOrCuRef{Cfloat}, CuPtr{Cfloat}, Cint, RefOrCuRef{Cfloat},
                     CuPtr{Cfloat}, Cint, CuPtr{Cfloat}, Cint),
                    handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
@@ -1973,7 +1973,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDgeam, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{Cdouble}, CuPtr{Cdouble}, Cint, PtrOrCuPtr{Cdouble},
+                    RefOrCuRef{Cdouble}, CuPtr{Cdouble}, Cint, RefOrCuRef{Cdouble},
                     CuPtr{Cdouble}, Cint, CuPtr{Cdouble}, Cint),
                    handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
@@ -1983,7 +1983,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCgeam, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuComplex}, CuPtr{cuComplex}, Cint, PtrOrCuPtr{cuComplex},
+                    RefOrCuRef{cuComplex}, CuPtr{cuComplex}, Cint, RefOrCuRef{cuComplex},
                     CuPtr{cuComplex}, Cint, CuPtr{cuComplex}, Cint),
                    handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
@@ -1993,8 +1993,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasZgeam, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasOperation_t, cublasOperation_t, Cint, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
-                    PtrOrCuPtr{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
+                    RefOrCuRef{cuDoubleComplex}, CuPtr{cuDoubleComplex}, Cint,
                     CuPtr{cuDoubleComplex}, Cint),
                    handle, transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
 end
@@ -2109,7 +2109,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasStrsmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cfloat}, CuPtr{Ptr{Cfloat}},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{Cfloat}, CuPtr{Ptr{Cfloat}},
                     Cint, CuPtr{Ptr{Cfloat}}, Cint, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb,
                    batchCount)
@@ -2120,7 +2120,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasDtrsmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{Cdouble}, CuPtr{Ptr{Cdouble}},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{Cdouble}, CuPtr{Ptr{Cdouble}},
                     Cint, CuPtr{Ptr{Cdouble}}, Cint, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb,
                    batchCount)
@@ -2131,7 +2131,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasCtrsmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuComplex},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{cuComplex},
                     CuPtr{Ptr{cuComplex}}, Cint, CuPtr{Ptr{cuComplex}}, Cint, Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb,
                    batchCount)
@@ -2142,7 +2142,7 @@ end
     initialize_api()
     @runtime_ccall((:cublasZtrsmBatched, libcublas()), cublasStatus_t,
                    (cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t,
-                    cublasDiagType_t, Cint, Cint, PtrOrCuPtr{cuDoubleComplex},
+                    cublasDiagType_t, Cint, Cint, RefOrCuRef{cuDoubleComplex},
                     CuPtr{Ptr{cuDoubleComplex}}, Cint, CuPtr{Ptr{cuDoubleComplex}}, Cint,
                     Cint),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb,
@@ -2437,8 +2437,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtSgemm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t,
-                    Csize_t, Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
-                    PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat},
+                    Csize_t, Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
+                    PtrOrCuPtr{Cfloat}, Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat},
                     Csize_t),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2448,8 +2448,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtDgemm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t,
-                    Csize_t, Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
-                    PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble},
+                    Csize_t, Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
+                    PtrOrCuPtr{Cdouble}, Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble},
                     Csize_t),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2459,8 +2459,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCgemm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t,
-                    Csize_t, Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex},
-                    Csize_t, PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
+                    Csize_t, Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex},
+                    Csize_t, PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{cuComplex},
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2470,9 +2470,9 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZgemm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasOperation_t, cublasOperation_t, Csize_t,
-                    Csize_t, Csize_t, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, Csize_t, RefOrCuRef{cuDoubleComplex},
                     PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{cuDoubleComplex},
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
                     Csize_t),
                    handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2481,8 +2481,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtSsyrk, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t),
+                    Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
+                    RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
 
@@ -2490,8 +2490,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtDsyrk, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
-                    PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t),
+                    Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
+                    RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
 
@@ -2499,8 +2499,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCsyrk, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t),
+                    Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
 
@@ -2508,8 +2508,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZsyrk, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
                     Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
@@ -2518,8 +2518,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCherk, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{cuComplex}, Csize_t),
+                    Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    RefOrCuRef{Cfloat}, PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
 
@@ -2527,8 +2527,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZherk, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-                    PtrOrCuPtr{Cdouble}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
+                    Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
+                    RefOrCuRef{Cdouble}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
 end
 
@@ -2537,8 +2537,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtSsyr2k, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
-                    PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat},
+                    Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
+                    PtrOrCuPtr{Cfloat}, Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat},
                     Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2548,8 +2548,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtDsyr2k, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
-                    PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble},
+                    Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
+                    PtrOrCuPtr{Cdouble}, Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble},
                     Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2559,8 +2559,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCsyr2k, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
+                    Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{cuComplex},
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2570,9 +2570,9 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZsyr2k, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
                     Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-                    PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
+                    RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -2581,8 +2581,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCherkx, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{Cfloat},
+                    Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{Cfloat},
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2592,8 +2592,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZherkx, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{Cdouble},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{Cdouble},
                     PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2603,7 +2603,7 @@ end
     @runtime_ccall((:cublasXtStrsm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat},
+                    RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat},
                     Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -2613,7 +2613,7 @@ end
     @runtime_ccall((:cublasXtDtrsm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble},
+                    RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble},
                     Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -2623,7 +2623,7 @@ end
     @runtime_ccall((:cublasXtCtrsm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -2633,7 +2633,7 @@ end
     @runtime_ccall((:cublasXtZtrsm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
+                    RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
                     PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb)
 end
@@ -2643,8 +2643,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtSsymm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
-                    PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat},
+                    Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
+                    PtrOrCuPtr{Cfloat}, Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat},
                     Csize_t),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2654,8 +2654,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtDsymm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
-                    PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble},
+                    Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
+                    PtrOrCuPtr{Cdouble}, Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble},
                     Csize_t),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2665,8 +2665,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCsymm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
+                    Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{cuComplex},
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2676,9 +2676,9 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZsymm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
                     Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-                    PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
+                    RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -2687,8 +2687,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtChemm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
+                    Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{cuComplex},
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2698,9 +2698,9 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZhemm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
                     Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-                    PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
+                    RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -2709,8 +2709,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtSsyrkx, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
-                    PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat},
+                    Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
+                    PtrOrCuPtr{Cfloat}, Csize_t, RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat},
                     Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2720,8 +2720,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtDsyrkx, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
-                    PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble},
+                    Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
+                    PtrOrCuPtr{Cdouble}, Csize_t, RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble},
                     Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2731,8 +2731,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCsyrkx, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex},
+                    Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{cuComplex},
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2742,9 +2742,9 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZsyrkx, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
                     Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
-                    PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
+                    RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
 
@@ -2753,8 +2753,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCher2k, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
-                    PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{Cfloat},
+                    Csize_t, RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    PtrOrCuPtr{cuComplex}, Csize_t, RefOrCuRef{Cfloat},
                     PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2764,8 +2764,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZher2k, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasFillMode_t, cublasOperation_t, Csize_t,
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
-                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{Cdouble},
+                    Csize_t, RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex},
+                    Csize_t, PtrOrCuPtr{cuDoubleComplex}, Csize_t, RefOrCuRef{Cdouble},
                     PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
 end
@@ -2774,8 +2774,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtSspmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, Ptr{Cfloat}, Ptr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
-                    Ptr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t),
+                    Csize_t, Ref{Cfloat}, Ptr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t,
+                    Ref{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t),
                    handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
 end
 
@@ -2783,8 +2783,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtDspmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, Ptr{Cdouble}, Ptr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
-                    Ptr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t),
+                    Csize_t, Ref{Cdouble}, Ptr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t,
+                    Ref{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t),
                    handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
 end
 
@@ -2792,8 +2792,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtCspmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, Ptr{cuComplex}, Ptr{cuComplex}, PtrOrCuPtr{cuComplex},
-                    Csize_t, Ptr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t),
+                    Csize_t, Ref{cuComplex}, Ptr{cuComplex}, PtrOrCuPtr{cuComplex},
+                    Csize_t, Ref{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
 end
 
@@ -2801,8 +2801,8 @@ end
     initialize_api()
     @runtime_ccall((:cublasXtZspmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t, Csize_t,
-                    Csize_t, Ptr{cuDoubleComplex}, Ptr{cuDoubleComplex},
-                    PtrOrCuPtr{cuDoubleComplex}, Csize_t, Ptr{cuDoubleComplex},
+                    Csize_t, Ref{cuDoubleComplex}, Ptr{cuDoubleComplex},
+                    PtrOrCuPtr{cuDoubleComplex}, Csize_t, Ref{cuDoubleComplex},
                     PtrOrCuPtr{cuDoubleComplex}, Csize_t),
                    handle, side, uplo, m, n, alpha, AP, B, ldb, beta, C, ldc)
 end
@@ -2813,7 +2813,7 @@ end
     @runtime_ccall((:cublasXtStrmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat},
+                    RefOrCuRef{Cfloat}, PtrOrCuPtr{Cfloat}, Csize_t, PtrOrCuPtr{Cfloat},
                     Csize_t, PtrOrCuPtr{Cfloat}, Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
@@ -2824,7 +2824,7 @@ end
     @runtime_ccall((:cublasXtDtrmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble},
+                    RefOrCuRef{Cdouble}, PtrOrCuPtr{Cdouble}, Csize_t, PtrOrCuPtr{Cdouble},
                     Csize_t, PtrOrCuPtr{Cdouble}, Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
@@ -2835,7 +2835,7 @@ end
     @runtime_ccall((:cublasXtCtrmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
+                    RefOrCuRef{cuComplex}, PtrOrCuPtr{cuComplex}, Csize_t,
                     PtrOrCuPtr{cuComplex}, Csize_t, PtrOrCuPtr{cuComplex}, Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
@@ -2846,7 +2846,7 @@ end
     @runtime_ccall((:cublasXtZtrmm, libcublas()), cublasStatus_t,
                    (cublasXtHandle_t, cublasSideMode_t, cublasFillMode_t,
                     cublasOperation_t, cublasDiagType_t, Csize_t, Csize_t,
-                    PtrOrCuPtr{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
+                    RefOrCuRef{cuDoubleComplex}, PtrOrCuPtr{cuDoubleComplex}, Csize_t,
                     PtrOrCuPtr{cuDoubleComplex}, Csize_t, PtrOrCuPtr{cuDoubleComplex},
                     Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
