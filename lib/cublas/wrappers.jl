@@ -56,17 +56,50 @@ version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
                           cublasGetProperty(CUDA.PATCH_LEVEL))
 
 const cublas_compute_types = Dict(
-                                  (Float16, Float16, Float16)=>CUBLAS_COMPUTE_16F,
-                                  (Int8, Int8, Float32)      =>CUBLAS_COMPUTE_32F,
-                                  (Complex{Int8}, Complex{Int8}, ComplexF32)      =>CUBLAS_COMPUTE_32F,
-                                  (Float16, Float16, Float32)=>CUBLAS_COMPUTE_32F,
-                                  (Float32, Float32, Float32)=>CUBLAS_COMPUTE_32F,
-                                  (ComplexF32, ComplexF32, ComplexF32)=>CUBLAS_COMPUTE_32F,
-                                  (ComplexF16, ComplexF16, ComplexF16)=>CUBLAS_COMPUTE_32F,
-                                  (Float64, Float64, Float64)=>CUBLAS_COMPUTE_64F,
-                                  (ComplexF64, ComplexF64, ComplexF64)=>CUBLAS_COMPUTE_64F,
-                                  (Int8, Int8, Int32)        =>CUBLAS_COMPUTE_32I)
+    (Float16, Float16, Float16)                 => CUBLAS_COMPUTE_16F,
+    (Int8, Int8, Float32)                       => CUBLAS_COMPUTE_32F,
+    (Complex{Int8}, Complex{Int8}, ComplexF32)  => CUBLAS_COMPUTE_32F,
+    (Float16, Float16, Float32)                 => CUBLAS_COMPUTE_32F,
+    (Float32, Float32, Float32)                 => CUBLAS_COMPUTE_32F,
+    (ComplexF32, ComplexF32, ComplexF32)        => CUBLAS_COMPUTE_32F,
+    (ComplexF16, ComplexF16, ComplexF16)        => CUBLAS_COMPUTE_32F,
+    (Float64, Float64, Float64)                 => CUBLAS_COMPUTE_64F,
+    (ComplexF64, ComplexF64, ComplexF64)        => CUBLAS_COMPUTE_64F,
+    (Int8, Int8, Int32)                         => CUBLAS_COMPUTE_32I)
 cublasComputeType(TA, TB, TC) = cublas_compute_types[(TA, TB, TC)]
+
+function juliaStorageType(::Type{<:Real}, T::cublasComputeType_t)
+    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
+        return Float16
+    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           T == CUBLAS_COMPUTE_32F_FAST_TF32
+        return Float32
+    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
+        return Float64
+    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+        return Int32
+    else
+        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+    end
+end
+
+function juliaStorageType(::Type{<:Complex}, T::cublasComputeType_t)
+    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
+        return ComplexF16
+    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           T == CUBLAS_COMPUTE_32F_FAST_TF32
+        return ComplexF32
+    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
+        return ComplexF64
+    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+        return Complex{Int32}
+    else
+        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+    end
+end
+
 # Level 1
 ## copy
 for (fname, elty) in ((:cublasDcopy_v2,:Float64),
@@ -756,14 +789,16 @@ function gemmEx!(transA::Char,
     ldc = max(1,stride(C,2))
     if version() >= v"11.0"
         computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
-        cublasGemmEx(handle(), transA, transB, m, n, k, Ref(alpha), A, eltype(A), lda, B,
-                     eltype(B), ldb, Ref(beta), C, eltype(C), ldc, computeType, algo)
+        T = juliaStorageType(eltype(C), computeType)
+        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
+                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
     else
         # FIXME: we patch the cublasGemmEx ccall to computeType::UInt32 for compatibility
         #        across CUDA versions
         computeType = convert(cudaDataType, eltype(C))
-        cublasGemmEx(handle(), transA, transB, m, n, k, Ref(alpha), A, eltype(A), lda, B,
-                     eltype(B), ldb, Ref(beta), C, eltype(C), ldc, computeType, algo)
+        T = convert(Type, computeType)
+        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
+                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
     end
     C
 end
