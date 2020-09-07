@@ -225,7 +225,7 @@ end
 #
 # replacing the `/path/to/julia` with the path to your Julia binary. Note that we don't
 # immediately start the profiler, but instead call into the CUDA APIs and manually start the
-# profiler with `CUDq.@profile` (thus excluding the time to compile our kernel):
+# profiler with `CUDA.@profile` (thus excluding the time to compile our kernel):
 
 bench_gpu1!(y_d, x_d)  # run it once to force compilation
 CUDA.@profile bench_gpu1!(y_d, x_d)
