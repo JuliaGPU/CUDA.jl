@@ -113,7 +113,7 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
                            y::CuArray{$elty},
                            incy::Integer)
               $fname(handle(), n, x, incx, y, incy)
-            DY
+            y
         end
     end
 end

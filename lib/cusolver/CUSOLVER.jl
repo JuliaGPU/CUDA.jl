@@ -44,7 +44,7 @@ function dense_handle()
             handle
         end
     end
-    @inbounds thread_dense_handles[tid]
+    something(@inbounds thread_dense_handles[tid])
 end
 
 function sparse_handle()
@@ -64,7 +64,7 @@ function sparse_handle()
             handle
         end
     end
-    @inbounds thread_sparse_handles[tid]
+    something(@inbounds thread_sparse_handles[tid])
 end
 
 function __init__()
