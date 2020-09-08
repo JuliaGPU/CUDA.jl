@@ -504,6 +504,9 @@ function process(name, headers...; libname=name, kwargs...)
         end
     end
 
+    # apply the common file
+    cp(new_common_file, joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_common_file)); force=true)
+
     return
 end
 
