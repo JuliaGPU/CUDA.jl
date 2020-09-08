@@ -111,16 +111,16 @@ function Base.cconvert(::Type{PtrOrCuPtr{T}}, val) where {T}
 end
 
 function Base.unsafe_convert(::Type{PtrOrCuPtr{T}}, val) where {T}
-    # FIXME: this is expensive; optimize using isapplicable?
-    ptr = try
+    ptr = if Core.Compiler.return_type(Base.unsafe_convert,
+                                       Tuple{Type{Ptr{T}}, typeof(val)}) !== Union{}
         Base.unsafe_convert(Ptr{T}, val)
-    catch
-        try
-            Base.unsafe_convert(CuPtr{T}, val)
-        catch
-            throw(ArgumentError("cannot convert to either a CPU or GPU pointer"))
-        end
+    elseif Core.Compiler.return_type(Base.unsafe_convert,
+                                     Tuple{Type{CuPtr{T}}, typeof(val)}) !== Union{}
+        Base.unsafe_convert(CuPtr{T}, val)
+    else
+        throw(ArgumentError("cannot convert to either a CPU or GPU pointer"))
     end
+
     return Base.bitcast(PtrOrCuPtr{T}, ptr)
 end
 

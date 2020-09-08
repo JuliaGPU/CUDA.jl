@@ -39,13 +39,13 @@ end
 a = [1]
 ccall(:clock, Nothing, (Ptr{Int},), a)
 @test_throws Exception ccall(:clock, Nothing, (CuPtr{Int},), a)
-ccall(:clock, Nothing, (CUDA.PtrOrCuPtr{Int},), a)
+ccall(:clock, Nothing, (PtrOrCuPtr{Int},), a)
 
 ptr = convert(CuPtr{eltype(a)}, CU_NULL)
 b = CuArray{eltype(a), ndims(a)}(ptr, size(a))
 ccall(:clock, Nothing, (CuPtr{Int},), b)
 @test_throws Exception ccall(:clock, Nothing, (Ptr{Int},), b)
-ccall(:clock, Nothing, (CUDA.PtrOrCuPtr{Int},), b)
+ccall(:clock, Nothing, (PtrOrCuPtr{Int},), b)
 
 end
 
