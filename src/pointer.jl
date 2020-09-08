@@ -7,9 +7,6 @@ export CuPtr, CU_NULL, PtrOrCuPtr, CuArrayPtr, CUA_NULL, CuRef, RefOrCuRef
 # CUDA device pointer
 #
 
-# forward declaration
-abstract type CuRef{T} end
-
 # FIXME: should be called CuDevicePtr...
 
 """
@@ -22,9 +19,9 @@ expects a `Ptr` to GPU memory, but it prevents erroneous conversions between the
 CuPtr
 
 if sizeof(Ptr{Cvoid}) == 8
-    primitive type CuPtr{T} <: CuRef{T} 64 end
+    primitive type CuPtr{T} 64 end
 else
-    primitive type CuPtr{T} <: CuRef{T} 32 end
+    primitive type CuPtr{T} 32 end
 end
 
 # constructor
@@ -89,7 +86,6 @@ expressions to convert values to either a GPU or a CPU type (in that order). Thi
 required for CUDA APIs which accept pointers that either point to host or device memory.
 """
 PtrOrCuPtr
-
 
 if sizeof(Ptr{Cvoid}) == 8
     primitive type PtrOrCuPtr{T} 64 end
@@ -177,18 +173,33 @@ Base.unsafe_convert(::Type{P}, x::CuArrayPtr) where {P<:CuArrayPtr} = convert(P,
 # CUDA reference objects
 #
 
-# a GPU reference that lives on the CPU; for use with `ccall`
-#abstract type CuRef{T} end
+if sizeof(Ptr{Cvoid}) == 8
+    primitive type CuRef{T} 64 end
+else
+    primitive type CuRef{T} 32 end
+end
 
 # general methods for CuRef{T} type
 Base.eltype(x::Type{<:CuRef{T}}) where {T} = @isdefined(T) ? T : Any
+
 Base.convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = x
 
-# create CuRef objects for general object conversion
-Base.unsafe_convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
-Base.unsafe_convert(::Type{CuRef{T}}, x) where {T} = Base.unsafe_convert(CuPtr{T}, x)
+# conversion or the actual ccall
+Base.unsafe_convert(::Type{CuRef{T}}, x::CuRef{T}) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
+Base.unsafe_convert(::Type{CuRef{T}}, x) where {T} = Base.bitcast(CuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
 
-# CuRef object backed by a CUDA array at index i
+# CuRef from literal pointer
+Base.convert(::Type{CuRef{T}}, x::CuPtr{T}) where {T} = x
+
+# indirect constructors using CuRef
+CuRef(x::Any) = CuRefArray(CuArray([x]))
+CuRef{T}(x) where {T} = CuRefArray{T}(CuArray(T[x]))
+CuRef{T}() where {T} = CuRefArray(CuArray{T}(undef, 1))
+Base.convert(::Type{CuRef{T}}, x) where {T} = CuRef{T}(x)
+
+
+## CuRef object backed by a CUDA array at index i
+
 struct CuRefArray{T,A<:AbstractGPUArray{T}} <: Ref{T}
     x::A
     i::Int
@@ -207,43 +218,35 @@ end
 Base.unsafe_convert(::Type{CuPtr{Cvoid}}, b::CuRefArray{T}) where {T} =
     convert(CuPtr{Cvoid}, Base.unsafe_convert(CuPtr{T}, b))
 
-# indirect constructors using CuRef
-CuRef(x::Any) = CuRefArray(CuArray([x]))
-CuRef{T}(x) where {T} = CuRefArray{T}(CuArray(T[x]))
-CuRef{T}() where {T} = CuRefArray(CuArray{T}(undef, 1))
-Base.convert(::Type{CuRef{T}}, x) where {T} = CuRef{T}(x)
 
-# arrays of references or pointers
-Base.cconvert(::Type{CuPtr{P}}, a::Array{<:CuPtr}) where {P<:CuPtr} = a
-Base.cconvert(::Type{CuRef{P}}, a::Array{<:CuPtr}) where {P<:CuPtr} = a
+## Union with all CuRef 'subtypes'
+
+const CuRefs{T} = Union{CuPtr{T}, CuRefArray{T}}
 
 
 ## RefOrCuRef
 
-# NOTE: Ref in ccall signatures is special-cased by codegen (see jl_is_abstract_ref_type),
-#       emitting a pointer instead of a jl_value_t*. We can't mimick that from user code, so
-#       use a single-element struct that will result in the same generated code.
-struct RefOrCuRef{T} <: Ref{T}
-    ptr::Ptr{T}
-    RefOrCuRef{T}(ptr::Ptr{T}) where {T} = new(ptr)
-    RefOrCuRef{T}(ptr::CuPtr{T}) where {T} = new(reinterpret(Ptr{T}, ptr))
+if sizeof(Ptr{Cvoid}) == 8
+    primitive type RefOrCuRef{T} 64 end
+else
+    primitive type RefOrCuRef{T} 32 end
 end
 
-Base.convert(::Type{RefOrCuRef{T}}, x::Union{Ref{T}, CuRef{T}}) where {T} = x
+Base.convert(::Type{RefOrCuRef{T}}, x::Union{RefOrCuRef{T}, Ref{T}, CuRef{T}, CuRefs{T}}) where {T} = x
 
 # prefer conversion to CPU ref: this is generally cheaper
 Base.convert(::Type{RefOrCuRef{T}}, x) where {T} = Ref{T}(x)
 Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::Ref{T}) where {T} =
-    RefOrCuRef{T}(Base.unsafe_convert(Ptr{T}, x))
+    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(Ptr{T}, x))
 Base.unsafe_convert(::Type{RefOrCuRef{T}}, x) where {T} =
-    RefOrCuRef{T}(Base.unsafe_convert(Ptr{T}, x))
+    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(Ptr{T}, x))
 
 # support conversion from GPU ref
-Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRef{T}) where {T} =
-    RefOrCuRef{T}(Base.unsafe_convert(CuPtr{T}, x))
+Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRefs{T}) where {T} =
+    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuPtr{T}, x))
 
 # support conversion from arrays
 Base.convert(::Type{RefOrCuRef{T}}, x::Array{T}) where {T} = convert(Ref{T}, x)
 Base.convert(::Type{RefOrCuRef{T}}, x::AbstractGPUArray{T}) where {T} = convert(CuRef{T}, x)
 Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CUDA.CuRefArray{T}) where T =
-    RefOrCuRef{T}(Base.unsafe_convert(CuRef{T}, b))
+    Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuRef{T}, b))
