@@ -108,11 +108,11 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
                       (:cublasCcopy_v2,:ComplexF32))
     @eval begin
         function blascopy!(n::Integer,
-                           DX::CuArray{$elty},
+                           x::CuArray{$elty},
                            incx::Integer,
-                           DY::CuArray{$elty},
+                           y::CuArray{$elty},
                            incy::Integer)
-              $fname(handle(), n, DX, incx, DY, incy)
+              $fname(handle(), n, x, incx, y, incy)
             DY
         end
     end
@@ -125,24 +125,24 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
                       (:cublasCscal_v2,:ComplexF32))
     @eval begin
         function scal!(n::Integer,
-                       DA::Number,
-                       DX::CuArray{$elty},
+                       alpha::Number,
+                       x::CuArray{$elty},
                        incx::Integer)
-            $fname(handle(), n, $elty[DA], DX, incx)
-            DX
+            $fname(handle(), n, alpha, x, incx)
+            x
         end
     end
 end
-# specific variants in case DX is complex and DA is real
+# specific variants in case x is complex and alpha is real
 for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
                              (:cublasZdscal_v2, :Float64, :ComplexF64))
     @eval begin
         function scal!(n::Integer,
-                       DA::$elty,
-                       DX::CuArray{$celty},
+                       alpha::$elty,
+                       x::CuArray{$celty},
                        incx::Integer)
-            $fname(handle(), 2*n, DA, DX, incx)
-            DX
+            $fname(handle(), n, alpha, x, incx)
+            x
         end
     end
 end
@@ -156,12 +156,12 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
                              (:dotu,:cublasCdotu_v2,:ComplexF32))
     @eval begin
         function $jname(n::Integer,
-                        DX::CuArray{$elty},
+                        x::CuArray{$elty},
                         incx::Integer,
-                        DY::CuArray{$elty},
+                        y::CuArray{$elty},
                         incy::Integer)
             result = Ref{$elty}()
-            $fname(handle(), n, DX, incx, DY, incy, result)
+            $fname(handle(), n, x, incx, y, incy, result)
             return result[]
         end
     end
