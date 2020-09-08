@@ -248,5 +248,5 @@ Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRefs{T}) where {T} =
 # support conversion from arrays
 Base.convert(::Type{RefOrCuRef{T}}, x::Array{T}) where {T} = convert(Ref{T}, x)
 Base.convert(::Type{RefOrCuRef{T}}, x::AbstractGPUArray{T}) where {T} = convert(CuRef{T}, x)
-Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CUDA.CuRefArray{T}) where T =
+Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CuRefArray{T}) where T =
     Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuRef{T}, b))
