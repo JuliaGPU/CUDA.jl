@@ -52,14 +52,14 @@ function cudnnBNForward!(y::CuArray{T}, g::CuArray{T}, b::CuArray{T}, x::CuArray
       ivar = CU_NULL
     end
 
-    cudnnBatchNormalizationForwardTraining(handle(), CUDNN_BATCHNORM_SPATIAL, Ref(T(alpha)), Ref(T(beta)), xd, x, yd, y, gd, g, b, momentum, running_mean, running_var, eps, mean, ivar)
+    cudnnBatchNormalizationForwardTraining(handle(), CUDNN_BATCHNORM_SPATIAL, Ref{T}(alpha), Ref{T}(beta), xd, x, yd, y, gd, g, b, momentum, running_mean, running_var, eps, mean, ivar)
 
     if cache !== nothing
       cache.mean = mean
       cache.ivar = ivar
     end
   else
-    cudnnBatchNormalizationForwardInference(handle(), CUDNN_BATCHNORM_SPATIAL, Ref(T(alpha)), Ref(T(beta)), xd, x, yd, y, gd, g, b, running_mean, running_var, eps)
+    cudnnBatchNormalizationForwardInference(handle(), CUDNN_BATCHNORM_SPATIAL, Ref{T}(alpha), Ref{T}(beta), xd, x, yd, y, gd, g, b, running_mean, running_var, eps)
   end
 end
 
@@ -107,7 +107,7 @@ function cudnnBNBackward!(dg::CuArray{T}, g::CuArray{T}, db::CuArray{T},
       eps = CUDNN_BN_MIN_EPSILON
     end
 
-    cudnnBatchNormalizationBackward(handle(), CUDNN_BATCHNORM_SPATIAL, Ref(T(alpha)), Ref(T(beta)), Ref(T(dalpha)), Ref(T(dbeta)), xd, x, dyd, dy, dxd, dx, gd, g, dg, db, eps, mean, ivar)
+    cudnnBatchNormalizationBackward(handle(), CUDNN_BATCHNORM_SPATIAL, Ref{T}(alpha), Ref{T}(beta), Ref{T}(dalpha), Ref{T}(dbeta), xd, x, dyd, dy, dxd, dx, gd, g, dg, db, eps, mean, ivar)
   else
     ivar = 1 ./ sqrt.(reshape(running_var, _wsize(x)) .+ eps)
     dx .= dy .* reshape(g, _wsize(x)) .* ivar

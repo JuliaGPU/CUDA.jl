@@ -18,7 +18,7 @@ for (fname,elty) in ((:cusparseSaxpyi, :Float32),
                         X::CuSparseVector{$elty},
                         Y::CuVector{$elty},
                         index::SparseChar)
-            $fname(handle(), nnz(X), Ref{$elty}(alpha), nonzeros(X), nonzeroinds(X), Y, index)
+            $fname(handle(), nnz(X), alpha, nonzeros(X), nonzeroinds(X), Y, index)
             Y
         end
         function axpyi(alpha::Number,
@@ -99,7 +99,7 @@ for (fname,elty) in ((:cusparseSroti, :Float32),
                        c::Number,
                        s::Number,
                        index::SparseChar)
-            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, Ref{$elty}(c), Ref{$elty}(s), index)
+            $fname(handle(), nnz(X), nonzeros(X), nonzeroinds(X), Y, c, s, index)
             X,Y
         end
         function roti(X::CuSparseVector{$elty},

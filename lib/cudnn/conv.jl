@@ -66,9 +66,9 @@ function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,
                 out(Ref{Csize_t}()))
         )[] workspace->begin
             cudnnConvolutionForward(
-                handle(), Ref(T(alpha)), TensorDesc(x), x, FilterDesc(w), w,
+                handle(), Ref{T}(alpha), TensorDesc(x), x, FilterDesc(w), w,
                 ConvDesc(T,cdims), cudnnConvolutionFwdAlgo_t(algo), workspace,
-                sizeof(workspace), Ref(T(beta)), TensorDesc(y), y)
+                sizeof(workspace), Ref{T}(beta), TensorDesc(y), y)
         end
     return y
 end
@@ -83,11 +83,11 @@ function cudnnConvolutionBackwardData(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuA
                 out(Ref{Csize_t}()))
         )[] workspace->begin
             cudnnConvolutionBackwardData(
-                handle(), Ref(T(alpha)), FilterDesc(w), w,
+                handle(), Ref{T}(alpha), FilterDesc(w), w,
                 TensorDesc(dy), dy, ConvDesc(T, cdims),
                 cudnnConvolutionBwdDataAlgo_t(algo),
                 workspace, sizeof(workspace),
-                Ref(T(beta)), TensorDesc(dx), dx)
+                Ref{T}(beta), TensorDesc(dx), dx)
         end
     return dx
 end
@@ -104,15 +104,15 @@ function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, dy::C
                 out(Ref{Csize_t}()))
         )[] workspace->begin
             cudnnConvolutionBackwardFilter(
-                handle(), Ref(T(alpha)), TensorDesc(x), x,
+                handle(), Ref{T}(alpha), TensorDesc(x), x,
                 TensorDesc(dy), dy, ConvDesc(T, cdims),
                 cudnnConvolutionBwdFilterAlgo_t(algo), workspace,
-                sizeof(workspace), Ref(T(beta)), FilterDesc(dw), dw)
+                sizeof(workspace), Ref{T}(beta), FilterDesc(dw), dw)
         end
     return dw
 end
 
 function cudnnConvolutionBackwardBias(db::CuArray{T,N}, dy::CuArray{T,N}; alpha=1, beta=0) where {T,N}
-    cudnnConvolutionBackwardBias(handle(), Ref(T(alpha)), TensorDesc(dy), dy, Ref(T(beta)), TensorDesc(db), db)
+    cudnnConvolutionBackwardBias(handle(), Ref{T}(alpha), TensorDesc(dy), dy, Ref{T}(beta), TensorDesc(db), db)
     return db
 end

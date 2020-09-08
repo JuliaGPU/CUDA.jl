@@ -23,7 +23,7 @@ include("wrappers.jl")
 include("interfaces.jl")
 
 # thread cache for task-local library handles
-const thread_handles = Vector{Union{Nothing,Ref{cutensorHandle_t}}}()
+const thread_handles = Vector{Union{Nothing,Base.RefValue{cutensorHandle_t}}}()
 
 function handle()
     tid = Threads.threadid()
@@ -35,7 +35,7 @@ function handle()
             handle
         end
     end
-    @inbounds thread_handles[tid]
+    something(@inbounds thread_handles[tid])
 end
 
 function __init__()

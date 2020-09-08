@@ -60,7 +60,7 @@ function handle()
             handle
         end
     end
-    @inbounds thread_handles[tid]
+    something(@inbounds thread_handles[tid])
 end
 
 function __init__()

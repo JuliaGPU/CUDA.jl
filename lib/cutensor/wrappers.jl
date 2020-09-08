@@ -39,17 +39,27 @@ mutable struct CuTensorDescriptor
     end
 end
 
-const scalar_types = Dict((Float16, Float16)=>Float32, (Float32, Float16)=>Float32, (Float32, Float32)=>Float32, (Float64, Float64)=>Float64, (Float64, Float32)=>Float64, (ComplexF32, ComplexF32)=>ComplexF32, (ComplexF64, ComplexF64)=>ComplexF64, (ComplexF64, ComplexF32)=>ComplexF64)
+const scalar_types = Dict(
+    (Float16, Float16)          => Float32,
+    (Float32, Float16)          => Float32,
+    (Float32, Float32)          => Float32,
+    (Float64, Float64)          => Float64,
+    (Float64, Float32)          => Float64,
+    (ComplexF32, ComplexF32)    => ComplexF32,
+    (ComplexF64, ComplexF64)    => ComplexF64,
+    (ComplexF64, ComplexF32)    => ComplexF64)
 
 Base.cconvert(::Type{Ptr{cutensorTensorDescriptor_t}}, obj::CuTensorDescriptor) = obj.desc
 
 function elementwiseTrinary!(
-    alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-    beta::Number,  B::CuArray, Binds::ModeType, opB::cutensorOperator_t,
-    gamma::Number, C::CuArray{T}, Cinds::ModeType, opC::cutensorOperator_t,
-    D::CuArray{T}, Dinds::ModeType, opAB::cutensorOperator_t,
-    opABC::cutensorOperator_t; stream::CuStream=CuStreamPerThread()) where {T}
-
+        @nospecialize(alpha::Number),
+        @nospecialize(A::CuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(beta::Number),
+        @nospecialize(B::CuArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(gamma::Number),
+        @nospecialize(C::CuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::CuArray), Dinds::ModeType, opAB::cutensorOperator_t,
+        opABC::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -64,22 +74,25 @@ function elementwiseTrinary!(
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
+    scalar_type = scalar_types[(eltype(C), eltype(D))]
     cutensorElementwiseTrinary(handle(),
-                                T[alpha], A, descA, modeA,
-                                T[beta],  B, descB, modeB,
-                                T[gamma], C, descC, modeC,
-                                          D, descD, modeD,
-                                opAB, opABC, T, stream)
+                                Ref{scalar_type}(alpha), A, descA, modeA,
+                                Ref{scalar_type}(beta),  B, descB, modeB,
+                                Ref{scalar_type}(gamma), C, descC, modeC,
+                                D, descD, modeD,
+                                opAB, opABC, scalar_type, stream)
     return D
 end
 
 function elementwiseTrinary!(
-    alpha::Number, A::Array, Ainds::ModeType, opA::cutensorOperator_t,
-    beta::Number, B::Array, Binds::ModeType, opB::cutensorOperator_t,
-    gamma::Number, C::Array{T}, Cinds::ModeType, opC::cutensorOperator_t,
-    D::Array{T}, Dinds::ModeType, opAB::cutensorOperator_t,
-    opABC::cutensorOperator_t; stream::CuStream=CuStreamPerThread()) where {T}
-
+        @nospecialize(alpha::Number),
+        @nospecialize(A::Array), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(beta::Number),
+        @nospecialize(B::Array), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(gamma::Number),
+        @nospecialize(C::Array), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::Array), Dinds::ModeType, opAB::cutensorOperator_t,
+        opABC::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -94,21 +107,23 @@ function elementwiseTrinary!(
     modeB = collect(Cint, Binds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
+    scalar_type = scalar_types[(eltype(C), eltype(D))]
     cutensorElementwiseTrinary(handle(),
-                               T[alpha], A, descA, modeA,
-                               T[beta],  B, descB, modeB,
-                               T[gamma], C, descC, modeC,
-                                         D, descD, modeD,
-                               opAB, opABC, T, stream)
+                               Ref{scalar_type}(alpha), A, descA, modeA,
+                               Ref{scalar_type}(beta),  B, descB, modeB,
+                               Ref{scalar_type}(gamma), C, descC, modeC,
+                               D, descD, modeD,
+                               opAB, opABC, scalar_type, stream)
     return D
 end
 
 function elementwiseBinary!(
-    alpha::Number, A::CuArray, Ainds::ModeType, opA::cutensorOperator_t,
-    gamma::Number, C::CuArray{T}, Cinds::ModeType, opC::cutensorOperator_t,
-    D::CuArray{T}, Dinds::ModeType, opAC::cutensorOperator_t;
-    stream::CuStream=CuStreamPerThread()) where {T}
-
+        @nospecialize(alpha::Number),
+        @nospecialize(A::CuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(gamma::Number),
+        @nospecialize(C::CuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::CuArray), Dinds::ModeType, opAC::cutensorOperator_t;
+        stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -119,20 +134,22 @@ function elementwiseBinary!(
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
+    scalar_type = scalar_types[(eltype(C), eltype(D))]
     cutensorElementwiseBinary(handle(),
-                              T[alpha], A, descA, modeA,
-                              T[gamma], C, descC, modeC,
-                                        D, descD, modeD,
-                              opAC, T, stream)
+                              Ref{scalar_type}(alpha), A, descA, modeA,
+                              Ref{scalar_type}(gamma), C, descC, modeC,
+                              D, descD, modeD,
+                              opAC, scalar_type, stream)
     return D
 end
 
 function elementwiseBinary!(
-    alpha::Number, A::Array, Ainds::ModeType, opA::cutensorOperator_t,
-    gamma::Number, C::Array{T}, Cinds::ModeType, opC::cutensorOperator_t,
-    D::Array{T}, Dinds::ModeType, opAC::cutensorOperator_t;
-    stream::CuStream=CuStreamPerThread()) where {T}
-
+        @nospecialize(alpha::Number),
+        @nospecialize(A::Array), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(gamma::Number),
+        @nospecialize(C::Array), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::Array), Dinds::ModeType, opAC::cutensorOperator_t;
+        stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -143,17 +160,22 @@ function elementwiseBinary!(
     modeA = collect(Cint, Ainds)
     modeC = collect(Cint, Cinds)
     modeD = modeC
+    scalar_type = scalar_types[(eltype(C), eltype(D))]
     cutensorElementwiseBinary(handle(),
-                              T[alpha], A, descA, modeA,
-                              T[gamma], C, descC, modeC,
-                                        D, descD, modeD,
-                              opAC, T, stream)
+                              Ref{scalar_type}(alpha), A, descA, modeA,
+                              Ref{scalar_type}(gamma), C, descC, modeC,
+                              D, descD, modeD,
+                              opAC, scalar_type, stream)
     return D
 end
 
 function elementwiseBinary!(
-    alpha::Number, A::CuTensor, opA::cutensorOperator_t, gamma::Number, C::CuTensor{T}, opC::cutensorOperator_t, D::CuTensor{T}, opAC::cutensorOperator_t; stream::CuStream=CuStreamPerThread()) where {T}
-
+        @nospecialize(alpha::Number),
+        @nospecialize(A::CuTensor), opA::cutensorOperator_t,
+        @nospecialize(gamma::Number),
+        @nospecialize(C::CuTensor), opC::cutensorOperator_t,
+        @nospecialize(D::CuTensor), opAC::cutensorOperator_t;
+        stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -161,48 +183,62 @@ function elementwiseBinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
+    scalar_type = scalar_types[(eltype(C), eltype(D))]
     cutensorElementwiseBinary(handle(),
-                              T[alpha], A.data, descA, A.inds,
-                              T[gamma], C.data, descC, C.inds,
-                                        D.data, descD, C.inds,
-                              opAC, T, stream)
+                              Ref{scalar_type}(alpha), A.data, descA, A.inds,
+                              Ref{scalar_type}(gamma), C.data, descC, C.inds,
+                              D.data, descD, C.inds,
+                              opAC, scalar_type, stream)
     return D
 end
 
-function permutation!(alpha::Number, A::CuArray, Ainds::ModeType,
-                      B::CuArray, Binds::ModeType; stream::CuStream=CuStreamPerThread())
+function permutation!(
+        @nospecialize(alpha::Number),
+        @nospecialize(A::CuArray), Ainds::ModeType,
+        @nospecialize(B::CuArray), Binds::ModeType;
+        stream::CuStream=CuStreamPerThread())
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
-    T = eltype(B)
+    scalar_type = eltype(B)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
-    cutensorPermutation(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T,
-                        stream)
+    cutensorPermutation(handle(),
+                        Ref{scalar_type}(alpha),
+                        A, descA, modeA,
+                        B, descB, modeB,
+                        scalar_type, stream)
     return B
 end
-function permutation!(alpha::Number, A::Array, Ainds::ModeType,
-                      B::Array, Binds::ModeType; stream::CuStream=CuStreamPerThread())
+function permutation!(
+        @nospecialize(alpha::Number),
+        @nospecialize(A::Array), Ainds::ModeType,
+        @nospecialize(B::Array), Binds::ModeType;
+        stream::CuStream=CuStreamPerThread())
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
-    T = eltype(B)
+    scalar_type = eltype(B)
     modeA = collect(Cint, Ainds)
     modeB = collect(Cint, Binds)
-    cutensorPermutation(handle(), T[alpha], A, descA, modeA, B, descB, modeB, T,
-                        stream)
+    cutensorPermutation(handle(),
+                        Ref{scalar_type}(alpha),
+                        A, descA, modeA,
+                        B, descB, modeB,
+                        scalar_type, stream)
     return B
 end
 
 function contraction!(
-    alpha::Number, A::Union{Array, CuArray}, Ainds::ModeType, opA::cutensorOperator_t,
-                   B::Union{Array, CuArray}, Binds::ModeType, opB::cutensorOperator_t,
-    beta::Number,  C::Union{Array, CuArray}, Cinds::ModeType, opC::cutensorOperator_t,
-                                                opOut::cutensorOperator_t;
-    pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
-    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuStreamPerThread(),
-    compute_type::Type=eltype(C), plan::Union{cutensorContractionPlan_t, Nothing}=nothing)
-
+        @nospecialize(alpha::Number),
+        @nospecialize(A::Union{Array, CuArray}), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::Union{Array, CuArray}), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(beta::Number),
+        @nospecialize(C::Union{Array, CuArray}), Cinds::ModeType, opC::cutensorOperator_t,
+        opOut::cutensorOperator_t;
+        pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
+        algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuStreamPerThread(),
+        compute_type::Type=eltype(C), plan::Union{cutensorContractionPlan_t, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -245,21 +281,20 @@ function contraction!(
                 plan_ref = Ref(plan)
             end
             cutensorContraction(handle(), plan_ref,
-                                scalar_type[convert(scalar_type, alpha)], A, B,
-                                scalar_type[convert(scalar_type, beta)],  C, C,
+                                Ref{scalar_type}(alpha), A, B,
+                                Ref{scalar_type}(beta),  C, C,
                                 workspace, sizeof(workspace), stream)
         end
     return C
 end
 
 function plan_contraction(
-    A::Union{CuArray, Array}, Ainds::ModeType, opA::cutensorOperator_t,
-    B::Union{CuArray, Array}, Binds::ModeType, opB::cutensorOperator_t,
-    C::Union{CuArray, Array}, Cinds::ModeType, opC::cutensorOperator_t,
-                                                opOut::cutensorOperator_t;
-    pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
-    algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
-
+        @nospecialize(A::Union{CuArray, Array}), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(B::Union{CuArray, Array}), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(C::Union{CuArray, Array}), Cinds::ModeType, opC::cutensorOperator_t,
+        opOut::cutensorOperator_t;
+        pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
+        algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, compute_type::Type=eltype(C))
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -300,10 +335,11 @@ function plan_contraction(
 end
 
 function reduction!(
-    alpha::Number, A::Union{Array, CuArray}, Ainds::ModeType, opA::cutensorOperator_t,
-    beta::Number,  C::Union{Array, CuArray}, Cinds::ModeType, opC::cutensorOperator_t,
-    opReduce::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
-
+        @nospecialize(alpha::Number),
+        @nospecialize(A::Union{Array, CuArray}), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(beta::Number),
+        @nospecialize(C::Union{Array, CuArray}), Cinds::ModeType, opC::cutensorOperator_t,
+        opReduce::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opReduce)  && throw(ArgumentError("opReduce must be a binary op!"))
@@ -324,8 +360,8 @@ function reduction!(
                 out(Ref{UInt64}(C_NULL)))
         )[] workspace->begin
             cutensorReduction(handle(),
-                T[alpha], A, descA, modeA,
-                T[beta],  C, descC, modeC,
+                Ref{T}(alpha), A, descA, modeA,
+                Ref{T}(beta),  C, descC, modeC,
                         C, descC, modeC,
                 opReduce, typeCompute,
                 workspace, sizeof(workspace), stream)

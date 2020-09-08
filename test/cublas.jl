@@ -44,8 +44,8 @@ k = 13
 end # level 1 testset
 
 @testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    alpha = convert(elty,2)
-    beta = convert(elty,3)
+    alpha = rand(elty)
+    beta = rand(elty)
 
     @testset "Level 2" begin
         @testset "gemv" begin
@@ -382,8 +382,8 @@ end # level 1 testset
             @testset "her!" begin
                 dB = copy(dhA)
                 # perform rank one update
-                CUBLAS.her!('U',alpha,dx,dB)
-                B = (alpha*x)*x' + hA
+                CUBLAS.her!('U',real(alpha),dx,dB)
+                B = (real(alpha)*x)*x' + hA
                 # move to host and compare upper triangles
                 hB = Array(dB)
                 B = triu(B)
@@ -393,8 +393,8 @@ end # level 1 testset
 
             @testset "her2!" begin
                 dB = copy(dhA)
-                CUBLAS.her2!('U',alpha,dx,dy,dB)
-                B = (alpha*x)*y' + y*(alpha*x)' + hA
+                CUBLAS.her2!('U',real(alpha),dx,dy,dB)
+                B = (real(alpha)*x)*y' + y*(real(alpha)*x)' + hA
                 # move to host and compare upper triangles
                 hB = Array(dB)
                 B = triu(B)
@@ -1040,8 +1040,8 @@ end # level 1 testset
         if elty <: Complex
             @testset "herk!" begin
                 d_C = CuArray(dhA)
-                CUBLAS.herk!('U','N',alpha,d_A,beta,d_C)
-                C = alpha*(A*A') + beta*hA
+                CUBLAS.herk!('U','N',real(alpha),d_A,real(beta),d_C)
+                C = real(alpha)*(A*A') + real(beta)*hA
                 C = triu(C)
                 # move to host and compare
                 h_C = Array(d_C)
@@ -1059,8 +1059,8 @@ end # level 1 testset
             end
             @testset "xt_herk! gpu" begin
                 d_C = CuArray(dhA)
-                C = alpha*(A*A') + beta*Array(d_C)
-                CUBLAS.xt_herk!('U','N',alpha,d_A,beta,d_C)
+                C = real(alpha)*(A*A') + real(beta)*Array(d_C)
+                CUBLAS.xt_herk!('U','N',real(alpha),d_A,real(beta),d_C)
                 C = triu(C)
                 # move to host and compare
                 h_C = Array(d_C)
@@ -1069,8 +1069,8 @@ end # level 1 testset
             end
             memcheck || @testset "xt_herk! cpu" begin
                 h_C = Array(dhA)
-                CUBLAS.xt_herk!('U','N',alpha,Array(d_A),beta,h_C)
-                C = alpha*(A*A') + beta*Array(dhA)
+                CUBLAS.xt_herk!('U','N',real(alpha),Array(d_A),real(beta),h_C)
+                C = real(alpha)*(A*A') + real(beta)*Array(dhA)
                 C = triu(C)
                 # move to host and compare
                 h_C = triu(h_C)

@@ -33,7 +33,7 @@ function default_rng()
             rng
         end
     end
-    @inbounds CURAND_THREAD_RNGs[tid]
+    something(@inbounds CURAND_THREAD_RNGs[tid])
 end
 
 function GPUArrays.default_rng(::Type{<:CuArray})
@@ -49,7 +49,7 @@ function GPUArrays.default_rng(::Type{<:CuArray})
             rng
         end
     end
-    @inbounds GPUARRAY_THREAD_RNGs[tid]
+    something(@inbounds GPUARRAY_THREAD_RNGs[tid])
 end
 
 function __init__()

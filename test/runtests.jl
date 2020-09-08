@@ -50,8 +50,7 @@ do_snoop, snoop_path = extract_flag!(cli_args, "--snoop")
 include("setup.jl")     # make sure everything is precompiled
 
 # choose tests
-const tests = ["initialization",    # needs to run first
-               "cutensor"]          # prioritize slow tests
+const tests = ["initialization"]    # needs to run first
 const test_runners = Dict()
 ## files in the test folder
 for (rootpath, dirs, files) in walkdir(@__DIR__)
@@ -163,7 +162,9 @@ const skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
 has_nvml() || push!(skip_tests, "nvml")
 if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0"
-    push!(skip_tests, "cutensor")
+    append!(skip_tests, ["cutensor/base", "cutensor/contractions",
+                         "cutensor/elementwise_binary", "cutensor/elementwise_trinary",
+                         "cutensor/permutations", "cutensor/reductions"])
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if VERSION < v"1.5-" || first(picks).cap < v"7.0"

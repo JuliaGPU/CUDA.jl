@@ -56,17 +56,50 @@ version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
                           cublasGetProperty(CUDA.PATCH_LEVEL))
 
 const cublas_compute_types = Dict(
-                                  (Float16, Float16, Float16)=>CUBLAS_COMPUTE_16F,
-                                  (Int8, Int8, Float32)      =>CUBLAS_COMPUTE_32F,
-                                  (Complex{Int8}, Complex{Int8}, ComplexF32)      =>CUBLAS_COMPUTE_32F,
-                                  (Float16, Float16, Float32)=>CUBLAS_COMPUTE_32F,
-                                  (Float32, Float32, Float32)=>CUBLAS_COMPUTE_32F,
-                                  (ComplexF32, ComplexF32, ComplexF32)=>CUBLAS_COMPUTE_32F,
-                                  (ComplexF16, ComplexF16, ComplexF16)=>CUBLAS_COMPUTE_32F,
-                                  (Float64, Float64, Float64)=>CUBLAS_COMPUTE_64F,
-                                  (ComplexF64, ComplexF64, ComplexF64)=>CUBLAS_COMPUTE_64F,
-                                  (Int8, Int8, Int32)        =>CUBLAS_COMPUTE_32I)
+    (Float16, Float16, Float16)                 => CUBLAS_COMPUTE_16F,
+    (Int8, Int8, Float32)                       => CUBLAS_COMPUTE_32F,
+    (Complex{Int8}, Complex{Int8}, ComplexF32)  => CUBLAS_COMPUTE_32F,
+    (Float16, Float16, Float32)                 => CUBLAS_COMPUTE_32F,
+    (Float32, Float32, Float32)                 => CUBLAS_COMPUTE_32F,
+    (ComplexF32, ComplexF32, ComplexF32)        => CUBLAS_COMPUTE_32F,
+    (ComplexF16, ComplexF16, ComplexF16)        => CUBLAS_COMPUTE_32F,
+    (Float64, Float64, Float64)                 => CUBLAS_COMPUTE_64F,
+    (ComplexF64, ComplexF64, ComplexF64)        => CUBLAS_COMPUTE_64F,
+    (Int8, Int8, Int32)                         => CUBLAS_COMPUTE_32I)
 cublasComputeType(TA, TB, TC) = cublas_compute_types[(TA, TB, TC)]
+
+function juliaStorageType(::Type{<:Real}, T::cublasComputeType_t)
+    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
+        return Float16
+    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           T == CUBLAS_COMPUTE_32F_FAST_TF32
+        return Float32
+    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
+        return Float64
+    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+        return Int32
+    else
+        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+    end
+end
+
+function juliaStorageType(::Type{<:Complex}, T::cublasComputeType_t)
+    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
+        return ComplexF16
+    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           T == CUBLAS_COMPUTE_32F_FAST_TF32
+        return ComplexF32
+    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
+        return ComplexF64
+    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+        return Complex{Int32}
+    else
+        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+    end
+end
+
 # Level 1
 ## copy
 for (fname, elty) in ((:cublasDcopy_v2,:Float64),
@@ -75,12 +108,12 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
                       (:cublasCcopy_v2,:ComplexF32))
     @eval begin
         function blascopy!(n::Integer,
-                           DX::CuArray{$elty},
+                           x::CuArray{$elty},
                            incx::Integer,
-                           DY::CuArray{$elty},
+                           y::CuArray{$elty},
                            incy::Integer)
-              $fname(handle(), n, DX, incx, DY, incy)
-            DY
+              $fname(handle(), n, x, incx, y, incy)
+            y
         end
     end
 end
@@ -92,26 +125,24 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
                       (:cublasCscal_v2,:ComplexF32))
     @eval begin
         function scal!(n::Integer,
-                       DA::$elty,
-                       DX::CuArray{$elty},
+                       alpha::Number,
+                       x::CuArray{$elty},
                        incx::Integer)
-            $fname(handle(), n, Ref(DA), DX, incx)
-            DX
+            $fname(handle(), n, alpha, x, incx)
+            x
         end
     end
 end
-# In case DX is complex, and DA is real, use dscal/sscal to save flops
-for (fname, elty, celty) in ((:cublasSscal_v2, :Float32, :ComplexF32),
-                             (:cublasDscal_v2, :Float64, :ComplexF64))
+# specific variants in case x is complex and alpha is real
+for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
+                             (:cublasZdscal_v2, :Float64, :ComplexF64))
     @eval begin
         function scal!(n::Integer,
-                       DA::$elty,
-                       DX::CuArray{$celty},
+                       alpha::$elty,
+                       x::CuArray{$celty},
                        incx::Integer)
-            #DY = reinterpret($elty,DX,(2*n,))
-            #$fname(handle(), 2*n, [DA], DY, incx)
-            $fname(handle(), 2*n, Ref(DA), DX, incx)
-            DX
+            $fname(handle(), n, alpha, x, incx)
+            x
         end
     end
 end
@@ -125,12 +156,12 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
                              (:dotu,:cublasCdotu_v2,:ComplexF32))
     @eval begin
         function $jname(n::Integer,
-                        DX::CuArray{$elty},
+                        x::CuArray{$elty},
                         incx::Integer,
-                        DY::CuArray{$elty},
+                        y::CuArray{$elty},
                         incy::Integer)
             result = Ref{$elty}()
-            $fname(handle(), n, DX, incx, DY, incy, result)
+            $fname(handle(), n, x, incx, y, incy, result)
             return result[]
         end
     end
@@ -178,37 +209,37 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
                       (:cublasCaxpy_v2,:ComplexF32))
     @eval begin
         function axpy!(n::Integer,
-                       alpha::($elty),
+                       alpha::Number,
                        dx::CuArray{$elty},
                        incx::Integer,
                        dy::CuArray{$elty},
                        incy::Integer)
-            $fname(handle(), n, Ref(alpha), dx, incx, dy, incy)
+            $fname(handle(), n, alpha, dx, incx, dy, incy)
             dy
         end
     end
 end
 
-function axpy!(alpha::Ta,
+function axpy!(alpha::Number,
                x::CuArray{T},
-               rx::Union{UnitRange{Ti},AbstractRange{Ti}},
+               rx::Union{UnitRange{<:Integer},AbstractRange{<:Integer}},
                y::CuArray{T},
-               ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:CublasFloat,Ta<:Number,Ti<:Integer}
+               ry::Union{UnitRange{<:Integer},AbstractRange{<:Integer}}) where {T<:CublasFloat}
     length(rx)==length(ry) || throw(DimensionMismatch(""))
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
     end
-    GC.@preserve x y axpy!(length(rx), convert(T, alpha),
+    GC.@preserve x y axpy!(length(rx), alpha,
                            pointer(x)+(first(rx)-1)*sizeof(T), step(rx),
                            pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
     y
 end
 
 function axpby!(n::Integer,
-                alpha::T,
+                alpha::Number,
                 dx::CuArray{T},
                 incx::Integer,
-                beta::T,
+                beta::Number,
                 dy::CuArray{T},
                 incy::Integer) where T <: CublasFloat
             scal!(n, beta, dy, incy)
@@ -216,7 +247,7 @@ function axpby!(n::Integer,
             dy
 end
 
-function axpby!(alpha::Ta,
+function axpby!(alpha::Number,
                 x::CuArray{T},
                 rx::Union{UnitRange{Ti},AbstractRange{Ti}},
                 beta::Tb,
@@ -226,7 +257,7 @@ function axpby!(alpha::Ta,
     if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
         throw(BoundsError())
     end
-    GC.@preserve x y axpby!(length(rx), convert(T, alpha),
+    GC.@preserve x y axpby!(length(rx), alpha,
                             pointer(x)+(first(rx)-1)*sizeof(T), step(rx), convert(T, beta),
                             pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
     y
@@ -277,10 +308,10 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
                       (:cublasCgemv_v2,:ComplexF32))
     @eval begin
         function gemv!(trans::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        X::CuVector{$elty},
-                       beta::($elty),
+                       beta::Number,
                        Y::CuVector{$elty})
             # handle trans
             m,n = size(A)
@@ -290,10 +321,10 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(X,1)
             incy = stride(Y,1)
-            $fname(handle(), trans, m, n, Ref(alpha), A, lda, X, incx, Ref(beta), Y, incy)
+            $fname(handle(), trans, m, n, alpha, A, lda, X, incx, beta, Y, incy)
             Y
         end
-        function gemv(trans::Char, alpha::($elty), A::CuMatrix{$elty}, X::CuVector{$elty})
+        function gemv(trans::Char, alpha::Number, A::CuMatrix{$elty}, X::CuVector{$elty})
             gemv!(trans, alpha, A, X, zero($elty), similar(X, $elty, size(A, (trans == 'N' ? 1 : 2))))
         end
         function gemv(trans::Char, A::CuMatrix{$elty}, X::CuVector{$elty})
@@ -312,10 +343,10 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
                        m::Integer,
                        kl::Integer,
                        ku::Integer,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        x::CuVector{$elty},
-                       beta::($elty),
+                       beta::Number,
                        y::CuVector{$elty})
             n = size(A,2)
             # check dimensions
@@ -324,14 +355,14 @@ for (fname, elty) in ((:cublasDgbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), trans, m, n, kl, ku, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), trans, m, n, kl, ku, alpha, A, lda, x, incx, beta, y, incy)
             y
         end
         function gbmv(trans::Char,
                       m::Integer,
                       kl::Integer,
                       ku::Integer,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuMatrix{$elty},
                       x::CuVector{$elty})
             # TODO: fix gbmv bug in julia
@@ -358,10 +389,10 @@ for (fname, elty) in ((:cublasDsymv_v2,:Float64),
     # Note that the complex symv are not BLAS but auiliary functions in LAPACK
     @eval begin
         function symv!(uplo::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        x::CuVector{$elty},
-                       beta::($elty),
+                       beta::Number,
                        y::CuVector{$elty})
             m, n = size(A)
             if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
@@ -369,10 +400,10 @@ for (fname, elty) in ((:cublasDsymv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
             y
         end
-        function symv(uplo::Char, alpha::($elty), A::CuMatrix{$elty}, x::CuVector{$elty})
+        function symv(uplo::Char, alpha::Number, A::CuMatrix{$elty}, x::CuVector{$elty})
                 symv!(uplo, alpha, A, x, zero($elty), similar(x))
         end
         function symv(uplo::Char, A::CuMatrix{$elty}, x::CuVector{$elty})
@@ -387,10 +418,10 @@ for (fname, elty) in ((:cublasZhemv_v2,:ComplexF64),
                       (:cublasChemv_v2,:ComplexF32))
     @eval begin
         function hemv!(uplo::Char,
-                       alpha::$elty,
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        x::CuVector{$elty},
-                       beta::$elty,
+                       beta::Number,
                        y::CuVector{$elty})
             # TODO: fix dimension check bug in julia
             m, n = size(A)
@@ -399,10 +430,10 @@ for (fname, elty) in ((:cublasZhemv_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, alpha, A, lda, x, incx, beta, y, incy)
             y
         end
-        function hemv(uplo::Char, alpha::($elty), A::CuMatrix{$elty},
+        function hemv(uplo::Char, alpha::Number, A::CuMatrix{$elty},
                       x::CuVector{$elty})
             hemv!(uplo, alpha, A, x, zero($elty), similar(x))
         end
@@ -421,10 +452,10 @@ for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
     @eval begin
         function sbmv!(uplo::Char,
                        k::Integer,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        x::CuVector{$elty},
-                       beta::($elty),
+                       beta::Number,
                        y::CuVector{$elty})
             m, n = size(A)
             #if m != n throw(DimensionMismatch("Matrix A is $m by $n but must be square")) end
@@ -434,10 +465,10 @@ for (fname, elty) in ((:cublasDsbmv_v2,:Float64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
             y
         end
-        function sbmv(uplo::Char, k::Integer, alpha::($elty),
+        function sbmv(uplo::Char, k::Integer, alpha::Number,
                       A::CuMatrix{$elty}, x::CuVector{$elty})
             n = size(A,2)
             sbmv!(uplo, k, alpha, A, x, zero($elty), similar(x, $elty, n))
@@ -455,10 +486,10 @@ for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
     @eval begin
         function hbmv!(uplo::Char,
                        k::Integer,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        x::CuVector{$elty},
-                       beta::($elty),
+                       beta::Number,
                        y::CuVector{$elty})
             m, n = size(A)
             if !(1<=(1+k)<=n) throw(DimensionMismatch("Incorrect number of bands")) end
@@ -467,10 +498,10 @@ for (fname, elty) in ((:cublasZhbmv_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             incx = stride(x,1)
             incy = stride(y,1)
-            $fname(handle(), uplo, n, k, Ref(alpha), A, lda, x, incx, Ref(beta), y, incy)
+            $fname(handle(), uplo, n, k, alpha, A, lda, x, incx, beta, y, incy)
             y
         end
-        function hbmv(uplo::Char, k::Integer, alpha::($elty),
+        function hbmv(uplo::Char, k::Integer, alpha::Number,
                       A::CuMatrix{$elty}, x::CuVector{$elty})
             n = size(A,2)
             hbmv!(uplo, k, alpha, A, x, zero($elty), similar(x, $elty, n))
@@ -614,7 +645,7 @@ for (fname, elty) in ((:cublasDger_v2,:Float64),
                       (:cublasZgerc_v2,:ComplexF64),
                       (:cublasCgerc_v2,:ComplexF32))
     @eval begin
-        function ger!(alpha::$elty,
+        function ger!(alpha::Number,
                       x::CuVector{$elty},
                       y::CuVector{$elty},
                       A::CuMatrix{$elty})
@@ -624,7 +655,7 @@ for (fname, elty) in ((:cublasDger_v2,:Float64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), m, n, [alpha], x, incx, y, incy, A, lda)
+            $fname(handle(), m, n, alpha, x, incx, y, incy, A, lda)
             A
         end
     end
@@ -638,7 +669,7 @@ for (fname, elty) in ((:cublasDsyr_v2,:Float64),
                       (:cublasCsyr_v2,:ComplexF32))
     @eval begin
         function syr!(uplo::Char,
-                      alpha::$elty,
+                      alpha::Number,
                       x::CuVector{$elty},
                       A::CuMatrix{$elty})
             m, n = size(A)
@@ -646,7 +677,7 @@ for (fname, elty) in ((:cublasDsyr_v2,:Float64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), uplo, n, [alpha], x, incx, A, lda)
+            $fname(handle(), uplo, n, alpha, x, incx, A, lda)
             A
         end
     end
@@ -657,7 +688,7 @@ for (fname, elty) in ((:cublasZher_v2,:ComplexF64),
                       (:cublasCher_v2,:ComplexF32))
     @eval begin
         function her!(uplo::Char,
-                      alpha::$elty,
+                      alpha::Number,
                       x::CuVector{$elty},
                       A::CuMatrix{$elty})
             m, n = size(A)
@@ -665,7 +696,7 @@ for (fname, elty) in ((:cublasZher_v2,:ComplexF64),
             length(x) == n || throw(DimensionMismatch("Length of vector must be the same as the matrix dimensions"))
             incx = stride(x,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), uplo, n, [alpha], x, incx, A, lda)
+            $fname(handle(), uplo, n, alpha, x, incx, A, lda)
             A
         end
     end
@@ -676,7 +707,7 @@ for (fname, elty) in ((:cublasZher2_v2,:ComplexF64),
                       (:cublasCher2_v2,:ComplexF32))
     @eval begin
         function her2!(uplo::Char,
-                      alpha::$elty,
+                      alpha::Number,
                       x::CuVector{$elty},
                       y::CuVector{$elty},
                       A::CuMatrix{$elty})
@@ -687,7 +718,7 @@ for (fname, elty) in ((:cublasZher2_v2,:ComplexF64),
             incx = stride(x,1)
             incy = stride(y,1)
             lda = max(1,stride(A,2))
-            $fname(handle(), uplo, n, [alpha], x, incx, y, incy, A, lda)
+            $fname(handle(), uplo, n, alpha, x, incx, y, incy, A, lda)
             A
         end
     end
@@ -704,10 +735,10 @@ for (fname, elty) in
     @eval begin
         function gemm!(transA::Char,
                        transB::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuVecOrMat{$elty},
                        B::CuVecOrMat{$elty},
-                       beta::($elty),
+                       beta::Number,
                        C::CuVecOrMat{$elty})
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
@@ -718,12 +749,12 @@ for (fname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), transA, transB, m, n, k, [alpha], A, lda, B, ldb, [beta],C, ldc)
+            $fname(handle(), transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
         function gemm(transA::Char,
                       transB::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuMatrix{$elty},
                       B::CuMatrix{$elty})
             gemm!(transA, transB, alpha, A, B, zero($elty),
@@ -758,12 +789,16 @@ function gemmEx!(transA::Char,
     ldc = max(1,stride(C,2))
     if version() >= v"11.0"
         computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
-        cublasGemmEx(handle(), transA, transB, m, n, k, [alpha], A, eltype(A), lda, B, eltype(B), ldb, [beta], C, eltype(C), ldc, computeType, algo)
+        T = juliaStorageType(eltype(C), computeType)
+        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
+                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
     else
         # FIXME: we patch the cublasGemmEx ccall to computeType::UInt32 for compatibility
         #        across CUDA versions
         computeType = convert(cudaDataType, eltype(C))
-        cublasGemmEx(handle(), transA, transB, m, n, k, [convert(eltype(C), alpha)], A, eltype(A), lda, B, eltype(B), ldb, [convert(eltype(C), beta)], C, eltype(C), ldc, computeType, algo)
+        T = convert(Type, computeType)
+        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
+                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
     end
     C
 end
@@ -791,10 +826,10 @@ for (fname, elty) in
     @eval begin
         function gemm_batched!(transA::Char,
                                transB::Char,
-                               alpha::($elty),
+                               alpha::Number,
                                A::Vector{<:CuMatrix{$elty}},
                                B::Vector{<:CuMatrix{$elty}},
-                               beta::($elty),
+                               beta::Number,
                                C::Vector{<:CuMatrix{$elty}})
             if length(A) != length(B) || length(A) != length(C)
                 throw(DimensionMismatch(""))
@@ -817,8 +852,8 @@ for (fname, elty) in
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
             Cptrs = unsafe_batch(C)
-            $fname(handle(), transA, transB, m, n, k, [alpha], Aptrs, lda, Bptrs,
-                   ldb, [beta], Cptrs, ldc, length(A))
+            $fname(handle(), transA, transB, m, n, k, alpha, Aptrs, lda, Bptrs,
+                   ldb, beta, Cptrs, ldc, length(A))
             unsafe_free!(Cptrs)
             unsafe_free!(Bptrs)
             unsafe_free!(Aptrs)
@@ -827,7 +862,7 @@ for (fname, elty) in
         end
         function gemm_batched(transA::Char,
                       transB::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::Vector{<:CuMatrix{$elty}},
                       B::Vector{<:CuMatrix{$elty}})
             C = CuMatrix{$elty}[similar( B[1], $elty, (size(A[1], transA == 'N' ? 1 : 2),size(B[1], transB == 'N' ? 2 : 1))) for i in 1:length(A)]
@@ -852,10 +887,10 @@ for (fname, elty) in
     @eval begin
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
-                               alpha::($elty),
+                               alpha::Number,
                                A::CuArray{$elty, 3},
                                B::CuArray{$elty, 3},
-                               beta::($elty),
+                               beta::Number,
                                C::CuArray{$elty, 3})
            m = size(A, transA == 'N' ? 1 : 2)
            k = size(A, transA == 'N' ? 2 : 1)
@@ -874,13 +909,13 @@ for (fname, elty) in
            strideB = stride(B, 3)
            strideC = stride(C, 3)
            batchCount = size(A, 3)
-           $fname(handle(), transA, transB, m, n, k, [alpha], A, lda, strideA, B,
-                  ldb, strideB, [beta], C, ldc, strideC, batchCount)
+           $fname(handle(), transA, transB, m, n, k, alpha, A, lda, strideA, B,
+                  ldb, strideB, beta, C, ldc, strideC, batchCount)
            C
         end
         function gemm_strided_batched(transA::Char,
                       transB::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuArray{$elty, 3},
                       B::CuArray{$elty, 3})
             C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), size(A, 3)))
@@ -904,10 +939,10 @@ for (fname, elty) in ((:cublasDsymm_v2,:Float64),
     @eval begin
         function symm!(side::Char,
                        uplo::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        B::CuMatrix{$elty},
-                       beta::($elty),
+                       beta::Number,
                        C::CuMatrix{$elty})
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
@@ -919,13 +954,13 @@ for (fname, elty) in ((:cublasDsymm_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), side, uplo, m, n, [alpha], A, lda, B, ldb,
-                   [beta], C, ldc)
+            $fname(handle(), side, uplo, m, n, alpha, A, lda, B, ldb,
+                   beta, C, ldc)
             C
         end
         function symm(side::Char,
                       uplo::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuMatrix{$elty},
                       B::CuMatrix{$elty})
             symm!(side, uplo, alpha, A, B, zero($elty), similar(B))
@@ -947,9 +982,9 @@ for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
     @eval begin
         function syrk!(uplo::Char,
                        trans::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuVecOrMat{$elty},
-                       beta::($elty),
+                       beta::Number,
                        C::CuMatrix{$elty})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -958,7 +993,7 @@ for (fname, elty) in ((:cublasDsyrk_v2,:Float64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
+            $fname(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
     end
@@ -969,7 +1004,7 @@ function syrk(uplo::Char,
               A::CuVecOrMat)
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
-    syrk!(uplo, trans, convert(T,alpha), A, zero(T), similar(A, T, (n, n)))
+    syrk!(uplo, trans, alpha, A, zero(T), similar(A, T, (n, n)))
 end
 syrk(uplo::Char, trans::Char, A::CuVecOrMat) = syrk(uplo, trans,
                                                               one(eltype(A)),
@@ -982,10 +1017,10 @@ for (fname, elty) in ((:cublasDsyrkx,:Float64),
     @eval begin
         function syrkx!(uplo::Char,
                        trans::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuVecOrMat{$elty},
                        B::CuVecOrMat{$elty},
-                       beta::($elty),
+                       beta::Number,
                        C::CuMatrix{$elty})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -995,7 +1030,7 @@ for (fname, elty) in ((:cublasDsyrkx,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
     end
@@ -1020,10 +1055,10 @@ for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
     @eval begin
         function hemm!(side::Char,
                        uplo::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        B::CuMatrix{$elty},
-                       beta::($elty),
+                       beta::Number,
                        C::CuMatrix{$elty})
             mA, nA = size(A)
             m, n = size(B)
@@ -1035,12 +1070,12 @@ for (fname, elty) in ((:cublasZhemm_v2,:ComplexF64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), side, uplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
         function hemm(uplo::Char,
                       trans::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuMatrix{$elty},
                       B::CuMatrix{$elty})
             m,n = size(B)
@@ -1057,9 +1092,9 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
     @eval begin
         function herk!(uplo::Char,
                        trans::Char,
-                       alpha::($elty),
+                       alpha::Real,
                        A::CuVecOrMat{$elty},
-                       beta::($elty),
+                       beta::Real,
                        C::CuMatrix{$elty})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -1068,14 +1103,15 @@ for (fname, elty) in ((:cublasZherk_v2,:ComplexF64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
+            $fname(handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
-        function herk(uplo::Char, trans::Char, alpha::($elty), A::CuVecOrMat{$elty})
+        function herk(uplo::Char, trans::Char, alpha::Real, A::CuVecOrMat{$elty})
             n = size(A, trans == 'N' ? 1 : 2)
-            herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
+            herk!(uplo, trans, alpha, A, zero(real($elty)), similar(A, $elty, (n,n)))
         end
-        herk(uplo::Char, trans::Char, A::CuVecOrMat{$elty}) = herk(uplo, trans, one($elty), A)
+        herk(uplo::Char, trans::Char, A::CuVecOrMat{$elty}) =
+            herk(uplo, trans, one(real($elty)), A)
    end
 end
 
@@ -1087,10 +1123,10 @@ for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
     @eval begin
         function syr2k!(uplo::Char,
                         trans::Char,
-                        alpha::($elty),
+                        alpha::Number,
                         A::CuVecOrMat{$elty},
                         B::CuVecOrMat{$elty},
-                        beta::($elty),
+                        beta::Number,
                         C::CuMatrix{$elty})
             # TODO: check size of B in julia (syr2k!)
             m, n = size(C)
@@ -1105,7 +1141,7 @@ for (fname, elty) in ((:cublasDsyr2k_v2,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
     end
@@ -1123,16 +1159,16 @@ syr2k(uplo::Char, trans::Char, A::CuVecOrMat, B::CuVecOrMat) =
     syr2k(uplo, trans, one(eltype(A)), A, B)
 
 ## her2k
-for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
-                              (:cublasCher2k_v2,:ComplexF32,:Float32))
+for (fname, elty) in ((:cublasZher2k_v2,:ComplexF64),
+                       (:cublasCher2k_v2,:ComplexF32))
     @eval begin
         function her2k!(uplo::Char,
                         trans::Char,
-                        alpha::($elty1),
-                        A::CuVecOrMat{$elty1},
-                        B::CuVecOrMat{$elty1},
-                        beta::($elty2),
-                        C::CuMatrix{$elty1})
+                        alpha::Number,
+                        A::CuVecOrMat{$elty},
+                        B::CuVecOrMat{$elty},
+                        beta::Real,
+                        C::CuMatrix{$elty})
             # TODO: check size of B in julia (her2k!)
             m, n = size(C)
             if m != n throw(DimensionMismatch("C must be square")) end
@@ -1147,21 +1183,21 @@ for (fname, elty1, elty2) in ((:cublasZher2k_v2,:ComplexF64,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
         function her2k(uplo::Char,
                        trans::Char,
-                       alpha::($elty1),
-                       A::CuVecOrMat{$elty1},
-                       B::CuVecOrMat{$elty1})
+                       alpha::Number,
+                       A::CuVecOrMat{$elty},
+                       B::CuVecOrMat{$elty})
             n = size(A, trans == 'N' ? 1 : 2)
-            her2k!(uplo, trans, alpha, A, B, zero($elty2), similar(A, $elty1, (n,n)))
+            her2k!(uplo, trans, alpha, A, B, zero(real($elty)), similar(A, $elty, (n,n)))
         end
         her2k(uplo::Char,
               trans::Char,
-              A::CuVecOrMat{$elty1},
-              B::CuVecOrMat{$elty1}) = her2k(uplo, trans, one($elty1), A, B)
+              A::CuVecOrMat{$elty},
+              B::CuVecOrMat{$elty}) = her2k(uplo, trans, one($elty), A, B)
    end
 end
 
@@ -1179,7 +1215,7 @@ for (mmname, smname, elty) in
                        uplo::Char,
                        transa::Char,
                        diag::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        B::CuMatrix{$elty},
                        C::CuMatrix{$elty})
@@ -1193,14 +1229,14 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $mmname(handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb, C, ldc)
+            $mmname(handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
             C
         end
         function trmm(side::Char,
                       uplo::Char,
                       transa::Char,
                       diag::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuMatrix{$elty},
                       B::CuMatrix{$elty})
             trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
@@ -1209,7 +1245,7 @@ for (mmname, smname, elty) in
                        uplo::Char,
                        transa::Char,
                        diag::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
                        B::CuMatrix{$elty})
             m, n = size(B)
@@ -1219,14 +1255,14 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            $smname(handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb)
+            $smname(handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb)
             B
         end
         function trsm(side::Char,
                       uplo::Char,
                       transa::Char,
                       diag::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuMatrix{$elty},
                       B::CuMatrix{$elty})
             trsm!(side, uplo, transa, diag, alpha, A, copy(B))
@@ -1245,7 +1281,7 @@ for (fname, elty) in
                                uplo::Char,
                                transa::Char,
                                diag::Char,
-                               alpha::($elty),
+                               alpha::Number,
                                A::Vector{<:CuMatrix{$elty}},
                                B::Vector{<:CuMatrix{$elty}})
             if length(A) != length(B)
@@ -1263,7 +1299,7 @@ for (fname, elty) in
             ldb = max(1,stride(B[1],2))
             Aptrs = unsafe_batch(A)
             Bptrs = unsafe_batch(B)
-            $fname(handle(), side, uplo, transa, diag, m, n, [alpha], Aptrs, lda, Bptrs, ldb, length(A))
+            $fname(handle(), side, uplo, transa, diag, m, n, alpha, Aptrs, lda, Bptrs, ldb, length(A))
             unsafe_free!(Bptrs)
             unsafe_free!(Aptrs)
 
@@ -1273,7 +1309,7 @@ for (fname, elty) in
                               uplo::Char,
                               transa::Char,
                               diag::Char,
-                              alpha::($elty),
+                              alpha::Number,
                               A::Vector{<:CuMatrix{$elty}},
                               B::Vector{<:CuMatrix{$elty}})
             trsm_batched!(side, uplo, transa, diag, alpha, A, copy(B) )
@@ -1293,9 +1329,9 @@ for (fname, elty) in ((:cublasDgeam,:Float64),
     @eval begin
         function geam!(transa::Char,
                        transb::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::CuMatrix{$elty},
-                       beta::($elty),
+                       beta::Number,
                        B::CuMatrix{$elty},
                        C::CuMatrix{$elty})
             mA, nA = size(A)
@@ -1308,14 +1344,14 @@ for (fname, elty) in ((:cublasDgeam,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(handle(), transa, transb, m, n, [alpha], A, lda, [beta], B, ldb, C, ldc)
+            $fname(handle(), transa, transb, m, n, alpha, A, lda, beta, B, ldb, C, ldc)
             C
         end
         function geam(transa::Char,
                       transb::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::CuMatrix{$elty},
-                      beta::($elty),
+                      beta::Number,
                       B::CuMatrix{$elty})
             m,n = size(B)
             if ((transb == 'T' || transb == 'C'))
@@ -1581,10 +1617,10 @@ for (fname, elty) in
     @eval begin
         function xt_gemm!(transA::Char,
                        transB::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::Union{CuVecOrMat{$elty}, VecOrMat{$elty}},
                        B::Union{CuVecOrMat{$elty}, VecOrMat{$elty}},
-                       beta::($elty),
+                       beta::Number,
                        C::Union{CuVecOrMat{$elty}, VecOrMat{$elty}})
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
@@ -1595,12 +1631,12 @@ for (fname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), transA, transB, m, n, k, [alpha], A, lda, B, ldb, [beta],C, ldc)
+            $fname(xt_handle(), transA, transB, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
         function xt_gemm(transA::Char,
                       transB::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::Union{CuVecOrMat{$elty}, VecOrMat{$elty}},
                       B::Union{CuVecOrMat{$elty}, VecOrMat{$elty}})
             xt_gemm!(transA, transB, alpha, A, B, zero($elty),
@@ -1621,10 +1657,10 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
     @eval begin
         function xt_hemm!(side::Char,
                        uplo::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::Union{Matrix{$elty}, CuMatrix{$elty}},
                        B::Union{Matrix{$elty}, CuMatrix{$elty}},
-                       beta::($elty),
+                       beta::Number,
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             mA, nA = size(A)
             m, n = size(B)
@@ -1636,12 +1672,12 @@ for (fname, elty) in ((:cublasXtZhemm,:ComplexF64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), side, uplo, m, n, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(xt_handle(), side, uplo, m, n, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
         function xt_hemm(uplo::Char,
                       trans::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::Union{Matrix{$elty}, CuMatrix{$elty}},
                       B::Union{Matrix{$elty}, CuMatrix{$elty}})
             m,n = size(B)
@@ -1659,10 +1695,10 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
     @eval begin
         function xt_symm!(side::Char,
                        uplo::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::Union{Matrix{$elty}, CuMatrix{$elty}},
                        B::Union{Matrix{$elty}, CuMatrix{$elty}},
-                       beta::($elty),
+                       beta::Number,
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             k, nA = size(A)
             if k != nA throw(DimensionMismatch("Matrix A must be square")) end
@@ -1674,13 +1710,13 @@ for (fname, elty) in ((:cublasXtDsymm,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), side, uplo, m, n, [alpha], A, lda, B, ldb,
-                   [beta], C, ldc)
+            $fname(xt_handle(), side, uplo, m, n, alpha, A, lda, B, ldb,
+                   beta, C, ldc)
             C
         end
         function xt_symm(side::Char,
                       uplo::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::Union{Matrix{$elty}, CuMatrix{$elty}},
                       B::Union{Matrix{$elty}, CuMatrix{$elty}})
             xt_symm!(side, uplo, alpha, A, B, zero($elty), similar(B))
@@ -1701,9 +1737,9 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
     @eval begin
         function xt_syrk!(uplo::Char,
                        trans::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
-                       beta::($elty),
+                       beta::Number,
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -1712,7 +1748,7 @@ for (fname, elty) in ((:cublasXtDsyrk,:Float64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
+            $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
     end
@@ -1723,7 +1759,7 @@ function xt_syrk(uplo::Char,
               A::Union{VecOrMat, CuVecOrMat})
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
-    xt_syrk!(uplo, trans, convert(T,alpha), A, zero(T), similar(A, T, (n, n)))
+    xt_syrk!(uplo, trans, alpha, A, zero(T), similar(A, T, (n, n)))
 end
 xt_syrk(uplo::Char, trans::Char, A::Union{VecOrMat, CuVecOrMat}) =
     xt_syrk(uplo, trans, one(eltype(A)), A)
@@ -1735,10 +1771,10 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
     @eval begin
         function xt_syrkx!(uplo::Char,
                        trans::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
                        B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
-                       beta::($elty),
+                       beta::Number,
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -1748,7 +1784,7 @@ for (fname, elty) in ((:cublasXtDsyrkx,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
     end
@@ -1761,7 +1797,7 @@ function xt_syrkx(uplo::Char,
               beta::Number)
     T = eltype(A)
     n = size(A, trans == 'N' ? 1 : 2)
-    xt_syrkx!(uplo, trans, convert(T,alpha), A, B, convert(T,beta), similar(A, T, (n, n)))
+    xt_syrkx!(uplo, trans, alpha, A, B, beta, similar(A, T, (n, n)))
 end
 xt_syrkx(uplo::Char, trans::Char, A::Union{VecOrMat, CuVecOrMat}, B::Union{VecOrMat, CuVecOrMat}) =
     xt_syrkx(uplo, trans, one(eltype(A)), A, B, zero(eltype(B)))
@@ -1771,9 +1807,9 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
     @eval begin
         function xt_herk!(uplo::Char,
                        trans::Char,
-                       alpha::($elty),
+                       alpha::Real,
                        A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
-                       beta::($elty),
+                       beta::Real,
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             mC, n = size(C)
             if mC != n throw(DimensionMismatch("C must be square")) end
@@ -1782,28 +1818,28 @@ for (fname, elty) in ((:cublasXtZherk,:ComplexF64),
             k  = size(A, trans == 'N' ? 2 : 1)
             lda = max(1,stride(A,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, [beta], C, ldc)
+            $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, beta, C, ldc)
             C
         end
-        function xt_herk(uplo::Char, trans::Char, alpha::($elty), A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
+        function xt_herk(uplo::Char, trans::Char, alpha::Real, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
             n = size(A, trans == 'N' ? 1 : 2)
-            xt_herk!(uplo, trans, alpha, A, zero($elty), similar(A, $elty, (n,n)))
+            xt_herk!(uplo, trans, alpha, A, real(zero($elty)), similar(A, $elty, (n,n)))
         end
         xt_herk(uplo::Char, trans::Char, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}}) =
-            xt_herk(uplo, trans, one($elty), A)
+            xt_herk(uplo, trans, real(one($elty)), A)
    end
 end
 
-for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
-                              (:cublasXtCher2k,:ComplexF32,:Float32))
+for (fname, elty) in ((:cublasXtZher2k,:ComplexF64),
+                      (:cublasXtCher2k,:ComplexF32))
     @eval begin
         function xt_her2k!(uplo::Char,
                         trans::Char,
-                        alpha::($elty1),
-                        A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                        B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                        beta::($elty2),
-                        C::Union{Matrix{$elty1}, CuMatrix{$elty1}})
+                        alpha::Number,
+                        A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                        B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                        beta::Real,
+                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
             # TODO: check size of B in julia (her2k!)
             m, n = size(C)
             if m != n throw(DimensionMismatch("C must be square")) end
@@ -1818,20 +1854,20 @@ for (fname, elty1, elty2) in ((:cublasXtZher2k,:ComplexF64,:Float64),
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $fname(xt_handle(), uplo, trans, n, k, [alpha], A, lda, B, ldb, [beta], C, ldc)
+            $fname(xt_handle(), uplo, trans, n, k, alpha, A, lda, B, ldb, beta, C, ldc)
             C
         end
         function xt_her2k(uplo::Char,
                        trans::Char,
-                       alpha::($elty1),
-                       A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                       B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}})
+                       alpha::Number,
+                       A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                       B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}})
             n = size(A, trans == 'N' ? 1 : 2)
-            xt_her2k!(uplo, trans, alpha, A, B, zero($elty2), similar(A, $elty1, (n,n)))
+            xt_her2k!(uplo, trans, alpha, A, B, zero(real($elty)), similar(A, $elty, (n,n)))
         end
-        xt_her2k(uplo::Char, trans::Char, A::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}},
-                 B::Union{VecOrMat{$elty1}, CuVecOrMat{$elty1}}) =
-            xt_her2k(uplo, trans, one($elty1), A, B)
+        xt_her2k(uplo::Char, trans::Char, A::Union{VecOrMat{$elty}, CuVecOrMat{$elty}},
+                 B::Union{VecOrMat{$elty}, CuVecOrMat{$elty}}) =
+            xt_her2k(uplo, trans, one($elty), A, B)
     end
 end
 
@@ -1848,7 +1884,7 @@ for (mmname, smname, elty) in
                        uplo::Char,
                        transa::Char,
                        diag::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::Union{Matrix{$elty}, CuMatrix{$elty}},
                        B::Union{Matrix{$elty}, CuMatrix{$elty}},
                        C::Union{Matrix{$elty}, CuMatrix{$elty}})
@@ -1862,14 +1898,14 @@ for (mmname, smname, elty) in
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
             ldc = max(1,stride(C,2))
-            $mmname(xt_handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb, C, ldc)
+            $mmname(xt_handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
             C
         end
         function xt_trmm(side::Char,
                       uplo::Char,
                       transa::Char,
                       diag::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::Union{CuMatrix{$elty}, Matrix{$elty}},
                       B::Union{CuMatrix{$elty}, Matrix{$elty}})
             xt_trmm!(side, uplo, transa, diag, alpha, A, B, similar(B))
@@ -1878,7 +1914,7 @@ for (mmname, smname, elty) in
                        uplo::Char,
                        transa::Char,
                        diag::Char,
-                       alpha::($elty),
+                       alpha::Number,
                        A::Union{CuMatrix{$elty}, Matrix{$elty}},
                        B::Union{CuMatrix{$elty}, Matrix{$elty}})
             m, n = size(B)
@@ -1888,14 +1924,14 @@ for (mmname, smname, elty) in
             if nA != (side == 'L' ? m : n) throw(DimensionMismatch("trsm!")) end
             lda = max(1,stride(A,2))
             ldb = max(1,stride(B,2))
-            $smname(xt_handle(), side, uplo, transa, diag, m, n, [alpha], A, lda, B, ldb)
+            $smname(xt_handle(), side, uplo, transa, diag, m, n, alpha, A, lda, B, ldb)
             B
         end
         function xt_trsm(side::Char,
                       uplo::Char,
                       transa::Char,
                       diag::Char,
-                      alpha::($elty),
+                      alpha::Number,
                       A::Union{CuMatrix{$elty}, Matrix{$elty}},
                       B::Union{CuMatrix{$elty}, Matrix{$elty}})
             xt_trsm!(side, uplo, transa, diag, alpha, A, copy(B))
