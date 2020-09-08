@@ -656,15 +656,6 @@ function process(name, headers...; libname=name, rewrite_pointers=true, kwargs..
     end
 
 
-    ## move to destination
-
-    dstdir = joinpath(dirname(dirname(@__DIR__)), "lib", name)
-    for src in (output_file, common_file)
-        dst = joinpath(dstdir, src)
-        cp(src, dst; force=true)
-    end
-
-
     ## manual patches
 
     patchdir = joinpath(@__DIR__, "patches", name)
@@ -672,7 +663,7 @@ function process(name, headers...; libname=name, rewrite_pointers=true, kwargs..
         for entry in readdir(patchdir)
             if endswith(entry, ".patch")
                 path = joinpath(patchdir, entry)
-                run(`patch -p1 -d $dstdir -i $path`)
+                run(`patch -p1 -i $path`)
             end
         end
     end
