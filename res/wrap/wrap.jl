@@ -1,7 +1,5 @@
 # script to parse CUDA headers and generate Julia wrappers
 
-using Crayons
-
 
 #
 # Parsing
@@ -43,31 +41,6 @@ function wrap(name, headers...; wrapped_headers=headers, library="lib$name", def
     run(context)
 
     return output_file, common_file
-end
-
-
-#
-# Pointer type database
-#
-
-using JSON, DataStructures
-
-const db_path = joinpath(@__DIR__, "pointers.json")
-
-function load_db()
-    global db
-    db = if isfile(db_path)
-        JSON.parsefile(db_path; dicttype=DataStructures.OrderedDict)
-    else
-        Dict{String, Any}()
-    end
-end
-
-function save_db()
-    global db
-    open(db_path, "w") do io
-        JSON.print(io, db, 4)
-    end
 end
 
 
@@ -339,106 +312,6 @@ function insert_init_pass(x, state)
     end
 end
 
-# change ::Ptr arguments to ::CuPtr / ::PtrOrCuPtr based on user input
-function rewrite_pointers_pass(x, state, headers)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
-        # get the ccall arguments, skipping comma's and parentheses
-        handle = x.args[3]
-        fn = handle.args[2].args[2].val
-        rv = x.args[5]
-        tt = x.args[7]
-        args = x.args[9:2:end]
-
-        # check for pointer types
-        types = tt.args[2:2:end-1]
-        is_pointer = Bool[x.typ == CSTParser.Curly && x.args[1].val == "Ptr" for x in types]
-        offset = state.offset + sum(x->x.fullspan, x.args[1:6])
-        if any(is_pointer)
-            if haskey(db, fn)
-                replacements = db[fn]
-
-                # regenerate replacements with the new argument names
-                changed = false
-                old_replacements = collect(replacements)
-                replacements = OrderedDict{String,Any}()
-                for (i, arg) in enumerate(args)
-                    if arg.val != old_replacements[i].first
-                        changed = true
-                    end
-                    replacements[arg.val] = old_replacements[i].second
-                end
-
-                if changed
-                    db[fn] = replacements
-                    save_db()
-                end
-            else
-                # print some context from the header (some mention host/device pointer)
-                print(Crayon(foreground=:yellow))
-                run(`awk "/\<$fn\>/,/;/" $headers`)
-                println(Crayon(reset=true))
-
-                # print pointer arguments and their types
-                println(Crayon(foreground = :red), fn, Crayon(reset=true))
-                for (i, arg) in enumerate(args)
-                    if is_pointer[i]
-                        println("- argument $i: $(arg.val)::$(Expr(types[i]))")
-                    end
-                end
-                println()
-
-                # prompt
-                run(pipeline(`echo -n $fn`, `xclip -i -selection clipboard`));
-                print("GPU pointers> ")
-                gpu_pointers = parse.(Int, split(readline(stdin)))
-                if gpu_pointers == [0]
-                    # 0 is special match for all pointers
-                    gpu_pointers = findall(is_pointer)
-                elseif !isempty(gpu_pointers) && all(i->i<0, gpu_pointers)
-                    # negative indicates all but these
-                    gpu_pointers = map(i->-i, gpu_pointers)
-                    @assert all(i->is_pointer[i], gpu_pointers) "You selected non-pointer arguments"
-                    gpu_pointers = setdiff(findall(is_pointer), gpu_pointers)
-                end
-                print("Dual GPU/CPU pointers> ")
-                dual_pointers = parse.(Int, split(readline(stdin)))
-                @assert all(i->is_pointer[i], gpu_pointers ∪ dual_pointers) "You selected non-pointer arguments"
-
-                # generate replacements
-                replacements = OrderedDict{String,Any}()
-                for (i, arg) in enumerate(args)
-                    replacements[arg.val] = if is_pointer[i]
-                        if i in gpu_pointers
-                            "CuPtr"
-                        elseif i in dual_pointers
-                            "PtrOrCuPtr"
-                        else
-                            "Ptr"
-                        end
-                    else
-                        nothing
-                    end
-                end
-
-                db[fn] = replacements
-                save_db()
-            end
-
-            # generate edits
-            for (i, (_,replacement)) in enumerate(replacements)
-                offset += tt.args[2*i-1].fullspan
-                if replacement !== nothing && replacement != "Ptr"
-                    ptr = types[i].args[1]
-                    push!(state.edits, Edit(offset+1:offset+ptr.span, replacement))
-                end
-                offset += types[i].fullspan
-            end
-
-            println()
-        end
-    end
-end
-
 # replace handles from the CUDA runtime library with CUDA driver API equivalents
 function rewrite_runtime_pass(x, state)
     if x isa CSTParser.EXPR && x.typ == CSTParser.IDENTIFIER && x.val == "cudaStream_t"
@@ -516,7 +389,7 @@ end
 
 using CUDA_full_jll, CUDNN_CUDA102_jll, CUTENSOR_CUDA102_jll
 
-function process(name, headers...; libname=name, rewrite_pointers=true, kwargs...)
+function process(name, headers...; libname=name, kwargs...)
     new_output_file, new_common_file = wrap(libname, headers...; kwargs...)
 
     for file in (new_output_file, new_common_file)
@@ -540,11 +413,6 @@ function process(name, headers...; libname=name, rewrite_pointers=true, kwargs..
         state.offset = 0
         pass(ast, state, insert_init_pass)
 
-        if rewrite_pointers
-            state.offset = 0
-            pass(ast, state, (x,state)->rewrite_pointers_pass(x,state,headers))
-        end
-
         state.offset = 0
         pass(ast, state, rewrite_runtime_pass)
 
@@ -566,14 +434,7 @@ function process(name, headers...; libname=name, rewrite_pointers=true, kwargs..
             text = squeezed
             squeezed = replace(text, "\n\n\n"=>"\n\n")
         end
-
-        text = """
-            # Automatically-generated headers for $name
-            #
-            # DO NOT EDIT THIS FILE DIRECTLY.
-
-
-            """ * squeezed
+        text = squeezed
 
 
         write(file, text)
@@ -643,20 +504,18 @@ function process(name, headers...; libname=name, rewrite_pointers=true, kwargs..
 end
 
 function main()
-    load_db()
-
     cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
     cudnn = joinpath(CUDNN_CUDA102_jll.artifact_dir, "include")
     cutensor = joinpath(CUTENSOR_CUDA102_jll.artifact_dir, "include")
 
     process("cudadrv", "$cuda/cuda.h", "$cuda/cudaProfiler.h";
-            include_dirs=[cuda], libname="cuda", rewrite_pointers=false)
+            include_dirs=[cuda], libname="cuda")
 
     process("nvtx", "$cuda/nvtx3/nvToolsExt.h", "$cuda/nvtx3/nvToolsExtCuda.h";
-            include_dirs=[cuda], rewrite_pointers=false)
+            include_dirs=[cuda])
 
-    process("nvml", "$cuda/nvml.h"; include_dirs=[cuda], rewrite_pointers=false)
+    process("nvml", "$cuda/nvml.h"; include_dirs=[cuda])
 
     process("cupti", "$cupti/cupti.h", "$cupti/cupti_profiler_target.h";
             include_dirs=[cuda, cupti],
@@ -664,8 +523,7 @@ function main()
                              "cupti_callbacks.h", "cupti_events.h",
                              "cupti_profiler_target.h",
                              "cupti_metrics.h"], # deprecated, but still required
-            defines=["__packed__"=>"", "aligned"=>""],
-            rewrite_pointers=false)
+            defines=["__packed__"=>"", "aligned"=>""])
     # NOTE: libclang (the C API) doesn't support/expose the __packed__/aligned attributes,
     #       so disable them (Julia doesn't support packed structs anyway)
 
