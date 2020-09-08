@@ -387,7 +387,7 @@ end
 # Main application
 #
 
-using CUDA_full_jll, CUDNN_CUDA102_jll, CUTENSOR_CUDA102_jll
+using CUDA_full_jll, CUDNN_CUDA110_jll, CUTENSOR_CUDA110_jll
 
 function process(name, headers...; libname=name, kwargs...)
     new_output_file, new_common_file = wrap(libname, headers...; kwargs...)
@@ -513,8 +513,8 @@ end
 function main()
     cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
-    cudnn = joinpath(CUDNN_CUDA102_jll.artifact_dir, "include")
-    cutensor = joinpath(CUTENSOR_CUDA102_jll.artifact_dir, "include")
+    cudnn = joinpath(CUDNN_CUDA110_jll.artifact_dir, "include")
+    cutensor = joinpath(CUTENSOR_CUDA110_jll.artifact_dir, "include")
 
     process("cudadrv", "$cuda/cuda.h", "$cuda/cudaProfiler.h";
             include_dirs=[cuda], libname="cuda")
@@ -549,7 +549,10 @@ function main()
              wrapped_headers=["cusolver_common.h", "cusolverDn.h", "cusolverSp.h"],
              include_dirs=[cuda])
 
-    process("cudnn", "$cudnn/cudnn.h"; include_dirs=[cuda, cudnn])
+    process("cudnn", "$cudnn/cudnn_version.h", "$cudnn/cudnn_ops_infer.h",
+                     "$cudnn/cudnn_ops_train.h", "$cudnn/cudnn_adv_infer.h",
+                     "$cudnn/cudnn_adv_train.h", "$cudnn/cudnn_cnn_infer.h",
+                     "$cudnn/cudnn_cnn_train.h"; include_dirs=[cuda, cudnn])
 
     process("cutensor", "$cutensor/cutensor.h";
             wrapped_headers=["cutensor.h", "cutensor/types.h"],
