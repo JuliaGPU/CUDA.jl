@@ -467,36 +467,40 @@ function process(name, headers...; libname=name, kwargs...)
 
     # move removed methods to the 'deprecated' file and remove them from header
     removed = setdiff(keys(existing_defs), keys(new_defs))
-    deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, "lib$(libname)_deprecated.jl")
-    open(deprecated_output_file, "a") do io
-        state = State(0, Edit[])
-        for fn in removed
-            pos = existing_defs[fn]
-            text = existing_output_text[pos.offset+1:pos.offset+pos.span]
-            println(io)
-            println(io, text)
-            push!(state.edits, Edit(pos.offset+1:pos.offset+pos.fullspan, ""))
-            @warn "Deprecating definition of $fn"
-        end
+    if !isempty(removed)
+        deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, "lib$(libname)_deprecated.jl")
+        open(deprecated_output_file, "a") do io
+            state = State(0, Edit[])
+            for fn in removed
+                pos = existing_defs[fn]
+                text = existing_output_text[pos.offset+1:pos.offset+pos.span]
+                println(io)
+                println(io, text)
+                push!(state.edits, Edit(pos.offset+1:pos.offset+pos.fullspan, ""))
+                @warn "Deprecating definition of $fn"
+            end
 
-        # apply removals
-        sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
-        for i = 1:length(state.edits)
-            existing_output_text = apply(existing_output_text, state.edits[i])
-        end
+            # apply removals
+            sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
+            for i = 1:length(state.edits)
+                existing_output_text = apply(existing_output_text, state.edits[i])
+            end
 
-        write(existing_output_file, existing_output_text)
+            write(existing_output_file, existing_output_text)
+        end
     end
 
     # append new additions and prompt the user to review
     added = setdiff(keys(new_defs), keys(existing_defs))
-    open(existing_output_file, "a") do io
-        for fn in added
-            pos = new_defs[fn]
-            text = new_output_text[pos.offset+1:pos.offset+pos.span]
-            println(io)
-            println(io, text)
-            @warn "Adding definition of $fn, please review!"
+    if !isempty(added)
+        open(existing_output_file, "a") do io
+            for fn in added
+                pos = new_defs[fn]
+                text = new_output_text[pos.offset+1:pos.offset+pos.span]
+                println(io)
+                println(io, text)
+                @warn "Adding definition of $fn, please review!"
+            end
         end
     end
 
