@@ -470,6 +470,45 @@ function remove_aliases_pass(x, state)
     end
 end
 
+# collect function definitions in a wrapped file
+#
+# when updating CUDA, deprecated functions are removed from the headers (but not from the
+# binaries). we detect that by looking at the wrapped functions in the generated files.
+function collect_function_definitions(file)
+    text = read(file, String)
+
+    state = State(0, Edit[])
+    ast = CSTParser.parse(text, true)
+
+    definitions = Dict()
+    for x in ast.args
+        fn = nothing
+        if x isa CSTParser.EXPR && x.typ == CSTParser.FunctionDef
+            _, def, body, _ = x.args
+            fn = def[1].val
+        elseif x isa CSTParser.EXPR && x.typ == CSTParser.MacroCall
+            m, y = x.args
+            if y isa CSTParser.EXPR && y.typ == CSTParser.FunctionDef
+                _, def, body, _ = y.args
+                fn = def[1].val
+            end
+        elseif x isa CSTParser.EXPR && x.typ == CSTParser.LITERAL && x.args == nothing
+            # ignore
+        else
+            error("Unsupported global expression: $x")
+        end
+
+        # if we found a function definition, save its range
+        if fn !== nothing
+            definitions[fn] = (offset=state.offset, span=x.span, fullspan=x.fullspan)
+        end
+
+        state.offset += x.fullspan
+    end
+
+    return definitions
+end
+
 
 #
 # Main application
@@ -478,9 +517,9 @@ end
 using CUDA_full_jll, CUDNN_CUDA102_jll, CUTENSOR_CUDA102_jll
 
 function process(name, headers...; libname=name, rewrite_pointers=true, kwargs...)
-    output_file, common_file = wrap(libname, headers...; kwargs...)
+    new_output_file, new_common_file = wrap(libname, headers...; kwargs...)
 
-    for file in (output_file, common_file)
+    for file in (new_output_file, new_common_file)
         text = read(file, String)
 
 
@@ -553,6 +592,52 @@ function process(name, headers...; libname=name, rewrite_pointers=true, kwargs..
         end
     end
 
+
+    ## merge with existing wrappers
+
+    new_output_text = read(new_output_file, String)
+
+    existing_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, basename(new_output_file))
+    @assert isfile(existing_output_file)
+    existing_output_text = read(existing_output_file, String)
+
+    new_defs = collect_function_definitions(new_output_file)
+    existing_defs = collect_function_definitions(existing_output_file)
+
+    # move removed methods to the 'deprecated' file and remove them from header
+    removed = setdiff(keys(existing_defs), keys(new_defs))
+    deprecated_output_file = joinpath(dirname(dirname(@__DIR__)) , "lib", name, "lib$(libname)_deprecated.jl")
+    open(deprecated_output_file, "a") do io
+        state = State(0, Edit[])
+        for fn in removed
+            pos = existing_defs[fn]
+            text = existing_output_text[pos.offset+1:pos.offset+pos.span]
+            println(io)
+            println(io, text)
+            push!(state.edits, Edit(pos.offset+1:pos.offset+pos.fullspan, ""))
+            @warn "Deprecating definition of $fn"
+        end
+
+        # apply removals
+        sort!(state.edits, lt = (a,b) -> first(a.loc) < first(b.loc), rev = true)
+        for i = 1:length(state.edits)
+            existing_output_text = apply(existing_output_text, state.edits[i])
+        end
+
+        write(existing_output_file, existing_output_text)
+    end
+
+    # append new additions and prompt the user to review
+    added = setdiff(keys(new_defs), keys(existing_defs))
+    open(existing_output_file, "a") do io
+        for fn in added
+            pos = new_defs[fn]
+            text = new_output_text[pos.offset+1:pos.offset+pos.span]
+            println(io)
+            println(io, text)
+            @warn "Adding definition of $fn, please review!"
+        end
+    end
 
     return
 end
