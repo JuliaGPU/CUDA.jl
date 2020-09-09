@@ -4,6 +4,9 @@ using CUDA.CUBLAS: band, bandex
 using LinearAlgebra
 
 @test CUBLAS.version() isa VersionNumber
+@test CUBLAS.version().major == CUBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
+@test CUBLAS.version().minor == CUBLAS.cublasGetProperty(CUDA.MINOR_VERSION)
+@test CUBLAS.version().patch == CUBLAS.cublasGetProperty(CUDA.PATCH_LEVEL)
 
 m = 20
 n = 35

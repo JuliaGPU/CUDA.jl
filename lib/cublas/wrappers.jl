@@ -39,21 +39,19 @@ function cublasXtGetPinningMemMode(handle)
   mm[]
 end
 
-function cublasGetVersion(handle)
-  version = Ref{Cint}()
-  cublasGetVersion(handle, version)
-  version[]
-end
-
 function cublasGetProperty(property::libraryPropertyType)
   value_ref = Ref{Cint}()
   cublasGetProperty(property, value_ref)
   value_ref[]
 end
 
-version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
-                          cublasGetProperty(CUDA.MINOR_VERSION),
-                          cublasGetProperty(CUDA.PATCH_LEVEL))
+function version()
+  version_ref = Ref{Cint}()
+  cublasGetVersion_v2(handle(), version_ref)
+  major, rem = divrem(version_ref[], 1000)
+  minor, patch = divrem(rem, 100)
+  VersionNumber(major, minor, patch)
+end
 
 function juliaStorageType(::Type{<:Real}, T::cublasComputeType_t)
     if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
