@@ -755,19 +755,44 @@ for (fname, elty) in
     end
 end
 
-const GEMMEX_COMPUTE_TYPES = Dict(
-    (Float16, Float16, Float16)                 => CUBLAS_COMPUTE_16F,
-    (Int8, Int8, Float32)                       => CUBLAS_COMPUTE_32F,
-    (Complex{Int8}, Complex{Int8}, ComplexF32)  => CUBLAS_COMPUTE_32F,
-    (Float16, Float16, Float32)                 => CUBLAS_COMPUTE_32F,
-    (Float32, Float32, Float32)                 => CUBLAS_COMPUTE_32F,
-    (ComplexF32, ComplexF32, ComplexF32)        => CUBLAS_COMPUTE_32F,
-    (ComplexF16, ComplexF16, ComplexF16)        => CUBLAS_COMPUTE_32F,
-    (Float64, Float64, Float64)                 => CUBLAS_COMPUTE_64F,
-    (ComplexF64, ComplexF64, ComplexF64)        => CUBLAS_COMPUTE_64F,
-    (Int8, Int8, Int32)                         => CUBLAS_COMPUTE_32I)
-function gemmExComputeType(TA, TB, TC)
-    get(GEMMEX_COMPUTE_TYPES, (TA, TB, TC), nothing)
+function gemmExComputeType(TA, TB, TC; pedantic=false, fast=false)
+    @assert !(pedantic || fast) || (pedantic ⊻ fast)
+    if TA !== TB
+        return nothing
+    end
+
+    if TA == Float16 && TC == Float16
+        # NOTE: Float16=Float16*Float16 can also happen in 32-bit compute
+        return pedantic ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
+    end
+
+    if TA == Int8 && TC == Int32
+        return pedantic ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
+    end
+
+    if fast
+        if (TA == Float32 && TC == Float32) ||
+           (TA == Complex{Float32} && TC == Complex{Float32}) ||
+            # TODO: select between 16F, 16BF and TF32
+            return CUBLAS_COMPUTE_32F_FAST_16F
+        end
+    end
+
+    if (TA == Float16 && TC == Float16) ||
+       (TA == Int8 && TC == Float32) ||
+       (TA == Float16 && TC == Float32) ||
+       (TA == Float32 && TC == Float32) ||
+       (TA == Complex{Int8} && TC == Complex{Float32}) ||
+       (TA == Complex{Float32} && TC == Complex{Float32})
+        return pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+    end
+
+    if (TA == Float64 && TC == Float64) ||
+       (TA == Complex{Float64} && TC == Complex{Float64})
+        return pedantic ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
+    end
+
+    return nothing
 end
 
 function gemmEx!(transA::Char, transB::Char,
@@ -786,17 +811,17 @@ function gemmEx!(transA::Char, transB::Char,
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
     ldc = max(1,stride(C,2))
-    if version() >= v"11.0"
-        computeType = something(gemmExComputeType(eltype(A), eltype(B), eltype(C)))
-        T = juliaStorageType(eltype(C), computeType)
-    else
-        # FIXME: we patch the cublasGemmEx ccall to computeType::UInt32 for compatibility
-        #        across CUDA versions
-        computeType = convert(cudaDataType, eltype(C))
-        T = convert(Type, computeType)
+    computeType = gemmExComputeType(eltype(A), eltype(B), eltype(C))
+    isnothing(computeType) &&
+        throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
+    computeT = juliaStorageType(eltype(C), computeType)
+    if version() < v"11.0"
+        # with CUDA 11, the compute type encodes the math mode.
+        # before CUDA 11, it was a plain cudaDataType.
+        computeType = convert(cudaDataType, computeT)
     end
-    cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
-                 eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
+    cublasGemmEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, B,
+                 eltype(B), ldb, Ref{computeT}(beta), C, eltype(C), ldc, computeType, algo)
     C
 end
 

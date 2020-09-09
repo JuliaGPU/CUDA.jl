@@ -145,11 +145,9 @@ end
 
 # GEMM
 
-function gemmEx_wrapper!(C::CuVecOrMat, tA::Char, tB::Char,
-                       A::CuVecOrMat, B::CuVecOrMat,
-                       alpha::Number = true, beta::Number = false)
-    mA, nA = cublas_size(tA, A)
-    mB, nB = cublas_size(tB, B)
+function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=false)
+    mA, nA = size(A)
+    mB, nB = size(B)
 
     if nA != mB
         throw(DimensionMismatch("A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
@@ -166,33 +164,56 @@ function gemmEx_wrapper!(C::CuVecOrMat, tA::Char, tB::Char,
         return LinearAlgebra.rmul!(C, 0)
     end
 
-    gemmEx!(tA, tB, alpha, A, B, beta, C)
+    # NOTE: as an improvement for older devices (pre-sm_50),
+    #       we could dispatch to the old gemm! methods here
+
+    if capability(device()) > v"5" && gemmExComputeType(eltype(A), eltype(B), eltype(C)) !== nothing
+        tA, dA = if A isa Transpose
+            'T', parent(A)
+        elseif A isa Adjoint
+            'C', parent(A)
+        else
+            'N', A
+        end
+
+        tB, dB = if B isa Transpose
+            'T', parent(B)
+        elseif B isa Adjoint
+            'C', parent(B)
+        else
+            'N', B
+        end
+
+        gemmEx!(tA, tB, alpha, dA, dB, beta, C)
+    else
+        GPUArrays.generic_matmatmul!(C, A, B, alpha, beta)
+    end
 end
 
-for (TA, TB, TC) in keys(GEMMEX_COMPUTE_TYPES), NT in (Number, Real)
+for NT in (Number, Real)
     # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
     @eval begin
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::CuVecOrMat{$TA}, B::CuVecOrMat{$TB}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'N', 'N', A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::CuVecOrMat, B::CuVecOrMat, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
 
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::Transpose{<:Any, <:CuVecOrMat{$TA}}, B::CuMatrix{$TB}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'T', 'N', parent(A), B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::CuMatrix{$TA}, B::Transpose{<:Any, <:CuVecOrMat{$TB}}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'N', 'T', A, parent(B), a, b)
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::Transpose{<:Any, <:CuVecOrMat{$TA}}, B::Transpose{<:Any, <:CuVecOrMat{$TB}}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'T', 'T', parent(A), parent(B), a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:CuVecOrMat}, B::CuMatrix, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::CuMatrix, B::Transpose{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:CuVecOrMat}, B::Transpose{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
 
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::Adjoint{<:Any, <:CuVecOrMat{$TA}}, B::CuMatrix{$TB}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'C', 'N', parent(A), B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::CuMatrix{$TA}, B::Adjoint{<:Any, <:CuVecOrMat{$TB}}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'N', 'C', A, parent(B), a, b)
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::Adjoint{<:Any, <:CuVecOrMat{$TA}}, B::Adjoint{<:Any, <:CuVecOrMat{$TB}}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'C', 'C', parent(A), parent(B), a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:CuVecOrMat}, B::CuMatrix, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::CuMatrix, B::Adjoint{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:CuVecOrMat}, B::Adjoint{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
 
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::Transpose{<:Any, <:CuVecOrMat{$TA}}, B::Adjoint{<:Any, <:CuVecOrMat{$TB}}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'T', 'C', parent(A), parent(B), a, b)
-        LinearAlgebra.mul!(C::CuMatrix{$TC}, A::Adjoint{<:Any, <:CuVecOrMat{$TA}}, B::Transpose{<:Any, <:CuVecOrMat{$TB}}, a::$NT, b::$NT) =
-            gemmEx_wrapper!(C, 'C', 'T', parent(A), parent(B), a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:CuVecOrMat}, B::Adjoint{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:CuVecOrMat}, B::Transpose{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
     end
 end
 
