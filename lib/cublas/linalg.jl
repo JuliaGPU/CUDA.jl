@@ -59,7 +59,7 @@ end
 # GEMV
 
 function gemv_wrapper!(y::CuVector{T}, tA::Char, A::CuMatrix{T}, x::CuVector{T},
-                       alpha = one(T), beta = zero(T)) where T<:CublasFloat
+                       alpha::Number = true, beta::Number = false) where T<:CublasFloat
     mA, nA = cublas_size(tA, A)
     if nA != length(x)
         throw(DimensionMismatch("second dimension of A, $nA, does not match length of x, $(length(x))"))
@@ -76,39 +76,22 @@ function gemv_wrapper!(y::CuVector{T}, tA::Char, A::CuMatrix{T}, x::CuVector{T},
     gemv!(tA, alpha, A, x, beta, y)
 end
 
-function promote_alpha_beta(a, b, ::Type{T}) where {T}
-    a_prom, b_prom = promote(a, b, zero(T))
-    a_prom, b_prom
-end
-
 LinearAlgebra.mul!(Y::CuVector{T}, A::CuMatrix{T}, B::CuVector{T}, a::Number, b::Number) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'N', A, B, promote_alpha_beta(a, b, T)...)
+    gemv_wrapper!(Y, 'N', A, B, a, b)
 LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Number, b::Number) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'T', A.parent, B, promote_alpha_beta(a, b, T)...)
+    gemv_wrapper!(Y, 'T', A.parent, B, a, b)
 LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Real, b::Real) where T<:CublasReal =
-    gemv_wrapper!(Y, 'T', A.parent, B, promote_alpha_beta(a, b, T)...)
+    gemv_wrapper!(Y, 'T', A.parent, B, a, b)
 LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Number, b::Number) where T<:CublasComplex =
-    gemv_wrapper!(Y, 'C', A.parent, B, promote_alpha_beta(a, b, T)...)
+    gemv_wrapper!(Y, 'C', A.parent, B, a, b)
 
-# specificity hacks: Base and GPUArrays has mul! with a::Real, b::Real
+# ambiguity hacks: Base and GPUArrays has mul! with a::Real, b::Real
 LinearAlgebra.mul!(Y::CuVector{T}, A::CuMatrix{T}, B::CuVector{T}, a::Real, b::Real) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'N', A, B, promote_alpha_beta(a, b, T)...)
+    gemv_wrapper!(Y, 'N', A, B, a, b)
 LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Real, b::Real) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'T', A.parent, B, promote_alpha_beta(a, b, T)...)
+    gemv_wrapper!(Y, 'T', A.parent, B, a, b)
 LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Real, b::Real) where T<:CublasComplex =
-    gemv_wrapper!(Y, 'C', A.parent, B, promote_alpha_beta(a, b, T)...)
-
-# Fix Julia <= 1.3.1 ambiguities... they're fixed in 1.4.x thanks to https://github.com/JuliaLang/julia/pull/33743
-@static if v"1.3.0" <= VERSION <= v"1.3.1"
-    LinearAlgebra.mul!(Y::CuVector{T}, A::CuMatrix{T}, B::CuVector{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat =
-        gemv_wrapper!(Y, 'N', A, B, promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat =
-        gemv_wrapper!(Y, 'T', A.parent, B, promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasReal =
-        gemv_wrapper!(Y, 'T', A.parent, B, promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasComplex =
-        gemv_wrapper!(Y, 'C', A.parent, B, promote_alpha_beta(a, b, T)...)
-end
+    gemv_wrapper!(Y, 'C', A.parent, B, a, b)
 
 # TRSV
 
@@ -163,10 +146,8 @@ end
 # GEMM
 
 function gemm_wrapper!(C::CuVecOrMat{T}, tA::Char, tB::Char,
-                   A::CuVecOrMat{T},
-                   B::CuVecOrMat{T},
-                   alpha = one(T),
-                   beta = zero(T)) where T <: CublasFloat
+                       A::CuVecOrMat{T}, B::CuVecOrMat{T},
+                       alpha::Number = true, beta::Number = false) where T <: CublasFloat
     mA, nA = cublas_size(tA, A)
     mB, nB = cublas_size(tB, B)
 
@@ -190,85 +171,53 @@ end
 
 # Mutating
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}, a::Number, b::Number) where T<:CublasFloat =
-    gemm_wrapper!(C, 'N', 'N', A, B, promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'N', 'N', A, B, a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Number, b::Number) where T<:CublasFloat =
-    gemm_wrapper!(C, 'T', 'N', parent(trA), B, promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'N', parent(trA), B, a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Number, b::Number) where T<:CublasFloat =
-    gemm_wrapper!(C, 'N', 'T', A, parent(trB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'N', 'T', A, parent(trB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Number, b::Number) where T<:CublasFloat =
-    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Real, b::Real) where T<:CublasReal =
-    gemm_wrapper!(C, 'T', 'N', parent(adjA), B, promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'N', parent(adjA), B, a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Number, b::Number) where T<:CublasComplex =
-    gemm_wrapper!(C, 'C', 'N', parent(adjA), B, promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'C', 'N', parent(adjA), B, a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasReal =
-    gemm_wrapper!(C, 'N', 'T', A, parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'N', 'T', A, parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Number, b::Number) where T<:CublasComplex =
-    gemm_wrapper!(C, 'N', 'C', A, parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'N', 'C', A, parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasReal =
-    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Number, b::Number) where T<:CublasComplex =
-    gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{T, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasReal =
-    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Number, b::Number) where T<:CublasComplex =
-    gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{T, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasReal =
-    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Number, b::Number) where T <: CublasComplex =
-    gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), a, b)
 
-# specificity hacks: Base and GPUArrays has mul! with a::Real, b::Real
+# ambiguity hacks: Base and GPUArrays has mul! with a::Real, b::Real
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}, a::Real, b::Real) where T<:CublasFloat =
-    gemm_wrapper!(C, 'N', 'N', A, B, promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'N', 'N', A, B, a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Real, b::Real) where T<:CublasFloat =
-    gemm_wrapper!(C, 'T', 'N', parent(trA), B, promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'N', parent(trA), B, a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasFloat =
-    gemm_wrapper!(C, 'N', 'T', A, parent(trB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'N', 'T', A, parent(trB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasFloat =
-    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Real, b::Real) where T<:CublasComplex =
-    gemm_wrapper!(C, 'C', 'N', parent(adjA), B, promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'C', 'N', parent(adjA), B, a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasComplex =
-    gemm_wrapper!(C, 'N', 'C', A, parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'N', 'C', A, parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasComplex =
-    gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T<:CublasComplex =
-    gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB), promote_alpha_beta(a, b, T)...)
+    gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB), a, b)
 LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Real, b::Real) where T <: CublasComplex =
-    gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), promote_alpha_beta(a, b, T)...)
-
-# Fix Julia <= 1.3.1 ambiguities... they're fixed in 1.4.x thanks to https://github.com/JuliaLang/julia/pull/33743
-@static if v"1.3.0" <= VERSION <= v"1.3.1"
-    LinearAlgebra.mul!(C::CuMatrix{T}, A::CuVecOrMat{T}, B::CuVecOrMat{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat =
-        gemm_wrapper!(C, 'N', 'N', A, B, promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat =
-        gemm_wrapper!(C, 'T', 'N', parent(trA), B, promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat =
-        gemm_wrapper!(C, 'N', 'T', A, parent(trB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasFloat =
-        gemm_wrapper!(C, 'T', 'T', parent(trA), parent(trB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasReal =
-        gemm_wrapper!(C, 'T', 'N', parent(adjA), B, promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuMatrix{T}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasComplex =
-        gemm_wrapper!(C, 'C', 'N', parent(adjA), B, promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasReal =
-        gemm_wrapper!(C, 'N', 'T', A, parent(adjB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, A::CuMatrix{T}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasComplex =
-        gemm_wrapper!(C, 'N', 'C', A, parent(adjB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasReal =
-        gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(adjB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasComplex =
-        gemm_wrapper!(C, 'C', 'C', parent(adjA), parent(adjB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{T, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasReal =
-        gemm_wrapper!(C, 'T', 'T', parent(trA), parent(adjB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, trA::Transpose{<:Any, <:CuVecOrMat{T}}, adjB::Adjoint{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasComplex =
-        gemm_wrapper!(C, 'T', 'C', parent(trA), parent(adjB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{T, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T<:CublasReal =
-        gemm_wrapper!(C, 'T', 'T', parent(adjA), parent(trB), promote_alpha_beta(a, b, T)...)
-    LinearAlgebra.mul!(C::CuMatrix{T}, adjA::Adjoint{<:Any, <:CuVecOrMat{T}}, trB::Transpose{<:Any, <:CuVecOrMat{T}}, a::Union{T,Bool}, b::Union{T,Bool}) where T <: CublasComplex =
-        gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), promote_alpha_beta(a, b, T)...)
-end
+    gemm_wrapper!(C, 'C', 'T', parent(adjA), parent(trB), a, b)
 
 # TRSM
 
