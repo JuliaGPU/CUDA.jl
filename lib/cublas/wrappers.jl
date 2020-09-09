@@ -762,12 +762,20 @@ function gemmExComputeType(TA, TB, TC, m, k, n; pedantic=false, fast=false)
     end
     sig = (TA, TC)
 
+    # gemmEx requires sm_50 or higher
+    cap = capability(device())
+    if cap < v"5"
+        return nothing
+    end
+
     if sig === (Float16, Float16)
         # NOTE: Float16=Float16*Float16 can also happen in 32-bit compute
         return pedantic ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
     end
 
     if m%4 == 0 && n%4 == 0 && k%4 == 0 && sig === (Int8, Int32)
+        # Int32=Int8*Int8 requires m,n,k to be multiples of 4
+        # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
         return pedantic ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
     end
 
@@ -793,6 +801,7 @@ function gemmExComputeType(TA, TB, TC, m, k, n; pedantic=false, fast=false)
         return pedantic ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
     end
 
+    # BFloat16 support was added in CUDA 11
     if version() >= v"11"
         if sig === (BFloat16, BFloat16) ||
            sig === (BFloat16, Float32)

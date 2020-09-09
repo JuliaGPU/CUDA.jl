@@ -164,28 +164,26 @@ function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=fa
         return LinearAlgebra.rmul!(C, 0)
     end
 
-    # NOTE: as an improvement for older devices (pre-sm_50),
-    #       we could dispatch to the old gemm! methods here
+    tA, dA = if A isa Transpose
+        'T', parent(A)
+    elseif A isa Adjoint
+        'C', parent(A)
+    else
+        'N', A
+    end
 
-    if capability(device()) > v"5" &&
-       gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
-        tA, dA = if A isa Transpose
-            'T', parent(A)
-        elseif A isa Adjoint
-            'C', parent(A)
-        else
-            'N', A
-        end
+    tB, dB = if B isa Transpose
+        'T', parent(B)
+    elseif B isa Adjoint
+        'C', parent(B)
+    else
+        'N', B
+    end
 
-        tB, dB = if B isa Transpose
-            'T', parent(B)
-        elseif B isa Adjoint
-            'C', parent(B)
-        else
-            'N', B
-        end
-
+    if gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
         gemmEx!(tA, tB, alpha, dA, dB, beta, C)
+    elseif eltype(A) === eltype(B) === eltype(C) && eltype(A) <: CublasFloat
+        gemm!(tA, tB, alpha, dA, dB, beta, C)
     else
         GPUArrays.generic_matmatmul!(C, A, B, alpha, beta)
     end
