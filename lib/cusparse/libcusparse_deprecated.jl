@@ -1,5 +1,3 @@
-# wrapers for old functionality
-
 ## removed in CUDA 11
 
 @checked function cusparseScsr2csc(handle, m, n, nnz, csrSortedVal, csrSortedRowPtr,

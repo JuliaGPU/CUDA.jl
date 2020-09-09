@@ -14,6 +14,7 @@ import NNlib
 include("libcudnn_common.jl")
 include("error.jl")
 include("libcudnn.jl")
+include("libcudnn_deprecated.jl")
 
 # low-level wrappers
 include("util.jl")

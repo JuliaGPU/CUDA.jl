@@ -1,11 +1,9 @@
 --- a/libcuda.jl	2019-10-16 09:15:14.213122392 +0200
 +++ b/libcuda.jl	2019-10-16 09:15:29.233281015 +0200
-@@ -937,7 +937,0 @@
+@@ -937,5 +937,0 @@
 -@checked function cuStreamBatchMemOp(stream, count, paramArray, flags)
 -    initialize_api()
--    @runtime_ccall((:cuStreamBatchMemOp_ptsz, libcuda()), CUresult,
--                   (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32),
--                   stream, count, paramArray, flags)
+-    @runtime_ccall((:cuStreamBatchMemOp_ptsz, libcuda()), CUresult, (CUstream, UInt32, Ptr{CUstreamBatchMemOpParams}, UInt32), stream, count, paramArray, flags)
 -end
 -
 --- a/libcuda_common.jl	2019-10-16 09:15:14.289789877 +0200

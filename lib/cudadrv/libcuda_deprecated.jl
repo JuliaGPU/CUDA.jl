@@ -1,8 +1,3 @@
-# wrappers for old functions that aren't in the headers anymore
-
-# TODO: auto-generate these as soon as we detect a versioned symbol?
-
-
 ## superseded in CUDA 11
 
 @checked function cuDevicePrimaryCtxRelease(dev)
