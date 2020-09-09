@@ -14,6 +14,8 @@ using Requires
 
 using LinearAlgebra
 
+using BFloat16s
+
 
 ## source code includes
 

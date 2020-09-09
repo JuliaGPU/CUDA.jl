@@ -347,6 +347,8 @@ Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{<:AbstractFloat}) =
 # not for Float16
 Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{Float16}) =
   isbits(xs) ? xs : convert(CuArray, xs)
+Adapt.adapt_storage(::Float32Adaptor, xs::AbstractArray{BFloat16}) =
+  isbits(xs) ? xs : convert(CuArray, xs)
 
 cu(xs) = adapt(Float32Adaptor(), xs)
 Base.getindex(::typeof(cu), xs...) = CuArray([xs...])
