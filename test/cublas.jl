@@ -15,42 +15,44 @@ k = 13
 # FIXME: XT host tests don't pass cuda-memcheck, because they use raw CPU pointers.
 #        https://stackoverflow.com/questions/50116861/why-is-cudapointergetattributes-returning-invalid-argument-for-host-pointer
 
-#################
-# level 1 tests #
-#################
+############################################################################################
 
-@testset "Level 1 with element type $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-    A = CUDA.rand(T, m)
-    B = CuArray{T}(undef, m)
-    CUBLAS.blascopy!(m,A,1,B,1)
-    @test Array(A) == Array(B)
+@testset "level 1" begin
+    @testset for T in [Float32, Float64, ComplexF32, ComplexF64]
+        A = CUDA.rand(T, m)
+        B = CuArray{T}(undef, m)
+        CUBLAS.blascopy!(m,A,1,B,1)
+        @test Array(A) == Array(B)
 
-    @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))
-    @test testf(dot, rand(T, m), rand(T, m))
-    @test testf(*, transpose(rand(T, m)), rand(T, m))
-    @test testf(*, rand(T, m)', rand(T, m))
-    @test testf(norm, rand(T, m))
-    @test testf(BLAS.asum, rand(T, m))
-    @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
-    @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+        @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))
+        @test testf(dot, rand(T, m), rand(T, m))
+        @test testf(*, transpose(rand(T, m)), rand(T, m))
+        @test testf(*, rand(T, m)', rand(T, m))
+        @test testf(norm, rand(T, m))
+        @test testf(BLAS.asum, rand(T, m))
+        @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
+        @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
-    if T <: Complex
-        @test testf(BLAS.dotu, rand(T, m), rand(T, m))
-        x = rand(T, m)
-        y = rand(T, m)
-        dx = CuArray(x)
-        dy = CuArray(y)
-        dz = BLAS.dot(dx, dy)
-        z = BLAS.dotc(x, y)
-        @test dz ≈ z
-    end
-end # level 1 testset
+        if T <: Complex
+            @test testf(BLAS.dotu, rand(T, m), rand(T, m))
+            x = rand(T, m)
+            y = rand(T, m)
+            dx = CuArray(x)
+            dy = CuArray(y)
+            dz = BLAS.dot(dx, dy)
+            z = BLAS.dotc(x, y)
+            @test dz ≈ z
+        end
+    end # level 1 testset
+end
 
-@testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    alpha = rand(elty)
-    beta = rand(elty)
+############################################################################################
 
-    @testset "Level 2" begin
+@testset "level 2" begin
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        alpha = rand(elty)
+        beta = rand(elty)
+
         @testset "gemv" begin
             @test testf(*, rand(elty, m, n), rand(elty, n))
             @test testf(*, transpose(rand(elty, m, n)), rand(elty, m))
@@ -70,7 +72,7 @@ end # level 1 testset
             y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
             dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
             mul!(dy, f(dA), dx, Ts(1), Ts(2))
-            mul!(y, f(A), x, elty(1), elty(2)) # elty can be replaced with `Ts` on Julia 1.4
+            mul!(y, f(A), x, Ts(1), Ts(2))
             @test Array(dy) ≈ y
         end
         @testset "banded methods" begin
@@ -406,12 +408,20 @@ end # level 1 testset
             end
         end
     end
-    @testset "Level 3" begin
+end
+
+############################################################################################
+
+@testset "level 3" begin
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        alpha = rand(elty)
+        beta = rand(elty)
+
         @testset "mul! C = $f(A) *  $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
             dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
             mul!(dC, f(dA), g(dB), Ts(1), Ts(2))
-            mul!(C, f(A), g(B), elty(1), elty(2)) # elty can be replaced with `Ts` on Julia 1.4
+            mul!(C, f(A), g(B), Ts(1), Ts(2))
             @test Array(dC) ≈ C
         end
         A = rand(elty,m,k)
@@ -805,15 +815,10 @@ end # level 1 testset
         end
 
         @testset "BLAS.trsm!" begin
-            A = copy(A)
-            B = copy(B)
             dA = CuArray(A)
             dB = CuArray(B)
-            dC = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,dA,dB)
-            C = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,A,B)
-            @test A ≈ Array(dA)
-            @test B ≈ Array(dB)
-            @test C ≈ Array(dC)
+            dC = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,dA,copy(dB))
+            @test dA * dC ≈ alpha * dB
         end
 
         @testset "mul! trmm!" begin
@@ -1219,7 +1224,12 @@ end # level 1 testset
             end
         end
     end
-    @testset "extensions" begin
+end
+
+############################################################################################
+
+@testset "extensions" begin
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "getrf_batched!" begin
             Random.seed!(1)
             local k
