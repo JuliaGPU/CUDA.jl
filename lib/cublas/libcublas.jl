@@ -4,7 +4,7 @@
 @checked function cublasCreate_v2(handle)
     initialize_api()
     @runtime_ccall((:cublasCreate_v2, libcublas()), cublasStatus_t,
-                   (Ptr{cublasHandle_t},),
+                   (Ref{cublasHandle_t},),
                    handle)
 end
 
@@ -17,13 +17,13 @@ end
 
 @checked function cublasGetVersion_v2(handle, version)
     @runtime_ccall((:cublasGetVersion_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Ptr{Cint}),
+                   (cublasHandle_t, Ref{Cint}),
                    handle, version)
 end
 
 @checked function cublasGetProperty(type, value)
     @runtime_ccall((:cublasGetProperty, libcublas()), cublasStatus_t,
-                   (libraryPropertyType, Ptr{Cint}),
+                   (libraryPropertyType, Ref{Cint}),
                    type, value)
 end
 
@@ -41,14 +41,14 @@ end
 @checked function cublasGetStream_v2(handle, streamId)
     initialize_api()
     @runtime_ccall((:cublasGetStream_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Ptr{CUstream}),
+                   (cublasHandle_t, Ref{CUstream}),
                    handle, streamId)
 end
 
 @checked function cublasGetPointerMode_v2(handle, mode)
     initialize_api()
     @runtime_ccall((:cublasGetPointerMode_v2, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Ptr{cublasPointerMode_t}),
+                   (cublasHandle_t, Ref{cublasPointerMode_t}),
                    handle, mode)
 end
 
@@ -62,7 +62,7 @@ end
 @checked function cublasGetAtomicsMode(handle, mode)
     initialize_api()
     @runtime_ccall((:cublasGetAtomicsMode, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Ptr{cublasAtomicsMode_t}),
+                   (cublasHandle_t, Ref{cublasAtomicsMode_t}),
                    handle, mode)
 end
 
@@ -76,7 +76,7 @@ end
 @checked function cublasGetMathMode(handle, mode)
     initialize_api()
     @runtime_ccall((:cublasGetMathMode, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Ptr{cublasMath_t}),
+                   (cublasHandle_t, Ref{cublasMath_t}),
                    handle, mode)
 end
 
@@ -104,7 +104,7 @@ end
 @checked function cublasGetLoggerCallback(userCallback)
     initialize_api()
     @runtime_ccall((:cublasGetLoggerCallback, libcublas()), cublasStatus_t,
-                   (Ptr{cublasLogCallback},),
+                   (Ref{cublasLogCallback},),
                    userCallback)
 end
 

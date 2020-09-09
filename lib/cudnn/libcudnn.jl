@@ -318,7 +318,7 @@ end
     initialize_api()
     @runtime_ccall((:cudnnGetReductionWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnReduceTensorDescriptor_t, cudnnTensorDescriptor_t,
-                    cudnnTensorDescriptor_t, Ptr{Csize_t}),
+                    cudnnTensorDescriptor_t, Ref{Csize_t}),
                    handle, reduceTensorDesc, aDesc, cDesc, sizeInBytes)
 end
 
@@ -605,7 +605,7 @@ end
     @runtime_ccall((:cudnnGetConvolutionForwardWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnFilterDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
-                    cudnnConvolutionFwdAlgo_t, Ptr{Csize_t}),
+                    cudnnConvolutionFwdAlgo_t, Ref{Csize_t}),
                    handle, xDesc, wDesc, convDesc, yDesc, algo, sizeInBytes)
 end
 
@@ -718,7 +718,7 @@ end
     @runtime_ccall((:cudnnGetConvolutionBackwardFilterWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnFilterDescriptor_t,
-                    cudnnConvolutionBwdFilterAlgo_t, Ptr{Csize_t}),
+                    cudnnConvolutionBwdFilterAlgo_t, Ref{Csize_t}),
                    handle, xDesc, dyDesc, convDesc, gradDesc, algo, sizeInBytes)
 end
 
@@ -804,7 +804,7 @@ end
     @runtime_ccall((:cudnnGetConvolutionBackwardDataWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
-                    cudnnConvolutionBwdDataAlgo_t, Ptr{Csize_t}),
+                    cudnnConvolutionBwdDataAlgo_t, Ref{Csize_t}),
                    handle, wDesc, dyDesc, convDesc, dxDesc, algo, sizeInBytes)
 end
 
@@ -1091,7 +1091,7 @@ end
                    (cudnnHandle_t, cudnnBatchNormMode_t, cudnnBatchNormOps_t,
                     cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
-                    cudnnActivationDescriptor_t, Ptr{Csize_t}),
+                    cudnnActivationDescriptor_t, Ref{Csize_t}),
                    handle, mode, bnOps, xDesc, zDesc, yDesc, bnScaleBiasMeanVarDesc,
                    activationDesc, sizeInBytes)
 end
@@ -1108,7 +1108,7 @@ end
                     cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
-                    cudnnActivationDescriptor_t, Ptr{Csize_t}),
+                    cudnnActivationDescriptor_t, Ref{Csize_t}),
                    handle, mode, bnOps, xDesc, yDesc, dyDesc, dzDesc, dxDesc,
                    dBnScaleBiasDesc, activationDesc, sizeInBytes)
 end
@@ -1119,7 +1119,7 @@ end
     initialize_api()
     @runtime_ccall((:cudnnGetBatchNormalizationTrainingExReserveSpaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnBatchNormMode_t, cudnnBatchNormOps_t,
-                    cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ptr{Csize_t}),
+                    cudnnActivationDescriptor_t, cudnnTensorDescriptor_t, Ref{Csize_t}),
                    handle, mode, bnOps, activationDesc, xDesc, sizeInBytes)
 end
 
@@ -1322,7 +1322,7 @@ end
 @checked function cudnnDropoutGetReserveSpaceSize(xdesc, sizeInBytes)
     initialize_api()
     @runtime_ccall((:cudnnDropoutGetReserveSpaceSize, libcudnn()), cudnnStatus_t,
-                   (cudnnTensorDescriptor_t, Ptr{Csize_t}),
+                   (cudnnTensorDescriptor_t, Ref{Csize_t}),
                    xdesc, sizeInBytes)
 end
 
@@ -1497,7 +1497,7 @@ end
     initialize_api()
     @runtime_ccall((:cudnnGetRNNWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
-                    Ptr{cudnnTensorDescriptor_t}, Ptr{Csize_t}),
+                    Ptr{cudnnTensorDescriptor_t}, Ref{Csize_t}),
                    handle, rnnDesc, seqLength, xDesc, sizeInBytes)
 end
 
@@ -1506,7 +1506,7 @@ end
     initialize_api()
     @runtime_ccall((:cudnnGetRNNTrainingReserveSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint,
-                    Ptr{cudnnTensorDescriptor_t}, Ptr{Csize_t}),
+                    Ptr{cudnnTensorDescriptor_t}, Ref{Csize_t}),
                    handle, rnnDesc, seqLength, xDesc, sizeInBytes)
 end
 
@@ -1514,7 +1514,7 @@ end
     initialize_api()
     @runtime_ccall((:cudnnGetRNNParamsSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, cudnnTensorDescriptor_t,
-                    Ptr{Csize_t}, cudnnDataType_t),
+                    Ref{Csize_t}, cudnnDataType_t),
                    handle, rnnDesc, xDesc, sizeInBytes, dataType)
 end
 
@@ -2098,7 +2098,7 @@ end
     @runtime_ccall((:cudnnGetCTCLossWorkspaceSize, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     Ptr{Cint}, Ptr{Cint}, Ptr{Cint}, cudnnCTCLossAlgo_t,
-                    cudnnCTCLossDescriptor_t, Ptr{Csize_t}),
+                    cudnnCTCLossDescriptor_t, Ref{Csize_t}),
                    handle, probsDesc, gradientsDesc, labels, labelLengths, inputLengths,
                    algo, ctcLossDesc, sizeInBytes)
 end
