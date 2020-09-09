@@ -770,13 +770,13 @@ function gemmExComputeType(TA, TB, TC)
     get(GEMMEX_COMPUTE_TYPES, (TA, TB, TC), nothing)
 end
 
-function gemmEx!(transA::Char,
-                 transB::Char,
-                 alpha::Number,
-                 A::CuVecOrMat,
-                 B::CuVecOrMat,
-                 beta::Number,
-                 C::CuVecOrMat; algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
+function gemmEx!(transA::Char, transB::Char,
+                 @nospecialize(alpha::Number),
+                 @nospecialize(A::CuVecOrMat),
+                 @nospecialize(B::CuVecOrMat),
+                 @nospecialize(beta::Number),
+                 @nospecialize(C::CuVecOrMat);
+                 algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
     m = size(A, transA == 'N' ? 1 : 2)
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
