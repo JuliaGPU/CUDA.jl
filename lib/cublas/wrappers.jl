@@ -55,19 +55,6 @@ version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
                           cublasGetProperty(CUDA.MINOR_VERSION),
                           cublasGetProperty(CUDA.PATCH_LEVEL))
 
-const cublas_compute_types = Dict(
-    (Float16, Float16, Float16)                 => CUBLAS_COMPUTE_16F,
-    (Int8, Int8, Float32)                       => CUBLAS_COMPUTE_32F,
-    (Complex{Int8}, Complex{Int8}, ComplexF32)  => CUBLAS_COMPUTE_32F,
-    (Float16, Float16, Float32)                 => CUBLAS_COMPUTE_32F,
-    (Float32, Float32, Float32)                 => CUBLAS_COMPUTE_32F,
-    (ComplexF32, ComplexF32, ComplexF32)        => CUBLAS_COMPUTE_32F,
-    (ComplexF16, ComplexF16, ComplexF16)        => CUBLAS_COMPUTE_32F,
-    (Float64, Float64, Float64)                 => CUBLAS_COMPUTE_64F,
-    (ComplexF64, ComplexF64, ComplexF64)        => CUBLAS_COMPUTE_64F,
-    (Int8, Int8, Int32)                         => CUBLAS_COMPUTE_32I)
-cublasComputeType(TA, TB, TC) = cublas_compute_types[(TA, TB, TC)]
-
 function juliaStorageType(::Type{<:Real}, T::cublasComputeType_t)
     if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
         return Float16
@@ -770,7 +757,21 @@ for (fname, elty) in
     end
 end
 
-# GemmEx, with tensor cores
+const GEMMEX_COMPUTE_TYPES = Dict(
+    (Float16, Float16, Float16)                 => CUBLAS_COMPUTE_16F,
+    (Int8, Int8, Float32)                       => CUBLAS_COMPUTE_32F,
+    (Complex{Int8}, Complex{Int8}, ComplexF32)  => CUBLAS_COMPUTE_32F,
+    (Float16, Float16, Float32)                 => CUBLAS_COMPUTE_32F,
+    (Float32, Float32, Float32)                 => CUBLAS_COMPUTE_32F,
+    (ComplexF32, ComplexF32, ComplexF32)        => CUBLAS_COMPUTE_32F,
+    (ComplexF16, ComplexF16, ComplexF16)        => CUBLAS_COMPUTE_32F,
+    (Float64, Float64, Float64)                 => CUBLAS_COMPUTE_64F,
+    (ComplexF64, ComplexF64, ComplexF64)        => CUBLAS_COMPUTE_64F,
+    (Int8, Int8, Int32)                         => CUBLAS_COMPUTE_32I)
+function gemmExComputeType(TA, TB, TC)
+    get(GEMMEX_COMPUTE_TYPES, (TA, TB, TC), nothing)
+end
+
 function gemmEx!(transA::Char,
                  transB::Char,
                  alpha::Number,
@@ -788,18 +789,16 @@ function gemmEx!(transA::Char,
     ldb = max(1,stride(B,2))
     ldc = max(1,stride(C,2))
     if version() >= v"11.0"
-        computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
+        computeType = something(gemmExComputeType(eltype(A), eltype(B), eltype(C)))
         T = juliaStorageType(eltype(C), computeType)
-        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
-                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
     else
         # FIXME: we patch the cublasGemmEx ccall to computeType::UInt32 for compatibility
         #        across CUDA versions
         computeType = convert(cudaDataType, eltype(C))
         T = convert(Type, computeType)
-        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
-                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
     end
+    cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
+                 eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
     C
 end
 
