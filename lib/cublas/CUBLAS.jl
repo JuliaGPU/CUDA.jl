@@ -10,6 +10,8 @@ using GPUArrays
 
 using LinearAlgebra
 
+using BFloat16s
+
 using CEnum
 
 # core library

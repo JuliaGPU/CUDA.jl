@@ -53,35 +53,35 @@ function version()
   VersionNumber(major, minor, patch)
 end
 
-function juliaStorageType(::Type{<:Real}, T::cublasComputeType_t)
-    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
-        return Float16
-    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
-           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
-           T == CUBLAS_COMPUTE_32F_FAST_TF32
+function juliaStorageType(T::Type{<:Real}, ct::cublasComputeType_t)
+    if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
+        return T == BFloat16 ? BFloat16 : Float16
+    elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           ct == CUBLAS_COMPUTE_32F_FAST_16F || ct == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           ct == CUBLAS_COMPUTE_32F_FAST_TF32
         return Float32
-    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
+    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC
         return Float64
-    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+    elseif ct == CUBLAS_COMPUTE_32I || ct == CUBLAS_COMPUTE_32I_PEDANTIC
         return Int32
     else
-        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+        throw(ArgumentError("Julia type equivalent for compute type $ct does not exist!"))
     end
 end
 
-function juliaStorageType(::Type{<:Complex}, T::cublasComputeType_t)
-    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
-        return ComplexF16
-    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
-           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
-           T == CUBLAS_COMPUTE_32F_FAST_TF32
-        return ComplexF32
-    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
-        return ComplexF64
-    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+function juliaStorageType(T::Type{<:Complex}, ct::cublasComputeType_t)
+    if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
+        return T == Complex{BFloat16} == Complex{BFloat16} : Complex{Float16}
+    elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           ct == CUBLAS_COMPUTE_32F_FAST_16F || ct == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           ct == CUBLAS_COMPUTE_32F_FAST_TF32
+        return Complex{Float32}
+    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC
+        return Complex{Float64}
+    elseif ct == CUBLAS_COMPUTE_32I || ct == CUBLAS_COMPUTE_32I_PEDANTIC
         return Complex{Int32}
     else
-        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+        throw(ArgumentError("Julia type equivalent for compute type $ct does not exist!"))
     end
 end
 
@@ -760,36 +760,44 @@ function gemmExComputeType(TA, TB, TC; pedantic=false, fast=false)
     if TA !== TB
         return nothing
     end
+    sig = (TA, TC)
 
-    if TA == Float16 && TC == Float16
+    if sig === (Float16, Float16)
         # NOTE: Float16=Float16*Float16 can also happen in 32-bit compute
         return pedantic ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
     end
 
-    if TA == Int8 && TC == Int32
+    if sig === (Int8, Int32)
         return pedantic ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
     end
 
     if fast
-        if (TA == Float32 && TC == Float32) ||
-           (TA == Complex{Float32} && TC == Complex{Float32}) ||
+        if sig === (Float32, Float32) ||
+           sig === (Complex{Float32}, Complex{Float32}) ||
             # TODO: select between 16F, 16BF and TF32
             return CUBLAS_COMPUTE_32F_FAST_16F
         end
     end
 
-    if (TA == Float16 && TC == Float16) ||
-       (TA == Int8 && TC == Float32) ||
-       (TA == Float16 && TC == Float32) ||
-       (TA == Float32 && TC == Float32) ||
-       (TA == Complex{Int8} && TC == Complex{Float32}) ||
-       (TA == Complex{Float32} && TC == Complex{Float32})
+    if sig === (Float16,  Float16) ||
+       sig === (Int8,     Float32) ||
+       sig === (Float16,  Float32) ||
+       sig === (Float32,  Float32) ||
+       sig === (Complex{Int8},    Complex{Float32}) ||
+       sig === (Complex{Float32}, Complex{Float32})
         return pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
     end
 
-    if (TA == Float64 && TC == Float64) ||
-       (TA == Complex{Float64} && TC == Complex{Float64})
+    if sig === (Float64, Float64) ||
+       sig === (Complex{Float64}, Complex{Float64})
         return pedantic ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
+    end
+
+    if version() >= v"11"
+        if sig === (BFloat16, BFloat16) ||
+           sig === (BFloat16, Float32)
+            return pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+        end
     end
 
     return nothing
