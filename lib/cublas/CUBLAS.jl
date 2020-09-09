@@ -6,7 +6,11 @@ using ..CUDA
 using ..CUDA: CUstream, cuComplex, cuDoubleComplex, libraryPropertyType, cudaDataType
 using ..CUDA: libcublas, unsafe_free!, @retry_reclaim, isdebug
 
+using GPUArrays
+
 using LinearAlgebra
+
+using BFloat16s
 
 using CEnum
 

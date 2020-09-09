@@ -3,7 +3,12 @@ using CUDA.CUBLAS: band, bandex
 
 using LinearAlgebra
 
+using BFloat16s
+
 @test CUBLAS.version() isa VersionNumber
+@test CUBLAS.version().major == CUBLAS.cublasGetProperty(CUDA.MAJOR_VERSION)
+@test CUBLAS.version().minor == CUBLAS.cublasGetProperty(CUDA.MINOR_VERSION)
+@test CUBLAS.version().patch == CUBLAS.cublasGetProperty(CUDA.PATCH_LEVEL)
 
 m = 20
 n = 35
@@ -12,42 +17,47 @@ k = 13
 # FIXME: XT host tests don't pass cuda-memcheck, because they use raw CPU pointers.
 #        https://stackoverflow.com/questions/50116861/why-is-cudapointergetattributes-returning-invalid-argument-for-host-pointer
 
-#################
-# level 1 tests #
-#################
+# HACK: remove me when a new version of BFloat16s.jl is released
+Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
 
-@testset "Level 1 with element type $T" for T in [Float32, Float64, ComplexF32, ComplexF64]
-    A = CUDA.rand(T, m)
-    B = CuArray{T}(undef, m)
-    CUBLAS.blascopy!(m,A,1,B,1)
-    @test Array(A) == Array(B)
+############################################################################################
 
-    @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))
-    @test testf(dot, rand(T, m), rand(T, m))
-    @test testf(*, transpose(rand(T, m)), rand(T, m))
-    @test testf(*, rand(T, m)', rand(T, m))
-    @test testf(norm, rand(T, m))
-    @test testf(BLAS.asum, rand(T, m))
-    @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
-    @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
+@testset "level 1" begin
+    @testset for T in [Float32, Float64, ComplexF32, ComplexF64]
+        A = CUDA.rand(T, m)
+        B = CuArray{T}(undef, m)
+        CUBLAS.blascopy!(m,A,1,B,1)
+        @test Array(A) == Array(B)
 
-    if T <: Complex
-        @test testf(BLAS.dotu, rand(T, m), rand(T, m))
-        x = rand(T, m)
-        y = rand(T, m)
-        dx = CuArray(x)
-        dy = CuArray(y)
-        dz = BLAS.dot(dx, dy)
-        z = BLAS.dotc(x, y)
-        @test dz ≈ z
-    end
-end # level 1 testset
+        @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))
+        @test testf(dot, rand(T, m), rand(T, m))
+        @test testf(*, transpose(rand(T, m)), rand(T, m))
+        @test testf(*, rand(T, m)', rand(T, m))
+        @test testf(norm, rand(T, m))
+        @test testf(BLAS.asum, rand(T, m))
+        @test testf(BLAS.axpy!, Ref(rand()), rand(T, m), rand(T, m))
+        @test testf(BLAS.axpby!, Ref(rand()), rand(T, m), Ref(rand()), rand(T, m))
 
-@testset "element type $elty" for elty in [Float32, Float64, ComplexF32, ComplexF64]
-    alpha = rand(elty)
-    beta = rand(elty)
+        if T <: Complex
+            @test testf(BLAS.dotu, rand(T, m), rand(T, m))
+            x = rand(T, m)
+            y = rand(T, m)
+            dx = CuArray(x)
+            dy = CuArray(y)
+            dz = BLAS.dot(dx, dy)
+            z = BLAS.dotc(x, y)
+            @test dz ≈ z
+        end
+    end # level 1 testset
+end
 
-    @testset "Level 2" begin
+############################################################################################
+
+@testset "level 2" begin
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        alpha = rand(elty)
+        beta = rand(elty)
+
         @testset "gemv" begin
             @test testf(*, rand(elty, m, n), rand(elty, n))
             @test testf(*, transpose(rand(elty, m, n)), rand(elty, m))
@@ -67,7 +77,7 @@ end # level 1 testset
             y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
             dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
             mul!(dy, f(dA), dx, Ts(1), Ts(2))
-            mul!(y, f(A), x, elty(1), elty(2)) # elty can be replaced with `Ts` on Julia 1.4
+            mul!(y, f(A), x, Ts(1), Ts(2))
             @test Array(dy) ≈ y
         end
         @testset "banded methods" begin
@@ -403,12 +413,20 @@ end # level 1 testset
             end
         end
     end
-    @testset "Level 3" begin
+end
+
+############################################################################################
+
+@testset "level 3" begin
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
+        alpha = rand(elty)
+        beta = rand(elty)
+
         @testset "mul! C = $f(A) *  $g(B) * $Ts(a) + C * $Ts(b)" for f in (identity, transpose, adjoint), g in (identity, transpose, adjoint), Ts in (Int, elty)
             C, A, B = rand(elty, 5, 5), rand(elty, 5, 5), rand(elty, 5, 5)
             dC, dA, dB = CuArray(C), CuArray(A), CuArray(B)
             mul!(dC, f(dA), g(dB), Ts(1), Ts(2))
-            mul!(C, f(A), g(B), elty(1), elty(2)) # elty can be replaced with `Ts` on Julia 1.4
+            mul!(C, f(A), g(B), Ts(1), Ts(2))
             @test Array(dC) ≈ C
         end
         A = rand(elty,m,k)
@@ -802,15 +820,10 @@ end # level 1 testset
         end
 
         @testset "BLAS.trsm!" begin
-            A = copy(A)
-            B = copy(B)
             dA = CuArray(A)
             dB = CuArray(B)
-            dC = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,dA,dB)
-            C = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,A,B)
-            @test A ≈ Array(dA)
-            @test B ≈ Array(dB)
-            @test C ≈ Array(dC)
+            dC = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,dA,copy(dB))
+            @test dA * dC ≈ alpha * dB
         end
 
         @testset "mul! trmm!" begin
@@ -1216,7 +1229,61 @@ end # level 1 testset
             end
         end
     end
-    @testset "extensions" begin
+
+    @testset "mixed-precision matmul" begin
+        m,k,n = 4,4,4
+        cudaTypes = (Float16, Complex{Float16}, BFloat16, Complex{BFloat16}, Float32, Complex{Float32},
+                    Float64, Complex{Float64}, Int8, Complex{Int8}, UInt8, Complex{UInt8},
+                    Int16, Complex{Int16}, UInt16, Complex{UInt16}, Int32, Complex{Int32},
+                    UInt32, Complex{UInt32}, Int64, Complex{Int64}, UInt64, Complex{UInt64})
+
+        for AT in cudaTypes, CT in cudaTypes
+            BT = AT # gemmEx requires identical A and B types
+
+            # we only test combinations of types that are supported by gemmEx
+            if CUBLAS.gemmExComputeType(AT, BT, CT, m,k,n) !== nothing
+                A = AT <: BFloat16 ? AT.(rand(m,k)) : rand(AT, m,k)
+                B = BT <: BFloat16 ? BT.(rand(k,n)) : rand(BT, k,n)
+                C = similar(B, CT)
+                mul!(C, A, B)
+
+                # Base can't do Int8*Int8 without losing accuracy
+                if (AT == Int8 && BT == Int8) || (AT == Complex{Int8} && BT == Complex{Int8})
+                    C = CT.(A) * CT.(B)
+                end
+
+                dA = CuArray(A)
+                dB = CuArray(B)
+                dC = similar(dB, CT)
+                mul!(dC, dA, dB)
+
+                rtol = Base.rtoldefault(AT, BT, 0)
+                @test C ≈ Array(dC) rtol=rtol
+            end
+        end
+
+        # also test an unsupported combination (falling back to GPUArrays)
+        let AT=BFloat16, BT=Int32, CT=Float64
+            A = AT.(rand(m,k))
+            B = rand(BT, k,n)
+            C = similar(B, CT)
+            mul!(C, A, B)
+
+            dA = CuArray(A)
+            dB = CuArray(B)
+            dC = similar(dB, CT)
+            mul!(dC, dA, dB)
+
+            rtol = Base.rtoldefault(AT, BT, 0)
+            @test C ≈ Array(dC) rtol=rtol
+        end
+    end
+end
+
+############################################################################################
+
+@testset "extensions" begin
+    @testset for elty in [Float32, Float64, ComplexF32, ComplexF64]
         @testset "getrf_batched!" begin
             Random.seed!(1)
             local k

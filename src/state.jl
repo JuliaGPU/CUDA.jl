@@ -244,6 +244,11 @@ function context(dev::CuDevice)
         return ctx
     end
 
+    if capability(dev) < v"5"
+        @warn """Your $(name(dev)) GPU does not meet the minimal required compute capability ($(capability(dev)) < 5.0).
+                 Some functionality might not work. For a fully-supported set-up, please use an older version of CUDA.jl"""
+    end
+
     # configure the primary context
     pctx = CuPrimaryContext(dev)
     ctx = CuContext(pctx)

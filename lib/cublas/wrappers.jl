@@ -39,64 +39,49 @@ function cublasXtGetPinningMemMode(handle)
   mm[]
 end
 
-function cublasGetVersion(handle)
-  version = Ref{Cint}()
-  cublasGetVersion(handle, version)
-  version[]
-end
-
 function cublasGetProperty(property::libraryPropertyType)
   value_ref = Ref{Cint}()
   cublasGetProperty(property, value_ref)
   value_ref[]
 end
 
-version() = VersionNumber(cublasGetProperty(CUDA.MAJOR_VERSION),
-                          cublasGetProperty(CUDA.MINOR_VERSION),
-                          cublasGetProperty(CUDA.PATCH_LEVEL))
+function version()
+  version_ref = Ref{Cint}()
+  cublasGetVersion_v2(handle(), version_ref)
+  major, rem = divrem(version_ref[], 1000)
+  minor, patch = divrem(rem, 100)
+  VersionNumber(major, minor, patch)
+end
 
-const cublas_compute_types = Dict(
-    (Float16, Float16, Float16)                 => CUBLAS_COMPUTE_16F,
-    (Int8, Int8, Float32)                       => CUBLAS_COMPUTE_32F,
-    (Complex{Int8}, Complex{Int8}, ComplexF32)  => CUBLAS_COMPUTE_32F,
-    (Float16, Float16, Float32)                 => CUBLAS_COMPUTE_32F,
-    (Float32, Float32, Float32)                 => CUBLAS_COMPUTE_32F,
-    (ComplexF32, ComplexF32, ComplexF32)        => CUBLAS_COMPUTE_32F,
-    (ComplexF16, ComplexF16, ComplexF16)        => CUBLAS_COMPUTE_32F,
-    (Float64, Float64, Float64)                 => CUBLAS_COMPUTE_64F,
-    (ComplexF64, ComplexF64, ComplexF64)        => CUBLAS_COMPUTE_64F,
-    (Int8, Int8, Int32)                         => CUBLAS_COMPUTE_32I)
-cublasComputeType(TA, TB, TC) = cublas_compute_types[(TA, TB, TC)]
-
-function juliaStorageType(::Type{<:Real}, T::cublasComputeType_t)
-    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
-        return Float16
-    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
-           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
-           T == CUBLAS_COMPUTE_32F_FAST_TF32
+function juliaStorageType(T::Type{<:Real}, ct::cublasComputeType_t)
+    if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
+        return T == BFloat16 ? BFloat16 : Float16
+    elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           ct == CUBLAS_COMPUTE_32F_FAST_16F || ct == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           ct == CUBLAS_COMPUTE_32F_FAST_TF32
         return Float32
-    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
+    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC
         return Float64
-    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+    elseif ct == CUBLAS_COMPUTE_32I || ct == CUBLAS_COMPUTE_32I_PEDANTIC
         return Int32
     else
-        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+        throw(ArgumentError("Julia type equivalent for compute type $ct does not exist!"))
     end
 end
 
-function juliaStorageType(::Type{<:Complex}, T::cublasComputeType_t)
-    if T == CUBLAS_COMPUTE_16F || T == CUBLAS_COMPUTE_16F_PEDANTIC
-        return ComplexF16
-    elseif T == CUBLAS_COMPUTE_32F || T == CUBLAS_COMPUTE_32F_PEDANTIC ||
-           T == CUBLAS_COMPUTE_32F_FAST_16F || T == CUBLAS_COMPUTE_32F_FAST_16BF ||
-           T == CUBLAS_COMPUTE_32F_FAST_TF32
-        return ComplexF32
-    elseif T == CUBLAS_COMPUTE_64F || T == CUBLAS_COMPUTE_64F_PEDANTIC
-        return ComplexF64
-    elseif T == CUBLAS_COMPUTE_32I || T == CUBLAS_COMPUTE_32I_PEDANTIC
+function juliaStorageType(T::Type{<:Complex}, ct::cublasComputeType_t)
+    if ct == CUBLAS_COMPUTE_16F || ct == CUBLAS_COMPUTE_16F_PEDANTIC
+        return T == Complex{BFloat16} == Complex{BFloat16} : Complex{Float16}
+    elseif ct == CUBLAS_COMPUTE_32F || ct == CUBLAS_COMPUTE_32F_PEDANTIC ||
+           ct == CUBLAS_COMPUTE_32F_FAST_16F || ct == CUBLAS_COMPUTE_32F_FAST_16BF ||
+           ct == CUBLAS_COMPUTE_32F_FAST_TF32
+        return Complex{Float32}
+    elseif ct == CUBLAS_COMPUTE_64F || ct == CUBLAS_COMPUTE_64F_PEDANTIC
+        return Complex{Float64}
+    elseif ct == CUBLAS_COMPUTE_32I || ct == CUBLAS_COMPUTE_32I_PEDANTIC
         return Complex{Int32}
     else
-        throw(ArgumentError("Julia type equivalent for compute type $T does not exist!"))
+        throw(ArgumentError("Julia type equivalent for compute type $ct does not exist!"))
     end
 end
 
@@ -770,14 +755,70 @@ for (fname, elty) in
     end
 end
 
-# GemmEx, with tensor cores
-function gemmEx!(transA::Char,
-                 transB::Char,
-                 alpha::Number,
-                 A::CuVecOrMat,
-                 B::CuVecOrMat,
-                 beta::Number,
-                 C::CuVecOrMat; algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
+function gemmExComputeType(TA, TB, TC, m, k, n; pedantic=false, fast=false)
+    @assert !(pedantic || fast) || (pedantic ⊻ fast)
+    if TA !== TB
+        return nothing
+    end
+    sig = (TA, TC)
+
+    # gemmEx requires sm_50 or higher
+    cap = capability(device())
+    if cap < v"5"
+        return nothing
+    end
+
+    if sig === (Float16, Float16)
+        # NOTE: Float16=Float16*Float16 can also happen in 32-bit compute
+        return pedantic ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
+    end
+
+    if m%4 == 0 && n%4 == 0 && k%4 == 0 && sig === (Int8, Int32)
+        # Int32=Int8*Int8 requires m,n,k to be multiples of 4
+        # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
+        return pedantic ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
+    end
+
+    if fast
+        if sig === (Float32, Float32) ||
+           sig === (Complex{Float32}, Complex{Float32}) ||
+            # TODO: select between 16F, 16BF and TF32
+            return CUBLAS_COMPUTE_32F_FAST_16F
+        end
+    end
+
+    if sig === (Float16,  Float16) ||
+       sig === (Int8,     Float32) ||
+       sig === (Float16,  Float32) ||
+       sig === (Float32,  Float32) ||
+       sig === (Complex{Int8},    Complex{Float32}) ||
+       sig === (Complex{Float32}, Complex{Float32})
+        return pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+    end
+
+    if sig === (Float64, Float64) ||
+       sig === (Complex{Float64}, Complex{Float64})
+        return pedantic ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
+    end
+
+    # BFloat16 support was added in CUDA 11
+    if version() >= v"11"
+        if sig === (BFloat16, BFloat16) ||
+           sig === (BFloat16, Float32)
+            return pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+        end
+    end
+
+    return nothing
+end
+
+function gemmEx!(transA::Char, transB::Char,
+                 @nospecialize(alpha::Number),
+                 @nospecialize(A::CuVecOrMat),
+                 @nospecialize(B::CuVecOrMat),
+                 @nospecialize(beta::Number),
+                 @nospecialize(C::CuVecOrMat);
+                 algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
     m = size(A, transA == 'N' ? 1 : 2)
     k = size(A, transA == 'N' ? 2 : 1)
     n = size(B, transB == 'N' ? 2 : 1)
@@ -787,19 +828,17 @@ function gemmEx!(transA::Char,
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
     ldc = max(1,stride(C,2))
-    if version() >= v"11.0"
-        computeType = cublasComputeType(eltype(A), eltype(B), eltype(C))
-        T = juliaStorageType(eltype(C), computeType)
-        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
-                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
-    else
-        # FIXME: we patch the cublasGemmEx ccall to computeType::UInt32 for compatibility
-        #        across CUDA versions
-        computeType = convert(cudaDataType, eltype(C))
-        T = convert(Type, computeType)
-        cublasGemmEx(handle(), transA, transB, m, n, k, Ref{T}(alpha), A, eltype(A), lda, B,
-                     eltype(B), ldb, Ref{T}(beta), C, eltype(C), ldc, computeType, algo)
+    computeType = gemmExComputeType(eltype(A), eltype(B), eltype(C), m, k, n)
+    isnothing(computeType) &&
+        throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
+    computeT = juliaStorageType(eltype(C), computeType)
+    if version() < v"11.0"
+        # with CUDA 11, the compute type encodes the math mode.
+        # before CUDA 11, it was a plain cudaDataType.
+        computeType = convert(cudaDataType, computeT)
     end
+    cublasGemmEx(handle(), transA, transB, m, n, k, Ref{computeT}(alpha), A, eltype(A), lda, B,
+                 eltype(B), ldb, Ref{computeT}(beta), C, eltype(C), ldc, computeType, algo)
     C
 end
 

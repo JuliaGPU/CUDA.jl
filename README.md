@@ -20,11 +20,17 @@ using Julia. It features a user-friendly array abstraction, a compiler for writi
 kernels in Julia, and wrappers for various CUDA libraries.
 
 
-## Quick start
+## Requirements
 
-The current version of CUDA.jl requires **Julia 1.3** or higher, a CUDA-capable GPU with
-**compute capability 3.0** or higher, and an accompanying NVIDIA driver with support for
-**CUDA 10.1** or newer.
+The current version of CUDA.jl requires **Julia 1.5** or higher, a CUDA-capable GPU with
+**compute capability 5.0** (Maxwell) or higher, and an accompanying NVIDIA driver with
+support for **CUDA 10.1** or newer.
+
+These requirements are not enforced by the Julia package manager when installing CUDA.jl.
+Depending on your system and GPU, you may need to install an older version of the package.
+
+
+## Quick start
 
 The package can be installed with the Julia package manager.
 From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
