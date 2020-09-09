@@ -755,7 +755,7 @@ for (fname, elty) in
     end
 end
 
-function gemmExComputeType(TA, TB, TC; pedantic=false, fast=false)
+function gemmExComputeType(TA, TB, TC, m, k, n; pedantic=false, fast=false)
     @assert !(pedantic || fast) || (pedantic ⊻ fast)
     if TA !== TB
         return nothing
@@ -767,7 +767,7 @@ function gemmExComputeType(TA, TB, TC; pedantic=false, fast=false)
         return pedantic ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
     end
 
-    if sig === (Int8, Int32)
+    if m%4 == 0 && n%4 == 0 && k%4 == 0 && sig === (Int8, Int32)
         return pedantic ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
     end
 
@@ -819,7 +819,7 @@ function gemmEx!(transA::Char, transB::Char,
     lda = max(1,stride(A,2))
     ldb = max(1,stride(B,2))
     ldc = max(1,stride(C,2))
-    computeType = gemmExComputeType(eltype(A), eltype(B), eltype(C))
+    computeType = gemmExComputeType(eltype(A), eltype(B), eltype(C), m, k, n)
     isnothing(computeType) &&
         throw(ArgumentError("gemmEx does not support $(eltype(C))=$(eltype(A))*$(eltype(B))"))
     computeT = juliaStorageType(eltype(C), computeType)

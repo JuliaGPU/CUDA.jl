@@ -167,7 +167,8 @@ function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=fa
     # NOTE: as an improvement for older devices (pre-sm_50),
     #       we could dispatch to the old gemm! methods here
 
-    if capability(device()) > v"5" && gemmExComputeType(eltype(A), eltype(B), eltype(C)) !== nothing
+    if capability(device()) > v"5" &&
+       gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
         tA, dA = if A isa Transpose
             'T', parent(A)
         elseif A isa Adjoint
