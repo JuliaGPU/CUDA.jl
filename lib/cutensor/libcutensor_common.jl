@@ -1,21 +1,8 @@
 # Automatically generated using Clang.jl
 
 const CUTENSOR_MAJOR = 1
-const CUTENSOR_MINOR = 1
+const CUTENSOR_MINOR = 2
 const CUTENSOR_PATCH = 0
-
-@cenum cutensorAlgo_t::Int32 begin
-    CUTENSOR_ALGO_GETT = -4
-    CUTENSOR_ALGO_TGETT = -3
-    CUTENSOR_ALGO_TTGT = -2
-    CUTENSOR_ALGO_DEFAULT = -1
-end
-
-@cenum cutensorWorksizePreference_t::UInt32 begin
-    CUTENSOR_WORKSPACE_MIN = 1
-    CUTENSOR_WORKSPACE_RECOMMENDED = 2
-    CUTENSOR_WORKSPACE_MAX = 3
-end
 
 @cenum cutensorOperator_t::UInt32 begin
     CUTENSOR_OP_IDENTITY = 1
@@ -64,9 +51,32 @@ end
     CUTENSOR_STATUS_CUDA_ERROR = 18
     CUTENSOR_STATUS_INSUFFICIENT_WORKSPACE = 19
     CUTENSOR_STATUS_INSUFFICIENT_DRIVER = 20
+    CUTENSOR_STATUS_IO_ERROR = 21
+end
+
+@cenum cutensorAlgo_t::Int32 begin
+    CUTENSOR_ALGO_GETT = -4
+    CUTENSOR_ALGO_TGETT = -3
+    CUTENSOR_ALGO_TTGT = -2
+    CUTENSOR_ALGO_DEFAULT = -1
+end
+
+@cenum cutensorWorksizePreference_t::UInt32 begin
+    CUTENSOR_WORKSPACE_MIN = 1
+    CUTENSOR_WORKSPACE_RECOMMENDED = 2
+    CUTENSOR_WORKSPACE_MAX = 3
 end
 
 @cenum cutensorComputeType_t::UInt32 begin
+    CUTENSOR_COMPUTE_16F = 1
+    CUTENSOR_COMPUTE_16BF = 1024
+    CUTENSOR_COMPUTE_TF32 = 4096
+    CUTENSOR_COMPUTE_32F = 4
+    CUTENSOR_COMPUTE_64F = 16
+    CUTENSOR_COMPUTE_8U = 64
+    CUTENSOR_COMPUTE_8I = 256
+    CUTENSOR_COMPUTE_32U = 128
+    CUTENSOR_COMPUTE_32I = 512
     CUTENSOR_R_MIN_16F = 1
     CUTENSOR_C_MIN_16F = 2
     CUTENSOR_R_MIN_32F = 4
@@ -82,8 +92,36 @@ end
     CUTENSOR_C_MIN_TF32 = 4096
 end
 
+@cenum cutensorContractionDescriptorAttributes_t::UInt32 begin
+    CUTENSOR_CONTRACTION_DESCRIPTOR_TAG = 0
+end
+
+@cenum cutensorContractionFindAttributes_t::UInt32 begin
+    CUTENSOR_CONTRACTION_FIND_AUTOTUNE_MODE = 0
+    CUTENSOR_CONTRACTION_FIND_CACHE_MODE = 1
+    CUTENSOR_CONTRACTION_FIND_INCREMENTAL_COUNT = 2
+end
+
+@cenum cutensorAutotuneMode_t::UInt32 begin
+    CUTENSOR_AUTOTUNE_NONE = 0
+    CUTENSOR_AUTOTUNE_INCREMENTAL = 1
+end
+
+@cenum cutensorCacheMode_t::UInt32 begin
+    CUTENSOR_CACHE_MODE_NONE = 0
+    CUTENSOR_CACHE_MODE_PEDANTIC = 1
+end
+
 struct cutensorHandle_t
     fields::NTuple{512, Int64}
+end
+
+struct cutensorPlanCacheline_t
+    fields::NTuple{640, Int64}
+end
+
+struct cutensorPlanCache_t
+    fields::NTuple{8192, Int64}
 end
 
 struct cutensorTensorDescriptor_t

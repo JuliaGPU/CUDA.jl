@@ -2846,3 +2846,10 @@ end
                     Csize_t),
                    handle, side, uplo, trans, diag, m, n, alpha, A, lda, B, ldb, C, ldc)
 end
+
+## added in CUDA 11 Update 1
+
+@checked function cublasSetWorkspace_v2(handle, workspace, workspaceSizeInBytes)
+    initialize_api()
+    @runtime_ccall((:cublasSetWorkspace_v2, libcublas()), cublasStatus_t, (cublasHandle_t, CuPtr{Cvoid}, Csize_t), handle, workspace, workspaceSizeInBytes)
+end

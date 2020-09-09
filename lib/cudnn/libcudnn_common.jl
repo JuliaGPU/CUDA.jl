@@ -1,21 +1,18 @@
 # Automatically generated using Clang.jl
 
-const CUDNN_MAJOR = 7
-const CUDNN_MINOR = 6
-const CUDNN_PATCHLEVEL = 5
+const CUDNN_MAJOR = 8
+const CUDNN_MINOR = 0
+const CUDNN_PATCHLEVEL = 2
 const CUDNN_VERSION = CUDNN_MAJOR * 1000 + CUDNN_MINOR * 100 + CUDNN_PATCHLEVEL
+const CUDNN_OPS_INFER_MAJOR = 8
+const CUDNN_OPS_INFER_MINOR = 0
+const CUDNN_OPS_INFER_PATCH = 2
 const CUDNN_DIM_MAX = 8
 const CUDNN_LRN_MIN_N = 1
 const CUDNN_LRN_MAX_N = 16
 const CUDNN_LRN_MIN_K = 1.0e-5
 const CUDNN_LRN_MIN_BETA = 0.01
 const CUDNN_BN_MIN_EPSILON = 0.0
-const CUDNN_SEQDATA_DIM_COUNT = 4
-const CUDNN_ATTN_QUERYMAP_ALL_TO_ONE = 0
-const CUDNN_ATTN_QUERYMAP_ONE_TO_ONE = UInt32(1) << 0
-const CUDNN_ATTN_DISABLE_PROJ_BIASES = 0
-const CUDNN_ATTN_ENABLE_PROJ_BIASES = UInt32(1) << 1
-const CUDNN_ATTN_WKIND_COUNT = 8
 
 @cenum cudnnSeverity_t::UInt32 begin
     CUDNN_SEV_FATAL = 0
@@ -42,6 +39,7 @@ const cudnnHandle_t = Ptr{cudnnContext}
     CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING = 11
     CUDNN_STATUS_RUNTIME_IN_PROGRESS = 12
     CUDNN_STATUS_RUNTIME_FP_OVERFLOW = 13
+    CUDNN_STATUS_VERSION_MISMATCH = 14
 end
 
 const cudnnRuntimeTag_t = Cvoid
@@ -54,8 +52,6 @@ end
 
 const cudnnTensorStruct = Cvoid
 const cudnnTensorDescriptor_t = Ptr{cudnnTensorStruct}
-const cudnnConvolutionStruct = Cvoid
-const cudnnConvolutionDescriptor_t = Ptr{cudnnConvolutionStruct}
 const cudnnPoolingStruct = Cvoid
 const cudnnPoolingDescriptor_t = Ptr{cudnnPoolingStruct}
 const cudnnFilterStruct = Cvoid
@@ -91,6 +87,7 @@ end
     CUDNN_DEFAULT_MATH = 0
     CUDNN_TENSOR_OP_MATH = 1
     CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION = 2
+    CUDNN_FMA_MATH = 3
 end
 
 @cenum cudnnNanPropagation_t::UInt32 begin
@@ -101,11 +98,6 @@ end
 @cenum cudnnDeterminism_t::UInt32 begin
     CUDNN_NON_DETERMINISTIC = 0
     CUDNN_DETERMINISTIC = 1
-end
-
-@cenum cudnnReorderType_t::UInt32 begin
-    CUDNN_DEFAULT_REORDER = 0
-    CUDNN_NO_REORDER = 1
 end
 
 @cenum cudnnTensorFormat_t::UInt32 begin
@@ -150,92 +142,6 @@ end
     CUDNN_64BIT_INDICES = 1
     CUDNN_16BIT_INDICES = 2
     CUDNN_8BIT_INDICES = 3
-end
-
-@cenum cudnnConvolutionMode_t::UInt32 begin
-    CUDNN_CONVOLUTION = 0
-    CUDNN_CROSS_CORRELATION = 1
-end
-
-@cenum cudnnConvolutionFwdPreference_t::UInt32 begin
-    CUDNN_CONVOLUTION_FWD_NO_WORKSPACE = 0
-    CUDNN_CONVOLUTION_FWD_PREFER_FASTEST = 1
-    CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT = 2
-end
-
-@cenum cudnnConvolutionFwdAlgo_t::UInt32 begin
-    CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM = 0
-    CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM = 1
-    CUDNN_CONVOLUTION_FWD_ALGO_GEMM = 2
-    CUDNN_CONVOLUTION_FWD_ALGO_DIRECT = 3
-    CUDNN_CONVOLUTION_FWD_ALGO_FFT = 4
-    CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING = 5
-    CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD = 6
-    CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED = 7
-    CUDNN_CONVOLUTION_FWD_ALGO_COUNT = 8
-end
-
-struct cudnnConvolutionFwdAlgoPerf_t
-    algo::cudnnConvolutionFwdAlgo_t
-    status::cudnnStatus_t
-    time::Cfloat
-    memory::Csize_t
-    determinism::cudnnDeterminism_t
-    mathType::cudnnMathType_t
-    reserved::NTuple{3, Cint}
-end
-
-@cenum cudnnConvolutionBwdFilterPreference_t::UInt32 begin
-    CUDNN_CONVOLUTION_BWD_FILTER_NO_WORKSPACE = 0
-    CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST = 1
-    CUDNN_CONVOLUTION_BWD_FILTER_SPECIFY_WORKSPACE_LIMIT = 2
-end
-
-@cenum cudnnConvolutionBwdFilterAlgo_t::UInt32 begin
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0 = 0
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1 = 1
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT = 2
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3 = 3
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD = 4
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED = 5
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING = 6
-    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT = 7
-end
-
-struct cudnnConvolutionBwdFilterAlgoPerf_t
-    algo::cudnnConvolutionBwdFilterAlgo_t
-    status::cudnnStatus_t
-    time::Cfloat
-    memory::Csize_t
-    determinism::cudnnDeterminism_t
-    mathType::cudnnMathType_t
-    reserved::NTuple{3, Cint}
-end
-
-@cenum cudnnConvolutionBwdDataPreference_t::UInt32 begin
-    CUDNN_CONVOLUTION_BWD_DATA_NO_WORKSPACE = 0
-    CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST = 1
-    CUDNN_CONVOLUTION_BWD_DATA_SPECIFY_WORKSPACE_LIMIT = 2
-end
-
-@cenum cudnnConvolutionBwdDataAlgo_t::UInt32 begin
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_0 = 0
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_1 = 1
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT = 2
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING = 3
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD = 4
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED = 5
-    CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT = 6
-end
-
-struct cudnnConvolutionBwdDataAlgoPerf_t
-    algo::cudnnConvolutionBwdDataAlgo_t
-    status::cudnnStatus_t
-    time::Cfloat
-    memory::Csize_t
-    determinism::cudnnDeterminism_t
-    mathType::cudnnMathType_t
-    reserved::NTuple{3, Cint}
 end
 
 @cenum cudnnSoftmaxAlgorithm_t::UInt32 begin
@@ -285,18 +191,118 @@ end
     CUDNN_BATCHNORM_OPS_BN_ADD_ACTIVATION = 2
 end
 
+@cenum cudnnNormMode_t::UInt32 begin
+    CUDNN_NORM_PER_ACTIVATION = 0
+    CUDNN_NORM_PER_CHANNEL = 1
+end
+
+@cenum cudnnNormAlgo_t::UInt32 begin
+    CUDNN_NORM_ALGO_STANDARD = 0
+    CUDNN_NORM_ALGO_PERSIST = 1
+end
+
+@cenum cudnnNormOps_t::UInt32 begin
+    CUDNN_NORM_OPS_NORM = 0
+    CUDNN_NORM_OPS_NORM_ACTIVATION = 1
+    CUDNN_NORM_OPS_NORM_ADD_ACTIVATION = 2
+end
+
 @cenum cudnnSamplerType_t::UInt32 begin
     CUDNN_SAMPLER_BILINEAR = 0
 end
 
 const cudnnDropoutStruct = Cvoid
 const cudnnDropoutDescriptor_t = Ptr{cudnnDropoutStruct}
+const cudnnAlgorithmStruct = Cvoid
+const cudnnAlgorithmDescriptor_t = Ptr{cudnnAlgorithmStruct}
+const cudnnAlgorithmPerformanceStruct = Cvoid
+const cudnnAlgorithmPerformance_t = Ptr{cudnnAlgorithmPerformanceStruct}
+
+@cenum cudnnConvolutionFwdAlgo_t::UInt32 begin
+    CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM = 0
+    CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_PRECOMP_GEMM = 1
+    CUDNN_CONVOLUTION_FWD_ALGO_GEMM = 2
+    CUDNN_CONVOLUTION_FWD_ALGO_DIRECT = 3
+    CUDNN_CONVOLUTION_FWD_ALGO_FFT = 4
+    CUDNN_CONVOLUTION_FWD_ALGO_FFT_TILING = 5
+    CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD = 6
+    CUDNN_CONVOLUTION_FWD_ALGO_WINOGRAD_NONFUSED = 7
+    CUDNN_CONVOLUTION_FWD_ALGO_COUNT = 8
+end
+
+@cenum cudnnConvolutionBwdFilterAlgo_t::UInt32 begin
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0 = 0
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_1 = 1
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT = 2
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_3 = 3
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD = 4
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_WINOGRAD_NONFUSED = 5
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_FFT_TILING = 6
+    CUDNN_CONVOLUTION_BWD_FILTER_ALGO_COUNT = 7
+end
+
+@cenum cudnnConvolutionBwdDataAlgo_t::UInt32 begin
+    CUDNN_CONVOLUTION_BWD_DATA_ALGO_0 = 0
+    CUDNN_CONVOLUTION_BWD_DATA_ALGO_1 = 1
+    CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT = 2
+    CUDNN_CONVOLUTION_BWD_DATA_ALGO_FFT_TILING = 3
+    CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD = 4
+    CUDNN_CONVOLUTION_BWD_DATA_ALGO_WINOGRAD_NONFUSED = 5
+    CUDNN_CONVOLUTION_BWD_DATA_ALGO_COUNT = 6
+end
 
 @cenum cudnnRNNAlgo_t::UInt32 begin
     CUDNN_RNN_ALGO_STANDARD = 0
     CUDNN_RNN_ALGO_PERSIST_STATIC = 1
     CUDNN_RNN_ALGO_PERSIST_DYNAMIC = 2
     CUDNN_RNN_ALGO_COUNT = 3
+end
+
+@cenum cudnnCTCLossAlgo_t::UInt32 begin
+    CUDNN_CTC_LOSS_ALGO_DETERMINISTIC = 0
+    CUDNN_CTC_LOSS_ALGO_NON_DETERMINISTIC = 1
+end
+
+# FIXME: can't use such a union as the type in a ccall expression
+#Algorithm = Union{cudnnConvolutionFwdAlgo_t, cudnnConvolutionBwdFilterAlgo_t, cudnnConvolutionBwdDataAlgo_t, cudnnRNNAlgo_t, cudnnCTCLossAlgo_t}
+#struct cudnnAlgorithm_t
+#    algo::Algorithm
+#end
+cudnnAlgorithm_t = Cint
+
+struct cudnnDebug_t
+    cudnn_version::UInt32
+    cudnnStatus::cudnnStatus_t
+    time_sec::UInt32
+    time_usec::UInt32
+    time_delta::UInt32
+    handle::cudnnHandle_t
+    stream::CUstream
+    pid::Culonglong
+    tid::Culonglong
+    cudaDeviceId::Cint
+    reserved::NTuple{15, Cint}
+end
+
+const cudnnCallback_t = Ptr{Cvoid}
+const CUDNN_OPS_TRAIN_MAJOR = 8
+const CUDNN_OPS_TRAIN_MINOR = 0
+const CUDNN_OPS_TRAIN_PATCH = 2
+const CUDNN_ADV_INFER_MAJOR = 8
+const CUDNN_ADV_INFER_MINOR = 0
+const CUDNN_ADV_INFER_PATCH = 2
+const CUDNN_RNN_PADDED_IO_DISABLED = 0
+const CUDNN_RNN_PADDED_IO_ENABLED = UInt32(1) << 0
+const CUDNN_SEQDATA_DIM_COUNT = 4
+const CUDNN_ATTN_QUERYMAP_ALL_TO_ONE = 0
+const CUDNN_ATTN_QUERYMAP_ONE_TO_ONE = UInt32(1) << 0
+const CUDNN_ATTN_DISABLE_PROJ_BIASES = 0
+const CUDNN_ATTN_ENABLE_PROJ_BIASES = UInt32(1) << 1
+const CUDNN_ATTN_WKIND_COUNT = 8
+
+@cenum cudnnForwardMode_t::UInt32 begin
+    CUDNN_FWD_MODE_INFERENCE = 0
+    CUDNN_FWD_MODE_TRAINING = 1
 end
 
 @cenum cudnnRNNMode_t::UInt32 begin
@@ -334,21 +340,13 @@ end
     CUDNN_RNN_DATA_LAYOUT_BATCH_MAJOR_UNPACKED = 2
 end
 
-@cenum cudnnRNNPaddingMode_t::UInt32 begin
-    CUDNN_RNN_PADDED_IO_DISABLED = 0
-    CUDNN_RNN_PADDED_IO_ENABLED = 1
-end
-
+const cudnnRNNPaddingMode_t = UInt32
 const cudnnRNNStruct = Cvoid
 const cudnnRNNDescriptor_t = Ptr{cudnnRNNStruct}
 const cudnnPersistentRNNPlan = Cvoid
 const cudnnPersistentRNNPlan_t = Ptr{cudnnPersistentRNNPlan}
 const cudnnRNNDataStruct = Cvoid
 const cudnnRNNDataDescriptor_t = Ptr{cudnnRNNDataStruct}
-const cudnnAlgorithmStruct = Cvoid
-const cudnnAlgorithmDescriptor_t = Ptr{cudnnAlgorithmStruct}
-const cudnnAlgorithmPerformanceStruct = Cvoid
-const cudnnAlgorithmPerformance_t = Ptr{cudnnAlgorithmPerformanceStruct}
 
 @cenum cudnnSeqDataAxis_t::UInt32 begin
     CUDNN_SEQDATA_TIME_DIM = 0
@@ -374,14 +372,13 @@ const cudnnAttnDescriptor_t = Ptr{cudnnAttnStruct}
     CUDNN_MH_ATTN_O_BIASES = 7
 end
 
+const CUDNN_ADV_TRAIN_MAJOR = 8
+const CUDNN_ADV_TRAIN_MINOR = 0
+const CUDNN_ADV_TRAIN_PATCH = 2
+
 @cenum cudnnWgradMode_t::UInt32 begin
     CUDNN_WGRAD_MODE_ADD = 0
     CUDNN_WGRAD_MODE_SET = 1
-end
-
-@cenum cudnnCTCLossAlgo_t::UInt32 begin
-    CUDNN_CTC_LOSS_ALGO_DETERMINISTIC = 0
-    CUDNN_CTC_LOSS_ALGO_NON_DETERMINISTIC = 1
 end
 
 @cenum cudnnLossNormalizationMode_t::UInt32 begin
@@ -389,28 +386,42 @@ end
     CUDNN_LOSS_NORMALIZATION_SOFTMAX = 1
 end
 
-# FIXME: can't use such a union as the type in a ccall expression
-#Algorithm = Union{cudnnConvolutionFwdAlgo_t, cudnnConvolutionBwdFilterAlgo_t, cudnnConvolutionBwdDataAlgo_t, cudnnRNNAlgo_t, cudnnCTCLossAlgo_t}
-#struct cudnnAlgorithm_t
-#    algo::Algorithm
-#end
-cudnnAlgorithm_t = Cint
+const CUDNN_CNN_INFER_MAJOR = 8
+const CUDNN_CNN_INFER_MINOR = 0
+const CUDNN_CNN_INFER_PATCH = 2
+const cudnnConvolutionStruct = Cvoid
+const cudnnConvolutionDescriptor_t = Ptr{cudnnConvolutionStruct}
 
-struct cudnnDebug_t
-    cudnn_version::UInt32
-    cudnnStatus::cudnnStatus_t
-    time_sec::UInt32
-    time_usec::UInt32
-    time_delta::UInt32
-    handle::cudnnHandle_t
-    stream::CUstream
-    pid::Culonglong
-    tid::Culonglong
-    cudaDeviceId::Cint
-    reserved::NTuple{15, Cint}
+@cenum cudnnConvolutionMode_t::UInt32 begin
+    CUDNN_CONVOLUTION = 0
+    CUDNN_CROSS_CORRELATION = 1
 end
 
-const cudnnCallback_t = Ptr{Cvoid}
+@cenum cudnnReorderType_t::UInt32 begin
+    CUDNN_DEFAULT_REORDER = 0
+    CUDNN_NO_REORDER = 1
+end
+
+struct cudnnConvolutionFwdAlgoPerf_t
+    algo::cudnnConvolutionFwdAlgo_t
+    status::cudnnStatus_t
+    time::Cfloat
+    memory::Csize_t
+    determinism::cudnnDeterminism_t
+    mathType::cudnnMathType_t
+    reserved::NTuple{3, Cint}
+end
+
+struct cudnnConvolutionBwdDataAlgoPerf_t
+    algo::cudnnConvolutionBwdDataAlgo_t
+    status::cudnnStatus_t
+    time::Cfloat
+    memory::Csize_t
+    determinism::cudnnDeterminism_t
+    mathType::cudnnMathType_t
+    reserved::NTuple{3, Cint}
+end
+
 const cudnnFusedOpsConstParamStruct = Cvoid
 const cudnnFusedOpsConstParamPack_t = Ptr{cudnnFusedOpsConstParamStruct}
 const cudnnFusedOpsVariantParamStruct = Cvoid
@@ -507,3 +518,16 @@ end
     CUDNN_SCALAR_DOUBLE_BN_EPSILON = 103
 end
 
+const CUDNN_CNN_TRAIN_MAJOR = 8
+const CUDNN_CNN_TRAIN_MINOR = 0
+const CUDNN_CNN_TRAIN_PATCH = 2
+
+struct cudnnConvolutionBwdFilterAlgoPerf_t
+    algo::cudnnConvolutionBwdFilterAlgo_t
+    status::cudnnStatus_t
+    time::Cfloat
+    memory::Csize_t
+    determinism::cudnnDeterminism_t
+    mathType::cudnnMathType_t
+    reserved::NTuple{3, Cint}
+end

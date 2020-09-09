@@ -167,3 +167,36 @@ end
 function cutensorGetCudartVersion()
     @runtime_ccall((:cutensorGetCudartVersion, libcutensor()), Csize_t, ())
 end
+
+
+## added in CUTENSOR 1.2
+
+@checked function cutensorHandleWriteCacheToFile(handle, filename)
+    initialize_api()
+    @runtime_ccall((:cutensorHandleWriteCacheToFile, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{UInt8}), handle, filename)
+end
+
+@checked function cutensorContractionFindSetAttribute(handle, find, attr, buf, sizeInBytes)
+    initialize_api()
+    @runtime_ccall((:cutensorContractionFindSetAttribute, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorContractionFind_t}, cutensorContractionFindAttributes_t, Ptr{Cvoid}, Csize_t), handle, find, attr, buf, sizeInBytes)
+end
+
+@checked function cutensorHandleReadCacheFromFile(handle, filename, numCachelinesRead)
+    initialize_api()
+    @runtime_ccall((:cutensorHandleReadCacheFromFile, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{UInt8}, Ref{UInt32}), handle, filename, numCachelinesRead)
+end
+
+@checked function cutensorContractionDescriptorSetAttribute(handle, desc, attr, buf, sizeInBytes)
+    initialize_api()
+    @runtime_ccall((:cutensorContractionDescriptorSetAttribute, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorContractionDescriptor_t}, cutensorContractionDescriptorAttributes_t, Ptr{Cvoid}, Csize_t), handle, desc, attr, buf, sizeInBytes)
+end
+
+@checked function cutensorHandleDetachPlanCachelines(handle)
+    initialize_api()
+    @runtime_ccall((:cutensorHandleDetachPlanCachelines, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t},), handle)
+end
+
+@checked function cutensorHandleAttachPlanCachelines(handle, cachelines, numCachelines)
+    initialize_api()
+    @runtime_ccall((:cutensorHandleAttachPlanCachelines, libcutensor()), cutensorStatus_t, (Ptr{cutensorHandle_t}, Ptr{cutensorPlanCacheline_t}, UInt32), handle, cachelines, numCachelines)
+end
