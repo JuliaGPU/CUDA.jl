@@ -144,10 +144,18 @@ end
             @test collect(d_x) ≈ x
         end
 
-        @testset "CSR(CSC)" begin
+        @testset "CSR(::CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             d_x = CuSparseMatrixCSR(d_x)
+            @test collect(d_x) == collect(x)
+        end
+
+        @testset "COO ↔ CSR" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCSR(x);
+            d_x = CuSparseMatrixCOO(d_x);
+            d_x = CuSparseMatrixCSR(d_x);
             @test collect(d_x) == collect(x)
         end
 
@@ -158,7 +166,7 @@ end
             @test h_x ≈ Array(x)
         end
 
-        @testset "Dense(CSC)" begin
+        @testset "Dense(::CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             h_x = collect(d_x)
