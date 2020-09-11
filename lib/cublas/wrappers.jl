@@ -205,6 +205,44 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
     end
 end
 
+## rot
+for (fname, elty, cty, sty) in ((:cublasSrot_v2,:Float32,:Float32,:Float32),
+                                (:cublasDrot_v2,:Float64,:Float64,:Float64),
+                                (:cublasCrot_v2,:ComplexF32,:Float32,:ComplexF32),
+                                (:cublasCsrot_v2,:ComplexF32,:Float32,:Float32),
+                                (:cublasZrot_v2,:ComplexF64,:Float64,:ComplexF64),
+                                (:cublasZdrot_v2,:ComplexF64,:Float64,:Float64))
+    @eval begin
+        function rot!(n::Integer,
+                      x::CuArray{$elty},
+                      incx::Integer,
+                      y::CuArray{$elty},
+                      incy::Integer,
+                      c::$cty,
+                      s::$sty)
+            $fname(handle(), n, x, incx, y, incy, c, s)
+            x, y
+        end
+    end
+end
+
+## swap
+for (fname, elty) in ((:cublasSswap_v2,:Float32),
+                      (:cublasDswap_v2,:Float64),
+                      (:cublasCswap_v2,:ComplexF32),
+                      (:cublasZswap_v2,:ComplexF64))
+    @eval begin
+        function swap!(n::Integer,
+                       x::CuArray{$elty},
+                       incx::Integer,
+                       y::CuArray{$elty},
+                       incy::Integer)
+            $fname(handle(), n, x, incx, y, incy)
+            x, y
+        end
+    end
+end
+
 function axpy!(alpha::Number,
                x::CuArray{T},
                rx::Union{UnitRange{<:Integer},AbstractRange{<:Integer}},

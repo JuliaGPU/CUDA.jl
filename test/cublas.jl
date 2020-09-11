@@ -48,6 +48,25 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
             z = BLAS.dotc(x, y)
             @test dz ≈ z
         end
+
+        if T <: Real
+            x = rand(T, m)
+            y = rand(T, m)
+            c = rand(T)
+            s = rand(T)
+
+            dx = CuArray(x)
+            dy = CuArray(y)
+            dx, dy = reflect!(dx, dy, c, s)
+            @test Vector(dx) ≈ c * x + s * y
+            @test Vector(dy) ≈ s * x - c * y
+
+            dx = CuArray(x)
+            dy = CuArray(y)
+            dx, dy = rotate!(dx, dy, c, s)
+            @test Vector(dx) ≈  c * x + s * y
+            @test Vector(dy) ≈ -s * x + c * y
+        end
     end # level 1 testset
 end
 
