@@ -123,14 +123,16 @@ function use_artifact_cuda()
     @debug "Trying to use artifacts..."
 
     # select compatible artifacts
-    candidate_artifacts = if haskey(ENV, "JULIA_CUDA_VERSION")
-        wanted_release = VersionNumber(ENV["JULIA_CUDA_VERSION"])
-        @debug "Selecting artifacts based on requested $wanted_release"
-        filter(((cuda,artifact),) -> cuda.release == wanted_release, cuda_artifacts)
+    if haskey(ENV, "JULIA_CUDA_VERSION")
+        wanted = VersionNumber(ENV["JULIA_CUDA_VERSION"])
+        @debug "Selecting artifacts based on requested $wanted"
+        candidate_artifacts = filter(((cuda,artifact),) -> cuda.release == wanted || cuda.version == wanted, cuda_artifacts)
+        isempty(candidate_artifacts) && @debug "Requested CUDA version $wanted is not provided by any artifact"
     else
         driver_release = release()
         @debug "Selecting artifacts based on driver compatibility $driver_release"
-        filter(((cuda,artifact),) -> cuda.release <= driver_release, cuda_artifacts)
+        candidate_artifacts = filter(((cuda,artifact),) -> cuda.release <= driver_release, cuda_artifacts)
+        isempty(candidate_artifacts) && @debug "CUDA driver compatibility $driver_release is not compatible with any artifact"
     end
 
     # download and install
