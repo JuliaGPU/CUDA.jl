@@ -341,7 +341,8 @@ function __init_dependencies__()
         found = use_artifact_cuda()
     end
 
-    if !found
+    # if the user didn't specifically request an artifact version, look for a local installation
+    if !found && !haskey(ENV, "JULIA_CUDA_VERSION")
         found = use_local_cuda()
     end
 
