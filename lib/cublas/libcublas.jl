@@ -76,14 +76,14 @@ end
 @checked function cublasGetMathMode(handle, mode)
     initialize_api()
     @runtime_ccall((:cublasGetMathMode, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, Ref{cublasMath_t}),
+                   (cublasHandle_t, Ref{UInt32}),
                    handle, mode)
 end
 
 @checked function cublasSetMathMode(handle, mode)
     initialize_api()
     @runtime_ccall((:cublasSetMathMode, libcublas()), cublasStatus_t,
-                   (cublasHandle_t, cublasMath_t),
+                   (cublasHandle_t, UInt32),
                    handle, mode)
 end
 

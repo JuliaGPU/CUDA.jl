@@ -439,6 +439,12 @@ function math_mode!(mode::MathMode; precision=nothing)
         default_math_precision[] = precision
     end
 
+    # reapply the CUBLAS math mode if it had been set already
+    cublas_handle = get(tls, (:CUBLAS, ctx), nothing)
+    if cublas_handle !== nothing
+        CUBLAS.math_mode!(cublas_handle, mode)
+    end
+
     return
 end
 

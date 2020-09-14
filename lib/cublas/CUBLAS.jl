@@ -30,6 +30,42 @@ include("linalg.jl")
 const thread_handles = Vector{Union{Nothing,cublasHandle_t}}()
 const thread_xt_handles = Vector{Union{Nothing,cublasXtHandle_t}}()
 
+function math_mode!(handle, mode)
+    flags = 0
+
+    # https://github.com/facebookresearch/faiss/issues/1385
+    if version(handle) > v"11"
+        flags = CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION
+    end
+
+    flags |= if mode == CUDA.PEDANTIC_MATH
+        # prevent use of tensor cores
+        if VERSION < v"11"
+            CUBLAS_DEFAULT_MATH
+        else
+            CUBLAS_PEDANTIC_MATH
+        end
+    elseif mode == CUDA.DEFAULT_MATH
+        # use tensor cores, but don't reduce precision
+        if VERSION < v"11"
+            CUBLAS_TENSOR_OP_MATH
+        else
+            CUBLAS_DEFAULT_MATH
+        end
+    elseif mode == CUDA.FAST_MATH
+        # we'll additionally select a compute-mode with reduced precision whenever possible
+        if VERSION < v"11"
+            CUBLAS_TENSOR_OP_MATH
+        else
+            CUBLAS_TF32_TENSOR_OP_MATH
+        end
+    end
+
+    cublasSetMathMode(handle, flags)
+
+    return
+end
+
 function handle()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
@@ -44,11 +80,7 @@ function handle()
                 end
             end
 
-            # enable tensor math mode if our device supports it, and fast math is enabled
-            dev = device()
-            if Base.JLOptions().fast_math == 1 && capability(dev) >= v"7.0" && version() >= v"9"
-                cublasSetMathMode(handle, CUBLAS_TENSOR_OP_MATH)
-            end
+            math_mode!(handle, CUDA.math_mode())
 
             handle
         end
