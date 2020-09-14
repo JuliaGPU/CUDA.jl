@@ -49,23 +49,12 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
             @test dz ≈ z
         end
 
-        if T <: Real
-            x = rand(T, m)
-            y = rand(T, m)
-            c = rand(T)
-            s = rand(T)
+        @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
+        @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
 
-            dx = CuArray(x)
-            dy = CuArray(y)
-            dx, dy = reflect!(dx, dy, c, s)
-            @test Vector(dx) ≈ c * x + s * y
-            @test Vector(dy) ≈ s * x - c * y
-
-            dx = CuArray(x)
-            dy = CuArray(y)
-            dx, dy = rotate!(dx, dy, c, s)
-            @test Vector(dx) ≈  c * x + s * y
-            @test Vector(dy) ≈ -s * x + c * y
+        @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
+        if T <: Complex
+            @test_broken testf(reflect!, rand(T, m), rand(T, m), rand(T), rand(real(T)))
         end
     end # level 1 testset
 end

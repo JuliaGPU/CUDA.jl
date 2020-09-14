@@ -5,6 +5,7 @@ cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ?
 CublasArray{T<:CublasFloat} = CuArray{T}
 
 
+
 #
 # BLAS 1
 #
@@ -51,20 +52,22 @@ function LinearAlgebra.axpby!(alpha::Number, x::CuArray{T}, beta::Number, y::CuA
     axpby!(length(x), alpha, x, 1, beta, y, 1)
 end
 
-function LinearAlgebra.rotate!(x::CuArray{T}, y::CuArray{T}, c::T, s::T) where T<:Union{Float32,Float64}
+function LinearAlgebra.rotate!(x::CuArray{T}, y::CuArray{T}, c, s) where T<:CublasFloat
     nx = length(x)
     ny = length(y)
     nx==ny || throw(DimensionMismatch("rotate arguments have lengths $nx and $ny"))
     rot!(nx, x, 1, y, 1, c, s)
 end
 
-function LinearAlgebra.reflect!(x::CuArray{T}, y::CuArray{T}, c::T, s::T) where T<:Union{Float32,Float64}
+function LinearAlgebra.reflect!(x::CuArray{T}, y::CuArray{T}, c, s) where T<:CublasFloat
     nx = length(x)
     ny = length(y)
     nx==ny || throw(DimensionMismatch("reflect arguments have lengths $nx and $ny"))
     rot!(nx, y, 1, x, 1, s, c)
     swap!(nx, x, 1, y, 1)
 end
+
+
 
 #
 # BLAS 2

@@ -206,19 +206,19 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
 end
 
 ## rot
-for (fname, elty, cty, sty) in ((:cublasSrot_v2,:Float32,:Float32,:Float32),
-                                (:cublasDrot_v2,:Float64,:Float64,:Float64),
-                                (:cublasCrot_v2,:ComplexF32,:Float32,:ComplexF32),
-                                (:cublasCsrot_v2,:ComplexF32,:Float32,:Float32),
-                                (:cublasZrot_v2,:ComplexF64,:Float64,:ComplexF64),
-                                (:cublasZdrot_v2,:ComplexF64,:Float64,:Float64))
+for (fname, elty, sty) in ((:cublasSrot_v2,:Float32,:Number),
+                           (:cublasDrot_v2,:Float64,:Number),
+                           (:cublasCrot_v2,:ComplexF32,:Number),
+                           (:cublasCsrot_v2,:ComplexF32,:Real),
+                           (:cublasZrot_v2,:ComplexF64,:Number),
+                           (:cublasZdrot_v2,:ComplexF64,:Real))
     @eval begin
         function rot!(n::Integer,
                       x::CuArray{$elty},
                       incx::Integer,
                       y::CuArray{$elty},
                       incy::Integer,
-                      c::$cty,
+                      c::Real,
                       s::$sty)
             $fname(handle(), n, x, incx, y, incy, c, s)
             x, y
