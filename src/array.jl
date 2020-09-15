@@ -489,13 +489,15 @@ end
 # 1-dimensional API
 
 # in-place
-function Base.reverse!(data::CuVector{T}, start=1, stop=length(data)) where {T}
+Base.@propagate_inbounds function Base.reverse!(data::CuVector{T}, start, stop=length(data)) where {T}
     _reverse(view(data, start:stop))
     return data
 end
 
+Base.reverse(data::CuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
+
 # out-of-place
-function Base.reverse(input::CuVector{T}, start=1, stop=length(input)) where {T}
+Base.@propagate_inbounds function Base.reverse(input::CuVector{T}, start, stop=length(input)) where {T}
     output = similar(input)
 
     start > 1 && copyto!(output, 1, input, 1, start-1)
@@ -504,6 +506,8 @@ function Base.reverse(input::CuVector{T}, start=1, stop=length(input)) where {T}
 
     return output
 end
+
+Base.reverse!(data::CuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
 
 
 ## resizing
