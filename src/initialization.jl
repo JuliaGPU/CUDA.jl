@@ -47,7 +47,11 @@ end
 # macro to guard code that only can run after the package has successfully initialized
 macro after_init(ex)
     quote
-        @assert functional(true) "CUDA.jl did not successfully initialize, and is not usable."
+        if !functional(true)
+            error("""CUDA.jl did not successfully initialize, and is not usable.
+                     If you did not see any other error message, try again in a new session
+                     with the JULIA_DEBUG environment variable set to 'CUDA'.""")
+        end
         $(esc(ex))
     end
 end
