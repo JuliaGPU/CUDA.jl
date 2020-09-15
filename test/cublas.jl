@@ -53,9 +53,7 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
         @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
 
         @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
-        if T <: Complex
-            @test_broken testf(reflect!, rand(T, m), rand(T, m), rand(T), rand(real(T)))
-        end
+        @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
     end # level 1 testset
 end
 

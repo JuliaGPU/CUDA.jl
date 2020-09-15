@@ -63,8 +63,9 @@ function LinearAlgebra.reflect!(x::CuArray{T}, y::CuArray{T}, c, s) where T<:Cub
     nx = length(x)
     ny = length(y)
     nx==ny || throw(DimensionMismatch("reflect arguments have lengths $nx and $ny"))
-    rot!(nx, y, 1, x, 1, s, c)
-    swap!(nx, x, 1, y, 1)
+    rot!(nx, x, 1, y, 1, c, s)
+    scal!(ny, -real(one(T)), y, 1)
+    x, y
 end
 
 
