@@ -257,12 +257,12 @@ Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
 
-Adapt.adapt_storage(::Type{CuArray}, xs::AbstractArray) =
-  isbits(xs) ? xs : convert(CuArray, xs)
+Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray, xs)
 
 # if an element type is specified, convert to it
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray) where {T} =
-  isbits(xs) ? xs : convert(CuArray{T}, xs)
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 
 Adapt.adapt_storage(::Type{Array}, xs::CuArray) = convert(Array, xs)
 
