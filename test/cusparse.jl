@@ -118,6 +118,12 @@ end
             d_x  = CuSparseMatrixBSR(x, blockdim)
             @test collect(d_x) == collect(x)
         end
+
+        @testset "BSR" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x  = CuSparseMatrixCOO(x)
+            @test collect(d_x) == collect(x)
+        end
     end
 end
 
@@ -130,12 +136,20 @@ end
             @test collect(d_x) == collect(x)
         end
 
+        @testset "CSR(::CSC)" begin
+            x = sprand(elty,m,n, 0.2)
+            d_x = CuSparseMatrixCSC(x)
+            d_x = CuSparseMatrixCSR(d_x)
+            @test collect(d_x) == collect(x)
+        end
+
         @testset "BSR(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSR(x)
             d_x = CuSparseMatrixBSR(d_x, blockdim)
             @test collect(d_x) == collect(x)
         end
+        # CSR(::BSR) already covered by the non-direct collect
 
         @testset "BSR(::Dense)" begin
             x = rand(elty,m,n)
@@ -144,12 +158,13 @@ end
             @test collect(d_x) ≈ x
         end
 
-        @testset "CSR(CSC)" begin
+        @testset "COO(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
-            d_x = CuSparseMatrixCSC(x)
-            d_x = CuSparseMatrixCSR(d_x)
+            d_x = CuSparseMatrixCSR(x)
+            d_x = CuSparseMatrixCOO(d_x)
             @test collect(d_x) == collect(x)
         end
+        # CSR(::COO) already covered by the non-direct collect
 
         @testset "Dense(::CSR)" begin
             x = sprand(elty,m,n, 0.2)
@@ -158,7 +173,7 @@ end
             @test h_x ≈ Array(x)
         end
 
-        @testset "Dense(CSC)" begin
+        @testset "Dense(::CSC)" begin
             x = sprand(elty,m,n, 0.2)
             d_x = CuSparseMatrixCSC(x)
             h_x = collect(d_x)

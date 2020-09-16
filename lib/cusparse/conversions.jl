@@ -122,6 +122,23 @@ for (fname,elty) in ((:cusparseSbsr2csr, :Float32),
     end
 end
 
+## CSR to COO and vice-versa
+
+function CuSparseMatrixCSR(coo::CuSparseMatrixCOO{Tv}, ind::SparseChar='O') where {Tv}
+    m,n = coo.dims
+    nnz = coo.nnz
+    csrRowPtr = CUDA.zeros(Cint, nnz)
+    cusparseXcoo2csr(handle(), coo.rowInd, nnz, m, csrRowPtr, ind)
+    CuSparseMatrixCSR{Tv}(csrRowPtr, coo.colInd, coo.nzVal, coo.dims)
+end
+
+function CuSparseMatrixCOO(csr::CuSparseMatrixCSR{Tv}, ind::SparseChar='O') where {Tv}
+    m,n = csr.dims
+    nnz = csr.nnz
+    cooRowInd = CUDA.zeros(Cint, nnz)
+    cusparseXcsr2coo(handle(), csr.rowPtr, nnz, m, cooRowInd, ind)
+    CuSparseMatrixCOO{Tv}(cooRowInd, csr.colVal, csr.nzVal, csr.dims, nnz)
+end
 
 ## sparse to dense, and vice-versa
 
