@@ -257,12 +257,12 @@ Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
 # We don't convert isbits types in `adapt`, since they are already
 # considered GPU-compatible.
 
-Adapt.adapt_storage(::Type{CuArray}, xs::AbstractArray) =
-  isbits(xs) ? xs : convert(CuArray, xs)
+Adapt.adapt_storage(::Type{CuArray}, xs::AT) where {AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray, xs)
 
 # if an element type is specified, convert to it
-Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AbstractArray) where {T} =
-  isbits(xs) ? xs : convert(CuArray{T}, xs)
+Adapt.adapt_storage(::Type{<:CuArray{T}}, xs::AT) where {T, AT<:AbstractArray} =
+  isbitstype(AT) ? xs : convert(CuArray{T}, xs)
 
 Adapt.adapt_storage(::Type{Array}, xs::CuArray) = convert(Array, xs)
 
@@ -490,13 +490,15 @@ end
 # 1-dimensional API
 
 # in-place
-function Base.reverse!(data::CuVector{T}, start=1, stop=length(data)) where {T}
+Base.@propagate_inbounds function Base.reverse!(data::CuVector{T}, start, stop=length(data)) where {T}
     _reverse(view(data, start:stop))
     return data
 end
 
+Base.reverse(data::CuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
+
 # out-of-place
-function Base.reverse(input::CuVector{T}, start=1, stop=length(input)) where {T}
+Base.@propagate_inbounds function Base.reverse(input::CuVector{T}, start, stop=length(input)) where {T}
     output = similar(input)
 
     start > 1 && copyto!(output, 1, input, 1, start-1)
@@ -505,6 +507,8 @@ function Base.reverse(input::CuVector{T}, start=1, stop=length(input)) where {T}
 
     return output
 end
+
+Base.reverse!(data::CuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
 
 
 ## resizing
