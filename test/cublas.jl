@@ -48,6 +48,12 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
             z = BLAS.dotc(x, y)
             @test dz ≈ z
         end
+
+        @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
+        @test testf(rotate!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
+
+        @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(real(T)))
+        @test testf(reflect!, rand(T, m), rand(T, m), rand(real(T)), rand(T))
     end # level 1 testset
 end
 
