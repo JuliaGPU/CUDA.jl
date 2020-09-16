@@ -192,16 +192,6 @@ pages:
                                             Pkg.instantiate()'
     - julia --project=perf/ --color=yes perf/runbenchmarks.jl
 
-benchmark:1.4:
-  extends:
-    - .julia:1.4
-    - .benchmark
-  tags:
-    - nvidia-benchmark
-  variables:
-    CODESPEED_EXECUTABLE: "Julia 1.4"
-  allow_failure: true
-
 benchmark:1.5:
   extends:
     - .julia:1.5
@@ -210,4 +200,3 @@ benchmark:1.5:
     - nvidia-benchmark
   variables:
     CODESPEED_EXECUTABLE: "Julia 1.5"
-  allow_failure: true
