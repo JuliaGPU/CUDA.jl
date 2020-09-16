@@ -45,9 +45,9 @@ function cublasGetProperty(property::libraryPropertyType)
   value_ref[]
 end
 
-function version()
+function version(handle=handle())
   version_ref = Ref{Cint}()
-  cublasGetVersion_v2(handle(), version_ref)
+  cublasGetVersion_v2(handle, version_ref)
   major, rem = divrem(version_ref[], 1000)
   minor, patch = divrem(rem, 100)
   VersionNumber(major, minor, patch)
@@ -793,8 +793,7 @@ for (fname, elty) in
     end
 end
 
-function gemmExComputeType(TA, TB, TC, m, k, n; pedantic=false, fast=false)
-    @assert !(pedantic || fast) || (pedantic ⊻ fast)
+function gemmExComputeType(TA, TB, TC, m, k, n)
     if TA !== TB
         return nothing
     end
@@ -806,22 +805,32 @@ function gemmExComputeType(TA, TB, TC, m, k, n; pedantic=false, fast=false)
         return nothing
     end
 
+    math_mode = CUDA.math_mode()
+    reduced_precision = CUDA.math_precision()
+
     if sig === (Float16, Float16)
         # NOTE: Float16=Float16*Float16 can also happen in 32-bit compute
-        return pedantic ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
+        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_16F_PEDANTIC : CUBLAS_COMPUTE_16F
     end
 
     if m%4 == 0 && n%4 == 0 && k%4 == 0 && sig === (Int8, Int32)
         # Int32=Int8*Int8 requires m,n,k to be multiples of 4
         # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
-        return pedantic ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
+        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
     end
 
-    if fast
+    if math_mode == CUDA.FAST_MATH
         if sig === (Float32, Float32) ||
-           sig === (Complex{Float32}, Complex{Float32}) ||
-            # TODO: select between 16F, 16BF and TF32
-            return CUBLAS_COMPUTE_32F_FAST_16F
+           sig === (Complex{Float32}, Complex{Float32})
+            if reduced_precision === :Float16
+                return CUBLAS_COMPUTE_32F_FAST_16F
+            elseif reduced_precision === :BFloat16
+                return CUBLAS_COMPUTE_32F_FAST_16BF
+            elseif reduced_precision === :TensorFloat32
+                return CUBLAS_COMPUTE_32F_FAST_TF32
+            else
+                throw(ArgumentError("Unknown reduced precision type $reduced_precision"))
+            end
         end
     end
 
@@ -831,19 +840,19 @@ function gemmExComputeType(TA, TB, TC, m, k, n; pedantic=false, fast=false)
        sig === (Float32,  Float32) ||
        sig === (Complex{Int8},    Complex{Float32}) ||
        sig === (Complex{Float32}, Complex{Float32})
-        return pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
     end
 
     if sig === (Float64, Float64) ||
        sig === (Complex{Float64}, Complex{Float64})
-        return pedantic ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
+        return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_64F_PEDANTIC : CUBLAS_COMPUTE_64F
     end
 
     # BFloat16 support was added in CUDA 11
     if version() >= v"11"
         if sig === (BFloat16, BFloat16) ||
            sig === (BFloat16, Float32)
-            return pedantic ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
+            return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32F_PEDANTIC : CUBLAS_COMPUTE_32F
         end
     end
 

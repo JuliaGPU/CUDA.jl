@@ -405,3 +405,55 @@ Base.size(x::PerDevice) = size(x.inner)
 function Base.show(io::IO, mime::MIME"text/plain", x::PerDevice{T}) where {T}
     print(io, "PerDevice{$T} with $(length(x)) entries")
 end
+
+
+## math mode
+
+@enum MathMode begin
+    # use prescribed precision and standardized arithmetic for all calculations.
+    # this may serialize operations, and reduce performance.
+    PEDANTIC_MATH
+
+    # use at least the required precision, and allow reordering operations for performance.
+    DEFAULT_MATH
+
+    # additionally allow downcasting operations for better use of hardware resources.
+    # whenever possible the `precision` flag passed to `math_mode!` will be used
+    # to constrain those downcasts.
+    FAST_MATH
+end
+
+# math mode and precision are sticky (once set on a task, inherit to newly created tasks)
+const default_math_mode = Ref{Union{Nothing,MathMode}}(nothing)
+const default_math_precision = Ref{Union{Nothing,Symbol}}(nothing)
+
+function math_mode!(mode::MathMode; precision=nothing)
+    # make sure we initialize first, or recursion might overwrite the math mode
+    ctx = context()
+
+    tls = task_local_storage()
+    tls[(:CUDA, :math_mode)] = mode
+    default_math_mode[] = mode
+    if precision !== nothing
+        tls[(:CUDA, :math_precision)] = precision
+        default_math_precision[] = precision
+    end
+
+    # reapply the CUBLAS math mode if it had been set already
+    cublas_handle = get(tls, (:CUBLAS, ctx), nothing)
+    if cublas_handle !== nothing
+        CUBLAS.math_mode!(cublas_handle, mode)
+    end
+
+    return
+end
+
+math_mode() =
+    get!(task_local_storage(), (:CUDA, :math_mode)) do
+        something(default_math_mode[],
+                  Base.JLOptions().fast_math==1 ? FAST_MATH : DEFAULT_MATH)
+    end
+math_precision() =
+    get!(task_local_storage(), (:CUDA, :math_precision)) do
+        something(default_math_precision[], :TensorFloat32)
+    end
