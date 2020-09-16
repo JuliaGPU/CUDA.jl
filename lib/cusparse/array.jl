@@ -117,8 +117,8 @@ mutable struct CuSparseMatrixCOO{Tv} <: AbstractCuSparseMatrix{Tv}
     dims::NTuple{2,Int}
     nnz::Cint
 
-    function CuSparseMatrixCOO{Tv}(rowInd::CuVector{Cint}, colInd::CuVector{Cint}, 
-                                   nzVal::CuVector{Tv}, dims::NTuple{2,Int}=(dimlub(rowInd),dimlub(colInd)), 
+    function CuSparseMatrixCOO{Tv}(rowInd::CuVector{Cint}, colInd::CuVector{Cint},
+                                   nzVal::CuVector{Tv}, dims::NTuple{2,Int}=(dimlub(rowInd),dimlub(colInd)),
                                    nnz::Cint=Cint(length(nzVal))) where Tv
         new(rowInd,colInd,nzVal,dims,nnz)
     end
@@ -285,23 +285,28 @@ CuSparseMatrixCSC{T}(Mat::SparseMatrixCSC) where {T} =
                          CuVector{T}(Mat.nzval), size(Mat))
 CuSparseMatrixCSR{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCSR(CuSparseMatrixCSC{T}(Mat))
 CuSparseMatrixBSR{T}(Mat::SparseMatrixCSC, blockdim) where {T} = CuSparseMatrixBSR(CuSparseMatrixCSR{T}(Mat), blockdim)
+CuSparseMatrixCOO{T}(Mat::SparseMatrixCSC) where {T} = CuSparseMatrixCOO(CuSparseMatrixCSR{T}(Mat))
 
 # untyped variants
 CuSparseVector(x::AbstractSparseArray{T}) where {T} = CuSparseVector{T}(x)
 CuSparseMatrixCSC(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSC{T}(x)
 CuSparseMatrixCSR(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCSR{T}(x)
 CuSparseMatrixBSR(x::AbstractSparseArray{T}, blockdim) where {T} = CuSparseMatrixBSR{T}(x, blockdim)
+CuSparseMatrixCOO(x::AbstractSparseArray{T}) where {T} = CuSparseMatrixCOO{T}(x)
 
 # gpu to cpu
 SparseVector(x::CuSparseVector) = SparseVector(length(x), Array(nonzeroinds(x)), Array(nonzeros(x)))
 SparseMatrixCSC(x::CuSparseMatrixCSC) = SparseMatrixCSC(size(x)..., Array(x.colPtr), Array(rowvals(x)), Array(nonzeros(x)))
 SparseMatrixCSC(x::CuSparseMatrixCSR) = SparseMatrixCSC(CuSparseMatrixCSC(x))  # no direct conversion
+SparseMatrixCSC(x::CuSparseMatrixBSR) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion
+SparseMatrixCSC(x::CuSparseMatrixCOO) = SparseMatrixCSC(CuSparseMatrixCSR(x))  # no direct conversion
 
 # collect to Array
 Base.collect(x::CuSparseVector) = collect(SparseVector(x))
 Base.collect(x::CuSparseMatrixCSC) = collect(SparseMatrixCSC(x))
 Base.collect(x::CuSparseMatrixCSR) = collect(SparseMatrixCSC(x))
 Base.collect(x::CuSparseMatrixBSR) = collect(CuSparseMatrixCSR(x))  # no direct conversion
+Base.collect(x::CuSparseMatrixCOO) = collect(CuSparseMatrixCSR(x))  # no direct conversion
 
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseVector) = CuSparseVector(xs)
 Adapt.adapt_storage(::Type{CuArray}, xs::SparseMatrixCSC) = CuSparseMatrixCSC(xs)
@@ -325,7 +330,7 @@ function Base.copyto!(dst::CuSparseVector, src::CuSparseVector)
     end
     copyto!(nonzeroinds(dst), nonzeroinds(src))
     copyto!(nonzeros(dst), nonzeros(src))
-    nnz(dst) = nnz(src)
+    dst.nnz = nnz(src)
     dst
 end
 
@@ -336,7 +341,7 @@ function Base.copyto!(dst::CuSparseMatrixCSC, src::CuSparseMatrixCSC)
     copyto!(dst.colPtr, src.colPtr)
     copyto!(rowvals(dst), rowvals(src))
     copyto!(nonzeros(dst), nonzeros(src))
-    nnz(dst) = nnz(src)
+    dst.nnz = nnz(src)
     dst
 end
 
@@ -347,7 +352,7 @@ function Base.copyto!(dst::CuSparseMatrixCSR, src::CuSparseMatrixCSR)
     copyto!(dst.rowPtr, src.rowPtr)
     copyto!(dst.colVal, src.colVal)
     copyto!(nonzeros(dst), nonzeros(src))
-    nnz(dst) = nnz(src)
+    dst.nnz = nnz(src)
     dst
 end
 
@@ -359,14 +364,26 @@ function Base.copyto!(dst::CuSparseMatrixBSR, src::CuSparseMatrixBSR)
     copyto!(dst.colVal, src.colVal)
     copyto!(nonzeros(dst), nonzeros(src))
     dst.dir = src.dir
-    nnz(dst) = nnz(src)
+    dst.nnz = nnz(src)
     dst
 end
 
-Base.copy(Vec::CuSparseVector) = copyto!(similar(Vec),Vec)
-Base.copy(Mat::CuSparseMatrixCSC) = copyto!(similar(Mat),Mat)
-Base.copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat),Mat)
-Base.copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat),Mat)
+function Base.copyto!(dst::CuSparseMatrixCOO, src::CuSparseMatrixCOO)
+    if dst.dims != src.dims
+        throw(ArgumentError("Inconsistent Sparse Matrix size"))
+    end
+    copyto!(dst.rowInd, src.rowInd)
+    copyto!(dst.colInd, src.colInd)
+    copyto!(nonzeros(dst), nonzeros(src))
+    dst.nnz = nnz(src)
+    dst
+end
+
+Base.copy(Vec::CuSparseVector) = copyto!(similar(Vec), Vec)
+Base.copy(Mat::CuSparseMatrixCSC) = copyto!(similar(Mat), Mat)
+Base.copy(Mat::CuSparseMatrixCSR) = copyto!(similar(Mat), Mat)
+Base.copy(Mat::CuSparseMatrixBSR) = copyto!(similar(Mat), Mat)
+Base.copy(Mat::CuSparseMatrixCOO) = copyto!(similar(Mat), Mat)
 
 
 # input/output
@@ -381,6 +398,9 @@ Base.show(io::IOContext, x::CuSparseMatrixCSR) =
     show(io, SparseMatrixCSC(x))
 
 Base.show(io::IOContext, x::CuSparseMatrixBSR) =
+    show(io, CuSparseMatrixCSR(x))
+
+Base.show(io::IOContext, x::CuSparseMatrixCOO) =
     show(io, CuSparseMatrixCSR(x))
 
 Base.show(io::IO, S::AbstractCuSparseMatrix) = Base.show(convert(IOContext, io), S)
