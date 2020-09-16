@@ -148,7 +148,7 @@ Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,
 
 function Base.copy(a::CuArray{T,N}) where {T,N}
   ptr = convert(CuPtr{T}, alloc(sizeof(a)))
-  unsafe_copyto!(ptr, pointer(a), length(a))
+  unsafe_copyto!(ptr, pointer(a), length(a); async=true, stream=CuStreamPerThread())
   CuArray{T,N}(ptr, size(a))
 end
 
@@ -320,7 +320,8 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) w
 end
 
 function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
-  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
+  GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
+                                       async=true, stream=CuStreamPerThread())
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")
