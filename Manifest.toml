@@ -69,11 +69,9 @@ version = "5.2.1"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "3d8cec72696d81556689e4dd131d4b714abbb47c"
-repo-rev = "177bff3"
-repo-url = "https://github.com/JuliaGPU/GPUCompiler.jl.git"
+git-tree-sha1 = "f269c216673226805f087f40663cd6be35b3c485"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.7.1"
+version = "0.7.2"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
