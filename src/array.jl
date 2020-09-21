@@ -379,6 +379,23 @@ function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
 end
 
 
+## derived types
+
+export StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat
+
+# strided arrays
+StridedReinterpretCuArray{T,N,A<:CuArray} = Base.ReinterpretArray{T,N,S,A} where S
+StridedReshapedCuArray{T,N,A<:Union{CuArray,StridedReinterpretCuArray}} = Base.ReshapedArray{T,N,A}
+StridedSubCuArray{T,N,A<:Union{CuArray,StridedReshapedCuArray,StridedReinterpretCuArray},
+                  I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+                                        Base.AbstractCartesianIndex}}}} = SubArray{T,N,A,I}
+StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}, StridedReshapedCuArray{T,N}, StridedReinterpretCuArray{T,N}}
+StridedCuVector{T} = StridedCuArray{T,1}
+StridedCuMatrix{T} = StridedCuArray{T,2}
+StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
+
+
+
 ## reversing
 
 # the kernel works by treating the array as 1d. after reversing by dimension x an element at
