@@ -26,7 +26,7 @@ Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
     @testset for T in [Float32, Float64, ComplexF32, ComplexF64]
         A = CUDA.rand(T, m)
         B = CuArray{T}(undef, m)
-        CUBLAS.blascopy!(m,A,1,B,1)
+        CUBLAS.copy!(m,A,B)
         @test Array(A) == Array(B)
 
         @test testf(rmul!, rand(T, 6, 9, 3), Ref(rand()))

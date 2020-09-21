@@ -92,9 +92,9 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
                       (:cublasZcopy_v2,:ComplexF64),
                       (:cublasCcopy_v2,:ComplexF32))
     @eval begin
-        function blascopy!(n::Integer,
-                           x::StridedCuArray{$elty},
-                           y::StridedCuArray{$elty},)
+        function copy!(n::Integer,
+                       x::StridedCuArray{$elty},
+                       y::StridedCuArray{$elty},)
               $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
             y
         end
@@ -153,16 +153,14 @@ for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
                                 (:cublasScnrm2_v2,:ComplexF32,:Float32))
     @eval begin
         function nrm2(n::Integer,
-                      X::CuArray{$elty})
+                      X::StridedCuArray{$elty})
             result = Ref{$ret_type}()
             $fname(handle(), n, X, stride(X, 1), result)
             return result[]
         end
     end
 end
-# TODO: consider CuVector and CudaStridedVector
-#nrm2(x::StridedVector) = nrm2(length(x), x, stride(x,1))
-nrm2(x::CuArray) = nrm2(length(x), x, 1)
+nrm2(x::StridedCuArray) = nrm2(length(x), x)
 
 ## asum
 for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
@@ -222,27 +220,11 @@ for (fname, elty) in ((:cublasSswap_v2,:Float32),
     @eval begin
         function swap!(n::Integer,
                        x::CuArray{$elty},
-                       y::CuArray{$elty},)
+                       y::CuArray{$elty})
             $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
             x, y
         end
     end
-end
-
-# wat? remove!
-function axpy!(alpha::Number,
-               x::CuArray{T},
-               rx::Union{UnitRange{<:Integer},AbstractRange{<:Integer}},
-               y::CuArray{T},
-               ry::Union{UnitRange{<:Integer},AbstractRange{<:Integer}}) where {T<:CublasFloat}
-    length(rx)==length(ry) || throw(DimensionMismatch(""))
-    if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
-        throw(BoundsError())
-    end
-    GC.@preserve x y axpy!(length(rx), alpha,
-                           pointer(x)+(first(rx)-1)*sizeof(T), step(rx),
-                           pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
-    y
 end
 
 function axpby!(n::Integer,
@@ -253,23 +235,6 @@ function axpby!(n::Integer,
             scal!(n, beta, dy)
             axpy!(n, alpha, dx, dy)
             dy
-end
-
-# wat? remove!
-function axpby!(alpha::Number,
-                x::CuArray{T},
-                rx::Union{UnitRange{Ti},AbstractRange{Ti}},
-                beta::Tb,
-                y::CuArray{T},
-                ry::Union{UnitRange{Ti},AbstractRange{Ti}}) where {T<:CublasFloat,Ta<:Number,Tb<:Number,Ti<:Integer}
-    length(rx)==length(ry) || throw(DimensionMismatch(""))
-    if minimum(rx) < 1 || maximum(rx) > length(x) || minimum(ry) < 1 || maximum(ry) > length(y)
-        throw(BoundsError())
-    end
-    GC.@preserve x y axpby!(length(rx), alpha,
-                            pointer(x)+(first(rx)-1)*sizeof(T), step(rx), convert(T, beta),
-                            pointer(y)+(first(ry)-1)*sizeof(T), step(ry))
-    y
 end
 
 ## iamax

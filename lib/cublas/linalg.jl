@@ -38,7 +38,7 @@ function LinearAlgebra.BLAS.dotu(DX::StridedCuArray{T}, DY::StridedCuArray{T}) w
 end
 
 LinearAlgebra.norm(x::CuArray{<:CublasFloat}) = nrm2(x)
-LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x, 1)
+LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
 function LinearAlgebra.axpy!(alpha::Number, x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:CublasFloat
     length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
