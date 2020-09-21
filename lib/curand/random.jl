@@ -34,7 +34,13 @@ Base.unsafe_convert(::Type{curandGenerator_t}, rng::RNG) = rng.handle
 function Random.seed!(rng::RNG, seed=Base.rand(UInt64), offset=0)
     curandSetPseudoRandomGeneratorSeed(rng, seed)
     curandSetGeneratorOffset(rng, offset)
-    curandGenerateSeeds(rng)
+    res = @retry_reclaim err->isequal(err, CURAND_STATUS_ALLOCATION_FAILED) ||
+                              isequal(err, CURAND_STATUS_PREEXISTING_FAILURE) begin
+        unsafe_curandGenerateSeeds(rng)
+    end
+    if res != CURAND_STATUS_SUCCESS
+        throw_api_error(res)
+    end
     return
 end
 
