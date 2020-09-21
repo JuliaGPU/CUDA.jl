@@ -1,7 +1,7 @@
 # interfacing with NNlib.jl
 
 import NNlib: stride, padding, dilation, flipkernel, spatial_dims, kernel_size,
-              conv!, conv_bias_act!, ∇conv_filter!, ∇conv_data!,
+              conv!, ∇conv_filter!, ∇conv_data!,
               maxpool!, meanpool!, ∇maxpool!, ∇meanpool!,
               softmax, softmax!, ∇softmax, ∇softmax!,
               logsoftmax, logsoftmax!, ∇logsoftmax, ∇logsoftmax!
@@ -110,8 +110,9 @@ function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::DenseConvDims
   return y
 end
 
-function conv_bias_act!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::DenseConvDims, b::CuArray{T}, σ=identity;
-                        z::CuArray{T}=y, alpha1=1, alpha2=0, algo=-1) where T<:CUDNNFloat
+if isdefined(NNlib, :conv_bias_act!)
+function NNlib.conv_bias_act!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::DenseConvDims, b::CuArray{T}, σ=identity;
+                              z::CuArray{T}=y, alpha1=1, alpha2=0, algo=-1) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
@@ -150,6 +151,7 @@ function conv_bias_act!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::Dens
   end
 
   return y
+end
 end
 
 const conv_data_algos = DefaultDict{Tuple, Int32}(Int32(-1))
