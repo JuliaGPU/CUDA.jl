@@ -93,11 +93,9 @@ for (fname, elty) in ((:cublasDcopy_v2,:Float64),
                       (:cublasCcopy_v2,:ComplexF32))
     @eval begin
         function blascopy!(n::Integer,
-                           x::CuArray{$elty},
-                           incx::Integer,
-                           y::CuArray{$elty},
-                           incy::Integer)
-              $fname(handle(), n, x, incx, y, incy)
+                           x::StridedCuArray{$elty},
+                           y::StridedCuArray{$elty},)
+              $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
             y
         end
     end
@@ -111,9 +109,8 @@ for (fname, elty) in ((:cublasDscal_v2,:Float64),
     @eval begin
         function scal!(n::Integer,
                        alpha::Number,
-                       x::CuArray{$elty},
-                       incx::Integer)
-            $fname(handle(), n, alpha, x, incx)
+                       x::StridedCuArray{$elty})
+            $fname(handle(), n, alpha, x, stride(x, 1))
             x
         end
     end
@@ -124,9 +121,8 @@ for (fname, elty, celty) in ((:cublasCsscal_v2, :Float32, :ComplexF32),
     @eval begin
         function scal!(n::Integer,
                        alpha::$elty,
-                       x::CuArray{$celty},
-                       incx::Integer)
-            $fname(handle(), n, alpha, x, incx)
+                       x::StridedCuArray{$celty})
+            $fname(handle(), n, alpha, x, stride(x, 1))
             x
         end
     end
@@ -142,11 +138,9 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
     @eval begin
         function $jname(n::Integer,
                         x::CuArray{$elty},
-                        incx::Integer,
-                        y::CuArray{$elty},
-                        incy::Integer)
+                        y::CuArray{$elty})
             result = Ref{$elty}()
-            $fname(handle(), n, x, incx, y, incy, result)
+            $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), result)
             return result[]
         end
     end
@@ -159,10 +153,9 @@ for (fname, elty, ret_type) in ((:cublasDnrm2_v2,:Float64,:Float64),
                                 (:cublasScnrm2_v2,:ComplexF32,:Float32))
     @eval begin
         function nrm2(n::Integer,
-                      X::CuArray{$elty},
-                      incx::Integer)
+                      X::CuArray{$elty})
             result = Ref{$ret_type}()
-            $fname(handle(), n, X, incx, result)
+            $fname(handle(), n, X, stride(X, 1), result)
             return result[]
         end
     end
@@ -178,10 +171,9 @@ for (fname, elty, ret_type) in ((:cublasDasum_v2,:Float64,:Float64),
                                 (:cublasScasum_v2,:ComplexF32,:Float32))
     @eval begin
         function asum(n::Integer,
-                      X::CuArray{$elty},
-                      incx::Integer)
+                      x::StridedCuArray{$elty})
             result = Ref{$ret_type}()
-            $fname(handle(), n, X, incx, result)
+            $fname(handle(), n, x, stride(x, 1), result)
             return result[]
         end
     end
@@ -195,11 +187,9 @@ for (fname, elty) in ((:cublasDaxpy_v2,:Float64),
     @eval begin
         function axpy!(n::Integer,
                        alpha::Number,
-                       dx::CuArray{$elty},
-                       incx::Integer,
-                       dy::CuArray{$elty},
-                       incy::Integer)
-            $fname(handle(), n, alpha, dx, incx, dy, incy)
+                       dx::StridedCuArray{$elty},
+                       dy::StridedCuArray{$elty})
+            $fname(handle(), n, alpha, dx, stride(dx, 1), dy, stride(dy, 1))
             dy
         end
     end
@@ -214,13 +204,11 @@ for (fname, elty, sty) in ((:cublasSrot_v2,:Float32,:Number),
                            (:cublasZdrot_v2,:ComplexF64,:Real))
     @eval begin
         function rot!(n::Integer,
-                      x::CuArray{$elty},
-                      incx::Integer,
-                      y::CuArray{$elty},
-                      incy::Integer,
+                      x::StridedCuArray{$elty},
+                      y::StridedCuArray{$elty},
                       c::Real,
                       s::$sty)
-            $fname(handle(), n, x, incx, y, incy, c, s)
+            $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), c, s)
             x, y
         end
     end
@@ -234,15 +222,14 @@ for (fname, elty) in ((:cublasSswap_v2,:Float32),
     @eval begin
         function swap!(n::Integer,
                        x::CuArray{$elty},
-                       incx::Integer,
-                       y::CuArray{$elty},
-                       incy::Integer)
-            $fname(handle(), n, x, incx, y, incy)
+                       y::CuArray{$elty},)
+            $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
             x, y
         end
     end
 end
 
+# wat? remove!
 function axpy!(alpha::Number,
                x::CuArray{T},
                rx::Union{UnitRange{<:Integer},AbstractRange{<:Integer}},
@@ -260,16 +247,15 @@ end
 
 function axpby!(n::Integer,
                 alpha::Number,
-                dx::CuArray{T},
-                incx::Integer,
+                dx::StridedCuArray{T},
                 beta::Number,
-                dy::CuArray{T},
-                incy::Integer) where T <: CublasFloat
-            scal!(n, beta, dy, incy)
-            axpy!(n, alpha, dx, incx, dy, incy)
+                dy::StridedCuArray{T}) where T <: CublasFloat
+            scal!(n, beta, dy)
+            axpy!(n, alpha, dx, dy)
             dy
 end
 
+# wat? remove!
 function axpby!(alpha::Number,
                 x::CuArray{T},
                 rx::Union{UnitRange{Ti},AbstractRange{Ti}},
@@ -294,10 +280,9 @@ for (fname, elty) in ((:cublasIdamax_v2,:Float64),
                       (:cublasIcamax_v2,:ComplexF32))
     @eval begin
         function iamax(n::Integer,
-                       dx::CuArray{$elty},
-                       incx::Integer)
+                       dx::StridedCuArray{$elty})
             result = Ref{Cint}()
-            $fname(handle(), n, dx, incx, result)
+            $fname(handle(), n, dx, stride(dx, 1), result)
             return result[]
         end
     end
@@ -312,10 +297,9 @@ for (fname, elty) in ((:cublasIdamin_v2,:Float64),
                       (:cublasIcamin_v2,:ComplexF32))
     @eval begin
         function iamin(n::Integer,
-                       dx::CuArray{$elty},
-                       incx::Integer)
+                       dx::CuArray{$elty},)
             result = Ref{Cint}()
-            $fname(handle(), n, dx, incx, result)
+            $fname(handle(), n, dx, stride(dx, 1), result)
             return result[]
         end
     end
