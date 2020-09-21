@@ -38,10 +38,7 @@ function ConvDesc(T, N, padding, stride, dilation, mode)
     else
         cudnnSetConvolutionNdDescriptor(cd[],N,cdsize(padding,N),cdsize(stride,N),cdsize(dilation,N),mode)
     end
-    # enable tensor math mode if our device supports it
-    if capability(device()) >= v"7.0" && version() >= v"9"
-        cudnnSetConvolutionMathType(cd[], CUDNN_TENSOR_OP_MATH)
-    end
+    cudnnSetConvolutionMathType(cd[], math_mode())
     this = ConvDesc(cd[])
     finalizer(unsafe_free!, this)
     return this
