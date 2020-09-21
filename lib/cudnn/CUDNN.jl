@@ -34,6 +34,20 @@ include("nnlib.jl")
 
 include("compat.jl")
 
+function math_mode(mode=CUDA.math_mode())
+    if mode == CUDA.PEDANTIC_MATH
+        # don't use tensor cores.
+        # on A100, only use them for TF32
+        CUDNN_DEFAULT_MATH
+    elseif mode == CUDA.DEFAULT_MATH
+        # allow tensor core usage
+        CUDNN_TENSOR_OP_MATH
+    elseif mode == CUDA.FAST_MATH
+        # also downcast inputs
+        CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION
+    end
+end
+
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 
