@@ -2,69 +2,67 @@
 
 cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 
-CublasArray{T<:CublasFloat} = CuArray{T}
-
 
 
 #
 # BLAS 1
 #
 
-LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Number) =
-  scal!(length(x), k, x, 1)
+LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
+  scal!(length(x), k, x)
 
 # Work around ambiguity with GPUArrays wrapper
 LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
-function LinearAlgebra.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{Float32,Float64}
+function LinearAlgebra.BLAS.dot(DX::StridedCuArray{T}, DY::StridedCuArray{T}) where T<:Union{Float32,Float64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dot(n, DX, 1, DY, 1)
+    dot(n, DX, DY)
 end
 
-function LinearAlgebra.BLAS.dotc(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function LinearAlgebra.BLAS.dotc(DX::StridedCuArray{T}, DY::StridedCuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotc(n, DX, 1, DY, 1)
+    dotc(n, DX, DY)
 end
 
 function LinearAlgebra.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     BLAS.dotc(DX, DY)
 end
 
-function LinearAlgebra.BLAS.dotu(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function LinearAlgebra.BLAS.dotu(DX::StridedCuArray{T}, DY::StridedCuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     n = length(DX)
     n==length(DY) || throw(DimensionMismatch("dot product arguments have lengths $(length(DX)) and $(length(DY))"))
-    dotu(n, DX, 1, DY, 1)
+    dotu(n, DX, DY)
 end
 
-LinearAlgebra.norm(x::CublasArray) = nrm2(x)
-LinearAlgebra.BLAS.asum(x::CublasArray) = asum(length(x), x, 1)
+LinearAlgebra.norm(x::CuArray{<:CublasFloat}) = nrm2(x)
+LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
-function LinearAlgebra.axpy!(alpha::Number, x::CuArray{T}, y::CuArray{T}) where T<:CublasFloat
+function LinearAlgebra.axpy!(alpha::Number, x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:CublasFloat
     length(x)==length(y) || throw(DimensionMismatch("axpy arguments have lengths $(length(x)) and $(length(y))"))
-    axpy!(length(x), alpha, x, 1, y, 1)
+    axpy!(length(x), alpha, x, y)
 end
 
-function LinearAlgebra.axpby!(alpha::Number, x::CuArray{T}, beta::Number, y::CuArray{T}) where T<:CublasFloat
+function LinearAlgebra.axpby!(alpha::Number, x::StridedCuArray{T}, beta::Number, y::StridedCuArray{T}) where T<:CublasFloat
     length(x)==length(y) || throw(DimensionMismatch("axpby arguments have lengths $(length(x)) and $(length(y))"))
-    axpby!(length(x), alpha, x, 1, beta, y, 1)
+    axpby!(length(x), alpha, x, beta, y)
 end
 
-function LinearAlgebra.rotate!(x::CuArray{T}, y::CuArray{T}, c, s) where T<:CublasFloat
+function LinearAlgebra.rotate!(x::StridedCuArray{T}, y::StridedCuArray{T}, c, s) where T<:CublasFloat
     nx = length(x)
     ny = length(y)
     nx==ny || throw(DimensionMismatch("rotate arguments have lengths $nx and $ny"))
-    rot!(nx, x, 1, y, 1, c, s)
+    rot!(nx, x, y, c, s)
 end
 
-function LinearAlgebra.reflect!(x::CuArray{T}, y::CuArray{T}, c, s) where T<:CublasFloat
+function LinearAlgebra.reflect!(x::StridedCuArray{T}, y::StridedCuArray{T}, c, s) where T<:CublasFloat
     nx = length(x)
     ny = length(y)
     nx==ny || throw(DimensionMismatch("reflect arguments have lengths $nx and $ny"))
-    rot!(nx, x, 1, y, 1, c, s)
-    scal!(ny, -real(one(T)), y, 1)
+    rot!(nx, x, y, c, s)
+    scal!(ny, -real(one(T)), y)
     x, y
 end
 

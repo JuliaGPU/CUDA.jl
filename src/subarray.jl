@@ -3,6 +3,8 @@ import Base: view
 using Base: ScalarIndex, ViewIndex, Slice, @boundscheck,
             to_indices, compute_offset1, unsafe_length, _maybe_reshape_parent, index_ndims
 
+# FIXME: use a FastContiguousSubArray-like type instead of returning a CuArray?
+
 
 ## traits and properties
 
@@ -57,3 +59,7 @@ end
 # (can't do this eagerly or the view constructor wouldn't be able to boundscheck)
 Adapt.adapt_structure(to::Adaptor, A::SubArray) =
     SubArray(adapt(to, parent(A)), adapt(to, adapt(CuArray, parentindices(A))))
+
+function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P<:CuArray}
+    return Base.unsafe_convert(CuPtr{T}, V.parent) + Base._memory_offset(V.parent, map(first, V.indices)...)
+end
