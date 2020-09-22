@@ -1,106 +1,46 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 
+@enum ArrayState begin
+  ARRAY_UNMANAGED
+  ARRAY_MANAGED
+  ARRAY_FREED
+end
+
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
 
-  parent::Union{Nothing, CuArray} # parent array, for memory ownership tracking
-  pooled::Bool                    # is this memory backed by the memory pool?
-
-  # for early freeing outside of the GC
-  refcount::Int
-  freed::Bool
-
+  state::ArrayState
   ctx::CuContext
 
-  # primary array
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, pooled::Bool=true;
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, state::ArrayState=ARRAY_MANAGED;
                         ctx=context()) where {T,N}
-    self = new(ptr, dims, nothing, pooled, 0, false, ctx)
-    retain(self)
-    finalizer(unsafe_free!, self)
-    return self
-  end
-
-  # derived array (e.g. view, reinterpret, ...)
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::CuArray) where {T,N}
-    self = new(ptr, dims, parent, parent.pooled, 0, false, parent.ctx)
-    retain(self)
-    retain(parent)
-    finalizer(unsafe_free!, self)
-    return self
+    return new(ptr, dims, state, ctx)
   end
 end
 
 function unsafe_free!(xs::CuArray)
   # this call should only have an effect once, becuase both the user and the GC can call it
-  xs.freed && return
-  _unsafe_free!(xs)
-  xs.freed = true
-  return
-end
-
-function _unsafe_free!(xs::CuArray)
-  @assert xs.refcount >= 0
-  if release(xs)
-    if xs.parent === nothing
-      # primary array with all references gone
-      if xs.pooled && isvalid(xs.ctx)
-        free(convert(CuPtr{Nothing}, pointer(xs)))
-      end
-    else
-      # derived object
-      _unsafe_free!(xs.parent)
-    end
-
-    # the object is dead, so we can also wipe the pointer
-    xs.ptr = CU_NULL
+  if xs.state == ARRAY_FREED
+    return
+  elseif xs.state == ARRAY_UNMANAGED
+    throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
+
+  if isvalid(xs.ctx)
+    free(convert(CuPtr{Nothing}, pointer(xs)))
+  end
+  xs.state = ARRAY_FREED
+
+  # the object is dead, so we can also wipe the pointer
+  xs.ptr = CU_NULL
 
   return
 end
 
-@inline function retain(a::CuArray)
-  a.refcount += 1
-  return
-end
+Base.dataids(A::CuArray) = (UInt(pointer(A)),)
 
-@inline function release(a::CuArray)
-  a.refcount -= 1
-  return a.refcount == 0
-end
-
-Base.parent(A::CuArray) where {P} = something(A.parent, A)
-
-function Base.dataids(A::CuArray)
-  if A.parent === nothing
-    (UInt(pointer(A)),)
-  else
-    (Base.dataids(parent(A))..., UInt(pointer(A)),)
-  end
-end
-
-function Base.unaliascopy(A::CuArray) where {P}
-  if A.parent === nothing
-    copy(A)
-  else
-    offset = pointer(A) - pointer(A.parent)
-    new_parent = Base.unaliascopy(A.parent)
-    typeof(A)(pointer(new_parent) + offset, A.dims, new_parent)
-  end
-end
-
-# optimized alias detection for views
-function Base.mightalias(A::CuArray, B::CuArray)
-    if parent(A) !== parent(B)
-        # We cannot do any better than the usual dataids check
-        return invoke(Base.mightalias, Tuple{AbstractArray, AbstractArray}, A, B)
-    end
-
-    rA = pointer(A):pointer(A)+sizeof(A)
-    rB = pointer(B):pointer(B)+sizeof(B)
-    return first(rA) <= first(rB) < last(rA) || first(rB) <= first(rA) < last(rB)
-end
+Base.unaliascopy(A::CuArray) = copy(A)
 
 
 ## convenience constructors
@@ -114,7 +54,9 @@ function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
   Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
   Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
   ptr = alloc(prod(dims) * sizeof(T))
-  CuArray{T,N}(convert(CuPtr{T}, ptr), dims)
+  obj = CuArray{T,N}(convert(CuPtr{T}, ptr), dims)
+  finalizer(unsafe_free!, obj)
+  obj
 end
 
 # type and dimensionality specified, accepting dims as series of Ints
@@ -165,7 +107,7 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  xs = CuArray{T, length(dims)}(p, dims, false; ctx=ctx)
+  xs = CuArray{T, length(dims)}(p, dims, ARRAY_UNMANAGED; ctx=ctx)
   if own
     base = convert(CuPtr{Cvoid}, p)
     buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T))
@@ -458,23 +400,17 @@ Resize `a` to contain `n` elements. If `n` is smaller than the current collectio
 the first `n` elements will be retained. If `n` is larger, the new elements are not
 guaranteed to be initialized.
 
-Several restrictions apply to which types of `CuArray`s can be resized:
-
-- the array should be backed by the memory pool, and not have been constructed with `unsafe_wrap`
-- the array cannot be derived (view, reshape) from another array
-- the array cannot have any derived arrays itself
-
+Note that this operation is only supported on managed buffers, i.e., not on arrays that are
+created by `unsafe_wrap` with `own=false`.
 """
 function Base.resize!(A::CuVector{T}, n::Int) where T
-  A.parent === nothing || error("cannot resize derived CuArray")
-  A.refcount == 1 || error("cannot resize shared CuArray")
-  A.pooled || error("cannot resize wrapped CuArray")
-
   ptr = convert(CuPtr{T}, alloc(n * sizeof(T)))
   m = Base.min(length(A), n)
   unsafe_copyto!(ptr, pointer(A), m)
 
-  free(convert(CuPtr{Nothing}, pointer(A)))
+  unsafe_free!(A)
+
+  A.state = ARRAY_MANAGED
   A.dims = (n,)
   A.ptr = ptr
 

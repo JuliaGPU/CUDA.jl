@@ -21,13 +21,13 @@ import Adapt
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Float32}, xs)
 
   # unsafe_wrap
-  @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).pooled == false
-  @test Base.unsafe_wrap(CuArray, CU_NULL, 2)                == CuArray{Nothing,1}(CU_NULL, (2,),  false)
-  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2)       == CuArray{Nothing,1}(CU_NULL, (2,),  false)
-  @test Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2)     == CuArray{Nothing,1}(CU_NULL, (2,),  false)
-  @test Base.unsafe_wrap(CuArray, CU_NULL, (1,2))            == CuArray{Nothing,2}(CU_NULL, (1,2), false)
-  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(CU_NULL, (1,2), false)
-  @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(CU_NULL, (1,2), false)
+  @test Base.unsafe_wrap(CuArray, CU_NULL, 1; own=false).state == CUDA.ARRAY_UNMANAGED
+  @test Base.unsafe_wrap(CuArray, CU_NULL, 2)                == CuArray{Nothing,1}(CU_NULL, (2,),  CUDA.ARRAY_UNMANAGED)
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, 2)       == CuArray{Nothing,1}(CU_NULL, (2,),  CUDA.ARRAY_UNMANAGED)
+  @test Base.unsafe_wrap(CuArray{Nothing,1}, CU_NULL, 2)     == CuArray{Nothing,1}(CU_NULL, (2,),  CUDA.ARRAY_UNMANAGED)
+  @test Base.unsafe_wrap(CuArray, CU_NULL, (1,2))            == CuArray{Nothing,2}(CU_NULL, (1,2), CUDA.ARRAY_UNMANAGED)
+  @test Base.unsafe_wrap(CuArray{Nothing}, CU_NULL, (1,2))   == CuArray{Nothing,2}(CU_NULL, (1,2), CUDA.ARRAY_UNMANAGED)
+  @test Base.unsafe_wrap(CuArray{Nothing,2}, CU_NULL, (1,2)) == CuArray{Nothing,2}(CU_NULL, (1,2), CUDA.ARRAY_UNMANAGED)
 
   @test collect(CUDA.zeros(2, 2)) == zeros(Float32, 2, 2)
   @test collect(CUDA.ones(2, 2)) == ones(Float32, 2, 2)
@@ -314,9 +314,9 @@ end
     @test length(a) == 2
     @test Array(a)[1:2] == [1,2]
 
-    GC.@preserve b begin
-      c = unsafe_wrap(CuArray{Int}, pointer(a), 3)
-      @test_throws ErrorException resize!(c, 3)
+    GC.@preserve a begin
+      b = unsafe_wrap(CuArray{Int}, pointer(a), 2)
+      @test_throws ArgumentError resize!(b, 3)
     end
 end
 
