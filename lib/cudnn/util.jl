@@ -1,7 +1,7 @@
 # For low level cudnn functions that require a pointer to a number
-cptr(x,a::CuArray{Float64})=Float64[x]
-cptr(x,a::CuArray{Float32})=Float32[x]
-cptr(x,a::CuArray{Float16})=Float32[x]
+cptr(x,a::DenseCuArray{Float64})=Float64[x]
+cptr(x,a::DenseCuArray{Float32})=Float32[x]
+cptr(x,a::DenseCuArray{Float16})=Float32[x]
 
 # Conversion between Julia and CUDNN datatypes
 cudnnDataType(::Type{Float16})=CUDNN_DATA_HALF

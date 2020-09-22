@@ -13,7 +13,7 @@ const CUDNNFloat = Union{Float16,Float32,Float64}
 
 # Since CUDNN does not support 1D convolution, Conv in Flux will give a CUDNNError if the size is 1-dimensional.
 fix1d(x) = x
-fix1d(x::CuArray{T, 3}) where T = reshape(x, size(x, 1), 1, size(x, 2), size(x, 3))
+fix1d(x::DenseCuArray{T, 3}) where T = reshape(x, size(x, 1), 1, size(x, 2), size(x, 3))
 fix1d(cdims::DenseConvDims{1,K,C_in,C_out,S,P,D,F}) where {K,C_in,C_out,S,P,D,F} =
   DenseConvDims{2,(K...,1),C_in,C_out,(S...,1),(P...,0,0),(D...,1),F}((cdims.I...,1))
 fix1d(pdims::PoolDims{1,K,S,P,D}) where {K,S,P,D,F} =
@@ -45,38 +45,38 @@ end
 # Softmax
 
 # in-place for x or dy
-softmax(x::CuArray{T}; dims=1) where T<:CUDNNFloat =
+softmax(x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
   softmax!(x, x, dims=dims)
 
-∇softmax(dy::CuArray{T}, x::CuArray{T}; dims=1) where T<:CUDNNFloat =
+∇softmax(dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
   ∇softmax!(dy, dy, x, dims=dims)
 
-logsoftmax(x::CuArray{T}; dims=1) where T<:CUDNNFloat =
+logsoftmax(x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
   logsoftmax!(x, x, dims=dims)
 
-∇logsoftmax(dy::CuArray{T}, x::CuArray{T}; dims=1) where T<:CUDNNFloat =
+∇logsoftmax(dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
   ∇logsoftmax!(dy, dy, x, dims=dims)
 
-function softmax!(y::CuArray{T}, x::CuArray{T}; dims=1) where T<:CUDNNFloat
+function softmax!(y::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
   cudnnSoftmaxForward(reshape4D(x), reshape4D(y),
                       algo=CUDNN_SOFTMAX_FAST, mode=cudnnSoftmaxMode_t(dims-1))
   return y
 end
 
-function ∇softmax!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}; dims=1) where T<:CUDNNFloat
+function ∇softmax!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
   y = softmax(x, dims=dims)
   cudnnSoftmaxBackward(reshape4D(y), reshape4D(dy), reshape4D(dx),
                        algo=CUDNN_SOFTMAX_FAST, mode=cudnnSoftmaxMode_t(dims-1))
   return dx
 end
 
-function logsoftmax!(y::CuArray{T}, x::CuArray{T}; dims=1) where T<:CUDNNFloat
+function logsoftmax!(y::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
   cudnnSoftmaxForward(reshape4D(x), reshape4D(y),
                       algo=CUDNN_SOFTMAX_LOG, mode=cudnnSoftmaxMode_t(dims-1))
   return y
 end
 
-function ∇logsoftmax!(dx::CuArray{T}, dy::CuArray{T}, x::CuArray{T}; dims=1) where T<:CUDNNFloat
+function ∇logsoftmax!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
   y = logsoftmax(x, dims=dims)
   cudnnSoftmaxBackward(reshape4D(y), reshape4D(dy), reshape4D(dx),
                        algo=CUDNN_SOFTMAX_LOG, mode=cudnnSoftmaxMode_t(dims-1))
@@ -86,7 +86,7 @@ end
 # Convolution
 
 const conv_forward_algos = DefaultDict{Tuple, Int32}(Int32(-1))
-function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::DenseConvDims;
+function conv!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}, cdims::DenseConvDims;
                alpha=1, algo=-1) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
@@ -111,8 +111,8 @@ function conv!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::DenseConvDims
 end
 
 if isdefined(NNlib, :conv_bias_act!)
-function NNlib.conv_bias_act!(y::CuArray{T}, x::CuArray{T}, w::CuArray{T}, cdims::DenseConvDims, b::CuArray{T}, σ=identity;
-                              z::CuArray{T}=y, alpha1=1, alpha2=0, algo=-1) where T<:CUDNNFloat
+function NNlib.conv_bias_act!(y::DenseCuArray{T}, x::DenseCuArray{T}, w::DenseCuArray{T}, cdims::DenseConvDims, b::DenseCuArray{T}, σ=identity;
+                              z::DenseCuArray{T}=y, alpha1=1, alpha2=0, algo=-1) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
   end
@@ -155,7 +155,7 @@ end
 end
 
 const conv_data_algos = DefaultDict{Tuple, Int32}(Int32(-1))
-function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, w::CuArray{T},
+function ∇conv_data!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, w::DenseCuArray{T},
                      cdims::DenseConvDims; alpha=1, algo=-1) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
@@ -180,7 +180,7 @@ function ∇conv_data!(dx::CuArray{T}, dy::CuArray{T}, w::CuArray{T},
 end
 
 const conv_filter_algos = DefaultDict{Tuple, Int32}(Int32(-1))
-function ∇conv_filter!(dw::CuArray{T}, x::CuArray{T}, dy::CuArray{T},
+function ∇conv_filter!(dw::DenseCuArray{T}, x::DenseCuArray{T}, dy::DenseCuArray{T},
                        cdims::DenseConvDims; alpha=1, algo=-1) where T<:CUDNNFloat
   if version() < v"6"
     all(x -> x == 1, dilation(cdims)) || error("Only dilation = 1 is supported in cuDNN version < 6")
@@ -209,48 +209,48 @@ end
 # Bias
 
 # in-place for x (add b to x)
-add_bias(x::CuArray{T}, b::CuArray{T})  where {T<:CUDNNFloat} =
+add_bias(x::DenseCuArray{T}, b::DenseCuArray{T})  where {T<:CUDNNFloat} =
   (cudnnAddTensor(reshape4D(x), reshape4D(b)); return x)
 
-∇conv_bias!(db::CuArray{T}, dy::CuArray{T}; alpha=1, beta=0) where T<:CUDNNFloat =
+∇conv_bias!(db::DenseCuArray{T}, dy::DenseCuArray{T}; alpha=1, beta=0) where T<:CUDNNFloat =
   (cudnnConvolutionBackwardBias(fix1d(db), fix1d(dy), alpha=alpha, beta=beta); return db)
 
 
 # Pooling
 
-maxpool!(y::CuArray{T}, x::CuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
+maxpool!(y::DenseCuArray{T}, x::DenseCuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
   (cudnnPoolingForward(fix1d(y), fix1d(x), fix1d(pdims); mode=0); return y)
 
-∇maxpool!(dx::CuArray{T}, dy::CuArray{T}, y::CuArray{T}, x::CuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
+∇maxpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T}, x::DenseCuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
   (cudnnPoolingBackward(fix1d(dx), fix1d(dy), fix1d(x), fix1d(y), fix1d(pdims), mode=0); return dx)
 
-meanpool!(y::CuArray{T}, x::CuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
+meanpool!(y::DenseCuArray{T}, x::DenseCuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
   (cudnnPoolingForward(fix1d(y), fix1d(x), fix1d(pdims), mode=1); return y)
 
-∇meanpool!(dx::CuArray{T}, dy::CuArray{T}, y::CuArray{T}, x::CuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
+∇meanpool!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, y::DenseCuArray{T}, x::DenseCuArray{T}, pdims::PoolDims) where T<:CUDNNFloat =
   (cudnnPoolingBackward(fix1d(dx), fix1d(dy), fix1d(x), fix1d(y), fix1d(pdims), mode=1); return dx)
 
 
 # Activation
 
 # in-place for x
-Base.broadcasted(::typeof(NNlib.σ), x::CuArray{T}) where {T<:CUDNNFloat} =
+Base.broadcasted(::typeof(NNlib.σ), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
   (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_SIGMOID, coeff=0.0); return x)
 
-Base.broadcasted(::typeof(NNlib.relu), x::CuArray{T}) where {T<:CUDNNFloat} =
+Base.broadcasted(::typeof(NNlib.relu), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
   (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_RELU, coeff=0.0); return x)
 
-Base.broadcasted(::typeof(NNlib.tanh), x::CuArray{T}) where {T<:CUDNNFloat} =
+Base.broadcasted(::typeof(NNlib.tanh), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
   (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_TANH, coeff=0.0); return x)
 
-Base.broadcasted(::typeof(NNlib.relu6), x::CuArray{T}) where {T<:CUDNNFloat} =
+Base.broadcasted(::typeof(NNlib.relu6), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
   (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_CLIPPED_RELU, coeff=6.0); return x)
 
-Base.broadcasted(::typeof(NNlib.elu), x::CuArray{T}) where {T<:CUDNNFloat} =
+Base.broadcasted(::typeof(NNlib.elu), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
   (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_ELU, coeff=1.0); return x)
 
 # CUDNN_ACTIVATION_IDENTITY does not work with cudnnActivationForward
-Base.broadcasted(::typeof(NNlib.identity), x::CuArray{T}) where {T<:CUDNNFloat} = x
+Base.broadcasted(::typeof(NNlib.identity), x::DenseCuArray{T}) where {T<:CUDNNFloat} = x
 
-Base.broadcasted(::typeof(NNlib.leakyrelu), x::CuArray{T}, a=T(0.01)) where {T<:CUDNNFloat} =
+Base.broadcasted(::typeof(NNlib.leakyrelu), x::DenseCuArray{T}, a=T(0.01)) where {T<:CUDNNFloat} =
   (cudnnOpTensor(CUDNN_OP_TENSOR_MAX, reshape4D(x), reshape4D(x), reshape4D(x), alpha1=a); return x)

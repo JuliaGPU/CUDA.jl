@@ -28,7 +28,7 @@ function FilterDesc(T::Type, size::Tuple; format = CUDNN_TENSOR_NCHW)
     return this
 end
 
-FilterDesc(a::CuArray; format = CUDNN_TENSOR_NCHW) = FilterDesc(eltype(a), size(a), format = format)
+FilterDesc(a::DenseCuArray; format = CUDNN_TENSOR_NCHW) = FilterDesc(eltype(a), size(a), format = format)
 
 function Base.size(f::FilterDesc)
   typ = Ref{Cuint}()

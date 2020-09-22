@@ -20,7 +20,7 @@ end
 
 # wrappers
 
-function cudnnActivationForward(x::CuArray{T,N}, y::CuArray{T,N}=x;
+function cudnnActivationForward(x::DenseCuArray{T,N}, y::DenseCuArray{T,N}=x;
                                 mode=CUDNN_ACTIVATION_RELU, # CUDNN_ACTIVATION_IDENTITY will not work
                                 coeff=0.0, reluNanOpt=CUDNN_NOT_PROPAGATE_NAN, alpha=1, beta=0) where {T,N}
     cudnnActivationForward(handle(), ActivationDesc(mode, T(coeff), reluNanOpt),
@@ -29,7 +29,7 @@ function cudnnActivationForward(x::CuArray{T,N}, y::CuArray{T,N}=x;
     return  y
 end
 
-function cudnnActivationBackward(x::CuArray{T,N}, dx::CuArray{T,N}, y::CuArray{T,N}, dy::CuArray{T,N}=dx;
+function cudnnActivationBackward(x::DenseCuArray{T,N}, dx::DenseCuArray{T,N}, y::DenseCuArray{T,N}, dy::DenseCuArray{T,N}=dx;
                                  mode=CUDNN_ACTIVATION_RELU, # CUDNN_ACTIVATION_IDENTITY will not work
                                  coeff=0.0, reluNanOpt=CUDNN_NOT_PROPAGATE_NAN, alpha=1, beta=0) where {T,N}
     cudnnActivationBackward(handle(), ActivationDesc(mode, T(coeff), reluNanOpt),

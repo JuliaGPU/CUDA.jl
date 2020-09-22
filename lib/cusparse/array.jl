@@ -133,17 +133,17 @@ const CuSparseMatrix{T} = Union{CuSparseMatrixCSC{T},CuSparseMatrixCSR{T}, CuSpa
 
 ## convenience constructors
 
-CuSparseVector(iPtr::CuArray{<:Integer}, nzVal::CuArray{T}, dims::Int) where {T} =
+CuSparseVector(iPtr::DenseCuArray{<:Integer}, nzVal::DenseCuArray{T}, dims::Int) where {T} =
     CuSparseVector{T}(iPtr, nzVal, dims)
 
-CuSparseMatrixCSC(colPtr::CuArray{<:Integer}, rowVal::CuArray{<:Integer},
-                  nzVal::CuArray{T}, dims::NTuple{2,Int}) where {T} =
+CuSparseMatrixCSC(colPtr::DenseCuArray{<:Integer}, rowVal::DenseCuArray{<:Integer},
+                  nzVal::DenseCuArray{T}, dims::NTuple{2,Int}) where {T} =
     CuSparseMatrixCSC{T}(colPtr, rowVal, nzVal, dims)
 
-CuSparseMatrixCSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, dims::NTuple{2,Int}) where T =
+CuSparseMatrixCSR(rowPtr::DenseCuArray, colVal::DenseCuArray, nzVal::DenseCuArray{T}, dims::NTuple{2,Int}) where T =
     CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, dims)
 
-CuSparseMatrixBSR(rowPtr::CuArray, colVal::CuArray, nzVal::CuArray{T}, blockDim, dir, nnz,
+CuSparseMatrixBSR(rowPtr::DenseCuArray, colVal::DenseCuArray, nzVal::DenseCuArray{T}, blockDim, dir, nnz,
                   dims::NTuple{2,Int}) where T =
     CuSparseMatrixBSR{T}(rowPtr, colVal, nzVal, dims, blockDim, dir, nnz)
 

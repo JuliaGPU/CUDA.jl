@@ -195,8 +195,43 @@ Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
-Base.pointer(x::CuArray) = x.ptr
-Base.pointer(x::CuArray, i::Integer) = x.ptr + (i-1) * Base.elsize(x)
+
+## derived types
+
+export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
+       StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
+       WrappedCuArray, WrappedCuVector, WrappedCuMatrix, WrappedCuVecOrMat
+
+ContiguousSubCuArray{T,N,A<:CuArray} = Base.FastContiguousSubArray{T,N,A}
+
+# dense arrays: stored contiguously in memory
+DenseReinterpretCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray}} = Base.ReinterpretArray{T,N,S,A} where S
+DenseReshapedCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray,DenseReinterpretCuArray}} = Base.ReshapedArray{T,N,A}
+DenseSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray}} = Base.FastContiguousSubArray{T,N,A}
+DenseCuArray{T,N} = Union{CuArray{T,N}, DenseSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
+DenseCuVector{T} = DenseCuArray{T,1}
+DenseCuMatrix{T} = DenseCuArray{T,2}
+DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
+
+# strided arrays
+StridedSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray},
+                  I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+                                        Base.AbstractCartesianIndex}}}} = SubArray{T,N,A,I}
+StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
+StridedCuVector{T} = StridedCuArray{T,1}
+StridedCuMatrix{T} = StridedCuArray{T,2}
+StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
+
+Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
+@inline function Base.pointer(x::StridedCuArray{T}, i::Integer) where T
+    Base.unsafe_convert(CuPtr{T}, x) + Base._memory_offset(x, i)
+end
+
+# wrapped arrays: can be used in kernels
+WrappedCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
+WrappedCuVector{T} = WrappedCuArray{T,1}
+WrappedCuMatrix{T} = WrappedCuArray{T,2}
+WrappedCuVecOrMat{T} = Union{WrappedCuVector{T}, WrappedCuMatrix{T}}
 
 
 ## interop with other arrays
@@ -220,36 +255,25 @@ CuArray{T,N}(xs::CuArray{T,N}) where {T,N} = xs
 
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
-function Base._reshape(parent::CuArray, dims::Dims)
-  n = length(parent)
-  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(pointer(parent), dims, parent)
-end
-function Base._reshape(parent::CuArray{T,1}, dims::Tuple{Int}) where T
-  n = length(parent)
-  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return parent
-end
-
 
 ## interop with C libraries
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-Base.unsafe_convert(::Type{Ptr{S}}, x::CuArray{T}) where {S,T} = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-
-Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = pointer(x)
-Base.unsafe_convert(::Type{CuPtr{S}}, x::CuArray{T}) where {S,T} = convert(CuPtr{S}, Base.unsafe_convert(CuPtr{T}, x))
-
+Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = x.ptr
 
 
 ## interop with device arrays
 
-function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(a.dims, reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
+function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
+  CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
 end
 
 Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-  convert(CuDeviceArray{T,N,AS.Global}, xs)
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+
+# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
+Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
 
 ## interop with CPU arrays
@@ -268,9 +292,9 @@ Adapt.adapt_storage(::Type{Array}, xs::CuArray) = convert(Array, xs)
 
 Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
-function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
+function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
-  @assert !dest.freed "Use of freed memory"
+  n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -279,9 +303,12 @@ function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::Array{T}, soffs::In
   return dest
 end
 
-function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
+Base.copyto!(dest::DenseCuArray{T}, src::Array{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+function Base.copyto!(dest::Array{T}, doffs::Integer, src::DenseCuArray{T}, soffs::Integer,
                       n::Integer) where T
-  @assert !src.freed "Use of freed memory"
+  n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -290,9 +317,12 @@ function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuArray{T}, soffs::In
   return dest
 end
 
-function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
+Base.copyto!(dest::Array{T}, src::DenseCuArray{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::DenseCuArray{T}, soffs::Integer,
                       n::Integer) where T
-  @assert !dest.freed && !src.freed "Use of freed memory"
+  n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -301,7 +331,10 @@ function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::
   return dest
 end
 
-function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
+Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
@@ -310,7 +343,7 @@ function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) w
   return dest
 end
 
-function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
+function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
@@ -319,7 +352,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) w
   return dest
 end
 
-function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
                                        async=true, stream=CuStreamPerThread())
   if Base.isbitsunion(T)
@@ -371,7 +404,7 @@ memsettype(T::Type{<:AbstractFloat}) = Base.uinttype(T)
 const MemsetCompatTypes = Union{UInt8, Int8,
                                 UInt16, Int16, Float16,
                                 UInt32, Int32, Float32}
-function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
+function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
@@ -379,31 +412,41 @@ function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
 end
 
 
-## derived types
+## views
 
-export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
-       StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat
+@inline function Base.view(A::CuArray, I::Vararg{Any,N}) where {N}
+    J = to_indices(A, I)
+    @boundscheck begin
+        # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
+        # this is expensive, but it's a bounds check after all.
+        J_cpu = map(j->adapt(Array, j), J)
+        checkbounds(A, J_cpu...)
+    end
+    J_gpu = map(j->adapt(CuArray, j), J)
+    Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(J_gpu...)), J_gpu...)
+end
 
-ContiguousSubCuArray{T,N,A<:CuArray} = Base.FastContiguousSubArray{T,N,A}
+# upload the SubArray indices when adapting to the GPU
+# (can't do this eagerly or the view constructor wouldn't be able to boundscheck)
+Adapt.adapt_structure(to::Adaptor, A::SubArray) =
+    SubArray(adapt(to, parent(A)), adapt(to, adapt(CuArray, parentindices(A))))
 
-# dense arrays: stored contiguously in memory
-DenseReinterpretCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray}} = Base.ReinterpretArray{T,N,S,A} where S
-DenseReshapedCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray,DenseReinterpretCuArray}} = Base.ReshapedArray{T,N,A}
-DenseSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray}} = Base.FastContiguousSubArray{T,N,A}
-DenseCuArray{T,N} = Union{CuArray{T,N}, DenseSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
-DenseCuVector{T} = DenseCuArray{T,1}
-DenseCuMatrix{T} = DenseCuArray{T,2}
-DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
+function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P<:CuArray}
+    return Base.unsafe_convert(CuPtr{T}, parent(V)) +
+           Base._memory_offset(V.parent, map(first, V.indices)...)
+end
 
-# strided arrays
-StridedSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray},
-                  I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
-                                        Base.AbstractCartesianIndex}}}} = SubArray{T,N,A,I}
-StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
-StridedCuVector{T} = StridedCuArray{T,1}
-StridedCuMatrix{T} = StridedCuArray{T,2}
-StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
 
+## reshape
+
+Base.unsafe_convert(::Type{CuPtr{T}}, a::Base.ReshapedArray{T}) where {T} =
+  Base.unsafe_convert(CuPtr{T}, parent(a))
+
+
+## reinterpret
+
+Base.unsafe_convert(::Type{CuPtr{T}}, a::Base.ReinterpretArray{T,N,S} where N) where {T,S} =
+  CuPtr{T}(Base.unsafe_convert(CuPtr{S}, parent(a)))
 
 
 ## reversing
@@ -413,13 +456,14 @@ StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
 # pos [i1, i2, i3, ... , d{x} - i{x} + 1, ..., i{n}] where d{x} is the size of dimension x
 
 # out-of-place version, copying a single value per thread from input to output
-function _reverse(input::CuArray{T, N}, output::CuArray{T, N}; dims::Integer=1) where {T, N}
+function _reverse(input::WrappedCuArray{T, N}, output::WrappedCuArray{T, N};
+                  dims::Integer=1) where {T, N}
     @assert size(input) == size(output)
     shape = [size(input)...]
     numelemsinprevdims = prod(shape[1:dims-1])
     numelemsincurrdim = shape[dims]
 
-    function kernel(input::CuDeviceArray{T, N}, output::CuDeviceArray{T, N}) where {T, N}
+    function kernel(input::AbstractArray{T, N}, output::AbstractArray{T, N}) where {T, N}
         offset_in = blockDim().x * (blockIdx().x - 1)
 
         index_in = offset_in + threadIdx().x
@@ -448,12 +492,12 @@ function _reverse(input::CuArray{T, N}, output::CuArray{T, N}; dims::Integer=1) 
 end
 
 # in-place version, swapping two elements on half the number of threads
-function _reverse(data::CuArray{T, N}; dims::Integer=1) where {T, N}
+function _reverse(data::WrappedCuArray{T, N}; dims::Integer=1) where {T, N}
     shape = [size(data)...]
     numelemsinprevdims = prod(shape[1:dims-1])
     numelemsincurrdim = shape[dims]
 
-    function kernel(data::CuDeviceArray{T, N}) where {T, N}
+    function kernel(data::AbstractArray{T, N}) where {T, N}
         offset_in = blockDim().x * (blockIdx().x - 1)
 
         index_in = offset_in + threadIdx().x
@@ -491,7 +535,7 @@ end
 # n-dimensional API
 
 # in-place
-function Base.reverse!(data::CuArray{T, N}; dims::Integer) where {T, N}
+function Base.reverse!(data::WrappedCuArray{T, N}; dims::Integer) where {T, N}
     if !(1 ≤ dims ≤ length(size(data)))
       ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
     end
@@ -502,7 +546,7 @@ function Base.reverse!(data::CuArray{T, N}; dims::Integer) where {T, N}
 end
 
 # out-of-place
-function Base.reverse(input::CuArray{T, N}; dims::Integer) where {T, N}
+function Base.reverse(input::WrappedCuArray{T, N}; dims::Integer) where {T, N}
     if !(1 ≤ dims ≤ length(size(input)))
       ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
     end
@@ -517,15 +561,15 @@ end
 # 1-dimensional API
 
 # in-place
-Base.@propagate_inbounds function Base.reverse!(data::CuVector{T}, start, stop=length(data)) where {T}
+Base.@propagate_inbounds function Base.reverse!(data::WrappedCuVector{T}, start, stop=length(data)) where {T}
     _reverse(view(data, start:stop))
     return data
 end
 
-Base.reverse(data::CuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
+Base.reverse(data::WrappedCuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
 
 # out-of-place
-Base.@propagate_inbounds function Base.reverse(input::CuVector{T}, start, stop=length(input)) where {T}
+Base.@propagate_inbounds function Base.reverse(input::WrappedCuVector{T}, start, stop=length(input)) where {T}
     output = similar(input)
 
     start > 1 && copyto!(output, 1, input, 1, start-1)
@@ -535,7 +579,7 @@ Base.@propagate_inbounds function Base.reverse(input::CuVector{T}, start, stop=l
     return output
 end
 
-Base.reverse!(data::CuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
+Base.reverse!(data::WrappedCuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
 
 
 ## resizing

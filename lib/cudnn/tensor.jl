@@ -21,11 +21,11 @@ function TensorDesc(T::Type, size::NTuple{N,Integer}, strides::NTuple{N,Integer}
     return this
 end
 
-TensorDesc(a::CuArray) = TensorDesc(eltype(a), size(a), strides(a))
+TensorDesc(a::DenseCuArray) = TensorDesc(eltype(a), size(a), strides(a))
 
 # wrappers
 
-function cudnnAddTensor(C::CuArray{T,N}, A::CuArray{T,N};
+function cudnnAddTensor(C::DenseCuArray{T,N}, A::DenseCuArray{T,N};
                         alpha=1, beta=1) where {T,N}
     cudnnAddTensor(handle(),
                    Ref(T(alpha)), TensorDesc(A), A,
@@ -56,12 +56,12 @@ function OpTensorDesc(op::cudnnOpTensorOp_t, T::Type;
     return this
 end
 
-OpTensorDesc(op::cudnnOpTensorOp_t, a::CuArray) = OpTensorDesc(op, eltype(a))
+OpTensorDesc(op::cudnnOpTensorOp_t, a::DenseCuArray) = OpTensorDesc(op, eltype(a))
 
 # wrappers
 
 function cudnnOpTensor(op::cudnnOpTensorOp_t,
-                       A::CuArray{T,N}, B::CuArray{T,N}, C::CuArray{T,N};
+                       A::DenseCuArray{T,N}, B::DenseCuArray{T,N}, C::DenseCuArray{T,N};
                        alpha1=1, alpha2=1, beta=0) where {T,N}
     cudnnOpTensor(handle(), OpTensorDesc(op, T),
                   Ref(T(alpha1)), TensorDesc(A), A,
@@ -96,12 +96,12 @@ function ReduceTensorDesc(op::cudnnReduceTensorOp_t, T::Type;
     return this
 end
 
-ReduceTensorDesc(op::cudnnReduceTensorOp_t, a::CuArray) = ReduceTensorDesc(op, eltype(a))
+ReduceTensorDesc(op::cudnnReduceTensorOp_t, a::DenseCuArray) = ReduceTensorDesc(op, eltype(a))
 
 # wrappers
 
 function cudnnGetReductionIndicesSize(op::cudnnReduceTensorOp_t,
-                                      A::CuArray{T,N}, C::CuArray{T,N}) where {T,N}
+                                      A::DenseCuArray{T,N}, C::DenseCuArray{T,N}) where {T,N}
     size=@argout(
         cudnnGetReductionIndicesSize(
             handle(), ReduceTensorDesc(op, A),
@@ -112,7 +112,7 @@ function cudnnGetReductionIndicesSize(op::cudnnReduceTensorOp_t,
 end
 
 function cudnnReduceTensor(op::cudnnReduceTensorOp_t,
-                           A::CuArray{T,N}, C::CuArray{T,N};
+                           A::DenseCuArray{T,N}, C::DenseCuArray{T,N};
                            alpha=1, beta=0) where {T,N}
     # indices = Array{UInt64, 1}(undef, N)
     indicesSizeInBytes = cudnnGetReductionIndicesSize(op, A, C)

@@ -58,7 +58,6 @@ include("compiler/reflection.jl")
 include("pool.jl")
 include("array.jl")
 include("gpuarrays.jl")
-include("subarray.jl")
 include("utilities.jl")
 include("texture.jl")
 

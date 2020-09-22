@@ -92,7 +92,7 @@ xDesc(x) = [TensorDesc(eltype(x), (1, size(x, 1), size(x, 2)))]
 
 hDesc(h::Nothing) = C_NULL, CU_NULL
 hDesc(x::Integer) = (@assert x == 0; hDesc(nothing))
-function hDesc(h::CuArray)
+function hDesc(h::DenseCuArray)
   TensorDesc(eltype(h), (size(h, 1), size(h, 2), 1)), h
 end
 
@@ -102,7 +102,7 @@ hBatch(x::AbstractVector, h::CuVector) = h
 hBatch(x::AbstractMatrix, h::CuVector) = h .* CUDA.ones(1, size(x, 2))
 hBatch(x::AbstractMatrix, h::CuMatrix) = h .* CUDA.ones(1, size(h,2) == 1 ? size(x,2) : 1)
 
-function forward(rnn::RNNDesc{T}, x::CuArray{T}, h_::CuArray{T}, c_ = nothing, train = Val{false}) where T
+function forward(rnn::RNNDesc{T}, x::DenseCuArray{T}, h_::DenseCuArray{T}, c_ = nothing, train = Val{false}) where T
   h = hBatch(x, h_)
   c = c_ == nothing ? nothing : hBatch(x, c_)
   @assert size(x, 1) == rnn.input
@@ -130,7 +130,7 @@ function forward(rnn::RNNDesc{T}, x::CuArray{T}, h_::CuArray{T}, c_ = nothing, t
   return train == Val{true} ? (reserve, result) : result
 end
 
-forwardTrain(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}, c = nothing) where T =
+forwardTrain(rnn::RNNDesc{T}, x::DenseCuArray{T}, h::DenseCuArray{T}, c = nothing) where T =
   forward(rnn, x, h, c, Val{true})
 
 function cudnnRNNBackwardData(rnnDesc, seqLength, yDesc, y, dyDesc, dy, dhyDesc,
@@ -182,7 +182,7 @@ function backwardWeights(rnn::RNNDesc{T}, x, h, y, reserve) where T
   return params(dw, rnn.input, rnn.hidden, ngates(rnn))
 end
 
-function pullback(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}) where T <: Union{Float32,Float64}
+function pullback(rnn::RNNDesc{T}, x::DenseCuArray{T}, h::DenseCuArray{T}) where T <: Union{Float32,Float64}
   reserve, (y, ho) = CUDNN.forwardTrain(rnn, x, h)
   return (y, ho), function (dy, dho)
     h_ = CUDNN.hBatch(x, h)
@@ -192,7 +192,7 @@ function pullback(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}) where T <: Unio
   end
 end
 
-function pullback(rnn::RNNDesc{T}, x::CuArray{T}, h::CuArray{T}, c::CuArray{T}) where T <: Union{Float32,Float64}
+function pullback(rnn::RNNDesc{T}, x::DenseCuArray{T}, h::DenseCuArray{T}, c::DenseCuArray{T}) where T <: Union{Float32,Float64}
   reserve, (y, ho, co) = CUDNN.forwardTrain(rnn, x, h, c)
   return (y, ho, co), function (dy, dho, dco)
     h_ = CUDNN.hBatch(x, h)

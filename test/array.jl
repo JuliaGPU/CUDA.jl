@@ -61,23 +61,6 @@ end
 
   let x = CUDA.rand(Float32, 5, 4, 3)
     @test_throws BoundsError view(x, :, :, 1:10)
-
-    # Contiguous views should return new CuArray
-    @test view(x, :, 1, 2) isa CuVector{Float32}
-    @test view(x, 1:4, 1, 2) isa CuVector{Float32}
-    @test view(x, :, 1:4, 3) isa CuMatrix{Float32}
-    @test view(x, :, :, 1) isa CuMatrix{Float32}
-    @test view(x, :, :, :) isa CuArray{Float32,3}
-    @test view(x, :) isa CuVector{Float32}
-    @test view(x, 1:3) isa CuVector{Float32}
-
-    # Non-contiguous views should fall back to base's SubArray
-    @test view(x, 1:3, 1:3, 3) isa SubArray
-    @test view(x, 1, :, 3) isa SubArray
-    @test view(x, 1, 1:4, 3) isa SubArray
-    @test view(x, :, 1, 1:3) isa SubArray
-    @test view(x, :, 1:2:4, 1) isa SubArray
-    @test view(x, 1:2:5, 1, 1) isa SubArray
   end
 
   # bug in parentindices conversion
@@ -121,6 +104,46 @@ end
   @test all(_A .== _gA)
   A = [1,2,3,4]
   gA = reshape(CuArray(A),4)
+end
+
+@testset "DenseArray" begin
+  a = CUDA.rand(Int64, 2,2,2)
+  @test a isa DenseCuArray
+
+  @test view(a, :, :, :) isa DenseCuArray
+  @test view(a, 1, 1, 1) isa DenseCuArray
+  @test view(a, :, :, 1) isa DenseCuArray
+  @test !(view(a, :, 1, :) isa DenseCuArray)
+  @test !(view(a, 1, :, :) isa DenseCuArray)
+
+  b = reshape(a, (2,4))
+  @test b isa Base.ReshapedArray
+  @test b isa StridedCuArray
+  @test view(b, :, :, 1) isa DenseCuArray
+
+  b = reinterpret(Float64, a)
+  @test b isa Base.ReinterpretArray
+  @test b isa StridedCuArray
+  @test view(b, :, :, 1) isa DenseCuArray
+end
+
+@testset "StridedArray" begin
+  a = CUDA.rand(Int64, 2,2,2)
+  @test a isa StridedCuArray
+
+  @test view(a, :, :, 1) isa StridedCuArray
+  @test view(a, :, 1, :) isa StridedCuArray
+  @test view(a, 1, :, :) isa StridedCuArray
+
+  b = reshape(a, (2,4))
+  @test b isa Base.ReshapedArray
+  @test b isa StridedCuArray
+  @test view(b, :, 1, :) isa StridedCuArray
+
+  b = reinterpret(Float64, a)
+  @test b isa Base.ReinterpretArray
+  @test b isa StridedCuArray
+  @test view(b, :, 1, :) isa StridedCuArray
 end
 
 @testset "accumulate" begin
@@ -291,13 +314,9 @@ end
     @test length(a) == 2
     @test Array(a)[1:2] == [1,2]
 
-    b = view(a, 1:2)
-    @test_throws ErrorException resize!(a, 2)
-    @test_throws ErrorException resize!(b, 2)
-
     GC.@preserve b begin
-      c = unsafe_wrap(CuArray{Int}, pointer(b), 2)
-      @test_throws ErrorException resize!(c, 2)
+      c = unsafe_wrap(CuArray{Int}, pointer(a), 3)
+      @test_throws ErrorException resize!(c, 3)
     end
 end
 

@@ -32,7 +32,7 @@ end
 
 # wrappers
 
-function cudnnPoolingForward(y::CuArray{T,N}, x::CuArray{T,N}, pdims::PoolDims;
+function cudnnPoolingForward(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, pdims::PoolDims;
                              alpha=1, beta=0, mode=0) where {T,N}
     cudnnPoolingForward(handle(), PoolDesc(pdims, mode),
                         Ref(T(alpha)), TensorDesc(x), x,
@@ -40,7 +40,7 @@ function cudnnPoolingForward(y::CuArray{T,N}, x::CuArray{T,N}, pdims::PoolDims;
     return y
 end
 
-function cudnnPoolingBackward(dx::CuArray{T,N}, dy::CuArray{T,N}, x::CuArray{T,N}, y::CuArray{T,N}, pdims::PoolDims;
+function cudnnPoolingBackward(dx::DenseCuArray{T,N}, dy::DenseCuArray{T,N}, x::DenseCuArray{T,N}, y::DenseCuArray{T,N}, pdims::PoolDims;
                               alpha=1, mode=0) where {T,N}
     if alpha!=1 && mode==0; error("Gradient of pool(alpha!=1,mode=0) broken in CUDNN"); end
     beta = 0

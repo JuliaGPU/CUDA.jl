@@ -12,7 +12,7 @@
 # - warp-aggregate atomics
 # - the ND case is quite a bit slower than the 1D case (not using Cartesian indices,
 #   before 35fcbde1f2987023229034370b0c9091e18c4137). optimize or special-case?
-function partial_scan(op::Function, output::CuDeviceArray{T}, input::CuDeviceArray,
+function partial_scan(op::Function, output::AbstractArray{T}, input::AbstractArray,
                       Rdim, Rpre, Rpost, Rother, neutral, init,
                       ::Val{inclusive}=Val(true)) where {T, inclusive}
     threads = blockDim().x
@@ -97,8 +97,8 @@ function partial_scan(op::Function, output::CuDeviceArray{T}, input::CuDeviceArr
 end
 
 # aggregate the result of a partial scan by applying preceding block aggregates
-function aggregate_partial_scan(op::Function, output::CuDeviceArray,
-                                aggregates::CuDeviceArray, Rdim, Rpre, Rpost, Rother,
+function aggregate_partial_scan(op::Function, output::AbstractArray,
+                                aggregates::AbstractArray, Rdim, Rpre, Rpost, Rother,
                                 init)
     threads = blockDim().x
     thread = threadIdx().x
@@ -126,7 +126,7 @@ end
 
 ## COV_EXCL_STOP
 
-function scan!(f::Function, output::CuArray{T}, input::CuArray;
+function scan!(f::Function, output::WrappedCuArray{T}, input::WrappedCuArray;
                dims::Integer, init=nothing, neutral=GPUArrays.neutral_element(f, T)) where {T}
     dims > 0 || throw(ArgumentError("dims must be a positive integer"))
     inds_t = axes(input)
@@ -196,16 +196,16 @@ end
 
 ## Base interface
 
-Base._accumulate!(op, output::CuArray, input::CuVector, dims::Nothing, init::Nothing) =
+Base._accumulate!(op, output::WrappedCuArray, input::WrappedCuVector, dims::Nothing, init::Nothing) =
     scan!(op, output, input; dims=1)
 
-Base._accumulate!(op, output::CuArray, input::CuArray, dims::Integer, init::Nothing) =
+Base._accumulate!(op, output::WrappedCuArray, input::WrappedCuArray, dims::Integer, init::Nothing) =
     scan!(op, output, input; dims=dims)
 
-Base._accumulate!(op, output::CuArray, input::CuVector, dims::Nothing, init::Some) =
+Base._accumulate!(op, output::WrappedCuArray, input::CuVector, dims::Nothing, init::Some) =
     scan!(op, output, input; dims=1, init=init)
 
-Base._accumulate!(op, output::CuArray, input::CuArray, dims::Integer, init::Some) =
+Base._accumulate!(op, output::WrappedCuArray, input::WrappedCuArray, dims::Integer, init::Some) =
     scan!(op, output, input; dims=dims, init=init)
 
-Base.accumulate_pairwise!(op, result::CuVector, v::CuVector) = accumulate!(op, result, v)
+Base.accumulate_pairwise!(op, result::WrappedCuVector, v::WrappedCuVector) = accumulate!(op, result, v)

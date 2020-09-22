@@ -137,8 +137,8 @@ for (jname, fname, elty) in ((:dot,:cublasDdot_v2,:Float64),
                              (:dotu,:cublasCdotu_v2,:ComplexF32))
     @eval begin
         function $jname(n::Integer,
-                        x::CuArray{$elty},
-                        y::CuArray{$elty})
+                        x::DenseCuArray{$elty},
+                        y::DenseCuArray{$elty})
             result = Ref{$elty}()
             $fname(handle(), n, x, stride(x, 1), y, stride(y, 1), result)
             return result[]
@@ -219,8 +219,8 @@ for (fname, elty) in ((:cublasSswap_v2,:Float32),
                       (:cublasZswap_v2,:ComplexF64))
     @eval begin
         function swap!(n::Integer,
-                       x::CuArray{$elty},
-                       y::CuArray{$elty})
+                       x::DenseCuArray{$elty},
+                       y::DenseCuArray{$elty})
             $fname(handle(), n, x, stride(x, 1), y, stride(y, 1))
             x, y
         end
@@ -252,7 +252,7 @@ for (fname, elty) in ((:cublasIdamax_v2,:Float64),
         end
     end
 end
-iamax(dx::CuArray) = iamax(length(dx), dx, 1)
+iamax(dx::DenseCuArray) = iamax(length(dx), dx, 1)
 
 ## iamin
 # iamin is not in standard blas is a CUBLAS extension
@@ -262,14 +262,14 @@ for (fname, elty) in ((:cublasIdamin_v2,:Float64),
                       (:cublasIcamin_v2,:ComplexF32))
     @eval begin
         function iamin(n::Integer,
-                       dx::CuArray{$elty},)
+                       dx::DenseCuArray{$elty},)
             result = Ref{Cint}()
             $fname(handle(), n, dx, stride(dx, 1), result)
             return result[]
         end
     end
 end
-iamin(dx::CuArray) = iamin(length(dx), dx, 1)
+iamin(dx::DenseCuArray) = iamin(length(dx), dx, 1)
 
 # Level 2
 ## mv
@@ -845,7 +845,7 @@ end
 end
 
 # create a batch of pointers in device memory from a strided device array
-@inline function unsafe_strided_batch(strided::CuArray{T}) where {T}
+@inline function unsafe_strided_batch(strided::DenseCuArray{T}) where {T}
     batchsize = last(size(strided))
     stride = prod(size(strided)[1:end-1])
     ptrs = [pointer(strided, (i-1)*stride + 1) for i in 1:batchsize]
@@ -923,10 +923,10 @@ for (fname, elty) in
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
                                alpha::Number,
-                               A::CuArray{$elty, 3},
-                               B::CuArray{$elty, 3},
+                               A::DenseCuArray{$elty, 3},
+                               B::DenseCuArray{$elty, 3},
                                beta::Number,
-                               C::CuArray{$elty, 3})
+                               C::DenseCuArray{$elty, 3})
            m = size(A, transA == 'N' ? 1 : 2)
            k = size(A, transA == 'N' ? 2 : 1)
            n = size(B, transB == 'N' ? 2 : 1)
@@ -951,15 +951,15 @@ for (fname, elty) in
         function gemm_strided_batched(transA::Char,
                       transB::Char,
                       alpha::Number,
-                      A::CuArray{$elty, 3},
-                      B::CuArray{$elty, 3})
+                      A::DenseCuArray{$elty, 3},
+                      B::DenseCuArray{$elty, 3})
             C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), size(A, 3)))
             gemm_strided_batched!(transA, transB, alpha, A, B, zero($elty), C )
         end
         function gemm_strided_batched(transA::Char,
                       transB::Char,
-                      A::CuArray{$elty, 3},
-                      B::CuArray{$elty, 3})
+                      A::DenseCuArray{$elty, 3},
+                      B::DenseCuArray{$elty, 3})
             gemm_strided_batched(transA, transB, one($elty), A, B)
         end
     end
@@ -1442,7 +1442,7 @@ end
 getrf_batched(A::Vector{<:CuMatrix}, pivot::Bool) = getrf_batched!(copy(A), pivot)
 
 # CUDA has no strided batched getrf, but we can at least avoid constructing costly views
-function getrf_strided_batched!(A::CuArray{<:Any, 3}, pivot::Bool)
+function getrf_strided_batched!(A::DenseCuArray{<:Any, 3}, pivot::Bool)
     m,n = size(A,1), size(A,2)
     if m != n
         throw(DimensionMismatch("All matrices must be square!"))
@@ -1452,7 +1452,7 @@ function getrf_strided_batched!(A::CuArray{<:Any, 3}, pivot::Bool)
     Aptrs = unsafe_strided_batch(A)
     return getrf_batched!(n, Aptrs, lda, pivot)..., A
 end
-getrf_strided_batched(A::CuArray{<:Any, 3}, pivot::Bool) = getrf_strided_batched!(copy(A), pivot)
+getrf_strided_batched(A::DenseCuArray{<:Any, 3}, pivot::Bool) = getrf_strided_batched!(copy(A), pivot)
 
 
 ## getriBatched - performs batched matrix inversion
