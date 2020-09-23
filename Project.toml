@@ -29,7 +29,7 @@ TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]
 AbstractFFTs = "0.4, 0.5"
-Adapt = "2.0"
+Adapt = "2.2"
 BFloat16s = "0.1"
 BinaryProvider = "0.3, 0.4, 0.5"
 CEnum = "0.2, 0.3, 0.4"

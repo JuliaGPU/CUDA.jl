@@ -216,6 +216,9 @@ end
       reverse!(gpu; dims=dim)
       @test Array(gpu) == reverse(cpu; dims=dim)
     end
+
+    # wrapped array
+    @test testf(x->reverse(x), reshape(rand(2,2), 4))
 end
 
 @testset "findall" begin

@@ -61,6 +61,14 @@ Base.unsafe_convert(::Type{P}, x::CuPtr) where {P<:CuPtr} = convert(P, x)
 # from arrays
 Base.unsafe_convert(::Type{CuPtr{S}}, a::AbstractArray{T}) where {S,T} =
     convert(CuPtr{S}, Base.unsafe_convert(CuPtr{T}, a))
+Base.unsafe_convert(::Type{CuPtr{T}}, a::AbstractArray{T}) where {T} =
+    error("conversion to pointer not defined for $(typeof(a))")
+
+# from contiguous subarrays
+function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P}
+    return Base.unsafe_convert(CuPtr{T}, parent(V)) +
+           Base._memory_offset(V.parent, map(first, V.indices)...)
+end
 
 
 ## limited pointer arithmetic & comparison
