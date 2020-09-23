@@ -354,32 +354,32 @@ k = 1
         end
     end
 
-    @testset "svd with $method method" for
-        method in (CUSOLVER.QRAlgorithm, CUSOLVER.JacobiAlgorithm),
+    @testset "svd with $alg algorithm" for
+        alg in (CUSOLVER.QRAlgorithm(), CUSOLVER.JacobiAlgorithm()),
         (_m, _n) in ((m, n), (n, m))
 
         A              = rand(elty, _m, _n)
-        U, S, V        = svd(A, full=true)
+        U, S, V        = svd(A; full=true)
         d_A            = CuArray(A)
 
-        if _m > _n || method == CUSOLVER.JacobiAlgorithm
-            d_U, d_S, d_V  = svd(d_A, method, full=true)
+        if _m > _n || alg == CUSOLVER.JacobiAlgorithm()
+            d_U, d_S, d_V  = svd(d_A; full=true, alg=alg)
             h_S            = collect(d_S)
             h_U            = collect(d_U)
             h_V            = collect(d_V)
             @test abs.(h_U'h_U) ≈ I
             @test abs.(h_U[:,1:min(_m,_n)]'U[:,1:min(_m,_n)]) ≈ I
-            @test collect(svdvals(d_A, method)) ≈ svdvals(A)
+            @test collect(svdvals(d_A; alg=alg)) ≈ svdvals(A)
             @test abs.(h_V'*h_V) ≈ I
             @test abs.(h_V[:,1:min(_m,_n)]'*V[:,1:min(_m,_n)]) ≈ I
             @test collect(d_U'*d_A*d_V) ≈ U'*A*V
-            @test collect(svd(d_A, method).V') == h_V[:,1:min(_m,_n)]'
+            @test collect(svd(d_A; alg=alg).V') == h_V[:,1:min(_m,_n)]'
         else
-            @test_throws ArgumentError svd(d_A, method)
+            @test_throws ArgumentError svd(d_A; alg=alg)
         end
     end
     # Check that constant propagation works
-    _svd(A) = svd(A, CUSOLVER.QRAlgorithm)
+    _svd(A) = svd(A; alg=CUSOLVER.QRAlgorithm())
     @inferred _svd(CUDA.rand(Float32, 4, 4))
 
 
