@@ -89,9 +89,8 @@ Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
 
 function Base.copy(a::CuArray{T,N}) where {T,N}
-  ptr = convert(CuPtr{T}, alloc(sizeof(a)))
-  unsafe_copyto!(ptr, pointer(a), length(a); async=true, stream=CuStreamPerThread())
-  CuArray{T,N}(ptr, size(a))
+  b = similar(a)
+  @inbounds copyto!(b, a)
 end
 
 
