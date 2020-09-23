@@ -11,23 +11,23 @@ BNCache() = BNCache(nothing, nothing)
 
 # NOTE: CuDNN supports only 4D and 5D Tensors for BatchNorm Operations
 # so reshape a 2D Tensor into 4D
-batchnorm(g::CuArray{T}, b::CuArray{T}, x::CuArray{T, 2},
-          running_mean::CuArray{T}, running_var::CuArray{T}, momentum;
+batchnorm(g::DenseCuArray{T}, b::DenseCuArray{T}, x::DenseCuArray{T,2},
+          running_mean::DenseCuArray{T}, running_var::DenseCuArray{T}, momentum;
           cache = nothing, alpha = T(1), beta = T(0),
           eps = T(1e-5), training = true) where T<:Union{Float32, Float64} =
   dropdims(batchnorm(g, b, reshape(x, 1, 1, size(x, 1), size(x, 2)), running_mean, running_var, momentum,
             cache = cache, alpha = alpha, beta = beta, eps = eps, training = training), dims = (1, 2))
 
-function batchnorm(g::CuArray{T}, b::CuArray{T}, x::Union{CuArray{T, 4},CuArray{T,5}},
-                   running_mean::CuArray{T}, running_var::CuArray{T}, momentum;
+function batchnorm(g::DenseCuArray{T}, b::DenseCuArray{T}, x::Union{DenseCuArray{T,4},DenseCuArray{T,5}},
+                   running_mean::DenseCuArray{T}, running_var::DenseCuArray{T}, momentum;
                    cache = nothing, alpha = T(1), beta = T(0),
                    eps = T(1e-5), training = true) where T<:Union{Float32, Float64}
   cudnnBNForward!(similar(x), g, b, x, running_mean, running_var, momentum, cache = cache,
       alpha = alpha, beta = beta, eps = eps, training = training)
 end
 
-function cudnnBNForward!(y::CuArray{T}, g::CuArray{T}, b::CuArray{T}, x::CuArray{T},
-                        running_mean::CuArray{T}, running_var::CuArray{T},
+function cudnnBNForward!(y::DenseCuArray{T}, g::DenseCuArray{T}, b::DenseCuArray{T}, x::DenseCuArray{T},
+                        running_mean::DenseCuArray{T}, running_var::DenseCuArray{T},
                         momentum; cache = nothing,
                         alpha = T(1), beta = T(0),
                         eps = T(1e-5), training = true) where T<:Union{Float32, Float64}
@@ -62,8 +62,8 @@ function cudnnBNForward!(y::CuArray{T}, g::CuArray{T}, b::CuArray{T}, x::CuArray
   return y
 end
 
-function ∇batchnorm(g::CuArray{T}, b::CuArray{T}, x::CuArray{T, 2}, dy::CuArray{T, 2},
-           running_mean::CuArray{T}, running_var::CuArray{T}, momentum;
+function ∇batchnorm(g::DenseCuArray{T}, b::DenseCuArray{T}, x::DenseCuArray{T, 2}, dy::DenseCuArray{T, 2},
+           running_mean::DenseCuArray{T}, running_var::DenseCuArray{T}, momentum;
            cache = nothing, eps = T(1e-5), alpha = T(1),
            beta = T(0), training = true) where T<:Union{Float32, Float64}
   dg, db, dx = ∇batchnorm(g, b, reshape(x, 1, 1, size(x, 1), size(x, 2)), reshape(dy, 1, 1, size(dy, 1),
@@ -72,8 +72,8 @@ function ∇batchnorm(g::CuArray{T}, b::CuArray{T}, x::CuArray{T, 2}, dy::CuArra
   (dg, db, dropdims(dx, dims = (1, 2)))
 end
 
-function ∇batchnorm(g::CuArray{T}, b::CuArray{T}, x::CuArray{T}, dy::CuArray{T},
-                    running_mean::CuArray{T}, running_var::CuArray{T}, momentum;
+function ∇batchnorm(g::DenseCuArray{T}, b::DenseCuArray{T}, x::DenseCuArray{T}, dy::DenseCuArray{T},
+                    running_mean::DenseCuArray{T}, running_var::DenseCuArray{T}, momentum;
                     cache = nothing, eps = T(1e-5), alpha = T(1),
                     beta = T(0), training = true) where T<:Union{Float32, Float64}
   dg = similar(g)
@@ -84,9 +84,9 @@ function ∇batchnorm(g::CuArray{T}, b::CuArray{T}, x::CuArray{T}, dy::CuArray{T
   (dg, db, dx)
 end
 
-function cudnnBNBackward!(dg::CuArray{T}, g::CuArray{T}, db::CuArray{T},
-                          dx::CuArray{T}, x::CuArray{T}, dy::CuArray{T},
-                          running_mean::CuArray{T}, running_var::CuArray{T},
+function cudnnBNBackward!(dg::DenseCuArray{T}, g::DenseCuArray{T}, db::DenseCuArray{T},
+                          dx::DenseCuArray{T}, x::DenseCuArray{T}, dy::DenseCuArray{T},
+                          running_mean::DenseCuArray{T}, running_var::DenseCuArray{T},
                           momentum; cache = nothing, eps = T(1e-5),
                           alpha = T(1), beta = T(0),
                           dalpha = T(1), dbeta = T(0), training = true) where T<:Union{Float32, Float64}

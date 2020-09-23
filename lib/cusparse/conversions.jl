@@ -1,6 +1,6 @@
 # conversion routines between different sparse and dense storage formats
 
-SparseArrays.sparse(::CuArray, args...) = error("CUSPARSE supports multiple sparse formats, use specific constructors instead (e.g. CuSparseMatrixCSC)")
+SparseArrays.sparse(::DenseCuArray, args...) = error("CUSPARSE supports multiple sparse formats, use specific constructors instead (e.g. CuSparseMatrixCSC)")
 
 
 ## CSR to CSC

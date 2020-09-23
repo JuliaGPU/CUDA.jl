@@ -1,106 +1,46 @@
 export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 
+@enum ArrayState begin
+  ARRAY_UNMANAGED
+  ARRAY_MANAGED
+  ARRAY_FREED
+end
+
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   ptr::CuPtr{T}
   dims::Dims{N}
 
-  parent::Union{Nothing, CuArray} # parent array, for memory ownership tracking
-  pooled::Bool                    # is this memory backed by the memory pool?
-
-  # for early freeing outside of the GC
-  refcount::Int
-  freed::Bool
-
+  state::ArrayState
   ctx::CuContext
 
-  # primary array
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, pooled::Bool=true;
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, state::ArrayState=ARRAY_MANAGED;
                         ctx=context()) where {T,N}
-    self = new(ptr, dims, nothing, pooled, 0, false, ctx)
-    retain(self)
-    finalizer(unsafe_free!, self)
-    return self
-  end
-
-  # derived array (e.g. view, reinterpret, ...)
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, parent::CuArray) where {T,N}
-    self = new(ptr, dims, parent, parent.pooled, 0, false, parent.ctx)
-    retain(self)
-    retain(parent)
-    finalizer(unsafe_free!, self)
-    return self
+    return new(ptr, dims, state, ctx)
   end
 end
 
 function unsafe_free!(xs::CuArray)
   # this call should only have an effect once, becuase both the user and the GC can call it
-  xs.freed && return
-  _unsafe_free!(xs)
-  xs.freed = true
-  return
-end
-
-function _unsafe_free!(xs::CuArray)
-  @assert xs.refcount >= 0
-  if release(xs)
-    if xs.parent === nothing
-      # primary array with all references gone
-      if xs.pooled && isvalid(xs.ctx)
-        free(convert(CuPtr{Nothing}, pointer(xs)))
-      end
-    else
-      # derived object
-      _unsafe_free!(xs.parent)
-    end
-
-    # the object is dead, so we can also wipe the pointer
-    xs.ptr = CU_NULL
+  if xs.state == ARRAY_FREED
+    return
+  elseif xs.state == ARRAY_UNMANAGED
+    throw(ArgumentError("Cannot free an unmanaged buffer."))
   end
+
+  if isvalid(xs.ctx)
+    free(convert(CuPtr{Nothing}, pointer(xs)))
+  end
+  xs.state = ARRAY_FREED
+
+  # the object is dead, so we can also wipe the pointer
+  xs.ptr = CU_NULL
 
   return
 end
 
-@inline function retain(a::CuArray)
-  a.refcount += 1
-  return
-end
+Base.dataids(A::CuArray) = (UInt(pointer(A)),)
 
-@inline function release(a::CuArray)
-  a.refcount -= 1
-  return a.refcount == 0
-end
-
-Base.parent(A::CuArray) where {P} = something(A.parent, A)
-
-function Base.dataids(A::CuArray)
-  if A.parent === nothing
-    (UInt(pointer(A)),)
-  else
-    (Base.dataids(parent(A))..., UInt(pointer(A)),)
-  end
-end
-
-function Base.unaliascopy(A::CuArray) where {P}
-  if A.parent === nothing
-    copy(A)
-  else
-    offset = pointer(A) - pointer(A.parent)
-    new_parent = Base.unaliascopy(A.parent)
-    typeof(A)(pointer(new_parent) + offset, A.dims, new_parent)
-  end
-end
-
-# optimized alias detection for views
-function Base.mightalias(A::CuArray, B::CuArray)
-    if parent(A) !== parent(B)
-        # We cannot do any better than the usual dataids check
-        return invoke(Base.mightalias, Tuple{AbstractArray, AbstractArray}, A, B)
-    end
-
-    rA = pointer(A):pointer(A)+sizeof(A)
-    rB = pointer(B):pointer(B)+sizeof(B)
-    return first(rA) <= first(rB) < last(rA) || first(rB) <= first(rA) < last(rB)
-end
+Base.unaliascopy(A::CuArray) = copy(A)
 
 
 ## convenience constructors
@@ -114,7 +54,9 @@ function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
   Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
   Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
   ptr = alloc(prod(dims) * sizeof(T))
-  CuArray{T,N}(convert(CuPtr{T}, ptr), dims)
+  obj = CuArray{T,N}(convert(CuPtr{T}, ptr), dims)
+  finalizer(unsafe_free!, obj)
+  obj
 end
 
 # type and dimensionality specified, accepting dims as series of Ints
@@ -165,7 +107,7 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  xs = CuArray{T, length(dims)}(p, dims, false; ctx=ctx)
+  xs = CuArray{T, length(dims)}(p, dims, ARRAY_UNMANAGED; ctx=ctx)
   if own
     base = convert(CuPtr{Cvoid}, p)
     buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T))
@@ -195,8 +137,43 @@ Base.elsize(::Type{<:CuArray{T}}) where {T} = sizeof(T)
 Base.size(x::CuArray) = x.dims
 Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
-Base.pointer(x::CuArray) = x.ptr
-Base.pointer(x::CuArray, i::Integer) = x.ptr + (i-1) * Base.elsize(x)
+
+## derived types
+
+export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
+       StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
+       WrappedCuArray, WrappedCuVector, WrappedCuMatrix, WrappedCuVecOrMat
+
+ContiguousSubCuArray{T,N,A<:CuArray} = Base.FastContiguousSubArray{T,N,A}
+
+# dense arrays: stored contiguously in memory
+DenseReinterpretCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray}} = Base.ReinterpretArray{T,N,S,A} where S
+DenseReshapedCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray,DenseReinterpretCuArray}} = Base.ReshapedArray{T,N,A}
+DenseSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray}} = Base.FastContiguousSubArray{T,N,A}
+DenseCuArray{T,N} = Union{CuArray{T,N}, DenseSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
+DenseCuVector{T} = DenseCuArray{T,1}
+DenseCuMatrix{T} = DenseCuArray{T,2}
+DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
+
+# strided arrays
+StridedSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray},
+                  I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+                                        Base.AbstractCartesianIndex}}}} = SubArray{T,N,A,I}
+StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
+StridedCuVector{T} = StridedCuArray{T,1}
+StridedCuMatrix{T} = StridedCuArray{T,2}
+StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
+
+Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
+@inline function Base.pointer(x::StridedCuArray{T}, i::Integer) where T
+    Base.unsafe_convert(CuPtr{T}, x) + Base._memory_offset(x, i)
+end
+
+# wrapped arrays: can be used in kernels
+WrappedCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
+WrappedCuVector{T} = WrappedCuArray{T,1}
+WrappedCuMatrix{T} = WrappedCuArray{T,2}
+WrappedCuVecOrMat{T} = Union{WrappedCuVector{T}, WrappedCuMatrix{T}}
 
 
 ## interop with other arrays
@@ -220,36 +197,25 @@ CuArray{T,N}(xs::CuArray{T,N}) where {T,N} = xs
 
 Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
-function Base._reshape(parent::CuArray, dims::Dims)
-  n = length(parent)
-  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return CuArray{eltype(parent),length(dims)}(pointer(parent), dims, parent)
-end
-function Base._reshape(parent::CuArray{T,1}, dims::Tuple{Int}) where T
-  n = length(parent)
-  prod(dims) == n || throw(DimensionMismatch("parent has $n elements, which is incompatible with size $dims"))
-  return parent
-end
-
 
 ## interop with C libraries
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-Base.unsafe_convert(::Type{Ptr{S}}, x::CuArray{T}) where {S,T} = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-
-Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = pointer(x)
-Base.unsafe_convert(::Type{CuPtr{S}}, x::CuArray{T}) where {S,T} = convert(CuPtr{S}, Base.unsafe_convert(CuPtr{T}, x))
-
+Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = x.ptr
 
 
 ## interop with device arrays
 
-function Base.convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::CuArray{T,N}) where {T,N}
-  CuDeviceArray{T,N,AS.Global}(a.dims, reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
+function Base.unsafe_convert(::Type{CuDeviceArray{T,N,AS.Global}}, a::DenseCuArray{T,N}) where {T,N}
+  CuDeviceArray{T,N,AS.Global}(size(a), reinterpret(LLVMPtr{T,AS.Global}, pointer(a)))
 end
 
 Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
-  convert(CuDeviceArray{T,N,AS.Global}, xs)
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
+
+# we materialize ReshapedArray/ReinterpretArray/SubArray/... directly as a device array
+Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
+  Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
 
 ## interop with CPU arrays
@@ -268,9 +234,9 @@ Adapt.adapt_storage(::Type{Array}, xs::CuArray) = convert(Array, xs)
 
 Base.collect(x::CuArray{T,N}) where {T,N} = copyto!(Array{T,N}(undef, size(x)), x)
 
-function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
+function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::Array{T}, soffs::Integer,
                       n::Integer) where T
-  @assert !dest.freed "Use of freed memory"
+  n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -279,9 +245,12 @@ function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::Array{T}, soffs::In
   return dest
 end
 
-function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
+Base.copyto!(dest::DenseCuArray{T}, src::Array{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+function Base.copyto!(dest::Array{T}, doffs::Integer, src::DenseCuArray{T}, soffs::Integer,
                       n::Integer) where T
-  @assert !src.freed "Use of freed memory"
+  n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -290,9 +259,12 @@ function Base.copyto!(dest::Array{T}, doffs::Integer, src::CuArray{T}, soffs::In
   return dest
 end
 
-function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::Integer,
+Base.copyto!(dest::Array{T}, src::DenseCuArray{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+function Base.copyto!(dest::DenseCuArray{T}, doffs::Integer, src::DenseCuArray{T}, soffs::Integer,
                       n::Integer) where T
-  @assert !dest.freed && !src.freed "Use of freed memory"
+  n==0 && return dest
   @boundscheck checkbounds(dest, doffs)
   @boundscheck checkbounds(dest, doffs+n-1)
   @boundscheck checkbounds(src, soffs)
@@ -301,7 +273,10 @@ function Base.copyto!(dest::CuArray{T}, doffs::Integer, src::CuArray{T}, soffs::
   return dest
 end
 
-function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) where T
+Base.copyto!(dest::DenseCuArray{T}, src::DenseCuArray{T}) where {T} =
+    copyto!(dest, 1, src, 1, length(src))
+
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::Array{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
@@ -310,7 +285,7 @@ function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::Array{T}, soffs, n) w
   return dest
 end
 
-function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) where T
+function Base.unsafe_copyto!(dest::Array{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n)
   if Base.isbitsunion(T)
     # copy selector bytes
@@ -319,7 +294,7 @@ function Base.unsafe_copyto!(dest::Array{T}, doffs, src::CuArray{T}, soffs, n) w
   return dest
 end
 
-function Base.unsafe_copyto!(dest::CuArray{T}, doffs, src::CuArray{T}, soffs, n) where T
+function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
                                        async=true, stream=CuStreamPerThread())
   if Base.isbitsunion(T)
@@ -371,7 +346,7 @@ memsettype(T::Type{<:AbstractFloat}) = Base.uinttype(T)
 const MemsetCompatTypes = Union{UInt8, Int8,
                                 UInt16, Int16, Float16,
                                 UInt32, Int32, Float32}
-function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
+function Base.fill!(A::DenseCuArray{T}, x) where T <: MemsetCompatTypes
   U = memsettype(T)
   y = reinterpret(U, convert(T, x))
   Mem.set!(convert(CuPtr{U}, pointer(A)), y, length(A))
@@ -379,153 +354,41 @@ function Base.fill!(A::CuArray{T}, x) where T <: MemsetCompatTypes
 end
 
 
-## derived types
+## views
 
-export StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat
-
-# strided arrays
-StridedReinterpretCuArray{T,N,A<:CuArray} = Base.ReinterpretArray{T,N,S,A} where S
-StridedReshapedCuArray{T,N,A<:Union{CuArray,StridedReinterpretCuArray}} = Base.ReshapedArray{T,N,A}
-StridedSubCuArray{T,N,A<:Union{CuArray,StridedReshapedCuArray,StridedReinterpretCuArray},
-                  I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
-                                        Base.AbstractCartesianIndex}}}} = SubArray{T,N,A,I}
-StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}, StridedReshapedCuArray{T,N}, StridedReinterpretCuArray{T,N}}
-StridedCuVector{T} = StridedCuArray{T,1}
-StridedCuMatrix{T} = StridedCuArray{T,2}
-StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
-
-
-
-## reversing
-
-# the kernel works by treating the array as 1d. after reversing by dimension x an element at
-# pos [i1, i2, i3, ... , i{x},            ..., i{n}] will be at
-# pos [i1, i2, i3, ... , d{x} - i{x} + 1, ..., i{n}] where d{x} is the size of dimension x
-
-# out-of-place version, copying a single value per thread from input to output
-function _reverse(input::CuArray{T, N}, output::CuArray{T, N}; dims::Integer=1) where {T, N}
-    @assert size(input) == size(output)
-    shape = [size(input)...]
-    numelemsinprevdims = prod(shape[1:dims-1])
-    numelemsincurrdim = shape[dims]
-
-    function kernel(input::CuDeviceArray{T, N}, output::CuDeviceArray{T, N}) where {T, N}
-        offset_in = blockDim().x * (blockIdx().x - 1)
-
-        index_in = offset_in + threadIdx().x
-
-        if index_in <= length(input)
-            element = @inbounds input[index_in]
-
-            # the index of an element in the original array along dimension that we will flip
-            #assume(numelemsinprevdims > 0)
-            #assume(numelemsincurrdim > 0)
-            ik = ((cld(index_in, numelemsinprevdims) - 1) % numelemsincurrdim) + 1
-
-            index_out = index_in + (numelemsincurrdim - 2ik + 1) * numelemsinprevdims
-
-            @inbounds output[index_out] = element
-        end
-
-        return
+@inline function Base.view(A::CuArray, I::Vararg{Any,N}) where {N}
+    J = to_indices(A, I)
+    @boundscheck begin
+        # Base's boundscheck accesses the indices, so make sure they reside on the CPU.
+        # this is expensive, but it's a bounds check after all.
+        J_cpu = map(j->adapt(Array, j), J)
+        checkbounds(A, J_cpu...)
     end
-
-    nthreads = 256
-    nblocks = cld(prod(shape), nthreads)
-    shmem = nthreads * sizeof(T)
-
-    @cuda threads=nthreads blocks=nblocks kernel(input, output)
+    J_gpu = map(j->adapt(CuArray, j), J)
+    Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(J_gpu...)), J_gpu...)
 end
 
-# in-place version, swapping two elements on half the number of threads
-function _reverse(data::CuArray{T, N}; dims::Integer=1) where {T, N}
-    shape = [size(data)...]
-    numelemsinprevdims = prod(shape[1:dims-1])
-    numelemsincurrdim = shape[dims]
+# upload the SubArray indices when adapting to the GPU
+# (can't do this eagerly or the view constructor wouldn't be able to boundscheck)
+Adapt.adapt_structure(to::Adaptor, A::SubArray) =
+    SubArray(adapt(to, parent(A)), adapt(to, adapt(CuArray, parentindices(A))))
 
-    function kernel(data::CuDeviceArray{T, N}) where {T, N}
-        offset_in = blockDim().x * (blockIdx().x - 1)
-
-        index_in = offset_in + threadIdx().x
-
-        # the index of an element in the original array along dimension that we will flip
-        #assume(numelemsinprevdims > 0)
-        #assume(numelemsincurrdim > 0)
-        ik = ((cld(index_in, numelemsinprevdims) - 1) % numelemsincurrdim) + 1
-
-        index_out = index_in + (numelemsincurrdim - 2ik + 1) * numelemsinprevdims
-
-        if index_in <= length(data) && index_in < index_out
-            @inbounds begin
-                temp = data[index_out]
-                data[index_out] = data[index_in]
-                data[index_in] = temp
-            end
-        end
-
-        return
-    end
-
-    # NOTE: we launch twice the number of threads, which is wasteful, but the ND index
-    #       calculations don't allow using only the first half of the threads
-    #       (e.g. [1 2 3; 4 5 6] where threads 1 and 2 swap respectively (1,2) and (2,1)).
-
-    nthreads = 256
-    nblocks = cld(prod(shape), nthreads)
-    shmem = nthreads * sizeof(T)
-
-    @cuda threads=nthreads blocks=nblocks kernel(data)
+function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P<:CuArray}
+    return Base.unsafe_convert(CuPtr{T}, parent(V)) +
+           Base._memory_offset(V.parent, map(first, V.indices)...)
 end
 
 
-# n-dimensional API
+## reshape
 
-# in-place
-function Base.reverse!(data::CuArray{T, N}; dims::Integer) where {T, N}
-    if !(1 ≤ dims ≤ length(size(data)))
-      ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
-    end
-
-    _reverse(data; dims=dims)
-
-    return data
-end
-
-# out-of-place
-function Base.reverse(input::CuArray{T, N}; dims::Integer) where {T, N}
-    if !(1 ≤ dims ≤ length(size(input)))
-      ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
-    end
-
-    output = similar(input)
-    _reverse(input, output; dims=dims)
-
-    return output
-end
+Base.unsafe_convert(::Type{CuPtr{T}}, a::Base.ReshapedArray{T}) where {T} =
+  Base.unsafe_convert(CuPtr{T}, parent(a))
 
 
-# 1-dimensional API
+## reinterpret
 
-# in-place
-Base.@propagate_inbounds function Base.reverse!(data::CuVector{T}, start, stop=length(data)) where {T}
-    _reverse(view(data, start:stop))
-    return data
-end
-
-Base.reverse(data::CuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
-
-# out-of-place
-Base.@propagate_inbounds function Base.reverse(input::CuVector{T}, start, stop=length(input)) where {T}
-    output = similar(input)
-
-    start > 1 && copyto!(output, 1, input, 1, start-1)
-    _reverse(view(input, start:stop), view(output, start:stop))
-    stop < length(input) && copyto!(output, stop+1, input, stop+1)
-
-    return output
-end
-
-Base.reverse!(data::CuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
+Base.unsafe_convert(::Type{CuPtr{T}}, a::Base.ReinterpretArray{T,N,S} where N) where {T,S} =
+  CuPtr{T}(Base.unsafe_convert(CuPtr{S}, parent(a)))
 
 
 ## resizing
@@ -537,23 +400,17 @@ Resize `a` to contain `n` elements. If `n` is smaller than the current collectio
 the first `n` elements will be retained. If `n` is larger, the new elements are not
 guaranteed to be initialized.
 
-Several restrictions apply to which types of `CuArray`s can be resized:
-
-- the array should be backed by the memory pool, and not have been constructed with `unsafe_wrap`
-- the array cannot be derived (view, reshape) from another array
-- the array cannot have any derived arrays itself
-
+Note that this operation is only supported on managed buffers, i.e., not on arrays that are
+created by `unsafe_wrap` with `own=false`.
 """
 function Base.resize!(A::CuVector{T}, n::Int) where T
-  A.parent === nothing || error("cannot resize derived CuArray")
-  A.refcount == 1 || error("cannot resize shared CuArray")
-  A.pooled || error("cannot resize wrapped CuArray")
-
   ptr = convert(CuPtr{T}, alloc(n * sizeof(T)))
   m = Base.min(length(A), n)
   unsafe_copyto!(ptr, pointer(A), m)
 
-  free(convert(CuPtr{Nothing}, pointer(A)))
+  unsafe_free!(A)
+
+  A.state = ARRAY_MANAGED
   A.dims = (n,)
   A.ptr = ptr
 

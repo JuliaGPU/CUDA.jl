@@ -1,6 +1,6 @@
 # wrappers
 
-function cudnnSoftmaxForward(x::CuArray{T,4}, y::CuArray{T,4}=x;
+function cudnnSoftmaxForward(x::DenseCuArray{T,4}, y::DenseCuArray{T,4}=x;
                              algo=CUDNN_SOFTMAX_FAST, # or CUDNN_SOFTMAX_ACCURATE
                              mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                              alpha=1.0, beta=0.0) where T
@@ -10,7 +10,7 @@ function cudnnSoftmaxForward(x::CuArray{T,4}, y::CuArray{T,4}=x;
     return y
 end
 
-function cudnnSoftmaxBackward(y::CuArray{T,4}, dy::CuArray{T,4}, dx::CuArray{T,4}=dy;
+function cudnnSoftmaxBackward(y::DenseCuArray{T,4}, dy::DenseCuArray{T,4}, dx::DenseCuArray{T,4}=dy;
                               algo=CUDNN_SOFTMAX_FAST, # or CUDNN_SOFTMAX_ACCURATE
                               mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                               alpha=1.0, beta=0.0) where T

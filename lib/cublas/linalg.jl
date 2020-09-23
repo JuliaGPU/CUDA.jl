@@ -12,7 +12,7 @@ LinearAlgebra.rmul!(x::StridedCuArray{<:CublasFloat}, k::Number) =
   scal!(length(x), k, x)
 
 # Work around ambiguity with GPUArrays wrapper
-LinearAlgebra.rmul!(x::CuArray{<:CublasFloat}, k::Real) =
+LinearAlgebra.rmul!(x::DenseCuArray{<:CublasFloat}, k::Real) =
   invoke(rmul!, Tuple{typeof(x), Number}, x, k)
 
 function LinearAlgebra.BLAS.dot(DX::StridedCuArray{T}, DY::StridedCuArray{T}) where T<:Union{Float32,Float64}
@@ -27,7 +27,7 @@ function LinearAlgebra.BLAS.dotc(DX::StridedCuArray{T}, DY::StridedCuArray{T}) w
     dotc(n, DX, DY)
 end
 
-function LinearAlgebra.BLAS.dot(DX::CuArray{T}, DY::CuArray{T}) where T<:Union{ComplexF32,ComplexF64}
+function LinearAlgebra.BLAS.dot(DX::DenseCuArray{T}, DY::DenseCuArray{T}) where T<:Union{ComplexF32,ComplexF64}
     BLAS.dotc(DX, DY)
 end
 
@@ -37,7 +37,7 @@ function LinearAlgebra.BLAS.dotu(DX::StridedCuArray{T}, DY::StridedCuArray{T}) w
     dotu(n, DX, DY)
 end
 
-LinearAlgebra.norm(x::CuArray{<:CublasFloat}) = nrm2(x)
+LinearAlgebra.norm(x::DenseCuArray{<:CublasFloat}) = nrm2(x)
 LinearAlgebra.BLAS.asum(x::StridedCuArray{<:CublasFloat}) = asum(length(x), x)
 
 function LinearAlgebra.axpy!(alpha::Number, x::StridedCuArray{T}, y::StridedCuArray{T}) where T<:CublasFloat

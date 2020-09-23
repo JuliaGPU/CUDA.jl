@@ -850,7 +850,7 @@ for (jname, bname, fname, elty, relty) in ((:syevjBatched!, :cusolverDnSsyevjBat
     @eval begin
         function $jname(jobz::Char,
                         uplo::Char,
-                        A::CuArray{$elty};
+                        A::DenseCuArray{$elty};
                         tol::$relty=eps($relty),
                         max_sweeps::Int=100)
 

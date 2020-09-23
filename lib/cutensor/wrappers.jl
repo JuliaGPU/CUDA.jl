@@ -53,12 +53,12 @@ Base.cconvert(::Type{Ptr{cutensorTensorDescriptor_t}}, obj::CuTensorDescriptor) 
 
 function elementwiseTrinary!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::CuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
-        @nospecialize(B::CuArray), Binds::ModeType, opB::cutensorOperator_t,
+        @nospecialize(B::DenseCuArray), Binds::ModeType, opB::cutensorOperator_t,
         @nospecialize(gamma::Number),
-        @nospecialize(C::CuArray), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::CuArray), Dinds::ModeType, opAB::cutensorOperator_t,
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
         opABC::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
@@ -119,10 +119,10 @@ end
 
 function elementwiseBinary!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::CuArray), Ainds::ModeType, opA::cutensorOperator_t,
+        @nospecialize(A::DenseCuArray), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(gamma::Number),
-        @nospecialize(C::CuArray), Cinds::ModeType, opC::cutensorOperator_t,
-        @nospecialize(D::CuArray), Dinds::ModeType, opAC::cutensorOperator_t;
+        @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
+        @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
         stream::CuStream=CuStreamPerThread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -194,8 +194,8 @@ end
 
 function permutation!(
         @nospecialize(alpha::Number),
-        @nospecialize(A::CuArray), Ainds::ModeType,
-        @nospecialize(B::CuArray), Binds::ModeType;
+        @nospecialize(A::DenseCuArray), Ainds::ModeType,
+        @nospecialize(B::DenseCuArray), Binds::ModeType;
         stream::CuStream=CuStreamPerThread())
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = CuTensorDescriptor(A)

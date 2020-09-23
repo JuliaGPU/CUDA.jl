@@ -58,6 +58,10 @@ Base.cconvert(::Type{<:CuPtr}, x) = x
 # fallback for unsafe_convert
 Base.unsafe_convert(::Type{P}, x::CuPtr) where {P<:CuPtr} = convert(P, x)
 
+# from arrays
+Base.unsafe_convert(::Type{CuPtr{S}}, a::AbstractArray{T}) where {S,T} =
+    convert(CuPtr{S}, Base.unsafe_convert(CuPtr{T}, a))
+
 
 ## limited pointer arithmetic & comparison
 

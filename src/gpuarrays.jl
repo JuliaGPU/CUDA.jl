@@ -70,6 +70,3 @@ end
 GPUArrays.device(A::CuArray) = device(CuCurrentContext())
 
 GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
-
-GPUArrays.unsafe_reinterpret(::Type{T}, A::CuArray, size::NTuple{N, Integer}) where {T, N} =
-  CuArray{T,N}(convert(CuPtr{T}, pointer(A)), size, A)

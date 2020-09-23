@@ -68,7 +68,7 @@ function cudnnGetConvolutionForwardAlgorithmMaxCount()
 end
 
 # will be removed in cuDNN 8
-function cudnnGetConvolutionForwardAlgorithm(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
+function cudnnGetConvolutionForwardAlgorithm(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N},
                                              cdims::DenseConvDims; preference=0, workspacesize=1<<32) where {T,N}
     algo=@argout(
         cudnnGetConvolutionForwardAlgorithm(
@@ -82,7 +82,7 @@ function cudnnGetConvolutionForwardAlgorithm(y::CuArray{T,N}, x::CuArray{T,N}, w
     return algo
 end
 
-function cudnnGetConvolutionForwardAlgorithm_v7(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
+function cudnnGetConvolutionForwardAlgorithm_v7(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N},
                                                 cdims::DenseConvDims; count=-1) where {T,N}
     if count < 0
         count = cudnnGetConvolutionForwardAlgorithmMaxCount()
@@ -100,7 +100,7 @@ function cudnnGetConvolutionForwardAlgorithm_v7(y::CuArray{T,N}, x::CuArray{T,N}
     return returnedAlgoCount, perfResults
 end
 
-function cudnnFindConvolutionForwardAlgorithm(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
+function cudnnFindConvolutionForwardAlgorithm(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N},
                                               cdims::DenseConvDims; count=-1) where {T,N}
     if count < 0
         count = cudnnGetConvolutionForwardAlgorithmMaxCount()
@@ -118,7 +118,7 @@ function cudnnFindConvolutionForwardAlgorithm(y::CuArray{T,N}, x::CuArray{T,N}, 
     return returnedAlgoCount, perfResults
 end
 
-function cudnnFindConvolutionForwardAlgorithmEx(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
+function cudnnFindConvolutionForwardAlgorithmEx(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N},
                                               cdims::DenseConvDims; count=-1, workspacesize=1<<32) where {T,N}
     if count < 0
         count = cudnnGetConvolutionForwardAlgorithmMaxCount()
@@ -140,7 +140,7 @@ function cudnnFindConvolutionForwardAlgorithmEx(y::CuArray{T,N}, x::CuArray{T,N}
     end
 end
 
-function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N},
+function cudnnConvolutionForward(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N},
                                  cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
     @workspace size=@argout(
             cudnnGetConvolutionForwardWorkspaceSize(
@@ -158,7 +158,7 @@ function cudnnConvolutionForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,
     return y
 end
 
-function cudnnConvolutionBiasActivationForward(y::CuArray{T,N}, x::CuArray{T,N}, w::CuArray{T,N}, z::CuArray{T,N}, bias::CuArray{T,N},
+function cudnnConvolutionBiasActivationForward(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::DenseCuArray{T,N}, z::DenseCuArray{T,N}, bias::DenseCuArray{T,N},
                                                cdims::DenseConvDims; algo=0, alpha1=1, alpha2=1,
                                                activationMode=CUDNN_ACTIVATION_RELU, activationCoeff=0.0, activationReluNanOpt=CUDNN_NOT_PROPAGATE_NAN) where {T,N}
     @workspace size=@argout(
@@ -189,7 +189,7 @@ function cudnnGetConvolutionBackwardDataAlgorithmMaxCount()
 end
 
 # will be removed in cuDNN 8
-function cudnnGetConvolutionBackwardDataAlgorithm(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnGetConvolutionBackwardDataAlgorithm(dx::DenseCuArray{T,N}, w::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                   cdims::DenseConvDims; preference=0, workspacesize=1<<32) where {T,N}
     algo=@argout(
         cudnnGetConvolutionBackwardDataAlgorithm(
@@ -200,7 +200,7 @@ function cudnnGetConvolutionBackwardDataAlgorithm(dx::CuArray{T,N}, w::CuArray{T
     return algo
 end
 
-function cudnnGetConvolutionBackwardDataAlgorithm_v7(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnGetConvolutionBackwardDataAlgorithm_v7(dx::DenseCuArray{T,N}, w::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                      cdims::DenseConvDims; count=-1) where {T,N}
     if count < 0
         count = cudnnGetConvolutionBackwardDataAlgorithmMaxCount()
@@ -216,7 +216,7 @@ function cudnnGetConvolutionBackwardDataAlgorithm_v7(dx::CuArray{T,N}, w::CuArra
     return returnedAlgoCount, perfResults
 end
 
-function cudnnFindConvolutionBackwardDataAlgorithm(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnFindConvolutionBackwardDataAlgorithm(dx::DenseCuArray{T,N}, w::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                    cdims::DenseConvDims; count=-1) where {T,N}
     if count < 0
         count = cudnnGetConvolutionBackwardDataAlgorithmMaxCount()
@@ -232,7 +232,7 @@ function cudnnFindConvolutionBackwardDataAlgorithm(dx::CuArray{T,N}, w::CuArray{
     return returnedAlgoCount, perfResults
 end
 
-function cudnnFindConvolutionBackwardDataAlgorithmEx(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnFindConvolutionBackwardDataAlgorithmEx(dx::DenseCuArray{T,N}, w::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                      cdims::DenseConvDims; count=-1, workspacesize=1<<32) where {T,N}
     if count < 0
         count = cudnnGetConvolutionBackwardDataAlgorithmMaxCount()
@@ -252,7 +252,7 @@ function cudnnFindConvolutionBackwardDataAlgorithmEx(dx::CuArray{T,N}, w::CuArra
     end
 end
 
-function cudnnConvolutionBackwardData(dx::CuArray{T,N}, w::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnConvolutionBackwardData(dx::DenseCuArray{T,N}, w::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                       cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
     @workspace size=@argout(
             cudnnGetConvolutionBackwardDataWorkspaceSize(
@@ -283,7 +283,7 @@ function cudnnGetConvolutionBackwardFilterAlgorithmMaxCount()
 end
 
 # will be removed in cuDNN 8
-function cudnnGetConvolutionBackwardFilterAlgorithm(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnGetConvolutionBackwardFilterAlgorithm(dw::DenseCuArray{T,N}, x::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                     cdims::DenseConvDims; preference=0, workspacesize=1<<32) where {T,N}
     algo=@argout(
         cudnnGetConvolutionBackwardFilterAlgorithm(
@@ -294,7 +294,7 @@ function cudnnGetConvolutionBackwardFilterAlgorithm(dw::CuArray{T,N}, x::CuArray
     return algo
 end
 
-function cudnnGetConvolutionBackwardFilterAlgorithm_v7(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnGetConvolutionBackwardFilterAlgorithm_v7(dw::DenseCuArray{T,N}, x::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                      cdims::DenseConvDims; count=-1) where {T,N}
     if count < 0
         count = cudnnGetConvolutionBackwardFilterAlgorithmMaxCount()
@@ -311,7 +311,7 @@ function cudnnGetConvolutionBackwardFilterAlgorithm_v7(dw::CuArray{T,N}, x::CuAr
     return returnedAlgoCount, perfResults
 end
 
-function cudnnFindConvolutionBackwardFilterAlgorithm(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnFindConvolutionBackwardFilterAlgorithm(dw::DenseCuArray{T,N}, x::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                      cdims::DenseConvDims; count=-1) where {T,N}
     if count < 0
         count = cudnnGetConvolutionBackwardFilterAlgorithmMaxCount()
@@ -328,7 +328,7 @@ function cudnnFindConvolutionBackwardFilterAlgorithm(dw::CuArray{T,N}, x::CuArra
     return returnedAlgoCount, perfResults
 end
 
-function cudnnFindConvolutionBackwardFilterAlgorithmEx(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnFindConvolutionBackwardFilterAlgorithmEx(dw::DenseCuArray{T,N}, x::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                                      cdims::DenseConvDims; count=-1, workspacesize=1<<32) where {T,N}
     if count < 0
         count = cudnnGetConvolutionBackwardFilterAlgorithmMaxCount()
@@ -348,7 +348,7 @@ function cudnnFindConvolutionBackwardFilterAlgorithmEx(dw::CuArray{T,N}, x::CuAr
     end
 end
 
-function cudnnConvolutionBackwardFilter(dw::CuArray{T,N}, x::CuArray{T,N}, dy::CuArray{T,N},
+function cudnnConvolutionBackwardFilter(dw::DenseCuArray{T,N}, x::DenseCuArray{T,N}, dy::DenseCuArray{T,N},
                                         cdims::DenseConvDims; algo=0, alpha=1, beta=0) where {T,N}
     @workspace size=@argout(
             cudnnGetConvolutionBackwardFilterWorkspaceSize(
@@ -370,7 +370,7 @@ end
 
 # Backward bias
 
-function cudnnConvolutionBackwardBias(db::CuArray{T,N}, dy::CuArray{T,N}; alpha=1, beta=0) where {T,N}
+function cudnnConvolutionBackwardBias(db::DenseCuArray{T,N}, dy::DenseCuArray{T,N}; alpha=1, beta=0) where {T,N}
     cudnnConvolutionBackwardBias(handle(),
                                  Ref(T(alpha)), TensorDesc(dy), dy,
                                  Ref(T(beta )), TensorDesc(db), db)

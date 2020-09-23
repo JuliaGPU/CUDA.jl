@@ -13,13 +13,13 @@ _cufftfloat(::Type{Complex{T}}) where {T} = Complex{_cufftfloat(T)}
 _cufftfloat(::Type{T}) where {T} = error("type $T not supported")
 _cufftfloat(x::T) where {T} = _cufftfloat(T)(x)
 
-complexfloat(x::CuArray{Complex{<:cufftReals}}) = x
-realfloat(x::CuArray{<:cufftReals}) = x
+complexfloat(x::DenseCuArray{Complex{<:cufftReals}}) = x
+realfloat(x::DenseCuArray{<:cufftReals}) = x
 
-complexfloat(x::CuArray{T}) where {T<:Complex} = copy1(typeof(cufftfloat(zero(T))), x)
-complexfloat(x::CuArray{T}) where {T<:Real} = copy1(typeof(complex(cufftfloat(zero(T)))), x)
+complexfloat(x::DenseCuArray{T}) where {T<:Complex} = copy1(typeof(cufftfloat(zero(T))), x)
+complexfloat(x::DenseCuArray{T}) where {T<:Real} = copy1(typeof(complex(cufftfloat(zero(T)))), x)
 
-realfloat(x::CuArray{T}) where {T<:Real} = copy1(typeof(cufftfloat(zero(T))), x)
+realfloat(x::DenseCuArray{T}) where {T<:Real} = copy1(typeof(cufftfloat(zero(T))), x)
 
 function copy1(::Type{T}, x) where T
     y = CuArray{T}(undef, map(length, axes(x)))
