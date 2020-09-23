@@ -373,11 +373,6 @@ end
 Adapt.adapt_structure(to::Adaptor, A::SubArray) =
     SubArray(adapt(to, parent(A)), adapt(to, adapt(CuArray, parentindices(A))))
 
-function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P<:CuArray}
-    return Base.unsafe_convert(CuPtr{T}, parent(V)) +
-           Base._memory_offset(V.parent, map(first, V.indices)...)
-end
-
 
 ## reshape
 
