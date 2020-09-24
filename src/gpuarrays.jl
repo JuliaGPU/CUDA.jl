@@ -67,6 +67,4 @@ end
 # Host abstractions
 #
 
-GPUArrays.device(A::CuArray) = device(CuCurrentContext())
-
 GPUArrays.backend(::Type{<:CuArray}) = CuArrayBackend()
