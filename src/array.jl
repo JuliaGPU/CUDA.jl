@@ -142,7 +142,7 @@ Base.sizeof(x::CuArray) = Base.elsize(x) * length(x)
 
 export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
        StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
-       WrappedCuArray, WrappedCuVector, WrappedCuMatrix, WrappedCuVecOrMat
+       AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
 
 ContiguousSubCuArray{T,N,A<:CuArray} = Base.FastContiguousSubArray{T,N,A}
 
@@ -169,11 +169,11 @@ Base.pointer(x::StridedCuArray{T}) where {T} = Base.unsafe_convert(CuPtr{T}, x)
     Base.unsafe_convert(CuPtr{T}, x) + Base._memory_offset(x, i)
 end
 
-# wrapped arrays: can be used in kernels
-WrappedCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
-WrappedCuVector{T} = WrappedCuArray{T,1}
-WrappedCuMatrix{T} = WrappedCuArray{T,2}
-WrappedCuVecOrMat{T} = Union{WrappedCuVector{T}, WrappedCuMatrix{T}}
+# anything that's (secretly) backed by a CuArray
+AnyCuArray{T,N} = Union{CuArray{T,N}, WrappedArray{T,N,CuArray,CuArray{T,N}}}
+AnyCuVector{T} = AnyCuArray{T,1}
+AnyCuMatrix{T} = AnyCuArray{T,2}
+AnyCuVecOrMat{T} = Union{AnyCuVector{T}, AnyCuMatrix{T}}
 
 
 ## interop with other arrays
