@@ -8,9 +8,9 @@ using Base.Cartesian
 
 ## logical indexing
 
-Base.getindex(xs::CuArray, bools::AbstractArray{Bool}) = getindex(xs, CuArray(bools))
+Base.getindex(xs::AnyCuArray, bools::AbstractArray{Bool}) = getindex(xs, CuArray(bools))
 
-function Base.getindex(xs::CuArray{T}, bools::CuArray{Bool}) where {T}
+function Base.getindex(xs::AnyCuArray{T}, bools::AnyCuArray{Bool}) where {T}
   bools = reshape(bools, prod(size(bools)))
   indices = cumsum(bools)  # unique indices for elements that are true
 
@@ -49,7 +49,7 @@ end
 
 ## find*
 
-function Base.findall(bools::CuArray{Bool})
+function Base.findall(bools::AnyCuArray{Bool})
     I = keytype(bools)
     indices = cumsum(reshape(bools, prod(size(bools))))
 
@@ -86,14 +86,14 @@ function Base.findall(bools::CuArray{Bool})
     return ys
 end
 
-function Base.findall(f::Function, A::CuArray)
+function Base.findall(f::Function, A::AnyCuArray)
     bools = map(f, A)
     ys = findall(bools)
     unsafe_free!(bools)
     return ys
 end
 
-function Base.findfirst(testf::Function, xs::CuArray)
+function Base.findfirst(testf::Function, xs::AnyCuArray)
     I = keytype(xs)
 
     y = CuArray([typemax(Int)])
@@ -123,9 +123,9 @@ function Base.findfirst(testf::Function, xs::CuArray)
     return first_i == typemax(Int) ? nothing : keys(xs)[first_i]
 end
 
-Base.findfirst(xs::CuArray{Bool}) = findfirst(identity, xs)
+Base.findfirst(xs::AnyCuArray{Bool}) = findfirst(identity, xs)
 
-function Base.findmin(a::CuArray; dims=:)
+function Base.findmin(a::AnyCuArray; dims=:)
     if dims == Colon()
         m = minimum(a)
         i = findfirst(x->x==m, a)
@@ -137,7 +137,7 @@ function Base.findmin(a::CuArray; dims=:)
     end
 end
 
-function Base.findmax(a::CuArray; dims=:)
+function Base.findmax(a::AnyCuArray; dims=:)
     if dims == Colon()
         m = maximum(a)
         i = findfirst(x->x==m, a)
@@ -149,7 +149,7 @@ function Base.findmax(a::CuArray; dims=:)
     end
 end
 
-function findfirstval(vals::CuArray, xs::CuArray)
+function findfirstval(vals::AnyCuArray, xs::AnyCuArray)
     ## find the first matching element
 
     # NOTE: this kernel performs global atomic operations for the sake of simplicity.

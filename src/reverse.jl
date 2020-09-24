@@ -5,7 +5,7 @@
 # pos [i1, i2, i3, ... , d{x} - i{x} + 1, ..., i{n}] where d{x} is the size of dimension x
 
 # out-of-place version, copying a single value per thread from input to output
-function _reverse(input::WrappedCuArray{T, N}, output::WrappedCuArray{T, N};
+function _reverse(input::AnyCuArray{T, N}, output::AnyCuArray{T, N};
                   dims::Integer=1) where {T, N}
     @assert size(input) == size(output)
     shape = [size(input)...]
@@ -41,7 +41,7 @@ function _reverse(input::WrappedCuArray{T, N}, output::WrappedCuArray{T, N};
 end
 
 # in-place version, swapping two elements on half the number of threads
-function _reverse(data::WrappedCuArray{T, N}; dims::Integer=1) where {T, N}
+function _reverse(data::AnyCuArray{T, N}; dims::Integer=1) where {T, N}
     shape = [size(data)...]
     numelemsinprevdims = prod(shape[1:dims-1])
     numelemsincurrdim = shape[dims]
@@ -84,7 +84,7 @@ end
 # n-dimensional API
 
 # in-place
-function Base.reverse!(data::WrappedCuArray{T, N}; dims::Integer) where {T, N}
+function Base.reverse!(data::AnyCuArray{T, N}; dims::Integer) where {T, N}
     if !(1 ≤ dims ≤ length(size(data)))
       ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
     end
@@ -95,7 +95,7 @@ function Base.reverse!(data::WrappedCuArray{T, N}; dims::Integer) where {T, N}
 end
 
 # out-of-place
-function Base.reverse(input::WrappedCuArray{T, N}; dims::Integer) where {T, N}
+function Base.reverse(input::AnyCuArray{T, N}; dims::Integer) where {T, N}
     if !(1 ≤ dims ≤ length(size(input)))
       ArgumentError("dimension $dims is not 1 ≤ $dims ≤ $length(size(input))")
     end
@@ -110,15 +110,15 @@ end
 # 1-dimensional API
 
 # in-place
-Base.@propagate_inbounds function Base.reverse!(data::WrappedCuVector{T}, start, stop=length(data)) where {T}
+Base.@propagate_inbounds function Base.reverse!(data::AnyCuVector{T}, start, stop=length(data)) where {T}
     _reverse(view(data, start:stop))
     return data
 end
 
-Base.reverse(data::WrappedCuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
+Base.reverse(data::AnyCuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
 
 # out-of-place
-Base.@propagate_inbounds function Base.reverse(input::WrappedCuVector{T}, start, stop=length(input)) where {T}
+Base.@propagate_inbounds function Base.reverse(input::AnyCuVector{T}, start, stop=length(input)) where {T}
     output = similar(input)
 
     start > 1 && copyto!(output, 1, input, 1, start-1)
@@ -128,4 +128,4 @@ Base.@propagate_inbounds function Base.reverse(input::WrappedCuVector{T}, start,
     return output
 end
 
-Base.reverse!(data::WrappedCuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))
+Base.reverse!(data::AnyCuVector{T}) where {T} = @inbounds reverse!(data, 1, length(data))

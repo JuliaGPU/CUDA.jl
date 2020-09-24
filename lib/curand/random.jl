@@ -51,7 +51,7 @@ Random.seed!(rng::RNG, ::Nothing) = Random.seed!(rng)
 
 # uniform
 const UniformType = Union{Type{Float32},Type{Float64},Type{UInt32}}
-const UniformArray = CuArray{<:Union{Float32,Float64,UInt32}}
+const UniformArray = DenseCuArray{<:Union{Float32,Float64,UInt32}}
 function Random.rand!(rng::RNG, A::DenseCuArray{UInt32})
     curandGenerate(rng, A, length(A))
     return A
@@ -82,7 +82,7 @@ end
 
 # normal
 const NormalType = Union{Type{Float32},Type{Float64}}
-const NormalArray = CuArray{<:Union{Float32,Float64}}
+const NormalArray = DenseCuArray{<:Union{Float32,Float64}}
 function Random.randn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
     inplace_pow2(A, B->curandGenerateNormal(rng, B, length(B), mean, stddev))
     return A
@@ -94,7 +94,7 @@ end
 
 # log-normal
 const LognormalType = Union{Type{Float32},Type{Float64}}
-const LognormalArray = CuArray{<:Union{Float32,Float64}}
+const LognormalArray = DenseCuArray{<:Union{Float32,Float64}}
 function rand_logn!(rng::RNG, A::DenseCuArray{Float32}; mean=0, stddev=1)
     inplace_pow2(A, B->curandGenerateLogNormal(rng, B, length(B), mean, stddev))
     return A
@@ -106,7 +106,7 @@ end
 
 # poisson
 const PoissonType = Union{Type{Cuint}}
-const PoissonArray = CuArray{Cuint}
+const PoissonArray = DenseCuArray{Cuint}
 function rand_poisson!(rng::RNG, A::DenseCuArray{Cuint}; lambda=1)
     curandGeneratePoisson(rng, A, length(A), lambda)
     return A
