@@ -72,12 +72,19 @@ function handle()
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUBLAS, ctx)) do
             handle = cublasCreate()
-            cublasSetStream_v2(handle, CuStreamPerThread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do
                     cublasDestroy_v2(handle)
                 end
+            end
+
+            cublasSetStream_v2(handle, CuStreamPerThread())
+
+            if version(handle) >= v"11.2"
+                workspace = CuArray{UInt8}(undef, 4*1024*1024)  # TODO: 256-byte aligned
+                cublasSetWorkspace_v2(handle, workspace, sizeof(workspace))
+                task_local_storage((:CUBLAS, :workspace), workspace)
             end
 
             math_mode!(handle, CUDA.math_mode())
