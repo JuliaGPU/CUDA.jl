@@ -126,7 +126,7 @@ end
 
 ## COV_EXCL_STOP
 
-function scan!(f::Function, output::WrappedCuArray{T}, input::WrappedCuArray;
+function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
                dims::Integer, init=nothing, neutral=GPUArrays.neutral_element(f, T)) where {T}
     dims > 0 || throw(ArgumentError("dims must be a positive integer"))
     inds_t = axes(input)
@@ -196,16 +196,16 @@ end
 
 ## Base interface
 
-Base._accumulate!(op, output::WrappedCuArray, input::WrappedCuVector, dims::Nothing, init::Nothing) =
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuVector, dims::Nothing, init::Nothing) =
     scan!(op, output, input; dims=1)
 
-Base._accumulate!(op, output::WrappedCuArray, input::WrappedCuArray, dims::Integer, init::Nothing) =
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Nothing) =
     scan!(op, output, input; dims=dims)
 
-Base._accumulate!(op, output::WrappedCuArray, input::CuVector, dims::Nothing, init::Some) =
+Base._accumulate!(op, output::AnyCuArray, input::CuVector, dims::Nothing, init::Some) =
     scan!(op, output, input; dims=1, init=init)
 
-Base._accumulate!(op, output::WrappedCuArray, input::WrappedCuArray, dims::Integer, init::Some) =
+Base._accumulate!(op, output::AnyCuArray, input::AnyCuArray, dims::Integer, init::Some) =
     scan!(op, output, input; dims=dims, init=init)
 
-Base.accumulate_pairwise!(op, result::WrappedCuVector, v::WrappedCuVector) = accumulate!(op, result, v)
+Base.accumulate_pairwise!(op, result::AnyCuVector, v::AnyCuVector) = accumulate!(op, result, v)

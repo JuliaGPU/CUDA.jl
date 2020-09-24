@@ -139,7 +139,7 @@ if VERSION < v"1.5.0-DEV.748"
         d <= N ? axes(bc)[d] : Base.OneTo(1)
 end
 
-function GPUArrays.mapreducedim!(f::F, op::OP, R::WrappedCuArray{T},
+function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
                                  A::Union{AbstractArray,Broadcast.Broadcasted};
                                  init=nothing) where {F, OP, T}
     Base.check_reducedims(R, A)
