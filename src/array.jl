@@ -13,9 +13,19 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   state::ArrayState
   ctx::CuContext
 
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, state::ArrayState=ARRAY_MANAGED;
-                        ctx=context()) where {T,N}
-    return new(ptr, dims, state, ctx)
+  function CuArray{T,N}(::UndefInitializer, dims::Dims{N})  where {T,N}
+    Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
+    Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
+    ptr = alloc(prod(dims) * sizeof(T))
+    obj = new{T,N}(ptr, dims, ARRAY_MANAGED, context())
+    finalizer(unsafe_free!, obj)
+    return obj
+  end
+
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, ctx=context()) where {T,N}
+    Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
+    Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
+    return new{T,N}(ptr, dims, ARRAY_UNMANAGED, ctx)
   end
 end
 
@@ -49,16 +59,6 @@ CuVector{T} = CuArray{T,1}
 CuMatrix{T} = CuArray{T,2}
 CuVecOrMat{T} = Union{CuVector{T},CuMatrix{T}}
 
-# type and dimensionality specified, accepting dims as tuples of Ints
-function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
-  Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
-  Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
-  ptr = alloc(prod(dims) * sizeof(T))
-  obj = CuArray{T,N}(convert(CuPtr{T}, ptr), dims)
-  finalizer(unsafe_free!, obj)
-  obj
-end
-
 # type and dimensionality specified, accepting dims as series of Ints
 CuArray{T,N}(::UndefInitializer, dims::Integer...) where {T,N} = CuArray{T,N}(undef, dims)
 
@@ -89,11 +89,8 @@ Base.similar(a::CuArray{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef
 Base.similar(a::CuArray, ::Type{T}, dims::Base.Dims{N}) where {T,N} = CuArray{T,N}(undef, dims)
 
 function Base.copy(a::CuArray{T,N}) where {T,N}
-  ptr = convert(CuPtr{T}, alloc(sizeof(a)))
-  unsafe_copyto!(ptr, pointer(a), length(a); async=true, stream=CuStreamPerThread())
-  obj = CuArray{T,N}(ptr, size(a))
-  finalizer(unsafe_free!, obj)
-  return obj
+  b = similar(a)
+  @inbounds copyto!(b, a)
 end
 
 
@@ -109,7 +106,7 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
                           p::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  xs = CuArray{T, length(dims)}(p, dims, ARRAY_UNMANAGED; ctx=ctx)
+  xs = CuArray{T, length(dims)}(p, dims, ctx)
   if own
     base = convert(CuPtr{Cvoid}, p)
     buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T))
@@ -369,11 +366,6 @@ end
     J_gpu = map(j->adapt(CuArray, j), J)
     Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(J_gpu...)), J_gpu...)
 end
-
-# upload the SubArray indices when adapting to the GPU
-# (can't do this eagerly or the view constructor wouldn't be able to boundscheck)
-Adapt.adapt_structure(to::Adaptor, A::SubArray) =
-    SubArray(adapt(to, parent(A)), adapt(to, adapt(CuArray, parentindices(A))))
 
 
 ## reshape
