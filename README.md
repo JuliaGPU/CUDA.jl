@@ -2,9 +2,9 @@
 
 *CUDA programming in Julia*
 
-| **Documentation**                     | **Build Status**                                              |
-|:-------------------------------------:|:-------------------------------------------------------------:|
-| [![][docs-latest-img]][docs-latest-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] |
+| **Documentation**                       | **Build Status**                                              | **Performance**                     |
+|:---------------------------------------:|:-------------------------------------------------------------:|:-----------------------------------:|
+| [![][docs-latest-img]][docs-latest-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] | [![][codespeed-img]][codespeed-url] |
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
 [docs-latest-url]: https://juliagpu.gitlab.io/CUDA.jl/
@@ -14,6 +14,9 @@
 
 [codecov-img]: https://codecov.io/gh/JuliaGPU/CUDA.jl/branch/master/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/JuliaGPU/CUDA.jl
+
+[codespeed-img]: https://img.shields.io/badge/codespeed-Julia%201.5-informational
+[codespeed-url]: https://speed.juliagpu.org/timeline/#/?exe=4&ben=grid&env=1&revs=50
 
 The CUDA.jl package is the main programming interface for working with NVIDIA CUDA GPUs
 using Julia. It features a user-friendly array abstraction, a compiler for writing CUDA
