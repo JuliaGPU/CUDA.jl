@@ -8,9 +8,9 @@ version = "0.5.0"
 
 [[Adapt]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "841151462b0fdeeb8f2d86ce43796ef59aa4a9ad"
+git-tree-sha1 = "42c42f2221906892ceb765dbcb1a51deeffd86d7"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "2.2.0"
+version = "2.3.0"
 
 [[BFloat16s]]
 deps = ["LinearAlgebra", "Test"]
