@@ -34,9 +34,9 @@ version = "0.4.1"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "7c7f4cda0d58ec999189d70f5ee500348c4b4df1"
+git-tree-sha1 = "043647e66a6effa7473e98a5370faa4deb6dce90"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "3.16.0"
+version = "3.17.0"
 
 [[DataStructures]]
 deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
@@ -69,9 +69,9 @@ version = "6.0.1"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "f269c216673226805f087f40663cd6be35b3c485"
+git-tree-sha1 = "1b19d415fc3581ff0ed2f57875fca16b5190060a"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.7.2"
+version = "0.7.3"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
