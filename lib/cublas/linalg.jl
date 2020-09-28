@@ -1,8 +1,5 @@
 # interfacing with LinearAlgebra standard library
 
-cublas_size(t::Char, M::StridedCuVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
-
-
 
 #
 # BLAS 1
@@ -74,41 +71,54 @@ end
 
 # GEMV
 
-function gemv_wrapper!(y::CuVector{T}, tA::Char, A::StridedCuMatrix{T}, x::StridedCuVector{T},
-                       alpha::Number = true, beta::Number = false) where T<:CublasFloat
-    mA, nA = cublas_size(tA, A)
-    if nA != length(x)
-        throw(DimensionMismatch("second dimension of A, $nA, does not match length of x, $(length(x))"))
-    end
-    if mA != length(y)
-        throw(DimensionMismatch("first dimension of A, $mA, does not match length of y, $(length(y))"))
-    end
-    if mA == 0
-        return y
-    end
-    if nA == 0
-        return rmul!(y, 0)
+function gemv_dispatch!(Y::CuVector{T}, A, B, alpha::Number=true, beta::Number=false) where T
+    mA, nA = size(A)
+
+    if nA != length(B)
+        throw(DimensionMismatch("second dimension of A, $nA, does not match length of B, $(length(B))"))
     end
 
-    gemv!(tA, alpha, A, x, beta, y)
+    if mA != length(Y)
+        throw(DimensionMismatch("first dimension of A, $mA, does not match length of Y, $(length(Y))"))
+    end
+
+    if mA == 0
+        return Y
+    end
+
+    if nA == 0
+        return rmul!(Y, 0)
+    end
+
+    tA, dA = if A isa Transpose
+        'T', parent(A)
+    elseif A isa Adjoint
+        'C', parent(A)
+    else
+        'N', A
+    end
+
+    if T <: CublasFloat && A isa StridedCuArray{T} && B isa StridedCuArray{T}
+        gemv!(tA, alpha, dA, B, beta, Y)
+    else
+        # XXX: re-use gemm_dispatch! here? it currently doesn't support strided inputs,
+        #      in part because cublasGemmEx doesn't.
+        GPUArrays.generic_matmatmul!(Y, A, B, alpha, beta)
+    end
 end
 
-LinearAlgebra.mul!(Y::CuVector{T}, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'N', A, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Number, b::Number) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'T', A.parent, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasReal =
-    gemv_wrapper!(Y, 'T', A.parent, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Number, b::Number) where T<:CublasComplex =
-    gemv_wrapper!(Y, 'C', A.parent, B, a, b)
+for NT in (Number, Real)
+    # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
+    @eval begin
 
-# ambiguity hacks: Base and GPUArrays has mul! with a::Real, b::Real
-LinearAlgebra.mul!(Y::CuVector{T}, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'N', A, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasFloat =
-    gemv_wrapper!(Y, 'T', A.parent, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasComplex =
-    gemv_wrapper!(Y, 'C', A.parent, B, a, b)
+        LinearAlgebra.mul!(Y::CuVector, A::StridedCuMatrix, B::StridedCuVector, a::$NT, b::$NT) =
+            gemv_dispatch!(Y, A, B, a, b)
+        LinearAlgebra.mul!(Y::CuVector, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::StridedCuVector, a::$NT, b::$NT) =
+            gemv_dispatch!(Y, A, B, a, b)
+        LinearAlgebra.mul!(Y::CuVector, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::StridedCuVector, a::$NT, b::$NT) =
+            gemv_dispatch!(Y, A, B, a, b)
+    end
+end
 
 # TRSV
 
