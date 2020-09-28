@@ -281,8 +281,8 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
     @eval begin
         function gemv!(trans::Char,
                        alpha::Number,
-                       A::CuMatrix{$elty},
-                       X::CuVector{$elty},
+                       A::StridedCuMatrix{$elty},
+                       X::StridedCuVector{$elty},
                        beta::Number,
                        Y::CuVector{$elty})
             # handle trans
@@ -296,10 +296,10 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
             $fname(handle(), trans, m, n, alpha, A, lda, X, incx, beta, Y, incy)
             Y
         end
-        function gemv(trans::Char, alpha::Number, A::CuMatrix{$elty}, X::CuVector{$elty})
+        function gemv(trans::Char, alpha::Number, A::StridedCuMatrix{$elty}, X::StridedCuVector{$elty})
             gemv!(trans, alpha, A, X, zero($elty), similar(X, $elty, size(A, (trans == 'N' ? 1 : 2))))
         end
-        function gemv(trans::Char, A::CuMatrix{$elty}, X::CuVector{$elty})
+        function gemv(trans::Char, A::StridedCuMatrix{$elty}, X::StridedCuVector{$elty})
             gemv!(trans, one($elty), A, X, zero($elty), similar(X, $elty, size(A, (trans == 'N' ? 1 : 2))))
         end
     end

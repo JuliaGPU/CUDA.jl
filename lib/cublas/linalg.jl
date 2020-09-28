@@ -1,6 +1,6 @@
 # interfacing with LinearAlgebra standard library
 
-cublas_size(t::Char, M::CuVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
+cublas_size(t::Char, M::StridedCuVecOrMat) = (size(M, t=='N' ? 1 : 2), size(M, t=='N' ? 2 : 1))
 
 
 
@@ -74,7 +74,7 @@ end
 
 # GEMV
 
-function gemv_wrapper!(y::CuVector{T}, tA::Char, A::CuMatrix{T}, x::CuVector{T},
+function gemv_wrapper!(y::CuVector{T}, tA::Char, A::StridedCuMatrix{T}, x::StridedCuVector{T},
                        alpha::Number = true, beta::Number = false) where T<:CublasFloat
     mA, nA = cublas_size(tA, A)
     if nA != length(x)
@@ -89,24 +89,25 @@ function gemv_wrapper!(y::CuVector{T}, tA::Char, A::CuMatrix{T}, x::CuVector{T},
     if nA == 0
         return rmul!(y, 0)
     end
+
     gemv!(tA, alpha, A, x, beta, y)
 end
 
-LinearAlgebra.mul!(Y::CuVector{T}, A::CuMatrix{T}, B::CuVector{T}, a::Number, b::Number) where T<:CublasFloat =
+LinearAlgebra.mul!(Y::CuVector{T}, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Number, b::Number) where T<:CublasFloat =
     gemv_wrapper!(Y, 'N', A, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Number, b::Number) where T<:CublasFloat =
+LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Number, b::Number) where T<:CublasFloat =
     gemv_wrapper!(Y, 'T', A.parent, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Real, b::Real) where T<:CublasReal =
+LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasReal =
     gemv_wrapper!(Y, 'T', A.parent, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Number, b::Number) where T<:CublasComplex =
+LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Number, b::Number) where T<:CublasComplex =
     gemv_wrapper!(Y, 'C', A.parent, B, a, b)
 
 # ambiguity hacks: Base and GPUArrays has mul! with a::Real, b::Real
-LinearAlgebra.mul!(Y::CuVector{T}, A::CuMatrix{T}, B::CuVector{T}, a::Real, b::Real) where T<:CublasFloat =
+LinearAlgebra.mul!(Y::CuVector{T}, A::StridedCuMatrix{T}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasFloat =
     gemv_wrapper!(Y, 'N', A, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Real, b::Real) where T<:CublasFloat =
+LinearAlgebra.mul!(Y::CuVector{T}, A::Transpose{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasFloat =
     gemv_wrapper!(Y, 'T', A.parent, B, a, b)
-LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:CuVecOrMat{T}}, B::CuVector{T}, a::Real, b::Real) where T<:CublasComplex =
+LinearAlgebra.mul!(Y::CuVector{T}, A::Adjoint{<:Any, <:StridedCuVecOrMat{T}}, B::StridedCuVector{T}, a::Real, b::Real) where T<:CublasComplex =
     gemv_wrapper!(Y, 'C', A.parent, B, a, b)
 
 # TRSV

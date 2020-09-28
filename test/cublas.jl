@@ -78,7 +78,14 @@ end
             A = rand(elty, m + 1, m )
             dA = CuArray(A)
             @test_throws DimensionMismatch mul!(dy, dA, dx)
+
+            # JuliaGPU/CUDA.jl#445: strided inputs
+            testf(rand(16), rand(4)) do p, b
+                W = @view p[reshape(1:(16),4,4)]
+                W*b
+            end
         end
+
         @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint), Ts in (Int, elty)
             y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
             dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)

@@ -70,6 +70,11 @@ function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{
            Base._memory_offset(V.parent, map(first, V.indices)...)
 end
 
+# from reshaped subarrays
+function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Union{Base.RangeIndex,Base.ReshapedUnitRange}}}}) where {T,N,P}
+   return Base. unsafe_convert(CuPtr{T}, parent(V)) +
+          (Base.first_index(V)-1)*sizeof(T)
+end
 
 ## limited pointer arithmetic & comparison
 
