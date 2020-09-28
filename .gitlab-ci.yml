@@ -182,6 +182,27 @@ pages:
     - master
 
 
+# Flux.jl
+
+.test_flux:
+  extends: .test
+  script:
+    - julia -e 'using Pkg;
+                Pkg.develop(PackageSpec(path=pwd()));
+                Pkg.build();'
+    - julia -e 'using Pkg;
+                Pkg.add(PackageSpec(name="Flux", rev="master"));
+                Pkg.test("Flux");'
+
+flux:1.5:
+  extends:
+    - .julia:1.5
+    - .test_flux
+  tags:
+    - nvidia
+  allow_failure: true
+
+
 # benchmarks
 
 .benchmark:
