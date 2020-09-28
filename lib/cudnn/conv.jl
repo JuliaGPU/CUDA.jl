@@ -151,9 +151,9 @@ function cudnnConvolutionForward(y::DenseCuArray{T,N}, x::DenseCuArray{T,N}, w::
                 out(Ref{Csize_t}()))
         )[] workspace->begin
             cudnnConvolutionForward(
-                handle(), Ref{T}(alpha), TensorDesc(x), x, FilterDesc(w), w,
+                handle(), scalingParameter(T, alpha), TensorDesc(x), x, FilterDesc(w), w,
                 ConvDesc(T,cdims), cudnnConvolutionFwdAlgo_t(algo), workspace,
-                sizeof(workspace), Ref{T}(beta), TensorDesc(y), y)
+                sizeof(workspace), scalingParameter(T, beta), TensorDesc(y), y)
         end
     return y
 end
@@ -170,9 +170,9 @@ function cudnnConvolutionBiasActivationForward(y::DenseCuArray{T,N}, x::DenseCuA
                 out(Ref{Csize_t}()))
         )[] workspace->begin
             cudnnConvolutionBiasActivationForward(
-                handle(), Ref(T(alpha1)), TensorDesc(x), x, FilterDesc(w), w,
+                handle(), scalingParameter(T, alpha1), TensorDesc(x), x, FilterDesc(w), w,
                 ConvDesc(T, cdims), cudnnConvolutionFwdAlgo_t(algo), workspace,
-                sizeof(workspace), Ref(T(alpha2)), TensorDesc(z), z, TensorDesc(bias), bias, ActivationDesc(activationMode, activationCoeff, activationReluNanOpt), TensorDesc(y),y)
+                sizeof(workspace), scalingParameter(T, alpha2), TensorDesc(z), z, TensorDesc(bias), bias, ActivationDesc(activationMode, activationCoeff, activationReluNanOpt), TensorDesc(y),y)
         end
     return y
 end
@@ -262,11 +262,11 @@ function cudnnConvolutionBackwardData(dx::DenseCuArray{T,N}, w::DenseCuArray{T,N
                 out(Ref{Csize_t}()))
         )[] workspace->begin
             cudnnConvolutionBackwardData(
-                handle(), Ref{T}(alpha), FilterDesc(w), w,
+                handle(), scalingParameter(T, alpha), FilterDesc(w), w,
                 TensorDesc(dy), dy, ConvDesc(T, cdims),
                 cudnnConvolutionBwdDataAlgo_t(algo),
                 workspace, sizeof(workspace),
-                Ref{T}(beta), TensorDesc(dx), dx)
+                scalingParameter(T, beta), TensorDesc(dx), dx)
         end
     return dx
 end
@@ -360,10 +360,10 @@ function cudnnConvolutionBackwardFilter(dw::DenseCuArray{T,N}, x::DenseCuArray{T
                 out(Ref{Csize_t}()))
         )[] workspace->begin
             cudnnConvolutionBackwardFilter(
-                handle(), Ref{T}(alpha), TensorDesc(x), x,
+                handle(), scalingParameter(T, alpha), TensorDesc(x), x,
                 TensorDesc(dy), dy, ConvDesc(T, cdims),
                 cudnnConvolutionBwdFilterAlgo_t(algo), workspace,
-                sizeof(workspace), Ref{T}(beta), FilterDesc(dw), dw)
+                sizeof(workspace), scalingParameter(T, beta), FilterDesc(dw), dw)
         end
     return dw
 end
@@ -372,7 +372,7 @@ end
 
 function cudnnConvolutionBackwardBias(db::DenseCuArray{T,N}, dy::DenseCuArray{T,N}; alpha=1, beta=0) where {T,N}
     cudnnConvolutionBackwardBias(handle(),
-                                 Ref(T(alpha)), TensorDesc(dy), dy,
-                                 Ref(T(beta )), TensorDesc(db), db)
+                                 scalingParameter(T, alpha), TensorDesc(dy), dy,
+                                 scalingParameter(T, beta),  TensorDesc(db), db)
     return db
 end

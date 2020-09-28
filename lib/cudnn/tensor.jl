@@ -28,8 +28,8 @@ TensorDesc(a::DenseCuArray) = TensorDesc(eltype(a), size(a), strides(a))
 function cudnnAddTensor(C::DenseCuArray{T,N}, A::DenseCuArray{T,N};
                         alpha=1, beta=1) where {T,N}
     cudnnAddTensor(handle(),
-                   Ref(T(alpha)), TensorDesc(A), A,
-                   Ref(T(beta )), TensorDesc(C), C)
+                   scalingParameter(T, alpha), TensorDesc(A), A,
+                   scalingParameter(T, beta ), TensorDesc(C), C)
     return C
 end
 
@@ -64,9 +64,9 @@ function cudnnOpTensor(op::cudnnOpTensorOp_t,
                        A::DenseCuArray{T,N}, B::DenseCuArray{T,N}, C::DenseCuArray{T,N};
                        alpha1=1, alpha2=1, beta=0) where {T,N}
     cudnnOpTensor(handle(), OpTensorDesc(op, T),
-                  Ref(T(alpha1)), TensorDesc(A), A,
-                  Ref(T(alpha2)), TensorDesc(B), B,
-                  Ref(T(beta  )), TensorDesc(C), C)
+                  scalingParameter(T, alpha1), TensorDesc(A), A,
+                  scalingParameter(T, alpha2), TensorDesc(B), B,
+                  scalingParameter(T, beta  ), TensorDesc(C), C)
     return C
 end
 
@@ -125,8 +125,8 @@ function cudnnReduceTensor(op::cudnnReduceTensorOp_t,
             cudnnReduceTensor(handle(), ReduceTensorDesc(op, A),
                               C_NULL, indicesSizeInBytes,
                               workspace, sizeof(workspace),
-                              Ref(T(alpha)), TensorDesc(A), A,
-                              Ref(T(beta )), TensorDesc(C), C)
+                              scalingParameter(T, alpha), TensorDesc(A), A,
+                              scalingParameter(T, beta ), TensorDesc(C), C)
         end
     return C
 end

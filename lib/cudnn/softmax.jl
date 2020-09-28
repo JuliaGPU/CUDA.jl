@@ -5,8 +5,8 @@ function cudnnSoftmaxForward(x::DenseCuArray{T,4}, y::DenseCuArray{T,4}=x;
                              mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                              alpha=1.0, beta=0.0) where T
     cudnnSoftmaxForward(handle(), algo, mode,
-                        Ref(T(alpha)), TensorDesc(x), x,
-                        Ref(T(beta )), TensorDesc(y), y)
+                        scalingParameter(T, alpha), TensorDesc(x), x,
+                        scalingParameter(T, beta ), TensorDesc(y), y)
     return y
 end
 
@@ -15,8 +15,8 @@ function cudnnSoftmaxBackward(y::DenseCuArray{T,4}, dy::DenseCuArray{T,4}, dx::D
                               mode=CUDNN_SOFTMAX_MODE_INSTANCE, # or CUDNN_SOFTMAX_MODE_CHANNEL
                               alpha=1.0, beta=0.0) where T
     cudnnSoftmaxBackward(handle(), algo, mode,
-                         Ref(T(alpha)), TensorDesc(y), y,
+                         scalingParameter(T, alpha), TensorDesc(y), y,
                          TensorDesc(dy), dy,
-                         Ref(T(beta )), TensorDesc(dx), dx)
+                         scalingParameter(T, beta ), TensorDesc(dx), dx)
     return dx
 end
