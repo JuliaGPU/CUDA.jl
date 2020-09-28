@@ -79,6 +79,7 @@ end
             dA = CuArray(A)
             @test_throws DimensionMismatch mul!(dy, dA, dx)
         end
+
         @testset "mul! y = $f(A) * x * $Ts(a) + y * $Ts(b)" for f in (identity, transpose, adjoint), Ts in (Int, elty)
             y, A, x = rand(elty, 5), rand(elty, 5, 5), rand(elty, 5)
             dy, dA, dx = CuArray(y), CuArray(A), CuArray(x)
@@ -417,6 +418,13 @@ end
                 hB = triu(hB)
                 @test B ≈ hB
             end
+        end
+    end
+
+    @testset "gemv! with strided inputs" begin  # JuliaGPU/CUDA.jl#445
+        testf(rand(16), rand(4)) do p, b
+            W = @view p[reshape(1:(16),4,4)]
+            W*b
         end
     end
 end
@@ -1282,6 +1290,14 @@ end
 
             rtol = Base.rtoldefault(AT, BT, 0)
             @test C ≈ Array(dC) rtol=rtol
+        end
+    end
+
+    @testset "gemm! with strided inputs" begin # JuliaGPU/CUDA.jl#78
+        inn = 784; out = 32
+        testf(randn(784*100), rand(Float32, 784, 100)) do p, x
+            p[reshape(1:(out*inn),out,inn)] * x
+            @view(p[reshape(1:(out*inn),out,inn)]) * x
         end
     end
 end
