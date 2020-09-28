@@ -71,7 +71,7 @@ end
 
 # GEMV
 
-function gemv_dispatch!(Y::CuVector{T}, A, B, alpha::Number=true, beta::Number=false) where T
+function gemv_dispatch!(Y::CuVector, A, B, alpha::Number=true, beta::Number=false)
     mA, nA = size(A)
 
     if nA != length(B)
@@ -98,19 +98,17 @@ function gemv_dispatch!(Y::CuVector{T}, A, B, alpha::Number=true, beta::Number=f
         'N', A
     end
 
+    T = eltype(Y)
     if T <: CublasFloat && A isa StridedCuArray{T} && B isa StridedCuArray{T}
         gemv!(tA, alpha, dA, B, beta, Y)
     else
-        # XXX: re-use gemm_dispatch! here? it currently doesn't support strided inputs,
-        #      in part because cublasGemmEx doesn't.
-        GPUArrays.generic_matmatmul!(Y, A, B, alpha, beta)
+        gemm_dispatch!(Y, A, B, alpha, beta)
     end
 end
 
 for NT in (Number, Real)
     # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
     @eval begin
-
         LinearAlgebra.mul!(Y::CuVector, A::StridedCuMatrix, B::StridedCuVector, a::$NT, b::$NT) =
             gemv_dispatch!(Y, A, B, a, b)
         LinearAlgebra.mul!(Y::CuVector, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::StridedCuVector, a::$NT, b::$NT) =
@@ -173,8 +171,13 @@ end
 # GEMM
 
 function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=false)
-    mA, nA = size(A)
-    mB, nB = size(B)
+    if ndims(A) > 2
+        throw(ArgumentError("A has more than 2 dimensions"))
+    elseif ndims(B) > 2
+        throw(ArgumentError("B has more than 2 dimensions"))
+    end
+    mA, nA = size(A,1), size(A,2)
+    mB, nB = size(B,1), size(B,2)
 
     if nA != mB
         throw(DimensionMismatch("A has dimensions ($mA,$nA) but B has dimensions ($mB,$nB)"))
@@ -207,9 +210,11 @@ function gemm_dispatch!(C::CuVecOrMat, A, B, alpha::Number=true, beta::Number=fa
         'N', B
     end
 
-    if gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
+    T = eltype(C)
+    if dA isa DenseCuArray && dB isa DenseCuArray &&
+       gemmExComputeType(eltype(A), eltype(B), eltype(C), mA, nA, nB) !== nothing
         gemmEx!(tA, tB, alpha, dA, dB, beta, C)
-    elseif eltype(A) === eltype(B) === eltype(C) && eltype(A) <: CublasFloat
+    elseif T <: CublasFloat && dA isa DenseCuArray{T} && dB isa DenseCuArray{T}
         gemm!(tA, tB, alpha, dA, dB, beta, C)
     else
         GPUArrays.generic_matmatmul!(C, A, B, alpha, beta)
@@ -219,26 +224,26 @@ end
 for NT in (Number, Real)
     # NOTE: alpha/beta also ::Real to avoid ambiguities with certain Base methods
     @eval begin
-        LinearAlgebra.mul!(C::CuMatrix, A::CuVecOrMat, B::CuVecOrMat, a::$NT, b::$NT) =
+        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuVecOrMat, B::StridedCuVecOrMat, a::$NT, b::$NT) =
             gemm_dispatch!(C, A, B, a, b)
 
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:CuVecOrMat}, B::CuMatrix, a::$NT, b::$NT) =
+        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::StridedCuMatrix, a::$NT, b::$NT) =
             gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::CuMatrix, B::Transpose{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuMatrix, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
             gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:CuVecOrMat}, B::Transpose{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:CuVecOrMat}, B::CuMatrix, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::CuMatrix, B::Adjoint{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
-            gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:CuVecOrMat}, B::Adjoint{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
             gemm_dispatch!(C, A, B, a, b)
 
-        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:CuVecOrMat}, B::Adjoint{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::StridedCuMatrix, a::$NT, b::$NT) =
             gemm_dispatch!(C, A, B, a, b)
-        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:CuVecOrMat}, B::Transpose{<:Any, <:CuVecOrMat}, a::$NT, b::$NT) =
+        LinearAlgebra.mul!(C::CuMatrix, A::StridedCuMatrix, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+
+        LinearAlgebra.mul!(C::CuMatrix, A::Transpose{<:Any, <:StridedCuVecOrMat}, B::Adjoint{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
+            gemm_dispatch!(C, A, B, a, b)
+        LinearAlgebra.mul!(C::CuMatrix, A::Adjoint{<:Any, <:StridedCuVecOrMat}, B::Transpose{<:Any, <:StridedCuVecOrMat}, a::$NT, b::$NT) =
             gemm_dispatch!(C, A, B, a, b)
     end
 end

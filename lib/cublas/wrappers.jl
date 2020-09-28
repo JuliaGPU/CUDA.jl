@@ -284,7 +284,7 @@ for (fname, elty) in ((:cublasDgemv_v2,:Float64),
                        A::StridedCuMatrix{$elty},
                        X::StridedCuVector{$elty},
                        beta::Number,
-                       Y::CuVector{$elty})
+                       Y::DenseCuVector{$elty})
             # handle trans
             m,n = size(A)
             # check dimensions
@@ -708,10 +708,10 @@ for (fname, elty) in
         function gemm!(transA::Char,
                        transB::Char,
                        alpha::Number,
-                       A::CuVecOrMat{$elty},
-                       B::CuVecOrMat{$elty},
+                       A::DenseCuVecOrMat{$elty},
+                       B::DenseCuVecOrMat{$elty},
                        beta::Number,
-                       C::CuVecOrMat{$elty})
+                       C::DenseCuVecOrMat{$elty})
             m = size(A, transA == 'N' ? 1 : 2)
             k = size(A, transA == 'N' ? 2 : 1)
             n = size(B, transB == 'N' ? 2 : 1)
@@ -727,16 +727,16 @@ for (fname, elty) in
         function gemm(transA::Char,
                       transB::Char,
                       alpha::Number,
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::DenseCuMatrix{$elty},
+                      B::DenseCuMatrix{$elty})
             gemm!(transA, transB, alpha, A, B, zero($elty),
                   similar(B, $elty, (size(A, transA == 'N' ? 1 : 2),
                                      size(B, transB == 'N' ? 2 : 1))))
         end
         function gemm(transA::Char,
                       transB::Char,
-                      A::CuMatrix{$elty},
-                      B::CuMatrix{$elty})
+                      A::DenseCuMatrix{$elty},
+                      B::DenseCuMatrix{$elty})
             gemm(transA, transB, one($elty), A, B)
         end
     end
@@ -810,10 +810,10 @@ end
 
 function gemmEx!(transA::Char, transB::Char,
                  @nospecialize(alpha::Number),
-                 @nospecialize(A::CuVecOrMat),
-                 @nospecialize(B::CuVecOrMat),
+                 @nospecialize(A::DenseCuVecOrMat),
+                 @nospecialize(B::DenseCuVecOrMat),
                  @nospecialize(beta::Number),
-                 @nospecialize(C::CuVecOrMat);
+                 @nospecialize(C::DenseCuVecOrMat);
                  algo::cublasGemmAlgo_t=CUBLAS_GEMM_DEFAULT)
     m = size(A, transA == 'N' ? 1 : 2)
     k = size(A, transA == 'N' ? 2 : 1)
