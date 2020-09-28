@@ -12,6 +12,8 @@ abstract type AbstractCuSparseArray{Tv, N} <: AbstractSparseArray{Tv, Cint, N} e
 const AbstractCuSparseVector{Tv} = AbstractCuSparseArray{Tv,1}
 const AbstractCuSparseMatrix{Tv} = AbstractCuSparseArray{Tv,2}
 
+Base.convert(T::Type{<:AbstractCuSparseArray}, m::AbstractArray) = m isa T ? m : T(m)
+
 mutable struct CuSparseVector{Tv} <: AbstractCuSparseVector{Tv}
     iPtr::CuVector{Cint}
     nzVal::CuVector{Tv}
