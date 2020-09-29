@@ -134,6 +134,7 @@ function __runtime_init__()
         end
     end
 
+    initialize!(cufunction_cache, ndevices())
     resize!(__device_contexts, ndevices())
     fill!(__device_contexts, nothing)
 

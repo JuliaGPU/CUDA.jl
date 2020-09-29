@@ -291,24 +291,29 @@ when function changes, or when different types or keyword arguments are provided
 """
 function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
                    {F<:Core.Function, TT<:Type}
-    ctx = context()
-    env = hash(pointer_from_objref(ctx)) # contexts are unique, but handles might alias
-    # TODO: implement this as a hash function in for CuContext
-
+    dev = device()
+    cache = cufunction_cache[dev]
     source = FunctionSpec(f, tt, true, name)
-    GPUCompiler.cached_compilation(_cufunction, source, env; kwargs...)::HostKernel{f,tt}
+    return GPUCompiler.cached_compilation(cache, cufunction_compile, cufunction_link,
+                                          source; kwargs...)::HostKernel{f,tt}
 end
 
-# actual compilation
-function _cufunction(source::FunctionSpec; kwargs...)
-    # compile to PTX
-    ctx = context()
+const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
+
+# compile to PTX
+function cufunction_compile(@nospecialize(source::FunctionSpec); kwargs...)
     dev = device()
     cap = supported_capability(dev)
     target = PTXCompilerTarget(; cap=supported_capability(dev), kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, source, params)
-    asm, kernel_fn, undefined_fns = GPUCompiler.compile(:asm, job)
+    return GPUCompiler.compile(:asm, job)
+end
+
+# link to device code
+function cufunction_link(@nospecialize(source::FunctionSpec),
+                         (asm, kernel_fn, undefined_fns); kwargs...)
+    ctx = context()
 
     # settings to JIT based on Julia's debug setting
     jit_options = Dict{CUjit_option,Any}()
