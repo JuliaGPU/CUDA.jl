@@ -135,7 +135,8 @@ export CuTexture
 
 @enum_without_prefix CUaddress_mode CU_TR_
 
-@enum_without_prefix CUfilter_mode CU_TR_
+Base.convert(::Type{CUfilter_mode}, ::NearestNeighbour)      = CU_TR_FILTER_MODE_POINT
+Base.convert(::Type{CUfilter_mode}, ::LinearInterpolation)   = CU_TR_FILTER_MODE_LINEAR
 
 """
     CuTexture{T,N,P}
@@ -151,6 +152,7 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
     parent::P
     handle::CUtexObject
 
+    interpolation::TextureInterpolationMode
     normalized_coordinates::Bool
 
     ctx::CuContext
@@ -164,17 +166,17 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
     Several keyword arguments alter the behavior of texture objects:
     - `address_mode` (wrap, *clamp*, mirror): how out-of-bounds values are accessed. Can be
       specified as a value for all dimensions, or as a tuple of `N` entries.
-    - `filter_mode` (*point*, linear): how non-integral indices are fetched. Point mode
-      fetches a single value, linear results in linear interpolation between values.
+    - `interpolation` (*nearest neighbour*, linear, bilinear): how non-integral indices are
+      fetched. Nearest-neighbour fetches a single value, others interpolate between multiple.
     - `normalized_coordinates` (true, *false*): whether indices are expected to fall in the
       normalized `[0:1)` range.
 
-    !!! warning
-        Experimental API. Subject to change without deprecation.
+    !!! warning Experimental API. Subject to change without deprecation.
     """
     function CuTexture{T,N,P}(parent::P;
-                              address_mode::Union{CUaddress_mode,NTuple{N,CUaddress_mode}}=ntuple(_->ADDRESS_MODE_CLAMP,N),
-                              filter_mode::CUfilter_mode=FILTER_MODE_POINT,
+                              address_mode::Union{CUaddress_mode,NTuple{N,CUaddress_mode}}=
+                                ntuple(_->ADDRESS_MODE_CLAMP,N),
+                              interpolation::TextureInterpolationMode=NearestNeighbour(),
                               normalized_coordinates::Bool=false) where {T,N,P}
         resDesc_ref = CUDA_RESOURCE_DESC(parent)
 
@@ -189,6 +191,7 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
         # we always need 3 address modes
         address_mode = tuple(address_mode..., ntuple(_->ADDRESS_MODE_CLAMP, 3 - N)...)
 
+        filter_mode = convert(CUfilter_mode, interpolation)
         texDesc_ref = Ref(CUDA_TEXTURE_DESC(
             address_mode, # addressMode::NTuple{3, CUaddress_mode}
             filter_mode, # filterMode::CUfilter_mode
@@ -204,7 +207,7 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
         texObject_ref = Ref{CUtexObject}(0)
         cuTexObjectCreate(texObject_ref, resDesc_ref, texDesc_ref, C_NULL)
 
-        t = new{T,N,P}(parent, texObject_ref[], normalized_coordinates, context())
+        t = new{T,N,P}(parent, texObject_ref[], interpolation, normalized_coordinates, context())
         finalizer(unsafe_destroy!, t)
         return t
     end
@@ -305,4 +308,4 @@ CuTexture(x::CuArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N}(x; kwargs...)
 
 Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N}) where {T,N} =
-    CuDeviceTexture{T,N,t.normalized_coordinates}(size(t), t.handle)
+    CuDeviceTexture{T,N,t.normalized_coordinates,typeof(t.interpolation)}(size(t), t.handle)

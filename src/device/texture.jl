@@ -1,12 +1,17 @@
 export CuDeviceTexture
 
+abstract type TextureInterpolationMode end
+struct NearestNeighbour      <: TextureInterpolationMode end
+struct LinearInterpolation   <: TextureInterpolationMode end
+
 """
-    CuDeviceTexture{T,N,NC}
+    CuDeviceTexture{T,N,NC,I}
 
 `N`-dimensional device texture with elements of type `T`. This type is the device-side
 counterpart of [`CuTexture{T,N,P}`](@ref), and can be used to access textures using regular
 indexing notation. If `NC` is true, indices used by these accesses should be normalized,
-i.e., fall into the `[0,1)` domain.
+i.e., fall into the `[0,1)` domain. The `I` type parameter indicates the kind of
+interpolation that happens when indexing into this texture.
 
 Device-side texture objects cannot be created directly, but should be created host-side
 using [`CuTexture{T,N,P}`](@ref) and passed to the kernal as an argument.
@@ -14,7 +19,7 @@ using [`CuTexture{T,N,P}`](@ref) and passed to the kernal as an argument.
 !!! warning
     Experimental API. Subject to change without deprecation.
 """
-struct CuDeviceTexture{T,N,NC} <: AbstractArray{T,N}
+struct CuDeviceTexture{T,N,NC,I<:TextureInterpolationMode} <: AbstractArray{T,N}
     dims::Dims{N}
     handle::CUtexObject
 end
@@ -30,6 +35,7 @@ Base.size(tm::CuDeviceTexture) = tm.dims
 Base.sizeof(tm::CuDeviceTexture) = Base.elsize(x) * length(x)
 
 isnormalized(t::CuDeviceTexture{<:Any,<:Any,NC}) where {NC} = NC
+interpolation(t::CuDeviceTexture{<:Any,<:Any,<:Any,I}) where {I} = I
 
 
 ## low-level operations
