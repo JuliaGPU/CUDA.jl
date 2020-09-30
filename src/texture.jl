@@ -315,5 +315,10 @@ Currently, that is not being enforced.
 CuTexture(x::CuArray{T,N}; kwargs...) where {T,N} =
     CuTexture{T,N}(x; kwargs...)
 
+memory_source(::Any) = error("Unknown texture source $(typeof(t))")
+memory_source(::CuArray) = LinearMemory()
+memory_source(::CuTextureArray) = ArrayMemory()
+
 Adapt.adapt_storage(::Adaptor, t::CuTexture{T,N}) where {T,N} =
-    CuDeviceTexture{T,N,t.normalized_coordinates,typeof(t.interpolation)}(size(t), t.handle)
+    CuDeviceTexture{T,N,typeof(memory_source(parent(t))),
+                    t.normalized_coordinates, typeof(t.interpolation)}(size(t), t.handle)

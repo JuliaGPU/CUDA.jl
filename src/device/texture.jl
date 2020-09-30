@@ -5,14 +5,19 @@ struct NearestNeighbour      <: TextureInterpolationMode end
 struct LinearInterpolation   <: TextureInterpolationMode end
 struct CubicInterpolation    <: TextureInterpolationMode end
 
+abstract type TextureMemorySource end
+struct ArrayMemory   <: TextureMemorySource end
+struct LinearMemory  <: TextureMemorySource end
+
 """
-    CuDeviceTexture{T,N,NC,I}
+    CuDeviceTexture{T,N,M,NC,I}
 
 `N`-dimensional device texture with elements of type `T`. This type is the device-side
 counterpart of [`CuTexture{T,N,P}`](@ref), and can be used to access textures using regular
 indexing notation. If `NC` is true, indices used by these accesses should be normalized,
 i.e., fall into the `[0,1)` domain. The `I` type parameter indicates the kind of
-interpolation that happens when indexing into this texture.
+interpolation that happens when indexing into this texture. The source memory of the
+texture is specified by the `M` parameter, either linear memory or a texture array.
 
 Device-side texture objects cannot be created directly, but should be created host-side
 using [`CuTexture{T,N,P}`](@ref) and passed to the kernal as an argument.
@@ -20,7 +25,7 @@ using [`CuTexture{T,N,P}`](@ref) and passed to the kernal as an argument.
 !!! warning
     Experimental API. Subject to change without deprecation.
 """
-struct CuDeviceTexture{T,N,NC,I<:TextureInterpolationMode} <: AbstractArray{T,N}
+struct CuDeviceTexture{T,N,M<:TextureMemorySource,NC,I<:TextureInterpolationMode} <: AbstractArray{T,N}
     dims::Dims{N}
     handle::CUtexObject
 end
@@ -35,9 +40,6 @@ Base.elsize(::Type{<:CuDeviceTexture{T}}) where {T} = sizeof(T)
 Base.size(tm::CuDeviceTexture) = tm.dims
 Base.sizeof(tm::CuDeviceTexture) = Base.elsize(x) * length(x)
 
-isnormalized(t::CuDeviceTexture{<:Any,<:Any,NC}) where {NC} = NC
-interpolation(t::CuDeviceTexture{<:Any,<:Any,<:Any,I}) where {I} = I
-
 
 ## low-level operations
 
@@ -47,16 +49,20 @@ for dims in 1:3,
     (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         ((Signed, NTuple{4,UInt32}, :v4u32),
          (Unsigned, NTuple{4,Int32}, :v4s32),
-         (AbstractFloat, NTuple{4,Float32},:v4f32))
+         (AbstractFloat, NTuple{4,Float32},:v4f32)),
+    source in (ArrayMemory, LinearMemory)
 
     eltyp = Union{dispatch_rettyp, NTuple{<:Any,dispatch_rettyp}}
 
     llvm_dim = "$(dims)d"
+    if source == ArrayMemory
+        llvm_dim = "$llvm_dim.array"
+    end
     julia_args = (:x, :y, :z)[1:dims]
     julia_sig = ntuple(_->Float32, dims)
     julia_params = ntuple(i->:($(julia_args[i])::AbstractFloat), dims)
 
-    @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims}, $(julia_params...)) =
+    @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims,$source}, $(julia_params...)) =
         ccall($"llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32", llvmcall,
             $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
 
@@ -66,7 +72,7 @@ for dims in 1:3,
     julia_sig = ntuple(_->Int32, dims)
     julia_params = ntuple(i->:($(julia_args[i])::Integer), dims)
 
-    @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims,false}, $(julia_params...)) =
+    @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims,$source,false}, $(julia_params...)) =
         ccall($"llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.s32", llvmcall,
             $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
 end
@@ -74,14 +80,14 @@ end
 
 ## hardware-supported indexing
 
-@inline function Base.getindex(t::CuDeviceTexture{T,N,true,I}, idx::Vararg{<:Real,N}) where
+@inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,true,I}, idx::Vararg{<:Real,N}) where
                               {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
     # normalized coordinates range between 0 and 1, and can be used as-is
     vals = tex(t, idx...)
     return (unpack(T, vals))
 end
 
-@inline function Base.getindex(t::CuDeviceTexture{T,N,false,I}, idx::Vararg{<:Real,N}) where
+@inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,false,I}, idx::Vararg{<:Real,N}) where
                               {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
     # non-normalized coordinates should be adjusted for 1-based indexing
     vals = tex(t, ntuple(i->idx[i]-1, N)...)
@@ -118,7 +124,7 @@ g1(a::Float32) = w2(a) + w3(a)
 h0(a::Float32) = -1.0f0 + w1(a) / (w0(a) + w1(a)) + 0.5f0
 h1(a::Float32) = 1.0f0 + w3(a) / (w2(a) + w3(a)) + 0.5f0
 
-@inline function Base.getindex(t::CuDeviceTexture{T,1,false,CubicInterpolation},
+@inline function Base.getindex(t::CuDeviceTexture{T,1,<:Any,false,CubicInterpolation},
                                x::Real) where {T}
     x -= 1.5f0
     px = floor(x)   # integer position
@@ -133,7 +139,7 @@ h1(a::Float32) = 1.0f0 + w3(a) / (w2(a) + w3(a)) + 0.5f0
     return (unpack(T, vals))
 end
 
-@inline function Base.getindex(t::CuDeviceTexture{T,2,false,CubicInterpolation},
+@inline function Base.getindex(t::CuDeviceTexture{T,2,<:Any,false,CubicInterpolation},
                                x::Real, y::Real) where {T}
     x -= 1.5f0
     y -= 1.5f0
