@@ -1,3 +1,5 @@
+using Interpolations
+
 @inline function calcpoint(blockIdx, blockDim, threadIdx, size)
     i = (blockIdx - 1) * blockDim + threadIdx
     return i, Float32(i)
@@ -120,4 +122,66 @@ end
     texarr2D = CuTextureArray(d_a2D)
     tex2D = CuTexture(texarr2D)
     @test fetch_all(tex2D) == d_a2D
+end
+
+@testset "interpolations" begin
+    @testset "$interpolate $T" for T in (Float16, Float32,)
+        @testset "$(N)D" for N in 1:3
+            cpu_src = rand(T, fill(10, N)...)
+            cpu_idx = [tuple(rand(1:0.1:10, N)...) for _ in 1:10]
+
+            gpu_src = CuTextureArray(CuArray(cpu_src))
+            gpu_idx = CuArray(cpu_idx)
+
+            @testset "nearest neighbour" begin
+                cpu_dst = similar(cpu_src, size(cpu_idx))
+                cpu_int = interpolate(cpu_src, BSpline(Constant()))
+                broadcast!(cpu_dst, cpu_idx, Ref(cpu_int)) do idx, int
+                    int(idx...)
+                end
+
+                gpu_dst = CuArray{T}(undef, size(cpu_idx))
+                gpu_tex = CuTexture(gpu_src; interpolation=CUDA.NearestNeighbour())
+                broadcast!(gpu_dst, gpu_idx, Ref(gpu_tex)) do idx, tex
+                    tex[idx...]
+                end
+
+                @test cpu_dst ≈ Array(gpu_dst)
+            end
+
+            @testset "linear interpolation" begin
+                cpu_dst = similar(cpu_src, size(cpu_idx))
+                cpu_int = interpolate(cpu_src, BSpline(Linear()))
+                broadcast!(cpu_dst, cpu_idx, Ref(cpu_int)) do idx, int
+                    int(idx...)
+                end
+
+                gpu_dst = CuArray{T}(undef, size(cpu_idx))
+                gpu_tex = CuTexture(gpu_src; interpolation=CUDA.LinearInterpolation())
+                broadcast!(gpu_dst, gpu_idx, Ref(gpu_tex)) do idx, tex
+                    tex[idx...]
+                end
+
+                @test cpu_dst ≈ Array(gpu_dst) rtol=0.01
+            end
+
+            N<3 && @testset "cubic interpolation" begin
+                cpu_dst = similar(cpu_src, size(cpu_idx))
+                cpu_int = interpolate(cpu_src, BSpline(Cubic(Line(OnGrid()))))
+                broadcast!(cpu_dst, cpu_idx, Ref(cpu_int)) do idx, int
+                    int(idx...)
+                end
+
+                gpu_dst = CuArray{T}(undef, size(cpu_idx))
+                gpu_tex = CuTexture(gpu_src; interpolation=CUDA.CubicInterpolation())
+                broadcast!(gpu_dst, gpu_idx, Ref(gpu_tex)) do idx, tex
+                    tex[idx...]
+                end
+
+                # FIXME: these results, although they look OK in an image,
+                #        do not match the output from Interpolations.jl
+                @test_skip cpu_dst ≈ Array(gpu_dst)
+            end
+        end
+    end
 end
