@@ -46,22 +46,29 @@ Base.sizeof(tm::CuDeviceTexture) = Base.elsize(x) * length(x)
 # Source: NVVM IR specification 1.4
 # NOTE: tex1Dfetch (integer coordinates) is unsupported, as it can be easily done using ldg
 
-for dims in 1:3,
-    (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
+for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         ((Signed,        NTuple{4,UInt32},  :v4u32),
          (Unsigned,      NTuple{4,Int32},   :v4s32),
          (AbstractFloat, NTuple{4,Float32}, :v4f32))
 
     eltyp = Union{dispatch_rettyp, NTuple{<:Any,dispatch_rettyp}}
 
-    llvm_dim = "$(dims)d"
-    julia_args = (:x, :y, :z)[1:dims]
-    julia_sig = ntuple(_->Float32, dims)
-    julia_params = ntuple(i->:($(julia_args[i])::Number), dims)
+    # tex1D only supports array memory
+    @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemory}, x::Number) =
+        ccall($"llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32", llvmcall,
+              $julia_rettyp, (CUtexObject, Float32), texObject, x)
 
-    @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims}, $(julia_params...)) =
-        ccall($"llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32", llvmcall,
-            $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
+    # tex2D and tex3D supports all memories
+    for dims in 2:3
+        llvm_dim = "$(dims)d"
+        julia_args = (:x, :y, :z)[1:dims]
+        julia_sig = ntuple(_->Float32, dims)
+        julia_params = ntuple(i->:($(julia_args[i])::Number), dims)
+
+        @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims,}, $(julia_params...)) =
+            ccall($"llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32", llvmcall,
+                  $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
+    end
 end
 
 

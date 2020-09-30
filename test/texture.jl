@@ -82,9 +82,7 @@ end
     d_a1D = CuArray(a1D)
     d_a2D = CuArray(a2D)
 
-    # Strangely, this is not working
-    texwrap1D = CuTexture(d_a1D)
-    @test_broken fetch_all(texwrap1D) == d_a1D
+    # NOTE: tex1D is not supported for linear memory
 
     # This works as long as d_a2D is well pitched
     texwrap2D = CuTexture(d_a2D)
