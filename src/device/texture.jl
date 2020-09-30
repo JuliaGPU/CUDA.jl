@@ -74,17 +74,21 @@ end
 
 ## hardware-supported indexing
 
-@inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,true,I}, idx::Vararg{<:Real,N}) where
+# we only support Float32 indices
+@inline Base.getindex(t::CuDeviceTexture, idx::Vararg{<:Real,N}) where {N} =
+    Base.getindex(t, ntuple(i->Float32(idx[i]), N)...)
+
+@inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,true,I}, idx::Vararg{Float32,N}) where
                               {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
     # normalized coordinates range between 0 and 1, and can be used as-is
     vals = tex(t, idx...)
     return (unpack(T, vals))
 end
 
-@inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,false,I}, idx::Vararg{<:Real,N}) where
+@inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,false,I}, idx::Vararg{Float32,N}) where
                               {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
     # non-normalized coordinates should be adjusted for 1-based indexing
-    vals = tex(t, ntuple(i->idx[i]-1, N)...)
+    vals = tex(t, ntuple(i->idx[i]-0.5, N)...)
     return (unpack(T, vals))
 end
 
@@ -119,8 +123,8 @@ h0(a::Float32) = -1.0f0 + w1(a) / (w0(a) + w1(a)) + 0.5f0
 h1(a::Float32) = 1.0f0 + w3(a) / (w2(a) + w3(a)) + 0.5f0
 
 @inline function Base.getindex(t::CuDeviceTexture{T,1,<:Any,false,CubicInterpolation},
-                               x::Real) where {T}
-    x -= 1.5f0
+                               x::Float32) where {T}
+    x -= 1.0f0
     px = floor(x)   # integer position
     fx = x - px     # fractional position
 
@@ -134,9 +138,9 @@ h1(a::Float32) = 1.0f0 + w3(a) / (w2(a) + w3(a)) + 0.5f0
 end
 
 @inline function Base.getindex(t::CuDeviceTexture{T,2,<:Any,false,CubicInterpolation},
-                               x::Real, y::Real) where {T}
-    x -= 1.5f0
-    y -= 1.5f0
+                               x::Float32, y::Float32) where {T}
+    x -= 1.0f0
+    y -= 1.0f0
     px = floor(x)   # integer position
     py = floor(y)
     fx = x - px     # fractional position
