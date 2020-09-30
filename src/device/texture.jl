@@ -3,6 +3,7 @@ export CuDeviceTexture
 abstract type TextureInterpolationMode end
 struct NearestNeighbour      <: TextureInterpolationMode end
 struct LinearInterpolation   <: TextureInterpolationMode end
+struct CubicInterpolation    <: TextureInterpolationMode end
 
 """
     CuDeviceTexture{T,N,NC,I}
@@ -71,18 +72,19 @@ for dims in 1:3,
 end
 
 
-## indexing
+## hardware-supported indexing
 
-@inline function Base.getindex(t::CuDeviceTexture{T,N}, idx::Vararg{<:Real,N}) where {T,N}
-    vals = if isnormalized(t)
-        # normalized coordinates range between 0 and 1, and can be used as-is
-        tex(t, idx...)
-    else
-        # non-normalized coordinates should be adjusted for 1-based indexing
-        tex(t, ntuple(i->idx[i]-1, N)...)
-    end
+@inline function Base.getindex(t::CuDeviceTexture{T,N,true,I}, idx::Vararg{<:Real,N}) where
+                              {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
+    # normalized coordinates range between 0 and 1, and can be used as-is
+    vals = tex(t, idx...)
+    return (unpack(T, vals))
+end
 
-    # unpack the values
+@inline function Base.getindex(t::CuDeviceTexture{T,N,false,I}, idx::Vararg{<:Real,N}) where
+                              {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
+    # non-normalized coordinates should be adjusted for 1-based indexing
+    vals = tex(t, ntuple(i->idx[i]-1, N)...)
     return (unpack(T, vals))
 end
 
@@ -92,5 +94,64 @@ end
 @inline unpack(::Type{NTuple{C,T}}, vals::NTuple) where {C,T} = ntuple(i->unpack(T, vals[i]), C)
 
 @inline unpack(::Type{T}, val::T) where {T} = val
-@inline unpack(::Type{T}, val::Integer) where {T <: Integer} = unsafe_trunc(T, val)
+@inline unpack(::Type{T}, val::Real) where {T <: Integer} = unsafe_trunc(T, val)
 @inline unpack(::Type{Float16}, val::Float32) = convert(Float16, val)
+
+
+## cubic indexing (building on linear filtering)
+
+# Source: GPU Gems 2, Chapter 20: Fast Third-Order Texture Filtering
+#         CUDA sample: bicubicTextures
+
+# cubic B-spline basis functions
+w0(a::Float32) = (1.0f0/6.0f0)*(a*(a*(-a + 3.0f0) - 3.0f0) + 1.0f0)
+w1(a::Float32) = (1.0f0/6.0f0)*(a*a*(3.0f0*a - 6.0f0) + 4.0f0)
+w2(a::Float32) = (1.0f0/6.0f0)*(a*(a*(-3.0f0*a + 3.0f0) + 3.0f0) + 1.0f0)
+w3(a::Float32) = (1.0f0/6.0f0)*(a*a*a)
+
+# amplitude functions
+g0(a::Float32) = w0(a) + w1(a)
+g1(a::Float32) = w2(a) + w3(a)
+
+# offset functions
+# NOTE: +0.5 offset to compensate for CUDA linear filtering convention
+h0(a::Float32) = -1.0f0 + w1(a) / (w0(a) + w1(a)) + 0.5f0
+h1(a::Float32) = 1.0f0 + w3(a) / (w2(a) + w3(a)) + 0.5f0
+
+@inline function Base.getindex(t::CuDeviceTexture{T,1,false,CubicInterpolation},
+                               x::Real) where {T}
+    x -= 1.5f0
+    px = floor(x)   # integer position
+    fx = x - px     # fractional position
+
+    g0x = g0(fx)
+    g1x = g1(fx)
+    h0x = h0(fx)
+    h1x = h1(fx)
+
+    vals = g0x .* tex(t, px + h0x) .+ g1x .* tex(t, px + h1x)
+    return (unpack(T, vals))
+end
+
+@inline function Base.getindex(t::CuDeviceTexture{T,2,false,CubicInterpolation},
+                               x::Real, y::Real) where {T}
+    x -= 1.5f0
+    y -= 1.5f0
+    px = floor(x)   # integer position
+    py = floor(y)
+    fx = x - px     # fractional position
+    fy = y - py
+
+    g0x = g0(fx)
+    g1x = g1(fx)
+    h0x = h0(fx)
+    h1x = h1(fx)
+    h0y = h0(fy)
+    h1y = h1(fy)
+
+    vals = g0(fy) .* (g0x .* tex(t, px + h0x, py + h0y) .+
+                      g1x .* tex(t, px + h1x, py + h0y)) .+
+           g1(fy) .* (g0x .* tex(t, px + h0x, py + h1y) .+
+                      g1x .* tex(t, px + h1x, py + h1y))
+    return (unpack(T, vals))
+end

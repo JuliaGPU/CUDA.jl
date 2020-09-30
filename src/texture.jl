@@ -137,6 +137,7 @@ export CuTexture
 
 Base.convert(::Type{CUfilter_mode}, ::NearestNeighbour)      = CU_TR_FILTER_MODE_POINT
 Base.convert(::Type{CUfilter_mode}, ::LinearInterpolation)   = CU_TR_FILTER_MODE_LINEAR
+Base.convert(::Type{CUfilter_mode}, ::CubicInterpolation)    = CU_TR_FILTER_MODE_LINEAR
 
 """
     CuTexture{T,N,P}
@@ -191,7 +192,12 @@ mutable struct CuTexture{T,N,P} <: AbstractArray{T,N}
         # we always need 3 address modes
         address_mode = tuple(address_mode..., ntuple(_->ADDRESS_MODE_CLAMP, 3 - N)...)
 
+        if interpolation == CubicInterpolation()
+            normalized_coordinates && throw(ArgumentError("Cubic interpolation is only supported with non-normalized coordinates"))
+            N>2 && throw(ArgumentError("Cubic interpolation is only implemented for 1 and 2D textures"))
+        end
         filter_mode = convert(CUfilter_mode, interpolation)
+
         texDesc_ref = Ref(CUDA_TEXTURE_DESC(
             address_mode, # addressMode::NTuple{3, CUaddress_mode}
             filter_mode, # filterMode::CUfilter_mode
