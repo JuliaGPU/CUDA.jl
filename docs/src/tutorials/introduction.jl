@@ -57,7 +57,6 @@ sequential_add!(y, x)
 
 # And now a parallel implementation:
 
-# parallel implementation
 function parallel_add!(y, x)
     Threads.@threads for i in eachindex(y, x)
         @inbounds y[i] += x[i]
