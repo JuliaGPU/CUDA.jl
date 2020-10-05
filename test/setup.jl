@@ -13,6 +13,9 @@ using Random
 # detect cuda-memcheck
 const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 
+# precompile the runtime library
+CUDA.precompile_runtime()
+
 
 ## entry point
 

@@ -7,12 +7,17 @@
 GPUCompiler.reset_runtime()
 
 # load or build the runtime for the most likely compilation job given a compute capability
-function load_runtime(cap::VersionNumber)
-    target = PTXCompilerTarget(; cap=cap)
+function precompile_runtime(caps=llvm_cap_support(LLVM.version()))
     dummy_source = FunctionSpec(()->return, Tuple{})
     params = CUDACompilerParams()
-    job = CompilerJob(target, dummy_source, params)
-    GPUCompiler.load_runtime(job)
+    JuliaContext() do ctx
+        for cap in caps
+            target = PTXCompilerTarget(; cap=cap)
+            job = CompilerJob(target, dummy_source, params)
+            GPUCompiler.load_runtime(job, ctx)
+        end
+    end
+    return
 end
 
 @inline exception_flag() = ccall("extern julia_exception_flag", llvmcall, Ptr{Cvoid}, ())
