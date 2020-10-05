@@ -37,18 +37,17 @@ receive buffers to point-to-point and collective operations to avoid going throu
 ## Scenario 2: Multiple GPUs per process
 
 In a similar vein to the multi-process solution, one can work with multiple devices from
-within a single process by calling `CUDA.device!` to switch to a specific device.
-Allocations are however currently not tied to a device, so one should take care to only
-work with data on the device it was allocated on.
+within a single process by calling `CUDA.device!` to switch to a specific device. As the
+active device is a task-local property, you can easily work with multiple devices by, e.g.,
+launching one task per device. For concurrent execution on multple devices, you can use
+Julia's multithreading capabilities and use a CPU thread per task.
 
-!!! warning
+When working with multiple devices, you need to be careful with allocated memory though:
+Allocations are tied to the device that was active when requesting the memory, and cannot be
+used with another device. That means you cannot allocate a `CuArray`, switch devices, and
+use that object. Similar restrictions apply to library objects, like CUFFT plans.
 
-    The CUDA memory pool is not device-aware yet, effectively breaking
-    multi-gpu-single-process concurrency. Don't use this approach for serious work
-    unless you can support with cross-device memory operations (e.g. with
-    `cuCtxEnablePeerAccess`).
-
-To avoid these difficulties, you can use unified memory that is accessible from all devices.
+To avoid this difficulty, you can use unified memory that is accessible from all devices.
 These APIs are available through high-level wrappers, but not exposed by the `CuArray`
 constructors yet:
 

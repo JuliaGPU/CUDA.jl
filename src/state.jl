@@ -233,13 +233,16 @@ compared to [`CuCurrentContext()`](@ref).
     state.dev
 end
 
-const device_contexts = Union{Nothing,CuContext}[]
+const __device_contexts = Union{Nothing,CuContext}[]
+device_context(i) = @after_init(@inbounds __device_contexts[i])
+device_context!(i, ctx) = @after_init(@inbounds __device_contexts[i] = ctx)
+
 function context(dev::CuDevice)
     tid = Threads.threadid()
     devidx = deviceid(dev)+1
 
     # querying the primary context for a device is expensive, so cache it
-    ctx = @inbounds device_contexts[devidx]
+    ctx = device_context(devidx)
     if ctx !== nothing
         return ctx
     end
@@ -252,7 +255,7 @@ function context(dev::CuDevice)
     # configure the primary context
     pctx = CuPrimaryContext(dev)
     ctx = CuContext(pctx)
-    @inbounds device_contexts[devidx] = ctx
+    device_context!(devidx, ctx)
     return ctx
 end
 
@@ -272,7 +275,7 @@ function device!(dev::CuDevice, flags=nothing)
 
     # configure the primary context flags
     if flags !== nothing
-        if @inbounds device_contexts[devidx] !== nothing
+        if device_context(devidx) !== nothing
             error("Cannot set flags for an active device. Do so before calling any CUDA function, or reset the device first.")
         end
         cuDevicePrimaryCtxSetFlags(dev, flags)
@@ -338,7 +341,7 @@ function device_reset!(dev::CuDevice=device())
 
     # wipe the device-specific state
     devidx = deviceid(dev)+1
-    device_contexts[devidx] = nothing
+    device_context!(devidx, nothing)
 
     _atdevicereset(dev)
 
