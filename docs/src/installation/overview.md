@@ -34,7 +34,7 @@ distribution-specific package (e.g., deb, rpm) instead of the generic runfile op
 
 If you are using a shared system, ask your system administrator on how to install or load
 the NVIDIA driver. Generally, you should be able to find and use the CUDA driver library,
-called `libcuda.dll` on Linux, `libcuda.dylib` on macOS and `nvcuda64.dll` on Windows. You
+called `libcuda.so` on Linux, `libcuda.dylib` on macOS and `nvcuda64.dll` on Windows. You
 should also be able to execute the `nvidia-smi` command, which lists all available GPUs you
 have access to.
 
