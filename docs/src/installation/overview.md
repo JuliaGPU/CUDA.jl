@@ -107,6 +107,26 @@ see the various paths where CUDA.jl looks. By setting any of the `CUDA_HOME`, `C
 
 
 
+## Package Installation
+After you have installed CUDA on your system, installing the package is as simple as the following:
+```julia
+using Pkg
+Pkg.add("CUDA")
+```
+
+You will want to test it:
+```julia
+Pkg.test("CUDA")
+```
+
+If you want to run the latest master, you will also want to install the master version of several dependencies:
+```julia
+Pkg.add("CUDA#master")
+Pkg.add("GPUCompiler#master")
+Pkg.add("GPUArrays#master")
+```
+
+
 ## Containers
 
 CUDA.jl is container friendly: You can install, precompile, and even import the package on a
