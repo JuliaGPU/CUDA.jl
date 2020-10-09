@@ -367,6 +367,18 @@ end
     Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(J_gpu...)), J_gpu...)
 end
 
+# contiguous
+function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P}
+    return Base.unsafe_convert(CuPtr{T}, parent(V)) +
+           Base._memory_offset(V.parent, map(first, V.indices)...)
+end
+
+# reshaped
+function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Union{Base.RangeIndex,Base.ReshapedUnitRange}}}}) where {T,N,P}
+   return Base. unsafe_convert(CuPtr{T}, parent(V)) +
+          (Base.first_index(V)-1)*sizeof(T)
+end
+
 
 ## reshape
 
