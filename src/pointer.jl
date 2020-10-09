@@ -64,18 +64,6 @@ Base.unsafe_convert(::Type{CuPtr{S}}, a::AbstractArray{T}) where {S,T} =
 Base.unsafe_convert(::Type{CuPtr{T}}, a::AbstractArray{T}) where {T} =
     error("conversion to pointer not defined for $(typeof(a))")
 
-# from contiguous subarrays
-function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P}
-    return Base.unsafe_convert(CuPtr{T}, parent(V)) +
-           Base._memory_offset(V.parent, map(first, V.indices)...)
-end
-
-# from reshaped subarrays
-function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Union{Base.RangeIndex,Base.ReshapedUnitRange}}}}) where {T,N,P}
-   return Base. unsafe_convert(CuPtr{T}, parent(V)) +
-          (Base.first_index(V)-1)*sizeof(T)
-end
-
 ## limited pointer arithmetic & comparison
 
 Base.isequal(x::CuPtr, y::CuPtr) = (x === y)
@@ -217,14 +205,14 @@ Base.convert(::Type{CuRef{T}}, x) where {T} = CuRef{T}(x)
 
 ## CuRef object backed by a CUDA array at index i
 
-struct CuRefArray{T,A<:AbstractGPUArray{T}} <: Ref{T}
+struct CuRefArray{T,A<:AbstractArray{T}} <: Ref{T}
     x::A
     i::Int
-    CuRefArray{T,A}(x,i) where {T,A<:AbstractGPUArray{T}} = new(x,i)
+    CuRefArray{T,A}(x,i) where {T,A<:AbstractArray{T}} = new(x,i)
 end
-CuRefArray{T}(x::AbstractGPUArray{T}, i::Int=1) where {T} = CuRefArray{T,typeof(x)}(x, i)
-CuRefArray(x::AbstractGPUArray{T}, i::Int=1) where {T} = CuRefArray{T}(x, i)
-Base.convert(::Type{CuRef{T}}, x::AbstractGPUArray{T}) where {T} = CuRefArray(x, 1)
+CuRefArray{T}(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T,typeof(x)}(x, i)
+CuRefArray(x::AbstractArray{T}, i::Int=1) where {T} = CuRefArray{T}(x, i)
+Base.convert(::Type{CuRef{T}}, x::AbstractArray{T}) where {T} = CuRefArray(x, 1)
 
 function Base.unsafe_convert(P::Type{CuPtr{T}}, b::CuRefArray{T}) where T
     return pointer(b.x, b.i)
@@ -264,6 +252,6 @@ Base.unsafe_convert(::Type{RefOrCuRef{T}}, x::CuRefs{T}) where {T} =
 
 # support conversion from arrays
 Base.convert(::Type{RefOrCuRef{T}}, x::Array{T}) where {T} = convert(Ref{T}, x)
-Base.convert(::Type{RefOrCuRef{T}}, x::AbstractGPUArray{T}) where {T} = convert(CuRef{T}, x)
+Base.convert(::Type{RefOrCuRef{T}}, x::AbstractArray{T}) where {T} = convert(CuRef{T}, x)
 Base.unsafe_convert(P::Type{RefOrCuRef{T}}, b::CuRefArray{T}) where T =
     Base.bitcast(RefOrCuRef{T}, Base.unsafe_convert(CuRef{T}, b))
