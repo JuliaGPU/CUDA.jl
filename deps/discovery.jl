@@ -38,6 +38,16 @@ function library_versioned_names(name::String, version::Union{Nothing,VersionNum
         elseif version === nothing
             push!(names, "$(name).$(Libdl.dlext)")
         end
+    elseif Sys.isapple()
+        # macOS puts the version number before the dylib extension
+        if version isa VersionNumber
+            append!(names, ["lib$(name).$(version.major).$(version.minor).$(Libdl.dlext)",
+                            "lib$(name).$(version.major).$(Libdl.dlext)"])
+        elseif version isa String
+            push!(names, "lib$(name).$(version).$(Libdl.dlext)")
+        elseif version === nothing
+            push!(names, "lib$(name).$(Libdl.dlext)")
+        end
     elseif Sys.isunix()
         # most UNIX distributions ship versioned libraries (also see JuliaLang/julia#22828)
         if version isa VersionNumber
