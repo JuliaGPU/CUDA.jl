@@ -14,7 +14,9 @@ import Adapt
   # test aggressive conversion to Float32, but only for floats, and only with `cu`
   @test cu([1]) isa AbstractArray{Int}
   @test cu(Float64[1]) isa AbstractArray{Float32}
+  @test cu(ComplexF64[1+1im]) isa AbstractArray{ComplexF32}
   @test Adapt.adapt(CuArray, Float64[1]) isa AbstractArray{Float64}
+  @test Adapt.adapt(CuArray, ComplexF64[1]) isa AbstractArray{ComplexF64}
   @test Adapt.adapt(CuArray{Float16}, Float64[1]) isa AbstractArray{Float16}
 
   @test_throws ArgumentError Base.unsafe_convert(Ptr{Int}, xs)
