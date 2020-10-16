@@ -368,6 +368,9 @@ end
             y = transpose(LowerTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
+        @testset "inv($TR)" for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
+            @test testf(x -> inv(TR(x)), rand(elty, m, m))
+        end
 
         A = rand(elty,m,m)
         x = rand(elty,m)

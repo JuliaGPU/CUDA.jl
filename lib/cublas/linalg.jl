@@ -279,6 +279,14 @@ LinearAlgebra.ldiv!(A::Transpose{T,<:LowerTriangular{T, <:CuMatrix{T}}}, B::CuMa
 LinearAlgebra.ldiv!(A::Transpose{T,<:UnitLowerTriangular{T, <:CuMatrix{T}}}, B::CuMatrix{T}) where T<:CublasFloat =
     CUBLAS.trsm!('L', 'L', 'T', 'U', one(T), parent(parent(A)), B)
 
+# inv for Triangular
+for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
+    @eval function LinearAlgebra.inv(x::$TR{T, <:CuMatrix{T}}) where T<:CublasFloat
+      out = CuArray{T}(I(size(x,1)))
+      $TR(LinearAlgebra.ldiv!(x, out))
+    end
+end
+
 # rdiv!
 ## No transpose/adjoint
 LinearAlgebra.rdiv!(A::CuMatrix{T}, B::UpperTriangular{T, <:CuMatrix{T}}) where T<:CublasFloat =
