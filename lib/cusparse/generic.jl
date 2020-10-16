@@ -5,7 +5,7 @@
 mutable struct CuDenseVectorDescriptor
     handle::cusparseDnVecDescr_t
 
-    function CuDenseVectorDescriptor(x::CuVector)
+    function CuDenseVectorDescriptor(x::DenseCuVector)
         desc_ref = Ref{cusparseDnVecDescr_t}()
         cusparseCreateDnVec(desc_ref, length(x), x, eltype(x))
         obj = new(desc_ref[])
@@ -22,7 +22,7 @@ Base.unsafe_convert(::Type{cusparseDnVecDescr_t}, desc::CuDenseVectorDescriptor)
 mutable struct CuDenseMatrixDescriptor
     handle::cusparseDnMatDescr_t
 
-    function CuDenseMatrixDescriptor(x::CuMatrix)
+    function CuDenseMatrixDescriptor(x::DenseCuMatrix)
         desc_ref = Ref{cusparseDnMatDescr_t}()
         cusparseCreateDnMat(desc_ref, size(x)..., stride(x,2), x, eltype(x), CUSPARSE_ORDER_COL)
         obj = new(desc_ref[])
@@ -71,8 +71,8 @@ Base.unsafe_convert(::Type{cusparseSpMatDescr_t}, desc::CuSparseMatrixDescriptor
 
 ## API functions
 
-function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}}, X::CuVector{T},
-             beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
+function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},CuSparseMatrixCSR{T}},
+             X::DenseCuVector{T}, beta::Number, Y::DenseCuVector{T}, index::SparseChar) where {T}
     m,n = size(A)
 
     if transa == 'N'
@@ -95,8 +95,8 @@ function mv!(transa::SparseChar, alpha::Number, A::Union{CuSparseMatrixBSR{T},Cu
     Y
 end
 
-function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::CuVector{T},
-             beta::Number, Y::CuVector{T}, index::SparseChar) where {T}
+function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::DenseCuVector{T},
+             beta::Number, Y::DenseCuVector{T}, index::SparseChar) where {T}
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
@@ -127,7 +127,7 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::CuVe
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
-             B::CuMatrix{T}, beta::Number, C::CuMatrix{T}, index::SparseChar) where {T}
+             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar) where {T}
     m,k = size(A)
     n = size(C)[2]
 
@@ -159,7 +159,7 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
 end
 
 function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T},
-             B::CuMatrix{T}, beta::Number, C::CuMatrix{T}, index::SparseChar) where {T}
+             B::DenseCuMatrix{T}, beta::Number, C::DenseCuMatrix{T}, index::SparseChar) where {T}
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
