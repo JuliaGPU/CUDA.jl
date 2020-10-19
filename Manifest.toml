@@ -51,9 +51,9 @@ deps = ["Random", "Serialization", "Sockets"]
 uuid = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 
 [[ExprTools]]
-git-tree-sha1 = "7fce513fcda766962ff67c5596cb16c463dfd371"
+git-tree-sha1 = "10407a39b87f29d47ebaca8edbc75d7c302ff93e"
 uuid = "e2ba6199-217a-4e67-a87a-7c52f15ade04"
-version = "0.1.2"
+version = "0.1.3"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
@@ -95,9 +95,9 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
 [[MacroTools]]
 deps = ["Markdown", "Random"]
-git-tree-sha1 = "f7d2e3f654af75f01ec49be82c231c382214223a"
+git-tree-sha1 = "6a8a2a625ab0dea913aba95c11370589e0239ff0"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
-version = "0.5.5"
+version = "0.5.6"
 
 [[Markdown]]
 deps = ["Base64"]
