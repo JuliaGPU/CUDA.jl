@@ -7,7 +7,8 @@ export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 end
 
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
-  ptr::CuPtr{T}
+  baseptr::CuPtr{T}
+  offset::Int
   dims::Dims{N}
 
   state::ArrayState
@@ -17,15 +18,15 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
     Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
     ptr = alloc(prod(dims) * sizeof(T))
-    obj = new{T,N}(ptr, dims, ARRAY_MANAGED, context())
+    obj = new{T,N}(ptr, 0, dims, ARRAY_MANAGED, context())
     finalizer(unsafe_free!, obj)
     return obj
   end
 
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, ctx=context()) where {T,N}
+  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, ctx=context(); offset::Int=0) where {T,N}
     Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
     Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
-    return new{T,N}(ptr, dims, ARRAY_UNMANAGED, ctx)
+    return new{T,N}(ptr, offset, dims, ARRAY_UNMANAGED, ctx)
   end
 end
 
@@ -38,12 +39,12 @@ function unsafe_free!(xs::CuArray)
   end
 
   if isvalid(xs.ctx)
-    free(convert(CuPtr{Nothing}, pointer(xs)))
+    free(convert(CuPtr{Nothing}, xs.baseptr))
   end
   xs.state = ARRAY_FREED
 
   # the object is dead, so we can also wipe the pointer
-  xs.ptr = CU_NULL
+  xs.baseptr = CU_NULL
 
   return
 end
@@ -200,7 +201,7 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 ## interop with C libraries
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = x.ptr
+Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = x.baseptr + x.offset
 
 
 ## interop with device arrays
@@ -416,7 +417,8 @@ function Base.resize!(A::CuVector{T}, n::Int) where T
 
   A.state = ARRAY_MANAGED
   A.dims = (n,)
-  A.ptr = ptr
+  A.baseptr = ptr
+  A.offset = 0
 
   A
 end
