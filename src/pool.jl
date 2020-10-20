@@ -256,8 +256,8 @@ end
 export OutOfGPUMemoryError
 
 const allocated_lock = NonReentrantLock()
-const allocated = PerDevice{Dict{CuPtr,Block}}() do dev
-    Dict{CuPtr,Block}()
+const allocated = PerDevice{Dict{CuPtr,Tuple{Block,Int}}}() do dev
+    Dict{CuPtr,Tuple{Block,Int}}()
 end
 
 const requested_lock = NonReentrantLock()
@@ -301,7 +301,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
   ptr = pointer(block)
   @safe_lock allocated_lock begin
       @assert !haskey(allocated[dev], ptr)
-      allocated[dev][ptr] = block
+      allocated[dev][ptr] = block, 1
   end
 
   # record the allocation site
@@ -325,7 +325,28 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 end
 
 """
-    free(sz)
+    alias(ptr)
+
+Increase the reference count of a buffer pointed to by `ptr`. As a result, it will require
+multiple calls to `free` before this buffer is put back into the memory pool.
+"""
+@inline function alias(ptr::CuPtr{Nothing})
+  # 0-byte allocations shouldn't hit the pool
+  ptr == CU_NULL && return
+
+  dev = device()
+
+  # look up the memory block
+  @safe_lock_spin allocated_lock begin
+    block, refcount = allocated[dev][ptr]
+    allocated[dev][ptr] = block, refcount+1
+  end
+
+  return ptr
+end
+
+"""
+    free(ptr)
 
 Releases a buffer pointed to by `ptr` to the memory pool.
 """
@@ -343,11 +364,17 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # this function is typically called from a finalizer, where we can't switch tasks,
   # so perform our own error handling.
   try
-    # look up the memory block
+    # look up the memory block, and bail out if its refcount isn't 1
     block = @safe_lock_spin allocated_lock begin
-        block = allocated[dev][ptr]
-        delete!(allocated[dev], ptr)
-        block
+        block, refcount = allocated[dev][ptr]
+        if refcount == 1
+          delete!(allocated[dev], ptr)
+          block
+        else
+          # we can't actually free this block yet, so decrease its refcount and return
+          allocated[dev][ptr] = block, refcount-1
+          return
+        end
     end
 
     # look up the allocation site
