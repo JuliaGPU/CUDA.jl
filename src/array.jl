@@ -153,22 +153,22 @@ export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
        StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
        AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
 
-ContiguousSubCuArray{T,N,A<:CuArray} = Base.FastContiguousSubArray{T,N,A}
-
-# dense arrays: stored contiguously in memory
-DenseReinterpretCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray}} = Base.ReinterpretArray{T,N,S,A} where S
-DenseReshapedCuArray{T,N,A<:Union{CuArray,ContiguousSubCuArray,DenseReinterpretCuArray}} = Base.ReshapedArray{T,N,A}
-DenseSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray}} = Base.FastContiguousSubArray{T,N,A}
-DenseCuArray{T,N} = Union{CuArray{T,N}, DenseSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
+# dense arrays: stored contiguously in _memory_offset,
+#
+# all common dense wrappers are represented as CuArray objects.
+# this simplifies common use cases, and greatly improves load time.
+# CUDA.jl 2.0 experimented with using ReshapedArray/ReinterpretArray, but
+# that proved much too costly. revisit when we have better Base support.
+DenseCuArray{T,N} = CuArray{T,N}
 DenseCuVector{T} = DenseCuArray{T,1}
 DenseCuMatrix{T} = DenseCuArray{T,2}
 DenseCuVecOrMat{T} = Union{DenseCuVector{T}, DenseCuMatrix{T}}
 
 # strided arrays
-StridedSubCuArray{T,N,A<:Union{CuArray,DenseReshapedCuArray,DenseReinterpretCuArray},
-                  I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
-                                        Base.AbstractCartesianIndex}}}} = SubArray{T,N,A,I}
-StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}, DenseReshapedCuArray{T,N}, DenseReinterpretCuArray{T,N}}
+StridedSubCuArray{T,N,I<:Tuple{Vararg{Union{Base.RangeIndex, Base.ReshapedUnitRange,
+                                            Base.AbstractCartesianIndex}}}} =
+  SubArray{T,N,<:CuArray,I}
+StridedCuArray{T,N} = Union{CuArray{T,N}, StridedSubCuArray{T,N}}
 StridedCuVector{T} = StridedCuArray{T,1}
 StridedCuMatrix{T} = StridedCuArray{T,2}
 StridedCuVecOrMat{T} = Union{StridedCuVector{T}, StridedCuMatrix{T}}
