@@ -374,8 +374,10 @@ end
 struct Contiguous end
 struct NonContiguous end
 
+# NOTE: this covers more cases than the I<:... in Base.FastContiguousSubArray
 CuIndexStyle() = Contiguous()
 CuIndexStyle(I...) = NonContiguous()
+CuIndexStyle(::Base.ScalarIndex...) = Contiguous()
 CuIndexStyle(i1::Colon, ::Base.ScalarIndex...) = Contiguous()
 CuIndexStyle(i1::AbstractUnitRange, ::Base.ScalarIndex...) = Contiguous()
 CuIndexStyle(i1::Colon, I...) = CuIndexStyle(I...)

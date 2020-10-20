@@ -108,17 +108,29 @@ end
   gA = reshape(CuArray(A),4)
 end
 
-@testset "DenseArray" begin
-  a = CUDA.rand(Int64, 2,2,2)
-  @test a isa DenseCuArray
+@testset "Dense derivatives" begin
+  a = CUDA.rand(Int64, 5, 4, 3)
+  @test a isa CuArray
 
-  @test view(a, :, :, :) isa DenseCuArray
-  @test view(a, 1, 1, 1) isa DenseCuArray
-  @test view(a, :, :, 1) isa DenseCuArray
-  @test !(view(a, :, 1, :) isa DenseCuArray)
-  @test !(view(a, 1, :, :) isa DenseCuArray)
+  # Contiguous views should return new CuArray
+  @test view(a, :, 1, 2) isa CuVector{Int64}
+  @test view(a, 1:4, 1, 2) isa CuVector{Int64}
+  @test view(a, :, 1:4, 3) isa CuMatrix{Int64}
+  @test view(a, :, :, 1) isa CuMatrix{Int64}
+  @test view(a, :, :, :) isa CuArray{Int64,3}
+  @test view(a, :) isa CuVector{Int64}
+  @test view(a, 1:3) isa CuVector{Int64}
+  @test view(a, 1, 1, 1) isa CuArray{Int64}
 
-  b = reshape(a, (2,4))
+  # Non-contiguous views should fall back to base's SubArray
+  @test view(a, 1:3, 1:3, 3) isa SubArray
+  @test view(a, 1, :, 3) isa SubArray
+  @test view(a, 1, 1:4, 3) isa SubArray
+  @test view(a, :, 1, 1:3) isa SubArray
+  @test view(a, :, 1:2:4, 1) isa SubArray
+  @test view(a, 1:2:5, 1, 1) isa SubArray
+
+  b = reshape(a, (6,10))
   @test b isa CuArray
   @test b isa StridedCuArray
   @test view(b, :, :, 1) isa DenseCuArray
