@@ -13,11 +13,11 @@
     # end
 
     # Loop unrolling for warpsize = 32
-    val = op(val, shfl_down_sync(0xffffffff, val, 16, 32))
-    val = op(val, shfl_down_sync(0xffffffff, val, 8, 32))
-    val = op(val, shfl_down_sync(0xffffffff, val, 4, 32))
-    val = op(val, shfl_down_sync(0xffffffff, val, 2, 32))
     val = op(val, shfl_down_sync(0xffffffff, val, 1, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 2, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 4, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 8, 32))
+    val = op(val, shfl_down_sync(0xffffffff, val, 16, 32))
 
     return val
 end
@@ -63,13 +63,14 @@ end
     @inbounds shared[thread] = val
 
     # perform a reduction
-    d = threads>>1
-    while d > 0
+    d = 1
+    while d < threads
         sync_threads()
-        if thread <= d
-            shared[thread] = op(shared[thread], shared[thread+d])
+        index = 2 * d * (thread-1) + 1
+        if index <= threads
+            shared[index] = op(shared[index], shared[index+d])
         end
-        d >>= 1
+        d *= 2
     end
 
     # load the final value on the first thread
