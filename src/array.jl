@@ -7,7 +7,7 @@ export CuArray, CuVector, CuMatrix, CuVecOrMat, cu
 end
 
 mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
-  baseptr::CuPtr{T}
+  baseptr::CuPtr{Nothing}
   offset::Int
   dims::Dims{N}
 
@@ -23,7 +23,7 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
     return obj
   end
 
-  function CuArray{T,N}(ptr::CuPtr{T}, dims::Dims{N}, ctx=context(); offset::Int=0) where {T,N}
+  function CuArray{T,N}(ptr::CuPtr{Nothing}, dims::Dims{N}, ctx=context(); offset::Int=0) where {T,N}
     Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
     Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
     return new{T,N}(ptr, offset, dims, ARRAY_UNMANAGED, ctx)
@@ -39,7 +39,7 @@ function unsafe_free!(xs::CuArray)
   end
 
   if isvalid(xs.ctx)
-    free(convert(CuPtr{Nothing}, xs.baseptr))
+    free(xs.baseptr)
   end
   xs.state = ARRAY_FREED
 
@@ -114,14 +114,13 @@ take ownership of the memory, calling `cudaFree` when the array is no longer ref
 `ctx` argument determines the CUDA context where the data is allocated in.
 """
 function Base.unsafe_wrap(::Union{Type{CuArray},Type{CuArray{T}},Type{CuArray{T,N}}},
-                          p::CuPtr{T}, dims::NTuple{N,Int};
+                          ptr::CuPtr{T}, dims::NTuple{N,Int};
                           own::Bool=false, ctx::CuContext=context()) where {T,N}
-  xs = CuArray{T, length(dims)}(p, dims, ctx)
+  xs = CuArray{T, length(dims)}(convert(CuPtr{Cvoid}, ptr), dims, ctx)
   if own
-    base = convert(CuPtr{Cvoid}, p)
-    buf = Mem.DeviceBuffer(base, prod(dims) * sizeof(T))
     finalizer(xs) do obj
       if isvalid(obj.ctx)
+        buf = Mem.DeviceBuffer(obj.baseptr, sizeof(obj))
         Mem.free(buf)
       end
     end
@@ -153,12 +152,12 @@ export DenseCuArray, DenseCuVector, DenseCuMatrix, DenseCuVecOrMat,
        StridedCuArray, StridedCuVector, StridedCuMatrix, StridedCuVecOrMat,
        AnyCuArray, AnyCuVector, AnyCuMatrix, AnyCuVecOrMat
 
-# dense arrays: stored contiguously in _memory_offset,
+# dense arrays: stored contiguously in memory
 #
-# all common dense wrappers are represented as CuArray objects.
+# all common dense wrappers are currently represented as CuArray objects.
 # this simplifies common use cases, and greatly improves load time.
-# CUDA.jl 2.0 experimented with using ReshapedArray/ReinterpretArray, but
-# that proved much too costly. revisit when we have better Base support.
+# CUDA.jl 2.0 experimented with using ReshapedArray/ReinterpretArray/SubArray,
+# but that proved much too costly. TODO: revisit when we have better Base support.
 DenseCuArray{T,N} = CuArray{T,N}
 DenseCuVector{T} = DenseCuArray{T,1}
 DenseCuMatrix{T} = DenseCuArray{T,2}
@@ -211,7 +210,8 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
   throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
-Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = x.baseptr + x.offset
+Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} =
+  convert(CuPtr{T}, x.baseptr) + x.offset
 
 
 ## interop with device arrays
@@ -405,8 +405,8 @@ end
 @inline function unsafe_contiguous_view(a::CuArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
 
+    alias(a.baseptr)
     b = CuArray{T,M}(a.baseptr, dims, a.ctx; offset=a.offset+offset)
-    alias(convert(CuPtr{Cvoid}, a.baseptr))
     finalizer(unsafe_free!, b)
     b.state = ARRAY_MANAGED
     return b
@@ -442,8 +442,8 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
       return a
   end
 
+  alias(a.baseptr)
   b = CuArray{T,N}(a.baseptr, dims, a.ctx; offset=a.offset)
-  alias(convert(CuPtr{Cvoid}, a.baseptr))
   finalizer(unsafe_free!, b)
   b.state = ARRAY_MANAGED
   return b
@@ -476,8 +476,8 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
   size1 = div(isize[1]*sizeof(S), sizeof(T))
   osize = tuple(size1, Base.tail(isize)...)
 
-  b = CuArray{T,N}(convert(CuPtr{T}, a.baseptr), osize, a.ctx; offset=a.offset)
-  alias(convert(CuPtr{Cvoid}, a.baseptr))
+  alias(a.baseptr)
+  b = CuArray{T,N}(a.baseptr, osize, a.ctx; offset=a.offset)
   finalizer(unsafe_free!, b)
   b.state = ARRAY_MANAGED
   return b
@@ -497,9 +497,9 @@ Note that this operation is only supported on managed buffers, i.e., not on arra
 created by `unsafe_wrap` with `own=false`.
 """
 function Base.resize!(A::CuVector{T}, n::Int) where T
-  ptr = convert(CuPtr{T}, alloc(n * sizeof(T)))
+  ptr = alloc(n * sizeof(T))
   m = Base.min(length(A), n)
-  unsafe_copyto!(ptr, pointer(A), m)
+  unsafe_copyto!(convert(CuPtr{T}, ptr), pointer(A), m)
 
   unsafe_free!(A)
 
