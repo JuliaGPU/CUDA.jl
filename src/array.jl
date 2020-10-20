@@ -14,7 +14,7 @@ mutable struct CuArray{T,N} <: AbstractGPUArray{T,N}
   state::ArrayState
   ctx::CuContext
 
-  function CuArray{T,N}(::UndefInitializer, dims::Dims{N})  where {T,N}
+  function CuArray{T,N}(::UndefInitializer, dims::Dims{N}) where {T,N}
     Base.isbitsunion(T) && error("CuArray does not yet support union bits types")
     Base.isbitstype(T)  || error("CuArray only supports bits types") # allocatedinline on 1.3+
     ptr = alloc(prod(dims) * sizeof(T))
@@ -49,9 +49,18 @@ function unsafe_free!(xs::CuArray)
   return
 end
 
-Base.dataids(A::CuArray) = (UInt(pointer(A)),)
+
+## alias detection
+
+Base.dataids(A::CuArray) = (UInt(A.baseptr),)
 
 Base.unaliascopy(A::CuArray) = copy(A)
+
+function Base.mightalias(A::CuArray, B::CuArray)
+  rA = pointer(A):pointer(A)+sizeof(A)
+  rB = pointer(B):pointer(B)+sizeof(B)
+  return first(rA) <= first(rB) < last(rA) || first(rB) <= first(rA) < last(rB)
+end
 
 
 ## convenience constructors
@@ -200,7 +209,8 @@ Base.convert(::Type{T}, x::T) where T <: CuArray = x
 
 ## interop with C libraries
 
-Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} = throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
+Base.unsafe_convert(::Type{Ptr{T}}, x::CuArray{T}) where {T} =
+  throw(ArgumentError("cannot take the CPU address of a $(typeof(x))"))
 Base.unsafe_convert(::Type{CuPtr{T}}, x::CuArray{T}) where {T} = x.baseptr + x.offset
 
 
@@ -359,6 +369,22 @@ end
 
 ## views
 
+# optimize view to return a CuArray when contiguous
+
+struct Contiguous end
+struct NonContiguous end
+
+CuIndexStyle() = Contiguous()
+CuIndexStyle(I...) = NonContiguous()
+CuIndexStyle(i1::Colon, ::Base.ScalarIndex...) = Contiguous()
+CuIndexStyle(i1::AbstractUnitRange, ::Base.ScalarIndex...) = Contiguous()
+CuIndexStyle(i1::Colon, I...) = CuIndexStyle(I...)
+
+cuviewlength() = ()
+@inline cuviewlength(::Real, I...) = cuviewlength(I...) # skip scalar
+@inline cuviewlength(i1::AbstractUnitRange, I...) = (Base.unsafe_length(i1), cuviewlength(I...)...)
+@inline cuviewlength(i1::AbstractUnitRange, ::Base.ScalarIndex...) = (Base.unsafe_length(i1),)
+
 @inline function Base.view(A::CuArray, I::Vararg{Any,N}) where {N}
     J = to_indices(A, I)
     @boundscheck begin
@@ -368,32 +394,92 @@ end
         checkbounds(A, J_cpu...)
     end
     J_gpu = map(j->adapt(CuArray, j), J)
-    Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(J_gpu...)), J_gpu...)
+    unsafe_view(A, J_gpu, CuIndexStyle(I...))
 end
 
-# contiguous
+@inline function unsafe_view(A, I, ::Contiguous)
+    unsafe_contiguous_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I, cuviewlength(I...))
+end
+@inline function unsafe_contiguous_view(a::CuArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
+    offset = Base.compute_offset1(a, 1, I) * sizeof(T)
+
+    b = CuArray{T,M}(a.baseptr, dims, a.ctx; offset=a.offset+offset)
+    alias(convert(CuPtr{Cvoid}, a.baseptr))
+    finalizer(unsafe_free!, b)
+    b.state = ARRAY_MANAGED
+    return b
+end
+
+@inline function unsafe_view(A, I, ::NonContiguous)
+    Base.unsafe_view(Base._maybe_reshape_parent(A, Base.index_ndims(I...)), I...)
+end
+
+# pointer conversions
+## contiguous
 function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Base.RangeIndex}}}) where {T,N,P}
     return Base.unsafe_convert(CuPtr{T}, parent(V)) +
            Base._memory_offset(V.parent, map(first, V.indices)...)
 end
-
-# reshaped
+## reshaped
 function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{Union{Base.RangeIndex,Base.ReshapedUnitRange}}}}) where {T,N,P}
-   return Base. unsafe_convert(CuPtr{T}, parent(V)) +
+   return Base.unsafe_convert(CuPtr{T}, parent(V)) +
           (Base.first_index(V)-1)*sizeof(T)
 end
 
 
 ## reshape
 
-Base.unsafe_convert(::Type{CuPtr{T}}, a::Base.ReshapedArray{T}) where {T} =
-  Base.unsafe_convert(CuPtr{T}, parent(a))
+# optimize reshape to return a CuArray
+
+function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
+  if prod(dims) != length(a)
+      throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
+  end
+
+  if N == M && dims == size(a)
+      return a
+  end
+
+  b = CuArray{T,N}(a.baseptr, dims, a.ctx; offset=a.offset)
+  alias(convert(CuPtr{Cvoid}, a.baseptr))
+  finalizer(unsafe_free!, b)
+  b.state = ARRAY_MANAGED
+  return b
+end
 
 
 ## reinterpret
 
-Base.unsafe_convert(::Type{CuPtr{T}}, a::Base.ReinterpretArray{T,N,S} where N) where {T,S} =
-  CuPtr{T}(Base.unsafe_convert(CuPtr{S}, parent(a)))
+# optimize reshape to return a CuArray
+
+function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
+  if N == 0 && sizeof(T) == sizeof(S)
+    throw(ArgumentError("cannot reinterpret a zero-dimensional `$(S)` array to `$(T)` which is of a different size"))
+  end
+  if N != 0 && sizeof(S) != sizeof(T)
+      ax1 = axes(a)[1]
+      dim = length(ax1)
+      if Base.rem(dim*sizeof(S),sizeof(T)) != 0
+        throw(ArgumentError("""
+            cannot reinterpret an `$(S)` array to `$(T)` whose first dimension has size `$(dim)`.
+            The resulting array would have non-integral first dimension.
+            """))
+      end
+      if first(ax1) != 1
+        throw(ArgumentError("cannot reinterpret a `$(S)` array to `$(T)` when the first axis is $ax1. Try reshaping first."))
+      end
+  end
+
+  isize = size(a)
+  size1 = div(isize[1]*sizeof(S), sizeof(T))
+  osize = tuple(size1, Base.tail(isize)...)
+
+  b = CuArray{T,N}(convert(CuPtr{T}, a.baseptr), osize, a.ctx; offset=a.offset)
+  alias(convert(CuPtr{Cvoid}, a.baseptr))
+  finalizer(unsafe_free!, b)
+  b.state = ARRAY_MANAGED
+  return b
+end
 
 
 ## resizing

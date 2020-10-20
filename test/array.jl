@@ -119,12 +119,12 @@ end
   @test !(view(a, 1, :, :) isa DenseCuArray)
 
   b = reshape(a, (2,4))
-  @test b isa Base.ReshapedArray
+  @test b isa CuArray
   @test b isa StridedCuArray
   @test view(b, :, :, 1) isa DenseCuArray
 
   b = reinterpret(Float64, a)
-  @test b isa Base.ReinterpretArray
+  @test b isa CuArray
   @test b isa StridedCuArray
   @test view(b, :, :, 1) isa DenseCuArray
 end
@@ -138,12 +138,12 @@ end
   @test view(a, 1, :, :) isa StridedCuArray
 
   b = reshape(a, (2,4))
-  @test b isa Base.ReshapedArray
+  @test b isa CuArray
   @test b isa StridedCuArray
   @test view(b, :, 1, :) isa StridedCuArray
 
   b = reinterpret(Float64, a)
-  @test b isa Base.ReinterpretArray
+  @test b isa CuArray
   @test b isa StridedCuArray
   @test view(b, :, 1, :) isa StridedCuArray
 end
