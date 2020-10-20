@@ -34,3 +34,6 @@ include("intrinsics/libcudadevrt_common.jl")
 include("intrinsics/libcudadevrt.jl")
 include("intrinsics/cooperative_groups.jl")
 include("intrinsics/dynamic_parallelism.jl")
+
+# TLS
+include("intrinsics/memory_local.jl")
