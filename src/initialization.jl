@@ -61,7 +61,7 @@ end
 
 import Libdl.find_library
 # Use libcuda.so -> libcuda.so.1 symlink if exists, some systems don't have this. 
-const __libcuda = Sys.iswindows() ? "nvcuda" : (find_library(["libcuda.so"]) == "" ? "libcuda.so.1" : "libcuda" )
+const __libcuda = Sys.iswindows() ? "nvcuda" : (find_library(["libcuda.so"]) == "" ? "libcuda.so.1" : "libcuda.so" )
 libcuda() = @after_init(__libcuda)
 
 # load-time initialization: only perform mininal checks here
