@@ -1313,4 +1313,26 @@ end
     @test Array(a) == [16]
 end
 
+@testset "local memory" begin
+    @noinline function get_tls()
+        buf = alloc_local(:ptls, Int, 1)
+        buf[1]
+    end
+
+    @noinline function set_tls(val)
+        buf = alloc_local(:ptls, Int, 1)
+        buf[1] = val
+    end
+
+    function kernel(a)
+        set_tls(42)
+        @inbounds a[1] = get_tls()
+        return
+    end
+
+    a = CuArray([0])
+    @cuda kernel(a)
+    @test Array(a) == [42]
+end
+
 end
