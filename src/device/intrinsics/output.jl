@@ -9,7 +9,7 @@ export @cuprintf
     # > automatically promoted to double. Therefore, varargs functions will never receive
     # > arguments of type char, short int, or float.
 
-    if arg == Cchar || arg == Cshort
+    if arg == Cchar || arg == Cshort || arg == Cuchar || arg == Cushort
         return :(Cint(arg))
     elseif arg == Cfloat
         return :(Cdouble(arg))
