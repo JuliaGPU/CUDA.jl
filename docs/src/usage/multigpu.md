@@ -9,7 +9,7 @@ significantly improved.
 ## Scenario 1: One GPU per process
 
 The easiest solution that maps best onto Julia's existing facilities for distributed
-programming, is to use one GPU per processL
+programming, is to use one GPU per process
 
 ```julia
 # spawn one worker per device
