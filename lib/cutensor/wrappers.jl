@@ -372,25 +372,25 @@ end
 
 function cutensorComputeType(T::DataType)
     if T == Float32
-        return CUTENSOR_R_MIN_32F
+        return CUTENSOR_COMPUTE_32F
     elseif T == ComplexF32
-        return CUTENSOR_C_MIN_32F
+        return CUTENSOR_COMPUTE_32F
     elseif T == Float16
-        return CUTENSOR_R_MIN_16F
+        return CUTENSOR_COMPUTE_16F
     elseif T == ComplexF16
-        return CUTENSOR_C_MIN_16F
+        return CUTENSOR_COMPUTE_16F
     elseif T == Float64
-        return CUTENSOR_R_MIN_64F
+        return CUTENSOR_COMPUTE_64F
     elseif T == ComplexF64
-        return CUTENSOR_C_MIN_64F
+        return CUTENSOR_COMPUTE_64F
     elseif T == Int8
-        return CUTENSOR_R_MIN_8I
+        return CUTENSOR_COMPUTE_8I
     elseif T == Int32
-        return CUTENSOR_R_MIN_32I
+        return CUTENSOR_COMPUTE_32I
     elseif T == UInt8
-        return CUTENSOR_R_MIN_8U
+        return CUTENSOR_COMPUTE_8U
     elseif T == UInt32
-        return CUTENSOR_R_MIN_32U
+        return CUTENSOR_COMPUTE_32U
     else
         throw(ArgumentError("cutensorComputeType equivalent for input type $T does not exist!"))
     end
