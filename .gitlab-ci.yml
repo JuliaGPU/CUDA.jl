@@ -42,6 +42,7 @@ cuda:11.1:
     - .test
   image: ubuntu:bionic
   variables:
+    CI_THOROUGH: 'true'
     JULIA_CUDA_VERSION: '11.1'
     JULIA_CUDA_USE_BINARYBUILDER: 'true'
   tags:
