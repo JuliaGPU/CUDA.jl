@@ -1316,12 +1316,12 @@ end
 @testset "local memory" begin
     @noinline function get_tls()
         buf = alloc_local(:ptls, Int, 1)
-        buf[1]
+        @inbounds buf[1]
     end
 
     @noinline function set_tls(val)
         buf = alloc_local(:ptls, Int, 1)
-        buf[1] = val
+        @inbounds buf[1] = val
     end
 
     function kernel(a)
