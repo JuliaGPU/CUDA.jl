@@ -44,7 +44,7 @@ Allocates a `CuDeviceArray` backed by a global variable in local memory.
     Calls to `alloc_local` with the same `name` will alias within
     a kernel. This allows for the implmentation of thread local global state.
 """
-@inline function alloc_local(name::Symbol, ::Type{T}, dims=(0,))
+@inline function alloc_local(name::Symbol, ::Type{T}, dims=(0,)) where T
     ptr = emit_localmem(Val(name), T, Val(prod(dims)))
     CuDeviceArray(dims, ptr)
 end
