@@ -923,15 +923,16 @@ for (fname, elty) in
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
                                alpha::Number,
-                               A::DenseCuArray{$elty, 3},
-                               B::DenseCuArray{$elty, 3},
+                               A::AbstractArray{$elty, 3},
+                               B::AbstractArray{$elty, 3},
                                beta::Number,
-                               C::DenseCuArray{$elty, 3})
+                               C::AbstractArray{$elty, 3})
            m = size(A, transA == 'N' ? 1 : 2)
            k = size(A, transA == 'N' ? 2 : 1)
            n = size(B, transB == 'N' ? 2 : 1)
 
-           @assert size(A, 3) == size(B, 3) == size(C, 3) "Batch size mismatch"
+           @assert size(A, 3) == size(C, 3) || size(A, 3) == 1 "batch size mismatch: A != C"
+           @assert size(B, 3) == size(C, 3) || size(B, 3) == 1 "batch size mismatch: B != C"
 
            if m != size(C,1) || n != size(C,2) || k != size(B, transB == 'N' ? 1 : 2)
                throw(DimensionMismatch(""))
@@ -940,10 +941,10 @@ for (fname, elty) in
            ldb = max(1,stride(B,2))
            ldc = max(1,stride(C,2))
 
-           strideA = stride(A, 3)
-           strideB = stride(B, 3)
+           strideA = size(A, 3) == 1 ? 0 : stride(A, 3)
+           strideB = size(B, 3) == 1 ? 0 : stride(B, 3)
            strideC = stride(C, 3)
-           batchCount = size(A, 3)
+           batchCount = size(C, 3)
            $fname(handle(), transA, transB, m, n, k, alpha, A, lda, strideA, B,
                   ldb, strideB, beta, C, ldc, strideC, batchCount)
            C
@@ -951,15 +952,15 @@ for (fname, elty) in
         function gemm_strided_batched(transA::Char,
                       transB::Char,
                       alpha::Number,
-                      A::DenseCuArray{$elty, 3},
-                      B::DenseCuArray{$elty, 3})
-            C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), size(A, 3)))
+                      A::AbstractArray{$elty, 3},
+                      B::AbstractArray{$elty, 3})
+            C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), max(size(A, 3), size(B, 3))))
             gemm_strided_batched!(transA, transB, alpha, A, B, zero($elty), C )
         end
         function gemm_strided_batched(transA::Char,
                       transB::Char,
-                      A::DenseCuArray{$elty, 3},
-                      B::DenseCuArray{$elty, 3})
+                      A::AbstractArray{$elty, 3},
+                      B::AbstractArray{$elty, 3})
             gemm_strided_batched(transA, transB, one($elty), A, B)
         end
     end
