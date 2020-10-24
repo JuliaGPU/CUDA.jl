@@ -17,3 +17,22 @@ Statistics._mean(A::CuArray, ::Colon)    = sum(A) / length(A)
 Statistics._mean(f, A::CuArray, ::Colon) = sum(f, A) / length(A)
 Statistics._mean(A::CuArray, dims)    = mean!(Base.reducedim_init(t -> t/2, +, A, dims), A)
 Statistics._mean(f, A::CuArray, dims) = sum(f, A, dims=dims) / mapreduce(i -> size(A, i), *, unique(dims); init=1)
+
+# TODO `cor`
+
+function Statistics.covzm(x::CuMatrix, vardim::Int=1; corrected::Bool=true)
+    # Compared to the CPU version, we assume that no type promotion is
+    # necessary.
+    A = Statistics.unscaled_covzm(x, vardim)
+    b = 1//(size(x, vardim) - corrected)
+    A .= A .* b
+    return A
+end
+
+
+# TODO `median` (scalar operation when dims is mentioned)
+# Statistics.median(A::CuArray, dims) = CuArray([median(row) for row in eachrow(reshape(A, dims, :))])
+
+# TODO `middle` (implement extrema function)
+
+# TODO `quantile` (probably need sort for this)
