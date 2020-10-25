@@ -21,9 +21,9 @@ Statistics._mean(f, A::CuArray, dims) = sum(f, A, dims=dims) / mapreduce(i -> si
 # TODO `cor`
 
 function Statistics.covzm(x::CuMatrix, vardim::Int=1; corrected::Bool=true)
-    # Compared to the CPU version, we assume that no type promotion is
-    # necessary.
-    A = Statistics.unscaled_covzm(x, vardim)
+    C = Statistics.unscaled_covzm(x, vardim)
+    T = promote_type(typeof(one(eltype(C)) / 1), eltype(C))
+    A = convert(AbstractArray{T}, C)
     b = 1//(size(x, vardim) - corrected)
     A .= A .* b
     return A
