@@ -135,6 +135,9 @@ end
   @test b isa StridedCuArray
   @test view(b, :, :, 1) isa DenseCuArray
 
+  b = reshape(a, :)
+  @test b isa CuArray
+
   b = reinterpret(Float64, a)
   @test b isa CuArray
   @test b isa StridedCuArray
