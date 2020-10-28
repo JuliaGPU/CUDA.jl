@@ -6,26 +6,21 @@
 
 # Reduce a value across a warp
 @inline function reduce_warp(op, val)
-    # offset = warpsize() ÷ 2
-    # while offset > 0
-    #     val = op(val, shfl_down_sync(0xffffffff, val, offset))
-    #     offset ÷= 2
-    # end
-
-    # Loop unrolling for warpsize = 32
-    val = op(val, shfl_down_sync(0xffffffff, val, 16, 32))
-    val = op(val, shfl_down_sync(0xffffffff, val, 8, 32))
-    val = op(val, shfl_down_sync(0xffffffff, val, 4, 32))
-    val = op(val, shfl_down_sync(0xffffffff, val, 2, 32))
-    val = op(val, shfl_down_sync(0xffffffff, val, 1, 32))
+    assume(warpsize() == 32)
+    offset = 1
+    while offset < warpsize()
+        val = op(val, shfl_down_sync(0xffffffff, val, offset))
+        offset *= 2
+    end
 
     return val
 end
 
 # Reduce a value across a block, using shared memory for communication
 @inline function reduce_block(op, val::T, neutral, shuffle::Val{true}) where T
-    # shared mem for 32 partial sums
-    shared = @cuStaticSharedMem(T, 32)  # NOTE: this is an upper bound; better detect it
+    # shared mem for partial sums
+    assume(warpsize() == 32)
+    shared = @cuStaticSharedMem(T, 32)
 
     wid, lane = fldmod1(threadIdx().x, warpsize())
 
@@ -63,13 +58,14 @@ end
     @inbounds shared[thread] = val
 
     # perform a reduction
-    d = threads>>1
-    while d > 0
+    d = 1
+    while d < threads
         sync_threads()
-        if thread <= d
-            shared[thread] = op(shared[thread], shared[thread+d])
+        index = 2 * d * (thread-1) + 1
+        if index <= threads
+            @inbounds shared[index] = op(shared[index], shared[index+d])
         end
-        d >>= 1
+        d *= 2
     end
 
     # load the final value on the first thread
@@ -88,6 +84,8 @@ Base.@propagate_inbounds _map_getindex(args::Tuple{}, I) = ()
 # product of the two iterators `Rreduce` and `Rother`, where the latter iterator will have
 # singleton entries for the dimensions that should be reduced (and vice versa).
 function partial_mapreduce_grid(f, op, neutral, Rreduce, Rother, shuffle, R, As...)
+    assume(length(Rother) > 0)
+
     # decompose the 1D hardware indices into separate ones for reduction (across threads
     # and possibly blocks if it doesn't fit) and other elements (remaining blocks)
     threadIdx_reduce = threadIdx().x
@@ -165,6 +163,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # NOTE: we hard-code `OneTo` (`first.(axes(A))` would work too) or we get a
     #       CartesianIndices object with UnitRanges that behave badly on the GPU.
     @assert length(Rall) == length(Rother) * length(Rreduce)
+    @assert length(Rother) > 0
 
     # allocate an additional, empty dimension to write the reduced value to.
     # this does not affect the actual location in memory of the final values,
