@@ -59,7 +59,7 @@ end
 
 ## deferred initialization API
 
-const __libcuda = Sys.iswindows() ? :nvcuda : :libcuda
+const __libcuda = Sys.iswindows() ? "nvcuda" : ( Sys.islinux() ? "libcuda.so.1" : "libcuda" )
 libcuda() = @after_init(__libcuda)
 
 # load-time initialization: only perform mininal checks here
