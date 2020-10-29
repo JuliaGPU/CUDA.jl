@@ -50,14 +50,14 @@ function cudnnBNForward!(y::DenseCuArray{T}, g::DenseCuArray{T}, b::DenseCuArray
       ivar = CU_NULL
     end
 
-    cudnnBatchNormalizationForwardTraining(handle(), CUDNN_BATCHNORM_SPATIAL, Ref{T}(alpha), Ref{T}(beta), xd, x, yd, y, gd, g, b, momentum, running_mean, running_var, eps, mean, ivar)
+    cudnnBatchNormalizationForwardTraining(handle(), CUDNN_BATCHNORM_SPATIAL, scalingParameter(T, alpha), scalingParameter(T, beta), xd, x, yd, y, gd, g, b, momentum, running_mean, running_var, eps, mean, ivar)
 
     if cache !== nothing
       cache.mean = mean
       cache.ivar = ivar
     end
   else
-    cudnnBatchNormalizationForwardInference(handle(), CUDNN_BATCHNORM_SPATIAL, Ref{T}(alpha), Ref{T}(beta), xd, x, yd, y, gd, g, b, running_mean, running_var, eps)
+    cudnnBatchNormalizationForwardInference(handle(), CUDNN_BATCHNORM_SPATIAL, scalingParameter(T, alpha), scalingParameter(T, beta), xd, x, yd, y, gd, g, b, running_mean, running_var, eps)
   end
   return y
 end
@@ -106,7 +106,7 @@ function cudnnBNBackward!(dg::DenseCuArray{T}, g::DenseCuArray{T}, db::DenseCuAr
       eps = CUDNN_BN_MIN_EPSILON
     end
 
-    cudnnBatchNormalizationBackward(handle(), CUDNN_BATCHNORM_SPATIAL, Ref{T}(alpha), Ref{T}(beta), Ref{T}(dalpha), Ref{T}(dbeta), xd, x, dyd, dy, dxd, dx, gd, g, dg, db, eps, mean, ivar)
+    cudnnBatchNormalizationBackward(handle(), CUDNN_BATCHNORM_SPATIAL, scalingParameter(T, alpha), scalingParameter(T, beta), scalingParameter(T, dalpha), scalingParameter(T, dbeta), xd, x, dyd, dy, dxd, dx, gd, g, dg, db, eps, mean, ivar)
   else
     ivar = 1 ./ sqrt.(reshape(running_var, _wsize(x)) .+ eps)
     dx .= dy .* reshape(g, _wsize(x)) .* ivar

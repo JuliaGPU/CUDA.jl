@@ -18,3 +18,11 @@ function _strides(out::NTuple{M,Int}, A::Tuple) where M
     Base.@_inline_meta
     _strides((out..., out[M]*A[M]), A)
 end
+
+# The storage data types for alpha and beta are:
+#     float for HALF and FLOAT tensors, and
+#     double for DOUBLE tensors.
+scalingParameter(T, val) = error("Unknown tensor type $T")
+scalingParameter(::Type{Float16}, val) = Ref{Float32}(val)
+scalingParameter(::Type{Float32}, val) = Ref{Float32}(val)
+scalingParameter(::Type{Float64}, val) = Ref{Float64}(val)
