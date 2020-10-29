@@ -46,6 +46,7 @@ function main()
             ],
             "Development" => Any[
                 "development/profiling.md",
+                "development/troubleshooting.md",
             ],
             "API reference" => Any[
                 "api/essentials.md",

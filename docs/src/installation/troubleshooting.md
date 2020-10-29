@@ -21,11 +21,13 @@ Generally though, it's impossible to say what's the reason for the error, but Ju
 likely not to blame. Make sure your set-up works (e.g., try executing `nvidia-smi`, a CUDA C
 binary, etc), and if everything looks good file an issue.
 
+
 ## NVML library not found (on Windows)
 
 Check and make sure the `NVSMI` folder is in your `PATH`. By default it may not be. Look in
 `C:\Program Files\NVIDIA Corporation` for the `NVSMI` folder - you should see `nvml.dll`
 within it. You can add this folder to your `PATH` and check that `nvidia-smi` runs properly.
+
 
 ## LLVM error: Cannot cast between two non-generic address spaces
 
@@ -37,3 +39,9 @@ extensive list of patches to be applied to the specific versions of LLVM that ar
 
 It is thus recommended to use the official binaries, or use a version of Julia built without
 setting `USE_SYSTEM_LLVM=1` (which you can suggest to maintainers of your Linux distribution).
+
+
+## LoadError: UndefVarError: AddrSpacePtr not defined
+
+You are using an old version of CUDA.jl in combination with a recent version of Julia
+(1.5+). This is not supported, and you should be using CUDA.jl 1.x or above.

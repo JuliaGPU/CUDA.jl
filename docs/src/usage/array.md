@@ -326,8 +326,8 @@ julia> y = CUDA.rand(2)
  0.03902049
  0.9689629
 
-julia> CUBLAS.dot(2, x, 0, y, 0)
-0.057767443f0
+julia> CUBLAS.dot(2, x, y)
+0.92129254f0
 
 julia> using LinearAlgebra
 

@@ -26,18 +26,12 @@ Base.:(==)(x::CuError,y::CuError) = x.code == y.code
 
 Gets the string representation of an error code.
 
-This name can often be used as a symbol in source code to get an instance of this error.
-For example:
-
 ```jldoctest
-julia> err = CuError(1)
-CuError(1, ERROR_INVALID_VALUE)
+julia> err = CuError(CUDA.cudaError_enum(1))
+CuError(CUDA_ERROR_INVALID_VALUE)
 
 julia> name(err)
 "ERROR_INVALID_VALUE"
-
-julia> ERROR_INVALID_VALUE
-CuError(1, ERROR_INVALID_VALUE)
 ```
 """
 function name(err::CuError)
