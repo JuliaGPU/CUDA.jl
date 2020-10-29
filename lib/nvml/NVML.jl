@@ -8,7 +8,20 @@ using CEnum
 
 using Libdl
 
-libnvml() = Sys.iswindows() ? "nvml" : "libnvidia-ml.so.1"
+function libnvml()
+    if Sys.iswindows()
+        # the NVSMI dir isn't added to PATH by the installer
+        nvsmi = joinpath(ENV["ProgramFiles"], "NVIDIA Corporation", "NVSMI")
+        if isdir(nvsmi)
+            joinpath(nvsmi, "nvml.dll")
+        else
+            # let's just hope for the best
+            "nvml"
+        end
+    else
+        "libnvidia-ml.so.1"
+    end
+end
 has_nvml() = Libdl.dlopen(libnvml(); throw_error=false) !== nothing
 
 # core library
