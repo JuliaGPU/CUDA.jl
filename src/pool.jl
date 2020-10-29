@@ -342,7 +342,7 @@ multiple calls to `free` before this buffer is put back into the memory pool.
     allocated[dev][ptr] = block, refcount+1
   end
 
-  return ptr
+  return
 end
 
 """
