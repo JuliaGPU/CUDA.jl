@@ -20,6 +20,9 @@ assignees: ''
   (e.g. `inspect code with @device_code_warntype`). If you can't solve the problem using
   that information, make sure to post it as part of the issue.
 
+- [ ] Always ensure you're using the latest version of CUDA.jl, and if possible, please
+  check the master branch to see if your issue hasn't been resolved yet.
+
 If your bug is still valid, please go ahead and fill out the template below.
 
 
