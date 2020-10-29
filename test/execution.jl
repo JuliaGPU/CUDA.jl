@@ -1014,13 +1014,20 @@ if capability(device()) >= v"6.0" && attribute(device(), CUDA.DEVICE_ATTRIBUTE_C
         return nothing
     end
 
-    a = round.(rand(Float32, (300, 40)) * 100)
-    b = round.(rand(Float32, (300, 40)) * 100)
-    c = zeros(Float32, (300, 40))
+    # cooperative kernels are additionally limited in the number of blocks that can be launched
+    maxBlocks = attribute(device(), CUDA.DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT)
+    kernel = cufunction(kernel_vadd, NTuple{3, CuDeviceArray{Float32,2,AS.Global}})
+    maxThreads = CUDA.maxthreads(kernel)
+
+    a = rand(Float32, maxBlocks, maxThreads)
+    b = rand(Float32, size(a)) * 100
+    c = similar(a)
     d_a = CuArray(a)
     d_b = CuArray(b)
     d_c = CuArray(c)  # output array
-    @cuda cooperative=true threads=600 blocks=20 kernel_vadd(d_a, d_b, d_c)
+
+    @cuda cooperative=true threads=maxThreads blocks=maxBlocks kernel_vadd(d_a, d_b, d_c)
+
     c = Array(d_c)
     @test all(c[1] .== c)
 end
