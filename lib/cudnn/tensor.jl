@@ -62,7 +62,7 @@ OpTensorDesc(op::cudnnOpTensorOp_t, a::DenseCuArray) = OpTensorDesc(op, eltype(a
 
 function cudnnOpTensor(op::cudnnOpTensorOp_t,
                        A::DenseCuArray{T,N}, B::DenseCuArray{T,N}, C::DenseCuArray{T,N};
-                       alpha1=1, alpha2=1, beta=0) where {T,N}
+                       alpha1=true, alpha2=true, beta=false) where {T,N}
     cudnnOpTensor(handle(), OpTensorDesc(op, T),
                   scalingParameter(T, alpha1), TensorDesc(A), A,
                   scalingParameter(T, alpha2), TensorDesc(B), B,
@@ -113,7 +113,7 @@ end
 
 function cudnnReduceTensor(op::cudnnReduceTensorOp_t,
                            A::DenseCuArray{T,N}, C::DenseCuArray{T,N};
-                           alpha=1, beta=0) where {T,N}
+                           alpha=true, beta=false) where {T,N}
     # indices = Array{UInt64, 1}(undef, N)
     indicesSizeInBytes = cudnnGetReductionIndicesSize(op, A, C)
     @workspace size=@argout(

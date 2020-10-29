@@ -82,9 +82,24 @@ end
       @test testf(x -> f.(x), rand(Float64, dims))
     end
   end
+
   # softplus does not give `Inf` for large arguments
   x = CuArray([1000.])
   @test all(softplus.(x) .== x)
+
+  # optimized activation overwrote inputs
+  let
+    x = CUDA.ones(1)
+    @test Array(x) == [1f0]
+    tanh.(x)
+    @test Array(x) == [1f0]
+    y = tanh.(x)
+    @test Array(x) == [1f0]
+    @test Array(y) == [tanh(1f0)]
+    x .= tanh.(y)
+    @test Array(y) == [tanh(1f0)]
+    @test Array(x) == [tanh(tanh(1f0))]
+  end
 end
 
 @testset "Batchnorm" begin

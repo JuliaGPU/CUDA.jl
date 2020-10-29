@@ -233,24 +233,41 @@ meanpool!(y::DenseCuArray{T}, x::DenseCuArray{T}, pdims::PoolDims) where T<:CUDN
 
 # Activation
 
-# in-place for x
-Base.broadcasted(::typeof(NNlib.σ), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
-  (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_SIGMOID, coeff=0.0); return x)
+using Base.Broadcast
 
-Base.broadcasted(::typeof(NNlib.relu), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
-  (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_RELU, coeff=0.0); return x)
+for (f, op) in [
+  CUDA.tanh       => (src,dst)->cudnnActivationForward(reshape4D(src), reshape4D(dst),
+                                                       mode=CUDNN_ACTIVATION_TANH),
+  NNlib.σ         => (src,dst)->cudnnActivationForward(reshape4D(src), reshape4D(dst),
+                                                       mode=CUDNN_ACTIVATION_SIGMOID),
+  NNlib.elu       => (src,dst)->cudnnActivationForward(reshape4D(src), reshape4D(dst),
+                                                       mode=CUDNN_ACTIVATION_ELU),
+  NNlib.relu      => (src,dst)->cudnnActivationForward(reshape4D(src), reshape4D(dst),
+                                                       mode=CUDNN_ACTIVATION_RELU),
+  NNlib.relu6     => (src,dst)->cudnnActivationForward(reshape4D(src), reshape4D(dst),
+                                                       mode=CUDNN_ACTIVATION_CLIPPED_RELU,
+                                                       coeff=6.0),
+  NNlib.leakyrelu => (src,dst)->cudnnOpTensor(CUDNN_OP_TENSOR_MAX, reshape4D(src),
+                                              reshape4D(src), reshape4D(dst),
+                                              alpha1=0.01)]
+  @eval begin
+    # in-place
+    function Base.materialize!(dst::DenseCuArray{<:CUDNNFloat},
+                               bc::Broadcast.Broadcasted{<:Any,<:Any,typeof($f),<:Tuple{DenseCuArray}})
+        $op(bc.args[1], dst)
+        return dst
+    end
 
-Base.broadcasted(::typeof(NNlib.tanh), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
-  (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_TANH, coeff=0.0); return x)
-
-Base.broadcasted(::typeof(NNlib.relu6), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
-  (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_CLIPPED_RELU, coeff=6.0); return x)
-
-Base.broadcasted(::typeof(NNlib.elu), x::DenseCuArray{T}) where {T<:CUDNNFloat} =
-  (cudnnActivationForward(reshape4D(x), mode=CUDNN_ACTIVATION_ELU, coeff=1.0); return x)
+    # out of place
+    function Base.materialize(bc::Broadcast.Broadcasted{<:Any,<:Any,typeof($f),<:Tuple{DenseCuArray}})
+        ElType = Broadcast.combine_eltypes(bc.f, bc.args)
+        dst = similar(bc, ElType)
+        $op(bc.args[1], dst)
+        return dst
+    end
+  end
+end
 
 # CUDNN_ACTIVATION_IDENTITY does not work with cudnnActivationForward
-Base.broadcasted(::typeof(NNlib.identity), x::DenseCuArray{T}) where {T<:CUDNNFloat} = x
-
-Base.broadcasted(::typeof(NNlib.leakyrelu), x::DenseCuArray{T}, a=T(0.01)) where {T<:CUDNNFloat} =
-  (cudnnOpTensor(CUDNN_OP_TENSOR_MAX, reshape4D(x), reshape4D(x), reshape4D(x), alpha1=a); return x)
+# FIXME: put this optimization in GPUArrays' `copyto!` (like Base.Broadcast's `copyto!`)
+Base.broadcasted(::typeof(identity), x::DenseCuArray{T}) where {T<:CUDNNFloat} = x
