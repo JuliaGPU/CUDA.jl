@@ -8,6 +8,47 @@ using the artifact subsystem.
 
 
 
+## Package installation
+
+For most users, installing the latest tagged version of CUDA.jl will be sufficient. You can
+easily do that using the package manager:
+
+```
+pkg> add CUDA
+```
+
+Or, equivalently, via the `Pkg` API:
+
+```julia
+julia> import Pkg; Pkg.add("CUDA")
+```
+
+In some cases, you might need to use the `master` version of this package, e.g., because it
+includes a specific fix you need. Often, however, the development version of this package
+itself relies on unreleased versions of other packages. This information is recorded in the
+manifest at the root of the repository, which you can use by starting Julia from the CUDA.jl
+directory with the `--project` flag:
+
+```
+$ cd .julia/dev/CUDA.jl     # or wherever you have CUDA.jl checked out
+$ julia --project
+pkg> instantiate            # to install correct dependencies
+julia> using CUDA
+```
+
+In the case you want to use the development version of CUDA.jl with other packages, you
+cannot use the manifest and you need to manually install those dependencies from the master
+branch. Again, the exact requirements are recorded in CUDA.jl's manifest, but often the
+following instructions will work:
+
+```
+pkg> add GPUCompiler#master
+pkg> add GPUArrays#master
+pkg> add LLVM#master
+```
+
+
+
 ## Platform support
 
 All three major operation systems are supported: Linux, Windows and macOS. However, that
