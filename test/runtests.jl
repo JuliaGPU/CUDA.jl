@@ -80,8 +80,8 @@ for (rootpath, dirs, files) in walkdir(@__DIR__)
 end
 ## GPUArrays testsuite
 for name in keys(TestSuite.tests)
-    push!(tests, "gpuarrays/$name")
-    test_runners["gpuarrays/$name"] = ()->TestSuite.tests[name](CuArray)
+    push!(tests, "gpuarrays$(Base.Filesystem.path_separator)$name")
+    test_runners["gpuarrays$(Base.Filesystem.path_separator)$name"] = ()->TestSuite.tests[name](CuArray)
 end
 unique!(tests)
 
