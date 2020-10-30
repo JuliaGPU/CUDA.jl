@@ -2,6 +2,9 @@ using CUDA.CUTENSOR
 using CUDA
 using LinearAlgebra
 
+# using host memory with CUTENSOR doesn't work on Windows
+can_pin = !Sys.iswindows()
+
 eltypes = ((Float16, Float16),
             #(Float16, Float32),
             (Float32, Float32),
@@ -25,8 +28,8 @@ eltypes = ((Float16, Float16),
         dA    = CuArray(A)
         C     = rand(eltyC, dimsC...)
         dC    = CuArray(C)
-        Mem.pin(A)
-        Mem.pin(C)
+        can_pin && Mem.pin(A)
+        can_pin && Mem.pin(C)
 
         # simple case
         opA   = CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -37,22 +40,26 @@ eltypes = ((Float16, Float16),
                                             dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .+ C
-        Dsimple = similar(C)
-        Mem.pin(Dsimple)
-        Dsimple = CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
-                                                Dsimple, indsC, opAC)
-        synchronize()
-        @test Dsimple ≈ permutedims(A, p) .+ C
+        if can_pin
+            Dsimple = similar(C)
+             Mem.pin(Dsimple)
+            Dsimple = CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
+                                                    Dsimple, indsC, opAC)
+            synchronize()
+            @test Dsimple ≈ permutedims(A, p) .+ C
+        end
 
         # using integers as indices
         dD = CUTENSOR.elementwiseBinary!(1, dA, 1:N, opA, 1, dC, p, opC, dD, p, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .+ C
-        Dint = zeros(eltyC, dimsC...)
-        Mem.pin(Dint)
-        Dint = CUTENSOR.elementwiseBinary!(1, A, 1:N, opA, 1, C, p, opC, Dint, p, opAC)
-        synchronize()
-        @test Dint ≈ permutedims(A, p) .+ C
+        if can_pin
+            Dint = zeros(eltyC, dimsC...)
+            Mem.pin(Dint)
+            Dint = CUTENSOR.elementwiseBinary!(1, A, 1:N, opA, 1, C, p, opC, Dint, p, opAC)
+            synchronize()
+            @test Dint ≈ permutedims(A, p) .+ C
+        end
 
         # multiplication as binary operator
         opAC = CUTENSOR.CUTENSOR_OP_MUL
@@ -60,12 +67,14 @@ eltypes = ((Float16, Float16),
                                             dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ permutedims(A, p) .* C
-        Dmult = zeros(eltyC, dimsC...)
-        Mem.pin(Dmult)
-        Dmult = CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
-                                            Dmult, indsC, opAC)
-        synchronize()
-        @test Dmult ≈ permutedims(A, p) .* C
+        if can_pin
+            Dmult = zeros(eltyC, dimsC...)
+            Mem.pin(Dmult)
+            Dmult = CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
+                                                Dmult, indsC, opAC)
+            synchronize()
+            @test Dmult ≈ permutedims(A, p) .* C
+        end
 
         # with non-trivial coefficients and conjugation
         opA = eltyA <: Complex ? CUTENSOR.CUTENSOR_OP_CONJ :
@@ -78,12 +87,14 @@ eltypes = ((Float16, Float16),
                                             dD, indsC, opAC)
         D = collect(dD)
         @test D ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
-        Dnontrivial = similar(C)
-        Mem.pin(Dnontrivial)
-        Dnontrivial = CUTENSOR.elementwiseBinary!(α, A, indsA, opA, γ, C, indsC, opC,
-                                            Dnontrivial, indsC, opAC)
-        synchronize()
-        @test Dnontrivial ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
+        if can_pin
+            Dnontrivial = similar(C)
+            Mem.pin(Dnontrivial)
+            Dnontrivial = CUTENSOR.elementwiseBinary!(α, A, indsA, opA, γ, C, indsC, opC,
+                                                Dnontrivial, indsC, opAC)
+            synchronize()
+            @test Dnontrivial ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
+        end
 
         # test in-place, and more complicated unary and binary operations
         opA = eltyA <: Complex ? CUTENSOR.CUTENSOR_OP_IDENTITY :
@@ -107,7 +118,7 @@ eltypes = ((Float16, Float16),
             end
         else
             @test D ≈ max.(α .* sqrt.(convert.(eltyD, permutedims(A, p))), γ .* C)
-        end            # # using host memory
+        end
 
         # using CuTensor type
         dA = CuArray(A)

@@ -2,6 +2,9 @@ using CUDA.CUTENSOR
 using CUDA
 using LinearAlgebra
 
+# using host memory with CUTENSOR doesn't work on Windows
+can_pin = !Sys.iswindows()
+
 eltypes = (#(Float16, Float16), #(Float16, Float32),
                         (Float32, Float32), #(Float32, Float64),
                         (Float64, Float64),
@@ -24,7 +27,7 @@ eltypes = (#(Float16, Float16), #(Float16, Float32),
         C = rand(eltyC, (dimsC...,))
         dC = CuArray(C)
         # setup
-        Mem.pin(A)
+        can_pin && Mem.pin(A)
 
         opA = CUTENSOR.CUTENSOR_OP_IDENTITY
         opC = CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -34,40 +37,45 @@ eltypes = (#(Float16, Float16), #(Float16, Float32),
         C = collect(dC)
         @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
             sum(permutedims(A, p); dims = ((NC+1:NA)...,))
-        Csimple = zeros(eltyC, dimsC...)
-        Mem.pin(Csimple)
-        Csimple = CUTENSOR.reduction!(1, A, indsA, opA, 0, Csimple, indsC, opC, opReduce)
-        synchronize()
-        @test reshape(Csimple, (dimsC..., ones(Int,NA-NC)...)) ≈
-            sum(permutedims(A, p); dims = ((NC+1:NA)...,))
+        if can_pin
+            Csimple = zeros(eltyC, dimsC...)
+            Mem.pin(Csimple)
+            Csimple = CUTENSOR.reduction!(1, A, indsA, opA, 0, Csimple, indsC, opC, opReduce)
+            synchronize()
+            @test reshape(Csimple, (dimsC..., ones(Int,NA-NC)...)) ≈
+                sum(permutedims(A, p); dims = ((NC+1:NA)...,))
+        end
 
         # using integers as indices
-        Cinteger = zeros(eltyC, dimsC...)
-        Mem.pin(Cinteger)
         dC = CUTENSOR.reduction!(1, dA, collect(1:NA), opA, 0, dC, p[1:NC], opC, opReduce)
-        synchronize()
         C = collect(dC)
         @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
             sum(permutedims(A, p); dims = ((NC+1:NA)...,))
-        Cinteger = CUTENSOR.reduction!(1, A, collect(1:NA), opA, 0, Cinteger, p[1:NC], opC, opReduce)
-        synchronize()
-        @test reshape(Cinteger, (dimsC..., ones(Int,NA-NC)...)) ≈
-            sum(permutedims(A, p); dims = ((NC+1:NA)...,))
+        if can_pin
+            Cinteger = zeros(eltyC, dimsC...)
+            Mem.pin(Cinteger)
+            Cinteger = CUTENSOR.reduction!(1, A, collect(1:NA), opA, 0, Cinteger, p[1:NC], opC, opReduce)
+            synchronize()
+            @test reshape(Cinteger, (dimsC..., ones(Int,NA-NC)...)) ≈
+                sum(permutedims(A, p); dims = ((NC+1:NA)...,))
+        end
 
         # multiplication as reduction operator
         opReduce = CUTENSOR.CUTENSOR_OP_MUL
-        Cmult = zeros(eltyC, dimsC...)
-        Mem.pin(Cmult)
         dC = CUTENSOR.reduction!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
         synchronize()
         C = collect(dC)
         @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
             prod(permutedims(A, p); dims = ((NC+1:NA)...,)) atol=eps(Float16) rtol=Base.rtoldefault(Float16)
-        Cmult = CUTENSOR.reduction!(1, A, indsA, opA, 0, Cmult, indsC, opC, opReduce)
-        synchronize()
-        @test reshape(Cmult, (dimsC..., ones(Int,NA-NC)...)) ≈
-            prod(permutedims(A, p); dims = ((NC+1:NA)...,)) atol=eps(Float16) rtol=Base.rtoldefault(Float16)
-        # NOTE: this test often yields values close to 0 that do not compare approximately
+        if can_pin
+            Cmult = zeros(eltyC, dimsC...)
+            Mem.pin(Cmult)
+            Cmult = CUTENSOR.reduction!(1, A, indsA, opA, 0, Cmult, indsC, opC, opReduce)
+            synchronize()
+            @test reshape(Cmult, (dimsC..., ones(Int,NA-NC)...)) ≈
+                prod(permutedims(A, p); dims = ((NC+1:NA)...,)) atol=eps(Float16) rtol=Base.rtoldefault(Float16)
+            # NOTE: this test often yields values close to 0 that do not compare approximately
+        end
 
         # with non-trivial coefficients and conjugation
         opA = eltyA <: Complex ? CUTENSOR.CUTENSOR_OP_CONJ :

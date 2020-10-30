@@ -22,8 +22,8 @@ function Base.:(*)(A::CuTensor, B::CuTensor)
     B_uniqs = [(idx, i) for (idx, i) in enumerate(B.inds) if !(i in A.inds)]
     A_sizes = map(x->size(A,x[1]), A_uniqs)
     B_sizes = map(x->size(B,x[1]), B_uniqs)
-    A_inds = map(x->Cwchar_t(x[2]), A_uniqs)
-    B_inds = map(x->Cwchar_t(x[2]), B_uniqs)
+    A_inds = map(x->Char(x[2]), A_uniqs)
+    B_inds = map(x->Char(x[2]), B_uniqs)
     C = CuTensor(CUDA.zeros(tC, Dims(vcat(A_sizes, B_sizes))), vcat(A_inds, B_inds))
     return mul!(C, A, B)
 end

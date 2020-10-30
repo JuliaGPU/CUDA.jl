@@ -11,6 +11,9 @@ eltypes = ( (Float32, Float32, Float32, Float32),
             (ComplexF64, ComplexF64, ComplexF64, ComplexF32)
             )
 
+# using host memory with CUTENSOR doesn't work on Windows
+can_pin = !Sys.iswindows()
+
 @testset for NoA=1:3, NoB=1:3, Nc=1:3
     @testset for (eltyA, eltyB, eltyC, eltyCompute) in eltypes
         # setup
@@ -40,31 +43,33 @@ eltypes = ( (Float32, Float32, Float32, Float32),
         indsC = [indsoA; indsoB][pC]
 
         A = rand(eltyA, (dimsA...,))
-        Mem.pin(A)
+        can_pin && Mem.pin(A)
         dA = CuArray(A)
         mA = reshape(permutedims(A, ipA), (loA, lc))
         B = rand(eltyB, (dimsB...,))
-        Mem.pin(B)
+        can_pin && Mem.pin(B)
         dB = CuArray(B)
         mB = reshape(permutedims(B, ipB), (lc, loB))
         C = zeros(eltyC, (dimsC...,))
         dC = CuArray(C)
 
         # simple case host side
-        Cpin = zeros(eltyC, (dimsC...,))
-        Mem.pin(Cpin)
-        @test !any(isnan.(Cpin))
-        opA = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opB = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opC = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
-        Cpin  = CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut)
-        synchronize()
-        mCpin = reshape(permutedims(Cpin, ipC), (loA, loB))
-        @test !any(isnan.(A))
-        @test !any(isnan.(B))
-        @test !any(isnan.(mCpin))
-        @test mCpin ≈ mA * mB rtol=compute_rtol
+        if can_pin
+            Cpin = zeros(eltyC, (dimsC...,))
+            Mem.pin(Cpin)
+            @test !any(isnan.(Cpin))
+            opA = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opB = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opC = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
+            Cpin  = CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut)
+            synchronize()
+            mCpin = reshape(permutedims(Cpin, ipC), (loA, loB))
+            @test !any(isnan.(A))
+            @test !any(isnan.(B))
+            @test !any(isnan.(mCpin))
+            @test mCpin ≈ mA * mB rtol=compute_rtol
+        end
 
         # simple case
         opA = CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -88,16 +93,18 @@ eltypes = ( (Float32, Float32, Float32, Float32),
         @test mC ≈ mA * mB
 
         # simple case with plan storage host-side
-        opA = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opB = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opC = CUTENSOR.CUTENSOR_OP_IDENTITY
-        opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
-        plan  = CUTENSOR.plan_contraction(A, indsA, opA, B, indsB, opB, C, indsC, opC, opOut)
-        Cpin = CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut, plan=plan)
-        synchronize()
-        mC = reshape(permutedims(Cpin, ipC), (loA, loB))
-        @test !any(isnan.(mC))
-        @test mC ≈ mA * mB
+        if can_pin
+            opA = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opB = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opC = CUTENSOR.CUTENSOR_OP_IDENTITY
+            opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
+            plan  = CUTENSOR.plan_contraction(A, indsA, opA, B, indsB, opB, C, indsC, opC, opOut)
+            Cpin = CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut, plan=plan)
+            synchronize()
+            mC = reshape(permutedims(Cpin, ipC), (loA, loB))
+            @test !any(isnan.(mC))
+            @test mC ≈ mA * mB
+        end
 
         # simple case with plan storage and compute type
         opA = CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -118,15 +125,17 @@ eltypes = ( (Float32, Float32, Float32, Float32),
         mC = reshape(permutedims(C, ipC), (loA, loB))
         @test mC ≈ α * mA * mB rtol=compute_rtol
 
-        α = rand(eltyCompute)
-        Calpha = zeros(eltyC, (dimsC...,))
-        Mem.pin(Calpha)
-        @test !any(isnan.(Calpha))
-        Calpha = CUTENSOR.contraction!(α, A, indsA, opA, B, indsB, opB, 0, Calpha, indsC, opC, opOut)
-        synchronize()
-        mCalpha = reshape(permutedims(collect(Calpha), ipC), (loA, loB))
-        @test !any(isnan.(mCalpha))
-        @test mCalpha ≈ α * mA * mB rtol=compute_rtol
+        if can_pin
+            α = rand(eltyCompute)
+            Calpha = zeros(eltyC, (dimsC...,))
+            Mem.pin(Calpha)
+            @test !any(isnan.(Calpha))
+            Calpha = CUTENSOR.contraction!(α, A, indsA, opA, B, indsB, opB, 0, Calpha, indsC, opC, opOut)
+            synchronize()
+            mCalpha = reshape(permutedims(collect(Calpha), ipC), (loA, loB))
+            @test !any(isnan.(mCalpha))
+            @test mCalpha ≈ α * mA * mB rtol=compute_rtol
+        end
 
         # with non-trivial β
         C = rand(eltyC, (dimsC...,))

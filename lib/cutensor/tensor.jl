@@ -2,19 +2,19 @@ export CuTensor
 
 mutable struct CuTensor{T, N}
     data::DenseCuArray{T, N}
-    inds::Vector{Cwchar_t}
-    function CuTensor{T, N}(data::DenseCuArray{T, N}, inds::Vector{Cwchar_t}) where {T<:Number, N}
+    inds::Vector{Char}
+    function CuTensor{T, N}(data::DenseCuArray{T, N}, inds::Vector{Char}) where {T<:Number, N}
         new(data, inds)
     end
     function CuTensor{T, N}(data::DenseCuArray{N, T}, inds::Vector{<:AbstractChar}) where {T<:Number, N}
-        new(data, Cwchar_t.(inds))
+        new(data, Char.(inds))
     end
 end
 
 CuTensor(data::DenseCuArray{T, N}, inds::Vector{<:AbstractChar}) where {T<:Number, N} =
-    CuTensor{T, N}(data, convert(Vector{Cwchar_t}, inds))
+    CuTensor{T, N}(data, convert(Vector{Char}, inds))
 
-CuTensor(data::DenseCuArray{T, N}, inds::Vector{Cwchar_t}) where {T<:Number, N} =
+CuTensor(data::DenseCuArray{T, N}, inds::Vector{Char}) where {T<:Number, N} =
     CuTensor{T, N}(data, inds)
 
 Base.size(T::CuTensor) = size(T.data)
