@@ -183,11 +183,14 @@ function elementwiseBinary!(
     descC = CuTensorDescriptor(C; op = opC)
     @assert size(C) == size(D) && strides(C) == strides(D)
     descD = descC # must currently be identical
+    modeA = collect(Cint, A.inds)
+    modeC = collect(Cint, C.inds)
+    modeD = modeC
     scalar_type = scalar_types[(eltype(C), eltype(D))]
     cutensorElementwiseBinary(handle(),
-                              Ref{scalar_type}(alpha), A.data, descA, A.inds,
-                              Ref{scalar_type}(gamma), C.data, descC, C.inds,
-                              D.data, descD, C.inds,
+                              Ref{scalar_type}(alpha), A.data, descA, modeA,
+                              Ref{scalar_type}(gamma), C.data, descC, modeC,
+                              D.data, descD, modeD,
                               opAC, scalar_type, stream)
     return D
 end
