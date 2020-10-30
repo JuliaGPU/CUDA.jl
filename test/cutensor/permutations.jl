@@ -2,6 +2,9 @@ using CUDA.CUTENSOR
 using CUDA
 using LinearAlgebra
 
+# using host memory with CUTENSOR doesn't work on Windows
+can_pin = !Sys.iswindows()
+
 eltypes = ((Float16, Float16),
             #(Float16, Float32),
             (Float32, Float32),
@@ -23,7 +26,7 @@ eltypes = ((Float16, Float16),
         dimsA = dims
         dimsC = dims[p]
         A = rand(eltyA, dimsA...)
-        Mem.pin(A)
+        can_pin && Mem.pin(A)
         dA = CuArray(A)
         dC = similar(dA, eltyC, dimsC...)
 
@@ -31,22 +34,25 @@ eltypes = ((Float16, Float16),
         dC = CUTENSOR.permutation!(one(eltyA), dA, indsA, dC, indsC)
         C  = collect(dC)
         @test C == permutedims(A, p) # exact equality
-        Csimple = zeros(eltyC, dimsC...)
-        Mem.pin(Csimple)
-        Csimple = CUTENSOR.permutation!(one(eltyA), A, indsA, Csimple, indsC)
-        synchronize()
-        @test Csimple == permutedims(A, p) # exact equality
+        if can_pin
+            Csimple = zeros(eltyC, dimsC...)
+            Mem.pin(Csimple)
+            Csimple = CUTENSOR.permutation!(one(eltyA), A, indsA, Csimple, indsC)
+            synchronize()
+            @test Csimple == permutedims(A, p) # exact equality
+        end
 
         # with scalar
         α  = rand(eltyA)
         dC = CUTENSOR.permutation!(α, dA, indsA, dC, indsC)
         C  = collect(dC)
         @test C ≈ α * permutedims(A, p) # approximate, floating point rounding
-
-        Cscalar = zeros(eltyC, dimsC...)
-        Mem.pin(Cscalar)
-        Cscalar = CUTENSOR.permutation!(α, A, indsA, Cscalar, indsC)
-        synchronize()
-        @test Cscalar ≈ α * permutedims(A, p) # approximate, floating point rounding
+        if can_pin
+            Cscalar = zeros(eltyC, dimsC...)
+            Mem.pin(Cscalar)
+            Cscalar = CUTENSOR.permutation!(α, A, indsA, Cscalar, indsC)
+            synchronize()
+            @test Cscalar ≈ α * permutedims(A, p) # approximate, floating point rounding
+        end
     end
 end

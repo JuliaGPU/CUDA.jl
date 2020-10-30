@@ -2,6 +2,9 @@ using CUDA.CUTENSOR
 using CUDA
 using LinearAlgebra
 
+# using host memory with CUTENSOR doesn't work on Windows
+can_pin = !Sys.iswindows()
+
 eltypes = ((Float16, Float16, Float16),
             #(Float16, Float32, Float32),
             # (Float32, Float16, Float32),
@@ -48,27 +51,31 @@ eltypes = ((Float16, Float16, Float16),
         @test D ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
 
         # test with Mem.pinned host memory
-        Mem.pin(A)
-        Mem.pin(B)
-        Mem.pin(C)
-        Dc = similar(C)
-        Mem.pin(Dc)
-        Dc = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
-                                            1, C, indsC, opC, Dc, indsC, opAB, opABC)
-        synchronize()
-        @test Dc ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
+        if can_pin
+            Mem.pin(A)
+            Mem.pin(B)
+            Mem.pin(C)
+            Dc = similar(C)
+            Mem.pin(Dc)
+            Dc = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
+                                                1, C, indsC, opC, Dc, indsC, opAB, opABC)
+            synchronize()
+            @test Dc ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
+        end
 
         # using integers as indices
         dD = CUTENSOR.elementwiseTrinary!(1, dA, ipA, opA, 1, dB, ipB, opB,
                                             1, dC, 1:N, opC, dD, 1:N, opAB, opABC)
         D = collect(dD)
         @test D ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
-        Dd = similar(C)
-        Mem.pin(Dd)
-        Dd = CUTENSOR.elementwiseTrinary!(1, A, ipA, opA, 1, B, ipB, opB,
-                                            1, C, 1:N, opC, Dd, 1:N, opAB, opABC)
-        synchronize()
-        @test Dd ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
+        if can_pin
+            Dd = similar(C)
+            Mem.pin(Dd)
+            Dd = CUTENSOR.elementwiseTrinary!(1, A, ipA, opA, 1, B, ipB, opB,
+                                                1, C, 1:N, opC, Dd, 1:N, opAB, opABC)
+            synchronize()
+            @test Dd ≈ permutedims(A, pA) .+ permutedims(B, pB) .+ C
+        end
 
         # multiplication as binary operator
         opAB = CUTENSOR.CUTENSOR_OP_MUL
@@ -77,12 +84,14 @@ eltypes = ((Float16, Float16, Float16),
                                             1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
         @test D ≈ (convert.(eltyD, permutedims(A, pA)) .* convert.(eltyD, permutedims(B, pB))) .+ C
-        De = similar(C)
-        Mem.pin(De)
-        De = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
-                                            1, C, indsC, opC, De, indsC, opAB, opABC)
-        synchronize()
-        @test De ≈ (convert.(eltyD, permutedims(A, pA)) .* convert.(eltyD, permutedims(B, pB))) .+ C
+        if can_pin
+            De = similar(C)
+            Mem.pin(De)
+            De = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
+                                                1, C, indsC, opC, De, indsC, opAB, opABC)
+            synchronize()
+            @test De ≈ (convert.(eltyD, permutedims(A, pA)) .* convert.(eltyD, permutedims(B, pB))) .+ C
+        end
 
         opAB = CUTENSOR.CUTENSOR_OP_ADD
         opABC = CUTENSOR.CUTENSOR_OP_MUL
@@ -90,12 +99,14 @@ eltypes = ((Float16, Float16, Float16),
                                             1, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
         @test D ≈ (convert.(eltyD, permutedims(A, pA)) .+ convert.(eltyD, permutedims(B, pB))) .* C
-        Df = similar(C)
-        Mem.pin(Df)
-        Df = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
-                                            1, C, indsC, opC, Df, indsC, opAB, opABC)
-        synchronize()
-        @test Df ≈ (convert.(eltyD, permutedims(A, pA)) .+ convert.(eltyD, permutedims(B, pB))) .* C
+        if can_pin
+            Df = similar(C)
+            Mem.pin(Df)
+            Df = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
+                                                1, C, indsC, opC, Df, indsC, opAB, opABC)
+            synchronize()
+            @test Df ≈ (convert.(eltyD, permutedims(A, pA)) .+ convert.(eltyD, permutedims(B, pB))) .* C
+        end
 
         opAB = CUTENSOR.CUTENSOR_OP_MUL
         opABC = CUTENSOR.CUTENSOR_OP_MUL
@@ -104,13 +115,15 @@ eltypes = ((Float16, Float16, Float16),
         D = collect(dD)
         @test D ≈ convert.(eltyD, permutedims(A, pA)) .*
                     convert.(eltyD, permutedims(B, pB)) .* C
-        Dg = similar(C)
-        Mem.pin(Dg)
-        Dg = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
-                                            1, C, indsC, opC, Dg, indsC, opAB, opABC)
-        synchronize()
-        @test Dg ≈ convert.(eltyD, permutedims(A, pA)) .*
-                    convert.(eltyD, permutedims(B, pB)) .* C
+        if can_pin
+            Dg = similar(C)
+            Mem.pin(Dg)
+            Dg = CUTENSOR.elementwiseTrinary!(1, A, indsA, opA, 1, B, indsB, opB,
+                                                1, C, indsC, opC, Dg, indsC, opAB, opABC)
+            synchronize()
+            @test Dg ≈ convert.(eltyD, permutedims(A, pA)) .*
+                        convert.(eltyD, permutedims(B, pB)) .* C
+        end
 
         # with non-trivial coefficients and conjugation
         α = rand(eltyD)
@@ -124,12 +137,14 @@ eltypes = ((Float16, Float16, Float16),
                                             γ, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
         @test D ≈ α .* conj.(permutedims(A, pA)) .+ β .* permutedims(B, pB) .+ γ .* C
-        Dh = similar(C)
-        Mem.pin(Dh)
-        Dh = CUTENSOR.elementwiseTrinary!(α, A, indsA, opA, β, B, indsB, opB,
-                                            γ, C, indsC, opC, Dh, indsC, opAB, opABC)
-        synchronize()
-        @test Dh ≈ α .* conj.(permutedims(A, pA)) .+ β .* permutedims(B, pB) .+ γ .* C
+        if can_pin
+            Dh = similar(C)
+            Mem.pin(Dh)
+            Dh = CUTENSOR.elementwiseTrinary!(α, A, indsA, opA, β, B, indsB, opB,
+                                                γ, C, indsC, opC, Dh, indsC, opAB, opABC)
+            synchronize()
+            @test Dh ≈ α .* conj.(permutedims(A, pA)) .+ β .* permutedims(B, pB) .+ γ .* C
+        end
 
         opB = eltyB <: Complex ? CUTENSOR.CUTENSOR_OP_CONJ :
                                 CUTENSOR.CUTENSOR_OP_IDENTITY
@@ -140,13 +155,15 @@ eltypes = ((Float16, Float16, Float16),
         D = collect(dD)
         @test D ≈ α .* conj.(permutedims(A, pA)) .+
                     β .* conj.(permutedims(B, pB)) .+ γ .* C
-        Di = similar(C)
-        Mem.pin(Di)
-        Di = CUTENSOR.elementwiseTrinary!(α, A, indsA, opA, β, B, indsB, opB,
-                                            γ, C, indsC, opC, Di, indsC, opAB, opABC)
-        synchronize()
-        @test Di ≈ α .* conj.(permutedims(A, pA)) .+
-                    β .* conj.(permutedims(B, pB)) .+ γ .* C
+        if can_pin
+            Di = similar(C)
+            Mem.pin(Di)
+            Di = CUTENSOR.elementwiseTrinary!(α, A, indsA, opA, β, B, indsB, opB,
+                                                γ, C, indsC, opC, Di, indsC, opAB, opABC)
+            synchronize()
+            @test Di ≈ α .* conj.(permutedims(A, pA)) .+
+                        β .* conj.(permutedims(B, pB)) .+ γ .* C
+        end
 
         opA = CUTENSOR.CUTENSOR_OP_IDENTITY
         opAB = CUTENSOR.CUTENSOR_OP_MUL
@@ -155,12 +172,14 @@ eltypes = ((Float16, Float16, Float16),
                                             γ, dC, indsC, opC, dD, indsC, opAB, opABC)
         D = collect(dD)
         @test D ≈ α .* permutedims(A, pA) .* β .* conj.(permutedims(B, pB)) .+ γ .* C
-        Dj = similar(C)
-        Mem.pin(Dj)
-        Dj = CUTENSOR.elementwiseTrinary!(α, A, indsA, opA, β, B, indsB, opB,
-                                            γ, C, indsC, opC, Dj, indsC, opAB, opABC)
-        synchronize()
-        @test Dj ≈ α .* permutedims(A, pA) .* β .* conj.(permutedims(B, pB)) .+ γ .* C
+        if can_pin
+            Dj = similar(C)
+            Mem.pin(Dj)
+            Dj = CUTENSOR.elementwiseTrinary!(α, A, indsA, opA, β, B, indsB, opB,
+                                                γ, C, indsC, opC, Dj, indsC, opAB, opABC)
+            synchronize()
+            @test Dj ≈ α .* permutedims(A, pA) .* β .* conj.(permutedims(B, pB)) .+ γ .* C
+        end
 
         # test in-place, and more complicated unary and binary operations
         opA = eltyA <: Complex ? CUTENSOR.CUTENSOR_OP_IDENTITY :
