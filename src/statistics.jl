@@ -47,15 +47,14 @@ function sqrt!(ret::CuDeviceMatrix{Complex{T}}, z::CuDeviceMatrix{Complex{T}}) w
     stride_y = blockDim().y * gridDim().y
     for j = index_y:stride_y:ly
         for i = index_x:stride_x:lx
-            rz = real(z[i, j])
-            iz = imag(z[i, j])
-            r = sqrt((hypot(rz, iz) + abs(rz)) / 2.0)
+            rz, iz = reim(z[i, j])
+            r = CUDA.sqrt((CUDA.hypot(rz, iz) + CUDA.abs(rz)) / 2.0)
             if r == 0
                 ret[i, j] = iz * im
             elseif rz >= 0
                 ret[i, j] = r + (iz / r / 2.0) * im
             else
-                ret[i, j] = (abs(iz) / r / 2.0) + copysign(r, iz)
+                ret[i, j] = (CUDA.abs(iz) / r / 2.0) + CUDA.copysign(r, iz)
             end
         end
     end
@@ -65,15 +64,14 @@ function sqrt!(ret::CuDeviceVector{Complex{T}}, z::CuDeviceVector{Complex{T}}) w
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
     for i = index:stride:length(z)
-        rz = real(z[i])
-        iz = imag(z[i])
-        r = sqrt((hypot(rz, iz) + abs(rz)) / 2.0)
+        rz, iz = reim(z[i])
+        r = CUDA.sqrt((CUDA.hypot(rz, iz) + CUDA.abs(rz)) / 2.0)
         if r == 0
             ret[i] = iz * im
         elseif rz >= 0
             ret[i] = r + (iz / r / 2.0) * im
         else
-            ret[i] = (abs(iz) / r / 2.0) + copysign(r, iz)
+            ret[i] = (CUDA.abs(iz) / r / 2.0) + CUDA.copysign(r, iz)
         end
     end
 end
