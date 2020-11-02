@@ -47,15 +47,33 @@ function sqrt!(ret::CuDeviceMatrix{Complex{T}}, z::CuDeviceMatrix{Complex{T}}) w
     stride_y = blockDim().y * gridDim().y
     for j = index_y:stride_y:ly
         for i = index_x:stride_x:lx
-            rz, iz = reim(z[i, j])
-            r = CUDA.sqrt((CUDA.hypot(rz, iz) + CUDA.abs(rz)) / 2.0)
-            if r == 0
-                ret[i, j] = iz * im
-            elseif rz >= 0
-                ret[i, j] = r + (iz / r / 2.0) * im
-            else
-                ret[i, j] = (CUDA.abs(iz) / r / 2.0) + CUDA.copysign(r, iz)
+            x, y = reim(z[i, j])
+            if x == y == 0
+                ret[i] = zero(x) + y * im
             end
+            ρ, k::Int32 = Base.ssqs(x, y)
+            if isfinite(x)
+                ρ = CUDA.ldexp(CUDA.abs(x), -k) + CUDA.sqrt(ρ)
+            end
+            if isodd(k)
+                k = div(k - 1, 2)
+            else
+                k = div(k, 2) - 1
+                ρ += ρ
+            end
+            ρ = CUDA.ldexp(CUDA.sqrt(ρ), k)
+            ξ = ρ
+            η = y
+            if ρ != 0
+                if CUDA.isfinite(η)
+                    η = (η / ρ) / 2
+                end
+                if x < 0
+                    ξ = CUDA.abs(η)
+                    η = CUDA.copysign(ρ, y)
+                end
+            end
+            ret[i, j] = ξ + η * im
         end
     end
 end
@@ -64,15 +82,33 @@ function sqrt!(ret::CuDeviceVector{Complex{T}}, z::CuDeviceVector{Complex{T}}) w
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
     for i = index:stride:length(z)
-        rz, iz = reim(z[i])
-        r = CUDA.sqrt((CUDA.hypot(rz, iz) + CUDA.abs(rz)) / 2.0)
-        if r == 0
-            ret[i] = iz * im
-        elseif rz >= 0
-            ret[i] = r + (iz / r / 2.0) * im
-        else
-            ret[i] = (CUDA.abs(iz) / r / 2.0) + CUDA.copysign(r, iz)
+        x, y = reim(z[i])
+        if x == y == 0
+            ret[i] = zero(x) + y * im
         end
+        ρ, k::Int32 = Base.ssqs(x, y)
+        if isfinite(x)
+            ρ = CUDA.ldexp(CUDA.abs(x), -k) + CUDA.sqrt(ρ)
+        end
+        if isodd(k)
+            k = div(k - 1, 2)
+        else
+            k = div(k, 2) - 1
+            ρ += ρ
+        end
+        ρ = CUDA.ldexp(CUDA.sqrt(ρ), k)
+        ξ = ρ
+        η = y
+        if ρ != 0
+            if isfinite(η)
+                η = (η / ρ) / 2
+            end
+            if x < 0
+                ξ = CUDA.abs(η)
+                η = CUDA.copysign(ρ, y)
+            end
+        end
+        ret[i] = ξ + η * im
     end
 end
 
