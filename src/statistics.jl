@@ -39,14 +39,61 @@ function Statistics.cov2cor!(C::CuMatrix{T}, xsd::CuArray) where T
     return C
 end
 
-function Statistics.corzm(x::CuMatrix, vardim::Int=1)
-    c = Statistics.unscaled_covzm(x, vardim)
-    return Statistics.cov2cor!(c, sqrt.(diag(c)))
+function sqrt!(ret::CuDeviceMatrix{Complex{T}}, z::CuDeviceMatrix{Complex{T}}) where T
+    (lx, ly) = size(z)
+    index_x = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    index_y = (blockIdx().y - 1) * blockDim().y + threadIdx().y
+    stride_x = blockDim().x * gridDim().x
+    stride_y = blockDim().y * gridDim().y
+    for j = index_y:stride_y:ly
+        for i = index_x:stride_x:lx
+            rz = real(z[i, j])
+            iz = imag(z[i, j])
+            r = sqrt((hypot(rz, iz) + abs(rz)) / 2.0)
+            if r == 0
+                ret[i, j] = iz * im
+            elseif rz >= 0
+                ret[i, j] = r + (iz / r / 2.0) * im
+            else
+                ret[i, j] = (abs(iz) / r / 2.0) + copysign(r, iz)
+            end
+        end
+    end
 end
 
-# TODO `median` (scalar operation when dims is mentioned)
-# Statistics.median(A::CuArray, dims) = CuArray([median(row) for row in eachrow(reshape(A, dims, :))])
+function sqrt!(ret::CuDeviceVector{Complex{T}}, z::CuDeviceVector{Complex{T}}) where T
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = blockDim().x * gridDim().x
+    for i = index:stride:length(z)
+        rz = real(z[i])
+        iz = imag(z[i])
+        r = sqrt((hypot(rz, iz) + abs(rz)) / 2.0)
+        if r == 0
+            ret[i] = iz * im
+        elseif rz >= 0
+            ret[i] = r + (iz / r / 2.0) * im
+        else
+            ret[i] = (abs(iz) / r / 2.0) + copysign(r, iz)
+        end
+    end
+end
 
-# TODO `middle` (implement extrema function)
+function sqrt(z::Union{CuVector{Complex{T}}, CuMatrix{Complex{T}}}) where T
+    function get_config(kernel)
+        fun = kernel.fun
+        config = launch_configuration(fun)
+        return (threads=config.threads, blocks=cld(length(z), config.threads))
+    end
+    ret = similar(z)
+    @cuda config=get_config sqrt!(ret, z)
+    ret
+end
 
-# TODO `quantile` (probably need sort for this)
+function sqrt(A::CuArray)
+    sqrt.(A)
+end
+
+function Statistics.corzm(x::CuMatrix, vardim::Int=1)
+    c = Statistics.unscaled_covzm(x, vardim)
+    return Statistics.cov2cor!(c, sqrt(diag(c)))
+end
