@@ -2,7 +2,6 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 
-
 ## high-level @cuda interface
 
 """
@@ -119,6 +118,8 @@ struct Adaptor end
 # TODO: use ordinary ptr?
 Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
 
+Adapt.adapt_storage(to::Adaptor, p::String) = Adapt.adapt_storage(to::Adaptor, CuArray(Vector{UInt8}(p)))
+
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
   x::T
@@ -167,7 +168,6 @@ The following keyword arguments are supported:
 - `stream` (defaults to the default stream)
 """
 AbstractKernel
-
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
     sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
@@ -196,7 +196,6 @@ AbstractKernel
         cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
-
 
 ## host-side kernels
 
@@ -359,6 +358,8 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         initialize_random_seeds!(mod)
         filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
+
+    create_cpucall_area!(mod)
 
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
