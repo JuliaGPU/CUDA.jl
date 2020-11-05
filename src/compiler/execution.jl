@@ -2,7 +2,6 @@
 
 export @cuda, cudaconvert, cufunction, dynamic_cufunction, nextwarp, prevwarp
 
-
 ## high-level @cuda interface
 
 """
@@ -110,14 +109,19 @@ macro cuda(ex...)
     return esc(code)
 end
 
-
 ## host to device value conversion
 
 struct Adaptor end
 
+## device to host value conversion
+
+struct InvAdaptor end
+
 # convert CUDA host pointers to device pointers
 # TODO: use ordinary ptr?
 Adapt.adapt_storage(to::Adaptor, p::CuPtr{T}) where {T} = reinterpret(LLVMPtr{T,AS.Generic}, p)
+
+Adapt.adapt_storage(to::Adaptor, p::String) = adapt(to, CuArray(Vector{UInt8}(p)))
 
 # Base.RefValue isn't GPU compatible, so provide a compatible alternative
 struct CuRefValue{T} <: Ref{T}
@@ -133,6 +137,10 @@ Adapt.adapt_storage(::Adaptor, xs::CuArray{T,N}) where {T,N} =
 Adapt.adapt_structure(::Adaptor, xs::DenseCuArray{T,N}) where {T,N} =
   Base.unsafe_convert(CuDeviceArray{T,N,AS.Global}, xs)
 
+# convert CUDA device points to host pointers
+Adapt.adapt_storage(to::InvAdaptor, p::LLVMPtr{T,AS.Generic}) where {T} = reinterpret(CuPtr{T}, p)
+
+
 """
     cudaconvert(x)
 
@@ -144,6 +152,7 @@ Do not add methods to this function, but instead extend the underlying Adapt.jl 
 register methods for the the `CUDA.Adaptor` type.
 """
 cudaconvert(arg) = adapt(Adaptor(), arg)
+invcudaconvert(arg) = adapt(InvAdaptor(), arg)
 
 
 ## abstract kernel functionality
@@ -167,7 +176,6 @@ The following keyword arguments are supported:
 - `stream` (defaults to the default stream)
 """
 AbstractKernel
-
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
     sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
     args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
@@ -192,11 +200,9 @@ AbstractKernel
 
     quote
         Base.@_inline_meta
-
         cudacall(kernel.fun, $call_tt, $(call_args...); call_kwargs...)
     end
 end
-
 
 ## host-side kernels
 
@@ -360,11 +366,31 @@ function cufunction_link(@nospecialize(job::CompilerJob), compiled)
         filter!(!isequal("global_random_seed"), compiled.external_gvars)
     end
 
+    if "hostcall_area" in compiled.external_gvars
+        create_cpucall_area!(mod)
+        filter!(!isequal("hostcall_area"), compiled.external_gvars)
+    end
+
     return HostKernel{typeof(job.source.f),job.source.tt}(job.source.f, ctx, mod, fun)
 end
 
 function (kernel::HostKernel)(args...; threads::CuDim=1, blocks::CuDim=1, kwargs...)
+    event = CuEvent(CUDA.EVENT_DISABLE_TIMING)
+
+    # TODO cleanup
+    reset_cpucall_area!(kernel.ctx)
+
+    t = @async wait_and_kill_watcher(event, kernel.ctx)
+    while !istaskstarted(t)
+        yield()
+    end
+
     call(kernel, map(cudaconvert, args)...; threads, blocks, kwargs...)
+    CUDA.record(event, stream())
+
+    while !istaskdone(t)
+        yield()
+    end
 end
 
 

@@ -34,6 +34,7 @@ end
              attributes #0 = { alwaysinline }
           """, "entry"), Ptr{Cvoid}, Tuple{})
 
+
 function signal_exception()
     ptr = exception_flag()
     if ptr !== C_NULL
