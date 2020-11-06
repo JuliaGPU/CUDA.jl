@@ -1,0 +1,16 @@
+env:
+  SECRET_CODECOV_TOKEN: "Z8bySNFK8GunYMBwJRDp/4s1gKQ2eDT4MCR6VFKwb/8p7lKOq/BPLibigT+VDzUTAiH4TUN8vkEuSkA7kUJvraHtWx4wO78vlSH86BBC6fuPW3Lhfwtn2P4zxEzdR9kQYkrtfYdffpQw/cvgNCk1klpR9wu3avoc6ZOzsvg9gLGlD4QaTMcVxnZ1+8QUapWgPo/kUUwMxoqHvV81GFCWvWTA6obEtIrchrK1gq+7TGJQtL57zlFhk2X4h1roj08mF6MfvWB+rlzHGTISlu3Rn90KVD9WO2A1qvLs+QO8zIucbJdHmbxafX9TpopGmB3c+nOhROWG/USXwm9TUSjqEw=="
+
+steps:
+  # Julia versions
+
+  - label: "Julia 1.5"
+    plugins:
+      - maleadt/julia:
+          version: 1.5
+      - maleadt/julia-test: ~
+      - maleadt/julia-coverage:
+          codecov: true
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
