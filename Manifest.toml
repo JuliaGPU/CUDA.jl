@@ -63,9 +63,9 @@ version = "6.1.1"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Scratch", "Serialization", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "6dd9eb9900cc759456007553bcb74f82b03e7301"
+git-tree-sha1 = "c853c810b52a80f9aad79ab109207889e57f41ef"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.8.2"
+version = "0.8.3"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -73,9 +73,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "70070a0131f17fcffc5fc004f5f73f037bd217c5"
+git-tree-sha1 = "4eb5a1e702fee0d81c15ab673d7c77ef9023d509"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "3.2.0"
+version = "3.3.0"
 
 [[LibGit2]]
 deps = ["Printf"]
@@ -106,9 +106,9 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[NNlib]]
 deps = ["Libdl", "LinearAlgebra", "Pkg", "Requires", "Statistics"]
-git-tree-sha1 = "1ef04283efe283be08e2d0de842f5e5286dd0b7a"
+git-tree-sha1 = "a8180fd1445e31c0b1add98dae8da694ac2c23fd"
 uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
-version = "0.7.5"
+version = "0.7.6"
 
 [[OrderedCollections]]
 git-tree-sha1 = "cf59cfed2e2c12e8a2ff0a4f1e9b2cd8650da6db"
