@@ -6,10 +6,10 @@ steps:
 
   - label: "Julia 1.5"
     plugins:
-      - maleadt/julia:
+      - JuliaCI/julia#v0.1:
           version: 1.5
-      - maleadt/julia-test: ~
-      - maleadt/julia-coverage:
+      - JuliaCI/julia-test#v0.1: ~
+      - JuliaCI/julia-coverage#v0.1:
           codecov: true
     agents:
       queue: "juliagpu"
