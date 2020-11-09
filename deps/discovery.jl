@@ -155,7 +155,7 @@ const cuda_releases = [v"1.0", v"1.1",
                        v"8.0",
                        v"9.0", v"9.1", v"9.2",
                        v"10.0", v"10.1", v"10.2",
-                       v"11.0"]
+                       v"11.0", v"11.1"]
 
 const cuda_library_versions = Dict(
     v"11.0.2" => Dict(
@@ -200,6 +200,20 @@ const cuda_library_versions = Dict(
         "npp"       => v"11.1.1", #.269
         "nvjpeg"    => v"11.2.0", #.74
     ),
+    v"11.1.1" => Dict(
+        "cudart"    => v"11.1.74",
+        "cupti"     => "2020.2.1", # docs mention 11.1.105
+        "nvrtc"     => v"11.1.105",
+        "nvtx"      => v"11.1.74",
+        "nvvp"      => v"11.1.105",
+        "cublas"    => v"11.3.0", #.106
+        "cufft"     => v"10.3.0", #.105
+        "curand"    => v"10.2.2", #.105
+        "cusolver"  => v"11.0.1", #.105
+        "cusparse"  => v"11.3.0", #.10
+        "npp"       => v"11.1.2", #.105
+        "nvjpeg"    => v"11.3.0", #.105
+    ),
 )
 
 function cuda_library_version(library, toolkit_version)
@@ -230,7 +244,10 @@ const cuda_binary_versions = Dict(
     ),
     v"11.1.0" => Dict(
         "nvdisasm"  => v"11.1.74"
-    )
+    ),
+    v"11.1.1" => Dict(
+        "nvdisasm"  => v"11.1.74"
+    ),
 )
 
 # simplified find_library/find_binary entry-points,

@@ -142,6 +142,8 @@ end
 
 ## sparse to dense, and vice-versa
 
+# TODO: use cusparseSparseToDense & cusparseDenseToSparse (3x faster, CUDA 11.1 Update 1)
+
 for (cname,rname,elty) in ((:cusparseScsc2dense, :cusparseScsr2dense, :Float32),
                            (:cusparseDcsc2dense, :cusparseDcsr2dense, :Float64),
                            (:cusparseCcsc2dense, :cusparseCcsr2dense, :ComplexF32),
