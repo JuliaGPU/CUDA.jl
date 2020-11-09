@@ -6,11 +6,174 @@ steps:
 
   - label: "Julia 1.5"
     plugins:
-      - JuliaCI/julia#v0.1:
+      - JuliaCI/julia#v0.2:
           version: 1.5
-      - JuliaCI/julia-test#v0.1: ~
-      - JuliaCI/julia-coverage#v0.1:
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
           codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
     agents:
       queue: "juliagpu"
       cuda: "*"
+
+  - label: "Julia 1.5 (debug)"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2:
+          julia_args: "-g2"
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+
+
+    # CUDA versions
+
+    # NOTE: we support those CUDA versions for which the latest cuDNN is available
+    #       https://developer.nvidia.com/rdp/cudnn-archive
+
+    # NOTE: we make sure to run all tests on CUDA versions that have CUDNN & CUTENSOR
+    #       by setting the CI_THOROUGH environment variable, and using a recent GPU.
+
+  - label: "CUDA 11.1"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "11.1"
+      cap: "recent"
+    env:
+      CI_THOROUGH: 'true'
+      JULIA_CUDA_VERSION: '11.1'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+
+  - label: "CUDA 11.0"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "11.0"
+      cap: "recent"
+    env:
+      CI_THOROUGH: 'true'
+      JULIA_CUDA_VERSION: '11.0'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+
+  - label: "CUDA 10.2"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "10.2"
+      cap: "recent"
+    env:
+      CI_THOROUGH: 'true'
+      JULIA_CUDA_VERSION: '10.2'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+
+  - label: "CUDA 10.1"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "10.1"
+      cap: "recent"
+    env:
+      CI_THOROUGH: 'true'
+      JULIA_CUDA_VERSION: '10.1'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+
+
+    # special tests
+
+  - label: "No memory pool"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    env:
+      JULIA_CUDA_MEMORY_POOL: 'none'
+
+  - label: "Simple memory pool"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    env:
+      JULIA_CUDA_MEMORY_POOL: 'simple'
+
+  - label: "Split memory pool"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+      - JuliaCI/julia-test#v0.2: ~
+      - JuliaCI/julia-coverage#v0.2:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    env:
+      JULIA_CUDA_MEMORY_POOL: 'split'
