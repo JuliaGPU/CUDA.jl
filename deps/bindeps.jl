@@ -159,9 +159,10 @@ function use_artifact_cuda()
         return false
     end
 
+    __toolkit_version[] = artifact.version
+
     __nvdisasm[] = artifact_binary(artifact.dir, "nvdisasm")
     @assert isfile(__nvdisasm[])
-    __toolkit_version[] = parse_toolkit_version("nvdisasm", __nvdisasm[])
 
     __libcupti[] = artifact_cuda_library(artifact.dir, "cupti", artifact.version)
     @assert isfile(__libcupti[])

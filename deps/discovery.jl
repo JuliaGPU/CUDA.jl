@@ -383,7 +383,9 @@ function parse_toolkit_version(tool, tool_path::String)
 
     if version >= v"11"
         # starting with CUDA 11, binaries are versioned independently
-        for toolkit_version in keys(cuda_binary_versions)
+        # NOTE: we can't always tell, e.g. nvdisasm is the same in CUDA 11.1.0 and 11.1.1.
+        #       return the lowest version to ensure compatibility.
+        for toolkit_version in sort(collect(keys(cuda_binary_versions)))
             if cuda_binary_versions[toolkit_version][tool] == version
                 @debug "CUDA toolkit identified as $toolkit_version (providing $tool $version)"
                 return toolkit_version
