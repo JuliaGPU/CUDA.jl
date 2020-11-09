@@ -38,7 +38,7 @@ end
 for (fname, elty, relty) in ((:cusolverSpScsrlsvluHost, :Float32, :Float32),
                              (:cusolverSpDcsrlsvluHost, :Float64, :Float64),
                              (:cusolverSpCcsrlsvluHost, :ComplexF32, :Float32),
-                             (:cusolverSpZcsrlsvluHost, :ComplexF64, Float64))
+                             (:cusolverSpZcsrlsvluHost, :ComplexF64, :Float64))
     @eval begin
         function csrlsvlu!(A::SparseMatrixCSC{$elty},
                            b::Vector{$elty},
@@ -78,7 +78,7 @@ end
 for (fname, elty, relty) in ((:cusolverSpScsrlsvqr, :Float32, :Float32),
                              (:cusolverSpDcsrlsvqr, :Float64, :Float64),
                              (:cusolverSpCcsrlsvqr, :ComplexF32, :Float32),
-                             (:cusolverSpZcsrlsvqr, :ComplexF64, Float64))
+                             (:cusolverSpZcsrlsvqr, :ComplexF64, :Float64))
     @eval begin
         function csrlsvqr!(A::CuSparseMatrixCSR{$elty},
                            b::CuVector{$elty},
@@ -114,7 +114,7 @@ end
 for (fname, elty, relty) in ((:cusolverSpScsrlsvchol, :Float32, :Float32),
                              (:cusolverSpDcsrlsvchol, :Float64, :Float64),
                              (:cusolverSpCcsrlsvchol, :ComplexF32, :Float32),
-                             (:cusolverSpZcsrlsvchol, :ComplexF64, Float64))
+                             (:cusolverSpZcsrlsvchol, :ComplexF64, :Float64))
     @eval begin
         function csrlsvchol!(A::CuSparseMatrixCSR{$elty},
                              b::CuVector{$elty},
@@ -150,7 +150,7 @@ end
 for (fname, elty, relty) in ((:cusolverSpScsrlsqvqrHost, :Float32, :Float32),
                              (:cusolverSpDcsrlsqvqrHost, :Float64, :Float64),
                              (:cusolverSpCcsrlsqvqrHost, :ComplexF32, :Float32),
-                             (:cusolverSpZcsrlsqvqrHost, :ComplexF64, Float64))
+                             (:cusolverSpZcsrlsqvqrHost, :ComplexF64, :Float64))
     @eval begin
         function csrlsqvqr!(A::SparseMatrixCSC{$elty},
                             b::Vector{$elty},
@@ -187,7 +187,7 @@ end
 for (fname, elty, relty) in ((:cusolverSpScsreigvsi, :Float32, :Float32),
                              (:cusolverSpDcsreigvsi, :Float64, :Float64),
                              (:cusolverSpCcsreigvsi, :ComplexF32, :Float32),
-                             (:cusolverSpZcsreigvsi, :ComplexF64, Float64))
+                             (:cusolverSpZcsreigvsi, :ComplexF64, :Float64))
     @eval begin
         function csreigvsi(A::CuSparseMatrixCSR{$elty},
                            μ_0::$elty,
