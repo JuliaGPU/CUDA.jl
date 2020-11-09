@@ -354,7 +354,8 @@ k = 1
         end
     end
 
-    @testset "svd with $alg algorithm" for
+    @testset "$svd_f with $alg algorithm" for
+        svd_f in (svd, svd!),
         alg in (CUSOLVER.QRAlgorithm(), CUSOLVER.JacobiAlgorithm()),
         (_m, _n) in ((m, n), (n, m))
 
@@ -363,7 +364,7 @@ k = 1
         d_A            = CuArray(A)
 
         if _m > _n || alg == CUSOLVER.JacobiAlgorithm()
-            d_U, d_S, d_V  = svd(d_A; full=true, alg=alg)
+            d_U, d_S, d_V  = svd_f(copy(d_A); full=true, alg=alg)
             h_S            = collect(d_S)
             h_U            = collect(d_U)
             h_V            = collect(d_V)

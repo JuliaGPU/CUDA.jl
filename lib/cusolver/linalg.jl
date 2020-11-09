@@ -100,7 +100,7 @@ struct JacobiAlgorithm <: SVDAlgorithm end
 
 LinearAlgebra.svd!(A::CuMatrix{T}; full::Bool=false,
                    alg::SVDAlgorithm=JacobiAlgorithm()) where {T} =
-    svd!(A, full, alg)
+    _svd!(A, full, alg)
 LinearAlgebra.svd(A::CuMatrix; full=false, alg::SVDAlgorithm=JacobiAlgorithm()) =
     _svd!(copy(A), full, alg)
 
