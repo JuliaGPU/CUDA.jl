@@ -60,6 +60,12 @@ function main()
             "FAQ" => "faq.md",
         ]
     )
+
+    @info "Deploying to GitHub"
+    deploydocs(
+        repo = "github.com/JuliaGPU/CUDA.jl.git",
+        push_preview = true
+    )
 end
 
 isinteractive() || main()
