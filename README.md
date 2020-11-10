@@ -7,7 +7,7 @@
 | [![][docs-latest-img]][docs-latest-url] | [![][gitlab-img]][gitlab-url] [![][codecov-img]][codecov-url] | [![][codespeed-img]][codespeed-url] |
 
 [docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: https://juliagpu.gitlab.io/CUDA.jl/
+[docs-latest-url]: https://juliagpu.github.io/CUDA.jl/dev/
 
 [gitlab-img]: https://gitlab.com/JuliaGPU/CUDA.jl/badges/master/pipeline.svg
 [gitlab-url]: https://gitlab.com/JuliaGPU/CUDA.jl/commits/master
