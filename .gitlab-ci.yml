@@ -7,28 +7,6 @@ variables:
   NVIDIA_DRIVER_CAPABILITIES: 'compute,utility'
 
 
-# CUDA versions
-
-# other tasks
-
-documentation:
-  extends:
-    - .julia:1.5
-    - .documentation
-  tags:
-    - nvidia
-
-pages:
-  stage: deploy
-  script:
-    - mv docs/build public
-  artifacts:
-    paths:
-    - public
-  only:
-    - master
-
-
 # benchmarks
 
 .benchmark:
