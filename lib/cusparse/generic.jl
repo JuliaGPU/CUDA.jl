@@ -100,8 +100,10 @@ function mv!(transa::SparseChar, alpha::Number, A::CuSparseMatrixCSC{T}, X::Dens
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
+    elseif transa == 'C' && T <: Complex
+        throw(ArgumentError("Matrix-vector multiplication with the adjoint of a CSC matrix" *
+                            " is not supported. Use a CSR matrix instead."))
     end
-    # TODO: conjugate transpose?
 
     n,m = size(A)
 
@@ -163,8 +165,10 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
     ctransa = 'N'
     if transa == 'N'
         ctransa = 'T'
+    elseif transa == 'C' && T <: Complex
+        throw(ArgumentError("Matrix-matrix multiplication with the adjoint of a CSC matrix" *
+                            " is not supported. Use a CSR matrix instead."))
     end
-    # TODO: conjugate transpose?
 
     k,m = size(A)
     n = size(C)[2]
