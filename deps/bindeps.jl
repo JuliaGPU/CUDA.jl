@@ -202,6 +202,31 @@ function use_local_cuda()
     end
 
     cuda_version = parse_toolkit_version("nvdisasm", __nvdisasm[])
+
+    for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
+        handle = getfield(CUDA, Symbol("__lib$library"))
+
+        path = find_cuda_library(library, cuda_dirs, cuda_version)
+        if path === nothing
+            @debug "Could not find $library"
+            return false
+        end
+        handle[] = path
+    end
+
+    # CUDA 11.1 Update 1 ships the same `nvdisasm` as 11.1 GA, so look at the version of
+    # CUSOLVER (which has a handle-less version getter that does not initialize)
+    # to be sure which CUDA we're dealing with (it only matters for CUPTI).
+    if cuda_version == v"11.1.0"
+        # nothing is initialized at this point, so we need to use raw ccalls.
+        version = Ref{Cint}()
+        @assert 0 == @runtime_ccall((:cusolverGetVersion, __libcusolver[]), Cint, (Ref{Cint},), version)
+        if version[] == 11001
+            cuda_version = v"11.1.1"
+        elseif version[] != 11000
+            @debug "Could not disambiguate CUDA 11.1 from Update 1 with CUSOLVER version $(version[])"
+        end
+    end
     __toolkit_version[] = cuda_version
 
     __libcupti[] = find_cuda_library("cupti", cuda_dirs, cuda_version)
@@ -221,18 +246,6 @@ function use_local_cuda()
         end
         __libdevice[] = path
     end
-
-    for library in ("cublas", "cusparse", "cusolver", "cufft", "curand")
-        handle = getfield(CUDA, Symbol("__lib$library"))
-
-        path = find_cuda_library(library, cuda_dirs, cuda_version)
-        if path === nothing
-            @debug "Could not find $library"
-            return false
-        end
-        handle[] = path
-    end
-
     @debug "Found local CUDA $(cuda_version) at $(join(cuda_dirs, ", "))"
     __toolkit_origin[] = :local
     use_local_cudnn(cuda_dirs)
