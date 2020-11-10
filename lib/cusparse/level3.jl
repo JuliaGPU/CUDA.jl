@@ -53,6 +53,11 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                       beta::Number,
                       C::CuMatrix{$elty},
                       index::SparseChar)
+            if transb == 'C'
+                throw(ArgumentError("B^H is not supported"))
+            elseif transb == 'T' && transa != 'N'
+                throw(ArgumentError("When using B^T, A can be neither transposed nor adjointed"))
+            end
             desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_LOWER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
             m,k = A.dims
             n = size(C)[2]
@@ -80,6 +85,11 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
                       beta::Number,
                       C::CuMatrix{$elty},
                       index::SparseChar)
+            if transb == 'C'
+                throw(ArgumentError("B^H is not supported"))
+            elseif transb == 'T' && transa != 'N'
+                throw(ArgumentError("When using B^T, A can be neither transposed nor adjointed"))
+            end
             ctransa = 'N'
             if transa == 'N'
                 ctransa = 'T'

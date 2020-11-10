@@ -10,8 +10,8 @@ end
 
 function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
                     A::CuSparseMatrix{T}, B::CuMatrix{T}, beta::Number, C::CuMatrix{T}) where {T}
-    if version() < v"10.3.1" && A isa CuSparseMatrixCSR
-        # generic mm! doesn't work on CUDA 10.1 with CSC matrices
+    if version() <= v"10.3.1"
+        # Generic mm! doesn't support transposed B on CUDA10
         return mm2!(transa, transb, alpha, A, B, beta, C, 'O')
     end
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
