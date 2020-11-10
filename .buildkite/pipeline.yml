@@ -182,12 +182,34 @@ steps:
 
   - wait
 
+  - label: "Benchmarks"
+    plugins:
+      - JuliaCI/julia#v0.2:
+          version: 1.5
+    env:
+      CODESPEED_ENVIRONMENT: "$BUILDKITE_AGENT_NAME"
+      CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
+      CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
+      CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
+    command: |
+      julia --project=perf/ -e '
+        using Pkg
+
+        println("--- :julia: Instantiating project")
+        Pkg.instantiate()
+        Pkg.develop(PackageSpec(path=pwd()))
+
+        println("+++ :julia: Benchmarking")
+        include("perf/runbenchmarks.jl")'
+    branches: "master"
+    agents:
+      queue: "benchmark"
+      cuda: "*"
+
   - label: "Documentation"
     plugins:
       - JuliaCI/julia#v0.2:
           version: 1.5
-      - JuliaCI/julia-coverage#v0.2:
-          codecov: true
     command: |
       julia --project=docs/ -e '
         using Pkg
