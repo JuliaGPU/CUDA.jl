@@ -191,6 +191,7 @@ steps:
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
       CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
       CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
+      CODESPEED_EXECUTABLE: "Julia 1.5"
     command: |
       julia --project=perf/ -e '
         using Pkg
