@@ -187,16 +187,16 @@ steps:
       - JuliaCI/julia#v0.2:
           version: 1.5
     env:
-      CODESPEED_ENVIRONMENT: "$BUILDKITE_AGENT_NAME"
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
       CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
       CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
       CODESPEED_EXECUTABLE: "Julia 1.5"
     command: |
       julia --project=perf/ -e '
-        using Pkg
+        ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
 
         println("--- :julia: Instantiating project")
+        using Pkg
         Pkg.instantiate()
         Pkg.develop(PackageSpec(path=pwd()))
 
@@ -213,9 +213,8 @@ steps:
           version: 1.5
     command: |
       julia --project=docs/ -e '
-        using Pkg
-
         println("--- :julia: Instantiating project")
+        using Pkg
         Pkg.instantiate()
         Pkg.develop(PackageSpec(path=pwd()))
 
