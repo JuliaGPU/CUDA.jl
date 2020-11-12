@@ -259,7 +259,7 @@ julia> a = Random.rand(CURAND.default_rng(), Float32, 1)
 1-element CuArray{Float32,1}:
  0.74021935
 
-julia> using GPUArrays
+julia> using CUDA: GPUArrays
 
 julia> a = Random.rand!(GPUArrays.default_rng(CuArray), a)
 1-element CuArray{Float32,1}:

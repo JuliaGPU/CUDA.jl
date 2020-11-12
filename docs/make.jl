@@ -5,6 +5,8 @@ const src = "https://github.com/JuliaGPU/CUDA.jl"
 const dst = "https://juliagpu.gitlab.io/CUDA.jl/"
 
 function main()
+    ci = get(ENV, "CI", "") == "true"
+
     @info "Building Literate.jl documentation"
     cd(@__DIR__) do
         Literate.markdown("src/tutorials/introduction.jl", "src/tutorials";
@@ -19,7 +21,7 @@ function main()
         repo = "$src/blob/{commit}{path}#{line}",
         format = Documenter.HTML(
             # Use clean URLs on CI
-            prettyurls = get(ENV, "CI", nothing) == "true",
+            prettyurls = ci,
             canonical = dst,
             assets = ["assets/favicon.ico"],
             analytics = "UA-154489943-2",
@@ -61,11 +63,13 @@ function main()
         ]
     )
 
-    @info "Deploying to GitHub"
-    deploydocs(
-        repo = "github.com/JuliaGPU/CUDA.jl.git",
-        push_preview = true
-    )
+    if ci
+        @info "Deploying to GitHub"
+        deploydocs(
+            repo = "github.com/JuliaGPU/CUDA.jl.git",
+            push_preview = true
+        )
+    end
 end
 
 isinteractive() || main()
