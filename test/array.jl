@@ -1,4 +1,5 @@
 using LinearAlgebra
+using SparseArrays
 import Adapt
 
 @testset "constructors" begin
