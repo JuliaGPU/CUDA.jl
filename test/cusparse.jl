@@ -76,8 +76,10 @@ blockdim = 5
     d_y = CuSparseMatrixCSR(d_y)
     d_x = CuSparseMatrixCSR(d_x)
     @test_throws ArgumentError copyto!(d_y,d_x)
-    for i in 1:size(y, 1)
-      @test d_y[i, :] ≈ y[i, :]
+    CUDA.@allowscalar begin
+        for i in 1:size(y, 1)
+          @test d_y[i, :] ≈ y[i, :]
+        end
     end
     d_y = CuSparseMatrixBSR(d_y, blockdim)
     d_x = CuSparseMatrixBSR(d_x, blockdim)
