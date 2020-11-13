@@ -1,5 +1,4 @@
 using LinearAlgebra
-using SparseArrays
 import Adapt
 
 @testset "constructors" begin
@@ -359,16 +358,4 @@ end
   @test !Base.mightalias(x, b)
   b .= 3
   @test Array(y) == [2]
-end
-
-@testset "column slicing" begin
-    x = sprand(10, 5, 0.6)
-    x_c = CuSparseMatrixCSC(x)
-    for i in 1:size(x, 2)
-      @test x_c[:, i] ≈ x[:, i]
-    end
-    x_r = CuSparseMatrixCSR(x)
-    for i in 1:size(x, 1)
-      @test x_r[i, :] ≈ x[i, :]
-    end
 end
