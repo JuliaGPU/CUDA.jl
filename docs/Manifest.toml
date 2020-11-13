@@ -19,9 +19,9 @@ version = "0.8.3"
 
 [[Documenter]]
 deps = ["Base64", "Dates", "DocStringExtensions", "IOCapture", "InteractiveUtils", "JSON", "LibGit2", "Logging", "Markdown", "REPL", "Test", "Unicode"]
-git-tree-sha1 = "bae5772364bfa9787a0b82cbc2a4b46119286350"
-repo-rev = "tb/buildkite"
-repo-url = "https://github.com/maleadt/Documenter.jl"
+git-tree-sha1 = "555047fe38d9d2102a65bb869c484bf78e60a24e"
+repo-rev = "d046f46ed414ef295b39ec88e68819d81f5c9410"
+repo-url = "https://github.com/JuliaDocs/Documenter.jl.git"
 uuid = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 version = "0.25.3"
 
