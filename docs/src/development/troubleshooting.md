@@ -115,13 +115,13 @@ passing the flag `-g2`. Support for emitting PTX-compatible debug info is a rece
 to the NVPTX LLVM back-end, so it's possible this information is incorrect or otherwise
 affects compilation.
 
- !!! warning
+!!! warning
 
-     Due to bugs in LLVM and/or CUDA, the debug info as emitted by LLVM 8.0 or higher
-     results in crashed when loading the compiled code. As a result, all types of debug info
-     are disabled by CUDA.jl on Julia 1.4 or above. If you need line number information, you
-     need to revert to using Julia 1.3 which uses LLVM 6.0 (note that actual debug info is
-     not supported by LLVM 6.0).
+    Due to bugs in LLVM and/or CUDA, the debug info as emitted by LLVM 8.0 or higher
+    results in crashed when loading the compiled code. As a result, all types of debug info
+    are disabled by CUDA.jl on Julia 1.4 or above. If you need line number information, you
+    need to revert to using Julia 1.3 which uses LLVM 6.0 (note that actual debug info is
+    not supported by LLVM 6.0).
 
 To disable all debug info emission, start Julia with the flag `-g0`.
 
