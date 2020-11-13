@@ -15,6 +15,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "*"
+    if: build.message !~ /skip tests/
 
   - wait  # smoke test: don't kick off a large number of tests if they'd all just fail
 
@@ -33,6 +34,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "*"
+    if: build.message !~ /skip tests/
 
 
     # CUDA versions
@@ -62,6 +64,7 @@ steps:
       CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '11.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /skip tests/
 
   - label: "CUDA 11.0"
     plugins:
@@ -82,6 +85,7 @@ steps:
       CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '11.0'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /skip tests/
 
   - label: "CUDA 10.2"
     plugins:
@@ -102,6 +106,7 @@ steps:
       CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '10.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /skip tests/
 
   - label: "CUDA 10.1"
     plugins:
@@ -122,6 +127,7 @@ steps:
       CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '10.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /skip tests/
 
 
    # special tests
@@ -142,6 +148,7 @@ steps:
       cuda: "*"
     env:
       JULIA_CUDA_MEMORY_POOL: 'none'
+    if: build.message !~ /skip tests/
 
   - label: "Simple memory pool"
     plugins:
@@ -159,6 +166,7 @@ steps:
       cuda: "*"
     env:
       JULIA_CUDA_MEMORY_POOL: 'simple'
+    if: build.message !~ /skip tests/
 
   - label: "Split memory pool"
     plugins:
@@ -176,6 +184,7 @@ steps:
       cuda: "*"
     env:
       JULIA_CUDA_MEMORY_POOL: 'split'
+    if: build.message !~ /skip tests/
 
 
   # other tasks
@@ -202,10 +211,10 @@ steps:
 
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
-    branches: "master"
     agents:
       queue: "benchmark"
       cuda: "*"
+    if: build.message !~ /skip benchmarks/
 
   - label: "Documentation"
     plugins:
@@ -223,6 +232,7 @@ steps:
     agents:
       queue: "juliagpu"
       cuda: "*"
+    if: build.message !~ /skip docs/
 
 
 
