@@ -23,5 +23,7 @@ end
 
 
 # Batched matrix multiplication
-NNlib._batched_gemm!(::Type{<:CuArray}, transA::Char, transB::Char, α::Number, A, B, β::Number, C) =
-    CUBLAS._gemm_strided_batched!(transA, transB, α, A, B, β, C)
+# Using storage_type from https://github.com/FluxML/NNlib.jl/pull/191
+
+  NNlib._batched_gemm!(::Type{<:CuArray}, transA::Char, transB::Char, α::Number, A, B, β::Number, C) =
+     CUBLAS.gemm_strided_batched!(transA, transB, α, A, B, β, C)

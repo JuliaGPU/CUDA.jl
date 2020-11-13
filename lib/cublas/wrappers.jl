@@ -923,20 +923,10 @@ for (fname, elty) in
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
                                alpha::Number,
-                               A::DenseCuArray{$elty, 3},
-                               B::DenseCuArray{$elty, 3},
-                               beta::Number,
-                               C::DenseCuArray{$elty, 3})
-            _gemm_strided_batched(transA, transB, alpha, A, B, beta, C)
-        end
-        function _gemm_strided_batched!(transA::Char,
-                               transB::Char,
-                               alpha::Number,
-                               A::AbstractArray{$elty, 3}, # allows PermutedDimsArray
+                               A::AbstractArray{$elty, 3},
                                B::AbstractArray{$elty, 3},
                                beta::Number,
                                C::AbstractArray{$elty, 3})
-
            m = size(A, transA == 'N' ? 1 : 2)
            k = size(A, transA == 'N' ? 2 : 1)
            n = size(B, transB == 'N' ? 2 : 1)
@@ -962,15 +952,15 @@ for (fname, elty) in
         function gemm_strided_batched(transA::Char,
                       transB::Char,
                       alpha::Number,
-                      A::DenseCuArray{$elty, 3},
-                      B::DenseCuArray{$elty, 3})
+                      A::AbstractArray{$elty, 3},
+                      B::AbstractArray{$elty, 3})
             C = similar(B, (size(A, transA == 'N' ? 1 : 2), size(B, transB == 'N' ? 2 : 1), max(size(A, 3), size(B, 3))))
             gemm_strided_batched!(transA, transB, alpha, A, B, zero($elty), C )
         end
         function gemm_strided_batched(transA::Char,
                       transB::Char,
-                      A::DenseCuArray{$elty, 3},
-                      B::DenseCuArray{$elty, 3})
+                      A::AbstractArray{$elty, 3},
+                      B::AbstractArray{$elty, 3})
             gemm_strided_batched(transA, transB, one($elty), A, B)
         end
     end
