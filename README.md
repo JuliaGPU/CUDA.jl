@@ -51,8 +51,8 @@ Or, equivalently, via the `Pkg` API:
 julia> import Pkg; Pkg.add("CUDA")
 ```
 
-For usage instructions and other information, please refer to the documentation at
-[juliagpu.gitlab.io](https://juliagpu.gitlab.io/CUDA.jl/).
+For usage instructions and other information, please refer to [the
+documentation](https://juliagpu.github.io/CUDA.jl/stable/).
 
 
 ## Supporting and Citing
