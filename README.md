@@ -2,12 +2,15 @@
 
 *CUDA programming in Julia*
 
-| **Documentation**                       | **Build Status**                                                    | **Performance**                     |
-|:---------------------------------------:|:-------------------------------------------------------------------:|:-----------------------------------:|
-| [![][docs-latest-img]][docs-latest-url] | [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] | [![][codespeed-img]][codespeed-url] |
+| **Documentation**                                                         | **Build Status**                                                    | **Performance**                     |
+|:-------------------------------------------------------------------------:|:-------------------------------------------------------------------:|:-----------------------------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![][buildkite-img]][buildkite-url] [![][codecov-img]][codecov-url] | [![][codespeed-img]][codespeed-url] |
 
-[docs-latest-img]: https://img.shields.io/badge/docs-latest-blue.svg
-[docs-latest-url]: https://juliagpu.github.io/CUDA.jl/dev/
+[docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
+[docs-stable-url]: https://juliagpu.github.io/CUDA.jl/stable/
+
+[docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
+[docs-dev-url]: https://juliagpu.github.io/CUDA.jl/dev/
 
 [buildkite-img]: https://badge.buildkite.com/27aaeb352a9420297ed2d30cb055ac383a399ea8f121599912.svg?branch=master
 [buildkite-url]: https://buildkite.com/julialang/cuda-dot-jl
