@@ -27,3 +27,14 @@ end
 
   NNlib._batched_gemm!(::Type{<:CuArray}, transA::Char, transB::Char, α::Number, A, B, β::Number, C) =
      CUBLAS.gemm_strided_batched!(transA, transB, α, A, B, β, C)
+
+
+# We need CuPtr for PermutedDimsArrays,
+# recursive function will also handle e.g. NamedDimsArray
+function Base.unsafe_convert(::Type{CUDAdrv.CuPtr{T}}, A::AbstractArray) where {T}
+    if A === parent(A)
+        throw(MethodError(Base.unsafe_convert, Tuple{CUDAdrv.CuPtr{T}, typeof(A)}))
+    else
+        return Base.unsafe_convert(CUDAdrv.CuPtr{T}, parent(A))
+    end
+end
