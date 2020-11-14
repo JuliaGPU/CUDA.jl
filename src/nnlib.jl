@@ -38,5 +38,5 @@ NNlib._batched_gemm!(::Type{<:CuArray}, transA::Char, transB::Char, α::Number, 
 #     end
 # end
 # Maybe much too broad, try:
-Base.unsafe_convert.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
+Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
     Base.unsafe_convert(CuPtr{T}, parent(A))
