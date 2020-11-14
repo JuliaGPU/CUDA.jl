@@ -923,7 +923,7 @@ for (fname, elty) in
         function gemm_strided_batched!(transA::Char,
                                transB::Char,
                                alpha::Number,
-                               A::AbstractArray{$elty, 3},
+                               A::AbstractArray{$elty, 3}, # allow PermutedDimsArray
                                B::AbstractArray{$elty, 3},
                                beta::Number,
                                C::AbstractArray{$elty, 3})
