@@ -30,10 +30,13 @@ NNlib._batched_gemm!(::Type{<:CuArray}, transA::Char, transB::Char, α::Number, 
 
 # We need CuPtr for PermutedDimsArrays,
 # recursive function will also handle e.g. NamedDimsArray
-function Base.unsafe_convert(::Type{CuPtr{T}}, A::AbstractArray) where {T}
-    if A === parent(A)
-        throw(MethodError(Base.unsafe_convert, Tuple{CuPtr{T}, typeof(A)}))
-    else
-        return Base.unsafe_convert(CuPtr{T}, parent(A))
-    end
-end
+# function Base.unsafe_convert(::Type{CuPtr{T}}, A::AbstractArray) where {T}
+#     if A === parent(A)
+#         throw(MethodError(Base.unsafe_convert, Tuple{CuPtr{T}, typeof(A)}))
+#     else
+#         return Base.unsafe_convert(CuPtr{T}, parent(A))
+#     end
+# end
+# Maybe much too broad, try:
+Base.unsafe_convert.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
+    Base.unsafe_convert(CuPtr{T}, parent(A))
