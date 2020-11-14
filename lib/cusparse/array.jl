@@ -228,7 +228,7 @@ function Base.getindex(x::CuSparseMatrixCSC, ::Colon, j::Integer)
 end
 
 function Base.getindex(x::CuSparseMatrixCSR, i::Integer, ::Colon)
-    checkbounds(x, :, i)
+    checkbounds(x, i, :)
     c1 = convert(Int, x.rowPtr[i])
     c2 = convert(Int, x.rowPtr[i+1]) - 1
     CuSparseVector(x.colVal[c1:c2], nonzeros(x)[c1:c2], size(x, 2))

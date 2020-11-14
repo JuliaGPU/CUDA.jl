@@ -49,6 +49,9 @@ blockdim = 5
         @test d_x[div(end, 2), div(end, 2)]         == x[div(end, 2), div(end, 2)]
         @test d_x[end, end]        == x[end, end]
         @test Array(d_x[firstindex(d_x):end, firstindex(d_x):end]) == x[:, :]
+        for i in 1:size(x, 2)
+            @test Array(d_x[:, i]) == x[:, i]
+        end
     end
     @test_throws BoundsError d_x[firstindex(d_x) - 1]
     @test_throws BoundsError d_x[end + 1]
@@ -73,6 +76,11 @@ blockdim = 5
     d_y = CuSparseMatrixCSR(d_y)
     d_x = CuSparseMatrixCSR(d_x)
     @test_throws ArgumentError copyto!(d_y,d_x)
+    CUDA.@allowscalar begin
+        for i in 1:size(y, 1)
+          @test d_y[i, :] ≈ y[i, :]
+        end
+    end
     d_y = CuSparseMatrixBSR(d_y, blockdim)
     d_x = CuSparseMatrixBSR(d_x, blockdim)
     @test_throws ArgumentError copyto!(d_y,d_x)
@@ -781,4 +789,3 @@ end
         end
     end
 end
-
