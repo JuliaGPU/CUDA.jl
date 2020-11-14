@@ -1,7 +1,7 @@
 using NNlib
 
 @testset "batched_mul" begin
-    using NNlib: batched_mul, batched_adjoint, batched_transpose
+    using NNlib: batched_mul, batched_mul!, batched_adjoint, batched_transpose
 
     A = randn(Float32, 3,3,2);
     B = randn(Float32, 3,3,2);
@@ -14,6 +14,20 @@ using NNlib
 
     Ca = batched_mul(A, batched_adjoint(B))
     @test CuArray(Ca) ≈ batched_mul(CuArray(A), batched_adjoint(CuArray(B)))
+
+    # 5-arg batched_mul!
+    C .= pi
+    batched_mul!(C, A, B, 2f0, 3f0)
+    cuCpi = CuArray(similar(C)) .= pi
+    @test CuArray(C) ≈ batched_mul!(cuCpi, CuArray(A), CuArray(B), 2f0, 3f0)
+
+    # PermutedDimsArray
+    @test CuArray(Ct) ≈ batched_mul(PermutedDimsArray(CuArray(A), (2,1,3)), CuArray(B))
+
+    D = permutedims(B, (1,3,2))
+    Cp = batched_mul(batched_adjoint(A), B)
+    @test CuArray(Cp) ≈ batched_mul(batched_adjoint(CuArray(A)), PermutedDimsArray(CuArray(D), (1,3,2)))
+
 end
 
 @testset "NNlib storage_type etc." begin
