@@ -28,6 +28,14 @@ using NNlib
     Cp = batched_mul(batched_adjoint(A), B)
     @test CuArray(Cp) ≈ batched_mul(batched_adjoint(CuArray(A)), PermutedDimsArray(CuArray(D), (1,3,2)))
 
+    # Methods which reshape
+    M = randn(Float32, 3,3)
+
+    Cm = batched_mul(A, M)
+    @test CuArray(Cm) ≈ batched_mul(CuArray(A), CuArray(M))
+
+    Cv = batched_vec(permutedims(A,(3,1,2)), M)
+    @test CuArray(Cv) ≈ batched_vec(PermutedDimsArray(CuArray(A),(3,1,2)), CuArray(M))
 end
 
 @testset "NNlib storage_type etc." begin
