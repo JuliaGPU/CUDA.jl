@@ -1,7 +1,7 @@
 using NNlib
 
 @testset "batched_mul" begin
-    using NNlib: batched_mul, batched_mul!, batched_adjoint, batched_transpose
+    using NNlib: batched_mul, batched_mul!, batched_vec, batched_adjoint, batched_transpose
 
     A = randn(Float32, 3,3,2);
     B = randn(Float32, 3,3,2);
