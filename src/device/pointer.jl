@@ -116,12 +116,15 @@ for T in LDGTypes
         :f
     end
     # TODO: p class
-    width = sizeof(T)*8
+    width = sizeof(T)*8 # in bits
     typ = Symbol(class, width)
 
     intr = "llvm.nvvm.ldg.global.$class.$typ.p1$typ"
-    @eval @inline pointerref_ldg(ptr::LLVMPtr{$T,AS.Global}, i::Int, ::Val{align}) where align =
-        @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr+i-1, align)
+    @eval @inline function pointerref_ldg(base_ptr::LLVMPtr{$T,AS.Global}, i::Int, ::Val{align}) where align
+        offset = i-1 # in elements
+        ptr = base_ptr + offset*sizeof($T)
+        @typed_ccall($intr, llvmcall, $T, (LLVMPtr{$T,AS.Global}, Int32), ptr, align)
+    end
 end
 
 # interface
