@@ -16,6 +16,7 @@ steps:
       queue: "juliagpu"
       cuda: "*"
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
   - wait  # smoke test: don't kick off a large number of tests if they'd all just fail
 
@@ -35,6 +36,7 @@ steps:
       queue: "juliagpu"
       cuda: "*"
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
 
     # CUDA versions
@@ -65,6 +67,7 @@ steps:
       JULIA_CUDA_VERSION: '11.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
   - label: "CUDA 11.0"
     plugins:
@@ -86,6 +89,7 @@ steps:
       JULIA_CUDA_VERSION: '11.0'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
   - label: "CUDA 10.2"
     plugins:
@@ -107,6 +111,7 @@ steps:
       JULIA_CUDA_VERSION: '10.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
   - label: "CUDA 10.1"
     plugins:
@@ -128,6 +133,7 @@ steps:
       JULIA_CUDA_VERSION: '10.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
 
    # special tests
@@ -149,6 +155,7 @@ steps:
     env:
       JULIA_CUDA_MEMORY_POOL: 'none'
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
   - label: "Simple memory pool"
     plugins:
@@ -167,6 +174,7 @@ steps:
     env:
       JULIA_CUDA_MEMORY_POOL: 'simple'
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
   - label: "Split memory pool"
     plugins:
@@ -185,6 +193,7 @@ steps:
     env:
       JULIA_CUDA_MEMORY_POOL: 'split'
     if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
 
 
   # other tasks
@@ -215,6 +224,7 @@ steps:
       queue: "benchmark"
       cuda: "*"
     if: build.message !~ /skip benchmarks/
+    timeout_in_minutes: 60
 
   - label: "Documentation"
     plugins:
@@ -233,6 +243,7 @@ steps:
       queue: "juliagpu"
       cuda: "*"
     if: build.message !~ /\[skip docs\]/
+    timeout_in_minutes: 60
 
 
 
