@@ -429,6 +429,12 @@ function Base.unsafe_convert(::Type{CuPtr{T}}, V::SubArray{T,N,P,<:Tuple{Vararg{
 end
 
 
+## PermutedDimsArray
+
+Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
+    Base.unsafe_convert(CuPtr{T}, parent(A))
+
+
 ## reshape
 
 # optimize reshape to return a CuArray
