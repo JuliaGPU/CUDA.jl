@@ -18,7 +18,7 @@ LinearAlgebra.mul!(C::CuVector{T},adjA::Adjoint{<:Any, <:HermOrSym{T,<:CuSparseM
 function mm_wrapper(transa::SparseChar, transb::SparseChar, alpha::Number,
                     A::CuSparseMatrix{T}, B::CuMatrix{T}, beta::Number, C::CuMatrix{T}) where {T}
     if version() < v"10.3.1" && A isa CuSparseMatrixCSR
-        # generic mm! doesn't work on CUDA 10.1 with CSC matrices
+        # generic mm! doesn't work on CUDA 10.1 with CSR matrices
         return mm2!(transa, transb, alpha, A, B, beta, C, 'O')
     end
     mm!(transa, transb, alpha, A, B, beta, C, 'O')
@@ -34,11 +34,17 @@ LinearAlgebra.mul!(C::CuMatrix{T},A::HermOrSym{<:Number, <:CuSparseMatrix},B::De
 LinearAlgebra.mul!(C::CuMatrix{T},transA::Transpose{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::DenseCuMatrix,alpha::Number,beta::Number) where {T} = mm_wrapper('T',alpha,parent(transA),B,beta,C)
 LinearAlgebra.mul!(C::CuMatrix{T},adjA::Adjoint{<:Any, <:HermOrSym{<:Number, <:CuSparseMatrix}},B::DenseCuMatrix,alpha::Number,beta::Number) where {T} = mm_wrapper('C',alpha,parent(adjA),B,beta,C)
 
-Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('N',A,B,'O')
-Base.:(\)(transA::Transpose{T, UpperTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('T',parent(transA),B,'O')
-Base.:(\)(transA::Transpose{T, LowerTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('T',parent(transA),B,'O')
-Base.:(\)(adjA::Adjoint{T, UpperTriangular{T, S}},B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('C',parent(adjA),B,'O')
-Base.:(\)(adjA::Adjoint{T, LowerTriangular{T, S}},B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm('C',parent(adjA),B,'O')
+Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('N','N',A,B,'O')
+Base.:(\)(transA::Transpose{T, UpperTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('T','N',parent(transA),B,'O')
+Base.:(\)(transA::Transpose{T, LowerTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('T','N',parent(transA),B,'O')
+Base.:(\)(adjA::Adjoint{T, UpperTriangular{T, S}},B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('C','N',parent(adjA),B,'O')
+Base.:(\)(adjA::Adjoint{T, LowerTriangular{T, S}},B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('C','N',parent(adjA),B,'O')
+
+Base.:(\)(A::Union{UnitUpperTriangular{T, S},UnitLowerTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('N','N',A,B,'O',unit_diag=true)
+Base.:(\)(transA::Transpose{T, UnitUpperTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('T','N',parent(transA),B,'O',unit_diag=true)
+Base.:(\)(transA::Transpose{T, UnitLowerTriangular{T, S}}, B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('T','N',parent(transA),B,'O',unit_diag=true)
+Base.:(\)(adjA::Adjoint{T, UnitUpperTriangular{T, S}},B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('C','N',parent(adjA),B,'O',unit_diag=true)
+Base.:(\)(adjA::Adjoint{T, UnitLowerTriangular{T, S}},B::DenseCuMatrix{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sm2('C','N',parent(adjA),B,'O',unit_diag=true)
 
 Base.:(\)(A::Union{UpperTriangular{T, S},LowerTriangular{T, S}}, B::DenseCuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sv2('N',A,B,'O')
 Base.:(\)(transA::Transpose{T, UpperTriangular{T, S}},B::DenseCuVector{T}) where {T<:BlasFloat, S<:AbstractCuSparseMatrix{T}} = sv2('T',parent(transA),B,'O')

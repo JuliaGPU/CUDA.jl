@@ -1,6 +1,16 @@
 # sparse linear algebra functions that perform operations between sparse and (usually tall)
 # dense matrices
 
+export mm!, mm2!, sm2!, sm2
+
+"""
+    mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
+
+Performs `C = alpha * op(A) * op(B) + beta * C`, where `op` can be nothing (`transa = N`),
+tranpose (`transa = T`) or conjugate transpose (`transa = C`).
+`A` is a sparse matrix defined in BSR storage format. `B` and `C` are dense matrices.
+"""
+mm!(transa::SparseChar, transb::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, B::CuMatrix, beta::BlasFloat, C::CuMatrix, index::SparseChar)
 # bsrmm
 for (fname,elty) in ((:cusparseSbsrmm, :Float32),
                      (:cusparseDbsrmm, :Float64),
@@ -106,22 +116,34 @@ for (fname,elty) in ((:cusparseScsrmm2, :Float32),
     end
 end
 
+"""
+    sm2!(transa::SparseChar, transxy::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuMatrix, index::SparseChar; unit_diag::Bool=false)
+
+Performs `X = alpha * op(A) \\ op(X)`, where `op` can be nothing (`transa = N`), tranpose
+(`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense matrix, and `uplo`
+tells `sm2!` which triangle of the block sparse matrix `A` to reference.
+If the triangle has unit diagonal, set `unit_diag` to true.
+"""
+
 # bsrsm2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_analysis, :cusparseSbsrsm2_solve, :Float32),
                                  (:cusparseDbsrsm2_bufferSize, :cusparseDbsrsm2_analysis, :cusparseDbsrsm2_solve, :Float64),
                                  (:cusparseCbsrsm2_bufferSize, :cusparseCbsrsm2_analysis, :cusparseCbsrsm2_solve, :ComplexF32),
                                  (:cusparseZbsrsm2_bufferSize, :cusparseZbsrsm2_analysis, :cusparseZbsrsm2_solve, :ComplexF64))
     @eval begin
-        function bsrsm2!(transa::SparseChar,
-                         transxy::SparseChar,
-                         alpha::Number,
-                         A::CuSparseMatrixBSR{$elty},
-                         X::CuMatrix{$elty},
-                         index::SparseChar)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
+        function sm2!(transa::SparseChar,
+                      transxy::SparseChar,
+                      uplo::SparseChar,
+                      alpha::Number,
+                      A::CuSparseMatrixBSR{$elty},
+                      X::CuMatrix{$elty},
+                      index::SparseChar;
+                      unit_diag::Bool=false)
+            DIAG_TYPE = (unit_diag ? CUSPARSE_DIAG_TYPE_UNIT : CUSPARSE_DIAG_TYPE_NON_UNIT)
+            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, DIAG_TYPE, index)
             m,n = A.dims
             if m != n
-                throw(DimensionMismatch("A must be square!"))
+                throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mb = div(m,A.blockDim)
             mX,nX = size(X)
@@ -157,14 +179,6 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsm2_bufferSize, :cusparseSbsrsm2_
             cusparseDestroyBsrsm2Info(info[1])
             X
         end
-        function bsrsm2(transa::SparseChar,
-                        transxy::SparseChar,
-                        alpha::Number,
-                        A::CuSparseMatrixBSR{$elty},
-                        X::CuMatrix{$elty},
-                        index::SparseChar)
-            bsrsm2!(transa,transxy,alpha,A,copy(X),index)
-        end
     end
 end
 
@@ -174,16 +188,19 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
                                  (:cusparseCcsrsm2_bufferSizeExt, :cusparseCcsrsm2_analysis, :cusparseCcsrsm2_solve, :ComplexF32),
                                  (:cusparseZcsrsm2_bufferSizeExt, :cusparseZcsrsm2_analysis, :cusparseZcsrsm2_solve, :ComplexF64))
     @eval begin
-        function csrsm2!(transa::SparseChar,
-                         transxy::SparseChar,
-                         alpha::Number,
-                         A::CuSparseMatrixCSR{$elty},
-                         X::CuMatrix{$elty},
-                         index::SparseChar)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, CUSPARSE_FILL_MODE_UPPER, CUSPARSE_DIAG_TYPE_NON_UNIT, index)
+        function sm2!(transa::SparseChar,
+                      transxy::SparseChar,
+                      uplo::SparseChar,
+                      alpha::Number,
+                      A::CuSparseMatrixCSR{$elty},
+                      X::CuMatrix{$elty},
+                      index::SparseChar;
+                      unit_diag::Bool=false)
+            DIAG_TYPE = (unit_diag ? CUSPARSE_DIAG_TYPE_UNIT : CUSPARSE_DIAG_TYPE_NON_UNIT)
+            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, DIAG_TYPE, index)
             m,n = A.dims
             if m != n
-                throw(DimensionMismatch("A must be square!"))
+                throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
             end
             mX,nX = size(X)
             if transxy == 'N' && (mX != m)
@@ -219,13 +236,119 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrs
             cusparseDestroyCsrsm2Info(info[])
             X
         end
-        function csrsm2(transa::SparseChar,
-                        transxy::SparseChar,
-                        alpha::Number,
-                        A::CuSparseMatrixCSR{$elty},
-                        X::CuMatrix{$elty},
-                        index::SparseChar)
-            csrsm2!(transa,transxy,alpha,A,copy(X),index)
+    end
+end
+
+# cscsm2
+for (bname,aname,sname,elty) in ((:cusparseScsrsm2_bufferSizeExt, :cusparseScsrsm2_analysis, :cusparseScsrsm2_solve, :Float32),
+                                 (:cusparseDcsrsm2_bufferSizeExt, :cusparseDcsrsm2_analysis, :cusparseDcsrsm2_solve, :Float64),
+                                 (:cusparseCcsrsm2_bufferSizeExt, :cusparseCcsrsm2_analysis, :cusparseCcsrsm2_solve, :ComplexF32),
+                                 (:cusparseZcsrsm2_bufferSizeExt, :cusparseZcsrsm2_analysis, :cusparseZcsrsm2_solve, :ComplexF64))
+    @eval begin
+        function sm2!(transa::SparseChar,
+                      transxy::SparseChar,
+                      uplo::SparseChar,
+                      alpha::Number,
+                      A::CuSparseMatrixCSC{$elty},
+                      X::CuMatrix{$elty},
+                      index::SparseChar;
+                      unit_diag::Bool=false)
+            ctransa = 'N'
+            cuplo = 'U'
+            if transa == 'N'
+                ctransa = 'T'
+            end
+            if uplo == 'U'
+                cuplo = 'L'
+            end
+            DIAG_TYPE = (unit_diag ? CUSPARSE_DIAG_TYPE_UNIT : CUSPARSE_DIAG_TYPE_NON_UNIT)
+            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, cuplo, DIAG_TYPE, index)
+            n,m = A.dims
+            if m != n
+                throw(DimensionMismatch("A must be square, but has dimensions ($n,$m)!"))
+            end
+            mX,nX = size(X)
+            if transxy == 'N' && (mX != m)
+                throw(DimensionMismatch(""))
+            end
+            if transxy != 'N' && (nX != m)
+                throw(DimensionMismatch(""))
+            end
+            ldx = max(1,stride(X,2))
+            info = csrsm2Info_t[0]
+            cusparseCreateCsrsm2Info(info)
+            # use non block algo (0) for now...
+            @workspace size=@argout(
+                    $bname(handle(), 0, ctransa, transxy,
+                           m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                           rowvals(A), X, ldx, info[], CUSPARSE_SOLVE_POLICY_USE_LEVEL,
+                           out(Ref{UInt64}(1)))
+                )[] buffer->begin
+                    $aname(handle(), 0, ctransa, transxy,
+                           m, nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                           rowvals(A), X, ldx, info[],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                    posit = Ref{Cint}(1)
+                    cusparseXcsrsm2_zeroPivot(handle(), info[1], posit)
+                    if posit[] >= 0
+                        error("Structural/numerical zero in A at ($(posit[]),$(posit[])))")
+                    end
+                    $sname(handle(), 0, ctransa, transxy, m,
+                           nX, nnz(A), alpha, desc, nonzeros(A), A.colPtr,
+                           rowvals(A), X, ldx, info[],
+                           CUSPARSE_SOLVE_POLICY_USE_LEVEL, buffer)
+                end
+            cusparseDestroyCsrsm2Info(info[])
+            X
+        end
+    end
+end
+
+for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
+    @eval begin
+        function sm2(transa::SparseChar,
+                     transxy::SparseChar,
+                     uplo::SparseChar,
+                     alpha::Number,
+                     A::CuSparseMatrix{$elty},
+                     X::CuMatrix{$elty},
+                     index::SparseChar;
+                     unit_diag::Bool=false)
+            sm2!(transa,transxy,uplo,alpha,A,copy(X),index,unit_diag=unit_diag)
+        end
+        function sm2(transa::SparseChar,
+                     transxy::SparseChar,
+                     uplo::SparseChar,
+                     A::CuSparseMatrix{$elty},
+                     X::CuMatrix{$elty},
+                     index::SparseChar;
+                     unit_diag::Bool=false)
+            sm2!(transa,transxy,uplo,one($elty),A,copy(X),index,unit_diag=unit_diag)
+        end
+        function sm2(transa::SparseChar,
+                     transxy::SparseChar,
+                     alpha::Number,
+                     A::AbstractTriangular,
+                     X::CuMatrix{$elty},
+                     index::SparseChar;
+                     unit_diag::Bool=false)
+            uplo = 'U'
+            if typeof(A) <: Union{LowerTriangular, UnitLowerTriangular}
+                uplo = 'L'
+            end
+            sm2!(transa,transxy,uplo,alpha,A.data,copy(X),index,unit_diag=unit_diag)
+        end
+        function sm2(transa::SparseChar,
+                     transxy::SparseChar,
+                     A::AbstractTriangular,
+                     X::CuMatrix{$elty},
+                     index::SparseChar;
+                     unit_diag::Bool=false)
+            uplo = 'U'
+            if typeof(A) <: Union{LowerTriangular, UnitLowerTriangular}
+                uplo = 'L'
+            end
+            sm2!(transa,transxy,uplo,one($elty),A.data,copy(X),index,unit_diag=unit_diag)
         end
     end
 end
