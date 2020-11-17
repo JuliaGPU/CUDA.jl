@@ -55,6 +55,10 @@ Return the default stream.
     CuStreamLegacy()
 
 Return a special object to use use an implicit stream with legacy synchronization behavior.
+
+You can use this stream to perform operations that should block on all streams (with the
+exception of streams created with `CU_STREAM_NON_BLOCKING`). This matches the old pre-CUDA 7
+global stream behavior.
 """
 @inline CuStreamLegacy() = CuStream(convert(CUstream, 1), CuContext(C_NULL))
 
@@ -62,6 +66,11 @@ Return a special object to use use an implicit stream with legacy synchronizatio
     CuStreamPerThread()
 
 Return a special object to use an implicit stream with per-thread synchronization behavior.
+
+This should generally only be used with compiled libraries, which cannot be switched to the
+per-thread API calls. For all other uses, it be libraries compiled with `nvcc
+--default-stream per-thread` or any CUDA API call using CUDA.jl (which defaults to the
+per-thread variants) you can just use the default `CuDefaultStream` object.
 """
 @inline CuStreamPerThread() = CuStream(convert(CUstream, 2), CuContext(C_NULL))
 
