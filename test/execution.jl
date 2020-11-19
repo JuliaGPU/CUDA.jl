@@ -211,10 +211,8 @@ end
 
 
 @testset "scalar through single-value array, using device function" begin
-    function child(a, i)
-        return a[i]
-    end
-    @noinline function parent(a, x)
+    @noinline child(a, i) = a[i]
+    function parent(a, x)
         i = (blockIdx().x-1) * blockDim().x + threadIdx().x
         max = gridDim().x * blockDim().x
         if i == max
