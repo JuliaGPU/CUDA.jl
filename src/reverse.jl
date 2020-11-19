@@ -110,7 +110,8 @@ end
 # 1-dimensional API
 
 # in-place
-Base.@propagate_inbounds function Base.reverse!(data::AnyCuVector{T}, start, stop=length(data)) where {T}
+Base.@propagate_inbounds function Base.reverse!(data::AnyCuVector{T}, start::Integer,
+                                                stop::Integer=length(data)) where {T}
     _reverse(view(data, start:stop))
     return data
 end
@@ -118,7 +119,8 @@ end
 Base.reverse(data::AnyCuVector{T}) where {T} = @inbounds reverse(data, 1, length(data))
 
 # out-of-place
-Base.@propagate_inbounds function Base.reverse(input::AnyCuVector{T}, start, stop=length(input)) where {T}
+Base.@propagate_inbounds function Base.reverse(input::AnyCuVector{T}, start::Integer,
+                                               stop::Integer=length(input)) where {T}
     output = similar(input)
 
     start > 1 && copyto!(output, 1, input, 1, start-1)
