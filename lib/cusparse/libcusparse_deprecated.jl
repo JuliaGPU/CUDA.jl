@@ -4,7 +4,7 @@
                                    csrSortedColInd, cscSortedVal, cscSortedRowInd,
                                    cscSortedColPtr, copyValues, idxBase)
     initialize_api()
-    @runtime_ccall((:cusparseScsr2csc, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseScsr2csc, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, Cint, Cint, Cint, CuPtr{Cfloat}, CuPtr{Cint},
                     CuPtr{Cint}, CuPtr{Cfloat}, CuPtr{Cint}, CuPtr{Cint}, cusparseAction_t,
                     cusparseIndexBase_t),
@@ -16,7 +16,7 @@ end
                                    csrSortedColInd, cscSortedVal, cscSortedRowInd,
                                    cscSortedColPtr, copyValues, idxBase)
     initialize_api()
-    @runtime_ccall((:cusparseDcsr2csc, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseDcsr2csc, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, Cint, Cint, Cint, CuPtr{Cdouble}, CuPtr{Cint},
                     CuPtr{Cint}, CuPtr{Cdouble}, CuPtr{Cint}, CuPtr{Cint},
                     cusparseAction_t, cusparseIndexBase_t),
@@ -28,7 +28,7 @@ end
                                    csrSortedColInd, cscSortedVal, cscSortedRowInd,
                                    cscSortedColPtr, copyValues, idxBase)
     initialize_api()
-    @runtime_ccall((:cusparseCcsr2csc, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseCcsr2csc, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, Cint, Cint, Cint, CuPtr{cuComplex}, CuPtr{Cint},
                     CuPtr{Cint}, CuPtr{cuComplex}, CuPtr{Cint}, CuPtr{Cint},
                     cusparseAction_t, cusparseIndexBase_t),
@@ -40,7 +40,7 @@ end
                                    csrSortedColInd, cscSortedVal, cscSortedRowInd,
                                    cscSortedColPtr, copyValues, idxBase)
     initialize_api()
-    @runtime_ccall((:cusparseZcsr2csc, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseZcsr2csc, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, Cint, Cint, Cint, CuPtr{cuDoubleComplex},
                     CuPtr{Cint}, CuPtr{Cint}, CuPtr{cuDoubleComplex}, CuPtr{Cint},
                     CuPtr{Cint}, cusparseAction_t, cusparseIndexBase_t),
@@ -52,7 +52,7 @@ end
                                   csrSortedValA, csrSortedRowPtrA, csrSortedColIndA, B,
                                   ldb, beta, C, ldc)
     initialize_api()
-    @runtime_ccall((:cusparseScsrmm2, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseScsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
                     Cint, Cint, Cint, Ref{Cfloat}, cusparseMatDescr_t, CuPtr{Cfloat},
                     CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cfloat}, Cint, Ref{Cfloat},
@@ -65,7 +65,7 @@ end
                                   csrSortedValA, csrSortedRowPtrA, csrSortedColIndA, B,
                                   ldb, beta, C, ldc)
     initialize_api()
-    @runtime_ccall((:cusparseDcsrmm2, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseDcsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
                     Cint, Cint, Cint, Ref{Cdouble}, cusparseMatDescr_t, CuPtr{Cdouble},
                     CuPtr{Cint}, CuPtr{Cint}, CuPtr{Cdouble}, Cint, Ref{Cdouble},
@@ -78,7 +78,7 @@ end
                                   csrSortedValA, csrSortedRowPtrA, csrSortedColIndA, B,
                                   ldb, beta, C, ldc)
     initialize_api()
-    @runtime_ccall((:cusparseCcsrmm2, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseCcsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
                     Cint, Cint, Cint, Ref{cuComplex}, cusparseMatDescr_t, CuPtr{cuComplex},
                     CuPtr{Cint}, CuPtr{Cint}, CuPtr{cuComplex}, Cint, Ref{cuComplex},
@@ -91,7 +91,7 @@ end
                                   csrSortedValA, csrSortedRowPtrA, csrSortedColIndA, B,
                                   ldb, beta, C, ldc)
     initialize_api()
-    @runtime_ccall((:cusparseZcsrmm2, libcusparse()), cusparseStatus_t,
+    ccall((:cusparseZcsrmm2, libcusparse()), cusparseStatus_t,
                    (cusparseHandle_t, cusparseOperation_t, cusparseOperation_t, Cint,
                     Cint, Cint, Cint, Ref{cuDoubleComplex}, cusparseMatDescr_t,
                     CuPtr{cuDoubleComplex}, CuPtr{Cint}, CuPtr{Cint},

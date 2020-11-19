@@ -221,7 +221,7 @@ function use_local_cuda()
     if cuda_version == v"11.1.0"
         # nothing is initialized at this point, so we need to use raw ccalls.
         version = Ref{Cint}()
-        @assert 0 == @runtime_ccall((:cusolverGetVersion, __libcusolver[]), Cint, (Ref{Cint},), version)
+        @assert 0 == ccall((:cusolverGetVersion, __libcusolver[]), Cint, (Ref{Cint},), version)
         if version[] == 11001
             cuda_version = v"11.1.1"
         elseif version[] != 11000

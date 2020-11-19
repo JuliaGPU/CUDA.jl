@@ -7,7 +7,7 @@
 
 using Clang
 
-function wrap(name, headers...; wrapped_headers=headers, library="lib$name", defines=[], include_dirs=[])
+function wrap(name, headers...; wrapped_headers=headers, library="lib$name()", defines=[], include_dirs=[])
     clang_args = String[]
     append!(clang_args, map(dir->"-I$dir", include_dirs))
     for define in defines
@@ -114,26 +114,6 @@ function insert_check_pass(x, state)
 
         if rv.val in checked_types
             push!(state.edits, Edit(state.offset, "@checked "))
-        end
-    end
-end
-
-# rewrite ordinary `ccall`s to `@runtime_ccall`
-function rewrite_ccall_pass(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
-        push!(state.edits, Edit(state.offset, "@runtime_"))
-
-        # rewrite the function handle `libcuda` into a call `libcuda()`
-        # FIXME: this used to work by setting `libname="lib$name()"`,
-        #        but starting with Julia 1.4 this resulted in `var"libcuda()"`
-        handle = x.args[3]
-        if handle.typ == CSTParser.TupleH
-            fun, lib = handle.args[2], handle.args[4]
-            @assert lib.typ == CSTParser.IDENTIFIER
-
-            offset = state.offset + sum(x->x.fullspan, x.args[1:2]) +
-                                    sum(x->x.fullspan, handle.args[1:4])
-            push!(state.edits, Edit(offset, "()"))
         end
     end
 end
@@ -406,9 +386,6 @@ function process(name, headers...; libname=name, kwargs...)
 
         state.offset = 0
         pass(ast, state, rewrite_thread_semantics)
-
-        state.offset = 0
-        pass(ast, state, rewrite_ccall_pass)
 
         state.offset = 0
         pass(ast, state, insert_init_pass)
