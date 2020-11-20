@@ -46,17 +46,26 @@ Base.sizeof(tm::CuDeviceTexture) = Base.elsize(x) * length(x)
 # Source: NVVM IR specification 1.4
 # NOTE: tex1Dfetch (integer coordinates) is unsupported, as it can be easily done using ldg
 
+struct Vec4{T}
+    a::T
+    b::T
+    c::T
+    d::T
+end
+
+Base.Tuple(x::Vec4) = tuple(x.a, x.b, x.c, x.d)
+
 for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
-        ((Signed,        NTuple{4,UInt32},  :v4u32),
-         (Unsigned,      NTuple{4,Int32},   :v4s32),
-         (AbstractFloat, NTuple{4,Float32}, :v4f32))
+        ((Signed,        Vec4{UInt32},  :v4u32),
+         (Unsigned,      Vec4{Int32},   :v4s32),
+         (AbstractFloat, Vec4{Float32}, :v4f32))
 
     eltyp = Union{dispatch_rettyp, NTuple{<:Any,dispatch_rettyp}}
 
     # tex1D only supports array memory
     @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemory}, x::Number) =
-        ccall($"llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32", llvmcall,
-              $julia_rettyp, (CUtexObject, Float32), texObject, x)
+        Tuple(ccall($("llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32"), llvmcall,
+                    $julia_rettyp, (CUtexObject, Float32), texObject, x))
 
     # tex2D and tex3D supports all memories
     for dims in 2:3
@@ -66,8 +75,8 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         julia_params = ntuple(i->:($(julia_args[i])::Number), dims)
 
         @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims,}, $(julia_params...)) =
-            ccall($"llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32", llvmcall,
-                  $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
+            Tuple(ccall($("llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32"), llvmcall,
+                        $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...)))
     end
 end
 
@@ -82,18 +91,18 @@ end
                               {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
     # normalized coordinates range between 0 and 1, and can be used as-is
     vals = tex(t, idx...)
-    return (unpack(T, vals))
+    return unpack(T, vals)
 end
 
 @inline function Base.getindex(t::CuDeviceTexture{T,N,<:Any,false,I}, idx::Vararg{Float32,N}) where
                               {T,N,I<:Union{NearestNeighbour,LinearInterpolation}}
     # non-normalized coordinates should be adjusted for 1-based indexing
     vals = tex(t, ntuple(i->idx[i]-0.5, N)...)
-    return (unpack(T, vals))
+    return unpack(T, vals)
 end
 
 # unpack single-channel texture fetches as values, tuples otherwise
-@inline unpack(::Type{T}, vals::NTuple) where T = unpack(T, vals[1])
+@inline unpack(::Type{T},           vals::NTuple) where T = unpack(T, vals[1])
 @inline unpack(::Type{NTuple{1,T}}, vals::NTuple) where T = unpack(T, vals[1])
 @inline unpack(::Type{NTuple{C,T}}, vals::NTuple) where {C,T} = ntuple(i->unpack(T, vals[i]), C)
 
