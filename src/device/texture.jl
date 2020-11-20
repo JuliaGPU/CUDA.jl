@@ -53,18 +53,7 @@ struct Vec4{T}
     d::T
 end
 
-@inline function Base.getindex(vec::Vec4{T}, i::Int)::T where T
-    @boundscheck 1 <= i <= 4 || throw(BoundsError(vec, i))
-    if i == 1
-        return vec.a
-    elseif i == 2
-        return vec.b
-    elseif i == 3
-        return vec.c
-    elseif i == 4
-        return vec.d
-    end
-end
+Base.Tuple(x::Vec4) = tuple(x.a, x.b, x.c, x.d)
 
 for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         ((Signed,        Vec4{UInt32},  :v4u32),
@@ -75,8 +64,8 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
 
     # tex1D only supports array memory
     @eval tex(texObject::CuDeviceTexture{<:$eltyp,1,ArrayMemory}, x::Number) =
-        ccall($("llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32"), llvmcall,
-              $julia_rettyp, (CUtexObject, Float32), texObject, x)
+        Tuple(ccall($("llvm.nvvm.tex.unified.1d.$llvm_rettyp.f32"), llvmcall,
+                    $julia_rettyp, (CUtexObject, Float32), texObject, x))
 
     # tex2D and tex3D supports all memories
     for dims in 2:3
@@ -86,8 +75,8 @@ for (dispatch_rettyp, julia_rettyp, llvm_rettyp) in
         julia_params = ntuple(i->:($(julia_args[i])::Number), dims)
 
         @eval tex(texObject::CuDeviceTexture{<:$eltyp,$dims,}, $(julia_params...)) =
-            ccall($("llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32"), llvmcall,
-                  $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...))
+            Tuple(ccall($("llvm.nvvm.tex.unified.$llvm_dim.$llvm_rettyp.f32"), llvmcall,
+                        $julia_rettyp, (CUtexObject, $(julia_sig...)), texObject, $(julia_args...)))
     end
 end
 
@@ -113,9 +102,9 @@ end
 end
 
 # unpack single-channel texture fetches as values, tuples otherwise
-@inline unpack(::Type{T},           vals::Vec4) where T = unpack(T, vals[1])
-@inline unpack(::Type{NTuple{1,T}}, vals::Vec4) where T = unpack(T, vals[1])
-@inline unpack(::Type{NTuple{C,T}}, vals::Vec4) where {C,T} = ntuple(i->unpack(T, vals[i]), C)
+@inline unpack(::Type{T},           vals::NTuple) where T = unpack(T, vals[1])
+@inline unpack(::Type{NTuple{1,T}}, vals::NTuple) where T = unpack(T, vals[1])
+@inline unpack(::Type{NTuple{C,T}}, vals::NTuple) where {C,T} = ntuple(i->unpack(T, vals[i]), C)
 
 @inline unpack(::Type{T}, val::T) where {T} = val
 @inline unpack(::Type{T}, val::Real) where {T <: Integer} = unsafe_trunc(T, val)
