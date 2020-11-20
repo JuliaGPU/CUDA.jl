@@ -1,8 +1,6 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-using LinearAlgebra: AbstractTriangular
-
 export sv2!, sv2, sv
 
 """
@@ -120,29 +118,6 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
                      index::SparseChar;
                      unit_diag::Bool=false)
             sv2!(transa,uplo,one($elty),A,copy(X),index,unit_diag=unit_diag)
-        end
-        function sv2(transa::SparseChar,
-                     alpha::Number,
-                     A::AbstractTriangular,
-                     X::CuVector{$elty},
-                     index::SparseChar;
-                     unit_diag::Bool=false)
-            uplo = 'U'
-            if typeof(A) <: Union{LowerTriangular, UnitLowerTriangular}
-                uplo = 'L'
-            end
-            sv2!(transa,uplo,alpha,A.data,copy(X),index,unit_diag=unit_diag)
-        end
-        function sv2(transa::SparseChar,
-                     A::AbstractTriangular,
-                     X::CuVector{$elty},
-                     index::SparseChar;
-                     unit_diag::Bool=false)
-            uplo = 'U'
-            if typeof(A) <: Union{LowerTriangular, UnitLowerTriangular}
-                uplo = 'L'
-            end
-            sv2!(transa,uplo,one($elty),A.data,copy(X),index,unit_diag=unit_diag)
         end
     end
 end
