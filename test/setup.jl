@@ -216,7 +216,7 @@ function julia_script(code, args=``)
     if Base.JLOptions().project != C_NULL
         cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
     end
-    cmd = `$cmd --eval $script $args`
+    cmd = `$cmd --color=no --eval $script $args`
 
     out = Pipe()
     err = Pipe()
