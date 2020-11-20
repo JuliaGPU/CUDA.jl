@@ -16,6 +16,9 @@ const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 # precompile the runtime library
 CUDA.precompile_runtime()
 
+# for when we include tests directly
+CUDA.allowscalar(false)
+
 
 ## entry point
 
