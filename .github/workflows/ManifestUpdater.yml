@@ -40,7 +40,7 @@ jobs:
           log=$(julia -e "println(Base.VERSION)")
           echo "::set-output name=log::$log"
       - name: Create pull request
-        uses: peter-evans/create-pull-request@v2
+        uses: peter-evans/create-pull-request@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: |
