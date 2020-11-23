@@ -27,7 +27,8 @@ include("array.jl")
 @info "Warming up"
 warmup(SUITE; verbose=false)
 
-paramsfile = joinpath(first(DEPOT_PATH), "cache", "CUDA_benchmark_params.json")
+paramsfile = joinpath(first(DEPOT_PATH), "datadeps", "CUDA_benchmark_params.json")
+# NOTE: using a path that survives across CI runs
 mkpath(dirname(paramsfile))
 if !isfile(paramsfile)
     @warn "No saved parameters found, tuning all benchmarks"
@@ -56,6 +57,10 @@ else
     end
 end
 BenchmarkTools.save(paramsfile, params(SUITE))
+
+# reclaim memory that might have been used by the tuning process
+GC.gc(true)
+CUDA.reclaim()
 
 # latency benchmarks spawn external processes and take very long,
 # so don't benefit from warm-up or tuning.
