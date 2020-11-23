@@ -441,7 +441,7 @@ Base.unsafe_convert(::Type{CuPtr{T}}, A::PermutedDimsArray) where {T} =
 
 function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
   if prod(dims) != length(a)
-      throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $len"))
+      throw(DimensionMismatch("new dimensions $(dims) must be consistent with array size $(size(a))"))
   end
 
   if N == M && dims == size(a)
