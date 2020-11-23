@@ -16,6 +16,9 @@ const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 # precompile the runtime library
 CUDA.precompile_runtime()
 
+# for when we include tests directly
+CUDA.allowscalar(false)
+
 
 ## entry point
 
@@ -213,7 +216,7 @@ function julia_script(code, args=``)
     if Base.JLOptions().project != C_NULL
         cmd = `$cmd --project=$(unsafe_string(Base.JLOptions().project))`
     end
-    cmd = `$cmd --eval $script $args`
+    cmd = `$cmd --color=no --eval $script $args`
 
     out = Pipe()
     err = Pipe()

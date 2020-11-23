@@ -65,14 +65,9 @@ end
 
 ## CUDA device library
 
-const libcache = Dict{String, LLVM.Module}()
-
 function load_libdevice(cap, ctx)
     path = libdevice()
-
-    get!(libcache, path) do
-        parse(LLVM.Module, read(path), ctx)
-    end
+    parse(LLVM.Module, read(path), ctx)
 end
 
 function link_libdevice!(mod::LLVM.Module, cap::VersionNumber, undefined_fns)

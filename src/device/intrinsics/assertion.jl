@@ -45,7 +45,7 @@ assert_counter = 0
         T_pint8 = LLVM.PointerType(LLVM.Int8Type(ctx))
 
         # create function
-        llvm_f, _ = create_function()
+        llvm_f, _ = create_function(T_void)
         mod = LLVM.parent(llvm_f)
 
         # generate IR
