@@ -210,13 +210,15 @@ steps:
       CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
       CODESPEED_EXECUTABLE: "Julia 1.6"
     command: |
-      julia --project=perf/ -e '
+      julia --project -e '
         ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
 
         println("--- :julia: Instantiating project")
         using Pkg
         Pkg.instantiate()
-        Pkg.develop(PackageSpec(path=pwd()))
+        Pkg.activate("perf")
+        Pkg.instantiate()
+        push!(LOAD_PATH, @__DIR__)
 
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
