@@ -3,10 +3,10 @@ steps:
 
   - label: "Julia 1.5"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -22,11 +22,11 @@ steps:
 
   - label: "Julia 1.5 (debug)"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2:
+      - JuliaCI/julia-test#v0.3:
           julia_args: "-g2"
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -49,10 +49,10 @@ steps:
 
   - label: "CUDA 11.1"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -71,10 +71,10 @@ steps:
 
   - label: "CUDA 11.0"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -93,10 +93,10 @@ steps:
 
   - label: "CUDA 10.2"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -115,10 +115,10 @@ steps:
 
   - label: "CUDA 10.1"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -140,10 +140,10 @@ steps:
 
   - label: "No memory pool"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -159,10 +159,10 @@ steps:
 
   - label: "Simple memory pool"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -178,10 +178,10 @@ steps:
 
   - label: "Split memory pool"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
@@ -202,7 +202,7 @@ steps:
 
   - label: "Benchmarks"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
     env:
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
@@ -228,7 +228,7 @@ steps:
 
   - label: "Documentation"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
     command: |
       julia --project=docs/ -e '
