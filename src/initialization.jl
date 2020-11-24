@@ -91,7 +91,7 @@ function __configure__(show_reason::Bool)
 
     try
         @debug "Initializing CUDA driver"
-        res = @runtime_ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
+        res = ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
         if res == 0xffffffff
             error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
         elseif res != SUCCESS

@@ -24,7 +24,7 @@ end
                                                            dxDesc, preference,
                                                            memoryLimitInBytes, algo)
     initialize_api()
-    @runtime_ccall((:cudnnGetConvolutionBackwardDataAlgorithm, libcudnn()), cudnnStatus_t,
+    ccall((:cudnnGetConvolutionBackwardDataAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnFilterDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionBwdDataPreference_t, Csize_t,
@@ -37,7 +37,7 @@ end
                                         dropoutDesc, inputMode, direction, mode, algo,
                                         mathPrec)
     initialize_api()
-    @runtime_ccall((:cudnnSetRNNDescriptor, libcudnn()), cudnnStatus_t,
+    ccall((:cudnnSetRNNDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Cint, Cint,
                     cudnnDropoutDescriptor_t, cudnnRNNInputMode_t, cudnnDirectionMode_t,
                     cudnnRNNMode_t, cudnnRNNAlgo_t, cudnnDataType_t),
@@ -49,7 +49,7 @@ end
                                         dropoutDesc, inputMode, direction, mode, algo,
                                         mathPrec)
     initialize_api()
-    @runtime_ccall((:cudnnGetRNNDescriptor, libcudnn()), cudnnStatus_t,
+    ccall((:cudnnGetRNNDescriptor, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnRNNDescriptor_t, Ptr{Cint}, Ptr{Cint},
                     Ptr{cudnnDropoutDescriptor_t}, Ptr{cudnnRNNInputMode_t},
                     Ptr{cudnnDirectionMode_t}, Ptr{cudnnRNNMode_t}, Ptr{cudnnRNNAlgo_t},
@@ -61,7 +61,7 @@ end
 @checked function cudnnSetRNNDescriptor_v5(rnnDesc, hiddenSize, numLayers, dropoutDesc,
                                            inputMode, direction, mode, mathPrec)
     initialize_api()
-    @runtime_ccall((:cudnnSetRNNDescriptor_v5, libcudnn()), cudnnStatus_t,
+    ccall((:cudnnSetRNNDescriptor_v5, libcudnn()), cudnnStatus_t,
                    (cudnnRNNDescriptor_t, Cint, Cint, cudnnDropoutDescriptor_t,
                     cudnnRNNInputMode_t, cudnnDirectionMode_t, cudnnRNNMode_t,
                     cudnnDataType_t),
@@ -73,7 +73,7 @@ end
                                                       yDesc, preference,
                                                       memoryLimitInBytes, algo)
     initialize_api()
-    @runtime_ccall((:cudnnGetConvolutionForwardAlgorithm, libcudnn()), cudnnStatus_t,
+    ccall((:cudnnGetConvolutionForwardAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnFilterDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionFwdPreference_t, Csize_t,
@@ -86,7 +86,7 @@ end
                                                              convDesc, dwDesc, preference,
                                                              memoryLimitInBytes, algo)
     initialize_api()
-    @runtime_ccall((:cudnnGetConvolutionBackwardFilterAlgorithm, libcudnn()), cudnnStatus_t,
+    ccall((:cudnnGetConvolutionBackwardFilterAlgorithm, libcudnn()), cudnnStatus_t,
                    (cudnnHandle_t, cudnnTensorDescriptor_t, cudnnTensorDescriptor_t,
                     cudnnConvolutionDescriptor_t, cudnnFilterDescriptor_t,
                     cudnnConvolutionBwdFilterPreference_t, Csize_t,

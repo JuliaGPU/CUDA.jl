@@ -319,8 +319,22 @@ end
             h_y = Array(d_y)
             @test y ≈ h_y
         end
+        @testset "trsv (adjoint)" begin
+            d_y = CUBLAS.trsv('U','C','N',dA,dx)
+            y = adjoint(A)\x
+            # compare
+            h_y = Array(d_y)
+            @test y ≈ h_y
+        end
+        @testset "trsv (transpose)" begin
+            d_y = CUBLAS.trsv('U','T','N',dA,dx)
+            y = transpose(A)\x
+            # compare
+            h_y = Array(d_y)
+            @test y ≈ h_y
+        end
 
-        @testset "ldiv!(::UpperTriangular, ::CuVector)" begin
+        @testset "ldiv!(::UpperTriangular)" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -328,7 +342,7 @@ end
             y = UpperTriangular(A) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::AdjointUpperTriangular, ::CuVector)" begin
+        @testset "ldiv!(::UpperTriangular{Adjoint})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -336,7 +350,7 @@ end
             y = adjoint(UpperTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::TransposeUpperTriangular, ::CuVector)" begin
+        @testset "ldiv!(::UpperTriangular{Transpose})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -344,7 +358,7 @@ end
             y = transpose(UpperTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::UpperTriangular, ::CuVector)" begin
+        @testset "ldiv!(::LowerTriangular)" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -352,7 +366,7 @@ end
             y = LowerTriangular(A) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::AdjointUpperTriangular, ::CuVector)" begin
+        @testset "ldiv!(::LowerTriangular{Adjoint})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -360,7 +374,7 @@ end
             y = adjoint(LowerTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
-        @testset "ldiv!(::TransposeUpperTriangular, ::CuVector)" begin
+        @testset "ldiv!(::LowerTriangular{Transpose})" begin
             A = copy(sA)
             dA = CuArray(A)
             dy = copy(dx)
@@ -368,6 +382,7 @@ end
             y = transpose(LowerTriangular(A)) \ x
             @test y ≈ Array(dy)
         end
+
         @testset "inv($TR)" for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
             @test testf(x -> inv(TR(x)), rand(elty, m, m))
         end
@@ -721,14 +736,7 @@ end
             d_C = CUBLAS.xt_trmm('L','U','N','N',alpha,Array(dA),Array(dB))
             @test C ≈ d_C
         end
-        @testset "trsm!" begin
-            C = alpha*(A\B)
-            dC = copy(dB)
-            CUBLAS.trsm!('L','U','N','N',alpha,dA,dC)
-            # move to host and compare
-            h_C = Array(dC)
-            @test C ≈ h_C
-        end
+
         @testset "xt_trsm! gpu" begin
             C = alpha*(A\B)
             dC = copy(dB)
@@ -821,6 +829,146 @@ end
                 bC = alpha*(bA[i]\bB[i])
                 h_C = Array(bd_C[i])
                 @test bC ≈ h_C
+            end
+        end
+
+        let A = triu(rand(elty, m, m)), B = rand(elty,m,n), alpha = rand(elty)
+            dA = CuArray(A)
+            dB = CuArray(B)
+
+            @testset "left trsm!" begin
+                C = alpha*(A\B)
+                dC = copy(dB)
+                CUBLAS.trsm!('L','U','N','N',alpha,dA,dC)
+                @test C ≈ Array(dC)
+            end
+
+            @testset "left trsm" begin
+                C = alpha*(A\B)
+                dC = CUBLAS.trsm('L','U','N','N',alpha,dA,dB)
+                @test C ≈ Array(dC)
+            end
+            @testset "left trsm (adjoint)" begin
+                C = alpha*(adjoint(A)\B)
+                dC = CUBLAS.trsm('L','U','C','N',alpha,dA,dB)
+                @test C ≈ Array(dC)
+            end
+            @testset "left trsm (transpose)" begin
+                C = alpha*(transpose(A)\B)
+                dC = CUBLAS.trsm('L','U','T','N',alpha,dA,dB)
+                @test C ≈ Array(dC)
+            end
+        end
+
+        let A = triu(rand(elty, m, m)), B = rand(elty, m,m)
+            dA = CuArray(A)
+            dB = CuArray(B)
+
+            @testset "ldiv!(::UpperTriangular)" begin
+                dC = copy(dB)
+                ldiv!(UpperTriangular(dA), dC)
+                C = UpperTriangular(A) \ B
+                @test C ≈ Array(dC)
+            end
+            @testset "ldiv!(::UpperTriangular{Adjoint})" begin
+                dC = copy(dB)
+                ldiv!(adjoint(UpperTriangular(dA)), dC)
+                C = adjoint(UpperTriangular(A)) \ B
+                @test C ≈ Array(dC)
+            end
+            @testset "ldiv!(::UpperTriangular{Transpose})" begin
+                dC = copy(dB)
+                ldiv!(transpose(UpperTriangular(dA)), dC)
+                C = transpose(UpperTriangular(A)) \ B
+                @test C ≈ Array(dC)
+            end
+            @testset "ldiv!(::LowerTriangular)" begin
+                dC = copy(dB)
+                ldiv!(LowerTriangular(dA), dC)
+                C = LowerTriangular(A) \ B
+                @test C ≈ Array(dC)
+            end
+            @testset "ldiv!(::LowerTriangular{Adjoint})" begin
+                dC = copy(dB)
+                ldiv!(adjoint(LowerTriangular(dA)), dC)
+                C = adjoint(LowerTriangular(A)) \ B
+                @test C ≈ Array(dC)
+            end
+            @testset "ldiv!(::LowerTriangular{Transpose})" begin
+                dC = copy(dB)
+                ldiv!(transpose(LowerTriangular(dA)), dC)
+                C = transpose(LowerTriangular(A)) \ B
+                @test C ≈ Array(dC)
+            end
+        end
+
+        let A = rand(elty, m,m), B = triu(rand(elty, m, m)), alpha = rand(elty)
+            dA = CuArray(A)
+            dB = CuArray(B)
+
+            @testset "right trsm!" begin
+                C = alpha*(A/B)
+                dC = copy(dA)
+                CUBLAS.trsm!('R','U','N','N',alpha,dB,dC)
+                @test C ≈ Array(dC)
+            end
+
+            @testset "right trsm" begin
+                C = alpha*(A/B)
+                dC = CUBLAS.trsm('R','U','N','N',alpha,dB,dA)
+                @test C ≈ Array(dC)
+            end
+            @testset "right trsm (adjoint)" begin
+                C = alpha*(A/adjoint(B))
+                dC = CUBLAS.trsm('R','U','C','N',alpha,dB,dA)
+                @test C ≈ Array(dC)
+            end
+            @testset "right trsm (transpose)" begin
+                C = alpha*(A/transpose(B))
+                dC = CUBLAS.trsm('R','U','T','N',alpha,dB,dA)
+                @test C ≈ Array(dC)
+            end
+        end
+
+        let A = rand(elty, m,m), B = triu(rand(elty, m, m))
+            dA = CuArray(A)
+            dB = CuArray(B)
+
+            @testset "rdiv!(::UpperTriangular)" begin
+                dC = copy(dA)
+                rdiv!(dC, UpperTriangular(dB))
+                C = A / UpperTriangular(B)
+                @test C ≈ Array(dC)
+            end
+            @testset "rdiv!(::UpperTriangular{Adjoint})" begin
+                dC = copy(dA)
+                rdiv!(dC, adjoint(UpperTriangular(dB)))
+                C = A / adjoint(UpperTriangular(B))
+                @test C ≈ Array(dC)
+            end
+            @testset "rdiv!(::UpperTriangular{Transpose})" begin
+                dC = copy(dA)
+                rdiv!(dC, transpose(UpperTriangular(dB)))
+                C = A / transpose(UpperTriangular(B))
+                @test C ≈ Array(dC)
+            end
+            @testset "rdiv!(::LowerTriangular)" begin
+                dC = copy(dA)
+                rdiv!(dC, LowerTriangular(dB))
+                C = A / LowerTriangular(B)
+                @test C ≈ Array(dC)
+            end
+            @testset "rdiv!(::LowerTriangular{Adjoint})" begin
+                dC = copy(dA)
+                rdiv!(dC, adjoint(LowerTriangular(dB)))
+                C = A / adjoint(LowerTriangular(B))
+                @test C ≈ Array(dC)
+            end
+            @testset "rdiv!(::LowerTriangular{Transpose})" begin
+                dC = copy(dA)
+                rdiv!(dC, transpose(LowerTriangular(dB)))
+                C = A / transpose(LowerTriangular(B))
+                @test C ≈ Array(dC)
             end
         end
 

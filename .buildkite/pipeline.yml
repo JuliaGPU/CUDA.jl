@@ -1,10 +1,10 @@
 steps:
   # Julia versions
 
-  - label: "Julia 1.5"
+  - label: "Julia 1.6"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -20,10 +20,10 @@ steps:
 
   - wait  # smoke test: don't kick off a large number of tests if they'd all just fail
 
-  - label: "Julia 1.5 (debug)"
+  - label: "Julia 1.6 (debug)"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3:
           julia_args: "-g2"
       - JuliaCI/julia-coverage#v0.3:
@@ -50,7 +50,7 @@ steps:
   - label: "CUDA 11.1"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -72,7 +72,7 @@ steps:
   - label: "CUDA 11.0"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -94,7 +94,7 @@ steps:
   - label: "CUDA 10.2"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -116,7 +116,7 @@ steps:
   - label: "CUDA 10.1"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -141,7 +141,7 @@ steps:
   - label: "No memory pool"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -160,7 +160,7 @@ steps:
   - label: "Simple memory pool"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -179,7 +179,7 @@ steps:
   - label: "Split memory pool"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -203,20 +203,22 @@ steps:
   - label: "Benchmarks"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
     env:
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
       CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
       CODESPEED_COMMIT: "$BUILDKITE_COMMIT"
-      CODESPEED_EXECUTABLE: "Julia 1.5"
+      CODESPEED_EXECUTABLE: "Julia 1.6"
     command: |
-      julia --project=perf/ -e '
+      julia --project -e '
         ENV["CODESPEED_ENVIRONMENT"] = ENV["BUILDKITE_AGENT_NAME"]
 
         println("--- :julia: Instantiating project")
         using Pkg
         Pkg.instantiate()
-        Pkg.develop(PackageSpec(path=pwd()))
+        Pkg.activate("perf")
+        Pkg.instantiate()
+        push!(LOAD_PATH, @__DIR__)
 
         println("+++ :julia: Benchmarking")
         include("perf/runbenchmarks.jl")'
@@ -229,7 +231,7 @@ steps:
   - label: "Documentation"
     plugins:
       - JuliaCI/julia#v0.5:
-          version: 1.5
+          version: nightly
     command: |
       julia --project=docs/ -e '
         println("--- :julia: Instantiating project")

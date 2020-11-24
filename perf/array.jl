@@ -16,8 +16,8 @@ group["construct"] = @benchmarkable CuArray{Int}(undef, 1)
 
 group["copy"] = @async_benchmarkable copy($gpu_mat)
 
+gpu_mat2 = copy(gpu_mat)
 let group = addgroup!(group, "copyto!")
-    gpu_mat2 = copy(gpu_mat)
     group["cpu_to_gpu"] = @async_benchmarkable copyto!($gpu_mat, $cpu_mat)
     group["gpu_to_cpu"] = @async_benchmarkable copyto!($cpu_mat, $gpu_mat)
     group["gpu_to_gpu"] = @async_benchmarkable copyto!($gpu_mat2, $gpu_mat)
