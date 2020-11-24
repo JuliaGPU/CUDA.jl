@@ -8,8 +8,8 @@ dummy() = return
 @test_throws MethodError @cuda dummy(1)
 
 
-@testset "low-level interface" begin
-    k = cufunction(dummy)
+@testset "delayed kernel" begin
+    k = @cuda delayed=true dummy()
     k()
     k(; threads=1)
 
@@ -30,11 +30,6 @@ end
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
-
-    @cuda config=(kernel)->() dummy()
-    @cuda config=(kernel)->(threads=1,) dummy()
-    @cuda config=(kernel)->(blocks=1,) dummy()
-    @cuda config=(kernel)->(shmem=0,) dummy()
 end
 
 

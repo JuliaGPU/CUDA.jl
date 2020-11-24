@@ -36,21 +36,18 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
         d_out = CuArray(out)
 
         len = prod(dims)
-        function configurator(kernel)
-            config = launch_configuration(kernel.fun)
 
-            threads = Base.min(len, config.threads)
-            blocks = cld(len, threads)
-
-            return (threads=threads, blocks=blocks)
-        end
+        kernel = @cuda delayed=true kernel_100fma(d_a, d_b, d_c, d_out)
+        config = launch_configuration(kernel.fun)
+        threads = Base.min(len, config.threads)
+        blocks = cld(len, threads)
 
         # warm-up
-        @cuda kernel_100fma(d_a, d_b, d_c, d_out)
+        kernel(d_a, d_b, d_c, d_out)
         synchronize()
 
         secs = CUDA.@elapsed begin
-            @cuda config=configurator kernel_100fma(d_a, d_b, d_c, d_out)
+            kernel(d_a, d_b, d_c, d_out; threads=threads, blocks=blocks)
         end
         flopcount = 200*len
         flops = flopcount / secs
