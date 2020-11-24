@@ -85,7 +85,7 @@ end
 
 # repopulate the "available" pools from the list of freed blocks
 function pool_repopulate(dev)
-  blocks = @safe_lock freed_lock begin
+  blocks = @lock freed_lock begin
     isempty(freed[dev]) && return
     blocks = Set(freed[dev])
     empty!(freed[dev])
@@ -232,7 +232,7 @@ function pool_free(dev, block)
 
   # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
   # and to simplify locking (preventing concurrent access during GC interventions)
-  @safe_lock_spin freed_lock begin
+  @spinlock freed_lock begin
     push!(freed[dev], block)
   end
 end
@@ -245,7 +245,7 @@ function pool_init()
 end
 
 function cached_memory(dev=device())
-  sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
+  sz = @lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
   @lock pool_lock for (pid, pl) in enumerate(pools_avail[dev])
     bytes = poolsize(pid)
     sz += bytes * length(pl)

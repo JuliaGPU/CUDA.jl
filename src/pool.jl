@@ -24,39 +24,17 @@ end
 
 Base.unlock(nrl::NonReentrantLock) = unlock(nrl.rl)
 
-# the above lock is taken around code that might gc, which might reenter through finalizers.
-# avoid that by temporarily disabling finalizers running concurrently on this thread.
-enable_finalizers(on::Bool) = ccall(:jl_gc_enable_finalizers, Cvoid,
-                                    (Ptr{Cvoid}, Int32,), Core.getptls(), on)
-macro safe_lock(l, ex)
-  quote
-    temp = $(esc(l))
-    lock(temp)
-    enable_finalizers(false)
-    try
-      $(esc(ex))
-    finally
-      unlock(temp)
-      enable_finalizers(true)
-    end
-  end
-end
-
-# if we actually want to acquire these locks from a finalizer, we can't just wait on them
-# (which might cause a task switch). as the lock can only be taken by another thread that
-# should be running, and not a concurrent task we'd need to switch to, we can safely spin.
-macro safe_lock_spin(l, ex)
+# a safe way to acquire locks from finalizers, where we can't wait (which switches tasks)
+macro spinlock(l, ex)
   quote
     temp = $(esc(l))
     while !trylock(temp)
       # we can't yield here
     end
-    enable_finalizers(false) # retains compatibility with non-finalizer callers
     try
       $(esc(ex))
     finally
       unlock(temp)
-      enable_finalizers(true)
     end
   end
 end
@@ -299,7 +277,7 @@ a [`OutOfGPUMemoryError`](@ref) if the allocation request cannot be satisfied.
 
   # record the memory block
   ptr = pointer(block)
-  @safe_lock allocated_lock begin
+  @lock allocated_lock begin
       @assert !haskey(allocated[dev], ptr)
       allocated[dev][ptr] = block, 1
   end
@@ -337,7 +315,7 @@ multiple calls to `free` before this buffer is put back into the memory pool.
   dev = device()
 
   # look up the memory block
-  @safe_lock_spin allocated_lock begin
+  @spinlock allocated_lock begin
     block, refcount = allocated[dev][ptr]
     allocated[dev][ptr] = block, refcount+1
   end
@@ -365,7 +343,7 @@ Releases a buffer pointed to by `ptr` to the memory pool.
   # so perform our own error handling.
   try
     # look up the memory block, and bail out if its refcount isn't 1
-    block = @safe_lock_spin allocated_lock begin
+    block = @spinlock allocated_lock begin
         block, refcount = allocated[dev][ptr]
         if refcount == 1
           delete!(allocated[dev], ptr)
@@ -473,7 +451,7 @@ end
 
 ## utilities
 
-used_memory(dev=device()) = @safe_lock allocated_lock begin
+used_memory(dev=device()) = @lock allocated_lock begin
     mapreduce(sizeof∘first, +, values(allocated[dev]); init=0)
 end
 

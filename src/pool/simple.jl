@@ -105,7 +105,7 @@ end
 function pool_free(dev, block)
     # we don't do any work here to reduce pressure on the GC (spending time in finalizers)
     # and to simplify locking (preventing concurrent access during GC interventions)
-    @safe_lock_spin freed_lock begin
+    @spinlock freed_lock begin
         push!(freed[dev], block)
     end
 end
@@ -116,7 +116,7 @@ function pool_init()
 end
 
 function cached_memory(dev=device())
-    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
+    sz = @lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
     sz += @lock pool_lock mapreduce(sizeof, +, pool[dev]; init=0)
     return sz
 end

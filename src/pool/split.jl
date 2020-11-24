@@ -151,7 +151,7 @@ end
 
 # repopulate the pools from the list of freed blocks
 function pool_repopulate(dev)
-    blocks = @safe_lock freed_lock begin
+    blocks = @lock freed_lock begin
         isempty(freed[dev]) && return
         blocks = Set(freed[dev])
         empty!(freed[dev])
@@ -304,7 +304,7 @@ function pool_free(dev, block)
     # and to simplify locking (preventing concurrent access during GC interventions)
     block.state == ALLOCATED || error("Cannot free a $(block.state) block")
     block.state = FREED
-    @safe_lock_spin freed_lock begin
+    @spinlock freed_lock begin
         push!(freed[dev], block)
     end
 end
@@ -329,7 +329,7 @@ function pool_reclaim(dev, sz::Int=typemax(Int))
 end
 
 function cached_memory(dev=device())
-    sz = @safe_lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
+    sz = @lock freed_lock mapreduce(sizeof, +, freed[dev]; init=0)
     @lock pool_lock for pool in (pool_small[dev], pool_large[dev], pool_huge[dev])
         sz += mapreduce(sizeof, +, pool; init=0)
     end
