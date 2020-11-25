@@ -95,7 +95,6 @@ macro cuda(ex...)
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
-                    # TODO: ensure inference if kernel_tt, since kernel_args is unused
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $cufunction($f, $kernel_tt; $(compiler_kwargs...))
