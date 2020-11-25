@@ -52,16 +52,16 @@ function runtests(f, name, time_source=:cuda, snoop=nothing)
             CUDA.allowscalar(false)
 
             if $(QuoteNode(time_source)) == :cuda
-                CUDA.@timed @testset $"$name" begin
+                CUDA.@timed @testset $name begin
                     $f()
                 end
             elseif $(QuoteNode(time_source)) == :julia
-                res = @timed @testset $"$name" begin
+                res = @timed @testset $name begin
                     $f()
                 end
                 res..., 0, 0, 0
             else
-                error($"Unknown time source: ",$(QuoteNode(time_source)))
+                error("Unknown time source: " * $(string(time_source)))
             end
         end
         data = Core.eval(mod, ex)
