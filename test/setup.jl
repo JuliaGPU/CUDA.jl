@@ -12,7 +12,12 @@ using Random
 
 # detect cuda-memcheck, to disable testts that are known to fail under cuda-memcheck
 # (e.g. those using CUPTI) or result in verbose output (deliberate API errors)
-const memcheck = haskey(ENV, "CUDA_MEMCHECK")
+macro not_if_memcheck(ex)
+    haskey(ENV, "CUDA_MEMCHECK") || return esc(ex)
+    quote
+        @test_skip $ex
+    end
+end
 
 # precompile the runtime library
 CUDA.precompile_runtime()

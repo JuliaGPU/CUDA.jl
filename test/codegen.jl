@@ -117,16 +117,14 @@ end
 
 ############################################################################################
 
-# > The application which calls CUPTI APIs cannot be used with Nvidia tools like [...]
-# > cuda-memcheck.
-memcheck || @testset "SASS" begin
+@testset "SASS" begin
 
 @testset "basic reflection" begin
     valid_kernel() = return
     invalid_kernel() = 1
 
-    @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
-    @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
+    @not_if_memcheck @test CUDA.code_sass(devnull, valid_kernel, Tuple{}) == nothing
+    @not_if_memcheck @test_throws CUDA.KernelError CUDA.code_sass(devnull, invalid_kernel, Tuple{})
 end
 
 @testset "function name mangling" begin
@@ -134,7 +132,7 @@ end
 
     @eval kernel_341(ptr) = (@inbounds unsafe_store!(ptr, $(Symbol("dummy_^"))(unsafe_load(ptr))); nothing)
 
-    CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
+    @not_if_memcheck CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
 end
 
 end
