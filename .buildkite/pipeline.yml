@@ -26,6 +26,7 @@ steps:
           version: nightly
       - JuliaCI/julia-test#v0.3:
           julia_args: "-g2"
+          test_args: "--memcheck"
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
@@ -34,12 +35,15 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "*"
+      cuda: "11.1"  # older versions of CUDA have issues
+      cap: "recent"
+    env:
+      CI_THOROUGH: 'true'
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 60
 
 
-    # CUDA versions
+    # CUDA versions (from artifacts)
 
     # NOTE: we support those CUDA versions for which the latest cuDNN is available
     #       https://developer.nvidia.com/rdp/cudnn-archive
