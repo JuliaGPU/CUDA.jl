@@ -26,7 +26,7 @@ steps:
           version: nightly
       - JuliaCI/julia-test#v0.3:
           julia_args: "-g2"
-          test_args: "--memcheck"
+          test_args: "--memcheck --thorough"
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
@@ -37,8 +37,6 @@ steps:
       queue: "juliagpu"
       cuda: "11.1"  # older versions of CUDA have issues
       cap: "recent"
-    env:
-      CI_THOROUGH: 'true'
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 60
 
@@ -49,13 +47,14 @@ steps:
     #       https://developer.nvidia.com/rdp/cudnn-archive
 
     # NOTE: we make sure to run all tests on CUDA versions that have CUDNN & CUTENSOR
-    #       by setting the CI_THOROUGH environment variable, and using a recent GPU.
+    #       by using the --thorough flag to the test runner, and using a recent GPU.
 
   - label: "CUDA 11.1"
     plugins:
       - JuliaCI/julia#v0.5:
           version: nightly
-      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-test#v0.3:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
@@ -67,7 +66,6 @@ steps:
       cuda: "11.1"
       cap: "recent"
     env:
-      CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '11.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
@@ -77,7 +75,8 @@ steps:
     plugins:
       - JuliaCI/julia#v0.5:
           version: nightly
-      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-test#v0.3:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
@@ -89,7 +88,6 @@ steps:
       cuda: "11.0"
       cap: "recent"
     env:
-      CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '11.0'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
@@ -99,7 +97,8 @@ steps:
     plugins:
       - JuliaCI/julia#v0.5:
           version: nightly
-      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-test#v0.3:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
@@ -111,7 +110,6 @@ steps:
       cuda: "10.2"
       cap: "recent"
     env:
-      CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '10.2'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
@@ -121,7 +119,8 @@ steps:
     plugins:
       - JuliaCI/julia#v0.5:
           version: nightly
-      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-test#v0.3:
+          test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
@@ -133,7 +132,6 @@ steps:
       cuda: "10.1"
       cap: "recent"
     env:
-      CI_THOROUGH: 'true'
       JULIA_CUDA_VERSION: '10.1'
       JULIA_CUDA_USE_BINARYBUILDER: 'true'
     if: build.message !~ /\[skip tests\]/
