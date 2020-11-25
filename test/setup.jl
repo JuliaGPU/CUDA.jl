@@ -10,7 +10,8 @@ testf(f, xs...; kwargs...) = TestSuite.compare(f, CuArray, xs...; kwargs...)
 
 using Random
 
-# detect cuda-memcheck
+# detect cuda-memcheck, to disable testts that are known to fail under cuda-memcheck
+# (e.g. those using CUPTI) or result in verbose output (deliberate API errors)
 const memcheck = haskey(ENV, "CUDA_MEMCHECK")
 
 # precompile the runtime library

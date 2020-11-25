@@ -117,7 +117,8 @@ end
 
 ############################################################################################
 
-# NOTE: CUPTI, needed for SASS reflection, does not seem to work under cuda-memcheck
+# > The application which calls CUPTI APIs cannot be used with Nvidia tools like [...]
+# > cuda-memcheck.
 memcheck || @testset "SASS" begin
 
 @testset "basic reflection" begin
