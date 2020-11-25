@@ -14,9 +14,7 @@ struct CuKernelContext <: AbstractKernelContext end
 
 @inline function GPUArrays.launch_heuristic(::CuArrayBackend, f::F, args::Vararg{Any,N};
                                             maximize_blocksize=false) where {F,N}
-    kernel_args = map(cudaconvert, args)
-    kernel_tt = Tuple{CuKernelContext, map(Core.Typeof, kernel_args)...}
-    kernel = cufunction(f, kernel_tt)
+    kernel = @cuda launch=false f(CuKernelContext(), args...)
     if maximize_blocksize
         # some kernels benefit (algorithmically) from a large block size
         launch_configuration(kernel.fun)

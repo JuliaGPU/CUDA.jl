@@ -29,16 +29,11 @@ function Base.getindex(xs::AnyCuArray{T}, bools::AnyCuArray{Bool}) where {T}
         return
     end
 
-    function configurator(kernel)
-        config = launch_configuration(kernel.fun)
-
-        threads = Base.min(length(indices), config.threads)
-        blocks = cld(length(indices), threads)
-
-        return (threads=threads, blocks=blocks)
-    end
-
-    @cuda name="logical_getindex" config=configurator kernel(ys, xs, bools, indices)
+    kernel = @cuda name="logical_getindex" launch=false kernel(ys, xs, bools, indices)
+    config = launch_configuration(kernel.fun)
+    threads = Base.min(length(indices), config.threads)
+    blocks = cld(length(indices), threads)
+    kernel(ys, xs, bools, indices; threads=threads, blocks=blocks)
   end
 
   unsafe_free!(indices)
@@ -69,16 +64,11 @@ function Base.findall(bools::AnyCuArray{Bool})
             return
         end
 
-        function configurator(kernel)
-            config = launch_configuration(kernel.fun)
-
-            threads = Base.min(length(indices), config.threads)
-            blocks = cld(length(indices), threads)
-
-            return (threads=threads, blocks=blocks)
-        end
-
-        @cuda name="findall" config=configurator kernel(ys, bools, indices)
+        kernel = @cuda name="findall" launch=false kernel(ys, bools, indices)
+        config = launch_configuration(kernel.fun)
+        threads = Base.min(length(indices), config.threads)
+        blocks = cld(length(indices), threads)
+        kernel(ys, bools, indices; threads=threads, blocks=blocks)
     end
 
     unsafe_free!(indices)
@@ -108,16 +98,11 @@ function Base.findfirst(testf::Function, xs::AnyCuArray)
         return
     end
 
-    function configurator(kernel)
-        config = launch_configuration(kernel.fun)
-
-        threads = Base.min(length(xs), config.threads)
-        blocks = cld(length(xs), threads)
-
-        return (threads=threads, blocks=blocks)
-    end
-
-    @cuda name="findfirst" config=configurator kernel(y, xs)
+    kernel = @cuda name="findfirst" launch=false kernel(y, xs)
+    config = launch_configuration(kernel.fun)
+    threads = Base.min(length(xs), config.threads)
+    blocks = cld(length(xs), threads)
+    kernel(y, xs; threads=threads, blocks=blocks)
 
     first_i = @allowscalar y[1]
     return first_i == typemax(Int) ? nothing : keys(xs)[first_i]
@@ -180,16 +165,11 @@ function findfirstval(vals::AnyCuArray, xs::AnyCuArray)
         return
     end
 
-    function configurator(kernel)
-        config = launch_configuration(kernel.fun)
-
-        threads = Base.min(length(xs), config.threads)
-        blocks = cld(length(xs), threads)
-
-        return (threads=threads, blocks=blocks)
-    end
-
-    @cuda config=configurator kernel(xs, vals, indices)
+    kernel = @cuda launch=false kernel(xs, vals, indices)
+    config = launch_configuration(kernel.fun)
+    threads = Base.min(length(xs), config.threads)
+    blocks = cld(length(xs), threads)
+    kernel(xs, vals, indices; threads=threads, blocks=blocks)
 
 
     ## convert the linear indices to an appropriate type

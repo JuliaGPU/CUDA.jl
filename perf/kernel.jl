@@ -4,15 +4,12 @@ dummy_kernel() = nothing
 group["launch"] = @benchmarkable @cuda dummy_kernel()
 
 wanted_threads = 10000
-function configurator(kernel)
+group["occupancy"] = @benchmarkable begin
+    kernel = @cuda launch=false dummy_kernel()
     config = launch_configuration(kernel.fun)
-
-    threads = Base.min(wanted_threads, config.threads)
-    blocks = cld(wanted_threads, threads)
-
-    return (threads=threads, blocks=blocks)
+    threads = Base.min($wanted_threads, config.threads)
+    blocks = cld($wanted_threads, threads)
 end
-group["occupancy"] = @benchmarkable @cuda config=$configurator dummy_kernel()
 
 src = CUDA.rand(Float32, 512, 1000)
 dest = similar(src)
