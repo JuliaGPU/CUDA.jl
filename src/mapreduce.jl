@@ -189,10 +189,7 @@ function GPUArrays.mapreducedim!(f::F, op::OP, R::AnyCuArray{T},
     # we might not be able to launch all those threads to reduce each slice in one go.
     # that's why each threads also loops across their inputs, processing multiple values
     # so that we can span the entire reduction dimension using a single thread block.
-    args = (f, op, init, Rreduce, Rother, Val(shuffle), R′, A)
-    kernel_args = cudaconvert.(args)
-    kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-    kernel = cufunction(partial_mapreduce_grid, kernel_tt)
+    kernel = @cuda launch=false partial_mapreduce_grid(f, op, init, Rreduce, Rother, Val(shuffle), R′, A)
     compute_shmem(threads) = shuffle ? 0 : 2*threads*sizeof(T)
     kernel_config = launch_configuration(kernel.fun; shmem=compute_shmem∘compute_threads)
     reduce_threads = compute_threads(kernel_config.threads)

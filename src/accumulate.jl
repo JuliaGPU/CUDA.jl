@@ -145,10 +145,7 @@ function scan!(f::Function, output::AnyCuArray{T}, input::AnyCuArray;
     Rother = CartesianIndices((length(Rpre), length(Rpost)))
 
     # determine how many threads we can launch for the scan kernel
-    args = (f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
-    kernel_args = cudaconvert.(args)
-    kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-    kernel = cufunction(partial_scan, kernel_tt)
+    kernel = @cuda launch=false partial_scan(f, output, input, Rdim, Rpre, Rpost, Rother, neutral, init, Val(true))
     kernel_config = launch_configuration(kernel.fun; shmem=(threads)->2*threads*sizeof(T))
 
     # determine the grid layout to cover the other dimensions

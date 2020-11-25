@@ -8,18 +8,6 @@ dummy() = return
 @test_throws MethodError @cuda dummy(1)
 
 
-@testset "low-level interface" begin
-    k = cufunction(dummy)
-    k()
-    k(; threads=1)
-
-    CUDA.version(k)
-    CUDA.memory(k)
-    CUDA.registers(k)
-    CUDA.maxthreads(k)
-end
-
-
 @testset "launch configuration" begin
     @cuda dummy()
 
@@ -30,11 +18,18 @@ end
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
+end
 
-    @cuda config=(kernel)->() dummy()
-    @cuda config=(kernel)->(threads=1,) dummy()
-    @cuda config=(kernel)->(blocks=1,) dummy()
-    @cuda config=(kernel)->(shmem=0,) dummy()
+
+@testset "launch=false" begin
+    k = @cuda launch=false dummy()
+    k()
+    k(; threads=1)
+
+    CUDA.version(k)
+    CUDA.memory(k)
+    CUDA.registers(k)
+    CUDA.maxthreads(k)
 end
 
 
@@ -43,6 +38,17 @@ end
 
     memcheck || @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
     @cuda threads=2 dummy()
+end
+
+
+@testset "inference" begin
+    foo() = @cuda dummy()
+    @inferred foo()
+
+    # with arguments, we call cudaconvert
+    kernel(a) = return
+    bar(a) = @cuda kernel(a)
+    @inferred bar(CuArray([1]))
 end
 
 
