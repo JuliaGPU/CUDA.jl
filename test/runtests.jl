@@ -171,6 +171,8 @@ end
 if do_memcheck
     # CUFFT causes internal failures in cuda-memcheck
     push!(skip_tests, "cufft")
+    # CUTENSOR tests result in illegal memory accesses unregistering memory
+    push!(skip_tests, "cutensor")
     # there's also a bunch of `memcheck || ...` expressions in the tests themselves
 end
 if Sys.ARCH == :aarch64

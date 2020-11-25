@@ -26,7 +26,7 @@ steps:
           version: nightly
       - JuliaCI/julia-test#v0.3:
           julia_args: "-g2"
-          test_args: "--memcheck --thorough"
+          test_args: "--memcheck"
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
@@ -35,8 +35,8 @@ steps:
             - examples
     agents:
       queue: "juliagpu"
-      cuda: "11.1"  # older versions of CUDA have issues
-      cap: "recent"
+      cuda: "11.1"    # older versions of CUDA have issues
+      cap: "recent"   # test as much as possible
     if: build.message !~ /\[skip tests\]/
     timeout_in_minutes: 60
 
