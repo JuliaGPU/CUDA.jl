@@ -29,7 +29,7 @@ function Base.getindex(xs::AnyCuArray{T}, bools::AnyCuArray{Bool}) where {T}
         return
     end
 
-    kernel = @cuda name="logical_getindex" delayed=true kernel(ys, xs, bools, indices)
+    kernel = @cuda name="logical_getindex" launch=false kernel(ys, xs, bools, indices)
     config = launch_configuration(kernel.fun)
     threads = Base.min(length(indices), config.threads)
     blocks = cld(length(indices), threads)
@@ -64,7 +64,7 @@ function Base.findall(bools::AnyCuArray{Bool})
             return
         end
 
-        kernel = @cuda name="findall" delayed=true kernel(ys, bools, indices)
+        kernel = @cuda name="findall" launch=false kernel(ys, bools, indices)
         config = launch_configuration(kernel.fun)
         threads = Base.min(length(indices), config.threads)
         blocks = cld(length(indices), threads)
@@ -98,7 +98,7 @@ function Base.findfirst(testf::Function, xs::AnyCuArray)
         return
     end
 
-    kernel = @cuda name="findfirst" delayed=true kernel(y, xs)
+    kernel = @cuda name="findfirst" launch=false kernel(y, xs)
     config = launch_configuration(kernel.fun)
     threads = Base.min(length(xs), config.threads)
     blocks = cld(length(xs), threads)
@@ -165,7 +165,7 @@ function findfirstval(vals::AnyCuArray, xs::AnyCuArray)
         return
     end
 
-    kernel = @cuda delayed=true kernel(xs, vals, indices)
+    kernel = @cuda launch=false kernel(xs, vals, indices)
     config = launch_configuration(kernel.fun)
     threads = Base.min(length(xs), config.threads)
     blocks = cld(length(xs), threads)

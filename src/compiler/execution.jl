@@ -15,8 +15,9 @@ managed automatically using `cudaconvert`. Finally, a call to `cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
 Several keyword arguments are supported that influence the behavior of `@cuda`.
-- `dynamic`: use dynamic parallelism to launch device-side kernels
-- `delayed`: return a callable kernel object instead of launching the kernel directly
+- `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
+  kernel object should be launched by calling it and passing arguments again.
+- `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
 - arguments that influence kernel launch: see [`CUDA.HostKernel`](@ref) and
@@ -38,7 +39,7 @@ macro cuda(ex...)
     # group keyword argument
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs,
-                     [:dynamic, :delayed],
+                     [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
                      [:cooperative, :blocks, :threads, :config, :shmem, :stream])
     if !isempty(other_kwargs)
@@ -48,21 +49,21 @@ macro cuda(ex...)
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
-    delayed = false
+    launch = true
     for kwarg in macro_kwargs
         key,val = kwarg.args
         if key == :dynamic
             isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @cuda should be a constant value"))
             dynamic = val::Bool
-        elseif key == :delayed
-            isa(val, Bool) || throw(ArgumentError("`delayed` keyword argument to @cuda should be a constant value"))
-            delayed = val::Bool
+        elseif key == :launch
+            isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
+            launch = val::Bool
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
     end
-    if delayed && !isempty(call_kwargs)
-        error("delayed @cuda does not support these call-time keyword arguments; use them when calling the kernel")
+    if !launch && !isempty(call_kwargs)
+        error("@cuda with launch=false does not support launch-time keyword arguments; use them when calling the kernel")
     end
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
@@ -81,11 +82,10 @@ macro cuda(ex...)
                 local $kernel_args = ($(var_exprs...),)
                 local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                 local $kernel = $dynamic_cufunction($f, $kernel_tt)
-                if $delayed
-                    $kernel
-                else
+                if $launch
                     $kernel($kernel_args...; $(call_kwargs...))
                 end
+                $kernel
              end)
     else
         # regular, host-side kernel launch
@@ -99,11 +99,10 @@ macro cuda(ex...)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $cufunction($f, $kernel_tt; $(compiler_kwargs...))
-                    if $delayed
-                        $kernel
-                    else
+                    if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end
+                    $kernel
                 end
              end)
     end
@@ -207,7 +206,7 @@ end
 
 @inline function cudacall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
     if config !== nothing
-        Base.depwarn("cudacall with config argument is deprecated, use `@cuda delayed=true` instead", :cudacall)
+        Base.depwarn("cudacall with config argument is deprecated, use `@cuda launch=false` and instrospect the returned kernel instead", :cudacall)
         cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
     else
         cudacall(kernel.fun, tt, args...; kwargs...)

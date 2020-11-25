@@ -96,7 +96,7 @@ function pairwise_dist_gpu(lat::Vector{Float32}, lon::Vector{Float32})
     # calculate the amount of dynamic shared memory for a 2D block size
     get_shmem(threads) = 2 * sum(threads) * sizeof(Float32)
 
-    kernel = @cuda delayed=true pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
+    kernel = @cuda launch=false pairwise_dist_kernel(lat_gpu, lon_gpu, rowresult_gpu, n)
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(get_threads(threads)))
 
     # convert to 2D block size and figure out appropriate grid size

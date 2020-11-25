@@ -5,7 +5,7 @@ group["launch"] = @benchmarkable @cuda dummy_kernel()
 
 wanted_threads = 10000
 group["occupancy"] = @benchmarkable begin
-    kernel = @cuda delayed=true dummy_kernel()
+    kernel = @cuda launch=false dummy_kernel()
     config = launch_configuration(kernel.fun)
     threads = Base.min($wanted_threads, config.threads)
     blocks = cld($wanted_threads, threads)

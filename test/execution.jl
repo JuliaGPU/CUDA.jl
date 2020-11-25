@@ -8,18 +8,6 @@ dummy() = return
 @test_throws MethodError @cuda dummy(1)
 
 
-@testset "delayed kernel" begin
-    k = @cuda delayed=true dummy()
-    k()
-    k(; threads=1)
-
-    CUDA.version(k)
-    CUDA.memory(k)
-    CUDA.registers(k)
-    CUDA.maxthreads(k)
-end
-
-
 @testset "launch configuration" begin
     @cuda dummy()
 
@@ -30,6 +18,18 @@ end
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
+end
+
+
+@testset "launch=false" begin
+    k = @cuda launch=false dummy()
+    k()
+    k(; threads=1)
+
+    CUDA.version(k)
+    CUDA.memory(k)
+    CUDA.registers(k)
+    CUDA.maxthreads(k)
 end
 
 

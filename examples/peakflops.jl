@@ -37,7 +37,7 @@ function peakflops(n::Integer=5000, dev::CuDevice=CuDevice(0))
 
         len = prod(dims)
 
-        kernel = @cuda delayed=true kernel_100fma(d_a, d_b, d_c, d_out)
+        kernel = @cuda launch=false kernel_100fma(d_a, d_b, d_c, d_out)
         config = launch_configuration(kernel.fun)
         threads = Base.min(len, config.threads)
         blocks = cld(len, threads)
