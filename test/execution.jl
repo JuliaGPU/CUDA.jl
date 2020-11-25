@@ -36,7 +36,7 @@ end
 @testset "compilation params" begin
     @cuda dummy()
 
-    memcheck || @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
+    @not_if_memcheck @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
     @cuda threads=2 dummy()
 end
 
@@ -58,14 +58,14 @@ end
     CUDA.code_warntype(devnull, dummy, Tuple{})
     CUDA.code_llvm(devnull, dummy, Tuple{})
     CUDA.code_ptx(devnull, dummy, Tuple{})
-    memcheck || CUDA.code_sass(devnull, dummy, Tuple{})
+    @not_if_memcheck CUDA.code_sass(devnull, dummy, Tuple{})
 
     @device_code_lowered @cuda dummy()
     @device_code_typed @cuda dummy()
     @device_code_warntype io=devnull @cuda dummy()
     @device_code_llvm io=devnull @cuda dummy()
     @device_code_ptx io=devnull @cuda dummy()
-    memcheck || @device_code_sass io=devnull @cuda dummy()
+    @not_if_memcheck @device_code_sass io=devnull @cuda dummy()
 
     mktempdir() do dir
         @device_code dir=dir @cuda dummy()
@@ -77,7 +77,7 @@ end
     @test occursin("julia_dummy", sprint(io->(@device_code_llvm io=io optimize=false @cuda dummy())))
     @test occursin("julia_dummy", sprint(io->(@device_code_llvm io=io @cuda dummy())))
     @test occursin("julia_dummy", sprint(io->(@device_code_ptx io=io @cuda dummy())))
-    memcheck || @test occursin("julia_dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
+    @not_if_memcheck @test occursin("julia_dummy", sprint(io->(@device_code_sass io=io @cuda dummy())))
 
     # make sure invalid kernels can be partially reflected upon
     let
