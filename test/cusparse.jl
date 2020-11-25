@@ -681,10 +681,6 @@ end
             h_z = collect(d_y)
             z = alpha * A * x + beta * y
             @test z ≈ h_z
-            mul!(d_y, d_A, d_x)
-            h_y = collect(d_y)
-            z = A * x
-            @test z ≈ h_y
             if d_A isa CuSparseMatrixCSR
                 @test d_y' * (d_A * d_x) ≈ (d_y' * d_A) * d_x
             end
@@ -711,17 +707,17 @@ end
             end
             @test_throws DimensionMismatch mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
             @test_throws DimensionMismatch mm!('T','N',alpha,d_A,d_B,beta,d_C,'O')
-            @test_throws DimensionMismatch mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+            if CUSPARSE.version() < v"10.3.1" && d_A isa CuSparseMatrixCSR
+                # A^T is not supported with B^T
+                @test_throws ArgumentError mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+            else
+                @test_throws DimensionMismatch mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+            end
             @test_throws DimensionMismatch mm!('N','N',alpha,d_A,d_B,beta,d_B,'O')
             mm!('N','N',alpha,d_A,d_B,beta,d_C,'O')
             h_D = collect(d_C)
             D = alpha * A * B + beta * C
             @test D ≈ h_D
-            d_C = CuArray(C)
-            mul!(d_C, d_A, d_B)
-            h_C = collect(d_C)
-            D = A * B
-            @test D ≈ h_C
         end
     end
 
