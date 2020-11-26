@@ -248,8 +248,9 @@ function context(dev::CuDevice)
     end
 
     if capability(dev) < v"5"
-        @warn """Your $(name(dev)) GPU does not meet the minimal required compute capability ($(capability(dev)) < 5.0).
-                 Some functionality might not work. For a fully-supported set-up, please use an older version of CUDA.jl"""
+        @warn("""Your $(name(dev)) GPU does not meet the minimal required compute capability ($(capability(dev)) < 5.0).
+                 Some functionality might not work. For a fully-supported set-up, please use an older version of CUDA.jl""",
+              maxlog=1, _id=devidx)
     end
 
     # configure the primary context
