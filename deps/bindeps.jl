@@ -33,6 +33,7 @@ Returns the CUDA release part of the version as returned by [`version`](@ref).
 toolkit_release() = @after_init(VersionNumber(__toolkit_version[].major, __toolkit_version[].minor))
 
 const __nvdisasm = Ref{String}()
+const __memcheck = Ref{Union{Nothing,String}}()
 const __libdevice = Ref{String}()
 const __libcudadevrt = Ref{String}()
 const __libcupti = Ref{Union{Nothing,String}}()
@@ -46,6 +47,12 @@ const __libcudnn = Ref{Union{Nothing,String}}(nothing)
 const __libcutensor = Ref{Union{Nothing,String}}(nothing)
 
 nvdisasm() = @after_init(__nvdisasm[])
+function memcheck()
+    @after_init begin
+        @assert has_memcheck() "This functionality is unavailabe as CUDA-MEMCHECK is missing."
+        __memcheck[]
+    end
+end
 libdevice() = @after_init(__libdevice[])
 libcudadevrt() = @after_init(__libcudadevrt[])
 function libcupti()
@@ -61,7 +68,8 @@ function libnvtx()
     end
 end
 
-export has_cupti, has_nvtx
+export has_memcheck, has_cupti, has_nvtx
+has_memcheck() = @after_init(__memcheck[]) !== nothing
 has_cupti() = @after_init(__libcupti[]) !== nothing
 has_nvtx() = @after_init(__libnvtx[]) !== nothing
 
@@ -164,6 +172,8 @@ function use_artifact_cuda()
 
     __nvdisasm[] = artifact_binary(artifact.dir, "nvdisasm")
     @assert isfile(__nvdisasm[])
+    __memcheck[] = artifact_binary(artifact.dir, "cuda-memcheck")
+    @assert isfile(__memcheck[])
 
     __libcupti[] = artifact_cuda_library(artifact.dir, "cupti", artifact.version)
     @assert isfile(__libcupti[])
@@ -201,6 +211,8 @@ function use_local_cuda()
         end
         __nvdisasm[] = path
     end
+
+    __memcheck[] = find_cuda_binary("cuda-memcheck", cuda_dirs)
 
     cuda_version = parse_toolkit_version("nvdisasm", __nvdisasm[])
 
