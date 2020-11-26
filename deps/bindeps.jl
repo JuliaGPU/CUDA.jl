@@ -1,7 +1,7 @@
 # discovering binary CUDA dependencies
 
 using CompilerSupportLibraries_jll
-using Pkg, Pkg.Artifacts
+using LazyArtifacts
 import Libdl
 
 
