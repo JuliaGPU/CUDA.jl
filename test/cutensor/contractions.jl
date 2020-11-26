@@ -62,8 +62,7 @@ can_pin = !Sys.iswindows()
             opB = CUTENSOR.CUTENSOR_OP_IDENTITY
             opC = CUTENSOR.CUTENSOR_OP_IDENTITY
             opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
-            Cpin  = CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut)
-            synchronize()
+            Cpin  = CUDA.@sync CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut)
             mCpin = reshape(permutedims(Cpin, ipC), (loA, loB))
             @test !any(isnan.(A))
             @test !any(isnan.(B))
@@ -99,8 +98,7 @@ can_pin = !Sys.iswindows()
             opC = CUTENSOR.CUTENSOR_OP_IDENTITY
             opOut = CUTENSOR.CUTENSOR_OP_IDENTITY
             plan  = CUTENSOR.plan_contraction(A, indsA, opA, B, indsB, opB, C, indsC, opC, opOut)
-            Cpin = CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut, plan=plan)
-            synchronize()
+            Cpin = CUDA.@sync CUTENSOR.contraction!(1, A, indsA, opA, B, indsB, opB, 0, Cpin, indsC, opC, opOut, plan=plan)
             mC = reshape(permutedims(Cpin, ipC), (loA, loB))
             @test !any(isnan.(mC))
             @test mC ≈ mA * mB
@@ -130,8 +128,7 @@ can_pin = !Sys.iswindows()
             Calpha = zeros(eltyC, (dimsC...,))
             Mem.pin(Calpha)
             @test !any(isnan.(Calpha))
-            Calpha = CUTENSOR.contraction!(α, A, indsA, opA, B, indsB, opB, 0, Calpha, indsC, opC, opOut)
-            synchronize()
+            Calpha = CUDA.@sync CUTENSOR.contraction!(α, A, indsA, opA, B, indsB, opB, 0, Calpha, indsC, opC, opOut)
             mCalpha = reshape(permutedims(collect(Calpha), ipC), (loA, loB))
             @test !any(isnan.(mCalpha))
             @test mCalpha ≈ α * mA * mB rtol=compute_rtol

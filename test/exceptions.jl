@@ -60,8 +60,7 @@ script = """
     ptr = reinterpret(Core.LLVMPtr{Int,AS.Global}, C_NULL)
     arr = CuDeviceArray{Int,1,AS.Global}((0,), ptr)
 
-    @cuda bar(arr)
-    CUDA.synchronize()
+    CUDA.@sync @cuda bar(arr)
 """
 
 let (code, out, err) = julia_script(script, `-g2`)

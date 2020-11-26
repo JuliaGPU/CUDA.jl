@@ -37,8 +37,7 @@ eltypes = ((Float16, Float16),
         if can_pin
             Csimple = zeros(eltyC, dimsC...)
             Mem.pin(Csimple)
-            Csimple = CUTENSOR.permutation!(one(eltyA), A, indsA, Csimple, indsC)
-            synchronize()
+            Csimple = CUDA.@sync CUTENSOR.permutation!(one(eltyA), A, indsA, Csimple, indsC)
             @test Csimple == permutedims(A, p) # exact equality
         end
 
@@ -50,8 +49,7 @@ eltypes = ((Float16, Float16),
         if can_pin
             Cscalar = zeros(eltyC, dimsC...)
             Mem.pin(Cscalar)
-            Cscalar = CUTENSOR.permutation!(α, A, indsA, Cscalar, indsC)
-            synchronize()
+            Cscalar = CUDA.@sync CUTENSOR.permutation!(α, A, indsA, Cscalar, indsC)
             @test Cscalar ≈ α * permutedims(A, p) # approximate, floating point rounding
         end
     end

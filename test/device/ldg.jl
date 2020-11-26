@@ -37,21 +37,21 @@ end
     asm = String(take!(copy(buf)))
     @test occursin("ld.global.nc", asm)
 
+
     function copy_const(A, _B)
         B = Base.Experimental.Const(_B)
         i = threadIdx().x
         if i <= length(A)
             @inbounds A[i] = B[i]
         end
-        return nothing
+        return
     end
 
     x = CUDA.zeros(Float64, 32)
     y = CUDA.ones(Float64, length(x))
 
-    @cuda threads=(length(x),) copy_const(x, y)
-    CUDA.synchronize()
-    @test x == y
+    @cuda threads=length(x) copy_const(x, y)
+    @test Array(x) == Array(y)
 end
 
 end
