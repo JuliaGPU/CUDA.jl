@@ -213,7 +213,9 @@ end
 const test_exename = popfirst!(test_exeflags.exec)
 function addworker(X; kwargs...)
     exename = if do_memcheck
-        `cuda-memcheck --tool $memcheck_tool $test_exename`
+        memcheck = CUDA.memcheck()
+        @info "Running under $(readchomp(`$memcheck --version`))"
+        `$memcheck --tool $memcheck_tool $test_exename`
     else
         test_exename
     end
