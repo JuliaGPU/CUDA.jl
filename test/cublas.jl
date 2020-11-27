@@ -1025,7 +1025,14 @@ end
             @test dA * dC ≈ alpha * dB
         end
 
-        @testset "mul! trmm!" begin
+        @testset "triangular mul!" begin
+            A = triu(rand(elty, m, m))
+            B = rand(elty,m,n)
+            C = zeros(elty,m,n)
+
+            sA = rand(elty,m,m)
+            sA = sA + transpose(sA)
+
             for t in (identity, transpose, adjoint), TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
                 A = copy(sA) |> TR
                 B_L = copy(B)
