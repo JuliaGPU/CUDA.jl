@@ -83,107 +83,62 @@ function Base.findall(f::Function, A::AnyCuArray)
     return ys
 end
 
-function Base.findfirst(testf::Function, xs::AnyCuArray)
-    I = keytype(xs)
-
-    y = CuArray([typemax(Int)])
-
-    function kernel(y::CuDeviceArray, xs::CuDeviceArray)
-        i = threadIdx().x + (blockIdx().x - 1) * blockDim().x
-
-        @inbounds if i <= length(xs) && testf(xs[i])
-            @atomic y[1] = Base.min(y[1], i)
+function Base.findfirst(f::Function, xs::AnyCuArray)
+    indx = ndims(xs) == 1 ? (eachindex(xs), 1) :
+    (CartesianIndices(xs), CartesianIndex{ndims(xs)}())
+    function g(t1, t2)
+        (x, i), (y, j) = t1, t2
+        if i > j
+            t1, t2 = t2, t1
+            (x, i), (y, j) = t1, t2
         end
-
-        return
+        x && return t1
+        y && return t2
+        return (false, indx[2])
     end
 
-    kernel = @cuda name="findfirst" launch=false kernel(y, xs)
-    config = launch_configuration(kernel.fun)
-    threads = Base.min(length(xs), config.threads)
-    blocks = cld(length(xs), threads)
-    kernel(y, xs; threads=threads, blocks=blocks)
-
-    first_i = @allowscalar y[1]
-    return first_i == typemax(Int) ? nothing : keys(xs)[first_i]
+    res = mapreduce((x, y)->(f(x), y), g, xs, indx[1]; init = (false, indx[2]))
+    res[1] === true && return res[2]
+    return nothing
 end
 
 Base.findfirst(xs::AnyCuArray{Bool}) = findfirst(identity, xs)
 
-function Base.findmin(a::AnyCuArray; dims=:)
-    if dims == Colon()
-        m = minimum(a)
-        i = findfirst(x->x==m, a)
-        return m,i
-    else
-        minima = minimum(a; dims=dims)
-        i = findfirstval(minima, a)
-        return minima,i
-    end
-end
-
-function Base.findmax(a::AnyCuArray; dims=:)
-    if dims == Colon()
-        m = maximum(a)
-        i = findfirst(x->x==m, a)
-        return m,i
-    else
-        maxima = maximum(a; dims=dims)
-        i = findfirstval(maxima, a)
-        return maxima,i
-    end
-end
-
-function findfirstval(vals::AnyCuArray, xs::AnyCuArray)
-    ## find the first matching element
-
-    # NOTE: this kernel performs global atomic operations for the sake of simplicity.
-    #       if this turns out to be a bottleneck, we will need to cache in local memory.
-    #       that requires the dimension-under-reduction to be iterated in first order.
-    #       this can be done by splitting the iteration domain eagerly; see the
-    #       accumulate kernel for an example, or git history from before this comment.
-
-    indices = fill(typemax(Int), size(vals))
-
-    function kernel(xs, vals, indices)
-        i = (blockIdx().x-1) * blockDim().x + threadIdx().x
-
-        R = CartesianIndices(xs)
-
-        if i <= length(R)
-            I = R[i]
-            Jmax = last(CartesianIndices(vals))
-            J = Base.min(I, Jmax)
-
-            @inbounds if xs[I] == vals[J]
-                I′ = LinearIndices(xs)[I]      # atomic_min only works with integers
-                J′ = LinearIndices(indices)[J] # FIXME: @atomic doesn't handle array ref with CartesianIndices
-                @atomic indices[J′] = Base.min(indices[J′], I′)
-            end
+function findminmax(minmax, binop, a::AnyCuArray; init, dims)
+    function f(t1::Tuple{<:AbstractFloat,<:Any}, t2::Tuple{<:AbstractFloat,<:Any})
+        (x, i), (y, j) = t1, t2
+        if i > j
+            t1, t2 = t2, t1
+            (x, i), (y, j) = t1, t2
         end
 
-        return
+        # Check for NaN first because NaN == NaN is false
+        isnan(x) && return t1
+        isnan(y) && return t2
+        minmax(x, y) == x && return t1
+        return t2
     end
 
-    kernel = @cuda launch=false kernel(xs, vals, indices)
-    config = launch_configuration(kernel.fun)
-    threads = Base.min(length(xs), config.threads)
-    blocks = cld(length(xs), threads)
-    kernel(xs, vals, indices; threads=threads, blocks=blocks)
+    function f(t1, t2)
+        (x, i), (y, j) = t1, t2
 
+        binop(x, y) && return t1
+        x == y && return (x, min(i, j))
+        return t2
+    end
 
-    ## convert the linear indices to an appropriate type
-
-    kt = keytype(xs)
-
-    if kt == Int
-        return indices
+    indx = ndims(a) == 1 ? (eachindex(a), 1) :
+                           (CartesianIndices(a), CartesianIndex{ndims(a)}())
+    if dims == Colon()
+        mapreduce(tuple, f, a, indx[1]; init = (init, indx[2]))
     else
-        indices′ = CuArray{kt}(undef, size(indices))
-        broadcast!(indices′, indices, Ref(keys(xs))) do index, keys
-            keys[index]
-        end
-
-        return indices′
+        res = mapreduce(tuple, f, a, indx[1];
+                        init = (init, indx[2]), dims=dims)
+        vals = map(x->x[1], res)
+        inds = map(x->x[2], res)
+        return (vals, inds)
     end
 end
+
+Base.findmax(a::AnyCuArray; dims=:) = findminmax(max, >, a; init=typemin(eltype(a)), dims)
+Base.findmin(a::AnyCuArray; dims=:) = findminmax(min, <, a; init=typemax(eltype(a)), dims)
