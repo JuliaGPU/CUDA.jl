@@ -252,6 +252,14 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
             CUBLAS.trmv!($uploc, 'N', $isunitc, parent(A), b)
 
         # Matrix multiplication
+        LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
+                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, B)
+        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
+                            B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, A)
+
+        # optimization: Base.mul! uses lmul!/rmul! with a copy (because of BLAS)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{T,<:DenseCuMatrix},
                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
             CUBLAS.trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, X)
@@ -295,6 +303,27 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
             CUBLAS.trmv!($uploc, 'C', $isunitc, parent(parent(A)), b)
 
         # Matrix multiplication
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:CublasComplex} =
+            CUBLAS.trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, B)
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:CublasReal} =
+            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
+
+        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
+                            B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
+        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
+            CUBLAS.trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, A)
+        LinearAlgebra.rmul!(A::DenseCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
+            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, A)
+
+        # optimization: Base.mul! uses lmul!/rmul! with a copy (because of BLAS)
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
             CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
