@@ -126,6 +126,11 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                             (:UpperTriangular, 'U', 'N'),
                             (:UnitUpperTriangular, 'U', 'U'))
     @eval begin
+        # Multiplication
+        LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
+                            b::StridedCuVector{T}) where {T<:CublasFloat} =
+            CUBLAS.trmv!($uploc, 'N', $isunitc, parent(A), b)
+
         # Left division
         LinearAlgebra.ldiv!(A::$t{T,<:DenseCuMatrix},
                             B::StridedCuVector{T}) where {T<:CublasFloat} =
@@ -139,6 +144,17 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
                             (:UpperTriangular, 'L', 'N'),
                             (:UnitUpperTriangular, 'L', 'U'))
     @eval begin
+        # Multiplication
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
+                            b::DenseCuVector{T}) where {T<:CublasFloat} =
+            CUBLAS.trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            b::DenseCuVector{T}) where {T<:CublasReal} =
+            CUBLAS.trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
+        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            b::DenseCuVector{T}) where {T<:CublasComplex} =
+            CUBLAS.trmv!($uploc, 'C', $isunitc, parent(parent(A)), b)
+
         # Left division
         LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                             B::StridedCuVector{T}) where {T<:CublasFloat} =
@@ -246,12 +262,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
                             (:UpperTriangular, 'U', 'N'),
                             (:UnitUpperTriangular, 'U', 'U'))
     @eval begin
-        # Vector multiplication
-        LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
-                            b::StridedCuVector{T}) where {T<:CublasFloat} =
-            CUBLAS.trmv!($uploc, 'N', $isunitc, parent(A), b)
-
-        # Matrix multiplication
+        # Multiplication
         LinearAlgebra.lmul!(A::$t{T,<:DenseCuMatrix},
                             B::DenseCuMatrix{T}) where {T<:CublasFloat} =
             CUBLAS.trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, B)
@@ -291,18 +302,7 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
                             (:UpperTriangular, 'L', 'N'),
                             (:UnitUpperTriangular, 'L', 'U'))
     @eval begin
-        # Vector multiplication
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
-                            b::DenseCuVector{T}) where {T<:CublasFloat} =
-            CUBLAS.trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            b::DenseCuVector{T}) where {T<:CublasReal} =
-            CUBLAS.trmv!($uploc, 'T', $isunitc, parent(parent(A)), b)
-        LinearAlgebra.lmul!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
-                            b::DenseCuVector{T}) where {T<:CublasComplex} =
-            CUBLAS.trmv!($uploc, 'C', $isunitc, parent(parent(A)), b)
-
-        # Matrix multiplication
+        # Multiplication
         LinearAlgebra.lmul!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
                             B::DenseCuMatrix{T}) where {T<:CublasFloat} =
             CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, B)
