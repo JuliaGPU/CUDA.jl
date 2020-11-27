@@ -333,7 +333,6 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
                            B::DenseCuMatrix{T}) where {T<:CublasReal} =
             CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
-
         LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
                            B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
             CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
@@ -366,16 +365,4 @@ for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
                             B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
             CUBLAS.trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
     end
-end
-
-# Direct BLAS calls
-for T in Base.uniontypes(CublasFloat) # needed to avoid ambiguous method error
-    @eval LinearAlgebra.BLAS.trmm!(side::AbstractChar, uplo::AbstractChar,
-                                   transa::AbstractChar, diag::AbstractChar, alpha::$T,
-                                   A::DenseCuMatrix{$T}, B::DenseCuMatrix{$T}) =
-        trmm!(side, uplo, transa, diag, alpha, A, B, B)
-    @eval LinearAlgebra.BLAS.trsm!(side::AbstractChar, uplo::AbstractChar,
-                                   transa::AbstractChar, diag::AbstractChar, alpha::$T,
-                                   A::DenseCuMatrix{$T}, B::DenseCuMatrix{$T}) =
-        trsm!(side, uplo, transa, diag, alpha, A, B)
 end
