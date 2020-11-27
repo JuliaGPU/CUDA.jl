@@ -17,6 +17,13 @@ k = 13
 # HACK: remove me when a new version of BFloat16s.jl is released
 Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
 
+# NOTE: cuBLASXt is a blocking API
+# > the cuBLASXt API is still a blocking API from the Host point of view:
+# > the data results wherever located will be valid on the call return
+# > and no device synchronization is required.
+# HOWEVER: it does not operate with familiar stream semantics, so
+# we need to make sure data is available _before_ calling the API.
+
 ############################################################################################
 
 @testset "level 1" begin
@@ -509,6 +516,7 @@ end
             @test C ≈ h_C2
         end
         @testset "xt_gemm! gpu" begin
+            synchronize()
             CUBLAS.xt_gemm!('N','N',alpha,d_A,d_B,beta,d_C1)
             mul!(d_C2, d_A, d_B)
             h_C1 = Array(d_C1)
@@ -522,7 +530,7 @@ end
         end
         @testset "xt_gemm! cpu" begin
             h_C1 = Array(d_C1)
-            CUDA.@sync CUBLAS.xt_gemm!('N','N',alpha,Array(d_A),Array(d_B),beta,h_C1)
+            CUBLAS.xt_gemm!('N','N',alpha,Array(d_A),Array(d_B),beta,h_C1)
             mul!(d_C2, d_A, d_B)
             h_C2 = Array(d_C2)
             C1 = (alpha*A)*B + beta*C1
@@ -533,6 +541,7 @@ end
         end
 
         @testset "xt_gemm gpu" begin
+            synchronize()
             d_C = CUBLAS.xt_gemm('N','N',d_A,d_B)
             C = A*B
             C2 = d_A * d_B
@@ -544,7 +553,7 @@ end
             @test C ≈ h_C2
         end
         @testset "xt_gemm cpu" begin
-            h_C = CUDA.@sync CUBLAS.xt_gemm('N','N',Array(d_A),Array(d_B))
+            h_C = CUBLAS.xt_gemm('N','N',Array(d_A),Array(d_B))
             C = A*B
             C2 = d_A * d_B
             # compare
@@ -661,6 +670,7 @@ end
             @test_throws DimensionMismatch CUBLAS.symm('L','U',dsA,d_Bbad)
         end
         @testset "xt_symm! gpu" begin
+            synchronize()
             CUBLAS.xt_symm!('L','U',alpha,dsA,d_B,beta,d_C)
             C = (alpha*sA)*B + beta*C
             # compare
@@ -669,13 +679,14 @@ end
         end
         @testset "xt_symm! cpu" begin
             h_C = Array(d_C)
-            CUDA.@sync CUBLAS.xt_symm!('L','U',alpha,Array(dsA),Array(d_B),beta,h_C)
+            CUBLAS.xt_symm!('L','U',alpha,Array(dsA),Array(d_B),beta,h_C)
             C = (alpha*sA)*B + beta*C
             # compare
             @test C ≈ h_C
         end
 
         @testset "xt_symm gpu" begin
+            synchronize()
             d_C = CUBLAS.xt_symm('L','U',dsA,d_B)
             C = sA*B
             # compare
@@ -684,7 +695,7 @@ end
             @test C ≈ h_C
         end
         @testset "xt_symm cpu" begin
-            h_C = CUDA.@sync CUBLAS.xt_symm('L','U',Array(dsA),Array(d_B))
+            h_C = CUBLAS.xt_symm('L','U',Array(dsA),Array(d_B))
             C = sA*B
             # compare
             @test h_C isa Array
@@ -712,6 +723,7 @@ end
         end
         @testset "xt_trmm! gpu" begin
             C = alpha*A*B
+            synchronize()
             CUBLAS.xt_trmm!('L','U','N','N',alpha,dA,dB,dC)
             # move to host and compare
             h_C = Array(dC)
@@ -720,11 +732,12 @@ end
         @testset "xt_trmm! cpu" begin
             C = alpha*A*B
             h_C = Array(dC)
-            CUDA.@sync CUBLAS.xt_trmm!('L','U','N','N',alpha,Array(dA),Array(dB),h_C)
+            CUBLAS.xt_trmm!('L','U','N','N',alpha,Array(dA),Array(dB),h_C)
             @test C ≈ h_C
         end
         @testset "xt_trmm gpu" begin
             C = alpha*A*B
+            synchronize()
             d_C = CUBLAS.xt_trmm('L','U','N','N',alpha,dA,dB)
             # move to host and compare
             @test d_C isa CuArray
@@ -733,7 +746,7 @@ end
         end
         @testset "xt_trmm cpu" begin
             C = alpha*A*B
-            h_C = CUDA.@sync CUBLAS.xt_trmm('L','U','N','N',alpha,Array(dA),Array(dB))
+            h_C = CUBLAS.xt_trmm('L','U','N','N',alpha,Array(dA),Array(dB))
             @test h_C isa Array
             @test C ≈ h_C
         end
@@ -741,6 +754,7 @@ end
         @testset "xt_trsm! gpu" begin
             C = alpha*(A\B)
             dC = copy(dB)
+            synchronize()
             CUBLAS.xt_trsm!('L','U','N','N',alpha,dA,dC)
             # move to host and compare
             h_C = Array(dC)
@@ -750,11 +764,12 @@ end
             C = alpha*(A\B)
             dC = copy(dB)
             h_C = Array(dC)
-            CUDA.@sync CUBLAS.xt_trsm!('L','U','N','N',alpha,Array(dA),h_C)
+            CUBLAS.xt_trsm!('L','U','N','N',alpha,Array(dA),h_C)
             @test C ≈ h_C
         end
         @testset "xt_trsm gpu" begin
             C  = alpha*(A\B)
+            synchronize()
             dC = CUBLAS.xt_trsm('L','U','N','N',alpha,dA,dB)
             # move to host and compare
             @test dC isa CuArray
@@ -763,7 +778,7 @@ end
         end
         @testset "xt_trsm cpu" begin
             C  = alpha*(A\B)
-            h_C = CUDA.@sync CUBLAS.xt_trsm('L','U','N','N',alpha,Array(dA),Array(dB))
+            h_C = CUBLAS.xt_trsm('L','U','N','N',alpha,Array(dA),Array(dB))
             @test h_C isa Array
             @test C ≈ h_C
         end
@@ -1043,6 +1058,7 @@ end
             @testset "xt_hemm! gpu" begin
                 # compute
                 C = alpha*(hA*B) + beta*C
+                synchronize()
                 CUBLAS.xt_hemm!('L','L',alpha,dhA,d_B,beta,d_C)
                 # move to host and compare
                 h_C = Array(d_C)
@@ -1052,11 +1068,12 @@ end
                 # compute
                 C = alpha*(hA*B) + beta*C
                 h_C = Array(d_C)
-                CUDA.@sync CUBLAS.xt_hemm!('L','L',alpha,Array(dhA),Array(d_B),beta,h_C)
+                CUBLAS.xt_hemm!('L','L',alpha,Array(dhA),Array(d_B),beta,h_C)
                 @test C ≈ h_C
             end
             @testset "xt_hemm gpu" begin
                 C   = hA*B
+                synchronize()
                 d_C = CUBLAS.xt_hemm('L','U',dhA, d_B)
                 # move to host and compare
                 @test d_C isa CuArray
@@ -1065,7 +1082,7 @@ end
             end
             @testset "xt_hemm cpu" begin
                 C   = hA*B
-                h_C = CUDA.@sync CUBLAS.xt_hemm('L','U',Array(dhA), Array(d_B))
+                h_C = CUBLAS.xt_hemm('L','U',Array(dhA), Array(d_B))
                 # move to host and compare
                 @test h_C isa Array
                 @test C ≈ h_C
@@ -1148,6 +1165,7 @@ end
             d_syrkx_B = CuArray(syrkx_B)
             d_syrkx_C = CuArray(syrkx_C)
             # C = (alpha*A)*transpose(B) + beta*C
+            synchronize()
             d_syrkx_C = CUBLAS.xt_syrkx!('U','N',alpha,d_syrkx_A,d_syrkx_B,beta,d_syrkx_C)
             final_C = (alpha*syrkx_A)*transpose(syrkx_B) + beta*syrkx_C
             # move to host and compare
@@ -1167,7 +1185,7 @@ end
             syrkx_C = rand(elty, n, n)
             syrkx_C += syrkx_C'
             final_C = (alpha*syrkx_A)*transpose(syrkx_B) + beta*syrkx_C
-            CUDA.@sync CUBLAS.xt_syrkx!('U','N',alpha,syrkx_A,syrkx_B,beta,syrkx_C)
+            CUBLAS.xt_syrkx!('U','N',alpha,syrkx_A,syrkx_B,beta,syrkx_C)
             # move to host and compare
             @test triu(final_C) ≈ triu(syrkx_C)
         end
@@ -1177,6 +1195,7 @@ end
             syrkx_B = rand(elty, n, k)
             d_syrkx_A = CuArray(syrkx_A)
             d_syrkx_B = CuArray(syrkx_B)
+            synchronize()
             d_syrkx_C = CUBLAS.xt_syrkx('U','N',d_syrkx_A,d_syrkx_B)
             final_C = syrkx_A*transpose(syrkx_B)
             # move to host and compare
@@ -1188,7 +1207,7 @@ end
             # generate matrices
             syrkx_A = rand(elty, n, k)
             syrkx_B = rand(elty, n, k)
-            h_C = CUDA.@sync CUBLAS.xt_syrkx('U','N',syrkx_A,syrkx_B)
+            h_C = CUBLAS.xt_syrkx('U','N',syrkx_A,syrkx_B)
             final_C = syrkx_A*transpose(syrkx_B)
             @test h_C isa Array
             @test triu(final_C) ≈ triu(h_C)
@@ -1205,6 +1224,7 @@ end
         end
         @testset "xt_syrk gpu" begin
             # C = A*transpose(A)
+            synchronize()
             d_C = CUBLAS.xt_syrk('U','N',d_A)
             C = A*transpose(A)
             C = triu(C)
@@ -1216,7 +1236,7 @@ end
         end
         @testset "xt_syrk cpu" begin
             # C = A*transpose(A)
-            h_C = CUDA.@sync CUBLAS.xt_syrk('U','N',Array(d_A))
+            h_C = CUBLAS.xt_syrk('U','N',Array(d_A))
             C = A*transpose(A)
             C = triu(C)
             # move to host and compare
@@ -1247,6 +1267,7 @@ end
             @testset "xt_herk! gpu" begin
                 d_C = CuArray(dhA)
                 C = real(alpha)*(A*A') + real(beta)*Array(d_C)
+                synchronize()
                 CUBLAS.xt_herk!('U','N',real(alpha),d_A,real(beta),d_C)
                 C = triu(C)
                 # move to host and compare
@@ -1256,7 +1277,7 @@ end
             end
             @testset "xt_herk! cpu" begin
                 h_C = Array(dhA)
-                CUDA.@sync CUBLAS.xt_herk!('U','N',real(alpha),Array(d_A),real(beta),h_C)
+                CUBLAS.xt_herk!('U','N',real(alpha),Array(d_A),real(beta),h_C)
                 C = real(alpha)*(A*A') + real(beta)*Array(dhA)
                 C = triu(C)
                 # move to host and compare
@@ -1264,6 +1285,7 @@ end
                 @test C ≈ h_C
             end
             @testset "xt_herk gpu" begin
+                synchronize()
                 d_C = CUBLAS.xt_herk('U','N',d_A)
                 C = A*A'
                 C = triu(C)
@@ -1274,7 +1296,7 @@ end
                 @test C ≈ h_C
             end
             @testset "xt_herk cpu" begin
-                h_C = CUDA.@sync CUBLAS.xt_herk('U','N',Array(d_A))
+                h_C = CUBLAS.xt_herk('U','N',Array(d_A))
                 C = A*A'
                 C = triu(C)
                 # move to host and compare
@@ -1351,6 +1373,7 @@ end
                 C = C + C'
                 d_C = CuArray(C)
                 C = α*(A*B') + conj(α)*(B*A') + β*C
+                synchronize()
                 CUBLAS.xt_her2k!('U','N',α,d_A,d_B,β,d_C)
                 # move back to host and compare
                 C = triu(C)
@@ -1367,7 +1390,7 @@ end
                 C = C + C'
                 h_C = copy(C)
                 C = α*(A*B') + conj(α)*(B*A') + β*C
-                CUDA.@sync CUBLAS.xt_her2k!('U','N',α,A,B,β,h_C)
+                CUBLAS.xt_her2k!('U','N',α,A,B,β,h_C)
                 # move back to host and compare
                 C = triu(C)
                 h_C = triu(h_C)
@@ -1377,6 +1400,7 @@ end
                 # generate parameters
                 C = C + C'
                 C = (A*B') + (B*A')
+                synchronize()
                 d_C = CUBLAS.xt_her2k('U','N',d_A,d_B)
                 # move back to host and compare
                 C = triu(C)
@@ -1389,7 +1413,7 @@ end
                 # generate parameters
                 C = C + C'
                 C = (A*B') + (B*A')
-                h_C = CUDA.@sync CUBLAS.xt_her2k('U','N',A,B)
+                h_C = CUBLAS.xt_her2k('U','N',A,B)
                 # move back to host and compare
                 @test h_C isa Array
                 C = triu(C)
