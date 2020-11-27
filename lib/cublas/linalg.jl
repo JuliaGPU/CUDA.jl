@@ -118,31 +118,39 @@ for NT in (Number, Real)
     end
 end
 
-# TRSV
+# triangular
 
-LinearAlgebra.ldiv!(A::UpperTriangular{T, <:DenseCuMatrix},
-                    x::DenseCuVector{T}) where T<:CublasFloat =
-    CUBLAS.trsv!('U', 'N', 'N', parent(A), x)
+## direct multiplication/division
+for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
+                            (:UnitLowerTriangular, 'L', 'U'),
+                            (:UpperTriangular, 'U', 'N'),
+                            (:UnitUpperTriangular, 'U', 'U'))
+    @eval begin
+        # Left division
+        LinearAlgebra.ldiv!(A::$t{T,<:DenseCuMatrix},
+                            B::StridedCuVector{T}) where {T<:CublasFloat} =
+            CUBLAS.trsv!($uploc, 'N', $isunitc, parent(A), B)
+    end
+end
 
-LinearAlgebra.ldiv!(A::UpperTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}},
-                    x::DenseCuVector{T}) where {T<:CUBLAS.CublasFloat} =
-    CUBLAS.trsv!('L', 'C', 'N', parent(parent(A)), x)
-
-LinearAlgebra.ldiv!(A::UpperTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}},
-                    x::DenseCuVector{T}) where {T<:CUBLAS.CublasFloat} =
-    CUBLAS.trsv!('L', 'T', 'N', parent(parent(A)), x)
-
-LinearAlgebra.ldiv!(A::LowerTriangular{T, <:DenseCuMatrix},
-                    x::DenseCuVector{T}) where T<:CublasFloat =
-    CUBLAS.trsv!('L', 'N', 'N', parent(A), x)
-
-LinearAlgebra.ldiv!(A::LowerTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}},
-                    x::DenseCuVector{T}) where {T<:CUBLAS.CublasFloat} =
-    CUBLAS.trsv!('U', 'C', 'N', parent(parent(A)), x)
-
-LinearAlgebra.ldiv!(A::LowerTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}},
-                    x::DenseCuVector{T}) where {T<:CUBLAS.CublasFloat} =
-    CUBLAS.trsv!('U', 'T', 'N', parent(parent(A)), x)
+## adjoint/transpose multiplication ('uploc' reversed)
+for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
+                            (:UnitLowerTriangular, 'U', 'U'),
+                            (:UpperTriangular, 'L', 'N'),
+                            (:UnitUpperTriangular, 'L', 'U'))
+    @eval begin
+        # Left division
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
+                            B::StridedCuVector{T}) where {T<:CublasFloat} =
+            CUBLAS.trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            B::StridedCuVector{T}) where {T<:CublasReal} =
+            CUBLAS.trsv!($uploc, 'T', $isunitc, parent(parent(A)), B)
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            B::StridedCuVector{T}) where {T<:CublasComplex} =
+            CUBLAS.trsv!($uploc, 'C', $isunitc, parent(parent(A)), B)
+    end
+end
 
 
 
@@ -230,183 +238,92 @@ for NT in (Number, Real)
     end
 end
 
-# TRSM
+# triangular
 
-# ldiv!
-## No transpose/adjoint
-LinearAlgebra.ldiv!(A::UpperTriangular{T, <:DenseCuMatrix},
-                    B::CuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'U', 'N', 'N', one(T), parent(A), B)
-LinearAlgebra.ldiv!(A::UnitUpperTriangular{T, <:DenseCuMatrix},
-                    B::CuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'U', 'N', 'U', one(T), parent(A), B)
-LinearAlgebra.ldiv!(A::LowerTriangular{T, <:DenseCuMatrix},
-                    B::CuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'L', 'N', 'N', one(T), parent(A), B)
-LinearAlgebra.ldiv!(A::UnitLowerTriangular{T, <:DenseCuMatrix},
-                    B::CuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'L', 'N', 'U', one(T), parent(A), B)
-## Adjoint
-LinearAlgebra.ldiv!(A::UpperTriangular{<:Any, <:Adjoint{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'L', 'C', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::UnitUpperTriangular{<:Any, <:Adjoint{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'L', 'C', 'U', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::LowerTriangular{<:Any, <:Adjoint{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'U', 'C', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::UnitLowerTriangular{<:Any, <:Adjoint{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'U', 'C', 'U', one(T), parent(parent(A)), B)
-## Transpose
-LinearAlgebra.ldiv!(A::UpperTriangular{<:Any, <:Transpose{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'L', 'T', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::UnitUpperTriangular{<:Any, <:Transpose{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'L', 'T', 'U', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::LowerTriangular{<:Any, <:Transpose{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'U', 'T', 'N', one(T), parent(parent(A)), B)
-LinearAlgebra.ldiv!(A::UnitLowerTriangular{<:Any, <:Transpose{T,<:DenseCuMatrix}},
-                    B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trsm!('L', 'U', 'T', 'U', one(T), parent(parent(A)), B)
+## direct multiplication/division
+for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
+                            (:UnitLowerTriangular, 'L', 'U'),
+                            (:UpperTriangular, 'U', 'N'),
+                            (:UnitUpperTriangular, 'U', 'U'))
+    @eval begin
+        # TODO: Vector multiplication
 
-# inv for Triangular
-for TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
-    @eval function LinearAlgebra.inv(x::$TR{T, <:CuMatrix{T}}) where T<:CublasFloat
-      out = CuArray{T}(I(size(x,1)))
-      $TR(LinearAlgebra.ldiv!(x, out))
+        # Matrix multiplication
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{T,<:DenseCuMatrix},
+                           B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B, X)
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
+                           B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A, X)
+
+        # Left division
+        LinearAlgebra.ldiv!(A::$t{T,<:DenseCuMatrix},
+                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+            CUBLAS.trsm!('L', $uploc, 'N', $isunitc, one(T), parent(A), B)
+
+        # Right division
+        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
+                            B::$t{T,<:DenseCuMatrix}) where {T<:CublasFloat} =
+            CUBLAS.trsm!('R', $uploc, 'N', $isunitc, one(T), parent(B), A)
+
+        # Matrix inverse
+        function LinearAlgebra.inv(x::$t{T, <:CuMatrix{T}}) where T<:CublasFloat
+            out = CuArray{T}(I(size(x,1)))
+            $t(LinearAlgebra.ldiv!(x, out))
+        end
     end
 end
 
-# rdiv!
-## No transpose/adjoint
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UpperTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'U', 'N', 'N', one(T), parent(B), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UnitUpperTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'U', 'N', 'U', one(T), parent(B), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::LowerTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'L', 'N', 'N', one(T), parent(B), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UnitLowerTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'L', 'N', 'U', one(T), parent(B), A)
-## Adjoint
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UpperTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'L', 'C', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UnitUpperTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'L', 'C', 'U', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::LowerTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'U', 'C', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UnitLowerTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'U', 'C', 'U', one(T), parent(parent(B)), A)
-## Transpose
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UpperTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'L', 'T', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UnitUpperTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'L', 'T', 'U', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::LowerTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'U', 'T', 'N', one(T), parent(parent(B)), A)
-LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
-                    B::UnitLowerTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trsm!('R', 'U', 'T', 'U', one(T), parent(parent(B)), A)
+## adjoint/transpose multiplication ('uploc' reversed)
+for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
+                            (:UnitLowerTriangular, 'U', 'U'),
+                            (:UpperTriangular, 'L', 'N'),
+                            (:UnitUpperTriangular, 'L', 'U'))
+    @eval begin
+        # Matrix multiplication
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
+                           B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                           B::DenseCuMatrix{T}) where {T<:CublasComplex} =
+            CUBLAS.trmm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B, X)
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                           B::DenseCuMatrix{T}) where {T<:CublasReal} =
+            CUBLAS.trmm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B, X)
 
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
+                           B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
+            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
+                           B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
+            CUBLAS.trmm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A, X)
+        LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
+                           B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
+            CUBLAS.trmm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A, X)
 
-# TRMM
+        # Left division
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:CublasFloat} =
+            CUBLAS.trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:CublasReal} =
+            CUBLAS.trsm!('L', $uploc, 'T', $isunitc, one(T), parent(parent(A)), B)
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:CublasComplex} =
+            CUBLAS.trsm!('L', $uploc, 'C', $isunitc, one(T), parent(parent(A)), B)
 
-# Left mul!
-## No transpose/adjoint
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UpperTriangular{T, <:DenseCuMatrix},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'U', 'N', 'N', one(T), parent(A), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UnitUpperTriangular{T, <:DenseCuMatrix},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'U', 'N', 'U', one(T), parent(A), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::LowerTriangular{T, <:DenseCuMatrix},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'L', 'N', 'N', one(T), parent(A), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UnitLowerTriangular{T, <:DenseCuMatrix},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'L', 'N', 'U', one(T), parent(A), B, X)
-## Adjoint
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UpperTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'L', 'C', 'N', one(T), parent(parent(A)), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UnitUpperTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'L', 'C', 'U', one(T), parent(parent(A)), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::LowerTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'U', 'C', 'N', one(T), parent(parent(A)), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UnitLowerTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'U', 'C', 'U', one(T), parent(parent(A)), B, X)
-## Transpose
-LinearAlgebra.mul!(X::CuMatrix{T}, A::UpperTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'L', 'T', 'N', one(T), parent(parent(A)), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UnitUpperTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'L', 'T', 'U', one(T), parent(parent(A)), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::LowerTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'U', 'T', 'N', one(T), parent(parent(A)), B, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::UnitLowerTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}},
-                   B::DenseCuMatrix{T}) where T<:CublasFloat =
-    CUBLAS.trmm!('L', 'U', 'T', 'U', one(T), parent(parent(A)), B, X)
-
-# Right mul!
-## No transpose/adjoint
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UpperTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'U', 'N', 'N', one(T), parent(B), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UnitUpperTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'U', 'N', 'U', one(T), parent(B), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::LowerTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'L', 'N', 'N', one(T), parent(B), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UnitLowerTriangular{T, <:DenseCuMatrix}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'L', 'N', 'U', one(T), parent(B), A, X)
-## Adjoint
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UpperTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'L', 'C', 'N', one(T), parent(parent(B)), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UnitUpperTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'L', 'C', 'U', one(T), parent(parent(B)), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::LowerTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'U', 'C', 'N', one(T), parent(parent(B)), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UnitLowerTriangular{<:Any, <:Adjoint{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'U', 'C', 'U', one(T), parent(parent(B)), A, X)
-## Transpose
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UpperTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'L', 'T', 'N', one(T), parent(parent(B)), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UnitUpperTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'L', 'T', 'U', one(T), parent(parent(B)), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::LowerTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'U', 'T', 'N', one(T), parent(parent(B)), A, X)
-LinearAlgebra.mul!(X::DenseCuMatrix{T}, A::DenseCuMatrix{T},
-                   B::UnitLowerTriangular{<:Any, <:Transpose{T, <:DenseCuMatrix}}) where T<:CublasFloat =
-    CUBLAS.trmm!('R', 'U', 'T', 'U', one(T), parent(parent(B)), A, X)
-
+        # Right division
+        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
+                            B::$t{<:Any,<:Transpose{T,<:DenseCuMatrix}}) where {T<:CublasFloat} =
+            CUBLAS.trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
+        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasReal} =
+            CUBLAS.trsm!('R', $uploc, 'T', $isunitc, one(T), parent(parent(B)), A)
+        LinearAlgebra.rdiv!(A::DenseCuMatrix{T},
+                            B::$t{<:Any,<:Adjoint{T,<:DenseCuMatrix}}) where {T<:CublasComplex} =
+            CUBLAS.trsm!('R', $uploc, 'C', $isunitc, one(T), parent(parent(B)), A)
+    end
+end
 
 # Direct BLAS calls
 for T in Base.uniontypes(CublasFloat) # needed to avoid ambiguous method error
