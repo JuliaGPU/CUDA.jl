@@ -84,7 +84,7 @@ function Base.findall(f::Function, A::AnyCuArray)
 end
 
 function Base.findfirst(f::Function, xs::AnyCuArray)
-    indx = ndims(xs) == 1 ? (eachindex(xs), 1) : 
+    indx = ndims(xs) == 1 ? (eachindex(xs), 1) :
     (CartesianIndices(xs), CartesianIndex{ndims(xs)}())
     function g(t1, t2)
         (x, i), (y, j) = t1, t2
@@ -104,45 +104,8 @@ end
 
 Base.findfirst(xs::AnyCuArray{Bool}) = findfirst(identity, xs)
 
-function Base.findmin(a::AnyCuArray; dims=:)
-    function f(t1::T, t2::T) where T <: Tuple{AbstractFloat, I} where I
-        (x, i), (y, j) = t1, t2
-        if i > j
-            t1, t2 = t2, t1
-            (x, i), (y, j) = t1, t2
-        end
-        
-        # Check for NaN first because NaN == NaN is false
-        isnan(x) && return t1
-        isnan(y) && return t2
-        min(x, y) == x && return t1
-        return t2
-    end
-
-    function f(t1, t2)
-        (x, i), (y, j) = t1, t2
-
-        x < y && return t1
-        x == y && return (x, min(i, j))
-        return t2
-    end
-
-    indx = ndims(a) == 1 ? (eachindex(a), 1) : 
-                           (CartesianIndices(a), CartesianIndex{ndims(a)}())
-    if dims == Colon()
-        mapreduce(tuple, f, a, indx[1]; init = (typemax(eltype(a)), indx[2]))
-    else
-        res = mapreduce(tuple, f, a, indx[1]; 
-                        init = (typemax(eltype(a)),indx[2]), dims=dims)
-        vals = map(x->x[1], res)
-        inds = map(x->x[2], res)
-        return (vals, inds)
-    end
-end
-
-
-function Base.findmax(a::AnyCuArray; dims=:)
-    function f(t1::T, t2::T) where T <: Tuple{AbstractFloat, I} where I
+function findminmax(minmax, binop, a::AnyCuArray; init, dims)
+    function f(t1::Tuple{<:AbstractFloat,<:Any}, t2::Tuple{<:AbstractFloat,<:Any})
         (x, i), (y, j) = t1, t2
         if i > j
             t1, t2 = t2, t1
@@ -152,27 +115,30 @@ function Base.findmax(a::AnyCuArray; dims=:)
         # Check for NaN first because NaN == NaN is false
         isnan(x) && return t1
         isnan(y) && return t2
-        max(x, y) == x && return t1
+        minmax(x, y) == x && return t1
         return t2
     end
 
     function f(t1, t2)
         (x, i), (y, j) = t1, t2
 
-        x < y && return t2
+        binop(x, y) && return t1
         x == y && return (x, min(i, j))
-        return t1
+        return t2
     end
 
-    indx = ndims(a) == 1 ? (eachindex(a), 1) : 
+    indx = ndims(a) == 1 ? (eachindex(a), 1) :
                            (CartesianIndices(a), CartesianIndex{ndims(a)}())
     if dims == Colon()
-        mapreduce(tuple, f, a, indx[1]; init = (typemin(eltype(a)), indx[2]))
+        mapreduce(tuple, f, a, indx[1]; init = (init, indx[2]))
     else
-        res = mapreduce(tuple, f, a, indx[1]; 
-                        init = (typemin(eltype(a)), indx[2]), dims=dims)
+        res = mapreduce(tuple, f, a, indx[1];
+                        init = (init, indx[2]), dims=dims)
         vals = map(x->x[1], res)
         inds = map(x->x[2], res)
         return (vals, inds)
     end
 end
+
+Base.findmax(a::AnyCuArray; dims=:) = findminmax(max, >, a; init=typemin(eltype(a)), dims)
+Base.findmin(a::AnyCuArray; dims=:) = findminmax(min, <, a; init=typemax(eltype(a)), dims)
