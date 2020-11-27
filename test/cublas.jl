@@ -17,13 +17,6 @@ k = 13
 # HACK: remove me when a new version of BFloat16s.jl is released
 Base.eps(::Type{BFloat16}) = Base.bitcast(BFloat16, 0x3c00)
 
-# NOTE: cuBLASXt is a blocking API
-# > the cuBLASXt API is still a blocking API from the Host point of view:
-# > the data results wherever located will be valid on the call return
-# > and no device synchronization is required.
-# HOWEVER: it does not operate with familiar stream semantics, so
-# we need to make sure data is available _before_ calling the API.
-
 ############################################################################################
 
 @testset "level 1" begin
