@@ -299,6 +299,43 @@ end
             @test y ≈ h_y
         end
 
+        @testset "lmul!(::UpperTriangular)" begin
+            dy = copy(dx)
+            lmul!(UpperTriangular(dA), dy)
+            y = UpperTriangular(A) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::UpperTriangular{Adjoint})" begin
+            dy = copy(dx)
+            lmul!(adjoint(UpperTriangular(dA)), dy)
+            y = adjoint(UpperTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::UpperTriangular{Transpose})" begin
+            dy = copy(dx)
+            lmul!(transpose(UpperTriangular(dA)), dy)
+            y = transpose(UpperTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::LowerTriangular)" begin
+            dy = copy(dx)
+            lmul!(LowerTriangular(dA), dy)
+            y = LowerTriangular(A) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::LowerTriangular{Adjoint})" begin
+            dy = copy(dx)
+            lmul!(adjoint(LowerTriangular(dA)), dy)
+            y = adjoint(LowerTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::LowerTriangular{Transpose})" begin
+            dy = copy(dx)
+            lmul!(transpose(LowerTriangular(dA)), dy)
+            y = transpose(LowerTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+
         @testset "trsv!" begin
             d_y = copy(dx)
             # execute trsv!
