@@ -43,9 +43,8 @@ eltypes = ((Float16, Float16),
         if can_pin
             Dsimple = similar(C)
              Mem.pin(Dsimple)
-            Dsimple = CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
-                                                    Dsimple, indsC, opAC)
-            synchronize()
+            Dsimple = CUDA.@sync CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
+                                                             Dsimple, indsC, opAC)
             @test Dsimple ≈ permutedims(A, p) .+ C
         end
 
@@ -56,8 +55,7 @@ eltypes = ((Float16, Float16),
         if can_pin
             Dint = zeros(eltyC, dimsC...)
             Mem.pin(Dint)
-            Dint = CUTENSOR.elementwiseBinary!(1, A, 1:N, opA, 1, C, p, opC, Dint, p, opAC)
-            synchronize()
+            Dint = CUDA.@sync CUTENSOR.elementwiseBinary!(1, A, 1:N, opA, 1, C, p, opC, Dint, p, opAC)
             @test Dint ≈ permutedims(A, p) .+ C
         end
 
@@ -70,9 +68,8 @@ eltypes = ((Float16, Float16),
         if can_pin
             Dmult = zeros(eltyC, dimsC...)
             Mem.pin(Dmult)
-            Dmult = CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
-                                                Dmult, indsC, opAC)
-            synchronize()
+            Dmult = CUDA.@sync CUTENSOR.elementwiseBinary!(1, A, indsA, opA, 1, C, indsC, opC,
+                                                           Dmult, indsC, opAC)
             @test Dmult ≈ permutedims(A, p) .* C
         end
 
@@ -90,9 +87,8 @@ eltypes = ((Float16, Float16),
         if can_pin
             Dnontrivial = similar(C)
             Mem.pin(Dnontrivial)
-            Dnontrivial = CUTENSOR.elementwiseBinary!(α, A, indsA, opA, γ, C, indsC, opC,
-                                                Dnontrivial, indsC, opAC)
-            synchronize()
+            Dnontrivial = CUDA.@sync CUTENSOR.elementwiseBinary!(α, A, indsA, opA, γ, C, indsC, opC,
+                                                                 Dnontrivial, indsC, opAC)
             @test Dnontrivial ≈ α .* conj.(permutedims(A, p)) .+ γ .* C
         end
 

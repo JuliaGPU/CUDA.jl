@@ -40,8 +40,7 @@ eltypes = (#(Float16, Float16), #(Float16, Float32),
         if can_pin
             Csimple = zeros(eltyC, dimsC...)
             Mem.pin(Csimple)
-            Csimple = CUTENSOR.reduction!(1, A, indsA, opA, 0, Csimple, indsC, opC, opReduce)
-            synchronize()
+            Csimple = CUDA.@sync CUTENSOR.reduction!(1, A, indsA, opA, 0, Csimple, indsC, opC, opReduce)
             @test reshape(Csimple, (dimsC..., ones(Int,NA-NC)...)) ≈
                 sum(permutedims(A, p); dims = ((NC+1:NA)...,))
         end
@@ -54,8 +53,7 @@ eltypes = (#(Float16, Float16), #(Float16, Float32),
         if can_pin
             Cinteger = zeros(eltyC, dimsC...)
             Mem.pin(Cinteger)
-            Cinteger = CUTENSOR.reduction!(1, A, collect(1:NA), opA, 0, Cinteger, p[1:NC], opC, opReduce)
-            synchronize()
+            Cinteger = CUDA.@sync CUTENSOR.reduction!(1, A, collect(1:NA), opA, 0, Cinteger, p[1:NC], opC, opReduce)
             @test reshape(Cinteger, (dimsC..., ones(Int,NA-NC)...)) ≈
                 sum(permutedims(A, p); dims = ((NC+1:NA)...,))
         end
@@ -63,15 +61,13 @@ eltypes = (#(Float16, Float16), #(Float16, Float32),
         # multiplication as reduction operator
         opReduce = CUTENSOR.CUTENSOR_OP_MUL
         dC = CUTENSOR.reduction!(1, dA, indsA, opA, 0, dC, indsC, opC, opReduce)
-        synchronize()
         C = collect(dC)
         @test reshape(C, (dimsC..., ones(Int,NA-NC)...)) ≈
             prod(permutedims(A, p); dims = ((NC+1:NA)...,)) atol=eps(Float16) rtol=Base.rtoldefault(Float16)
         if can_pin
             Cmult = zeros(eltyC, dimsC...)
             Mem.pin(Cmult)
-            Cmult = CUTENSOR.reduction!(1, A, indsA, opA, 0, Cmult, indsC, opC, opReduce)
-            synchronize()
+            Cmult = CUDA.@sync CUTENSOR.reduction!(1, A, indsA, opA, 0, Cmult, indsC, opC, opReduce)
             @test reshape(Cmult, (dimsC..., ones(Int,NA-NC)...)) ≈
                 prod(permutedims(A, p); dims = ((NC+1:NA)...,)) atol=eps(Float16) rtol=Base.rtoldefault(Float16)
             # NOTE: this test often yields values close to 0 that do not compare approximately

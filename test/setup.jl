@@ -188,8 +188,7 @@ macro on_device(ex)
                 return
             end
 
-            @cuda $kernel()
-            synchronize()
+            CUDA.@sync @cuda $kernel()
         end
     end)
 end
