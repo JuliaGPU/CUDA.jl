@@ -75,81 +75,81 @@ end
 
 Base.:(\)(A::UpperTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('N', 'N', 'U', parent(A), B, 'O')
+    sm2('N', 'N', 'U', 'N',parent(A), B, 'O')
 Base.:(\)(A::LowerTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('N', 'N', 'L', parent(A), B, 'O')
+    sm2('N', 'N', 'L', 'N',parent(A), B, 'O')
 Base.:(\)(A::UpperTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('T', 'N', 'L', parent(parent(A)), B, 'O')
+    sm2('T', 'N', 'L', 'N',parent(parent(A)), B, 'O')
 Base.:(\)(A::LowerTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('T', 'N', 'U', parent(parent(A)), B, 'O')
+    sm2('T', 'N', 'U', 'N',parent(parent(A)), B, 'O')
 Base.:(\)(A::UpperTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('C', 'N', 'L', parent(parent(A)), B, 'O')
+    sm2('C', 'N', 'L', 'N',parent(parent(A)), B, 'O')
 Base.:(\)(A::LowerTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('C', 'N', 'U', parent(parent(A)), B, 'O')
+    sm2('C', 'N', 'U', 'N',parent(parent(A)), B, 'O')
 
 Base.:(\)(A::UnitUpperTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('N', 'N', 'U', parent(A), B, 'O', unit_diag=true)
+    sm2('N', 'N', 'U', 'U', parent(A), B, 'O')
 Base.:(\)(A::UnitLowerTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('N', 'N', 'L', parent(A), B, 'O', unit_diag=true)
+    sm2('N', 'N', 'L', 'U', parent(A), B, 'O')
 Base.:(\)(A::UnitUpperTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('T', 'N', 'L', parent(parent(A)), B, 'O', unit_diag=true)
+    sm2('T', 'N', 'L', 'U', parent(parent(A)), B, 'O')
 Base.:(\)(A::UnitLowerTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('T', 'N', 'U', parent(parent(A)), B, 'O', unit_diag=true)
+    sm2('T', 'N', 'U', 'U', parent(parent(A)), B, 'O')
 Base.:(\)(A::UnitUpperTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('C', 'N', 'L', parent(parent(A)), B, 'O', unit_diag=true)
+    sm2('C', 'N', 'L', 'U', parent(parent(A)), B, 'O')
 Base.:(\)(A::UnitLowerTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm2('C', 'N', 'U', parent(parent(A)), B, 'O', unit_diag=true)
+    sm2('C', 'N', 'U', 'U', parent(parent(A)), B, 'O')
 
 # TODO: some metaprogramming to reduce the amount of definitions here
 
 Base.:(\)(A::UpperTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'U', one(T), parent(A), B,'O')
+    sv2('N', 'U', 'N', one(T), parent(A), B,'O')
 Base.:(\)(A::LowerTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'L', one(T), parent(A), B,'O')
+    sv2('N', 'L', 'N', one(T), parent(A), B,'O')
 Base.:(\)(A::UpperTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'L', one(T), parent(parent(A)), B, 'O')
+    sv2('T', 'L', 'N', one(T), parent(parent(A)), B, 'O')
 Base.:(\)(A::LowerTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'U', one(T), parent(parent(A)), B, 'O')
+    sv2('T', 'U', 'N', one(T), parent(parent(A)), B, 'O')
 Base.:(\)(A::UpperTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'L', one(T), parent(parent(A)), B, 'O')
+    sv2('C', 'L', 'N', one(T), parent(parent(A)), B, 'O')
 Base.:(\)(A::LowerTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'U', one(T), parent(parent(A)), B, 'O')
+    sv2('C', 'U', 'N', one(T), parent(parent(A)), B, 'O')
 
 Base.:(\)(A::UnitUpperTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'U', one(T), parent(A), B, 'O', unit_diag=true)
+    sv2('N', 'U', 'U', one(T), parent(A), B, 'O')
 Base.:(\)(A::UnitLowerTriangular{T, <:AbstractCuSparseMatrix{T}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'L', one(T), parent(A), B, 'O', unit_diag=true)
+    sv2('N', 'L', 'U', one(T), parent(A), B, 'O')
 Base.:(\)(A::UnitUpperTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'L', one(T), parent(parent(A)), B, 'O', unit_diag=true)
+    sv2('T', 'L', 'U', one(T), parent(parent(A)), B, 'O')
 Base.:(\)(A::UnitLowerTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'U', one(T), parent(parent(A)), B, 'O', unit_diag=true)
+    sv2('T', 'U', 'U', one(T), parent(parent(A)), B, 'O')
 Base.:(\)(A::UnitUpperTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'L', one(T), parent(parent(A)), B, 'O', unit_diag=true)
+    sv2('C', 'L', 'U', one(T), parent(parent(A)), B, 'O')
 Base.:(\)(A::UnitLowerTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
           B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'U', one(T), parent(parent(A)), B, 'O', unit_diag=true)
+    sv2('C', 'U', 'U', one(T), parent(parent(A)), B, 'O')
 
 Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
           B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')

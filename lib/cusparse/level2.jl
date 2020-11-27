@@ -43,14 +43,14 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
 end
 
 """
-    sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar; unit_diag::Bool=false)
+    sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar)
 
 Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), tranpose
 (`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense vector, and `uplo`
 tells `sv2!` which triangle of the block sparse matrix `A` to reference.
-If the triangle has unit diagonal, set `unit_diag` to true.
+If the triangle has unit diagonal, set `diag` to 'U'.
 """
-sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar; unit_diag::Bool=false)
+sv2!(transa::SparseChar, uplo::SparseChar, diag::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar)
 
 # bsrsv2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_analysis, :cusparseSbsrsv2_solve, :Float32),
@@ -60,13 +60,12 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
     @eval begin
         function sv2!(transa::SparseChar,
                       uplo::SparseChar,
+                      diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixBSR{$elty},
                       X::CuVector{$elty},
-                      index::SparseChar;
-                      unit_diag::Bool=false)
-            DIAG_TYPE = (unit_diag ? CUSPARSE_DIAG_TYPE_UNIT : CUSPARSE_DIAG_TYPE_NON_UNIT)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, DIAG_TYPE, index)
+                      index::SparseChar)
+            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, diag, index)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -110,13 +109,12 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
     @eval begin
         function sv2!(transa::SparseChar,
                       uplo::SparseChar,
+                      diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixCSR{$elty},
                       X::CuVector{$elty},
-                      index::SparseChar;
-                      unit_diag::Bool=false)
-            DIAG_TYPE = (unit_diag ? CUSPARSE_DIAG_TYPE_UNIT : CUSPARSE_DIAG_TYPE_NON_UNIT)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, DIAG_TYPE, index)
+                      index::SparseChar)
+            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, uplo, diag, index)
             m,n = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -159,11 +157,11 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
     @eval begin
         function sv2!(transa::SparseChar,
                       uplo::SparseChar,
+                      diag::SparseChar,
                       alpha::Number,
                       A::CuSparseMatrixCSC{$elty},
                       X::CuVector{$elty},
-                      index::SparseChar;
-                      unit_diag::Bool=false)
+                      index::SparseChar)
             ctransa = 'N'
             cuplo = 'U'
             if transa == 'N'
@@ -172,8 +170,7 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
             if uplo == 'U'
                 cuplo = 'L'
             end
-            DIAG_TYPE = (unit_diag ? CUSPARSE_DIAG_TYPE_UNIT : CUSPARSE_DIAG_TYPE_NON_UNIT)
-            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, cuplo, DIAG_TYPE, index)
+            desc = CuMatrixDescriptor(CUSPARSE_MATRIX_TYPE_GENERAL, cuplo, diag, index)
             n,m = A.dims
             if m != n
                 throw(DimensionMismatch("A must be square, but has dimensions ($m,$n)!"))
@@ -212,20 +209,27 @@ for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
     @eval begin
         function sv2(transa::SparseChar,
                      uplo::SparseChar,
+                     diag::SparseChar,
                      alpha::Number,
                      A::CuSparseMatrix{$elty},
                      X::CuVector{$elty},
-                     index::SparseChar;
-                     unit_diag::Bool=false)
-            sv2!(transa,uplo,alpha,A,copy(X),index,unit_diag=unit_diag)
+                     index::SparseChar)
+            sv2!(transa,uplo,diag,alpha,A,copy(X),index)
+        end
+        function sv2(transa::SparseChar,
+                     uplo::SparseChar,
+                     diag::SparseChar,
+                     A::CuSparseMatrix{$elty},
+                     X::CuVector{$elty},
+                     index::SparseChar)
+            sv2!(transa,uplo,diag,one($elty),A,copy(X),index)
         end
         function sv2(transa::SparseChar,
                      uplo::SparseChar,
                      A::CuSparseMatrix{$elty},
                      X::CuVector{$elty},
-                     index::SparseChar;
-                     unit_diag::Bool=false)
-            sv2!(transa,uplo,one($elty),A,copy(X),index,unit_diag=unit_diag)
+                     index::SparseChar)
+            sv2!(transa,uplo,'N',one($elty),A,copy(X),index)
         end
     end
 end
