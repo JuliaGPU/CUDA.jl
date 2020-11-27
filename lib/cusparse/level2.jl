@@ -1,16 +1,17 @@
 # sparse linear algebra functions that perform operations between sparse matrices and dense
 # vectors
 
-export sv2!, sv2, sv
+export sv2!, sv2, mv!
 
 """
     mv!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, beta::BlasFloat, Y::CuVector, index::SparseChar)
 
-Performs `Y = alpha * op(A) *X + beta * Y`, where `op` can be nothing (`transa = N`),
+Performs `Y = alpha * op(A) * X + beta * Y`, where `op` can be nothing (`transa = N`),
 tranpose (`transa = T`) or conjugate transpose (`transa = C`). `X` is a sparse vector, and
 `Y` is dense.
 """
 mv!(transa::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, beta::BlasFloat, Y::CuVector, index::SparseChar)
+
 for (fname,elty) in ((:cusparseSbsrmv, :Float32),
                      (:cusparseDbsrmv, :Float64),
                      (:cusparseCbsrmv, :ComplexF32),
@@ -42,14 +43,15 @@ for (fname,elty) in ((:cusparseSbsrmv, :Float32),
 end
 
 """
-    sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar; unit_diag::Bool=false)
+    sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar; unit_diag::Bool=false)
 
-Performs `X = alpha * op(A) \\ X `, where `op` can be nothing (`transa = N`), tranpose
+Performs `X = alpha * op(A) \\ X`, where `op` can be nothing (`transa = N`), tranpose
 (`transa = T`) or conjugate transpose (`transa = C`). `X` is a dense vector, and `uplo`
 tells `sv2!` which triangle of the block sparse matrix `A` to reference.
 If the triangle has unit diagonal, set `unit_diag` to true.
 """
-sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrixBSR, X::CuVector, index::SparseChar; unit_diag::Bool=false)
+sv2!(transa::SparseChar, uplo::SparseChar, alpha::BlasFloat, A::CuSparseMatrix, X::CuVector, index::SparseChar; unit_diag::Bool=false)
+
 # bsrsv2
 for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_analysis, :cusparseSbsrsv2_solve, :Float32),
                                  (:cusparseDbsrsv2_bufferSize, :cusparseDbsrsv2_analysis, :cusparseDbsrsv2_solve, :Float64),
@@ -96,28 +98,6 @@ for (bname,aname,sname,elty) in ((:cusparseSbsrsv2_bufferSize, :cusparseSbsrsv2_
                 end
             cusparseDestroyBsrsv2Info(info[1])
             X
-        end
-    end
-end
-
-for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
-    @eval begin
-        function sv2(transa::SparseChar,
-                     uplo::SparseChar,
-                     alpha::Number,
-                     A::CuSparseMatrix{$elty},
-                     X::CuVector{$elty},
-                     index::SparseChar;
-                     unit_diag::Bool=false)
-            sv2!(transa,uplo,alpha,A,copy(X),index,unit_diag=unit_diag)
-        end
-        function sv2(transa::SparseChar,
-                     uplo::SparseChar,
-                     A::CuSparseMatrix{$elty},
-                     X::CuVector{$elty},
-                     index::SparseChar;
-                     unit_diag::Bool=false)
-            sv2!(transa,uplo,one($elty),A,copy(X),index,unit_diag=unit_diag)
         end
     end
 end
@@ -224,6 +204,28 @@ for (bname,aname,sname,elty) in ((:cusparseScsrsv2_bufferSize, :cusparseScsrsv2_
                 end
             cusparseDestroyCsrsv2Info(info[1])
             X
+        end
+    end
+end
+
+for elty in (:Float32, :Float64, :ComplexF32, :ComplexF64)
+    @eval begin
+        function sv2(transa::SparseChar,
+                     uplo::SparseChar,
+                     alpha::Number,
+                     A::CuSparseMatrix{$elty},
+                     X::CuVector{$elty},
+                     index::SparseChar;
+                     unit_diag::Bool=false)
+            sv2!(transa,uplo,alpha,A,copy(X),index,unit_diag=unit_diag)
+        end
+        function sv2(transa::SparseChar,
+                     uplo::SparseChar,
+                     A::CuSparseMatrix{$elty},
+                     X::CuVector{$elty},
+                     index::SparseChar;
+                     unit_diag::Bool=false)
+            sv2!(transa,uplo,one($elty),A,copy(X),index,unit_diag=unit_diag)
         end
     end
 end
