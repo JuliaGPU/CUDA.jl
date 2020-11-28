@@ -299,6 +299,43 @@ end
             @test y ≈ h_y
         end
 
+        @testset "lmul!(::UpperTriangular)" begin
+            dy = copy(dx)
+            lmul!(UpperTriangular(dA), dy)
+            y = UpperTriangular(A) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::UpperTriangular{Adjoint})" begin
+            dy = copy(dx)
+            lmul!(adjoint(UpperTriangular(dA)), dy)
+            y = adjoint(UpperTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::UpperTriangular{Transpose})" begin
+            dy = copy(dx)
+            lmul!(transpose(UpperTriangular(dA)), dy)
+            y = transpose(UpperTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::LowerTriangular)" begin
+            dy = copy(dx)
+            lmul!(LowerTriangular(dA), dy)
+            y = LowerTriangular(A) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::LowerTriangular{Adjoint})" begin
+            dy = copy(dx)
+            lmul!(adjoint(LowerTriangular(dA)), dy)
+            y = adjoint(LowerTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+        @testset "lmul!(::LowerTriangular{Transpose})" begin
+            dy = copy(dx)
+            lmul!(transpose(LowerTriangular(dA)), dy)
+            y = transpose(LowerTriangular(A)) * x
+            @test y ≈ Array(dy)
+        end
+
         @testset "trsv!" begin
             d_y = copy(dx)
             # execute trsv!
@@ -871,44 +908,17 @@ end
             end
         end
 
-        let A = triu(rand(elty, m, m)), B = rand(elty, m,m)
+        @testset "triangular ldiv!" begin
+            A = triu(rand(elty, m, m))
+            B = rand(elty, m,m)
+
             dA = CuArray(A)
             dB = CuArray(B)
 
-            @testset "ldiv!(::UpperTriangular)" begin
+            for t in (identity, transpose, adjoint), TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
                 dC = copy(dB)
-                ldiv!(UpperTriangular(dA), dC)
-                C = UpperTriangular(A) \ B
-                @test C ≈ Array(dC)
-            end
-            @testset "ldiv!(::UpperTriangular{Adjoint})" begin
-                dC = copy(dB)
-                ldiv!(adjoint(UpperTriangular(dA)), dC)
-                C = adjoint(UpperTriangular(A)) \ B
-                @test C ≈ Array(dC)
-            end
-            @testset "ldiv!(::UpperTriangular{Transpose})" begin
-                dC = copy(dB)
-                ldiv!(transpose(UpperTriangular(dA)), dC)
-                C = transpose(UpperTriangular(A)) \ B
-                @test C ≈ Array(dC)
-            end
-            @testset "ldiv!(::LowerTriangular)" begin
-                dC = copy(dB)
-                ldiv!(LowerTriangular(dA), dC)
-                C = LowerTriangular(A) \ B
-                @test C ≈ Array(dC)
-            end
-            @testset "ldiv!(::LowerTriangular{Adjoint})" begin
-                dC = copy(dB)
-                ldiv!(adjoint(LowerTriangular(dA)), dC)
-                C = adjoint(LowerTriangular(A)) \ B
-                @test C ≈ Array(dC)
-            end
-            @testset "ldiv!(::LowerTriangular{Transpose})" begin
-                dC = copy(dB)
-                ldiv!(transpose(LowerTriangular(dA)), dC)
-                C = transpose(LowerTriangular(A)) \ B
+                ldiv!(t(TR(dA)), dC)
+                C = t(TR(A)) \ B
                 @test C ≈ Array(dC)
             end
         end
@@ -941,68 +951,29 @@ end
             end
         end
 
-        let A = rand(elty, m,m), B = triu(rand(elty, m, m))
+        @testset "triangular rdiv!" begin
+            A = rand(elty, m,m)
+            B = triu(rand(elty, m, m))
+
             dA = CuArray(A)
             dB = CuArray(B)
 
-            @testset "rdiv!(::UpperTriangular)" begin
+            for t in (identity, transpose, adjoint), TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
                 dC = copy(dA)
-                rdiv!(dC, UpperTriangular(dB))
-                C = A / UpperTriangular(B)
-                @test C ≈ Array(dC)
-            end
-            @testset "rdiv!(::UpperTriangular{Adjoint})" begin
-                dC = copy(dA)
-                rdiv!(dC, adjoint(UpperTriangular(dB)))
-                C = A / adjoint(UpperTriangular(B))
-                @test C ≈ Array(dC)
-            end
-            @testset "rdiv!(::UpperTriangular{Transpose})" begin
-                dC = copy(dA)
-                rdiv!(dC, transpose(UpperTriangular(dB)))
-                C = A / transpose(UpperTriangular(B))
-                @test C ≈ Array(dC)
-            end
-            @testset "rdiv!(::LowerTriangular)" begin
-                dC = copy(dA)
-                rdiv!(dC, LowerTriangular(dB))
-                C = A / LowerTriangular(B)
-                @test C ≈ Array(dC)
-            end
-            @testset "rdiv!(::LowerTriangular{Adjoint})" begin
-                dC = copy(dA)
-                rdiv!(dC, adjoint(LowerTriangular(dB)))
-                C = A / adjoint(LowerTriangular(B))
-                @test C ≈ Array(dC)
-            end
-            @testset "rdiv!(::LowerTriangular{Transpose})" begin
-                dC = copy(dA)
-                rdiv!(dC, transpose(LowerTriangular(dB)))
-                C = A / transpose(LowerTriangular(B))
+                rdiv!(dC, t(TR(dB)))
+                C = A / t(TR(B))
                 @test C ≈ Array(dC)
             end
         end
 
-        @testset "BLAS.trmm!" begin
-            A = copy(A)
-            B = copy(B)
-            dA = CuArray(A)
-            dB = CuArray(B)
-            dC = LinearAlgebra.BLAS.trmm!('L','U','N','N',alpha,dA,dB)
-            C = LinearAlgebra.BLAS.trmm!('L','U','N','N',alpha,A,B)
-            @test A ≈ Array(dA)
-            @test B ≈ Array(dB)
-            @test C ≈ Array(dC)
-        end
+        @testset "triangular mul!" begin
+            A = triu(rand(elty, m, m))
+            B = rand(elty,m,n)
+            C = zeros(elty,m,n)
 
-        @testset "BLAS.trsm!" begin
-            dA = CuArray(A)
-            dB = CuArray(B)
-            dC = LinearAlgebra.BLAS.trsm!('L','U','N','N',alpha,dA,copy(dB))
-            @test dA * dC ≈ alpha * dB
-        end
+            sA = rand(elty,m,m)
+            sA = sA + transpose(sA)
 
-        @testset "mul! trmm!" begin
             for t in (identity, transpose, adjoint), TR in (UpperTriangular, LowerTriangular, UnitUpperTriangular, UnitLowerTriangular)
                 A = copy(sA) |> TR
                 B_L = copy(B)

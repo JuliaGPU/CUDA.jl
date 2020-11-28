@@ -273,53 +273,11 @@ end
     end
 end
 
-@testset "bsrsm2" begin
-    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "bsrsm2!" begin
-            A = rand(elty,m,m)
-            A = triu(A)
-            X = rand(elty,m,n)
-            alpha = rand(elty)
-            d_X = CuArray(X)
-            d_A = CuSparseMatrixCSR(sparse(A))
-            d_A = CuSparseMatrixBSR(d_A, blockdim)
-            d_X = CUSPARSE.bsrsm2!('N','N',alpha,d_A,d_X,'O')
-            h_Y = collect(d_X)
-            Y = A\(alpha * X)
-            @test Y ≈ h_Y
-            d_X = CUDA.rand(elty,n,n)
-            @test_throws DimensionMismatch CUSPARSE.bsrsm2!('N','N',alpha,d_A,d_X,'O')
-            @test_throws DimensionMismatch CUSPARSE.bsrsm2!('N','T',alpha,d_A,d_X,'O')
-            A = sparse(rand(elty,m,n))
-            d_A = CuSparseMatrixCSR(A)
-            d_A = CuSparseMatrixBSR(d_A, blockdim)
-            @test_throws DimensionMismatch CUSPARSE.bsrsm2!('N','N',alpha,d_A,d_X,'O')
-        end
-
-        @testset "bsrsm2" begin
-            A = rand(elty,m,m)
-            A = triu(A)
-            X = rand(elty,m,n)
-            alpha = rand(elty)
-            d_X = CuArray(X)
-            d_A = CuSparseMatrixCSR(sparse(A))
-            d_A = CuSparseMatrixBSR(d_A, blockdim)
-            d_Y = CUSPARSE.bsrsm2('N','N',alpha,d_A,d_X,'O')
-            h_Y = collect(d_Y)
-            Y = A\(alpha * X)
-            @test Y ≈ h_Y
-            A = sparse(rand(elty,m,n))
-            d_A = CuSparseMatrixCSR(A)
-            d_A = CuSparseMatrixBSR(d_A, blockdim)
-            @test_throws DimensionMismatch CUSPARSE.bsrsm2('N','N',alpha,d_A,d_X,'O')
-        end
-    end
-end
-
 @testset "bsrsv2" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         @testset "bsrsv2!" begin
             for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
                 A = (unit_diag ? triu(A, 1) + I : triu(A))
                 X = rand(elty,m)
@@ -327,30 +285,37 @@ end
                 d_X = CuArray(X)
                 d_A = CuSparseMatrixCSR(sparse(A))
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                d_X = CUSPARSE.sv2!('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                d_X = CUSPARSE.sv2!('N','U',diag,alpha,d_A,d_X,'O')
                 h_Y = collect(d_X)
                 Y = A\(alpha * X)
                 @test Y ≈ h_Y
                 d_X = CUDA.rand(elty,n)
-                @test_throws DimensionMismatch CUSPARSE.sv2!('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                @test_throws DimensionMismatch CUSPARSE.sv2!('N','U',diag,alpha,d_A,d_X,'O')
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSR(A)
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                @test_throws DimensionMismatch CUSPARSE.sv2!('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                @test_throws DimensionMismatch CUSPARSE.sv2!('N','U',diag,alpha,d_A,d_X,'O')
             end
         end
 
         @testset "bsrsv2" begin
             for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
                 A = (unit_diag ? triu(A, 1) + I : triu(A))
                 Al = (unit_diag ? tril(A, -1) + I : tril(A))
                 X = rand(elty,m)
                 alpha = rand(elty)
                 d_X = CuArray(X)
+                d_Al = CuSparseMatrixCSR(sparse(Al))
+                d_Al = CuSparseMatrixBSR(d_Al, blockdim)
+                d_Y = CUSPARSE.sv2('N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = Al\(alpha * X)
+                @test Y ≈ h_Y
                 d_A = CuSparseMatrixCSR(sparse(A))
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                d_Y = CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                d_Y = CUSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
                 h_Y = collect(d_Y)
                 Y = A\(alpha * X)
                 @test Y ≈ h_Y
@@ -377,50 +342,87 @@ end
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSR(A)
                 d_A = CuSparseMatrixBSR(d_A, blockdim)
-                @test_throws DimensionMismatch CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                @test_throws DimensionMismatch CUSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
             end
         end
     end
 end
 
-@testset "csrsm2" begin
+@testset "bsrsm2" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
-        @testset "csrsm2!" begin
-            A = rand(elty,m,m)
-            A = triu(A)
-            X = rand(elty,m,n)
-            alpha = rand(elty)
-            d_X = CuArray(X)
-            d_A = CuSparseMatrixCSR(sparse(A))
-            d_X = CUSPARSE.csrsm2!('N','N',alpha,d_A,d_X,'O')
-            h_Y = collect(d_X)
-            Y = A\(alpha * X)
-            @test Y ≈ h_Y
-            d_X = CUDA.rand(elty,n,n)
-            @test_throws DimensionMismatch CUSPARSE.csrsm2!('N','N',alpha,d_A,d_X,'O')
-            @test_throws DimensionMismatch CUSPARSE.csrsm2!('N','T',alpha,d_A,d_X,'O')
-            A = sprand(elty,m,n,0.7)
-            d_A = CuSparseMatrixCSR(A)
-            @test_throws DimensionMismatch CUSPARSE.csrsm2!('N','N',alpha,d_A,d_X,'O')
+        @testset "bsrsm2!" begin
+            for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
+                A = rand(elty,m,m)
+                A = (unit_diag ? triu(A, 1) + I : triu(A))
+                X = rand(elty,m,m)
+                alpha = rand(elty)
+                d_X = CuArray(X)
+                d_A = CuSparseMatrixCSR(sparse(A))
+                d_A = CuSparseMatrixBSR(d_A, blockdim)
+                d_X = CUSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X,'O')
+                h_Y = collect(d_X)
+                Y = A\(alpha * X)
+                @test Y ≈ h_Y
+                d_X = CUDA.rand(elty,n,n)
+                @test_throws DimensionMismatch CUSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X,'O')
+                A = sparse(rand(elty,m,n))
+                d_A = CuSparseMatrixCSR(A)
+                d_A = CuSparseMatrixBSR(d_A, blockdim)
+                @test_throws DimensionMismatch CUSPARSE.sm2!('N','N','U',diag,alpha,d_A,d_X,'O')
+            end
         end
 
-        @testset "csrsm2" begin
-            A = rand(elty,m,m)
-            A = triu(A)
-            X = rand(elty,m,n)
-            alpha = rand(elty)
-            d_X = CuArray(X)
-            d_A = CuSparseMatrixCSR(sparse(A))
-            d_Y = CUSPARSE.csrsm2('N','N',alpha,d_A,d_X,'O')
-            h_Y = collect(d_Y)
-            Y = A\(alpha * X)
-            @test Y ≈ h_Y
-            A = sprand(elty,m,n,0.7)
-            d_A = CuSparseMatrixCSR(A)
-            @test_throws DimensionMismatch CUSPARSE.csrsm2('N','N',alpha,d_A,d_X,'O')
+        @testset "bsrsm2" begin
+            for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
+                A = rand(elty,m,m)
+                A = (unit_diag ? triu(A, 1) + I : triu(A))
+                Al = (unit_diag ? tril(A, -1) + I : tril(A))
+                X = rand(elty,m, m)
+                alpha = rand(elty)
+                d_X = CuArray(X)
+                d_Al = CuSparseMatrixCSR(sparse(Al))
+                d_Al = CuSparseMatrixBSR(d_Al, blockdim)
+                d_Y = CUSPARSE.sm2('N','N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = Al\(alpha * X)
+                @test Y ≈ h_Y
+                d_A = CuSparseMatrixCSR(sparse(A))
+                d_A = CuSparseMatrixBSR(d_A, blockdim)
+                d_Y = CUSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = A\(alpha * X)
+                @test Y ≈ h_Y
+                UA = (unit_diag ? UnitUpperTriangular(d_A) : UpperTriangular(d_A))
+                d_Y = UA\d_X
+                h_Y = collect(d_Y)
+                @test h_Y ≈ A\X
+                #=d_Y = UpperTriangular(d_A)'\d_X
+                h_Y = collect(d_Y)
+                @test h_Y ≈ A'\X=#
+                d_Y = transpose(UA)\d_X
+                h_Y = collect(d_Y)
+                @test h_Y ≈ transpose(A)\X
+                LA = (unit_diag ? UnitLowerTriangular(d_A) : LowerTriangular(d_A))
+                d_Y = LA\d_X
+                h_Y = collect(d_Y)
+                @test h_Y ≈ Al\X
+                #=d_Y = LowerTriangular(d_A)'\d_X
+                h_Y = collect(d_Y)
+                @test h_Y ≈ A'\X=#
+                d_Y = transpose(LA)\d_X
+                h_Y = collect(d_Y)
+                @test h_Y ≈ transpose(Al)\X
+                A = sparse(rand(elty,m,n))
+                d_A = CuSparseMatrixCSR(A)
+                d_A = CuSparseMatrixBSR(d_A, blockdim)
+                @test_throws DimensionMismatch CUSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
+            end
         end
     end
 end
+
 @testset "ilu02" begin
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         @testset "csr" begin
@@ -491,16 +493,148 @@ end
     @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
         @testset "csrsv2" begin
             for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
                 A = (unit_diag ? triu(A, 1) + I : triu(A))
                 Al = (unit_diag ? tril(A, -1) + I : tril(A))
                 X = rand(elty,m)
                 alpha = rand(elty)
                 d_X = CuArray(X)
+                d_Al = CuSparseMatrixCSR(sparse(Al))
+                d_Y = CUSPARSE.sv2('N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = Al\(alpha * X)
+                @test Y ≈ h_Y
+                d_Y = CUSPARSE.sv2('T','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = transpose(Al)\(alpha * X)
+                @test Y ≈ h_Y
                 d_A = CuSparseMatrixCSR(sparse(A))
-                d_Y = CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                d_Y = CUSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
                 h_Y = collect(d_Y)
                 Y = A\(alpha * X)
+                @test Y ≈ h_Y
+                d_Y = CUSPARSE.sv2('T','U',diag,alpha,d_A,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = transpose(A)\(alpha * X)
+                UA = (unit_diag ? UnitUpperTriangular(d_A) : UpperTriangular(d_A))
+                d_y = UA\d_X
+                h_y = collect(d_y)
+                y = A\X
+                @test y ≈ h_y
+                d_y = transpose(UA)\d_X
+                h_y = collect(d_y)
+                y = transpose(A)\X
+                @test y ≈ h_y
+                #=d_y = UpperTriangular(d_A)'\d_X
+                h_y = collect(d_y)
+                y = A'\X
+                @test y ≈ h_y=#
+                LA = (unit_diag ? UnitLowerTriangular(d_A) : LowerTriangular(d_A))
+                d_y = LA\d_X
+                h_y = collect(d_y)
+                y = Al\X
+                @test y ≈ h_y
+                d_y = transpose(LA)\d_X
+                h_y = collect(d_y)
+                y = transpose(Al)\X
+                @test y ≈ h_y
+                #=d_y = LowerTriangular(d_A)'\d_X
+                h_y = collect(d_y)
+                y = A'\X
+                @test y ≈ h_y=#
+                A = sparse(rand(elty,m,n))
+                d_A = CuSparseMatrixCSR(A)
+                @test_throws DimensionMismatch CUSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
+            end
+        end
+
+        @testset "cscsv2" begin
+            for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
+                A = rand(elty,m,m)
+                A = (unit_diag ? triu(A, 1) + I : triu(A))
+                Al = (unit_diag ? tril(A, -1) + I : tril(A))
+                X = rand(elty,m)
+                alpha = rand(elty)
+                d_X = CuArray(X)
+                d_Al = CuSparseMatrixCSC(sparse(Al))
+                d_Y = CUSPARSE.sv2('N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = Al\(alpha * X)
+                @test Y ≈ h_Y
+                d_Y = CUSPARSE.sv2('T','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = transpose(Al)\(alpha * X)
+                @test Y ≈ h_Y
+                d_A = CuSparseMatrixCSC(sparse(A))
+                d_Y = CUSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = A\(alpha * X)
+                @test Y ≈ h_Y
+                d_Y = CUSPARSE.sv2('T','U',diag,alpha,d_A,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = transpose(A)\(alpha * X)
+                @test Y ≈ h_Y
+                UA = (unit_diag ? UnitUpperTriangular(d_A) : UpperTriangular(d_A))
+                d_y = UA\d_X
+                h_y = collect(d_y)
+                y = A\X
+                @test y ≈ h_y
+                d_y = transpose(UA)\d_X
+                h_y = collect(d_y)
+                y = transpose(A)\X
+                @test y ≈ h_y
+                LA = (unit_diag ? UnitLowerTriangular(d_A) : LowerTriangular(d_A))
+                d_y = LA\d_X
+                h_y = collect(d_y)
+                y = Al\X
+                @test y ≈ h_y
+                d_y = transpose(LA)\d_X
+                h_y = collect(d_y)
+                y = transpose(Al)\X
+                @test y ≈ h_y
+                #=d_y = UpperTriangular(d_A)'\d_X
+                h_y = collect(d_y)
+                y = A'\X
+                @test y ≈ h_y=#
+                # shouldn't work for now bc sv2 has no way to do conj...
+                A = sparse(rand(elty,m,n))
+                d_A = CuSparseMatrixCSC(A)
+                @test_throws DimensionMismatch CUSPARSE.sv2('N','U',diag,alpha,d_A,d_X,'O')
+            end
+        end
+    end
+end
+
+@testset "cssm" begin
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        @testset "csrsm2" begin
+            for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
+                A = rand(elty,m,m)
+                A = (unit_diag ? triu(A, 1) + I : triu(A))
+                Al = (unit_diag ? tril(A, -1) + I : tril(A))
+                X = rand(elty,m,m)
+                alpha = rand(elty)
+                d_X = CuArray(X)
+                d_Al = CuSparseMatrixCSR(sparse(Al))
+                d_Y = CUSPARSE.sm2('N','N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = Al\(alpha * X)
+                @test Y ≈ h_Y
+                d_Y = CUSPARSE.sm2('T','N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = transpose(Al)\(alpha * X)
+                @test Y ≈ h_Y
+                d_A = CuSparseMatrixCSR(sparse(A))
+                d_Y = CUSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = A\(alpha * X)
+                @test Y ≈ h_Y
+                d_Y = CUSPARSE.sm2('T','N','U',diag,alpha,d_A,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = transpose(A)\(alpha * X)
                 @test Y ≈ h_Y
                 UA = (unit_diag ? UnitUpperTriangular(d_A) : UpperTriangular(d_A))
                 d_y = UA\d_X
@@ -530,24 +664,34 @@ end
                 @test y ≈ h_y=#
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSR(A)
-                @test_throws DimensionMismatch CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                @test_throws DimensionMismatch CUSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
             end
         end
 
-        @testset "cscsv2" begin
+        @testset "cscsm2" begin
             for unit_diag ∈ (false, true)
+                diag = unit_diag ? 'U' : 'N'
                 A = rand(elty,m,m)
                 A = (unit_diag ? triu(A, 1) + I : triu(A))
                 Al = (unit_diag ? tril(A, -1) + I : tril(A))
-                X = rand(elty,m)
+                X = rand(elty,m,m)
                 alpha = rand(elty)
                 d_X = CuArray(X)
+                d_Al = CuSparseMatrixCSC(sparse(Al))
+                d_Y = CUSPARSE.sm2('N','N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = Al\(alpha * X)
+                @test Y ≈ h_Y
+                d_Y = CUSPARSE.sm2('T','N','L',diag,alpha,d_Al,d_X,'O')
+                h_Y = collect(d_Y)
+                Y = transpose(Al)\(alpha * X)
+                @test Y ≈ h_Y
                 d_A = CuSparseMatrixCSC(sparse(A))
-                d_Y = CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                d_Y = CUSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
                 h_Y = collect(d_Y)
                 Y = A\(alpha * X)
                 @test Y ≈ h_Y
-                d_Y = CUSPARSE.sv2('T','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                d_Y = CUSPARSE.sm2('T','N','U',diag,alpha,d_A,d_X,'O')
                 h_Y = collect(d_Y)
                 Y = transpose(A)\(alpha * X)
                 @test Y ≈ h_Y
@@ -576,7 +720,7 @@ end
                 # shouldn't work for now bc sv2 has no way to do conj...
                 A = sparse(rand(elty,m,n))
                 d_A = CuSparseMatrixCSC(A)
-                @test_throws DimensionMismatch CUSPARSE.sv2('N','U',alpha,d_A,d_X,'O',unit_diag=unit_diag)
+                @test_throws DimensionMismatch CUSPARSE.sm2('N','N','U',diag,alpha,d_A,d_X,'O')
             end
         end
     end

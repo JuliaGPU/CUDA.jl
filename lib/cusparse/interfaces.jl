@@ -71,66 +71,60 @@ for (taga, untaga) in tag_wrappers, (wrapa, transa, unwrapa) in op_wrappers
     end
 end
 
-Base.:(\)(A::UpperTriangular{T, <:AbstractCuSparseMatrix{T}},
-          B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm('N',A,B,'O')
-Base.:(\)(A::LowerTriangular{T, <:AbstractCuSparseMatrix{T}},
-          B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm('N',A,B,'O')
-Base.:(\)(A::UpperTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm('T',parent(A),B,'O')
-Base.:(\)(A::LowerTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm('T',parent(A),B,'O')
-Base.:(\)(A::UpperTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm('C',parent(A),B,'O')
-Base.:(\)(A::LowerTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuMatrix{T}) where {T<:BlasFloat} =
-    sm('C',parent(A),B,'O')
-
-# TODO: some metaprogramming to reduce the amount of definitions here
-
-Base.:(\)(A::UpperTriangular{T, <:AbstractCuSparseMatrix{T}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'U', one(T), parent(A), B,'O')
-Base.:(\)(A::LowerTriangular{T, <:AbstractCuSparseMatrix{T}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'L', one(T), parent(A), B,'O')
-Base.:(\)(A::UpperTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'L', one(T), parent(parent(A)), B, 'O')
-Base.:(\)(A::LowerTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'U', one(T), parent(parent(A)), B, 'O')
-Base.:(\)(A::UpperTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'L', one(T), parent(parent(A)), B, 'O')
-Base.:(\)(A::LowerTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'U', one(T), parent(parent(A)), B, 'O')
-
-Base.:(\)(A::UnitUpperTriangular{T, <:AbstractCuSparseMatrix{T}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'U', one(T), parent(A), B, 'O', unit_diag=true)
-Base.:(\)(A::UnitLowerTriangular{T, <:AbstractCuSparseMatrix{T}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('N', 'L', one(T), parent(A), B, 'O', unit_diag=true)
-Base.:(\)(A::UnitUpperTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'L', one(T), parent(parent(A)), B, 'O', unit_diag=true)
-Base.:(\)(A::UnitLowerTriangular{<:Any, <:Transpose{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('T', 'U', one(T), parent(parent(A)), B, 'O', unit_diag=true)
-Base.:(\)(A::UnitUpperTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'L', one(T), parent(parent(A)), B, 'O', unit_diag=true)
-Base.:(\)(A::UnitLowerTriangular{<:Any, <:Adjoint{T, <:AbstractCuSparseMatrix{T}}},
-          B::DenseCuVector{T}) where {T<:BlasFloat} =
-    sv2('C', 'U', one(T), parent(parent(A)), B, 'O', unit_diag=true)
-
 Base.:(+)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
           B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,B,'O','O','O')
 Base.:(-)(A::Union{CuSparseMatrixCSR,CuSparseMatrixCSC},
           B::Union{CuSparseMatrixCSR,CuSparseMatrixCSC}) = geam(A,-one(eltype(A)),B,'O','O','O')
+
+# triangular
+
+## direct
+for (t, uploc, isunitc) in ((:LowerTriangular, 'L', 'N'),
+                            (:UnitLowerTriangular, 'L', 'U'),
+                            (:UpperTriangular, 'U', 'N'),
+                            (:UnitUpperTriangular, 'U', 'U'))
+    @eval begin
+        # Left division
+        LinearAlgebra.ldiv!(A::$t{T,<:AbstractCuSparseMatrix},
+                            B::DenseCuVector{T}) where {T<:BlasFloat} =
+            sv2!('N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+
+        LinearAlgebra.ldiv!(A::$t{T,<:AbstractCuSparseMatrix},
+                            B::DenseCuMatrix{T}) where {T<:BlasFloat} =
+            sm2!('N', 'N', $uploc, $isunitc, one(T), parent(A), B, 'O')
+    end
+end
+
+## adjoint/transpose ('uploc' reversed)
+for (t, uploc, isunitc) in ((:LowerTriangular, 'U', 'N'),
+                            (:UnitLowerTriangular, 'U', 'U'),
+                            (:UpperTriangular, 'L', 'N'),
+                            (:UnitUpperTriangular, 'L', 'U'))
+    @eval begin
+        # Left division with vectors
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractCuSparseMatrix}},
+                            B::DenseCuVector{T}) where {T<:BlasFloat} =
+            sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
+                            B::DenseCuVector{T}) where {T<:BlasReal} =
+            sv2!('T', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
+                            B::DenseCuVector{T}) where {T<:BlasComplex} =
+            sv2!('C', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+
+        # Left division with matrices
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Transpose{T,<:AbstractCuSparseMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:BlasFloat} =
+            sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:BlasReal} =
+            sm2!('T', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+
+        LinearAlgebra.ldiv!(A::$t{<:Any,<:Adjoint{T,<:AbstractCuSparseMatrix}},
+                            B::DenseCuMatrix{T}) where {T<:BlasComplex} =
+            sm2!('C', 'N', $uploc, $isunitc, one(T), parent(parent(A)), B, 'O')
+    end
+end
