@@ -1645,6 +1645,16 @@ for (fname, elty) in ((:cublasDdgmm,:Float64),
 end
 
 # cublasXT
+
+# NOTE: cuBLASXt is a blocking API
+# > the cuBLASXt API is still a blocking API from the Host point of view:
+# > the data results wherever located will be valid on the call return
+# > and no device synchronization is required.
+#
+# HOWEVER: it does not operate with familiar stream semantics, so
+# we need to make sure data is available _before_ calling the API.
+# this matters most for the tests, but also for allocating methods.
+
 for (fname, elty) in
         ((:cublasXtSgemm,:Float32),
          (:cublasXtDgemm,:Float64),
@@ -1970,7 +1980,8 @@ for (mmname, smname, elty) in
                       alpha::Number,
                       A::Union{CuMatrix{$elty}, Matrix{$elty}},
                       B::Union{CuMatrix{$elty}, Matrix{$elty}})
-            xt_trsm!(side, uplo, transa, diag, alpha, A, copy(B))
+            # TODO: better way to perform synchronous copy
+            xt_trsm!(side, uplo, transa, diag, alpha, A, @sync(copy(B)))
         end
     end
 end
