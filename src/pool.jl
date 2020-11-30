@@ -474,7 +474,7 @@ end
 ## utilities
 
 used_memory(dev=device()) = @safe_lock allocated_lock begin
-    mapreduce(sizeof, +, values(allocated[dev]); init=0)
+    mapreduce(sizeof∘first, +, values(allocated[dev]); init=0)
 end
 
 
