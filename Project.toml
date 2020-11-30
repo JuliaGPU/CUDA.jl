@@ -52,7 +52,9 @@ FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "FFTW", "ForwardDiff", "FillArrays", "Distributed", "REPL", "Dates", "Interpolations"]
+test = ["Test", "FFTW", "ForwardDiff", "FillArrays", "Distributed", "REPL", "Dates",
+            "Interpolations", "StatsBase"]
