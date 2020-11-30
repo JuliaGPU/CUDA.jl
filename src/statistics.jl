@@ -1,5 +1,4 @@
 using Statistics
-using StatsBase
 
 Statistics.varm(A::CuArray{<:Real},m::AbstractArray{<:Real}; dims, corrected::Bool=true) =
     sum((A .- m).^2, dims=dims)/(prod(size(A)[[dims...]])::Int-corrected)
@@ -18,10 +17,3 @@ Statistics._mean(A::CuArray, ::Colon)    = sum(A) / length(A)
 Statistics._mean(f, A::CuArray, ::Colon) = sum(f, A) / length(A)
 Statistics._mean(A::CuArray, dims)    = mean!(Base.reducedim_init(t -> t/2, +, A, dims), A)
 Statistics._mean(f, A::CuArray, dims) = sum(f, A, dims=dims) / mapreduce(i -> size(A, i), *, unique(dims); init=1)
-
-function StatsBase._compute_extrema(X::Union{CuMatrix{<:Real},Adjoint{T,CuMatrix{T}} where T<:Real})
-    l = size(X,2)
-    tmin = minimum(X, dims=1)[:]
-    tmax = maximum(X, dims=1)[:]
-    return l, tmin, tmax
-end
