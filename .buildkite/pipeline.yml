@@ -3,10 +3,11 @@ steps:
 
   - label: "Julia 1.5"
     plugins:
-      - JuliaCI/julia#v0.4:
+      - JuliaCI/julia#v0.5:
           version: 1.5
-      - JuliaCI/julia-test#v0.2: ~
-      - JuliaCI/julia-coverage#v0.2:
+      - JuliaCI/julia-test#v0.3:
+          test_args: "--quickfail"
+      - JuliaCI/julia-coverage#v0.3:
           codecov: true
           dirs:
             - src
