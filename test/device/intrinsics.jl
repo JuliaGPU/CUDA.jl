@@ -1311,4 +1311,22 @@ end
     @test Array(a) == [16]
 end
 
+@testset "shared memory bug" begin
+    # shared memory atomics resulted in illegal memory accesses
+    # https://github.com/JuliaGPU/CUDA.jl/issues/558
+
+
+    function kernel()
+        tid = threadIdx().x
+        shared = @cuStaticSharedMem(Float32, 4)
+        CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+        sync_threads()
+        CUDA.atomic_add!(pointer(shared, tid), shared[tid + 2])
+        return
+    end
+
+    @cuda threads=2 kernel()
+    synchronize()
+end
+
 end
