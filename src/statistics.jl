@@ -1,10 +1,10 @@
 using Statistics
 
-Statistics._var(A::CuArray, corrected::Bool, mean, dims) =
-    sum((A .- something(mean, Statistics.mean(A, dims=dims))).^2, dims=dims)/(prod(size(A)[[dims...]])::Int-corrected)
+Statistics.varm(A::CuArray{<:Real},m::AbstractArray{<:Real}; dims, corrected::Bool=true) =
+    sum((A .- m).^2, dims=dims)/(prod(size(A)[[dims...]])::Int-corrected)
 
-Statistics._var(A::CuArray, corrected::Bool, mean, ::Colon) =
-    sum((A .- something(mean, Statistics.mean(A))).^2)/(length(A)-corrected)
+Statistics.stdm(A::CuArray{<:Real},m::AbstractArray{<:Real}, dim::Int; corrected::Bool=true) =
+    sqrt.(varm(A,m;dims=dim,corrected=corrected))
 
 Statistics._std(A::CuArray, corrected::Bool, mean, dims) =
     Base.sqrt.(Statistics.var(A; corrected=corrected, mean=mean, dims=dims))
