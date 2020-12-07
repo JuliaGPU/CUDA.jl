@@ -26,19 +26,16 @@ const configure_lock = ReentrantLock()
     Base.@lock configure_lock begin
         if configured[] == -1
             configured[] = -2
-            if __configure__(show_reason)
+            try
+                __configure__()
                 configured[] = 1
-                try
-                    __runtime_init__()
-                catch
-                    configured[] = 0
-                    rethrow()
-                end
-            else
+                __runtime_init__()
+            catch
+                show_reason && @error("Error during initialization of CUDA.jl", exception=(ex,catch_backtrace()))
                 configured[] = 0
             end
         elseif configured[] == -2
-            @warn "Recursion during initialization of CUDA.jl"
+            @error "Recursion during initialization of CUDA.jl"
             configured[] = 0
         end
     end
@@ -83,26 +80,18 @@ function __init__()
 end
 
 # run-time configuration: try and initialize CUDA, but don't error
-function __configure__(show_reason::Bool)
+function __configure__()
     if haskey(ENV, "_") && basename(ENV["_"]) == "rr"
-        show_reason && @error("Running under rr, which is incompatible with CUDA")
-        return false
+        error("Running under rr, which is incompatible with CUDA")
     end
 
-    try
-        @debug "Initializing CUDA driver"
-        res = ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
-        if res == 0xffffffff
-            error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
-        elseif res != SUCCESS
-            throw_api_error(res)
-        end
-    catch ex
-        show_reason && @error("Could not initialize CUDA", exception=(ex,catch_backtrace()))
-        return false
+    @debug "Initializing CUDA driver"
+    res = ccall((:cuInit, __libcuda), CUresult, (UInt32,), 0)
+    if res == 0xffffffff
+        error("Cannot use the CUDA stub libraries. You either don't have the NVIDIA driver installed, or it is not properly discoverable.")
+    elseif res != SUCCESS
+        throw_api_error(res)
     end
-
-    return true
 end
 
 # run-time initialization: we have a driver, so try and discover CUDA
