@@ -102,13 +102,6 @@ if !isempty(ARGS)
     any(arg->startswith(test, arg), ARGS)
   end
 end
-## same for an environment-variable
-if haskey(ENV, "JULIA_CUDA_RUNTESTS")
-  args = split(ENV["JULIA_CUDA_RUNTESTS"], ",")
-  filter!(tests) do test
-    any(arg->startswith(test, arg), args)
-  end
-end
 
 # check that CI is using the requested toolkit
 toolkit_release = CUDA.toolkit_release() # ensure artifacts are downloaded
