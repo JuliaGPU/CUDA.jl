@@ -42,44 +42,60 @@ function perfChoose(perfResults, returnedAlgoCount)::UInt32
 end
 
 
-# Softmax
+# SoftMax
+function softmax_helper(dims)
+  function (x)
+      if dims == 1
+          shape = (1, 1, size(x, 1), :)
+      elseif dims <= ndims(x)
+          shape = (1, prod(size(x)[1:dims - 1]), size(x, dims), :)
+      else
+          shape = nothing
+          error()
+      end
+      reshape(x, shape)
+  end
+end
 
-# in-place for x or dy
 softmax(x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
-  softmax!(x, x, dims=dims)
+  softmax!(similar(x), x, dims=dims)
 
 ∇softmax(dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
-  ∇softmax!(dy, dy, x, dims=dims)
+  ∇softmax!(similar(dy), dy, x, dims=dims)
 
 logsoftmax(x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
-  logsoftmax!(x, x, dims=dims)
+  logsoftmax!(similar(x), x, dims=dims)
 
 ∇logsoftmax(dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat =
-  ∇logsoftmax!(dy, dy, x, dims=dims)
+  ∇logsoftmax!(similar(dy), dy, x, dims=dims)
 
-function softmax!(y::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
-  cudnnSoftmaxForward(reshape4D(x), reshape4D(y),
-                      algo=CUDNN_SOFTMAX_FAST, mode=cudnnSoftmaxMode_t(dims-1))
+function softmax!(y::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T <: CUDNNFloat
+  S = softmax_helper(dims)
+  cudnnSoftmaxForward(S(x), S(y), algo=CUDNN_SOFTMAX_FAST, mode=CUDNN_SOFTMAX_MODE_CHANNEL)
   return y
 end
 
-function ∇softmax!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
+function ∇softmax!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T <: CUDNNFloat
+  S = softmax_helper(dims)
   y = softmax(x, dims=dims)
-  cudnnSoftmaxBackward(reshape4D(y), reshape4D(dy), reshape4D(dx),
-                       algo=CUDNN_SOFTMAX_FAST, mode=cudnnSoftmaxMode_t(dims-1))
+  # FIXME
+  cudnnSoftmaxBackward(S(y), S(dy), S(dx),
+                       algo=CUDNN_SOFTMAX_FAST, mode=CUDNN_SOFTMAX_MODE_CHANNEL)
   return dx
 end
 
-function logsoftmax!(y::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
-  cudnnSoftmaxForward(reshape4D(x), reshape4D(y),
-                      algo=CUDNN_SOFTMAX_LOG, mode=cudnnSoftmaxMode_t(dims-1))
+function logsoftmax!(y::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T <: CUDNNFloat
+  S = softmax_helper(dims)
+  cudnnSoftmaxForward(S(x), S(y), algo=CUDNN_SOFTMAX_LOG, mode=CUDNN_SOFTMAX_MODE_CHANNEL)
   return y
 end
 
-function ∇logsoftmax!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T<:CUDNNFloat
+function ∇logsoftmax!(dx::DenseCuArray{T}, dy::DenseCuArray{T}, x::DenseCuArray{T}; dims=1) where T <: CUDNNFloat
+  S = softmax_helper(dims)
   y = logsoftmax(x, dims=dims)
-  cudnnSoftmaxBackward(reshape4D(y), reshape4D(dy), reshape4D(dx),
-                       algo=CUDNN_SOFTMAX_LOG, mode=cudnnSoftmaxMode_t(dims-1))
+  # FIXME
+  cudnnSoftmaxBackward(S(y), S(dy), S(dx),
+                       algo=CUDNN_SOFTMAX_LOG, mode=CUDNN_SOFTMAX_MODE_CHANNEL)
   return dx
 end
 
