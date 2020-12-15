@@ -45,15 +45,9 @@ end
 # SoftMax
 function softmax_helper(dims)
   function (x)
-      if dims == 1
-          shape = (1, 1, size(x, 1), :)
-      elseif dims <= ndims(x)
-          shape = (1, prod(size(x)[1:dims - 1]), size(x, dims), :)
-      else
-          shape = nothing
-          error()
-      end
-      reshape(x, shape)
+      @assert dims <= ndims(x)
+      stride = dims == 1 ? 1 : prod(size(x)[1:dims - 1])
+      reshape(x, 1, stride, size(x, dims), :) # the last dimension is Batch.
   end
 end
 
