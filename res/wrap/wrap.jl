@@ -493,7 +493,7 @@ function main()
     cudnn = joinpath(CUDNN_CUDA110_jll.artifact_dir, "include")
     cutensor = joinpath(CUTENSOR_CUDA110_jll.artifact_dir, "include")
 
-    process("cudadrv", "$cuda/cuda.h", "$cuda/cudaProfiler.h";
+    process("cudadrv", "$cuda/cuda.h","$cuda/cudaGL.h", "$cuda/cudaProfiler.h";
             include_dirs=[cuda], libname="cuda")
 
     process("nvtx", "$cuda/nvtx3/nvToolsExt.h", "$cuda/nvtx3/nvToolsExtCuda.h";

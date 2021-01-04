@@ -7,6 +7,8 @@ using Printf
 # low-level wrappers
 const CUdeviceptr = CuPtr{Cvoid}
 const CUarray = CuArrayPtr{Cvoid}
+const GLuint = Cuint    # FIXME: get these from somewhere
+const GLenum = Cuint
 include("libcuda_common.jl")
 include("error.jl")
 include("libcuda.jl")

@@ -2035,3 +2035,63 @@ end
     initialize_api()
     ccall((:cuProfilerStop, libcuda()), CUresult, ())
 end
+
+@checked function cuGLUnmapBufferObject(buffer)
+    initialize_api()
+    ccall((:cuGLUnmapBufferObject, libcuda()), CUresult, (GLuint,), buffer)
+end
+
+@checked function cuGLMapBufferObject_v2(dptr, size, buffer)
+    initialize_api()
+    ccall((:cuGLMapBufferObject_v2, libcuda()), CUresult, (Ptr{CUdeviceptr}, Ptr{Csize_t}, GLuint), dptr, size, buffer)
+end
+
+@checked function cuGraphicsGLRegisterImage(pCudaResource, image, target, Flags)
+    initialize_api()
+    ccall((:cuGraphicsGLRegisterImage, libcuda()), CUresult, (Ptr{CUgraphicsResource}, GLuint, GLenum, UInt32), pCudaResource, image, target, Flags)
+end
+
+@checked function cuGLInit()
+    initialize_api()
+    ccall((:cuGLInit, libcuda()), CUresult, ())
+end
+
+@checked function cuGLCtxCreate_v2(pCtx, Flags, device)
+    initialize_api()
+    ccall((:cuGLCtxCreate_v2, libcuda()), CUresult, (Ptr{CUcontext}, UInt32, CUdevice), pCtx, Flags, device)
+end
+
+@checked function cuGLUnmapBufferObjectAsync(buffer, hStream)
+    initialize_api()
+    ccall((:cuGLUnmapBufferObjectAsync, libcuda()), CUresult, (GLuint, CUstream), buffer, hStream)
+end
+
+@checked function cuGLSetBufferObjectMapFlags(buffer, Flags)
+    initialize_api()
+    ccall((:cuGLSetBufferObjectMapFlags, libcuda()), CUresult, (GLuint, UInt32), buffer, Flags)
+end
+
+@checked function cuGLUnregisterBufferObject(buffer)
+    initialize_api()
+    ccall((:cuGLUnregisterBufferObject, libcuda()), CUresult, (GLuint,), buffer)
+end
+
+@checked function cuGraphicsGLRegisterBuffer(pCudaResource, buffer, Flags)
+    initialize_api()
+    ccall((:cuGraphicsGLRegisterBuffer, libcuda()), CUresult, (Ptr{CUgraphicsResource}, GLuint, UInt32), pCudaResource, buffer, Flags)
+end
+
+@checked function cuGLRegisterBufferObject(buffer)
+    initialize_api()
+    ccall((:cuGLRegisterBufferObject, libcuda()), CUresult, (GLuint,), buffer)
+end
+
+@checked function cuGLMapBufferObjectAsync_v2(dptr, size, buffer, hStream)
+    initialize_api()
+    ccall((:cuGLMapBufferObjectAsync_v2, libcuda()), CUresult, (Ptr{CUdeviceptr}, Ptr{Csize_t}, GLuint, CUstream), dptr, size, buffer, hStream)
+end
+
+@checked function cuGLGetDevices_v2(pCudaDeviceCount, pCudaDevices, cudaDeviceCount, deviceList)
+    initialize_api()
+    ccall((:cuGLGetDevices_v2, libcuda()), CUresult, (Ptr{UInt32}, Ptr{CUdevice}, UInt32, CUGLDeviceList), pCudaDeviceCount, pCudaDevices, cudaDeviceCount, deviceList)
+end
