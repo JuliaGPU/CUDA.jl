@@ -30,7 +30,7 @@ const configure_lock = ReentrantLock()
                 __configure__()
                 configured[] = 1
                 __runtime_init__()
-            catch
+            catch ex
                 show_reason && @error("Error during initialization of CUDA.jl", exception=(ex,catch_backtrace()))
                 configured[] = 0
             end
