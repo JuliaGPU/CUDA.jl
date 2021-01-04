@@ -37,11 +37,7 @@ or higher, and an accompanying NVIDIA driver with support for **CUDA 10.1** or n
 requirements are not enforced by the Julia package manager when installing CUDA.jl.
 Depending on your system and GPU, you may need to install an older version of the package.
 
-You can print the compute capability for all of your GPUS by running the following in Julia:
-```julia
-julia> [CUDA.capability(dev) for dev in CUDA.devices()]
-```
-
+You can view the compute capabilities of your devices, as well as the supported CUDA versions, by running `CUDA.versioninfo()`.
 
 ## Quick start
 
