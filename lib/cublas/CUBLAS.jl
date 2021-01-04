@@ -18,6 +18,7 @@ using CEnum
 include("libcublas_common.jl")
 include("error.jl")
 include("libcublas.jl")
+include("libcublas_deprecated.jl")
 
 # low-level wrappers
 include("util.jl")
