@@ -70,7 +70,7 @@ visible to those threads in the warp. The default value for `mask` selects all t
 the warp.
 
 !!! note
-   Requires CUDA >= 9.0 and sm_6.2
+    Requires CUDA >= 9.0 and sm_6.2
 """
 @inline function sync_warp(mask::Integer=0xffffffff)
     @asmcall("bar.warp.sync \$0;", "r", true,
