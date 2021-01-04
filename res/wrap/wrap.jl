@@ -7,7 +7,7 @@
 
 using Clang
 
-function wrap(name, headers...; wrapped_headers=headers, library="lib$name()", defines=[], include_dirs=[])
+function wrap(name, headers...; wrapped_headers=headers, library="lib$name", defines=[], include_dirs=[])
     clang_args = String[]
     append!(clang_args, map(dir->"-I$dir", include_dirs))
     for define in defines
