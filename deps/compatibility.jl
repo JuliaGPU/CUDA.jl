@@ -191,13 +191,6 @@ function llvm_compat(version=LLVM.version())
 end
 
 function cuda_compat(driver_release=release(), toolkit_release=toolkit_release())
-    # the toolkit version as reported contains major.minor.patch,
-    # but the version number returned by libcuda is only major.minor.
-    if toolkit_release > driver_release
-        @warn("""CUDA $toolkit_release is not supported by
-                 your driver (which supports up to $driver_release)""")
-    end
-
     driver_cap_support = cuda_cap_support(driver_release)
     toolkit_cap_support = cuda_cap_support(toolkit_release)
     cap_support = sort(collect(driver_cap_support ∩ toolkit_cap_support))
