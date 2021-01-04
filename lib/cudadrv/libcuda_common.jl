@@ -1217,6 +1217,25 @@ end
 
 const CUgraphExecUpdateResult = CUgraphExecUpdateResult_enum
 
+# Skipping MacroDefinition: cuGLMapBufferObject __CUDA_API_PTDS ( cuGLMapBufferObject_v2 )
+# Skipping MacroDefinition: cuGLMapBufferObjectAsync __CUDA_API_PTSZ ( cuGLMapBufferObjectAsync_v2 )
+
+@cenum CUGLDeviceList_enum::UInt32 begin
+    CU_GL_DEVICE_LIST_ALL = 1
+    CU_GL_DEVICE_LIST_CURRENT_FRAME = 2
+    CU_GL_DEVICE_LIST_NEXT_FRAME = 3
+end
+
+const CUGLDeviceList = CUGLDeviceList_enum
+
+@cenum CUGLmap_flags_enum::UInt32 begin
+    CU_GL_MAP_RESOURCE_FLAGS_NONE = 0
+    CU_GL_MAP_RESOURCE_FLAGS_READ_ONLY = 1
+    CU_GL_MAP_RESOURCE_FLAGS_WRITE_DISCARD = 2
+end
+
+const CUGLmap_flags = CUGLmap_flags_enum
+
 @cenum CUoutput_mode_enum::UInt32 begin
     CU_OUT_KEY_VALUE_PAIR = 0
     CU_OUT_CSV = 1
