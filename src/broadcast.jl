@@ -25,7 +25,7 @@ Broadcast.broadcasted(::CuArrayStyle{N}, f, args...) where {N} =
 
 const device_intrinsics = :[
   cos, cospi, sin, sinpi, tan, acos, asin, atan,
-  cosh, sinh, tanh, acosh, asinh, atanh,
+  cosh, sinh, tanh, acosh, asinh, atanh, angle,
   log, log10, log1p, log2, logb, ilogb,
   exp, exp2, exp10, expm1, ldexp,
   erf, erfinv, erfc, erfcinv, erfcx,
