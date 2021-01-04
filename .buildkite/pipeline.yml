@@ -3,8 +3,8 @@ steps:
 
   - label: "Julia 1.6"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3:
           test_args: "--quickfail"
       - JuliaCI/julia-coverage#v0.3:
@@ -23,8 +23,8 @@ steps:
 
   - label: "Julia 1.6 (debug)"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3:
           julia_args: "-g2"
           test_args: "--memcheck"
@@ -52,8 +52,8 @@ steps:
 
   - label: "CUDA 11.1"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
@@ -74,8 +74,8 @@ steps:
 
   - label: "CUDA 11.0"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
@@ -96,8 +96,8 @@ steps:
 
   - label: "CUDA 10.2"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
@@ -118,8 +118,8 @@ steps:
 
   - label: "CUDA 10.1"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3:
           test_args: "--thorough"
       - JuliaCI/julia-coverage#v0.3:
@@ -143,8 +143,8 @@ steps:
 
   - label: "No memory pool"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -162,8 +162,8 @@ steps:
 
   - label: "Simple memory pool"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -181,8 +181,8 @@ steps:
 
   - label: "Split memory pool"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
       - JuliaCI/julia-test#v0.3: ~
       - JuliaCI/julia-coverage#v0.3:
           codecov: true
@@ -205,8 +205,8 @@ steps:
 
   - label: "Benchmarks"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
     env:
       CODESPEED_PROJECT: "$BUILDKITE_PIPELINE_NAME"
       CODESPEED_BRANCH: "$BUILDKITE_BRANCH"
@@ -233,8 +233,8 @@ steps:
 
   - label: "Documentation"
     plugins:
-      - JuliaCI/julia#v0.5:
-          version: nightly
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
     command: |
       julia --project -e '
         println("--- :julia: Instantiating project")
