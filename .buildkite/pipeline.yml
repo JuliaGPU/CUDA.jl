@@ -50,6 +50,26 @@ steps:
     # NOTE: we make sure to run all tests on CUDA versions that have CUDNN & CUTENSOR
     #       by using the --thorough flag to the test runner, and using a recent GPU.
 
+  - label: "CUDA 11.2"
+    plugins:
+      - JuliaCI/julia#v0.6:
+          version: 1.6-nightly
+      - JuliaCI/julia-test#v0.3: ~
+      - JuliaCI/julia-coverage#v0.3:
+          codecov: true
+          dirs:
+            - src
+            - lib
+            - examples
+    agents:
+      queue: "juliagpu"
+      cuda: "11.2"
+    env:
+      JULIA_CUDA_VERSION: '11.2'
+      JULIA_CUDA_USE_BINARYBUILDER: 'true'
+    if: build.message !~ /\[skip tests\]/
+    timeout_in_minutes: 60
+
   - label: "CUDA 11.1"
     plugins:
       - JuliaCI/julia#v0.6:
