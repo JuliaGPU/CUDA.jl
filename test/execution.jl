@@ -8,18 +8,6 @@ dummy() = return
 @test_throws MethodError @cuda dummy(1)
 
 
-@testset "low-level interface" begin
-    k = cufunction(dummy)
-    k()
-    k(; threads=1)
-
-    CUDA.version(k)
-    CUDA.memory(k)
-    CUDA.registers(k)
-    CUDA.maxthreads(k)
-end
-
-
 @testset "launch configuration" begin
     @cuda dummy()
 
@@ -30,11 +18,18 @@ end
     @cuda blocks=1 dummy()
     @cuda blocks=(1,1) dummy()
     @cuda blocks=(1,1,1) dummy()
+end
 
-    @cuda config=(kernel)->() dummy()
-    @cuda config=(kernel)->(threads=1,) dummy()
-    @cuda config=(kernel)->(blocks=1,) dummy()
-    @cuda config=(kernel)->(shmem=0,) dummy()
+
+@testset "launch=false" begin
+    k = @cuda launch=false dummy()
+    k()
+    k(; threads=1)
+
+    CUDA.version(k)
+    CUDA.memory(k)
+    CUDA.registers(k)
+    CUDA.maxthreads(k)
 end
 
 
@@ -43,6 +38,17 @@ end
 
     memcheck || @test_throws CuError @cuda threads=2 maxthreads=1 dummy()
     @cuda threads=2 dummy()
+end
+
+
+@testset "inference" begin
+    foo() = @cuda dummy()
+    @inferred foo()
+
+    # with arguments, we call cudaconvert
+    kernel(a) = return
+    bar(a) = @cuda kernel(a)
+    @inferred bar(CuArray([1]))
 end
 
 
@@ -151,8 +157,7 @@ end
     end
 
     _, out = @grab_output begin
-        @cuda kernel(1, 2, 3)
-        synchronize()
+        CUDA.@sync @cuda kernel(1, 2, 3)
     end
     @test out == "2"
 end
@@ -800,8 +805,7 @@ end
     end
 
     _, out = @grab_output begin
-        @cuda hello()
-        synchronize()
+        CUDA.@sync @cuda hello()
     end
     @test out == "Hello, World!"
 end
@@ -815,8 +819,7 @@ end
     end
 
     _, out = @grab_output begin
-        @cuda hello()
-        synchronize()
+        CUDA.@sync @cuda hello()
     end
     @test out == "Hello, World!"
 end
@@ -832,8 +835,7 @@ if VERSION >= v"1.1" # behavior of captured variables (box or not) has improved 
     end
 
     _, out = @grab_output begin
-        @cuda hello()
-        synchronize()
+        CUDA.@sync @cuda hello()
     end
     @test out == "Hello, World 1!"
 end
@@ -852,8 +854,7 @@ end
                  (Int64(1), Int32(2), Int16(3)),    # no padding, inequal size
                  (Int16(1), Int64(2), Int32(3)))    # mixed
         _, out = @grab_output begin
-            @cuda kernel(args...)
-            synchronize()
+            CUDA.@sync @cuda kernel(args...)
         end
         @test out == "1 2 3"
     end
@@ -888,8 +889,7 @@ end
     end
 
     _, out = @grab_output begin
-        @cuda kernel(true)
-        synchronize()
+        CUDA.@sync @cuda kernel(true)
     end
     @test out == "recurse stop"
 end
@@ -919,8 +919,7 @@ end
     end
 
     _, out = @grab_output begin
-        @cuda kernel_a(true)
-        synchronize()
+        CUDA.@sync @cuda kernel_a(true)
     end
     @test out == "a b c recurse a b c stop"
 end
@@ -940,8 +939,7 @@ end
     end
 
     _, out = @grab_output begin
-        @cuda hello()
-        synchronize()
+        CUDA.@sync @cuda hello()
     end
     @test out == "Hello, World!"
 end

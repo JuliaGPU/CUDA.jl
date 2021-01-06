@@ -15,32 +15,13 @@ managed automatically using `cudaconvert`. Finally, a call to `cudacall` is
 performed, scheduling a kernel launch on the current CUDA context.
 
 Several keyword arguments are supported that influence the behavior of `@cuda`.
-- `dynamic`: use dynamic parallelism to launch device-side kernels
+- `launch`: whether to launch this kernel, defaults to `true`. If `false` the returned
+  kernel object should be launched by calling it and passing arguments again.
+- `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
 - arguments that influence kernel launch: see [`CUDA.HostKernel`](@ref) and
   [`CUDA.DeviceKernel`](@ref)
-
-The underlying operations (argument conversion, kernel compilation, kernel call) can be
-performed explicitly when more control is needed, e.g. to reflect on the resource usage of a
-kernel to determine the launch configuration. A host-side kernel launch is done as follows:
-
-    args = ...
-    GC.@preserve args begin
-        kernel_args = cudaconvert.(args)
-        kernel_tt = Tuple{Core.Typeof.(kernel_args)...}
-        kernel = cufunction(f, kernel_tt; compilation_kwargs)
-        kernel(kernel_args...; launch_kwargs)
-    end
-
-A device-side launch, aka. dynamic parallelism, is similar but more restricted:
-
-    args = ...
-    # GC.@preserve is not supported
-    # we're on the device already, so no need to cudaconvert
-    kernel_tt = Tuple{Core.Typeof(args[1]), ...}    # this needs to be fully inferred!
-    kernel = dynamic_cufunction(f, kernel_tt)       # no compiler kwargs supported
-    kernel(args...; launch_kwargs)
 """
 macro cuda(ex...)
     # destructure the `@cuda` expression
@@ -58,7 +39,7 @@ macro cuda(ex...)
     # group keyword argument
     macro_kwargs, compiler_kwargs, call_kwargs, other_kwargs =
         split_kwargs(kwargs,
-                     [:dynamic],
+                     [:dynamic, :launch],
                      [:minthreads, :maxthreads, :blocks_per_sm, :maxregs, :name],
                      [:cooperative, :blocks, :threads, :config, :shmem, :stream])
     if !isempty(other_kwargs)
@@ -68,14 +49,21 @@ macro cuda(ex...)
 
     # handle keyword arguments that influence the macro's behavior
     dynamic = false
+    launch = true
     for kwarg in macro_kwargs
         key,val = kwarg.args
         if key == :dynamic
             isa(val, Bool) || throw(ArgumentError("`dynamic` keyword argument to @cuda should be a constant value"))
             dynamic = val::Bool
+        elseif key == :launch
+            isa(val, Bool) || throw(ArgumentError("`launch` keyword argument to @cuda should be a constant value"))
+            launch = val::Bool
         else
             throw(ArgumentError("Unsupported keyword argument '$key'"))
         end
+    end
+    if !launch && !isempty(call_kwargs)
+        error("@cuda with launch=false does not support launch-time keyword arguments; use them when calling the kernel")
     end
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
@@ -94,7 +82,10 @@ macro cuda(ex...)
                 local $kernel_args = ($(var_exprs...),)
                 local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                 local $kernel = $dynamic_cufunction($f, $kernel_tt)
-                $kernel($kernel_args...; $(call_kwargs...))
+                if $launch
+                    $kernel($kernel_args...; $(call_kwargs...))
+                end
+                $kernel
              end)
     else
         # regular, host-side kernel launch
@@ -107,7 +98,10 @@ macro cuda(ex...)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
                     local $kernel = $cufunction($f, $kernel_tt; $(compiler_kwargs...))
-                    $kernel($kernel_args...; $(call_kwargs...))
+                    if $launch
+                        $kernel($(var_exprs...); $(call_kwargs...))
+                    end
+                    $kernel
                 end
              end)
     end
@@ -161,9 +155,6 @@ The following keyword arguments are supported:
 - `threads` (defaults to 1)
 - `blocks` (defaults to 1)
 - `shmem` (defaults to 0)
-- `config`: callback function to dynamically compute the launch configuration.
-  should accept a `HostKernel` and return a name tuple with any of the above as fields.
-  this functionality is intended to be used in combination with the CUDA occupancy API.
 - `stream` (defaults to the default stream)
 """
 AbstractKernel
@@ -214,6 +205,7 @@ end
 
 @inline function cudacall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
     if config !== nothing
+        Base.depwarn("cudacall with config argument is deprecated, use `@cuda launch=false` and instrospect the returned kernel instead", :cudacall)
         cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
     else
         cudacall(kernel.fun, tt, args...; kwargs...)
@@ -350,7 +342,7 @@ function cufunction_link(@nospecialize(source::FunctionSpec),
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
-(kernel::HostKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
+(kernel::HostKernel)(args...; kwargs...) = call(kernel, map(cudaconvert, args)...; kwargs...)
 
 
 ## device-side kernels

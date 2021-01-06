@@ -37,6 +37,7 @@ end
 #       trampolines as used by `@cfunction` (JuliaLang/julia#27174, JuliaLang/julia#32154)
 _shmem_cb = nothing
 _shmem_cint_cb(x::Cint) = Cint(something(_shmem_cb)(x))
+_shmem_cb_lock = Threads.ReentrantLock()
 
 """
     launch_configuration(fun::CuFunction; shmem=0, max_threads=0)
@@ -58,14 +59,19 @@ function launch_configuration(fun::CuFunction; shmem::Union{Integer,Base.Callabl
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, C_NULL, shmem, max_threads)
     elseif Sys.ARCH == :x86 || Sys.ARCH == :x86_64
         shmem_cint = threads -> Cint(shmem(threads))
-        cb = @cfunction($shmem_cint, Cint, (Cint,))
+        # `@cfunction` needs a lock currently, https://github.com/JuliaLang/julia/issues/38709
+        cb = lock(_shmem_cb_lock) do
+            @cfunction($shmem_cint, Cint, (Cint,))
+        end
         cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
     else
-        global _shmem_cb
-        _shmem_cb = shmem
-        cb = @cfunction(_shmem_cint_cb, Cint, (Cint,))
-        cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
-        _shmem_cb = nothing
+        lock(_shmem_cb_lock) do 
+            global _shmem_cb
+            _shmem_cb = shmem
+            cb = @cfunction(_shmem_cint_cb, Cint, (Cint,))
+            cuOccupancyMaxPotentialBlockSize(blocks_ref, threads_ref, fun, cb, 0, max_threads)
+            _shmem_cb = nothing
+        end
     end
     return (blocks=Int(blocks_ref[]), threads=Int(threads_ref[]))
 end

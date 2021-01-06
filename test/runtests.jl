@@ -4,7 +4,6 @@ import REPL
 using Printf: @sprintf
 
 # parse some command-line arguments
-const cli_args = vcat(ARGS, split(get(ENV, "JULIA_CUDA_TEST_ARGS", "")))
 function extract_flag!(args, flag, default=nothing)
     for f in args
         if startswith(f, flag)
@@ -25,27 +24,27 @@ function extract_flag!(args, flag, default=nothing)
     end
     return (false, default)
 end
-do_help, _ = extract_flag!(cli_args, "--help")
+do_help, _ = extract_flag!(ARGS, "--help")
 if do_help
     println("""
         Usage: runtests.jl [--help] [--list] [--jobs=N] [TESTS...]
 
                --help             Show this text.
                --list             List all available tests.
+               --quickfail        Fail the entire run as soon as a single test errored.
                --jobs=N           Launch `N` processes to perform tests (default: Threads.nthreads()).
                --gpus=N           Expose `N` GPUs to test processes (default: 1).
                --memcheck[=tool]  Run the tests under `cuda-memcheck`.
                --snoop=FILE       Snoop on compiled methods and save to `FILE`.
 
-               Remaining arguments filter the tests that will be executed.
-               This list of tests, and all other options, can also be specified using the
-               JULIA_CUDA_TEST_ARGS environment variable (e.g., for use with Pkg.test).""")
+               Remaining arguments filter the tests that will be executed.""")
     exit(0)
 end
-_, jobs = extract_flag!(cli_args, "--jobs", Threads.nthreads())
-_, gpus = extract_flag!(cli_args, "--gpus", 1)
-do_memcheck, memcheck_tool = extract_flag!(cli_args, "--memcheck", "memcheck")
-do_snoop, snoop_path = extract_flag!(cli_args, "--snoop")
+_, jobs = extract_flag!(ARGS, "--jobs", Threads.nthreads())
+_, gpus = extract_flag!(ARGS, "--gpus", 1)
+do_memcheck, memcheck_tool = extract_flag!(ARGS, "--memcheck", "memcheck")
+do_snoop, snoop_path = extract_flag!(ARGS, "--snoop")
+do_quickfail, _ = extract_flag!(ARGS, "--quickfail")
 
 include("setup.jl")     # make sure everything is precompiled
 
@@ -87,7 +86,7 @@ unique!(tests)
 
 # parse some more command-line arguments
 ## --list to list all available tests
-do_list, _ = extract_flag!(cli_args, "--list")
+do_list, _ = extract_flag!(ARGS, "--list")
 if do_list
     println("Available tests:")
     for test in sort(tests)
@@ -96,16 +95,9 @@ if do_list
     exit(0)
 end
 ## the remaining args filter tests
-if !isempty(cli_args)
+if !isempty(ARGS)
   filter!(tests) do test
-    any(arg->startswith(test, arg), cli_args)
-  end
-end
-## same for an environment-variable
-if haskey(ENV, "JULIA_CUDA_RUNTESTS")
-  args = split(ENV["JULIA_CUDA_RUNTESTS"], ",")
-  filter!(tests) do test
-    any(arg->startswith(test, arg), args)
+    any(arg->startswith(test, arg), ARGS)
   end
 end
 
@@ -316,9 +308,9 @@ all_tasks = Task[]
 try
     # Monitor stdin and kill this task on ^C
     # but don't do this on Windows, because it may deadlock in the kernel
+    t = current_task()
     running_tests = Dict{String, DateTime}()
     if !Sys.iswindows() && isa(stdin, Base.TTY)
-        t = current_task()
         stdin_monitor = @async begin
             term = REPL.Terminals.TTYTerminal("xterm", stdin, stdout, stderr)
             try
@@ -371,6 +363,7 @@ try
                     # act on the results
                     if resp[1] isa Exception
                         print_testworker_errored(test, wrkr)
+                        do_quickfail && Base.throwto(t, InterruptException())
 
                         # the worker encountered some failure, recycle it
                         # so future tests get a fresh environment
@@ -409,7 +402,15 @@ catch e
                 @error "InterruptException" exception=ex,catch_backtrace()
             end
         end, all_tasks)
-    foreach(wait, all_tasks)
+    for t in all_tasks
+        # NOTE: we can't just wait, but need to discard the exception,
+        #       because the throwto for --quickfail also kills the worker.
+        try
+            wait(t)
+        catch e
+            showerror(stderr, e)
+        end
+    end
 finally
     if @isdefined stdin_monitor
         schedule(stdin_monitor, InterruptException(); error=true)

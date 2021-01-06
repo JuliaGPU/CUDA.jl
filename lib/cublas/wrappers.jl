@@ -763,6 +763,7 @@ function gemmExComputeType(TA, TB, TC, m, k, n)
     end
 
     if m%4 == 0 && n%4 == 0 && k%4 == 0 && sig === (Int8, Int32)
+        CUDA.version() >= v"11.2" && return nothing # NVIDIA bug #3221266
         # Int32=Int8*Int8 requires m,n,k to be multiples of 4
         # https://forums.developer.nvidia.com/t/cublasgemmex-cant-use-cuda-r-8i-compute-type-on-gtx1080/58100/2
         return math_mode==CUDA.PEDANTIC_MATH ? CUBLAS_COMPUTE_32I_PEDANTIC : CUBLAS_COMPUTE_32I
@@ -1645,6 +1646,16 @@ for (fname, elty) in ((:cublasDdgmm,:Float64),
 end
 
 # cublasXT
+
+# NOTE: cuBLASXt is a blocking API
+# > the cuBLASXt API is still a blocking API from the Host point of view:
+# > the data results wherever located will be valid on the call return
+# > and no device synchronization is required.
+#
+# HOWEVER: it does not operate with familiar stream semantics, so
+# we need to make sure data is available _before_ calling the API.
+# this matters most for the tests, but also for allocating methods.
+
 for (fname, elty) in
         ((:cublasXtSgemm,:Float32),
          (:cublasXtDgemm,:Float64),
@@ -1970,7 +1981,8 @@ for (mmname, smname, elty) in
                       alpha::Number,
                       A::Union{CuMatrix{$elty}, Matrix{$elty}},
                       B::Union{CuMatrix{$elty}, Matrix{$elty}})
-            xt_trsm!(side, uplo, transa, diag, alpha, A, copy(B))
+            # TODO: better way to perform synchronous copy
+            xt_trsm!(side, uplo, transa, diag, alpha, A, @sync(copy(B)))
         end
     end
 end

@@ -26,7 +26,15 @@ end
 function fetch_all(texture)
     dims = size(texture)
     d_out = CuArray{eltype(texture)}(undef, dims...)
-    @cuda threads = dims kernel_texture_warp_native(d_out, texture)
+
+    kernel = @cuda launch=false kernel_texture_warp_native(d_out, texture)
+    config = launch_configuration(kernel.fun)
+
+    dim_x, dim_y, dim_z = size(texture, 1), size(texture, 2), size(texture, 3)
+    threads_x = Base.min(dim_x, config.threads)
+    blocks_x = cld(dim_x, threads_x)
+
+    kernel(d_out, texture; threads=threads_x, blocks=(blocks_x, dim_y, dim_z))
     d_out
 end
 
