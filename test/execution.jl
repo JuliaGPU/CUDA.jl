@@ -453,6 +453,18 @@ end
         @test Array(out_dev) ≈ [2]
     end
 
+    # convert captured variables
+    out_dev = CuArray(out)
+    let arg = Host()
+        @test Array(out_dev) ≈ [0]
+        function kernel(out)
+            out[] = convert(Int, arg)
+            return
+        end
+        @cuda kernel(out_dev)
+        @test Array(out_dev) ≈ [2]
+    end
+
     # convert tuples
     out_dev = CuArray(out)
     let arg = (Host(),)
