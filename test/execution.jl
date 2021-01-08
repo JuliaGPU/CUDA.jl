@@ -430,6 +430,24 @@ end
     @test Array(a_dev) ≈ [2.]
 end
 
+@testset "closure as arguments" begin
+    function kernel(closure)
+        closure()
+        return
+    end
+    function outer(a_dev, val)
+        f() = a_dev[] = val
+        @cuda kernel(f)
+    end
+
+    a = [1.]
+    a_dev = CuArray(a)
+
+    outer(a_dev, 2.)
+
+    @test Array(a_dev) ≈ [2.]
+end
+
 @testset "conversions" begin
     @eval struct Host   end
     @eval struct Device end
