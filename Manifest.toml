@@ -8,9 +8,9 @@ version = "0.5.0"
 
 [[Adapt]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "42c42f2221906892ceb765dbcb1a51deeffd86d7"
+git-tree-sha1 = "27edd95a09fd428113ca019c092e8aeca2eb1f2d"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "2.3.0"
+version = "3.0.0"
 
 [[ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -32,11 +32,17 @@ git-tree-sha1 = "215a9aa4a1f23fbd05b92769fdd62559488d70e9"
 uuid = "fa961155-64e5-5f13-b03f-caf6b980ea82"
 version = "0.4.1"
 
+[[ChainRulesCore]]
+deps = ["LinearAlgebra", "MuladdMacro", "SparseArrays"]
+git-tree-sha1 = "15081c431bb25848ad9b0d172a65794f3a3e197a"
+uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+version = "0.9.24"
+
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "a706ff10f1cd8dab94f59fd09c0e657db8e77ff0"
+git-tree-sha1 = "919c7f3151e79ff196add81d7f4e45d91bbf420b"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "3.23.0"
+version = "3.25.0"
 
 [[CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -71,15 +77,15 @@ version = "0.1.3"
 
 [[GPUArrays]]
 deps = ["AbstractFFTs", "Adapt", "LinearAlgebra", "Printf", "Random", "Serialization"]
-git-tree-sha1 = "2c1dd57bca7ba0b3b4bf81d9332aeb81b154ef4c"
+git-tree-sha1 = "f99a25fe0313121f2f9627002734c7d63b4dd3bd"
 uuid = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
-version = "6.1.2"
+version = "6.2.0"
 
 [[GPUCompiler]]
 deps = ["DataStructures", "InteractiveUtils", "LLVM", "Libdl", "Logging", "Scratch", "Serialization", "TimerOutputs", "UUIDs"]
-git-tree-sha1 = "e282a914b54455dfc26be049a3911ac0d9ff48a3"
+git-tree-sha1 = "6ab1bc883bc13919c25acc0fe0dea707f61ae39c"
 uuid = "61eb1bfa-7361-4325-ad38-22787b887f55"
-version = "0.9.0"
+version = "0.9.1"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -87,9 +93,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[LLVM]]
 deps = ["CEnum", "Libdl", "Printf", "Unicode"]
-git-tree-sha1 = "a2101830a761d592b113129887fda626387f68d4"
+git-tree-sha1 = "d0d99629d6ae4a3e211ae83d8870907bd842c811"
 uuid = "929cbde3-209d-540e-8aea-75f648917ca0"
-version = "3.5.1"
+version = "3.5.2"
 
 [[LazyArtifacts]]
 deps = ["Artifacts", "Pkg"]
@@ -141,11 +147,16 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 [[MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 
+[[MuladdMacro]]
+git-tree-sha1 = "c6190f9a7fc5d9d5915ab29f2134421b12d24a68"
+uuid = "46d2c3a1-f734-5fdb-9937-b9b9aeba4221"
+version = "0.2.2"
+
 [[NNlib]]
-deps = ["Compat", "Libdl", "LinearAlgebra", "Pkg", "Requires", "Statistics"]
-git-tree-sha1 = "1ae42464fea5258fd2ff49f1c4a40fc41cba3860"
+deps = ["ChainRulesCore", "LinearAlgebra", "Pkg", "Requires", "Statistics"]
+git-tree-sha1 = "13fd29731c7f609cb82a3a544c5538584d22c153"
 uuid = "872c559c-99b0-510c-b3b7-b6c96a88d5cd"
-version = "0.7.7"
+version = "0.7.11"
 
 [[NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -179,9 +190,9 @@ version = "0.2.0"
 
 [[Requires]]
 deps = ["UUIDs"]
-git-tree-sha1 = "e05c53ebc86933601d36212a93b39144a2733493"
+git-tree-sha1 = "cfbac6c1ed70c002ec6361e7fd334f02820d6419"
 uuid = "ae029012-a4dd-5104-9daa-d747884805df"
-version = "1.1.1"
+version = "1.1.2"
 
 [[SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
