@@ -98,7 +98,7 @@ macro cuda(ex...)
                     local $kernel_f = $cudaconvert($f)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
+                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))::$HostKernel{$kernel_f,$kernel_tt}
                     if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end
@@ -140,10 +140,6 @@ cudaconvert(arg) = adapt(Adaptor(), arg)
 
 ## abstract kernel functionality
 
-abstract type AbstractKernel{F,TT} end
-
-# FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
-#        so attach it to the type -- https://github.com/JuliaDocs/Documenter.jl/issues/558
 
 """
     (::HostKernel)(args...; kwargs...)
@@ -158,7 +154,10 @@ The following keyword arguments are supported:
 - `shmem` (defaults to 0)
 - `stream` (defaults to the default stream)
 """
-AbstractKernel
+abstract type AbstractKernel{F,TT} end
+
+# FIXME: there doesn't seem to be a way to access the documentation for the call-syntax,
+#        so attach it to the type -- https://github.com/JuliaDocs/Documenter.jl/issues/558
 
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
     sig = Base.signature_type(F, TT)
@@ -261,6 +260,15 @@ function maxthreads(k::HostKernel)
 end
 
 
+## host-side device functions
+
+struct DeviceFunction{F,TT}
+    ctx::CuContext
+    mod::CuModule
+    fun::CuPtr{Cvoid}
+end
+
+
 ## host-side API
 
 """
@@ -282,13 +290,13 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; name=nothing, kwargs...) where
+function cufunction(f::F, tt::TT=Tuple{}; kernel=true, name=nothing, kwargs...) where
                    {F<:Core.Function, TT<:Type}
     dev = device()
     cache = cufunction_cache[dev]
-    source = FunctionSpec(f, tt, true, name)
+    source = FunctionSpec(f, tt, kernel, name)
     return GPUCompiler.cached_compilation(cache, cufunction_compile, cufunction_link,
-                                          source; kwargs...)::HostKernel{f,tt}
+                                          source; kwargs...)
 end
 
 const cufunction_cache = PerDevice{Dict{UInt, Any}}((dev)->Dict{UInt, Any}())
@@ -334,12 +342,16 @@ function cufunction_link(@nospecialize(source::FunctionSpec),
 
     # JIT into an executable kernel object
     mod = CuModule(image, jit_options)
-    fun = CuFunction(mod, kernel_fn)
-    kernel = HostKernel{source.f,source.tt}(ctx, mod, fun)
-
     create_exceptions!(mod)
 
-    return kernel
+    # create a Julia object
+    if source.kernel
+        fun = CuFunction(mod, kernel_fn)
+        return HostKernel{source.f,source.tt}(ctx, mod, fun)
+    else
+        gv = CuGlobal{CuPtr{Cvoid}}(mod, kernel_fn * "_slot")
+        return DeviceFunction{source.f,source.tt}(ctx, mod, gv[])
+    end
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
