@@ -3,6 +3,7 @@ name: ManifestUpdater
 on:
   schedule:
     - cron: '0 0 * * 1'
+  workflow_dispatch:
 
 jobs:
   ManifestUpdater:
@@ -15,9 +16,10 @@ jobs:
         run : |
           version=$(grep '^julia = ' Project.toml | grep -o '".*"' | cut -d '"' -f2)
           echo "::set-output name=version::$version"
-      - uses: julia-actions/setup-julia@latest
+      - uses: julia-actions/setup-julia@v1
         with:
-          version: ${{ steps.julia_compat.outputs.version }}
+          # version: ${{ steps.julia_compat.outputs.version }}
+          version: "1.6-nightly"
       - name: Update packages
         id: pkg_update
         run: |
