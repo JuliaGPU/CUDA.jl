@@ -98,7 +98,7 @@ macro cuda(ex...)
                     local $kernel_f = $cudaconvert($f)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))::$Kernel{$kernel_f,$kernel_tt}
+                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))::$Kernel{typeof($kernel_f),$kernel_tt}
                     if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end
@@ -160,8 +160,8 @@ abstract type AbstractKernel{F,TT} end
 #        so attach it to the type -- https://github.com/JuliaDocs/Documenter.jl/issues/558
 
 @generated function call(kernel::AbstractKernel{F,TT}, args...; call_kwargs...) where {F,TT}
-    sig = Base.signature_type(F, TT)
-    args = (:F, (:( args[$i] ) for i in 1:length(args))...)
+    sig = Tuple{F, TT.parameters...}    # Base.signature_type with a function type
+    args = (:(kernel.f), (:( args[$i] ) for i in 1:length(args))...)
 
     # filter out arguments that shouldn't be passed
     predicate = if VERSION >= v"1.5.0-DEV.581"
@@ -196,12 +196,14 @@ end
 ## device functions and kernels
 
 struct DeviceFunction{F,TT}
+    f::F
     ctx::CuContext
     mod::CuModule
     fun::CuPtr{Cvoid}
 end
 
 struct Kernel{F,TT} <: AbstractKernel{F,TT}
+    f::F
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
@@ -287,11 +289,11 @@ The output of this function is automatically cached, i.e. you can simply call `c
 in a hot path without degrading performance. New code will be generated automatically, when
 when function changes, or when different types or keyword arguments are provided.
 """
-function cufunction(f::F, tt::TT=Tuple{}; kernel=true, name=nothing, kwargs...) where
-                   {F<:Core.Function, TT<:Type}
+function cufunction(f::F, tt::Type=Tuple{}; kernel=true, name=nothing, kwargs...) where
+                   {F<:Function}
     dev = device()
     cache = cufunction_cache[dev]
-    source = FunctionSpec(f, tt, kernel, name)
+    source = FunctionSpec(f, tt, kernel, name)  # TODO: typeof(f)/F
     return GPUCompiler.cached_compilation(cache, cufunction_compile, cufunction_link,
                                           source; kwargs...)
 end
@@ -344,10 +346,10 @@ function cufunction_link(@nospecialize(source::FunctionSpec),
     # create a Julia object
     if source.kernel
         fun = CuFunction(mod, kernel_fn)
-        return Kernel{source.f,source.tt}(ctx, mod, fun)
+        return Kernel{typeof(source.f),source.tt}(source.f, ctx, mod, fun)
     else
         gv = CuGlobal{CuPtr{Cvoid}}(mod, kernel_fn * "_slot")
-        return DeviceFunction{source.f,source.tt}(ctx, mod, gv[])
+        return DeviceFunction{typeof(source.f),source.tt}(source.f, ctx, mod, gv[])
     end
 end
 
@@ -358,6 +360,7 @@ end
 ## device-side kernels
 
 struct DynamicKernel{F,TT} <: AbstractKernel{F,TT}
+    f::F
     fun::Ptr{Cvoid}
 end
 
@@ -407,9 +410,9 @@ a callable kernel object. Device-side equivalent of [`CUDA.cufunction`](@ref).
 
 No keyword arguments are supported.
 """
-@inline function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
+@inline function dynamic_cufunction(f::F, tt::Type=Tuple{}) where {F<:Function}
     fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
-    DynamicKernel{f,tt}(fptr)
+    DynamicKernel{F,tt}(f, fptr)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
