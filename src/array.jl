@@ -314,11 +314,10 @@ function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T},
   return dest
 end
 
-function Base.deepcopy_internal(x::CuArray, dict::IdDict)
-  haskey(dict, x) && return dict[x]::typeof(x)
+function Base.deepcopy(x::CuArray) # define deepcopy rather than deepcopy_internal to avoid invalidations in Base
+  dict = IdDict()
   return dict[x] = copy(x)
 end
-
 
 ## Float32-preferring conversion
 
