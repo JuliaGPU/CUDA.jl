@@ -68,7 +68,7 @@ macro cuda(ex...)
 
     # FIXME: macro hygiene wrt. escaping kwarg values (this broke with 1.5)
     #        we esc() the whole thing now, necessitating gensyms...
-    @gensym kernel_args kernel_tt kernel
+    @gensym kernel_f kernel_args kernel_tt kernel
     if dynamic
         # FIXME: we could probably somehow support kwargs with constant values by either
         #        saving them in a global Dict here, or trying to pick them up from the Julia
@@ -90,14 +90,15 @@ macro cuda(ex...)
     else
         # regular, host-side kernel launch
         #
-        # convert the arguments, call the compiler and launch the kernel
+        # convert the function, its arguments, call the compiler and launch the kernel
         # while keeping the original arguments alive
         push!(code.args,
             quote
                 GC.@preserve $(vars...) begin
+                    local $kernel_f = $cudaconvert($f)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $cufunction($f, $kernel_tt; $(compiler_kwargs...))
+                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))
                     if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end
