@@ -59,8 +59,8 @@ end
 
 function pass(x, state, f = (x, state)->nothing)
     f(x, state)
-    if x.args isa Vector
-        for a in x.args
+    if length(x) > 0
+        for a in x
             pass(a, state, f)
         end
     else
@@ -100,17 +100,17 @@ checked_types = [
     "cutensorStatus_t",
 ]
 function insert_check_pass(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.FunctionDef
-        _, def, body, _ = x.args
-        @assert body isa CSTParser.EXPR && body.typ == CSTParser.Block
-        @assert length(body.args) == 1
+    if x isa CSTParser.EXPR && x.head == :function
+        _, def, body, _ = x
+        @assert body isa CSTParser.EXPR && body.head == :block
+        @assert length(body) == 1
 
         # Clang.jl-generated ccalls should be directly part of a function definition
         call = body.args[1]
-        @assert call isa CSTParser.EXPR && call.typ == CSTParser.Call && call.args[1].val == "ccall"
+        @assert call isa CSTParser.EXPR && call.head == :call && call[1].val == "ccall"
 
         # get the ccall return type
-        rv = call.args[5]
+        rv = call[5]
 
         if rv.val in checked_types
             push!(state.edits, Edit(state.offset, "@checked "))
@@ -192,13 +192,14 @@ ptsz_apicalls = String[
     "cuStreamSetAttribute",
 ]
 function rewrite_thread_semantics(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
-        fun = x.args[3].args[2].args[2].val
+    if x isa CSTParser.EXPR && x.head == :call && x[1].val == "ccall"
+        fun = x[3][2][2].val
         actual_fun = first(split(fun, '_'))    # strip tags
         offset = state.offset +
-                 sum(x->x.fullspan, x.args[1:2]) +
-                 sum(x->x.fullspan, x.args[3].args[1:1]) +
-                 sum(x->x.fullspan, x.args[3].args[2].args[1:1])
+                 x[1].fullspan +
+                 x[2].fullspan +
+                 x[3][1].fullspan +
+                 x[3][2][1].fullspan
 
         if in(actual_fun, ptds_apicalls)
             push!(state.edits, Edit(offset+length(fun), "_ptds"))
@@ -281,8 +282,8 @@ preinit_apicalls = Set{String}([
     "cutensorGetErrorString",
 ])
 function insert_init_pass(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Call && x.args[1].val == "ccall"
-        fun = x.args[3].args[2].args[2].val
+    if x isa CSTParser.EXPR && x.head == :call && x.args[1].val == "ccall"
+        fun = x[3][2][2].val
         actual_fun = first(split(fun, '_'))    # strip tags
 
         # call the API initializer
@@ -294,7 +295,7 @@ end
 
 # replace handles from the CUDA runtime library with CUDA driver API equivalents
 function rewrite_runtime_pass(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.IDENTIFIER && x.val == "cudaStream_t"
+    if x isa CSTParser.EXPR && x.head == :IDENTIFIER && x.val == "cudaStream_t"
         offset = state.offset
         push!(state.edits, Edit(offset+1:offset+x.span, "CUstream"))
     end
@@ -311,11 +312,11 @@ end
 cuda_version_alias(lhs, rhs) = occursin(Regex("$(lhs)_v\\d"), rhs)
 nvtx_string_alias(lhs, rhs) = occursin(Regex("$(lhs)(A|W|Ex)"), rhs)
 function remove_aliases_pass(x, state)
-    if x isa CSTParser.EXPR && x.typ == CSTParser.Const
-        @assert x.args[2].typ == CSTParser.BinaryOpCall
-        lhs, op, rhs = x.args[2].args
-        @assert op.typ == CSTParser.OPERATOR && op.kind == Tokenize.Tokens.EQ
-        if lhs.typ == CSTParser.IDENTIFIER && rhs.typ == CSTParser.IDENTIFIER &&
+    if x isa CSTParser.EXPR && x.head == :const
+        @assert x[2] isa CSTParser.EXPR
+        lhs, op, rhs = x[2]
+        @assert CSTParser.isoperator(op) && op.val == "="
+        if lhs.head == :IDENTIFIER && rhs.head == :IDENTIFIER &&
             (cuda_version_alias(lhs.val, rhs.val) || nvtx_string_alias(lhs.val, rhs.val))
             offset = state.offset
             push!(state.edits, Edit(offset+1:offset+x.span, ""))
@@ -334,18 +335,18 @@ function collect_function_definitions(file)
     ast = CSTParser.parse(text, true)
 
     definitions = Dict()
-    for x in ast.args
+    for x in ast
         fn = nothing
-        if x isa CSTParser.EXPR && x.typ == CSTParser.FunctionDef
-            _, def, body, _ = x.args
+        if x isa CSTParser.EXPR && x.head == :function
+            _, def, body, _ = x
             fn = def[1].val
-        elseif x isa CSTParser.EXPR && x.typ == CSTParser.MacroCall
-            m, y = x.args
-            if y isa CSTParser.EXPR && y.typ == CSTParser.FunctionDef
-                _, def, body, _ = y.args
+        elseif x isa CSTParser.EXPR && x.head === :macrocall
+            m, _, y = x
+            if y isa CSTParser.EXPR && y.head === :function
+                _, def, body, _ = y
                 fn = def[1].val
             end
-        elseif x isa CSTParser.EXPR && x.typ == CSTParser.LITERAL && x.args == nothing
+        elseif x isa CSTParser.EXPR && CSTParser.isliteral(x) && x.args === nothing
             # ignore
         else
             error("Unsupported global expression: $x")
@@ -367,7 +368,7 @@ end
 # Main application
 #
 
-using CUDA_full_jll, CUDNN_CUDA110_jll, CUTENSOR_CUDA110_jll
+using CUDA_full_jll, CUDNN_CUDA111_jll, CUTENSOR_CUDA111_jll
 
 function process(name, headers...; libname=name, kwargs...)
     new_output_file, new_common_file = wrap(libname, headers...; kwargs...)
@@ -490,8 +491,8 @@ end
 function main()
     cuda = joinpath(CUDA_full_jll.artifact_dir, "cuda", "include")
     cupti = joinpath(CUDA_full_jll.artifact_dir, "cuda", "extras", "CUPTI", "include")
-    cudnn = joinpath(CUDNN_CUDA110_jll.artifact_dir, "include")
-    cutensor = joinpath(CUTENSOR_CUDA110_jll.artifact_dir, "include")
+    cudnn = joinpath(CUDNN_CUDA111_jll.artifact_dir, "include")
+    cutensor = joinpath(CUTENSOR_CUDA111_jll.artifact_dir, "include")
 
     process("cudadrv", "$cuda/cuda.h","$cuda/cudaGL.h", "$cuda/cudaProfiler.h";
             include_dirs=[cuda], libname="cuda")
