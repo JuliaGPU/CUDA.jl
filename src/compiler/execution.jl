@@ -20,8 +20,8 @@ Several keyword arguments are supported that influence the behavior of `@cuda`.
 - `dynamic`: use dynamic parallelism to launch device-side kernels, defaults to `false`.
 - arguments that influence kernel compilation: see [`cufunction`](@ref) and
   [`dynamic_cufunction`](@ref)
-- arguments that influence kernel launch: see [`CUDA.HostKernel`](@ref) and
-  [`CUDA.DeviceKernel`](@ref)
+- arguments that influence kernel launch: see [`CUDA.Kernel`](@ref) and
+  [`CUDA.DynamicKernel`](@ref)
 """
 macro cuda(ex...)
     # destructure the `@cuda` expression
@@ -98,7 +98,7 @@ macro cuda(ex...)
                     local $kernel_f = $cudaconvert($f)
                     local $kernel_args = map($cudaconvert, ($(var_exprs...),))
                     local $kernel_tt = Tuple{map(Core.Typeof, $kernel_args)...}
-                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))::$HostKernel{$kernel_f,$kernel_tt}
+                    local $kernel = $cufunction($kernel_f, $kernel_tt; $(compiler_kwargs...))::$Kernel{$kernel_f,$kernel_tt}
                     if $launch
                         $kernel($(var_exprs...); $(call_kwargs...))
                     end
@@ -138,12 +138,12 @@ register methods for the the `CUDA.Adaptor` type.
 cudaconvert(arg) = adapt(Adaptor(), arg)
 
 
-## abstract kernel functionality
+## abstract functionality
 
 
 """
-    (::HostKernel)(args...; kwargs...)
-    (::DeviceKernel)(args...; kwargs...)
+    (::Kernel)(args...; kwargs...)
+    (::DynamicKernel)(args...; kwargs...)
 
 Low-level interface to call a compiled kernel, passing GPU-compatible arguments in `args`.
 For a higher-level interface, use [`@cuda`](@ref).
@@ -193,17 +193,23 @@ abstract type AbstractKernel{F,TT} end
 end
 
 
-## host-side kernels
+## device functions and kernels
 
-struct HostKernel{F,TT} <: AbstractKernel{F,TT}
+struct DeviceFunction{F,TT}
+    ctx::CuContext
+    mod::CuModule
+    fun::CuPtr{Cvoid}
+end
+
+struct Kernel{F,TT} <: AbstractKernel{F,TT}
     ctx::CuContext
     mod::CuModule
     fun::CuFunction
 end
 
-@doc (@doc AbstractKernel) HostKernel
+@doc (@doc AbstractKernel) Kernel
 
-@inline function cudacall(kernel::HostKernel, tt, args...; config=nothing, kwargs...)
+@inline function cudacall(kernel::Kernel, tt, args...; config=nothing, kwargs...)
     if config !== nothing
         Base.depwarn("cudacall with config argument is deprecated, use `@cuda launch=false` and instrospect the returned kernel instead", :cudacall)
         cudacall(kernel.fun, tt, args...; kwargs..., config(kernel)...)
@@ -213,12 +219,12 @@ end
 end
 
 """
-    version(k::HostKernel)
+    version(k::Kernel)
 
 Queries the PTX and SM versions a kernel was compiled for.
 Returns a named tuple.
 """
-function version(k::HostKernel)
+function version(k::Kernel)
     attr = attributes(k.fun)
     binary_ver = VersionNumber(divrem(attr[FUNC_ATTRIBUTE_BINARY_VERSION],10)...)
     ptx_ver = VersionNumber(divrem(attr[FUNC_ATTRIBUTE_PTX_VERSION],10)...)
@@ -226,12 +232,12 @@ function version(k::HostKernel)
 end
 
 """
-    memory(k::HostKernel)
+    memory(k::Kernel)
 
 Queries the local, shared and constant memory usage of a compiled kernel in bytes.
 Returns a named tuple.
 """
-function memory(k::HostKernel)
+function memory(k::Kernel)
     attr = attributes(k.fun)
     local_mem = attr[FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES]
     shared_mem = attr[FUNC_ATTRIBUTE_SHARED_SIZE_BYTES]
@@ -240,32 +246,23 @@ function memory(k::HostKernel)
 end
 
 """
-    registers(k::HostKernel)
+    registers(k::Kernel)
 
 Queries the register usage of a kernel.
 """
-function registers(k::HostKernel)
+function registers(k::Kernel)
     attr = attributes(k.fun)
     return attr[FUNC_ATTRIBUTE_NUM_REGS]
 end
 
 """
-    maxthreads(k::HostKernel)
+    maxthreads(k::Kernel)
 
 Queries the maximum amount of threads a kernel can use in a single block.
 """
-function maxthreads(k::HostKernel)
+function maxthreads(k::Kernel)
     attr = attributes(k.fun)
     return attr[FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK]
-end
-
-
-## host-side device functions
-
-struct DeviceFunction{F,TT}
-    ctx::CuContext
-    mod::CuModule
-    fun::CuPtr{Cvoid}
 end
 
 
@@ -347,7 +344,7 @@ function cufunction_link(@nospecialize(source::FunctionSpec),
     # create a Julia object
     if source.kernel
         fun = CuFunction(mod, kernel_fn)
-        return HostKernel{source.f,source.tt}(ctx, mod, fun)
+        return Kernel{source.f,source.tt}(ctx, mod, fun)
     else
         gv = CuGlobal{CuPtr{Cvoid}}(mod, kernel_fn * "_slot")
         return DeviceFunction{source.f,source.tt}(ctx, mod, gv[])
@@ -355,18 +352,18 @@ function cufunction_link(@nospecialize(source::FunctionSpec),
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
-(kernel::HostKernel)(args...; kwargs...) = call(kernel, map(cudaconvert, args)...; kwargs...)
+(kernel::Kernel)(args...; kwargs...) = call(kernel, map(cudaconvert, args)...; kwargs...)
 
 
 ## device-side kernels
 
-struct DeviceKernel{F,TT} <: AbstractKernel{F,TT}
+struct DynamicKernel{F,TT} <: AbstractKernel{F,TT}
     fun::Ptr{Cvoid}
 end
 
-@doc (@doc AbstractKernel) DeviceKernel
+@doc (@doc AbstractKernel) DynamicKernel
 
-@inline cudacall(kernel::DeviceKernel, tt, args...; kwargs...) =
+@inline cudacall(kernel::DynamicKernel, tt, args...; kwargs...) =
     dynamic_cudacall(kernel.fun, tt, args...; kwargs...)
 
 # FIXME: duplication with cudacall
@@ -412,11 +409,11 @@ No keyword arguments are supported.
 """
 @inline function dynamic_cufunction(f::Core.Function, tt::Type=Tuple{})
     fptr = GPUCompiler.deferred_codegen(Val(f), Val(tt))
-    DeviceKernel{f,tt}(fptr)
+    DynamicKernel{f,tt}(fptr)
 end
 
 # https://github.com/JuliaLang/julia/issues/14919
-(kernel::DeviceKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
+(kernel::DynamicKernel)(args...; kwargs...) = call(kernel, args...; kwargs...)
 
 
 ## other

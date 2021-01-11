@@ -144,7 +144,7 @@ well:
 
 ```@docs
 dynamic_cufunction
-CUDA.DeviceKernel
+CUDA.DynamicKernel
 ```
 
 

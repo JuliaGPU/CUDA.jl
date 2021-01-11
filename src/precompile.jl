@@ -1,6 +1,6 @@
 function _precompile_()
     ccall(:jl_generating_output, Cint, ()) == 1 || return nothing
-    @assert precompile(Tuple{CUDA.HostKernel{identity, Tuple{Nothing}},Nothing})
+    @assert precompile(Tuple{CUDA.Kernel{identity, Tuple{Nothing}},Nothing})
     @assert precompile(Tuple{Type{CuModule},String,Dict{CUDA.CUjit_option_enum, Any}})
     @assert precompile(Tuple{typeof(CUDA.prepare_cuda_call)})
     @assert precompile(Tuple{typeof(GPUCompiler.load_runtime),GPUCompiler.CompilerJob{GPUCompiler.PTXCompilerTarget, CUDA.CUDACompilerParams},LLVM.Context})

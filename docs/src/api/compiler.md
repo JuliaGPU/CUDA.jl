@@ -13,7 +13,7 @@ If needed, you can use a lower-level API that lets you inspect the compiler kern
 ```@docs
 cudaconvert
 cufunction
-CUDA.HostKernel
+CUDA.Kernel
 CUDA.version
 CUDA.maxthreads
 CUDA.registers
