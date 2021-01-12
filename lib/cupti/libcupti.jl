@@ -770,4 +770,11 @@ end
     ccall((:cuptiActivityFlushPeriod, libcupti()), CUptiResult, (UInt32,), time)
 end
 
+## Added in CUDA 11.2
+
+@checked function cuptiActivityEnableLaunchAttributes(enable)
+    initialize_api()
+    ccall((:cuptiActivityEnableLaunchAttributes, libcupti()), CUptiResult, (UInt8,), enable)
+end
+
 ##

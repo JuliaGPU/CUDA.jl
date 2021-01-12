@@ -41,6 +41,7 @@ const NVML_GRID_LICENSE_BUFFER_SIZE = 128
 const NVML_VGPU_NAME_BUFFER_SIZE = 64
 const NVML_GRID_LICENSE_FEATURE_MAX_COUNT = 3
 const INVALID_GPU_INSTANCE_PROFILE_ID = Float32(0x0fffffff)
+const INVALID_GPU_INSTANCE_ID = Float32(0x0fffffff)
 
 # Skipping MacroDefinition: NVML_VGPU_VIRTUALIZATION_CAP_MIGRATION 0 : 0
 
@@ -204,7 +205,8 @@ const NVML_FI_DEV_REMAPPED_UNC = 143
 const NVML_FI_DEV_REMAPPED_PENDING = 144
 const NVML_FI_DEV_REMAPPED_FAILURE = 145
 const NVML_FI_DEV_NVLINK_REMOTE_NVLINK_ID = 146
-const NVML_FI_MAX = 147
+const NVML_FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT = 147
+const NVML_FI_MAX = 148
 const nvmlEventTypeSingleBitEccError = Int64(0x0000000000000001)
 const nvmlEventTypeDoubleBitEccError = Int64(0x0000000000000002)
 const nvmlEventTypePState = Int64(0x0000000000000004)
@@ -539,7 +541,10 @@ const nvmlBrandType_t = nvmlBrandType_enum
     NVML_TEMPERATURE_THRESHOLD_SLOWDOWN = 1
     NVML_TEMPERATURE_THRESHOLD_MEM_MAX = 2
     NVML_TEMPERATURE_THRESHOLD_GPU_MAX = 3
-    NVML_TEMPERATURE_THRESHOLD_COUNT = 4
+    NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN = 4
+    NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR = 5
+    NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX = 6
+    NVML_TEMPERATURE_THRESHOLD_COUNT = 7
 end
 
 const nvmlTemperatureThresholds_t = nvmlTemperatureThresholds_enum
@@ -1068,6 +1073,13 @@ const nvmlGpuInstanceInfo_t = nvmlGpuInstanceInfo_st
 const nvmlGpuInstance_st = Cvoid
 const nvmlGpuInstance_t = Ptr{nvmlGpuInstance_st}
 
+struct nvmlComputeInstancePlacement_st
+    start::UInt32
+    size::UInt32
+end
+
+const nvmlComputeInstancePlacement_t = nvmlComputeInstancePlacement_st
+
 struct nvmlComputeInstanceProfileInfo_st
     id::UInt32
     sliceCount::UInt32
@@ -1087,6 +1099,7 @@ struct nvmlComputeInstanceInfo_st
     gpuInstance::nvmlGpuInstance_t
     id::UInt32
     profileId::UInt32
+    placement::nvmlComputeInstancePlacement_t
 end
 
 const nvmlComputeInstanceInfo_t = nvmlComputeInstanceInfo_st

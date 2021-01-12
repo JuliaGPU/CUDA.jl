@@ -22,9 +22,9 @@ version = "3.0.0"
 
 [[CUDA_full_jll]]
 deps = ["Artifacts", "JLLWrappers"]
-git-tree-sha1 = "49850d88b9cfc8299ecbf74263ea0c740b96902e"
+git-tree-sha1 = "70c4d5d1a4651a691ae189b68fe9e34e205d7cc5"
 uuid = "4f82f1eb-248c-5f56-a42e-99106d144614"
-version = "11.1.1+1"
+version = "11.2.0+1"
 
 [[CUDA_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]

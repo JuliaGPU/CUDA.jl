@@ -60,4 +60,22 @@ end
                    device, infoCount, infos)
 end
 
+## Superseded in CUDA 11.2
+
+struct nvmlComputeInstanceInfoV1_st
+    device::nvmlDevice_t
+    gpuInstance::nvmlGpuInstance_t
+    id::UInt32
+    profileId::UInt32
+end
+
+const nvmlComputeInstanceInfoV1_t = nvmlComputeInstanceInfoV1_st
+
+@checked function nvmlComputeInstanceGetInfo(computeInstance, info)
+    initialize_api()
+    ccall((:nvmlComputeInstanceGetInfo, libnvml()), nvmlReturn_t,
+                   (nvmlComputeInstance_t, Ptr{nvmlComputeInstanceInfoV1_t}),
+                   computeInstance, info)
+end
+
 ##

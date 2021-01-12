@@ -2175,4 +2175,136 @@ end
     ccall((:cuGraphExecChildGraphNodeSetParams, libcuda()), CUresult, (CUgraphExec, CUgraphNode, CUgraph), hGraphExec, hNode, childGraph)
 end
 
+## Added in CUDA 11.2
+
+@checked function cuGraphExecExternalSemaphoresSignalNodeSetParams(hGraphExec, hNode, nodeParams)
+    initialize_api()
+    ccall((:cuGraphExecExternalSemaphoresSignalNodeSetParams, libcuda()), CUresult, (CUgraphExec, CUgraphNode, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), hGraphExec, hNode, nodeParams)
+end
+
+@checked function cuDeviceSetMemPool(dev, pool)
+    initialize_api()
+    ccall((:cuDeviceSetMemPool, libcuda()), CUresult, (CUdevice, CUmemoryPool), dev, pool)
+end
+
+@checked function cuGraphExternalSemaphoresWaitNodeSetParams(hNode, nodeParams)
+    initialize_api()
+    ccall((:cuGraphExternalSemaphoresWaitNodeSetParams, libcuda()), CUresult, (CUgraphNode, Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), hNode, nodeParams)
+end
+
+@checked function cuMemPoolDestroy(pool)
+    initialize_api()
+    ccall((:cuMemPoolDestroy, libcuda()), CUresult, (CUmemoryPool,), pool)
+end
+
+@checked function cuGraphAddExternalSemaphoresSignalNode(phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
+    initialize_api()
+    ccall((:cuGraphAddExternalSemaphoresSignalNode, libcuda()), CUresult, (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
+end
+
+@checked function cuGraphExternalSemaphoresSignalNodeGetParams(hNode, params_out)
+    initialize_api()
+    ccall((:cuGraphExternalSemaphoresSignalNodeGetParams, libcuda()), CUresult, (CUgraphNode, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), hNode, params_out)
+end
+
+@checked function cuMemPoolExportPointer(shareData_out, ptr)
+    initialize_api()
+    ccall((:cuMemPoolExportPointer, libcuda()), CUresult, (Ptr{CUmemPoolPtrExportData}, CUdeviceptr), shareData_out, ptr)
+end
+
+@checked function cuGraphExecExternalSemaphoresWaitNodeSetParams(hGraphExec, hNode, nodeParams)
+    initialize_api()
+    ccall((:cuGraphExecExternalSemaphoresWaitNodeSetParams, libcuda()), CUresult, (CUgraphExec, CUgraphNode, Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), hGraphExec, hNode, nodeParams)
+end
+
+@checked function cuMemFreeAsync(dptr, hStream)
+    initialize_api()
+    ccall((:cuMemFreeAsync, libcuda()), CUresult, (CUdeviceptr, CUstream), dptr, hStream)
+end
+
+@checked function cuMemPoolImportPointer(ptr_out, pool, shareData)
+    initialize_api()
+    ccall((:cuMemPoolImportPointer, libcuda()), CUresult, (Ptr{CUdeviceptr}, CUmemoryPool, Ptr{CUmemPoolPtrExportData}), ptr_out, pool, shareData)
+end
+
+@checked function cuMemPoolImportFromShareableHandle(pool_out, handle, handleType, flags)
+    initialize_api()
+    ccall((:cuMemPoolImportFromShareableHandle, libcuda()), CUresult, (Ptr{CUmemoryPool}, Ptr{Cvoid}, CUmemAllocationHandleType, Culonglong), pool_out, handle, handleType, flags)
+end
+
+@checked function cuArrayGetPlane(pPlaneArray, hArray, planeIdx)
+    initialize_api()
+    ccall((:cuArrayGetPlane, libcuda()), CUresult, (Ptr{CUarray}, CUarray, UInt32), pPlaneArray, hArray, planeIdx)
+end
+
+@checked function cuMemPoolSetAttribute(pool, attr, value)
+    initialize_api()
+    ccall((:cuMemPoolSetAttribute, libcuda()), CUresult, (CUmemoryPool, CUmemPool_attribute, Ptr{Cvoid}), pool, attr, value)
+end
+
+@checked function cuMemPoolSetAccess(pool, map, count)
+    initialize_api()
+    ccall((:cuMemPoolSetAccess, libcuda()), CUresult, (CUmemoryPool, Ptr{CUmemAccessDesc}, Csize_t), pool, map, count)
+end
+
+@checked function cuGraphAddExternalSemaphoresWaitNode(phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
+    initialize_api()
+    ccall((:cuGraphAddExternalSemaphoresWaitNode, libcuda()), CUresult, (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), phGraphNode, hGraph, dependencies, numDependencies, nodeParams)
+end
+
+@checked function cuMemPoolCreate(pool, poolProps)
+    initialize_api()
+    ccall((:cuMemPoolCreate, libcuda()), CUresult, (Ptr{CUmemoryPool}, Ptr{CUmemPoolProps}), pool, poolProps)
+end
+
+@checked function cuMemPoolGetAttribute(pool, attr, value)
+    initialize_api()
+    ccall((:cuMemPoolGetAttribute, libcuda()), CUresult, (CUmemoryPool, CUmemPool_attribute, Ptr{Cvoid}), pool, attr, value)
+end
+
+@checked function cuMemAllocAsync(dptr, bytesize, hStream)
+    initialize_api()
+    ccall((:cuMemAllocAsync, libcuda()), CUresult, (Ptr{CUdeviceptr}, Csize_t, CUstream), dptr, bytesize, hStream)
+end
+
+@checked function cuMemPoolTrimTo(pool, minBytesToKeep)
+    initialize_api()
+    ccall((:cuMemPoolTrimTo, libcuda()), CUresult, (CUmemoryPool, Csize_t), pool, minBytesToKeep)
+end
+
+@checked function cuDeviceGetMemPool(pool, dev)
+    initialize_api()
+    ccall((:cuDeviceGetMemPool, libcuda()), CUresult, (Ptr{CUmemoryPool}, CUdevice), pool, dev)
+end
+
+@checked function cuGraphExternalSemaphoresWaitNodeGetParams(hNode, params_out)
+    initialize_api()
+    ccall((:cuGraphExternalSemaphoresWaitNodeGetParams, libcuda()), CUresult, (CUgraphNode, Ptr{CUDA_EXT_SEM_WAIT_NODE_PARAMS}), hNode, params_out)
+end
+
+@checked function cuMemAllocFromPoolAsync(dptr, bytesize, pool, hStream)
+    initialize_api()
+    ccall((:cuMemAllocFromPoolAsync, libcuda()), CUresult, (Ptr{CUdeviceptr}, Csize_t, CUmemoryPool, CUstream), dptr, bytesize, pool, hStream)
+end
+
+@checked function cuMemPoolExportToShareableHandle(handle_out, pool, handleType, flags)
+    initialize_api()
+    ccall((:cuMemPoolExportToShareableHandle, libcuda()), CUresult, (Ptr{Cvoid}, CUmemoryPool, CUmemAllocationHandleType, Culonglong), handle_out, pool, handleType, flags)
+end
+
+@checked function cuMemPoolGetAccess(flags, memPool, location)
+    initialize_api()
+    ccall((:cuMemPoolGetAccess, libcuda()), CUresult, (Ptr{CUmemAccess_flags}, CUmemoryPool, Ptr{CUmemLocation}), flags, memPool, location)
+end
+
+@checked function cuDeviceGetDefaultMemPool(pool_out, dev)
+    initialize_api()
+    ccall((:cuDeviceGetDefaultMemPool, libcuda()), CUresult, (Ptr{CUmemoryPool}, CUdevice), pool_out, dev)
+end
+
+@checked function cuGraphExternalSemaphoresSignalNodeSetParams(hNode, nodeParams)
+    initialize_api()
+    ccall((:cuGraphExternalSemaphoresSignalNodeSetParams, libcuda()), CUresult, (CUgraphNode, Ptr{CUDA_EXT_SEM_SIGNAL_NODE_PARAMS}), hNode, nodeParams)
+end
+
 ##
