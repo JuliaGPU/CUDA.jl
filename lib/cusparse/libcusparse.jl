@@ -5222,3 +5222,47 @@ end
                    handle, opA, opB, alpha, matA, matB, beta, matC, computeType,
                    bufferSize)
 end
+
+## Added in CUDA 11.1
+
+@checked function cusparseSparseToDense(handle, matA, matB, alg, buffer)
+    initialize_api()
+    ccall((:cusparseSparseToDense, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseSpMatDescr_t, cusparseDnMatDescr_t, cusparseSparseToDenseAlg_t, Ptr{Cvoid}), handle, matA, matB, alg, buffer)
+end
+
+@checked function cusparseCscSetPointers(spMatDescr, cscColOffsets, cscRowInd, cscValues)
+    initialize_api()
+    ccall((:cusparseCscSetPointers, libcusparse()), cusparseStatus_t, (cusparseSpMatDescr_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), spMatDescr, cscColOffsets, cscRowInd, cscValues)
+end
+
+@checked function cusparseCreateCsc(spMatDescr, rows, cols, nnz, csrColOffsets, csrRowInd, csrValues, csrColOffsetsType, csrRowIndType, idxBase, valueType)
+    initialize_api()
+    ccall((:cusparseCreateCsc, libcusparse()), cusparseStatus_t, (Ptr{cusparseSpMatDescr_t}, Int64, Int64, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}, cusparseIndexType_t, cusparseIndexType_t, cusparseIndexBase_t, cudaDataType), spMatDescr, rows, cols, nnz, csrColOffsets, csrRowInd, csrValues, csrColOffsetsType, csrRowIndType, idxBase, valueType)
+end
+
+@checked function cusparseDenseToSparse_bufferSize(handle, matA, matB, alg, bufferSize)
+    initialize_api()
+    ccall((:cusparseDenseToSparse_bufferSize, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseDnMatDescr_t, cusparseSpMatDescr_t, cusparseDenseToSparseAlg_t, Ptr{Csize_t}), handle, matA, matB, alg, bufferSize)
+end
+
+@checked function cusparseDenseToSparse_convert(handle, matA, matB, alg, buffer)
+    initialize_api()
+    ccall((:cusparseDenseToSparse_convert, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseDnMatDescr_t, cusparseSpMatDescr_t, cusparseDenseToSparseAlg_t, Ptr{Cvoid}), handle, matA, matB, alg, buffer)
+end
+
+@checked function cusparseSparseToDense_bufferSize(handle, matA, matB, alg, bufferSize)
+    initialize_api()
+    ccall((:cusparseSparseToDense_bufferSize, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseSpMatDescr_t, cusparseDnMatDescr_t, cusparseSparseToDenseAlg_t, Ptr{Csize_t}), handle, matA, matB, alg, bufferSize)
+end
+
+@checked function cusparseDenseToSparse_analysis(handle, matA, matB, alg, buffer)
+    initialize_api()
+    ccall((:cusparseDenseToSparse_analysis, libcusparse()), cusparseStatus_t, (cusparseHandle_t, cusparseDnMatDescr_t, cusparseSpMatDescr_t, cusparseDenseToSparseAlg_t, Ptr{Cvoid}), handle, matA, matB, alg, buffer)
+end
+
+@checked function cusparseCooSetPointers(spMatDescr, cooRows, cooColumns, cooValues)
+    initialize_api()
+    ccall((:cusparseCooSetPointers, libcusparse()), cusparseStatus_t, (cusparseSpMatDescr_t, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), spMatDescr, cooRows, cooColumns, cooValues)
+end
+
+##

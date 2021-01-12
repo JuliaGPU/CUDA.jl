@@ -1,6 +1,6 @@
 # Automatically generated using Clang.jl
 
-const CUPTI_API_VERSION = 13
+const CUPTI_API_VERSION = 14
 
 # Skipping MacroDefinition: CUPTI_EVENT_OVERFLOW ( ( uint64_t ) 0xFFFFFFFFFFFFFFFFULL )
 # Skipping MacroDefinition: CUPTI_EVENT_INVALID ( ( uint64_t ) 0xFFFFFFFFFFFFFFFEULL )
@@ -11,6 +11,7 @@ const ACTIVITY_RECORD_ALIGNMENT = 8
 # Skipping MacroDefinition: PACKED_ALIGNMENT __attribute__ ( ( __packed__ ) ) __attribute__ ( ( aligned ( ACTIVITY_RECORD_ALIGNMENT ) ) )
 # Skipping MacroDefinition: CUPTI_UNIFIED_MEMORY_CPU_DEVICE_ID ( ( uint32_t ) 0xFFFFFFFFU )
 # Skipping MacroDefinition: CUPTI_INVALID_CONTEXT_ID ( ( uint32_t ) 0xFFFFFFFFU )
+# Skipping MacroDefinition: CUPTI_INVALID_STREAM_ID ( ( uint32_t ) 0xFFFFFFFFU )
 
 const CUPTI_SOURCE_LOCATOR_ID_UNKNOWN = 0
 const CUPTI_FUNCTION_INDEX_ID_INVALID = 0
@@ -409,7 +410,9 @@ end
     CUPTI_ACTIVITY_KIND_PCIE = 46
     CUPTI_ACTIVITY_KIND_OPENMP = 47
     CUPTI_ACTIVITY_KIND_INTERNAL_LAUNCH_API = 48
-    CUPTI_ACTIVITY_KIND_COUNT = 49
+    CUPTI_ACTIVITY_KIND_MEMORY2 = 49
+    CUPTI_ACTIVITY_KIND_MEMORY_POOL = 50
+    CUPTI_ACTIVITY_KIND_COUNT = 51
     CUPTI_ACTIVITY_KIND_FORCE_INT = 2147483647
 end
 
@@ -669,6 +672,28 @@ end
     CUPTI_LINK_FLAG_FORCE_INT = 2147483647
 end
 
+@cenum CUpti_ActivityMemoryOperationType::UInt32 begin
+    CUPTI_ACTIVITY_MEMORY_OPERATION_TYPE_INVALID = 0
+    CUPTI_ACTIVITY_MEMORY_OPERATION_TYPE_ALLOCATION = 1
+    CUPTI_ACTIVITY_MEMORY_OPERATION_TYPE_RELEASE = 2
+    CUPTI_ACTIVITY_MEMORY_OPERATION_TYPE_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_ActivityMemoryPoolType::UInt32 begin
+    CUPTI_ACTIVITY_MEMORY_POOL_TYPE_INVALID = 0
+    CUPTI_ACTIVITY_MEMORY_POOL_TYPE_LOCAL = 1
+    CUPTI_ACTIVITY_MEMORY_POOL_TYPE_IMPORTED = 2
+    CUPTI_ACTIVITY_MEMORY_POOL_TYPE_FORCE_INT = 2147483647
+end
+
+@cenum CUpti_ActivityMemoryPoolOperationType::UInt32 begin
+    CUPTI_ACTIVITY_MEMORY_POOL_OPERATION_TYPE_INVALID = 0
+    CUPTI_ACTIVITY_MEMORY_POOL_OPERATION_TYPE_CREATED = 1
+    CUPTI_ACTIVITY_MEMORY_POOL_OPERATION_TYPE_DESTROYED = 2
+    CUPTI_ACTIVITY_MEMORY_POOL_OPERATION_TYPE_TRIMMED = 3
+    CUPTI_ACTIVITY_MEMORY_POOL_OPERATION_TYPE_FORCE_INT = 2147483647
+end
+
 struct CUpti_ActivityUnifiedMemoryCounterConfig
     scope::CUpti_ActivityUnifiedMemoryCounterScope
     kind::CUpti_ActivityUnifiedMemoryCounterKind
@@ -728,6 +753,27 @@ struct CUpti_ActivityMemcpy3
     graphNodeId::UInt64
 end
 
+struct CUpti_ActivityMemcpy4
+    kind::CUpti_ActivityKind
+    copyKind::UInt8
+    srcKind::UInt8
+    dstKind::UInt8
+    flags::UInt8
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    correlationId::UInt32
+    runtimeCorrelationId::UInt32
+    pad::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+    graphId::UInt32
+    padding::UInt32
+end
+
 struct CUpti_ActivityMemcpyPtoP
     kind::CUpti_ActivityKind
     copyKind::UInt8
@@ -771,6 +817,29 @@ struct CUpti_ActivityMemcpyPtoP2
     graphNodeId::UInt64
 end
 
+struct CUpti_ActivityMemcpyPtoP3
+    kind::CUpti_ActivityKind
+    copyKind::UInt8
+    srcKind::UInt8
+    dstKind::UInt8
+    flags::UInt8
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    srcDeviceId::UInt32
+    srcContextId::UInt32
+    dstDeviceId::UInt32
+    dstContextId::UInt32
+    correlationId::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+    graphId::UInt32
+    padding::UInt32
+end
+
 struct CUpti_ActivityMemset
     kind::CUpti_ActivityKind
     value::UInt32
@@ -804,6 +873,25 @@ struct CUpti_ActivityMemset2
     graphNodeId::UInt64
 end
 
+struct CUpti_ActivityMemset3
+    kind::CUpti_ActivityKind
+    value::UInt32
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    correlationId::UInt32
+    flags::UInt16
+    memoryKind::UInt16
+    pad::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+    graphId::UInt32
+    padding::UInt32
+end
+
 struct CUpti_ActivityMemory
     kind::CUpti_ActivityKind
     memoryKind::CUpti_ActivityMemoryKind
@@ -818,6 +906,51 @@ struct CUpti_ActivityMemory
     contextId::UInt32
     pad::UInt32
     name::Cstring
+end
+
+struct ANONYMOUS4_pool
+    size::UInt64
+end
+
+struct ANONYMOUS3_memoryPoolConfig
+    memoryPoolType::CUpti_ActivityMemoryPoolType
+    pad2::UInt32
+    address::UInt64
+    releaseThreshold::UInt64
+    pool::ANONYMOUS4_pool
+end
+
+struct CUpti_ActivityMemory2
+    kind::CUpti_ActivityKind
+    memoryOperationType::CUpti_ActivityMemoryOperationType
+    memoryKind::CUpti_ActivityMemoryKind
+    correlationId::UInt32
+    address::UInt64
+    bytes::UInt64
+    timestamp::UInt64
+    PC::UInt64
+    processId::UInt32
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    name::Cstring
+    isAsync::UInt32
+    pad1::UInt32
+    memoryPoolConfig::ANONYMOUS3_memoryPoolConfig
+end
+
+struct CUpti_ActivityMemoryPool
+    kind::CUpti_ActivityKind
+    memoryPoolOperationType::CUpti_ActivityMemoryPoolOperationType
+    memoryPoolType::CUpti_ActivityMemoryPoolType
+    correlationId::UInt32
+    processId::UInt32
+    deviceId::UInt32
+    minBytesToKeep::Csize_t
+    address::UInt64
+    size::UInt64
+    releaseThreshold::UInt64
+    timestamp::UInt64
 end
 
 struct CUpti_ActivityKernel
@@ -847,13 +980,13 @@ struct CUpti_ActivityKernel
     reserved0::Ptr{Cvoid}
 end
 
-struct ANONYMOUS3_cacheConfig
+struct ANONYMOUS5_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityKernel2
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS3_cacheConfig
+    cacheConfig::ANONYMOUS5_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     start::UInt64
@@ -878,13 +1011,13 @@ struct CUpti_ActivityKernel2
     reserved0::Ptr{Cvoid}
 end
 
-struct ANONYMOUS4_cacheConfig
+struct ANONYMOUS6_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityKernel3
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS4_cacheConfig
+    cacheConfig::ANONYMOUS6_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     partitionedGlobalCacheRequested::CUpti_ActivityPartitionedGlobalCacheConfig
@@ -917,13 +1050,13 @@ end
     CUPTI_ACTIVITY_LAUNCH_TYPE_COOPERATIVE_MULTI_DEVICE = 2
 end
 
-struct ANONYMOUS5_cacheConfig
+struct ANONYMOUS7_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityKernel4
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS5_cacheConfig
+    cacheConfig::ANONYMOUS7_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     partitionedGlobalCacheRequested::CUpti_ActivityPartitionedGlobalCacheConfig
@@ -963,13 +1096,13 @@ end
     CUPTI_FUNC_SHMEM_LIMIT_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS6_cacheConfig
+struct ANONYMOUS8_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityKernel5
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS6_cacheConfig
+    cacheConfig::ANONYMOUS8_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     partitionedGlobalCacheRequested::CUpti_ActivityPartitionedGlobalCacheConfig
@@ -1003,16 +1136,60 @@ struct CUpti_ActivityKernel5
     sharedMemoryExecuted::UInt32
     graphNodeId::UInt64
     shmemLimitConfig::CUpti_FuncShmemLimitConfig
-    padding2::UInt32
+    graphId::UInt32
 end
 
-struct ANONYMOUS7_cacheConfig
+struct ANONYMOUS9_cacheConfig
+    both::UInt8
+end
+
+struct CUpti_ActivityKernel6
+    kind::CUpti_ActivityKind
+    cacheConfig::ANONYMOUS9_cacheConfig
+    sharedMemoryConfig::UInt8
+    registersPerThread::UInt16
+    partitionedGlobalCacheRequested::CUpti_ActivityPartitionedGlobalCacheConfig
+    partitionedGlobalCacheExecuted::CUpti_ActivityPartitionedGlobalCacheConfig
+    start::UInt64
+    _end::UInt64
+    completed::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    gridX::Int32
+    gridY::Int32
+    gridZ::Int32
+    blockX::Int32
+    blockY::Int32
+    blockZ::Int32
+    staticSharedMemory::Int32
+    dynamicSharedMemory::Int32
+    localMemoryPerThread::UInt32
+    localMemoryTotal::UInt32
+    correlationId::UInt32
+    gridId::Int64
+    name::Cstring
+    reserved0::Ptr{Cvoid}
+    queued::UInt64
+    submitted::UInt64
+    launchType::UInt8
+    isSharedMemoryCarveoutRequested::UInt8
+    sharedMemoryCarveoutRequested::UInt8
+    padding::UInt8
+    sharedMemoryExecuted::UInt32
+    graphNodeId::UInt64
+    shmemLimitConfig::CUpti_FuncShmemLimitConfig
+    graphId::UInt32
+    pAccessPolicyWindow::Ptr{CUaccessPolicyWindow}
+end
+
+struct ANONYMOUS10_cacheConfig
     both::UInt8
 end
 
 struct CUpti_ActivityCdpKernel
     kind::CUpti_ActivityKind
-    cacheConfig::ANONYMOUS7_cacheConfig
+    cacheConfig::ANONYMOUS10_cacheConfig
     sharedMemoryConfig::UInt8
     registersPerThread::UInt16
     start::UInt64
@@ -1233,11 +1410,11 @@ struct CUpti_ActivityDevice2
     name::Cstring
 end
 
-struct ANONYMOUS8_attribute
+struct ANONYMOUS11_attribute
     cu::CUdevice_attribute
 end
 
-struct ANONYMOUS9_value
+struct ANONYMOUS12_value
     vDouble::Cdouble
 end
 
@@ -1245,8 +1422,8 @@ struct CUpti_ActivityDeviceAttribute
     kind::CUpti_ActivityKind
     flags::CUpti_ActivityFlag
     deviceId::UInt32
-    attribute::ANONYMOUS8_attribute
-    value::ANONYMOUS9_value
+    attribute::ANONYMOUS11_attribute
+    value::ANONYMOUS12_value
 end
 
 struct CUpti_ActivityContext
@@ -1307,7 +1484,7 @@ struct CUpti_ActivityOverhead
     _end::UInt64
 end
 
-struct ANONYMOUS11_speed
+struct ANONYMOUS14_speed
     smClock::UInt32
     memoryClock::UInt32
     pcieLinkGen::UInt32
@@ -1315,8 +1492,8 @@ struct ANONYMOUS11_speed
     clocksThrottleReasons::CUpti_EnvironmentClocksThrottleReason
 end
 
-struct ANONYMOUS10_data
-    speed::ANONYMOUS11_speed
+struct ANONYMOUS13_data
+    speed::ANONYMOUS14_speed
 end
 
 struct CUpti_ActivityEnvironment
@@ -1324,7 +1501,7 @@ struct CUpti_ActivityEnvironment
     deviceId::UInt32
     timestamp::UInt64
     environmentKind::CUpti_ActivityEnvironmentKind
-    data::ANONYMOUS10_data
+    data::ANONYMOUS13_data
 end
 
 struct CUpti_ActivityInstructionExecution
@@ -1686,11 +1863,11 @@ end
     CUPTI_DEV_TYPE_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS12_idDev0
+struct ANONYMOUS15_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS13_idDev1
+struct ANONYMOUS16_idDev1
     uuidDev::CUuuid
 end
 
@@ -1699,8 +1876,8 @@ struct CUpti_ActivityNvLink
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS12_idDev0
-    idDev1::ANONYMOUS13_idDev1
+    idDev0::ANONYMOUS15_idDev0
+    idDev1::ANONYMOUS16_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{4, Int8}
@@ -1708,11 +1885,11 @@ struct CUpti_ActivityNvLink
     bandwidth::UInt64
 end
 
-struct ANONYMOUS14_idDev0
+struct ANONYMOUS17_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS15_idDev1
+struct ANONYMOUS18_idDev1
     uuidDev::CUuuid
 end
 
@@ -1721,8 +1898,8 @@ struct CUpti_ActivityNvLink2
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS14_idDev0
-    idDev1::ANONYMOUS15_idDev1
+    idDev0::ANONYMOUS17_idDev0
+    idDev1::ANONYMOUS18_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{16, Int8}
@@ -1730,11 +1907,11 @@ struct CUpti_ActivityNvLink2
     bandwidth::UInt64
 end
 
-struct ANONYMOUS16_idDev0
+struct ANONYMOUS19_idDev0
     uuidDev::CUuuid
 end
 
-struct ANONYMOUS17_idDev1
+struct ANONYMOUS20_idDev1
     uuidDev::CUuuid
 end
 
@@ -1743,8 +1920,8 @@ struct CUpti_ActivityNvLink3
     nvlinkVersion::UInt32
     typeDev0::CUpti_DevType
     typeDev1::CUpti_DevType
-    idDev0::ANONYMOUS16_idDev0
-    idDev1::ANONYMOUS17_idDev1
+    idDev0::ANONYMOUS19_idDev0
+    idDev1::ANONYMOUS20_idDev1
     flag::UInt32
     physicalNvLinkCount::UInt32
     portDev0::NTuple{16, Int8}
@@ -1760,29 +1937,29 @@ end
     CUPTI_PCIE_DEVICE_TYPE_FORCE_INT = 2147483647
 end
 
-struct ANONYMOUS18_id
+struct ANONYMOUS21_id
     devId::CUdevice
 end
 
-struct ANONYMOUS20_gpuAttr
+struct ANONYMOUS23_gpuAttr
     uuidDev::CUuuid
     peerDev::NTuple{32, CUdevice}
 end
 
-struct ANONYMOUS19_attr
-    gpuAttr::ANONYMOUS20_gpuAttr
+struct ANONYMOUS22_attr
+    gpuAttr::ANONYMOUS23_gpuAttr
 end
 
 struct CUpti_ActivityPcie
     kind::CUpti_ActivityKind
     type::CUpti_PcieDeviceType
-    id::ANONYMOUS18_id
+    id::ANONYMOUS21_id
     domain::UInt32
     pcieGeneration::UInt16
     linkRate::UInt16
     linkWidth::UInt16
     upstreamBus::UInt16
-    attr::ANONYMOUS19_attr
+    attr::ANONYMOUS22_attr
 end
 
 @cenum CUpti_PcieGen::UInt32 begin
@@ -1840,6 +2017,9 @@ end
     CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_POOL_SIZE = 3
     CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_POOL_LIMIT = 4
     CUPTI_ACTIVITY_ATTR_ZEROED_OUT_ACTIVITY_BUFFER = 5
+    CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_PRE_ALLOCATE_VALUE = 6
+    CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_PRE_ALLOCATE_VALUE = 7
+    CUPTI_ACTIVITY_ATTR_MEM_ALLOCATION_TYPE_HOST_PINNED = 8
     CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_FORCE_INT = 2147483647
 end
 

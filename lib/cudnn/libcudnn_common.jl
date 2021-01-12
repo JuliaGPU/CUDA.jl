@@ -2,11 +2,11 @@
 
 const CUDNN_MAJOR = 8
 const CUDNN_MINOR = 0
-const CUDNN_PATCHLEVEL = 2
+const CUDNN_PATCHLEVEL = 4
 const CUDNN_VERSION = CUDNN_MAJOR * 1000 + CUDNN_MINOR * 100 + CUDNN_PATCHLEVEL
 const CUDNN_OPS_INFER_MAJOR = 8
 const CUDNN_OPS_INFER_MINOR = 0
-const CUDNN_OPS_INFER_PATCH = 2
+const CUDNN_OPS_INFER_PATCH = 4
 const CUDNN_DIM_MAX = 8
 const CUDNN_LRN_MIN_N = 1
 const CUDNN_LRN_MAX_N = 16
@@ -287,10 +287,10 @@ end
 const cudnnCallback_t = Ptr{Cvoid}
 const CUDNN_OPS_TRAIN_MAJOR = 8
 const CUDNN_OPS_TRAIN_MINOR = 0
-const CUDNN_OPS_TRAIN_PATCH = 2
+const CUDNN_OPS_TRAIN_PATCH = 4
 const CUDNN_ADV_INFER_MAJOR = 8
 const CUDNN_ADV_INFER_MINOR = 0
-const CUDNN_ADV_INFER_PATCH = 2
+const CUDNN_ADV_INFER_PATCH = 4
 const CUDNN_RNN_PADDED_IO_DISABLED = 0
 const CUDNN_RNN_PADDED_IO_ENABLED = UInt32(1) << 0
 const CUDNN_SEQDATA_DIM_COUNT = 4
@@ -374,7 +374,7 @@ end
 
 const CUDNN_ADV_TRAIN_MAJOR = 8
 const CUDNN_ADV_TRAIN_MINOR = 0
-const CUDNN_ADV_TRAIN_PATCH = 2
+const CUDNN_ADV_TRAIN_PATCH = 4
 
 @cenum cudnnWgradMode_t::UInt32 begin
     CUDNN_WGRAD_MODE_ADD = 0
@@ -388,7 +388,7 @@ end
 
 const CUDNN_CNN_INFER_MAJOR = 8
 const CUDNN_CNN_INFER_MINOR = 0
-const CUDNN_CNN_INFER_PATCH = 2
+const CUDNN_CNN_INFER_PATCH = 4
 const cudnnConvolutionStruct = Cvoid
 const cudnnConvolutionDescriptor_t = Ptr{cudnnConvolutionStruct}
 
@@ -520,7 +520,7 @@ end
 
 const CUDNN_CNN_TRAIN_MAJOR = 8
 const CUDNN_CNN_TRAIN_MINOR = 0
-const CUDNN_CNN_TRAIN_PATCH = 2
+const CUDNN_CNN_TRAIN_PATCH = 4
 
 struct cudnnConvolutionBwdFilterAlgoPerf_t
     algo::cudnnConvolutionBwdFilterAlgo_t

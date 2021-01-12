@@ -1,9 +1,9 @@
 # Automatically generated using Clang.jl
 
 const CUSPARSE_VER_MAJOR = 11
-const CUSPARSE_VER_MINOR = 1
+const CUSPARSE_VER_MINOR = 3
 const CUSPARSE_VER_PATCH = 1
-const CUSPARSE_VER_BUILD = 245
+const CUSPARSE_VER_BUILD = 68
 const CUSPARSE_VERSION = CUSPARSE_VER_MAJOR * 1000 + CUSPARSE_VER_MINOR * 100 + CUSPARSE_VER_PATCH
 
 # Skipping MacroDefinition: CUSPARSE_DEPRECATED ( new_func ) __attribute__ ( ( deprecated ( "please use " # new_func " instead" ) ) )
@@ -147,6 +147,14 @@ const cusparseDnVecDescr_t = Ptr{cusparseDnVecDescr}
 const cusparseSpMatDescr_t = Ptr{cusparseSpMatDescr}
 const cusparseDnMatDescr_t = Ptr{cusparseDnMatDescr}
 
+@cenum cusparseSparseToDenseAlg_t::UInt32 begin
+    CUSPARSE_SPARSETODENSE_ALG_DEFAULT = 0
+end
+
+@cenum cusparseDenseToSparseAlg_t::UInt32 begin
+    CUSPARSE_DENSETOSPARSE_ALG_DEFAULT = 0
+end
+
 @cenum cusparseSpMVAlg_t::UInt32 begin
     CUSPARSE_MV_ALG_DEFAULT = 0
     CUSPARSE_COOMV_ALG = 1
@@ -167,6 +175,11 @@ end
     CUSPARSE_SPMM_COO_ALG4 = 5
     CUSPARSE_SPMM_CSR_ALG1 = 4
     CUSPARSE_SPMM_CSR_ALG2 = 6
+    CUSPARSE_SPMMA_PREPROCESS = 7
+    CUSPARSE_SPMMA_ALG1 = 8
+    CUSPARSE_SPMMA_ALG2 = 9
+    CUSPARSE_SPMMA_ALG3 = 10
+    CUSPARSE_SPMMA_ALG4 = 11
 end
 
 @cenum cusparseSpGEMMAlg_t::UInt32 begin

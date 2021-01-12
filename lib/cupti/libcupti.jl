@@ -757,3 +757,24 @@ end
                    (Ptr{CUpti_Profiler_GetCounterAvailability_Params},),
                    pParams)
 end
+
+## Added in CUDA 11.1
+
+@checked function cuptiGetGraphId(graph, pId)
+    initialize_api()
+    ccall((:cuptiGetGraphId, libcupti()), CUptiResult, (CUgraph, Ptr{UInt32}), graph, pId)
+end
+
+@checked function cuptiActivityFlushPeriod(time)
+    initialize_api()
+    ccall((:cuptiActivityFlushPeriod, libcupti()), CUptiResult, (UInt32,), time)
+end
+
+## Added in CUDA 11.2
+
+@checked function cuptiActivityEnableLaunchAttributes(enable)
+    initialize_api()
+    ccall((:cuptiActivityEnableLaunchAttributes, libcupti()), CUptiResult, (UInt8,), enable)
+end
+
+##

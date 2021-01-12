@@ -28,6 +28,7 @@ has_nvml() = Libdl.dlopen(libnvml(); throw_error=false) !== nothing
 include("libnvml_common.jl")
 include("error.jl")
 include("libnvml.jl")
+include("libnvml_deprecated.jl")
 
 # wrappers
 include("system.jl")

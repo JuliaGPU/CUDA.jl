@@ -40,6 +40,8 @@ const NVML_DOUBLE_BIT_ECC = NVML_MEMORY_ERROR_TYPE_UNCORRECTED
 const NVML_GRID_LICENSE_BUFFER_SIZE = 128
 const NVML_VGPU_NAME_BUFFER_SIZE = 64
 const NVML_GRID_LICENSE_FEATURE_MAX_COUNT = 3
+const INVALID_GPU_INSTANCE_PROFILE_ID = Float32(0x0fffffff)
+const INVALID_GPU_INSTANCE_ID = Float32(0x0fffffff)
 
 # Skipping MacroDefinition: NVML_VGPU_VIRTUALIZATION_CAP_MIGRATION 0 : 0
 
@@ -202,7 +204,9 @@ const NVML_FI_DEV_REMAPPED_COR = 142
 const NVML_FI_DEV_REMAPPED_UNC = 143
 const NVML_FI_DEV_REMAPPED_PENDING = 144
 const NVML_FI_DEV_REMAPPED_FAILURE = 145
-const NVML_FI_MAX = 146
+const NVML_FI_DEV_NVLINK_REMOTE_NVLINK_ID = 146
+const NVML_FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT = 147
+const NVML_FI_MAX = 148
 const nvmlEventTypeSingleBitEccError = Int64(0x0000000000000001)
 const nvmlEventTypeDoubleBitEccError = Int64(0x0000000000000002)
 const nvmlEventTypePState = Int64(0x0000000000000004)
@@ -241,6 +245,7 @@ const NVML_DEVICE_PART_NUMBER_BUFFER_SIZE = 80
 const NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE = 80
 const NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE = 80
 const NVML_DEVICE_NAME_BUFFER_SIZE = 64
+const NVML_DEVICE_NAME_V2_BUFFER_SIZE = 96
 const NVML_DEVICE_SERIAL_BUFFER_SIZE = 30
 const NVML_DEVICE_VBIOS_VERSION_BUFFER_SIZE = 32
 
@@ -256,13 +261,15 @@ const NVML_GPU_INSTANCE_PROFILE_2_SLICE = 0x01
 const NVML_GPU_INSTANCE_PROFILE_3_SLICE = 0x02
 const NVML_GPU_INSTANCE_PROFILE_4_SLICE = 0x03
 const NVML_GPU_INSTANCE_PROFILE_7_SLICE = 0x04
-const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x05
+const NVML_GPU_INSTANCE_PROFILE_8_SLICE = 0x05
+const NVML_GPU_INSTANCE_PROFILE_COUNT = 0x06
 const NVML_COMPUTE_INSTANCE_PROFILE_1_SLICE = 0x00
 const NVML_COMPUTE_INSTANCE_PROFILE_2_SLICE = 0x01
 const NVML_COMPUTE_INSTANCE_PROFILE_3_SLICE = 0x02
 const NVML_COMPUTE_INSTANCE_PROFILE_4_SLICE = 0x03
 const NVML_COMPUTE_INSTANCE_PROFILE_7_SLICE = 0x04
-const NVML_COMPUTE_INSTANCE_PROFILE_COUNT = 0x05
+const NVML_COMPUTE_INSTANCE_PROFILE_8_SLICE = 0x05
+const NVML_COMPUTE_INSTANCE_PROFILE_COUNT = 0x06
 const NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_SHARED = 0x00
 const NVML_COMPUTE_INSTANCE_ENGINE_PROFILE_COUNT = 0x01
 const nvmlDevice_st = Cvoid
@@ -315,6 +322,8 @@ const nvmlBAR1Memory_t = nvmlBAR1Memory_st
 struct nvmlProcessInfo_st
     pid::UInt32
     usedGpuMemory::Culonglong
+    gpuInstanceId::UInt32
+    computeInstanceId::UInt32
 end
 
 const nvmlProcessInfo_t = nvmlProcessInfo_st
@@ -326,9 +335,22 @@ struct nvmlDeviceAttributes_st
     sharedEncoderCount::UInt32
     sharedJpegCount::UInt32
     sharedOfaCount::UInt32
+    gpuInstanceSliceCount::UInt32
+    computeInstanceSliceCount::UInt32
+    memorySizeMB::Culonglong
 end
 
 const nvmlDeviceAttributes_t = nvmlDeviceAttributes_st
+
+struct nvmlRowRemapperHistogramValues_st
+    max::UInt32
+    high::UInt32
+    partial::UInt32
+    low::UInt32
+    none::UInt32
+end
+
+const nvmlRowRemapperHistogramValues_t = nvmlRowRemapperHistogramValues_st
 
 @cenum nvmlBridgeChipType_enum::UInt32 begin
     NVML_BRIDGE_CHIP_PLX = 0
@@ -519,7 +541,10 @@ const nvmlBrandType_t = nvmlBrandType_enum
     NVML_TEMPERATURE_THRESHOLD_SLOWDOWN = 1
     NVML_TEMPERATURE_THRESHOLD_MEM_MAX = 2
     NVML_TEMPERATURE_THRESHOLD_GPU_MAX = 3
-    NVML_TEMPERATURE_THRESHOLD_COUNT = 4
+    NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN = 4
+    NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR = 5
+    NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX = 6
+    NVML_TEMPERATURE_THRESHOLD_COUNT = 7
 end
 
 const nvmlTemperatureThresholds_t = nvmlTemperatureThresholds_enum
@@ -1048,6 +1073,13 @@ const nvmlGpuInstanceInfo_t = nvmlGpuInstanceInfo_st
 const nvmlGpuInstance_st = Cvoid
 const nvmlGpuInstance_t = Ptr{nvmlGpuInstance_st}
 
+struct nvmlComputeInstancePlacement_st
+    start::UInt32
+    size::UInt32
+end
+
+const nvmlComputeInstancePlacement_t = nvmlComputeInstancePlacement_st
+
 struct nvmlComputeInstanceProfileInfo_st
     id::UInt32
     sliceCount::UInt32
@@ -1067,6 +1099,7 @@ struct nvmlComputeInstanceInfo_st
     gpuInstance::nvmlGpuInstance_t
     id::UInt32
     profileId::UInt32
+    placement::nvmlComputeInstancePlacement_t
 end
 
 const nvmlComputeInstanceInfo_t = nvmlComputeInstanceInfo_st
