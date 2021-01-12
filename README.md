@@ -53,7 +53,30 @@ Or, equivalently, via the `Pkg` API:
 julia> import Pkg; Pkg.add("CUDA")
 ```
 
-For usage instructions and other information, please refer to [the
+For an overview of the CUDA toolchain in use, you can run the following command after
+importing the package:
+
+```julia
+julia> using CUDA
+
+julia> CUDA.versioninfo()
+```
+
+This may take a while, as it will precompile the package and download a suitable version of
+the CUDA toolkit. If you prefer to use your own (not recommended), set the
+`JULIA_CUDA_USE_BINARYBUILDER` environment variable to `false` before importing the package.
+
+If your GPU is not fully supported, the above command (or any other command that initializes
+the toolkit) will issue a warning. Your devices' compute capability will be listed as part of
+the `versioninfo()` output, but you can always query it explicitly:
+
+```julia
+julia> [CUDA.capability(dev) for dev in CUDA.devices()]
+1-element Vector{VersionNumber}:
+ v"5.0.0"
+```
+
+For more usage instructions and other information, please refer to [the
 documentation](https://juliagpu.github.io/CUDA.jl/stable/).
 
 
