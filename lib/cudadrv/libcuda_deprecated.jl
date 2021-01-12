@@ -1,4 +1,4 @@
-## superseded in CUDA 11
+## superseded in CUDA 11.0
 
 @checked function cuDevicePrimaryCtxRelease(dev)
     ccall((:cuDevicePrimaryCtxRelease, libcuda()), CUresult,
@@ -25,3 +25,14 @@ end
                    (Ptr{CUgraphExec}, CUgraph, Ptr{CUgraphNode}, Cstring, Csize_t),
                    phGraphExec, hGraph, phErrorNode, logBuffer, bufferSize)
 end
+
+## superseded in CUDA 11.1
+
+@checked function cuIpcOpenMemHandle(pdptr, handle, Flags)
+    initialize_api()
+    ccall((:cuIpcOpenMemHandle, libcuda()), CUresult,
+                   (Ptr{CUdeviceptr}, CUipcMemHandle, UInt32),
+                   pdptr, handle, Flags)
+end
+
+##

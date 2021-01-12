@@ -126,13 +126,6 @@ end
                    deviceCount)
 end
 
-@checked function nvmlDeviceGetAttributes(device, attributes)
-    initialize_api()
-    ccall((:nvmlDeviceGetAttributes, libnvml()), nvmlReturn_t,
-                   (nvmlDevice_t, Ptr{nvmlDeviceAttributes_t}),
-                   device, attributes)
-end
-
 @checked function nvmlDeviceGetHandleByIndex_v2(index, device)
     initialize_api()
     ccall((:nvmlDeviceGetHandleByIndex_v2, libnvml()), nvmlReturn_t,
@@ -719,20 +712,6 @@ end
     ccall((:nvmlDeviceGetBridgeChipInfo, libnvml()), nvmlReturn_t,
                    (nvmlDevice_t, Ptr{nvmlBridgeChipHierarchy_t}),
                    device, bridgeHierarchy)
-end
-
-@checked function nvmlDeviceGetComputeRunningProcesses(device, infoCount, infos)
-    initialize_api()
-    ccall((:nvmlDeviceGetComputeRunningProcesses, libnvml()), nvmlReturn_t,
-                   (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfo_t}),
-                   device, infoCount, infos)
-end
-
-@checked function nvmlDeviceGetGraphicsRunningProcesses(device, infoCount, infos)
-    initialize_api()
-    ccall((:nvmlDeviceGetGraphicsRunningProcesses, libnvml()), nvmlReturn_t,
-                   (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfo_t}),
-                   device, infoCount, infos)
 end
 
 @checked function nvmlDeviceOnSameBoard(device1, device2, onSameBoard)
@@ -1584,3 +1563,32 @@ end
                    (nvmlDevice_t, Ptr{nvmlDevice_t}),
                    migDevice, device)
 end
+
+## Added in CUDA 11.1
+
+@checked function nvmlDeviceGetGraphicsRunningProcesses_v2(device, infoCount, infos)
+    initialize_api()
+    ccall((:nvmlDeviceGetGraphicsRunningProcesses_v2, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfo_t}), device, infoCount, infos)
+end
+
+@checked function nvmlVgpuTypeGetGpuInstanceProfileId(vgpuTypeId, gpuInstanceProfileId)
+    initialize_api()
+    ccall((:nvmlVgpuTypeGetGpuInstanceProfileId, libnvml()), nvmlReturn_t, (nvmlVgpuTypeId_t, Ptr{UInt32}), vgpuTypeId, gpuInstanceProfileId)
+end
+
+@checked function nvmlDeviceGetAttributes_v2(device, attributes)
+    initialize_api()
+    ccall((:nvmlDeviceGetAttributes_v2, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{nvmlDeviceAttributes_t}), device, attributes)
+end
+
+@checked function nvmlDeviceGetRowRemapperHistogram(device, values)
+    initialize_api()
+    ccall((:nvmlDeviceGetRowRemapperHistogram, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{nvmlRowRemapperHistogramValues_t}), device, values)
+end
+
+@checked function nvmlDeviceGetComputeRunningProcesses_v2(device, infoCount, infos)
+    initialize_api()
+    ccall((:nvmlDeviceGetComputeRunningProcesses_v2, libnvml()), nvmlReturn_t, (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfo_t}), device, infoCount, infos)
+end
+
+##

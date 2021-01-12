@@ -1,8 +1,8 @@
 [deps]
 CSTParser = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
 CUDA_full_jll = "4f82f1eb-248c-5f56-a42e-99106d144614"
-CUDNN_CUDA110_jll = "5fa5d4a9-0408-52e0-9638-7667eddd2fce"
-CUTENSOR_CUDA110_jll = "004fe424-f3b5-51a0-a814-026e7c39908e"
+CUDNN_CUDA111_jll = "2839a42b-739d-52bf-a6f0-df8e4ebc59da"
+CUTENSOR_CUDA111_jll = "0e40f886-cfff-5d56-8a11-88482f468a43"
 Clang = "40e3b903-d033-50b4-a0cc-940c62c95e31"
 Crayons = "a8cc5b0e-0ffa-5ad4-8c14-923d3ee1735f"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"

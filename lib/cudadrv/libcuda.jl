@@ -452,13 +452,6 @@ end
                    pHandle, dptr)
 end
 
-@checked function cuIpcOpenMemHandle(pdptr, handle, Flags)
-    initialize_api()
-    ccall((:cuIpcOpenMemHandle, libcuda()), CUresult,
-                   (Ptr{CUdeviceptr}, CUipcMemHandle, UInt32),
-                   pdptr, handle, Flags)
-end
-
 @checked function cuIpcCloseMemHandle(dptr)
     initialize_api()
     ccall((:cuIpcCloseMemHandle, libcuda()), CUresult,
@@ -2095,3 +2088,91 @@ end
     initialize_api()
     ccall((:cuGLGetDevices_v2, libcuda()), CUresult, (Ptr{UInt32}, Ptr{CUdevice}, UInt32, CUGLDeviceList), pCudaDeviceCount, pCudaDevices, cudaDeviceCount, deviceList)
 end
+
+## Added in CUDA 11.1
+
+@checked function cuGraphAddEventRecordNode(phGraphNode, hGraph, dependencies, numDependencies, event)
+    initialize_api()
+    ccall((:cuGraphAddEventRecordNode, libcuda()), CUresult, (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, CUevent), phGraphNode, hGraph, dependencies, numDependencies, event)
+end
+
+@checked function cuDeviceGetTexture1DLinearMaxWidth(maxWidthInElements, format, numChannels, dev)
+    initialize_api()
+    ccall((:cuDeviceGetTexture1DLinearMaxWidth, libcuda()), CUresult, (Ptr{Csize_t}, CUarray_format, UInt32, CUdevice), maxWidthInElements, format, numChannels, dev)
+end
+
+@checked function cuArrayGetSparseProperties(sparseProperties, array)
+    initialize_api()
+    ccall((:cuArrayGetSparseProperties, libcuda()), CUresult, (Ptr{CUDA_ARRAY_SPARSE_PROPERTIES}, CUarray), sparseProperties, array)
+end
+
+@checked function cuGraphEventRecordNodeSetEvent(hNode, event)
+    initialize_api()
+    ccall((:cuGraphEventRecordNodeSetEvent, libcuda()), CUresult, (CUgraphNode, CUevent), hNode, event)
+end
+
+@checked function cuMemMapArrayAsync(mapInfoList, count, hStream)
+    initialize_api()
+    ccall((:cuMemMapArrayAsync, libcuda()), CUresult, (Ptr{CUarrayMapInfo}, UInt32, CUstream), mapInfoList, count, hStream)
+end
+
+@checked function cuGraphExecEventRecordNodeSetEvent(hGraphExec, hNode, event)
+    initialize_api()
+    ccall((:cuGraphExecEventRecordNodeSetEvent, libcuda()), CUresult, (CUgraphExec, CUgraphNode, CUevent), hGraphExec, hNode, event)
+end
+
+@checked function cuGraphEventWaitNodeGetEvent(hNode, event_out)
+    initialize_api()
+    ccall((:cuGraphEventWaitNodeGetEvent, libcuda()), CUresult, (CUgraphNode, Ptr{CUevent}), hNode, event_out)
+end
+
+@checked function cuMipmappedArrayGetSparseProperties(sparseProperties, mipmap)
+    initialize_api()
+    ccall((:cuMipmappedArrayGetSparseProperties, libcuda()), CUresult, (Ptr{CUDA_ARRAY_SPARSE_PROPERTIES}, CUmipmappedArray), sparseProperties, mipmap)
+end
+
+@checked function cuEventRecordWithFlags(hEvent, hStream, flags)
+    initialize_api()
+    ccall((:cuEventRecordWithFlags, libcuda()), CUresult, (CUevent, CUstream, UInt32), hEvent, hStream, flags)
+end
+
+@checked function cuDeviceGetLuid(luid, deviceNodeMask, dev)
+    ccall((:cuDeviceGetLuid, libcuda()), CUresult, (Cstring, Ptr{UInt32}, CUdevice), luid, deviceNodeMask, dev)
+end
+
+@checked function cuGraphExecEventWaitNodeSetEvent(hGraphExec, hNode, event)
+    initialize_api()
+    ccall((:cuGraphExecEventWaitNodeSetEvent, libcuda()), CUresult, (CUgraphExec, CUgraphNode, CUevent), hGraphExec, hNode, event)
+end
+
+@checked function cuGraphUpload(hGraphExec, hStream)
+    initialize_api()
+    ccall((:cuGraphUpload, libcuda()), CUresult, (CUgraphExec, CUstream), hGraphExec, hStream)
+end
+
+@checked function cuIpcOpenMemHandle_v2(pdptr, handle, Flags)
+    initialize_api()
+    ccall((:cuIpcOpenMemHandle_v2, libcuda()), CUresult, (Ptr{CUdeviceptr}, CUipcMemHandle, UInt32), pdptr, handle, Flags)
+end
+
+@checked function cuGraphAddEventWaitNode(phGraphNode, hGraph, dependencies, numDependencies, event)
+    initialize_api()
+    ccall((:cuGraphAddEventWaitNode, libcuda()), CUresult, (Ptr{CUgraphNode}, CUgraph, Ptr{CUgraphNode}, Csize_t, CUevent), phGraphNode, hGraph, dependencies, numDependencies, event)
+end
+
+@checked function cuGraphEventWaitNodeSetEvent(hNode, event)
+    initialize_api()
+    ccall((:cuGraphEventWaitNodeSetEvent, libcuda()), CUresult, (CUgraphNode, CUevent), hNode, event)
+end
+
+@checked function cuGraphEventRecordNodeGetEvent(hNode, event_out)
+    initialize_api()
+    ccall((:cuGraphEventRecordNodeGetEvent, libcuda()), CUresult, (CUgraphNode, Ptr{CUevent}), hNode, event_out)
+end
+
+@checked function cuGraphExecChildGraphNodeSetParams(hGraphExec, hNode, childGraph)
+    initialize_api()
+    ccall((:cuGraphExecChildGraphNodeSetParams, libcuda()), CUresult, (CUgraphExec, CUgraphNode, CUgraph), hGraphExec, hNode, childGraph)
+end
+
+##

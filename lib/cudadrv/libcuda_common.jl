@@ -27,7 +27,7 @@
 
 # Skipping MacroDefinition: cuStreamBeginCapture __CUDA_API_PTSZ ( cuStreamBeginCapture_v2 )
 
-const CUDA_VERSION = 11000
+const CUDA_VERSION = 11010
 const CU_IPC_HANDLE_SIZE = 64
 
 # Skipping MacroDefinition: CU_STREAM_LEGACY ( ( CUstream ) 0x1 )
@@ -39,11 +39,14 @@ const CU_MEMHOSTALLOC_WRITECOMBINED = 0x04
 const CU_MEMHOSTREGISTER_PORTABLE = 0x01
 const CU_MEMHOSTREGISTER_DEVICEMAP = 0x02
 const CU_MEMHOSTREGISTER_IOMEMORY = 0x04
+const CU_MEMHOSTREGISTER_READ_ONLY = 0x08
+const CU_ARRAY_SPARSE_PROPERTIES_SINGLE_MIPTAIL = 0x01
 const CUDA_EXTERNAL_MEMORY_DEDICATED = 0x01
 const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_SKIP_NVSCIBUF_MEMSYNC = 0x01
 const CUDA_EXTERNAL_SEMAPHORE_WAIT_SKIP_NVSCIBUF_MEMSYNC = 0x02
 const CUDA_NVSCISYNC_ATTR_SIGNAL = 0x01
 const CUDA_NVSCISYNC_ATTR_WAIT = 0x02
+const CU_MEM_CREATE_USAGE_TILE_POOL = 0x01
 const CUDA_COOPERATIVE_LAUNCH_MULTI_DEVICE_NO_PRE_LAUNCH_SYNC = 0x01
 const CUDA_COOPERATIVE_LAUNCH_MULTI_DEVICE_NO_POST_LAUNCH_SYNC = 0x02
 const CUDA_ARRAY3D_LAYERED = 0x01
@@ -53,6 +56,7 @@ const CUDA_ARRAY3D_CUBEMAP = 0x04
 const CUDA_ARRAY3D_TEXTURE_GATHER = 0x08
 const CUDA_ARRAY3D_DEPTH_TEXTURE = 0x10
 const CUDA_ARRAY3D_COLOR_ATTACHMENT = 0x20
+const CUDA_ARRAY3D_SPARSE = 0x40
 const CU_TRSA_OVERRIDE_FORMAT = 0x01
 const CU_TRSF_READ_AS_INTEGER = 0x01
 const CU_TRSF_NORMALIZED_COORDINATES = 0x02
@@ -163,6 +167,20 @@ const CUstream_flags = CUstream_flags_enum
 end
 
 const CUevent_flags = CUevent_flags_enum
+
+@cenum CUevent_record_flags_enum::UInt32 begin
+    CU_EVENT_RECORD_DEFAULT = 0
+    CU_EVENT_RECORD_EXTERNAL = 1
+end
+
+const CUevent_record_flags = CUevent_record_flags_enum
+
+@cenum CUevent_wait_flags_enum::UInt32 begin
+    CU_EVENT_WAIT_DEFAULT = 0
+    CU_EVENT_WAIT_EXTERNAL = 1
+end
+
+const CUevent_wait_flags = CUevent_wait_flags_enum
 
 @cenum CUstreamWaitValue_flags_enum::UInt32 begin
     CU_STREAM_WAIT_VALUE_GEQ = 0
@@ -331,7 +349,9 @@ const CUfilter_mode = CUfilter_mode_enum
     CU_DEVICE_ATTRIBUTE_MAX_ACCESS_POLICY_WINDOW_SIZE = 109
     CU_DEVICE_ATTRIBUTE_GPU_DIRECT_RDMA_WITH_CUDA_VMM_SUPPORTED = 110
     CU_DEVICE_ATTRIBUTE_RESERVED_SHARED_MEMORY_PER_BLOCK = 111
-    CU_DEVICE_ATTRIBUTE_MAX = 112
+    CU_DEVICE_ATTRIBUTE_SPARSE_CUDA_ARRAY_SUPPORTED = 112
+    CU_DEVICE_ATTRIBUTE_READ_ONLY_HOST_REGISTER_SUPPORTED = 113
+    CU_DEVICE_ATTRIBUTE_MAX = 114
 end
 
 const CUdevice_attribute = CUdevice_attribute_enum
@@ -367,6 +387,7 @@ const CUdevprop = CUdevprop_st
     CU_POINTER_ATTRIBUTE_MAPPED = 13
     CU_POINTER_ATTRIBUTE_ALLOWED_HANDLE_TYPES = 14
     CU_POINTER_ATTRIBUTE_IS_GPU_DIRECT_RDMA_CAPABLE = 15
+    CU_POINTER_ATTRIBUTE_ACCESS_FLAGS = 16
 end
 
 const CUpointer_attribute = CUpointer_attribute_enum
@@ -492,6 +513,7 @@ const CUjit_option = CUjit_option_enum
     CU_TARGET_COMPUTE_72 = 72
     CU_TARGET_COMPUTE_75 = 75
     CU_TARGET_COMPUTE_80 = 80
+    CU_TARGET_COMPUTE_86 = 86
 end
 
 const CUjit_target = CUjit_target_enum
@@ -634,6 +656,8 @@ const CUDA_HOST_NODE_PARAMS = CUDA_HOST_NODE_PARAMS_st
     CU_GRAPH_NODE_TYPE_HOST = 3
     CU_GRAPH_NODE_TYPE_GRAPH = 4
     CU_GRAPH_NODE_TYPE_EMPTY = 5
+    CU_GRAPH_NODE_TYPE_WAIT_EVENT = 6
+    CU_GRAPH_NODE_TYPE_EVENT_RECORD = 7
 end
 
 const CUgraphNodeType = CUgraphNodeType_enum
@@ -699,8 +723,10 @@ const CUstreamAttrValue = CUstreamAttrValue_union
     CUDA_ERROR_PROFILER_NOT_INITIALIZED = 6
     CUDA_ERROR_PROFILER_ALREADY_STARTED = 7
     CUDA_ERROR_PROFILER_ALREADY_STOPPED = 8
+    CUDA_ERROR_STUB_LIBRARY = 34
     CUDA_ERROR_NO_DEVICE = 100
     CUDA_ERROR_INVALID_DEVICE = 101
+    CUDA_ERROR_DEVICE_NOT_LICENSED = 102
     CUDA_ERROR_INVALID_IMAGE = 200
     CUDA_ERROR_INVALID_CONTEXT = 201
     CUDA_ERROR_CONTEXT_ALREADY_CURRENT = 202
@@ -721,6 +747,7 @@ const CUstreamAttrValue = CUstreamAttrValue_union
     CUDA_ERROR_INVALID_GRAPHICS_CONTEXT = 219
     CUDA_ERROR_NVLINK_UNCORRECTABLE = 220
     CUDA_ERROR_JIT_COMPILER_NOT_FOUND = 221
+    CUDA_ERROR_UNSUPPORTED_PTX_VERSION = 222
     CUDA_ERROR_INVALID_SOURCE = 300
     CUDA_ERROR_FILE_NOT_FOUND = 301
     CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND = 302
@@ -883,17 +910,33 @@ end
 
 const CUDA_ARRAY3D_DESCRIPTOR = CUDA_ARRAY3D_DESCRIPTOR_st
 
-struct ANONYMOUS2_reserved
+struct ANONYMOUS1_tileExtent
+    width::UInt32
+    height::UInt32
+    depth::UInt32
+end
+
+struct CUDA_ARRAY_SPARSE_PROPERTIES_st
+    tileExtent::ANONYMOUS1_tileExtent
+    miptailFirstLevel::UInt32
+    miptailSize::Culonglong
+    flags::UInt32
+    reserved::NTuple{4, UInt32}
+end
+
+const CUDA_ARRAY_SPARSE_PROPERTIES = CUDA_ARRAY_SPARSE_PROPERTIES_st
+
+struct ANONYMOUS3_reserved
     reserved::NTuple{32, Cint}
 end
 
-struct ANONYMOUS1_res
-    reserved::ANONYMOUS2_reserved
+struct ANONYMOUS2_res
+    reserved::ANONYMOUS3_reserved
 end
 
 struct CUDA_RESOURCE_DESC_st
     resType::CUresourcetype
-    res::ANONYMOUS1_res
+    res::ANONYMOUS2_res
     flags::UInt32
 end
 
@@ -975,6 +1018,14 @@ end
 
 const CUDA_POINTER_ATTRIBUTE_P2P_TOKENS = CUDA_POINTER_ATTRIBUTE_P2P_TOKENS_st
 
+@cenum CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum::UInt32 begin
+    CU_POINTER_ATTRIBUTE_ACCESS_FLAG_NONE = 0
+    CU_POINTER_ATTRIBUTE_ACCESS_FLAG_READ = 1
+    CU_POINTER_ATTRIBUTE_ACCESS_FLAG_READWRITE = 3
+end
+
+const CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS = CUDA_POINTER_ATTRIBUTE_ACCESS_FLAGS_enum
+
 struct CUDA_LAUNCH_PARAMS_st
     _function::CUfunction
     gridDimX::UInt32
@@ -1003,18 +1054,18 @@ end
 
 const CUexternalMemoryHandleType = CUexternalMemoryHandleType_enum
 
-struct ANONYMOUS4_win32
+struct ANONYMOUS5_win32
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
 
-struct ANONYMOUS3_handle
-    win32::ANONYMOUS4_win32
+struct ANONYMOUS4_handle
+    win32::ANONYMOUS5_win32
 end
 
 struct CUDA_EXTERNAL_MEMORY_HANDLE_DESC_st
     type::CUexternalMemoryHandleType
-    handle::ANONYMOUS3_handle
+    handle::ANONYMOUS4_handle
     size::Culonglong
     flags::UInt32
     reserved::NTuple{16, UInt32}
@@ -1053,73 +1104,73 @@ end
 
 const CUexternalSemaphoreHandleType = CUexternalSemaphoreHandleType_enum
 
-struct ANONYMOUS6_win32
+struct ANONYMOUS7_win32
     handle::Ptr{Cvoid}
     name::Ptr{Cvoid}
 end
 
-struct ANONYMOUS5_handle
-    win32::ANONYMOUS6_win32
+struct ANONYMOUS6_handle
+    win32::ANONYMOUS7_win32
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st
     type::CUexternalSemaphoreHandleType
-    handle::ANONYMOUS5_handle
+    handle::ANONYMOUS6_handle
     flags::UInt32
     reserved::NTuple{16, UInt32}
 end
 
 const CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC = CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC_st
 
-struct ANONYMOUS8_fence
+struct ANONYMOUS9_fence
     value::Culonglong
 end
 
-struct ANONYMOUS9_nvSciSync
+struct ANONYMOUS10_nvSciSync
     fence::Ptr{Cvoid}
 end
 
-struct ANONYMOUS10_keyedMutex
+struct ANONYMOUS11_keyedMutex
     key::Culonglong
 end
 
-struct ANONYMOUS7_params
-    fence::ANONYMOUS8_fence
-    nvSciSync::ANONYMOUS9_nvSciSync
-    keyedMutex::ANONYMOUS10_keyedMutex
+struct ANONYMOUS8_params
+    fence::ANONYMOUS9_fence
+    nvSciSync::ANONYMOUS10_nvSciSync
+    keyedMutex::ANONYMOUS11_keyedMutex
     reserved::NTuple{12, UInt32}
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st
-    params::ANONYMOUS7_params
+    params::ANONYMOUS8_params
     flags::UInt32
     reserved::NTuple{16, UInt32}
 end
 
 const CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS = CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS_st
 
-struct ANONYMOUS12_fence
+struct ANONYMOUS13_fence
     value::Culonglong
 end
 
-struct ANONYMOUS13_nvSciSync
+struct ANONYMOUS14_nvSciSync
     fence::Ptr{Cvoid}
 end
 
-struct ANONYMOUS14_keyedMutex
+struct ANONYMOUS15_keyedMutex
     key::Culonglong
     timeoutMs::UInt32
 end
 
-struct ANONYMOUS11_params
-    fence::ANONYMOUS12_fence
-    nvSciSync::ANONYMOUS13_nvSciSync
-    keyedMutex::ANONYMOUS14_keyedMutex
+struct ANONYMOUS12_params
+    fence::ANONYMOUS13_fence
+    nvSciSync::ANONYMOUS14_nvSciSync
+    keyedMutex::ANONYMOUS15_keyedMutex
     reserved::NTuple{10, UInt32}
 end
 
 struct CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS_st
-    params::ANONYMOUS11_params
+    params::ANONYMOUS12_params
     flags::UInt32
     reserved::NTuple{16, UInt32}
 end
@@ -1168,6 +1219,65 @@ end
 
 const CUmemAllocationGranularity_flags = CUmemAllocationGranularity_flags_enum
 
+@cenum CUarraySparseSubresourceType_enum::UInt32 begin
+    CU_ARRAY_SPARSE_SUBRESOURCE_TYPE_SPARSE_LEVEL = 0
+    CU_ARRAY_SPARSE_SUBRESOURCE_TYPE_MIPTAIL = 1
+end
+
+const CUarraySparseSubresourceType = CUarraySparseSubresourceType_enum
+
+@cenum CUmemOperationType_enum::UInt32 begin
+    CU_MEM_OPERATION_TYPE_MAP = 1
+    CU_MEM_OPERATION_TYPE_UNMAP = 2
+end
+
+const CUmemOperationType = CUmemOperationType_enum
+
+@cenum CUmemHandleType_enum::UInt32 begin
+    CU_MEM_HANDLE_TYPE_GENERIC = 0
+end
+
+const CUmemHandleType = CUmemHandleType_enum
+
+struct ANONYMOUS16_resource
+    mipmap::CUmipmappedArray
+end
+
+struct ANONYMOUS18_sparseLevel
+    level::UInt32
+    layer::UInt32
+    offsetX::UInt32
+    offsetY::UInt32
+    offsetZ::UInt32
+    extentWidth::UInt32
+    extentHeight::UInt32
+    extentDepth::UInt32
+end
+
+struct ANONYMOUS17_subresource
+    sparseLevel::ANONYMOUS18_sparseLevel
+end
+
+struct ANONYMOUS19_memHandle
+    memHandle::CUmemGenericAllocationHandle
+end
+
+struct CUarrayMapInfo_st
+    resourceType::CUresourcetype
+    resource::ANONYMOUS16_resource
+    subresourceType::CUarraySparseSubresourceType
+    subresource::ANONYMOUS17_subresource
+    memOperationType::CUmemOperationType
+    memHandleType::CUmemHandleType
+    memHandle::ANONYMOUS19_memHandle
+    offset::Culonglong
+    deviceBitMask::UInt32
+    flags::UInt32
+    reserved::NTuple{2, UInt32}
+end
+
+const CUarrayMapInfo = CUarrayMapInfo_st
+
 struct CUmemLocation_st
     type::CUmemLocationType
     id::Cint
@@ -1182,10 +1292,11 @@ end
 
 const CUmemAllocationCompType = CUmemAllocationCompType_enum
 
-struct ANONYMOUS15_allocFlags
+struct ANONYMOUS20_allocFlags
     compressionType::Cuchar
     gpuDirectRDMACapable::Cuchar
-    reserved::NTuple{6, Cuchar}
+    usage::UInt16
+    reserved::NTuple{4, Cuchar}
 end
 
 struct CUmemAllocationProp_st
@@ -1193,7 +1304,7 @@ struct CUmemAllocationProp_st
     requestedHandleTypes::CUmemAllocationHandleType
     location::CUmemLocation
     win32HandleMetaData::Ptr{Cvoid}
-    allocFlags::ANONYMOUS15_allocFlags
+    allocFlags::ANONYMOUS20_allocFlags
 end
 
 const CUmemAllocationProp = CUmemAllocationProp_st

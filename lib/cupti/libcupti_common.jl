@@ -1,6 +1,6 @@
 # Automatically generated using Clang.jl
 
-const CUPTI_API_VERSION = 13
+const CUPTI_API_VERSION = 14
 
 # Skipping MacroDefinition: CUPTI_EVENT_OVERFLOW ( ( uint64_t ) 0xFFFFFFFFFFFFFFFFULL )
 # Skipping MacroDefinition: CUPTI_EVENT_INVALID ( ( uint64_t ) 0xFFFFFFFFFFFFFFFEULL )
@@ -728,6 +728,27 @@ struct CUpti_ActivityMemcpy3
     graphNodeId::UInt64
 end
 
+struct CUpti_ActivityMemcpy4
+    kind::CUpti_ActivityKind
+    copyKind::UInt8
+    srcKind::UInt8
+    dstKind::UInt8
+    flags::UInt8
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    correlationId::UInt32
+    runtimeCorrelationId::UInt32
+    pad::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+    graphId::UInt32
+    padding::UInt32
+end
+
 struct CUpti_ActivityMemcpyPtoP
     kind::CUpti_ActivityKind
     copyKind::UInt8
@@ -771,6 +792,29 @@ struct CUpti_ActivityMemcpyPtoP2
     graphNodeId::UInt64
 end
 
+struct CUpti_ActivityMemcpyPtoP3
+    kind::CUpti_ActivityKind
+    copyKind::UInt8
+    srcKind::UInt8
+    dstKind::UInt8
+    flags::UInt8
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    srcDeviceId::UInt32
+    srcContextId::UInt32
+    dstDeviceId::UInt32
+    dstContextId::UInt32
+    correlationId::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+    graphId::UInt32
+    padding::UInt32
+end
+
 struct CUpti_ActivityMemset
     kind::CUpti_ActivityKind
     value::UInt32
@@ -802,6 +846,25 @@ struct CUpti_ActivityMemset2
     pad::UInt32
     reserved0::Ptr{Cvoid}
     graphNodeId::UInt64
+end
+
+struct CUpti_ActivityMemset3
+    kind::CUpti_ActivityKind
+    value::UInt32
+    bytes::UInt64
+    start::UInt64
+    _end::UInt64
+    deviceId::UInt32
+    contextId::UInt32
+    streamId::UInt32
+    correlationId::UInt32
+    flags::UInt16
+    memoryKind::UInt16
+    pad::UInt32
+    reserved0::Ptr{Cvoid}
+    graphNodeId::UInt64
+    graphId::UInt32
+    padding::UInt32
 end
 
 struct CUpti_ActivityMemory
@@ -1003,7 +1066,7 @@ struct CUpti_ActivityKernel5
     sharedMemoryExecuted::UInt32
     graphNodeId::UInt64
     shmemLimitConfig::CUpti_FuncShmemLimitConfig
-    padding2::UInt32
+    graphId::UInt32
 end
 
 struct ANONYMOUS7_cacheConfig

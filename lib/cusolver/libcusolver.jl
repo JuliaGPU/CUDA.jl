@@ -4159,3 +4159,87 @@ end
                    handle, m, n, nnz, descrA, csrValA, csrRowPtrA, csrColIndA, b, x,
                    batchSize, info, pBuffer)
 end
+
+## Added in CUDA 11.1
+
+@checked function cusolverDnXpotrf_bufferSize(handle, params, uplo, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    initialize_api()
+    ccall((:cusolverDnXpotrf_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, uplo, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+end
+
+@checked function cusolverDnXgetrs(handle, params, trans, n, nrhs, dataTypeA, A, lda, ipiv, dataTypeB, B, ldb, info)
+    initialize_api()
+    ccall((:cusolverDnXgetrs, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasOperation_t, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, Ptr{Int64}, cudaDataType, Ptr{Cvoid}, Int64, Ptr{Cint}), handle, params, trans, n, nrhs, dataTypeA, A, lda, ipiv, dataTypeB, B, ldb, info)
+end
+
+@checked function cusolverDnXgesvdp(handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info, h_err_sigma)
+    initialize_api()
+    ccall((:cusolverDnXgesvdp, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, Cint, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cint}, Ptr{Cdouble}), handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, d_info, h_err_sigma)
+end
+
+@checked function cusolverDnXgesvd(handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_api()
+    ccall((:cusolverDnXgesvd, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cint}), handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+end
+
+@checked function cusolverDnXsyevdx_bufferSize(handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, h_meig, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    initialize_api()
+    ccall((:cusolverDnXsyevdx_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cusolverEigRange_t, cublasFillMode_t, Int64, cudaDataType, Ptr{Cvoid}, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Int64, Int64, Ptr{Int64}, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, h_meig, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+end
+
+@checked function cusolverDnXpotrs(handle, params, uplo, n, nrhs, dataTypeA, A, lda, dataTypeB, B, ldb, info)
+    initialize_api()
+    ccall((:cusolverDnXpotrs, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Int64, Ptr{Cint}), handle, params, uplo, n, nrhs, dataTypeA, A, lda, dataTypeB, B, ldb, info)
+end
+
+@checked function cusolverDnXgetrf_bufferSize(handle, params, m, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    initialize_api()
+    ccall((:cusolverDnXgetrf_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, m, n, dataTypeA, A, lda, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+end
+
+@checked function cusolverDnXgesvdp_bufferSize(handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    initialize_api()
+    ccall((:cusolverDnXgesvdp_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, Cint, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobz, econ, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeV, V, ldv, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+end
+
+@checked function cusolverDnXgesvd_bufferSize(handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    initialize_api()
+    ccall((:cusolverDnXgesvd_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, UInt8, UInt8, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobu, jobvt, m, n, dataTypeA, A, lda, dataTypeS, S, dataTypeU, U, ldu, dataTypeVT, VT, ldvt, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+end
+
+@checked function cusolverDnXgeqrf_bufferSize(handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    initialize_api()
+    ccall((:cusolverDnXgeqrf_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+end
+
+@checked function cusolverDnXsyevdx(handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, meig64, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_api()
+    ccall((:cusolverDnXsyevdx, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cusolverEigRange_t, cublasFillMode_t, Int64, cudaDataType, Ptr{Cvoid}, Int64, Ptr{Cvoid}, Ptr{Cvoid}, Int64, Int64, Ptr{Int64}, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cint}), handle, params, jobz, range, uplo, n, dataTypeA, A, lda, vl, vu, il, iu, meig64, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+end
+
+@checked function cusolverDnXgetrf(handle, params, m, n, dataTypeA, A, lda, ipiv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_api()
+    ccall((:cusolverDnXgetrf, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, Ptr{Int64}, cudaDataType, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cint}), handle, params, m, n, dataTypeA, A, lda, ipiv, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+end
+
+@checked function cusolverDnXsyevd_bufferSize(handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+    initialize_api()
+    ccall((:cusolverDnXsyevd_bufferSize, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cublasFillMode_t, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Csize_t}, Ptr{Csize_t}), handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, workspaceInBytesOnDevice, workspaceInBytesOnHost)
+end
+
+@checked function cusolverDnXpotrf(handle, params, uplo, n, dataTypeA, A, lda, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_api()
+    ccall((:cusolverDnXpotrf, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cublasFillMode_t, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cint}), handle, params, uplo, n, dataTypeA, A, lda, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+end
+
+@checked function cusolverDnXgeqrf(handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_api()
+    ccall((:cusolverDnXgeqrf, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, Int64, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cint}), handle, params, m, n, dataTypeA, A, lda, dataTypeTau, tau, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+end
+
+@checked function cusolverDnXsyevd(handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+    initialize_api()
+    ccall((:cusolverDnXsyevd, libcusolver()), cusolverStatus_t, (cusolverDnHandle_t, cusolverDnParams_t, cusolverEigMode_t, cublasFillMode_t, Int64, cudaDataType, Ptr{Cvoid}, Int64, cudaDataType, Ptr{Cvoid}, cudaDataType, Ptr{Cvoid}, Csize_t, Ptr{Cvoid}, Csize_t, Ptr{Cint}), handle, params, jobz, uplo, n, dataTypeA, A, lda, dataTypeW, W, computeType, bufferOnDevice, workspaceInBytesOnDevice, bufferOnHost, workspaceInBytesOnHost, info)
+end
+
+##

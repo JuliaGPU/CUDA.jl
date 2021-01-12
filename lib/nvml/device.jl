@@ -124,7 +124,7 @@ function compute_processes(dev::Device)
         throw_api_error(res)
     end
 
-    infos = Vector{nvmlProcessInfo_t}(undef, count_ref[])
+    infos = Vector{nvmlProcessInfoV1_t}(undef, count_ref[])
     nvmlDeviceGetComputeRunningProcesses(dev, count_ref, infos)
 
     return Dict(map(infos) do info

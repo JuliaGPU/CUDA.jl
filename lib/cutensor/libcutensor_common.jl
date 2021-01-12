@@ -2,7 +2,7 @@
 
 const CUTENSOR_MAJOR = 1
 const CUTENSOR_MINOR = 2
-const CUTENSOR_PATCH = 0
+const CUTENSOR_PATCH = 1
 
 @cenum cutensorOperator_t::UInt32 begin
     CUTENSOR_OP_IDENTITY = 1
