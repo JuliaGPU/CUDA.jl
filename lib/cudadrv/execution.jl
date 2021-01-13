@@ -145,8 +145,9 @@ end
 async_send(data::Ptr{Cvoid}) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), data)
 
 function launch(f::Base.Callable; stream::CuStream=CuDefaultStream())
-    cond = Base.AsyncCondition() do _
+    cond = Base.AsyncCondition() do async_cond
         f()
+        close(async_cond)
     end
 
     callback = @cfunction(async_send, Cint, (Ptr{Cvoid},))
