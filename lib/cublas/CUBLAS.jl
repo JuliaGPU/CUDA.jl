@@ -141,10 +141,14 @@ function __init__()
 end
 
 function log_message(cstr)
-    str = unsafe_string(cstr)
-    print(str)
     # NOTE: we can't `@debug` these messages, because the logging function is called for
     #       every line... also not sure what the i!/I! prefixes mean (info?)
+    # NOTE: turns out we even can't `print` these messages, as cublasXt callbacks might
+    #       happen from a different thread! we could strdup + uv_async_send, but I couldn't
+    #       find an easy way to attach data to that
+    # TODO: use a pre-allocated lock-free global message buffer?
+    len = ccall(:strlen, Csize_t, (Cstring,), cstr)
+    ccall(:write, Cint, (Cint, Cstring, Csize_t), 0, cstr, len)
     return
 end
 
