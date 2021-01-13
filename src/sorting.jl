@@ -1,32 +1,33 @@
+# sorting functionality
+
 """
-Quicksort!
-Alex Ellison
-@xaellison
-Usage:
-sort!(my_cuarray)
-The main quicksort kernel uses dynamic parallelism. Let's call blocksize M. The
-first part of the kernel bubble sorts M elements with maximal stride between
-lo and hi. If the sublist is <= M elements, stride = 1 and no recursion
-happens. Otherwise, we pick element lo + M ÷ 2 * stride as a pivot. This is
-an efficient choice for random lists and pre-sorted lists.
+The main quicksort kernel uses dynamic parallelism. Let's call blocksize `M`. The first part
+of the kernel bubble sorts `M` elements with maximal stride between `lo` and `hi`. If the
+sublist is <= `M` elements, `stride` = 1 and no recursion happens. Otherwise, we pick
+element `lo + M ÷ 2 * stride` as a pivot. This is an efficient choice for random lists and
+pre-sorted lists.
 
 Partition is done in stages:
-1. Merge-sort batches of M values using their comparison to pivot as a key. The
-   comparison alternates between < and <= with recursion depth. This makes no
-   difference when there are many unique values, but when there are many
-   duplicates, this effectively partitions into <, =, and >.
+1. Merge-sort batches of M values using their comparison to pivot as a key. The comparison
+   alternates between < and <= with recursion depth. This makes no difference when there are
+   many unique values, but when there are many duplicates, this effectively partitions into
+   <, =, and >.
 2. Consolidate batches. This runs inside the quicksort kernel.
 
-Sublists (ranges of the list being sorted) are denoted by `lo` and one of
-    `L` and `hi`. `lo` is an exclusive lower bound, `hi` is an
-    inclusive upperboard, `L` is their difference.
-`b_sums` is "batch sums", the number of values in a batch which are >= pivot or
-    > pivot depending on the relevant `parity`
+Sublists (ranges of the list being sorted) are denoted by `lo` and one of `L` and `hi`. `lo`
+is an exclusive lower bound, `hi` is an inclusive upperboard, `L` is their difference.
+`b_sums` is "batch sums", the number of values in a batch which are >= pivot or > pivot
+depending on the relevant `parity`
+
+Originally developed by @xaellison (Alex Ellison).
 """
-module Sorting
+module Quicksort
+
+export quicksort!
+
 using ..CUDA
 
-#-------------------------------------------------------------------------------
+
 # Integer arithmetic
 
 """
@@ -84,23 +85,24 @@ end
     eq ? a <= b : a < b
 end
 
-#-------------------------------------------------------------------------------
+
 # Batch partitioning
+
 """
 For thread `idx` with current value `value`, merge two batches of size `n` and
 return the new value this thread takes. `sums` and `swap` are shared mem
 """
 function merge_swap_shmem(value, idx, n, sums, swap)
     @inbounds begin
-    sync_threads()
-    b = sums[batch_floor(idx, 2 * n)]
-    a = n - b
-    d = sums[batch_ceil(idx, 2 * n)]
-    c = n - d
-    swap[idx] = value
-    sync_threads()
-    sums[idx] = d + b
-    return swap[batch_step_swap(idx, 2 * n, a, b, c)]
+        sync_threads()
+        b = sums[batch_floor(idx, 2 * n)]
+        a = n - b
+        d = sums[batch_ceil(idx, 2 * n)]
+        c = n - d
+        swap[idx] = value
+        sync_threads()
+        sums[idx] = d + b
+        return swap[batch_step_swap(idx, 2 * n, a, b, c)]
     end
 end
 
@@ -141,21 +143,22 @@ end
 Each block evaluates `batch_partition` on consecutive regions of length blockDim().x
 from `lo` to `hi` of `values`.
 """
-function partition_batches_kernel(values :: AbstractArray{T}, pivot, lo, hi, parity) where T
+function partition_batches_kernel(values::AbstractArray{T}, pivot, lo, hi, parity) where T
     swap = @cuDynamicSharedMem(T, blockDim().x, 4 * blockDim().x)
     sums = @cuDynamicSharedMem(Int32, blockDim().x)
     batch_partition(values, pivot, swap, sums, lo, hi, parity)
-    return nothing
+    return
 end
 
-#-------------------------------------------------------------------------------
+
 # Batch consolidation
+
 """
 Finds the index in `array` of the last value <= `pivot` if `parity` = true or the
 last value < `pivot` if `parity` = false.
 Searches after index `lo` up to (inclusive) index `hi`
 """
-function find_partition(array, pivot, lo, hi, parity) :: Int32
+function find_partition(array, pivot, lo, hi, parity)::Int32
     low = lo + 1
     high = hi
     @inbounds while low <= high
@@ -184,10 +187,10 @@ for storing the partition of each batch.
 
 Must only run on 1 SM.
 """
-@inline function consolidate_batch_partition(vals :: AbstractArray{T}, pivot, lo, L, b_sums, parity) where T
+@inline function consolidate_batch_partition(vals::AbstractArray{T}, pivot, lo, L, b_sums, parity) where T
     sync_threads()
     @inline N_b() = ceil(Int, L / blockDim().x)
-    @inline batch(k) :: Int32 = threadIdx().x + k * blockDim().x
+    @inline batch(k)::Int32 = threadIdx().x + k * blockDim().x
 
     my_iter = 0
     a = 0
@@ -228,38 +231,38 @@ Must only run on 1 SM.
     return lo + a
 end
 
-#-------------------------------------------------------------------------------
+
 # Sorting
+
 """
 Performs bubble sort on `vals` starting after `lo` and going for min(`L`, `blockDim().x`)
-elements spaced by `stride`. Good for sampling pivot values as well as short
-sorts.
+elements spaced by `stride`. Good for sampling pivot values as well as short sorts.
 """
 @inline function bubble_sort(vals, swap, lo, L, stride)
     sync_threads()
     L = min(blockDim().x, L)
     @inbounds begin
-    if threadIdx().x <= L
-        swap[threadIdx().x] = vals[lo + threadIdx().x * stride]
-    end
-    sync_threads()
-    for level in 0:L
-        # get left/right neighbor depending on even/odd level
-        buddy = threadIdx().x - 1 + 2 * (1 & (threadIdx().x % 2 != level % 2))
-        if 1 <= buddy <= L && threadIdx().x <= L
-            buddy_val = swap[buddy]
+        if threadIdx().x <= L
+            swap[threadIdx().x] = vals[lo + threadIdx().x * stride]
         end
         sync_threads()
-        if 1 <= buddy <= L && threadIdx().x <= L
-            if (threadIdx().x < buddy) != flex_lt(swap[threadIdx().x], buddy_val, false)
-                swap[threadIdx().x] = buddy_val
+        for level in 0:L
+            # get left/right neighbor depending on even/odd level
+            buddy = threadIdx().x - 1 + 2 * (1 & (threadIdx().x % 2 != level % 2))
+            if 1 <= buddy <= L && threadIdx().x <= L
+                buddy_val = swap[buddy]
             end
+            sync_threads()
+            if 1 <= buddy <= L && threadIdx().x <= L
+                if (threadIdx().x < buddy) != flex_lt(swap[threadIdx().x], buddy_val, false)
+                    swap[threadIdx().x] = buddy_val
+                end
+            end
+            sync_threads()
         end
-        sync_threads()
-    end
-    if threadIdx().x <= L
-        vals[lo + threadIdx().x * stride] = swap[threadIdx().x]
-    end
+        if threadIdx().x <= L
+            vals[lo + threadIdx().x * stride] = swap[threadIdx().x]
+        end
     end
     sync_threads()
 end
@@ -267,7 +270,7 @@ end
 """
 Launch batch partition kernel and sync
 """
-@inline function call_batch_partition(vals :: AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync :: Val{true}) where T
+@inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync::Val{true}) where T
     L = hi - lo
     if threadIdx().x == 1
         @cuda blocks=ceil(Int, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(4+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity)
@@ -278,47 +281,42 @@ end
 """
 Partition batches in a loop using a single block
 """
-@inline function call_batch_partition(vals :: AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync :: Val{false}) where T
+@inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync::Val{false}) where T
     for temp in lo:blockDim().x:hi
         batch_partition(vals, pivot, swap, b_sums, temp, min(hi, temp + blockDim().x), parity)
     end
 end
 
 """
-Perform quicksort on `vals` for the region with `lo` as an exclusive floor and
-`hi` as an inclusive ceiling.
-`parity` is a Val{Bool} which says whether to partition by < or <= with respect
-to the pivot.
-`sync_depth` is how many (more) levels of recursion with `qsort_kernel`
-can be done before reaching `cudaLimitDevRuntimeSyncDepth`. From the host, this value
-must not exceed that limit.
+Perform quicksort on `vals` for the region with `lo` as an exclusive floor and `hi` as an
+inclusive ceiling. `parity` is a Val{Bool} which says whether to partition by < or <= with
+respect to the pivot. `sync_depth` is how many (more) levels of recursion with
+`qsort_kernel` can be done before reaching `cudaLimitDevRuntimeSyncDepth`. From the host,
+this value must not exceed that limit.
 
-`sync` and enclosed type `S` determine how partition occurs:
- If `sync` is `true`:
-This kernel partitions batches in a child kernel, synchronizes, and then
-consolidates the batches. The benefit of this kernel is that it distributes
-the work of partitioning batches across multiple SMs.
-If `sync` is `false`:
-This kernel partitions without launching any children kernels, then has recursive
-`qsort_async_kernel` children for left and right partitions. `device_synchronize`
-is never called from this kernel, so there is no practical limit on recursion.
+`sync` and enclosed type `S` determine how partition occurs: If `sync` is `true`, the
+kernel partitions batches in a child kernel, synchronizes, and then consolidates the
+batches. The benefit of this kernel is that it distributes the work of partitioning batches
+across multiple SMs. If `sync` is `false`, the kernel partitions without launching any
+child kernels, then has recursive `qsort_async_kernel` children for left and right
+partitions. `device_synchronize` is never called from this kernel, so there is no practical
+limit on recursion.
 
-To detect the scenario of all values in the region being the same, we have two
-args: `prev_pivot` and `stuck`. If two consecutive partitions have the same pivot
-and both failed to split the region in two, that means all the values are equal.
-`stuck` is incremented when the pivot hasn't changed and partition = `lo` or `hi`.
-If `stuck` reaches 2, recursion ends. `stuck` is initialized at -1 because
-`prev_pivot` must be initialized to some value, and it's possible that the first
-pivot will be that value, which could lead to an incorrectly early end to recursion
-if we started `stuck` at 0.
+To detect the scenario of all values in the region being the same, we have two args:
+`prev_pivot` and `stuck`. If two consecutive partitions have the same pivot and both failed
+to split the region in two, that means all the values are equal. `stuck` is incremented when
+the pivot hasn't changed and partition = `lo` or `hi`. If `stuck` reaches 2, recursion ends.
+`stuck` is initialized at -1 because `prev_pivot` must be initialized to some value, and
+it's possible that the first pivot will be that value, which could lead to an incorrectly
+early end to recursion if we started `stuck` at 0.
 """
-function qsort_kernel(vals :: AbstractArray{T}, lo, hi, parity , sync :: Val{S}, sync_depth, prev_pivot, stuck=-1) where {T, S}
+function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync_depth, prev_pivot, stuck=-1) where {T, S}
     b_sums = @cuDynamicSharedMem(Int32, blockDim().x, 0)
     swap = @cuDynamicSharedMem(T, blockDim().x, 4 * blockDim().x)
     L = hi - lo
 
-    #= step 1 bubble sort. It'll either finish sorting a subproblem or help
-    select a pivot value =#
+    # step 1: bubble sort. It'll either finish sorting a subproblem or help select a pivot
+    #         value
     bubble_sort(vals, swap, lo, L, L <= blockDim().x ? 1 : L ÷ blockDim().x)
 
     if L <= blockDim().x
@@ -330,13 +328,13 @@ function qsort_kernel(vals :: AbstractArray{T}, lo, hi, parity , sync :: Val{S},
     # step 2: use pivot to partition into batches
     call_batch_partition(vals, pivot, swap, b_sums, lo, hi, parity, sync)
 
-    #= step 3: consolidate the partitioned batches so that the sublist from
-    [lo, hi) is partitioned, and the partition is stored in `partition`.
-    Dispatching on P cleaner and faster than an if statement=#
+    # step 3: consolidate the partitioned batches so that the sublist from [lo, hi) is
+    #         partitioned, and the partition is stored in `partition`. Dispatching on P
+    #         cleaner and faster than an if statement
 
     partition = consolidate_batch_partition(vals, pivot, lo, L, b_sums, parity)
 
-    #= step 4: recursion =#
+    # step 4: recursion
     if threadIdx().x == 1
 
         stuck = (pivot == prev_pivot && partition == lo || partition == hi) ? stuck + 1 : 0
@@ -362,18 +360,17 @@ function qsort_kernel(vals :: AbstractArray{T}, lo, hi, parity , sync :: Val{S},
         end
     end
 
-    return nothing
+    return
 end
 
-function quicksort!(c :: AbstractArray{T}) where T
+function quicksort!(c::AbstractArray{T}) where T
     MAX_DEPTH = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
     N = length(c)
 
     kernel = @cuda launch=false qsort_kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing)
 
     get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
-    fun = kernel.fun
-    config = launch_configuration(fun, shmem=threads->get_shmem(threads))
+    config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = pow2_floor(config.threads)
     @assert threads <= config.threads
 
@@ -384,12 +381,17 @@ function quicksort!(c :: AbstractArray{T}) where T
     return c
 end
 
-function Base.sort!(c :: CuArray{T}; dims :: Integer, rev::Bool=false) where T
-    # TODO: is it best to create a stream per call to `quicksort!` and sync after?
+end
+
+
+# Base interface implementation
+
+using .Quicksort
+
+function Base.sort!(c::CuArray{T}; dims::Integer, rev::Bool=false) where T
     nd = ndims(c)
     k = dims
     sz = size(c)
-
     1 <= k <= nd || throw(ArgumentError("dimension out of range"))
 
     remdims = ntuple(i -> i == k ? 1 : size(c, i), nd)
@@ -404,7 +406,7 @@ function Base.sort!(c :: CuArray{T}; dims :: Integer, rev::Bool=false) where T
     c
 end
 
-function Base.sort!(c :: CuVector{T}; rev=false) where T
+function Base.sort!(c::CuVector{T}; rev=false) where T
     if rev
         quicksort!(view(c, range(length(c), 1, step=-1)))
     else
@@ -413,12 +415,10 @@ function Base.sort!(c :: CuVector{T}; rev=false) where T
     c
 end
 
-function Base.sort(c :: CuArray; by=identity, kwargs...)
+function Base.sort(c::CuArray; by=identity, kwargs...)
     if by == identity
         return sort!(copy(c); kwargs...)
     else
         return map(x -> x[2], sort!(map(x -> (by(x), x), c); kwargs...))
     end
-end
-
 end
