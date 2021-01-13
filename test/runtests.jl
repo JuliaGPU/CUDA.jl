@@ -151,13 +151,11 @@ ENV["CUDA_VISIBLE_DEVICES"] = join(map(pick->"GPU-$(pick.uuid)", picks), ",")
 @info "Testing using $(length(picks)) device(s): " * join(map(pick->"$(pick.index). $(pick.name) (UUID $(pick.uuid))", picks), ", ")
 
 # determine tests to skip
-const skip_tests = []
+skip_tests = []
 has_cudnn() || push!(skip_tests, "cudnn")
 has_nvml() || push!(skip_tests, "nvml")
 if !has_cutensor() || CUDA.version() < v"10.1" || first(picks).cap < v"7.0"
-    append!(skip_tests, ["cutensor/base", "cutensor/contractions",
-                         "cutensor/elementwise_binary", "cutensor/elementwise_trinary",
-                         "cutensor/permutations", "cutensor/reductions"])
+    push!(skip_tests, "cutensor")
 end
 is_debug = ccall(:jl_is_debugbuild, Cint, ()) != 0
 if VERSION < v"1.5-" || first(picks).cap < v"7.0"
@@ -178,7 +176,8 @@ for (i, test) in enumerate(skip_tests)
     # we find tests by scanning the file system, so make sure the path separator matches
     skip_tests[i] = replace(test, '/'=>Base.Filesystem.path_separator)
 end
-filter!(in(tests), skip_tests) # only skip tests that we were going to run
+# skip_tests is a list of patterns, expand it to actual tests we were going to run
+skip_tests = filter(test->any(skip->occursin(skip,test), skip_tests), tests)
 if do_thorough
     # we're not allowed to skip tests, so make sure we will mark them as such
     all_tests = copy(tests)
