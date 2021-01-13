@@ -31,17 +31,6 @@ using ..CUDA
 # Integer arithmetic
 
 """
-Returns smallest power of 2 < x
-"""
-function pow2_floor(x)
-    out = 1
-    while out * 2 <= x
-        out *= 2
-    end
-    out
-end
-
-"""
 For a batch of size `n` what is the lowest index of the batch `i` is in
 """
 function batch_floor(idx, n)
@@ -371,8 +360,7 @@ function quicksort!(c::AbstractArray{T}) where T
 
     get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
-    threads = pow2_floor(config.threads)
-    @assert threads <= config.threads
+    threads = prevpow(2, config.threads)
 
     kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing;
            blocks=1, threads=threads, shmem=get_shmem(threads))

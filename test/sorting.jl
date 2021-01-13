@@ -3,16 +3,10 @@ using DataStructures
 
 @testset "quicksort" begin
 
-import CUDA.Quicksort: pow2_floor, Θ, flex_lt, find_partition,
+import CUDA.Quicksort: Θ, flex_lt, find_partition,
         partition_batches_kernel, consolidate_batch_partition
 
 @testset "integer functions" begin
-    @test pow2_floor(1) == 1
-    @test pow2_floor(2) == 2
-    @test pow2_floor(3) == 2
-    @test pow2_floor(5) == 4
-    @test pow2_floor(8) == 8
-
     @test Θ(0) == 0
     @test Θ(1) == 1
     @test Θ(2) == 1
@@ -44,7 +38,7 @@ function test_batch_partition(T, N, lo, hi, seed)
     get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
 
-    threads = pow2_floor(config.threads)
+    threads = prevpow(2, config.threads)
     blocks = ceil(Int, (hi - lo) ./ threads)
     block_N = blocks
     block_dim = threads
@@ -119,7 +113,7 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim)
     get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
 
-    threads = isnothing(block_dim) ? pow2_floor(config.threads) : block_dim
+    threads = isnothing(block_dim) ? prevpow(2, config.threads) : block_dim
     blocks = ceil(Int, (hi - lo) ./ threads)
 
     kernel(A, pivot, lo, hi, true; threads=threads, blocks=blocks, shmem=get_shmem(threads))
