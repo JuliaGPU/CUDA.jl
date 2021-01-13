@@ -382,13 +382,14 @@ function Base.sort!(c::CuArray{T}; dims::Integer, lt::F=isless, rev::Bool=false)
     sz = size(c)
     1 <= k <= nd || throw(ArgumentError("dimension out of range"))
 
+    # for reverse sorting, invert the less-than function
+    if rev
+        lt = !lt
+    end
+
     remdims = ntuple(i -> i == k ? 1 : size(c, i), nd)
     for idx in CartesianIndices(remdims)
-        if rev
-            v = view(c, ntuple(i -> i == k ? range(sz[i], 1, step=-1) : idx[i], nd)...)
-        else
-            v = view(c, ntuple(i -> i == k ? Colon() : idx[i], nd)...)
-        end
+        v = view(c, ntuple(i -> i == k ? Colon() : idx[i], nd)...)
         quicksort!(v; lt)
     end
     c
