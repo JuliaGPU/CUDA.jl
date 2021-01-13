@@ -11,20 +11,20 @@ import CUDA.Quicksort: Θ, flex_lt, find_partition,
     @test Θ(1) == 1
     @test Θ(2) == 1
 
-    @test flex_lt(1, 2, false) == true
-    @test flex_lt(1, 2, true) == true
-    @test flex_lt(2, 2, false) == false
-    @test flex_lt(2, 2, true) == true
-    @test flex_lt(3, 2, false) == false
-    @test flex_lt(3, 2, true) == false
+    @test flex_lt(1, 2, false, isless) == true
+    @test flex_lt(1, 2, true, isless) == true
+    @test flex_lt(2, 2, false, isless) == false
+    @test flex_lt(2, 2, true, isless) == true
+    @test flex_lt(3, 2, false, isless) == false
+    @test flex_lt(3, 2, true, isless) == false
 
-    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 0, 5, false) == 4
-    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 5, 10, false) == 9
-    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 0, 5, true) == 3
-    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 5, 10, true) == 8
+    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 0, 5, false, isless) == 4
+    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 5, 10, false, isless) == 9
+    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 0, 5, true, isless) == 3
+    @test find_partition([1, 2, 2, 3, 4, 1, 2, 2, 3, 4], 3, 5, 10, true, isless) == 8
 end
 
-function test_batch_partition(T, N, lo, hi, seed)
+function test_batch_partition(T, N, lo, hi, seed, lt=isless)
     my_range = lo + 1 : hi
     Random.seed!(seed)
     original = rand(T, N)
@@ -33,7 +33,7 @@ function test_batch_partition(T, N, lo, hi, seed)
     pivot = rand(original[my_range])
     block_N, block_dim = -1, -1
 
-    kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true)
+    kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true, lt)
 
     get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
@@ -44,7 +44,7 @@ function test_batch_partition(T, N, lo, hi, seed)
     block_dim = threads
     @assert block_dim >= 32 "This test assumes block size can be >= 32"
 
-    kernel(A, pivot, lo, hi, true;
+    kernel(A, pivot, lo, hi, true, lt;
            threads=threads, blocks=blocks, shmem=get_shmem(threads))
     synchronize()
 
@@ -87,16 +87,16 @@ end
     test_batch_partition(Float32, 10000000, 5000, 500000, 0)
 end
 
-function test_consolidate_kernel(vals, pivot, my_floor, L, b_sums, dest, parity)
+function test_consolidate_kernel(vals, pivot, my_floor, L, b_sums, dest, parity, lt)
     i = threadIdx().x
-    p = consolidate_batch_partition(vals, pivot, my_floor, L, b_sums, parity)
+    p = consolidate_batch_partition(vals, pivot, my_floor, L, b_sums, parity, lt)
     if i == 1
         dest[1] = p
     end
     return nothing
 end
 
-function test_consolidate_partition(T, N, lo, hi, seed, block_dim)
+function test_consolidate_partition(T, N, lo, hi, seed, block_dim, lt=isless)
     # assuming partition_batches works, we can validate consolidate by
     # checking that together they partition a large domain
     my_range = lo + 1 : hi
@@ -108,7 +108,7 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim)
     threads = blocks = -1
     sums = CuArray(zeros(Int32, ceil(Int, hi - lo / block_dim)))
 
-    kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true)
+    kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true, lt)
 
     get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
@@ -116,11 +116,11 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim)
     threads = isnothing(block_dim) ? prevpow(2, config.threads) : block_dim
     blocks = ceil(Int, (hi - lo) ./ threads)
 
-    kernel(A, pivot, lo, hi, true; threads=threads, blocks=blocks, shmem=get_shmem(threads))
+    kernel(A, pivot, lo, hi, true, lt; threads=threads, blocks=blocks, shmem=get_shmem(threads))
     synchronize()
     dest = CuArray(zeros(Int32, 1))
 
-    @cuda threads=threads test_consolidate_kernel(A, pivot, lo, hi - lo, sums, dest, true)
+    @cuda threads=threads test_consolidate_kernel(A, pivot, lo, hi - lo, sums, dest, true, lt)
     synchronize()
 
     partition = Array(dest)[1]
