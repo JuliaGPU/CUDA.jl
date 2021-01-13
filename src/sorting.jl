@@ -378,34 +378,30 @@ end
 
 using .Quicksort
 
-function Base.sort!(c::CuArray{T}; dims::Integer, lt::F1=isless, by::F2=identity, rev::Bool=false) where {T,F1,F2}
+function Base.sort!(c::AnyCuArray{T}; dims::Integer, kwargs...) where {T}
     nd = ndims(c)
     k = dims
     sz = size(c)
     1 <= k <= nd || throw(ArgumentError("dimension out of range"))
 
+    remdims = ntuple(i -> i == k ? 1 : size(c, i), nd)
+    for idx in CartesianIndices(remdims)
+        v = view(c, ntuple(i -> i == k ? Colon() : idx[i], nd)...)
+        sort!(v; kwargs...)
+    end
+    return c
+end
+
+function Base.sort!(c::AnyCuVector{T}; lt::F1=isless, by::F2=identity, rev=false) where {T,F1,F2}
     # for reverse sorting, invert the less-than function
     if rev
         lt = !lt
     end
 
-    remdims = ntuple(i -> i == k ? 1 : size(c, i), nd)
-    for idx in CartesianIndices(remdims)
-        v = view(c, ntuple(i -> i == k ? Colon() : idx[i], nd)...)
-        quicksort!(v; lt, by)
-    end
-    c
+    quicksort!(c; lt, by)
+    return c
 end
 
-function Base.sort!(c::CuVector{T}; lt::F1=isless, by::F2=identity, rev=false) where {T,F1,F2}
-    if rev
-        quicksort!(view(c, range(length(c), 1, step=-1)); lt, by)
-    else
-        quicksort!(c; lt, by)
-    end
-    c
-end
-
-function Base.sort(c::CuArray; kwargs...)
+function Base.sort(c::AnyCuArray; kwargs...)
     return sort!(copy(c); kwargs...)
 end
