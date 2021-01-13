@@ -18,33 +18,12 @@ const nvmlDeviceAttributesV1_t = nvmlDeviceAttributesV1_st
                    device, attributes)
 end
 
-@checked function nvmlDeviceGetAttributes(device, attributes)
-    initialize_api()
-    ccall((:nvmlDeviceGetAttributes, libnvml()), nvmlReturn_t,
-                   (nvmlDevice_t, Ptr{nvmlDeviceAttributesV1_t}),
-                   device, attributes)
-end
-
 struct nvmlProcessInfoV1_st
     pid::UInt32
     usedGpuMemory::Culonglong
 end
 
 const nvmlProcessInfoV1_t = nvmlProcessInfoV1_st
-
-@checked function nvmlDeviceGetComputeRunningProcesses(device, infoCount, infos)
-    initialize_api()
-    ccall((:nvmlDeviceGetComputeRunningProcesses, libnvml()), nvmlReturn_t,
-                   (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfoV1_t}),
-                   device, infoCount, infos)
-end
-
-@checked function nvmlDeviceGetGraphicsRunningProcesses(device, infoCount, infos)
-    initialize_api()
-    ccall((:nvmlDeviceGetGraphicsRunningProcesses, libnvml()), nvmlReturn_t,
-                   (nvmlDevice_t, Ptr{UInt32}, Ptr{nvmlProcessInfoV1_t}),
-                   device, infoCount, infos)
-end
 
 @checked function nvmlDeviceGetComputeRunningProcesses(device, infoCount, infos)
     initialize_api()
