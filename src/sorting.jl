@@ -369,17 +369,18 @@ function quicksort!(c :: AbstractArray{T}) where T
     MAX_DEPTH = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
     N = length(c)
 
-    function get_config(kernel)
-        get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
-        fun = kernel.fun
-        config = launch_configuration(fun, shmem=threads->get_shmem(threads))
-        threads = pow2_floor(config.threads)
-        @assert threads <= config.threads
-        return (blocks=1, threads=threads, shmem=get_shmem(threads))
-    end
+    kernel = @cuda launch=false qsort_kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing)
 
-    @cuda config=get_config qsort_kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing)
+    get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
+    fun = kernel.fun
+    config = launch_configuration(fun, shmem=threads->get_shmem(threads))
+    threads = pow2_floor(config.threads)
+    @assert threads <= config.threads
+
+    kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing;
+           blocks=1, threads=threads, shmem=get_shmem(threads))
     synchronize()
+
     return c
 end
 

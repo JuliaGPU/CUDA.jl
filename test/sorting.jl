@@ -39,21 +39,19 @@ function test_batch_partition(T, N, lo, hi, seed)
     pivot = rand(original[my_range])
     block_N, block_dim = -1, -1
 
-    function get_config(kernel)
-        get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
+    kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true)
 
-        fun = kernel.fun
-        config = launch_configuration(fun, shmem=threads->get_shmem(threads), max_threads=1024)
+    get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
+    config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
 
-        threads = pow2_floor(config.threads)
-        blocks = ceil(Int, (hi - lo) ./ threads)
-        block_N = blocks
-        block_dim = threads
-        @assert block_dim >= 32 "This test assumes block size can be >= 32"
-        shmem = get_shmem(threads)
-        return (threads=threads, blocks=blocks, shmem=shmem)
-    end
-    @cuda config=get_config partition_batches_kernel(A, pivot, lo, hi, true)
+    threads = pow2_floor(config.threads)
+    blocks = ceil(Int, (hi - lo) ./ threads)
+    block_N = blocks
+    block_dim = threads
+    @assert block_dim >= 32 "This test assumes block size can be >= 32"
+
+    kernel(A, pivot, lo, hi, true;
+           threads=threads, blocks=blocks, shmem=get_shmem(threads))
     synchronize()
 
     post_sort = Array(A)
@@ -116,18 +114,15 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim)
     threads = blocks = -1
     sums = CuArray(zeros(Int32, ceil(Int, hi - lo / block_dim)))
 
-    function get_config(kernel)
-        get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
-        config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
+    kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true)
 
-        threads = isnothing(block_dim) ? pow2_floor(config.threads) : block_dim
-        blocks = ceil(Int, (hi - lo) ./ threads)
+    get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
+    config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
 
-        shmem = get_shmem(threads)
-        return (threads=threads, blocks=blocks, shmem=shmem)
-    end
+    threads = isnothing(block_dim) ? pow2_floor(config.threads) : block_dim
+    blocks = ceil(Int, (hi - lo) ./ threads)
 
-    @cuda config=get_config partition_batches_kernel(A, pivot, lo, hi, true)
+    kernel(A, pivot, lo, hi, true; threads=threads, blocks=blocks, shmem=get_shmem(threads))
     synchronize()
     dest = CuArray(zeros(Int32, 1))
 
