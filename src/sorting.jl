@@ -109,14 +109,14 @@ Uses block index to decide which values to operate on.
 @inline function batch_partition(values, pivot, swap, sums, lo, hi, parity, lt::F1, by::F2) where {F1,F2}
     sync_threads()
     idx0 = Int(lo) + (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    if idx0 <= hi
+    @inbounds if idx0 <= hi
          swap[threadIdx().x] = values[idx0]
          sums[threadIdx().x] = 1 & flex_lt(pivot, swap[threadIdx().x], parity, lt, by)
     else
-        @inbounds sums[threadIdx().x] = 1
+         sums[threadIdx().x] = 1
     end
     sync_threads()
-    val = merge_swap_shmem(swap[threadIdx().x], threadIdx().x, 1, sums, swap)
+    val = merge_swap_shmem(@inbounds(swap[threadIdx().x]), threadIdx().x, 1, sums, swap)
     temp = 2
     while temp < blockDim().x
         val = merge_swap_shmem(val, threadIdx().x, temp, sums, swap)
@@ -124,7 +124,7 @@ Uses block index to decide which values to operate on.
     end
     sync_threads()
 
-    if idx0 <= hi
+    @inbounds if idx0 <= hi
          values[idx0] = val
     end
     sync_threads()
@@ -203,8 +203,10 @@ Must only run on 1 SM.
         c = n_eff() - d
         to_move = min(b, c)
         sync_threads()
-        if threadIdx().x <= to_move
-            swap = vals[lo + a + threadIdx().x]
+        swap = if threadIdx().x <= to_move
+            vals[lo + a + threadIdx().x]
+        else
+            zero(eltype(vals))  # unused value
         end
         sync_threads()
         if threadIdx().x <= to_move
@@ -240,8 +242,10 @@ elements spaced by `stride`. Good for sampling pivot values as well as short sor
         for level in 0:L
             # get left/right neighbor depending on even/odd level
             buddy = threadIdx().x - 1 + 2 * (1 & (threadIdx().x % 2 != level % 2))
-            if 1 <= buddy <= L && threadIdx().x <= L
-                buddy_val = swap[buddy]
+            buddy_val = if 1 <= buddy <= L && threadIdx().x <= L
+                 swap[buddy]
+            else
+                zero(eltype(swap)) # unused value
             end
             sync_threads()
             if 1 <= buddy <= L && threadIdx().x <= L
@@ -264,7 +268,7 @@ Launch batch partition kernel and sync
 @inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
     L = hi - lo
     if threadIdx().x == 1
-        @cuda blocks=ceil(Int, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(sizeof(Int32)+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by)
+        @cuda blocks=ceil(Int32, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(sizeof(Int32)+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by)
         CUDA.device_synchronize()
     end
 end
@@ -315,7 +319,7 @@ function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync
         return
     end
 
-    pivot = vals[lo + (blockDim().x ÷ 2) * (L ÷ blockDim().x)]
+    pivot = @inbounds vals[lo + (blockDim().x ÷ 2) * (L ÷ blockDim().x)]
 
     # step 2: use pivot to partition into batches
     call_batch_partition(vals, pivot, swap, b_sums, lo, hi, parity, sync, lt, by)
