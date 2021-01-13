@@ -135,8 +135,8 @@ Each block evaluates `batch_partition` on consecutive regions of length blockDim
 from `lo` to `hi` of `values`.
 """
 function partition_batches_kernel(values::AbstractArray{T}, pivot, lo, hi, parity, lt::F1, by::F2) where {T,F1,F2}
-    swap = @cuDynamicSharedMem(T, blockDim().x, 4 * blockDim().x)
     sums = @cuDynamicSharedMem(Int32, blockDim().x)
+    swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(sums))
     batch_partition(values, pivot, swap, sums, lo, hi, parity, lt, by)
     return
 end
@@ -264,7 +264,7 @@ Launch batch partition kernel and sync
 @inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
     L = hi - lo
     if threadIdx().x == 1
-        @cuda blocks=ceil(Int, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(4+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by)
+        @cuda blocks=ceil(Int, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(sizeof(Int32)+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by)
         CUDA.device_synchronize()
     end
 end
@@ -302,8 +302,9 @@ it's possible that the first pivot will be that value, which could lead to an in
 early end to recursion if we started `stuck` at 0.
 """
 function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync_depth, prev_pivot, lt::F1, by::F2, stuck=-1) where {T, S, F1, F2}
-    b_sums = @cuDynamicSharedMem(Int32, blockDim().x, 0)
-    swap = @cuDynamicSharedMem(T, blockDim().x, 4 * blockDim().x)
+    b_sums = @cuDynamicSharedMem(Int32, blockDim().x)
+    swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(b_sums))
+    shmem = sizeof(b_sums) + sizeof(swap)
     L = hi - lo
 
     # step 1: bubble sort. It'll either finish sorting a subproblem or help select a pivot
@@ -327,15 +328,14 @@ function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync
 
     # step 4: recursion
     if threadIdx().x == 1
-
         stuck = (pivot == prev_pivot && partition == lo || partition == hi) ? stuck + 1 : 0
 
         if stuck < 2 && partition > lo
             s = CuDeviceStream()
             if sync_depth > 1
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=blockDim().x*(4+sizeof(T)) qsort_kernel(vals, lo, partition, !parity, Val(true), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, lo, partition, !parity, Val(true), sync_depth - 1, pivot, lt, by, stuck)
             else
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=blockDim().x*(4+sizeof(T)) qsort_kernel(vals, lo, partition, !parity, Val(false), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, lo, partition, !parity, Val(false), sync_depth - 1, pivot, lt, by, stuck)
             end
             CUDA.unsafe_destroy!(s)
         end
@@ -343,9 +343,9 @@ function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync
         if stuck < 2 && partition < hi
             s = CuDeviceStream()
             if sync_depth > 1
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=blockDim().x*(4+sizeof(T)) qsort_kernel(vals, partition, hi, !parity, Val(true), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, partition, hi, !parity, Val(true), sync_depth - 1, pivot, lt, by, stuck)
             else
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=blockDim().x*(4+sizeof(T)) qsort_kernel(vals, partition, hi, !parity, Val(false), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, partition, hi, !parity, Val(false), sync_depth - 1, pivot, lt, by, stuck)
             end
             CUDA.unsafe_destroy!(s)
         end
@@ -360,7 +360,7 @@ function quicksort!(c::AbstractArray{T}; lt::F1, by::F2) where {T,F1,F2}
 
     kernel = @cuda launch=false qsort_kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing, lt, by)
 
-    get_shmem(threads) = threads * (sizeof(Int32) + max(4, sizeof(T)))
+    get_shmem(threads) = threads * (sizeof(Int32) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = prevpow(2, config.threads)
 
