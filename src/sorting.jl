@@ -102,13 +102,13 @@ Partition the region of `values` after index `lo` up to (inclusive) `hi` with
 respect to `pivot`. This is done by a 'binary' merge sort, where each the values
 are sorted by a boolean key: how they compare to `pivot`. The comparison is
 affected by `parity`. See `flex_lt`. `swap` is an array for exchanging values
-and `sums` is an array of Int32s used during the merge sort.
+and `sums` is an array of Ints used during the merge sort.
 
 Uses block index to decide which values to operate on.
 """
 @inline function batch_partition(values, pivot, swap, sums, lo, hi, parity, lt::F1, by::F2) where {F1,F2}
     sync_threads()
-    idx0 = Int(lo) + (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    idx0 = lo + (blockIdx().x - 1) * blockDim().x + threadIdx().x
     @inbounds if idx0 <= hi
          swap[threadIdx().x] = values[idx0]
          sums[threadIdx().x] = 1 & flex_lt(pivot, swap[threadIdx().x], parity, lt, by)
@@ -135,7 +135,7 @@ Each block evaluates `batch_partition` on consecutive regions of length blockDim
 from `lo` to `hi` of `values`.
 """
 function partition_batches_kernel(values::AbstractArray{T}, pivot, lo, hi, parity, lt::F1, by::F2) where {T,F1,F2}
-    sums = @cuDynamicSharedMem(Int32, blockDim().x)
+    sums = @cuDynamicSharedMem(Int, blockDim().x)
     swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(sums))
     batch_partition(values, pivot, swap, sums, lo, hi, parity, lt, by)
     return
@@ -160,7 +160,7 @@ function find_partition(array, pivot, lo, hi, parity, lt::F1, by::F2) where {F1,
             low = mid + 1
         end
     end
-    return Int32(low - 1)
+    return low - 1
 end
 
 """
@@ -181,7 +181,7 @@ Must only run on 1 SM.
 @inline function consolidate_batch_partition(vals::AbstractArray{T}, pivot, lo, L, b_sums, parity, lt::F1, by::F2) where {T,F1,F2}
     sync_threads()
     @inline N_b() = ceil(Int, L / blockDim().x)
-    @inline batch(k)::Int32 = threadIdx().x + k * blockDim().x
+    @inline batch(k) = threadIdx().x + k * blockDim().x
 
     my_iter = 0
     a = 0
@@ -268,7 +268,7 @@ Launch batch partition kernel and sync
 @inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
     L = hi - lo
     if threadIdx().x == 1
-        @cuda blocks=ceil(Int32, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(sizeof(Int32)+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by)
+        @cuda blocks=ceil(Int, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(sizeof(Int)+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by)
         CUDA.device_synchronize()
     end
 end
@@ -306,7 +306,7 @@ it's possible that the first pivot will be that value, which could lead to an in
 early end to recursion if we started `stuck` at 0.
 """
 function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync_depth, prev_pivot, lt::F1, by::F2, stuck=-1) where {T, S, F1, F2}
-    b_sums = @cuDynamicSharedMem(Int32, blockDim().x)
+    b_sums = @cuDynamicSharedMem(Int, blockDim().x)
     swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(b_sums))
     shmem = sizeof(b_sums) + sizeof(swap)
     L = hi - lo
@@ -364,7 +364,7 @@ function quicksort!(c::AbstractArray{T}; lt::F1, by::F2) where {T,F1,F2}
 
     kernel = @cuda launch=false qsort_kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing, lt, by)
 
-    get_shmem(threads) = threads * (sizeof(Int32) + sizeof(T))
+    get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = prevpow(2, config.threads)
 

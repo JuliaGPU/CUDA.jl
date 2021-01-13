@@ -35,7 +35,7 @@ function test_batch_partition(T, N, lo, hi, seed, lt=isless, by=identity)
 
     kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true, lt, by)
 
-    get_shmem(threads) = threads * (sizeof(Int32) + sizeof(T))
+    get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
 
     threads = prevpow(2, config.threads)
@@ -106,11 +106,11 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim, lt=isless, by
     pivot = rand(original[my_range])
 
     threads = blocks = -1
-    sums = CuArray(zeros(Int32, ceil(Int, hi - lo / block_dim)))
+    sums = CuArray(zeros(Int, ceil(Int, hi - lo / block_dim)))
 
     kernel = @cuda launch=false partition_batches_kernel(A, pivot, lo, hi, true, lt, by)
 
-    get_shmem(threads) = threads * (sizeof(Int32) + sizeof(T))
+    get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads), max_threads=1024)
 
     threads = isnothing(block_dim) ? prevpow(2, config.threads) : block_dim
@@ -118,7 +118,7 @@ function test_consolidate_partition(T, N, lo, hi, seed, block_dim, lt=isless, by
 
     kernel(A, pivot, lo, hi, true, lt, by; threads=threads, blocks=blocks, shmem=get_shmem(threads))
     synchronize()
-    dest = CuArray(zeros(Int32, 1))
+    dest = CuArray(zeros(Int, 1))
 
     @cuda threads=threads test_consolidate_kernel(A, pivot, lo, hi - lo, sums, dest, true, lt, by)
     synchronize()
