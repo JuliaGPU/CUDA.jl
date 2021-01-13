@@ -352,7 +352,7 @@ function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync
     return
 end
 
-function quicksort!(c::AbstractArray{T}; lt=isless) where T
+function quicksort!(c::AbstractArray{T}; lt::F) where {T,F}
     MAX_DEPTH = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
     N = length(c)
 
@@ -376,7 +376,7 @@ end
 
 using .Quicksort
 
-function Base.sort!(c::CuArray{T}; dims::Integer, rev::Bool=false) where T
+function Base.sort!(c::CuArray{T}; dims::Integer, lt::F=isless, rev::Bool=false) where {T,F}
     nd = ndims(c)
     k = dims
     sz = size(c)
@@ -389,16 +389,16 @@ function Base.sort!(c::CuArray{T}; dims::Integer, rev::Bool=false) where T
         else
             v = view(c, ntuple(i -> i == k ? Colon() : idx[i], nd)...)
         end
-        quicksort!(v)
+        quicksort!(v; lt)
     end
     c
 end
 
-function Base.sort!(c::CuVector{T}; rev=false) where T
+function Base.sort!(c::CuVector{T}; lt::F=isless, rev=false) where {T,F}
     if rev
-        quicksort!(view(c, range(length(c), 1, step=-1)))
+        quicksort!(view(c, range(length(c), 1, step=-1)); lt)
     else
-        quicksort!(c)
+        quicksort!(c; lt)
     end
     c
 end
