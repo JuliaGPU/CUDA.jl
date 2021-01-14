@@ -134,7 +134,8 @@ end
 Each block evaluates `batch_partition` on consecutive regions of length blockDim().x
 from `lo` to `hi` of `values`.
 """
-function partition_batches_kernel(values::AbstractArray{T}, pivot, lo, hi, parity, lt::F1, by::F2) where {T,F1,F2}
+function partition_batches_kernel(values::AbstractArray{T}, pivot, lo, hi, parity, lt::F1,
+                                  by::F2) where {T,F1,F2}
     sums = @cuDynamicSharedMem(Int, blockDim().x)
     swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(sums))
     batch_partition(values, pivot, swap, sums, lo, hi, parity, lt, by)
@@ -178,7 +179,8 @@ for storing the partition of each batch.
 
 Must only run on 1 SM.
 """
-@inline function consolidate_batch_partition(vals::AbstractArray{T}, pivot, lo, L, b_sums, parity, lt::F1, by::F2) where {T,F1,F2}
+@inline function consolidate_batch_partition(vals::AbstractArray{T}, pivot, lo, L, b_sums,
+                                             parity, lt::F1, by::F2) where {T,F1,F2}
     sync_threads()
     @inline N_b() = ceil(Int, L / blockDim().x)
     @inline batch(k) = threadIdx().x + k * blockDim().x
@@ -192,12 +194,20 @@ Must only run on 1 SM.
             if batch(my_iter) <= N_b()
                 seek_lo = lo + (batch(my_iter) - 1) * blockDim().x
                 seek_hi = lo + min(L, batch(my_iter) * blockDim().x)
-                b_sums[threadIdx().x] = seek_hi - find_partition(vals, pivot, seek_lo, seek_hi, parity, lt, by)
+                b_sums[threadIdx().x] =
+                    seek_hi - find_partition(vals, pivot, seek_lo, seek_hi, parity, lt, by)
             end
             my_iter += 1
         end
 
-        n_eff() = (batch_i != ceil(Int, L / blockDim().x) || L % blockDim().x == 0) ? blockDim().x : L % blockDim().x
+        function n_eff()
+            if batch_i != ceil(Int, L / blockDim().x) || L % blockDim().x == 0
+                blockDim().x
+            else
+                L % blockDim().x
+            end
+        end
+
         sync_threads()
         d = b_sums[batch_i - (my_iter - 1) * blockDim().x]
         c = n_eff() - d
@@ -220,6 +230,7 @@ Must only run on 1 SM.
         a += c
         b += d
     end
+
     sync_threads()
     return lo + a
 end
@@ -265,10 +276,13 @@ end
 """
 Launch batch partition kernel and sync
 """
-@inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
+@inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi,
+                                      parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
     L = hi - lo
     if threadIdx().x == 1
-        @cuda blocks=ceil(Int, L / blockDim().x) threads=blockDim().x dynamic=true shmem=blockDim().x*(sizeof(Int)+sizeof(T)) partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by)
+        @cuda(blocks=ceil(Int, L / blockDim().x), threads=blockDim().x, dynamic=true,
+              shmem=blockDim().x*(sizeof(Int)+sizeof(T)),
+              partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by))
         CUDA.device_synchronize()
     end
 end
@@ -276,7 +290,8 @@ end
 """
 Partition batches in a loop using a single block
 """
-@inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi, parity, sync::Val{false}, lt::F1, by::F2) where {T, F1, F2}
+@inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi,
+                                      parity, sync::Val{false}, lt::F1, by::F2) where {T, F1, F2}
     for temp in lo:blockDim().x:hi
         batch_partition(vals, pivot, swap, b_sums, temp, min(hi, temp + blockDim().x), parity, lt, by)
     end
@@ -305,7 +320,8 @@ the pivot hasn't changed and partition = `lo` or `hi`. If `stuck` reaches 2, rec
 it's possible that the first pivot will be that value, which could lead to an incorrectly
 early end to recursion if we started `stuck` at 0.
 """
-function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sync_depth, prev_pivot, lt::F1, by::F2, ::Val{dims}, stuck=-1) where {T, N, S, F1, F2, dims}
+function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sync_depth,
+                      prev_pivot, lt::F1, by::F2, ::Val{dims}, stuck=-1) where {T, N, S, F1, F2, dims}
     b_sums = @cuDynamicSharedMem(Int, blockDim().x)
     swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(b_sums))
     shmem = sizeof(b_sums) + sizeof(swap)
@@ -350,9 +366,13 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
         if stuck < 2 && partition > lo
             s = CuDeviceStream()
             if sync_depth > 1
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, lo, partition, !parity, Val(true), sync_depth - 1, pivot, lt, by, Val(1), stuck)
+                @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
+                      qsort_kernel(slice, lo, partition, !parity, Val(true), sync_depth - 1,
+                      pivot, lt, by, Val(1), stuck))
             else
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, lo, partition, !parity, Val(false), sync_depth - 1, pivot, lt, by, Val(1), stuck)
+                @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
+                      qsort_kernel(slice, lo, partition, !parity, Val(false), sync_depth - 1,
+                      pivot, lt, by, Val(1), stuck))
             end
             CUDA.unsafe_destroy!(s)
         end
@@ -360,9 +380,13 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
         if stuck < 2 && partition < hi
             s = CuDeviceStream()
             if sync_depth > 1
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, partition, hi, !parity, Val(true), sync_depth - 1, pivot, lt, by, Val(1), stuck)
+                @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
+                      qsort_kernel(slice, partition, hi, !parity, Val(true), sync_depth - 1,
+                      pivot, lt, by, Val(1), stuck))
             else
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, partition, hi, !parity, Val(false), sync_depth - 1, pivot, lt, by, Val(1), stuck)
+                @cuda(threads=blockDim().x, dynamic=true, stream=s, shmem=shmem,
+                      qsort_kernel(slice, partition, hi, !parity, Val(false), sync_depth - 1,
+                      pivot, lt, by, Val(1), stuck))
             end
             CUDA.unsafe_destroy!(s)
         end
@@ -372,18 +396,20 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
 end
 
 function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int) where {T,N,F1,F2}
-    MAX_DEPTH = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
+    max_depth = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
     len = size(c, dims)
 
+    1 <= dims <= N || throw(ArgumentError("dimension out of range"))
     otherdims = ntuple(i -> i == dims ? 1 : size(c, i), N)
 
-    kernel = @cuda launch=false qsort_kernel(c, 0, len, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing, lt, by, Val(dims))
+    kernel = @cuda launch=false qsort_kernel(c, 0, len, true, Val(max_depth > 1),
+                                             max_depth, nothing, lt, by, Val(dims))
 
     get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = prevpow(2, config.threads)
 
-    kernel(c, 0, len, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing, lt, by, Val(dims);
+    kernel(c, 0, len, true, Val(max_depth > 1), max_depth, nothing, lt, by, Val(dims);
            blocks=prod(otherdims), threads=threads, shmem=get_shmem(threads))
 
     return c
@@ -401,11 +427,6 @@ function Base.sort!(c::AnyCuArray; dims::Integer, lt=isless, by=identity, rev=fa
     if rev
         lt = !lt
     end
-
-    nd = ndims(c)
-    k = dims
-    sz = size(c)
-    1 <= k <= nd || throw(ArgumentError("dimension out of range"))
 
     quicksort!(c; lt, by, dims)
     return c
