@@ -161,44 +161,6 @@ steps:
 
    # special tests
 
-  - label: "No memory pool"
-    plugins:
-      - JuliaCI/julia#v0.6:
-          version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3: ~
-      - JuliaCI/julia-coverage#v0.3:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "*"
-    env:
-      JULIA_CUDA_MEMORY_POOL: 'none'
-    if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
-
-  - label: "Simple memory pool"
-    plugins:
-      - JuliaCI/julia#v0.6:
-          version: 1.6-nightly
-      - JuliaCI/julia-test#v0.3: ~
-      - JuliaCI/julia-coverage#v0.3:
-          codecov: true
-          dirs:
-            - src
-            - lib
-            - examples
-    agents:
-      queue: "juliagpu"
-      cuda: "*"
-    env:
-      JULIA_CUDA_MEMORY_POOL: 'simple'
-    if: build.message !~ /\[skip tests\]/
-    timeout_in_minutes: 60
-
   - label: "Split memory pool"
     plugins:
       - JuliaCI/julia#v0.6:
