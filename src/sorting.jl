@@ -104,11 +104,11 @@ are sorted by a boolean key: how they compare to `pivot`. The comparison is
 affected by `parity`. See `flex_lt`. `swap` is an array for exchanging values
 and `sums` is an array of Ints used during the merge sort.
 
-Uses block index to decide which values to operate on.
+Uses block y index to decide which values to operate on.
 """
 @inline function batch_partition(values, pivot, swap, sums, lo, hi, parity, lt::F1, by::F2) where {F1,F2}
     sync_threads()
-    idx0 = lo + (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    idx0 = lo + (blockIdx().y - 1) * blockDim().x + threadIdx().x
     @inbounds if idx0 <= hi
          swap[threadIdx().x] = values[idx0]
          sums[threadIdx().x] = 1 & flex_lt(pivot, swap[threadIdx().x], parity, lt, by)
@@ -280,7 +280,7 @@ Launch batch partition kernel and sync
                                       parity, sync::Val{true}, lt::F1, by::F2) where {T, F1, F2}
     L = hi - lo
     if threadIdx().x == 1
-        @cuda(blocks=ceil(Int, L / blockDim().x), threads=blockDim().x, dynamic=true,
+        @cuda(blocks=(1,ceil(Int, L / blockDim().x)), threads=blockDim().x, dynamic=true,
               shmem=blockDim().x*(sizeof(Int)+sizeof(T)),
               partition_batches_kernel(vals, pivot, lo, hi, parity, lt, by))
         CUDA.device_synchronize()
@@ -298,19 +298,19 @@ Partition batches in a loop using a single block
 end
 
 """
-Perform quicksort on `vals` for the region with `lo` as an exclusive floor and `hi` as an
-inclusive ceiling. `parity` is a Val{Bool} which says whether to partition by < or <= with
-respect to the pivot. `sync_depth` is how many (more) levels of recursion with
-`qsort_kernel` can be done before reaching `cudaLimitDevRuntimeSyncDepth`. From the host,
-this value must not exceed that limit.
+Perform quicksort on dimension `dims` of `vals` for the region with `lo` as an exclusive
+floor and `hi` as an inclusive ceiling. `parity` is a boolean which says whether to
+partition by < or <= with respect to the pivot. `sync_depth` is how many (more) levels of
+recursion with `qsort_kernel` can be done before reaching `cudaLimitDevRuntimeSyncDepth`.
+From the host, this value must not exceed that limit.
 
-`sync` and enclosed type `S` determine how partition occurs: If `sync` is `true`, the
-kernel partitions batches in a child kernel, synchronizes, and then consolidates the
-batches. The benefit of this kernel is that it distributes the work of partitioning batches
-across multiple SMs. If `sync` is `false`, the kernel partitions without launching any
-child kernels, then has recursive `qsort_async_kernel` children for left and right
-partitions. `device_synchronize` is never called from this kernel, so there is no practical
-limit on recursion.
+`sync` and enclosed type `S` determine how partition occurs: If `sync` is `true`, the kernel
+partitions batches in a child kernel, synchronizes, and then consolidates the batches. The
+benefit of this kernel is that it distributes the work of partitioning batches across
+multiple SMs. If `sync` is `false`, the kernel partitions without launching any child
+kernels, then has recursive `qsort_kernel` children for left and right partitions.
+`device_synchronize` is never called from this kernel, so there is no practical limit on
+recursion.
 
 To detect the scenario of all values in the region being the same, we have two args:
 `prev_pivot` and `stuck`. If two consecutive partitions have the same pivot and both failed
@@ -327,6 +327,7 @@ function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sy
     shmem = sizeof(b_sums) + sizeof(swap)
     L = hi - lo
 
+    # extract the dimension that we need to sort (selected from the rest by the block x index)
     slice = if N == 1
         vals
     else
