@@ -221,6 +221,32 @@ steps:
 
   - wait
 
+  # benchmarks outside of the master branch don't submit their results,
+  # so they can run on any system in the juliagpu queue.
+  - label: "Benchmarks (dry run)"
+    plugins:
+      - JuliaCI/julia#v0.4:
+          version: 1.5
+    command: |
+      julia --project -e '
+        println("--- :julia: Instantiating project")
+        using Pkg
+        Pkg.instantiate()
+        Pkg.activate("perf")
+        Pkg.instantiate()
+        push!(LOAD_PATH, @__DIR__)
+
+        println("+++ :julia: Benchmarking")
+        include("perf/runbenchmarks.jl")'
+    agents:
+      queue: "juliagpu"
+      cuda: "*"
+    if: build.message !~ /\[skip benchmarks\]/ &&
+        build.branch !~ /^master$$/
+    timeout_in_minutes: 60
+
+  # if we will submit results, use the benchmark queue so that we will
+  # be running on the same system each time
   - label: "Benchmarks"
     plugins:
       - JuliaCI/julia#v0.4:
@@ -246,7 +272,8 @@ steps:
     agents:
       queue: "benchmark"
       cuda: "*"
-    if: build.message !~ /skip benchmarks/
+    if: build.message !~ /\[skip benchmarks\]/ &&
+        build.branch =~ /^master$$/
     timeout_in_minutes: 60
 
   - label: "Documentation"
