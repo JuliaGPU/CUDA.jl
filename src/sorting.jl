@@ -305,30 +305,43 @@ the pivot hasn't changed and partition = `lo` or `hi`. If `stuck` reaches 2, rec
 it's possible that the first pivot will be that value, which could lead to an incorrectly
 early end to recursion if we started `stuck` at 0.
 """
-function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync_depth, prev_pivot, lt::F1, by::F2, stuck=-1) where {T, S, F1, F2}
+function qsort_kernel(vals::AbstractArray{T,N}, lo, hi, parity, sync::Val{S}, sync_depth, prev_pivot, lt::F1, by::F2, ::Val{dims}, stuck=-1) where {T, N, S, F1, F2, dims}
     b_sums = @cuDynamicSharedMem(Int, blockDim().x)
     swap = @cuDynamicSharedMem(T, blockDim().x, sizeof(b_sums))
     shmem = sizeof(b_sums) + sizeof(swap)
     L = hi - lo
 
+    slice = if N == 1
+        vals
+    else
+        # dimensions that are not part of the sort; index them using the block index
+        otherdims = ntuple(i -> i == dims ? 1 : size(vals, i), N)
+        other = CartesianIndices(otherdims)[blockIdx().x]
+
+        # create a view that keeps the sorting dimension but indexes across the others
+        slicedims = map(Base.Slice, axes(vals))
+        idxs = ntuple(i->i==dims ? slicedims[i] : other[i], N)
+        view(vals, idxs...)
+    end
+
     # step 1: bubble sort. It'll either finish sorting a subproblem or help select a pivot
     #         value
-    bubble_sort(vals, swap, lo, L, L <= blockDim().x ? 1 : L ÷ blockDim().x, lt, by)
+    bubble_sort(slice, swap, lo, L, L <= blockDim().x ? 1 : L ÷ blockDim().x, lt, by)
 
     if L <= blockDim().x
         return
     end
 
-    pivot = @inbounds vals[lo + (blockDim().x ÷ 2) * (L ÷ blockDim().x)]
+    pivot = @inbounds slice[lo + (blockDim().x ÷ 2) * (L ÷ blockDim().x)]
 
     # step 2: use pivot to partition into batches
-    call_batch_partition(vals, pivot, swap, b_sums, lo, hi, parity, sync, lt, by)
+    call_batch_partition(slice, pivot, swap, b_sums, lo, hi, parity, sync, lt, by)
 
     # step 3: consolidate the partitioned batches so that the sublist from [lo, hi) is
     #         partitioned, and the partition is stored in `partition`. Dispatching on P
     #         cleaner and faster than an if statement
 
-    partition = consolidate_batch_partition(vals, pivot, lo, L, b_sums, parity, lt, by)
+    partition = consolidate_batch_partition(slice, pivot, lo, L, b_sums, parity, lt, by)
 
     # step 4: recursion
     if threadIdx().x == 1
@@ -337,9 +350,9 @@ function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync
         if stuck < 2 && partition > lo
             s = CuDeviceStream()
             if sync_depth > 1
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, lo, partition, !parity, Val(true), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, lo, partition, !parity, Val(true), sync_depth - 1, pivot, lt, by, Val(1), stuck)
             else
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, lo, partition, !parity, Val(false), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, lo, partition, !parity, Val(false), sync_depth - 1, pivot, lt, by, Val(1), stuck)
             end
             CUDA.unsafe_destroy!(s)
         end
@@ -347,9 +360,9 @@ function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync
         if stuck < 2 && partition < hi
             s = CuDeviceStream()
             if sync_depth > 1
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, partition, hi, !parity, Val(true), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, partition, hi, !parity, Val(true), sync_depth - 1, pivot, lt, by, Val(1), stuck)
             else
-                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(vals, partition, hi, !parity, Val(false), sync_depth - 1, pivot, lt, by, stuck)
+                @cuda threads=blockDim().x dynamic=true stream=s shmem=shmem qsort_kernel(slice, partition, hi, !parity, Val(false), sync_depth - 1, pivot, lt, by, Val(1), stuck)
             end
             CUDA.unsafe_destroy!(s)
         end
@@ -358,19 +371,20 @@ function qsort_kernel(vals::AbstractArray{T}, lo, hi, parity, sync::Val{S}, sync
     return
 end
 
-function quicksort!(c::AbstractArray{T}; lt::F1, by::F2) where {T,F1,F2}
+function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int) where {T,N,F1,F2}
     MAX_DEPTH = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
-    N = length(c)
+    len = size(c, dims)
 
-    kernel = @cuda launch=false qsort_kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing, lt, by)
+    otherdims = ntuple(i -> i == dims ? 1 : size(c, i), N)
+
+    kernel = @cuda launch=false qsort_kernel(c, 0, len, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing, lt, by, Val(dims))
 
     get_shmem(threads) = threads * (sizeof(Int) + sizeof(T))
     config = launch_configuration(kernel.fun, shmem=threads->get_shmem(threads))
     threads = prevpow(2, config.threads)
 
-    kernel(c, 0, N, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing;
-           blocks=1, threads=threads, shmem=get_shmem(threads))
-    synchronize()
+    kernel(c, 0, len, true, Val(MAX_DEPTH > 1), MAX_DEPTH, nothing, lt, by, Val(dims);
+           blocks=prod(otherdims), threads=threads, shmem=get_shmem(threads))
 
     return c
 end
@@ -382,27 +396,28 @@ end
 
 using .Quicksort
 
-function Base.sort!(c::AnyCuArray{T}; dims::Integer, kwargs...) where {T}
-    nd = ndims(c)
-    k = dims
-    sz = size(c)
-    1 <= k <= nd || throw(ArgumentError("dimension out of range"))
-
-    remdims = ntuple(i -> i == k ? 1 : size(c, i), nd)
-    for idx in CartesianIndices(remdims)
-        v = view(c, ntuple(i -> i == k ? Colon() : idx[i], nd)...)
-        sort!(v; kwargs...)
-    end
-    return c
-end
-
-function Base.sort!(c::AnyCuVector{T}; lt::F1=isless, by::F2=identity, rev=false) where {T,F1,F2}
+function Base.sort!(c::AnyCuArray; dims::Integer, lt=isless, by=identity, rev=false)
     # for reverse sorting, invert the less-than function
     if rev
         lt = !lt
     end
 
-    quicksort!(c; lt, by)
+    nd = ndims(c)
+    k = dims
+    sz = size(c)
+    1 <= k <= nd || throw(ArgumentError("dimension out of range"))
+
+    quicksort!(c; lt, by, dims)
+    return c
+end
+
+function Base.sort!(c::AnyCuVector; lt=isless, by=identity, rev=false)
+    # for reverse sorting, invert the less-than function
+    if rev
+        lt = !lt
+    end
+
+    quicksort!(c; lt, by, dims=1)
     return c
 end
 
