@@ -66,7 +66,6 @@ end
     @test Array(out) == (_a .+ 1)
 end
 
-
 @testset "ptxas-compatible control flow" begin
     @noinline function throw_some()
         throw(42)
@@ -111,6 +110,24 @@ end
 
     input = rand(1:100)
     @test cpu(input) == gpu(input)
+end
+
+end
+
+############################################################################################
+
+@testset "PTX" begin
+
+@testset "local memory stores due to byval" begin
+    # JuliaGPU/GPUCompiler.jl#92
+    function kernel(y1, y2)
+        y = threadIdx().x == 1 ? y1 : y2
+        @inbounds y[] = 0
+        return
+    end
+
+    asm = sprint(io->CUDA.code_ptx(io, kernel, NTuple{2,CuDeviceArray{Float32,1,AS.Global}}))
+    @test !occursin(".local", asm)
 end
 
 end
