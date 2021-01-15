@@ -90,3 +90,9 @@ let group = addgroup!(group, "random")
         #group["Int64"] = @async_benchmarkable CUDA.randn!($gpu_vec_ints)
     end
 end
+
+let group = addgroup!(group, "sorting")
+    group["1d"] = @async_benchmarkable sort($gpu_vec)
+    group["2d"] = @async_benchmarkable sort($gpu_mat; dims=1)
+    group["by"] = @async_benchmarkable sort($gpu_vec; by=sin)
+end

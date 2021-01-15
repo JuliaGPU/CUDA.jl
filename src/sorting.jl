@@ -400,6 +400,9 @@ function quicksort!(c::AbstractArray{T,N}; lt::F1, by::F2, dims::Int) where {T,N
     max_depth = CUDA.limit(CUDA.LIMIT_DEV_RUNTIME_SYNC_DEPTH)
     len = size(c, dims)
 
+    lt = CUDA.cufunc(lt)
+    by = CUDA.cufunc(by)
+
     1 <= dims <= N || throw(ArgumentError("dimension out of range"))
     otherdims = ntuple(i -> i == dims ? 1 : size(c, i), N)
 
