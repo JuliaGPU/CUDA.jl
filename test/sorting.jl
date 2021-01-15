@@ -165,7 +165,7 @@ function init_case(T, f, N::Integer)
 end
 
 function init_case(T, f, N::Tuple)
-    a = map(f, rand(N...))
+    a = map(f, rand(T, N...))
     c = CuArray(a)
     a, c
 end
