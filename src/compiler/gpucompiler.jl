@@ -1,3 +1,22 @@
+function CUDACompilerTarget(; cap::VersionNumber, kwargs...)
+       exitable = true
+       if cap < v"7"
+              # JuliaGPU/CUDAnative.jl#4
+              # ptxas for old compute capabilities has a bug where it messes up the
+              # synchronization stack in the presence of shared memory and thread-divergent exit.
+              exitable = false
+       end
+       if !has_nvml() || NVML.driver_version() < v"460"
+              # JuliaGPU/CUDA.jl#431
+              # TODO: tighten this conditional
+              exitable = false
+       end
+
+       debuginfo = false
+
+       PTXCompilerTarget(; cap, exitable, debuginfo, kwargs...)
+end
+
 struct CUDACompilerParams <: AbstractCompilerParams end
 
 CUDACompilerJob = CompilerJob{PTXCompilerTarget,CUDACompilerParams}
