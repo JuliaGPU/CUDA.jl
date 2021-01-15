@@ -292,8 +292,9 @@ Partition batches in a loop using a single block
 """
 @inline function call_batch_partition(vals::AbstractArray{T}, pivot, swap, b_sums, lo, hi,
                                       parity, sync::Val{false}, lt::F1, by::F2) where {T, F1, F2}
-    for temp in lo:blockDim().x:hi
-        batch_partition(vals, pivot, swap, b_sums, temp, min(hi, temp + blockDim().x), parity, lt, by)
+    while lo <= hi
+        batch_partition(vals, pivot, swap, b_sums, lo, min(hi, lo + blockDim().x), parity, lt, by)
+        lo += blockDim().x
     end
 end
 
