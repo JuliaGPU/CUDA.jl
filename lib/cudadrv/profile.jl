@@ -35,15 +35,17 @@ profiling is already enabled, then this call has no effect.
 function start()
     if nsight[] !== nothing
         run(`$(nsight[]) start`)
+        # it takes a while for the profiler to actually start tracing our process
+        sleep(0.01)
     else
         @warn("""Calling CUDA.@profile only informs an external profiler to start.
-                 The user is responsible for launching Julia under a CUDA profiler like `nvprof`.
+                 The user is responsible for launching Julia under a CUDA profiler.
 
-                 For improved usability, launch Julia under the Nsight Systems profiler:
+                 It is recommended to use Nsight Systems, which supports interactive profiling:
                  \$ nsys launch julia""",
               maxlog=1)
+        CUDA.cuProfilerStart()
     end
-    CUDA.cuProfilerStart()
 end
 
 """
