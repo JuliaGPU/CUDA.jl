@@ -4,13 +4,16 @@ using CUDA
 CUDA.allowscalar(false)
 
 using BenchmarkTools
-BenchmarkTools.DEFAULT_PARAMETERS.evals = 0     # to find untuned benchmarks
 
 using StableRNGs
 rng = StableRNG(123)
 
 # we only submit results when running on the master branch
 real_run = get(ENV, "CODESPEED_BRANCH", nothing) == "master"
+if real_run
+    # to find untuned benchmarks
+    BenchmarkTools.DEFAULT_PARAMETERS.evals = 0
+end
 
 # convenience macro to create a benchmark that requires synchronizing the GPU
 macro async_benchmarkable(ex...)
