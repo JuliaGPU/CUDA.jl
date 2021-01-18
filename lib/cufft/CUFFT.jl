@@ -25,4 +25,8 @@ include("wrappers.jl")
 # high-level integrations
 include("fft.jl")
 
+function reset_stream()
+    # CUFFT associates streams to plan objects
+end
+
 end

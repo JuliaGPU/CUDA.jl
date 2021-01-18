@@ -26,13 +26,6 @@ include("random.jl")
 const CURAND_THREAD_RNGs = Vector{Union{Nothing,RNG}}()
 const GPUARRAY_THREAD_RNGs = Vector{Union{Nothing,GPUArrays.RNG}}()
 
-function set_stream(s::CuStream)
-    ctx = context()
-    if haskey(task_local_storage(), (:CURAND, ctx))
-        curandSetStream(default_rng(), s)
-    end
-end
-
 function default_rng()
     tid = Threads.threadid()
     if @inbounds CURAND_THREAD_RNGs[tid] === nothing
@@ -42,6 +35,7 @@ function default_rng()
             Random.seed!(rng)
             rng
         end
+        curandSetStream(CURAND_THREAD_RNGs[tid], CUDA.stream_per_thread())
     end
     something(@inbounds CURAND_THREAD_RNGs[tid])
 end
@@ -60,6 +54,13 @@ function GPUArrays.default_rng(::Type{<:CuArray})
         end
     end
     something(@inbounds GPUARRAY_THREAD_RNGs[tid])
+end
+
+function reset_stream()
+    # NOTE: we 'abuse' the thread cache here, as switching streams doesn't invalidate it,
+    #       but we (re-)apply the current stream when populating that cache.
+    tid = Threads.threadid()
+    CURAND_THREAD_RNGs[tid] = nothing
 end
 
 function __init__()

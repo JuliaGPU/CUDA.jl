@@ -46,20 +46,12 @@ include("interfaces.jl")
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cusparseHandle_t}}()
 
-function set_stream(s::CuStream)
-    ctx = context()
-    if haskey(task_local_storage(), (:CUSPARSE, ctx))
-        cusparseSetStream(handle(), s)
-    end
-end
-
 function handle()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUSPARSE, ctx)) do
             handle = cusparseCreate()
-            cusparseSetStream(handle, CUDA.stream_per_thread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do
@@ -69,8 +61,16 @@ function handle()
 
             handle
         end
+        cusparseSetStream(thread_handles[tid], CUDA.stream_per_thread())
     end
     something(@inbounds thread_handles[tid])
+end
+
+function reset_stream()
+    # NOTE: we 'abuse' the thread cache here, as switching streams doesn't invalidate it,
+    #       but we (re-)apply the current stream when populating that cache.
+    tid = Threads.threadid()
+    thread_handles[tid] = nothing
 end
 
 function __init__()

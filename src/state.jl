@@ -478,40 +478,45 @@ like CUBLAS or CUDNN, use the `stream_per_thread()` version that explicitly defa
 `CuStreamPerThread` (if no other stream has been specified).
 """
 function stream()
-    get(task_local_storage(), :CuStream, CuDefaultStream())
+    get(task_local_storage(), :CuStream, CuDefaultStream())::CuStream
 end
 
 @doc (@doc stream)
 function stream_per_thread()
-    get(task_local_storage(), :CuStream, CuStreamPerThread())
+    get(task_local_storage(), :CuStream, CuStreamPerThread())::CuStream
 end
 
-function set_library_streams(s::CuStream=CuStreamPerThread())
-    CURAND.set_stream(s)
-    CUSPARSE.set_stream(s)
-    CUSOLVER.set_stream(s)
-    CUSOLVER.set_stream(s)
-    CUBLAS.set_stream(s)
-    # CUFFT associates streams to plan objects
+# reset the stream set in a library. meant to be implemented lazily, i.e. not actively
+# looking up the new stream and reconfiguring the library, but doing so lazily to avoid
+# stream switching overhead.
+#
+# NOTE: we can't use a hook-based mechanism (like atdevicereset or atdeviceswitch)
+#       because that's too expensive (around 300ns, resulting in 1us stream switches).
+#       the performance goal here is to be able to switch streams around single operations
+#       like kernel launches, so the total switching overhead should be below 500ns or so.
+function reset_library_streams()
+    CURAND.reset_stream()
+    CUSPARSE.reset_stream()
+    CUSOLVER.reset_stream()
+    CUBLAS.reset_stream()
+    CUFFT.reset_stream()
 
-    if has_cudnn()
-        CUDNN.set_stream(s)
-    end
-    # CUTENSOR takes stream arguments per operation
+    CUDNN.reset_stream()
+    CUTENSOR.reset_stream()
 end
 
 function stream!(s::CuStream)
     task_local_storage(:CuStream, s)
-    set_library_streams(s)
+    reset_library_streams()
 end
 
 function stream!(f::Function, s::CuStream)
     try
         return task_local_storage(:CuStream, s) do
-            set_library_streams(s)
+            reset_library_streams()
             f()
         end
     finally
-        set_library_streams()
+        reset_library_streams()
     end
 end

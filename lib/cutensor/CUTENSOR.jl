@@ -41,6 +41,10 @@ function handle()
     something(@inbounds thread_handles[tid])
 end
 
+function reset_stream()
+    # CUTENSOR uses stream arguments per operation
+end
+
 function __init__()
     resize!(thread_handles, Threads.nthreads())
     fill!(thread_handles, nothing)

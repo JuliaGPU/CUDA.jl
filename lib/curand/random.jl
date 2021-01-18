@@ -12,11 +12,14 @@ mutable struct RNG <: Random.AbstractRNG
 
     function RNG(typ=CURAND_RNG_PSEUDO_DEFAULT)
         handle = curandCreateGenerator(typ)
-        curandSetStream(handle, CUDA.stream_per_thread())
+        curandSetStream(handle, CUDA.stream_per_thread())   # XXX: duplicate with default_rng
         obj = new(handle, context(), typ)
         finalizer(unsafe_destroy!, obj)
         return obj
     end
+
+    # TODO: this design doesn't work nicely in the presence of streams.
+    #       if the user switches streams, a local RNG object won't be updated.
 end
 
 function unsafe_destroy!(rng::RNG)
