@@ -405,10 +405,14 @@ end
 @inline function unsafe_contiguous_view(a::CuArray{T}, I::NTuple{N,Base.ViewIndex}, dims::NTuple{M,Integer}) where {T,N,M}
     offset = Base.compute_offset1(a, 1, I) * sizeof(T)
 
-    alias(a.baseptr)
+    if a.state == ARRAY_MANAGED
+        alias(a.baseptr)
+    end
     b = CuArray{T,M}(a.baseptr, dims, a.ctx; offset=a.offset+offset)
-    finalizer(unsafe_free!, b)
-    b.state = ARRAY_MANAGED
+    if a.state == ARRAY_MANAGED
+        finalizer(unsafe_free!, b)
+    end
+    b.state = a.state
     return b
 end
 

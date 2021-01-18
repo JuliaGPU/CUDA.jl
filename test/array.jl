@@ -98,6 +98,17 @@ end
       @test testf(view, a, i)
       @test testf(view, a, view(i, 2:2))
   end
+
+  @testset "unmanaged view" begin
+    a = CuArray([1,2,3])
+    ptr = pointer(a, 2)
+
+    b = unsafe_wrap(CuArray, ptr, 2)
+    @test Array(b) == [2,3]
+
+    c = view(b, 2:2)
+    @test Array(c) == [3]
+  end
 end
 
 @testset "reshape" begin
