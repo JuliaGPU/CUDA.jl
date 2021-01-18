@@ -45,7 +45,7 @@ See also: [`@device_code_sass`](@ref)
 function code_sass(io::IO, @nospecialize(func), @nospecialize(types), kernel::Bool=true;
                    verbose::Bool=false, kwargs...)
     tt = Base.to_tuple_type(types)
-    target = PTXCompilerTarget(; cap=supported_capability(device()), kwargs...)
+    target = CUDACompilerTarget(; cap=supported_capability(device()), kwargs...)
     params = CUDACompilerParams()
     job = CompilerJob(target, FunctionSpec(func, tt, kernel), params)
     code_sass(io, job; verbose=verbose)
@@ -114,9 +114,9 @@ for method in (:code_typed, :code_warntype, :code_llvm, :code_native)
                          kernel::Bool=false, minthreads=nothing, maxthreads=nothing,
                          blocks_per_sm=nothing, maxregs=nothing, kwargs...)
             source = FunctionSpec(func, Base.to_tuple_type(types), kernel)
-            target = PTXCompilerTarget(; cap=supported_capability(device()),
-                                       minthreads=minthreads, maxthreads=maxthreads,
-                                       blocks_per_sm=blocks_per_sm, maxregs=maxregs)
+            target = CUDACompilerTarget(; cap=supported_capability(device()),
+                                          minthreads=minthreads, maxthreads=maxthreads,
+                                          blocks_per_sm=blocks_per_sm, maxregs=maxregs)
             params = CUDACompilerParams()
             job = CompilerJob(target, source, params)
             GPUCompiler.$method($(args...); kwargs...)

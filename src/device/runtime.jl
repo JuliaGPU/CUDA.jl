@@ -12,6 +12,8 @@ function precompile_runtime(caps=llvm_cap_support(LLVM.version()))
     params = CUDACompilerParams()
     JuliaContext() do ctx
         for cap in caps
+            # NOTE: this often runs when we don't have a functioning set-up,
+            #       so we don't use CUDACompilerTarget(...) which requires NVML
             target = PTXCompilerTarget(; cap=cap)
             job = CompilerJob(target, dummy_source, params)
             GPUCompiler.load_runtime(job, ctx)
