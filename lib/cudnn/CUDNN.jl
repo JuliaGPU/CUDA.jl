@@ -54,13 +54,20 @@ end
 # thread cache for task-local library handles
 const thread_handles = Vector{Union{Nothing,cudnnHandle_t}}()
 
+function set_stream(s::CuStream)
+    ctx = context()
+    if haskey(task_local_storage(), (:CUDNN, ctx))
+        cudnnSetStream(handle(), s)
+    end
+end
+
 function handle()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
         ctx = context()
         thread_handles[tid] = get!(task_local_storage(), (:CUDNN, ctx)) do
             handle = cudnnCreate()
-            cudnnSetStream(handle, CuStreamPerThread())
+            cudnnSetStream(handle, CUDA.stream_per_thread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do

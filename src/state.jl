@@ -461,3 +461,57 @@ math_precision() =
     get!(task_local_storage(), (:CUDA, :math_precision)) do
         something(default_math_precision[], :TensorFloat32)
     end
+
+
+## streams
+
+# XXX: is task local storage fast enough, or do we need a thread-local cache again?
+
+"""
+    CUDA.stream()
+    CUDA.stream_per_thread()
+
+Get the active stream for the currently executing task. For use with APIs that default to
+per-thread streams, which includes the CUDA API if used with CUDA.jl, the `stream()` version
+should be used. If the API does not default to per-thread streams, such as binary libraries
+like CUBLAS or CUDNN, use the `stream_per_thread()` version that explicitly defaults to
+`CuStreamPerThread` (if no other stream has been specified).
+"""
+function stream()
+    get(task_local_storage(), :CuStream, CuDefaultStream())
+end
+
+@doc (@doc stream)
+function stream_per_thread()
+    get(task_local_storage(), :CuStream, CuStreamPerThread())
+end
+
+function set_library_streams(s::CuStream=CuStreamPerThread())
+    CURAND.set_stream(s)
+    CUSPARSE.set_stream(s)
+    CUSOLVER.set_stream(s)
+    CUSOLVER.set_stream(s)
+    CUBLAS.set_stream(s)
+    # CUFFT associates streams to plan objects
+
+    if has_cudnn()
+        CUDNN.set_stream(s)
+    end
+    # CUTENSOR takes stream arguments per operation
+end
+
+function stream!(s::CuStream)
+    task_local_storage(:CuStream, s)
+    set_library_streams(s)
+end
+
+function stream!(f::Function, s::CuStream)
+    try
+        return task_local_storage(:CuStream, s) do
+            set_library_streams(s)
+            f()
+        end
+    finally
+        set_library_streams()
+    end
+end

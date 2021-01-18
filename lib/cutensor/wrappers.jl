@@ -59,7 +59,7 @@ function elementwiseTrinary!(
         @nospecialize(gamma::Number),
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
-        opABC::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
+        opABC::cutensorOperator_t; stream::CuStream=CUDA.stream_per_thread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -92,7 +92,7 @@ function elementwiseTrinary!(
         @nospecialize(gamma::Number),
         @nospecialize(C::Array), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::Array), Dinds::ModeType, opAB::cutensorOperator_t,
-        opABC::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
+        opABC::cutensorOperator_t; stream::CuStream=CUDA.stream_per_thread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -123,7 +123,7 @@ function elementwiseBinary!(
         @nospecialize(gamma::Number),
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAC::cutensorOperator_t;
-        stream::CuStream=CuStreamPerThread())
+        stream::CuStream=CUDA.stream_per_thread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -149,7 +149,7 @@ function elementwiseBinary!(
         @nospecialize(gamma::Number),
         @nospecialize(C::Array), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::Array), Dinds::ModeType, opAC::cutensorOperator_t;
-        stream::CuStream=CuStreamPerThread())
+        stream::CuStream=CUDA.stream_per_thread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -175,7 +175,7 @@ function elementwiseBinary!(
         @nospecialize(gamma::Number),
         @nospecialize(C::CuTensor), opC::cutensorOperator_t,
         @nospecialize(D::CuTensor), opAC::cutensorOperator_t;
-        stream::CuStream=CuStreamPerThread())
+        stream::CuStream=CUDA.stream_per_thread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opAC)  && throw(ArgumentError("opAC must be a binary op!"))
@@ -199,7 +199,7 @@ function permutation!(
         @nospecialize(alpha::Number),
         @nospecialize(A::DenseCuArray), Ainds::ModeType,
         @nospecialize(B::DenseCuArray), Binds::ModeType;
-        stream::CuStream=CuStreamPerThread())
+        stream::CuStream=CUDA.stream_per_thread())
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
@@ -217,7 +217,7 @@ function permutation!(
         @nospecialize(alpha::Number),
         @nospecialize(A::Array), Ainds::ModeType,
         @nospecialize(B::Array), Binds::ModeType;
-        stream::CuStream=CuStreamPerThread())
+        stream::CuStream=CUDA.stream_per_thread())
     #!is_unary(opPsi)    && throw(ArgumentError("opPsi must be a unary op!"))
     descA = CuTensorDescriptor(A)
     descB = CuTensorDescriptor(B)
@@ -240,7 +240,7 @@ function contraction!(
         @nospecialize(C::Union{Array, CuArray}), Cinds::ModeType, opC::cutensorOperator_t,
         opOut::cutensorOperator_t;
         pref::cutensorWorksizePreference_t=CUTENSOR_WORKSPACE_RECOMMENDED,
-        algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CuStreamPerThread(),
+        algo::cutensorAlgo_t=CUTENSOR_ALGO_DEFAULT, stream::CuStream=CUDA.stream_per_thread(),
         compute_type::Type=eltype(C), plan::Union{cutensorContractionPlan_t, Nothing}=nothing)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
@@ -342,7 +342,7 @@ function reduction!(
         @nospecialize(A::Union{Array, CuArray}), Ainds::ModeType, opA::cutensorOperator_t,
         @nospecialize(beta::Number),
         @nospecialize(C::Union{Array, CuArray}), Cinds::ModeType, opC::cutensorOperator_t,
-        opReduce::cutensorOperator_t; stream::CuStream=CuStreamPerThread())
+        opReduce::cutensorOperator_t; stream::CuStream=CUDA.stream_per_thread())
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
     !is_binary(opReduce)  && throw(ArgumentError("opReduce must be a binary op!"))

@@ -30,13 +30,23 @@ include("linalg.jl")
 const thread_dense_handles = Vector{Union{Nothing,cusolverDnHandle_t}}()
 const thread_sparse_handles = Vector{Union{Nothing,cusolverSpHandle_t}}()
 
+function set_stream(s::CuStream)
+    ctx = context()
+    if haskey(task_local_storage(), (:CUSOLVER, :dense, ctx))
+        cusolverDnSetStream(dense_handle(), s)
+    end
+    if haskey(task_local_storage(), (:CUSOLVER, :sparse, ctx))
+        cusolverSpSetStream(sparse_handle(), s)
+    end
+end
+
 function dense_handle()
     tid = Threads.threadid()
     if @inbounds thread_dense_handles[tid] === nothing
         ctx = context()
         thread_dense_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :dense, ctx)) do
             handle = cusolverDnCreate()
-            cusolverDnSetStream(handle, CuStreamPerThread())
+            cusolverDnSetStream(handle, CUDA.stream_per_thread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do
@@ -56,7 +66,7 @@ function sparse_handle()
         ctx = context()
         thread_sparse_handles[tid] = get!(task_local_storage(), (:CUSOLVER, :sparse, ctx)) do
             handle = cusolverSpCreate()
-            cusolverSpSetStream(handle, CuStreamPerThread())
+            cusolverSpSetStream(handle, CUDA.stream_per_thread())
             finalizer(current_task()) do task
                 CUDA.isvalid(ctx) || return
                 context!(ctx) do

@@ -37,11 +37,11 @@ Base.:(==)(a::CuEvent, b::CuEvent) = a.handle == b.handle
 Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 
 """
-    record(e::CuEvent, stream=CuDefaultStream())
+    record(e::CuEvent, [stream::CuStream])
 
 Record an event on a stream.
 """
-record(e::CuEvent, stream::CuStream=CuDefaultStream()) =
+record(e::CuEvent, stream::CuStream=CUDA.stream()) =
     cuEventRecord(e, stream)
 
 """
@@ -69,12 +69,12 @@ function query(e::CuEvent)
 end
 
 """
-    wait(e::CuEvent, stream=CuDefaultStream())
+    wait(e::CuEvent, [stream::CuStream])
 
 Make a stream wait on a event. This only makes the stream wait, and not the host; use
 [`synchronize(::CuEvent)`](@ref) for that.
 """
-wait(e::CuEvent, stream::CuStream=CuDefaultStream()) =
+wait(e::CuEvent, stream::CuStream=CUDA.stream()) =
     cuStreamWaitEvent(stream, e, 0)
 
 """
@@ -107,6 +107,6 @@ macro elapsed(stream, ex)
 end
 macro elapsed(ex)
     quote
-        @elapsed(CuDefaultStream(), $(esc(ex)))
+        @elapsed(stream(), $(esc(ex)))
     end
 end

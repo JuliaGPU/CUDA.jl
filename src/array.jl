@@ -306,7 +306,7 @@ end
 
 function Base.unsafe_copyto!(dest::DenseCuArray{T}, doffs, src::DenseCuArray{T}, soffs, n) where T
   GC.@preserve src dest unsafe_copyto!(pointer(dest, doffs), pointer(src, soffs), n;
-                                       async=true, stream=CuDefaultStream())
+                                       async=true, stream=CUDA.stream())
   if Base.isbitsunion(T)
     # copy selector bytes
     error("Not implemented")

@@ -70,6 +70,13 @@ function math_mode!(handle, mode)
     return
 end
 
+function set_stream(s::CuStream)
+    ctx = context()
+    if haskey(task_local_storage(), (:CUBLAS, ctx))
+        cublasSetStream_v2(handle(), s)
+    end
+end
+
 function handle()
     tid = Threads.threadid()
     if @inbounds thread_handles[tid] === nothing
@@ -83,7 +90,7 @@ function handle()
                 end
             end
 
-            cublasSetStream_v2(handle, CuStreamPerThread())
+            cublasSetStream_v2(handle, CUDA.stream_per_thread())
 
             if version(handle) >= v"11.2"
                 workspace = CuArray{UInt8}(undef, 4*1024*1024)  # TODO: 256-byte aligned

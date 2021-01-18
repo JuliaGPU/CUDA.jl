@@ -80,8 +80,7 @@ end
 let
     src = Mem.alloc(Mem.Device, nb)
 
-    @test_throws ArgumentError unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true)
-    unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true, stream=CuDefaultStream())
+    unsafe_copyto!(typed_pointer(src, T), pointer(data), N; async=true)
 
     Mem.set!(typed_pointer(src, T), zero(T), N; async=true, stream=CuDefaultStream())
 

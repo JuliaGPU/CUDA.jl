@@ -26,6 +26,13 @@ include("random.jl")
 const CURAND_THREAD_RNGs = Vector{Union{Nothing,RNG}}()
 const GPUARRAY_THREAD_RNGs = Vector{Union{Nothing,GPUArrays.RNG}}()
 
+function set_stream(s::CuStream)
+    ctx = context()
+    if haskey(task_local_storage(), (:CURAND, ctx))
+        curandSetStream(default_rng(), s)
+    end
+end
+
 function default_rng()
     tid = Threads.threadid()
     if @inbounds CURAND_THREAD_RNGs[tid] === nothing

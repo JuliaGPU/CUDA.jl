@@ -110,7 +110,7 @@ function create_plan(xtype, xdims, region)
     handle_ref = Ref{cufftHandle}()
     cufftCreate(handle_ref)
     handle = handle_ref[]
-    cufftSetStream(handle, CuStreamPerThread())
+    cufftSetStream(handle, CUDA.stream_per_thread())
     cufftSetAutoAllocation(handle, 0)
 
     # make the plan
