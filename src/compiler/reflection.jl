@@ -56,7 +56,7 @@ function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
         error("Can only generate SASS code for kernel functions")
     end
 
-    asm, _ = GPUCompiler.codegen(:asm, job)
+    asm = GPUCompiler.codegen(:asm, job)
 
     cubin = Ref{Any}()
     callback = @cfunction(code_sass_callback, Cvoid,
@@ -74,7 +74,7 @@ function code_sass(io::IO, job::CUDACompilerJob; verbose::Bool=false)
     subscriber = subscriber_ref[]
     try
         CUPTI.cuptiEnableDomain(1, subscriber, CUPTI.CUPTI_CB_DOMAIN_RESOURCE)
-        CuModule(asm)
+        cufunction_link(job.source, asm)
     finally
         CUPTI.cuptiUnsubscribe(subscriber)
     end

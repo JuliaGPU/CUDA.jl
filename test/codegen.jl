@@ -152,4 +152,10 @@ end
     @not_if_memcheck CUDA.code_sass(devnull, kernel_341, Tuple{Ptr{Int}})
 end
 
+@testset "device runtime" begin
+    kernel() = (CUDA.cudaGetLastError(); return)
+
+    @not_if_memcheck CUDA.code_sass(devnull, kernel, Tuple{})
+end
+
 end
