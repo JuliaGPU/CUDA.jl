@@ -452,10 +452,14 @@ function Base.reshape(a::CuArray{T,M}, dims::NTuple{N,Int}) where {T,N,M}
       return a
   end
 
-  alias(a.baseptr)
+  if a.state == ARRAY_MANAGED
+      alias(a.baseptr)
+  end
   b = CuArray{T,N}(a.baseptr, dims, a.ctx; offset=a.offset)
-  finalizer(unsafe_free!, b)
-  b.state = ARRAY_MANAGED
+  if a.state == ARRAY_MANAGED
+      finalizer(unsafe_free!, b)
+  end
+  b.state = a.state
   return b
 end
 

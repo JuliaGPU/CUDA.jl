@@ -120,6 +120,17 @@ end
   @test all(_A .== _gA)
   A = [1,2,3,4]
   gA = reshape(CuArray(A),4)
+
+  @testset "unmanaged reshape" begin
+    a = CuArray([1,2,3])
+    ptr = pointer(a, 2)
+
+    b = unsafe_wrap(CuArray, ptr, 2)
+    @test Array(b) == [2,3]
+
+    c = reshape(b, (1,2))
+    @test Array(c) == [2 3]
+  end
 end
 
 @testset "Dense derivatives" begin
