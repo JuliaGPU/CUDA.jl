@@ -30,9 +30,14 @@ mutable struct CuModule
         end
         optionKeys, optionVals = encode(options)
 
-        res = GC.@preserve data unsafe_cuModuleLoadDataEx(handle_ref, pointer(data),
-                                                          length(optionKeys),
-                                                          optionKeys, optionVals)
+        # FIXME: maybe all CUDA API calls need to run under retry_reclaim?
+        #        that would require a redesign of the memory pool,
+        #        so maybe do so when we replace it with CUDA 11.2's pool.
+        res = GC.@preserve data retry_reclaim(isequal(ERROR_OUT_OF_MEMORY)) do
+            unsafe_cuModuleLoadDataEx(handle_ref, pointer(data),
+                                      length(optionKeys),
+                                      optionKeys, optionVals)
+        end
         if res == ERROR_NO_BINARY_FOR_GPU ||
            res == ERROR_INVALID_IMAGE ||
            res == ERROR_INVALID_PTX
