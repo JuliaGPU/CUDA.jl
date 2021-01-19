@@ -423,6 +423,11 @@ macro retry_reclaim(isfailed, ex)
   end
 end
 
+# XXX: function version for use in CUDAdrv where we haven't loaded pool.jl yet
+function retry_reclaim(f, check)
+  @retry_reclaim check f()
+end
+
 
 ## management
 
