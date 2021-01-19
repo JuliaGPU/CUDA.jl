@@ -98,6 +98,17 @@ end
       @test testf(view, a, i)
       @test testf(view, a, view(i, 2:2))
   end
+
+  @testset "unmanaged view" begin
+    a = CuArray([1,2,3])
+    ptr = pointer(a, 2)
+
+    b = unsafe_wrap(CuArray, ptr, 2)
+    @test Array(b) == [2,3]
+
+    c = view(b, 2:2)
+    @test Array(c) == [3]
+  end
 end
 
 @testset "reshape" begin
@@ -109,6 +120,35 @@ end
   @test all(_A .== _gA)
   A = [1,2,3,4]
   gA = reshape(CuArray(A),4)
+
+  @testset "unmanaged reshape" begin
+    a = CuArray([1,2,3])
+    ptr = pointer(a, 2)
+
+    b = unsafe_wrap(CuArray, ptr, 2)
+    @test Array(b) == [2,3]
+
+    c = reshape(b, (1,2))
+    @test Array(c) == [2 3]
+  end
+end
+
+@testset "reinterpret" begin
+  A = Int32[-1,-2,-3]
+  dA = CuArray(A)
+  dB = reinterpret(UInt32, dA)
+  @test reinterpret(UInt32, A) == Array(dB)
+
+  @testset "unmanaged reinterpret" begin
+    a = CuArray(Int32[-1,-2,-3])
+    ptr = pointer(a, 2)
+
+    b = unsafe_wrap(CuArray, ptr, 2)
+    @test Array(b) == Int32[-2,-3]
+
+    c = reinterpret(UInt32, b)
+    @test Array(c) == reinterpret(UInt32, Int32[-2,-3])
+  end
 end
 
 @testset "Dense derivatives" begin
