@@ -496,10 +496,14 @@ function Base.reinterpret(::Type{T}, a::CuArray{S,N}) where {T,S,N}
   size1 = div(isize[1]*sizeof(S), sizeof(T))
   osize = tuple(size1, Base.tail(isize)...)
 
-  alias(a.baseptr)
+  if a.state == ARRAY_MANAGED
+      alias(a.baseptr)
+  end
   b = CuArray{T,N}(a.baseptr, osize, a.ctx; offset=a.offset)
-  finalizer(unsafe_free!, b)
-  b.state = ARRAY_MANAGED
+  if a.state == ARRAY_MANAGED
+      finalizer(unsafe_free!, b)
+  end
+  b.state = a.state
   return b
 end
 
