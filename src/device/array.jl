@@ -59,6 +59,8 @@ Base.elsize(::Type{<:CuDeviceArray{T}}) where {T} = sizeof(T)
 Base.size(g::CuDeviceArray) = g.shape
 Base.length(g::CuDeviceArray) = prod(g.shape)
 
+Base.sizeof(x::CuDeviceArray) = Base.elsize(x) * length(x)
+
 
 ## conversions
 

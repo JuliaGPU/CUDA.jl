@@ -114,6 +114,7 @@ const cuprint_specifiers = Dict(
     # other
     Cchar       => "%c",
     Ptr{Cvoid}  => "%p",
+    Cstring     => "%s",
 )
 
 @generated function _cuprint(parts...)
