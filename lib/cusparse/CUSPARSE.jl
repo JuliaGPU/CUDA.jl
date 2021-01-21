@@ -61,7 +61,7 @@ function handle()
 
             handle
         end
-        cusparseSetStream(thread_handles[tid], CUDA.stream_per_thread())
+        cusparseSetStream(thread_handles[tid], stream(per_thread=true))
     end
     something(@inbounds thread_handles[tid])
 end

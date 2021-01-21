@@ -5,7 +5,7 @@
 # multiple threads), using a GPU of your choice (with the ability to reset that device, or
 # use different devices on different threads).
 
-export context, context!, device, device!, device_reset!, deviceid, stream, stream_per_thread
+export context, context!, device, device!, device_reset!, deviceid, stream
 
 
 ## hooks
@@ -468,22 +468,22 @@ math_precision() =
 # XXX: is task local storage fast enough, or do we need a thread-local cache again?
 
 """
-    CUDA.stream()
-    CUDA.stream_per_thread()
+    stream([per_thread=false])
 
-Get the active stream for the currently executing task. For use with APIs that default to
-per-thread streams, which includes the CUDA API if used with CUDA.jl, the `stream()` version
-should be used. If the API does not default to per-thread streams, such as binary libraries
-like CUBLAS or CUDNN, use the `stream_per_thread()` version that explicitly defaults to
-`CuStreamPerThread` (if no other stream has been specified).
+Get the active stream for the currently executing task. This returns any stream explicitly
+set by the user, or the default global stream `CuDefaultStream()`.
+
+If you need the default stream to be different per-thread, for use with libraries that do
+not use per-thread APIs (i.e. without `ptsz` or `ptds` suffixes), set `per_thread` to `true`
+such that the default stream will be `CuStreamPerThread()`.`
 """
-function stream()
-    get(task_local_storage(), :CuStream, CuDefaultStream())::CuStream
-end
-
-@doc (@doc stream)
-function stream_per_thread()
-    get(task_local_storage(), :CuStream, CuStreamPerThread())::CuStream
+@inline function stream(; per_thread::Bool=false)
+    tls = task_local_storage()
+    if haskey(tls, :CuStream)
+        tls[:CuStream]::CuStream
+    else
+        per_thread ? CuStreamPerThread() : CuDefaultStream()
+    end
 end
 
 # reset the stream set in a library. meant to be implemented lazily, i.e. not actively

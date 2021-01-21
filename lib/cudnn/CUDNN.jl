@@ -69,7 +69,7 @@ function handle()
 
             handle
         end
-        cudnnSetStream(thread_handles[tid], CUDA.stream_per_thread())
+        cudnnSetStream(thread_handles[tid], stream(per_thread=true))
     end
     something(@inbounds thread_handles[tid])
 end

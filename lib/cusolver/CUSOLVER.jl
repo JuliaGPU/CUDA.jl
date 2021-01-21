@@ -45,7 +45,7 @@ function dense_handle()
 
             handle
         end
-        cusolverDnSetStream(thread_dense_handles[tid], CUDA.stream_per_thread())
+        cusolverDnSetStream(thread_dense_handles[tid], stream(per_thread=true))
     end
     something(@inbounds thread_dense_handles[tid])
 end
@@ -65,7 +65,7 @@ function sparse_handle()
 
             handle
         end
-        cusolverSpSetStream(thread_sparse_handles[tid], CUDA.stream_per_thread())
+        cusolverSpSetStream(thread_sparse_handles[tid], stream(per_thread=true))
     end
     something(@inbounds thread_sparse_handles[tid])
 end

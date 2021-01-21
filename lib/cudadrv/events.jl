@@ -41,7 +41,7 @@ Base.hash(e::CuEvent, h::UInt) = hash(e.handle, h)
 
 Record an event on a stream.
 """
-record(e::CuEvent, stream::CuStream=CUDA.stream()) =
+record(e::CuEvent, stream::CuStream=stream()) =
     cuEventRecord(e, stream)
 
 """
@@ -74,7 +74,7 @@ end
 Make a stream wait on a event. This only makes the stream wait, and not the host; use
 [`synchronize(::CuEvent)`](@ref) for that.
 """
-wait(e::CuEvent, stream::CuStream=CUDA.stream()) =
+wait(e::CuEvent, stream::CuStream=stream()) =
     cuStreamWaitEvent(stream, e, 0)
 
 """

@@ -38,7 +38,7 @@ end
 
 """
     launch(f::CuFunction; args...; blocks::CuDim=1, threads::CuDim=1,
-           cooperative=false, shmem=0, stream=CUDA.stream())
+           cooperative=false, shmem=0, stream=stream())
 
 Low-level call to launch a CUDA function `f` on the GPU, using `blocks` and `threads` as
 respectively the grid and block configuration. Dynamic shared memory is allocated according
@@ -51,7 +51,7 @@ This is a low-level call, prefer to use [`cudacall`](@ref) instead.
 """
 function launch(f::CuFunction, args::Vararg{Any,N}; blocks::CuDim=1, threads::CuDim=1,
                 cooperative::Bool=false, shmem::Integer=0,
-                stream::CuStream=CUDA.stream()) where {N}
+                stream::CuStream=stream()) where {N}
     blockdim = CuDim3(blocks)
     threaddim = CuDim3(threads)
     (blockdim.x>0 && blockdim.y>0 && blockdim.z>0) ||
@@ -103,7 +103,7 @@ end
 
 """
     cudacall(f::CuFunction, types, values...; blocks::CuDim, threads::CuDim,
-             cooperative=false, shmem=0, stream=CUDA.stream())
+             cooperative=false, shmem=0, stream=stream())
 
 `ccall`-like interface for launching a CUDA function `f` on a GPU.
 
@@ -144,7 +144,7 @@ end
 
 async_send(data::Ptr{Cvoid}) = ccall(:uv_async_send, Cint, (Ptr{Cvoid},), data)
 
-function launch(f::Base.Callable; stream::CuStream=CUDA.stream())
+function launch(f::Base.Callable; stream::CuStream=stream())
     cond = Base.AsyncCondition() do async_cond
         f()
         close(async_cond)

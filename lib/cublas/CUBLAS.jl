@@ -94,7 +94,7 @@ function handle()
             handle
         end
 
-        cublasSetStream_v2(thread_handles[tid], CUDA.stream_per_thread())
+        cublasSetStream_v2(thread_handles[tid], stream(per_thread=true))
     end
     something(@inbounds thread_handles[tid])
 end

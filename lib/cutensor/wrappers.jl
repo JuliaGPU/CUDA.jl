@@ -59,7 +59,7 @@ function elementwiseTrinary!(
         @nospecialize(gamma::Number),
         @nospecialize(C::DenseCuArray), Cinds::ModeType, opC::cutensorOperator_t,
         @nospecialize(D::DenseCuArray), Dinds::ModeType, opAB::cutensorOperator_t,
-        opABC::cutensorOperator_t; stream::CuStream=CUDA.stream_per_thread())
+        opABC::cutensorOperator_t)
     !is_unary(opA)    && throw(ArgumentError("opA must be a unary op!"))
     !is_unary(opB)    && throw(ArgumentError("opB must be a unary op!"))
     !is_unary(opC)    && throw(ArgumentError("opC must be a unary op!"))
@@ -80,7 +80,7 @@ function elementwiseTrinary!(
                                 Ref{scalar_type}(beta),  B, descB, modeB,
                                 Ref{scalar_type}(gamma), C, descC, modeC,
                                 D, descD, modeD,
-                                opAB, opABC, scalar_type, stream_per_thread())
+                                opAB, opABC, scalar_type, stream(per_thread=true))
     return D
 end
 
@@ -113,7 +113,7 @@ function elementwiseTrinary!(
                                Ref{scalar_type}(beta),  B, descB, modeB,
                                Ref{scalar_type}(gamma), C, descC, modeC,
                                D, descD, modeD,
-                               opAB, opABC, scalar_type, stream_per_thread())
+                               opAB, opABC, scalar_type, stream(per_thread=true))
     return D
 end
 
@@ -138,7 +138,7 @@ function elementwiseBinary!(
                               Ref{scalar_type}(alpha), A, descA, modeA,
                               Ref{scalar_type}(gamma), C, descC, modeC,
                               D, descD, modeD,
-                              opAC, scalar_type, stream_per_thread())
+                              opAC, scalar_type, stream(per_thread=true))
     return D
 end
 
@@ -163,7 +163,7 @@ function elementwiseBinary!(
                               Ref{scalar_type}(alpha), A, descA, modeA,
                               Ref{scalar_type}(gamma), C, descC, modeC,
                               D, descD, modeD,
-                              opAC, scalar_type, stream_per_thread())
+                              opAC, scalar_type, stream(per_thread=true))
     return D
 end
 
@@ -188,7 +188,7 @@ function elementwiseBinary!(
                               Ref{scalar_type}(alpha), A.data, descA, modeA,
                               Ref{scalar_type}(gamma), C.data, descC, modeC,
                               D.data, descD, modeD,
-                              opAC, scalar_type, stream_per_thread())
+                              opAC, scalar_type, stream(per_thread=true))
     return D
 end
 
@@ -206,7 +206,7 @@ function permutation!(
                         Ref{scalar_type}(alpha),
                         A, descA, modeA,
                         B, descB, modeB,
-                        scalar_type, stream_per_thread())
+                        scalar_type, stream(per_thread=true))
     return B
 end
 function permutation!(
@@ -223,7 +223,7 @@ function permutation!(
                         Ref{scalar_type}(alpha),
                         A, descA, modeA,
                         B, descB, modeB,
-                        scalar_type, stream_per_thread())
+                        scalar_type, stream(per_thread=true))
     return B
 end
 
@@ -281,7 +281,7 @@ function contraction!(
             cutensorContraction(handle(), plan_ref,
                                 Ref{scalar_type}(alpha), A, B,
                                 Ref{scalar_type}(beta),  C, C,
-                                workspace, sizeof(workspace), stream_per_thread())
+                                workspace, sizeof(workspace), stream(per_thread=true))
         end
     return C
 end
@@ -362,7 +362,7 @@ function reduction!(
                 Ref{T}(beta),  C, descC, modeC,
                         C, descC, modeC,
                 opReduce, typeCompute,
-                workspace, sizeof(workspace), stream_per_thread())
+                workspace, sizeof(workspace), stream(per_thread=true))
         end
 
     return C
