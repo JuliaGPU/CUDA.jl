@@ -488,7 +488,7 @@ such that the default stream will be `CuStreamPerThread()`.`
     if haskey(tls, :CuStream)
         tls[:CuStream]::CuStream
     else
-        per_thread ? CuStreamPerThread() : CuDefaultStream()
+        tls[:CuStream] = CuStream(; flags=STREAM_NON_BLOCKING)
     end
 end
 
