@@ -83,13 +83,6 @@ versions of their APIs (i.e. without a `ptsz` or `ptds` suffix).
 @inline CuStreamPerThread() = CuStream(convert(CUstream, 2), CuContext(C_NULL))
 
 """
-    synchronize([s::CuStream])
-
-Wait until a stream's tasks are completed.
-"""
-synchronize(s::CuStream=stream()) = cuStreamSynchronize(s)
-
-"""
     query(s::CuStream)
 
 Return `false` if a stream is busy (has task running or queued)
@@ -103,6 +96,19 @@ function query(s::CuStream)
         return true
     else
         throw_api_error(res)
+    end
+end
+
+"""
+    synchronize([s::CuStream]; blocking=true)
+
+Wait until a stream's tasks are completed. If `blocking` is true (the default), Julia will
+be asked to yield to any other scheduled task.
+"""
+function synchronize(s::CuStream=stream(); blocking::Bool=true)
+    # TODO: exponential back-off and sleep?
+    while !query(s)
+        blocking && yield()
     end
 end
 

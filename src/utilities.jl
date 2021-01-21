@@ -3,10 +3,9 @@
 
 Run expression `ex` and synchronize the GPU afterwards. By default, this is a CPU-friendly
 synchronization, i.e. it performs a blocking synchronization without increasing CPU load
-As such, this operation is preferred over implicit synchronization (e.g. when performing a
-memory copy) for high-performance applications.
-
 It is also useful for timing code that executes asynchronously.
+
+See also: [`synchronize`](@ref).
 """
 macro sync(ex...)
     # destructure the `@sync` expression
@@ -25,16 +24,9 @@ macro sync(ex...)
         end
     end
 
-    flags = EVENT_DISABLE_TIMING
-    if blocking
-        flags |= EVENT_BLOCKING_SYNC
-    end
-
     quote
-        local e = CuEvent($flags)
         local ret = $(esc(code))
-        record(e)
-        synchronize(e)
+        synchronize(; blocking=$(esc(blocking)))
         ret
     end
 end
