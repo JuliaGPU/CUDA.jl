@@ -344,6 +344,9 @@ function device_reset!(dev::CuDevice=device())
     devidx = deviceid(dev)+1
     device_context!(devidx, nothing)
 
+    # delete the currently-active stream (see comment in `stream()`)
+    delete!(task_local_storage(), (:CuStream, devidx))
+
     _atdevicereset(dev)
 
     return
@@ -479,6 +482,9 @@ such that the default stream will be `CuStreamPerThread()`.`
 """
 @inline function stream(; per_thread::Bool=false)
     tls = task_local_storage()
+    # NOTE: we key on the device index, because doing so on the context is expensive.
+    #       that however requires us to wipe the stream TLS entry upon device reset.
+    key = (:CuStream, device())
     if haskey(tls, :CuStream)
         tls[:CuStream]::CuStream
     else
